@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "event",
+  "id": "maze_survey_team",
+  "name": "迷宫测绘队",
+  "intro": "你在岔路口遇见了三名正在绘制地图的攀塔者。她们找到了一座藏有大量魔力结晶的迷宫，只是里面到处游荡着附魔拘束具。\n\n“要不要一起？找到的魔力平分。”\n\n领头的女人晃了晃手里的地图。\n\n“当然，你也可以自己进去。只要别被里面的东西缠住就好。”",
+  "allow_refuse": false,
+  "choices": [
+    {
+      "id": "solo",
+      "label": "【独自探险】魔瓶魔力＋100，随机佩戴2件中级2档拘束具",
+      "detail": "",
+      "reward": "none",
+      "hide_when_unavailable": true,
+      "effects": [
+        {
+          "op": "flask_mana_gain",
+          "amount": 100
+        },
+        {
+          "op": "install_random",
+          "templates": [
+            "rope",
+            "cord",
+            "belt",
+            "fine_belt",
+            "tape",
+            "cable_tie",
+            "eye_cloth",
+            "eye_tape",
+            "mouth_tape",
+            "mouth_band"
+          ],
+          "count": 2,
+          "grade": 2,
+          "tier": 2,
+          "locked": false,
+          "allow_links": false,
+          "wear_style": "animated"
+        }
+      ],
+      "report": "你拿着抄下来的路线独自走进迷宫，在深处找到了一整箱魔力结晶。蓝光不断涌入魔瓶，直到最后一块结晶彻底暗下去。\n\n返回时，两件藏在暗处的附魔拘束具突然扑了上来，紧紧缠住你的身体。等你带着装满魔力的瓶子走出迷宫，身上也已经多了两件甩不掉的新装备。",
+      "result_status": "success"
+    },
+    {
+      "id": "together",
+      "label": "【结伴而行】魔瓶魔力＋30",
+      "detail": "",
+      "reward": "none",
+      "effects": [
+        {
+          "op": "flask_mana_gain",
+          "amount": 30
+        }
+      ],
+      "report": "你跟着她们一同进入迷宫。有人辨认路线，有人引开游荡的拘束具，剩下的人负责收集沿途的魔力结晶。\n\n出来以后，领头的女人把属于你的那份魔力倒进魔瓶。\n\n“合作愉快。下次再碰见这种好地方，记得也叫上我们。”",
+      "result_status": "success"
+    }
+  ]
+}

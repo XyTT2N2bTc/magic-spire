@@ -1,0 +1,135 @@
+extends RefCounted
+
+# Read-only card wording, derived from the same face effects and eligibility data.
+const Rules=preload("res://data/card_rules.gd")
+const TERMS={
+ "innate":{"name":"固有","detail":"每场开始时，优先进入起始手牌。"},
+ "ethereal":{"name":"虚无","detail":"回合结束仍在手牌时消耗，优先于保留效果。"},
+ "drinking":{"name":"饮用","detail":"嘴部装备等级＋紧度取最高：0—2为1费，3—4为2费，5为3费，6无法饮用。上身严密度大于0时需要坐姿或躺姿；不判施法。"},
+ "hannya":{"name":"般若汤","detail":"当前等级不高于牌上等级时升1级，最高4级；同等级也升级。每级奖励本场只领一次。低级或满级时仅生成好汤。等级、属性及衍生牌保留至本场整备结束。复放不重复升级。"},
+
+ "evasion":{"name":"闪避","detail":"即将被施加拘束具时，消耗1层抵消1件。本场结束时清除。"},
+ "interrupt":{"name":"打断","detail":"使目标尚未执行的意图延后1回合。多段只打断一次，不与自带打断叠加。"},
+ "mouth":{"name":"嘴部施法","detail":"成功率受快感与口部拘束影响。"},
+ "hand":{"name":"手部施法","detail":"双手的手掌、手指须自由；施法动作教程可放宽为单手。"},
+ "hand_use":{"name":"手部使用条件","detail":"双手的手掌、手指须自由；施法动作教程可放宽为单手。"},
+ "none":{"name":"无部位要求","detail":"仅按快感值判定施法成功率。"},
+ "strain":{"name":"挣扎","detail":"受力量、蓄力和挣扎倍率影响。卡牌以卡面伤害的50%波及同位置其他拘束具，各自计算倍率。"},
+ "slip":{"name":"滑脱","detail":"受灵巧、蓄力和滑脱倍率影响；三档免疫。卡牌波及同大部位其他位置：各选最松的可滑脱装备1件，并列随机；基础为卡面伤害的50%，各自计算倍率。"},
+ "magic_slip":{"name":"魔法滑脱","detail":"无视三档滑脱免疫，仍受外层、肩带及链接限制。波及范围和选取方式同普通滑脱。"},
+ "charge":{"name":"蓄力","detail":"每层使一次主动挣扎、滑脱或体术基础伤害＋3。右键图标切换为下一次触发消耗全部层数。跨回合保留，本场结束最多保留2层；入狱清除。"},
+ "reserve_mana":{"name":"魔力预备","detail":"每层立即获得5点临时魔力，优先抵扣耗魔；整备结束最多保留20点，乌龟壳提高至30点；不能存瓶或购物，入狱清除。"},
+ "search":{"name":"检索","detail":"从抽牌堆抽取指定类型的牌。"},
+ "retain":{"name":"保留","detail":"选定手牌保留至下回合结束。"},
+ "auto_retain":{"name":"保留","detail":"回合结束不弃置。"},
+ "exhaust":{"name":"消耗","detail":"成功使用后，本场不再抽到。"},
+ "exhaust_hand":{"name":"消耗手牌","detail":"选择另一张手牌，本场不再抽到；不移除永久卡组中的牌。"},
+ "lower":{"name":"降紧","detail":"降低目标紧度，按比例减少耐久。"},
+ "unlock":{"name":"开锁","detail":"解除外露的锁，不减少耐久；连续开锁只付费、施法一次。"},
+ "follow_through":{"name":"顺延","detail":"目标解除后，剩余段数依次转向同部位→同大部位→同区域的最外层拘束具；同级随机，不跨区。"},
+ "replay":{"name":"复放","detail":"对原目标免费追加一次，魔法独立判定；不占火球次数，目标失效则跳过。"},
+ "power":{"name":"能力","detail":"持续至本场结束。"},
+ "levels":{"name":"束缚等级","detail":"上身或腿部综合受限程度（0—4级）。0级不等于各部位自由。"},
+ "upper_clear":{"name":"各部位紧度＝0","detail":"头部、颈肩、双臂双手均无拘束。"}
+}
+
+static func requirements(type: String, free: bool, names: Dictionary) -> Array:
+ var spec=Rules.SPECS[type]
+ var result=[]
+ if spec.get("drinking",false): result.append("饮用：受嘴部与姿势限制")
+ if spec.get("self_faces",{}).get("free" if free else "bound",{}).get("requires_hand",false): result.append("手部自由")
+ if Rules.face_casts(type,free): result.append("施法："+"或".join(spec.casting.parts.map(func(part):return Rules.CAST_PART_NAMES[part])))
+ elif spec.get("casting",{}).get("parts",[])==["hand"]: result.append("使用：手部")
+ if not free and spec.has("target_slots") and spec.target_slots!=Rules.FOLLOW_THROUGH_SLOTS:
+  var slots=spec.target_slots
+  var label="腿部" if slots==Rules.FOLLOW_THROUGH_REGIONS.legs else "／".join(slots.map(func(slot):return names[slot]))
+  result.append("目标："+label)
+ if free:
+  if spec.has("free_slots"): result.append("／".join(spec.free_slots.map(func(slot):return names[slot]))+"自由")
+  for region in spec.get("free_max_levels",{}):
+   var limit=spec.free_max_levels[region]
+   result.append(("上身" if region=="arms" else "腿部")+"束缚等级"+("＝0" if limit==0 else "≤"+str(limit)))
+ if spec.has("self_faces"):
+  var slots=spec.self_faces["free" if free else "bound"].get("free_slots",[])
+  if not slots.is_empty(): result.append(("上身各部位" if slots==Rules.UPPER_BODY_SLOTS else "／".join(slots.map(func(slot):return names[slot])))+"紧度＝0")
+ return result
+
+static func _effect_terms(ids: Array, effects: Array) -> void:
+ for effect in effects:
+  var op=effect.op
+  if op=="buff": _buff_terms(ids,Rules.BUFFS[effect.buff])
+  elif op=="draw" and effect.has("filter"): ids.append("search")
+  elif TERMS.has(op): ids.append(op)
+
+static func _buff_terms(ids: Array, buff: Dictionary) -> void:
+ if buff.get("interrupt",false): ids.append("interrupt")
+ if buff.has("replay"): ids.append("replay")
+ for key in ["turn_start_effects","spell_use_effects"]: _effect_terms(ids,buff.get(key,[]))
+ _effect_terms(ids,buff.get("mana_spent",{}).get("effects",[]))
+
+static func keywords(type: String, free: bool, traits: Dictionary) -> Array:
+ var spec=Rules.SPECS[type]
+ var ids=[]
+ if spec.get("drinking",false): ids.append("drinking")
+ if spec.has("hannya_stage"): ids.append("hannya")
+ for trait_id in ["innate","ethereal"]:
+  if traits.get(trait_id,false): ids.append(trait_id)
+ if spec.get("exhaust_hand",false): ids.append("exhaust_hand")
+ if Rules.face_casts(type,free): ids.append_array(spec.casting.parts)
+ elif spec.get("casting",{}).get("parts",[])==["hand"]: ids.append("hand_use")
+ if not Rules.free_effect(type,free) and TERMS.has(Rules.face_mode(type,free)): ids.append(Rules.face_mode(type,free))
+ if not free and spec.get("follow_through",false): ids.append("follow_through")
+ if spec.has("self_faces"):
+  var face=spec.self_faces["free" if free else "bound"]
+  if face.get("requires_hand",false): ids.append("hand_use")
+  _effect_terms(ids,face.get("effects",[]))
+  if face.has("buff"): _buff_terms(ids,Rules.BUFFS[face.buff])
+  if face.get("exhaust_hand",false): ids.append("exhaust")
+  if not face.get("free_slots",[]).is_empty(): ids.append("upper_clear")
+ else:
+  for key in (["free_effects"] if free else ["hit_effects","lowered_effects","destroyed_effects"]): _effect_terms(ids,spec.get(key,[]))
+ if spec.card_type=="power": ids.append("power")
+ if traits.get("exhaust",false): ids.append("exhaust")
+ if traits.get("retain",false): ids.append("auto_retain")
+ if free and spec.has("free_max_levels"): ids.append("levels")
+ var result=[];var seen=[]
+ for id in ids:
+  if id not in seen:
+   seen.append(id)
+   var term=TERMS[id].duplicate(true)
+   if id=="follow_through" and spec.get("follow_through_scope","region")=="body":
+    term.name="超级顺延"
+    term.detail="先按顺延处理；区域内无合法目标后，按手腕→口部／手指→其他部位寻找全身合法目标，同级随机。没有合法目标时结束。"
+   result.append(term)
+ return result
+
+static func mana_entries(type: String, free: bool, cost: float) -> Array:
+ var spec=Rules.SPECS[type]
+ var face=spec.get("self_faces",{}).get("free" if free else "bound",{})
+ var temporary=0.0
+ var effects=face.get("effects",[]) if spec.has("self_faces") else (spec.get("free_effects",[]) if free else [])
+ for effect in effects:
+  if effect.op=="reserve_mana": temporary+=Rules.amount(effect,spec)*Rules.RESERVE_MANA_VALUE
+ var entries=[]
+ for item in [{"kind":"cost","amount":cost},{"kind":"gain","amount":float(face.get("mana_gain",0))},{"kind":"temporary","amount":temporary}]:
+  if item.amount<=0: continue
+  var value=String.num(item.amount,2).trim_suffix(".0")
+  item.text=("−" if item.kind=="cost" else "+")+value
+  item.detail=("消耗"+value+"魔力，优先抵扣临时魔力。") if item.kind=="cost" else (("获得"+value+"点临时魔力。") if item.kind=="temporary" else "恢复"+value+"魔力，不超过上限。")
+  entries.append(item)
+ var per_card=float(face.get("exhaust_hand_batch",{}).get("mana_gain",0))
+ if per_card>0:
+  var value=String.num(per_card,2).trim_suffix(".0")
+  entries.append({"kind":"gain","amount":per_card,"text":"+"+value+"×","detail":"每消耗1张手牌，恢复"+value+"魔力，不超过上限。"})
+ return entries
+
+static func metadata(type: String, traits: Dictionary, names: Dictionary, mana_costs: Dictionary) -> Dictionary:
+ var result={"face_requirements":{},"face_keywords":{},"cast_faces":{},"face_mana":{},"face_names":{},"free_faces":{}}
+ for side in ["bound","free"]:
+  result.face_names[side]=Rules.face_name(type,side=="free")
+  result.free_faces[side]=Rules.free_effect(type,side=="free")
+  result.face_requirements[side]=requirements(type,side=="free",names)
+  result.face_keywords[side]=keywords(type,side=="free",traits)
+  result.cast_faces[side]=Rules.face_casts(type,side=="free")
+  result.face_mana[side]=mana_entries(type,side=="free",mana_costs[side])
+ return result

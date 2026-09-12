@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "kind": "event",
+  "id": "mysterious_woman_statue",
+  "name": "神秘女人的雕像",
+  "intro": "巨石之间立着一尊蓝石雕成的女人像。她容貌妩媚，身姿性感，唇边带着若有若无的笑意。\n\n她双手托着一只浅盘，盘中固定着一个湿润柔软的飞机杯；旁边还嵌着一枚不断渗出蓝光的魔力结晶。飞机杯与雕像内部的魔法纹路连在一起，显然会收走射入其中的精液。",
+  "start_stage": "offering",
+  "stages": [
+    {
+      "id": "offering",
+      "title": "选择",
+      "intro": "雕像安静地立在原处，浅盘中的飞机杯泛着湿润的微光。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "use_sleeve",
+          "label": "【使用飞机杯】高潮1次，移除1张牌",
+          "detail": "",
+          "availability": {
+            "kind": "no_chastity_lock",
+            "reason": "平板锁封住了肉棒，无法插进浅盘上的飞机杯。"
+          },
+          "reward": "none",
+          "next": "remove_card",
+          "effects": [
+            {
+              "op": "pressure",
+              "amount": 100,
+              "source": "浅盘里固定的飞机杯不断收紧吸吮，将肉棒里的精液榨进杯底"
+            }
+          ],
+          "report": "你扶住浅盘，将勃起的肉棒慢慢插进飞机杯。温热的内壁立刻裹紧棒身，一圈圈柔软凸起贴着龟头与冠沟来回套弄。\n\n雕像唇边的笑意似乎更深了一点。浅盘随即轻轻震动，杯内不断收紧吸吮，反复榨弄着整根肉棒，直到你浑身一颤，把精液尽数射进杯底。精液中储存的魔力顺着纹路流入雕像，只剩乳白液体从杯口缓缓溢出。",
+          "result_status": "success"
+        },
+        {
+          "id": "collect_mana",
+          "label": "【收集结晶中的魔力】魔瓶魔力＋30～60",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "random_amount",
+              "effect": "flask_mana_gain",
+              "minimum": 30,
+              "maximum": 60
+            }
+          ],
+          "report": "你将魔瓶靠近那枚蓝色结晶。渗出的微光被瓶口牵引，化作细流灌入瓶中，直到结晶重新暗淡下来。",
+          "result_status": "success"
+        },
+        {
+          "id": "leave",
+          "label": "【离开】绕过雕像",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你避开女人像含笑的目光，绕过浅盘继续前进。",
+          "result_status": "neutral"
+        }
+      ]
+    },
+    {
+      "id": "remove_card",
+      "title": "移除1张牌",
+      "intro": "选择1张要移除的牌。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "remove",
+          "label": "移除「{name}」",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "selector": {
+            "kind": "card",
+            "exclude_curses": false
+          },
+          "effects": [
+            {
+              "op": "remove_card",
+              "target": "$selected",
+              "name": "{name}"
+            }
+          ],
+          "report": "已移除「{name}」。",
+          "result_status": "success"
+        }
+      ]
+    }
+  ]
+}

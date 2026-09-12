@@ -1,0 +1,111 @@
+extends RefCounted
+const Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
+
+static func run(t) -> void:
+ var ui=t.ui
+ ui.game.state.wall_distance=2
+ ui.render();await t.frames()
+ t.check(ui.find_child("WallPosition",true,false).text=="距墙2格","WALL UI shows saved position")
+ var button=ui.find_child("WallMove_toward",true,false)
+ var rail=ui.find_child("BasicActionRail",true,false)
+ var sit=ui.find_child("Posture_sit",true,false)
+ t.check(button.text.contains("2格 / 1能量") and is_equal_approx(button.get_global_rect().position.x,sit.get_global_rect().position.x) and is_equal_approx(button.size.x,sit.size.x) and is_equal_approx(button.get_global_rect().end.y+4,sit.get_global_rect().position.y) and button.get_global_rect().position.y>rail.get_global_rect().end.y,"WALL UI movement aligns immediately above sitting, below the basic action rail")
+ t.check(ui.find_child("ActionSidebar",true,false).get_global_rect().end.y<button.get_global_rect().position.y,"WALL UI expanded log never covers movement control")
+ var before=ui.view.round
+ await Pointer.press(t,button)
+ t.check(ui.view.wall_position.at_wall and ui.view.energy==2 and ui.view.round==before,"WALL UI real click reaches wall without ending turn")
+ t.check(ui.find_child("WallPosition",true,false).text=="距墙0格" and ui.find_child("WallMove_away",true,false)==null,"WALL UI shows distance only and no extra away control")
+ await Pointer.press(t,ui.find_child("Posture_sit",true,false))
+ var movement=ui.find_child("WallMove_toward",true,false).get_global_rect()
+ var posture_panel=ui.find_child("PostureChoices",true,false)
+ t.check(movement.position.y>ui.find_child("BasicActionRail",true,false).get_global_rect().end.y and movement.end.y<=posture_panel.get_global_rect().position.y and posture_panel.get_children().all(func(control):return control.get_global_rect().end.y<=725),"WALL UI seated alternatives compact without covering the rail or end-turn control")
+ await Pointer.press(t,ui.find_child("Posture_stand_wall",true,false))
+ t.check(ui.view.posture=="stand" and ui.view.round==before and ui.view.energy==2,"WALL UI ascent allows further actions")
+ var away=ui.actions.select("wall_move",{"direction":"away"})[0]
+ ui.game.dispatch(away.id,ui.view.version);ui.render();await t.frames()
+ await Pointer.press(t,ui.find_child("Posture_sit",true,false))
+ t.check(not ui.view.wall_position.at_wall and ui.find_child("Posture_stand_wall",true,false)==null,"WALL UI leaving removes wall-only option")
+ await t.start_practice("StartShortGlovePractice")
+ before=ui.game.export_snapshot()
+ await t.inspect_body("neck")
+ var neck_text=t.visible_text(ui.find_child("EquipmentDetails",true,false))
+ t.check(neck_text.contains("脖颈") and neck_text.contains("左肩") and neck_text.contains("左肩带"),"BODY UI compact neck shows empty neck and real shoulder equipment")
+ t.check(ui.game.export_snapshot()==before,"BODY UI inspecting neck consumes nothing")
+ await t.capture("ui-106-neck-and-wall.png")
+ var card=ui.view.hand.filter(func(c):return c.type=="slip")[0]
+ if ui.card_faces.get(card.uid,card.draw_free):
+  await t.close_information()
+  await t.mouse_button(t.card_point(card.uid),MOUSE_BUTTON_RIGHT,true)
+  await t.mouse_button(t.card_point(card.uid),MOUSE_BUTTON_RIGHT,false)
+ await t.start_drag(card.uid,"neck")
+ var choices=ui._body_card_actions("neck",card.uid).filter(func(c):return c.valid and not c.payload.free)
+ t.check(not choices.is_empty(),"BODY shoulder drag reuses valid formal card candidates")
+ if not choices.is_empty():
+  var id=choices[0].payload.target
+  var durability=ui.game._equipment(id).durability
+  var index=await t.reveal_drop_target(choices[0].id)
+  await t.release_target(index)
+  t.check(ui.game._equipment(id).is_empty() or ui.game._equipment(id).durability<durability,"BODY real drag to shoulder damages the selected component")
+ await t.inspect_body("thigh")
+ var thigh_text=t.visible_text(ui.find_child("EquipmentDetails",true,false))
+ t.check(thigh_text.contains("大腿根") and thigh_text.contains("大腿中部") and thigh_text.contains("膝盖上方"),"BODY empty thigh compact list retains all three subsections")
+
+ await t.start_practice("Practice_prison_test")
+ ui.game.add_fixture("fingers",4);ui.game.add_fixture("toes",4);ui.game._gain_tool("shard")
+ var item=ui.game.state.items[0];ui.show_items=true;ui.selected_item=item.id;ui.render();await t.frames()
+ var install_menu=ui.find_child("ToolInstallMenu",true,false)
+ var install_scroll=install_menu.get_parent()
+ while not install_scroll is ScrollContainer: install_scroll=install_scroll.get_parent()
+ install_scroll.ensure_control_visible(install_menu);await t.frames()
+ if ui.selected_item_slot!="@install": await Pointer.press(t,install_menu)
+ t.check(t.visible_text(ui.find_child("InformationDrawer",true,false)).contains("可用部位：嘴部"),"MOUTH UI announces actual mouth installation route")
+ var install=ui.actions.find("item",{"kind":"item_install","item":item.id,"mount":"foot_wall"})
+ t.check(ui.candidate_buttons[install.id].text.begins_with(install.label) and not t.visible_text(ui.find_child("InformationDrawer",true,false)).contains("低位"),"MOUTH UI compact installation uses the formal location label instead of a second height label")
+ await t.capture("ui-tool-installation-options.png")
+ t.check(await t.click("item_install",{"item":item.id,"mount":"foot_wall"}),"MOUTH UI existing item button installs using free mouth")
+ await t.close_information()
+ t.check(ui.view.energy==2 and ui.game._item(item.id).uses==3 and ui.find_child("PrisonSite_tool_"+item.id,true,false)!=null,"MOUTH UI install spends one energy and creates real mounted location")
+ if not ui.action_log_open: await Pointer.press(t,ui.find_child("OpenActionLog",true,false))
+ t.check(t.visible_text(ui.find_child("ActionSidebar",true,false)).contains("用嘴部"),"MOUTH UI action log names the operation")
+ await t.capture("ui-121-mouth-installation.png")
+
+ await height_interaction(t)
+ await little_pig(t)
+
+static func little_pig(t) -> void:
+ var ui=t.ui
+ ui.restart(42);ui.game.state.wall_distance=3;ui.game.state.posture="sit"
+ ui.game.RelicEffects.gain(ui.game,"little_pig");ui.render();await t.frames()
+ t.check(ui.find_child("WallPosition",true,false).text=="距墙3格" and ui.find_child("Posture_stand_wall",true,false)!=null,"PIG UI shows real distance beside supported ascent option")
+ await Pointer.press(t,ui.find_child("Posture_stand_wall",true,false))
+ t.check(ui.view.posture=="stand" and ui.view.wall_position.at_wall and ui.game.state.wall_distance==3,"PIG UI actual ascent preserves position and virtual support")
+ t.check(ui.view.statuses.any(func(row):return row.id=="against_wall" and row.source=="一只小猪" and row.duration.contains("持有遗物")),"PIG UI status names persistent relic support")
+
+static func height_interaction(t) -> void:
+ var ui=t.ui
+ await t.start_practice("Practice_prison_test")
+ preload("res://tests/prison_cases.gd").clear_fixture(ui.game)
+ ui.game._gain_tool("shard")
+ var calf=ui.game._install_template("rope","calf",4,10,false,"fixture",1,-1,0,"mid_calf")
+ var foot=ui.game.add_fixture("foot",8)
+ var item=ui.game.state.items[0].id
+ ui.render();await t.frames()
+ await preload("res://tests/exploration_ui_cases.gd").open_details(t,"place_0")
+ var detail=ui.find_child("PrisonLocationDetails",true,false)
+ t.check(t.visible_text(detail).contains("脚踝、脚掌、脚趾") and not t.visible_text(detail).contains("1.4米") and not t.visible_text(detail).contains("高位") and t.visible_text(detail).contains("空闲"),"HEIGHT UI wall shows reachable body parts and vacancy without height jargon")
+ t.check(await t.click("item_install",{"item":item,"mount":"high_wall"}),"HEIGHT UI lying toe route installs high from site secondary page")
+ t.check(ui.prison_detail=="place_0" and t.visible_text(ui.find_child("PrisonLocationDetails",true,false)).contains("已占用"),"HEIGHT UI installation keeps current secondary page and refreshes occupation")
+ await Pointer.press(t,ui.find_child("PrisonDetailsBack",true,false))
+ await preload("res://tests/exploration_ui_cases.gd").open_details(t,"tool_"+item)
+ detail=ui.find_child("PrisonLocationDetails",true,false)
+ t.check(detail.find_child("ToolTarget_"+foot.id,true,false)==null and t.visible_text(detail).contains("伤害时触发"),"HEIGHT UI installed detail explains passive trigger without active cutting")
+ t.check(ui.game.InstalledTools.reason(ui.game,ui.game._item(item),foot)=="" and ui.game.InstalledTools.reason(ui.game,ui.game._item(item),calf)!="","HEIGHT UI distinguishes high-reaching foot from mid-only calf")
+ await t.capture("ui-122-fixed-height-targets.png")
+ t.check(await t.trigger_installed_tool(foot.id,item),"HEIGHT UI card action damages only selected equipment and spends one charge")
+ t.check(ui.prison_detail=="tool_"+item,"HEIGHT UI tool location remains open after card trigger")
+ t.check(await t.click("item_retrieve",{"item":item}) and ui.game._item(item).mount=="carry","HEIGHT UI high toe retrieval uses same source and height rules")
+ await t.start_practice("Practice_head_harness")
+ t.check(await t.click("posture",{"dest":"sit","wall":false}),"HEIGHT UI actual seated posture can reach mid hook")
+ await Pointer.press(t,ui.find_child("OpenRestHook",true,false))
+ t.check(t.visible_text(ui.find_child("InformationDrawer",true,false)).contains("肩部") and not t.visible_text(ui.find_child("InformationDrawer",true,false)).contains("0.8米"),"HEIGHT UI hook explains current body reach without height numbers")
+ await t.capture("ui-123-mid-height-hook.png")

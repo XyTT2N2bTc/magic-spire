@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 320 320">
+ <g stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M64 82 92 193m162-111-29 111M90 67 103 207m125-140-6 140" fill="none" stroke="#7cb8bb"/>
+ <path d="m51 76 49-17m-36-8 24 35m132-27 49 17m-13-25-24 35" stroke="#edbc71" stroke-width="7"/>
+ <path d="m139 221-11 68h24l9-48 4 48h24l-9-70" fill="#24313b" stroke="#ba9862"/>
+ <path d="m120 286-4 13h35l1-13m15 0 1 13h36l-15-13" fill="#24313b" stroke="#edbc71"/>
+ <path d="M125 95c-32 4-50 39-60 66l25 10 32-42-17 134 52-23 56 23-18-134 32 42 25-10c-10-27-28-62-60-66Z" fill="#603e52" stroke="#b68d73"/>
+ <path d="m133 99 27 37 26-37-12 98h-29Z" fill="#213b43" stroke="#edbc71"/>
+ <path d="m133 104-15 88 36 35m31-122 13 87-32 35" fill="none" stroke="#bb855f"/>
+ <path d="M74 151 61 129l-15 7 17 38 23-8m157-15 13-22 15 7-17 38-23-8" fill="#bd9b7d" stroke="#edbc71"/>
+ <path d="m44 136 2-23 9-2 8 18m208 7-2-23-9-2-8 18" fill="#bd9b7d" stroke="#edbc71"/>
+ <path d="M139 77v26l21 20 22-20V77" fill="#c1a484" stroke="#edbc71"/>
+ <path d="M128 46c0-32 66-32 66 0l-5 33-28 20-29-20Z" fill="#e5ceb0" stroke="#ad8c62"/>
+ <path d="M131 61c11-9 17-5 28 3 11-8 18-12 30-3l-6 15-22 13-25-13Z" fill="#263b43" stroke="#7cb8bb"/>
+ <path d="m138 66 12 3m20 0 12-3" stroke="#a4ddd2" stroke-width="4"/>
+ <path d="m117 45 9-29 34 13 35-13 9 29-44 9Z" fill="#3c3448" stroke="#edbc71"/>
+ <path d="M117 44h87" stroke="#edbc71" stroke-width="6"/>
+ <path d="m155 18 5-10 5 10-5 8Z" fill="#96cecb" stroke="none"/>
+ <path d="M125 201h68v13h-68Z" fill="#8d6b46" stroke="#edbc71"/>
+ <path d="m155 200 10 0v16h-10Z" fill="#263b43" stroke="#edbc71"/>
+ <circle cx="93" cy="213" r="10" fill="#ba8e54" stroke="#edbc71"/>
+ <path d="m93 224-4 20m-8-13 22 4m-15 9-9 17m10-17 9 17" fill="none" stroke="#edbc71" stroke-width="5"/>
+ <circle cx="226" cy="209" r="10" fill="#ba8e54" stroke="#edbc71"/>
+ <path d="m226 220 3 20m-15-10 26-3m-11 13-8 18m8-18 10 15" fill="none" stroke="#edbc71" stroke-width="5"/>
+ </g>
+</svg>

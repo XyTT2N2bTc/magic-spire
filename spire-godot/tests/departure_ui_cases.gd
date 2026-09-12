@@ -1,0 +1,24 @@
+extends RefCounted
+const Click=preload("res://tests/interface_ui_cases.gd")
+const Cases=preload("res://tests/departure_cases.gd")
+
+static func run(t) -> void:
+ var ui=t.ui
+ ui.game_factory=preload("res://core/game.gd");ui.restart(42);await t.frames()
+ var before=ui.game.export_snapshot()
+ t.check(ui.view.phase=="departure" and ui.find_child("HeaderFloor",true,false).text=="第0层" and ui.find_child("DepartureOption_3",true,false)!=null,"OPENING UI shows floor zero and four categories")
+ t.check(ui.view.reward_panel.entries[3].detail.contains("Boss") and ui.view.reward_panel.entries[3].label=="初始遗物交换","OPENING UI fourth slot always describes starter exchange")
+ await t.capture("ui-departure.png")
+ await Click.press(t,"OpenMap")
+ t.check(ui.show_route and ui.find_child("TowerRoute",true,false)!=null and ui.game.export_snapshot()==before,"OPENING UI map preview has no cost or reroll")
+ await Click.press(t,"OpenMap")
+ t.check(not ui.show_route and ui.find_child("DepartureOption_0",true,false)!=null and ui.game.export_snapshot()==before,"OPENING UI map returns to same four options")
+ t.check(await t.click("departure",{"op":"skip"}) and ui.view.phase=="map","OPENING UI skip enters actual route")
+ ui.game=Cases.fixture("transform");ui._reset_interface(ui.game.get_view());ui.render();await t.frames()
+ t.check(await t.click("departure",{"op":"choose","option":"transform"}) and ui.find_child("DepartureCards",true,false)!=null and ui.find_child("DepartureContinue",true,false)==null,"OPENING UI transform opens card picker with no skip")
+ await t.capture("ui-departure-cards.png")
+ t.check(await t.click("departure",{"op":"card"}) and ui.game.state.departure.stage=="done" and ui.view.reward_panel.destination.contains("变化为"),"OPENING UI card click performs actual transformation and shows result")
+ t.check(await t.click("departure",{"op":"finish"}) and ui.view.phase=="map","OPENING UI result confirmation leaves opening")
+ ui.game=Cases.fixture("wrist");ui._reset_interface(ui.game.get_view());ui.render();await t.frames()
+ t.check(await t.click("departure",{"op":"choose","option":"wrist"}) and ui.game.state.equipment.size()==1 and ui.view.reward_panel.destination.contains("中级、紧度3、无锁"),"OPENING UI wrist option installs medium unlocked tier-three rope")
+ ui.game_factory=preload("res://tests/game_fixture.gd")

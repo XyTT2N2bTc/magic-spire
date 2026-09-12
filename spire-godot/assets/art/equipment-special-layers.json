@@ -1,0 +1,64 @@
+{
+  "bound_crop": [
+    390,
+    90,
+    1130,
+    2304
+  ],
+  "sources": {
+    "flat_lock": {
+      "path": "C:\\Users\\16563\\Downloads\\00098-287934876.png",
+      "sha256": "2B547F536DB90066BF234E7BD5D0C021752C6C5D9845C795F3FE3F23F0351EDB"
+    },
+    "unlocked": {
+      "path": "C:\\Users\\16563\\AppData\\Local\\Temp\\codex-clipboard-ad3a8e42-d718-474b-8d1b-ee2ba8b83858.png",
+      "sha256": "23E76BA8FA2E76B3F55B39B2010936C66A25F4CACC9369CC4A6AE2AAE5E1DEA5"
+    },
+    "reinforced": {
+      "path": "C:\\Users\\16563\\Downloads\\QQ图片20260911235818.png",
+      "sha256": "AA382F9264E1AABF5AAB25F0C0EF06C713617C8B84AA413C0979F67B0111F4F0"
+    },
+    "urethral_rod": {
+      "path": "C:\\Users\\16563\\Downloads\\QQ图片20260911234734.png",
+      "sha256": "4D7052A243A9548FF75DBBC3188E1AED1ADD8B1AB68BAEC17B525EE30C93752B"
+    }
+  },
+  "flat_lock": {
+    "texture": "res://assets/art/equipment-body-flat-lock-v1.png",
+    "thigh_textures": {
+      "bound": "res://assets/art/equipment-leg-thigh_root-flat-lock-v1.png",
+      "free": "res://assets/art/equipment-leg-thigh_root-flat-lock-free-v1.png"
+    },
+    "source_pair": [
+      "flat_lock",
+      "unlocked"
+    ]
+  },
+  "layers": [
+    {
+      "id": "flat_lock_reinforcement",
+      "texture": "res://assets/art/equipment-overlay-flat-lock-reinforcement-v1.png",
+      "origin": [
+        656,
+        928
+      ],
+      "source_pair": [
+        "unlocked",
+        "reinforced"
+      ],
+      "note": "flat-lock replacement removed before extracting the reinforcement"
+    },
+    {
+      "id": "urethral_rod",
+      "texture": "res://assets/art/equipment-overlay-urethral-rod-v1.png",
+      "origin": [
+        873,
+        1147
+      ],
+      "source_pair": [
+        "reinforced",
+        "urethral_rod"
+      ]
+    }
+  ]
+}

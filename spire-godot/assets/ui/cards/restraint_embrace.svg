@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">
+ <defs>
+  <radialGradient id="glow"><stop stop-color="#7ed9d2" stop-opacity=".28"/><stop offset="1" stop-color="#182731" stop-opacity="0"/></radialGradient>
+  <linearGradient id="card" x2="1" y2="1"><stop stop-color="#395b69"/><stop offset="1" stop-color="#192b36"/></linearGradient>
+  <linearGradient id="band" x2="1" y2="1"><stop stop-color="#ecce8c"/><stop offset=".5" stop-color="#bd9457"/><stop offset="1" stop-color="#75603f"/></linearGradient>
+ </defs>
+ <ellipse cx="160" cy="89" rx="132" ry="85" fill="url(#glow)"/>
+ <ellipse cx="160" cy="155" rx="87" ry="9" fill="#0b1923"/>
+ <g stroke="#8abdc8" stroke-width="2">
+  <rect x="103" y="38" width="70" height="104" rx="5" fill="url(#card)" transform="rotate(-19 138 90)"/>
+  <rect x="146" y="35" width="70" height="104" rx="5" fill="url(#card)" transform="rotate(17 181 87)"/>
+ </g>
+ <path d="M177 57l15 29-15 26-15-26z" fill="#8cded4" stroke="#d2f2db" stroke-width="2"/>
+ <path d="M98 66C61 87 83 143 140 140c30-2 36-40 69-46 32-6 44 15 23 35M215 122c-22 35-71 31-87 3-19-36-45-21-32 7" fill="none" stroke="#4b4132" stroke-width="14" stroke-linecap="round"/>
+ <path d="M98 66C61 87 83 143 140 140c30-2 36-40 69-46 32-6 44 15 23 35M215 122c-22 35-71 31-87 3-19-36-45-21-32 7" fill="none" stroke="url(#band)" stroke-width="9" stroke-linecap="round"/>
+ <path d="M89 88l9-7m-7 27 8-8m7 29 5-9m19 17 1-9m30-9-8-6m35-10-5-8m33 3 1-8" stroke="#f3d99c" stroke-width="2"/>
+ <path d="M65 47v16m-8-8h16M242 64v12m-6-6h12" stroke="#86d6d1" stroke-width="2"/>
+ <path d="M128 25l4 7-4 7-4-7M251 126l4 7-4 7-4-7" fill="#d7b776"/>
+</svg>

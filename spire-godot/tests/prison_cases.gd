@@ -1,0 +1,569 @@
+extends RefCounted
+const Game=preload("res://tests/game_fixture.gd")
+const Guard=preload("res://core/guard.gd")
+const Spatial=preload("res://tests/exploration_fixture.gd")
+const B=preload("res://data/balance.gd")
+
+static func intake(t, security: int=1):
+ var g=Game.new(42,true,"guard")
+ g.state.security=security-1
+ Guard.capture(g,g.state.enemies[0])
+ t.check(t.action(g,"prison",{"action":"enter"}).ok,"PRISON formal enter after actual capture")
+ return g
+
+static func clear_fixture(g) -> void:
+ g.state.equipment=[]; g.state.composites=[]; g.state.links=[]
+ g.state.prison.baseline=[]
+ g.state.special_equipment=[];g.state.prison.special_baseline=[]
+
+static func inspect(t,g) -> void:
+ var left=g.state.prison.left
+ for i in range(left): t.check(t.action(g,"end").ok,"PRISON timer spends a real completed player turn")
+ t.check(g.state.phase=="inspection" and g.state.prison.stage=="arrival" and g.state.prison.left==0,"PRISON exact countdown reaches arrival without drawing another hand")
+
+static func exit_to_route(t,g) -> void:
+ Spatial.at_site(g,"door");g.state.prison.key=true
+ t.action(g,"prison",{"action":"key"})
+ t.check(t.action(g,"prison",{"action":"door_exit"}).ok,"PRISON formal door escape opens exterior route")
+
+static func travel_route(t,g,target: String) -> void:
+ t.check(t.action(g,"depart",{"room":target}).ok,"PRISON route departure "+target)
+ while g.state.phase=="travel": t.check(t.action(g,"travel_step").ok,"PRISON route movement uses ordinary travel")
+
+static func escape_route_cases(t) -> void:
+ var Saves=preload("res://tests/persistence_cases.gd")
+ for level in range(1,5):
+  var g=intake(t,level);clear_fixture(g);g.state.posture="stand"
+  var original_seed=g.state.seed
+  exit_to_route(t,g)
+  t.check(g.state.rooms==g.Tower.prison_route(level) and g.state.map_region=="prison" and g.state.seed==original_seed and g.get_view().map_name=="监狱","PRISON exterior is a three-node fixed route and does not reseed early")
+  var before=g.export_snapshot()
+  var view=g.get_view();g.candidates()
+  t.check(g.state==before and preload("res://tests/architecture_cases.gd").shared(view,{"state":g.state})=="","PRISON route queries preserve state and expose no writable state containers")
+  t.check(not t.action(g,"depart",{"room":"prison_gate"}).ok and g.state==before,"PRISON cannot skip rest point")
+  if level==2:
+   var saved=Saves.roundtrip(t,g,"prison route start")
+   Saves.step_both(t,g,saved,"depart",{"room":"prison_rest"})
+   saved=Saves.roundtrip(t,g,"prison route mid-travel")
+   while g.state.phase=="travel": Saves.step_both(t,g,saved,"travel_step")
+  else: travel_route(t,g,"prison_rest")
+  t.check(g.state.phase=="rest_choice" and t.action(g,"rest_begin").ok and g.state.rest_left==6 and g.state.hook_uses==B.REST_HOOK_USES,"PRISON route reuses rest selection before six actual turns")
+  t.action(g,"finish_rest")
+  travel_route(t,g,"prison_gate")
+  t.check(g.state.enemies.size()==level and g.state.enemies.all(func(e):return e.type=="guard" and e.hp==90) and g.room_data(g.state.room).requires_defeat,"PRISON final battle uses exactly the current security count of full-health guards")
+  if level==2:
+   var stable=g.export_snapshot();var invalid=stable.duplicate(true)
+   invalid.rooms[-1].encounter_repeats=1
+   t.check(not g.restore_snapshot(invalid).ok and g.export_snapshot()==stable,"PRISON snapshot rejects a changed guard count atomically")
+   Saves.roundtrip(t,g,"prison exit battle")
+  var reward_before=g.state.reward_count
+  # Only shorten health; real attacks, action costs and group-victory detection run.
+  for enemy in g.state.enemies: enemy.hp=1.0
+  while g.state.phase=="battle":
+   var attack=preload("res://tests/route_driver.gd").attack(g)
+   if attack.is_empty(): t.action(g,"end")
+   else: t.check(g.dispatch(attack.id,g.state.version).ok,"PRISON route guard defeated with formal attack")
+  t.check(g.state.phase=="reward" and g.state.reward_count==reward_before+1 and g.state.seed==original_seed,"PRISON all guards yield one reward and wait before new seed")
+  var equipment=g.state.equipment.duplicate(true);var special=g.state.special_equipment.duplicate(true)
+  var relics=g.state.relics.duplicate();var mana=g.state.mana;var pressure=g.state.pressure
+  var deck_count=g.state.deck.size();var slot=g.state.save_slot
+  var drop_chance=g.state.item_drop_chance
+  if level==1:
+   while g.state.items.size()<=g.item_capacity(): g._gain_tool("shard")
+  var pick=t.find_action(g,"reward",{"type":g.state.reward_options[0]})
+  var saved=Saves.roundtrip(t,g,"prison exit reward") if level==2 else null
+  if saved!=null: Saves.step_both(t,g,saved,"reward",pick.payload)
+  else: t.check(g.dispatch(pick.id,g.state.version).ok,"PRISON final reward claimed")
+  if saved!=null: Saves.step_both(t,g,saved,"reward",{"type":"skip"})
+  else: t.check(t.action(g,"reward",{"type":"skip"}).ok,"PRISON continue after final reward")
+  if level==1:
+   t.check(g.state.phase=="pack" and g.state.seed==original_seed,"PRISON excess inventory is sorted before reseeding")
+   while g.carried_items()>g.item_capacity(): t.action(g,"item_discard",{"item":g.state.items[0].id})
+   t.action(g,"finish_pack")
+  t.check(g.state.phase=="map" and g.state.room=="tower_bottom" and g.state.map_region=="tower" and g.state.seed!=original_seed and g.state.tower_generation==1,"PRISON rewarded victory returns directly to a genuinely new seeded tower")
+  t.check(g.state.item_drop_chance==drop_chance and g.state.rng.size()==g.B.RNG_SALTS.size() and g.state.rng.values().all(func(value):return value==0),"PRISON same-act reseeding preserves drop chance and resets every registered random domain")
+  t.check(g.state.deck.size()==deck_count+1 and g.state.equipment==equipment and g.state.special_equipment==special and g.state.relics==relics and g.state.mana==minf(g.state.mana_max,mana+10) and g.state.pressure==pressure and g.state.security==level and g.state.save_slot==slot,"PRISON exit reward closes battle once, preserving character and save ownership")
+  t.check(g.state.completed_rooms.is_empty() and g.state.traversed_edges.is_empty() and g.state.journey.is_empty() and g.state.last_strong_group=="" and g.state.travel_turns==0 and g.validate()=="","PRISON fresh tower clears route progress and strong-pool history")
+  before=g.export_snapshot()
+  t.check(not g.dispatch(pick.id,pick.version if pick.has("version") else 1).ok and g.state==before,"PRISON repeated reward cannot reseed or grant another card")
+  if saved!=null: t.check(g.state.seed==saved.state.seed and g.state.rooms==saved.state.rooms,"PRISON restored reward produces the same new tower")
+  Saves.roundtrip(t,g,"new tower after prison")
+ # Losing the exterior battle re-enters the ordinary capture loop at higher security.
+ var g=intake(t);clear_fixture(g);g.state.posture="stand";exit_to_route(t,g)
+ travel_route(t,g,"prison_rest");t.action(g,"rest_begin");t.action(g,"finish_rest");travel_route(t,g,"prison_gate")
+ var reward_before=g.state.reward_count
+ g.state.guard_bind={"progress":100.0,"sources":{"guard":{"enemy":g.state.enemies[0].id,"energy":0}}}
+ g.state.enemies[0].intent={"kind":"capture","text":"执行收押","delayed":false}
+ t.action(g,"end")
+ t.check(g.state.phase=="captured" and g.state.security==2 and g.state.reward_count==reward_before and g.validate()=="","PRISON route defeat recaptures once with no reward")
+ t.action(g,"prison",{"action":"enter"});clear_fixture(g);exit_to_route(t,g)
+ t.check(g.state.rooms==g.Tower.prison_route(2) and g.validate()=="","PRISON next escape rebuilds route with the increased guard count")
+
+static func run(t) -> void:
+ for security in [0,4]:
+  var surrender_game=Game.new(42)
+  surrender_game.state.security=security;surrender_game.state.mana=37
+  surrender_game._gain_tool("shard")
+  var candidate=t.find_action(surrender_game,"surrender")
+  var before_surrender=surrender_game.export_snapshot()
+  t.check(not surrender_game.dispatch(candidate.id,surrender_game.state.version-1).ok and surrender_game.state==before_surrender,"SURRENDER stale confirmation changes nothing")
+  t.check(surrender_game.dispatch(candidate.id,surrender_game.state.version).ok,"SURRENDER formal candidate commits capture and intake")
+  t.check(surrender_game.state.phase==("prison_end" if security==4 else "prison") and surrender_game.state.security==security+1 and surrender_game.state.items.is_empty(),"SURRENDER immediately completes jail entry or high-security ending")
+  t.check(surrender_game.restart_snapshot()==surrender_game.state and not surrender_game.candidates().any(func(c):return c.payload.kind=="surrender"),"SURRENDER checkpoints jail and cannot repeat outside battle")
+ var fresh=preload("res://core/game.gd").new(42)
+ t.check(fresh.state.items.size()==1 and fresh.state.items[0].type=="return_seal" and fresh.state.items[0].uses==1,"SEAL normal new game carries one single-use teleport scroll")
+ t.check(fresh.get_view().items[0].name=="传送符" and fresh.get_view().items[0].category=="卷轴","SEAL initial inventory uses renamed scroll presentation")
+ var restored=preload("res://core/game.gd").new(77)
+ t.check(restored.restore_snapshot(fresh.restart_snapshot()).ok and restored.state.items.size()==1,"SEAL scene restore never duplicates initial scroll")
+ patrol_period_cases(t)
+ escape_route_cases(t)
+ security_cases(t)
+ toy_inspection_cases(t)
+ practice_cases(t)
+ remaining_routes(t)
+ var g=intake(t)
+ t.check(g.state.phase=="prison" and g.state.energy==3 and g.state.hand.size()==5 and g.state.prison.left==16 and g.validate()=="","PRISON entry uses normal deck/resource boundary and actual cell")
+ var before=JSON.stringify(g.state)
+ var view=g.get_view(); view.prison.found.append("vent")
+ t.check(JSON.stringify(g.state)==before and not "vent" in g.state.prison.found,"PRISON readonly projection does not expose discovered pool order or aliases")
+ t.check(not view.prison.has("discoveries"),"PRISON hidden discovery order is not projected")
+ var twin=intake(t)
+ t.check(g.state.prison.discoveries==twin.state.prison.discoveries,"PRISON independent discovery shuffle is seed-reproducible")
+ var old_rng=g.state.rng.duplicate(true)
+ clear_fixture(g)
+ Spatial.collect(t,g)
+ t.check(g.state.prison.found.size()==3 and g.state.items.size()==2 and g.state.prison.discoveries.is_empty(),"PRISON finite arrival gives each tool once")
+ t.check(g.state.rng==old_rng,"PRISON free legs use no fall or slip randomness; layout stays frozen")
+ before=JSON.stringify(g.state)
+ var here=g.state.prison.space.sites.filter(func(site):return site.position==g.state.prison.space.position)[0]
+ t.check(not t.action(g,"prison",{"action":"explore","site":here.id}).ok and JSON.stringify(g.state)==before,"PRISON same-site repeat cannot farm tools or energy")
+ var glove=g._install_assembly("glove","short","fixture",2,2)
+ t.check(t.find_action(g,"prison",{"action":"explore"}).cost==g.wall_movement_profile().cost,"PRISON arm restrictions use shared wall movement fee")
+ g.state.composites=[]
+ g._install_template("rope","wrist",4,10,false,"fixture")
+ t.check(t.find_action(g,"prison",{"action":"explore"}).cost==g.wall_movement_profile().cost,"PRISON wrist restrictions use shared wall movement fee")
+ g._install_assembly("leg","toes","fixture")
+ t.check(t.find_action(g,"prison",{"action":"explore"}).cost==g.wall_movement_profile().cost,"PRISON leg restriction fee matches wall movement")
+
+ # Clean inspection preserves damage and carried tools, but exposed installed tools are confiscated.
+ g=intake(t); clear_fixture(g)
+ var belt=g._install_template("belt","ankle",2,10,true,"fixture")
+ g.state.prison.baseline=[belt.id]
+ g._gain_tool("shard"); g._gain_tool("saw"); g.state.items[1].mount="foot_wall";g.state.items[1].prison_position=g.state.prison.space.position.duplicate()
+ var exhausted=g.state.hand.pop_back(); g.state.exhaust.append(exhausted)
+ var energy=g.state.energy; var mana=g.state.mana
+ inspect(t,g)
+ t.check(g.state.exhaust.size()==1 and g.state.hand.is_empty() and g.state.mana==mana,"PRISON arrival does not restore exhaust or magic or begin a free turn")
+ t.check(g.candidates().filter(func(c):return c.payload.kind not in ["flask","item_discard"]).size()==2 and g.candidates().all(func(c):return c.payload.kind in ["prison","flask","item_discard"]),"PRISON inspection closes ordinary tools, posture and cards; personal flask remains available")
+ t.action(g,"prison",{"action":"inspect"})
+ t.check(g.state.prison.missing.is_empty() and g.state.exhaust.size()==1,"PRISON lower durability alone is not a missing item and result does not restore exhaust")
+ t.action(g,"prison",{"action":"accept"})
+ t.check(g._equipment(belt.id).durability==2 and g._equipment(belt.id).locked and g.state.prison.checks==1,"PRISON clean check does not repair or unlock worn equipment")
+ t.check(g.state.items.size()==1 and g.state.items[0].type=="shard" and g.state.exhaust.is_empty() and g.state.discard.any(func(c):return c.uid==exhausted.uid),"PRISON complete check confiscates exposed wall tool and restores each exhausted card to discard")
+ before=JSON.stringify(g.state)
+ t.check(not t.action(g,"prison",{"action":"accept"}).ok and JSON.stringify(g.state)==before,"PRISON cannot accept punishment or restore cards twice")
+ t.action(g,"prison",{"action":"resume"})
+ t.check(g.state.phase=="prison" and g.state.prison.left==16 and g.state.hand.size()==5 and g.state.energy==energy,"PRISON next segment starts one fresh player turn")
+
+ # Missing an actual component causes one atomic punishment, while vent progress is preserved.
+ g=intake(t,2); clear_fixture(g)
+ glove=g._install_assembly("glove","short","fixture",2,2)
+ var body=g._composite_body(glove)
+ g.state.prison.baseline=g.equipment_targets().map(func(e):return e.id)
+ var shoulder=glove.components.filter(func(e):return e.part=="left")[0]
+ shoulder.durability=0; g._cleanup()
+ g._gain_tool("shard");g._gain_tool("saw")
+ Spatial.mark_found(g,"vent");g.state.prison.vent_hits=1
+ inspect(t,g)
+ t.action(g,"prison",{"action":"inspect"})
+ t.check(g.state.prison.missing==[shoulder.id],"PRISON checks physical component identity, not just root count")
+ var count=g.state.equipment.size()
+ t.action(g,"prison",{"action":"accept"})
+ var additions=g.state.equipment.filter(func(e):return e.source=="prison")
+ t.check(g._equipment(body.id).durability==body.maximum and g.state.equipment.size()==count+3 and g.state.items.is_empty(),"PRISON one missing component adds three ordinary pieces and confiscates all tools")
+ t.check(additions.size()==3 and additions.all(func(e):return e.grade==2 and g.tier(e.durability,e.maximum)==2),"PRISON security two punishment applies medium tier-two ordinary roots")
+ t.check(g.state.security==2 and g.state.prison.vent_hits==1 and g.state.prison.baseline==g.equipment_targets().map(func(e):return e.id) and g.validate()=="","PRISON punishment does not increment security or reset vent, and updates actual baseline")
+ punishment_cases(t)
+
+ # The three public inspection nodes can each start resistance without hidden restoration.
+ for node in ["arrival","result","done"]:
+  g=intake(t); clear_fixture(g)
+  var card=g.state.hand.pop_back();g.state.exhaust.append(card)
+  inspect(t,g)
+  if node!="arrival": t.action(g,"prison",{"action":"inspect"})
+  if node=="done": t.action(g,"prison",{"action":"accept"})
+  var old_tick=g.state.tick
+  g.state.posture="stand" # Reward-flow fixture starts player-first, before the guard can equip anything.
+  t.check(t.action(g,"prison",{"action":"resist"}).ok and g.state.phase=="battle" and g.state.prison.resisting,"PRISON resistance starts at "+node)
+  t.check(g.state.exhaust.size()==(0 if node=="done" else 1) and g.state.tick==old_tick+1 and g.state.prison.left==0,"PRISON resistance pauses timer and preserves exhaust at "+node)
+  g.state.posture="stand";g.state.enemies[0].hp=1
+  t.action(g,"attack",{"type":"strike","enemy":g.state.enemies[0].id})
+  t.check(g.state.phase=="reward" and g.state.prison.key and not g.state.prison.resisting and g.state.reward_count==1,"PRISON resistance victory awards special key and one normal reward")
+  t.action(g,"reward",{"type":"skip"})
+  t.action(g,"finish_prepare")
+  t.check(g.state.phase=="prison" and g.state.prison.key and g.state.prison.left==0,"PRISON preparation returns to cell with patrol paused")
+  t.action(g,"end")
+  t.check(g.state.phase=="prison" and g.state.prison.left==0,"PRISON defeated patrol never restarts inspections during escape preparation")
+  Spatial.at_site(g,"door")
+  t.action(g,"prison",{"action":"key"})
+  g.state.posture="lie"
+  t.check(t.action(g,"prison",{"action":"door_exit"}).ok and g.state.room=="prison_start" and g.state.phase=="map","PRISON key route reaches independent route without a standing gate")
+
+ g=intake(t); inspect(t,g)
+ t.action(g,"prison",{"action":"resist"})
+ var e=g.state.enemies[0];g.state.guard_bind={"progress":100.0,"sources":{"guard":{"enemy":e.id,"energy":0}}};e.intent={"kind":"capture","text":"收押","delayed":false}
+ var original_ids=g.equipment_targets().map(func(x):return x.id)
+ t.action(g,"end")
+ t.check(g.state.phase=="captured" and g.state.security==2 and g.state.prison.is_empty() and original_ids.all(func(id):return not g._equipment(id).is_empty()),"PRISON failed resistance preserves gear and increases security exactly once")
+ t.action(g,"prison",{"action":"enter"})
+ t.check(g.state.prison.left==14 and g.state.exhaust.is_empty() and g.state.prison.found.is_empty(),"PRISON reentry resets finite discoveries and restores permanent deck at higher security")
+
+ # Door unlocking consumes the same actual card/reserves; speed is rechecked at exit.
+ g=intake(t); clear_fixture(g);Spatial.at_site(g,"door");g.state.posture="stand"
+ var card=t.hand_card(g,"unlock")
+ g.state.temporary_mana=5;g.state.pressure=70;g.state.energy=0
+ var c=t.find_action(g,"prison",{"action":"unlock"})
+ t.check(c.valid and c.cost==0 and c.mana==g._mana_cost(B.SPELL_COST),"PRISON door card uses zero bound energy and pressure-adjusted magic with actual reserves")
+ energy=g.state.energy;mana=g.state.mana
+ # Deterministic success fixture; the spell still uses the formal random gate.
+ for counter in range(10000):
+  var cast_rng=RandomNumberGenerator.new()
+  cast_rng.seed=int(g.state.seed)+g.B.RNG_SALTS.magic+counter*104729
+  if cast_rng.randi_range(0,g.B.CAST_ROLL_STEPS-1)<3600:
+   g.state.rng.magic=counter
+   break
+ t.check(g.dispatch(c.id,g.state.version).ok and g.state.prison.door_open and g.state.energy==energy and g.state.mana==mana-c.mana_payment.mana and g.state.temporary_mana==0,"PRISON door unlock consumes reserves magic and one real hand card without energy")
+ t.check(g.state.discard.any(func(x):return x.uid==card.uid) and not g.state.hand.any(func(x):return x.uid==card.uid),"PRISON door card remains in permanent deck and goes to discard")
+ # The following posture/exit scenario needs its own movement energy.
+ g.state.energy=2
+ var exit_candidate=t.find_action(g,"prison",{"action":"door_exit"})
+ var version=g.state.version
+ g.state.energy=3 # Door casting above proves zero-energy use; posture checks need their own energy.
+ t.action(g,"posture",{"dest":"sit","wall":false})
+ before=JSON.stringify(g.state)
+ t.check(not t.find_action(g,"prison",{"action":"door_exit"}).valid and not g.dispatch(exit_candidate.id,version).ok and JSON.stringify(g.state)==before,"PRISON changed posture invalidates stale exit; sitting speed cannot bypass door threshold")
+ t.action(g,"posture",{"dest":"stand","wall":false})
+ var old_route=JSON.stringify(g.state.rooms)
+ g.state.charge=2;g.state.next_energy=1;g.state.mana=51;g.state.pressure=37
+ g._gain_tool("shard");g._gain_tool("saw");g.state.items[1].mount="hand_wall";g.state.items[1].prison_position=g.state.prison.space.position.duplicate()
+ var original_deck=JSON.stringify(g.state.deck)
+ t.check(t.action(g,"prison",{"action":"door_exit"}).ok,"PRISON standing with open door escapes")
+ t.check(g.state.phase=="map" and g.state.room=="prison_start" and not g.state.practice and g.state.tower_generation==0 and old_route!=JSON.stringify(g.state.rooms),"PRISON escape opens prison route without prematurely reseeding tower")
+ t.check(g.state.mana==61 and g.state.pressure==37 and g.state.security==1 and g.state.charge==2 and g.state.next_energy==1 and JSON.stringify(g.state.deck)==original_deck,"PRISON escape retains prison-earned charge up to the cap while preserving safety, deck and other cross-battle buffs")
+ t.check(g.state.items.size()==1 and g.state.items[0].type=="shard" and g.state.completed_rooms.is_empty() and g.state.traversed_edges.is_empty() and g.validate()=="","PRISON escape leaves wall tools and old route history behind")
+ t.check(t.action(g,"depart",{"room":"prison_rest"}).ok,"PRISON exit route accepts its adjacent rest point")
+ while g.state.phase=="travel": t.action(g,"travel_step")
+ t.check(t.action(g,"rest_begin").ok and g.state.phase=="rest" and g.state.security==1 and g.state.energy==4 and g.state.next_energy==0,"PRISON selected rest consumes saved next-turn energy once")
+
+ # Vent uses the same legal seated kick profile, one hit per player turn.
+ g=intake(t);clear_fixture(g)
+ before=JSON.stringify(g.state)
+ t.check(not t.action(g,"prison",{"action":"vent_kick"}).ok and JSON.stringify(g.state)==before,"PRISON unseen vent cannot be kicked")
+ Spatial.collect(t,g);Spatial.at_site(g,"vent");g.state.posture="stand"
+ t.check(not t.find_action(g,"prison",{"action":"vent_kick"}).valid,"PRISON standing cannot reach vent with required seated kick")
+ g._install_template("rope","ankle",4,10,false,"fixture")
+ t.action(g,"posture",{"dest":"sit","wall":false})
+ t.action(g,"end")
+ g.state.charge=1
+ for i in range(3):
+  t.check(t.action(g,"prison",{"action":"vent_kick"}).ok,"PRISON bound seated legs can kick vent")
+  t.check(g.state.prison.vent_hits==i+1 and not t.find_action(g,"prison",{"action":"vent_kick"}).valid,"PRISON each hit records exact progress and cannot repeat same turn")
+  if i<2: t.action(g,"end")
+ t.check(g.state.charge==0 and g.state.posture=="sit","PRISON environmental kick consumes applicable charge once without inventing posture change")
+ g._gain_tool("shard");g._gain_tool("saw")
+ t.check(not t.find_action(g,"prison",{"action":"vent_exit"}).valid,"PRISON escape requires excess carried tools to be dealt with")
+ while g.carried_items()>g.item_capacity(): t.check(t.action(g,"item_discard",{"item":g.state.items[0].id}).ok,"PRISON drops each excess item before vent exit")
+ t.check(t.action(g,"prison",{"action":"vent_exit"}).ok and g.state.posture=="sit" and g.state.room=="prison_start","PRISON opened vent enters prison route without standing gate")
+
+ g=intake(t);clear_fixture(g)
+ g.state.prison.left=1;g.state.pressure=90
+ g.state.pressure_sources=[{"id":"clock_fixture","name":"牢房干扰","timing":"turn_end","amount":20.0,"room":"prison","equipment":""}]
+ t.action(g,"end")
+ t.check(g.state.phase=="inspection" and g.state.overload_energy==1 and not g.state.overloaded and g.validate()=="","PRISON overload on final turn reaches inspection once and preserves next-turn penalty")
+ t.action(g,"prison",{"action":"inspect"});t.action(g,"prison",{"action":"accept"});t.action(g,"prison",{"action":"resume"})
+ t.check(g.state.energy==2 and g.state.overload_energy==0,"PRISON next segment applies pending overload once")
+ g.state.pressure=95;g.state.pressure_sources[0].timing="strain"
+ var rope=g._install_template("rope","wrist",10,10,false,"fixture")
+ card=t.hand_card(g,"strain")
+ t.action(g,"card",{"uid":card.uid,"slot":"wrist","target":rope.id})
+ var overload_actions=g.candidates().filter(func(c):return c.payload.kind not in ["flask","item_discard"])
+ t.check(g.state.overloaded and overload_actions.size()==1 and overload_actions[0].payload.kind=="end","PRISON mid-turn overload closes exploration, ordinary tools and escapes")
+
+ g=intake(t,5)
+ t.check(g.state.phase=="prison_end" and g.candidates().is_empty() and g.validate()=="","PRISON safety five stops at explicit terminal, no endless impossible inspection cycle")
+ for safety in [3,4]:
+  g=intake(t,safety)
+  t.check(g.state.prison.left==B.PRISON_INTERVALS[safety-1],"PRISON higher security retains its shorter inspection interval")
+ g=intake(t);clear_fixture(g)
+ card=t.hand_card(g,"unlock")
+ var fingers=g._install_template("cord","fingers",4,10,false,"fixture")
+ t.check(not fingers.is_empty() and g.occupied("fingers"),"PRISON gesture fixture uses legal fine restraint")
+ before=JSON.stringify(g.state)
+ t.check(not t.action(g,"prison",{"action":"unlock"}).ok and JSON.stringify(g.state)==before,"PRISON door magic requires actual hand gestures and blocked use spends nothing")
+ # Resistance preparation must retain the ordinary capacity gate, including a non-practice run.
+ g=intake(t);clear_fixture(g);g.state.practice=false
+ inspect(t,g);g.state.posture="stand";t.action(g,"prison",{"action":"resist"})
+ g.state.posture="stand";g.state.enemies[0].hp=1
+ t.action(g,"attack",{"type":"strike","enemy":g.state.enemies[0].id})
+ t.action(g,"reward",{"type":"skip"})
+ for i in range(4): g._gain_tool("shard")
+ t.action(g,"finish_prepare")
+ t.check(g.state.phase=="pack" and g.state.prison.key and g.get_view().route.is_empty(),"PRISON resistance preparation uses capacity packing before resuming cell even outside practice")
+ while g.carried_items()>g.item_capacity():
+  t.check(t.action(g,"item_discard",{"item":g.state.items.filter(func(item):return item.mount=="carry")[0].id}).ok,"PRISON discards all excess items including actual battle drops")
+ t.check(t.action(g,"finish_pack").ok and g.state.phase=="prison" and g.state.prison.key,"PRISON valid packed inventory resumes cell instead of routing through old tower room")
+ g=intake(t);g.state.prison.discoveries.append(g.state.prison.discoveries[0])
+ before=JSON.stringify(g.state)
+ t.check(not t.action(g,"end").ok and JSON.stringify(g.state)==before,"PRISON invalid discovery state rolls back timer, card zones, resources and logs")
+
+static func remaining_routes(t) -> void:
+ var g=Game.new(42,true,"guard")
+ g.state.security=4
+ g._install_assembly("glove","long","fixture",3,3)
+ g._install_assembly("leg","toes","fixture",3,3)
+ g._install_template("mouth_band","mouth",8,10,true,"fixture")
+ var preserved=g.physical_pieces().duplicate(true)
+ Guard.capture(g,g.state.enemies[0])
+ t.check(g.state.phase=="captured" and not g.state.composites.any(func(r):return r.kind=="security"),"TERMINAL intake first shows retained equipment without premature fixture")
+ var entered=t.action(g,"prison",{"action":"enter"})
+ t.check(entered.ok and g.state.phase=="prison_end","TERMINAL formal entry installs fixed configuration: "+entered.get("error",""))
+ t.check(g.state.capture.has("terminal_equipment"),"TERMINAL records high-security physical equipment")
+ t.check(preserved.all(func(e):return g._equipment(e.id).template==e.template) and g.level("arms")==4 and g.level("legs")==4 and g.occupied("mouth") and g.occupied("eyes"),"TERMINAL prior closed structures retained with actual complete coverage")
+ t.check(g.equipment_targets().all(func(e):return e.grade==3 and e.maximum==24 and e.durability==24 and e.locked==g.Equipment.allows(e,"lock")),"TERMINAL actual highest grade, tightness and legal locks")
+ t.check(g.B.SLOTS.all(func(slot):return g._installation_reason(g.Equipment.default_template(slot),slot,3)!=""),"TERMINAL every legal ordinary slot filled or structurally closed")
+ t.check(g.validate()=="","TERMINAL ordinary capacity and closure rules still valid")
+ var before=g.state.duplicate(true)
+ t.check(g.candidates().is_empty() and not t.action(g,"end").ok and not t.action(g,"prison",{"action":"enter"}).ok and g.state==before,"TERMINAL no repeated intake or hidden turn loop")
+ var restored=Game.new(1)
+ t.check(restored.restore_snapshot(g.export_snapshot()).ok and restored.state.capture.terminal_equipment==g.state.capture.terminal_equipment,"TERMINAL snapshot retains full physical manifest")
+ var bad=g.export_snapshot();bad.capture.terminal_equipment.pop_back()
+ before=restored.state.duplicate(true)
+ t.check(not restored.restore_snapshot(bad).ok and restored.state==before,"TERMINAL incomplete manifest rejects atomically")
+ for seed_value in range(8):
+  g=Game.new(seed_value,true,"guard");g.state.security=4
+  Guard.capture(g,g.state.enemies[0])
+  t.check(t.action(g,"prison",{"action":"enter"}).ok and g.validate()=="" and g.level("arms")==4 and g.level("legs")==4,"TERMINAL lawful full configuration across intake seeds")
+
+ for pose in ["stand","sit","lie"]:
+  g=intake(t);clear_fixture(g)
+  Spatial.collect(t,g)
+  t.check(not g.state.items.any(func(i):return i.type=="return_seal"),"SEAL absent from active discovery generation")
+  g._gain_tool("return_seal") # Existing/deferred item fixture, not a generation source.
+  var seal=g.state.items.filter(func(i):return i.type=="return_seal")[0]
+  g.state.posture=pose;g.state.energy=0;g.state.mana=37;g.state.pressure=41
+  var equipment=g.state.equipment.duplicate(true)
+  var candidate=t.find_action(g,"item_use",{"item":seal.id,"target":"hero"})
+  t.check(candidate.valid and candidate.cost==0 and candidate.mana==0,"SEAL any posture zero-resource use under actual body rules")
+  var version=g.state.version
+  t.check(g.dispatch(candidate.id,version).ok and g.state.room=="prison_start" and g.state.phase=="map","SEAL formal use leaves cell but still requires the prison route")
+  t.check(g.state.mana==47 and g.state.pressure==41 and g.state.equipment==equipment and g.state.items.size()==2 and g._item(seal.id).is_empty() and g.state.save_slot=="practice","SEAL consumes itself, triggers special-battle end healing and preserves other resources/items/save origin")
+  before=g.state.duplicate(true)
+  t.check(not g.dispatch(candidate.id,version).ok and g.state==before,"SEAL stale repeated use cannot repeat escape or tower generation")
+ g=intake(t);clear_fixture(g)
+ g._gain_tool("return_seal")
+ var seal=g.state.items[0]
+ g._install_assembly("wrap","left","fixture",1,1)
+ t.check(t.find_action(g,"item_use",{"item":seal.id}).valid,"SEAL one free hand is sufficient")
+ g._install_assembly("wrap","right","fixture",1,1)
+ t.check(t.find_action(g,"item_use",{"item":seal.id}).valid,"SEAL scroll allows free toes with both hands blocked")
+ g.add_fixture("toes",8)
+ before=g.state.duplicate(true)
+ t.check(not t.action(g,"item_use",{"item":seal.id}).ok and g.state==before,"SEAL blocked fingers and toes spend no item or resources")
+ clear_fixture(g)
+ for i in range(4): g._gain_tool("shard")
+ t.check(not t.find_action(g,"item_use",{"item":seal.id}).valid,"SEAL remaining inventory over capacity blocks escape")
+ t.action(g,"item_discard",{"item":g.state.items[-1].id})
+ t.check(g.carried_items()==4 and t.find_action(g,"item_use",{"item":seal.id}).valid,"SEAL capacity checked after consuming its own slot")
+ g.Pressure.gain(g,100,"测试干扰")
+ t.check(not t.action(g,"item_use",{"item":seal.id}).ok and g._item(seal.id).uses==1,"SEAL no zero-cost overload bypass")
+ g=intake(t);clear_fixture(g);g._gain_tool("return_seal")
+ seal=g.state.items[0]
+ inspect(t,g)
+ t.check(not t.action(g,"item_use",{"item":seal.id}).ok and g._item(seal.id).uses==1,"SEAL inspection blocks item use")
+ t.action(g,"prison",{"action":"inspect"});t.action(g,"prison",{"action":"accept"})
+ t.check(not g._item(seal.id).is_empty(),"SEAL compliant inspection preserves carried seal")
+ t.action(g,"prison",{"action":"resist"})
+ t.check(not t.find_action(g,"item_use",{"item":seal.id}).valid,"SEAL resistance battle cannot use prison-only exit")
+ Guard.capture(g,g.state.enemies[0])
+ t.check(g._item(seal.id).is_empty(),"SEAL recapture confiscates seal through ordinary item cleanup")
+
+static func security_cases(t) -> void:
+ var expected=[[1,2],[2,2],[2,3],[3,2],[3,3]]
+ var handbook=preload("res://data/tutorial.gd").entries().filter(func(row):return row.id=="prison_security")[0]
+ for level in range(1,6):
+  var g=Game.new(42,true,"guard")
+  g.state.equipment=[];g.state.composites=[];g.state.links=[]
+  g.state.security=level-1
+  Guard.capture(g,g.state.enemies[0])
+  var grade=expected[level-1][0];var tier=expected[level-1][1]
+  t.check(handbook.category=="prison" and handbook.text.contains("%d级：%s，%d档，%s。" % [level,g.Equipment.GRADES[grade],tier,"普通或复合" if level>=3 else "仅普通"]),"PRISON handbook explains the actual security equipment table")
+  var roots=(g.state.equipment+g.state.composites).filter(func(e):return e.id in g.state.capture.added)
+  t.check(roots.size()==level+B.CAPTURE_EXTRA_BASE and g.state.capture.baseline==g.equipment_targets().map(func(e):return e.id),"PRISON security %d counts roots for intake and physical components for registration" % level)
+  t.check(g.equipment_targets().all(func(e):return e.grade==grade and g.tier(e.durability,e.maximum)==(grade if g.Equipment.is_shoulder(e) else tier)),"PRISON security %d applies actual grade/tier to bodies and links, with native shoulder rules" % level)
+  t.check(level>=3 or g.state.composites.is_empty(),"PRISON below security three excludes even basic composite wraps")
+  var toy_pool=g.SpecialEquipment.prison_pool(grade,level>=3)
+  var crotch_rope="crotch_rope_"+["","low","medium","high"][grade]
+  t.check(crotch_rope in toy_pool and toy_pool.all(func(type):return g.SpecialEquipment.DESIGNS[type].grade==grade),"PRISON security %d toy pool keeps crotch ropes and uses the current grade" % level)
+  t.check(toy_pool.any(func(type):return g.SpecialEquipment.TYPES[type].family in g.SpecialEquipment.CUP_FAMILIES)==(level>=3),"PRISON cups open exactly from security three")
+  t.check(g.state.capture.special_added.size()==2 and g.state.capture.special_baseline==g.state.special_equipment.map(func(e):return e.id) and g.state.special_equipment.all(func(e):return e.type in toy_pool),"PRISON intake adds two legal security-grade sex toys and records their actual ids")
+  var before=g.state.duplicate(true)
+  var view=g.get_view()
+  t.check(view.prison.equipment_rule==g.Prison.equipment_label(g) and view.prison.equipment_rule.contains("复合")== (level>=3) and g.state==before and g.validate()=="","PRISON security profile projection agrees with legal generation and is readonly")
+  if level not in [3,4]: continue
+  t.action(g,"prison",{"action":"enter"})
+  # This case verifies restraint punishment only; suppress unrelated periodic
+  # toy pressure while the patrol timer advances.
+  for item in g.state.special_equipment: item.remaining=0
+  g.state.pressure=0
+  var lost=g.equipment_targets()[0]
+  lost.durability=0;g._cleanup()
+  inspect(t,g);t.action(g,"prison",{"action":"inspect"})
+  var quota=g.state.prison.missing.size()+B.PRISON_VIOLATION_EXTRA
+  t.check(g.state.prison.report.contains("%d件%s" % [quota,g.Prison.equipment_label(g)]),"PRISON higher security inspection announces its actual pool and quota")
+  if level==3:
+   var saved=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"mixed inspection")
+   preload("res://tests/persistence_cases.gd").step_both(t,g,saved,"prison",{"action":"accept"})
+  else: t.action(g,"prison",{"action":"accept"})
+  var event=g.state.logs.filter(func(log):return log.data.has("inspection"))[-1].data.inspection
+  roots=(g.state.equipment+g.state.composites).filter(func(e):return e.id in event.installed)
+  t.check(roots.size()==event.installed.size() and roots.size()<=quota and roots.all(func(root):return root.grade==grade if not root.has("components") else root.components.all(func(e):return e.grade==grade)),"PRISON mixed inspection quota counts actual roots, not component count")
+  t.check(roots.all(func(root):return g.tier(root.durability,root.maximum)==tier if not root.has("components") else root.components.all(func(e):return g.tier(e.durability,e.maximum)==(grade if g.Equipment.is_shoulder(e) else tier))),"PRISON fresh inspection equipment keeps its profile instead of being tightened with old gear")
+  t.check(g.state.prison.baseline==g.equipment_targets().map(func(e):return e.id) and g.validate()=="","PRISON mixed replacement leaves a complete valid component manifest")
+
+static func toy_inspection_cases(t) -> void:
+ var g=intake(t,1);clear_fixture(g)
+ var powered=g._install_special("nipple_clamp_low","special_1_a")
+ var rope=g._install_special("crotch_rope_low","special_3_a")
+ var powered_id=powered.id
+ g.state.prison.special_baseline=[powered.id,rope.id]
+ powered.remaining=0;rope.durability=0;g._cleanup()
+ g.state.prison.left=1;g.state.pressure=0
+ t.action(g,"end");t.action(g,"prison",{"action":"inspect"})
+ t.check(g.state.prison.special_missing==[rope.id] and g.state.prison.report.contains("性玩具清单少了1件") and g.state.prison.report.contains("补装2件初级性玩具"),"PRISON missing toy declares N plus one from the current pool")
+ var saved=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"toy inspection")
+ preload("res://tests/persistence_cases.gd").step_both(t,g,saved,"prison",{"action":"accept"})
+ var event=g.state.logs.filter(func(log):return log.data.has("inspection"))[-1].data.inspection
+ t.check(event.special_missing==[rope.id] and event.special_requested==2 and event.special_installed.size()==2,"PRISON toy punishment installs and records the exact missing-plus-one quota")
+ powered=g._equipment(powered_id)
+ t.check(powered.remaining==g.SpecialEquipment.TYPES[powered.type].duration and event.recharged.has(powered_id),"PRISON punishment refills an existing empty battery after all installations")
+ t.check(g.state.prison.special_baseline==g.state.special_equipment.map(func(e):return e.id) and event.special_registered==g.state.special_equipment.size() and g.validate()=="","PRISON toy inspection refreshes the real special-equipment manifest")
+ t.action(g,"prison",{"action":"resume"})
+ for item in g.state.special_equipment: item.remaining=0
+ g.state.pressure=0;g.state.prison.left=1
+ t.action(g,"end");t.action(g,"prison",{"action":"inspect"});t.action(g,"prison",{"action":"accept"})
+ event=g.state.logs.filter(func(log):return log.data.has("inspection"))[-1].data.inspection
+ var powered_ids=g.state.special_equipment.filter(func(item):return g.SpecialEquipment.TYPES[item.type].duration>0).map(func(item):return item.id)
+ t.check(event.special_missing.is_empty() and event.special_requested==0 and event.special_installed.is_empty(),"PRISON clean inspection does not invent replacement toys")
+ t.check(event.recharged==powered_ids and powered_ids.all(func(id):return g._equipment(id).remaining==g.SpecialEquipment.TYPES[g._equipment(id).type].duration),"PRISON every completed clean inspection also refills all remaining batteries")
+ t.check(g.state.special_equipment.filter(func(item):return g.SpecialEquipment.TYPES[item.type].duration==0).all(func(item):return item.remaining==0),"PRISON batteryless toys keep their permanent zero-duration state")
+
+static func punishment_cases(t) -> void:
+ var g=intake(t,1);clear_fixture(g)
+ var ids=[]
+ for slot in ["wrist","ankle","eyes"]:
+  var piece=g._install_template(g.Equipment.default_template(slot),slot,4,10,false,"fixture")
+  ids.append(piece.id)
+ g.state.prison.baseline=ids.duplicate()
+ for id in ids: g._equipment(id).durability=0
+ g._cleanup()
+ inspect(t,g);t.action(g,"prison",{"action":"inspect"})
+ t.check(g.state.prison.missing==ids and g.state.prison.report.contains("5件初级二档"),"PRISON three missing physical pieces declare five additions at the current security profile")
+ var saved=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"violation quota")
+ preload("res://tests/persistence_cases.gd").step_both(t,g,saved,"prison",{"action":"accept"})
+ t.check(g.state.equipment.size()==5 and g.state.equipment.all(func(e):return e.grade==1 and g.tier(e.durability,e.maximum)==2),"PRISON restored inspection commits the same five elementary tier-two roots")
+ var baseline=g.state.prison.baseline.duplicate()
+ t.action(g,"prison",{"action":"resume"});inspect(t,g);t.action(g,"prison",{"action":"inspect"})
+ t.check(g.state.prison.missing.is_empty() and g.state.prison.baseline==baseline,"PRISON new baseline does not charge again for already replaced or removed items")
+ t.action(g,"prison",{"action":"accept"})
+ t.check(g.state.prison.baseline==g.equipment_targets().map(func(e):return e.id),"PRISON clean inspection refreshes the same actual registration")
+ t.action(g,"prison",{"action":"resume"})
+ var one=g.state.equipment.filter(func(e):return e.slot=="wrist")[0]
+ one.durability=0;g._cleanup()
+ inspect(t,g);t.action(g,"prison",{"action":"inspect"})
+ t.check(g.state.prison.missing==[one.id] and g.state.prison.report.contains("3件初级二档"),"PRISON next check counts only the one new loss instead of accumulating previous losses")
+
+ # All ordinary locations are full and stronger than the incoming three-point value,
+ # except the single mouth slot. Its new replacement must not be replaced twice.
+ g=intake(t);clear_fixture(g)
+ var lost=g._install_template("eye_tape","eyes",4,10,false,"fixture")
+ g.state.prison.baseline=[lost.id];lost.durability=0;g._cleanup()
+ fill_strong(g)
+ # Saturation now includes legal links as well as occupied ordinary slots.
+ for option in g.EquipmentOffers.links(g,3):
+  option.grade=3;option.tier=3
+  g.Application.execute_concrete(g,option,"fixture")
+ var mouth=g.equipment_at("mouth")[0]
+ mouth.grade=1;mouth.maximum=10.0;mouth.durability=4.0;mouth.locked=false;mouth.variant=0;g._refresh_equipment(mouth)
+ var old_id=mouth.id
+ inspect(t,g);t.action(g,"prison",{"action":"inspect"});t.action(g,"prison",{"action":"accept"})
+ var actual=g.state.equipment.filter(func(e):return e.source=="prison")
+ t.check(actual.size()==1 and actual[0].slot=="mouth" and g._equipment(old_id).is_empty(),"PRISON saturation replaces one weaker exterior item without recycling its quota")
+ t.check(g.state.prison.report.contains("补装1/3") and g.state.prison.report.contains("2件") and g.validate()=="","PRISON reports actual quota shortfall and leaves legal equipment")
+
+ # A damaged short glove covers five points. Missing shoulder components count
+ # individually, but cannot authorize taking half a covering group off the body.
+ for remove_extra in [false,true]:
+  g=intake(t,2);clear_fixture(g)
+  for point in ["upper_arm_top","above_elbow","below_elbow","mid_forearm","wrist"]:
+   for i in range(2):
+    g._install_template("belt",g.Links.point_slot(point),9.6,24,false,"fixture",3,-1,0,point)
+  var root=g._install_assembly("glove","short","fixture",2,1)
+  var extra=g._install_template("eye_tape","eyes",4,10,false,"fixture")
+  g.state.prison.baseline=g.equipment_targets().map(func(e):return e.id)
+  for component in root.components:
+   if component.part!="body": component.durability=0
+  if remove_extra: extra.durability=0
+  g._cleanup();fill_strong(g)
+  # Keep the nonmissing eye item stronger than incoming gear as well.
+  if not remove_extra:
+   extra.grade=3;extra.maximum=24.0;extra.durability=24.0;extra.variant=0
+  inspect(t,g);t.action(g,"prison",{"action":"inspect"})
+  var roots_before=g.state.composites.map(func(e):return e.id)
+  t.action(g,"prison",{"action":"accept"})
+  actual=g.equipment_targets().filter(func(e):return e.source=="prison")
+  t.check(actual.size()==(5 if remove_extra else 4) and actual.all(func(e):return e.template=="link_rope"),"PRISON full ordinary slots consume the declared quota on legal new links first")
+  t.check(not g._composite(root.id).is_empty() and g.state.composites.map(func(e):return e.id)==roots_before,"PRISON does not replace a composite while legal link additions remain, even with enough nominal quota")
+  t.check(g.state.prison.baseline==g.equipment_targets().map(func(e):return e.id) and g.validate()=="","PRISON post-punishment registration includes surviving components and fresh automatic attachments")
+
+static func fill_strong(g) -> void:
+ while true:
+  var options=g.EquipmentOffers.ordinary(g,3)
+  if options.is_empty(): break
+  var option=options[0]
+  var locked=g.Equipment.TEMPLATES[option.template].lock
+  g._install_template(option.template,option.slot,24,24,locked,"fixture",3,-1,0,option.point)
+
+static func practice_cases(t) -> void:
+ for kind in ["prison_test","prison_blind"]:
+  var g=preload("res://core/game.gd").new(42,true,kind)
+  t.check(g.validate()=="" and g.state.phase=="prison" and g.state.room=="prison" and g.state.posture=="lie" and g.at_wall(),"PRISON practice uses formal cell and lying wall start "+kind)
+  t.check(g.state.security==1 and g.state.prison.turn==1 and g.state.prison.left==16 and g.state.hand.size()==5 and g.state.energy==3 and g.state.enemies.is_empty(),"PRISON practice starts normal first player turn "+kind)
+  t.check(g.occupied("eyes")==(kind=="prison_blind") and g.state.equipment.size()==(3 if kind=="prison_blind" else 2),"PRISON practice matches declared vision and fixtures "+kind)
+  t.check(g.state.save_slot=="practice" and g.state.prison.baseline==g.equipment_targets().map(func(e):return e.id),"PRISON practice has separate save identity and real inspection baseline")
+  var before=g.export_snapshot();var clone=preload("res://core/game.gd").new(9)
+  var loaded=clone.restore_snapshot(before)
+  var restored=clone.export_snapshot();restored.version=before.version
+  t.check(loaded.ok and clone.state.version>before.version and restored==before,"PRISON practice restores exact cell with renewed input version")
+  var move_payload=Spatial.approach(g,"shard")
+  before=g.export_snapshot()
+  var c=t.find_action(g,"prison",move_payload)
+  t.check(not g.dispatch(c.id,g.state.version-1).ok and g.export_snapshot()==before,"PRISON practice stale action atomic")
+  t.check(t.action(g,"prison",move_payload).ok and g.state.prison.found.size()==1 and g.state.energy==3-c.cost and g.state.prison.left==16,"PRISON practice exploration uses existing costs and finite discovery")
+  t.check(g.state.logs.any(func(log):return log.data.has("passive_slip")),"PRISON practice exploration still uses shared passive slip")
+  t.check(t.action(g,"end").ok and g.state.prison.left==15 and g.state.prison.turn==2,"PRISON practice countdown advances through formal end turn")
+  t.check(g.validate()=="","PRISON practice remains valid after actions")
+
+static func patrol_period_cases(t) -> void:
+ t.check(B.PRISON_INTERVALS==[16,14,12,10,8],"PRISON patrol intervals decrease by two per security level")
+ for level in range(1,5):
+  var g=intake(t,level);clear_fixture(g)
+  var period=18-2*level
+  t.check(g.state.prison.left==period,"PRISON fresh intake starts a full cycle at level %d" % level)
+  for turn in range(period-1):
+   t.check(t.action(g,"end").ok and g.state.phase=="prison" and g.state.prison.left==period-turn-1,"PRISON patrol cannot arrive before cycle boundary")
+  var before=g.export_snapshot()
+  g.get_view();g.candidates()
+  t.check(g.state==before,"PRISON countdown queries do not consume the last turn")
+  t.check(t.action(g,"end").ok and g.state.phase=="inspection" and g.state.prison.left==0,"PRISON last turn reaches inspection exactly")
+  for action in ["inspect","accept","resume"]: t.check(t.action(g,"prison",{"action":action}).ok,"PRISON cycle completes through formal inspection")
+  t.check(g.state.phase=="prison" and g.state.prison.left==period,"PRISON completed inspection restarts the same full cycle")

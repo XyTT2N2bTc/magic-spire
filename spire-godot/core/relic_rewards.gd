@@ -1,0 +1,50 @@
+extends RefCounted
+
+# StS1 relic distributions. Card rarity offsets never participate.
+const RATES={"normal":[50,33,17],"shop":[50,33,17],"small":[75,25,0],"medium":[35,50,15],"large":[0,75,25]}
+const TIERS=["common","uncommon","rare"]
+const CHESTS={"small":"小宝箱","medium":"中宝箱","large":"大宝箱"}
+
+static func rarity(source: String, roll: int) -> String:
+ var rates=RATES[source]
+ return TIERS[0] if roll<rates[0] else (TIERS[1] if roll<rates[0]+rates[1] else TIERS[2])
+
+static func random(g, size: int, rng=null) -> int:
+ return g._random_index("relic",size) if rng==null else rng.randi_range(0,size-1)
+
+static func chest(g, rng=null) -> String:
+ var roll=random(g,100,rng)
+ return "small" if roll<50 else ("medium" if roll<83 else "large")
+
+static func available(g, source: String="normal") -> Array:
+ var pool=g.Relics.shop_pool() if source=="shop" else g.Relics.REWARDS
+ return pool.filter(func(id):return id not in g.state.relics)
+
+static func offer(g, source: String="normal", rng=null, excluded: Array=[]) -> String:
+ var pool=available(g,source).filter(func(id):return id not in excluded)
+ var tier=source if source in TIERS or source=="boss" else rarity(source,random(g,100,rng))
+ if source=="boss": pool=g.Relics.BOSS_POOL.filter(func(id):return id not in g.state.relics and id not in excluded and g.RelicEffects.gain_reason(g,id)=="")
+ var choices=pool.filter(func(id):return g.Relics.TYPES[id].rarity==tier)
+ var id=g.Relics.FALLBACK if choices.is_empty() else choices[random(g,choices.size(),rng)]
+ # Keep offer history for frozen reward validation, not eligibility.
+ if id not in g.state.relic_seen: g.state.relic_seen.append(id)
+ return id
+
+static func battle_drop(g) -> void:
+ g.state.battle_relic_drop=""
+ g.state.boss_relic_options=[]
+ var room=g.room_data(g.state.room)
+ if room.get("boss",false):
+  var pool=g.Relics.BOSS_POOL.filter(func(id):return id not in g.state.relics and g.RelicEffects.gain_reason(g,id)=="")
+  for i in range(mini(3,pool.size())):
+   var id=pool[random(g,pool.size())]
+   pool.erase(id)
+   g.state.boss_relic_options.append(id)
+   if id not in g.state.relic_seen: g.state.relic_seen.append(id)
+  if g.state.boss_relic_options.is_empty():
+   g.state.boss_relic_options=[g.Relics.FALLBACK]
+   if g.Relics.FALLBACK not in g.state.relic_seen: g.state.relic_seen.append(g.Relics.FALLBACK)
+  return
+ var encounter=g.Enemies.ENCOUNTERS.get(g.state.room_encounters.get(g.state.room,""),{})
+ if encounter.get("rank","")!="elite": return
+ g.state.battle_relic_drop=offer(g)

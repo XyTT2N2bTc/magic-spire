@@ -1,0 +1,579 @@
+{
+  "schema_version": 1,
+  "kind": "event",
+  "id": "bound_adventurer_relic",
+  "name": "拘束具堆里的微光",
+  "intro": "你在回廊角落发现了一名扶她冒险者。\n\n眼罩遮住了她的双眼，口球被头带紧紧勒住；双臂、躯干和并拢的双腿外缠满了绳索、皮带、胶带与扎带，一层压着一层，已经没有自行脱困的可能。\n\n她腰侧压着一只半开的皮包，里面透出遗物的微光。\n\n更多附魔拘束具散落在周围。随着你的靠近，它们纷纷将扣环与绳头转向你的身体。",
+  "start_stage": "attempt_1",
+  "stages": [
+    {
+      "id": "attempt_1",
+      "title": "第一次尝试",
+      "intro": "皮包压在她腰侧，里面的微光清晰可见。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "reach",
+          "label": "【靠近皮包】25%成功；佩戴1件初级2档拘束具",
+          "detail": "成功：获得一件随机遗物。",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 1,
+              "grade": 1,
+              "tier": 2,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "outcomes": [
+            {
+              "weight": 25,
+              "effects": [],
+              "next": "result",
+              "reward": "relic",
+              "report": "你顶着新添拘束具的限制，终于勾住皮包的搭扣，将遗物抽了出来。她身上的拘束具仍原封不动。",
+              "result_status": "success"
+            },
+            {
+              "weight": 75,
+              "effects": [],
+              "next": "attempt_2",
+              "reward": "none",
+              "report": "你刚伸向皮包，附近的一件附魔拘束具便扑了过来。遗物仍压在原处。",
+              "result_status": "failure"
+            }
+          ]
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放弃遗物",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你放弃靠近皮包，转身离开了回廊。"
+        }
+      ]
+    },
+    {
+      "id": "attempt_2",
+      "title": "第二次尝试",
+      "intro": "皮包只被碰得晃了一下，仍压在原处。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "reach",
+          "label": "【继续伸手】35%成功；佩戴1件初级2档拘束具",
+          "detail": "成功：获得一件随机遗物。",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 1,
+              "grade": 1,
+              "tier": 2,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "outcomes": [
+            {
+              "weight": 35,
+              "effects": [],
+              "next": "result",
+              "reward": "relic",
+              "report": "你顶着新添拘束具的限制，终于勾住皮包的搭扣，将遗物抽了出来。她身上的拘束具仍原封不动。",
+              "result_status": "success"
+            },
+            {
+              "weight": 65,
+              "effects": [],
+              "next": "attempt_3",
+              "reward": "none",
+              "report": "你换了个角度再次伸手，另一件附魔拘束具随即缠了上来。皮包只被碰得晃了一下。",
+              "result_status": "failure"
+            }
+          ]
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放弃继续尝试",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你放弃继续尝试，带着已经缠到身上的拘束具离开了回廊。"
+        }
+      ]
+    },
+    {
+      "id": "attempt_3",
+      "title": "第三次尝试",
+      "intro": "你已经靠近了一些，包口的微光变得更加清楚。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "reach",
+          "label": "【继续伸手】45%成功；佩戴1件初级2档拘束具",
+          "detail": "成功：获得一件随机遗物。",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 1,
+              "grade": 1,
+              "tier": 2,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "outcomes": [
+            {
+              "weight": 45,
+              "effects": [],
+              "next": "result",
+              "reward": "relic",
+              "report": "你顶着新添拘束具的限制，终于勾住皮包的搭扣，将遗物抽了出来。她身上的拘束具仍原封不动。",
+              "result_status": "success"
+            },
+            {
+              "weight": 55,
+              "effects": [],
+              "next": "attempt_4",
+              "reward": "none",
+              "report": "你已经摸到皮包边缘，新扑来的拘束具却限制了动作。遗物仍在里面。",
+              "result_status": "failure"
+            }
+          ]
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放弃继续尝试",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你放弃继续尝试，带着已经缠到身上的拘束具离开了回廊。"
+        }
+      ]
+    },
+    {
+      "id": "attempt_4",
+      "title": "第四次尝试",
+      "intro": "皮包的搭扣就在前方，附近仍有大量附魔拘束具。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "reach",
+          "label": "【继续伸手】55%成功；佩戴1件初级2档拘束具",
+          "detail": "成功：获得一件随机遗物。",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 1,
+              "grade": 1,
+              "tier": 2,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "outcomes": [
+            {
+              "weight": 55,
+              "effects": [],
+              "next": "result",
+              "reward": "relic",
+              "report": "你顶着新添拘束具的限制，终于勾住皮包的搭扣，将遗物抽了出来。她身上的拘束具仍原封不动。",
+              "result_status": "success"
+            },
+            {
+              "weight": 45,
+              "effects": [],
+              "next": "attempt_5",
+              "reward": "none",
+              "report": "你试着勾住搭扣，又一件附魔拘束具抢先缠住身体。搭扣从指尖滑开。",
+              "result_status": "failure"
+            }
+          ]
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放弃继续尝试",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你放弃继续尝试，带着已经缠到身上的拘束具离开了回廊。"
+        }
+      ]
+    },
+    {
+      "id": "attempt_5",
+      "title": "第五次尝试",
+      "intro": "你继续寻找能够碰到搭扣的角度。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "reach",
+          "label": "【继续伸手】65%成功；佩戴1件初级2档拘束具",
+          "detail": "成功：获得一件随机遗物。",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 1,
+              "grade": 1,
+              "tier": 2,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "outcomes": [
+            {
+              "weight": 65,
+              "effects": [],
+              "next": "result",
+              "reward": "relic",
+              "report": "你顶着新添拘束具的限制，终于勾住皮包的搭扣，将遗物抽了出来。她身上的拘束具仍原封不动。",
+              "result_status": "success"
+            },
+            {
+              "weight": 35,
+              "effects": [],
+              "next": "attempt_6",
+              "reward": "none",
+              "report": "你把身体再靠近一些，新的拘束具立刻找上空余部位。皮包仍差一点。",
+              "result_status": "failure"
+            }
+          ]
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放弃继续尝试",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你放弃继续尝试，带着已经缠到身上的拘束具离开了回廊。"
+        }
+      ]
+    },
+    {
+      "id": "attempt_6",
+      "title": "第六次尝试",
+      "intro": "皮包已经离你的手不远。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "reach",
+          "label": "【继续伸手】75%成功；佩戴1件初级2档拘束具",
+          "detail": "成功：获得一件随机遗物。",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 1,
+              "grade": 1,
+              "tier": 2,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "outcomes": [
+            {
+              "weight": 75,
+              "effects": [],
+              "next": "result",
+              "reward": "relic",
+              "report": "你顶着新添拘束具的限制，终于勾住皮包的搭扣，将遗物抽了出来。她身上的拘束具仍原封不动。",
+              "result_status": "success"
+            },
+            {
+              "weight": 25,
+              "effects": [],
+              "next": "attempt_7",
+              "reward": "none",
+              "report": "你几乎抓住了皮包，一件附魔拘束具从脚边窜起，迫使你停下动作。",
+              "result_status": "failure"
+            }
+          ]
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放弃继续尝试",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你放弃继续尝试，带着已经缠到身上的拘束具离开了回廊。"
+        }
+      ]
+    },
+    {
+      "id": "attempt_7",
+      "title": "第七次尝试",
+      "intro": "你再次靠近压住皮包的那一侧。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "reach",
+          "label": "【继续伸手】85%成功；佩戴1件初级2档拘束具",
+          "detail": "成功：获得一件随机遗物。",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 1,
+              "grade": 1,
+              "tier": 2,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "outcomes": [
+            {
+              "weight": 85,
+              "effects": [],
+              "next": "result",
+              "reward": "relic",
+              "report": "你顶着新添拘束具的限制，终于勾住皮包的搭扣，将遗物抽了出来。她身上的拘束具仍原封不动。",
+              "result_status": "success"
+            },
+            {
+              "weight": 15,
+              "effects": [],
+              "next": "attempt_8",
+              "reward": "none",
+              "report": "你再次伸手，新的拘束具随即缠紧。指尖只来得及擦过皮包。",
+              "result_status": "failure"
+            }
+          ]
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放弃继续尝试",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你放弃继续尝试，带着已经缠到身上的拘束具离开了回廊。"
+        }
+      ]
+    },
+    {
+      "id": "attempt_8",
+      "title": "第八次尝试",
+      "intro": "指尖距离搭扣只剩一点。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "reach",
+          "label": "【继续伸手】95%成功；佩戴1件初级2档拘束具",
+          "detail": "成功：获得一件随机遗物。",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 1,
+              "grade": 1,
+              "tier": 2,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "outcomes": [
+            {
+              "weight": 95,
+              "effects": [],
+              "next": "result",
+              "reward": "relic",
+              "report": "你顶着新添拘束具的限制，终于勾住皮包的搭扣，将遗物抽了出来。她身上的拘束具仍原封不动。",
+              "result_status": "success"
+            },
+            {
+              "weight": 5,
+              "effects": [],
+              "next": "attempt_9",
+              "reward": "none",
+              "report": "皮包已经近在手边，另一件附魔拘束具仍抢先缠了上来。",
+              "result_status": "failure"
+            }
+          ]
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放弃继续尝试",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你放弃继续尝试，带着已经缠到身上的拘束具离开了回廊。"
+        }
+      ]
+    },
+    {
+      "id": "attempt_9",
+      "title": "第九次尝试",
+      "intro": "皮包已经近在手边。",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "reach",
+          "label": "【继续伸手】本次必定成功；佩戴1件初级2档拘束具",
+          "detail": "获得一件随机遗物。",
+          "reward": "relic",
+          "next": "result",
+          "effects": [
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 1,
+              "grade": 1,
+              "tier": 2,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "report": "你顶着新添拘束具的限制，终于勾住皮包的搭扣，将遗物抽了出来。她身上的拘束具仍原封不动。",
+          "result_status": "success"
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放弃继续尝试",
+          "detail": "",
+          "reward": "none",
+          "next": "result",
+          "effects": [],
+          "report": "你放弃继续尝试，带着已经缠到身上的拘束具离开了回廊。"
+        }
+      ]
+    }
+  ]
+}

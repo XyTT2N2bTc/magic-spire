@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "kind": "event",
+  "id": "alchemist_tasting_stall",
+  "name": "女药师的试饮摊",
+  "intro": "楼梯旁支着一张小小的试饮摊。一名年轻女药师靠在桌后，面前依次摆着蓝色的魔力补剂、透明的解缚溶剂和一瓶泛着粉光的魅魔特调；一件遗物则单独放在粉色药瓶旁边。\n\n“只准挑一种。蓝色的补魔，透明的能解开你身上的东西。至于粉色这瓶……”\n\n她用指尖轻轻敲了敲药瓶。\n\n“喝完以后，旁边那件遗物就归你。”",
+  "allow_refuse": false,
+  "choices": [
+    {
+      "id": "mana_tonic",
+      "label": "【魔力补剂】喝下蓝色药水",
+      "detail": "恢复25魔力。",
+      "reward": "none",
+      "effects": [
+        {
+          "op": "mana_gain",
+          "amount": 25
+        }
+      ],
+      "report": "你拔开瓶塞，一口喝下蓝色药水。微凉的液体滑过喉咙，很快化作温热的魔力沉入下腹。\n\n“补好了。下一位。”",
+      "result_status": "success"
+    },
+    {
+      "id": "dissolve",
+      "label": "【解缚溶剂】倒在「{name}」上",
+      "detail": "解除一件拘束具。",
+      "reward": "none",
+      "selector": {
+        "kind": "restraint",
+        "count": 1,
+        "include_special": false
+      },
+      "effects": [
+        {
+          "op": "remove_restraints",
+          "targets": "$selected",
+          "name": "{name}"
+        }
+      ],
+      "report": "你把透明药液倒在「{name}」上。药液贴着拘束具迅速扩散，原本紧贴身体的部分随之失去力道，整件拘束具松开脱落。\n\n“省着点用哦。这里想把你重新绑起来的东西可多得很。”",
+      "result_status": "success"
+    },
+    {
+      "id": "succubus_mix",
+      "label": "【魅魔特调】喝下粉色媚药",
+      "detail": "获得一件随机遗物，同时获得诅咒「敏感」。",
+      "reward": "relic",
+      "hide_when_unavailable": true,
+      "effects": [
+        {
+          "op": "card",
+          "type": "sensitive"
+        }
+      ],
+      "report": "你仰头喝下粉色媚药。甜得发腻的药水刚刚咽下，滚烫的热意便从小腹窜遍全身；乳头迅速绷紧，肉棒也在衣摆下硬了起来，小穴跟着泛起一阵挥之不去的酥麻。\n\n女药师笑着把旁边的遗物推到你面前。\n\n“药效会留很久。至于这个，就当作试饮礼物啦。”",
+      "result_status": "success"
+    }
+  ]
+}

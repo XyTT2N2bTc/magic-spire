@@ -1,0 +1,65 @@
+[
+  {
+    "file": "arcade-right.png",
+    "width": 1024,
+    "height": 1536,
+    "pixelFormat": "Format32bppArgb",
+    "transparentSamples": 4524,
+    "visibleSamples": 1355,
+    "centerAlpha": 0
+  },
+  {
+    "file": "available-ring.png",
+    "width": 1254,
+    "height": 1254,
+    "pixelFormat": "Format32bppArgb",
+    "transparentSamples": 5700,
+    "visibleSamples": 437,
+    "centerAlpha": 0
+  },
+  {
+    "file": "completed-check.png",
+    "width": 1254,
+    "height": 1254,
+    "pixelFormat": "Format32bppArgb",
+    "transparentSamples": 5935,
+    "visibleSamples": 275,
+    "centerAlpha": 0
+  },
+  {
+    "file": "current-marker.png",
+    "width": 1254,
+    "height": 1254,
+    "pixelFormat": "Format32bppArgb",
+    "transparentSamples": 5996,
+    "visibleSamples": 175,
+    "centerAlpha": 0
+  },
+  {
+    "file": "entrance.png",
+    "width": 1254,
+    "height": 1254,
+    "pixelFormat": "Format32bppArgb",
+    "transparentSamples": 4487,
+    "visibleSamples": 1415,
+    "centerAlpha": 1
+  },
+  {
+    "file": "paper-base.png",
+    "width": 1672,
+    "height": 941,
+    "pixelFormat": "Format24bppRgb",
+    "transparentSamples": 0,
+    "visibleSamples": 6195,
+    "centerAlpha": 255
+  },
+  {
+    "file": "tower-left.png",
+    "width": 1024,
+    "height": 1536,
+    "pixelFormat": "Format32bppArgb",
+    "transparentSamples": 4885,
+    "visibleSamples": 1080,
+    "centerAlpha": 0
+  }
+]

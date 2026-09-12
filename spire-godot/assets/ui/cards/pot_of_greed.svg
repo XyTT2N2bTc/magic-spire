@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="90" viewBox="0 0 180 90">
+ <defs><linearGradient id="jade" x1="0" x2="1"><stop stop-color="#164d48"/><stop offset=".45" stop-color="#65b391"/><stop offset="1" stop-color="#205d55"/></linearGradient></defs>
+ <ellipse cx="91" cy="81" rx="44" ry="5" fill="#13252a"/>
+ <g stroke-linejoin="round" stroke-linecap="round" stroke-width="2">
+ <path d="M61 48C35 32 35 66 60 65M119 48c26-16 26 18 1 17" fill="none" stroke="#cba564" stroke-width="5"/>
+ <path d="M67 31h46l-4 10c35 27 11 42-19 42S36 67 71 41Z" fill="url(#jade)" stroke="#9ed4b3"/>
+ <ellipse cx="90" cy="33" rx="27" ry="7" fill="#1b3e3b" stroke="#e6c280"/>
+ <path d="m77 49 7 6-12 1m31-7-7 6 12 1M73 64q17 17 34 0q-17 5-34 0Z" fill="#1b403b" stroke="#d8d99a"/>
+ <path d="M68 61q-3 9 5 13" fill="none" stroke="#bde5c5" opacity=".6"/>
+ <path d="m62 8 22-4 5 25-22 4Z" fill="#284755" stroke="#e9c884"/>
+ <path d="m96 5 23 5-6 26-23-5Z" fill="#284755" stroke="#e9c884"/>
+ <path d="m74 12 5 7-4 7-5-6Zm31 2 5 7-6 5-4-7Z" fill="#e9c884" stroke="none"/>
+ <path d="m48 18 2 5 5 2-5 2-2 5-2-5-5-2 5-2Zm86 11 2 4 4 2-4 2-2 4-2-4-4-2 4-2Z" fill="#bde5c5" stroke="none"/>
+ </g>
+</svg>

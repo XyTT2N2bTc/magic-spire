@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="90" viewBox="0 0 180 90">
+ <defs><radialGradient id="glow"><stop stop-color="#85e4dd" stop-opacity=".38"/><stop offset="1" stop-color="#85e4dd" stop-opacity="0"/></radialGradient></defs>
+ <ellipse cx="112" cy="43" rx="50" ry="40" fill="url(#glow)"/>
+ <g stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+  <path d="m23 30 24-9 14 40-24 9Z" fill="#263c48" stroke="#b69c69"/>
+  <path d="m44 20 25-3 5 42-25 3Z" fill="#1c303d" stroke="#d4b97b"/>
+  <path d="m63 17 25 5-8 40-25-5Z" fill="#294b56" stroke="#e7cb8a"/>
+  <path d="m72 30 5 9-7 6-3-9Z" fill="#dfc07e" stroke="#dfc07e"/>
+  <path d="M79 56q24 6 31-16M85 33q15 1 25 7M55 69q37 10 55-29" fill="none" stroke="#82d5d1"/>
+  <path d="m114 22 12 18-12 19-12-19Z" fill="#55afba" stroke="#c8f6e8"/>
+  <path d="m114 23 1 17-12 0m12 0 10 0-11 18" fill="none" stroke="#b3ece2"/>
+  <path d="m111 75 15-13 3-21q1-6 5-3l1 14 5-6q6-3 7 3l-7 14-9 14" fill="#304e58" stroke="#d4bb84"/>
+  <path d="m123 13 3 5m12 8 5-2M96 15l-3 5m-1 46-4 5" stroke="#eac980"/>
+ </g>
+</svg>

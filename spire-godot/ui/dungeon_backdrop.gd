@@ -1,0 +1,32 @@
+extends Control
+
+const Art=preload("res://ui/pixel_art.gd")
+var clock=0.0
+var rest=false
+
+func _ready() -> void:
+ mouse_filter=Control.MOUSE_FILTER_IGNORE
+ texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
+
+func _process(delta: float) -> void:
+ clock+=delta
+ queue_redraw()
+
+func _draw() -> void:
+ draw_rect(Rect2(Vector2.ZERO,size),Color("10101b"))
+ # Align the painted floor with the actors, leaving the lower region quiet for cards.
+ draw_texture_rect(Art.BACKGROUND,Rect2(0,-100,1600,900),false,Color(0.48,0.59,0.70))
+ draw_rect(Rect2(0,0,1600,900),Color(0.025,0.065,0.11,0.16))
+ # Quiet borders frame the stage while preserving the original background art.
+ draw_rect(Rect2(0,62,376,838),Color(0.027,0.05,0.08,0.92))
+ draw_line(Vector2(375,62),Vector2(375,900),Color(0.66,0.55,0.35,0.45),1)
+ draw_line(Vector2(0,63),Vector2(1600,63),Color(0.66,0.55,0.35,0.5),1)
+ for x in [407,1571]:
+  draw_line(Vector2(x,83),Vector2(x,114),Color(0.66,0.55,0.35,0.42),1)
+  draw_line(Vector2(x,83),Vector2(x+(24 if x<500 else -24),83),Color(0.66,0.55,0.35,0.42),1)
+ for i in range(16):
+  var point=Vector2(400+fmod(i*173.0+clock*3,1160),160+fmod(i*71.0-clock*4+10000,245))
+  draw_circle(point,1.2,Color(0.89,0.83,1.0,0.12+sin(clock+i)*0.06),true,-1,true)
+ draw_rect(Rect2(0,62,376,478),Color(0.03,0.025,0.055,0.42))
+ for i in range(24):
+  draw_rect(Rect2(376,475+i*14,1224,14),Color(0.025,0.05,0.085,minf(0.98,float(i)/13.0)))

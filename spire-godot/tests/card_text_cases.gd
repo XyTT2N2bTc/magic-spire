@@ -1,0 +1,55 @@
+extends RefCounted
+const Game=preload("res://tests/game_fixture.gd")
+const Book=preload("res://data/encyclopedia.gd")
+const Text=preload("res://data/card_text.gd")
+
+static func run(t) -> void:
+ var g=Game.new(42);var before=g.export_snapshot()
+ var pot=Book.card("pot_of_greed")
+ t.check(pot.face_keywords.bound==[Text.TERMS.exhaust] and pot.face_keywords.free==[Text.TERMS.exhaust] and pot.note=="","TERMS pot explains exhaust on both faces without a redundant draw glossary")
+ var search=Book.card("mana_search")
+ t.check(search.face_keywords.bound.size()==1 and search.face_keywords.bound[0].detail=="从抽牌堆抽取指定类型的牌。" and search.note=="","TERMS search has one concise explanation shared across cards")
+
+ for type in g.Cards.Rules.SPECS:
+  var spec=g.Cards.Rules.SPECS[type];var card=Book.card(type)
+  for side in ["bound","free"]:
+   var free=side=="free"
+   var text=card[side]
+   t.check(text!="" and not text.contains("{") and not text.contains("受拘束："),"TERMS every card face is fully expanded: "+type+side)
+   t.check(card.face_requirements[side].any(func(line):return line.begins_with("施法："))==g.Cards.uses_magic({"type":type,"free":free}),"TERMS casting badge follows actual selected face: "+type+side)
+   var terms=card.face_keywords[side].map(func(term):return term.name)
+   t.check(terms.all(func(term):return terms.count(term)==1),"TERMS per-face glossary has no duplicate entries")
+   if free and spec.has("free_max_levels"):
+    t.check(card.face_requirements.free.filter(func(line):return line.contains("束缚等级")).size()==spec.free_max_levels.size(),"TERMS aggregate body limits displayed separately alongside any casting condition")
+ t.check(Book.card("mana_search").free=="检索魔法2。" and Book.card("mana_search").face_requirements.free==["上身束缚等级＝0"],"TERMS search effect and total-level condition are separate")
+ t.check(Book.card("fire_control").face_requirements.free==["手部自由","上身束缚等级≤1"] and not Book.card("fire_control").face_keywords.free.any(func(term):return term.name=="各部位紧度＝0"),"TERMS control combines hand freedom with aggregate upper limit and removes old restriction")
+ t.check(Book.card("crossed_legs").face_requirements.bound==["目标：腿部"] and Book.card("crossed_legs").face_requirements.free==["腿部束缚等级≤1"],"TERMS target restriction stays on bound face")
+ t.check(Book.card("unlock").free=="获得2层魔力预备。" and Book.card("unlock").face_requirements.free==["使用：手部"],"TERMS preparation retains hand eligibility without a casting roll")
+ var metadata=Book.card("chain");metadata.face_keywords.bound[0].detail="changed";metadata.face_requirements.free.append("changed")
+ t.check(not str(Book.card("chain")).contains("changed") and g.export_snapshot()==before,"TERMS reading and mutating projected copy cannot change state or shared terms")
+ var spec=g.Cards.Rules.SPECS.mana_search.duplicate(true)
+ g.Cards.Rules.SPECS.mana_search.self_faces.free.effects[0].amount=3
+ g.Cards.Rules.SPECS.mana_search.free_max_levels.arms=1
+ t.check(Book.card("mana_search").free=="检索魔法3。" and Book.card("mana_search").face_requirements.free==["上身束缚等级≤1"],"TERMS text follows mechanical quantity and gate without a second lookup table")
+ g.Cards.Rules.SPECS.mana_search=spec
+ mana_badges(t)
+
+static func mana_badges(t) -> void:
+ var g=Game.new(42);g.state.pressure=75
+ var before=g.export_snapshot();var view=g.get_view()
+ for type in g.Cards.Rules.SPECS:
+  for side in ["bound","free"]:
+   var cost=g.Cards.face_mana(g,type,side=="free")
+   var entries=view.card_texts[type].face_mana[side].filter(func(entry):return entry.kind=="cost")
+   t.check((entries.size()==1 and entries[0].amount==cost) if cost>0 else entries.is_empty(),"MANA badge matches actual modified per-face payment: "+type+side)
+ t.check(g.export_snapshot()==before,"MANA all card projections leave state and random domains unchanged")
+ var spell=view.card_texts.unlock
+ t.check(spell.face_mana.bound[0].amount>10 and Book.card("unlock").face_mana.bound[0].amount==10 and not spell.face_effects.bound.contains("耗魔"),"MANA runtime cost changes, catalog retains base, body omits duplicate cost")
+ t.check(spell.face_mana.free[0].kind=="temporary" and spell.face_mana.free[0].amount==10 and spell.face_effects.free=="获得2层魔力预备。","MANA free preparation becomes ten temporary points with an explicit preparation description")
+ var conversion=view.card_texts.mana_conversion
+ t.check(conversion.face_mana.bound[0].amount==10 and conversion.face_mana.free[0].kind=="gain" and conversion.face_mana.free[0].amount==10 and conversion.face_costs.free=="1","MANA fixed exchange changes cost/gain with its face without pressure scaling")
+ t.check(conversion.face_mana.bound[0].text=="−10" and conversion.face_mana.free[0].text=="+10" and spell.face_mana.free[0].text=="+10","MANA signed badge numbers omit redundant decimal zero while keeping separate pools")
+ t.check(view.card_texts.mana_invocation.face_mana.bound[0].amount==20 and view.card_texts.fire_control.face_mana.bound[0].amount==10,"MANA direct restoration and temporary points use their real effect amounts")
+ t.check(view.card_texts.adaptability.face_mana.free.is_empty() and view.card_texts.adaptability.face_effects.free.contains("回合开始：获得1层魔力预备"),"MANA turn-start power is not advertised as immediate gain")
+ t.check(view.card_texts.embers.face_mana.bound.size()==1 and view.card_texts.embers.face_effects.bound.contains("再耗5魔力"),"MANA optional extra spending retains its condition and is not charged in the base badge")
+ t.check(view.card_texts.strain.face_mana.bound.is_empty() and view.card_texts.strain.face_mana.free.is_empty(),"MANA no resource interaction means no badge on either face")

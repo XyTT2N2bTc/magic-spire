@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "kind": "event",
+  "id": "succubus_three_games",
+  "name": "魅魔的三局赌牌",
+  "intro": "昏黄的灯光下，一名魅魔倚在铺着黑绒布的桌边，手里的纸牌被洗得哗哗作响。她见你经过，立刻将三张牌扣在桌上。\n\n“来都来了，陪姐姐玩三把？”\n“第一把押张牌，第二把押身上的拘束具。第三把嘛……就拿你那根肉棒下注。”\n“赢了拿筹码，输了就乖乖让我收债。”",
+  "start_stage": "wager_card",
+  "stages": [
+    {
+      "id": "wager_card",
+      "title": "第一局 · 押牌",
+      "intro": "魅魔朝你的卡组勾了勾手指。\n\n“挑一张舍得押的。赢了，它还是你的；输了，姐姐就替你改几个字。”",
+      "allow_refuse": true,
+      "choices": [
+        {
+          "id": "wager_card",
+          "label": "押上「{name}」",
+          "reward": "none",
+          "selector": {"kind": "card", "exclude_curses": true},
+          "detail": "胜率2/3：牌原样归还，获得1枚心形筹码。\n失败1/3：这张牌变为诅咒「慌乱」。",
+          "effects": [],
+          "outcomes": [
+            {"weight": 2, "result_status": "success", "effects": [{"op": "counter", "key": "heart_chips", "amount": 1}], "next": "after_round_one", "report": "魅魔翻开牌，眉梢一挑，把你押上的「{name}」推了回来，又随手丢来一枚心形筹码。\n“第一把就赢了？手气不错嘛。”"},
+            {"weight": 1, "result_status": "failure", "effects": [{"op": "transform_card", "target": "$selected", "type": "panic", "name": "{name}"}], "next": "after_round_one", "report": "魅魔看清牌面便笑了起来。尖细的指甲从「{name}」上轻轻划过，原本清楚的字迹立刻扭成乱糟糟的一团。她把已经变成「慌乱」的牌塞回你手中。\n“输了。这张现在归姐姐改过了。”"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "after_round_one",
+      "title": "第一局结算",
+      "intro": "魅魔把第二张牌推到桌边，指尖在牌背上轻轻点了两下。\n\n“现在走，筹码就是你的。还想玩的话，下一把可要押身上的东西了。”",
+      "allow_refuse": false,
+      "choices": [
+        {"id": "cash_zero", "label": "就此离开", "reward": "none", "next": "result", "when": {"counter": "heart_chips", "equals": 0}, "effects": [], "report": "你起身离开了牌桌。"},
+        {"id": "cash_one", "label": "用1枚筹码换一张普通牌", "reward": "common", "next": "result", "when": {"counter": "heart_chips", "equals": 1}, "effects": [], "report": "你把一枚心形筹码推回桌面，换取一张普通牌"},
+        {"id": "continue", "label": "继续第二局", "reward": "none", "next": "wager_restraint", "effects": [], "report": "魅魔笑着掀开第二叠牌。"}
+      ]
+    },
+    {
+      "id": "wager_restraint",
+      "title": "第二局 · 押拘束具",
+      "intro": "魅魔绕着你走了一圈，目光慢慢扫过你身上的拘束具。\n\n“这一把赌你身上的东西。”\n“挑一件。赢了，我替你解松些；输了……我就给你绑得更严实一点。”",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "wager_restraint",
+          "label": "押上{name}（{slot}）",
+          "reward": "none",
+          "selector": {"kind": "restraint"},
+          "detail": "胜率1/2：获得1枚心形筹码，解除锁并松开一档；一档时直接解除。\n失败1/2：选择一项拘束惩罚。",
+          "effects": [],
+          "outcomes": [
+            {"weight": 1, "result_status": "success", "effects": [{"op": "counter", "key": "heart_chips", "amount": 1}, {"op": "ease_restraint", "target": "$selected", "name": "{name}"}], "next": "after_round_two", "report": "魅魔不太情愿地取出钥匙，打开{name}上的锁，又亲手将它松开一档。第二枚心形筹码被她弹进你手里。\n“啧，真的让你赢回去一点。还玩不玩最后一把？”"},
+            {"weight": 1, "result_status": "failure", "effects": [], "next": "restraint_penalty", "report": "魅魔看了一眼翻开的牌，笑着将三张惩罚牌并排推到你面前。\n“输了就自己挑吧。”\n“想多绑几圈绳子，戴一条上锁的皮带，还是让我把你身上的拘束具收得更紧？”"}
+          ]
+        },
+        {
+          "id": "wager_without_restraint",
+          "label": "直接翻牌",
+          "reward": "none",
+          "when": {"selector": {"kind": "restraint"}, "equals": 0},
+          "detail": "胜率1/2：获得1枚心形筹码。\n失败1/2：添加拘束具（自选）。",
+          "effects": [],
+          "outcomes": [
+            {"weight": 1, "result_status": "success", "effects": [{"op": "counter", "key": "heart_chips", "amount": 1}], "next": "after_round_two", "report": "魅魔翻开牌看了半晌，才把一枚心形筹码弹到你面前。\n“身上什么都没押也能赢？行，这枚算你的。”"},
+            {"weight": 1, "result_status": "failure", "effects": [], "next": "restraint_penalty", "report": "魅魔笑着翻开三张惩罚牌，将备好的绳索和皮带一并摆到桌边。\n“既然身上没有能押的，那输了就从现在开始绑。”"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "restraint_penalty",
+      "title": "第二局失败 · 三选一",
+      "intro": "三张惩罚牌在黑绒桌面上一字排开。魅魔托着脸，笑眯眯地等你亲手挑下一张。",
+      "allow_refuse": false,
+      "choices": [
+        {"id": "two_ropes", "detail": "", "label": "随机增加2件初级绳索 · 2档", "reward": "none", "next": "after_round_two", "effects": [{"op": "install_random", "templates": ["rope"], "count": 2, "grade": 1, "tier": 2, "locked": false}], "report": "魅魔从桌下抽出两捆绳索，绕着你挑好位置，一处一处绑紧，最后将绳结压牢。\n“选了两捆啊？那就一处也不能少。”"},
+        {"id": "locked_belt", "detail": "", "label": "随机增加1件中级皮带 · 2档并上锁", "reward": "none", "next": "after_round_two", "effects": [{"op": "install_random", "templates": ["belt"], "count": 1, "grade": 2, "tier": 2, "locked": true}], "report": "魅魔挑出一条中级皮带，按住你将它绕好，又向里收紧皮带扣。小锁穿过锁孔，咔哒一声合上，钥匙随即被她收进胸口。\n“这条可不能随便脱下来。钥匙先放姐姐这里了。”"},
+        {"id": "tighten_two", "detail": "", "label": "随机将2处拘束具收至3档", "reward": "none", "next": "after_round_two", "effects": [{"op": "tighten_random", "count": 2, "to_tier": 3}], "report": "魅魔绕着你看了一圈，选中两处拘束具，亲手将它们逐一收到最紧。\n“这两件就别松松垮垮地戴着了。来，都给姐姐绑紧。”"}
+      ]
+    },
+    {
+      "id": "after_round_two",
+      "title": "第二局结算",
+      "intro": "桌面中央只剩最后一张牌。魅魔用指尖勾住身旁的椅背，尾巴在椅腿上绕了一圈。\n\n“前两把玩完了。带着筹码走，还是坐下来赌最后一把？”",
+      "allow_refuse": false,
+      "choices": [
+        {"id": "cash_zero", "label": "就此离开", "reward": "none", "next": "result", "when": {"counter": "heart_chips", "equals": 0}, "effects": [], "report": "你起身离开了牌桌。"},
+        {"id": "cash_one", "label": "用1枚筹码换一张普通牌", "reward": "common", "next": "result", "when": {"counter": "heart_chips", "equals": 1}, "effects": [], "report": "你用一枚筹码换取一张普通牌"},
+        {"id": "cash_two", "label": "用2枚筹码换一张罕见牌", "reward": "uncommon", "next": "result", "when": {"counter": "heart_chips", "equals": 2}, "effects": [], "report": "你用两枚筹码换取一张罕见牌"},
+        {"id": "continue", "label": "继续第三局 · 押精", "reward": "none", "next": "wager_semen", "effects": [], "report": "你在最后一局前坐了下来"}
+      ]
+    },
+    {
+      "id": "wager_semen",
+      "title": "第三局 · 押精",
+      "intro": "你刚在牌桌前坐稳，椅子里突然传出一连串机括声。皮带从扶手、椅背和椅腿间弹出，迅速扣住你的手腕、上身、腰部和脚踝，转眼便将你牢牢绑在椅子上，动弹不得。\n\n魅魔看着你的反应，笑着压住最后一张牌。若肉棒上还佩戴着能够取下的性玩具，她便俯下身一件件解开，依次摆在桌边。\n\n“最后一局，当然不能让你乱躲。”\n“坐好，把赌注交出来。”",
+      "allow_refuse": false,
+      "choices": [
+        {
+          "id": "begin",
+          "label": "翻开最后一张牌 · 胜率1/3",
+          "reward": "none",
+          "next": "payout",
+          "show_pressure_sources": true,
+          "detail": "开始便会被榨至高潮1次。胜率1/3：再获得2枚心形筹码。\n失败2/3：再被榨至高潮1次，并随机装上一件中级性玩具；没有合法位置时改为获得诅咒「敏感」。",
+          "effects": [],
+          "outcomes": [
+            {"weight": 1, "result_status": "success", "effects": [{"op": "pressure", "amount": 100, "source": "魅魔从身后贴上来，一只手环住你的腰，另一只手握住勃起的肉棒，从根部缓缓套向龟头。拇指每次擦过冠沟，她都会故意放慢动作；湿滑的掌心反复裹过柱身，直到肉棒在她手里跳动着射出精液，储存在其中的魔力也随之流失", "source_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔低头看见平板锁把肉棒压得一点也硬不起来，明显怔了一下。“咦？连这里也锁住了呀？”她很快笑着从身后贴住你，揉压乳房、夹弄乳头，又用尾巴贴着小穴与阴蒂反复磨蹭，直到高潮将精液从锁具下流出"}]}, {"op": "counter", "key": "heart_chips", "amount": 2}], "next": "payout", "report": "魅魔看着牌面啧了一声，这才松开握着肉棒的手，把两枚心形筹码丢到桌上。\n“还真给你赢了。行，姐姐说话算话。”", "report_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔看着从锁具下流出的精液，笑着又敲了敲锁面。\n“姐姐连那根杂鱼肉棒都没碰哦？”\n“只是揉揉奶子、玩一下小穴，你就自己射出来了❤”\n\n她翻开牌面，啧了一声，把两枚心形筹码丢到桌上。\n“算你赢。筹码拿好啦。”"}]},
+            {"weight": 1, "result_status": "success", "effects": [{"op": "pressure", "amount": 100, "source": "魅魔抬起裹着薄丝袜的脚，用足心贴住柱身缓缓磨动，另一只脚夹紧根部，不让你向后躲开。柔软的足底来回磨过肉棒，脚趾不时夹住龟头揉弄，第一股精液很快便被她从马眼里榨了出来，其中储存的魔力也随之流失", "source_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔低头看见平板锁把肉棒压得一点也硬不起来，明显怔了一下。“咦？连这里也锁住了呀？”她很快笑着从身后贴住你，揉压乳房、夹弄乳头，又用尾巴贴着小穴与阴蒂反复磨蹭，直到高潮将精液从锁具下流出"}]}, {"op": "counter", "key": "heart_chips", "amount": 2}], "next": "payout", "report": "魅魔看着牌面啧了一声，这才移开双脚，把两枚心形筹码丢到桌上。\n“还真给你赢了。行，姐姐说话算话。”", "report_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔看着从锁具下流出的精液，笑着又敲了敲锁面。\n“姐姐连那根杂鱼肉棒都没碰哦？”\n“只是揉揉奶子、玩一下小穴，你就自己射出来了❤”\n\n她翻开牌面，啧了一声，把两枚心形筹码丢到桌上。\n“算你赢。筹码拿好啦。”"}]},
+            {"weight": 1, "result_status": "success", "effects": [{"op": "pressure", "amount": 100, "source": "魅魔从正面贴近，将肉棒夹进丰满的乳沟，双臂收紧胸部，裹着柱身缓缓上下套弄。温热的乳肉一次次挤过冠沟，越夹越紧，直到肉棒在乳沟里跳动着射出精液，储存在其中的魔力也随之流失", "source_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔低头看见平板锁把肉棒压得一点也硬不起来，明显怔了一下。“咦？连这里也锁住了呀？”她很快笑着从身后贴住你，揉压乳房、夹弄乳头，又用尾巴贴着小穴与阴蒂反复磨蹭，直到高潮将精液从锁具下流出"}]}, {"op": "counter", "key": "heart_chips", "amount": 2}], "next": "payout", "report": "魅魔看着牌面啧了一声，这才松开胸前的肉棒，把两枚心形筹码丢到桌上。\n“还真给你赢了。行，姐姐说话算话。”", "report_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔看着从锁具下流出的精液，笑着又敲了敲锁面。\n“姐姐连那根杂鱼肉棒都没碰哦？”\n“只是揉揉奶子、玩一下小穴，你就自己射出来了❤”\n\n她翻开牌面，啧了一声，把两枚心形筹码丢到桌上。\n“算你赢。筹码拿好啦。”"}]},
+            {"weight": 2, "result_status": "failure", "effects": [{"op": "pressure", "amount": 100, "source": "魅魔从身后贴上来，握住勃起的肉棒，从根部缓缓套向龟头。拇指每次擦过冠沟都会故意放慢，直到肉棒在她手里射出精液", "source_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔看见平板锁把肉棒压得一点也硬不起来，先是愣了愣，随即笑着从身后搂住你。双手揉压乳房、夹弄乳头，尾巴贴着小穴与阴蒂反复磨蹭；快感骤然冲上来，精液随高潮从锁具下流了出来"}]}, {"op": "pressure", "amount": 100, "source": "魅魔看清牌面后没有松手，掌心借着柱身上沾到的精液继续上下套弄，拇指反复蹭过刚射完的龟头与冠沟。肉棒还没软下去便又在她手里绷紧；你被牢牢绑在椅子上，只能挺着身体承受她越来越快的动作，直到第二股精液再次从马眼里射了出来", "source_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "她没有停手，尾巴继续压着刚高潮过的阴蒂来回磨动，两根手指插进湿透的小穴连续勾弄，另一只手仍捏着乳头。第二次高潮很快压了上来，更多精液又从平板锁下断断续续流出"}]}, {"op": "special_install_random", "types": ["nipple_clamp_medium", "nipple_ring_medium", "shaft_ring_medium", "corona_ring_medium", "urethral_rod_medium", "vaginal_egg_medium", "anal_egg_medium", "external_wand_medium", "crotch_rope_medium", "glans_cup_medium", "full_cup_medium"], "fallback": [{"op": "card", "type": "sensitive"}]}], "next": "payout", "report": "魅魔等你第二次射完才停手。\n“才刚射过，又硬成这样了？”\n“这把也输了。都给你戴好，继续往上爬吧。”", "report_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔屈指敲了敲平板锁，低头看着锁具下面还在滴落的精液。\n“真的又射了呀？下面锁得这么严，奶子和小穴一碰却能连着射两次……”\n“你的杂鱼肉棒还真是不争气❤”\n\n她这才看向牌面。\n“这把也输了。都给你戴好，继续往上爬吧。”"}]},
+            {"weight": 2, "result_status": "failure", "effects": [{"op": "pressure", "amount": 100, "source": "魅魔抬起裹着薄丝袜的脚，用足心贴住柱身缓缓磨动，另一只脚夹紧根部。脚趾不时夹住龟头揉弄，第一股精液很快便从马眼里射了出来", "source_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔看见平板锁把肉棒压得一点也硬不起来，先是愣了愣，随即笑着从身后搂住你。双手揉压乳房、夹弄乳头，尾巴贴着小穴与阴蒂反复磨蹭；快感骤然冲上来，精液随高潮从锁具下流了出来"}]}, {"op": "pressure", "amount": 100, "source": "魅魔没有移开双脚。一只脚继续夹住肉棒根部，另一只脚的足底顺着沾满精液的柱身来回摩擦，脚趾不时夹住龟头揉过冠沟。刚射过的肉棒很快再次挺硬；你的双腿和腰都被绑在椅子上，只能看着精液又一次从马眼里射出", "source_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "她没有停手，尾巴继续压着刚高潮过的阴蒂来回磨动，两根手指插进湿透的小穴连续勾弄，另一只手仍捏着乳头。第二次高潮很快压了上来，更多精液又从平板锁下断断续续流出"}]}, {"op": "special_install_random", "types": ["nipple_clamp_medium", "nipple_ring_medium", "shaft_ring_medium", "corona_ring_medium", "urethral_rod_medium", "vaginal_egg_medium", "anal_egg_medium", "external_wand_medium", "crotch_rope_medium", "glans_cup_medium", "full_cup_medium"], "fallback": [{"op": "card", "type": "sensitive"}]}], "next": "payout", "report": "魅魔等你第二次射完才停手。\n“用脚也能这么快？真好懂。”\n“这把也输了。都给你戴好，继续往上爬吧。”", "report_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔屈指敲了敲平板锁，低头看着锁具下面还在滴落的精液。\n“真的又射了呀？下面锁得这么严，奶子和小穴一碰却能连着射两次……”\n“你的杂鱼肉棒还真是不争气❤”\n\n她这才看向牌面。\n“这把也输了。都给你戴好，继续往上爬吧。”"}]},
+            {"weight": 2, "result_status": "failure", "effects": [{"op": "pressure", "amount": 100, "source": "魅魔将肉棒夹进丰满的乳沟，收紧双臂，裹着柱身缓缓上下套弄。温热的乳肉一次次挤过龟头与冠沟，直到肉棒在乳沟里跳动着射出精液", "source_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔看见平板锁把肉棒压得一点也硬不起来，先是愣了愣，随即笑着从身后搂住你。双手揉压乳房、夹弄乳头，尾巴贴着小穴与阴蒂反复磨蹭；快感骤然冲上来，精液随高潮从锁具下流了出来"}]}, {"op": "pressure", "amount": 100, "source": "魅魔仍旧将肉棒夹在乳沟里，收紧双臂，让丰满的乳肉裹着湿滑的柱身继续上下套弄。每次乳肉挤过龟头与冠沟，刚缓下来的肉棒都会再次绷紧；你无法从椅子上躲开，只能被她抱着继续套弄，直到肉棒在乳沟里再次跳动着射出精液", "source_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "她没有停手，尾巴继续压着刚高潮过的阴蒂来回磨动，两根手指插进湿透的小穴连续勾弄，另一只手仍捏着乳头。第二次高潮很快压了上来，更多精液又从平板锁下断断续续流出"}]}, {"op": "special_install_random", "types": ["nipple_clamp_medium", "nipple_ring_medium", "shaft_ring_medium", "corona_ring_medium", "urethral_rod_medium", "vaginal_egg_medium", "anal_egg_medium", "external_wand_medium", "crotch_rope_medium", "glans_cup_medium", "full_cup_medium"], "fallback": [{"op": "card", "type": "sensitive"}]}], "next": "payout", "report": "魅魔等你第二次射完才停手。\n“还以为射过一次就不行了呢。”\n“这把也输了。都给你戴好，继续往上爬吧。”", "report_variants": [{"when": {"kind": "equipped_special_family", "value": "chastity_lock"}, "text": "魅魔屈指敲了敲平板锁，低头看着锁具下面还在滴落的精液。\n“真的又射了呀？下面锁得这么严，奶子和小穴一碰却能连着射两次……”\n“你的杂鱼肉棒还真是不争气❤”\n\n她这才看向牌面。\n“这把也输了。都给你戴好，继续往上爬吧。”"}]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "payout",
+      "title": "兑现筹码",
+      "intro": "最后一张牌已经翻开。魅魔拿起桌边原本由你佩戴的性玩具，一件件重新戴回原处，这才数清心形筹码，将对应的报酬摆到你面前。",
+      "allow_refuse": false,
+      "choices": [
+        {"id": "zero", "label": "离开牌桌", "reward": "none", "next": "result", "when": {"counter": "heart_chips", "equals": 0}, "effects": [], "report": "你起身离开了牌桌。"},
+        {"id": "one", "label": "1枚筹码 · 领取普通牌", "reward": "common", "next": "result", "when": {"counter": "heart_chips", "equals": 1}, "effects": [], "report": "一枚筹码换来了一张普通牌"},
+        {"id": "two", "label": "2枚筹码 · 领取罕见牌", "reward": "uncommon", "next": "result", "when": {"counter": "heart_chips", "equals": 2}, "effects": [], "report": "两枚筹码换来了一张罕见牌"},
+        {"id": "three", "label": "3枚筹码 · 移除一张牌并获得开锁针", "reward": "none", "next": "remove_reward", "when": {"counter": "heart_chips", "equals": 3}, "effects": [], "report": "三枚筹码足够换一次删牌与一套便携开锁针"},
+        {"id": "four", "detail": "", "label": "4枚筹码 · 领取随机遗物", "reward": "relic", "next": "result", "when": {"counter": "heart_chips", "equals": 4}, "effects": [], "report": "四枚筹码换来了一件遗物"}
+      ]
+    },
+    {
+      "id": "remove_reward",
+      "title": "三枚筹码 · 移除卡牌",
+      "intro": "魅魔把便携开锁针放到桌边。\n\n选择一张要从卡组中移除的牌。",
+      "allow_refuse": false,
+      "choices": [
+        {"id": "remove", "detail": "获得便携开锁针。", "label": "移除「{name}」", "reward": "none", "next": "result", "selector": {"kind": "card", "exclude_curses": false}, "effects": [{"op": "remove_card", "target": "$selected", "name": "{name}"}, {"op": "tool", "type": "picks"}], "report": "你放下「{name}」，收起魅魔递来的便携开锁针"}
+      ]
+    }
+  ]
+}

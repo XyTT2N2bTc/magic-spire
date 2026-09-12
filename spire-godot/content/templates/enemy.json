@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "enemy",
+  "id": "example_patrol_rope",
+  "name": "巡游绳索",
+  "base_enemy": "rope",
+  "hp": 16,
+  "order": 10,
+  "encounter": {
+    "rank": "weak",
+    "grade": 1
+  },
+  "strength": 1
+}

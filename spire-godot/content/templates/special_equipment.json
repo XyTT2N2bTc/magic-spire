@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "special_equipment",
+  "id": "example_vibration_ring",
+  "name": "试制硅胶柱身震动环",
+  "base_type": "shaft_ring_low",
+  "energy_gain": 3,
+  "turn_gain": 2,
+  "duration": 3,
+  "wear_text": "她将「{name}」撑开，沿着龟头缓缓套到柱身中段。硅胶环贴着肉棒收紧，开关亮起后便隔着表皮持续震动。",
+  "acquisition": {
+    "name": "试制品收纳盒",
+    "intro": "盒内放着一枚仍有电量的试制震动环。",
+    "label": "戴上试制震动环",
+    "slot": "special_2_a"
+  }
+}

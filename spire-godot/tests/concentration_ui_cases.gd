@@ -1,0 +1,34 @@
+extends RefCounted
+const Click=preload("res://tests/interface_ui_cases.gd")
+
+static func run(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames();ui.game._discard_end()
+ ui.game.state.wall="normal";ui.game.state.wall_distance=0
+ var target=ui.game.add_fixture("ankle",400.0,1000.0)
+ var card=preload("res://tests/curse_cases.gd").give(ui.game,"concentration")
+ var twin=preload("res://tests/curse_cases.gd").give(ui.game,"concentration")
+ ui.card_faces[card.uid]=false;ui.card_faces[twin.uid]=false
+ ui.render();await t.frames()
+ var before=ui.game.export_snapshot()
+ await t.flip(card.uid)
+ var face=ui.card_buttons[card.uid]
+ t.check(ui.card_faces[card.uid] and not face.effect_free and t.visible_text(face).contains("拘束2") and t.visible_text(face).contains("滑脱6") and ui.game.state==before,"CONCENTRATION UI native flip changes only face and correctly labels second bound effect")
+ await t.drop_card_on_actor(card.uid,"hero")
+ t.check(ui.player_pick and ui.game.state==before,"CONCENTRATION UI second face opens target selection instead of applying a free effect")
+ await Click.press(t,"PlayerPart_ankle")
+ var candidate=ui.actions.find("card",{"uid":card.uid,"target":target.id,"free":true})
+ t.check(ui.selected_candidate==candidate.id and ui.drop_targets.is_empty(),"CONCENTRATION UI single equipment auto-selects the current face without another target step")
+ t.check(t.visible_text(ui.find_child("EquipmentDetails",true,false)).contains(candidate.detail),"CONCENTRATION UI selected second-face preview uses the formal candidate")
+ await Click.press(t,"PlaySelectedCard");await t.frames()
+ t.check(ui.game.Cards.base_damage(ui.game,card.type,card.uid)==9 and ui.game.state.energy==before.energy-1,"CONCENTRATION UI selected slip executes once and grows once")
+ preload("res://tests/concentration_cases.gd").redraw(ui.game,card)
+ ui.render();await t.frames()
+ if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+ face=ui.card_buttons[card.uid]
+ t.check(t.visible_text(face).contains("滑脱9") and t.visible_text(ui.card_buttons[twin.uid]).contains("挣扎6"),"CONCENTRATION UI redraw preserves growth and a second copy stays at six")
+ await t.capture("ui-concentration.png")
+ await Click.press(t,"OpenDeck")
+ var browser=ui.find_child("DeckBrowser",true,false)
+ var physical=browser.grid.get_children().filter(func(button):return button.get_meta("physical_uid","")==card.uid)
+ t.check(physical.size()==1 and t.visible_text(physical[0]).contains("挣扎9"),"CONCENTRATION UI deck browser uses live physical card growth")

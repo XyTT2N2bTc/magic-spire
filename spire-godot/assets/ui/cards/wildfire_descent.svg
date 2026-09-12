@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="90" viewBox="0 0 180 90">
+ <defs><linearGradient id="night" x2="0" y2="1"><stop stop-color="#202d43"/><stop offset="1" stop-color="#101a26"/></linearGradient><linearGradient id="fire" x2="0" y2="1"><stop stop-color="#fff0b0"/><stop offset=".5" stop-color="#ef9a52"/><stop offset="1" stop-color="#bf4a4a"/></linearGradient></defs>
+ <rect width="180" height="90" rx="9" fill="url(#night)"/>
+ <path d="M0 90 49 27 73 55 109 14 180 90" fill="#34445a"/>
+ <path d="m49 27 14 16-16-5-8 2zm60-13 19 24-18-7-13 8z" fill="#819595"/>
+ <path d="M68 5c-4 18 21 23 14 42 17-5 11-18 11-18 24 18 39 33 31 47-10 18-63 18-72-6C42 45 67 34 68 5z" fill="url(#fire)"/>
+ <path d="M74 43c4 16-5 18-5 28 0 15 27 18 34 5 6-11-12-18-12-25-1 8-6 12-10 10z" fill="#ffe7a3"/>
+ <g stroke="#d8bf85" stroke-width="1.5" fill="#213343"><path d="m134 55 22 8-8 21-22-8z"/><path d="m140 49 22 8-8 21-22-8z"/></g>
+ <path d="m143 57 11 4m-14 2 11 4" stroke="#a7dacf" stroke-width="2"/>
+ <circle cx="39" cy="53" r="2" fill="#eac685"/><circle cx="122" cy="48" r="2" fill="#eac685"/>
+</svg>

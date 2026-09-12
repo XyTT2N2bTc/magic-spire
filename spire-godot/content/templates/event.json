@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "event",
+  "id": "example_travel_cache",
+  "name": "旅人补给箱",
+  "intro": "箱子上写着交换条件：留下少许魔力，可以带走一件工具。",
+  "choices": [
+    {
+      "id": "take_tool",
+      "label": "支付5魔力，领取锯条",
+      "reward": "none",
+      "effects": [
+        {
+          "op": "mana_loss",
+          "amount": 5
+        },
+        {
+          "op": "tool",
+          "type": "saw"
+        }
+      ]
+    },
+    {
+      "id": "trade_card",
+      "label": "装上基础装备，挑选一张牌",
+      "reward": "common",
+      "recipe": "free_basic"
+    }
+  ]
+}

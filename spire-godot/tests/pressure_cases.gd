@@ -1,0 +1,231 @@
+extends RefCounted
+const Game=preload("res://tests/game_fixture.gd")
+const P=preload("res://core/pressure.gd")
+
+static func calm_mouth(t) -> void:
+ for template in ["mouth_band","mouth_tape"]:
+  for grade in [1,2,3]:
+   for tightness in [1,2,3]:
+    var g=Game.new(42);g.state.pressure=90
+    var maximum=g.Equipment.maximum(grade)
+    var mouth=g._install_template(template,"mouth",maximum*([0.4,0.8,1.0][tightness-1]),maximum,false,"fixture",grade)
+    t.check(not mouth.is_empty() and g.validate()=="","CALM mouth fixture uses a real graded restraint")
+    var expected=25-5*(grade+tightness-1)
+    var before=g.export_snapshot();var c=t.find_action(g,"calm")
+    t.check(g.state==before and c.detail.contains("快感－%d" % expected) and c.detail.contains("下回合能量＋1"),"CALM preview reads the same reduction and full deferred energy without mutation")
+    t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"CALM stale mouth preview refuses without changing any state")
+    if expected==0:
+     t.check(not c.valid and c.reason.contains("高级、紧度3档") and not g.dispatch(c.id,g.state.version).ok and g.state==before,"CALM complete mouth block refuses without payment or deferred energy")
+    else:
+     t.check(g.dispatch(c.id,g.state.version).ok and g.state.pressure==90-expected and g.state.energy==2 and g.state.next_energy==1,"CALM all grades and tightness levels reduce only pressure relief, never deferred energy")
+     t.check(g.state.mana==before.mana and g.state.tick==before.tick and g.state.rng==before.rng and g.state.equipment==before.equipment and g.state.hand==before.hand,"CALM mouth penalty introduces no spell roll, turn, mana, equipment or card mutation")
+     t.check(g.state.logs.any(func(row):return row.text.contains("深呼吸：快感降低%d" % expected) and row.text.contains("下回合能量＋1")),"CALM log records actual relief and full energy reward")
+ var g=Game.new(42);g.state.pressure=90
+ var mouth=g._install_template("mouth_band","mouth",20,20,false,"fixture",3)
+ var blocked=t.find_action(g,"calm");var version=g.state.version
+ t.check(t.action(g,"manual",{"target":mouth.id}).ok and g.equipment_at("mouth").is_empty(),"CALM formal removal frees the mouth")
+ var before=g.export_snapshot()
+ t.check(not g.dispatch(blocked.id,version).ok and g.state==before and t.find_action(g,"calm").detail.contains("快感－25"),"CALM removal invalidates old preview and restores full relief")
+ g._install_template("eye_leather","eyes",20,20,true,"fixture",3)
+ t.check(P.calm(g).reduction==25,"CALM other body slots and locks do not cause mouth attenuation")
+ mouth=g._install_template("mouth_band","mouth",20,20,true,"fixture",3)
+ mouth.durability=16
+ t.check(P.calm(g).reduction==5 and t.find_action(g,"calm").valid,"CALM tightness dropping from three to two re-enables the action even while locked")
+ g.state.pressure=1
+ t.check(t.action(g,"calm").ok and g.state.pressure==0 and g.state.next_energy==1,"CALM attenuated relief clamps at zero while still granting full deferred energy")
+ var restored=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"mouth-attenuated deep breath")
+ t.check(restored!=null and P.calm(restored).reduction==5 and restored.state.next_energy==1,"CALM saved physical mouth state reproduces relief and deferred reward")
+
+static func calm_next_energy(t) -> void:
+ var g=Game.new(42)
+ g.state.pressure=60
+ var tick=g.state.tick;var mana=g.state.mana;var version=g.state.version
+ var before=g.export_snapshot()
+ var offered=t.find_action(g,"calm")
+ t.check(offered.valid and offered.detail.contains("下回合能量＋1") and g.state==before,"CALM preview exposes deferred energy without awarding it")
+ t.check(t.action(g,"calm").ok and g.state.energy==2 and g.state.next_energy==1 and g.state.pressure==35 and g.state.tick==tick,"CALM pays now and reserves energy without advancing the turn")
+ t.check(t.action(g,"calm").ok and g.state.energy==1 and g.state.next_energy==2 and g.state.pressure==10,"CALM repeated successful uses stack deferred energy")
+ before=g.export_snapshot()
+ t.check(not g.dispatch(offered.id,version).ok and g.state==before,"CALM stale submission cannot duplicate its energy reward")
+ var restored=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"deep breath deferred energy")
+ for game in [g,restored]:
+  t.check(t.action(game,"end").ok and game.state.energy==5 and game.state.next_energy==0 and game.state.mana==mana,"CALM next player round consumes the full reserve exactly once")
+  t.check(t.action(game,"end").ok and game.state.energy==3,"CALM bonus does not repeat on later rounds")
+ g=Game.new(42);g.state.pressure=1;g.state.energy=0
+ before=g.export_snapshot()
+ t.check(not t.action(g,"calm").ok and g.state==before,"CALM insufficient energy cannot grant a reserve")
+ g.state.energy=1
+ t.check(t.action(g,"calm").ok and g.state.pressure==0 and g.state.energy==0 and g.state.next_energy==1,"CALM less than 25 pressure still grants the full one energy")
+ g.state.energy=1;before=g.export_snapshot()
+ t.check(not t.action(g,"calm").ok and g.state==before,"CALM zero pressure retains its existing disabled rule and cannot farm energy")
+ P.gain(g,100,"测试干扰")
+ t.check(t.action(g,"end").ok and g.state.energy==3 and g.state.next_energy==0 and g.state.overload_energy==0,"CALM reserve offsets the original next-turn overload penalty")
+ g=Game.new(42,true,"pressure")
+ t.check(t.action(g,"calm").ok and t.action(g,"end").ok and g.state.phase=="rest" and g.state.energy==4 and g.state.next_energy==0,"CALM noncombat player turns consume the same reserve")
+
+static func source(id: String, timing: String, amount: float, equipment: String="", room: String="") -> Dictionary:
+ return {"id":id,"name":"测试干扰","timing":timing,"amount":amount,"equipment":equipment,"room":room}
+
+static func run(t) -> void:
+ climax_card_practice(t)
+ calm_mouth(t)
+ calm_next_energy(t)
+ formal_sources(t)
+ for pair in [[0,0],[40,1],[40.01,2],[80,2],[80.01,3],[99.99,3]]:
+  t.check(P.stage(pair[0])==pair[1],"PRESSURE exact stage boundary")
+ t.check(P.magic_multiplier(0)==1 and P.magic_multiplier(40)==1 and P.magic_multiplier(100)==1.5,"PRESSURE no low-pressure discount, capped continuous magic multiplier")
+ var last=1.0
+ for value in range(41,100):
+  var mult=P.magic_multiplier(value)
+  t.check(mult>=last and mult<1.5,"PRESSURE monotonic cost without discontinuity")
+  last=mult
+ var g=Game.new(42,true,"pressure")
+ var old=JSON.stringify(g.state)
+ var view=g.get_view()
+ view.pressure.sources[0].name="changed"
+ t.check(JSON.stringify(g.state)==old and g.state.pressure==70 and g.state.pressure_sources.size()==2,"PRESSURE complete practice and independent read-only source projection")
+ var initial_mana=g.state.mana
+ var card=t.hand_card(g,"ease")
+ var cost=g._mana_cost(10)
+ t.check(g.get_view().hand.filter(func(c):return c.type=="ease")[0].bound.contains(g.number(cost)),"PRESSURE visible spell card matches current formal mana cost")
+ g.state.temporary_mana=5
+ t.check(is_equal_approx(g._mana_cost(10),cost),"PRESSURE gross cost does not change with temporary mana balance")
+ var free=t.find_action(g,"card",{"uid":card.uid,"free":true})
+ t.check(not free.valid and free.reason.contains("休息房") and free.mana==0,"PRESSURE free magic remains free but rest still forbids free effects")
+ t.check(t.action(g,"calm").ok and g.state.pressure==45 and g.state.energy==2 and g.state.next_energy==1 and g.state.mana==initial_mana,"PRESSURE actual calm spends current energy and reserves one for next turn")
+ old=JSON.stringify(g.state)
+ var stale=t.find_action(g,"calm")
+ var version=g.state.version
+ t.action(g,"calm")
+ old=JSON.stringify(g.state)
+ t.check(not g.dispatch(stale.id,version).ok and JSON.stringify(g.state)==old,"PRESSURE stale calm candidate rejects without second reduction")
+
+ g=Game.new(42,true,"pressure")
+ var belt=g.state.equipment[0].id
+ card=t.hand_card(g,"strain")
+ var c=t.find_action(g,"card",{"uid":card.uid,"slot":"wrist","target":belt})
+ var damage=c.payload.preview.damage
+ t.check(t.action(g,"card",{"uid":card.uid,"slot":"wrist","target":belt}).ok and g.state.pressure==90,"PRESSURE strain source triggers once after real damage")
+ t.check(is_equal_approx(g._equipment(belt).durability,12.8-damage),"PRESSURE does not alter escape damage")
+ card=t.hand_card(g,"strain")
+ t.check(t.action(g,"card",{"uid":card.uid,"slot":"wrist","target":belt}).ok and g.state.overloaded and g.state.pressure==10 and g.state.mana==90,"PRESSURE second strain immediately overloads with remainder")
+ var climax_view=g.get_view()
+ t.check(climax_view.climax.cue=="climax.narration.normal" and climax_view.climax.text.begins_with("你的") and climax_view.speech.cue=="hero.climax.normal.clear","PRESSURE committed climax projects second-person narration separately from spoken dialogue")
+ t.check(g.state.energy==0 and g.state.hand.is_empty() and g.candidates().filter(func(c):return c.payload.kind not in ["flask","item_discard"]).size()==1 and g.candidates()[0].payload.kind=="end","PRESSURE no card, ordinary tool, posture or early exit after interruption")
+ old=JSON.stringify(g.state)
+ t.check(not g.dispatch(c.id,g.state.version).ok and JSON.stringify(g.state)==old,"PRESSURE interrupted card cannot be submitted again")
+ t.check(t.action(g,"end").ok and g.state.pressure==35 and g.state.energy==2 and g.state.rest_left==5 and not g.state.overloaded,"PRESSURE finish interrupted rest once, end pulse once and apply next penalty once")
+ t.action(g,"end")
+ t.check(g.state.energy==3 and g.state.pressure==60 and g.state.overload_energy==0,"PRESSURE energy penalty is consumed, pressure carries into following round")
+
+ g=Game.new(42,true,"pressure")
+ belt=g.state.equipment[0].id
+ t.check(t.action(g,"hook",{"target":belt}).ok and t.action(g,"hook",{"target":belt}).ok and g.state.pressure_sources.size()==2 and g.state.pressure==70,"PRESSURE ordinary belt removal does not erase independent room sources")
+ t.check(g.get_view().pressure.sources[0].name==g.state.pressure_sources[0].name and g.state.pressure_sources[0].room==g.state.room and g.state.pressure_sources[0].equipment=="","PRESSURE UI describes actual room source without equipment dependency")
+ g.state.pressure=99
+ P.gain(g,251,"多段脉冲")
+ t.check(g.state.pressure==50 and g.state.overload_count==3 and g.state.overload_energy==3 and g.state.mana==70,"PRESSURE one gain can overload three times and stacks all penalties")
+ P.gain(g,160,"追加脉冲")
+ t.check(g.state.pressure==10 and g.state.overload_count==5 and g.state.overload_energy==5 and g.state.mana==50,"PRESSURE already interrupted turn still accepts further pulses")
+ g.state.next_energy=1
+ g.state.pressure_sources=[]
+ t.action(g,"end")
+ t.check(g.state.energy==0 and not g.state.overloaded and g.state.overload_energy==0,"PRESSURE next energy bonuses offset stacked penalty with zero floor")
+ t.action(g,"end")
+ t.check(g.state.energy==3,"PRESSURE unused penalty never leaks into later rounds")
+
+ g=Game.new(42,true,"pressure_battle")
+ t.check(g.state.phase=="battle" and g.state.enemies.all(func(e):return e.intent.pressure==65) and g.get_view().enemies.all(func(e):return e.intent_icons.any(func(icon):return icon.kind=="debuff")),"PRESSURE battle practice has actual publicly frozen skills")
+ t.action(g,"end")
+ t.check(g.state.pressure==0 and g.state.mana==80 and g.state.energy==1 and g.state.round==2 and g.state.enemies.all(func(e):return e.stage==2),"PRESSURE two first-order enemy actions both resolve, two overloads consume next energy")
+ g=Game.new(42,true,"pressure_battle")
+ g.state.posture="lie"
+ g.state.pressure=70
+ g._start_round()
+ t.check(g.state.overloaded and g.state.pressure==0 and g.state.overload_count==2 and g.state.overload_energy==2 and g.state.energy==0,"PRESSURE last-order enemies interrupt this player turn before any action")
+ t.check(g.state.enemies.all(func(e):return e.stage==2),"PRESSURE first overload does not cancel second enemy")
+ t.action(g,"end")
+ t.check(g.state.enemies.all(func(e):return e.stage==3) and g.state.round==3 and g.state.overload_total==3,"PRESSURE last-order continue does not execute previous enemy phase twice")
+ g=Game.new(42,true,"pressure_battle")
+ var enemy=g.state.enemies[0]
+ g.state.round=2
+ g.state.card_buffs.append("infusion_bound") # Interruption fixture; the card itself has separate casting tests.
+ t.action(g,"attack",{"type":"kick","form":2,"enemy":enemy.id})
+ t.action(g,"end")
+ t.check(g.state.pressure==35 and g.state.overload_total==1 and g.state.enemies[0].stage==1 and g.state.enemies[1].stage==2,"PRESSURE interrupt delays skill and attachment together")
+ g=Game.new(42,true,"pressure_battle")
+ g.state.pressure_sources=[]
+ var guard=0
+ while g.state.phase=="battle" and guard<8:
+  t.check(t.action(g,"end").ok,"PRESSURE complete practice encounter")
+  guard+=1
+ t.check(g.state.phase=="reward" and g.state.reward_count==1 and g.state.overloaded and g.state.overload_energy>0,"PRESSURE victory keeps next-turn penalty and rewards once")
+ var penalty=g.state.overload_energy
+ var remaining=g.state.pressure
+ var mana=g.state.mana
+ t.action(g,"reward",{"type":"skip"})
+ t.check(g.state.phase=="prepare" and g.state.energy==maxi(0,3-penalty) and not g.state.overloaded and g.state.overload_energy==0 and g.state.pressure==remaining and g.state.mana==mana,"PRESSURE first preparation turn consumes carried penalty once")
+
+ while g.carried_items()>g.item_capacity(): t.check(t.action(g,"item_discard",{"item":g.state.items[0].id}).ok,"PRESSURE practice resolves actual reward overflow before leaving")
+ t.action(g,"finish_prepare")
+ t.check(g.state.phase=="cleared" and g.state.pressure==remaining,"PRESSURE battle practice ends without tower progression")
+
+ for timing in ["turn_start","posture","slip"]:
+  g=Game.new(42,true,"equipment")
+  g.state.pressure_sources=[source("timed",timing,20)]
+  if timing=="turn_start": t.action(g,"end")
+  elif timing=="posture": t.action(g,"posture",{"dest":"sit","wall":false})
+  else: t.action(g,"hook",{"target":g.equipment_at("wrist")[0].id})
+  t.check(g.state.pressure==20,"PRESSURE explicit timing pulses once "+timing)
+ g=Game.new(42)
+ g.state.pressure_sources=[source("pose","posture",100)]
+ t.action(g,"posture",{"dest":"sit","wall":false})
+ t.action(g,"end")
+ t.check(g.state.round==2 and g.state.overload_total==1,"PRESSURE posture finishes before forced turn and preserves next round")
+ g=Game.new(42)
+ g.state.pressure=90; g.state.mana=3
+ P.gain(g,20,"脉冲")
+ t.check(g.state.mana==0 and g.state.pressure==10 and g.validate()=="","PRESSURE magic loss saturates at zero without changing penalty count")
+ P.clear_penalties(g)
+ g.state.phase="map"; g.state.room="entrance"; g.state.energy=0
+ g.state.pressure_sources=[source("travel","travel",100),source("room","travel",100,"","entrance")]
+ t.action(g,"depart",{"room":"east"})
+ t.action(g,"travel_step")
+ t.check(g.state.overload_total==2 and g.state.overload_energy==0 and g.state.pressure==10,"PRESSURE travelling equipment/global source persists, room source stops on departure")
+ g=Game.new(42,true,"pressure")
+ g.state.pressure_sources[0].amount=-1
+ old=JSON.stringify(g.state)
+ t.check(not t.action(g,"calm").ok and JSON.stringify(g.state)==old,"PRESSURE invalid source rejects whole command with no resource/log change")
+
+static func formal_sources(t) -> void:
+ var Save=preload("res://tests/persistence_cases.gd")
+ var g=Game.new(42)
+ var before=g.state.duplicate(true)
+ g.get_view();g.candidates();g.EquipmentOffers.options(g)
+ t.check(g.state==before,"SOURCE view and generation probes are read-only")
+ var restored
+ g=Game.new(42,true,"guard")
+ for turn in range(5):
+  t.check(t.action(g,"end").ok and g.state.pressure==0 and g.state.pressure_sources.is_empty(),"SOURCE guard ordinary rounds create no pressure")
+ restored=Save.roundtrip(t,g,"guard without pressure source")
+ Save.step_both(t,g,restored,"end")
+
+static func climax_card_practice(t) -> void:
+ var g=Game.new(42,true,"climax_card")
+ t.check(g.validate()=="" and g.state.phase=="battle" and g.state.pressure==99 and g.state.enemies.size()==1,"CLIMAX PRACTICE starts a valid ordinary battle at 99 pressure")
+ t.check(g.state.special_equipment.size()==1 and g.state.special_equipment[0].type=="urethral_rod_low","CLIMAX PRACTICE wears one existing energy-triggered special equipment")
+ var cards=g.state.hand.filter(func(card):return card.type=="strain")
+ t.check(not cards.is_empty() and g.state.deck.filter(func(deck_card):return deck_card.uid==cards[-1].uid).size()==1,"CLIMAX PRACTICE draws one ordinary strain card through the normal opening path")
+ var card=cards[-1];var before=g.export_snapshot()
+ var choice=t.find_action(g,"card",{"uid":card.uid,"free":true})
+ t.check(choice.valid and choice.cost==1 and choice.mana==0 and g.get_view().practice_options.any(func(row):return row.id=="climax_card" and row.node=="Practice_climax_card") and g.state==before,"CLIMAX PRACTICE uses a readonly ordinary paid card candidate")
+ var stale=g.dispatch(choice.id,g.state.version-1)
+ t.check(not stale.ok and g.state==before,"CLIMAX PRACTICE stale submission cannot trigger special equipment or climax")
+ var result=g.dispatch(choice.id,g.state.version)
+ t.check(result.ok and g.state.overloaded and g.state.overload_total==1 and g.state.overload_count==1 and g.state.pressure==5,"CLIMAX PRACTICE paid card triggers the existing special equipment and one formal climax")
+ t.check(g.state.energy==0 and g.state.mana==before.mana-g.B.OVERLOAD_MANA and g.state.overload_energy==g.B.OVERLOAD_ENERGY and g.state.special_equipment[0].type=="urethral_rod_low","CLIMAX PRACTICE uses normal interruption, mana loss, weakness and keeps the real equipment")
+ var actions=g.candidates().filter(func(candidate):return candidate.payload.kind not in ["flask","item_discard"])
+ t.check(actions.size()==1 and actions[0].payload.kind=="end" and result.get("music_feedback",[]).is_empty(),"CLIMAX PRACTICE leaves only formal continue action and no unrelated music")
+ var normal=Game.new(42)
+ t.check(normal.state.pressure==0 and normal.state.special_equipment.is_empty(),"CLIMAX PRACTICE setup never enters a normal run")
+

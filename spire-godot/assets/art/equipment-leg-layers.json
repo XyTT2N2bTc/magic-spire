@@ -1,0 +1,128 @@
+[
+  {
+    "id": "thigh_root",
+    "label": "大腿根",
+    "field": "points",
+    "value": "thigh_root",
+    "texture": "res://assets/art/equipment-leg-thigh_root-v3.png",
+    "free_texture": "res://assets/art/equipment-leg-thigh_root-free-v3.png",
+    "origin": [
+      390,
+      1180
+    ],
+    "source_bounds": [
+      390,
+      1180,
+      1130,
+      1300
+    ]
+  },
+  {
+    "id": "mid_thigh",
+    "label": "大腿中部",
+    "field": "points",
+    "value": "mid_thigh",
+    "texture": "res://assets/art/equipment-leg-mid_thigh-v3.png",
+    "free_texture": "res://assets/art/equipment-leg-mid_thigh-free-v3.png",
+    "origin": [
+      390,
+      1350
+    ],
+    "source_bounds": [
+      390,
+      1350,
+      1130,
+      1448
+    ]
+  },
+  {
+    "id": "above_knee",
+    "label": "膝盖上方",
+    "field": "points",
+    "value": "above_knee",
+    "texture": "res://assets/art/equipment-leg-above_knee-v3.png",
+    "free_texture": "res://assets/art/equipment-leg-above_knee-free-v3.png",
+    "origin": [
+      390,
+      1508
+    ],
+    "source_bounds": [
+      390,
+      1508,
+      1130,
+      1610
+    ]
+  },
+  {
+    "id": "below_knee",
+    "label": "膝盖下方",
+    "field": "points",
+    "value": "below_knee",
+    "texture": "res://assets/art/equipment-leg-below_knee-v3.png",
+    "free_texture": "res://assets/art/equipment-leg-below_knee-free-v3.png",
+    "origin": [
+      390,
+      1638
+    ],
+    "source_bounds": [
+      390,
+      1638,
+      1130,
+      1760
+    ]
+  },
+  {
+    "id": "mid_calf",
+    "label": "小腿中间",
+    "field": "points",
+    "value": "mid_calf",
+    "texture": "res://assets/art/equipment-leg-mid_calf-v3.png",
+    "free_texture": "res://assets/art/equipment-leg-mid_calf-free-v3.png",
+    "origin": [
+      390,
+      1827
+    ],
+    "source_bounds": [
+      390,
+      1827,
+      1130,
+      1920
+    ]
+  },
+  {
+    "id": "ankle",
+    "label": "脚踝",
+    "field": "points",
+    "value": "ankle",
+    "texture": "res://assets/art/equipment-leg-ankle-v3.png",
+    "free_texture": "res://assets/art/equipment-leg-ankle-free-v3.png",
+    "origin": [
+      390,
+      2007
+    ],
+    "source_bounds": [
+      390,
+      2007,
+      1130,
+      2127
+    ]
+  },
+  {
+    "id": "foot",
+    "label": "脚掌",
+    "field": "points",
+    "value": "foot",
+    "texture": "res://assets/art/equipment-leg-foot-v3.png",
+    "free_texture": "res://assets/art/equipment-leg-foot-free-v3.png",
+    "origin": [
+      390,
+      2142
+    ],
+    "source_bounds": [
+      390,
+      2142,
+      1130,
+      2273
+    ]
+  }
+]

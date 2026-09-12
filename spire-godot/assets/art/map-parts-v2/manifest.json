@@ -1,0 +1,73 @@
+{
+  "batch": 2,
+  "date": "2026-09-07",
+  "tool": "built-in image_gen",
+  "runtimeIntegrated": true,
+  "runtimeConsumer": "ui/route_map.gd",
+  "paperDisplayBrightness": 0.78,
+  "assets": [
+    {
+      "file": "entrance.png",
+      "name": "塔底入口",
+      "description": "与出口区分的闭合双门。",
+      "kind": "icon",
+      "alpha": true,
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "file": "current-marker.png",
+      "name": "当前位置",
+      "description": "金色圆圈＋上方菱形，中心透明。",
+      "kind": "icon",
+      "alpha": true,
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "file": "available-ring.png",
+      "name": "可前往",
+      "description": "青色圆圈＋左右小菱角，中心透明。",
+      "kind": "icon",
+      "alpha": true,
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "file": "completed-check.png",
+      "name": "已完成",
+      "description": "独立金色勾记，放在节点旁边。",
+      "kind": "icon",
+      "alpha": true,
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "file": "paper-base.png",
+      "name": "地图纸面",
+      "description": "单独的不透明底图，无节点、路线或装饰。",
+      "kind": "wide",
+      "alpha": false,
+      "width": 1672,
+      "height": 941
+    },
+    {
+      "file": "tower-left.png",
+      "name": "左侧塔影",
+      "description": "透明装饰层，建议低透明度放在左边缘。",
+      "kind": "tall",
+      "alpha": true,
+      "width": 1024,
+      "height": 1536
+    },
+    {
+      "file": "arcade-right.png",
+      "name": "右侧回廊",
+      "description": "透明装饰层，建议放在右边缘。",
+      "kind": "tall",
+      "alpha": true,
+      "width": 1024,
+      "height": 1536
+    }
+  ]
+}

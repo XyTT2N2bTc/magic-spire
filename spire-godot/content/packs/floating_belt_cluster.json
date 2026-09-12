@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "event",
+  "id": "floating_belt_cluster",
+  "name": "漂浮皮带群",
+  "intro": "走廊前方传来一阵密集的金属轻响。\n\n十几条漂浮皮带挤在一起，宽大的带身盘成一圈圈，几乎封死了整条路。皮带扣不断开合，像是在等什么东西主动靠近。\n\n其中几条皮带内侧浮动着粉色的魔力，甜腻的气息隔着一段距离都能感觉到。",
+  "allow_refuse": false,
+  "choices": [
+    {
+      "id": "fight",
+      "label": "【硬闯】把挡路的皮带打散",
+      "detail": "与3只初级漂浮皮带战斗；胜利后获得稀有遗物「软化扣环」。",
+      "reward": "none",
+      "effects": [],
+      "hide_when_unavailable": true,
+      "report": "你刚踢开最前面的一条皮带，周围的金属扣便同时弹开。三条漂浮皮带从带群中窜出，分别卷向你的双臂、腰间与双腿。",
+      "encounter": {
+        "id": "event_belt_trio",
+        "requires_defeat": true,
+        "victory_effects": [
+          {
+            "op": "relic",
+            "type": "softened_buckle"
+          }
+        ],
+        "victory_report": "最后一条皮带失去魔力，软塌塌地落在地上。你拨开散落的带身，从中捡出一枚仍泛着微光的扣环。",
+        "result_status": "success"
+      }
+    },
+    {
+      "id": "infusion",
+      "label": "【接受灌注】走进皮带群中",
+      "detail": "恢复25魔力；获得诅咒「淫纹」。",
+      "reward": "none",
+      "effects": [
+        {
+          "op": "mana_gain",
+          "amount": 25
+        },
+        {
+          "op": "card",
+          "type": "lewd_mark"
+        }
+      ],
+      "report": "你刚踏进皮带群，数条皮带便同时扑了上来。手腕与脚踝先被并拢绑紧，另一条皮带贴着大腿内侧钻入胯下，绕住肉棒根部，将已经发硬的肉棒向上勒起。\n\n最宽的那条皮带紧贴小腹扣合。粉色魔力沿着带身一股股灌入肉棒，龟头随之涨得鲜红，马眼不断向外渗出黏稠的前液。皮带每收紧一次，灌入体内的魔力便更深一分。\n\n“齁唔……嗯啊……这、这根本不是普通的魔力补给吧……”\n\n等到灌入的魔力停下，小腹上的皮带扣突然亮起。滚烫的纹路从扣环下方扩散开来，最终烙成一枚粉红色淫纹。\n\n完成灌注后，漂浮皮带才依次解开，重新缩回走廊深处。小腹上的淫纹却仍在微微发热。",
+      "result_status": "neutral"
+    }
+  ]
+}

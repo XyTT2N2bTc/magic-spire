@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "relic",
+  "rarity": "common",
+  "id": "example_spare_pocket",
+  "name": "备用口袋",
+  "detail": "随身道具容量增加1。身体限制仍会影响可携带数量。",
+  "modifiers": {
+    "capacity": 1
+  }
+}
