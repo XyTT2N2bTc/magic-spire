@@ -56,7 +56,7 @@ var state: Dictionary = {}
 var _scene_start: Dictionary = {}
 
 func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String="equipment", initialize: bool=true, chastity_locks_enabled: bool=false, chastity_lock_chance: int=25, cursed_plate_start: bool=false, cursed_plate_masochist_mode: bool=false, character_id: String="original") -> void:
- Character.register(self)
+ if character_id==Character.ID: Character.register(self)
  SpecialEquipment.ensure_catalog()
  Content.ensure(self)
  state = {"version":1, "seed":run_seed, "rng":{}, "phase":"battle", "encounter":0,
@@ -394,7 +394,7 @@ func _append_enemies(members: Array, inherited_health: bool=false) -> Array:
    state.enemies[-1].application_bonus=0;state.enemies[-1].last_move="";state.enemies[-1].move_streak=0
   if spec.behavior=="six_bind":
    state.enemies[-1].constriction=0
-   state.enemies[-1].next_climax_capture=spec.climax_capture_threshold
+   state.enemies[-1].next_climax_capture=state.overload_total+spec.climax_capture_threshold
   added.append(state.enemies[-1])
  for enemy in added:
   if Enemies.TYPES[enemy.type].behavior=="puppeteer": Puppets.summon(self,enemy)

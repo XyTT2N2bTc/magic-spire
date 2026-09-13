@@ -2,6 +2,32 @@ extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 const Save=preload("res://tests/persistence_cases.gd")
 
+static func battle_climax_scope(t) -> void:
+ for phase in ["event","rest","prison","prepare","travel","battle"]:
+  for prior in [0,3,4,12]:
+   var g=Game.new(42)
+   g.state.phase=phase
+   if prior>0: g.Pressure.gain(g,100.0*prior,"计数检查")
+   t.check(g.state.overload_total==prior,"SIX SCOPE global history remains available: "+phase+str(prior))
+   g.state.room_encounters.entrance="six_bind_solo"
+   g._start_battle()
+   var e=g.state.enemies[0]
+   t.check(e.next_climax_capture==prior+4 and e.intent.kind=="six_prepare","SIX SCOPE entry excludes all prior phases: "+phase+str(prior))
+   t.check(g.validate()=="","SIX SCOPE entry with prior history validates")
+   var saved=g.export_snapshot()
+   var restored=Game.new(43)
+   t.check(restored.restore_snapshot(saved).ok and restored.state.enemies[0].next_climax_capture==prior+4,"SIX SCOPE restore preserves entry threshold")
+   var bad=saved.duplicate(true)
+   bad.enemies[0].next_climax_capture=prior+5
+   var before=restored.export_snapshot()
+   t.check(not restored.restore_snapshot(bad).ok and restored.export_snapshot()==before,"SIX SCOPE impossible future threshold rejects atomically")
+   for count in range(1,5):
+    g.Pressure.gain(g,100.0,"本场计数检查")
+    e.intent=g._plan(e)
+    t.check(g.state.overload_total==prior+count and (e.intent.kind=="capture")== (count==4),"SIX SCOPE only the fourth in this encounter prepares arrest")
+   g._start_battle()
+   t.check(g.state.enemies[0].next_climax_capture==prior+8 and g.state.enemies[0].intent.kind=="six_prepare","SIX SCOPE another encounter starts a fresh four-count window")
+
 static func encounter(seed_value: int=42):
  var g=Game.new(seed_value)
  g.state.room_encounters.entrance="six_bind_solo"
@@ -15,6 +41,7 @@ static func area_has_target(g, slots: Array) -> bool:
  return false
 
 static func run(t) -> void:
+ battle_climax_scope(t)
  idle_cycle(t)
  interrupted_bound_kick_cycle(t)
  var g=encounter()

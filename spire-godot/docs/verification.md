@@ -3665,6 +3665,10 @@ RuleChangePackage：仅在正式demo_continue的原清理后固定快感－40（
 tower_progression既有demo_exit案例扩展三姿势×0／25／40／80快感、预览只读、过期拒绝、零下限、资源／卡组保留、同阶段SL不重复及结束不触发；窗口用真实继续按钮验证35快感、站姿与日志，content/localization核验正文。待完整门禁。
 
 Verified：tower_progression/content/localization/architecture完整规则732项、tower_progression完整窗口54项全部通过，稳定报告build/checks/20260913T084932563-56248/summary.json为passed。真实出口继续从75快感躺姿进入35快感站姿，候选说明与日志一致；拒绝、低值封底及SL不重复恢复均通过。未打包。
+## 2026-09-13 v0.16六缚计数热修复
+
+针对性检查enemies／architecture／content全部2208项通过，报告build/checks/20260913T101727756-1180/summary.json；之后中英文图鉴更新后的localization／content全部446项通过，报告build/checks/20260913T102110562-10064/summary.json。两份报告均为稳定源码passed。检查覆盖24种历史组合及入场、读档、前三次／第四次、下一场、坏档原子拒绝，保留既有逮捕打断和实际收押案例。首次检查还复现v0.16提前注册未开放角色卡牌导致mind标签读取错误；修复分支只在显式选择该角色时注册，其余v0.17代码不混入。不运行全量或额外截图。
+
 ## 2026-09-13 v0.16发布范围与测试中止
 
 发布准备修复RoomEvents.arrive非多阶段事件未调用resolve_effect_copy／conditional_copy的遗漏，复用既有稳定条件接口，不改正文、随机或效果数值。运行中的event_flow分类595项通过。全量规则日志build/checks/20260913T091941659-53108在用户要求停止时尚未完成，已出现relics和action_copy断言失败；窗口日志build/checks/20260913T092116859-49736仍有home_persistence和exploration失败且尚未完成。停止测试后更新发布脚本，因此报告也可能标记source_changed；不能作为稳定全量通过证据。

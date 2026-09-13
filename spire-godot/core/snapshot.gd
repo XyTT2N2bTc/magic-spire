@@ -320,7 +320,7 @@ static func check(s: Dictionary, g) -> String:
   elif e.has("ritual") or e.has("application_bonus"): return "该敌人没有施加数量加成。"
   if g.Enemies.behavior(e.type)=="six_bind":
    var capture_step=g.Enemies.TYPES[e.type].climax_capture_threshold
-   if not fields(e,"constriction:i next_climax_capture:i") or e.constriction<0 or e.constriction>1023 or e.next_climax_capture<capture_step or e.next_climax_capture>maxi(capture_step,s.overload_total+1): return "六缚的收束或逮捕记录损坏。"
+   if not fields(e,"constriction:i next_climax_capture:i") or e.constriction<0 or e.constriction>1023 or e.next_climax_capture<capture_step or e.next_climax_capture>s.overload_total+capture_step: return "六缚的收束或逮捕记录损坏。"
    if e.intent.get("kind","")=="six_tune" and (e.intent.count!=1+e.constriction or e.intent.grade!=(1 if e.stage<3+g.EnemyPlans.SIX_CYCLE_LENGTH else 2)): return "六缚的调教升温数量或品质不正确。"
    if e.intent.get("cancel_on_interrupt",false) and (s.overload_total<e.next_climax_capture or e.intent.get("climax_threshold",0)!=e.next_climax_capture): return "六缚的高潮逮捕意图与当前记录不一致。"
   elif e.has("constriction") or e.has("next_climax_capture") or e.intent.get("cancel_on_interrupt",false): return "该敌人不应具有六缚专属记录。"
