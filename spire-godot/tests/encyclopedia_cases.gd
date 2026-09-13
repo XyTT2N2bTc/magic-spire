@@ -28,7 +28,7 @@ static func run(t) -> void:
   var key=entry.category+"/"+entry.id
   t.check(key not in seen and entry.title!="" and entry.text!="" and entry.category in Book.CATEGORIES,"BOOK unique complete entry "+key)
   seen.append(key)
- var variants=["magic_hand_gift","hannya_swallow","hannya_infusion","hannya_henshin","hannya_2","hannya_3","hannya_4","good_soup"]
+ var variants=["magic_hand_gift","hannya_swallow","hannya_infusion","hannya_henshin","hannya_2","hannya_3","hannya_4","good_soup","double_unlock"]
  var card_entries=entries.filter(func(e):return e.category=="cards")
  t.check(card_entries.size()==Book.Cards.SPECS.size()-variants.size() and variants.all(func(type):return not card_entries.any(func(e):return e.id==type)),"BOOK duplicate special variants omitted from public entries")
  for type in variants:

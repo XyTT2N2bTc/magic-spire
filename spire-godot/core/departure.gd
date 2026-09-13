@@ -130,6 +130,7 @@ static func panel(g, actions: Array) -> Dictionary:
  var d=g.state.departure
  var rows=[]
  for c in actions:
+  if c.payload.kind!="departure": continue
   rows.append({"action_id":c.id,"label":c.label,"detail":c.detail,"reason":c.reason,"valid":c.valid,"type":c.payload.get("type",""),"uid":c.payload.get("uid",""),"op":c.payload.op})
  var invitation="三选一，也可以直接出发。\n初始遗物已替换为「诅咒平板锁」。" if d.get("cursed_plate_start",false) else "四选一，也可以直接出发。"
  return {"active":true,"layout":"departure","title":"选择一张牌" if d.stage=="card" else ("准备出发" if d.stage=="done" else "第0层 · 出发"),"destination":Data.OPTIONS[d.selected] if d.stage=="card" else (d.result if d.stage=="done" else invitation),"continue_id":"","continue_label":"","extra_ids":[],"rows":[],"entries":rows,"stage":d.stage}

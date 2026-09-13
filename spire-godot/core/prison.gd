@@ -5,6 +5,43 @@ const Space=preload("res://core/prison_space.gd")
 const ACTIVE_DISCOVERIES=["shard","saw","vent"]
 const HIGH_SECURITY_ASSEMBLIES=[["glove","long","cross"],["leg","toes","straight"]]
 
+static func intake_equipment(g) -> Dictionary:
+ var rule=B.PRISON_INTAKE.get(g.state.security,{})
+ var count=g.Cards.worn_count(g,false)
+ var enough=not rule.is_empty() and count>=rule.floor
+ var quota=0 if enough else (rule.floor-count+rule.extra if not rule.is_empty() else B.CAPTURE_EXTRA_BASE+g.state.security)
+ var spec=equipment_spec(g,quota)
+ if not rule.is_empty(): spec.tier=2
+ var installed=g.Application.execute(g,spec,"prison","prison").installed
+ if not rule.is_empty():
+  # Components change tightness, but only whole roots consume intake slots.
+  for piece in g.physical_pieces():
+   if g.Equipment.lock_only(piece): continue
+   var current=g.tier(piece.durability,piece.maximum)
+   var desired=mini(3,current+1) if enough else maxi(2,current)
+   if desired>current:
+    piece.durability=piece.maximum*[0.0,0.4,0.8,1.0][desired]
+    g._refresh_equipment(piece)
+  # Tightening a host can create fresh straps; they share the intake minimum.
+  for piece in g.physical_pieces():
+   if not g.Equipment.lock_only(piece) and g.tier(piece.durability,piece.maximum)<2:
+    piece.durability=piece.maximum*0.8
+    g._refresh_equipment(piece)
+ var collar={}
+ if g.state.security>=B.PRISON_COLLAR_LEVEL:
+  var existing=g.state.equipment.filter(func(e):return g.Equipment.lock_only(e))
+  if existing.is_empty(): collar=g._install_template("restriction_collar","neck",1.0,1.0,true,"prison",3)
+  else: existing[0].locked=true
+ var toys=toy_spec(g,rule.get("special",2),false)
+ if not rule.is_empty(): toys.tier=2
+ var special=g.Application.execute(g,toys,"prison","prison").installed
+ return {"added":installed.map(func(e):return e.id),"special_added":special.map(func(e):return e.id),"collar_added":not collar.is_empty(),"before":count,"floor":rule.get("floor",0),"quota":quota,"enough":enough}
+
+static func intake_label(g) -> String:
+ var rule=B.PRISON_INTAKE.get(g.state.security,{})
+ if rule.is_empty(): return "五级进入高安全监室。"
+ return "拘束具保底%d件，不足时补齐并额外增加%d件、全部至少2档；已达保底则不补装，全部收紧1档，最多3档。另加%d件2档特殊装备，空位不足不替换。" % [rule.floor,rule.extra,rule.special]
+
 # Intake and inspection share this source declaration; Application owns selection,
 # batch counting and legal replacement. Special equipment remains a separate source.
 static func equipment_spec(g, count: int, replace: bool=false) -> Dictionary:
@@ -63,6 +100,7 @@ static func high_security(g) -> String:
    if g._installation_reason(template,slot,3)!="": break
    if g._install_template(template,slot,g.Equipment.maximum(3),g.Equipment.maximum(3),false,"prison_high_security",3).is_empty(): return "高安全监室的追加装备未能完整安装。"
  for e in g.equipment_targets():
+  if g.Equipment.lock_only(e): continue
   if e.has("shoulders"):
    e.shoulders.grade=3;e.shoulders.variant=0
   e.grade=3;e.variant=0;e.maximum=g.Equipment.maximum(3);e.durability=e.maximum
@@ -82,7 +120,7 @@ static func enter(g) -> String:
   g.state.phase="prison_end"
   g.state.enemies=[]
   g.room_data("prison").name="高安全监室"
-  g._emit("event","警戒度达到5，移入高安全监室。原装备结构与链接保留，全部提升至高级、三档；依照部位容量和结构补齐已有类型，可上锁的全部上锁。本次逃脱结束，可以检查最终装备或重新开始。")
+  g._emit("event","警戒度达到5，移入高安全监室。原装备结构与链接保留，普通与复合装备补齐至高级三档，可上锁处全部上锁；限制项圈继续保留。本次逃脱结束，可以检查最终装备或重新开始。")
   return ""
  g.RelicEffects.begin_combat(g)
  g.state.prison=initial(g)
@@ -287,6 +325,9 @@ static func validate(g) -> String:
   if g.state.phase!="prison_end" or g.state.security!=5 or g.state.capture.terminal_equipment!=g.equipment_targets().map(func(e):return e.id): return "高安全终局装备清单不完整。"
   if not g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty()): return "高安全终局存在未覆盖部位。"
   for e in g.equipment_targets():
+   if g.Equipment.lock_only(e):
+    if not e.locked: return "高安全监室的限制项圈必须上锁。"
+    continue
    if e.grade!=3 or e.maximum!=g.Equipment.maximum(3) or e.durability!=e.maximum or e.locked!=g.Equipment.allows(e,"lock"): return "高安全终局装备必须为高级三档，并锁住所有可上锁处。"
  if g.state.phase=="prison_end" and not g.state.capture.has("terminal_equipment"): return "高安全终局缺少装备清单。"
  var p=g.state.prison
@@ -307,8 +348,8 @@ static func validate(g) -> String:
 static func view(g) -> Dictionary:
  if g.state.phase=="prison_end":
   if g.state.capture.has("terminal_equipment"):
-   return {"terminal_text":"高安全监室：装备已经补齐。共%d件装备与组件，全部高级、三档（%s/%s耐久），可上锁处全部上锁。本局已经结束，可在左侧逐件检查。" % [g.equipment_targets().size(),g.number(g.Equipment.maximum(3)),g.number(g.Equipment.maximum(3))]}
+   return {"terminal_text":"高安全监室：共%d件普通装备、组件与链接，全部高级三档（%s/%s耐久），可上锁处全部上锁。另佩戴无耐久的限制项圈。本局已经结束，可在左侧逐件检查。" % [g.equipment_targets().filter(func(e):return not g.Equipment.lock_only(e)).size(),g.number(g.Equipment.maximum(3)),g.number(g.Equipment.maximum(3))]}
   return {"terminal_text":"本局已经结束，可以查看最终装备或重新开始。"}
  var p=g.state.prison
- if p.is_empty(): return {"equipment_rule":equipment_label(g),"toy_rule":toy_label(g)} if g.state.phase=="captured" else {}
+ if p.is_empty(): return {"intake_rule":intake_label(g),"equipment_rule":equipment_label(g),"toy_rule":toy_label(g)} if g.state.phase=="captured" else {}
  return {"space":Space.view(g),"active":p.active,"left":p.left,"turn":p.turn,"stage":p.stage,"remaining":discoverable(p).size(),"found":p.found.duplicate(),"vent_hits":p.vent_hits,"vent_total":B.PRISON_VENT_HITS,"door_open":p.door_open,"key":p.key,"report":p.report,"checks":p.checks,"paused":p.key or p.resisting,"equipment_rule":equipment_label(g),"toy_rule":toy_label(g)}

@@ -136,7 +136,50 @@ static func arrive(g, kind: String) -> void:
  var parent=g.state.rooms.filter(func(r):return room.id in r.next)[0]
  g.state.room=parent.id;g.state.phase="map";g.state.completed_rooms=[parent.id]
 
+static func removal_prices(t) -> void:
+ var g=Game.new(42)
+ for index in range(4):
+  var price=[30.0,50.0,70.0,90.0][index]
+  if index>0: g._restart_tower(true)
+  g.state.room=g.state.rooms.filter(func(room):return room.kind=="shop")[0].id;g.Services.start(g)
+  var uid=g.state.deck[0].uid
+  var payment="self" if index%2==0 else "flask"
+  var field="mana" if payment=="self" else "flask_mana"
+  g.state.mana=100;g.state.flask_mana=100;g.state.temporary_mana=100;g.state[field]=price-0.5
+  var payload={"op":"remove","uid":uid,"payment":payment}
+  var c=t.find_action(g,"service",payload);var before=g.export_snapshot();g.get_view();g.candidates()
+  t.check(c.mana==price and g.get_view().shop.remove_price==price and not c.valid and not g.dispatch(c.id,g.state.version).ok and g.state==before,"REMOVE progressive price is shared and insufficient selected balance cannot mix or increase count")
+  g.state[field]=price;c=t.find_action(g,"service",payload);before=g.export_snapshot()
+  t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"REMOVE stale selection cannot pay or raise future price")
+  t.check(g.dispatch(c.id,g.state.version).ok and g.state[field]==0 and g.state.shop_removals==index+1 and not g.state.deck.any(func(card):return card.uid==uid),"REMOVE actual purchases cost 30,50,70,90 across fresh towers and both payment pools")
+  var committed=g.export_snapshot()
+  t.check(not g.dispatch(c.id,before.version).ok and g.state==committed,"REMOVE same purchase cannot advance the price twice")
+  if index==1:
+   var restored=Save.roundtrip(t,g,"progressive shop removal count")
+   if restored!=null: g=restored
+ var saved=g.export_snapshot();var bad=saved.duplicate(true);bad.shop_removals=-1
+ t.check(not g.restore_snapshot(bad).ok and g.state==saved,"REMOVE invalid persisted count refuses atomically")
+ t.check(Game.new(42).state.shop_removals==0 and g.Services.Data.removal_price(g.state.shop_removals)==110,"REMOVE a genuinely new game starts at thirty while the next removal costs 110")
+
+static func treasure_with_plate(t) -> void:
+ var g=Game.new(42)
+ g.state.room=g.state.rooms.filter(func(r):return r.kind=="treasure")[0].id;g.Services.start(g)
+ var room=g.room_data(g.state.room)
+ room.stock=[{"kind":"relic","type":"small_sigil","price":0.0,"taken":false}]
+ g._install_special("negative_plate_lock_medium","special_2_a",2)
+ g.state.mana=0;g.state.flask_mana=0
+ var before=g.export_snapshot();var claim=t.find_action(g,"service",{"op":"take","index":0})
+ var reward=g.get_view().battle_rewards[0]
+ t.check(claim.valid and claim.mana==0 and not claim.payload.has("payment") and reward.available and reward.reason=="","TREASURE flat lock and empty mana do not block free reward or show shop restrictions")
+ t.check(not g.dispatch(claim.id,g.state.version-1).ok and g.state==before,"TREASURE stale free claim cannot change equipment, resources or reward")
+ t.check(g.dispatch(claim.id,g.state.version).ok and "small_sigil" in g.state.relics and g.state.mana==0 and g.state.flask_mana==0 and g.state.special_equipment==before.special_equipment,"TREASURE free relic claim succeeds with the lock still equipped")
+ var after=g.export_snapshot()
+ t.check(not t.action(g,"service",{"op":"take","index":0}).ok and g.state==after,"TREASURE collected reward cannot be claimed twice")
+
 static func run(t) -> void:
+ preload("res://tests/unique_power_reward_cases.gd").shop(t)
+ treasure_with_plate(t)
+ removal_prices(t)
  m_donalds(t)
  var shop_practice=Game.new(42,true,"shop")
  t.check(shop_practice.state.phase=="shop" and shop_practice.state.practice and shop_practice.get_view().shop.stock.size()==12,"SHOP practice uses formal stock generation")
@@ -181,7 +224,7 @@ static func run(t) -> void:
  var uid=g.state.deck[0].uid
  var count=g.state.deck.size();var mana=g.state.mana
  var before_removal=g.export_snapshot()
- t.check(t.action(g,"service",{"op":"remove","uid":uid}).ok and g.state.deck.size()==count-1 and g.state.mana==mana-25,"SERVICE removal pays fixed price")
+ t.check(t.action(g,"service",{"op":"remove","uid":uid}).ok and g.state.deck.size()==count-1 and g.state.mana==mana-30 and g.state.shop_removals==1,"SERVICE first removal pays thirty and advances successful purchase count")
  t.check(["deck","draw","hand","discard","exhaust"].all(func(zone):return g.state[zone].all(func(card):return card.uid!=uid)) and not t.action(g,"service",{"op":"remove"}).ok,"SERVICE removed card disappears from every pile and service cannot repeat")
  t.check(["deck","draw","hand","discard","exhaust"].all(func(zone):return g.state[zone]==before_removal[zone].filter(func(card):return card.uid!=uid)) and g.state.rng==before_removal.rng and g.state.energy==before_removal.energy,"SERVICE removal preserves other physical cards, pile order and random domains")
  g.state.mana=100

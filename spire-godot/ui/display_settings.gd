@@ -11,11 +11,15 @@ var fixed_hero_portrait=false
 var chastity_locks_enabled=false
 var chastity_lock_chance=25
 var cursed_plate_start=false
+var cursed_plate_masochist_mode=false
 var first_battle_tutorial_seen=false
 var card_music_enabled=true
 var card_music_volume=0.2
 
 const MODES=["窗口","无边框窗口","全屏"]
+const FRAME_LIMITS=[60,120,240,0]
+var frame_limit=60
+var vsync_enabled=true
 const Localization=preload("res://ui/localization.gd")
 var locale=Localization.DEFAULT_LOCALE
 const RESOLUTIONS=[Vector2i(1280,720),Vector2i(1440,810),Vector2i(1600,900),Vector2i(1920,1080),Vector2i(2560,1440),Vector2i(3840,2160)]
@@ -41,8 +45,11 @@ func initialize(target: Window, persist: bool=true) -> void:
  chastity_locks_enabled=false
  chastity_lock_chance=25
  cursed_plate_start=false
+ cursed_plate_masochist_mode=false
  first_battle_tutorial_seen=false
  card_music_enabled=true;card_music_volume=0.2
+ frame_limit=60;vsync_enabled=true
+ _apply_frame_settings()
  mode=2 if window.mode in [Window.MODE_FULLSCREEN,Window.MODE_EXCLUSIVE_FULLSCREEN] else (1 if window.borderless else 0)
  resolution=window.size
  if not persistence_enabled: return
@@ -64,6 +71,8 @@ func initialize(target: Window, persist: bool=true) -> void:
  if fixed_hero_portrait: chastity_locks_enabled=false
  var saved_start=config.get_value("gameplay","cursed_plate_start",false)
  if saved_start is bool: cursed_plate_start=saved_start and chastity_locks_enabled
+ var saved_masochist=config.get_value("gameplay","cursed_plate_masochist_mode",false)
+ if saved_masochist is bool: cursed_plate_masochist_mode=saved_masochist and chastity_locks_enabled
  var saved_tutorial=config.get_value("onboarding","first_battle_tutorial_seen",false)
  if saved_tutorial is bool: first_battle_tutorial_seen=saved_tutorial
  var saved_art=config.get_value("art","choices",{})
@@ -76,6 +85,10 @@ func initialize(target: Window, persist: bool=true) -> void:
      if not art_choices.has(category): art_choices[category]={}
      art_choices[category][id]=choices_for_category[id]
  var saved_mode=config.get_value("display","mode",mode)
+ var saved_limit=config.get_value("display","frame_limit",60)
+ var saved_vsync=config.get_value("display","vsync_enabled",true)
+ if saved_limit is int and saved_limit in FRAME_LIMITS: frame_limit=saved_limit
+ if saved_vsync is bool: vsync_enabled=saved_vsync
  var saved_size=config.get_value("display","resolution",resolution)
  if saved_mode is int and saved_mode in range(MODES.size()): mode=saved_mode
  if saved_size is Vector2i and saved_size.x>=640 and saved_size.y>=360: resolution=saved_size
@@ -93,6 +106,7 @@ func set_resolution(value: Vector2i) -> void:
  resolution=value;apply();save()
 
 func apply() -> void:
+ _apply_frame_settings()
  if mobile: return
  if mode==2:
   window.mode=Window.MODE_FULLSCREEN
@@ -105,11 +119,25 @@ func apply() -> void:
  var offset=Vector2i(maxi(0,(screen.size.x-resolution.x)/2),maxi(0,(screen.size.y-resolution.y)/2))
  window.position=screen.position+offset
 
+func _apply_frame_settings() -> void:
+ Engine.max_fps=frame_limit
+ DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync_enabled else DisplayServer.VSYNC_DISABLED,window.get_window_id())
+
+func set_frame_limit(value: int) -> bool:
+ if value not in FRAME_LIMITS: return false
+ frame_limit=value;_apply_frame_settings();save()
+ return true
+
+func set_vsync(enabled: bool) -> void:
+ vsync_enabled=enabled;_apply_frame_settings();save()
+
 func save() -> void:
  save_error=""
  if not persistence_enabled: return
  var config=ConfigFile.new()
  config.set_value("display","mode",mode)
+ config.set_value("display","frame_limit",frame_limit)
+ config.set_value("display","vsync_enabled",vsync_enabled)
  config.set_value("localization","locale",locale)
  config.set_value("display","resolution",resolution)
  config.set_value("art","choices",art_choices)
@@ -117,6 +145,7 @@ func save() -> void:
  config.set_value("gameplay","chastity_locks_enabled",chastity_locks_enabled)
  config.set_value("gameplay","chastity_lock_chance",chastity_lock_chance)
  config.set_value("gameplay","cursed_plate_start",cursed_plate_start)
+ config.set_value("gameplay","cursed_plate_masochist_mode",cursed_plate_masochist_mode)
  config.set_value("onboarding","first_battle_tutorial_seen",first_battle_tutorial_seen)
  config.set_value("audio","card_music_enabled",card_music_enabled)
  config.set_value("audio","card_music_volume",card_music_volume)
@@ -134,16 +163,24 @@ func set_card_music(enabled: bool, volume: float) -> void:
 func set_fixed_hero_portrait(enabled: bool) -> void:
  fixed_hero_portrait=enabled
  if enabled: chastity_locks_enabled=false
- if not chastity_locks_enabled: cursed_plate_start=false
+ if not chastity_locks_enabled:
+  cursed_plate_start=false
+  cursed_plate_masochist_mode=false
  save()
 
 func set_chastity_locks(enabled: bool) -> void:
  chastity_locks_enabled=enabled and not fixed_hero_portrait
- if not chastity_locks_enabled: cursed_plate_start=false
+ if not chastity_locks_enabled:
+  cursed_plate_start=false
+  cursed_plate_masochist_mode=false
  save()
 
 func set_cursed_plate_start(enabled: bool) -> void:
  cursed_plate_start=enabled and chastity_locks_enabled and not fixed_hero_portrait
+ save()
+
+func set_cursed_plate_masochist_mode(enabled: bool) -> void:
+ cursed_plate_masochist_mode=enabled and chastity_locks_enabled and not fixed_hero_portrait
  save()
 
 func adjust_chastity_chance(delta: int) -> void:

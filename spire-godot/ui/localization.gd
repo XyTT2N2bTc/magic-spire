@@ -3,13 +3,20 @@ extends RefCounted
 # Presentation only. Never receives Game, state, candidates, or RNG.
 signal locale_changed(locale: String)
 const DEFAULT_LOCALE="zh_CN"
-const LOCALES=["zh_CN","ja_JP"]
+const LOCALES=["zh_CN","en_US","ja_JP"]
 const DIRECTORY="res://assets/localization"
 const DISPLAY_ERROR="文字暂时无法显示。"
 const MAX_BYTES=4*1024*1024
+const MAX_DISPLAY_ENTRIES=512
+const MAX_DISPLAY_CHARACTERS=65536
+var _display_cache: Dictionary={}
+var _display_cache_characters=0
 var locale=DEFAULT_LOCALE
 var _source: Dictionary={}
 var _translations: Dictionary={}
+var _legacy: Dictionary={}
+var _legacy_patterns: Dictionary={}
+var _legacy_prefixes: Dictionary={}
 var _diagnostics: Array=[]
 
 func _init() -> void:
@@ -21,6 +28,7 @@ static func supported(value: Variant) -> bool:
 func set_locale(value: String) -> bool:
  if not supported(value): return false
  if locale!=value:
+  _clear_display_cache()
   locale=value
   locale_changed.emit(locale)
  return true
@@ -115,10 +123,14 @@ func _read(path: String) -> Variant:
 func load_directory(directory: String=DIRECTORY) -> bool:
  _diagnostics.clear()
  if not install_source(_read(directory.path_join(DEFAULT_LOCALE+".json"))): return false
+ _legacy.clear();_legacy_patterns.clear();_legacy_prefixes.clear()
+ _clear_display_cache()
  var valid=true
  for language in LOCALES:
   if language==DEFAULT_LOCALE: continue
   if not install_translation(language,_read(directory.path_join(language+".json"))): valid=false
+  var legacy_path=directory.path_join("legacy-"+language+".json")
+  if FileAccess.file_exists(legacy_path) and not install_legacy_translation(language,_read(legacy_path)): valid=false
  return valid
 
 func coverage(language: String) -> Dictionary:
@@ -144,6 +156,103 @@ func text(key: String, fallback: String, params: Dictionary={}) -> String:
   result+=token.literal if token.has("literal") else str(params[token.parameter])
  return result
 
-func font_names() -> PackedStringArray:
- if locale=="ja_JP": return PackedStringArray(["Yu Gothic UI","Meiryo","Noto Sans CJK JP","Microsoft YaHei UI","sans-serif"])
- return PackedStringArray(["Microsoft YaHei UI","Microsoft YaHei","sans-serif"])
+static func _regex_escape(value: String) -> String:
+ var result=""
+ for ch in value:
+  result+=("\\"+ch) if ch in ["\\",".","^","$","|","?","*","+","(",")","[","]","{","}"] else ch
+ return result
+
+static func _legacy_source(value: String) -> Dictionary:
+ var pattern="^";var names=[];var literal="";var literal_weight=0;var i=0
+ var format=RegEx.new();format.compile(r"%(?:[-+ 0#]*)(?:\d+|\*)?(?:\.(?:\d+|\*))?[diouxXfFeEgGaAcsp]")
+ while i<value.length():
+  if value.substr(i,2)=="%%": literal+="%";i+=2;continue
+  var hit=format.search(value,i)
+  if hit!=null and hit.get_start()==i:
+   pattern+=_regex_escape(literal);literal=""
+   var name="p%d" % names.size();names.append(name)
+   pattern+="(.+?)";i=hit.get_end();continue
+  if value[i]=="{" and (i==0 or value[i-1]!="{"):
+   var end=value.find("}",i+1)
+   if end>=0 and (end+1>=value.length() or value[end+1]!="}"):
+    var raw=value.substr(i+1,end-i-1)
+    if raw.is_valid_identifier() or raw.is_valid_int():
+     pattern+=_regex_escape(literal);literal=""
+     var name="p%d" % names.size();names.append(name)
+     pattern+="(.+?)";i=end+1;continue
+  if value.unicode_at(i)>=0x3400 and value.unicode_at(i)<=0x9fff: literal_weight+=1
+  literal+=value[i];i+=1
+ pattern+=_regex_escape(literal)+"$"
+ return {"pattern":pattern,"names":names,"dynamic":not names.is_empty(),"literal_weight":literal_weight}
+
+func install_legacy_translation(language: String, document: Variant) -> bool:
+ if not supported(language) or language==DEFAULT_LOCALE or not _shape(document,["schema_version","locale","messages"]) or document.schema_version!=1 or document.locale!=language or not document.messages is Array:
+  _record("invalid_legacy_translation");return false
+ var exact={};var patterns=[];var prefixes={};var ids={}
+ for entry in document.messages:
+  if not _shape(entry,["id","source","text"]) or not _identifier(entry.id) or ids.has(entry.id) or not entry.source is String or not entry.text is String or entry.source.is_empty() or entry.text.strip_edges().is_empty():
+   _record("invalid_legacy_entry");return false
+  ids[entry.id]=true
+  var parsed=_legacy_source(entry.source)
+  if parsed.dynamic:
+   var target=_template(entry.text)
+   var expected={}
+   for name in parsed.names: expected[name]=expected.get(name,0)+1
+   if not target.ok or target.parameters!=expected:
+    _record("legacy_parameters",entry.id);return false
+   if parsed.literal_weight>=2:
+    var regex=RegEx.new()
+    if regex.compile(parsed.pattern)!=OK:
+     _record("legacy_pattern",entry.id);return false
+    patterns.append({"regex":regex,"names":parsed.names,"tokens":target.tokens,"weight":entry.source.length()})
+  else:
+   exact[entry.source]=entry.text
+   if entry.source.unicode_at(0)>=0x3400 and entry.source.unicode_at(0)<=0x9fff:
+    var first=entry.source[0]
+    if not prefixes.has(first): prefixes[first]=[]
+    prefixes[first].append({"source":entry.source,"text":entry.text})
+ patterns.sort_custom(func(a,b):return a.weight>b.weight)
+ for first in prefixes: prefixes[first].sort_custom(func(a,b):return a.source.length()>b.source.length())
+ _legacy[language]=exact;_legacy_patterns[language]=patterns;_legacy_prefixes[language]=prefixes
+ _clear_display_cache()
+ return true
+
+func _clear_display_cache() -> void:
+ _display_cache.clear();_display_cache_characters=0
+
+func _remember_display(value: String, result: String) -> String:
+ var characters=value.length()+result.length()
+ if characters>MAX_DISPLAY_CHARACTERS: return result
+ if _display_cache.size()>=MAX_DISPLAY_ENTRIES or _display_cache_characters+characters>MAX_DISPLAY_CHARACTERS:
+  _clear_display_cache()
+ _display_cache[value]=result;_display_cache_characters+=characters
+ return result
+
+func display(value: String) -> String:
+ if locale==DEFAULT_LOCALE or value.is_empty(): return value
+ var exact=_legacy.get(locale,{})
+ if exact.has(value): return exact[value]
+ if _display_cache.has(value): return _display_cache[value]
+ var has_chinese=false
+ for index in range(value.length()):
+  if value.unicode_at(index)>=0x3400 and value.unicode_at(index)<=0x9fff:
+   has_chinese=true;break
+ if not has_chinese: return value
+ for entry in _legacy_patterns.get(locale,[]):
+  var hit=entry.regex.search(value)
+  if hit==null: continue
+  var params={}
+  for index in range(entry.names.size()): params[entry.names[index]]=display(hit.get_string(index+1))
+  var result=""
+  for token in entry.tokens: result+=token.literal if token.has("literal") else str(params[token.parameter])
+  return _remember_display(value,result)
+ # Transitional path for old UI strings assembled from multiple source literals.
+ var prefixes=_legacy_prefixes.get(locale,{})
+ var result="";var i=0
+ while i<value.length():
+  var matched=false
+  for entry in prefixes.get(value[i],[]):
+   if value.substr(i).begins_with(entry.source):
+    result+=entry.text;i+=entry.source.length();matched=true;break
+  if not matched: result+=value[i];i+=1
+ return _remember_display(value,result)

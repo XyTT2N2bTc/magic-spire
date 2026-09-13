@@ -7,7 +7,7 @@ static func part(g, key: String) -> Dictionary:
 
 static func play(t, g, type: String, target: String, slot: String="upper_arm") -> Dictionary:
  if not g._equipment(target).is_empty() and g.Equipment.is_shoulder(g._equipment(target)): slot="shoulder"
- var card=t.hand_card(g,type)
+ var card=t.grant_fixture_card(g,type)
  return t.action(g,"card",{"uid":card.uid,"target":target,"slot":slot})
 
 static func run(t) -> void:
@@ -29,7 +29,7 @@ static func run(t) -> void:
    var body=part(g,"body")
    t.check(g.escape_preview(body,"strain",5).divisor==1,"COMPOSITE multi-slot body counted once for damage")
    t.check(g.escape_preview(body,"slip",5).reason.contains("肩带") and g.escape_preview(body,"magic_slip",5).reason.contains("肩带"),"COMPOSITE structural slip prerequisite covers ordinary and magic damage")
-   var unlock=t.hand_card(g,"unlock")
+   var unlock=t.grant_fixture_card(g,"unlock")
    var c=t.find_action(g,"card",{"uid":unlock.uid,"target":part(g,"left").id})
    t.check((c.reason.contains("手掌和手指"))==(variant=="long"),"COMPOSITE long closes gestures, short does not")
    var fire=t.find_action(g,"attack",{"type":"fireball","enemy":g.state.enemies[0].id})

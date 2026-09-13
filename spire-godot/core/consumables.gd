@@ -15,9 +15,20 @@ static func potion_amount(g, value: float) -> float:
  return floorf(value/2.0) if severity>4 else ceilf(value/2.0)
 
 static func description(g, type: String) -> String:
- return effect_description(type,amount(g,type),Tools.assisted(g))
+ return effect_description(type,amount(g,type),Tools.assisted(g),outside_battle(g,type))
 
-static func effect_description(type: String, value: int, assisted: bool=false) -> String:
+static func outside_battle(g, type: String) -> bool:
+ return Tools.TYPES.get(type,{}).get("unrestricted_outside_battle",false) and g.state.phase not in ["battle","cleared","prison_end"]
+
+# Resource recovery remains available on selection pages and during exploration.
+# Normal action phases already contribute these candidates; keep each item unique.
+static func noncombat_candidates(g, out: Array) -> void:
+ for item in g.state.items:
+  if not outside_battle(g,item.type): continue
+  if out.any(func(candidate):return candidate.payload.kind=="item_use" and candidate.payload.get("item","")==item.id): continue
+  candidates(g,out,item)
+
+static func effect_description(type: String, value: int, assisted: bool=false, noncombat: bool=false) -> String:
  var spec=Tools.TYPES[type]
  var text=""
  match spec.effect:
@@ -30,7 +41,10 @@ static func effect_description(type: String, value: int, assisted: bool=false) -
   "slip_boost": text="选择一个部位，组内全部位置可滑脱3级紧度的拘束具，滑脱最终伤害×%d。本场战斗或整备结束时失效，重复不叠加。" % value
  if spec.get("unrestricted_use",false):
   text+="不受身体和姿势限制。"
+ elif noncombat:
+  text+="非战斗与探索阶段不受身体和姿势限制。"
  elif spec.category=="potion":
+  if spec.get("unrestricted_outside_battle",false): text+="非战斗与探索阶段不受身体和姿势限制；战斗中："
   text+="触手朋友协助饮用，不受身体和姿势限制。" if assisted else "上肢拘束分值小于1可站着喝，0.5也可；达到1时须坐下或躺下。坐躺时无需手指握持。"
  else: text+="触手朋友协助展开，无需手指或脚趾自由。" if assisted else "手指或脚趾任一部位自由即可使用。"
  if spec.category=="potion": text+="嘴部不自由时效果减半；整数按嘴部装备等级＋紧度≤4向上取整，>4向下取整。" if spec.get("mouth_reduction",true) else "不受口部减效影响。"
@@ -42,7 +56,7 @@ static func scroll_reason(g) -> String:
 
 static func reason(g, type: String) -> String:
  var spec=Tools.TYPES[type]
- if not spec.get("unrestricted_use",false) and not Tools.assisted(g) and spec.category=="potion" and g.state.posture not in ["sit","lie"]:
+ if not spec.get("unrestricted_use",false) and not outside_battle(g,type) and not Tools.assisted(g) and spec.category=="potion" and g.state.posture not in ["sit","lie"]:
   if g.restraint_degree("arms")>=1: return "上肢拘束分值达到1，需要坐下或躺下才能喝药。"
   if not g.hands_can_hold(): return "手指无法握持药剂，需要坐下或躺下才能喝药。"
  if not spec.get("unrestricted_use",false) and spec.category=="scroll" and scroll_reason(g)!="": return scroll_reason(g)

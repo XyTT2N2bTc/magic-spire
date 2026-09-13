@@ -8,18 +8,18 @@ static func owned(g, master: Dictionary) -> Dictionary:
  return {}
 
 static func plan(e: Dictionary) -> Dictionary:
- var kind="puppet_summon" if e.stage==1 else ("puppet_awaken" if e.stage==2 else ["puppet_mend","puppet_composite","puppet_special"][(e.stage-3)%3])
- return {"kind":kind,"text":{"puppet_summon":"牵线登场","puppet_awaken":"引敌缚咒","puppet_mend":"缝补玩偶","puppet_composite":"复合装束","puppet_special":"暗藏机关"}[kind],"delayed":false}
+ var kind="puppet_awaken" if e.stage==1 else ["puppet_mend","puppet_composite","puppet_special"][(e.stage-2)%3]
+ return {"kind":kind,"text":{"puppet_awaken":"引敌缚咒","puppet_mend":"缝补玩偶","puppet_composite":"复合装束","puppet_special":"暗藏机关"}[kind],"delayed":false}
+
+static func summon(g, master: Dictionary) -> void:
+ if not owned(g,master).is_empty(): return
+ var doll=g._append_enemies([{"type":"puppet","grade":2}])[0]
+ doll.puppet_owner=master.id;doll.puppet_awakened=false;doll.puppet_prepared={};doll.puppet_mends=0
+ doll.acted_round=g.state.round;doll.intent=g._plan(doll)
+ g._emit("event",master.name+"带着一个%s点生命的玩偶登场。" % g.number(doll.hp),{"summoned":{"enemy":doll.id,"owner":master.id}})
 
 static func execute(g, master: Dictionary, intent: Dictionary) -> void:
  var doll=owned(g,master)
- if intent.kind=="puppet_summon":
-  if not doll.is_empty(): return
-  doll=g._append_enemies([{"type":"puppet","grade":2}])[0]
-  doll.puppet_owner=master.id;doll.puppet_awakened=false;doll.puppet_prepared={};doll.puppet_mends=0
-  doll.acted_round=g.state.round;doll.intent=g._plan(doll)
-  g._emit("event",master.name+"召来一个%s点生命的玩偶。" % g.number(doll.hp),{"summoned":{"enemy":doll.id,"owner":master.id}})
-  return
  if doll.is_empty():
   g._emit("event",master.name+"的玩偶已经离场，这次动作落空。")
   return

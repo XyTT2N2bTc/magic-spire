@@ -21,6 +21,10 @@ static func run(t) -> void:
  var card=Give.give(ui.game,"hannya_1");ui.card_faces[card.uid]=true
  ui.render();await t.frames()
  t.check(t.visible_text(ui.card_buttons[card.uid]).contains("固有") and ui.card_buttons[card.uid].get_node("CardIllustration").texture!=null,"HANNYA UI first stage shows innate and finished artwork")
+ for free in [false,true]:
+  if ui.card_faces.get(card.uid,false)!=free: await t.flip(card.uid)
+  var face=ui.card_buttons[card.uid]
+  t.check(t.visible_text(face.get_node("CardMana/Mana_gain")).strip_edges()=="+5" and t.visible_text(face).contains("技能") and not t.visible_text(face).contains("魔法 ·"),"HANNYA UI both faces show plus five while remaining skills")
  await Click.click_card(t,card.uid);await t.frames()
  t.check(ui.game.Cards.Hannya.level(ui.game)==1 and ui.find_child("StatusIcon_power_hannya_level_1",true,false)!=null and ui.view.card_texts.hannya_2.face_costs.free=="1","HANNYA UI actual click upgrades and shows level badge")
  card=ui.game.state.discard.filter(func(c):return c.type=="hannya_2")[0]
@@ -31,6 +35,11 @@ static func run(t) -> void:
  var lower=Give.give(ui.game,"hannya_1");ui.render();await t.frames()
  var lower_text=t.visible_text(ui.card_buttons[lower.uid])
  t.check(lower_text.contains("仅将一张") and lower_text.contains("好汤喝够") and not lower_text.contains("力量＋1"),"HANNYA UI physical lower-stage card shows actual soup-only outcome")
+ t.check(not ui.card_buttons[lower.uid].get_node("CardMana").visible,"HANNYA UI lower-level soup-only play does not promise a mana gain")
+ var infused=Give.give(ui.game,"hannya_infusion");ui.render();await t.frames()
+ for free in [false,true]:
+  if ui.card_faces.get(infused.uid,false)!=free: await t.flip(infused.uid)
+  t.check(t.visible_text(ui.card_buttons[infused.uid].get_node("CardMana/Mana_cost")).strip_edges()=="−10","HANNYA UI generated infusion shows minus ten on both faces")
  var soup=Give.give(ui.game,"good_soup")
  var mouth=ui.game._install_template("mouth_band","mouth",20,30,false,"fixture",2,0)
  ui.render();await t.frames()

@@ -29,7 +29,7 @@ func _ready() -> void:
  resized.connect(queue_redraw)
 
 func _draw() -> void:
- if equipment.is_empty(): return
+ if equipment.is_empty() or equipment.get("lock_only",false): return
  var bar=Rect2(5,size.y-12,size.x-10,7)
  draw_rect(bar,Color("0b1720"))
  draw_rect(Rect2(bar.position,Vector2(bar.size.x*clampf(equipment.ratio,0,1),bar.size.y)),accent)

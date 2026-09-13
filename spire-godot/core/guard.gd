@@ -111,11 +111,10 @@ static func capture(g, captor: Dictionary) -> void:
   g.state.rooms.append({"id":"prison","name":"监狱接收室","kind":"prison","wall":"rough","next":[],"floor":-1,"lane":0.5})
  g.state.room="prison";g.state.wall="rough";g.state.wall_distance=0
  g.Pressure.cleanup(g)
- var spec=g.Prison.equipment_spec(g,B.CAPTURE_EXTRA_BASE+g.state.security)
- var outcome=g.Application.execute(g,spec,"prison","prison")
- var added=outcome.installed.map(func(e):return e.id)
- var toy_outcome=g.Application.execute(g,g.Prison.toy_spec(g,2,true),"prison","prison")
- var special_added=toy_outcome.installed.map(func(e):return e.id)
+ var spec=g.Prison.equipment_spec(g,0)
+ var intake=g.Prison.intake_equipment(g)
+ var added=intake.added
+ var special_added=intake.special_added
  var links=[]
  for i in range(mini(3,g.state.security)):
   var candidates=g.EquipmentOffers.links(g,spec.grade)
@@ -124,7 +123,9 @@ static func capture(g, captor: Dictionary) -> void:
   var rope=g._install_link(pair.ends[0],pair.ends[1],E.maximum(spec.grade)*[0.0,0.4,0.8,1.0][spec.tier],"prison",spec.grade,[],pair.slots,pair.contact_points)
   if not rope.is_empty(): links.append(rope.id)
  g.state.capture={"by":captor.name,"security":g.state.security,"retained":retained,"added":added,"links":links,"retained_special":retained_special,"special_added":special_added,"special_baseline":g.state.special_equipment.map(func(e):return e.id),"confiscated":confiscated,"baseline":g.equipment_targets().map(func(e):return e.id)}
- g._emit("event",captor.name+"执行收押。你被送入监狱，保留当前装备、卡组、魔力与快感，没收%d件道具；警戒度%d，追加%d件%s、%d条同级同档链接和%d/2件%s。" % [confiscated,g.state.security,added.size(),g.Prison.equipment_label(g),links.size(),special_added.size(),g.Prison.toy_label(g)])
+ var tightening="原有拘束具收紧1档，最多3档。" if intake.enough else "普通与复合拘束具收紧至至少2档。"
+ if g.state.security>=5: tightening="即将转入高安全监室。"
+ g._emit("event",captor.name+"执行收押。警戒度升至%d，没收%d件道具；追加%d件拘束具、%d条链接和%d件特殊装备。" % [g.state.security,confiscated,added.size(),links.size(),special_added.size()]+tightening+("佩戴限制项圈。" if intake.collar_added else ""),{"prison_intake":intake})
 
  g.RelicEffects._mana_hook(g,"prison_entry_mana","进入监狱")
 

@@ -7,6 +7,7 @@ static func use(t,g,type: String) -> Dictionary:
  return t.action(g,"item_use",{"item":g.state.items.back().id})
 
 static func run(t) -> void:
+ preload("res://tests/mana_recovery_cases.gd").run(t)
  preload("res://tests/body_consumable_cases.gd").run(t)
  preload("res://tests/tentacle_friend_cases.gd").run(t)
  preload("res://tests/mana_flask_cases.gd").run(t)

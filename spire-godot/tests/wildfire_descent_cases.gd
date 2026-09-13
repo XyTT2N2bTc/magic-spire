@@ -31,7 +31,7 @@ static func run(t) -> void:
   g=Game.new(42);g._discard_end();card=Cards.give(g,"wildfire_descent");g.state.pressure=99
   c=t.find_action(g,"card",{"uid":card.uid,"free":free});before=g.export_snapshot()
   var result=g.dispatch(c.id,g.state.version)
-  t.check(result.ok and g._magic_failed and g.state.powers.is_empty() and g.state.hand==before.hand and g.state.mana==before.mana-c.mana and g.state.energy==before.energy-1 and result.card_feedback.is_empty(),"WILDFIRE failed activation pays pressure-adjusted costs, stays in hand, grants no power")
+  t.check(result.ok and g._magic_failed and g.state.powers.is_empty() and g.state.hand==before.hand and is_equal_approx(g.state.mana,before.mana-c.mana*0.5) and g.state.energy==before.energy-1 and result.card_feedback.is_empty(),"WILDFIRE failed activation pays pressure-adjusted costs, stays in hand, grants no power")
   g.state.sure_cast=true;g.state.temporary_mana=c.mana
   t.check(t.action(g,"card",{"uid":card.uid,"free":free}).ok and g.state.temporary_mana==0 and g.state.powers[0].uid==card.uid and g.state.hand.is_empty(),"WILDFIRE retry can pay from temporary pool and activation does not draw itself")
  var g=active(t);var before=g.export_snapshot()
@@ -42,7 +42,7 @@ static func run(t) -> void:
  var twin=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"wildfire power")
  if twin!=null: preload("res://tests/persistence_cases.gd").step_both(t,g,twin,"attack",{"type":"fireball","enemy":g.state.enemies[0].id})
  g=active(t);g.state.pressure=99;before=g.export_snapshot()
- t.check(g.dispatch(fire(t,g).id,g.state.version).ok and g._magic_failed and g.state.hand.size()==before.hand.size()+1 and g.state.enemies.map(func(e):return e.hp)==before.enemies.map(func(e):return e.hp),"WILDFIRE failed fireball still counts as one use and draws without dealing damage")
+ t.check(g.dispatch(fire(t,g).id,g.state.version).ok and g._magic_failed and g.state.hand.size()==before.hand.size()+1 and g.state.enemies.map(func(e):return e.hp)==before.enemies.map(func(e):return e.hp),"WILDFIRE failed fireball still triggers draw without dealing damage")
  g=active(t);var card=Cards.give(g,"fire_dynamics")
  t.action(g,"card",{"uid":card.uid,"free":true});before=g.export_snapshot()
  t.check(g.dispatch(fire(t,g).id,g.state.version).ok and g.state.hand.size()==before.hand.size()+1,"WILDFIRE area fireball draws once across multiple targets")

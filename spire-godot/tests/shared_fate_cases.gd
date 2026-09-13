@@ -27,5 +27,6 @@ static func run(t) -> void:
  t.check(Give.play(t,g,"shared_fate",true).ok and g.state.mana==40 and g.state.pressure==65,"FATE mean is computed before mana cap without transferring capped excess")
  g=Game.new(42);g.state.mana_max=150;g.state.mana=150;g.state.pressure=50
  t.check(Give.play(t,g,"shared_fate",false).ok and g.state.pressure==0 and g.state.mana==100-g.B.OVERLOAD_MANA and g.state.overload_total==1 and g.state.energy==0,"FATE reaching threshold invokes normal overload once after averaging")
- g=Game.new(42);g.state.mana_max=150;g.state.mana=150;g.state.pressure=50;g.state.relics=["green_bird"]
- t.check(Give.play(t,g,"shared_fate",true).ok and g.state.mana==100 and g.state.pressure==99 and g.state.overload_total==0,"FATE existing pressure cap prevents overflow after averaging")
+ g=Game.new(42);g.state.mana_max=200;g.state.mana=200;g.state.pressure=50;g.state.relics=["green_bird"]
+ g._install_special("negative_plate_lock_medium","special_2_a",2)
+ t.check(Give.play(t,g,"shared_fate",true).ok and g.state.mana==125 and g.state.pressure==119 and g.state.overload_total==0,"FATE dynamic pressure cap prevents overflow after averaging")

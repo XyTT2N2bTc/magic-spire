@@ -69,6 +69,7 @@ static func boss_key(g, saturated: bool) -> void:
 
 static func attribute(g, key: String, target: Dictionary={}, passive: bool=false) -> float:
  var total=float(g.state[key])+g.Relics.value(g.state.relics,key)+g.Cards.power_attribute_modifier(g,key)
+ if key=="strength": total+=g.state.turn_strength
  if not passive: total+=g.Cards.hand_modifier(g,key)
  if key=="dexterity" and not target.is_empty():
   var points=g.Equipment.slip_points(target)
@@ -77,7 +78,7 @@ static func attribute(g, key: String, target: Dictionary={}, passive: bool=false
  return maxf(0.0,total)
 
 static func begin_combat(g) -> void:
- g.state.combat={"serial":g.state.combat.serial+1,"active":true,"first_turn":true,"turn":0,"energy":0,"mana_spent":0.0,"mana_used":false,"attack_uses":{},"attack_started":{}}
+ g.state.combat={"serial":g.state.combat.serial+1,"active":true,"first_turn":true,"turn":0,"energy":0,"mana_spent":0.0,"mana_used":false,"attack_uses":{},"attack_started":{},"successful_spells":[]}
  g.state.pressure=cap_pressure(g,g.state.pressure)
  g.state.energy=0
  _mana_hook(g,"opening_mana","战斗开始")
@@ -107,6 +108,7 @@ static func end_combat(g) -> void:
  g.state.combat.mana_used=false
  g.state.combat.attack_uses={}
  g.state.combat.attack_started={}
+ g.state.combat.successful_spells=[]
  g.state.energy=0
  g.Cards.end_powers(g)
  g.Cards.purge_temporary(g)
@@ -148,6 +150,7 @@ static func begin_turn(g) -> void:
  g.state.combat.turn+=1
  g.state.combat.attack_uses={}
  g.state.combat.attack_started={}
+ g.state.combat.successful_spells=[]
  g.state.combat.mana_used=false
  for id in g.state.relics:
   var opening=int(g.Relics.TYPES[id].modifiers.get("opening_energy",0))
@@ -171,15 +174,16 @@ static func pressure_guard(g) -> String:
 
 static func cap_pressure(g, value: float) -> float:
  var id=pressure_guard(g)
- if id=="" or value<=99: return value
- g._emit("event",g.Relics.TYPES[id].name+"：快感值保持在99，多出的增长已抵消。",{"relic_trigger":{"id":id,"name":g.Relics.TYPES[id].name},"pressure_prevented":value-99})
- return 99.0
+ var limit=g.Pressure.maximum(g)-1.0
+ if id=="" or value<=limit: return value
+ g._emit("event",g.Relics.TYPES[id].name+"：快感值保持在%s，多出部分已抵消。" % g.number(limit),{"relic_trigger":{"id":id,"name":g.Relics.TYPES[id].name},"pressure_prevented":value-limit})
+ return limit
 
 static func counter(g, id: String) -> Dictionary:
  var turns=int(g.Relics.TYPES[id].modifiers.get("pressure_guard_turns",0))
  if turns>0:
   var remaining=maxi(0,turns-maxi(1,g.state.combat.turn)+1) if g.state.combat.active else 0
-  var detail="本场第%d回合，快感值上限99；保护还包括%d个回合。" % [maxi(1,g.state.combat.turn),remaining] if remaining>0 else ("本场保护已结束。" if g.state.combat.active else "下一场开始时重新获得%d回合保护。" % turns)
+  var detail="本场第%d回合，快感最多%s；保护还包括%d个回合。" % [maxi(1,g.state.combat.turn),g.number(g.Pressure.maximum(g)-1.0),remaining] if remaining>0 else ("本场保护已结束。" if g.state.combat.active else "下一场开始时重新获得%d回合保护。" % turns)
   return {"value":remaining,"goal":turns,"text":str(remaining),"detail":detail}
  var spec=g.Relics.trigger(id)
  if spec.get("event","")=="turn_end" and spec.has("round"):
@@ -280,6 +284,8 @@ static func validate(g) -> String:
  if not combat.get("attack_uses") is Dictionary: return "本回合攻击次数记录不完整。"
  for type in combat.attack_uses:
   if not g.BasicAttacks.TYPES.has(type) or not g.BasicAttacks.TYPES[type][0].has("uses_per_turn") or not combat.attack_uses[type] is int or combat.attack_uses[type]<0: return "本回合攻击次数记录不正确。"
+ if not g.Snapshot.fields(combat,"successful_spells:z") or combat.successful_spells.any(func(spell):return spell not in g.Cards.Rules.FIXED_MAGIC or combat.successful_spells.count(spell)!=1): return "本回合成功施法记录不正确。"
+ if not combat.active and not combat.successful_spells.is_empty(): return "场次结束后不能保留成功施法记录。"
  if not combat.active and not combat.attack_uses.is_empty(): return "场次结束后不能保留攻击次数。"
  if combat.serial<0 or combat.turn<0 or combat.energy<0 or combat.mana_spent<0: return "战斗触发进度不能为负数。"
  if g.state.relics.any(func(id):return not g.Relics.TYPES.has(id)): return "持有遗物的定义不存在。"

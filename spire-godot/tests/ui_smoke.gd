@@ -419,7 +419,7 @@ func _instant_free_tests() -> void:
  check(ui.game.state.temporary_mana==10 and not ui.card_buttons.has(uid),"instant free preparation does not roll mouth casting")
  ui.restart(20260906);await frames()
  ui.game.add_fixture("fingers",4)
- var gesture=ui.game.state.deck.filter(func(c):return c.type=="unlock")[0].duplicate(true)
+ var gesture=preload("res://tests/curse_cases.gd").give(ui.game,"unlock")
  for zone in ["draw","discard","exhaust"]: ui.game.state[zone]=ui.game.state[zone].filter(func(c):return c.uid!=gesture.uid)
  if not ui.game.state.hand.any(func(c):return c.uid==gesture.uid): ui.game.state.hand.append(gesture)
  ui.render();await frames()

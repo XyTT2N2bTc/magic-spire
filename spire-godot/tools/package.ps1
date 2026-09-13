@@ -5,7 +5,7 @@ $gameDirectory = Split-Path -Parent $PSScriptRoot
 if (-not $OutputRoot) { $OutputRoot = Join-Path (Split-Path -Parent $gameDirectory) 'outputs' }
 if (-not $BuildId) { $BuildId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmss') }
 if ($BuildId -notmatch '^[A-Za-z0-9_-]+$') { throw 'BuildId may contain only letters, numbers, hyphens and underscores.' }
-$destination = Join-Path $OutputRoot ('spire-v0.15-windows-x64-' + $BuildId)
+$destination = Join-Path $OutputRoot ('spire-v0.16-windows-x64-' + $BuildId)
 if (Test-Path -LiteralPath $destination) { throw "Output already exists: $destination" }
 [IO.Directory]::CreateDirectory($destination) | Out-Null
 $engine = Find-SpireGodot -Console
@@ -21,7 +21,7 @@ function Get-RuntimeFingerprint {
         })
 }
 $sourceBefore = Get-RuntimeFingerprint | ConvertTo-Json -Depth 4 -Compress
-& $engine --headless --path $gameDirectory --log-file $exportLog --export-release 'Windows v0.15' $executable *> (Join-Path $logDirectory 'export-console.log')
+& $engine --headless --path $gameDirectory --log-file $exportLog --export-release 'Windows v0.16' $executable *> (Join-Path $logDirectory 'export-console.log')
 $exportExit = $LASTEXITCODE
 if ($exportExit -ne 0 -or -not (Test-Path -LiteralPath $executable) -or (Get-Content -LiteralPath $exportLog -Raw) -match '(?m)^\s*(?:USER )?(?:SCRIPT |PARSE )?ERROR:') {
     throw "Export failed (exit=$exportExit): $exportLog"
@@ -34,13 +34,17 @@ Copy-Item -LiteralPath (Join-Path $gameDirectory '基础操作教学.txt') -Dest
 $licenseDirectory = Join-Path $destination 'licenses'
 [IO.Directory]::CreateDirectory($licenseDirectory) | Out-Null
 Copy-Item -LiteralPath (Join-Path $gameDirectory 'assets/vendor/CREDITS.md') -Destination $licenseDirectory
+Copy-Item -LiteralPath (Join-Path $gameDirectory 'assets/fonts/OFL') -Destination (Join-Path $licenseDirectory 'NotoSansCJK-OFL.txt')
+foreach ($name in @('LICENSE','ASSET_RIGHTS.md')) {
+    Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $gameDirectory) $name) -Destination $destination
+}
 foreach ($name in @('GODOT-LICENSE.txt', 'GODOT-COPYRIGHT.txt')) {
     Copy-Item -LiteralPath (Join-Path $gameDirectory ('docs/licenses/' + $name)) -Destination $licenseDirectory
 }
 $sourceAfter = Get-RuntimeFingerprint | ConvertTo-Json -Depth 4 -Compress
 if ($sourceBefore -cne $sourceAfter) { throw 'Runtime sources changed during export. Keep this staging folder unpublished and export a fresh build.' }
 $sourceBefore | Set-Content -LiteralPath (Join-Path $logDirectory 'source-manifest.json') -Encoding utf8
-$manifest = [ordered]@{ version = '0.15'; platform = 'windows-x64'; build = $BuildId; engine = (& $engine --version | Out-String).Trim(); files = @() }
+$manifest = [ordered]@{ version = '0.16'; platform = 'windows-x64'; build = $BuildId; engine = (& $engine --version | Out-String).Trim(); files = @() }
 $manifest.files = @(Get-ChildItem -LiteralPath $destination -File -Recurse | Sort-Object FullName | ForEach-Object {
     [ordered]@{ path = [IO.Path]::GetRelativePath($destination, $_.FullName); bytes = $_.Length; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
 })

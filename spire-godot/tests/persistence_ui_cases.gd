@@ -119,5 +119,13 @@ static func run(t) -> void:
   t.check(ui.show_home and not ui.show_saves and ui.find_child("GameHome",true,false)!=null and ui.save_failed and ui.save_suspended,"SAVE UI every unrecoverable load uses the homepage "+damage)
   t.check(ui.game.export_snapshot()==saved and FileAccess.get_file_as_string(store.path("tower"))==bytes,"SAVE UI failed load preserves both running state and original file "+damage)
   t.check(t.visible_text(ui.layout).contains(ui.save_notice) and ui.find_child("HomeNewGame",true,false)!=null,"SAVE UI homepage explains failure and offers a new game "+damage)
+ ui.restart(42);ui.game.state.room="rest";ui.game._start_rest();ui.render();await t.frames()
+ var rest_entry=ui.game.export_snapshot()
+ t.check(await t.click("rest_flask") and await t.click("end"),"SAVE UI uses a rest reward and advances a rest turn")
+ await t.open_menu();await button(t,"QuickSL")
+ t.check(ui.view.phase=="rest_choice" and Cases.same(ui.game.state,rest_entry),"SAVE UI quick SL restores the original fire reward window and all entry values")
+ t.check(await t.click("rest_card",{"type":ui.game.state.rest_cards[0]}),"SAVE UI chooses a different fire reward after SL")
+ await boot(t,store);ui=t.ui
+ t.check(ui.view.phase=="rest_choice" and Cases.same(ui.game.state,rest_entry),"SAVE UI relaunch also restores the fire before claiming cards")
  # Subsequent suites never touch production or this fixture's files.
  ui.persistence_enabled=false;ui.save_suspended=false;ui.save_failed=false;ui.save_notice=""

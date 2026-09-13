@@ -15,6 +15,13 @@ static func use(t,g,type: String,free: bool) -> Dictionary:
 
 static func run(t) -> void:
  var g=setup();var count=g.state.deck.size()
+ for stage in range(1,5):
+  var type="hannya_%d" % stage
+  var meta=g.B.card_metadata(type)
+  for free in [false,true]:
+   var side="free" if free else "bound"
+   t.check(meta.face_mana[side].size()==1 and meta.face_mana[side][0].kind=="gain" and meta.face_mana[side][0].text=="+5","HANNYA both faces show five own mana in shared metadata")
+   t.check(g.Cards.Rules.SPECS[type].card_type=="skill" and not g.Cards.Rules.face_casts(type,free) and "magic" not in g.Cards.Rules.type_tags(type),"HANNYA mana gain does not turn skill into magic")
  g.RelicEffects.gain(g,"gourd_flask");g.RelicEffects.gain(g,"gourd_flask")
  t.check(g.state.deck.size()==count+1 and g.state.deck.back().type=="hannya_1" and "gourd_flask" in g.Relics.BOSS_POOL and "gourd_flask" not in g.Relics.REWARDS,"HANNYA boss-only pickup adds one permanent card once")
  g._start_battle()
@@ -58,7 +65,7 @@ static func progression(t) -> void:
  g.get_view();g.candidates();t.check(g.state==before,"HANNYA projections do not claim rewards or consume RNG")
  g.state.card_buffs.append("hannya_level_1")
  t.check(g.validate()!="","HANNYA snapshot rejects multiple simultaneous levels")
- g=setup();g.state.card_buffs.append("echo_cast_bound")
+ g=setup();g.Cards.grant_buff(g,"echo_cast_bound")
  t.check(Give.play(t,g,"hannya_1",false).ok and g.Cards.Hannya.level(g)==1 and g.state.mana==25 and g.state.deck.filter(func(c):return c.type=="hannya_2").size()==1 and "echo_cast_bound" not in g.state.card_buffs,"HANNYA distinct first face can consume replay but one physical play grants only one level reward")
  g=setup();g.state.mana=99
  t.check(Give.play(t,g,"hannya_1",true).ok and g.state.mana==100 and g.state.logs.back().data.mana_gain==1,"HANNYA upgrade logs actual capped mana and still grants the level")
@@ -117,13 +124,21 @@ static func attacks(t) -> void:
 
 static func gifts(t) -> void:
  var g=setup()
+ for free in [false,true]:
+  var played=setup();var gift=Give.give(played,"hannya_infusion");played.state.mana=9
+  var offer=t.find_action(played,"card",{"uid":gift.uid,"free":free});var before=played.export_snapshot()
+  t.check(not offer.valid and not played.dispatch(offer.id,played.state.version).ok and played.state==before,"HANNYA infusion under ten mana rejects without mutation")
+  played.state.mana=10
+  offer=t.find_action(played,"card",{"uid":gift.uid,"free":free})
+  t.check(offer.mana==10 and played.dispatch(offer.id,played.state.version).ok and played.state.mana==0 and ("infusion_free" if free else "infusion_bound") in played.state.card_buffs and played.state.exhaust.any(func(c):return c.uid==gift.uid),"HANNYA infusion either face really pays ten and grants its matching interrupt")
+ t.check(g.Cards.face_mana(g,"infusion",true)==20,"HANNYA infusion discount does not change ordinary infusion")
  for type in ["hannya_swallow","hannya_infusion","hannya_henshin"]:
   var traits=g.B.CARD_TRAITS[type]
   t.check(traits.exhaust and traits.ethereal and traits.temporary and g.Cards.Rules.SPECS[type].reward_excluded and type not in g.Cards.Rules.REWARDS,"HANNYA generated variants are temporary exhaust/ethereal and excluded from ordinary offers: "+type)
   for free in [false,true]:
    t.check(g.Cards.energy_cost(g,type,free)==(2 if type=="hannya_henshin" and free else 0),"HANNYA gift actual energy cost: %s %s" % [type,str(free)])
    var mana=g.Cards.face_mana(g,type,free)
-   t.check(mana==(20 if type=="hannya_henshin" or (type=="hannya_infusion" and free) else (10 if type=="hannya_infusion" else 0)),"HANNYA gift retains required base mana: %s %s" % [type,str(free)])
+   t.check(mana==(20 if type=="hannya_henshin" else (10 if type=="hannya_infusion" else 0)),"HANNYA gift retains required base mana: %s %s" % [type,str(free)])
  g._install_template("mouth_band","mouth",30,30,false,"fixture",3,0)
  var card=Give.give(g,"hannya_infusion")
  t.check(t.find_action(g,"card",{"uid":card.uid,"free":false}).valid,"HANNYA generated infusion does not inherit drinking block")

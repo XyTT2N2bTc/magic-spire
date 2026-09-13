@@ -10,6 +10,10 @@ static func fire(t,g) -> Dictionary:
  return t.find_action(g,"attack",{"type":"fireball","enemy":g.state.enemies[0].id})
 
 static func run(t) -> void:
+ reuse(t)
+ preload("res://tests/resonance_cases.gd").run(t)
+ preload("res://tests/cumulative_cards_cases.gd").run(t)
+ preload("res://tests/practiced_cases.gd").run(t)
  stacking(t)
  preload("res://tests/card_music_cases.gd").run(t)
  preload("res://tests/restraint_embrace_cases.gd").run(t)
@@ -26,14 +30,14 @@ static func run(t) -> void:
  var card=give(t,g)
  var c=t.find_action(g,"card",{"uid":card.uid,"free":false})
  var before=g.export_snapshot()
- t.check(c.valid and c.cost==2 and c.mana==0 and c.payload.self_target,"POWER self-target two-energy candidate")
+ t.check(c.valid and c.cost==1 and c.mana==0 and c.payload.self_target,"POWER self-target one-energy candidate")
  g.get_view();g.candidates()
  t.check(g.state==before and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"POWER preview and stale submission preserve state")
- g.state.energy=1;before=g.export_snapshot()
+ g.state.energy=0;before=g.export_snapshot()
  t.check(not t.action(g,"card",{"uid":card.uid,"free":false}).ok and g.state==before,"POWER insufficient energy refuses atomically")
  g.state.energy=3
  var result=t.action(g,"card",{"uid":card.uid,"free":false})
- t.check(result.ok and g.state.energy==1 and g.state.mana==100 and g.state.powers[0].uid==card.uid and g.validate()=="","POWER actual play conserves card in ability zone and pays only energy")
+ t.check(result.ok and g.state.energy==2 and g.state.mana==100 and g.state.powers[0].uid==card.uid and g.validate()=="","POWER actual play conserves card in ability zone and pays only energy")
  t.check(result.card_feedback.any(func(e):return e.kind=="play_power" and e.uid==card.uid) and g.get_view().statuses.any(func(e):return e.id=="power_fire_mastery_bound"),"POWER feedback and status reflect committed ability")
  t.check(fire(t,g).payload.damage==g.B.FIREBALL,"POWER free fingers no longer add gesture damage")
  var duplicate=give(t,g);before=g.export_snapshot()
@@ -111,7 +115,9 @@ static func stacking(t) -> void:
     var target=g.add_fixture("ankle",1)
     if free:
      var count=g.state.hand.size()
+     var energy=g.state.energy
      t.check(helper.play(t,g,"slip",false,{"target":target.id}).ok and g._equipment(target.id).is_empty() and g.state.hand.size()==count+2,"STACK release draws twice")
+     t.check(g.state.energy==energy+1,"STACK two embrace copies recover two energy after paying one for slip")
     else:
      t.check(g.Cards.pending_draw(g,id)==2,"STACK wear schedules two draws")
      g.Cards.begin_turn(g)
@@ -131,3 +137,68 @@ static func stacking(t) -> void:
     t.check(g.BasicAttacks.usage(g,"fireball").limit==4,"STACK two flourish powers add two maximum casts")
    g.Cards.end_powers(g)
    t.check(g.state.powers.is_empty() and id not in g.Cards.active_buffs(g),"STACK all layers expire together "+id)
+
+
+static func reuse(t) -> void:
+ var Cards=preload("res://tests/curse_cases.gd")
+ var Rules=preload("res://data/card_rules.gd")
+ t.check("reuse" in Rules.UNCOMMON and Rules.energy_cost("reuse",true)==1 and Rules.energy_cost("reuse",false)==2 and Rules.unique_face("reuse",true) and Rules.unique_face("reuse",false),"REUSE uncommon reward, asymmetric costs and both unique faces")
+ # Positive, nearest counterexamples and exact two-level boundary.
+ for levels in [[0,0],[1,2],[2,1],[2,2]]:
+  var g=Game.new(42);g._discard_end();g.state.energy=30;g.state.equipment.clear()
+  if levels[0]>0: g.add_fixture("wrist" if levels[0]==2 else "upper_arm",8)
+  if levels[1]>0: g.add_fixture("ankle" if levels[1]==2 else "thigh",8)
+  var card=Cards.give(g,"reuse")
+  var c=t.find_action(g,"card",{"uid":card.uid,"free":false})
+  var before=g.export_snapshot();g.get_view();g.candidates()
+  var allowed=levels==[2,2]
+  t.check(c.valid==allowed and g.state==before,"REUSE both regions required at exact level two: "+str(levels))
+  t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"REUSE stale play preserves resources, piles and random state")
+  if not allowed:
+   t.check(c.reason.contains("束缚等级需≥2") and not g.dispatch(c.id,g.state.version).ok and g.state==before,"REUSE blocked play reports missing region and rolls back")
+  else:
+   t.check(g.dispatch(c.id,g.state.version).ok and g.state.energy==28 and g.state.powers.size()==1 and g.state.rng.magic==0,"REUSE activation pays two without a spell roll")
+ # Each source is refunded to its own pool, without stacking percentages.
+ for faces in [[],[true],[false],[true,false]]:
+  for temporary in [0.0,4.0,30.0]:
+   var g=Game.new(42);g._discard_end();g.state.equipment.clear();g.state.relics=[];g.state.energy=30
+   g.add_fixture("wrist",8);g.add_fixture("ankle",8)
+   for free in faces: t.check(Cards.play(t,g,"reuse",free).ok,"REUSE activates each distinct face")
+   g.state.pressure=75;g.state.mana=50;g.state.temporary_mana=temporary
+   var cursor=g.state.rng.get("magic",0)
+   while g._random_index("magic",g.B.CAST_ROLL_STEPS)<g.cast_view().winning_rolls: cursor=g.state.rng.magic
+   g.state.rng.magic=cursor
+   var c=fire(t,g);var before=g.export_snapshot()
+   var permanent_rate=0.8 if false in faces else 0.5
+   var temporary_rate=0.8 if not faces.is_empty() else 0.5
+   t.check(g.dispatch(c.id,g.state.version).ok and g._magic_failed,"REUSE real paid spell fails")
+   var spell=g.state.logs.filter(func(row):return row.data.has("spell")).back().data.spell
+   t.check(is_equal_approx(g.state.mana,before.mana-c.mana_payment.mana*(1-permanent_rate)) and is_equal_approx(g.state.temporary_mana,before.temporary_mana-c.mana_payment.temporary_mana*(1-temporary_rate)),"REUSE separate refund pools for "+str(faces)+" temporary="+str(temporary))
+   t.check(is_equal_approx(spell.mana_refund.mana,c.mana_payment.mana*permanent_rate) and is_equal_approx(spell.mana_refund.temporary_mana,c.mana_payment.temporary_mana*temporary_rate) and g.state.energy==before.energy-c.cost and g.state.flask_mana==before.flask_mana,"REUSE structured log matches refunds, energy remains spent and flask untouched")
+ var g=Game.new(42);g._discard_end();g.state.energy=30;g.state.equipment.clear()
+ var wrist=g.add_fixture("wrist",8);g.add_fixture("ankle",8)
+ Cards.play(t,g,"reuse",true);Cards.play(t,g,"reuse",false)
+ for free in [true,false]:
+  var card=Cards.give(g,"reuse");var before=g.export_snapshot()
+  t.check(not t.action(g,"card",{"uid":card.uid,"free":free}).ok and g.state==before,"REUSE same face unique rejects duplicate without payment")
+ g._equipment(wrist.id).durability=0;g._cleanup()
+ t.check(g.Cards.failure_refund_rates(g)=={"mana":0.5,"temporary_mana":0.8} and g.get_view().statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("未生效")),"REUSE removal immediately pauses bound refund and preserves free refund")
+ g.add_fixture("wrist",8)
+ t.check(g.Cards.failure_refund_rates(g)=={"mana":0.8,"temporary_mana":0.8},"REUSE re-equipping restores eighty percent refund without replaying the power")
+ var palm=g.add_fixture("palm",8)
+ t.check(g.level("arms")==3 and g.level("legs")==2 and g.Cards.failure_refund_rates(g).mana==0.8,"REUSE only upper level three does not upgrade refund")
+ var foot=g.add_fixture("foot",8)
+ t.check(g.level("arms")==3 and g.level("legs")==3 and g.Cards.failure_refund_rates(g)=={"mana":1.0,"temporary_mana":1.0},"REUSE both regions at three immediately upgrade to full refund")
+ g.state.pressure=99;g.state.mana=50;g.state.temporary_mana=4
+ var full=fire(t,g);var full_before=g.export_snapshot()
+ t.check(g.dispatch(full.id,g.state.version).ok and g._magic_failed and g.state.mana==full_before.mana and g.state.temporary_mana==full_before.temporary_mana and g.state.energy==full_before.energy-full.cost,"REUSE live three-three failure returns both entire payments but never energy")
+ g._equipment(palm.id).durability=0;g._cleanup()
+ t.check(g.level("arms")==2 and g.level("legs")==3 and g.Cards.failure_refund_rates(g).mana==0.8,"REUSE only lower level three and downgrade immediately use eighty percent")
+ g.add_fixture("palm",8)
+ var restored=Game.new(0)
+ t.check(restored.restore_snapshot(g.export_snapshot()).ok and restored.Cards.failure_refund_rates(restored)==g.Cards.failure_refund_rates(g),"REUSE current save restores both faces and live eligibility")
+ g.state.pressure=0;g.state.mana=50;g.state.temporary_mana=4
+ var c=fire(t,g);var before=g.export_snapshot()
+ t.check(g.dispatch(c.id,g.state.version).ok and not g._magic_failed and is_equal_approx(g.state.mana,before.mana-c.mana_payment.mana) and is_equal_approx(g.state.temporary_mana,before.temporary_mana-c.mana_payment.temporary_mana),"REUSE successful spell gets no failure refund")
+ g.Cards.end_powers(g)
+ t.check(g.state.powers.is_empty() and g.Cards.failure_refund_rates(g)=={"mana":0.5,"temporary_mana":0.5},"REUSE effect expires with the existing battle power lifecycle")

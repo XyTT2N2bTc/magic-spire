@@ -3,6 +3,9 @@ const Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
 
 static func run(t) -> void:
  var ui=t.ui
+ var original_store=ui.saves;var original_persistence=ui.persistence_enabled
+ var store=ui.SaveStore.new("res://build/map-drawings-"+str(Time.get_ticks_usec()))
+ ui.saves=store;ui.persistence_enabled=true
  t.check(await t.click("departure",{"op":"skip"}) and ui.view.phase=="map","ROUTE leaves the real opening choice before testing the map")
  var graph=ui.find_child("TowerRoute",true,false)
  var scroll=ui.find_child("TowerMapScroll",true,false)
@@ -66,6 +69,16 @@ static func run(t) -> void:
  scroll=ui.find_child("TowerMapScroll",true,false)
  t.check(not graph.compact and scroll.scroll_vertical>0 and ui.game.export_snapshot()==before,"ROUTE locate restores detailed art without submitting a move")
  t.check(graph.strokes==stored_ink,"ROUTE rebuild and locate preserve drawings")
+ var saved=ui.SaveStore.new(store.directory).read_slot("tower")
+ var checkpoint=ui.game.restart_snapshot()
+ t.check(saved.ok and saved.map_drawings==ui.map_drawings and saved.snapshot==checkpoint,"ROUTE completed strokes persist with the original scene checkpoint")
+ await t.open_menu();await Pointer.press(t,ui.find_child("QuickSL",true,false))
+ graph=ui.find_child("TowerRoute",true,false)
+ t.check(graph!=null and graph.strokes==stored_ink and preload("res://tests/persistence_cases.gd").same(ui.game.state,checkpoint),"ROUTE native quick SL retains annotations while restoring gameplay")
+ ui.map_drawings={};ui.saves=ui.SaveStore.new(store.directory);ui._continue_save("tower");await t.frames()
+ graph=ui.find_child("TowerRoute",true,false)
+ t.check(graph!=null and graph.strokes==stored_ink,"ROUTE disk load restores drawings without any in-memory cache")
+ before=ui.game.export_snapshot()
  ui.show_tutorial=true;ui.render();await t.frames()
  graph=ui.find_child("TowerRoute",true,false)
  await t.move_mouse(ink_start);await t.mouse_button(ink_start,MOUSE_BUTTON_RIGHT,true)
@@ -75,6 +88,7 @@ static func run(t) -> void:
  graph=ui.find_child("TowerRoute",true,false);scroll=ui.find_child("TowerMapScroll",true,false)
  await Pointer.press(t,ui.find_child("MapClearDrawing",true,false))
  t.check(graph.strokes.is_empty() and ui.game.export_snapshot()==before,"ROUTE clear removes only annotations")
+ t.check(ui.saves.read_slot("tower").map_drawings.values().all(func(lines):return lines.is_empty()),"ROUTE clearing marks also persists to disk")
  var available=ui.view.route.filter(func(r):return r.status=="available")[0].id
  var point=graph.buttons[available].get_global_rect().get_center()
  var offset=scroll.scroll_vertical
@@ -116,7 +130,7 @@ static func run(t) -> void:
  graph.strokes.append(PackedVector2Array([Vector2(0.5,0.5)]))
  ui.restart(42);await t.frames()
  t.check(await t.click("departure",{"op":"skip"}),"ROUTE restarted game completes its own opening choice")
- t.check(ui.find_child("TowerRoute",true,false).strokes.is_empty(),"ROUTE new run starts with a clean map")
+ t.check(ui.find_child("TowerRoute",true,false).strokes.is_empty() and ui.saves.read_slot("tower").map_drawings.values().all(func(lines):return lines.is_empty()),"ROUTE new run with the same seed starts and saves a clean map")
  graph=ui.find_child("TowerRoute",true,false)
  available=ui.view.route.filter(func(r):return r.status=="available")[0].id
  graph.buttons[available].pressed.emit();await t.frames()
@@ -140,6 +154,7 @@ static func run(t) -> void:
  await Pointer.press(t,graph.buttons[disconnected.id])
  t.check(ui.game.export_snapshot()==before and t.visible_text(ui.layout).contains("没有地图连线"),"ROUTE native adjacent disconnected room click explains rejection without moving")
 
+ ui.persistence_enabled=original_persistence;ui.saves=original_store
  await merged_departure(t)
 
 static func merged_departure(t) -> void:

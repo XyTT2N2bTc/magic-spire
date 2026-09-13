@@ -55,12 +55,17 @@ static func run(t) -> void:
    var relic_offer=ui.view.shop.stock.filter(func(o):return o.kind=="relic")[0]
    var relic_button=ui.find_child("ShopOffer%d" % relic_offer.index,true,false)
    t.check(t.visible_text(relic_button).contains(relic_offer.rarity_name) and relic_offer.detail.begins_with(relic_offer.rarity_name+"遗物"),"RELIC shop displays rarity in both stock and details")
+  if kind=="treasure":
+   ui.game._install_special("negative_plate_lock_medium","special_2_a",2)
+   ui.game.state.mana=0;ui.game.state.flask_mana=0;ui.render();await t.frames()
+   t.check(ui.view.battle_rewards[0].available and not t.visible_text(ui.find_child("BattleRewards",true,false)).contains(ShopCopy.PLATE_SELF_BLOCK_REASON),"TREASURE UI locked player sees available free reward without shop payment warning")
   var offer=ui.actions.select("service")[0]
+  var mana_before=ui.view.mana
   var stock=ui.view.shop.stock[offer.payload.index]
   var pickup=ui.game.Relics.TYPES[stock.type].modifiers.get("pickup_mana",0.0) if stock.kind=="relic" else 0.0
   var button=ui.candidate_buttons[offer.id]
   await Pointer.press(t,button)
-  t.check(ui.view.mana==100-offer.mana+pickup and not ui.candidate_buttons.has(offer.id),"SERVICE UI native purchase spends exact mana and removes offer")
+  t.check(ui.view.mana==mana_before-offer.mana+pickup and not ui.candidate_buttons.has(offer.id),"SERVICE UI native purchase spends exact mana and removes offer")
   if kind=="shop": await dismiss_payment(t)
   await t.capture("ui-97-"+kind+".png")
   t.check(await t.click("service",{"op":"leave"}) and ui.view.phase=="map","SERVICE UI leaves without extra turns")
@@ -117,7 +122,18 @@ static func payment_dialogues(t) -> void:
  var plate_offer=ui.actions.select("service").filter(func(c):return c.payload.get("op","")=="take" and c.payload.get("payment","")=="self")[0]
  before=ui.game.export_snapshot();ui.candidate_buttons[plate_offer.id].mouse_entered.emit()
  body=ui.find_child("ShopkeeperSpeechText",true,false)
- t.check(not plate_offer.valid and ui.candidate_buttons[plate_offer.id].disabled and body.text==ShopCopy.PLATE_SELF_BROWSE[0] and t.visible_text(ui.candidate_buttons[plate_offer.id].get_parent()).contains(ShopCopy.PLATE_SELF_BLOCK_REASON) and ui.game.export_snapshot()==before,"SHOP flat-lock product hover shows the dedicated zako refusal without mutating state")
+ var payment_notice=ui.find_child("ShopPaymentNotice",true,false)
+ t.check(not plate_offer.valid and ui.candidate_buttons[plate_offer.id].disabled and body.text==ShopCopy.PLATE_SELF_BROWSE[0] and payment_notice!=null and payment_notice.text==ShopCopy.PLATE_SELF_BLOCK_REASON and ui.game.export_snapshot()==before,"SHOP flat-lock product stays disabled with one payment-area explanation")
+ t.check(t.visible_text(ui.find_child("RoomServicePanel",true,false)).count(ShopCopy.PLATE_SELF_BLOCK_REASON)==1 and not t.visible_text(ui.candidate_buttons[plate_offer.id].get_parent()).contains(ShopCopy.PLATE_SELF_BLOCK_REASON),"SHOP shared payment restriction is not repeated under individual goods")
+ t.check(payment_notice.get_global_rect().end.y<=ui.candidate_buttons[plate_offer.id].get_global_rect().position.y,"SHOP payment notice fits above the card row: %s / %s" % [payment_notice.get_global_rect(),ui.candidate_buttons[plate_offer.id].get_global_rect()])
+ await t.capture("ui-shop-shared-payment-note.png")
+ await Pointer.press(t,ui.find_child("ShopPayment_flask",true,false));await t.frames()
+ t.check(ui.find_child("ShopPaymentNotice",true,false)==null and ui.game.export_snapshot()==before,"SHOP switching payment removes obsolete notice without changing state")
+ await Pointer.press(t,ui.find_child("ShopPayment_self",true,false));await t.frames()
+ await Pointer.press(t,ui.find_child("ShopRemove",true,false));await t.frames()
+ var service_notice=ui.find_child("ShopServicePaymentNotice",true,false)
+ t.check(service_notice!=null and t.visible_text(service_notice.get_parent()).count(ShopCopy.PLATE_SELF_BLOCK_REASON)==1 and ui.game.export_snapshot()==before,"SHOP card-removal drawer shares one explanation without repeating it per card")
+ await t.close_information()
  await Pointer.press(t,ui.find_child("ShopRelease",true,false))
  var release=ui.actions.find("service_release",{"op":"release","target":lock.id,"payment":"self"})
  await Pointer.press(t,ui.candidate_buttons[release.id])
@@ -150,12 +166,13 @@ static func release_service(t) -> void:
  await dismiss_payment(t)
  await t.close_information()
  var remove=ui.find_child("ShopRemove",true,false)
+ t.check(remove.text.contains("30魔力"),"REMOVE UI entry shows the current shared removal price")
  await Pointer.press(t,remove)
  var card=ui.actions.select("service_remove")[0]
  var deck=ui.view.deck_count
  t.check(ui.candidate_buttons[card.id].get_script()==preload("res://ui/card_face.gd"),"REMOVE service uses selectable hand card face")
  await Pointer.press(t,ui.candidate_buttons[card.id]);await dismiss_payment(t);await t.close_information()
- t.check(ui.view.deck_count==deck-1 and ui.find_child("ShopRemove",true,false).disabled,"SHOP UI original single-use card removal remains usable")
+ t.check(ui.view.deck_count==deck-1 and ui.find_child("ShopRemove",true,false).disabled and ui.game.state.shop_removals==1 and ui.view.shop.remove_price==50,"SHOP UI actual removal advances future price while marking the local service used")
  ui.game.state.mana=19;ui.render();await t.frames()
  await Pointer.press(t,ui.find_child("ShopRelease",true,false))
  c=ui.actions.find("service_release",{"op":"release","target":kept.id})

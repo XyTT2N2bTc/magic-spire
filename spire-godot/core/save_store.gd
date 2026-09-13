@@ -66,9 +66,17 @@ static func decode(value, depth: int=0) -> Dictionary:
  if value is float and not is_finite(value): return failure("存档数值损坏。")
  return {"ok":true,"value":value}
 
-static func pack(snapshot: Dictionary) -> String:
+static func pack(snapshot: Dictionary, map_drawings: Dictionary={}) -> String:
  var payload=JSON.stringify(encode(snapshot),"",false,true)
- return JSON.stringify({"format":FORMAT,"saved_at":Time.get_datetime_string_from_system(),"payload":payload,"checksum":payload.sha256_text()},"",false,true)
+ var marks={}
+ for key in map_drawings:
+  marks[key]=[]
+  for stroke in map_drawings[key]:
+   var points=[]
+   for point in stroke: points.append([point.x,point.y])
+   marks[key].append(points)
+ var ink=JSON.stringify(encode(marks),"",false,true)
+ return JSON.stringify({"format":FORMAT,"saved_at":Time.get_datetime_string_from_system(),"payload":payload,"map_drawings":ink,"checksum":(payload+ink).sha256_text()},"",false,true)
 
 static func unpack(text: String) -> Dictionary:
  var parser=JSON.new()
@@ -76,7 +84,8 @@ static func unpack(text: String) -> Dictionary:
  var envelope=parser.data
  if not envelope.has("format") or envelope.format!=FORMAT: return failure(Game.Snapshot.INCOMPATIBLE,"version")
  if not envelope.get("payload") is String or not envelope.get("checksum") is String or not envelope.get("saved_at") is String: return failure("存档缺少必要信息。")
- if envelope.payload.sha256_text()!=envelope.checksum: return failure("存档校验失败，文件可能已损坏。")
+ var ink=envelope.get("map_drawings","")
+ if not ink is String or (envelope.payload+ink).sha256_text()!=envelope.checksum: return failure("存档校验失败，文件可能已损坏。")
  if parser.parse(envelope.payload)!=OK: return failure("存档内容损坏。")
  var result=decode(parser.data)
  if not result.ok: return result
@@ -84,7 +93,22 @@ static func unpack(text: String) -> Dictionary:
  var probe=Game.new(0,false,"equipment",false)
  var restored=probe.restore_snapshot(result.value)
  if not restored.ok: return restored
- return {"ok":true,"snapshot":result.value,"saved_at":envelope.saved_at}
+ var drawings={}
+ if ink!="":
+  if parser.parse(ink)!=OK: return failure("地图画线损坏。")
+  var decoded=decode(parser.data)
+  if not decoded.ok or not decoded.value is Dictionary: return failure("地图画线损坏。")
+  for key in decoded.value:
+   if not key is String or not decoded.value[key] is Array: return failure("地图画线损坏。")
+   drawings[key]=[]
+   for line in decoded.value[key]:
+    if not line is Array: return failure("地图画线损坏。")
+    var points=PackedVector2Array()
+    for point in line:
+     if not point is Array or point.size()!=2 or not Game.Snapshot.typed(point[0],"n") or not Game.Snapshot.typed(point[1],"n"): return failure("地图画线坐标损坏。")
+     points.append(Vector2(point[0],point[1]))
+    drawings[key].append(points)
+ return {"ok":true,"snapshot":result.value,"map_drawings":drawings,"saved_at":envelope.saved_at}
 
 func read_file(filename: String) -> Dictionary:
  if not FileAccess.file_exists(filename): return failure("尚无存档。")
@@ -106,7 +130,7 @@ func read_slot(slot: String) -> Dictionary:
   backup.backup=true;return backup
  return failure(current.get("error","存档所属模式不一致。")+" 没有可恢复的备份。")
 
-func write_game(game, replace_incompatible: bool=false) -> Dictionary:
+func write_game(game, replace_incompatible: bool=false, map_drawings: Dictionary={}) -> Dictionary:
  var issue=game.validate()
  if issue!="": return failure("保存失败："+issue)
  var slot=game.state.save_slot
@@ -114,7 +138,7 @@ func write_game(game, replace_incompatible: bool=false) -> Dictionary:
  var filename=path(slot)
  var old=read_file(filename)
  if not old.ok and old.get("code","")=="version" and not replace_incompatible: return failure("保存已暂停：原存档版本不兼容，只有明确开始新局才会替换。","version")
- var content=pack(game.restart_snapshot())
+ var content=pack(game.restart_snapshot(),map_drawings)
  if content.to_utf8_buffer().size()>MAX_BYTES: return failure("保存失败：进度超过存档大小限制。")
  var absolute=ProjectSettings.globalize_path(directory)
  if DirAccess.make_dir_recursive_absolute(absolute)!=OK: return failure("保存失败：无法创建存档文件夹。当前游戏仍可继续。")

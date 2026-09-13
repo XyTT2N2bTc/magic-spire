@@ -61,6 +61,7 @@ const MATERIALS={
  "cloth":{1:["普通遮光布带"],2:["加厚遮光布带"],3:["加强遮光布带"]}
 }
 static var TEMPLATES={
+ "restriction_collar":{"name":"限制项圈","material":"metal","slots":["neck"],"strain":false,"slip":false,"manual":true,"lock":true,"min_grade":3,"lock_only":true,"generated":false,"damage_factor":0.0},
  "torso_connection":{"name":"连接式固缚","material":"rope","slots":[],"strain":true,"slip":true,"manual":false,"lock":false},
  "special":{"name":"性玩具","material":"leather","slots":[],"strain":true,"slip":true,"manual":false,"lock":false},
  "leg_body":{"name":"单腿套套体","material":"leather","slots":[],"strain":true,"slip":true,"manual":false,"lock":true,"min_grade":2},
@@ -123,6 +124,7 @@ static func has_mouth_harness(e: Dictionary) -> bool:
  return base_template(e.get("template",""))=="mouth_band" and mouth_combination(e.grade,e.variant).harness
 
 static func name_for(template: String, slot: String, grade: int=1, variant: int=0) -> String:
+ if TEMPLATES[template].get("lock_only",false): return TEMPLATES[template].name
  if template=="mouth_band": return mouth_combination(grade,variant).name
  return ("" if slot in ["eyes","mouth"] else B.SLOT_NAMES[slot])+TEMPLATES[template].name
 
@@ -146,6 +148,7 @@ static func allows(e: Dictionary, method: String) -> bool:
  return TEMPLATES[e.template][method] and (method!="slip" or e.get("slip_allowed",true))
 
 static func method_text(e: Dictionary) -> String:
+ if lock_only(e): return "先开锁，双臂自由后取下"
  var available: Array[String]=[]
  for pair in [["strain","挣扎"],["slip","滑脱"],["manual","徒手"]]:
   if allows(e,pair[0]): available.append(pair[1])
@@ -153,6 +156,12 @@ static func method_text(e: Dictionary) -> String:
 
 static func coverage(e: Dictionary) -> Array:
  return e.get("coverage",[e.slot])
+
+# Lock-only pieces use a constant lifecycle marker, never a damageable meter.
+static func lock_only(e: Dictionary) -> bool:
+ return TEMPLATES.get(e.get("template",""),{}).get("lock_only",false)
+
+const LOCK_ONLY_REASON="限制项圈没有耐久，须先开锁，再在双臂自由时取下；品相完美版 henshin 可直接解除。"
 
 static func contact_slots(e: Dictionary) -> Array:
  return e.get("contact_slots",coverage(e))
@@ -230,6 +239,7 @@ static func physical_reason(e: Dictionary) -> String:
  if e.get("locked",false) and not spec.lock: return "这件装备不能上锁。"
  if not e.has("variant") or e.variant<0 or e.variant>=MATERIALS[spec.material][e.grade].size(): return "装备材质版本不存在。"
  if not e.has("maximum") or not e.has("durability") or not is_finite(e.maximum) or not is_finite(e.durability) or e.maximum<=0 or e.durability<=0 or e.durability>e.maximum+0.00001: return "装备耐久不合法。"
+ if lock_only(e) and (e.maximum!=1.0 or e.durability!=1.0): return "限制项圈不能通过耐久变化松解。"
  return ""
 
 static func validate(e: Dictionary) -> String:

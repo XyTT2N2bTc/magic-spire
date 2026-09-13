@@ -143,7 +143,7 @@ static func run(t) -> void:
  axe_book.show_entry(axe_book.rows.filter(func(row):return row.category=="relics" and row.id=="cursed_plate_lock")[0]);await t.frames()
  var cursed_text=t.visible_text(ui.find_child("EncyclopediaDetail",true,false))
  var cursed_icon=ui.find_child("EncyclopediaRelicIcon",true,false)
- t.check(cursed_text.contains("无限持续") and cursed_text.contains("自动解锁并取下整件") and cursed_icon!=null and cursed_icon.glyph.texture==cursed_icon.ART.cursed_plate_lock,"CURSED PLATE encyclopedia shows dedicated artwork and automatic key removal rule")
+ t.check(cursed_text.contains("前6回合") and cursed_text.contains("自动解锁并取下整件") and cursed_icon!=null and cursed_icon.glyph.texture==cursed_icon.ART.cursed_plate_lock,"CURSED PLATE encyclopedia shows dedicated artwork and automatic key removal rule")
  axe_book.show_entry(axe_book.rows.filter(func(row):return row.category=="relics" and row.id=="axe_amulet")[0]);await t.frames()
  var axe_text=t.visible_text(ui.find_child("EncyclopediaDetail",true,false))
  var axe_icon=ui.find_child("EncyclopediaRelicIcon",true,false)

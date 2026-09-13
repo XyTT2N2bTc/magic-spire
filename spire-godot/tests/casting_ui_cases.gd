@@ -11,6 +11,7 @@ static func run(t) -> void:
  var fire_tip=ui.find_child("TermExplanation",true,false)
  t.check(fire_tip!=null and t.visible_text(fire_tip).contains("当前施法成功率："+ui.game.cast_view(ui.game.Cards.Rules.cast_profile("fireball")).percent),"CAST fireball hover uses actual spell probability")
  t.check(ui.game.export_snapshot()==hover_before,"CAST fireball hover does not roll or pay costs")
+ t.check(t.visible_text(fire_tip).contains("失败返还本次耗魔的50%") and t.visible_text(fire_tip).contains("能量照扣") and t.visible_text(fire_tip).contains("火球术次数不消耗"),"CAST tooltip describes half-mana refund and retained energy cost")
  ui.game._install_template("mouth_band","mouth",24.0,24.0,false,"fixture",3,0)
  # A valid independent target isolates the zero-chance reason from the gag's
  # integrated harness, which has no slip route.
@@ -61,12 +62,27 @@ static func run(t) -> void:
   await t.mouse_button(t.card_point(magic.uid),MOUSE_BUTTON_RIGHT,false)
  t.check(ui.card_buttons[magic.uid].modulate.r==1 and ui.card_buttons[magic.uid].find_child("CardAvailability",true,false)==null,"CARD UI restored body condition restores brightness and clears the restriction text")
  ui.game.state.energy=0;ui.render();await t.frames()
- t.check(ui.card_buttons.values().all(func(card):return card.modulate.r<0.7),"CARD UI all unaffordable ordinary hand cards dim")
+ t.check(ui.view.hand.filter(func(card):return card.type!="magic_slip").all(func(card):return ui.card_buttons[card.uid].modulate.r<0.7),"CARD UI unaffordable positive-energy starter cards dim")
 
  await body_routes(t)
  await failed_card_stays(t)
  await mana_badges(t)
  await unlock_preparation(t)
+ await prepared_chant(t)
+
+static func prepared_chant(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames();ui.game._discard_end()
+ var card=preload("res://tests/curse_cases.gd").give(ui.game,"prepared_chant")
+ ui.card_faces[card.uid]=false;ui.render();await t.frames()
+ for free in [false,true]:
+  if ui.card_faces.get(card.uid,false)!=free: await t.flip(card.uid)
+  var face=ui.card_buttons[card.uid];var text=t.visible_text(face)
+  t.check(face.rarity=="common" and face.get_node("CardCost").text=="1" and text.contains("100%") and text.contains("保留") and text.contains("消耗") and face.ILLUSTRATIONS.has("prepared_chant"),"CHANT UI both faces display common rarity, cost, full effect, retention, exhaust and illustration")
+ var before=ui.game.export_snapshot()
+ await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+ ui.game.state.pressure=99;ui.render();await t.frames()
+ t.check(ui.game.state.energy==before.energy-1 and ui.game.state.mana==before.mana-10 and ui.game.state.exhaust.any(func(c):return c.uid==card.uid) and ui.find_child("HeroCastingChance",true,false).text.contains("100%") and ui.view.statuses.any(func(s):return s.name=="预备咏唱"),"CHANT UI real card click exhausts and updates certainty status and chance display")
 
 static func unlock_preparation(t) -> void:
  var ui=t.ui
@@ -96,13 +112,16 @@ static func mana_badges(t) -> void:
  var ui=t.ui
  ui.restart(42);await t.frames();ui.game._discard_end();ui.game.state.pressure=75;ui.game.state.mana=40
  var cards={}
- for type in ["mana_conversion","fire_control","strain","mana_invocation"]:
+ for type in ["mana_conversion","fire_control","strain","mana_invocation","mana_surge"]:
   cards[type]=preload("res://tests/curse_cases.gd").give(ui.game,type)
   ui.card_faces[cards[type].uid]=false
  ui.render();await t.frames()
  var exchange=ui.card_buttons[cards.mana_conversion.uid]
  var temporary=ui.card_buttons[cards.fire_control.uid]
  var gain=ui.card_buttons[cards.mana_invocation.uid]
+ var surge=ui.card_buttons[cards.mana_surge.uid]
+ t.check(t.visible_text(surge.get_node("CardMana/Mana_cost")).strip_edges()=="−5" and ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy}).mana==10,"MANA UI high-pressure spell card badge and fireball retain base costs")
+ t.check(not ui.view.pressure.detail.contains("施法魔力消耗"),"MANA UI pressure description no longer advertises surcharge")
  t.check(t.visible_text(exchange.get_node("CardMana/Mana_cost")).strip_edges()=="−10" and not t.visible_text(exchange.get_node("CardText")).contains("耗魔"),"MANA UI fixed payment lives only in the top badge")
  t.check(t.visible_text(temporary.get_node("CardMana/Mana_temporary")).strip_edges()=="+10" and t.visible_text(gain.get_node("CardMana/Mana_gain")).strip_edges()=="+20","MANA UI temporary and regular restoration display point values")
  t.check(temporary.get_node("CardMana/Mana_temporary").get_theme_stylebox("panel").border_color!=gain.get_node("CardMana/Mana_gain").get_theme_stylebox("panel").border_color,"MANA UI temporary pool has a distinct visual style")
@@ -114,6 +133,24 @@ static func mana_badges(t) -> void:
  t.check(exchange.get_node("CardCost").text=="1" and exchange.get_node_or_null("CardMana/Mana_cost")==null and t.visible_text(exchange.get_node("CardMana/Mana_gain")).strip_edges()=="+10","MANA UI flip switches payment to restoration alongside energy cost")
  await t.flip(cards.fire_control.uid)
  t.check(not temporary.get_node("CardMana").visible and ui.game.export_snapshot()==before,"MANA UI flip to unrelated effect hides badge without changing resources")
+ ui.restart(42);await t.frames();ui.game._discard_end()
+ ui.game.state.pressure=75;ui.game.state.relics=["ember_crystal"]
+ var free_surge=preload("res://tests/curse_cases.gd").give(ui.game,"mana_surge")
+ ui.render();await t.frames();await t.flip(free_surge.uid)
+ var shown=ui.view.hand.filter(func(entry):return entry.uid==free_surge.uid)[0]
+ t.check(shown.face_casting.bound.percent=="100%" and shown.face_casting.free.percent=="25%","SURGE only the paid bound face previews the crystal guarantee")
+ await t.move_mouse(Vector2(1100,90));await t.frames();await t.move_mouse(t.card_point(free_surge.uid));await t.frames()
+ t.check(t.visible_text(ui.find_child("TermExplanation",true,false)).contains("施法成功率 · 25%") and ui.card_buttons[free_surge.uid].get_node_or_null("CardMana/Mana_cost")==null,"SURGE free hover uses actual unpaid chance and hides mana cost")
+
+ ui.restart(42);await t.frames();ui.game._discard_end()
+ var slip=preload("res://tests/curse_cases.gd").give(ui.game,"magic_slip")
+ ui.game.state.pressure=75;ui.render();await t.frames()
+ if not ui.card_faces[slip.uid]: await t.flip(slip.uid)
+ t.check(t.visible_text(ui.card_buttons[slip.uid]).contains("施法：嘴部") and ui.card_buttons[slip.uid].get_node_or_null("CardMana/Mana_cost")==null,"MAGIC SLIP free UI shows mouth casting without mana payment")
+ await t.move_mouse(Vector2(1100,90));await t.frames();await t.move_mouse(t.card_point(slip.uid));await t.frames()
+ t.check(t.visible_text(ui.find_child("TermExplanation",true,false)).contains("施法成功率 · 25%"),"MAGIC SLIP free tooltip shows actual mouth chance")
+ var entry=preload("res://data/encyclopedia.gd").card("magic_slip")
+ t.check(entry.face_requirements.free==["施法：嘴部"] and entry.cast_faces.free,"MAGIC SLIP catalog also declares free mouth casting")
 
 static func failed_card_stays(t) -> void:
  var ui=t.ui
@@ -123,8 +160,10 @@ static func failed_card_stays(t) -> void:
  while ui.game._random_index("magic",ui.game.B.CAST_ROLL_STEPS)<ui.game.cast_view(ui.game.Cards.cast_profile(ui.game,"mana_surge")).winning_rolls: rng=ui.game.state.rng.magic
  ui.game.state.rng.magic=rng
  ui.render();await t.frames()
+ var failed_cost=ui.actions.find("card",{"uid":card.uid,"free":false}).mana
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  t.check(ui.game._magic_failed and ui.card_buttons.has(card.uid) and ui.game.state.exhaust.is_empty() and ui.game.state.mana<100,"CAST UI failed exhaust card remains visible after paid attempt")
+ t.check(is_equal_approx(ui.game.state.mana,100-failed_cost*0.5) and ui.game.state.logs.any(func(log):return log.data.has("spell") and log.text.contains("返还") and is_equal_approx(log.data.spell.mana_refund.mana,failed_cost*0.5)),"CAST UI failed attempt reports actual refund and remaining mana")
  ui.game.state.sure_cast=true;ui.render();await t.frames()
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  t.check(not ui.card_buttons.has(card.uid) and ui.game.state.exhaust.any(func(x):return x.uid==card.uid) and ui.game.state.charge==2,"CAST UI retry succeeds and then animates actual exhaust")

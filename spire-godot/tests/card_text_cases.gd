@@ -44,12 +44,12 @@ static func mana_badges(t) -> void:
    t.check((entries.size()==1 and entries[0].amount==cost) if cost>0 else entries.is_empty(),"MANA badge matches actual modified per-face payment: "+type+side)
  t.check(g.export_snapshot()==before,"MANA all card projections leave state and random domains unchanged")
  var spell=view.card_texts.unlock
- t.check(spell.face_mana.bound[0].amount>10 and Book.card("unlock").face_mana.bound[0].amount==10 and not spell.face_effects.bound.contains("耗魔"),"MANA runtime cost changes, catalog retains base, body omits duplicate cost")
+ t.check(spell.face_mana.bound[0].amount==10 and Book.card("unlock").face_mana.bound[0].amount==10 and not spell.face_effects.bound.contains("耗魔"),"MANA high-pressure runtime and catalog both use base cost; body omits duplicate cost")
  t.check(spell.face_mana.free[0].kind=="temporary" and spell.face_mana.free[0].amount==10 and spell.face_effects.free=="获得2层魔力预备。","MANA free preparation becomes ten temporary points with an explicit preparation description")
  var conversion=view.card_texts.mana_conversion
  t.check(conversion.face_mana.bound[0].amount==10 and conversion.face_mana.free[0].kind=="gain" and conversion.face_mana.free[0].amount==10 and conversion.face_costs.free=="1","MANA fixed exchange changes cost/gain with its face without pressure scaling")
  t.check(conversion.face_mana.bound[0].text=="−10" and conversion.face_mana.free[0].text=="+10" and spell.face_mana.free[0].text=="+10","MANA signed badge numbers omit redundant decimal zero while keeping separate pools")
  t.check(view.card_texts.mana_invocation.face_mana.bound[0].amount==20 and view.card_texts.fire_control.face_mana.bound[0].amount==10,"MANA direct restoration and temporary points use their real effect amounts")
  t.check(view.card_texts.adaptability.face_mana.free.is_empty() and view.card_texts.adaptability.face_effects.free.contains("回合开始：获得1层魔力预备"),"MANA turn-start power is not advertised as immediate gain")
- t.check(view.card_texts.embers.face_mana.bound.size()==1 and view.card_texts.embers.face_effects.bound.contains("再耗5魔力"),"MANA optional extra spending retains its condition and is not charged in the base badge")
+ t.check(view.card_texts.embers.face_mana.bound.size()==1 and view.card_texts.embers.face_effects.bound.contains("再耗6魔力"),"MANA optional extra spending retains its condition and is not charged in the base badge")
  t.check(view.card_texts.strain.face_mana.bound.is_empty() and view.card_texts.strain.face_mana.free.is_empty(),"MANA no resource interaction means no badge on either face")

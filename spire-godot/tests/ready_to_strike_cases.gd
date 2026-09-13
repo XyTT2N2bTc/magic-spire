@@ -8,7 +8,7 @@ static func run(t) -> void:
  for free in [false,true]:
   var g=Game.new(42);g._discard_end()
   var source=Cards.give(g,TYPE);var chosen=Cards.give(g,"sensitive");var peer=Cards.give(g,"sensitive")
-  g.state.card_buffs.append("echo_cast_bound")
+  g.Cards.grant_buff(g,"echo_cast_bound")
   var c=t.find_action(g,"card",{"uid":source.uid,"free":free,"hand_uid":chosen.uid})
   var before=g.export_snapshot()
   t.check(c.valid and c.cost==1 and c.mana==10 and TYPE in g.Cards.Rules.COMMON and g.Cards.Rules.SPECS[TYPE].casting.parts==["mouth"],"READY common mouth spell selects an exact other physical hand card on either face")
@@ -32,7 +32,7 @@ static func run(t) -> void:
   var rng=g.state.rng.magic
   while g._random_index("magic",g.B.CAST_ROLL_STEPS)<g.cast_view(g.Cards.cast_profile(g,TYPE)).winning_rolls: rng=g.state.rng.magic
   g.state.rng.magic=rng;before=g.export_snapshot()
-  t.check(g.dispatch(c.id,g.state.version).ok and g._magic_failed and g.state.energy==2 and g.state.mana==before.mana-c.mana,"READY failed cast on either face still pays normal costs")
+  t.check(g.dispatch(c.id,g.state.version).ok and g._magic_failed and g.state.energy==2 and is_equal_approx(g.state.mana,before.mana-c.mana*0.5),"READY failed cast on either face still pays normal costs")
   t.check(g.state.hand==before.hand and g.state.exhaust==before.exhaust and g.state.charge==0 and "ready_to_strike_free" not in g.state.card_buffs,"READY failed cast leaves both cards in hand and grants neither face effect")
  g=Game.new(42);g._discard_end();source=Cards.give(g,TYPE);chosen=Cards.give(g,"strain");g.state.mana=0;g.state.temporary_mana=10
  t.check(t.action(g,"card",{"uid":source.uid,"hand_uid":chosen.uid,"free":false}).ok and g.state.temporary_mana==0 and g.state.mana==0 and g.state.charge==3,"READY existing temporary mana pays the spell")

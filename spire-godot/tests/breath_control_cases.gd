@@ -38,7 +38,7 @@ static func run(t) -> void:
   g=Game.new(42);g._discard_end();g.state.wall_distance=1
   g.add_fixture("mouth",10);var target=g.add_fixture("wrist",700,1000)
   source=Give.give(g,TYPE);chosen=Give.give(g,"sensitive")
-  if replay: g.state.card_buffs.append("echo_cast_bound")
+  if replay: g.Cards.grant_buff(g,"echo_cast_bound")
   t.check(t.action(g,"card",{"uid":source.uid,"free":false,"target":target.id,"hand_uid":chosen.uid}).ok,"BREATH bound needs no free mouth")
   var hits=g.state.logs.filter(func(e):return e.kind=="mechanical" and e.text.begins_with("「运气」处理"))
   t.check(hits.size()==(4 if replay else 2) and g.state.exhaust.size()==1 and g.state.energy==1,"BREATH continuation and replay never pay or exhaust again")

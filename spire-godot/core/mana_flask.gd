@@ -3,7 +3,7 @@ const TRANSFER=10.0
 const DEPOSITS=2
 
 static func available(g) -> bool:
- return g.state.phase not in ["cleared","prison_end","rest_choice"]
+ return g.state.phase not in ["cleared","prison_end"]
 
 static func withdrawal(g) -> Dictionary:
  var room=maxf(0,g.state.mana_max-g.state.mana)
@@ -19,11 +19,12 @@ static func withdrawal(g) -> Dictionary:
  var restored=minf(minf(drawn,g.Consumables.potion_amount(g,drawn)),room)
  return {"drawn":drawn,"restored":restored}
 
-static func candidates(g, out: Array) -> void:
+static func candidates(g, out: Array, withdrawal_only: bool=false) -> void:
  if not available(g): return
  var amount=minf(TRANSFER,g.state.mana)
  var reason="本回合已存入2次。" if g.state.flask_deposits>=DEPOSITS else ("没有可存入的魔力。" if amount<=0 else "")
- g._candidate(out,{"kind":"flask","op":"deposit"},"存入","存入%s魔力，本回合剩余%d次。" % [g.number(amount),maxi(0,DEPOSITS-g.state.flask_deposits)],0,0,reason,"","flask")
+ if not withdrawal_only and g.state.phase!="rest_choice":
+  g._candidate(out,{"kind":"flask","op":"deposit"},"存入","存入%s魔力，本回合剩余%d次。" % [g.number(amount),maxi(0,DEPOSITS-g.state.flask_deposits)],0,0,reason,"","flask")
  var result=withdrawal(g)
  reason=g.Consumables.reason(g,"mana_potion")
  if g.state.flask_mana<=0: reason="魔瓶中没有魔力。"

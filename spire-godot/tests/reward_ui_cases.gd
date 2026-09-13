@@ -47,11 +47,11 @@ static func braised_eggplant(t) -> void:
 
 static func green_bird(t) -> void:
  var ui=t.ui
- ui.restart(42);ui.game.RelicEffects.gain(ui.game,"green_bird");ui.game.state.pressure=98
+ ui.restart(42);ui.game._install_special("negative_plate_lock_medium","special_2_a",2);ui.game.RelicEffects.gain(ui.game,"green_bird");ui.game.state.pressure=118
  ui.game.state.pressure_sources=[preload("res://tests/pressure_cases.gd").source("bird_test","turn_end",20)]
  ui.render();await t.frames()
- t.check(await t.click("end") and ui.view.pressure.value==99 and ui.find_child("RelicShortcut_green_bird",true,false).find_child("RelicCounter",true,false).text=="5","BIRD UI actual turn caps resource and updates remaining protection")
- t.check(ui.view.pressure.sources.any(func(row):return row.name=="绿色小鸟" and row.text.contains("99")),"BIRD UI resource detail explains current protection")
+ t.check(await t.click("end") and ui.view.pressure.value==119 and ui.find_child("RelicShortcut_green_bird",true,false).find_child("RelicCounter",true,false).text=="5","BIRD UI actual turn caps at current maximum minus one and updates protection")
+ t.check(ui.view.pressure.sources.any(func(row):return row.name=="绿色小鸟" and row.text.contains("119")),"BIRD UI resource detail explains current protection")
  ui.restart(42);await t.frames()
 
 static func olihakimi(t) -> void:
@@ -127,9 +127,8 @@ static func run(t) -> void:
   var point=player.get_global_rect().get_center()
   await t.move_mouse(point,true);await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
  else: await t.mouse_button(Vector2(1050,90),MOUSE_BUTTON_LEFT,false)
- t.check(ui.view.pending_retain and ui.view.retain_left==2,"REWARD UI free peel opens two retains immediately without target selection")
- t.check(await t.click("retain",{"uid":first}) and ui.view.retain_left==1,"REWARD UI first retain updates remaining count")
- t.check(await t.click("retain",{"uid":second}) and not ui.view.pending_retain and ui.game.state.next_energy==1,"REWARD UI second retain completes free effect")
+ t.check(not ui.view.pending_retain and ui.game.state.next_energy==1 and ui.game.state.hand.all(func(c):return c.retain_until==ui.game.state.tick+1),"REWARD UI free peel directly retains all remaining cards without a picker")
+ t.check(ui.game.state.hand.any(func(c):return c.uid==first) and ui.game.state.hand.any(func(c):return c.uid==second) and ui.game.B.card_info("peel")[2].contains("保留全部手牌"),"REWARD UI retains the real hand and shows the complete free-face rule")
 
  setup(t);a=ui.game.add_fixture("thigh",4,10,true);b=ui.game.add_fixture("ankle",4,10,true);uid=give(t,"double_unlock")
  ui.render();await t.frames()
@@ -402,7 +401,7 @@ static func pressure_relics(t) -> void:
   t.check(is_instance_valid(ui.term_popup) and t.visible_text(ui.term_popup).contains(ui.game.Relics.TYPES[id].name) and ui.game.state==before,"PRESSURE RELIC UI hover explains relic without changing state")
  await t.move_mouse(Vector2(650,60));await t.frames()
  t.check(ui.actions.find("attack",{"type":"strike","form":0,"enemy":ui.selected_enemy}).payload.damage==11,"MAGIC BLOOD UI previews strength plus three damage")
- t.check(await t.click("end") and ui.game.state.pressure==12,"PRESSURE RELIC UI real end turn reduces three then adds five")
+ t.check(await t.click("end") and ui.game.state.pressure==10,"PRESSURE RELIC UI real end turn reduces three, adds five, then free-state relief lowers two")
  ui.restart(42);await t.frames()
 
 static func crystal_guarantee(t) -> void:
@@ -424,8 +423,18 @@ static func crystal_guarantee(t) -> void:
 static func boss_relics(t) -> void:
  var ui=t.ui
  ui.restart(42)
- preload("res://tests/boss_relic_cases.gd").boss_reward(ui.game)
+ ui.game.state.room="summit";ui.game._start_battle()
+ ui.game.state.item_drop_chance=100
+ for enemy in ui.game.state.enemies: ui.game._damage_enemy(enemy,1000,"physical","测试")
+ ui.game._finish_if_saturated()
  ui.render();await t.frames()
+ var flask=ui.find_child("Reward_flask",true,false)
+ var next=ui.find_child("RewardContinue",true,false)
+ t.check(ui.view.battle_rewards.size()==4 and flask!=null and t.visible_text(flask).contains("80 魔瓶魔力"),"BOSS UI four independent rewards include the eighty-mana flask row")
+ t.check(flask.position.y+flask.size.y<next.position.y and next.position.y+next.size.y<900,"BOSS UI four reward rows do not overlap continue or leave the viewport")
+ await t.capture("ui-boss-flask-reward.png")
+ var mana=ui.game.state.flask_mana
+ t.check(await t.click("reward",{"category":"flask"}) and ui.game.state.flask_mana==mana+80 and ui.find_child("Reward_flask",true,false).disabled and ui.view.phase=="reward","BOSS UI click credits flask once and stays in reward list")
  var offered=ui.game.state.boss_relic_options.duplicate()
  ui.find_child("Reward_relic",true,false).pressed.emit();await t.frames()
  var buttons=[]

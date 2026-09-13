@@ -1,5 +1,13 @@
 # 本批美术提示词与来源
 
+## 2026-09-13 自由站姿平板锁与加固带差分
+
+本批只使用用户提供的三张1536×2304对齐PNG进行本地像素差分和白底抠图，不调用生成工具，不修改源文件。无平板锁源图为`C:/Users/16563/Downloads/hand0legs0.png`（SHA256 `2C28A89B08E7BEE0F4761445A615CCDF34FDA43427C0C7C7CC33D5A1785AA41B`）；平板锁源图为`C:/Users/16563/Downloads/QQ图片202609131041226.png`（`B176781AADDA42CFE15E2F90432E1EDC55E1072748BC9857D61C5F095BA82442`）；带加固带源图为`C:/Users/16563/Downloads/QQ图片20260913104126.png`（`BF5EA5A1FBDB8E80321DF085726B1479D687B0760C9E1A45D6A13449795EF544`）。
+
+`tools/build_free_flat_lock_layers.py`先从图2相对图1的差异提取138×284的`hero-overlay-flat-lock-free-v1.png`，源坐标(774,894)；再从图3相对图2的差异提取390×180的`hero-overlay-flat-lock-reinforcement-free-v1.png`，源坐标(634,956)。差异遮罩只在已确认区域保留连通变化，轻微扩展并羽化后乘以目标图的本地抠图alpha。复现参数、源哈希和坐标保存于`hero-stand-special-layers.json`。
+
+运行时只在站姿且双臂／双腿拘束等级均为0时使用本差分：存在真实平板锁显示锁体层，存在其真实加固带再显示加固带层；未佩戴平板锁继续直接使用原`hero-stand-cutout-v2.png`。受限站姿仍沿原装备栏组合器，坐姿、躺姿和固定立绘设置不变。
+
 ## 2026-09-09 拘束等级战斗立绘
 
 本批按用户要求仅使用本地抠图，不调用生成工具，也不重绘人物。两张源图均保持原文件不变：

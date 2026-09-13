@@ -52,6 +52,8 @@ static func start(g, id: String="") -> void:
     if effects.is_empty() and not choice_definition.has("effects"): continue
     if choice_definition.get("pressure",0)>0: effects.append({"op":"pressure","amount":choice_definition.pressure,"source":choice_definition.get("pressure_source","事件中的身体刺激")})
     var choice=choice_definition.duplicate(true)
+    effects=effects.map(func(effect):return resolve_effect_copy(g,effect))
+    choice.report=conditional_copy(g,choice.get("report",choice.label),choice.get("report_variants",[]))
     if effects.any(func(effect):return effect.op in ["install_random","tighten_random","special_install_random","random_amount"]):
      var frozen=freeze_effects(g,effects)
      if frozen.issue!="": continue
@@ -387,6 +389,7 @@ static func describe(g, effects: Array) -> String:
     lines.append("加固%s：%s，%d档 → %d档。" % [g._equipment_name(target),g.B.SLOT_NAMES[target.slot],g.tier(target.durability,target.maximum),mini(3,g.tier(target.durability,target.maximum)+1)])
    "tighten_to":
     var target=g._equipment(e.target)
+    if g.Equipment.lock_only(target): return g.Equipment.LOCK_ONLY_REASON
     lines.append("收紧%s：%s，%d档 → %d档。" % [g._equipment_name(target),g.B.SLOT_NAMES[target.slot],g.tier(target.durability,target.maximum),e.tier])
    "hold_special": lines.append("暂时取下指定位置的性玩具，结束后装回。")
    "restore_held": lines.append("把事件期间代为保管的装备原样装回。")
@@ -490,6 +493,7 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
      var restraint=g._equipment(id)
      if restraint.is_empty() or restraint.durability<=0: return "所选拘束具已经不存在。"
      if g.cursed_eyes(restraint): return "诅咒眼罩无法解除。"
+     if g.Equipment.lock_only(restraint): return g.Equipment.LOCK_ONLY_REASON
      if g.cursed_plate(restraint): return g.SpecialEquipment.CURSED_PLATE_REASON
      targets.append(restraint)
     for restraint in targets:
@@ -499,6 +503,7 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
     if emit_logs: g._emit("event",e.get("name","所选拘束具")+"已经解除。")
     g._cleanup()
    "ease_restraint":
+    if g.Equipment.lock_only(target): return g.Equipment.LOCK_ONLY_REASON
     if g.cursed_plate(target): return g.SpecialEquipment.CURSED_PLATE_REASON
     if g.cursed_eyes(target): return "诅咒眼罩无法松解。"
     if target.is_empty() or target.durability<=0: return "押上的拘束具已经不存在。"

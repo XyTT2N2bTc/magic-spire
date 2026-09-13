@@ -10,8 +10,8 @@ static func enter(t, security: int=1) -> void:
  e.intent={"kind":"capture","text":"执行收押 · 可打断","delayed":false}
  t.ui.render();await t.frames()
  t.check(await t.click("end") and t.ui.view.phase=="captured","PRISON UI actual enemy action reaches intake")
- t.check(t.visible_text(t.ui.layout).contains("当前警戒度：%d" % security) and t.visible_text(t.ui.layout).contains("本级追加："+t.ui.game.Prison.equipment_label(t.ui.game)+"；"+t.ui.game.Prison.toy_label(t.ui.game)),"PRISON UI intake displays current security and both equipment profiles")
- t.check(t.ui.view.capture.special_added.size()==2 and t.visible_text(t.ui.layout).contains("2/2件性玩具"),"PRISON UI intake reports the actual fixed toy quota")
+ t.check(t.visible_text(t.ui.layout).contains("当前警戒度：%d" % security) and t.visible_text(t.ui.layout).contains(t.ui.game.Prison.intake_label(t.ui.game)),"PRISON UI intake displays current security and shared floor/tightening rule")
+ t.check(t.visible_text(t.ui.layout).contains("%d件特殊装备" % t.ui.view.capture.special_added.size()),"PRISON UI intake reports the actual installed count without a false fixed quota")
  t.check(await t.click("prison",{"action":"enter"}) and t.ui.view.phase==("prison_end" if security==5 else "prison"),"PRISON UI real intake button starts configured cell or ending")
 
 static func run(t) -> void:
@@ -63,6 +63,8 @@ static func run(t) -> void:
   for equipment in ui.game.equipment_at(slot): equipment.durability=0
  ui.game._cleanup();ui.game.state.pressure=0
  Spatial.at_site(ui.game,"door");ui.game.state.posture="stand"
+ # The door route needs an acquired uncommon card, not a starter card.
+ ui.game._gain_card("unlock")
  ui.render();await t.frames()
  n=0
  while not ui.view.hand.any(func(c):return c.type=="unlock") and n<3:
@@ -110,6 +112,11 @@ static func run(t) -> void:
  t.check(ui.view.arms==4 and ui.view.legs==4 and ui.view.candidates.is_empty() and t.visible_text(ui.layout).contains("24/24"),"TERMINAL UI displays real fixed values and no continuing actions")
  t.check(ui.view.bodies.all(func(b):return not b.equipment.is_empty()) and not t.visible_text(ui.layout).contains("监牢固定架"),"TERMINAL all actual fixed body regions remain inspectable")
  await t.capture("ui-65-security-five.png")
+ await t.inspect_body("neck")
+ var collar=ui._body_at("neck").equipment.filter(func(e):return e.lock_only)[0]
+ var tile=ui.find_child("EquipmentCard_"+collar.id,true,false)
+ t.check(tile!=null and t.visible_text(tile).contains("无耐久") and not t.visible_text(tile).contains("紧度") and not t.visible_text(tile).contains("耐久 1"),"COLLAR UI neck card shows lock state without numeric durability or tier")
+ t.check(tile!=null and tile.find_children("*","ProgressBar",true,false).is_empty(),"COLLAR UI no durability progress bar")
 
 static func practice_cases(t) -> void:
  var ui=t.ui

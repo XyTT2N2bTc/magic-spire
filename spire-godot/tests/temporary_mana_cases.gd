@@ -29,7 +29,7 @@ static func run(t) -> void:
  t.check(g.dispatch(fire(t,g).id,g.state.version).ok and g.state.temporary_mana==0 and g.state.mana==45,"TEMP second spell consumes leftover points before permanent mana")
  g=Game.new(42);g.state.temporary_mana=100;g.state.mana=0;g.state.pressure=99
  c=fire(t,g)
- t.check(g.dispatch(c.id,g.state.version).ok and g._magic_failed and is_equal_approx(g.state.temporary_mana,100-c.mana) and g.state.mana==0,"TEMP failed spell still pays pressure-adjusted cost from temporary pool")
+ t.check(c.mana==10 and g.dispatch(c.id,g.state.version).ok and g._magic_failed and is_equal_approx(g.state.temporary_mana,100-c.mana*0.5) and g.state.mana==0,"TEMP failed high-pressure spell pays base cost then refunds half to temporary pool")
  g=Game.new(42);g.state.temporary_mana=123.5
  t.check(t.action(g,"end").ok and g.state.temporary_mana==123.5,"TEMP balance survives a normal turn boundary")
  var restored=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"temporary mana fractions")
@@ -58,14 +58,14 @@ static func run(t) -> void:
 static func unlock_preparation(t) -> void:
  for pressure in [0,99]:
   var g=Game.new(42);g.state.pressure=pressure;g.state.mana=40;g.state.temporary_mana=7.5
-  var card=t.hand_card(g,"unlock")
+  var card=t.grant_fixture_card(g,"unlock")
   var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
   var before=g.export_snapshot();g.get_view();g.candidates()
   t.check(c.valid and c.cost==1 and c.mana==0 and g.state==before,"UNLOCK preparation previews two stacks with original one-energy cost and no mana cost")
   t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"UNLOCK stale preparation rejects without resource changes")
   t.check(g.dispatch(c.id,g.state.version).ok and g.state.temporary_mana==17.5 and g.state.mana==40 and g.state.energy==before.energy-1 and g.state.rng==before.rng,"UNLOCK two preparation stacks add ten temporary points without casting even at high pressure")
   t.check(g.state.discard.any(func(row):return row.uid==card.uid) and g._card(card.uid).is_empty(),"UNLOCK preparation discards the played card normally")
- var g=Game.new(42);var card=t.hand_card(g,"unlock");g.add_fixture("palm",4)
+ var g=Game.new(42);var card=t.grant_fixture_card(g,"unlock");g.add_fixture("palm",4)
  var c=t.find_action(g,"card",{"uid":card.uid,"free":true});var before=g.export_snapshot()
  t.check(not c.valid and not g.dispatch(c.id,g.state.version).ok and g.state==before,"UNLOCK two stacks do not bypass blocked hand requirements")
  t.check(g.Cards.Rules.SPECS.double_unlock.free_effects==[{"op":"reserve_mana","amount":1}],"UNLOCK double unlock keeps its original one-stack free effect")

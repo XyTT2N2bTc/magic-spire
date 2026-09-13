@@ -2,6 +2,7 @@ extends Control
 
 
 signal room_selected(id: String)
+signal drawings_changed
 var rooms: Array=[]
 var selected=""
 var hovered=""
@@ -20,6 +21,7 @@ const PENCIL=Color("933e46")
 
 func clear_strokes() -> void:
  strokes.clear();drawing=false;active_stroke=-1;queue_redraw()
+ drawings_changed.emit()
 
 func ink_position(point: Vector2) -> Vector2:
  var padding=32.0 if compact else 95.0
@@ -42,6 +44,7 @@ func _over_map() -> bool:
  return control==self or (control!=null and is_ancestor_of(control))
 
 func _notification(what: int) -> void:
+ if what==NOTIFICATION_WM_WINDOW_FOCUS_OUT and drawing: drawings_changed.emit()
  if what==NOTIFICATION_WM_WINDOW_FOCUS_OUT or (what==NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree()):
   drawing=false;active_stroke=-1;pointer_down=false;panning=false
 
@@ -63,6 +66,7 @@ func _input(event: InputEvent) -> void:
   elif drawing:
    if on_map: _mark(pointer)
    drawing=false;active_stroke=-1;get_viewport().set_input_as_handled()
+   drawings_changed.emit()
   return
  if drawing:
   if event is InputEventMouseMotion:

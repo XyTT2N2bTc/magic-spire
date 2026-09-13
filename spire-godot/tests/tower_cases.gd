@@ -84,8 +84,9 @@ static func travel_cases(t) -> void:
  var g=Game.new(42)
  t.check(t.action(g,"departure",{"op":"skip"}).ok,"TRAVEL explicitly finishes opening before route logging")
  var next=g.room_data(g.state.room).next[0]
- t.check(t.action(g,"depart",{"room":next}).ok,"TRAVEL logging departure")
- t.check(t.action(g,"travel_step").ok,"TRAVEL logging arrival")
+ g.state.pressure=10
+ t.check(t.action(g,"depart",{"room":next}).ok and g.state.pressure==10,"TRAVEL departure alone does not cool without a movement turn")
+ t.check(t.action(g,"travel_step").ok and g.state.pressure==8,"TRAVEL completed free movement turn cools once")
  var messages=g.get_view().travel_log
  t.check(messages.size()>=2 and messages[0].turn==0 and messages.back().turn==1,"TRAVEL departure and arrival have actual movement turn stamps")
  var state_before=g.export_snapshot();g.get_view();g.get_view()

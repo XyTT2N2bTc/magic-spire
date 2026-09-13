@@ -119,7 +119,7 @@ static func mouth_cases(t) -> void:
  t.check(g.state.phase=="battle" and g.state.order=="last" and g.occupied("mouth") and g.state.enemies[1].gone and g.state.reward_count==0,"MOUTH enemy-first application immediately affects ongoing mixed battle")
  var spell=t.find_action(g,"attack",{"type":"fireball","enemy":g.state.enemies[0].id})
  t.check(spell.valid and g.cast_view().chance>0 and g.cast_view().chance<g.cast_view().base,"MOUTH actual same-turn fireball receives mouth probability multiplier")
- var gesture=t.hand_card(g,"unlock")
+ var gesture=t.grant_fixture_card(g,"unlock")
  t.check(t.find_action(g,"card",{"uid":gesture.uid,"free":true}).valid,"MOUTH free preparation still usable while mouth chance is reduced")
  var target=g.equipment_at("mouth")[0]
  t.check(target.grade==1,"MOUTH combined fixture installs basic-grade mouth equipment")

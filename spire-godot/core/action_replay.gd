@@ -3,19 +3,22 @@ extends RefCounted
 const Rules=preload("res://data/card_rules.gd")
 
 # Internal effect repetition: never dispatches another command or moves a card.
-static func take(g, kind: String, type: String, free: bool=false) -> bool:
+static func take(g, kind: String, type: String, free: bool=false) -> int:
  for id in g.state.card_buffs.duplicate():
   var rule=g.Cards.Rules.BUFFS[id].get("replay",{})
   if rule.get("kind","")!=kind: continue
   if kind=="card" and (g.Cards.Rules.free_effect(type,free) or not g.Cards.Rules.distinct_faces(type)): continue
   if kind=="attack" and rule.get("spell","")!=type: continue
+  var count=int(g.state.card_buff_uses.get(id,1))
   g.state.card_buffs.erase(id)
-  return true
- return false
+  g.state.card_buff_uses.erase(id)
+  return count
+ return 0
 
 static func target(p: Dictionary) -> Dictionary:
  var result={"slot":p.get("slot",""),"target":p.target,"self_target":p.get("self_target",false)}
  if p.has("hand_uid"): result.hand_uid=p.hand_uid
+ if Rules.SPECS[p.type].get("x_cost",false): result.x=p.x
  if Rules.SPECS[p.type].has("damage_growth") or Rules.SPECS[p.type].has("bound_modes"):
   result.free=p.get("free",false);result.uid=p.get("uid","")
  return result
@@ -40,7 +43,10 @@ static func payload(g, type: String, original: Dictionary, used: Array) -> Dicti
  if p.target!="prison_door" and g.Cards.reason(g,p)!="": return {}
  return p
 
-static func cards(g, type: String, targets: Array, used: Array=[]) -> void:
+static func cards(g, type: String, targets: Array, used: Array=[], count: int=1) -> void:
+ for repeat in range(count): _cards_once(g,type,targets,used)
+
+static func _cards_once(g, type: String, targets: Array, used: Array) -> void:
  var first={}
  for original in targets:
   first=payload(g,type,original,used)
@@ -61,7 +67,10 @@ static func cards(g, type: String, targets: Array, used: Array=[]) -> void:
   if tool!="" and tool not in used: used.append(tool)
   g._cleanup()
 
-static func spell(g, c: Dictionary, targets: Array) -> void:
+static func spell(g, c: Dictionary, targets: Array, count: int=1) -> void:
+ for repeat in range(count): _spell_once(g,c,targets)
+
+static func _spell_once(g, c: Dictionary, targets: Array) -> void:
  var p=c.payload.duplicate(true)
  p.replay=true
  if p.get("target","")!="":

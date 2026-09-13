@@ -26,26 +26,29 @@ static func build(ui) -> void:
   relics(ui,root)
   return
  var rows=ui.view.battle_rewards
- for i in range(rows.size()): row(ui,root,rows[i],Rect2(472,284+i*110,656,94))
+ var stride=110 if rows.size()<=3 else 100
+ var top=284 if rows.size()<=3 else 260
+ var footer_shift=maxi(0,top+rows.size()*stride-614)
+ for i in range(rows.size()): row(ui,root,rows[i],Rect2(472,top+i*stride,656,94))
  var pending=rows.any(func(entry):return not entry.claimed)
  var destination=ui._label(ui.view.reward_destination,15,ui.MUTED)
  destination.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
- ui._place(destination,Rect2(470,637,660,32),root)
+ ui._place(destination,Rect2(470,637+footer_shift,660,32),root)
  var footer=ui.view.reward_panel
  var exit=ui.actions.by_id[footer.continue_id]
- var extra_y=682
+ var extra_y=682+footer_shift
  for id in footer.extra_ids:
   var choice=ui.actions.by_id[id]
   var extra=ui._button(choice.label,func():ui._submit(choice),ui.CYAN);extra.disabled=not choice.valid
   extra.name="RewardExtra_"+choice.payload.kind;ui._place(extra,Rect2(540,extra_y,520,50),root);ui.candidate_buttons[id]=extra
   extra_y+=62
  var next=ui._button(footer.continue_label,func():ui._submit(exit),ui.GOLD)
- next.name="RewardContinue";ui._place(next,Rect2(658,693 if footer.extra_ids.is_empty() else extra_y,284,54),root)
+ next.name="RewardContinue";ui._place(next,Rect2(658,693+footer_shift if footer.extra_ids.is_empty() else extra_y,284,54),root)
  ui.candidate_buttons[exit.id]=next
  if pending and footer.extra_ids.is_empty() and not rows.any(func(entry):return entry.get("hide_skip",false)):
   var warning=ui._label("未领取的奖励将被放弃",13,ui.MUTED)
   warning.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-  ui._place(warning,Rect2(590,758,420,25),root)
+  ui._place(warning,Rect2(590,758+footer_shift,420,25),root)
 
 static func row(ui, root: Control, entry: Dictionary, rect: Rect2) -> void:
  var choices=entry.action_ids.map(func(id):return ui.actions.by_id[id])
@@ -55,7 +58,7 @@ static func row(ui, root: Control, entry: Dictionary, rect: Rect2) -> void:
   elif entry.has("choices"):
    ui.show_reward_relics=true;ui.render(ui.view)
   elif not choices.is_empty(): ui._submit(choices[0])
- var accent=ui.CYAN if entry.category=="item" else ui.GOLD
+ var accent=ui.CYAN if entry.category in ["item","flask"] else ui.GOLD
  var button=ui._button("",click,accent)
  button.name="Reward_"+entry.category+("_"+entry.id if entry.id!="" else "")
  button.disabled=entry.claimed or not entry.available
@@ -65,14 +68,16 @@ static func row(ui, root: Control, entry: Dictionary, rect: Rect2) -> void:
  ui._place(button,rect,root)
  if (entry.category!="card" or entry.get("direct",false)) and not entry.has("choices") and not choices.is_empty(): ui.candidate_buttons[choices[0].id]=button
  var glyph: Control
- if entry.category=="relic":
+ if entry.category=="flask":
+  glyph=TextureRect.new();glyph.texture=preload("res://assets/ui/mana-flask.svg");glyph.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;glyph.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+ elif entry.category=="relic":
   glyph=preload("res://ui/relic_icon.gd").new();glyph.relic={"id":entry.symbol}
  else:
   glyph=Glyph.new();glyph.kind="tool" if entry.category=="item" else entry.category;glyph.symbol=entry.symbol
  glyph.modulate=Color(1,1,1,0.4) if entry.claimed else Color.WHITE
  ui._place(glyph,Rect2(12,8,78,78),button)
  var name=ui._label(entry.name,23,ui.MUTED if entry.claimed else ui.TEXT)
- name.name="BattleItemDrop" if entry.category=="item" else ("BattleRelicDrop" if entry.category=="relic" else "RewardCardTitle")
+ name.name="BattleFlaskDrop" if entry.category=="flask" else ("BattleItemDrop" if entry.category=="item" else ("BattleRelicDrop" if entry.category=="relic" else "RewardCardTitle"))
  ui._place(name,Rect2(106,17,389,34),button)
  var subtitle=ui._label(entry.reason if entry.reason!="" else entry.subtitle,14,ui.RED if entry.reason!="" else ui.MUTED)
  ui._place(subtitle,Rect2(106,55,389,28),button)

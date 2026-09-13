@@ -2,7 +2,7 @@ extends RefCounted
 
 # Shape checks precede existing rule validators, so damaged nested data never reaches UI.
 const Phases=preload("res://data/phases.gd")
-const REVISION=45
+const REVISION=51
 const INCOMPATIBLE="这份存档与当前版本不兼容，请从主界面开始新游戏。"
 const SLOTS=["tower","practice"]
 const PIECE="id:s name:s template:s material:s variant:i grade:i locked:b slot:s durability:n maximum:n source:s"
@@ -72,7 +72,7 @@ static func intent(p, g, depth: int=0) -> bool:
   "six_tune": return fields(p,"count:i grade:i") and p.count>=1 and p.count<=1024 and p.grade in [1,2]
   "six_prepare","six_opening","six_tease","six_composite","six_finale": return true
   "carried_apply": return true
-  "puppet_summon","puppet_awaken","puppet_mend","puppet_composite","puppet_special": return p.size()==3
+  "puppet_awaken","puppet_mend","puppet_composite","puppet_special": return p.size()==3
   "turn_install","split_burst": return true
   "equipment_batch": return fields(p,"count:i grade:i tier:i tighten:b templates:z operations:a") and p.count==2 and p.grade==2 and p.tier in [2,3] and p.operations.is_empty() and p.templates.all(func(id):return g.Equipment.TEMPLATES.has(id))
   "guard_sequence": return fields(p,"priority:b operations:a") and not p.priority and p.operations.size() in [1,2,3] and p.operations.all(func(op):return intent(op,g,depth+1) and op.kind in ["apply","install","assembly","shoulder","tighten","lock","idle"])
@@ -133,6 +133,8 @@ static func selected_suffix(value) -> String:
  return "__"+"__".join(rows.map(func(row):return row.id))
 
 static func check(s: Dictionary, g) -> String:
+ var character_issue=g.Character.validate(g,s)
+ if character_issue!="": return character_issue
  var demo_issue=g.DemoExit.validate(s)
  if demo_issue!="": return demo_issue
  for key in g.state:
@@ -141,7 +143,7 @@ static func check(s: Dictionary, g) -> String:
   if reference is int or reference is float:
    if not typed(s[key],"n") or (reference is int and not s[key] is int): return "基础数值类型不正确。"
   elif typeof(s[key])!=typeof(reference): return "进度记录类型不正确。"
- if not fields(s.combat,"serial:i active:b first_turn:b energy:i mana_spent:n mana_used:b") or s.combat.serial<0 or s.combat.energy<0 or s.combat.mana_spent<0: return "战斗触发进度损坏。"
+ if not fields(s.combat,"serial:i active:b first_turn:b energy:i mana_spent:n mana_used:b successful_spells:z") or s.combat.serial<0 or s.combat.energy<0 or s.combat.mana_spent<0: return "战斗触发进度损坏。"
  if not fields(s,"relic_seen:z battle_relic_drop:s") or s.relic_seen.any(func(id):return not g.Relics.is_reward(id,"shop") or s.relic_seen.count(id)!=1): return "遗物抽取记录损坏。"
  if s.battle_relic_drop!="":
   var claimed_relic=s.reward_claimed.get("relic","")
@@ -149,8 +151,12 @@ static func check(s: Dictionary, g) -> String:
   if claimed_relic==s.battle_relic_drop and s.battle_relic_drop not in s.relics: return "战斗遗物领取记录损坏。"
   if claimed_relic not in [s.battle_relic_drop,"skip"] and (claimed_relic!="" or not g.Relics.can_gain(s.relics,s.battle_relic_drop)): return "战斗遗物领取记录损坏。"
  if not typed(s.boss_relic_options,"z") or s.boss_relic_options.size()>3: return "Boss遗物选项损坏。"
+ if s.battle_flask_drop not in [0,g.B.BOSS_FLASK_MANA]: return "Boss魔瓶奖励数值损坏。"
+ if s.battle_flask_drop>0 and (s.phase!="reward" or s.boss_relic_options.is_empty()): return "Boss魔瓶奖励阶段损坏。"
+ if s.reward_claimed.has("flask") and s.reward_claimed.flask!="boss_mana": return "Boss魔瓶奖励领取记录损坏。"
+ if s.phase=="reward" and s.reward_claimed.has("flask") and s.battle_flask_drop==0: return "Boss魔瓶奖励领取记录缺少对应奖励。"
  if not s.boss_relic_options.is_empty():
-  if s.phase!="reward" or s.battle_relic_drop!="" or not g.room_data(s.room).get("boss",false): return "Boss遗物奖励阶段损坏。"
+  if s.phase!="reward" or s.battle_relic_drop!="" or not s.rooms.any(func(room):return room is Dictionary and room.get("id","")==s.room and room.get("boss",false)==true): return "Boss遗物奖励阶段损坏。"
   for id in s.boss_relic_options:
    if (id not in g.Relics.BOSS_POOL and id!=g.Relics.FALLBACK) or s.boss_relic_options.count(id)!=1 or id not in s.relic_seen: return "Boss遗物候选记录损坏。"
    if id!=g.Relics.FALLBACK and id in s.relics and s.reward_claimed.get("relic","")!=id: return "Boss遗物重复领取。"
@@ -166,6 +172,7 @@ static func check(s: Dictionary, g) -> String:
  if s.security<0 or s.security>5 or s.version<1 or s.version>=9223372036854775807 or not g.Tower.all_practices().has(s.practice_kind): return "进度版本、练习或安全等级无效。"
  for key in ["round","tick","encounter","energy","charge","next_energy","prepare_left","rest_left","hook_uses","reward_count","tower_generation","travel_turns","draw_serial"]:
   if not s[key] is int or s[key]<0: return "回合、资源或次数记录不合法。"
+ if not fields(s,"calm_uses:i") or s.calm_uses<0 or s.calm_uses>g.B.CALM_USES_PER_TURN: return "本回合深呼吸次数不正确。"
  if s.rng.size()!=g.B.RNG_SALTS.size() or g.B.RNG_SALTS.keys().any(func(domain):return not s.rng.get(domain) is int or s.rng[domain]<0): return "随机进度不完整。"
  if not s.guard_bind.is_empty():
   if not fields(s.guard_bind,"progress:n sources:d") or s.guard_bind.progress<=0 or s.guard_bind.progress>g.CaptureBind.BIND_MAXIMUM or s.phase!="battle": return "捕缚进度记录损坏。"
@@ -177,7 +184,7 @@ static func check(s: Dictionary, g) -> String:
  if bundle_issue!="": return bundle_issue
  var departure_issue=g.Departure.validate(g,s)
  if departure_issue!="": return departure_issue
- if not fields(s,"card_buffs:z card_buff_uses:d evasion:i rare_offset:i") or s.rare_offset<g.Cards.Rules.RARE_OFFSET_INITIAL or s.rare_offset>g.Cards.Rules.RARE_OFFSET_MAX: return "卡牌增益或奖励修正记录不正确。"
+ if not fields(s,"card_buffs:z card_buff_uses:d turn_strength:i evasion:i rare_offset:i") or s.rare_offset<g.Cards.Rules.RARE_OFFSET_INITIAL or s.rare_offset>g.Cards.Rules.RARE_OFFSET_MAX: return "卡牌增益或奖励修正记录不正确。"
  if not fields(s,"sure_cast:b item_drop_chance:i battle_item_drop:s"): return "道具掉落或定咒记录不完整。"
  var body_buff_issue=g.Consumables.validate_buffs(g,s.get("body_buffs"))
  if body_buff_issue!="": return body_buff_issue
@@ -188,6 +195,7 @@ static func check(s: Dictionary, g) -> String:
   if pending.op!="mana" and not pending.amount is int: return "遗物待发放数量必须是整数。"
  if s.relic_used.values().any(func(v):return not v is int): return "临时增益记录不正确。"
  if not s.card_chain.is_empty() and not fields(s.card_chain,"type:s slot:s mode:s remaining:i"): return "连续卡牌记录不完整。"
+ if s.card_chain.has("replay_count") and (not typed(s.card_chain.replay_count,"i") or s.card_chain.replay_count<1 or not s.card_chain.has("replay_targets")): return "连续卡牌的复放次数损坏。"
  if s.card_chain.has("replay_targets") and (not typed(s.card_chain.replay_targets,"a") or s.card_chain.replay_targets.any(func(p):return not fields(p,"slot:s target:s self_target:b"))): return "连续卡牌的复放目标记录损坏。"
  if s.pending_retain and (s.hand.is_empty() or not s.card_chain.is_empty()): return "保留手牌阶段不正确。"
  # Ownership may change after offers freeze (e.g. a relic claimed before cards).
@@ -207,7 +215,8 @@ static func check(s: Dictionary, g) -> String:
    if not fields(c,"uid:s type:s retain_until:i") or not g.Cards.Rules.SPECS.has(c.type): return "卡牌记录损坏或类型不存在。"
    if c.has("draw_serial") and (not c.draw_serial is int or c.draw_serial<0): return "卡牌的抽取记录损坏。"
    if c.has("draw_free") and not c.draw_free is bool: return "卡牌的抽取牌面损坏。"
-   if c.has("power_stacks") and (zone!="powers" or not c.power_stacks is int or c.power_stacks!=2): return "能力牌的额外生效记录损坏。"
+   if c.has("power_cast_count") and (zone!="powers" or not typed(c.power_cast_count,"i") or c.power_cast_count<0): return "能力牌的本回合出牌记录损坏。"
+   if c.has("power_stacks") and (zone!="powers" or not c.power_stacks is int or c.power_stacks<2): return "能力牌的额外生效记录损坏。"
    if c.has("power_mana_progress") and (zone!="powers" or not typed(c.power_mana_progress,"n") or c.power_mana_progress<0): return "能力牌的累计耗魔记录损坏。"
    if c.has("power_next_draw") and (zone!="powers" or not c.power_next_draw is int or c.power_next_draw<0): return "能力牌的下回合抽牌记录损坏。"
  var room_ids=[]
@@ -288,7 +297,7 @@ static func check(s: Dictionary, g) -> String:
   if not fields(link,PIECE+" ends:z slots:z contact_points:z blocked_slip:z") or link.contact_points.size()!=2: return "连接绳缺少完整的具体连接位置，请重新开始此局。"
   physical_ids.append(link.id)
  for e in s.equipment+s.links:
-  if e.slot not in g.B.SLOTS: return "装备部位不存在。"
+  if e.slot not in g.B.SLOTS and not (e.slot=="neck" and g.Equipment.lock_only(e)): return "装备部位不存在。"
  for e in s.equipment+s.links+s.composites.reduce(func(all,root):return all+root.components,[]):
   for definition in ["coverage:z","contact_slots:z","points:z","side:s","independent:b","slip_allowed:b"]:
    var key=definition.split(":")[0]

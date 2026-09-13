@@ -1,5 +1,74 @@
 extends RefCounted
 
+static func feedback(t) -> void:
+ var ui=t.ui;ui.restart(42);await t.frames()
+ var report=ui.feedback_report;report.clear_draft()
+ var before=ui.game.export_snapshot()
+ var entry=ui.find_child("OpenFeedback",true,false);var log_button=ui.find_child("OpenActionLog",true,false)
+ t.check(entry.get_global_rect().end.y<=log_button.get_global_rect().position.y,"FEEDBACK entry sits above action log")
+ await press(t,"OpenFeedback");await t.frames()
+ t.check(ui.show_feedback and not report.draft.include_logs,"FEEDBACK opens without opting into logs")
+ t.check(t.visible_text(ui.drawer_layer).contains("提交反馈需要开启梯子"),"FEEDBACK explains Google network access before submission")
+ t.check(not t.visible_text(ui.drawer_layer).contains("gmail.com"),"FEEDBACK recipient is hidden from players")
+ await press(t,"FeedbackReview");await t.frames()
+ t.check(not report.confirming and report.message=="请填写标题。","FEEDBACK empty title cannot proceed")
+ var title=ui.find_child("FeedbackTitle",true,false);title.text="测试反馈";title.text_changed.emit(title.text)
+ var description=ui.find_child("FeedbackDescription",true,false);description.text="点击结束回合后出现问题，请检查。";description.text_changed.emit()
+ report.draft.logs="本场行动测试记录"
+ await press(t,"FeedbackCapture");await t.frames()
+ t.check(report.draft.images.size()==1 and report.payload().logs=="" and report.draft.context.has("floor"),"FEEDBACK screenshot captured and unchecked logs omitted")
+ var shot=report._decode(report.draft.images[0].data)
+ t.check(not shot.is_empty() and maxi(shot.get_width(),shot.get_height())<=1600,"FEEDBACK captured attachment is a bounded JPEG")
+ # Inspect the actual captured frame: report panel's opaque pixels must be absent.
+ t.check(shot.get_pixel(int(shot.get_width()*0.23),int(shot.get_height()*0.15))!=shot.get_pixel(int(shot.get_width()*0.75),int(shot.get_height()*0.15)),"FEEDBACK screenshot exposes the game after hiding the report overlay")
+ await t.capture("ui-feedback-report.png")
+ report.add_image(shot);report.add_image(shot);report.add_image(shot);await t.frames()
+ t.check(report.draft.images.size()==3 and ui.find_child("FeedbackCapture",true,false).disabled,"FEEDBACK three-image cap blocks extra captures")
+ t.check(ui.find_child("FeedbackReview",true,false).get_global_rect().end.y<850 and ui.find_child("FeedbackForm",true,false).get_global_rect().end.x<ui.find_child("FeedbackAttachments",true,false).get_global_rect().position.x,"FEEDBACK split form and attachments keep primary action within the viewport")
+ ui._close_drawers();ui._refresh_drawers();report.open();await t.frames()
+ t.check(ui.find_child("FeedbackTitle",true,false).text=="测试反馈" and report.draft.images.size()==3,"FEEDBACK closing and reopening preserves text and screenshots")
+ var include=ui.find_child("FeedbackLogs",true,false);include.button_pressed=true;include.toggled.emit(true)
+ await press(t,"FeedbackReview");await t.frames()
+ t.check(report.confirming and report.payload().logs=="本场行动测试记录" and t.visible_text(ui.drawer_layer).contains("本场行动测试记录"),"FEEDBACK confirmation previews explicitly selected logs")
+ t.check(not t.visible_text(ui.drawer_layer).contains("gmail.com"),"FEEDBACK confirmation also hides recipient")
+ var old_endpoint=ProjectSettings.get_setting("feedback/endpoint",null)
+ ProjectSettings.set_setting("feedback/endpoint","");await press(t,"FeedbackSend");await t.frames()
+ t.check(report.message.contains("尚未开通") and not report.busy,"FEEDBACK missing endpoint preserves report instead of claiming success")
+ var requests=[]
+ report.transport=func(url,method,body):requests.append({"url":url,"method":method,"body":body});return OK
+ ProjectSettings.set_setting("feedback/endpoint","https://feedback.invalid/exec")
+ await press(t,"FeedbackSend");await t.frames()
+ var id=report.draft.id
+ report.submit()
+ t.check(report.busy and requests.size()==1 and id.length()==32 and ui.find_child("FeedbackSend",true,false).disabled,"FEEDBACK confirmed submit freezes report and blocks duplicate clicks")
+ report._completed(HTTPRequest.RESULT_TIMEOUT,0,PackedStringArray(),PackedByteArray());await t.frames()
+ t.check(not report.busy and report.draft.id==id and report.draft.images.size()==3 and report.message.contains("草稿已保留"),"FEEDBACK timeout retains report and retry identity")
+ await press(t,"FeedbackSend");await t.frames()
+ t.check(requests.size()==2 and requests[0].body==requests[1].body,"FEEDBACK retry sends identical report identifier and content")
+ report._completed(HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED,302,PackedStringArray(["Location: https://script.googleusercontent.com/macros/echo?receipt=test"]),PackedByteArray())
+ t.check(report.busy and requests.size()==3 and requests[2].method==HTTPClient.METHOD_GET and requests[2].body=="" and report.draft.id==id,"FEEDBACK Google redirect reads receipt with GET without forwarding report")
+ report._completed(HTTPRequest.RESULT_SUCCESS,302,PackedStringArray(["Location: https://untrusted.invalid/receipt"]),PackedByteArray());await t.frames()
+ t.check(not report.busy and requests.size()==3 and report.draft.id==id,"FEEDBACK untrusted redirect preserves draft without sending")
+ await press(t,"FeedbackSend");await t.frames()
+ report.response_redirects=4
+ report._completed(HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED,302,PackedStringArray(["Location: https://script.googleusercontent.com/macros/echo?receipt=test"]),PackedByteArray());await t.frames()
+ t.check(not report.busy and requests.size()==4 and report.draft.id==id,"FEEDBACK redirect limit preserves retry identity")
+ await press(t,"FeedbackSend");await t.frames()
+ t.check(report.response_redirects==0,"FEEDBACK explicit retry resets receipt redirect limit")
+ ProjectSettings.set_setting("feedback/endpoint","https://script.google.com/macros/s/test/exec")
+ var sent_before_receipt=requests.size()
+ report._completed(HTTPRequest.RESULT_SUCCESS,404,PackedStringArray(),PackedByteArray())
+ t.check(report.busy and report.checking_receipt and requests.size()==sent_before_receipt+1 and requests[-1].method==HTTPClient.METHOD_GET and requests[-1].url.ends_with("?receipt="+id) and requests[-1].body=="","FEEDBACK missing response checks stored receipt without resending email")
+ report._completed(HTTPRequest.RESULT_TIMEOUT,0,PackedStringArray(),PackedByteArray());await t.frames()
+ t.check(not report.busy and requests.size()==sent_before_receipt+1 and report.draft.id==id,"FEEDBACK receipt lookup failure stops without a loop and preserves draft")
+ await press(t,"FeedbackSend");await t.frames()
+ report._completed(HTTPRequest.RESULT_SUCCESS,404,PackedStringArray(),PackedByteArray())
+ report._completed(HTTPRequest.RESULT_SUCCESS,200,PackedStringArray(),JSON.stringify({"ok":true,"id":id}).to_utf8_buffer());await t.frames()
+ t.check(report.draft.title=="" and report.draft.images.is_empty() and report.message.contains("提交成功"),"FEEDBACK acknowledged report clears draft and shows receipt")
+ t.check(ui.game.state==before,"FEEDBACK draft, capture, failure and submission never change gameplay state")
+ report.transport=Callable();ProjectSettings.set_setting("feedback/endpoint",old_endpoint)
+ ui._close_drawers();ui._refresh_drawers()
+
 static func press(t, name: String) -> void:
  var button=t.ui.find_child(name,true,false)
  t.check(button!=null and button.is_visible_in_tree(),"INTERFACE actual navigation button available: "+name)
@@ -10,6 +79,7 @@ static func press(t, name: String) -> void:
  await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
 
 static func run(t) -> void:
+ await feedback(t)
  await run_header(t)
  await card_illustrations(t)
  await deck_browser(t)
@@ -107,9 +177,10 @@ static func card_illustrations(t) -> void:
     var picture=sample.face.get_node("CardIllustration")
     var art_ratio=0.58 if sample.data.type=="binding_enthusiast" else 2.0/3.0
     if not Rect2(Vector2.ZERO,dimensions).encloses(box.get_rect()) or box.position.y<picture.get_rect().end.y or not is_equal_approx(sample.face.art_bottom-6,dimensions.y*art_ratio) or content.size.x>box.size.x or not box.clip_contents: text_overflow.append(sample.data.type+str(free)+str(dimensions))
-    if content.size.y>box.size.y:
+    # Scroll offsets are integer pixels; a fractional layout remainder is not a scrollable row.
+    if floorf(content.size.y-box.size.y)>=1:
      box.scroll_vertical=int(ceilf(content.size.y))
-     if box.scroll_vertical<=0: text_overflow.append(sample.data.type+" unreachable text")
+     if box.scroll_vertical<=0: text_overflow.append(sample.data.type+" unreachable text "+str({"content":content.size.y,"height":box.size.y,"maximum":box.get_v_scroll_bar().max_value,"page":box.get_v_scroll_bar().page}))
      box.scroll_vertical=0
     var badges=sample.face.get_node("CardMana")
     var title=sample.face.get_node("CardTitle")
@@ -271,14 +342,14 @@ static func deck_browser(t) -> void:
 static func deck_sorting(t) -> void:
  var ui=t.ui
  ui.restart(42)
- for type in ["pot_of_greed","focus","binding_enthusiast"]: ui.game._gain_card(type)
+ for type in ["pot_of_greed","focus","binding_enthusiast","unlock"]: ui.game._gain_card(type)
  ui.render();await t.frames()
  var before=ui.game.export_snapshot()
  await press(t,"OpenDeck")
  var grid=ui.find_child("DeckGrid",true,false)
  var sort=ui.find_child("DeckSort",true,false)
  var ordered=grid.get_children().map(func(card):return card.symbol)
- t.check(ordered.find("pot_of_greed")<ordered.find("unlock") and ordered.find("unlock")<ordered.find("strain") and ordered.find("strain")<ordered.find("binding_enthusiast"),"DECK costs use shown zero-cost unlock and override both name and rarity")
+ t.check(ordered.find("pot_of_greed")<ordered.find("unlock") and ordered.find("unlock")<ordered.find("strain") and ordered.find("strain")<ordered.find("binding_enthusiast"),"DECK costs use shown zero-cost unlock and override both name and rarity: "+str(grid.get_children().map(func(card):return [card.symbol,card.get_node("CardCost").text])))
  var last=-1
  for card in grid.get_children():
   var shown=int(card.get_node("CardCost").text)

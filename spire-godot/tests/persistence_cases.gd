@@ -60,7 +60,23 @@ static func revision_boundary(t) -> void:
   else: invalid.prison.discovery_pool.append("return_seal");invalid.prison.discoveries.append("return_seal")
   t.check(not prison.restore_snapshot(invalid).ok and prison.export_snapshot()==stable,"SAVE obsolete discovery shapes rejected without filling defaults")
 
+static func map_drawings(t) -> void:
+ var g=Game.new(42);var snapshot=g.export_snapshot()
+ var marks={"tower":[PackedVector2Array([Vector2(-0.1,0.5),Vector2(0.9,1.05)])],"prison":[]}
+ var packed=Store.pack(snapshot,marks);var decoded=Store.unpack(packed)
+ t.check(decoded.ok and decoded.map_drawings==marks and decoded.snapshot==snapshot and g.state==snapshot,"SAVE annotations roundtrip separately from game state with exact graph coordinates")
+ var envelope=JSON.parse_string(packed)
+ envelope.map_drawings="{}"
+ t.check(not Store.unpack(JSON.stringify(envelope)).ok,"SAVE checksum protects map annotations together with gameplay")
+ envelope.map_drawings=JSON.stringify({"tower":[[["broken",0]]]})
+ envelope.checksum=(envelope.payload+envelope.map_drawings).sha256_text()
+ t.check(not Store.unpack(JSON.stringify(envelope)).ok,"SAVE malformed annotation coordinates reject before loading")
+ envelope.erase("map_drawings");envelope.checksum=envelope.payload.sha256_text()
+ decoded=Store.unpack(JSON.stringify(envelope))
+ t.check(decoded.ok and decoded.map_drawings.is_empty() and decoded.snapshot==snapshot,"SAVE current-format file without annotations remains readable")
+
 static func run(t) -> void:
+ map_drawings(t)
  preload("res://tests/scene_restart_cases.gd").run(t,same)
  revision_boundary(t)
  t.check(Game.Snapshot.Phases.DEFINITIONS.values().all(func(stage):return stage.name!="" and stage.caption!=""),"SAVE every accepted phase has a homepage summary label")
@@ -95,10 +111,10 @@ static func run(t) -> void:
  Rewards.play(t,g,card,"wrist",a.id)
  h=roundtrip(t,g,"pending second unlock")
  step_both(t,g,h,"chain",{"target":c.id})
- g=Rewards.setup();card=Rewards.give(t,g,"peel");Rewards.play(t,g,card,"thigh")
- t.action(g,"retain",{"uid":g.state.hand[0].uid})
- h=roundtrip(t,g,"one of two retained")
- step_both(t,g,h,"retain",{"uid":g.state.hand[1].uid})
+ g=Rewards.setup();card=Rewards.give(t,g,"focus");Rewards.play(t,g,card,"thigh")
+ t.check(g.state.pending_retain,"SAVE selective retain fixture enters a real pending choice")
+ h=roundtrip(t,g,"pending selected retain and follow-up draw")
+ step_both(t,g,h,"retain",{"uid":g.state.hand[0].uid})
  g=Rewards.setup();g.state.relics.append("break_bracer")
  a=g.add_fixture("wrist",1);g.add_fixture("wrist",1);c=g.add_fixture("wrist",1)
  card=Rewards.give(t,g,"chain")
@@ -193,7 +209,7 @@ static func run(t) -> void:
  var escaped=preload("res://tests/prison_cases.gd").intake(t)
  preload("res://tests/prison_cases.gd").clear_fixture(escaped)
  preload("res://tests/exploration_fixture.gd").at_site(escaped,"door");escaped.state.posture="stand"
- card=t.hand_card(escaped,"unlock")
+ card=t.grant_fixture_card(escaped,"unlock")
  t.action(escaped,"prison",{"action":"unlock","uid":card.uid})
  t.action(escaped,"prison",{"action":"door_exit"})
  t.check(not escaped.state.practice and escaped.state.phase=="map" and escaped.state.save_slot=="practice","SAVE practice-origin escape keeps its save identity")

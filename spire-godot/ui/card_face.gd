@@ -2,6 +2,11 @@ extends Button
 
 const Palette=preload("res://ui/visual_theme.gd")
 const ILLUSTRATIONS={
+ "prepared_chant":preload("res://assets/ui/cards/prepared_chant.svg"),
+ "confluence":preload("res://assets/ui/cards/confluence.svg"),
+ "reuse":preload("res://assets/ui/cards/reuse.svg"),
+ "resonance":preload("res://assets/ui/cards/resonance.svg"),
+ "practiced":preload("res://assets/ui/cards/practiced.svg"),
  "hannya_1":preload("res://assets/ui/cards/hannya_1.svg"),
  "hannya_2":preload("res://assets/ui/cards/hannya_2.svg"),
  "hannya_3":preload("res://assets/ui/cards/hannya_3.svg"),
@@ -82,12 +87,17 @@ var display_name=""
 var free_face=false
 var effect_free=false
 var face_name="拘束"
+var localize: Callable
 var lift_on_hover=true
 const ART_HEIGHT_RATIO=2.0/3.0
 const ART_HEIGHT_OVERRIDES={"binding_enthusiast":0.58}
 var art_bottom=174.0
 
 const MANA_COLORS={"cost":Color("8dd6ef"),"gain":Color("80e0c5"),"temporary":Color("c4a0ef")}
+
+func _display(value: Variant) -> String:
+ var text=str(value)
+ return str(localize.call(text)) if localize.is_valid() else text
 
 func set_mana(entries: Array) -> void:
  var group=get_node_or_null("CardMana")
@@ -101,20 +111,20 @@ func set_mana(entries: Array) -> void:
  for entry in entries:
   var badge=PanelContainer.new();badge.name="Mana_"+entry.kind
   badge.mouse_filter=Control.MOUSE_FILTER_IGNORE
-  badge.tooltip_text=entry.detail
+  badge.tooltip_text=_display(entry.detail)
   var style=StyleBoxFlat.new()
   style.bg_color=Color("29233e") if entry.kind=="temporary" else Color("143542")
   style.border_color=MANA_COLORS[entry.kind]
   style.set_border_width_all(2);style.set_corner_radius_all(7 if entry.kind=="temporary" else 18)
   style.content_margin_left=6;style.content_margin_right=6
   badge.add_theme_stylebox_override("panel",style)
-  var label=Label.new();label.text=entry.text
+  var label=Label.new();label.text=_display(entry.text)
   label.mouse_filter=Control.MOUSE_FILTER_IGNORE
   label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
   label.add_theme_color_override("font_color",MANA_COLORS[entry.kind])
   var font=label.get_theme_font("font")
   var font_size=21
-  while font_size>13 and font.get_string_size(entry.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>49: font_size-=1
+  while font_size>13 and font.get_string_size(label.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>49: font_size-=1
   label.add_theme_font_size_override("font_size",font_size)
   badge.custom_minimum_size=Vector2(38,36)
   badge.add_child(label);group.add_child(badge)
@@ -131,7 +141,7 @@ func _layout_header() -> void:
   right=group.position.x-4
  var width=maxf(1,right-title.position.x)
  title.clip_text=true
- var full_title=display_name if display_name!="" else title.text.replace("\n","")
+ var full_title=_display(display_name) if display_name!="" else title.text.replace("\n","")
  title.text=full_title
  title.autowrap_mode=TextServer.AUTOWRAP_OFF
  title.position.y=10
@@ -193,7 +203,7 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
  ghost.modulate=Color(1,1,1,0.94)
  ghost.add_theme_stylebox_override("panel",Palette.surface(Palette.INK,Palette.CYAN if effect_free else Palette.GOLD))
  var label=Label.new()
- label.text=display_name+"\n"+("单面卡牌" if single_face else face_name)
+ label.text=_display(display_name)+"\n"+_display("单面卡牌" if single_face else face_name)
  label.add_theme_font_size_override("font_size",18)
  ghost.add_child(label)
  set_drag_preview(ghost)
@@ -207,7 +217,7 @@ func _ready() -> void:
  texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
  var illustration=TextureRect.new()
  illustration.name="CardIllustration"
- illustration.texture=ILLUSTRATIONS.get(symbol)
+ illustration.texture=ILLUSTRATIONS.get(preload("res://data/card_rules.gd").SPECS.get(symbol,{}).get("art_type",symbol))
  illustration.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
  illustration.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
  illustration.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
@@ -225,7 +235,7 @@ func _ready() -> void:
 func _art_changed(category: String, id: String) -> void:
  if category!="cards" or id!=symbol: return
  var texture=art_settings.art_texture(category,id)
- $CardIllustration.texture=texture if texture!=null else ILLUSTRATIONS.get(symbol)
+ $CardIllustration.texture=texture if texture!=null else ILLUSTRATIONS.get(preload("res://data/card_rules.gd").SPECS.get(symbol,{}).get("art_type",symbol))
 
 func _hover(raised: bool) -> void:
  if not lift_on_hover: return

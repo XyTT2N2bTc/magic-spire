@@ -1,6 +1,7 @@
 extends RefCounted
 
 const HEALTH=[1.0,1.5,2.0]
+const PRESSURE_RELIEF=40.0
 
 static func health_multiplier(state: Dictionary) -> float:
  return HEALTH[state.demo_cycle]
@@ -12,11 +13,11 @@ static func candidates(g, out: Array) -> void:
  if not at_exit(g) or g.state.demo_finished: return
  g._candidate(out,{"kind":"demo_end"},"结束并返回菜单","结束本次游玩。",0,0,"","","demo_exit")
  if g.state.demo_cycle<2:
-  g._candidate(out,{"kind":"demo_continue"},"继续游玩","保留卡组、遗物和成长，开启全新塔路。怪物基础生命×%s；解除可解除的装备并补满魔力。" % g.number(HEALTH[g.state.demo_cycle+1]),0,0,"","","demo_exit")
+  g._candidate(out,{"kind":"demo_continue"},"继续游玩","保留卡组、遗物、成长与监狱警戒度，开启全新塔路。怪物基础生命×%s；解除可解除的装备并补满魔力，快感降低%s（最低0），姿势变为站立。" % [g.number(HEALTH[g.state.demo_cycle+1]),g.number(PRESSURE_RELIEF)],0,0,"","","demo_exit")
 
 static func continue_run(g) -> void:
  for target in g.action_targets():
-  if g.cursed_eyes(target) or g.cursed_plate(target): continue
+  if g.cursed_eyes(target) or g.cursed_plate(target) or g.Equipment.lock_only(target): continue
   target.locked=false
   g._apply_manual_release(target,0.0)
  g._cleanup()
@@ -30,8 +31,12 @@ static func continue_run(g) -> void:
  g.state.mana=g.state.mana_max
  g.state.pending_retain=false;g.state.retain_left=0;g.state.retain_draw_after=0;g.Cards.cancel_chain(g)
  g._clear_charge();g.state.temporary_mana=0.0;g.state.next_energy=0;g.state.sure_cast=false;g.state.weakness_turns=0
+ var pressure_before=g.state.pressure
+ var posture_before=g.state.posture
+ g.state.pressure=maxf(0.0,pressure_before-PRESSURE_RELIEF)
+ g.state.posture="stand"
  g._reset_piles()
- g._emit("event","新的塔路已展开。第%s阶段：怪物基础生命×%s，可解除的装备已解除，魔力已补满。" % [["一","二","三"][g.state.demo_cycle],g.number(health_multiplier(g.state))],{"demo_cycle":g.state.demo_cycle})
+ g._emit("event","新的塔路已展开。第%s阶段：怪物基础生命×%s，可解除的装备已解除，魔力已补满；快感降低%s，姿势变为站立。" % [["一","二","三"][g.state.demo_cycle],g.number(health_multiplier(g.state)),g.number(pressure_before-g.state.pressure)],{"demo_cycle":g.state.demo_cycle,"pressure_before":pressure_before,"pressure_after":g.state.pressure,"posture_before":posture_before,"posture_after":"stand"})
 
 static func validate(state: Dictionary) -> String:
  if not state.get("demo_cycle") is int or state.demo_cycle<0 or state.demo_cycle>2 or not state.get("demo_finished") is bool: return "游玩阶段记录不正确。"

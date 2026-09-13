@@ -53,9 +53,11 @@ static func run(t) -> void:
  ui.game.state.pressure=70;ui.render();await t.frames()
  var energy=ui.view.energy;var mana=ui.view.mana
  await Navigation.press(t,"DeepBreath")
- t.check(ui.view.pressure.value==45 and ui.view.energy==energy-1 and ui.view.mana==mana,"STATUS native deep breath reduces pressure and spends only one energy")
+ t.check(ui.view.pressure.value==50 and ui.view.energy==energy-1 and ui.view.mana==mana,"STATUS native deep breath reduces pressure and spends only one energy")
+ await Navigation.press(t,"DeepBreath")
+ t.check(ui.find_child("DeepBreath",true,false).disabled and ui.find_child("DeepBreathDetail",true,false).text.contains("已使用2次"),"STATUS second use shows the per-turn limit on the disabled action")
  await t.capture("ui-116-deep-breath-action.png")
- ui.game.state.pressure=0;ui.render();await t.frames()
+ ui.game.state.pressure=0;ui.game.state.calm_uses=0;ui.render();await t.frames()
  t.check(ui.find_child("DeepBreath",true,false).disabled and ui.find_child("DeepBreathDetail",true,false).text.contains("当前快感已经降到最低"),"STATUS zero pleasure reason is visible beside disabled action")
  await icons(t)
  await charge_toggle(t)
@@ -98,7 +100,7 @@ static func icons(t) -> void:
  var ui=t.ui
  await t.start_practice("Practice_trader_solo")
  ui.game.state.charge=3;ui.game.state.temporary_mana=15
- ui.game.state.card_buffs=["echo_cast_free","embers_free"]
+ ui.game.state.card_buffs=["embers_free"];ui.game.Cards.grant_buff(ui.game,"echo_cast_free")
  ui.game.state.relics.append("break_bracer")
  ui.game.state.relic_used["break_bracer:turn"]=ui.game.state.tick
  var enemy=ui.game.state.enemies[0];enemy.ready_layers=2
@@ -107,6 +109,8 @@ static func icons(t) -> void:
  var before=ui.game.state.duplicate(true)
  var hero=ui.find_child("StatusStrip_hero",true,false)
  var enemy_strip=ui.find_child("StatusStrip_"+enemy.id,true,false)
+ var portrait=ui.find_child("HeroArt",true,false)
+ t.check(hero.get_global_rect().end.x<=portrait.get_global_rect().position.x and hero.get_child(0) is VBoxContainer and hero.vertical_scroll_mode==ScrollContainer.SCROLL_MODE_AUTO and hero.horizontal_scroll_mode==ScrollContainer.SCROLL_MODE_DISABLED,"STATUS hero effects form a scrollable vertical column to the left of the enlarged portrait")
  t.check(hero!=null and enemy_strip!=null and hero.find_child("StatusIcon_ready_*",true,false)==null,"STATUS hero and enemy icons stay with their actual owner")
  t.check(Rect2(0,0,1600,900).encloses(hero.get_global_rect()) and enemy_strip.get_global_rect().end.y<=ui.find_child("BasicAttack_strike",true,false).get_global_rect().position.y,"STATUS strips stay in the viewport and above the action bar")
  var charge=ui.find_child("StatusIcon_charge",true,false)

@@ -9,7 +9,7 @@ static func run(t) -> void:
  ui.render();await t.frames()
  if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
  var face=ui.card_buttons[card.uid]
- t.check(face.rarity=="uncommon" and t.visible_text(face).contains("每挣脱1件拘束具，抽1张牌。") and ui.actions.find("card",{"uid":card.uid,"free":true}).cost==2,"EMBRACE UI free face is a two-energy uncommon power with fixed repeatable description")
+ t.check(face.rarity=="uncommon" and t.visible_text(face).contains("每挣脱1件拘束具，抽1张牌，恢复1能量。") and t.visible_text(face).contains("抽牌与回能均可叠加。") and ui.actions.find("card",{"uid":card.uid,"free":true}).cost==2,"EMBRACE UI free face explains stackable draws and energy at two energy")
  await Click.click_card(t,card.uid);await t.frames()
  t.check(ui.game.state.energy==8 and ui.game.state.powers.size()==1,"EMBRACE UI clicking free face activates for this battle")
  card=Cards.give(ui.game,"restraint_embrace");ui.render();await t.frames()

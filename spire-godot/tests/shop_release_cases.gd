@@ -11,7 +11,35 @@ static func unchanged(t, g, before: Dictionary) -> void:
  for key in ["energy","posture","round","tick","rng","pressure","temporary_mana","charge","deck","items"]:
   t.check(g.state[key]==before[key],"SHOP RELEASE preserves "+key)
 
+static func plate_payment(t) -> void:
+ var g=shop();g.state.flask_mana=500
+ var wrist=g.add_fixture("wrist",8)
+ var lock=g._install_special("negative_plate_lock_medium","special_2_a",2)
+ for op in ["remove","release"]:
+  var payload={"op":op,"payment":"self"}
+  if op=="release": payload.target=wrist.id
+  var blocked=t.find_action(g,"service",payload)
+  var before=g.export_snapshot()
+  t.check(not blocked.valid and blocked.reason==g.Services.ShopCopy.PLATE_SELF_BLOCK_REASON and not g.dispatch(blocked.id,g.state.version).ok and g.state==before,"SHOP PLATE self mana cannot pay for "+op+" and rejection preserves state")
+  payload.payment="flask"
+  var allowed=t.find_action(g,"service",payload)
+  var mana=g.state.mana;var bottle=g.state.flask_mana
+  t.check(allowed.valid and g.dispatch(allowed.id,g.state.version).ok and g.state.mana==mana and g.state.flask_mana==bottle-allowed.mana and not g._equipment(lock.id).is_empty(),"SHOP PLATE bottle payment remains usable for "+op)
+ var release=t.find_action(g,"service",{"op":"release","target":lock.id,"payment":"self"})
+ t.check(release.valid and g.dispatch(release.id,g.state.version).ok and g._equipment(lock.id).is_empty() and t.find_action(g,"service",{"op":"take","payment":"self"}).valid,"SHOP PLATE own mana may remove the normal lock and restore normal payment")
+ g=shop();g.state.flask_mana=500;wrist=g.add_fixture("wrist",8)
+ var stale=t.find_action(g,"service",{"op":"release","target":wrist.id,"payment":"flask"})
+ g.RelicEffects.gain(g,"cursed_plate_lock")
+ var before=g.export_snapshot()
+ var releases=g.candidates().filter(func(c):return c.payload.kind=="service" and c.payload.op=="release")
+ t.check(releases.size()>=4 and releases.all(func(c):return not c.valid) and g.Services.release_jobs(g).all(func(job):return job.reason==g.Services.ShopCopy.CURSED_PLATE_SERVICE_REASON),"SHOP CURSED PLATE blocks every release target and both payment sources")
+ for c in releases:
+  t.check(not g.dispatch(c.id,g.state.version).ok and g.state==before,"SHOP CURSED PLATE denied release never pays or removes equipment")
+ t.check(not g.dispatch(stale.id,g.state.version).ok and g.state==before,"SHOP CURSED PLATE commit rechecks newly worn curse against old release choice")
+ t.check(t.find_action(g,"service",{"op":"remove","payment":"flask"}).valid and t.find_action(g,"service",{"op":"take","payment":"flask"}).valid,"SHOP CURSED PLATE does not disable unrelated bottle purchases or card removal")
+
 static func run(t) -> void:
+ plate_payment(t)
  for locked in [false,true]:
   var g=shop()
   var target=g.add_fixture("ankle",8,10,locked,0,"belt")

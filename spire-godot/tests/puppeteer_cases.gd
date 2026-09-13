@@ -7,8 +7,8 @@ static func doll(g) -> Dictionary:
 
 static func start(t, awaken: bool=true):
  var g=Game.new(42,true,"puppeteer_solo")
- t.check(t.action(g,"end").ok,"PUPPET summon through the real enemy turn")
- if awaken: t.check(t.action(g,"end").ok,"PUPPET second turn activates the hit response and taunt")
+ t.check(g.state.enemies.size()==2 and doll(g).hp==10 and g.state.enemies[0].stage==1 and g.state.enemies[0].intent.kind=="puppet_awaken","PUPPET encounter starts with its protected doll and awakening as the first intent")
+ if awaken: t.check(t.action(g,"end").ok,"PUPPET first turn activates the hit response and taunt")
  return g
 
 static func run(t) -> void:
@@ -35,9 +35,9 @@ static func run(t) -> void:
 
  g=start(t)
  master_id=g.state.enemies[0].id;id=doll(g).id
- t.check(t.action(g,"end").ok and doll(g).max_hp==15 and doll(g).hp==15,"PUPPET third turn now increases maximum by five and fully heals")
- t.check(t.action(g,"end").ok and doll(g).puppet_prepared.keys()==["composite"],"PUPPET fourth turn freezes a composite without equipping the player")
- t.check(t.action(g,"end").ok and doll(g).puppet_prepared.has("special") and g.state.special_equipment.is_empty() and g.state.composites.is_empty(),"PUPPET fifth turn freezes a medium tier-three special without premature installation")
+ t.check(t.action(g,"end").ok and doll(g).max_hp==15 and doll(g).hp==15,"PUPPET second turn increases maximum by five and fully heals")
+ t.check(t.action(g,"end").ok and doll(g).puppet_prepared.keys()==["composite"],"PUPPET third turn freezes a composite without equipping the player")
+ t.check(t.action(g,"end").ok and doll(g).puppet_prepared.has("special") and g.state.special_equipment.is_empty() and g.state.composites.is_empty(),"PUPPET fourth turn freezes a medium tier-three special without premature installation")
  twin=Save.roundtrip(t,g,"both puppet prepared payloads")
  var prepared=doll(g).puppet_prepared.duplicate(true)
  g._damage_enemy(g._enemy(id),1,"fixed","遗物")
@@ -48,7 +48,7 @@ static func run(t) -> void:
  t.check(t.action(g,"attack",{"type":"strike","enemy":id}).ok and doll(g).puppet_prepared.is_empty(),"PUPPET next successful attack consumes both prepared slots")
  t.check(g.state.special_equipment.size()==1 and g.state.special_equipment[0].grade==2 and g.tier(g.state.special_equipment[0].durability,g.state.special_equipment[0].maximum)==3,"PUPPET special payload actually installs at medium tier three")
  t.check(g.state.composites.size()==1 and g.state.composites[0].components.all(func(piece):return piece.grade==2 and g.tier(piece.durability,piece.maximum)==2),"PUPPET composite payload uses real components and tier two")
- t.check(t.action(g,"end").ok and doll(g).max_hp==20 and doll(g).hp==20,"PUPPET sixth turn repeats the new mend-composite-special cycle")
+ t.check(t.action(g,"end").ok and doll(g).max_hp==20 and doll(g).hp==20,"PUPPET fifth turn repeats the mend-composite-special cycle")
  t.check(g.validate()=="","PUPPET reacted and mended encounter retains valid state")
  var good=twin.export_snapshot()
  for key in ["puppet_owner","puppet_mends","puppet_prepared"]:

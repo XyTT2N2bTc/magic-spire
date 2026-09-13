@@ -11,16 +11,21 @@ const CHARGE_RETENTION = 2
 const ENERGY_RETENTION = 1
 const MANA_MAX_FLOOR = 1.0
 const PRESSURE_MAX = 100.0
-const OVERLOAD_MANA = 10.0
+const FREE_PRESSURE_RELIEF = 2.0
+const OVERLOAD_MANA = 20.0
+const SLIP_EJACULATION_MANA = 10.0
 const OVERLOAD_ENERGY = 1
 const PRESSURE_MAGIC_SURCHARGE = 0.5
+const PRESSURE_MAGIC_SURCHARGE_ENABLED = false
 const CAST_SAFE_PRESSURE = 0.5
 const CAST_FALLOFF_POWER = 2.0
 const CAST_ROLL_STEPS = 10000
+const CAST_FAILURE_REFUND = 0.5
 const MOUTH_CAST_GRADE = {1:0.5,2:0.25,3:0.0}
 const MOUTH_CAST_TIGHTNESS = {1:1.5,2:1.0,3:0.5}
 const CALM_COST = 1
-const CALM_REDUCTION = 25.0
+const CALM_REDUCTION = 20.0
+const CALM_USES_PER_TURN = 2
 const CALM_MOUTH_MULTIPLIERS = {0:1.0,1:1.0,2:0.8,3:0.6,4:0.4,5:0.2,6:0.0}
 const CALM_NEXT_ENERGY = 1
 const PREPARATION_TURNS = 3
@@ -28,6 +33,7 @@ const REST_TURNS = 6
 const REST_CARD_TURNS = {"rare":3,"uncommon":3}
 const REST_FLASK_TURNS = 3
 const REST_FLASK_MANA = 50
+const BOSS_FLASK_MANA = 80
 const REST_HOOK_USES = 3
 const RNG_SALTS = {"card_target":3391939,"deck":73471,"enemy":193939,"equipment":391939,"encounter":591939,"prison":791939,"event":991939,"reward":1191939,"position":1391939,"magic":1591939,"binding":1791939,"motion":1991939,"explore":2191939,"fall":2391939,"capture_bind":2591939,"item_drop":2791939,"enemy_visual":2991939,"relic":3191939}
 const HAND_ASSIST_BONUS = 1.0
@@ -44,6 +50,8 @@ const LOCK_HP = 28.0
 const ROPE_HP = 30.0
 const GUARD_HP = 90.0
 const CAPTURE_EXTRA_BASE = 1
+const PRISON_INTAKE = {1:{"floor":6,"extra":2,"special":2},2:{"floor":8,"extra":2,"special":2},3:{"floor":10,"extra":3,"special":3},4:{"floor":12,"extra":3,"special":3}}
+const PRISON_COLLAR_LEVEL = 3
 const PRISON_INTERVALS = [16,14,12,10,8]
 const PRISON_VIOLATION_EXTRA = 2
 const PRISON_SECURITY = {
@@ -67,12 +75,12 @@ const SLOT_NAMES = {"neck":"脖颈", "shoulder":"肩部", "upper_arm":"大臂", 
 const ARM_SLOTS = ["upper_arm", "forearm", "wrist", "palm", "fingers"]
 const LEG_SLOTS = ["thigh", "calf", "ankle", "foot", "toes"]
 const POSE_NAMES = {"stand":"站姿", "sit":"坐姿", "lie":"躺姿"}
-const CARD_TRAITS={"hannya_1":{"exhaust":true,"innate":true},"hannya_2":{"exhaust":true,"temporary":true},"hannya_3":{"exhaust":true,"temporary":true},"hannya_4":{"exhaust":true,"temporary":true},"hannya_swallow":{"temporary":true,"exhaust":true,"ethereal":true},"hannya_infusion":{"temporary":true,"exhaust":true,"ethereal":true},"hannya_henshin":{"temporary":true,"exhaust":true,"ethereal":true},"good_soup":{"temporary":true},"magic_hand":{"exhaust":true},"pot_of_greed":{"exhaust":true},"repeated_strain":{"exhaust":true},"fire_control":{"exhaust":true},"mana_invocation":{"exhaust":true},"mana_surge":{"exhaust":true},"henshin":{"exhaust":true},"panic":{"curse":true,"exhaust":true},"sensitive":{"curse":true,"unplayable":true,"retain":true},"lewd_mark":{"curse":true,"unplayable":true},"tease":{"status":true,"unplayable":true,"temporary":true},"tease_plus":{"status":true,"unplayable":true,"temporary":true}}
-static var CARD_NAMES = {"hannya_1":"般若汤-其一","hannya_2":"般若汤-其二","hannya_3":"般若汤-其三","hannya_4":"般若汤-其四","hannya_swallow":"身轻如燕","hannya_infusion":"灌注","hannya_henshin":"henshin（品相完美!）","good_soup":"好汤喝够饮饮饮饮","siphon_strength":"汲取力量","shared_fate":"命运同担","magic_hand_gift":"魔术手","magic_hand":"魔术手","leverage":"借力打力","light_as_swallow":"身轻如燕","breath_control":"运气","restraint_embrace":"拘束之拥","binding_enthusiast":"紧缚爱好","infusion":"灌注","siphon":"汲取","concentration":"专心致志","mana_circuit":"魔力回路","ready_to_strike":"蓄势待发","crossed_legs":"翘腿无视","mana_search":"魔路检索","pot_of_greed":"强欲之壶","repeated_strain":"连续挣","echo_cast":"余势复演","embers":"余火","wildfire_descent":"猛火下山","boar_emperor_blaze":"猪神之皇焚","adaptability":"灵活变通","rekindle":"死灰复燃","fire_dynamics":"火动力学","flame_flourish":"炫火","fire_control":"控火","letter_opener":"开信刀play","mana_invocation":"激发魔力","strong_elbow":"强力肘击","pleasure_conversion":"欲能转换","mana_conversion":"魔力转换","mana_surge":"魔力涌流","henshin":"henshin","fire_mastery":"火焰精通","focus":"找准松处","tear":"扯开缺口","chain":"接连挣动","peel":"逐层抽离","double_unlock":"双重解锁","panic":"慌乱","sensitive":"敏感","lewd_mark":"淫纹","tease":"玩弄","tease_plus":"玩弄+","strain":"用力！", "slip":"顾涌！", "ease":"魔力撑隙", "unlock":"术式解锁", "brace":"绷紧再挣", "inch":"一点点抽出", "magic_slip":"魔力松缚"}
-static var CARD_INFO = {"hannya_1":["技能","力量＋1，灵巧＋1，魔力＋5。正义飞踢费用＋1，获得打断，与坐姿踢击及并腿踢击共用3回合冷却。般若汤-其二加入弃牌堆。","力量＋1，灵巧＋1，魔力＋5。近身短打基础伤害＋2，连击每段基础伤害＋1。般若汤-其二加入弃牌堆。","升级时领取效果；当前等级详见出牌预览。"],"hannya_2":["技能","力量＋1，灵巧＋1，魔力＋5。0费消耗／虚无的身轻如燕加入手牌；般若汤-其三加入弃牌堆。","力量＋1，灵巧＋1，魔力＋5。0费消耗／虚无的身轻如燕加入手牌；般若汤-其三加入弃牌堆。","升级时领取效果；当前等级详见出牌预览。"],"hannya_3":["技能","力量＋1，灵巧＋1，魔力＋5。0费消耗／虚无的灌注加入手牌；般若汤-其四加入弃牌堆。","力量＋1，灵巧＋1，魔力＋5。0费消耗／虚无的灌注加入手牌；般若汤-其四加入弃牌堆。","升级时领取效果；当前等级详见出牌预览。"],"hannya_4":["技能","力量＋1，灵巧＋1，魔力＋5。虚无的完美henshin加入手牌；好汤喝够饮饮饮饮加入弃牌堆。","力量＋1，灵巧＋1，魔力＋5。虚无的完美henshin加入手牌；好汤喝够饮饮饮饮加入弃牌堆。","升级时领取效果；当前等级详见出牌预览。"],"good_soup":["技能","{mana_gain}","{mana_gain}","本场整备结束时移除。"],"hannya_swallow":["技能","下一次卡牌滑脱伤害×2。","闪避2。","本场整备结束时移除。"],"hannya_infusion":["魔法","{mana_cost}下一次腿部体术获得打断。","{mana_cost}下一次手部体术获得打断。","不与自带打断叠加。本场整备结束时移除。"],"hannya_henshin":["魔法","{mana_cost}解除全部拘束与捕缚。打出时播放dj版雨爱。","{mana_cost}本场全部伤害×2。打出时播放dj版雨爱。","同源不叠加。本场整备结束时移除。"],"siphon_strength":["魔法","{bound_batch}","{free_batch}",""],"shared_fate":["技能","将快感与魔力均设为两者总和的一半。","将快感与魔力均设为两者总和的一半。",""],"magic_hand_gift":["魔法","{mana_cost}降紧{hits}。超级顺延。","{mana_cost}{free_effects}","欧内的手赠予：使用后正常弃置。"],"magic_hand":["魔法","{mana_cost}降紧{hits}。超级顺延。","{mana_cost}{free_effects}",""],
+static var CARD_TRAITS={"prepared_chant":{"retain":true,"exhaust":true},"hannya_1":{"exhaust":true,"innate":true},"hannya_2":{"exhaust":true,"temporary":true},"hannya_3":{"exhaust":true,"temporary":true},"hannya_4":{"exhaust":true,"temporary":true},"hannya_swallow":{"temporary":true,"exhaust":true,"ethereal":true},"hannya_infusion":{"temporary":true,"exhaust":true,"ethereal":true},"hannya_henshin":{"temporary":true,"exhaust":true,"ethereal":true},"good_soup":{"temporary":true},"magic_hand":{"exhaust":true},"pot_of_greed":{"exhaust":true},"repeated_strain":{"exhaust":true},"fire_control":{"exhaust":true},"mana_invocation":{"exhaust":true},"mana_surge":{"exhaust":true},"henshin":{"exhaust":true},"panic":{"curse":true,"exhaust":true},"sensitive":{"curse":true,"unplayable":true,"retain":true},"lewd_mark":{"curse":true,"unplayable":true},"tease":{"status":true,"unplayable":true,"temporary":true},"tease_plus":{"status":true,"unplayable":true,"temporary":true}}
+static var CARD_NAMES = {"prepared_chant":"预备咏唱","reuse":"再利用","confluence":"汇流","resonance":"共鸣","practiced":"熟练而已","hannya_1":"般若汤-其一","hannya_2":"般若汤-其二","hannya_3":"般若汤-其三","hannya_4":"般若汤-其四","hannya_swallow":"身轻如燕","hannya_infusion":"灌注","hannya_henshin":"henshin（品相完美!）","good_soup":"好汤喝够饮饮饮饮","siphon_strength":"汲取力量","shared_fate":"命运同担","magic_hand_gift":"魔术手","magic_hand":"魔术手","leverage":"借力打力","light_as_swallow":"身轻如燕","breath_control":"运气","restraint_embrace":"拘束之拥","binding_enthusiast":"紧缚爱好","infusion":"灌注","siphon":"汲取","concentration":"专心致志","mana_circuit":"魔力回路","ready_to_strike":"蓄势待发","crossed_legs":"翘腿无视","mana_search":"魔路检索","pot_of_greed":"强欲之壶","repeated_strain":"连续挣","echo_cast":"余势复演","embers":"余火","wildfire_descent":"猛火下山","boar_emperor_blaze":"猪神之皇焚","adaptability":"灵活变通","rekindle":"死灰复燃","fire_dynamics":"火动力学","flame_flourish":"炫火","fire_control":"控火","letter_opener":"开信刀play","mana_invocation":"激发魔力","strong_elbow":"强力肘击","pleasure_conversion":"欲能转换","mana_conversion":"魔力转换","mana_surge":"魔力涌流","henshin":"henshin","fire_mastery":"火焰精通","focus":"找准松处","tear":"扯开缺口","chain":"接连挣动","peel":"逐层抽离","double_unlock":"双重解锁","panic":"慌乱","sensitive":"敏感","lewd_mark":"淫纹","tease":"玩弄","tease_plus":"玩弄+","strain":"用力！", "slip":"顾涌！", "ease":"魔力撑隙", "unlock":"术式解锁", "brace":"绷紧再挣", "inch":"一点点抽出", "magic_slip":"魔力松缚"}
+static var CARD_INFO = {"prepared_chant":["魔法","{mana_cost}本回合施法成功率固定为100%。","{mana_cost}本回合施法成功率固定为100%。",""],"reuse":["能力","施法失败时，返还80%耗魔；上身、腿部束缚等级均≥3时，返还100%。实时检测。","使用临时魔力施法失败时，返还消耗临时魔力的80%。","自身与临时魔力分别退回原池。两面可同时生效，返还比例取较高值。"],"confluence":["技能","每佩戴{bound_worn_divisor}件拘束具，本回合获得1点力量，不足{bound_worn_divisor}件不计。{bound_worn_preview}","每佩戴{free_worn_divisor}件拘束具，恢复1点魔力。{free_worn_preview}","按打出时的当前佩戴件数计算；复合拘束具整件计1件。力量可通过重复使用叠加，回合结束消失。"],"resonance":["能力","每佩戴一件拘束具，魔法耗魔－5%。","回合开始：闪避1。","减耗随当前佩戴件数变化，最低0。自由面从下回合生效，可叠加。"],"practiced":["能力","施法成功率最低75%。每次使用魔法牌，无论成败，额外牵扯1次。","每打出一张牌，本回合施法成功率额外＋3%。回合开始清零。","牵扯按1能量判定，不额外扣能量。两面可同时生效。"],"hannya_1":["技能","力量＋1，灵巧＋1，魔力＋5。正义飞踢费用＋1，获得打断，与坐姿踢击及并腿踢击共用3回合冷却。般若汤-其二加入弃牌堆。","力量＋1，灵巧＋1，魔力＋5。近身短打基础伤害＋2，连击每段基础伤害＋1。般若汤-其二加入弃牌堆。","升级时领取效果；当前等级详见出牌预览。"],"hannya_2":["技能","力量＋1，灵巧＋1，魔力＋5。0费消耗／虚无的身轻如燕加入手牌；般若汤-其三加入弃牌堆。","力量＋1，灵巧＋1，魔力＋5。0费消耗／虚无的身轻如燕加入手牌；般若汤-其三加入弃牌堆。","升级时领取效果；当前等级详见出牌预览。"],"hannya_3":["技能","力量＋1，灵巧＋1，魔力＋5。0费消耗／虚无的灌注加入手牌；般若汤-其四加入弃牌堆。","力量＋1，灵巧＋1，魔力＋5。0费消耗／虚无的灌注加入手牌；般若汤-其四加入弃牌堆。","升级时领取效果；当前等级详见出牌预览。"],"hannya_4":["技能","力量＋1，灵巧＋1，魔力＋5。虚无的完美henshin加入手牌；好汤喝够饮饮饮饮加入弃牌堆。","力量＋1，灵巧＋1，魔力＋5。虚无的完美henshin加入手牌；好汤喝够饮饮饮饮加入弃牌堆。","升级时领取效果；当前等级详见出牌预览。"],"good_soup":["技能","{mana_gain}","{mana_gain}","本场整备结束时移除。"],"hannya_swallow":["技能","下一次卡牌滑脱伤害×2。","闪避2。","本场整备结束时移除。"],"hannya_infusion":["魔法","{mana_cost}下一次腿部体术获得打断。","{mana_cost}下一次手部体术获得打断。","不与自带打断叠加。本场整备结束时移除。"],"hannya_henshin":["魔法","{mana_cost}解除全部拘束与捕缚。打出时播放dj版雨爱。","{mana_cost}本场全部伤害×2。打出时播放dj版雨爱。","同源不叠加。本场整备结束时移除。"],"siphon_strength":["魔法","{bound_batch}","{free_batch}",""],"shared_fate":["技能","将快感与魔力均设为两者总和的一半。","将快感与魔力均设为两者总和的一半。",""],"magic_hand_gift":["魔法","{mana_cost}降紧{hits}。超级顺延。","{mana_cost}{free_effects}","欧内的手赠予：使用后正常弃置。"],"magic_hand":["魔法","{mana_cost}降紧{hits}。超级顺延。","{mana_cost}{free_effects}",""],
  "leverage":["挣扎","造成拘束具数量×{worn_per_item}的挣扎伤害{dynamic_damage}。不计特殊装备。","{free_effects}",""],
  "light_as_swallow":["技能","下一次卡牌滑脱伤害×2。","获得2层闪避。",""],"breath_control":["滑脱","滑脱{base}×{hits}。选择并消耗1张手牌。","获得1层蓄力。下一次体术费用－1。选择并消耗1张手牌。","自由面需要嘴部自由。"],
- "restraint_embrace":["能力","每被佩戴1件拘束具，下回合抽1张牌。","每挣脱1件拘束具，抽1张牌。","从生效后开始计数；复合拘束具整件计1件，加固不计。敌人替换旧装备不算挣脱。两面可同时生效，均可叠加。"],
+ "restraint_embrace":["能力","每被佩戴1件拘束具，下回合抽1张牌。","每挣脱1件拘束具，抽1张牌，恢复1能量。抽牌与回能均可叠加。","从生效后开始计数；复合拘束具整件计1件，加固不计。敌人替换旧装备不算挣脱。两面可同时生效，抽牌与回能均可叠加；满手仍可回能。"],
  "binding_enthusiast":["能力","当前每件拘束具/性玩具：力量、灵巧＋1。使用拘束面牌时，快感固定＋10。","当前每件拘束具/性玩具：力量、灵巧＋1。使用拘束面牌时，快感固定＋10。","可叠加，属性加成与快感增长均叠加。复合拘束具整件计1件，连接绳与组件不计。"],
  "infusion":["魔法","{mana_cost}下一次腿部体术附加1层打断。","{mana_cost}下一次手部体术附加1层打断。","手部：肘击、近身短打。腿部：近身短打、各类踢击。同一面不叠加；对应体术使用后消耗，不与自带打断叠加。"],
  "concentration": ["技能","挣扎{base}。使用后，本场两面伤害＋{damage_growth}。","滑脱{base}。使用后，本场两面伤害＋{damage_growth}。","同一张牌的两面共享成长。"],
@@ -81,12 +89,12 @@ static var CARD_INFO = {"hannya_1":["技能","力量＋1，灵巧＋1，魔力�
  "crossed_legs":["滑脱","滑脱{base}。","{free_effects}",""],
  "mana_search":["技能","{bound_effects}","{self_free_effects}",""],
  "pot_of_greed":["技能","{bound_effects}","{self_free_effects}",""],
- "echo_cast":["技能","下张拘束面牌：复放1。双面相同不适用。","下次火球术：复放1。","原牌施法失败时保留复放；同面不叠加。"],
- "embers":["魔法","{mana_cost}抽牌1；魔力足够时再耗5魔力、抽牌1。","{mana_cost}下次成功火球基础＋4。","追加抽牌自动耗魔，不另判施法。火球强化不叠加，失败保留。"],
+ "echo_cast":["技能","下张拘束面牌：复放1。双面相同不适用。","下次火球术：复放1。","同面可累计；下次触发消耗全部层数。原牌施法失败时保留拘束面复放。"],
+ "embers":["魔法","本回合成功使用过火球术后可用。{mana_cost}抽牌1；魔力足够时再耗{optional_draw_cost}魔力、抽牌1。","{mana_cost}本回合火球术基础伤害＋4。","追加抽牌自动耗魔，不另判施法。火球强化不叠加。"],
  "wildfire_descent":["能力","{mana_cost}每使用火球术：抽牌1。","{mana_cost}每使用火球术：抽牌1。","可叠加。失败火球也触发；群攻每层触发一次。"],
  "adaptability":["能力","回合开始：蓄力1。","回合开始：获得1层魔力预备。","从下回合生效，可叠加。"],
  "rekindle":["魔法","{mana_cost}刷新本回合火球次数。","{mana_cost}刷新本回合火球次数。","包含炫火增加的次数。"],
- "fire_dynamics":["能力","火球术施法成功率＋25%。","火球改为全体攻击。","同面不叠加。群攻只施法一次；炫火自解仍为单目标。"],
+ "fire_dynamics":["能力","火球术施法成功率＋30%。","火球改为全体攻击。","同面不叠加。群攻只施法一次；炫火自解仍为单目标。"],
  "fire_control":["技能","{bound_effects}","火球基础伤害永久＋{free_spell_bonus}。","加伤跨战保留。"],
  "siphon":["魔法","{mana_gain}","{mana_gain}{self_free_effects}",""],
  "mana_invocation":["魔法","{mana_gain}","{mana_gain}",""],
@@ -97,7 +105,7 @@ static var CARD_INFO = {"hannya_1":["技能","力量＋1，灵巧＋1，魔力�
  "fire_mastery":["能力","火球无视身体限制；不获得手势加成。","火球伤害×2。","同面不叠加；费用与快感施法概率不变。"],
  "strong_elbow":["挣扎","挣扎{base}。","下次肘击伤害×2。","对下一次肘击的所有段数生效。"],
  "pleasure_conversion":["转换","每20当前快感：能量＋1。","每20当前快感：能量＋1。","向下取整，不消耗快感。"],
- "mana_conversion":["魔法","{mana_cost}能量＋1。","{mana_gain}","固定兑换，不受耗魔倍率或施法返还影响。"],
+ "mana_conversion":["魔法","{mana_cost}能量＋1。","{mana_gain}","固定兑换不受遗物施法返还影响；失败仍返还50%耗魔。"],
  "mana_surge":["魔法","{mana_cost}{bound_effects}","{mana_cost}{self_free_effects}",""],
  "henshin":["魔法","{mana_cost}解除全部拘束具与捕缚。打出时播放dj版雨爱。","{mana_cost}本场全部伤害×2。打出时播放dj版雨爱。","伤害加倍同源不叠加。"],
  "focus":["技能","{bound_effects}","{self_free_effects}",""],
@@ -119,7 +127,7 @@ static var CARD_INFO = {"hannya_1":["技能","力量＋1，灵巧＋1，魔力�
  "magic_slip":["魔法","{mana_cost}魔法滑脱{base}。","{free_effects}",""]
 }
 
-static func card_info(type: String, mana: Variant=null, base: Variant=null, inline_mana: bool=true) -> Array:
+static func card_info(type: String, mana: Variant=null, base: Variant=null, inline_mana: bool=true, worn_count: Variant=null) -> Array:
  var rules=preload("res://data/card_rules.gd")
  var spec=rules.SPECS[type]
  var values={"follow_through":rules.FOLLOW_THROUGH_TEXT}
@@ -135,6 +143,11 @@ static func card_info(type: String, mana: Variant=null, base: Variant=null, inli
   values.free_effects="；".join(effects)+("。" if not effects.is_empty() else "")
  if spec.has("self_faces"):
   for side in ["bound","free"]:
+   var face=spec.self_faces[side]
+   if face.has("worn_resource"):
+    values[side+"_worn_gain"]=("佩戴件数" if face.worn_resource.divisor==1 else "⌊佩戴件数÷%d⌋" % face.worn_resource.divisor) if worn_count==null else str(rules.worn_gain(face,int(worn_count)))
+    values[side+"_worn_divisor"]=str(face.worn_resource.divisor)
+    values[side+"_worn_preview"]="" if worn_count==null else "\n当前："+(("恢复%s魔力。" % values[side+"_worn_gain"]) if face.worn_resource.resource=="mana" else ("本回合力量＋%s。" % values[side+"_worn_gain"]))
    var batch=spec.self_faces[side].get("exhaust_hand_batch",{})
    var rewards=[]
    if batch.has("mana_gain"): rewards.append("恢复%s魔力" % str(batch.mana_gain).trim_suffix(".0"))
@@ -149,6 +162,7 @@ static func card_info(type: String, mana: Variant=null, base: Variant=null, inli
   var free=index==2
   var cost=rules.face_mana_base(type,free,SPELL_COST) if mana==null else float(mana)
   var gain=float(spec.get("self_faces",{}).get("free" if free else "bound",{}).get("mana_gain",0))
+  values.optional_draw_cost=String.num(float(spec.get("self_faces",{}).get("free" if free else "bound",{}).get("optional_draw",{}).get("mana_cost",0)),2).trim_suffix(".0")
   values.mana_cost=("耗魔"+(str(mana).trim_suffix(".0") if mana!=null else String.num(cost,2).trim_suffix(".0"))+"。") if inline_mana and cost>0 else ""
   values.mana_gain=("魔力＋"+String.num(gain,2).trim_suffix(".0")+"。") if inline_mana and gain>0 else ""
   result[index]=result[index].format(values)
@@ -158,14 +172,15 @@ static func card_info(type: String, mana: Variant=null, base: Variant=null, inli
   result[side]+=spec.get("play_music_text","")
   if traits.get("unplayable",false): result[side]="不可打出。"+result[side]
   if traits.get("retain",false): result[side]+="保留。"
+  if rules.unique_face(type,side==2): result[side]+="唯一。"
   if traits.get("exhaust",false): result[side]+="消耗。"
   if traits.get("ethereal",false): result[side]+="虚无。"
   if traits.get("innate",false): result[side]="固有。"+result[side]
  return result
 
-static func card_metadata(type: String, mana_costs: Dictionary={}, base: Variant=null) -> Dictionary:
+static func card_metadata(type: String, mana_costs: Dictionary={}, base: Variant=null, worn_count: Variant=null) -> Dictionary:
  var costs={}
  for side in ["bound","free"]: costs[side]=mana_costs.get(side,preload("res://data/card_rules.gd").face_mana_base(type,side=="free",SPELL_COST))
- var result=preload("res://data/card_text.gd").metadata(type,CARD_TRAITS.get(type,{}),SLOT_NAMES,costs)
- result.face_effects={"bound":card_info(type,costs.bound,base,false)[1],"free":card_info(type,costs.free,base,false)[2]}
+ var result=preload("res://data/card_text.gd").metadata(type,CARD_TRAITS.get(type,{}),SLOT_NAMES,costs,worn_count)
+ result.face_effects={"bound":card_info(type,costs.bound,base,false,worn_count)[1],"free":card_info(type,costs.free,base,false,worn_count)[2]}
  return result

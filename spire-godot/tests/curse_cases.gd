@@ -43,10 +43,10 @@ static func run(t) -> void:
  t.check(view.hand.filter(func(c):return c.uid==card.uid)[0].retained,"CURSE innate retain shown immediately")
  P.gain(g,40,"测试来源")
  t.check(is_equal_approx(g.state.pressure,48) and g.state.logs.back().data.base_gain==40 and is_equal_approx(g.state.logs.back().data.gain_multiplier,1.2),"CURSE shared gain scales once and records base plus actual amount")
- t.check(t.action(g,"calm").ok and is_equal_approx(g.state.pressure,23),"CURSE lowering pressure is not multiplied")
+ t.check(t.action(g,"calm").ok and is_equal_approx(g.state.pressure,28),"CURSE lowering pressure is not multiplied")
  var copy=give(g,"sensitive")
  P.gain(g,10,"另一来源")
- t.check(is_equal_approx(g.state.pressure,37.4),"CURSE two actual hand copies multiply to 1.44")
+ t.check(is_equal_approx(g.state.pressure,42.4),"CURSE two actual hand copies multiply to 1.44")
  g.state.hand.erase(copy);g.state.discard.append(copy)
  t.check(is_equal_approx(g.Cards.hand_multiplier(g,"pleasure_multiplier"),1.2),"CURSE discarded copy immediately stops effect")
  g.state.hand.erase(card);g.state.exhaust.append(card)
@@ -71,7 +71,7 @@ static func run(t) -> void:
  g=Game.new(42);card=give(g,"sensitive")
  g.state.pressure_sources=[preload("res://tests/pressure_cases.gd").source("curse_end","turn_end",10)]
  t.check(g.Pressure.action_risk(g,{"kind":"end"}).contains("12"),"CURSE turn-end preview includes hand multiplier")
- t.check(t.action(g,"end").ok and is_equal_approx(g.state.pressure,12),"CURSE formal turn-end source uses shared multiplier")
+ t.check(t.action(g,"end").ok and is_equal_approx(g.state.pressure,10),"CURSE formal turn-end source multiplies gain before fixed free cooling")
  g=Game.new(42);card=give(g,"sensitive")
  var type=g.SpecialEquipment.TYPES.keys().filter(func(id):return g.SpecialEquipment.TYPES[id].energy_gain>0)[0]
  var item=g._install_special(type,g.SpecialEquipment.DESIGNS[type].slots[0])

@@ -12,6 +12,7 @@ static func cast(t,g,type: String,free: bool) -> Dictionary:
  return t.action(g,"card",{"uid":card.uid,"free":free})
 
 static func run(t) -> void:
+ preload("res://tests/confluence_cases.gd").run(t)
  preload("res://tests/hannya_cases.gd").run(t)
  preload("res://tests/siphon_strength_cases.gd").run(t)
  preload("res://tests/shared_fate_cases.gd").run(t)
@@ -37,7 +38,7 @@ static func run(t) -> void:
  var c=t.find_action(g,"attack",{"type":"fireball"})
  t.check(c.payload.damage==g.B.FIREBALL*4 and g.get_view().statuses.filter(func(e):return e.id.begins_with("power_")).size()==3,"BUFF damage preview and separate status entries reflect all sources")
  var copy=give(t,g,"henshin");var before=g.export_snapshot()
- t.check(t.find_action(g,"card",{"uid":copy.uid,"free":true}).reason=="henshin已生效，不能重复叠加。" and g.B.card_info("henshin")[3].contains("同源不叠加"),"HENSHIN face and duplicate reason clearly explain single effect")
+ t.check(t.find_action(g,"card",{"uid":copy.uid,"free":true}).reason=="唯一：henshin已生效，不能重复叠加。" and g.B.card_info("henshin")[3].contains("同源不叠加"),"HENSHIN face and duplicate reason clearly explain single effect")
  t.check(not t.action(g,"card",{"uid":copy.uid,"free":true}).ok and g.state==before,"BUFF duplicate source rejects before payment")
  var restored=Save.roundtrip(t,g,"dual powers and damage source")
  if restored!=null: t.check(restored.Cards.damage_multiplier(restored,"fireball")==4,"BUFF restored effects derive from their original sources")
@@ -87,7 +88,7 @@ static func run(t) -> void:
   copy=give(t,g,"mana_conversion");c=t.find_action(g,"card",{"uid":copy.uid,"free":free})
   before=g.export_snapshot()
   t.check(c.valid and c.mana==(0 if free else 10) and g.dispatch(c.id,g.state.version).ok,"CONVERSION either face uses normal probabilistic spell submission with fixed payment")
-  t.check(g.state.mana==before.mana-c.mana_payment.mana and g.state.energy==before.energy-c.cost and g.state.temporary_mana==(5 if free else 0) and g.state.hand.any(func(x):return x.uid==copy.uid),"CONVERSION failed exchange spends cost without gain, uses temporary mana and keeps card")
+  t.check(g.state.mana==before.mana-c.mana_payment.mana*0.5 and g.state.energy==before.energy-c.cost and g.state.temporary_mana==before.temporary_mana-c.mana_payment.temporary_mana*0.5 and g.state.hand.any(func(x):return x.uid==copy.uid),"CONVERSION failed exchange spends cost without gain, uses temporary mana and keeps card")
   t.check(g.state.rng.magic==before.rng.magic+1 and not g.state.logs.filter(func(x):return x.data.has("spell")).back().data.spell.success,"CONVERSION failure uses the shared casting random domain")
  g=Game.new(42);g.state.energy=0;copy=give(t,g,"mana_conversion");before=g.export_snapshot()
  t.check(not t.action(g,"card",{"uid":copy.uid,"free":true}).ok and g.state==before,"CONVERSION printed zero still requires actual one energy")
@@ -96,11 +97,12 @@ static func run(t) -> void:
 
  for free in [false,true]:
   g=Game.new(42)
-  t.check(cast(t,g,"mana_surge",free).ok and g.state.mana==95 and g.state.charge==2 and g.state.exhaust.back().type=="mana_surge","SURGE either face pays five, gains two charges and exhausts")
+  if free: g.state.mana=0
+  t.check(cast(t,g,"mana_surge",free).ok and g.state.mana==(0 if free else 95) and g.state.charge==(0 if free else 2) and g.state.temporary_mana==(10 if free else 0) and g.state.exhaust.back().type=="mana_surge","SURGE bound pays five for charges; free works with zero mana for ten temporary mana; both exhaust")
  g=Game.new(42);g.state.pressure=99;copy=give(t,g,"mana_surge")
  c=t.find_action(g,"card",{"uid":copy.uid,"free":true})
  var mana=g.state.mana
- t.check(c.valid and g.dispatch(c.id,g.state.version).ok and g.state.charge==0 and g.state.mana==mana-c.mana and g.state.hand.any(func(x):return x.uid==copy.uid) and g.state.exhaust.is_empty(),"SURGE failed cast pays and keeps exhaust card without granting charges")
+ t.check(c.valid and g.dispatch(c.id,g.state.version).ok and g.state.charge==0 and is_equal_approx(g.state.mana,mana-c.mana*0.5) and g.state.hand.any(func(x):return x.uid==copy.uid) and g.state.exhaust.is_empty(),"SURGE failed cast pays and keeps exhaust card without granting charges")
 
  g=Game.new(42);preload("res://tests/link_cases.gd").precise_tool_fixture(g);g.add_fixture("wrist",8,10,true)
  var tools=g.state.items.duplicate(true)

@@ -1,6 +1,6 @@
 # 紧缚尖塔
 
-当前版本：0.15。Godot 4.7.2 项目，支持 Windows 与 Android。
+当前版本：0.16。Godot 4.7.2 项目，支持 Windows 与 Android。
 
 ## 许可
 

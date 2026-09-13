@@ -118,7 +118,7 @@ static func run(t) -> void:
   root=g._install_assembly("wrap",side,"fixture",1,1)
   body=piece(g,root.id,"body")
   t.check(g.hand_blocked("fingers",side) and not g.occupied("fingers") and g.level("arms")==1,"WRAP one side contributes one arm point without disabling both hands")
-  var free=t.hand_card(g,"unlock")
+  var free=t.grant_fixture_card(g,"unlock")
   t.check(not t.find_action(g,"card",{"uid":free.uid,"slot":"fingers","free":true}).valid,"WRAP single free hand does not meet default spell condition")
   g.RelicEffects.gain(g,"casting_manual")
   t.check(t.find_action(g,"card",{"uid":free.uid,"slot":"fingers","free":true}).valid,"WRAP casting manual permits opposite intact hand for spell preparation")

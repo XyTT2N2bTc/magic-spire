@@ -30,6 +30,8 @@ static func battle_rewards(g, actions: Array) -> Array:
  if not g.state.boss_relic_options.is_empty():
   rows.append({"id":"","category":"relic","symbol":g.state.boss_relic_options[0],"name":"选择一件Boss遗物","subtitle":"三选一","detail":"从本次Boss遗物奖励中选择一件。","claimed":claimed.has("relic"),"available":true,"reason":"","choices":g.Relics.view(g.state.boss_relic_options)})
   if claimed.has("relic"): rows.back().subtitle="已跳过" if claimed.relic=="skip" else "已获得「"+g.Relics.TYPES[claimed.relic].name+"」"
+ if g.state.battle_flask_drop>0:
+  rows.append({"id":"","category":"flask","symbol":"mana_potion","name":"%d 魔瓶魔力" % g.state.battle_flask_drop,"subtitle":"Boss奖励 · 存入贴身魔瓶","detail":"领取后，贴身魔瓶获得%d魔力，不占用存入次数。" % g.state.battle_flask_drop,"claimed":claimed.has("flask"),"available":true,"reason":""})
  return rows
 
 static func reward_panel(g, actions: Array) -> Dictionary:
@@ -99,6 +101,7 @@ const Equipment = preload("res://data/equipment.gd")
 const Tower = preload("res://data/tower.gd")
 
 static func equipment_entry(g, e: Dictionary, slot: String) -> Dictionary:
+ var lock_only=Equipment.lock_only(e)
  var linked=e.template=="link_rope"
  var current_tier=g.tier(g._effective_ratio(e),1.0) if e.has("parent_id") else g.tier(e.durability,e.maximum)
  var card_status=[]
@@ -114,16 +117,25 @@ static func equipment_entry(g, e: Dictionary, slot: String) -> Dictionary:
   description+="\n遗留外带 · 套体已解除，这条外带仍然固定。"
   card_status.append("遗留外带")
  var summary=description
+ if lock_only:
+  current_tier=0
+  description="位置：颈部\n无耐久 · 不计入拘束具件数\n佩戴时不能使用普通 henshin。\n"+Equipment.LOCK_ONLY_REASON
+  summary=description
+  card_status.append("已上锁" if e.locked else "已开锁 · 双臂自由后可取下")
  if g.SpecialEquipment.is_special(e):
-  description+="\n"+g.SpecialEquipment.description(e,g.Pressure.gain_multiplier(g),g.tier(e.durability,e.maximum),g.cursed_plate(e))
+  var special_slots=g.SpecialEquipment.TYPES[e.type].get("turn_stimulates",g.SpecialEquipment.TYPES[e.type].stimulates)
+  description+="\n"+g.SpecialEquipment.description(e,g.Pressure.source_multiplier(g,special_slots),g.tier(e.durability,e.maximum),g.cursed_plate(e),{"climax_factor":g.state.chastity_climax_factor,"masochist":g.state.cursed_plate_masochist_mode,"session_turn":g.state.combat.turn,"session_active":g.state.combat.active})
   if g.SpecialEquipment.is_chastity(e):
    var lock_state="已上锁" if e.locked else "锁已打开"
    card_status.append(lock_state)
    description+="\n状态："+lock_state
   if g.Links.is_crotch_anchor(e): description+="\n可连接手腕或大腿根装备：对手腕算下端，对大腿根算上端。"
   var spec=g.SpecialEquipment.TYPES[e.type]
-  if spec.turn_gain>0: card_status.append(("电量剩余%d回合" % e.remaining) if spec.duration>0 and e.remaining>0 else ("电量耗尽" if spec.duration>0 else "持续生效"))
-  if spec.energy_gain>0 and (spec.duration==0 or e.remaining>0): card_status.append("消耗能量时，快感＋%s" % g.number(g.SpecialEquipment.gain(e,"energy")*g.Pressure.gain_multiplier(g)))
+  if spec.turn_gain>0:
+   if g.SpecialEquipment.is_cursed_plate(e) and not g.state.cursed_plate_masochist_mode:
+    card_status.append("跳蛋：本场前6回合" if not g.state.combat.active or g.state.combat.turn<=g.SpecialEquipment.CURSED_VIBRATOR_TURNS else "跳蛋：本场已停止")
+   else: card_status.append(("电量剩余%d回合" % e.remaining) if spec.duration>0 and e.remaining>0 else ("电量耗尽" if spec.duration>0 else "持续生效"))
+  if spec.energy_gain>0 and (spec.duration==0 or e.remaining>0): card_status.append("牵扯（消耗能量时）：快感＋%s" % g.number(g.SpecialEquipment.gain(e,"energy")*g.Pressure.gain_multiplier(g)))
  if "eyes" in Equipment.coverage(e):
   description+="\n视觉受阻 · 意图不可见"
   summary+="\n视觉受阻 · 无法观察敌人意图。"
@@ -135,7 +147,7 @@ static func equipment_entry(g, e: Dictionary, slot: String) -> Dictionary:
   description+="\n连接："+" ↔ ".join(ends)
   if not blocked.is_empty(): description+="\n阻止滑脱："+"、".join(blocked)
   summary+="\n同一条绳，两处共享耐久；不占部位容量。"
- else:
+ elif not lock_only:
   var reason=g._slip_reason(e)
   if reason!="": description+="\n"+reason
  if e.template in ["glove_body","leg_body","jacket_body","hand_wrap"]:
@@ -145,7 +157,7 @@ static func equipment_entry(g, e: Dictionary, slot: String) -> Dictionary:
  elif e.template=="glove_strap":
   summary+="\n自身滑脱计算紧度：%s%%。" % g.number(g._effective_ratio(e)*100)
   description+="\n计算紧度：%s%%" % g.number(g._effective_ratio(e)*100)
- return {"id":e.id,"name":g._equipment_name(e),"image":preload("res://data/equipment_images.gd").path(e),"card_status":"\n".join(card_status),"lockable":Equipment.allows(e,"lock") or g.SpecialEquipment.is_chastity(e),"slot":slot,"tier":current_tier,"durability":e.durability,"maximum":e.maximum,"ratio":e.durability/e.maximum,"locked":e.locked,"linked":linked,
+ return {"id":e.id,"name":g._equipment_name(e),"image":preload("res://data/equipment_images.gd").path(e),"card_status":"\n".join(card_status),"lock_only":lock_only,"lockable":Equipment.allows(e,"lock") or g.SpecialEquipment.is_chastity(e),"slot":slot,"tier":current_tier,"durability":e.durability,"maximum":e.maximum,"ratio":e.durability/e.maximum,"locked":e.locked,"linked":linked,
   "root_id":e.get("root_id",""),"part":e.get("part",""),"position_text":Equipment.position_text(e),"sort_order":Equipment.anatomical_order(e),"material_name":Equipment.material_name(e),"methods":Equipment.method_text(e),"description":description,"summary":summary}
 
 # Read-only projection. All gameplay changes remain in game.gd.
@@ -185,7 +197,7 @@ static func build(g) -> Dictionary:
   info[1]=g.Cards.face_text(g,card.type,false,card.uid)
   info[2]=g.Cards.face_text(g,card.type,true,card.uid)
   var bound=info[1]
-  hand.append({"uid":card.uid,"type":card.type,"name":B.CARD_NAMES[card.type],"cost":"—" if B.CARD_TRAITS.get(card.type,{}).get("unplayable",false) else str(g.Cards.Rules.SPECS[card.type].cost),"tag":info[0],"bound":bound,"free":info[2],"note":info[3],"retained":B.CARD_TRAITS.get(card.type,{}).get("retain",false) or card.retain_until>state.tick,"single_face":g.Cards.Rules.single_face(card.type)})
+  hand.append({"uid":card.uid,"type":card.type,"name":B.CARD_NAMES[card.type],"cost":"—" if B.CARD_TRAITS.get(card.type,{}).get("unplayable",false) else g.Cards.Rules.energy_label(card.type),"tag":info[0],"bound":bound,"free":info[2],"note":info[3],"retained":B.CARD_TRAITS.get(card.type,{}).get("retain",false) or card.retain_until>state.tick,"single_face":g.Cards.Rules.single_face(card.type)})
   hand.back().merge(g.Cards.Rules.classification(card.type))
   hand.back().merge(g.Cards.metadata(g,card.type,card.uid))
   var choices=actions.filter(func(c):return c.payload.get("uid","")==card.uid and c.payload.kind in ["card","prison"])
@@ -259,9 +271,9 @@ static func build(g) -> Dictionary:
    if g.Cards.Rules.SPECS[card.type].has("damage_growth") or g.Cards.Rules.SPECS[card.type].has("hannya_stage"):
     card_instances[card.uid]={"bound":g.Cards.face_text(g,card.type,false,card.uid),"free":g.Cards.face_text(g,card.type,true,card.uid)}
     card_instances[card.uid].merge(g.Cards.metadata(g,card.type,card.uid))
- for type in g.Cards.Rules.SPECS: costs[type]=str(g.Cards.Rules.SPECS[type].cost)
+ for type in g.Cards.Rules.SPECS: costs[type]=g.Cards.Rules.energy_label(type)
  for type in g.Cards.Rules.SPECS:
-  card_texts[type]={"bound":g.Cards.face_text(g,type,false),"free":g.Cards.face_text(g,type,true),"face_costs":{"bound":"—" if B.CARD_TRAITS.get(type,{}).get("unplayable",false) else str(g.Cards.energy_cost(g,type,false)),"free":"—" if B.CARD_TRAITS.get(type,{}).get("unplayable",false) else str(g.Cards.energy_cost(g,type,true))}}
+  card_texts[type]={"bound":g.Cards.face_text(g,type,false),"free":g.Cards.face_text(g,type,true),"face_costs":{"bound":"—" if B.CARD_TRAITS.get(type,{}).get("unplayable",false) else g.Cards.energy_label(g,type,false),"free":"—" if B.CARD_TRAITS.get(type,{}).get("unplayable",false) else g.Cards.energy_label(g,type,true)}}
   card_texts[type].merge(g.Cards.metadata(g,type))
   if not g.Cards.Rules.cast_profile(type).is_empty(): card_texts[type].casting=g.cast_view(g.Cards.cast_profile(g,type))
  var chain={} if state.card_chain.is_empty() else {"name":B.CARD_NAMES[state.card_chain.type],"remaining":state.card_chain.remaining}
@@ -296,6 +308,7 @@ static func travel_log(logs: Array) -> Array:
 static func body_groups(g, bodies: Array, special_regions: Array) -> Array:
  var result=[]
  for panel in g.Equipment.panel_groups():
+  if not g.Character.has_slot(g,panel.id): continue
   var definition=panel.slots
   if panel.special:
    var region=special_regions.filter(func(r):return r.id==panel.id)[0]

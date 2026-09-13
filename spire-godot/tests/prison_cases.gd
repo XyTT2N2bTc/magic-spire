@@ -118,6 +118,8 @@ static func run(t) -> void:
  patrol_period_cases(t)
  escape_route_cases(t)
  security_cases(t)
+ intake_floor_cases(t)
+ collar_cases(t)
  toy_inspection_cases(t)
  practice_cases(t)
  remaining_routes(t)
@@ -220,10 +222,10 @@ static func run(t) -> void:
 
  # Door unlocking consumes the same actual card/reserves; speed is rechecked at exit.
  g=intake(t); clear_fixture(g);Spatial.at_site(g,"door");g.state.posture="stand"
- var card=t.hand_card(g,"unlock")
+ var card=t.grant_fixture_card(g,"unlock")
  g.state.temporary_mana=5;g.state.pressure=70;g.state.energy=0
  var c=t.find_action(g,"prison",{"action":"unlock"})
- t.check(c.valid and c.cost==0 and c.mana==g._mana_cost(B.SPELL_COST),"PRISON door card uses zero bound energy and pressure-adjusted magic with actual reserves")
+ t.check(c.valid and c.cost==0 and c.mana==B.SPELL_COST and c.mana_payment.temporary_mana==5,"PRISON high-pressure door card uses base mana and original temporary reserve payment")
  energy=g.state.energy;mana=g.state.mana
  # Deterministic success fixture; the spell still uses the formal random gate.
  for counter in range(10000):
@@ -295,7 +297,7 @@ static func run(t) -> void:
   g=intake(t,safety)
   t.check(g.state.prison.left==B.PRISON_INTERVALS[safety-1],"PRISON higher security retains its shorter inspection interval")
  g=intake(t);clear_fixture(g)
- card=t.hand_card(g,"unlock")
+ card=t.grant_fixture_card(g,"unlock")
  var fingers=g._install_template("cord","fingers",4,10,false,"fixture")
  t.check(not fingers.is_empty() and g.occupied("fingers"),"PRISON gesture fixture uses legal fine restraint")
  before=JSON.stringify(g.state)
@@ -329,7 +331,7 @@ static func remaining_routes(t) -> void:
  t.check(entered.ok and g.state.phase=="prison_end","TERMINAL formal entry installs fixed configuration: "+entered.get("error",""))
  t.check(g.state.capture.has("terminal_equipment"),"TERMINAL records high-security physical equipment")
  t.check(preserved.all(func(e):return g._equipment(e.id).template==e.template) and g.level("arms")==4 and g.level("legs")==4 and g.occupied("mouth") and g.occupied("eyes"),"TERMINAL prior closed structures retained with actual complete coverage")
- t.check(g.equipment_targets().all(func(e):return e.grade==3 and e.maximum==24 and e.durability==24 and e.locked==g.Equipment.allows(e,"lock")),"TERMINAL actual highest grade, tightness and legal locks")
+ t.check(g.equipment_targets().all(func(e):return e.locked if g.Equipment.lock_only(e) else e.grade==3 and e.maximum==24 and e.durability==24 and e.locked==g.Equipment.allows(e,"lock")),"TERMINAL highest grade/tightness and locked durability-free collar")
  t.check(g.B.SLOTS.all(func(slot):return g._installation_reason(g.Equipment.default_template(slot),slot,3)!=""),"TERMINAL every legal ordinary slot filled or structurally closed")
  t.check(g.validate()=="","TERMINAL ordinary capacity and closure rules still valid")
  var before=g.state.duplicate(true)
@@ -398,14 +400,16 @@ static func security_cases(t) -> void:
   var grade=expected[level-1][0];var tier=expected[level-1][1]
   t.check(handbook.category=="prison" and handbook.text.contains("%d级：%s，%d档，%s。" % [level,g.Equipment.GRADES[grade],tier,"普通或复合" if level>=3 else "仅普通"]),"PRISON handbook explains the actual security equipment table")
   var roots=(g.state.equipment+g.state.composites).filter(func(e):return e.id in g.state.capture.added)
-  t.check(roots.size()==level+B.CAPTURE_EXTRA_BASE and g.state.capture.baseline==g.equipment_targets().map(func(e):return e.id),"PRISON security %d counts roots for intake and physical components for registration" % level)
-  t.check(g.equipment_targets().all(func(e):return e.grade==grade and g.tier(e.durability,e.maximum)==(grade if g.Equipment.is_shoulder(e) else tier)),"PRISON security %d applies actual grade/tier to bodies and links, with native shoulder rules" % level)
+  var intake_quota=B.PRISON_INTAKE[level].floor+B.PRISON_INTAKE[level].extra if level<5 else level+B.CAPTURE_EXTRA_BASE
+  t.check(roots.size()==intake_quota and g.state.capture.baseline==g.equipment_targets().map(func(e):return e.id),"PRISON security %d counts roots for intake and physical components for registration" % level)
+  t.check(g.equipment_targets().filter(func(e):return not g.Equipment.lock_only(e)).all(func(e):return e.grade==grade and g.tier(e.durability,e.maximum)==(tier if e.template=="link_rope" else (maxi(2,grade) if g.Equipment.is_shoulder(e) and level<5 else (2 if level<5 else (grade if g.Equipment.is_shoulder(e) else tier))))),"PRISON intake uses tier two independently from inspection and link profiles")
+  t.check(g.state.equipment.filter(func(e):return g.Equipment.lock_only(e)).size()==(1 if level>=3 else 0),"PRISON restriction collar starts exactly at security three")
   t.check(level>=3 or g.state.composites.is_empty(),"PRISON below security three excludes even basic composite wraps")
   var toy_pool=g.SpecialEquipment.prison_pool(grade,level>=3)
   var crotch_rope="crotch_rope_"+["","low","medium","high"][grade]
   t.check(crotch_rope in toy_pool and toy_pool.all(func(type):return g.SpecialEquipment.DESIGNS[type].grade==grade),"PRISON security %d toy pool keeps crotch ropes and uses the current grade" % level)
   t.check(toy_pool.any(func(type):return g.SpecialEquipment.TYPES[type].family in g.SpecialEquipment.CUP_FAMILIES)==(level>=3),"PRISON cups open exactly from security three")
-  t.check(g.state.capture.special_added.size()==2 and g.state.capture.special_baseline==g.state.special_equipment.map(func(e):return e.id) and g.state.special_equipment.all(func(e):return e.type in toy_pool),"PRISON intake adds two legal security-grade sex toys and records their actual ids")
+  t.check(g.state.capture.special_added.size()==(B.PRISON_INTAKE[level].special if level<5 else 2) and g.state.capture.special_baseline==g.state.special_equipment.map(func(e):return e.id) and g.state.special_equipment.all(func(e):return e.type in toy_pool),"PRISON intake adds the tier-specific number of legal special roots")
   var before=g.state.duplicate(true)
   var view=g.get_view()
   t.check(view.prison.equipment_rule==g.Prison.equipment_label(g) and view.prison.equipment_rule.contains("复合")== (level>=3) and g.state==before and g.validate()=="","PRISON security profile projection agrees with legal generation and is readonly")
@@ -429,6 +433,77 @@ static func security_cases(t) -> void:
   t.check(roots.size()==event.installed.size() and roots.size()<=quota and roots.all(func(root):return root.grade==grade if not root.has("components") else root.components.all(func(e):return e.grade==grade)),"PRISON mixed inspection quota counts actual roots, not component count")
   t.check(roots.all(func(root):return g.tier(root.durability,root.maximum)==tier if not root.has("components") else root.components.all(func(e):return g.tier(e.durability,e.maximum)==(grade if g.Equipment.is_shoulder(e) else tier))),"PRISON fresh inspection equipment keeps its profile instead of being tightened with old gear")
   t.check(g.state.prison.baseline==g.equipment_targets().map(func(e):return e.id) and g.validate()=="","PRISON mixed replacement leaves a complete valid component manifest")
+
+static func intake_floor_cases(t) -> void:
+ for amount in [5,6,7]:
+  var g=Game.new(42,true,"guard")
+  g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+  for i in range(amount):
+   if i<6: g._install_template("belt","calf",4.0,10.0,false,"fixture",1,-1,0,"mid_calf" if i>=3 else "below_knee")
+   else: g.add_fixture("ankle",4.0)
+  var old=g.state.equipment.map(func(e):return e.id)
+  Guard.capture(g,g.state.enemies[0])
+  t.check(g.Cards.worn_count(g,false)==(8 if amount<6 else amount) and g.state.capture.added.size()==(8-amount if amount<6 else 0),"PRISON below/equal/above floor uses whole-piece intake count")
+  t.check(old.all(func(id):return not g._equipment(id).is_empty() and g.tier(g._equipment(id).durability,g._equipment(id).maximum)==2),"PRISON intake preserves old identities and applies tier two or one-step tightening")
+  t.check(g.validate()=="","PRISON floor boundary leaves legal equipment and capture manifest")
+ var g=Game.new(42,true,"guard")
+ g.state.security=2
+ var collar=g._install_template("restriction_collar","neck",1.0,1.0,false,"fixture",3)
+ var old_special=g.state.special_equipment.map(func(e):return e.id)
+ Guard.capture(g,g.state.enemies[0])
+ t.check(g.state.equipment.filter(func(e):return g.Equipment.lock_only(e)).size()==1 and g._equipment(collar.id).locked,"PRISON reuses and relocks the existing collar without duplication")
+ t.check(old_special.all(func(id):return not g._equipment(id).is_empty()),"PRISON special intake never replaces existing equipment")
+ g=Game.new(42,true,"guard")
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ var host=g.add_fixture("upper_arm",8.0)
+ for slot in ["forearm","wrist","thigh","calf","ankle"]: g.add_fixture(slot,10.0)
+ Guard.capture(g,g.state.enemies[0])
+ t.check(g.state.capture.added.is_empty() and g.tier(g._equipment(host.id).durability,g._equipment(host.id).maximum)==3 and g.physical_pieces().all(func(e):return g.tier(e.durability,e.maximum)>=2),"PRISON sufficient intake caps existing tiers and raises newly created straps to tier two")
+
+static func collar_cases(t) -> void:
+ var Cards=preload("res://tests/curse_cases.gd")
+ var g=Game.new(42)
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ var collar=g._install_template("restriction_collar","neck",1.0,1.0,true,"fixture",3)
+ t.check(not collar.is_empty() and g.Cards.worn_count(g)==0 and g.Cards.restraint_roots(g).is_empty(),"COLLAR fixed neck item contributes no worn count or draw-trigger count")
+ t.check(not g.EquipmentOffers.ordinary(g,3).any(func(p):return p.template=="restriction_collar"),"COLLAR excluded from random ordinary offers")
+ t.check(g._install_template("restriction_collar","neck",1.0,1.0,true,"fixture",3).is_empty(),"COLLAR repeated installation rejected")
+ var view=g.View.equipment_entry(g,collar,"neck")
+ t.check(view.lock_only and view.description.contains("无耐久") and not view.description.contains("1/1") and view.tier==0 and ResourceLoader.exists(view.image),"COLLAR view has icon and no fabricated durability/tightness")
+ for free in [false,true]:
+  var normal=Cards.give(g,"henshin")
+  var c=t.find_action(g,"card",{"uid":normal.uid,"free":free})
+  var before=g.export_snapshot()
+  t.check(not c.valid and c.reason.contains("限制项圈") and not g.dispatch(c.id,g.state.version).ok and g.state==before,"COLLAR blocks both normal henshin faces atomically")
+ var before=g.export_snapshot()
+ t.check(not t.action(g,"manual",{"target":collar.id}).ok and g.state==before,"COLLAR locked manual removal spends nothing")
+ for kind in ["strain","slip","magic","cut"]: g._apply_equipment_damage(collar,100.0,kind)
+ g._apply_manual_release(collar,0.0)
+ t.check(collar.durability==1.0 and collar.locked,"COLLAR ignores damage and generic automatic release")
+ var arm=g.add_fixture("upper_arm",8.0)
+ var unlock=Cards.give(g,"unlock")
+ g.state.sure_cast=true
+ t.check(t.action(g,"card",{"uid":unlock.uid,"target":collar.id,"free":false}).ok and not g._equipment(collar.id).locked,"COLLAR unlock spell opens lock before arms are free")
+ t.check(not t.find_action(g,"manual",{"target":collar.id}).valid,"COLLAR unlocked still requires both arms free")
+ g._apply_manual_release(g._equipment(arm.id),0.0);g._cleanup()
+ var twin=Game.new(7)
+ t.check(twin.restore_snapshot(g.export_snapshot()).ok and not twin._equipment(collar.id).locked,"COLLAR unlocked intermediate state survives save restoration")
+ var release=t.find_action(g,"manual",{"target":collar.id})
+ before=g.export_snapshot()
+ t.check(not g.dispatch(release.id,g.state.version-1).ok and g.state==before,"COLLAR stale removal leaves lock, equipment and energy unchanged")
+ var energy=g.state.energy
+ t.check(g.dispatch(release.id,g.state.version).ok and g._equipment(collar.id).is_empty() and g.state.energy==energy-1,"COLLAR unlocked and free arms remove whole item for one energy")
+ collar=g._install_template("restriction_collar","neck",1.0,1.0,true,"fixture",3)
+ g._gain_tool("picks")
+ var picks=g.state.items.filter(func(item):return item.type=="picks")[0]
+ var uses=picks.uses
+ t.check(t.action(g,"item_use",{"item":picks.id,"target":collar.id}).ok and not g._equipment(collar.id).locked and g._item(picks.id).uses==uses-1,"COLLAR ordinary carried unlocking tool opens the neck lock and spends one use")
+ for free in [false,true]:
+  g=Game.new(42)
+  collar=g._install_template("restriction_collar","neck",1.0,1.0,true,"fixture",3)
+  g.state.sure_cast=true
+  var perfect=Cards.give(g,"hannya_henshin")
+  t.check(t.action(g,"card",{"uid":perfect.uid,"free":free}).ok and g._equipment(collar.id).is_empty() and g.validate()=="","COLLAR perfect henshin can play either face and directly remove locked collar")
 
 static func toy_inspection_cases(t) -> void:
  var g=intake(t,1);clear_fixture(g)

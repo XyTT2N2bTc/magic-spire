@@ -67,7 +67,7 @@ static func run(t) -> void:
  for i in range(9): Give.give(g,"strain")
  t.check(t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.state.hand.size()==10 and g.state.draw.any(func(v):return v.type=="ease"),"SEARCH full hand frees one slot by playing, then draws only one")
  # Replayed bound effect draws once more but remains a single paid skill.
- g=arranged(["strain","ease","unlock"]);g.state.card_buffs.append("echo_cast_bound");card=Give.give(g,"mana_search")
+ g=arranged(["strain","ease","unlock"]);g.Cards.grant_buff(g,"echo_cast_bound");card=Give.give(g,"mana_search")
  t.check(t.action(g,"card",{"uid":card.uid,"free":false}).ok and g.state.hand.size()==2 and g.state.energy==2 and "echo_cast_bound" not in g.state.card_buffs,"SEARCH compatible with bound-face effect replay")
  g=arranged(["strain","ease"]);card=Give.give(g,"mana_search");g.state.energy=0;before=g.export_snapshot()
  t.check(not t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.state==before,"SEARCH insufficient energy cannot draw or alter piles")

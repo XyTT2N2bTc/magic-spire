@@ -203,14 +203,14 @@ func _more_tests() -> void:
  check(find_action(g,"card",{"uid":card.uid,"slot":"thigh"}).valid,"TC-MAGIC-0001 free preparation ignores mouth penalty")
  check(find_action(g,"attack",{"type":"fireball","enemy":"enemy_1"}).valid and g.cast_view().chance==0.75,"TC-MAGIC-0001 fireball applies mouth chance")
  g.add_fixture("fingers",4)
- card=hand_card(g,"unlock")
+ card=grant_fixture_card(g,"unlock")
  check(not find_action(g,"card",{"uid":card.uid,"slot":"thigh"}).valid,"TC-MAGIC-0001 unlock needs fingers")
 
  g=Game.new()
  e=g.add_fixture("ankle",8,10,true)
  card=hand_card(g,"ease")
  check(action(g,"card",{"uid":card.uid,"slot":"thigh","free":true}).ok and g.state.mana==100 and g.state.temporary_mana==10,"TC-MAGIC-0002 reserve without spending mana")
- card=hand_card(g,"unlock")
+ card=grant_fixture_card(g,"unlock")
  check(action(g,"card",{"uid":card.uid,"target":e.id}).ok,"TC-MAGIC-0003 unlock")
  check(not g._equipment(e.id).locked and g._equipment(e.id).durability==8 and g.state.mana==100 and g.state.energy==2 and g.state.temporary_mana==0,"TC-MAGIC-0003 unlock only changes lock and pays temporary mana with zero energy")
 
@@ -543,6 +543,11 @@ func _architecture_tests() -> void:
   else: check((g.state.prepare_left if phase=="prepare" else g.state.rest_left)==timer-1 and g.state.round==rounds,"TURN preparation timer independent of combat in "+phase)
   check(action(g,"end").ok and g.state.energy==3,"TURN next round does not repeat bonus in "+phase)
   check(g.validate()=="","TURN card conservation after shared boundary in "+phase)
+
+func grant_fixture_card(g, type: String) -> Dictionary:
+ # Tests of non-starter cards declare the extra fixture explicitly.
+ if not g.state.deck.any(func(card):return card.type==type): g._gain_card(type)
+ return hand_card(g,type)
 
 func hand_card(g, type: String) -> Dictionary:
  for c in g.state.hand:

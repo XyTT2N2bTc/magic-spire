@@ -105,7 +105,7 @@ static func run(t) -> void:
  t.check(g.escape_preview(link,"slip",5).reason!="" and g.escape_preview(link,"magic_slip",5).reason!="","LINK no ordinary or magic slip")
  g._gain_card("magic_slip")
  for type in ["slip","magic_slip","ease","unlock"]:
-  var card=t.hand_card(g,type)
+  var card=t.grant_fixture_card(g,type)
   var c=t.find_action(g,"card",{"uid":card.uid,"target":link.id})
   before=JSON.stringify(g.state)
   t.check(not c.valid and not g.dispatch(c.id,g.state.version).ok and JSON.stringify(g.state)==before,"LINK forbidden card does not consume energy, magic or card "+type)

@@ -2,9 +2,10 @@ extends RefCounted
 
 const ENTRY="“欢迎光临呀，zako♡”\n\n“本店不收金币，只收含着魔力的精液。实在不想当场射，用魔瓶里的存货也行。”\n\n“喜欢什么就自己挑吧，付不起可别盯着看太久哦♡”"
 const FLASK_PAYMENT="“用魔瓶付？真没劲。”\n\n“人家还以为能看看你当场射出来的样子呢。”\n\n“商品拿去啦。下次记得用肉棒亲自结账♡”"
-const PLATE_SELF_BLOCK_REASON="平板锁封住了肉棒，无法使用自身魔力结账。可以先使用拘束具解除服务。"
+const PLATE_SELF_BLOCK_REASON="平板锁阻止自身魔力结账；普通平板锁的解除除外。"
+const CURSED_PLATE_SERVICE_REASON="佩戴诅咒平板锁时，无法使用拘束解除服务。"
 const PLATE_SELF_BROWSE=[
- "店主瞥了一眼你胯间的平板锁。\n\n“这么粗的肉棒，却被锁在这么小的地方，硬都硬不起来，只会从下面流水♡”\n\n“先去买拘束具解除服务吧。不开锁，你拿什么付钱呀，zako？”"
+ "店主瞥了一眼你胯间的平板锁。\n\n“这么粗的肉棒，却被锁在这么小的地方，硬都硬不起来，只会从下面流水♡”\n\n“需要结账就用魔瓶吧。”"
 ]
 
 const BROWSE=[

@@ -38,12 +38,15 @@ const RED=Palette.RED
 const INK=Palette.INK
 const ENEMY_STAGE_LEFT=788.0
 const ENEMY_STAGE_WIDTH=780.0
-const ENEMY_GROUP_WIDTH=260.0
+const ENEMY_GROUP_WIDTH=280.0
+const HERO_STAGE_RECT=Rect2(442.1,170.5,295.8,331.5)
+const HERO_STATUS_RECT=Rect2(386,196,52,306)
 
 var enemy_feedback: Control
 var resource_feedback: Control
 var card_motion: Control
 var attack_forms: Dictionary={}
+var selected_character="original"
 var feedback_duration=1.3
 var display_settings=preload("res://ui/display_settings.gd").new()
 var localization=preload("res://ui/localization.gd").new()
@@ -70,6 +73,8 @@ var reward_card_row=""
 var show_reward_relics=false
 var show_body=false
 var show_log=false
+var show_feedback=false
+var feedback_report: Node
 var term_popup: PanelContainer
 var term_anchor: Control
 var show_deck=false
@@ -96,7 +101,7 @@ var surrender_version=-1
 var show_encyclopedia=false
 var show_tutorial=false
 var tutorial_category=""
-const DRAWERS=["show_encyclopedia","show_shop_service","show_menu","show_tutorial","show_log","show_deck","show_event_selection","show_items","show_hook","show_pressure","show_settings","show_saves","show_options"]
+const DRAWERS=["show_feedback","show_encyclopedia","show_shop_service","show_menu","show_tutorial","show_log","show_deck","show_event_selection","show_items","show_hook","show_pressure","show_settings","show_saves","show_options"]
 var seed_text="20260906"
 var card_faces={}
 var card_draw_serials={}
@@ -149,21 +154,20 @@ func _ready() -> void:
  if OS.has_feature("android"): get_tree().quit_on_go_back=false
  touch_input=preload("res://ui/touch_input.gd").new();touch_input.host=self;add_child(touch_input)
  keyboard_input=preload("res://ui/keyboard_input.gd").new();keyboard_input.host=self;add_child(keyboard_input)
+ feedback_report=preload("res://ui/feedback_report.gd").new();feedback_report.host=self;add_child(feedback_report)
  get_window().title=ProjectSettings.get_setting("application/config/name")
  shop_chatter_rng.randomize()
  display_settings.initialize(get_window(),persistence_enabled)
  localization.set_locale(display_settings.locale)
  card_music=preload("res://ui/card_music.gd").new();add_child(card_music)
  card_music.configure(display_settings.card_music_enabled,display_settings.card_music_volume)
- var font=SystemFont.new()
- font.font_names=localization.font_names()
- theme=Palette.controls(font)
+ theme=Palette.controls()
  _restore_startup()
  render(view)
 
 func _save_progress(replace_incompatible: bool=false) -> void:
  if not persistence_enabled or save_suspended or not session_started: return
- var result=saves.write_game(game,replace_incompatible)
+ var result=saves.write_game(game,replace_incompatible,map_drawings)
  save_failed=not result.ok
  if not result.ok and result.get("code","")=="version": save_suspended=true
  save_notice=result.message if result.ok else result.error
@@ -213,7 +217,7 @@ func _drawer_shell(title: String, rect: Rect2, tone: Color=CYAN) -> VBoxContaine
  var shade=StyleBoxFlat.new();shade.bg_color=Color(0.015,0.025,0.04,0.55)
  for state in ["normal","hover","pressed","focus"]: dismiss.add_theme_stylebox_override(state,shade)
  dismiss.pressed.connect(func():_close_drawers();_refresh_drawers())
- _place(dismiss,Rect2(0,0,1600,900) if show_home or show_deck or show_event_selection else Rect2(376,64,1224,836))
+ _place(dismiss,Rect2(0,0,1600,900) if show_home or show_deck or show_event_selection or show_feedback else Rect2(376,64,1224,836))
  var panel=_panel(rect);panel.z_index=230;panel.name="InformationDrawer"
  var content=VBoxContainer.new();content.add_theme_constant_override("separation",12);panel.add_child(content)
  var heading=HBoxContainer.new();content.add_child(heading)
@@ -258,21 +262,23 @@ func _continue_save(slot: String) -> void:
   _save_unavailable(result.error);return
  show_saves=false;save_failed=false;save_suspended=false
  save_notice="已恢复场景起点备份。" if result.backup else "已回到当前场景开始。"
- _resume_snapshot(result.snapshot)
+ _resume_snapshot(result.snapshot,result.map_drawings)
 
-func _resume_snapshot(snapshot: Dictionary) -> bool:
+func _resume_snapshot(snapshot: Dictionary, drawings: Dictionary={}) -> bool:
  var restored=game.restore_snapshot(snapshot)
  if not restored.ok:
   _save_unavailable(restored.error);return false
  var initial=game.get_view()
+ var restored_drawings=drawings.duplicate(true)
  _reset_interface(initial)
+ map_drawings=restored_drawings
  render(initial)
  _animate_cards(initial.hand.map(func(card):return {"kind":"draw","uid":card.uid,"type":card.type}),{})
  return true
 
 func _quick_sl() -> void:
  if view.demo_finished: return
- if _resume_snapshot(game.restart_snapshot()): _save_progress()
+ if _resume_snapshot(game.restart_snapshot(),map_drawings): _save_progress()
 
 func _save_unavailable(message: String) -> void:
  save_notice=message;save_failed=true;save_suspended=true
@@ -287,12 +293,12 @@ func _text(key: String, fallback: String, params: Dictionary={}) -> String:
 func _set_language(language: String) -> void:
  if not display_settings.set_locale(language): return
  localization.set_locale(language)
- var font=SystemFont.new();font.font_names=localization.font_names()
- theme=Palette.controls(font)
+ theme=Palette.controls()
  render(view)
 
 func _label(text: String, fs: int=16, color: Color=TEXT) -> Label:
  var l=Label.new()
+ text=localization.display(text)
  l.text=text.replace("右键","长按") if OS.has_feature("android") else text
  l.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
  l.add_theme_font_size_override("font_size",fs)
@@ -302,7 +308,7 @@ func _label(text: String, fs: int=16, color: Color=TEXT) -> Label:
 
 func _button(text: String, fn: Callable, color: Color=GOLD, drop_zone: bool=false) -> Button:
  var b=DropTarget.new() if drop_zone else Button.new()
- b.text=text
+ b.text=localization.display(text)
  for state in ["normal","hover","pressed","focus","disabled"]:
   b.add_theme_stylebox_override(state,Palette.button_style(state,CYAN if state=="focus" else color))
  b.add_theme_color_override("font_color",TEXT)
@@ -376,6 +382,7 @@ func render(snapshot: Dictionary={}) -> void:
   var home=preload("res://ui/home_screen.gd").new();home.ui=self;home.name="GameHome"
   _place(home,Rect2(0,0,1600,900))
   _refresh_drawers()
+  _localize_controls(layout)
   return
  if view.phase=="battle" and not show_route and not display_settings.first_battle_tutorial_seen:
   _close_drawers()
@@ -434,17 +441,21 @@ func render(snapshot: Dictionary={}) -> void:
  if notice!="" and actor_targets.has("hero"):
   _show_term(actor_targets.hero,{"label":"","detail":notice})
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
+ _localize_controls(layout)
+
+func _release_candidate_controls(root: Control) -> void:
+ for key in candidate_buttons.keys():
+  var button=candidate_buttons[key]
+  if not is_instance_valid(button) or root.is_ancestor_of(button):
+   candidate_buttons.erase(key)
+   var previous=drawer_base_candidates.get(key)
+   if is_instance_valid(previous) and previous.is_inside_tree(): candidate_buttons[key]=previous
 
 # Information panels own only their overlay. Keep the scene, hand, focus and map alive.
 func _refresh_drawers() -> void:
  _hide_term()
  if is_instance_valid(drawer_layer):
-  for key in candidate_buttons.keys():
-   var button=candidate_buttons[key]
-   if not is_instance_valid(button) or drawer_layer.is_ancestor_of(button):
-    candidate_buttons.erase(key)
-    var previous=drawer_base_candidates.get(key)
-    if is_instance_valid(previous) and previous.is_inside_tree(): candidate_buttons[key]=previous
+  _release_candidate_controls(drawer_layer)
   drawer_layer.hide();layout.remove_child(drawer_layer);drawer_layer.queue_free()
  drawer_base_candidates=candidate_buttons.duplicate()
  drawer_layer=Control.new();drawer_layer.name="InformationLayer"
@@ -452,6 +463,7 @@ func _refresh_drawers() -> void:
  layout.add_child(drawer_layer)
  drawer_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  building_drawer=true
+ if show_feedback: feedback_report.build(_drawer_shell("问题与建议",Rect2(270,74,1060,752),CYAN))
  if show_home:
   if show_encyclopedia: _encyclopedia_drawer()
   if show_tutorial: _tutorial_drawer()
@@ -475,6 +487,18 @@ func _refresh_drawers() -> void:
    var title={"release":"拘束解除","remove":"删牌服务","discard":"整理道具"}[shop_service_mode]
    ShopScreen.services(self,_drawer_shell(title,Rect2(450,150,805,600),GOLD))
  building_drawer=false
+ _localize_controls(drawer_layer)
+
+func _localize_controls(root: Node) -> void:
+ if localization.locale==localization.DEFAULT_LOCALE or not is_instance_valid(root): return
+ for node in root.find_children("*","Control",true,false):
+  if node is Label or node is Button or node is RichTextLabel: node.text=localization.display(node.text)
+  if node is LineEdit or node is TextEdit: node.placeholder_text=localization.display(node.placeholder_text)
+  if node is OptionButton:
+   for index in range(node.item_count): node.set_item_text(index,localization.display(node.get_item_text(index)))
+  if node is ItemList:
+   for index in range(node.item_count): node.set_item_text(index,localization.display(node.get_item_text(index)))
+  if node.tooltip_text!="": node.tooltip_text=localization.display(node.tooltip_text)
 
 func _header() -> void:
  var strip=ColorRect.new(); strip.color=Color(0.045,0.07,0.09,0.94)
@@ -595,37 +619,39 @@ func _status_control(status: Dictionary, compact: bool) -> Button:
   else: _refresh_drawers())
  return button
 
-func _status_strip(owner: String, rect: Rect2, parent: Control=null) -> void:
+func _status_strip(owner: String, rect: Rect2, parent: Control=null, vertical: bool=false) -> void:
  var entries=view.statuses.filter(func(e):return e.active and e.owner==owner)
  if entries.is_empty(): return
  var strip=ScrollContainer.new();strip.name="StatusStrip_"+owner
- strip.vertical_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
- strip.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_AUTO
+ strip.vertical_scroll_mode=ScrollContainer.SCROLL_MODE_AUTO if vertical else ScrollContainer.SCROLL_MODE_DISABLED
+ strip.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED if vertical else ScrollContainer.SCROLL_MODE_AUTO
  _place(strip,rect,layout if parent==null else parent)
- var row=HBoxContainer.new();row.add_theme_constant_override("separation",4);strip.add_child(row)
+ var row: BoxContainer=VBoxContainer.new() if vertical else HBoxContainer.new()
+ row.add_theme_constant_override("separation",4);strip.add_child(row)
  for entry in entries: row.add_child(_status_control(entry,true))
 
 func _battle_scene() -> void:
- _status_strip("hero",Rect2(405,146,366,52))
  var hero=Arena.new()
  hero.name="HeroArt"
- hero.fixed_portrait=display_settings.fixed_hero_portrait
+ hero.fixed_portrait=display_settings.fixed_hero_portrait or game.Character.active(game)
  hero.pose=view.posture
  hero.has_restraint_level=view.has_restraint_level
  hero.hero_view=view
- _place(hero,Rect2(394,200,355,302))
- var hero_target=_actor_drop_area(Rect2(394,200,355,302))
+ _place(hero,HERO_STAGE_RECT)
+ var hero_target=_actor_drop_area(HERO_STAGE_RECT.grow_individual(-38,0,-38,0))
  hero_target.accepted_kind="player"
  hero_target.hover_card=func(data): _player_drag_preview(data)
  hero_target.accept_card=func(data): return _can_drop_on_player(data)
  hero_target.receive_card=func(data): call_deferred("_receive_player_drop",data)
  actor_targets["hero"]=hero_target
- _resource_meter("HeroOverload",Rect2(491,502,160,13),view.pressure.value,view.pressure.maximum,OVERLOAD_COLOR)
- _resource_meter("HeroMana",Rect2(491,520,160,13),view.mana,view.mana_max,CYAN)
+ _status_strip("hero",HERO_STATUS_RECT,null,true)
+ var meter_x=HERO_STAGE_RECT.get_center().x-80
+ _resource_meter("HeroOverload",Rect2(meter_x,502,160,13),view.pressure.value,view.pressure.maximum,OVERLOAD_COLOR)
+ _resource_meter("HeroMana",Rect2(meter_x,520,160,13),view.mana,view.mana_max,CYAN)
  if not view.guard_bind.is_empty():
-  var bind_label=_place(_label("捕缚",11,RED),Rect2(451,537,40,15));bind_label.name="HeroGuardBindCaption"
-  _resource_meter("HeroGuardBind",Rect2(491,538,160,13),view.guard_bind.value,view.guard_bind.maximum,RED)
-  var bind_target=_actor_drop_area(Rect2(451,535,200,19),null,true)
+  var bind_label=_place(_label("捕缚",11,RED),Rect2(meter_x-40,537,40,15));bind_label.name="HeroGuardBindCaption"
+  _resource_meter("HeroGuardBind",Rect2(meter_x,538,160,13),view.guard_bind.value,view.guard_bind.maximum,RED)
+  var bind_target=_actor_drop_area(Rect2(meter_x-40,535,200,19),null,true)
   bind_target.name="GuardBindTarget"
   bind_target.accepted_kind="card"
   bind_target.tooltip_text=view.guard_bind.detail
@@ -640,13 +666,13 @@ func _battle_scene() -> void:
   actor_targets["guard_bind"]=bind_target
  var cast_label=_label("嘴部施法成功率 "+view.casting.percent,11,CYAN)
  cast_label.name="HeroCastingChance";cast_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
- _place(cast_label,Rect2(674 if not view.guard_bind.is_empty() else 481,537 if not view.guard_bind.is_empty() else 533,180,14))
+ _place(cast_label,Rect2(meter_x+183 if not view.guard_bind.is_empty() else meter_x-10,537 if not view.guard_bind.is_empty() else 533,180,14))
  _speech_bubble()
  var living=view.enemies.filter(func(e):return not e.gone)
  # Presentation order only; combat and target IDs retain their original order.
  living=living.filter(func(e):return e.template!="puppeteer")+living.filter(func(e):return e.template=="puppeteer")
  var enemy_count=living.size()
- var enemy_scale=minf(1.0,3.0/maxi(1,enemy_count))
+ var enemy_scale=minf(1.0,ENEMY_STAGE_WIDTH/(ENEMY_GROUP_WIDTH*maxi(1,enemy_count)))
  var enemy_row_width=enemy_count*ENEMY_GROUP_WIDTH*enemy_scale
  var enemy_row_start=ENEMY_STAGE_LEFT+(ENEMY_STAGE_WIDTH-enemy_row_width)/2.0
  for i in range(enemy_count):
@@ -654,25 +680,25 @@ func _battle_scene() -> void:
   var group=Control.new();group.name="EnemyGroup_"+e.id
   group.mouse_filter=Control.MOUSE_FILTER_IGNORE
   var screen_x=enemy_row_start+i*ENEMY_GROUP_WIDTH*enemy_scale
-  _place(group,Rect2(screen_x,487.0*(1.0-enemy_scale),260,487))
+  _place(group,Rect2(screen_x,497.0*(1.0-enemy_scale),ENEMY_GROUP_WIDTH,497))
   group.scale=Vector2.ONE*enemy_scale
-  var x=0.0
+  var x=(ENEMY_GROUP_WIDTH-226.0)/2.0
   var guard=e.type in ["guard","six_bind","puppeteer"]
   for n in range(e.intent_icons.size()):
    var entry=e.intent_icons[n]
    var icon=preload("res://ui/intent_icon.gd").new()
    icon.kind=entry.kind;icon.name="IntentIcon_"+e.id+"_"+entry.kind
    var columns=mini(4,e.intent_icons.size())
-   var bottom=130 if guard else 220
-   _place(icon,Rect2(110-columns*27+(n%4)*54,bottom-ceili(e.intent_icons.size()/4.0)*50+(n/4)*50,54,50),group)
+   var bottom=120 if guard else 192
+   _place(icon,Rect2(x+113-columns*27+(n%4)*54,bottom-ceili(e.intent_icons.size()/4.0)*50+(n/4)*50,54,50),group)
    icon.z_index=8
    icon.mouse_entered.connect(func():_show_term(icon,entry));icon.mouse_exited.connect(_hide_term)
    icon.focus_entered.connect(func():_show_term(icon,entry));icon.focus_exited.connect(_hide_term)
   var picture=Arena.new(); picture.name="EnemyArt_"+e.id;picture.mode=e.type;picture.variant=e.visual_variant;picture.inactive=e.gone
   picture.template=e.template;picture.art_settings=display_settings
-  var picture_rect=Rect2(x+40,134,146,270) if e.type=="guard" else (Rect2(x,134,226,270) if guard else Rect2(x,226,220,180))
+  var picture_rect=Rect2(x+35,126,156,288) if e.type=="guard" else (Rect2(x-8,126,242,288) if guard else Rect2(x-19,198,264,216))
   _place(picture,picture_rect,group)
-  var receiver_rect=picture_rect if guard else Rect2(x,236,220,169)
+  var receiver_rect=picture_rect
   var receiver=_actor_drop_area(receiver_rect,group,true)
   receiver.pressed.connect(func():_select_enemy(e.id))
   _configure_enemy_drop(receiver,e.id)
@@ -681,12 +707,12 @@ func _battle_scene() -> void:
   b.name="EnemySelect_"+e.id
   _configure_enemy_drop(b,e.id)
   b.disabled=e.gone
-  _place(b,Rect2(x-5,408,236,37),group)
-  _place(_bar(e.hp,e.maximum,RED),Rect2(x,451,226,9),group)
+  _place(b,Rect2(x-5,418,236,37),group)
+  _place(_bar(e.hp,e.maximum,RED),Rect2(x,461,226,9),group)
   var hp=_label("%s / %s" % [game.number(e.hp),game.number(e.maximum)],14,TEXT)
   hp.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-  _place(hp,Rect2(x,463,226,24),group)
-  _status_strip(e.id,Rect2(x,488,226,51),group)
+  _place(hp,Rect2(x,473,226,24),group)
+  _status_strip(e.id,Rect2(x,498,226,51),group)
 
 func _select_enemy(enemy_id: String) -> void:
  if not view.enemies.any(func(e):return e.id==enemy_id and not e.gone): return
@@ -770,6 +796,7 @@ func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: St
   extra.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT;extra.autowrap_mode=TextServer.AUTOWRAP_OFF
   _place(extra,Rect2(detail.size.x+12,31,rect.size.x-detail.size.x-22,17),btn)
  var tooltip=("当前施法成功率："+c.casting.percent+"\n" if c.has("casting") else "")+c.detail
+ if c.has("casting"): tooltip+="\n失败返还本次耗魔的50%，能量照扣，火球术次数不消耗。"
  if not c.valid: tooltip+="\n"+c.reason
  if c.risk!="": tooltip+="\n"+c.risk
  if can_flip: tooltip+="\n右键切换招式"
@@ -819,6 +846,7 @@ func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0,
  card.merge(view.get("card_instances",{}).get(card.get("physical_uid",card.uid),{}),true)
  var button=CardFace.new()
  button.art_settings=display_settings
+ button.localize=localization.display
  button.lift_on_hover=lift
  button.symbol=card.type
  button.chosen=selected_card==card.uid
@@ -926,8 +954,9 @@ func _card_tooltip(button: Button, card: Dictionary) -> void:
   for label in content.get_children():
    if label.visible and label.name!="CardClassification": lines.append(label.text)
  if card.cast_faces[side] and card.has("casting"):
-  lines.append("施法成功率 · "+card.casting.percent+"\n"+card.casting.formula)
-  lines.append("失败扣费，原牌留手。")
+  var casting=card.get("face_casting",{}).get(side,card.casting)
+  lines.append("施法成功率 · "+casting.percent+"\n"+casting.formula)
+  lines.append("失败返还50%耗魔，能量照扣，原牌留手。")
  for term in card.face_keywords[side]: lines.append(term.name+"："+term.detail)
  if card.note!="": lines.append(card.note)
  if lines.is_empty(): _hide_term();return
@@ -1110,7 +1139,7 @@ func _body_drawer() -> void:
  panel.z_index=20
  var canvas=Control.new();panel.add_child(canvas)
  _place(_label("身体与拘束具",21,GOLD),Rect2(0,0,306,30),canvas)
- var portrait=EquipmentPortrait.new();portrait.name="EquipmentPortrait";portrait.configure(view,display_settings.fixed_hero_portrait)
+ var portrait=EquipmentPortrait.new();portrait.name="EquipmentPortrait";portrait.configure(view,display_settings.fixed_hero_portrait or game.Character.active(game))
  _place(portrait,Rect2(0,34,178,454),canvas)
  var divider=ColorRect.new();divider.color=GOLD.darkened(0.65);divider.mouse_filter=Control.MOUSE_FILTER_IGNORE
  _place(divider,Rect2(178,36,1,442),canvas)
@@ -1251,10 +1280,11 @@ func _equipment_card_face(box: Node,e: Dictionary,location: String,accent: Color
  if location!="": box.add_child(_label(location,12,CYAN))
  var name_label=_label(e.name,14,GOLD);name_label.custom_minimum_size.y=0 if compact else 36;box.add_child(name_label)
  box.add_child(_label(e.material_name,11,MUTED))
- box.add_child(_label("耐久 %s / %s" % [game.number(e.durability),game.number(e.maximum)],12,TEXT))
- var meter=_bar(e.durability,e.maximum,accent);meter.custom_minimum_size.y=6;box.add_child(meter)
+ if not e.get("lock_only",false):
+  box.add_child(_label("耐久 %s / %s" % [game.number(e.durability),game.number(e.maximum)],12,TEXT))
+  var meter=_bar(e.durability,e.maximum,accent);meter.custom_minimum_size.y=6;box.add_child(meter)
  var tightness=HBoxContainer.new();box.add_child(tightness)
- var tier_label=_label("紧度 %d档" % e.tier,12,accent)
+ var tier_label=_label("无耐久" if e.get("lock_only",false) else "紧度 %d档" % e.tier,12,accent)
  tier_label.autowrap_mode=TextServer.AUTOWRAP_OFF
  tightness.add_child(tier_label)
  _equipment_lock(tightness,e.locked,e.id,e.lockable)
@@ -1324,9 +1354,10 @@ func _capture_screen() -> void:
  var v=VBoxContainer.new(); v.add_theme_constant_override("separation",17); panel.add_child(v)
  v.add_child(_label("收押完成",29,RED))
  v.add_child(_label(view.capture.by+"将你送入监狱。当前警戒度：%d。" % view.security,21))
- v.add_child(_label("本级追加："+view.prison.equipment_rule+"；"+view.prison.toy_rule,18,GOLD))
+ v.add_child(_label(view.prison.intake_rule,18,GOLD))
  v.add_child(_label("原有装备、锁、链接、卡组、遗物、魔力和快感保留；本次没有战后恢复或卡牌奖励。",18,CYAN))
- v.add_child(_label("没收%d件道具，清除临时增益。追加%d件装备、%d条链接、%d/2件性玩具。" % [view.capture.confiscated,view.capture.added.size(),view.capture.links.size(),view.capture.special_added.size()],18))
+ v.add_child(_label("没收%d件道具，清除临时增益。追加%d件拘束具、%d条链接、%d件特殊装备。" % [view.capture.confiscated,view.capture.added.size(),view.capture.links.size(),view.capture.special_added.size()],18))
+ if view.security>=3: v.add_child(_label("限制项圈不计入件数；开锁后须双臂自由才能取下，品相完美版 henshin 可直接解除。",16,CYAN))
  v.add_child(_label("五级将移入高安全监室，补齐高级三档装备，本局结束。" if view.security==5 else "可在左侧检查装备，然后进入牢房，开始探索与逃脱。",18,GOLD))
  for c in actions.select("prison"): _action_row(v,c)
  if view.practice:
@@ -1532,6 +1563,7 @@ func _route_screen() -> void:
  var drawing_key=view.map_name+str(view.seed)+JSON.stringify(view.route.map(func(room):return [room.id,room.floor,room.lane,room.paths.map(func(path):return path.to)]))
  if not map_drawings.has(drawing_key): map_drawings[drawing_key]=[]
  graph.strokes=map_drawings[drawing_key]
+ graph.drawings_changed.connect(_save_progress)
  graph.compact=map_overview
  var floors=1
  for room in view.route: floors=maxi(floors,room.floor)
@@ -1696,9 +1728,12 @@ func _speech_bubble(point_to_hero: bool=true) -> void:
  body.size_flags_horizontal=Control.SIZE_EXPAND_FILL;body.size_flags_vertical=Control.SIZE_EXPAND_FILL
  body.vertical_alignment=VERTICAL_ALIGNMENT_CENTER;row.add_child(body)
  if point_to_hero:
-  var tail=Polygon2D.new();tail.polygon=PackedVector2Array([Vector2(566,177),Vector2(582,177),Vector2(574,192)]);tail.color=Color(0.055,0.09,0.135,0.97);speech_group.add_child(tail)
+  var center=HERO_STAGE_RECT.get_center().x
+  var tail=Polygon2D.new();tail.polygon=PackedVector2Array([Vector2(center-8,177),Vector2(center+8,177),Vector2(center,192)]);tail.color=Color(0.055,0.09,0.135,0.97);speech_group.add_child(tail)
 
 func _action_sidebar() -> void:
+ var report_button=_button("问题与建议",feedback_report.open,CYAN);report_button.name="OpenFeedback"
+ _place(report_button,Rect2(570,66,138,32) if view.phase=="shop" else Rect2(1438,82,138,34))
  if view.phase=="shop":
   action_log_panel=null
   action_log_toggle=_button("行动日志 ≡",func():_open_drawer("show_log"),GOLD)
@@ -1721,7 +1756,7 @@ func _action_sidebar() -> void:
   content.add_child(_label(note.text,14,TEXT))
   content.add_child(HSeparator.new())
  action_log_toggle=_button("行动日志 ≡",func():action_log_open=true;_sync_action_sidebar(),GOLD)
- action_log_toggle.name="OpenActionLog";_place(action_log_toggle,Rect2(570,104,138,38) if view.phase=="shop" else Rect2(1438,82,138,38))
+ action_log_toggle.name="OpenActionLog";_place(action_log_toggle,Rect2(570,104,138,38) if view.phase=="shop" else Rect2(1438,122,138,32))
  _sync_action_sidebar()
 
 func _toggle_action_pin() -> void:
@@ -1830,7 +1865,7 @@ func _demo_exit_screen() -> void:
 
 func restart(seed_value: int, practice: bool=false, practice_kind: String="equipment") -> void:
  save_suspended=false
- game=game_factory.new(seed_value,practice,practice_kind,true,display_settings.chastity_locks_enabled and not display_settings.fixed_hero_portrait,display_settings.chastity_lock_chance,display_settings.cursed_plate_start)
+ game=game_factory.new(seed_value,practice,practice_kind,true,display_settings.chastity_locks_enabled and not display_settings.fixed_hero_portrait,display_settings.chastity_lock_chance,display_settings.cursed_plate_start,display_settings.cursed_plate_masochist_mode,selected_character)
  var initial=game.get_view()
  _reset_interface(initial)
  _save_progress(true)
@@ -2289,7 +2324,8 @@ func _items_drawer() -> void:
  var row=HBoxContainer.new(); row.size_flags_vertical=Control.SIZE_EXPAND_FILL; row.add_theme_constant_override("separation",16); v.add_child(row)
  var left=_scroll(row);left.name="InventoryList";left.get_parent().custom_minimum_size.x=224
  for item in view.items:
-  var item_button=_button(item.name+"\n%s · 剩余%d次" % [item.mount,item.uses],func(): selected_item=item.id; selected_item_slot=""; item_help=false; _refresh_drawers(),CYAN if selected_item==item.id else MUTED)
+  var item_button=_button(item.name+"\n%s · 剩余%d次" % [item.mount,item.uses],func(): selected_item=item.id; selected_item_slot=""; item_help=false; _refresh_item_details(),CYAN if selected_item==item.id else MUTED)
+  item_button.set_meta("selected_item",selected_item==item.id)
   item_button.alignment=HORIZONTAL_ALIGNMENT_LEFT;item_button.add_theme_font_size_override("font_size",15)
   item_button.custom_minimum_size.y=84;item_button.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
   for style_name in ["normal","hover","pressed","focus","disabled"]:
@@ -2301,8 +2337,36 @@ func _items_drawer() -> void:
   item_button.name="ToolItem_"+item.id;left.add_child(item_button)
  var right=_scroll(row)
  right.get_parent().size_flags_horizontal=Control.SIZE_EXPAND_FILL
- var selected=view.items.filter(func(i):return i.id==selected_item)[0]
  right.name="InventoryDetail"
+ var footer=HBoxContainer.new();footer.name="InventoryFooter";footer.alignment=BoxContainer.ALIGNMENT_END;v.add_child(footer)
+ _item_details(right,footer)
+
+func _refresh_item_details() -> void:
+ if not is_instance_valid(drawer_layer): return
+ var right=drawer_layer.find_child("InventoryDetail",true,false)
+ var footer=drawer_layer.find_child("InventoryFooter",true,false)
+ if right==null or footer==null: return
+ _hide_term()
+ for parent in [right,footer]:
+  _release_candidate_controls(parent)
+  for child in parent.get_children():
+   parent.remove_child(child);child.queue_free()
+ for item in view.items:
+  var button=drawer_layer.find_child("ToolItem_"+item.id,true,false)
+  var chosen=item.id==selected_item
+  if button.get_meta("selected_item")==chosen: continue
+  button.set_meta("selected_item",chosen)
+  for state in ["normal","hover","pressed","focus","disabled"]:
+   var style=Palette.button_style(state,CYAN if state=="focus" or chosen else MUTED)
+   style.content_margin_left=72;button.add_theme_stylebox_override(state,style)
+ _item_details(right,footer)
+ var selected=view.items.filter(func(item):return item.id==selected_item)[0]
+ var panel=drawer_layer.find_child("InformationDrawer",true,false)
+ panel.set_deferred("size",Vector2(820,540 if selected.target_scope=="body_group" else 420))
+ _localize_controls(right);_localize_controls(footer)
+
+func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
+ var selected=view.items.filter(func(i):return i.id==selected_item)[0]
  right.add_child(_label(selected.name,22,CYAN))
  right.add_child(_label(selected.category+" · "+selected.mount,13,MUTED))
  if selected.summary!="": right.add_child(_label(selected.summary,17,TEXT))
@@ -2332,7 +2396,7 @@ func _items_drawer() -> void:
  elif not selected.installed and not usage_actions.is_empty():
   right.add_child(_label("选择使用位置",16,GOLD))
   for group in selected.target_groups:
-   var button=_button(group.name+" · %d个目标" % group.candidates.size(),func():selected_item_slot=group.id if selected_item_slot!=group.id else "";_refresh_drawers(),CYAN)
+   var button=_button(group.name+" · %d个目标" % group.candidates.size(),func():selected_item_slot=group.id if selected_item_slot!=group.id else "";_refresh_item_details(),CYAN)
    button.name="ToolSlot_"+group.id;right.add_child(button)
    if selected_item_slot==group.id:
     for id in group.candidates:
@@ -2344,19 +2408,18 @@ func _items_drawer() -> void:
  var installations=item_actions.filter(func(c):return c.payload.kind=="item_install")
  if not installations.is_empty():
   var expanded=selected_item_slot=="@install"
-  var install_button=_button("安装到墙缝"+(" −" if expanded else " ＋"),func():selected_item_slot="" if selected_item_slot=="@install" else "@install";_refresh_drawers(),GOLD)
+  var install_button=_button("安装到墙缝"+(" −" if expanded else " ＋"),func():selected_item_slot="" if selected_item_slot=="@install" else "@install";_refresh_item_details(),GOLD)
   install_button.name="ToolInstallMenu";right.add_child(install_button)
   if expanded:
    for c in installations: _compact_action(right,c,"",false)
  for c in item_actions:
   if c.payload.kind not in ["item_use","item_install","item_discard"]: _compact_action(right,c,"",false)
- var help_button=_button("使用说明  −" if item_help else "使用说明  ＋",func():item_help=not item_help;_refresh_drawers(),MUTED)
+ var help_button=_button("使用说明  −" if item_help else "使用说明  ＋",func():item_help=not item_help;_refresh_item_details(),MUTED)
  help_button.name="ItemHelpToggle";help_button.custom_minimum_size.y=30;help_button.add_theme_font_size_override("font_size",13);right.add_child(help_button)
  if item_help:
   var help_box=VBoxContainer.new();help_box.name="ItemHelpContent";right.add_child(help_box)
   help_box.add_child(_label(selected.description,14,MUTED))
   if selected.passive_text!="" and not selected.installed: help_box.add_child(_label("安装后："+selected.passive_text,14,CYAN))
- var footer=HBoxContainer.new();footer.alignment=BoxContainer.ALIGNMENT_END;v.add_child(footer)
  for c in item_actions:
   if c.payload.kind=="item_discard":
    var discard=_button("丢弃",func():_submit(c),MUTED);discard.name="ItemDiscard";discard.custom_minimum_size=Vector2(90,32)
@@ -2373,9 +2436,12 @@ func _options_drawer() -> void:
   _audio_options(content);return
  if options_tab=="keys" and not display_settings.mobile:
   keyboard_input.settings.build(self,content,keyboard_input);return
+ content=_scroll(content)
+ content.get_parent().name="DisplayOptionsScroll"
  content.add_child(_label(_text("ui.settings.language","语言"),17,GOLD))
  var language=OptionButton.new();language.name="LanguageSelection"
  language.add_item(_text("ui.settings.language.zh_cn","简体中文"))
+ language.add_item(_text("ui.settings.language.en_us","English"))
  language.add_item(_text("ui.settings.language.ja_jp","日语（待翻译）"))
  for index in range(localization.LOCALES.size()): language.set_item_metadata(index,localization.LOCALES[index])
  language.select(localization.LOCALES.find(display_settings.locale))
@@ -2402,6 +2468,18 @@ func _options_drawer() -> void:
   resolution.item_selected.connect(func(index):display_settings.set_resolution(sizes[index]);_refresh_drawers())
   content.add_child(resolution)
   if display_settings.mode==2: content.add_child(_label(_text("ui.settings.native_resolution","全屏使用显示器原生分辨率。"),14,MUTED))
+ content.add_child(_label(_text("ui.settings.frame_limit","帧率上限"),17,GOLD))
+ var frame_limit=OptionButton.new();frame_limit.name="FrameLimit"
+ for value in display_settings.FRAME_LIMITS:
+  frame_limit.add_item(_text("ui.settings.frame_unlimited","无上限") if value==0 else _text("ui.settings.frame_value","{fps}帧",{"fps":value}))
+ frame_limit.select(display_settings.FRAME_LIMITS.find(display_settings.frame_limit))
+ frame_limit.item_selected.connect(func(index):display_settings.set_frame_limit(display_settings.FRAME_LIMITS[index]);_refresh_drawers())
+ content.add_child(frame_limit)
+ var vsync=CheckButton.new();vsync.name="VSyncEnabled"
+ vsync.text=_text("ui.settings.vsync","垂直同步");vsync.button_pressed=display_settings.vsync_enabled
+ vsync.toggled.connect(func(enabled):display_settings.set_vsync(enabled);_refresh_drawers())
+ content.add_child(vsync)
+ content.add_child(_label(_text("ui.settings.vsync_note","开启垂直同步可减少画面撕裂；即使选择无上限，帧率仍可能受显示器刷新率限制。"),13,MUTED))
  if display_settings.save_error!="": content.add_child(_label(display_settings.save_error,14,RED))
  content.add_child(_label(_text("ui.settings.feedback_speed","敌方行动展示速度"),17,GOLD))
  var speed=OptionButton.new();speed.name="FeedbackSpeed"

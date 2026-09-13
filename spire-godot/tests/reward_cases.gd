@@ -15,6 +15,7 @@ static func play(t,g,card: Dictionary,slot: String,target: String="") -> Diction
  return t.action(g,"card",{"uid":card.uid,"slot":slot,"target":target})
 
 static func run(t) -> void:
+ preload("res://tests/unique_power_reward_cases.gd").run(t)
  preload("res://tests/battle_reward_cases.gd").run(t)
  card_feedback(t)
  resource_feedback(t)
@@ -47,16 +48,16 @@ static func run(t) -> void:
    t.action(g,"retain_skip")
    t.check(g.state.hand.size()==hands and not g.state.pending_retain,"REWARD focus skip still draws exactly one")
   elif type=="tear": t.check(g.state.charge==1 and g.state.next_energy==1,"REWARD tear free buffs")
-  elif type=="chain": t.check(g.state.charge==1 and g.state.hand.size()==hands+1,"REWARD chain free charge and two draws")
+  elif type=="chain": t.check(g.state.charge==2 and g.state.hand.size()==hands+1,"REWARD chain free grants two charge and draws two")
   elif type=="peel":
-   var first=g.state.hand[0].uid;var second=g.state.hand[1].uid
-   t.check(t.action(g,"retain",{"uid":first}).ok and g.state.pending_retain,"REWARD first of two retains")
-   t.check(not t.action(g,"retain",{"uid":first}).ok,"REWARD same card cannot consume two selections")
-   t.check(t.action(g,"retain",{"uid":second}).ok and not g.state.pending_retain and g.state.next_energy==1,"REWARD second retain resolves with energy buff")
+   var retained=g.state.hand.map(func(c):return c.uid)
+   t.check(not g.state.pending_retain and retained.size()==hands-1 and g.state.hand.all(func(c):return c.retain_until==g.state.tick+1) and g.state.next_energy==1,"REWARD peel immediately retains the entire remaining hand without a picker")
+   var late=preload("res://tests/curse_cases.gd").give(g,"strain")
+   g._discard_end()
+   t.check(g.state.hand.map(func(c):return c.uid)==retained and g.state.discard.any(func(c):return c.uid==late.uid),"REWARD all held cards survive actual discard but later cards are not retained")
    g._begin_player_turn()
-   var another=give(t,g,"peel");g.state.energy=3
-   play(t,g,another,"thigh")
-   t.check(not t.action(g,"retain",{"uid":first}).ok,"REWARD retained card cannot extend its expiry again")
+   g._discard_end()
+   t.check(g.state.hand.is_empty(),"REWARD retain-all is not a permanent hand-retention power")
   else: t.check(g.state.temporary_mana==5,"REWARD double unlock free reserve")
 
  # Focus now grants the shared charge and draws without choosing an equipment target.

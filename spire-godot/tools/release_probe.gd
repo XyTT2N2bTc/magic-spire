@@ -14,7 +14,7 @@ func _initialize() -> void:
 
 func run() -> void:
  check(not FileAccess.file_exists("res://project.godot"),"Probe must load exported project.binary, not source files")
- check(ProjectSettings.get_setting("application/config/version","")=="0.15","Release version must be 0.15")
+ check(ProjectSettings.get_setting("application/config/version","")=="0.16","Release version must be 0.16")
  check(not ResourceLoader.exists("res://tests/test_game.gd") and not ResourceLoader.exists("res://tools/check_content.gd"),"Development scripts must not be exported")
  var scene=load("res://main.tscn")
  check(scene!=null,"Main scene must be present in PCK")

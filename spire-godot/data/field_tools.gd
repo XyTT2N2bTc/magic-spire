@@ -5,7 +5,7 @@ const Environments=preload("res://data/environments.gd")
 const Contact=preload("res://core/contact.gd")
 const TYPES={
  "lubricant_potion":{"name":"润滑油","category":"potion","operation":"buff","effect":"slip_boost","target_scope":"body_group","unrestricted_use":true,"mouth_reduction":false,"amount":2,"uses":3,"damage":0.0,"materials":[]},
- "mana_potion":{"name":"魔力药剂","category":"potion","operation":"buff","effect":"mana","amount":20,"uses":1,"damage":0.0,"materials":[]},
+ "mana_potion":{"name":"魔力药剂","category":"potion","operation":"buff","effect":"mana","unrestricted_outside_battle":true,"amount":20,"uses":1,"damage":0.0,"materials":[]},
  "energy_potion":{"name":"活力药剂","category":"potion","operation":"buff","effect":"energy","amount":2,"uses":1,"damage":0.0,"materials":[]},
  "charge_potion":{"name":"蓄势药剂","category":"potion","operation":"buff","effect":"charge","amount":2,"uses":1,"damage":0.0,"materials":[]},
  "draw_scroll":{"name":"应变卷轴","category":"scroll","operation":"buff","effect":"draw","amount":3,"uses":1,"damage":0.0,"materials":[]},

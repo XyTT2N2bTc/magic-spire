@@ -27,12 +27,13 @@ func _ready() -> void:
  mouse_filter=Control.MOUSE_FILTER_IGNORE
  texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
  if mode=="hero":
+  var free_special=hero_view.get("equipment_portrait_layers",[]).any(func(id):return id in ["flat_lock","flat_lock_reinforcement"])
   if fixed_portrait:
    pose="stand"
    hero_sprite=_sprite(EquipmentPortrait.FREE,"HeroPose")
-  elif has_restraint_level and pose=="stand":
+  elif pose=="stand" and (has_restraint_level or free_special):
    hero_sprite=EquipmentPortrait.new();hero_sprite.name="HeroPose"
-   hero_sprite.configure(hero_view);add_child(hero_sprite)
+   hero_sprite.configure(hero_view,false,true);add_child(hero_sprite)
   else:
    hero_sprite=_sprite(Art.hero_texture(pose,has_restraint_level),"HeroPose")
   hero_sprite.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR

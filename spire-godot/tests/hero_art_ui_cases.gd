@@ -15,12 +15,32 @@ static func run(t) -> void:
   var hero=ui.find_child("HeroArt",true,false)
   var sprite=hero.get_node("HeroPose")
   var expected=Art.HERO_POSES[pose]
+  if pose=="stand":
+   t.check(is_equal_approx(sprite.size.y,390.0*0.85) and is_equal_approx(hero.size.x,348.0*0.85),"ART battle hero is fifteen percent smaller")
+   t.check(is_equal_approx(hero.get_rect().end.y,502.0) and is_equal_approx(hero.get_rect().get_center().x,590.0) and is_equal_approx(hero.get_rect().get_center().x,ui.find_child("HeroMana",true,false).position.x+80),"ART hero moves left with its meters and keeps its size and foot line")
+  var target=ui.actor_targets.hero.get_global_rect()
+  var portrait_bounds=hero.get_global_rect()
+  t.check(target==portrait_bounds.grow_individual(-38,0,-38,0) and target.get_center().is_equal_approx(portrait_bounds.get_center()),"ART narrower drag target stays centered on the portrait "+pose)
   t.check(hero.pose==pose and sprite.texture==expected,"ART formal posture selects supplied cutout "+pose)
   t.check(sprite.material==null and sprite.texture.get_image().detect_alpha()!=Image.ALPHA_NONE,"ART real alpha without green-key shader "+pose)
   t.check(is_equal_approx(sprite.size.x/expected.get_width(),sprite.size.y/expected.get_height()),"ART original proportions preserved "+pose)
   t.check(is_equal_approx(sprite.position.y+sprite.size.y,hero.size.y) and sprite.position.x>=0 and sprite.position.x+sprite.size.x<=hero.size.x and sprite.size.y<=last_height,"ART complete sprite fits and shares ground line "+pose)
   last_height=sprite.size.y
   await t.capture("ui-21-hero-"+pose+".png")
+
+ # A free-standing flat lock uses the supplied aligned image differences.
+ ui.game=Game.new(42);ui.game._install_special("negative_plate_lock_medium","special_2_a",2)
+ ui.render();await t.frames()
+ var free_hero=ui.find_child("HeroArt",true,false);var free_sprite=free_hero.get_node("HeroPose")
+ t.check(not ui.view.has_restraint_level and free_sprite.get_script()==Portrait and free_sprite.texture==Portrait.BATTLE_FREE and free_sprite.active_special_layers==["flat_lock"],"ART free-standing flat lock keeps the free pose and activates only its extracted lock difference")
+ t.check(free_sprite.get_node("Overlay_free_flat_lock").visible and not free_sprite.get_node("Overlay_free_flat_lock_reinforcement").visible,"ART free-standing plain lock hides the reinforcement difference")
+ await t.capture("ui-hero-free-flat-lock.png")
+ ui.game=Game.new(42);ui.game._install_special("negative_plate_lock_medium","special_2_a",3)
+ ui.render();await t.frames()
+ free_hero=ui.find_child("HeroArt",true,false);free_sprite=free_hero.get_node("HeroPose")
+ t.check(not ui.view.has_restraint_level and free_sprite.get_script()==Portrait and free_sprite.texture==Portrait.BATTLE_FREE and free_sprite.active_special_layers==["flat_lock","flat_lock_reinforcement"],"ART free-standing tier-three lock uses the same free base with its formal reinforcement state")
+ t.check(free_sprite.get_node("Overlay_free_flat_lock").visible and free_sprite.get_node("Overlay_free_flat_lock_reinforcement").visible,"ART free-standing reinforcement displays both extracted differences")
+ await t.capture("ui-hero-free-flat-lock-reinforced.png")
 
  # A nonzero arm or leg restriction level switches the formal combat pose.
  # Standing reuses the equipment portrait compositor, including its overlays.

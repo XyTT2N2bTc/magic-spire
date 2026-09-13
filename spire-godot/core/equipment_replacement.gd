@@ -254,6 +254,7 @@ static func _comparison_possible(g, units: Array, deficit: Dictionary, installed
 static func _units(g, deficit: Dictionary) -> Array:
  var result=[]
  for piece in g.state.equipment+g.state.special_equipment:
+  if g.Equipment.lock_only(piece): continue
   if g.SpecialEquipment.is_chastity(piece) or g.SpecialEquipment.is_reinforcement(piece): continue
   if not g._outer(piece): continue
   var counts=_counts(g,[piece])

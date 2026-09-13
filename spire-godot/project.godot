@@ -2,9 +2,10 @@
 config_version=5
 
 [application]
-config/name="紧缚尖塔demo v0.15"
-config/version="0.15"
+config/name="紧缚尖塔demo v0.16"
+config/version="0.16"
 run/main_scene="res://main.tscn"
+run/max_fps=60
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://assets/icon.svg"
 
@@ -28,4 +29,8 @@ renderer/rendering_method.mobile="gl_compatibility"
 environment/defaults/default_clear_color=Color(0.045, 0.05, 0.07, 1)
 
 [gui]
+theme/custom_font="res://assets/fonts/NotoSansCJKsc-Regular.otf"
 theme/default_font_multichannel_signed_distance_field=true
+
+[feedback]
+endpoint="https://script.google.com/macros/s/AKfycbw9SHt60mspbgTUvGsDpmV1ylFKXBJ76zupmjXben_3Sh_2yDA3G0eHmDdhdFlRUoeLMA/exec"

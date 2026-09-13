@@ -30,9 +30,11 @@ static func run(t) -> void:
  var repeated=t.find_action(g,"card",{"uid":copy.uid,"free":true})
  t.check(repeated.valid and not g.dispatch(repeated.id,g.state.version-1).ok and g.state==before,"EMBRACE repeat is available but stale activation rejects without payment")
  var target=g.state.equipment[0];var slip=Cards.give(g,"slip")
+ var energy=g.state.energy
  var result=t.action(g,"card",{"uid":slip.uid,"target":target.id,"free":false})
  t.check(result.ok and g._equipment(target.id).is_empty() and g.state.hand.size()==before.hand.size()+1 and result.card_feedback.filter(func(e):return e.kind=="draw").size()==1,"EMBRACE actual escape draws once after the paid card leaves hand")
  var serial=g.state.draw_serial;g._cleanup();g._cleanup()
+ t.check(g.state.energy==energy,"EMBRACE one release refunds one energy after the one-energy slip, cleanup cannot repeat it")
  t.check(g.state.draw_serial==serial and pending(g)==0,"EMBRACE repeated cleanup never recounts released roots")
 
  # New equipment is counted on installation; remaining equipped after a turn is not another event.
@@ -61,6 +63,31 @@ static func run(t) -> void:
  bulk_release(t)
  replacement(t)
  full_hand(t)
+ stacked_energy(t)
+
+static func stacked_energy(t) -> void:
+ var g=fresh()
+ var first=activate(t,g,true);activate(t,g,true)
+ # Replay stacks and separate physical copies both add draws and energy.
+ g.state.powers.filter(func(card):return card.uid==first.uid)[0].power_stacks=3
+ for i in range(20): g.state.draw.append(Cards.give(g,"strain"));g.state.hand.erase(g.state.draw.back())
+ var root=g._install_assembly("glove","short","fixture",2,1)
+ var energy=g.state.energy;var serial=g.state.draw_serial
+ var strap=root.components.filter(func(part):return part.part!="body")[0]
+ g._apply_manual_release(strap,0);g._cleanup()
+ t.check(g.state.energy==energy and g.state.draw_serial==serial,"EMBRACE partial composite removal grants neither cards nor energy")
+ var target=g.add_fixture("ankle",1)
+ g._apply_manual_release(target,0);g._cleanup()
+ t.check(g.state.energy==energy+4 and g.state.draw_serial==serial+4,"EMBRACE four stacks across two cards grant four cards and four energy")
+ var status=g.get_view().statuses.filter(func(row):return row.id=="power_restraint_embrace_free")[0]
+ t.check(status.value=="每件抽4张 · 能量＋4" and status.detail.contains("抽牌与回能均可叠加"),"EMBRACE status shows stacked draws and energy")
+ while g.state.hand.size()<g.B.HAND_LIMIT: Cards.give(g,"strain")
+ target=g.add_fixture("ankle",1);energy=g.state.energy;serial=g.state.draw_serial
+ g._apply_manual_release(target,0);g._cleanup();g._cleanup()
+ t.check(g.state.energy==energy+4 and g.state.draw_serial==serial,"EMBRACE full hand still gains stacked energy, repeated cleanup cannot duplicate it")
+ g.Cards.end_powers(g);energy=g.state.energy
+ target=g.add_fixture("ankle",1);g._apply_manual_release(target,0);g._cleanup()
+ t.check(g.state.energy==energy,"EMBRACE ended power grants no release energy")
 
 static func bulk_release(t) -> void:
  var g=fresh();activate(t,g,true)
@@ -73,8 +100,10 @@ static func bulk_release(t) -> void:
  var expected=g.Cards.restraint_roots(g).size()
  t.check(expected==2 and root.components.size()>1,"EMBRACE release fixture has two roots despite many components")
  var card=Cards.give(g,"henshin")
+ var energy=g.state.energy
  var result=t.action(g,"card",{"uid":card.uid,"free":false})
  t.check(result.ok and g.Cards.restraint_roots(g).is_empty() and result.card_feedback.filter(func(e):return e.kind=="draw").size()==expected,"EMBRACE batch release draws per whole physical restraint, not per component")
+ t.check(g.state.energy==energy-2+expected,"EMBRACE batch release grants one energy per physical root")
  g=fresh();activate(t,g,true);activate(t,g,false)
  var forearm=Replace.install(g,Replace.request("forearm",1,1,"mid_forearm"))
  var wrist=Replace.install(g,Replace.request("wrist",1,1))
@@ -90,7 +119,7 @@ static func replacement(t) -> void:
  var plan=Replace.Replacement.plan(g,[Replace.request("wrist",2,2)],"fixture")
  t.check(plan.ok and g.state==before and pending(g)==0,"EMBRACE replacement preview cannot draw or schedule cards")
  if not plan.ok: return
- t.check(Replace.Replacement.execute(g,plan).ok and pending(g)==1 and g.state.hand==before.hand and g.state.draw==before.draw,"EMBRACE replacement counts newly worn piece but never the enemy-removed piece as an escape")
+ t.check(Replace.Replacement.execute(g,plan).ok and pending(g)==1 and g.state.hand==before.hand and g.state.draw==before.draw and g.state.energy==before.energy,"EMBRACE replacement counts newly worn piece but never grants escape draws or energy")
  before=g.export_snapshot()
  t.check(not Replace.Replacement.execute(g,plan).ok and g.state==before,"EMBRACE repeated replacement cannot duplicate pending benefit")
 

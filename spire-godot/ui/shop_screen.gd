@@ -26,12 +26,22 @@ func _ready() -> void:
   var button=ui._button(label,func():ui.shop_payment=source;ui.render(ui.view),ui.CYAN if ui.shop_payment==source else ui.MUTED)
   button.name="ShopPayment_"+source;button.button_pressed=ui.shop_payment==source;button.toggle_mode=true
   ui._place(button,Rect2(1088 if source=="self" else 1315,20,207,38),self)
+ var payment_note=ui.view.shop.payment_notices.get(ui.shop_payment,"")
+ if payment_note!="":
+  var notice=ui._label(payment_note,15,ui.RED)
+  notice.autowrap_mode=TextServer.AUTOWRAP_OFF
+  ui._place(notice,Rect2(380,62,1138,26),self)
+  notice.name="ShopPaymentNotice";notice.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
  _text("店主",Rect2(36,605,159,26),18,ui.GOLD)
  var bubble=PanelContainer.new();bubble.name="ShopkeeperSpeech"
  bubble.add_theme_stylebox_override("panel",ui._style(Color("24322f"),ui.GOLD.darkened(0.55)))
  ui._place(bubble,Rect2(32,632,312,128),self)
  var speech=ui._label(ui.view.shop.greeting,14,ui.TEXT);speech.name="ShopkeeperSpeechText"
- bubble.add_child(speech);ui._ignore_mouse(bubble);ui.speech_group=bubble
+ var speech_scroll=ScrollContainer.new();speech_scroll.name="ShopkeeperSpeechScroll"
+ speech_scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+ speech_scroll.size_flags_horizontal=Control.SIZE_EXPAND_FILL;speech_scroll.size_flags_vertical=Control.SIZE_EXPAND_FILL
+ speech.custom_minimum_size.x=284;speech.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+ bubble.add_child(speech_scroll);speech_scroll.add_child(speech);ui._ignore_mouse(speech);ui.speech_group=bubble
  bubble.visible=ui.view.shop.greeting!="" and ui._speech_visible(ui.view.shop.greeting_id)
  var cards=ui.view.shop.stock.filter(func(o):return o.kind=="card")
  for i in range(cards.size()): _card_offer(cards[i],Rect2(380+i*230,95,218,332))
@@ -43,7 +53,7 @@ func _ready() -> void:
   for i in range(goods.size()): _offer(goods[i],Rect2(380+i*(goods_width+12),top,goods_width,116))
   if goods.is_empty(): _text("没有新的遗物可出售",Rect2(380,top+35,450,30),17,ui.MUTED)
  var release=_service_button("拘束解除", "release",Rect2(380,718,275,46));release.name="ShopRelease"
- var remove=_service_button("删牌服务 · 本店一次", "remove",Rect2(667,718,275,46));remove.name="ShopRemove"
+ var remove=_service_button("删牌服务 · %s魔力" % ui.game.number(ui.view.shop.remove_price), "remove",Rect2(667,718,275,46));remove.name="ShopRemove"
  remove.disabled=ui.view.shop.remove_used
  if remove.disabled: remove.text="删牌服务 · 已使用"
  var tidy=_service_button("整理道具", "discard",Rect2(954,718,275,46));tidy.name="ShopInventory"
@@ -77,7 +87,7 @@ func _card_offer(offer: Dictionary, rect: Rect2) -> void:
  price.name="ShopPrice%d" % offer.index;price.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
  price.autowrap_mode=TextServer.AUTOWRAP_OFF
  ui._place(price,Rect2(0,card_size.y+10,rect.size.x,26),box)
- if not offer.taken and not candidate.valid:
+ if not offer.taken and not candidate.valid and candidate.get("reason_scope","")!="payment":
   var reason=ui._label(candidate.reason,12,ui.RED)
   reason.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
   ui._place(reason,Rect2(0,card_size.y+37,rect.size.x,20),box)
@@ -88,7 +98,7 @@ func _offer(offer: Dictionary, rect: Rect2) -> void:
   if not candidate.is_empty(): ui._submit(candidate),ui.GOLD if offer.kind=="card" else ui.CYAN)
  button.name="ShopOffer%d" % offer.index
  button.disabled=offer.taken or not candidate.get("valid",false)
- button.tooltip_text=offer.name+"\n"+offer.detail+("" if candidate.get("valid",false) else "\n"+candidate.get("reason","已售罄"))
+ button.tooltip_text=offer.name+"\n"+offer.detail+("" if candidate.get("valid",false) or candidate.get("reason_scope","")=="payment" else "\n"+candidate.get("reason","已售罄"))
  ui._place(button,rect,self)
  if not offer.taken: ui.candidate_buttons[candidate.id]=button
  if not offer.taken: _connect_chatter(button,candidate)
@@ -107,7 +117,7 @@ func _offer(offer: Dictionary, rect: Rect2) -> void:
  var currency="魔瓶魔力" if offer.get("required_payment","")=="flask" else "魔力"
  var price=ui._label("售罄" if offer.taken else "%s %s" % [ui.game.number(offer.price),currency],17,ui.MUTED if offer.taken else (ui.CYAN if candidate.valid else ui.RED))
  ui._place(price,Rect2(80,68,rect.size.x-90,25),button)
- if not offer.taken and not candidate.valid:
+ if not offer.taken and not candidate.valid and candidate.get("reason_scope","")!="payment":
   var reason=ui._label(candidate.reason,10,ui.RED);reason.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
   ui._place(reason,Rect2(6,94,rect.size.x-12,20),button)
  if offer.taken: button.modulate=Color(0.66,0.64,0.59)
@@ -128,10 +138,13 @@ static func _chatter_pool(ui, candidate: Dictionary) -> Array:
 static func services(ui, parent: VBoxContainer) -> void:
  var group={"release":"service_release","remove":"service_remove","discard":"item"}[ui.shop_service_mode]
  var candidates=ui.actions.select(group).filter(func(c):return c.payload.get("payment",ui.shop_payment)==ui.shop_payment)
+ if candidates.any(func(c):return c.get("reason_scope","")=="payment"):
+  var notice=ui._label(ui.view.shop.payment_notices.get(ui.shop_payment,""),15,ui.RED)
+  notice.name="ShopServicePaymentNotice";parent.add_child(notice)
  if ui.shop_service_mode=="discard": candidates=ui.actions.select("item",{"kind":"item_discard"})
  if ui.shop_service_mode=="release":
   parent.add_child(ui._label("选择一件交给店主。开锁与复合处理会在价格中列明。",16,ui.CYAN))
- elif ui.shop_service_mode=="remove": parent.add_child(ui._label("永久移除一张牌，本店仅一次。",16,ui.CYAN))
+ elif ui.shop_service_mode=="remove": parent.add_child(ui._label("永久移除一张牌，本店仅一次。本次%s魔力。" % ui.game.number(ui.view.shop.remove_price),16,ui.CYAN))
  var scroll=ui._scroll(parent)
  if candidates.is_empty():
   scroll.add_child(ui._label({"release":"目前没有需要卸下的拘束具。","remove":"本店的删牌服务已使用。","discard":"没有需要整理的随身道具。"}[ui.shop_service_mode],18,ui.MUTED));return
@@ -144,7 +157,7 @@ static func services(ui, parent: VBoxContainer) -> void:
    face.disabled=not c.valid;ui.candidate_buttons[c.id]=face
    face.mouse_entered.connect(func():ui._shop_chatter(_chatter_pool(ui,c)))
    box.add_child(ui._label(ui.game.number(c.mana)+("魔瓶魔力" if ui.shop_payment=="flask" else "魔力"),16,ui.GOLD))
-   if not c.valid: box.add_child(ui._label(c.reason,13,ui.RED))
+   if not c.valid and c.get("reason_scope","")!="payment": box.add_child(ui._label(c.reason,13,ui.RED))
   return
  for c in candidates:
   var card=PanelContainer.new();card.add_theme_stylebox_override("panel",ui._style(Color("172633"),ui.GOLD.darkened(0.4)))

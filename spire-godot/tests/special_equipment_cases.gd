@@ -12,7 +12,30 @@ static func run(t) -> void:
  registry_paths(t)
  environment_classes(t)
  chastity_locks(t)
+ slip_mana(t)
  upgrade_components(t)
+
+static func slip_mana(t) -> void:
+ var g=Game.new(42,false,"equipment",true,true,25)
+ g._install_special("negative_plate_lock_catheter_medium","special_2_a",2)
+ g.state.mana=30;g.state.relics=["mana_earring"]
+ g.Pressure.gain(g,120,"测试来源",true,["special_2_a"])
+ var before=g.export_snapshot();var view=g.get_view();g.candidates()
+ var status=view.statuses.filter(func(entry):return entry.id=="slip_ejaculation")
+ t.check(g.state==before and status.size()==1 and JSON.stringify(status[0]).contains("魔力") and JSON.stringify(status[0]).contains("10"),"SLIP MANA readonly status describes deferred loss")
+ g._begin_player_turn()
+ g.Pressure.gain(g,120,"测试来源",true,["special_2_a"])
+ t.check(g.state.mana==20 and g.state.slip_ejaculation_turns==2,"SLIP MANA repeated trigger refreshes duration without immediate loss or stacked ticks")
+ g.state.special_equipment.clear();g._cleanup()
+ g.Pressure.gain(g,100,"测试来源",true)
+ t.check(g.state.mana==20 and g.state.slip_ejaculation_turns==2,"SLIP MANA active debuff prevents immediate ordinary climax loss after triggering equipment is removed")
+ g.state.mana=3;g.state.temporary_mana=20
+ g._begin_player_turn()
+ t.check(g.state.mana==0 and g.state.temporary_mana==20 and g.state.slip_ejaculation_turns==1 and g.state.combat.mana_spent==0,"SLIP MANA low resources clamp to zero without spending temporary mana or activating spell-payment relics")
+ g._begin_player_turn();g.state.mana=20;g._begin_player_turn()
+ t.check(g.state.mana==20 and g.state.slip_ejaculation_turns==0,"SLIP MANA zero-mana turn still expires and later turns stop draining")
+ g.Pressure.gain(g,100,"测试来源",true)
+ t.check(g.state.mana==0,"SLIP MANA normal immediate climax loss resumes after expiration")
 
 static func upgrade_components(t) -> void:
  for reverse_order in [false,true]:
@@ -50,7 +73,7 @@ static func upgrade_components(t) -> void:
 static func catalog_and_projection(t) -> void:
  var g=Game.new(42,true,"special_equipment")
  t.check(g.validate()=="" and g.state.special_equipment.size()==3,"SPECIAL real equipment practice validates")
- t.check(g.state.pressure==8 and g.state.special_equipment[0].remaining==5,"SPECIAL first player turn applies the powered nipple clamp once")
+ t.check(g.state.pressure==8 and g.state.special_equipment[0].remaining==8,"SPECIAL first player turn applies the powered nipple clamp once")
  t.check(g.state.equipment.is_empty() and g.level("arms")==0 and g.level("legs")==0 and g.item_capacity()==3,"SPECIAL equipment does not change ordinary restraint or carried-item capacity")
  var groups=g.get_view().body_groups
  t.check(groups.map(func(b):return b.id)==["eyes","mouth","neck","upper_arm","special_1","forearm","wrist","hands","special_2","special_3","thigh","calf","ankle","feet"],"SPECIAL anatomical regions keep their requested display order")
@@ -64,11 +87,22 @@ static func catalog_and_projection(t) -> void:
  for slot in D.slots():
   t.check(g._install_template("rope",slot,4,10,false,"test").is_empty(),"SPECIAL ordinary restraint factory rejects reserved slot "+slot)
  t.check(D.TYPES.size()==39 and D.DESIGNS.size()==D.TYPES.size(),"SPECIAL complete built-in catalog has paired trigger and fixed-design records")
+ for family in ["nipple_clamp","nipple_ring","shaft_ring","corona_ring","urethral_rod","vaginal_egg","anal_egg","external_wand","crotch_rope","glans_cup","full_cup","urethral_full_cup","forced_milking_cup"]:
+  t.check(D.STIMULATION_TEXTS.has(family) and not D.STIMULATION_TEXTS[family].is_empty(),"SPECIAL every playable family owns current-wear stimulation prose "+family)
  for type in D.TYPES:
   if D.TYPES[type].get("component_only",false): continue
   var wear=D.wear_text(type)
   t.check(not wear.is_empty() and wear.contains(D.TYPES[type].name) and not wear.contains("{name}"),"SPECIAL every built-in type owns reusable exact-name wear prose "+type)
  t.check(not D.wear_text("vaginal_egg_low").contains("牵引线") and not D.wear_text("anal_egg_low").contains("牵引线"),"SPECIAL wireless internal eggs never invent a retrieval wire")
+ var pressure_view=g.get_view().pressure
+ var status=g.get_view().statuses.filter(func(entry):return entry.id=="equipment_stimulation")[0]
+ var pressure_copy="\n".join(pressure_view.sources.map(func(source):return source.text))
+ t.check(pressure_copy.contains("凸粒隔着肉棒正面清楚鼓起") and pressure_copy.contains("基础6 × 部位倍率1.5 × 当前来源倍率1＝9快感"),"SPECIAL status copy names urethral stimulation and exposes its current gain formula")
+ var crotch_sources=pressure_view.sources.filter(func(source):return source.name.contains("裆部股绳"))
+ t.check(pressure_view.sources.size()==3 and crotch_sources.size()==1 and crotch_sources[0].name.ends_with(" · 小穴、后庭"),"SPECIAL pressure source list deduplicates multi-position roots and names their full current location")
+ t.check(status.detail.contains("绳股紧贴胯下") and status.detail.contains("基础5 × 部位倍率1 × 当前来源倍率1＝5快感") and not status.detail.contains("可用挣扎牌") and not status.detail.contains("无手部操作时"),"SPECIAL compact equipment status keeps formulas without escape-guide repetition")
+ var rod_view=groups[8].items.filter(func(item):return item.slot=="special_2_d")[0].equipment[0]
+ t.check(rod_view.description.contains("高潮时滑脱伤害：6－紧度2－等级2＝2") and rod_view.description.contains("尿道内壁与外侧突起"),"SPECIAL equipment detail shows current climax formula and physical stimulation")
  g=Game.new(42,true,"plate_lock")
  var locks=g.state.special_equipment.filter(D.is_chastity)
  var straps=g.state.special_equipment.filter(D.is_reinforcement)
@@ -107,6 +141,9 @@ static func capacity_and_composites(t) -> void:
 
 static func pleasure_and_battery(t) -> void:
  var g=Game.new(42)
+ for type in D.TYPES:
+  if D.TYPES[type].duration<=0: continue
+  t.check(D.TYPES[type].duration=={1:6,2:9,3:12}[D.DESIGNS[type].grade],"SPECIAL powered equipment has the strengthened grade battery: "+type)
  var shaft=g._install_special("shaft_ring_low","special_2_a")
  var rod=g._install_special("urethral_rod_low","special_2_d")
  var glans=g._install_special("glans_cup_medium","special_2_b")
@@ -116,10 +153,10 @@ static func pleasure_and_battery(t) -> void:
 
  g=Game.new(42)
  var clamp=g._install_special("nipple_clamp_low","special_1_a")
- for i in range(4): g._tick_special("turn_start")
- t.check(g.state.special_equipment.has(clamp) and clamp.remaining==0 and g.state.pressure==24,"SPECIAL battery applies exactly its declared number of player-turn pulses")
+ for i in range(6): g._tick_special("turn_start")
+ t.check(g.state.special_equipment.has(clamp) and clamp.remaining==0 and g.state.pressure==36,"SPECIAL battery applies exactly its declared number of player-turn pulses")
  g._tick_special("turn_start")
- t.check(g.state.special_equipment.has(clamp) and g.state.pressure==24 and D.gain(clamp,"turn_start")==0,"SPECIAL empty battery stops stimulation but leaves the equipment installed")
+ t.check(g.state.special_equipment.has(clamp) and g.state.pressure==36 and D.gain(clamp,"turn_start")==0,"SPECIAL empty battery stops stimulation but leaves the equipment installed")
 
  g=Game.new(42)
  rod=g._install_special("urethral_rod_low","special_2_d")
@@ -291,7 +328,7 @@ static func chastity_locks(t) -> void:
  g._apply_equipment_damage(high,6,"slip")
  t.check(high.durability==locked_durability,"CHASTITY a linked reinforcement prevents direct slip damage while the owner remains locked")
  g.state.equipment.clear();g.state.composites.clear();g.state.links.clear()
- var unlock=t.hand_card(g,"unlock")
+ var unlock=t.grant_fixture_card(g,"unlock")
  t.check(t.action(g,"card",{"uid":unlock.uid,"target":high.id,"free":false}).ok and not g._equipment(high.id).locked,"CHASTITY existing unlock card opens the auto-locked root without changing durability")
  high=g._equipment(high.id)
  var preview=g.escape_preview(high,"slip",1)
@@ -301,13 +338,14 @@ static func chastity_locks(t) -> void:
 
  g=Game.new(42,false,"equipment",true,true,25)
  lock=g._install_special("negative_plate_lock_catheter_medium","special_2_a",2)
+ g.state.mana=60
  g.state.pressure=119
  g.Pressure.gain(g,1,"锁内刺激",true,["special_2_a"])
- t.check(g.state.pressure==12 and g.state.chastity_climax_factor==4 and g.state.slip_ejaculation_turns==2 and g.state.slip_ejaculation_force_last and g.state.overload_energy==0,"CHASTITY climax retains S times factor, increments the permanent factor and replaces normal fatigue with 滑精")
+ t.check(g.state.pressure==12 and g.state.chastity_climax_factor==4 and g.state.slip_ejaculation_turns==2 and g.state.slip_ejaculation_force_last and g.state.overload_energy==0 and g.state.mana==60,"CHASTITY climax retains S times factor and grants two-turn penalties without immediate mana loss")
  g.state.overloaded=false;g.state.energy=0;g._start_round()
- t.check(g.state.order=="last" and g.state.slip_ejaculation_turns==1 and g.state.energy==2,"CHASTITY next player turn is forced last and consumes the first of two energy penalties")
+ t.check(g.state.order=="last" and g.state.slip_ejaculation_turns==1 and g.state.energy==2 and g.state.mana==50,"CHASTITY next player turn is forced last with first energy and ten-mana penalties")
  g.state.enemies=[];g.state.phase="prepare";g._begin_player_turn()
- t.check(g.state.slip_ejaculation_turns==0 and g.state.energy==2,"CHASTITY second player turn consumes the final one-energy penalty")
+ t.check(g.state.slip_ejaculation_turns==0 and g.state.energy==2 and g.state.mana==40,"CHASTITY second player turn consumes final energy and ten-mana penalties")
  g.state.chastity_climax_factor=7;g._restart_tower(true)
  t.check(g.state.chastity_climax_factor==7,"CHASTITY accumulated climax retention factor survives removal and continued towers within the run")
 

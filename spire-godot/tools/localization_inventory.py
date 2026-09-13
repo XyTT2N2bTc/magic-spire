@@ -124,7 +124,7 @@ def catalogs():
         parameters(entry["text"])
     coverage = {}
     for path in sorted(CATALOGS.glob("*.json")):
-        if path.stem == "zh_CN":
+        if path.stem == "zh_CN" or path.stem.startswith("legacy-"):
             continue
         doc = read_json(path)
         assert set(doc) == {"schema_version", "locale", "messages"}, path.name

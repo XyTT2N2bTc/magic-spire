@@ -44,7 +44,7 @@ static func run(t) -> void:
   var c=t.find_action(g,"card",{"uid":card.uid,"free":free});var rng=g.state.rng.magic
   while g._random_index("magic",g.B.CAST_ROLL_STEPS)<g.cast_view(g.Cards.cast_profile(g,TYPE)).winning_rolls: rng=g.state.rng.magic
   g.state.rng.magic=rng;var before=g.export_snapshot()
-  t.check(c.mana==g._mana_cost(20) and g.dispatch(c.id,g.state.version).ok and g._magic_failed and g.state.mana==before.mana-c.mana and g.state.energy==2,"HAND either face follows current pressure cost and failure probability")
+  t.check(c.mana==g._mana_cost(20) and g.dispatch(c.id,g.state.version).ok and g._magic_failed and is_equal_approx(g.state.mana,before.mana-c.mana*0.5) and g.state.energy==2,"HAND either face follows current pressure cost and failure probability")
   t.check(g.state.hand==before.hand and g.state.exhaust==before.exhaust and g.state.card_buff_uses.is_empty() and g._equipment(target.id).durability==10,"HAND failed cast leaves card in hand and grants neither loosening nor free attacks")
   g=fresh();target=g.add_fixture("wrist",8);card=Give.give(g,TYPE);g.state.mana=19
   c=t.find_action(g,"card",{"uid":card.uid,"free":free});before=g.export_snapshot()
@@ -105,11 +105,11 @@ static func free_attacks(t) -> void:
  t.check(g.dispatch(c.id,g.state.version).ok and g.state.card_buff_uses.get("magic_hand_free")==2,"HAND fireball does not spend uses")
  c=Attack.attack(t,g,"strike",0);t.check(g.dispatch(c.id,g.state.version).ok,"HAND consume one use before refresh")
  card=Give.give(g,TYPE)
- t.check(t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.state.card_buff_uses.get("magic_hand_free")==2,"HAND repeat card refreshes to two without accumulating")
+ t.check(t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.state.card_buff_uses.get("magic_hand_free")==3,"HAND repeated card adds two to the remaining use")
  t.action(g,"end")
- t.check(g.state.card_buff_uses.get("magic_hand_free")==2,"HAND unused charges survive next turn")
- var before=g.export_snapshot();g.state.card_buff_uses.magic_hand_free=3
- t.check(g.Cards.validate(g)!="","HAND oversized counter rejected")
+ t.check(g.state.card_buff_uses.get("magic_hand_free")==3,"HAND unused charges survive next turn")
+ var before=g.export_snapshot();g.state.card_buff_uses.magic_hand_free=-1
+ t.check(g.Cards.validate(g)!="","HAND negative counter rejected")
  g.state.card_buff_uses.magic_hand_free=0
  t.check(g.Cards.validate(g)!="","HAND zero counter must be removed with buff")
  g.state.card_buff_uses.clear()

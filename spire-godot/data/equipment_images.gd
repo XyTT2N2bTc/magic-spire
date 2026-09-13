@@ -13,6 +13,7 @@ const TEMPLATES={"glove_body":"structure-armbinder","leg_body":"structure-legbin
 const SPECIAL={"urethral_rod":"focus-c-silicone-urethral-rod"}
 
 static func path(e: Dictionary) -> String:
+ if Equipment.lock_only(e): return "res://assets/ui/equipment/restriction-collar.svg"
  var template=Equipment.base_template(e.template)
  if template=="special":
   var family=Equipment.Special.TYPES.get(e.get("type",""),{}).get("family","")

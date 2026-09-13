@@ -69,7 +69,10 @@ static func run(t) -> void:
  t.check(ui.view.phase=="cleared" and ui.view.reward_count==reward and ui.view.mana==mana and t.visible_text(ui.layout).contains("第一阶段完成"),"SUMMIT UI clears after 六缚 without extra rewards or healing")
  await t.capture("ui-45-summit-cleared.png")
  t.check(t.visible_text(ui.layout).contains("感谢游玩这次demo") and ui.actions.select("demo_exit").any(func(c):return c.payload.kind=="demo_continue" and c.valid),"EXIT UI thanks player and offers continuation")
+ ui.game.state.pressure=75.0;ui.game.state.posture="lie";ui.render();await t.frames()
+ t.check(t.visible_text(ui.layout).contains("快感降低40") and t.visible_text(ui.layout).contains("姿势变为站立"),"EXIT UI continuation explains its recovery before clicking")
  t.check(await t.click("demo_continue") and ui.view.demo_cycle==1 and ui.view.phase=="map" and ui.view.mana==ui.game.state.mana_max and ui.game.action_targets().is_empty(),"EXIT UI continue rebuilds tower and clears equipment")
+ t.check(ui.view.pressure.value==35.0 and ui.view.posture=="stand" and ui.game.state.logs.any(func(log):return log.text.contains("快感降低40，姿势变为站立")),"EXIT UI real continuation shows reduced pressure, standing and matching log")
  await enter_room(t,"summit")
  t.check(ui.view.enemies[0].maximum==330,"EXIT UI next tower displays scaled boss health")
  # Final-cycle boundary only; skip replaying the already-covered full battle path.

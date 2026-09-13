@@ -1,5 +1,7 @@
 extends RefCounted
 
+const BATTERY_TURNS={1:6,2:9,3:12}
+
 # Sexual equipment remains an independent equipment family. Stable special_* ids
 # are retained for saves and targeting; only player-facing anatomy is named here.
 const REGIONS=[
@@ -31,6 +33,8 @@ const ENVIRONMENT_NAMES=Environments.NAMES
 const INSTANCE_FIELDS=["id","template","type","slot","coverage","contact_slots","remaining","name","grade","maximum","durability","locked","layer","material","variant","owner_id"]
 const CLIMAX_SLIP_BASE=6.0
 const CHASTITY_FAMILY="chastity_lock"
+const CURSED_VIBRATOR_TURNS=6
+const CHASTITY_CLIMAX_FACTOR_LIMIT=10
 const CHASTITY_TYPES=["negative_plate_lock_medium","negative_plate_lock_catheter_medium","negative_vibrator_lock_catheter_high","cursed_plate_lock"]
 const CURSED_PLATE_REASON="诅咒平板锁只能用下一个Boss掉落的专属钥匙解除。"
 const CHASTITY_COMPONENTS=["chastity_reinforcement_medium","chastity_reinforcement_high"]
@@ -60,10 +64,28 @@ const WEAR_TEXTS={
  "urethral_full_cup":"内置马眼棒先被缓缓送进尿道，「{name}」随后从龟头一直套到根部。杯体扣紧后，尿道内的颗粒与包住肉棒的湿软内衬同时开始动作。",
  "forced_milking_cup":"「{name}」套住整根肉棒，皮革固定带绕过腰臀逐条扣紧，将杯体牢牢锁在胯间。机关启动后，湿软内腔便沿着柱身持续抽送，无法靠夹腿或后退将它甩开。"}
 
+# Current-wear prose is deliberately separate from installation prose. It is
+# shared by the equipment detail and the compact stimulation status, while the
+# latter omits removal instructions supplied by the action UI.
+const STIMULATION_TEXTS={
+ "nipple_clamp":"两枚夹口紧紧咬住乳头，震动持续贴着乳尖传进乳房。",
+ "nipple_ring":"硅胶环紧套在乳头根部，震动沿着挺起的乳尖持续传开。",
+ "shaft_ring":"硅胶环箍在柱身中段，肉棒每次跳动都会重新蹭过震动的环身。",
+ "corona_ring":"震动环紧贴冠沟，沿着龟头下方最敏感的一圈持续摩擦。",
+ "urethral_rod":"马眼棒插在尿道内，棒身的凸粒隔着肉棒正面清楚鼓起；肉棒一有动作，尿道内壁与外侧突起便会同时受到摩擦。",
+ "vaginal_egg":"跳蛋完全没入小穴，震动紧贴穴内软肉不断传开。",
+ "anal_egg":"跳蛋塞在后庭深处，震动贴着收紧的内壁持续扩散。",
+ "external_wand":"固定带把按摩棒的圆头牢牢压在小穴外侧，身体稍一挪动，震动便会贴着湿润的缝隙来回摩擦。",
+ "crotch_rope":"绳股紧贴胯下，从小穴与后庭之间勒过；每次行动都会带动绳身来回摩擦小穴，后庭只被绳索贴住。",
+ "glans_cup":"湿软内衬紧紧包住龟头与冠沟，杯体启动后便沿着最敏感的一圈反复抽送。",
+ "full_cup":"湿软内腔从龟头一直包到根部，启动后沿着整段肉棒反复套弄。",
+ "urethral_full_cup":"杯体包住整根肉棒，内置马眼棒同时贴着尿道内壁动作，内外刺激一起传来。",
+ "forced_milking_cup":"飞机杯套住整根肉棒，腰臀间的固定带让杯体无法被甩开，湿软内腔持续沿着柱身抽送。"}
+
 static func _chastity_type(name: String, catheter: bool, vibrator: bool=false) -> Dictionary:
  var slots=["special_2_a","special_2_b","special_2_c"]
  if catheter: slots.append("special_2_d")
- return {"name":name,"family":CHASTITY_FAMILY,"energy_gain":8.0 if vibrator else (6.0 if catheter else 0.0),"turn_gain":12.0 if vibrator else 0.0,"duration":8 if vibrator else 0,"stimulates":["special_2_d"] if catheter else [],"turn_stimulates":slots.duplicate() if vibrator else [],"turn_stimulus_factor":0.4 if vibrator else 1.0,"material_text":"魔导金属与硅胶","detail":"自动上锁的复合性玩具；解锁后受到任意正数滑脱伤害便会整件解除。","wear_text":"「%s」合拢包住柱身、龟头与冠沟，锁芯随即自动扣死。" % name,"integrated_catheter":catheter,"integrated_vibrator":vibrator}
+ return {"name":name,"family":CHASTITY_FAMILY,"energy_gain":8.0 if vibrator else (6.0 if catheter else 0.0),"turn_gain":12.0 if vibrator else 0.0,"duration":BATTERY_TURNS[3] if vibrator else 0,"stimulates":["special_2_d"] if catheter else [],"turn_stimulates":slots.duplicate() if vibrator else [],"turn_stimulus_factor":0.4 if vibrator else 1.0,"material_text":"魔导金属与硅胶","detail":"自动上锁的复合性玩具；解锁后受到任意正数滑脱伤害便会整件解除。","wear_text":"「%s」合拢包住柱身、龟头与冠沟，锁芯随即自动扣死。" % name,"integrated_catheter":catheter,"integrated_vibrator":vibrator}
 
 static func _reinforcement_type(name: String) -> Dictionary:
  return {"name":name,"family":name,"energy_gain":0.0,"turn_gain":0.0,"duration":0,"stimulates":[],"material_text":"加固皮带与金属扣","detail":"平板锁达到紧度3档时自动附加的独立加固带；只能用切割类道具破坏。","wear_text":"","component_only":true}
@@ -80,40 +102,40 @@ static func _design(grade: int, covered_slots: Array, environments: Array, mater
  return {"grade":grade,"maximum":{1:10.0,2:16.0,3:24.0}[grade],"ratio":0.8,"slots":covered_slots,"methods":methods.duplicate(),"tools":["shard","saw"] if "sharp" in environments else [],"environments":environments,"damage_factor":1.0,"material":material,"capacity_cost":capacity_cost}
 
 # Amounts are base pleasure before the stimulated-position sensitivity multiplier.
-# Powered equipment uses 4/6/8 player-turn starts for low/medium/high batteries.
+# Powered equipment uses 6/9/12 player-turn starts for low/medium/high batteries.
 static var TYPES={
- "nipple_clamp_low":_type("初级无线乳夹跳蛋","nipple_clamp",0,6,4,["special_1_a"],"金属与硅胶","夹在乳头上的无线震动夹。"),
- "nipple_clamp_medium":_type("中级无线乳夹跳蛋","nipple_clamp",0,8,6,["special_1_a"],"金属与硅胶","夹在乳头上的无线震动夹。"),
- "nipple_clamp_high":_type("高级无线乳夹跳蛋","nipple_clamp",0,10,8,["special_1_a"],"金属与硅胶","夹在乳头上的无线震动夹。"),
- "nipple_ring_low":_type("初级硅胶乳头震动环","nipple_ring",0,5,4,["special_1_a"],"柔软硅胶","环绕乳头持续震动。"),
- "nipple_ring_medium":_type("中级硅胶乳头震动环","nipple_ring",0,7,6,["special_1_a"],"柔软硅胶","环绕乳头持续震动。"),
- "nipple_ring_high":_type("高级硅胶乳头震动环","nipple_ring",0,9,8,["special_1_a"],"柔软硅胶","环绕乳头持续震动。"),
- "shaft_ring_low":_type("初级硅胶柱身震动环","shaft_ring",0,4,4,["special_2_a"],"柔软硅胶","套在柱身上的震动环。"),
- "shaft_ring_medium":_type("中级硅胶柱身震动环","shaft_ring",0,5,6,["special_2_a"],"柔软硅胶","套在柱身上的震动环。"),
- "shaft_ring_high":_type("高级硅胶柱身震动环","shaft_ring",0,6,8,["special_2_a"],"柔软硅胶","套在柱身上的震动环。"),
- "corona_ring_low":_type("初级硅胶冠沟震动环","corona_ring",0,6,4,["special_2_c"],"柔软硅胶","固定在冠沟位置的震动环。"),
- "corona_ring_medium":_type("中级硅胶冠沟震动环","corona_ring",0,8,6,["special_2_c"],"柔软硅胶","固定在冠沟位置的震动环。"),
- "corona_ring_high":_type("高级硅胶冠沟震动环","corona_ring",0,10,8,["special_2_c"],"柔软硅胶","固定在冠沟位置的震动环。"),
+ "nipple_clamp_low":_type("初级无线乳夹跳蛋","nipple_clamp",0,6,BATTERY_TURNS[1],["special_1_a"],"金属与硅胶","夹在乳头上的无线震动夹。"),
+ "nipple_clamp_medium":_type("中级无线乳夹跳蛋","nipple_clamp",0,8,BATTERY_TURNS[2],["special_1_a"],"金属与硅胶","夹在乳头上的无线震动夹。"),
+ "nipple_clamp_high":_type("高级无线乳夹跳蛋","nipple_clamp",0,10,BATTERY_TURNS[3],["special_1_a"],"金属与硅胶","夹在乳头上的无线震动夹。"),
+ "nipple_ring_low":_type("初级硅胶乳头震动环","nipple_ring",0,5,BATTERY_TURNS[1],["special_1_a"],"柔软硅胶","环绕乳头持续震动。"),
+ "nipple_ring_medium":_type("中级硅胶乳头震动环","nipple_ring",0,7,BATTERY_TURNS[2],["special_1_a"],"柔软硅胶","环绕乳头持续震动。"),
+ "nipple_ring_high":_type("高级硅胶乳头震动环","nipple_ring",0,9,BATTERY_TURNS[3],["special_1_a"],"柔软硅胶","环绕乳头持续震动。"),
+ "shaft_ring_low":_type("初级硅胶柱身震动环","shaft_ring",0,4,BATTERY_TURNS[1],["special_2_a"],"柔软硅胶","套在柱身上的震动环。"),
+ "shaft_ring_medium":_type("中级硅胶柱身震动环","shaft_ring",0,5,BATTERY_TURNS[2],["special_2_a"],"柔软硅胶","套在柱身上的震动环。"),
+ "shaft_ring_high":_type("高级硅胶柱身震动环","shaft_ring",0,6,BATTERY_TURNS[3],["special_2_a"],"柔软硅胶","套在柱身上的震动环。"),
+ "corona_ring_low":_type("初级硅胶冠沟震动环","corona_ring",0,6,BATTERY_TURNS[1],["special_2_c"],"柔软硅胶","固定在冠沟位置的震动环。"),
+ "corona_ring_medium":_type("中级硅胶冠沟震动环","corona_ring",0,8,BATTERY_TURNS[2],["special_2_c"],"柔软硅胶","固定在冠沟位置的震动环。"),
+ "corona_ring_high":_type("高级硅胶冠沟震动环","corona_ring",0,10,BATTERY_TURNS[3],["special_2_c"],"柔软硅胶","固定在冠沟位置的震动环。"),
  "urethral_rod_low":_type("5毫米×10厘米硅胶马眼棒","urethral_rod",4,0,0,["special_2_d"],"医用硅胶","细短的初级马眼棒插入浅段，表面只有少量细颗粒；行动时产生刺激。"),
  "urethral_rod_medium":_type("8毫米×20厘米硅胶马眼棒","urethral_rod",6,0,0,["special_2_d"],"医用硅胶","更粗更长的中级马眼棒深入中段，表面颗粒更多；行动时产生刺激。"),
  "urethral_rod_high":_type("10毫米×30厘米硅胶马眼棒","urethral_rod",8,0,0,["special_2_d"],"医用硅胶","最粗最长的高级马眼棒深入至最深处，表面颗粒最密；行动时产生刺激。"),
- "vaginal_egg_low":_type("初级无线阴道跳蛋","vaginal_egg",0,8,4,["special_3_a"],"柔软硅胶","置于小穴内的无线跳蛋。"),
- "vaginal_egg_medium":_type("中级无线阴道跳蛋","vaginal_egg",0,10,6,["special_3_a"],"柔软硅胶","置于小穴内的无线跳蛋。"),
- "vaginal_egg_high":_type("高级无线阴道跳蛋","vaginal_egg",0,12,8,["special_3_a"],"柔软硅胶","置于小穴内的无线跳蛋。"),
- "anal_egg_low":_type("初级无线后庭跳蛋","anal_egg",0,7,4,["special_3_b"],"柔软硅胶","置于后庭内的无线跳蛋。"),
- "anal_egg_medium":_type("中级无线后庭跳蛋","anal_egg",0,9,6,["special_3_b"],"柔软硅胶","置于后庭内的无线跳蛋。"),
- "anal_egg_high":_type("高级无线后庭跳蛋","anal_egg",0,11,8,["special_3_b"],"柔软硅胶","置于后庭内的无线跳蛋。"),
- "external_wand_low":_type("初级外置震动按摩棒","external_wand",0,10,4,["special_3_a"],"硅胶与塑料","由外部固定件压在小穴上的按摩棒。"),
- "external_wand_medium":_type("中级外置震动按摩棒","external_wand",0,12,6,["special_3_a"],"硅胶与塑料","由外部固定件压在小穴上的按摩棒。"),
- "external_wand_high":_type("高级外置震动按摩棒","external_wand",0,15,8,["special_3_a"],"硅胶与塑料","由外部固定件压在小穴上的按摩棒。"),
+ "vaginal_egg_low":_type("初级无线阴道跳蛋","vaginal_egg",0,8,BATTERY_TURNS[1],["special_3_a"],"柔软硅胶","置于小穴内的无线跳蛋。"),
+ "vaginal_egg_medium":_type("中级无线阴道跳蛋","vaginal_egg",0,10,BATTERY_TURNS[2],["special_3_a"],"柔软硅胶","置于小穴内的无线跳蛋。"),
+ "vaginal_egg_high":_type("高级无线阴道跳蛋","vaginal_egg",0,12,BATTERY_TURNS[3],["special_3_a"],"柔软硅胶","置于小穴内的无线跳蛋。"),
+ "anal_egg_low":_type("初级无线后庭跳蛋","anal_egg",0,7,BATTERY_TURNS[1],["special_3_b"],"柔软硅胶","置于后庭内的无线跳蛋。"),
+ "anal_egg_medium":_type("中级无线后庭跳蛋","anal_egg",0,9,BATTERY_TURNS[2],["special_3_b"],"柔软硅胶","置于后庭内的无线跳蛋。"),
+ "anal_egg_high":_type("高级无线后庭跳蛋","anal_egg",0,11,BATTERY_TURNS[3],["special_3_b"],"柔软硅胶","置于后庭内的无线跳蛋。"),
+ "external_wand_low":_type("初级外置震动按摩棒","external_wand",0,10,BATTERY_TURNS[1],["special_3_a"],"硅胶与塑料","由外部固定件压在小穴上的按摩棒。"),
+ "external_wand_medium":_type("中级外置震动按摩棒","external_wand",0,12,BATTERY_TURNS[2],["special_3_a"],"硅胶与塑料","由外部固定件压在小穴上的按摩棒。"),
+ "external_wand_high":_type("高级外置震动按摩棒","external_wand",0,15,BATTERY_TURNS[3],["special_3_a"],"硅胶与塑料","由外部固定件压在小穴上的按摩棒。"),
  "crotch_rope_low":_type("初级裆部股绳","crotch_rope",3,0,0,["special_3_a"],"粗劣麻绳","同时经过双穴区域，但只刺激小穴。"),
  "crotch_rope_medium":_type("中级裆部股绳","crotch_rope",5,0,0,["special_3_a"],"尼龙绳","同时经过双穴区域，但只刺激小穴。"),
  "crotch_rope_high":_type("高级裆部股绳","crotch_rope",7,0,0,["special_3_a"],"魔导纤维绳","同时经过双穴区域，但只刺激小穴。"),
- "glans_cup_medium":_type("中级龟头榨精杯","glans_cup",4,12,6,["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
- "glans_cup_high":_type("高级龟头榨精杯","glans_cup",5,15,8,["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
- "full_cup_medium":_type("中级全包榨精杯","full_cup",6,15,6,["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
- "full_cup_high":_type("高级全包榨精杯","full_cup",8,18,8,["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
- "urethral_full_cup_high":_type("高级马眼全包榨精杯","urethral_full_cup",10,22,8,["special_2_a","special_2_b","special_2_c","special_2_d"],"硅胶与塑料","全包榨精杯内整合高级马眼组件。"),
+ "glans_cup_medium":_type("中级龟头榨精杯","glans_cup",4,12,BATTERY_TURNS[2],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
+ "glans_cup_high":_type("高级龟头榨精杯","glans_cup",5,15,BATTERY_TURNS[3],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
+ "full_cup_medium":_type("中级全包榨精杯","full_cup",6,15,BATTERY_TURNS[2],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
+ "full_cup_high":_type("高级全包榨精杯","full_cup",8,18,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
+ "urethral_full_cup_high":_type("高级马眼全包榨精杯","urethral_full_cup",10,22,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c","special_2_d"],"硅胶与塑料","全包榨精杯内整合高级马眼组件。"),
  "forced_milking_cup_high":_type("高级强制榨精飞机杯","forced_milking_cup",0,20,0,["special_2_a","special_2_b","special_2_c"],"硅胶、塑料与皮革","由固定结构持续驱动，不受电池回合限制。")}
 
 static func _add_chastity_types() -> void:
@@ -125,7 +147,7 @@ static func _add_chastity_types() -> void:
  TYPES.cursed_plate_lock.name="诅咒平板锁"
  TYPES.cursed_plate_lock.duration=0
  TYPES.cursed_plate_lock.relic_only=true
- TYPES.cursed_plate_lock.detail="高级、紧度3档，持续生效。获得专属钥匙前不能开锁或解除；击败下一个Boss后自动取下整件。"
+ TYPES.cursed_plate_lock.detail="高级、紧度3档。默认跳蛋每场只在前6回合生效，高潮保留系数最高10；抖M专用版保持原本的无限效果。获得专属钥匙前不能开锁或解除；击败下一个Boss后自动取下整件。"
  TYPES.cursed_plate_lock.wear_text="诅咒平板锁已佩戴并上锁。"
  TYPES.chastity_reinforcement_medium=_reinforcement_type("中级平板锁加固带")
  TYPES.chastity_reinforcement_high=_reinforcement_type("高级平板锁加固带")
@@ -330,6 +352,11 @@ static func gain(item: Dictionary, timing: String) -> float:
  for slot in slots: sensitivity+=float(SENSITIVITY.get(slot,0.0))
  return base*sensitivity*float(spec.get("turn_stimulus_factor",1.0) if timing=="turn_start" else 1.0)
 
+static func effective_gain(g, item: Dictionary, timing: String) -> float:
+ if is_cursed_plate(item) and timing=="turn_start" and not g.state.get("cursed_plate_masochist_mode",false):
+  if not g.state.combat.active or g.state.combat.turn>CURSED_VIBRATOR_TURNS: return 0.0
+ return gain(item,timing)
+
 static func climax_slip_damage(item: Dictionary, tightness: int) -> float:
  var base=float(TYPES.get(item.get("type",""),{}).get("climax_slip_base",0.0))
  return maxf(0.0,base-tightness-int(item.get("grade",0)))
@@ -338,36 +365,74 @@ static func climax_slip_rule(type: String) -> String:
  var base=float(TYPES.get(type,{}).get("climax_slip_base",0.0))
  return "" if base<=0 else "每次高潮：受到%s－当前紧度档位－装备等级的固定滑脱伤害。" % str(base).trim_suffix(".0")
 
-static func description(item: Dictionary, multiplier: float=1.0, tightness: int=-1, protected: bool=false) -> String:
- if protected and is_reinforcement(item): return "诅咒平板锁的加固带。获得专属钥匙后随锁体一并取下，此前不能解除。"
+static func _number(value: float) -> String:
+ if value>0.0 and value<0.005: return "不足0.01"
+ var text="%.2f" % value
+ return text.trim_suffix("0").trim_suffix("0").trim_suffix(".") if text.contains(".") else text
+
+static func _stimulus_sentence(item: Dictionary) -> String:
+ if is_chastity(item):
+  var spec=TYPES[item.type]
+  return "平板锁紧压着肉棒，使肉棒无法正常勃起"+("；内置导尿管贴在尿道中" if catheter(item) else "")+("，无线跳蛋同时在锁内震动。" if spec.get("integrated_vibrator",false) else "。")
+ if is_reinforcement(item): return "加固带把平板锁紧紧固定在胯间，自身不产生额外快感。"
+ return STIMULATION_TEXTS.get(TYPES[item.type].family,TYPES[item.type].detail)
+
+static func _stimulus_formula(item: Dictionary, timing: String, multiplier: float) -> String:
  var spec=TYPES[item.type]
- var design=DESIGNS[item.type]
- var lines=[spec.detail,"覆盖位置："+location_name(item)+"。"]
+ var base=float(spec.energy_gain if timing=="energy" else spec.turn_gain)
+ var slots=spec.get("turn_stimulates",spec.stimulates) if timing=="turn_start" else spec.stimulates
+ var sensitivity=0.0
+ for slot in slots: sensitivity+=float(SENSITIVITY.get(slot,0.0))
+ var internal=float(spec.get("turn_stimulus_factor",1.0) if timing=="turn_start" else 1.0)
+ var factors=["基础"+_number(base),"部位倍率"+_number(sensitivity)]
+ if internal!=1.0: factors.append("锁内震动系数"+_number(internal))
+ factors.append("当前来源倍率"+_number(multiplier))
+ return " × ".join(factors)+"＝"+_number(base*sensitivity*internal*multiplier)+"快感"
+
+static func stimulation_text(item: Dictionary, multiplier: float=1.0, tightness: int=-1, protected: bool=false, context: Dictionary={}) -> String:
+ if protected and is_reinforcement(item): return "加固带把平板锁紧紧固定在胯间，自身不产生额外快感。"
+ var spec=TYPES[item.type]
+ var lines=[_stimulus_sentence(item)]
  if is_chastity(item):
   var sum=int(item.grade)+maxi(0,tightness)
-  lines.append("佩戴时快感上限＋%d；锁外来源快感×%s。" % [sum*5,str(1.0+0.05*sum)])
-  lines.append("高潮后保留（品质＋紧度）×当前系数的快感；系数从3开始，每次佩戴平板锁高潮永久＋1。")
-  if catheter(item): lines.append("内置导尿管按同品质、同紧度的马眼棒判定，并满足滑精条件。")
-  if spec.get("integrated_vibrator",false): lines.append("内置同级无线跳蛋：全部覆盖部位的总刺激计算后×0.4。")
-  if not is_cursed_plate(item): lines.append("佩戴时默认上锁，并受到普通上锁效果影响；仍上锁且带有加固带时不能滑脱。开锁后任意正数滑脱伤害会整件解除，即使加固带仍在也一样。")
- elif is_reinforcement(item):
-  lines.append("所属平板锁解除时一并移除；本身不占性玩具容量。")
-  lines.append("只接受已安装切割类道具造成的伤害；锁体仍上锁时，加固带会阻止锁体滑脱，开锁后的整件解除不受影响。")
- elif allows(item,"manual"):
-  lines.append("特殊取出：双臂、双腕和双手完全自由后，可花费1能量直接取出；不接受挣扎或滑脱牌。")
- elif not is_chastity(item):
-  lines.append("可用挣扎牌：用力！、绷紧再挣、扯开缺口、接连挣动。可用滑脱牌：顾涌！、一点点抽出、逐层抽离；找准松处跟随滑脱条件。魔力撑隙和魔力松缚只检查施法与结构。")
-  var names=design.environments.map(func(environment):return ENVIRONMENT_NAMES[environment])
-  lines.append("无手部操作时，需要接触"+"、".join(names)+"中的一种环境。")
- if spec.energy_gain>0: lines.append("每次行动实际支付正能量，快感值＋%s。" % str(gain(item,"energy")*multiplier).trim_suffix(".0"))
+  lines.append("当前快感上限＋%d；锁外来源快感×%s。" % [sum*5,_number(1.0+0.05*sum)])
+ if spec.energy_gain>0:
+  if spec.duration>0 and item.remaining<=0: lines.append("消耗能量行动：电量耗尽＝0快感。")
+  else: lines.append("消耗能量行动："+_stimulus_formula(item,"energy",multiplier)+"。")
+ if spec.turn_gain>0:
+  if is_cursed_plate(item) and not bool(context.get("masochist",false)):
+   var turn=int(context.get("session_turn",0));var active=bool(context.get("session_active",false))
+   if active and turn>CURSED_VIBRATOR_TURNS:
+    lines.append("内置无线跳蛋：本场前6回合的刺激已经结束；超过回合限制＝0快感。")
+   else:
+    lines.append("回合开始："+_stimulus_formula(item,"turn_start",multiplier)+"；仅在每场前6回合生效"+("，当前第%d／6回合。" % maxi(1,turn) if active else "。"))
+  elif spec.duration>0 and item.remaining<=0:
+   lines.append("回合开始：电量耗尽＝0快感；装备仍留在原位。")
+  else:
+   lines.append("回合开始："+_stimulus_formula(item,"turn_start",multiplier)+"。")
+   if is_cursed_plate(item): lines.append("抖M专用版：内置无线跳蛋不受回合限制。")
+   elif spec.duration>0: lines.append("电量剩余%d回合。" % item.remaining)
+   else: lines.append("无电量限制，佩戴期间持续生效。")
  var climax_rule=climax_slip_rule(item.type)
  if climax_rule!="":
-  if tightness>=0: climax_rule=climax_rule.trim_suffix("。")+"（当前%s点）。" % str(climax_slip_damage(item,tightness)).trim_suffix(".0")
+  if tightness>=0: climax_rule="高潮时滑脱伤害：%s－紧度%d－等级%d＝%s。" % [_number(float(spec.climax_slip_base)),tightness,int(item.grade),_number(climax_slip_damage(item,tightness))]
   lines.append(climax_rule)
- if spec.turn_gain>0:
-  if spec.duration==0: lines.append("每个玩家回合开始，快感值＋%s；持续生效。" % str(gain(item,"turn_start")*multiplier).trim_suffix(".0"))
-  elif item.remaining>0: lines.append("每个玩家回合开始，快感值＋%s；电量剩余%d回合。" % [str(gain(item,"turn_start")*multiplier).trim_suffix(".0"),item.remaining])
-  else: lines.append("电量已经耗尽，不再增加快感值；装备仍然留在原位。")
+ if is_chastity(item):
+  var factor=int(context.get("climax_factor",3));var masochist=bool(context.get("masochist",false))
+  var shown_factor=factor if masochist else mini(factor,CHASTITY_CLIMAX_FACTOR_LIMIT)
+  var sum=int(item.grade)+maxi(0,tightness)
+  lines.append("高潮后保留快感：（品质%d＋紧度%d）×当前系数%d＝%d。" % [int(item.grade),maxi(0,tightness),shown_factor,sum*shown_factor])
+  lines.append("每次佩戴平板锁高潮，系数永久＋1"+("，没有上限。" if masochist else "，最高10。"))
+ return "\n".join(lines)
+
+static func description(item: Dictionary, multiplier: float=1.0, tightness: int=-1, protected: bool=false, context: Dictionary={}) -> String:
+ if protected and is_reinforcement(item): return "加固带将平板锁紧紧固定在胯间，自身不产生额外快感。\n无法提前解除；获得专属钥匙后随锁体一并取下。"
+ var lines=[stimulation_text(item,multiplier,tightness,protected,context)]
+ if is_chastity(item):
+  if not is_cursed_plate(item): lines.append("佩戴时自动上锁；仍上锁且带有加固带时不能滑脱。开锁后受到任意正数滑脱伤害便会整件解除。")
+  else: lines.append("无法提前开锁或解除；击败下一个Boss后自动取下整件。")
+ elif is_reinforcement(item): lines.append("只接受已安装切割类道具造成的伤害；所属平板锁解除时一并取下。")
+ elif allows(item,"manual"): lines.append("双臂、双腕和双手完全自由时，可花费1能量直接取出。")
  return "\n".join(lines)
 
 static func wear_text(type: String) -> String:
@@ -416,6 +481,7 @@ static func view(g) -> Array:
  var result=[]
  var assist_profiles=g.HandAssist.profiles(g)
  for region in REGIONS:
+  if not g.Character.has_slot(g,region.id): continue
   var entry=region.duplicate(true);entry.items=[]
   for slot in region.slots:
    var equipped=g.state.special_equipment.filter(func(e):return occupies(e,slot))
@@ -423,7 +489,10 @@ static func view(g) -> Array:
    for item in equipped:
     var detail=g.View.equipment_entry(g,item,slot)
     var slots=TYPES[item.type].get("turn_stimulates",TYPES[item.type].stimulates)
-    detail.text=description(item,g.Pressure.source_multiplier(g,slots),g.tier(item.durability,item.maximum),g.cursed_plate(item));detail.remaining=item.remaining
+    var multiplier=g.Pressure.source_multiplier(g,slots)
+    var context={"climax_factor":g.state.chastity_climax_factor,"masochist":g.state.cursed_plate_masochist_mode,"session_turn":g.state.combat.turn,"session_active":g.state.combat.active}
+    detail.text=stimulation_text(item,multiplier,g.tier(item.durability,item.maximum),g.cursed_plate(item),context)
+    detail.remaining=item.remaining
     projected.append(detail)
    entry.items.append({"slot":slot,"name":slot_name(slot),"capacity":capacity(slot),"used":used_capacity(g.state.special_equipment,slot),"hand_reach":g.HandAssist.at_point(g,slot,assist_profiles),"equipment":projected})
   result.append(entry)

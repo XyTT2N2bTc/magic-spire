@@ -49,7 +49,7 @@ static func run(t) -> void:
  var master=ui.view.enemies[0].id
  var master_art=ui.find_child("EnemyArt_"+master,true,false)
  t.check(ui.view.enemies[0].maximum==96 and master_art.enemy_sprite.texture.resource_path.ends_with("enemy-puppeteer-formal-v1.png"),"PUPPET UI practice displays supplied formal illustration and 96 HP")
- t.check(await t.click("end") and ui.view.enemies.size()==2,"PUPPET UI real summon appears as a separate actor")
+ t.check(ui.view.enemies.size()==2 and ui.game.state.enemies[0].intent.kind=="puppet_awaken","PUPPET UI opening already shows both real actors with awakening intent")
  var doll=ui.view.enemies.filter(func(e):return e.template=="puppet")[0].id
  var doll_art=ui.find_child("EnemyArt_"+doll,true,false)
  t.check(doll_art.enemy_sprite.texture.resource_path.ends_with("enemy-puppet-formal-v1.png"),"PUPPET UI summoned doll uses separate transparent formal art")
@@ -99,6 +99,15 @@ static func run(t) -> void:
  await t.start_practice("Practice_mixed_pair")
  t.check(ui.view.enemies.size()==2 and ui.view.enemies.all(func(e):return e.template=="mixed_bundle" and e.maximum==56),"MIXED UI exposes the strong pair with independent targets")
  t.check(ui.layout.find_child("EnemyArt_"+ui.view.enemies[0].id,true,false).mode=="mixed_bundle","MIXED UI uses its mixed-material silhouette")
+ for enemy in ui.view.enemies:
+  var art=ui.layout.find_child("EnemyArt_"+enemy.id,true,false)
+  var label=ui.layout.find_child("EnemySelect_"+enemy.id,true,false)
+  t.check(art.size==Vector2(264,216) and art.get_parent().scale==Vector2.ONE,"MIXED UI paired monsters are twenty percent larger without shrinking the pair")
+  t.check(art.get_global_rect().end.y<label.get_global_rect().position.y and ui.actor_targets[enemy.id].get_global_rect()==art.get_global_rect(),"MIXED UI enlarged art retains a matching target above its name")
+  for entry in enemy.intent_icons:
+   var icon=ui.layout.find_child("IntentIcon_"+enemy.id+"_"+entry.kind,true,false)
+   t.check(icon.get_global_rect().end.y<art.get_global_rect().position.y,"MIXED UI intent remains above enlarged art")
+ await t.capture("ui-enlarged-monsters.png")
  t.check(await t.click("end") and ui.game.physical_pieces().size()+ui.game.state.links.size()==4,"MIXED UI pair applies four actual restraints through end turn")
  await t.start_practice("Practice_rope_serpent_solo")
  var serpent_id=ui.view.enemies[0].id

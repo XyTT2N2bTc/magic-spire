@@ -26,6 +26,7 @@ static func run(t) -> void:
  spicy_rice_noodles(t)
  mana_cap_pickups(t)
  green_bird(t)
+ green_bird_dynamic(t)
 
 static func green_bird(t) -> void:
  var id="green_bird"
@@ -48,8 +49,9 @@ static func green_bird(t) -> void:
    for enemy in g.state.enemies: enemy.intent.delayed=true
    t.check(t.action(g,"end").ok and g.state.combat.turn==turn+1,"BIRD real turn advance: "+phase+str(turn))
   var total=g.state.overload_total
-  t.check(g.state.pressure==99 and g.RelicEffects.pressure_guard(g)=="","BIRD seventh turn expires without replaying excess: "+phase)
-  g.Pressure.gain(g,1,"测试来源")
+  var remaining=99 if phase=="prison" else 97
+  t.check(g.state.pressure==remaining and g.RelicEffects.pressure_guard(g)=="","BIRD seventh turn expires after applicable free cooling: "+phase)
+  g.Pressure.gain(g,100-remaining,"测试来源")
   t.check(g.state.pressure==0 and g.state.overload_total==total+1,"BIRD seventh turn restores normal threshold: "+phase)
  g=Game.new(42);g.state.combat.turn=3;g.state.pressure=99.5;g.RelicEffects.gain(g,id)
  t.check(g.state.pressure==99 and g.RelicEffects.counter(g,id).value==4,"BIRD pickup uses current session turn rather than a fresh duration")
@@ -60,6 +62,20 @@ static func green_bird(t) -> void:
  g=Game.new(80,true,"prison_test");g.state.relics=[id];g.state.combat.turn=6;g.state.prison.left=1
  t.action(g,"end");t.action(g,"prison",{"action":"inspect"});t.action(g,"prison",{"action":"accept"});t.action(g,"prison",{"action":"resume"})
  t.check(g.state.phase=="prison" and g.state.combat.turn==7 and g.RelicEffects.pressure_guard(g)=="","BIRD inspection resume continues the same session count")
+
+static func green_bird_dynamic(t) -> void:
+ var g=Game.new(42)
+ var lock=g._install_special("negative_plate_lock_medium","special_2_a",2)
+ g.state.pressure=119.5;g.RelicEffects.gain(g,"green_bird")
+ t.check(g.Pressure.maximum(g)==120 and g.state.pressure==119,"BIRD pickup caps against current maximum rather than fixed ninety-nine")
+ g.Pressure.gain(g,250,"测试来源")
+ t.check(g.state.pressure==119 and g.state.overload_total==0,"BIRD increased maximum protects gains without overload")
+ var before=g.export_snapshot();var view=g.get_view()
+ t.check(view.pressure.sources.any(func(row):return row.name=="绿色小鸟" and row.text.contains("119")) and g.RelicEffects.counter(g,"green_bird").detail.contains("119") and g.state==before,"BIRD dynamic limit projections are accurate and readonly")
+ lock.durability=lock.maximum*0.3;g._cleanup()
+ t.check(g.Pressure.maximum(g)==115 and g.state.pressure==114 and g.state.overload_total==0,"BIRD tightening loss immediately lowers protected limit without overload")
+ lock.durability=0;g._cleanup()
+ t.check(g.Pressure.maximum(g)==100 and g.state.pressure==99 and g.state.overload_total==0,"BIRD equipment removal clamps to normal protected limit")
 
 static func mana_cap_pickups(t) -> void:
  for entry in [["braised_eggplant","rare",20],["shrimp_paste","uncommon",12]]:
@@ -260,7 +276,7 @@ static func periodic_energy(t) -> void:
 static func casting_manual(t) -> void:
  var g=Game.new(42)
  var target=g.add_fixture("ankle",8,10,true)
- var card=t.hand_card(g,"unlock")
+ var card=t.grant_fixture_card(g,"unlock")
  g._install_assembly("wrap","left","fixture",1,1)
  var choice=t.find_action(g,"card",{"uid":card.uid,"target":target.id})
  var before=g.export_snapshot()

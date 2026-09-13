@@ -3,6 +3,10 @@ const Cards=preload("res://tests/curse_cases.gd")
 const Click=preload("res://tests/target_sidebar_ui_cases.gd")
 
 static func run(t) -> void:
+ await reuse(t)
+ await confluence(t)
+ await resonance(t)
+ await preload("res://tests/practiced_ui_cases.gd").run(t)
  await preload("res://tests/hannya_ui_cases.gd").run(t)
  await henshin_costs(t)
  await combat_extension(t)
@@ -22,6 +26,7 @@ static func run(t) -> void:
  await repeated_strain(t)
  await echo_cast(t)
  await embers(t)
+ await cumulative_preparations(t)
  await follow_through(t)
  await wildfire_descent(t)
  await adaptability(t)
@@ -45,7 +50,7 @@ static func run(t) -> void:
  t.check(ui.card_buttons[card.uid].free_face,"POWER UI ability has a real free face")
  await t.flip(card.uid)
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
- t.check(ui.view.powers.size()==1 and ui.game.state.energy==1 and not ui.card_buttons.has(card.uid),"POWER UI native play moves card into ability zone")
+ t.check(ui.view.powers.size()==1 and ui.game.state.energy==2 and not ui.card_buttons.has(card.uid),"POWER UI native play moves card into ability zone")
  var fire=ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy})
  t.check(fire.valid and fire.payload.damage==ui.game.B.FIREBALL and fire.casting.percent=="100%","POWER UI fixed spell preview uses active body exemption")
  await Click.press(t,ui.find_child("OpenPowers",true,false));await t.frames()
@@ -83,7 +88,7 @@ static func run(t) -> void:
  t.check(ui.game.export_snapshot()==hover_state,"DUAL UI free-face hover does not roll or change gameplay")
  var mana=ui.game.state.mana
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
- t.check(ui.game.state.mana==mana-5 and ui.game.state.charge==2,"DUAL UI free surge actually pays and grants charges")
+ t.check(ui.game.state.mana==mana and ui.game.state.temporary_mana==10 and ui.game.state.charge==0,"DUAL UI free surge grants two reserve layers without paying mana")
  ui.game._discard_end();card=Cards.give(ui.game,"mana_conversion");ui.game.state.energy=0
  ui.render();await t.frames();await t.flip(card.uid)
  face=ui.card_buttons[card.uid]
@@ -277,11 +282,16 @@ static func flame_flourish(t) -> void:
 
 static func embers(t) -> void:
  var ui=t.ui
- ui.restart(42);ui.game._discard_end();ui.game.state.mana=10;ui.game.state.energy=0
+ ui.restart(42)
+ var fire=ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy})
+ ui.game.dispatch(fire.id,ui.game.state.version)
+ ui.game._discard_end();ui.game.state.mana=12;ui.game.state.energy=0
  var card=Cards.give(ui.game,"embers")
  ui.render();await t.frames()
  var face=ui.card_buttons[card.uid]
- t.check(face.rarity=="common" and t.visible_text(face).contains("手部") and t.visible_text(face).contains("再耗5魔力"),"EMBERS UI shared card displays hand requirement and optional price")
+ t.check(face.rarity=="common" and t.visible_text(face).contains("手部") and t.visible_text(face).contains("再耗6魔力") and t.visible_text(face).contains("成功使用过火球术"),"EMBERS UI shared card displays hand requirement and optional price")
+ t.check(t.visible_text(face.get_node("CardMana/Mana_cost")).strip_edges()=="−6","EMBERS UI top-right badge is the actual base cost six")
+ await t.capture("ui-embers-six.png")
  if ui.card_faces.get(card.uid,false): await t.flip(card.uid)
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  t.check(ui.game.state.mana==0 and ui.view.hand.size()==2 and ui.game.state.energy==0,"EMBERS UI zero energy cast actually draws twice and updates mana")
@@ -304,7 +314,7 @@ static func fire_dynamics(t) -> void:
  var card=Cards.give(ui.game,"fire_dynamics")
  ui.render();await t.frames()
  var face=ui.card_buttons[card.uid]
- t.check(face.rarity=="rare" and t.visible_text(face).contains("25") and face.get_node("CardIllustration").texture!=null,"DYNAMICS UI rare card displays additive effect and illustration")
+ t.check(face.rarity=="rare" and t.visible_text(face).contains("30") and face.get_node("CardCost").text=="1" and face.get_node("CardIllustration").texture!=null,"DYNAMICS UI rare card displays additive effect and illustration")
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  ui.game.state.pressure=75
  card=Cards.give(ui.game,"fire_dynamics");ui.render();await t.frames()
@@ -312,7 +322,7 @@ static func fire_dynamics(t) -> void:
  t.check(t.visible_text(ui.card_buttons[card.uid]).contains("全体攻击"),"DYNAMICS UI free face describes enemy area damage")
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  var fire=ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy})
- t.check(fire.payload.all and fire.casting.percent=="50%" and ui.view.powers.size()==2,"DYNAMICS UI formal play projects both area targeting and increased chance")
+ t.check(fire.payload.all and fire.casting.percent=="55%" and ui.view.powers.size()==2,"DYNAMICS UI formal play projects both area targeting and increased chance")
 
 static func echo_cast(t) -> void:
  var ui=t.ui
@@ -653,3 +663,85 @@ static func combat_extension(t) -> void:
  t.check(ui.find_child("StatusIcon_power_henshin_free",true,false)!=null,"EXTENSION UI buff remains visible during preparation")
  t.check(await t.click("finish_prepare") and not ui.game.state.card_buffs.has("henshin_free"),"EXTENSION UI leaving preparation clears battle buff")
  ui.restart(42);await t.frames()
+
+static func cumulative_preparations(t) -> void:
+ var ui=t.ui
+ for type in ["magic_hand","echo_cast"]:
+  ui.restart(42);await t.frames();ui.game._discard_end();ui.game.state.energy=10
+  for n in range(2):
+   var card=Cards.give(ui.game,type);ui.render();await t.frames()
+   if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+   t.check(not t.visible_text(ui.card_buttons[card.uid]).contains("唯一"),"CUMULATIVE UI repeatable card has no unique label")
+   await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+  var id="magic_hand_free" if type=="magic_hand" else "echo_cast_free"
+  var count=4 if type=="magic_hand" else 2
+  t.check(ui.game.state.card_buff_uses.get(id)==count and ui.view.statuses.any(func(row):return row.id=="power_"+id and row.value.contains(str(count))),"CUMULATIVE UI displays actual accumulated uses after two clicks")
+ ui.restart(42);await t.frames();ui.game._discard_end()
+ var card=Cards.give(ui.game,"mana_surge");ui.render();await t.frames()
+ if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+ t.check(t.visible_text(ui.card_buttons[card.uid]).contains("2层魔力预备") and ui.card_buttons[card.uid].get_node_or_null("CardMana/Mana_cost")==null and t.visible_text(ui.card_buttons[card.uid].get_node("CardMana/Mana_temporary")).strip_edges()=="+10","SURGE UI free card describes two reserve layers and shows only the temporary mana badge")
+ await t.capture("ui-surge-reserve.png")
+
+static func resonance(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames();ui.game._discard_end();ui.game.state.energy=8
+ ui.game.add_fixture("ankle",8)
+ var card=Cards.give(ui.game,"resonance");ui.render();await t.frames()
+ if ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+ var face=ui.card_buttons[card.uid]
+ t.check(face.rarity=="uncommon" and face.get_node("CardCost").text=="1" and t.visible_text(face).contains("5%") and t.visible_text(face).contains("唯一") and face.ILLUSTRATIONS.has("resonance"),"RESONANCE UI bound uncommon one energy unique with its own artwork")
+ await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+ t.check(ui.view.statuses.any(func(row):return row.id=="power_resonance_bound" and row.value.contains("5%")),"RESONANCE UI bound activation displays live reduction")
+ var spell=Cards.give(ui.game,"rekindle");ui.render();await t.frames()
+ t.check(t.visible_text(ui.card_buttons[spell.uid].get_node("CardMana/Mana_cost")).strip_edges()=="−9.5","RESONANCE UI real spell badge reflects fractional reduced payment")
+ for n in range(2):
+  card=Cards.give(ui.game,"resonance");ui.render();await t.frames()
+  if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+  t.check(not t.visible_text(ui.card_buttons[card.uid]).contains("唯一") and t.visible_text(ui.card_buttons[card.uid]).contains("闪避1"),"RESONANCE UI free face remains stackable")
+  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+ for enemy in ui.game.state.enemies: enemy.intent.delayed=true
+ ui.render();await t.frames()
+ t.check(await t.click("end") and ui.game.state.evasion==2,"RESONANCE UI next turn gives two evasion from two actual plays")
+
+static func confluence(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames();ui.game._discard_end();ui.game.state.energy=0;ui.game.state.mana=30
+ var card=Cards.give(ui.game,"confluence");ui.render();await t.frames()
+ if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+ var face=ui.card_buttons[card.uid]
+ t.check(face.rarity=="common" and face.get_node("CardCost").text=="0" and t.visible_text(face).contains("技能") and t.visible_text(face.get_node("CardMana/Mana_gain")).strip_edges()=="+0","CONFLUENCE UI common zero-energy skill displays zero gain with no equipment")
+ t.check(t.visible_text(face).contains("每佩戴1件拘束具，恢复1点魔力。") and t.visible_text(face).contains("当前：恢复0魔力。"),"CONFLUENCE UI zero-gain card retains its equipment scaling rule")
+ await t.capture("ui-confluence-description.png")
+ for slot in ["eyes","ankle","thigh"]: ui.game.add_fixture(slot,8)
+ ui.render();await t.frames()
+ t.check(t.visible_text(ui.card_buttons[card.uid].get_node("CardMana/Mana_gain")).strip_edges()=="+3","CONFLUENCE UI mana corner updates after equipment changes")
+ await t.flip(card.uid)
+ t.check(t.visible_text(ui.card_buttons[card.uid]).contains("本回合力量＋1") and not ui.card_buttons[card.uid].get_node("CardMana").visible,"CONFLUENCE UI bound face shows floored strength without a false mana badge")
+ t.check(t.visible_text(ui.card_buttons[card.uid]).contains("每佩戴2件拘束具，本回合获得1点力量，不足2件不计。"),"CONFLUENCE UI bound face keeps threshold and duration alongside current strength")
+ await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+ t.check(ui.game.state.turn_strength==1 and ui.game.state.strength==0 and ui.view.statuses.any(func(row):return row.id=="strength" and row.value=="1" and row.detail.contains("本回合结束清除")),"CONFLUENCE UI actual bound play updates strength and expiry detail")
+ card=Cards.give(ui.game,"confluence");ui.render();await t.frames()
+ if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+ await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+ t.check(ui.game.state.mana==33 and ui.game.state.energy==0,"CONFLUENCE UI free play really restores three mana without energy")
+
+
+static func reuse(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames();ui.game._discard_end();ui.game.state.energy=8;ui.game.state.equipment.clear()
+ var card=Cards.give(ui.game,"reuse");ui.render();await t.frames()
+ if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+ var face=ui.card_buttons[card.uid]
+ t.check(face.rarity=="uncommon" and face.get_node("CardCost").text=="1" and t.visible_text(face).contains("80%") and t.visible_text(face).contains("唯一") and face.ILLUSTRATIONS.has("reuse"),"REUSE UI uncommon free face shows one energy, unique, temporary refund and artwork")
+ await t.flip(card.uid)
+ face=ui.card_buttons[card.uid]
+ var blocked=ui.actions.find("card",{"uid":card.uid,"free":false})
+ t.check(face.get_node("CardCost").text=="2" and t.visible_text(face).contains("上身束缚等级≥2") and t.visible_text(face).contains("腿部束缚等级≥2") and not blocked.valid,"REUSE UI bound face shows two energy and both live requirements")
+ var wrist=ui.game.add_fixture("wrist",8);ui.game.add_fixture("ankle",8);ui.render();await t.frames()
+ t.check(ui.actions.find("card",{"uid":card.uid,"free":false}).valid,"REUSE UI condition changes enable the original card")
+ await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+ t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("80%")),"REUSE UI actual play creates the eighty percent refund power status")
+ ui.game.add_fixture("palm",8);ui.game.add_fixture("foot",8);ui.render();await t.frames()
+ t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("100%")),"REUSE UI both level-three regions immediately display full refund")
+ ui.game._equipment(wrist.id).durability=0;ui.game._cleanup();ui.render();await t.frames()
+ t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("未生效") and row.value.contains("上身")),"REUSE UI status explicitly reports the lost ongoing requirement")

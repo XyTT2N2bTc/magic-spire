@@ -4,6 +4,39 @@ const Game=preload("res://tests/game_fixture.gd")
 const Catalog=preload("res://core/content_catalog.gd")
 const Events=preload("res://tests/event_cases.gd")
 
+static func event_mana_cost(t) -> void:
+ var offers=[
+  ["binding_cleric","purify",1],
+  ["mysterious_woman_statue","use_sleeve",1],
+  ["succubus_magic_pawnshop","small_trade",1],
+  ["succubus_magic_pawnshop","large_trade",2],
+  ["succubus_magic_pawnshop","extra_spice",2],
+  ["succubus_three_games","begin",0]]
+ for offer in offers:
+  for remaining_mana in [100.0,15.0,0.0]:
+   for deferred_turns in [0,2]:
+    var g=Game.new(201)
+    Events.arrive(g,offer[0])
+    var expected_count=int(offer[2])
+    if offer[0]=="succubus_three_games":
+     t.check(g.Events.enter_stage(g,"wager_semen")=="","EVENT MANA enters the authored third-round stage")
+     var frozen=g.state.room_event.options.filter(func(option):return option.source_choice=="begin")[0]
+     expected_count=1 if frozen.result_status=="success" else 2
+    g.state.mana=remaining_mana;g.state.temporary_mana=30;g.state.flask_mana=40
+    g.state.slip_ejaculation_turns=deferred_turns
+    var before=g.export_snapshot()
+    var action=t.find_action(g,"event",{"action":"choose","choice":offer[1]})
+    t.check(g.export_snapshot()==before,"EVENT MANA preview preserves all resources: "+offer[1])
+    t.check(g.dispatch(action.id,g.state.version).ok,"EVENT MANA option commits: "+offer[1])
+    var expected_loss=minf(remaining_mana,20.0*expected_count)
+    t.check(g.state.overload_total-before.overload_total==expected_count and is_equal_approx(g.state.mana,remaining_mana-expected_loss),"EVENT MANA each event climax deducts twenty personal mana, clamped at zero: "+offer[1])
+    t.check(g.state.temporary_mana==30 and g.state.flask_mana==40 and g.state.slip_ejaculation_turns==deferred_turns,"EVENT MANA leaves temporary mana, flask and pending combat penalty unchanged: "+offer[1])
+    var logged_loss=0.0
+    for log in g.state.logs.slice(before.logs.size()): logged_loss+=float(log.data.get("mana_lost",0.0))
+    t.check(is_equal_approx(logged_loss,expected_loss),"EVENT MANA log reports the actual loss exactly once: "+offer[1])
+    var after=g.export_snapshot()
+    t.check(not g.dispatch(action.id,before.version).ok and g.export_snapshot()==after,"EVENT MANA stale repeat cannot charge again: "+offer[1])
+
 static func link_installation(t) -> void:
  var g=Game.new(42)
  g._install_template("rope","forearm",8,10,false,"fixture",1,-1,0,"mid_forearm")
@@ -358,6 +391,7 @@ static func maze_survey_team(t) -> void:
  t.check(g.state.room_event.stage=="result" and g.state.room_event.report.contains("合作愉快") and g.state.room_event.result_status=="success","SURVEY TEAM together branch reaches a clear successful result")
 
 static func run(t) -> void:
+ event_mana_cost(t)
  link_installation(t)
  plate_lock_copy(t)
  empty_studio(t)
@@ -416,8 +450,8 @@ static func run(t) -> void:
  var finished=t.action(g,"event",{"action":"choose","choice":"finish"})
  t.check(finished.ok and g.state.room_event.stage=="result","EVENT FLOW final stage uses normal pressure effect")
  var payments=finished.get("resource_feedback",[]).filter(func(event):return event.field=="mana")
- t.check(payments.size()==1 and payments[0].before==100 and payments[0].after==90 and g._resource_feedback==null,"EVENT FLOW chosen cost emits exactly one real payment and releases receipt ownership")
- t.check(g.state.mana==90 and g.state.pressure==0,"EVENT FLOW pressure reaches the ordinary climax threshold once")
+ t.check(payments.size()==1 and payments[0].before==100 and payments[0].after==80 and g._resource_feedback==null,"EVENT FLOW chosen cost emits exactly one real payment and releases receipt ownership")
+ t.check(g.state.mana==80 and g.state.pressure==0,"EVENT FLOW pressure reaches the ordinary climax threshold once")
  t.check(t.action(g,"event",{"action":"leave"}).ok,"EVENT FLOW cleanup and leave are one formal command")
  t.check(g.state.special_equipment.size()==1 and g.state.special_equipment[0]==item,"EVENT FLOW cleanup restores the exact held instance")
 

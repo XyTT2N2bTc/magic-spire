@@ -2,6 +2,7 @@ extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 
 static func run(t) -> void:
+ boss_flask(t)
  magnifying_glass(t)
  skip_rewards(t)
  for order in [["card","item","relic"],["relic","card","item"],["item","relic","card"]]:
@@ -32,6 +33,35 @@ static func run(t) -> void:
  var dropped=g.state.battle_item_drop;var relic=g.state.battle_relic_drop
  t.check(t.action(g,"reward",{"type":"skip"}).ok and g.state.deck.size()==deck and g.state.items==items and g.state.relics==relics,"LOOT continue forfeits every unclaimed reward")
  t.check(not t.action(g,"reward",{"category":"item","type":dropped}).ok and not t.action(g,"reward",{"category":"relic","type":relic}).ok,"LOOT cannot collect a reward after leaving")
+
+static func boss_flask(t) -> void:
+ var Save=preload("res://tests/persistence_cases.gd")
+ for result in ["victory","ordinary","saturated","departure"]:
+  var g=Game.new(78)
+  if result!="ordinary": g.state.room="summit";g._start_battle()
+  g.state.item_drop_chance=100;g.state.flask_mana=137.5
+  for enemy in g.state.enemies:
+   if result in ["victory","ordinary"]: g._damage_enemy(enemy,1000,"physical","测试")
+   else: enemy.gone=true;enemy.intent={}
+  g._finish_battle(result=="saturated")
+  var choices=g.get_view().candidates.filter(func(c):return c.payload.kind=="reward" and c.payload.get("category","")=="flask")
+  if result!="victory":
+   t.check(choices.is_empty() and g.state.flask_mana==137.5,"BOSS FLASK no bonus for "+result)
+   continue
+  t.check(g.state.flask_mana==137.5 and choices.size()==1 and g.get_view().battle_rewards.size()==4,"BOSS FLASK freezes extra eighty alongside card item relic without automatic credit")
+  Save.roundtrip(t,g,"pending Boss flask reward")
+  var before=g.export_snapshot();var pick=choices[0]
+  for amount in [-1,79,81]:
+   var bad=before.duplicate(true);bad.battle_flask_drop=amount
+   t.check(not g.restore_snapshot(bad).ok and g.state==before,"BOSS FLASK invalid saved amount rejects without mutation")
+  t.check(g.dispatch(pick.id,before.version).ok and g.state.flask_mana==217.5,"BOSS FLASK claim adds full eighty above player mana maximum")
+  t.check(g.state.mana==before.mana and g.state.temporary_mana==before.temporary_mana and g.state.flask_deposits==before.flask_deposits and g.state.tick==before.tick and g.state.energy==before.energy and g.state.rng==before.rng and g.state.deck==before.deck and g.state.relics==before.relics,"BOSS FLASK claim only changes flask and reward receipt, costs no resources or turn")
+  var after=g.export_snapshot()
+  t.check(not g.dispatch(pick.id,before.version).ok and not t.action(g,"reward",{"category":"flask"}).ok and g.state==after,"BOSS FLASK duplicate and stale claims roll back")
+  var restored=Save.roundtrip(t,g,"claimed Boss flask reward")
+  t.check(restored!=null and not t.action(restored,"reward",{"category":"flask"}).ok,"BOSS FLASK save preserves claimed receipt")
+  t.check(g.restore_snapshot(before).ok,"BOSS FLASK pending reward restores")
+  t.check(t.action(g,"reward",{"type":"skip"}).ok and g.state.flask_mana==137.5 and not t.action(g,"reward",{"category":"flask"}).ok,"BOSS FLASK continue forfeits unclaimed reward")
 
 static func skip_rewards(t) -> void:
  for boss in [false,true]:

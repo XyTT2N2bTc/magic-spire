@@ -17,6 +17,7 @@ static func body_group_item(t) -> void:
  t.check(t.visible_text(ui.layout).contains("剩余2次"),"OIL UI reopening uses current remaining charges")
 
 static func run(t) -> void:
+ await noncombat_recovery(t)
  await body_group_item(t)
  await preload("res://tests/mana_flask_ui_cases.gd").run(t)
  var ui=t.ui
@@ -50,3 +51,19 @@ static func run(t) -> void:
  ui.game._finish_battle();ui._close_drawers();ui.render();await t.frames()
  t.check(ui.find_child("BattleItemDrop",true,false)!=null and t.visible_text(ui.layout).contains(ui.view.battle_item_drop),"DROP UI reward shows frozen item name")
  await t.capture("ui-item-drop-reward.png")
+
+static func noncombat_recovery(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames()
+ ui.game._finish_battle()
+ ui.game.state.mana=40;ui.game.state.flask_mana=20
+ ui.game.add_fixture("fingers",8);ui.game.add_fixture("wrist",8)
+ ui.game._install_template("mouth_band","mouth",16,16,false,"fixture",2)
+ ui.game._gain_tool("mana_potion");var id=ui.game.state.items.back().id
+ ui.selected_item=id;ui.render();ui._open_drawer("show_items");await t.frames()
+ await preload("res://tests/interface_ui_cases.gd").press(t,"ItemHelpToggle");await t.frames()
+ t.check(t.visible_text(ui.layout).contains("非战斗与探索阶段不受身体和姿势限制") and t.visible_text(ui.layout).contains("恢复10魔力"),"RECOVERY UI reward-page potion explains exemption and reduced amount")
+ var tick=ui.game.state.tick
+ t.check(await t.click("item_use",{"item":id}) and ui.game.state.mana==50 and ui.game._item(id).is_empty() and ui.game.state.phase=="reward" and ui.game.state.tick==tick,"RECOVERY UI uses potion immediately without leaving rewards")
+ ui._close_drawers();ui.render();await t.frames()
+ t.check(await t.click("flask",{"op":"withdraw"}) and ui.game.state.mana==55 and ui.game.state.flask_mana==10,"RECOVERY UI flask withdrawal shares noncombat exemption and mouth penalty")

@@ -56,6 +56,6 @@ static func run(t) -> void:
   var spell=g.state.logs.filter(func(log):return log.data.has("spell")).back().data.spell
   if not spell.success:
    failed=true
-   t.check(g._equipment(target.id).durability==24.0 and g.BasicAttacks.usage(g,"fireball").used==1 and g.state.energy==before.energy-1 and g.state.mana==before.mana-c.mana and g.state.combat.mana_used,"FLAME failed first spell spends shared use, one energy and mana without durability damage")
+   t.check(g._equipment(target.id).durability==24.0 and g.BasicAttacks.usage(g,"fireball").used==0 and g.state.energy==before.energy-1 and is_equal_approx(g.state.mana,before.mana-c.mana*0.5) and g.state.combat.mana_used,"FLAME failed first spell preserves shared use, pays one energy and half mana without durability damage")
    break
  t.check(failed,"FLAME deterministic sample includes casting failure")

@@ -54,7 +54,7 @@ static func workspace(g, operation: String) -> Array:
   else: slots=["upper_arm","forearm","thigh"] if stand else ["upper_arm","forearm"]+g.B.LEG_SLOTS
   if not g.occupied("wrist") and g.physical_pieces().any(func(e):return e.template=="hand_wrap"): slots.append_array(["palm","fingers"])
  else:
-  slots=g.B.SLOTS.filter(func(slot):return not stand or slot not in ["calf","ankle","foot","toes"])
+  slots=(g.B.SLOTS+["neck"]).filter(func(slot):return not stand or slot not in ["calf","ankle","foot","toes"])
   if operation=="manual" and g.level("arms")!=0: slots=limited_slots(g)
  return g.Binding.filter_points(g,slot_points(slots))
 

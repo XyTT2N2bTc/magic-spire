@@ -12,9 +12,14 @@ static func translation(messages: Dictionary) -> Dictionary:
  return {"schema_version":1,"locale":"ja_JP","messages":messages}
 
 static func run(t) -> void:
+ bundled_font(t)
  var l=Localizer.new()
- t.check(l.diagnostics().is_empty() and l.locale=="zh_CN","LOCALE shipped resources load locally and default to Chinese")
- t.check(l.coverage("zh_CN").total>0 and l.coverage("ja_JP").translated==0,"LOCALE Japanese scaffold contains no translated copy")
+ t.check(l.diagnostics().is_empty() and l.locale=="zh_CN","LOCALE shipped resources load locally and default to Chinese: "+str(l.diagnostics()))
+ t.check(l.coverage("zh_CN").total>0 and l.coverage("en_US").missing==0 and l.coverage("ja_JP").translated==0,"LOCALE English is complete for registered IDs while Japanese remains an empty scaffold")
+ t.check(l.set_locale("en_US") and l.text("ui.home.title","紧缚尖塔")=="Bound Spire","LOCALE registered English copy resolves through its semantic ID")
+ t.check(l.display("蓄力")=="Charge" and l.display("蓄力2")=="Charge 2","LOCALE legacy bridge translates exact and formatted presentation text")
+ t.check(l.display("每佩戴2件拘束具，本回合获得1点力量，不足2件不计。")=="For every 2 restraints worn, gain 1 Strength this turn. Fewer than 2 do not count.","LOCALE changed card text translates divisor and incomplete groups in static previews")
+ t.check(l.display("每佩戴3件拘束具，恢复1点魔力。\n当前：恢复4魔力。")=="For every 3 restraints worn, restore 1 Mana.\nCurrent: restore 4 Mana.","LOCALE changed card text preserves the actual multiline resource preview")
  t.check(l.set_locale("ja_JP") and l.text("ui.home.title","紧缚尖塔")=="紧缚尖塔","LOCALE empty Japanese resource uses the original Chinese")
  t.check(not l.set_locale("../../invalid") and l.locale=="ja_JP","LOCALE invalid language is rejected without changing preference")
  var spec=source()
@@ -41,7 +46,74 @@ static func run(t) -> void:
  var notes=l.diagnostics();notes.clear()
  t.check(not l.diagnostics().is_empty(),"LOCALE diagnostics are detached from the display and returned by copy")
  t.check(l.install_source(source()) and l.coverage("ja_JP").translated==0,"LOCALE a new source load invalidates previously loaded translation versions")
+ legacy_contract(t)
+ display_cache(t)
  file_fallbacks(t)
+
+static func display_cache(t) -> void:
+ var l=Localizer.new();l.set_locale("en_US")
+ var pack={"schema_version":1,"locale":"en_US","messages":[
+  {"id":"legacy.remaining","source":"余量%d点","text":"Remaining {p0}"},
+  {"id":"legacy.ascii","source":"HP","text":"Health"}]}
+ t.check(l.install_legacy_translation("en_US",pack) and l.display("HP")=="Health" and l.display("Mana 42 / 100")=="Mana 42 / 100","LOCALE non-Chinese fast path preserves registered exact translations and untouched numeric text")
+ for i in range(3): t.check(l.display("余量7点")=="Remaining 7","LOCALE repeated dynamic display keeps identical output")
+ pack.messages[0].text="Left {p0}"
+ t.check(l.install_legacy_translation("en_US",pack) and l.display("余量7点")=="Left 7","LOCALE accepted replacement invalidates previously displayed dynamic text")
+ var invalid=pack.duplicate(true);invalid.messages[0].text="Missing parameter"
+ t.check(not l.install_legacy_translation("en_US",invalid) and l.display("余量7点")=="Left 7","LOCALE rejected translation keeps accepted cached output")
+ var japanese=pack.duplicate(true);japanese.locale="ja_JP";japanese.messages[0].text="JP {p0}"
+ t.check(l.install_legacy_translation("ja_JP",japanese) and l.set_locale("ja_JP") and l.display("余量7点")=="JP 7","LOCALE language switch cannot reuse another language's cached text")
+ l.set_locale("en_US")
+ t.check(l.display("余量7点")=="Left 7","LOCALE switching back restores the correct catalog")
+ for i in range(l.MAX_DISPLAY_ENTRIES+5): l.display("未知短句"+str(i))
+ t.check(l._display_cache.size()<=l.MAX_DISPLAY_ENTRIES and l.display("余量7点")=="Left 7","LOCALE varied text has bounded entries and evicted results still resolve correctly")
+ for i in range(40): l.display("文".repeat(2048)+str(i))
+ t.check(l._display_cache_characters<=l.MAX_DISPLAY_CHARACTERS and l._display_cache.size()<40,"LOCALE long display strings obey the total character budget before the entry limit")
+ var count=l._display_cache.size();var huge="文".repeat(l.MAX_DISPLAY_CHARACTERS+1)
+ t.check(l.display(huge)==huge and l._display_cache.size()==count,"LOCALE oversized text remains intact without retaining it in the display cache")
+
+static func bundled_font(t) -> void:
+ var path="res://assets/fonts/NotoSansCJKsc-Regular.otf"
+ var font=load(path) as FontFile
+ t.check(font!=null,"LOCALE Chinese font ships as a loadable resource")
+ if font==null: return
+ var isolated=font.duplicate() as FontFile
+ isolated.allow_system_fallback=false
+ isolated.fallbacks=[]
+ var missing=[]
+ for ch in "紧缚尖塔開始遊戲設定繁體中文魔力回合あいうえおカタカナABCxyz0123456789，。！？＋－×％":
+  if not isolated.has_char(ch.unicode_at(0)): missing.append(ch)
+ t.check(missing.is_empty(),"LOCALE bundled font covers Chinese, traditional Chinese, kana and Latin without installed fonts: "+str(missing))
+ var supported={}
+ for ch in isolated.get_supported_chars(): supported[ch]=true
+ var absent={}
+ for file in ["res://assets/localization/zh_CN.json","res://assets/localization/legacy-en_US.json","res://data/balance.gd","res://ui/main.gd"]:
+  for ch in FileAccess.get_file_as_string(file):
+   var cp=ch.unicode_at(0)
+   if cp>=0x3400 and cp<=0x9fff and not supported.has(ch): absent[ch]=true
+ t.check(absent.is_empty(),"LOCALE authored Chinese UI and card copy has no missing bundled glyphs: "+str(absent.keys()))
+ t.check(ProjectSettings.get_setting("gui/theme/custom_font","")==path,"LOCALE project default also supplies Chinese to unthemed popup controls")
+ var presets=ConfigFile.new()
+ t.check(presets.load("res://export_presets.cfg")==OK,"LOCALE export presets are readable")
+ for section in ["preset.0","preset.1"]:
+  t.check("assets/fonts/OFL" in str(presets.get_value(section,"include_filter","")),"LOCALE font license is included in "+section)
+
+static func legacy_contract(t) -> void:
+ var l=Localizer.new();l.set_locale("en_US")
+ var document={"schema_version":1,"locale":"en_US","messages":[
+  {"id":"legacy.turn","source":"第%d回合：%s","text":"Turn {p0}: {p1}"},
+  {"id":"legacy.action","source":"行动","text":"Action"},
+  {"id":"legacy.start","source":"开始","text":"Begin"},
+  {"id":"legacy.end","source":"结束","text":"End"}]}
+ t.check(l.install_legacy_translation("en_US",document) and l.display("第12回合：行动")=="Turn 12: Action","LOCALE compatibility templates localize nested display values without changing their source data")
+ t.check(l.display("开始 / 结束")=="Begin / End","LOCALE compatibility fragments translate old UI concatenation without changing its source value")
+ for bad in [null,{}, {"schema_version":1,"locale":"en_US","messages":[{"id":"legacy.turn","source":"第%d回合","text":"Turn"}]}, {"schema_version":1,"locale":"en_US","messages":[{"id":"legacy.same","source":"甲","text":"A"},{"id":"legacy.same","source":"乙","text":"B"}]}]:
+  t.check(not l.install_legacy_translation("en_US",bad) and l.display("第3回合：等待")=="Turn 3: 等待","LOCALE invalid compatibility catalog is rejected atomically")
+ document.messages.append({"id":"legacy.symbols","source":"%s / %s","text":"UNRELATED {p0} and {p1}"})
+ document.messages.append({"id":"legacy.short","source":"第%d!","text":"UNRELATED {p0}"})
+ t.check(l.install_legacy_translation("en_US",document),"LOCALE weak legacy templates can be skipped without discarding valid entries")
+ t.check(l.display("12 / 30")=="12 / 30" and l.display("第12!")=="第12!","LOCALE punctuation and one Chinese character cannot qualify a dynamic translation template")
+ t.check(l.display("第12回合：行动")=="Turn 12: Action","LOCALE constrained Chinese templates still translate their nested values")
 
 static func file_fallbacks(t) -> void:
  var folder="res://build/localization-fixture-%s" % OS.get_process_id()
@@ -49,10 +121,13 @@ static func file_fallbacks(t) -> void:
  var base_path=folder.path_join("zh_CN.json")
  var target_path=folder.path_join("ja_JP.json")
  var l=Localizer.new()
+ l.set_locale("en_US");l.display("蓄力2")
  # Isolated build fixtures exercise IO failures, never the shipped assets.
  var file=FileAccess.open(base_path,FileAccess.WRITE)
  file.store_string(JSON.stringify(source()));file.close()
  t.check(not l.load_directory(folder) and l.diagnostics().any(func(d):return d.code=="missing_file"),"LOCALE absent target file is diagnosed without throwing a runtime error")
+ l.set_locale("en_US")
+ t.check(l.display("蓄力")=="蓄力" and l.display("蓄力2")=="蓄力2","LOCALE reloading a directory without its legacy pack clears accepted exact, template and fragment translations")
  l.set_locale("ja_JP")
  t.check(l.text("test.other","中文回退")=="中文回退","LOCALE absent target file leaves the loaded Chinese catalog usable")
  file=FileAccess.open(target_path,FileAccess.WRITE)

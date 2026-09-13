@@ -4,13 +4,13 @@ $ErrorActionPreference = 'Stop'
 $gameDirectory = Split-Path -Parent $PSScriptRoot
 if (-not $BuildId) { $BuildId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmss') }
 if ($BuildId -notmatch '^[A-Za-z0-9_-]+$') { throw 'Invalid BuildId.' }
-$destination = Join-Path (Split-Path -Parent $gameDirectory) ('outputs/spire-v0.15-android-' + $BuildId)
+$destination = Join-Path (Split-Path -Parent $gameDirectory) ('outputs/spire-v0.16-android-' + $BuildId)
 if (Test-Path -LiteralPath $destination) { throw 'Output directory already exists.' }
 [IO.Directory]::CreateDirectory($destination) | Out-Null
 $logDirectory = Join-Path $gameDirectory ('build/android-' + $BuildId)
 [IO.Directory]::CreateDirectory($logDirectory) | Out-Null
 $engine = Find-SpireGodot -Console
-$apk = Join-Path $destination 'spire-v0.15.apk'
+$apk = Join-Path $destination 'spire-v0.16.apk'
 $sdk = Join-Path $gameDirectory 'build/android-tools/sdk'
 $jdk = (Get-ChildItem (Join-Path $gameDirectory 'build/android-tools/jdk17') -Directory | Select-Object -First 1).FullName
 $signing = Get-Content -LiteralPath $SigningConfig -Raw | ConvertFrom-Json
@@ -29,7 +29,7 @@ try {
     $env:GODOT_ANDROID_KEYSTORE_RELEASE_USER = $signing.alias
     $secret = ConvertTo-SecureString $signing.protectedPassword
     $env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD = [Net.NetworkCredential]::new('', $secret).Password
-    & $engine --headless --path $gameDirectory --log-file (Join-Path $logDirectory 'export.log') --export-release 'Android v0.15' $apk *> (Join-Path $logDirectory 'export-console.log')
+    & $engine --headless --path $gameDirectory --log-file (Join-Path $logDirectory 'export.log') --export-release 'Android v0.16' $apk *> (Join-Path $logDirectory 'export-console.log')
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $apk)) { throw "Android export failed: $logDirectory" }
     if ((Get-Content (Join-Path $logDirectory 'export.log') -Raw) -match '(?m)^\s*(?:USER )?(?:SCRIPT |PARSE )?ERROR:') { throw "Export engine errors: $logDirectory" }
     $unsigned = Join-Path $logDirectory 'unsigned.apk'
@@ -74,9 +74,19 @@ try {
     if ($names | Where-Object { $_ -match '^assets/(tests|tools|build)/|(^|/)(saves|signing\.json|release\.keystore)(/|$)' }) { throw 'APK contains development or saved user data.' }
     $names | Set-Content (Join-Path $logDirectory 'apk-files.txt') -Encoding utf8
 } finally { $archive.Dispose() }
-$manifest = [ordered]@{ version = '0.15'; platform = 'Android ARM64 + ARMv7'; package = 'org.magic.spire'; build = $BuildId; file = [IO.Path]::GetFileName($apk); bytes = (Get-Item -LiteralPath $apk).Length; sha256 = (Get-FileHash -LiteralPath $apk).Hash.ToLowerInvariant() }
+$manifest = [ordered]@{ version = '0.16'; platform = 'Android ARM64 + ARMv7'; package = 'org.magic.spire'; build = $BuildId; file = [IO.Path]::GetFileName($apk); bytes = (Get-Item -LiteralPath $apk).Length; sha256 = (Get-FileHash -LiteralPath $apk).Hash.ToLowerInvariant() }
 $manifest | ConvertTo-Json | Set-Content (Join-Path $destination 'manifest.json') -Encoding utf8
-Copy-Item -LiteralPath (Join-Path $gameDirectory 'docs/release-android-v0.15.txt') -Destination $destination
+Copy-Item -LiteralPath (Join-Path $gameDirectory 'docs/release-android-v0.16.txt') -Destination $destination
 Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $gameDirectory) '版本更新内容.txt') -Destination $destination
+foreach ($name in @('LICENSE','ASSET_RIGHTS.md')) {
+    Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $gameDirectory) $name) -Destination $destination
+}
+$licenseDirectory = Join-Path $destination 'licenses'
+[IO.Directory]::CreateDirectory($licenseDirectory) | Out-Null
+Copy-Item -LiteralPath (Join-Path $gameDirectory 'assets/vendor/CREDITS.md') -Destination $licenseDirectory
+Copy-Item -LiteralPath (Join-Path $gameDirectory 'assets/fonts/OFL') -Destination (Join-Path $licenseDirectory 'NotoSansCJK-OFL.txt')
+foreach ($name in @('GODOT-LICENSE.txt','GODOT-COPYRIGHT.txt')) {
+    Copy-Item -LiteralPath (Join-Path $gameDirectory ('docs/licenses/' + $name)) -Destination $licenseDirectory
+}
 Write-Output ('ANDROID APK: ' + $apk)
 Write-Output ('VERIFICATION: ' + $logDirectory)

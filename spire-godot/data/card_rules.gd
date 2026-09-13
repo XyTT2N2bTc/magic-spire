@@ -5,7 +5,14 @@ const RARITIES={"basic":"基础","common":"普通","uncommon":"罕见","rare":"�
 const UPPER_BODY_SLOTS=["eyes","mouth","neck","shoulder","upper_arm","forearm","wrist","palm","fingers"]
 
 # Mechanical card definitions. Display templates in balance.gd read these values.
-const BUFFS={
+static var BUFFS={
+ "prepared_chant":{"name":"预备咏唱","duration":"turn","cast_minimum":1.0,"detail":"本回合施法成功率固定为100%。"},
+ "reuse_free":{"name":"再利用·自由","duration":"battle","failure_refund":{"temporary_mana":0.8},"detail":"使用临时魔力施法失败时，返还本次消耗临时魔力的80%，退回临时魔力池。唯一。"},
+ "reuse_bound":{"name":"再利用·拘束","duration":"battle","min_levels":{"arms":2,"legs":2},"failure_refund":{"mana":0.8,"temporary_mana":0.8},"failure_refund_tiers":[{"min_levels":{"arms":3,"legs":3},"rates":{"mana":1.0,"temporary_mana":1.0}}],"detail":"上身、腿部束缚等级均≥2时，施法失败返还80%耗魔；两者均≥3时返还100%。自身与临时魔力分别退回原池，条件实时检测。唯一。"},
+ "resonance_bound":{"name":"共鸣·拘束","duration":"battle","worn_mana_reduction":0.05,"detail":"每佩戴一件拘束具，魔法耗魔降低5%，最低0。随当前件数变化；复合拘束算1件，连接绳不计。固定兑换与追加付款不减免。"},
+ "resonance_free":{"name":"共鸣·自由","duration":"battle","stackable":true,"turn_start_effects":[{"op":"evasion","amount":1}],"detail":"回合开始时，获得1层闪避。可叠加。"},
+ "practiced_free":{"name":"熟练而已·熟手","duration":"battle","card_cast_bonus":0.03,"detail":"每成功打出另一张牌，本回合施法成功率额外＋3个百分点。回合开始清零。唯一。"},
+ "practiced_bound":{"name":"熟练而已·稳手","duration":"battle","cast_minimum":0.75,"magic_card_traction":1,"detail":"施法成功率最低75%；每次使用魔法牌，额外牵扯1次（按1能量），无论成败。唯一。"},
  "hannya_level_1":{"name":"般若汤","duration":"battle","hannya_level":1,"attributes":{"strength":1,"dexterity":1},"detail":"般若汤1级：力量＋1、灵巧＋1。各级奖励本场仅一次。"},
  "hannya_level_2":{"name":"般若汤","duration":"battle","hannya_level":2,"attributes":{"strength":2,"dexterity":2},"detail":"般若汤2级：力量＋2、灵巧＋2。各级奖励本场仅一次。"},
  "hannya_level_3":{"name":"般若汤","duration":"battle","hannya_level":3,"attributes":{"strength":3,"dexterity":3},"detail":"般若汤3级：力量＋3、灵巧＋3。各级奖励本场仅一次。"},
@@ -13,23 +20,23 @@ const BUFFS={
  "hannya_short_strike":{"name":"般若汤·短打","duration":"battle","hidden":true,"detail":"近身短打基础伤害＋2，连击每段基础伤害＋1。"},
  "hannya_justice":{"name":"般若汤·飞踢","duration":"battle","hidden":true,"detail":"正义飞踢费用＋1，获得打断，与坐姿踢击及并腿踢击共用3回合冷却。"},
 
- "magic_hand_free":{"name":"魔术手","duration":"battle","attacks":["strike","heavy"],"attack_uses":2,"ignore_restraints":true,"detail":"接下来2次手部体术按自由态发动，忽略拘束限制与减益；包括肘击、近身短打及其连击。每次完整攻击消耗1次，姿势、费用与次数限制照常。重复使用刷新为2次。"},
+ "magic_hand_free":{"name":"魔术手","duration":"battle","attacks":["strike","heavy"],"attack_uses":2,"stack_uses":true,"ignore_restraints":true,"detail":"接下来2次手部体术按自由态发动，忽略拘束限制与减益；包括肘击、近身短打及其连击。每次完整攻击消耗1次，姿势、费用与次数限制照常。每次使用增加2次，剩余次数可累计。"},
  "light_as_swallow_bound":{"name":"身轻如燕","duration":"battle","card_damage_type":"slip","damage_multiplier":2.0,"detail":"下一次卡牌滑脱伤害×2。"},
  "breath_control_free":{"name":"运气","duration":"next_attack","attacks":["strike","heavy","kick"],"energy_discount":1,"detail":"下一次体术费用－1，最低0。"},
- "restraint_embrace_free":{"name":"拘束之拥·自由","duration":"battle","stackable":true,"restraint_draw":{"event":"released","next_turn":false,"amount":1},"detail":"每挣脱1件拘束具，抽1张牌。可叠加。"},
+ "restraint_embrace_free":{"name":"拘束之拥·自由","duration":"battle","stackable":true,"restraint_draw":{"event":"released","next_turn":false,"amount":1,"energy":1},"detail":"每挣脱1件拘束具，抽1张牌，恢复1能量。抽牌与回能均可叠加。"},
  "restraint_embrace_bound":{"name":"拘束之拥·拘束","duration":"battle","stackable":true,"restraint_draw":{"event":"worn","next_turn":true,"amount":1},"detail":"每被佩戴1件拘束具，下回合抽1张牌。可叠加。"},
  "infusion_free":{"name":"灌注·手部","duration":"next_attack","attacks":["strike","heavy"],"interrupt":true,"detail":"下一次手部体术附加1层打断，包括肘击和近身短打。不与自带打断叠加。"},
  "infusion_bound":{"name":"灌注·腿部","duration":"next_attack","attacks":["heavy","kick"],"interrupt":true,"detail":"下一次腿部体术附加1层打断，包括近身短打和各类踢击。不与自带打断叠加。"},
  "ready_to_strike_free":{"name":"蓄势待发","duration":"next_attack","attacks":["strike","heavy","kick"],"energy_discount":1,"detail":"下一次体术费用－1，最低0。"},
  "mana_circuit_free":{"name":"魔力回路·能量","duration":"battle","stackable":true,"mana_spent":{"step":30,"effects":[{"op":"energy","amount":1}]},"detail":"每累计消耗30魔力，恢复1能量。计入临时魔力。"},
  "mana_circuit_bound":{"name":"魔力回路·蓄力","duration":"battle","stackable":true,"mana_spent":{"step":20,"effects":[{"op":"charge","amount":1}]},"detail":"每累计消耗20魔力，获得1层蓄力。计入临时魔力。"},
- "echo_cast_bound":{"name":"余势复演·拘束","duration":"battle","replay":{"kind":"card","distinct_faces":true},"detail":"下一张成功打出的拘束面牌额外释放一次；双面效果相同的牌不适用。免费复放，只作用原目标，目标失效则跳过。"},
- "echo_cast_free":{"name":"余势复演·火球","duration":"battle","replay":{"kind":"attack","spell":"fireball"},"detail":"下一次火球术免费额外施放一次，不占使用次数；只作用原目标，目标失效则跳过。每次施法各自判定成功率。"},
- "embers_free":{"name":"余火","duration":"next_attack","spell":"fireball","attack":"fireball","base_bonus":4.0,"detail":"下一次成功的火球术基础伤害＋4，再计算伤害倍率。同源不叠加；失败保留。"},
+ "echo_cast_bound":{"name":"余势复演·拘束","duration":"battle","stack_uses":true,"replay":{"kind":"card","distinct_faces":true},"detail":"下一张成功打出的拘束面牌，每层额外释放一次；双面效果相同的牌不适用。免费复放，只作用原目标，目标失效则跳过。"},
+ "echo_cast_free":{"name":"余势复演·火球","duration":"battle","stack_uses":true,"replay":{"kind":"attack","spell":"fireball"},"detail":"下一次火球术每层免费额外施放一次，不占使用次数；只作用原目标，目标失效则跳过。每次施法各自判定成功率。"},
+ "embers_free":{"name":"余火","duration":"turn","spell":"fireball","attack":"fireball","base_bonus":4.0,"detail":"本回合火球术基础伤害＋4。同源不叠加。"},
  "wildfire_descent":{"name":"猛火下山","duration":"battle","stackable":true,"spell":"fireball","spell_use_effects":[{"op":"draw","amount":1}],"detail":"本场每使用一次火球术，抽1张牌。可叠加。"},
  "adaptability_bound":{"name":"灵活变通·挣扎","duration":"battle","stackable":true,"turn_start_effects":[{"op":"charge","amount":1}],"detail":"每回合开始时，获得1层蓄力。可叠加。"},
  "adaptability_free":{"name":"灵活变通·自由","duration":"battle","stackable":true,"turn_start_effects":[{"op":"reserve_mana","amount":1}],"detail":"每回合开始时，获得5点临时魔力。可叠加。"},
- "fire_dynamics_bound":{"name":"火动力学·稳燃","duration":"battle","spell":"fireball","chance_bonus":0.25,"detail":"火球术施法成功率＋25%。"},
+ "fire_dynamics_bound":{"name":"火动力学·稳燃","duration":"battle","spell":"fireball","chance_bonus":0.30,"detail":"火球术施法成功率＋30%。"},
  "fire_dynamics_free":{"name":"火动力学·扩散","duration":"battle","spell":"fireball","all_enemies":true,"detail":"火球术对全体敌人造成伤害，每次施法只判定一次成功率。"},
  "letter_opener_bound":{"name":"开信刀play·挣扎","duration":"battle","stackable":true,"periodic":{"card_type":"skill","count":3,"target":"outer_equipment","damage_type":"strain","base":3.0},"detail":"每使用3张技能牌，对全部最外层拘束具造成3点挣扎伤害，只乘适用倍率。跨回合累计。可叠加。"},
  "letter_opener_free":{"name":"开信刀play·自由","duration":"battle","stackable":true,"periodic":{"card_type":"skill","count":3,"target":"enemies","damage_type":"physical","base":5.0},"detail":"每使用3张技能牌，对所有敌人造成5点伤害。跨回合累计。可叠加。"},
@@ -47,6 +54,7 @@ const FOLLOW_THROUGH_REGIONS={"head":["eyes","mouth","neck"],"arms":["shoulder",
 const FOLLOW_THROUGH_SLOTS=FOLLOW_THROUGH_REGIONS.head+FOLLOW_THROUGH_REGIONS.arms+FOLLOW_THROUGH_REGIONS.legs
 const FOLLOW_THROUGH_TEXT="顺延：目标未解除时继续攻击原件；解除后，剩余段数依次转向同一指定部位、同一大部位的其他部位、同一大片区域的最外层拘束具。同一级有多个可选目标时随机选择，无目标则结束，不跨区域。"
 const MAGIC_HAND={"card_type":"magic","rarity":"uncommon","cost":1,"mana_cost":20.0,"mode":"lower","hits":3,"follow_through":true,"follow_through_scope":"body","target_slots":FOLLOW_THROUGH_SLOTS,"cast_free":true,"casting":{"parts":["mouth"],"multiplier":1.0},"free_effects":[{"op":"buff","buff":"magic_hand_free"}]}
+const HANNYA_MANA_GAIN=5.0
 const HANNYA_REWARDS={
  1:{"free":"近身短打基础伤害＋2，连击每段基础伤害＋1。般若汤-其二加入弃牌堆。","bound":"正义飞踢费用＋1，获得打断，与坐姿踢击及并腿踢击共用3回合冷却。般若汤-其二加入弃牌堆。","discard":"hannya_2"},
  2:{"free":"0费消耗／虚无的身轻如燕加入手牌；般若汤-其三加入弃牌堆。","bound":"0费消耗／虚无的身轻如燕加入手牌；般若汤-其三加入弃牌堆。","hand":"hannya_swallow","discard":"hannya_3"},
@@ -54,7 +62,12 @@ const HANNYA_REWARDS={
  4:{"free":"虚无的完美henshin加入手牌；好汤喝够饮饮饮饮加入弃牌堆。","bound":"虚无的完美henshin加入手牌；好汤喝够饮饮饮饮加入弃牌堆。","hand":"hannya_henshin","discard":"good_soup"}}
 
 static var SPECS=_with_hannya({
- "siphon_strength":{"card_type":"magic","rarity":"uncommon","cost":1,"mode":"self","casting":{"parts":["hand"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"exhaust_hand_batch":{"exclude_type":"magic","effects":[{"op":"charge","amount":1}]}},"free":{"cast":true,"exhaust_hand_batch":{"include_type":"magic","mana_gain":10.0}}}},
+ "prepared_chant":{"card_type":"magic","rarity":"common","cost":1,"mode":"self","casting":{"parts":["mouth"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":10.0,"buff":"prepared_chant"},"free":{"cast":true,"mana_cost":10.0,"buff":"prepared_chant"}}},
+ "reuse":{"card_type":"power","rarity":"uncommon","cost":1,"mode":"power","self_faces":{"free":{"buff":"reuse_free"},"bound":{"energy_cost":1,"buff":"reuse_bound"}}},
+ "confluence":{"card_type":"skill","rarity":"common","cost":0,"mode":"self","self_faces":{"bound":{"worn_resource":{"resource":"turn_strength","divisor":2}},"free":{"worn_resource":{"resource":"mana","divisor":1}}}},
+ "resonance":{"card_type":"power","rarity":"uncommon","cost":1,"mode":"power","self_faces":{"bound":{"buff":"resonance_bound"},"free":{"buff":"resonance_free"}}},
+ "practiced":{"card_type":"power","rarity":"rare","cost":2,"mode":"power","self_faces":{"bound":{"buff":"practiced_bound"},"free":{"buff":"practiced_free"}}},
+ "siphon_strength":{"card_type":"magic","rarity":"rare","cost":1,"mode":"self","casting":{"parts":["hand"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"exhaust_hand_batch":{"exclude_type":"magic","effects":[{"op":"charge","amount":1}]}},"free":{"cast":true,"exhaust_hand_batch":{"include_type":"magic","mana_gain":10.0}}}},
  "shared_fate":{"card_type":"skill","rarity":"uncommon","cost":0,"mode":"self","self_faces":{"bound":{"balance_mana_pressure":true},"free":{"balance_mana_pressure":true}}},
  "magic_hand":MAGIC_HAND.duplicate(true),
  "magic_hand_gift":MAGIC_HAND.merged({"reward_excluded":true,"encyclopedia_hidden":true}).duplicate(true),
@@ -72,22 +85,22 @@ static var SPECS=_with_hannya({
  "pot_of_greed":{"card_type":"skill","rarity":"uncommon","cost":0,"mode":"self","self_faces":{"bound":{"effects":[{"op":"draw","amount":2}]},"free":{"effects":[{"op":"draw","amount":2}]}}},
  "repeated_strain":{"card_type":"skill","rarity":"common","cost":1,"mode":"strain","damage_type":"strain","base":1.0,"hits":5,"follow_through":true,"target_slots":FOLLOW_THROUGH_SLOTS,"free_effects":[{"op":"charge","amount":2}]},
  "echo_cast":{"card_type":"skill","rarity":"uncommon","cost":1,"mode":"self","self_faces":{"bound":{"buff":"echo_cast_bound"},"free":{"buff":"echo_cast_free"}}},
- "embers":{"card_type":"magic","rarity":"common","cost":0,"mode":"self","casting":{"parts":["hand"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":5.0,"effects":[{"op":"draw","amount":1}],"optional_draw":{"mana_cost":5.0,"count":1}},"free":{"cast":true,"mana_cost":5.0,"buff":"embers_free"}}},
+ "embers":{"card_type":"magic","rarity":"common","cost":0,"mode":"self","casting":{"parts":["hand"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":6.0,"requires_successful_spell":"fireball","effects":[{"op":"draw","amount":1}],"optional_draw":{"mana_cost":6.0,"count":1}},"free":{"cast":true,"mana_cost":6.0,"buff":"embers_free"}}},
  "wildfire_descent":{"card_type":"power","type_tags":["magic","power"],"rarity":"uncommon","cost":1,"mode":"power","casting":{"parts":["mouth"],"multiplier":1.0},"self_faces":{"bound":{"buff":"wildfire_descent","cast":true,"mana_cost":10.0},"free":{"buff":"wildfire_descent","cast":true,"mana_cost":10.0}}},
  "boar_emperor_blaze":{"card_type":"skill","rarity":"rare","cost":3,"mode":"strain","damage_type":"strain","base":6.0,"hits":5,"follow_through":true,"target_slots":FOLLOW_THROUGH_SLOTS,"free_effects":[{"op":"charge","amount":5}]},
  "adaptability":{"card_type":"power","rarity":"uncommon","cost":1,"mode":"power","self_faces":{"bound":{"buff":"adaptability_bound"},"free":{"buff":"adaptability_free"}}},
  "rekindle":{"card_type":"magic","rarity":"common","cost":1,"mode":"self","casting":{"parts":["hand"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":10.0,"refresh_spell":"fireball"},"free":{"cast":true,"mana_cost":10.0,"refresh_spell":"fireball"}}},
- "fire_dynamics":{"card_type":"power","rarity":"rare","cost":2,"mode":"power","self_faces":{"bound":{"buff":"fire_dynamics_bound"},"free":{"buff":"fire_dynamics_free"}}},
+ "fire_dynamics":{"card_type":"power","rarity":"rare","cost":2,"bound_energy_discount":1,"mode":"power","self_faces":{"bound":{"buff":"fire_dynamics_bound"},"free":{"buff":"fire_dynamics_free"}}},
  "fire_control":{"card_type":"skill","rarity":"common","cost":1,"mode":"self","free_max_levels":{"arms":1},"self_faces":{"bound":{"effects":[{"op":"reserve_mana","amount":2}]},"free":{"requires_hand":true,"spell_base_bonus":{"spell":"fireball","amount":2}}}},
  "letter_opener":{"card_type":"power","rarity":"uncommon","cost":1,"mode":"power","self_faces":{"bound":{"buff":"letter_opener_bound"},"free":{"buff":"letter_opener_free"}}},
  "mana_invocation":{"card_type":"magic","rarity":"common","cost":1,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_gain":20.0},"free":{"cast":true,"mana_gain":20.0}}},
  "strong_elbow":{"card_type":"skill","rarity":"common","cost":1,"mode":"strain","damage_type":"strain","base":8.0,"target_slots":["upper_arm","forearm"],"free_effects":[{"op":"buff","buff":"strong_elbow_free"}],"hit_effects":[{"op":"draw","amount":1}]},
  "pleasure_conversion":{"card_type":"skill","rarity":"rare","cost":0,"mode":"self","self_faces":{"bound":{"pressure_energy":20},"free":{"pressure_energy":20}}},
  "mana_conversion":{"card_type":"magic","rarity":"uncommon","cost":0,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"fixed_mana_cost":true,"self_faces":{"bound":{"cast":true,"mana_cost":10.0,"energy_gain":1},"free":{"cast":true,"energy_cost":1,"mana_gain":10.0}}},
- "mana_surge":{"card_type":"magic","rarity":"common","cost":0,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":5.0,"effects":[{"op":"charge","amount":2}]},"free":{"cast":true,"mana_cost":5.0,"effects":[{"op":"charge","amount":2}]}}},
+ "mana_surge":{"card_type":"magic","rarity":"common","cost":0,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":5.0,"effects":[{"op":"charge","amount":2}]},"free":{"cast":true,"mana_cost":0.0,"effects":[{"op":"reserve_mana","amount":2}]}}},
  "henshin":{"play_music":"rain_love","card_type":"magic","rarity":"rare","cost":2,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":40.0,"release_all":true},"free":{"cast":true,"energy_cost":2,"mana_cost":40.0,"buff":"henshin_free"}}},
  "flame_flourish":{"card_type":"power","rarity":"uncommon","cost":1,"mode":"power","self_faces":{"bound":{"buff":"flame_flourish_bound"},"free":{"buff":"flame_flourish_free"}}},
- "fire_mastery":{"card_type":"power","rarity":"rare","cost":2,"mode":"power","self_faces":{"bound":{"buff":"fire_mastery_bound"},"free":{"buff":"fire_mastery_free"}}},
+ "fire_mastery":{"card_type":"power","rarity":"rare","cost":2,"bound_energy_discount":1,"mode":"power","self_faces":{"bound":{"buff":"fire_mastery_bound"},"free":{"buff":"fire_mastery_free"}}},
  "binding_enthusiast":{"card_type":"power","rarity":"rare","cost":3,"mode":"power","self_faces":{"bound":{"buff":"binding_enthusiast"},"free":{"buff":"binding_enthusiast"}}},
  "strain":{"card_type":"skill","rarity":"basic","free_effects":[{"op":"charge","amount":1}],"cost":1,"mode":"strain","damage_type":"strain","base":6.0},
  "slip":{"card_type":"skill","rarity":"basic","free_effects":[{"op":"next_energy","amount":1}],"cost":1,"mode":"slip","damage_type":"slip","base":6.0},
@@ -95,12 +108,12 @@ static var SPECS=_with_hannya({
  "inch":{"card_type":"skill","rarity":"common","free_effects":[{"op":"draw","amount":1},{"op":"retain","amount":1}],"lowered_effects":[{"op":"draw","amount":1}],"cost":1,"mode":"slip","damage_type":"slip","base":5.0},
  "ease":{"card_type":"magic","rarity":"basic","free_effects":[{"op":"reserve_mana","amount":2}],"cost":1,"mode":"lower","casting":{"parts":["mouth"],"multiplier":1.0}},
  "unlock":{"card_type":"magic","rarity":"uncommon","free_effects":[{"op":"reserve_mana","amount":2}],"cost":1,"bound_energy_discount":1,"mode":"unlock","casting":{"parts":["hand"],"multiplier":1.0}},
- "magic_slip":{"card_type":"magic","rarity":"basic","free_effects":[{"op":"reserve_mana","amount":1},{"op":"draw","amount":1}],"cost":0,"mode":"magic_slip","damage_type":"slip","base":5.0,"casting":{"parts":["mouth"],"multiplier":1.0}},
+ "magic_slip":{"card_type":"magic","rarity":"basic","free_effects":[{"op":"reserve_mana","amount":1},{"op":"draw","amount":1}],"cost":0,"mode":"magic_slip","damage_type":"slip","base":5.0,"cast_free":true,"free_mana_cost":0.0,"casting":{"parts":["mouth"],"multiplier":1.0}},
  "focus":{"card_type":"skill","rarity":"uncommon","cost":1,"mode":"self","self_faces":{"bound":{"effects":[{"op":"charge","amount":1},{"op":"draw","amount":1}]},"free":{"effects":[{"op":"retain","amount":1,"draw_after":1}]}}},
  "tear":{"card_type":"skill","rarity":"uncommon","free_effects":[{"op":"charge","amount":1},{"op":"next_energy","amount":1}],"destroyed_effects":[{"op":"energy","amount":"refund"}],"cost":2,"mode":"strain","damage_type":"strain","base":9.0,"refund":1},
- "chain":{"card_type":"skill","rarity":"uncommon","free_effects":[{"op":"charge","amount":1},{"op":"draw","amount":2}],"cost":2,"mode":"strain","damage_type":"strain","base":4.0,"hits":3,"follow_through":true,"target_slots":FOLLOW_THROUGH_SLOTS},
- "peel":{"card_type":"skill","rarity":"uncommon","free_effects":[{"op":"next_energy","amount":1},{"op":"retain","amount":2}],"cost":2,"mode":"slip","damage_type":"slip","base":4.0,"hits":3,"follow_through":true,"target_slots":FOLLOW_THROUGH_SLOTS},
- "double_unlock":{"card_type":"magic","rarity":"uncommon","free_effects":[{"op":"reserve_mana","amount":1}],"cost":1,"mode":"unlock","casting":{"parts":["hand","mouth"],"multiplier":1.0},"hits":2},
+ "chain":{"card_type":"skill","rarity":"uncommon","free_effects":[{"op":"charge","amount":2},{"op":"draw","amount":2}],"cost":2,"mode":"strain","damage_type":"strain","base":4.0,"hits":3,"follow_through":true,"target_slots":FOLLOW_THROUGH_SLOTS},
+ "peel":{"card_type":"skill","rarity":"uncommon","free_effects":[{"op":"next_energy","amount":1},{"op":"retain","all":true}],"cost":2,"mode":"slip","damage_type":"slip","base":4.0,"hits":3,"follow_through":true,"target_slots":FOLLOW_THROUGH_SLOTS},
+ "double_unlock":{"reward_excluded":true,"encyclopedia_hidden":true,"card_type":"magic","rarity":"uncommon","free_effects":[{"op":"reserve_mana","amount":1}],"cost":1,"mode":"unlock","casting":{"parts":["hand","mouth"],"multiplier":1.0},"hits":2},
  "panic":{"card_type":"curse","rarity":"curse","cost":1,"mode":"none"},
  "sensitive":{"card_type":"curse","rarity":"curse","cost":0,"mode":"none","hand_modifiers":{"pleasure_multiplier":1.2}},
  "lewd_mark":{"card_type":"curse","rarity":"curse","cost":0,"mode":"none","hand_modifiers":{"energy_pressure":4.0}},
@@ -118,14 +131,16 @@ static func _with_hannya(specs: Dictionary) -> Dictionary:
   var variant=specs[pair[1]].duplicate(true)
   variant.cost=0;variant.reward_excluded=true;variant.art_source=pair[1];variant.encyclopedia_hidden=true
   for side in variant.self_faces: variant.self_faces[side].erase("energy_cost")
+  if pair[0]=="hannya_infusion":
+   variant.self_faces.bound.mana_cost=10.0;variant.self_faces.free.mana_cost=10.0
   if pair[0]=="hannya_henshin":
    variant.self_faces.bound.mana_cost=20.0;variant.self_faces.free.mana_cost=20.0
    variant.self_faces.free.energy_cost=2
   specs[pair[0]]=variant
  return specs
 
-const FIXED_MAGIC={"fireball":{"parts":["mouth"],"multiplier":1.0}}
-const CAST_PART_NAMES={"mouth":"嘴部","hand":"手部","none":"无"}
+static var FIXED_MAGIC={"fireball":{"parts":["mouth"],"multiplier":1.0}}
+static var CAST_PART_NAMES={"mouth":"嘴部","hand":"手部","none":"无"}
 
 static func cast_profile(type: String) -> Dictionary:
  return SPECS[type].get("casting",{}) if SPECS.has(type) else FIXED_MAGIC.get(type,{})
@@ -138,12 +153,22 @@ static func face_casts(type: String, free: bool) -> bool:
 static func face_mana_base(type: String, free: bool, spell_cost: float) -> float:
  var spec=SPECS[type]
  if spec.has("self_faces"): return float(spec.self_faces["free" if free else "bound"].get("mana_cost",0))
+ if free and spec.has("free_mana_cost"): return float(spec.free_mana_cost)
  return float(spec.get("mana_cost",spell_cost)) if face_casts(type,free) else 0.0
 
-const COMMON=["leverage","breath_control","siphon","ready_to_strike","crossed_legs","mana_search","repeated_strain","embers","brace","inch","strong_elbow","mana_surge","mana_invocation","fire_control","rekindle"]
-const UNCOMMON=["siphon_strength","shared_fate","magic_hand","flame_flourish","wildfire_descent","restraint_embrace","pot_of_greed","concentration","focus","tear","chain","peel","unlock","double_unlock","mana_conversion","letter_opener","adaptability","echo_cast"]
-const RARE=["light_as_swallow","infusion","mana_circuit","boar_emperor_blaze","fire_mastery","binding_enthusiast","pleasure_conversion","henshin","fire_dynamics"]
+const COMMON=["prepared_chant","confluence","leverage","breath_control","siphon","ready_to_strike","crossed_legs","mana_search","repeated_strain","embers","brace","inch","strong_elbow","mana_surge","mana_invocation","fire_control","rekindle"]
+const UNCOMMON=["reuse","resonance","shared_fate","magic_hand","flame_flourish","wildfire_descent","restraint_embrace","pot_of_greed","concentration","focus","tear","chain","peel","unlock","mana_conversion","letter_opener","adaptability","echo_cast"]
+const RARE=["siphon_strength","practiced","light_as_swallow","infusion","mana_circuit","boar_emperor_blaze","fire_mastery","binding_enthusiast","pleasure_conversion","henshin","fire_dynamics"]
 const REWARDS=COMMON+UNCOMMON+RARE
+
+static func unique_face(type: String, free: bool) -> bool:
+ var spec=SPECS[type]
+ var face=spec.get("self_faces",{}).get("free" if free else "bound",{})
+ var ids=[]
+ if face.has("buff"): ids.append(face.buff)
+ for effect in face.get("effects",[])+spec.get("free_effects" if free else "hit_effects",[]):
+  if effect.op=="buff": ids.append(effect.buff)
+ return ids.any(func(id):return not BUFFS[id].get("stackable",false) and not BUFFS[id].get("stack_uses",false))
 
 static func follow_through_region(slot: String) -> String:
  for region in FOLLOW_THROUGH_REGIONS:
@@ -168,6 +193,9 @@ static func energy_cost(type: String, free: bool=false) -> int:
  var side="free" if free else "bound"
  var extra=int(spec.get("self_faces",{}).get(side,{}).get("energy_cost",0))
  return maxi(0,spec.cost+extra-int(spec.get(side+"_energy_discount",0)))
+
+static func energy_label(type: String) -> String:
+ return "X" if SPECS[type].get("x_cost",false) else str(SPECS[type].cost)
 
 static func distinct_faces(type: String) -> bool:
  var spec=SPECS[type]
@@ -203,11 +231,14 @@ static func damage_type(type: String, second: bool=false) -> String:
 
 const EFFECT_GROUPS=["free_effects","hit_effects","lowered_effects","destroyed_effects"]
 const RESERVE_MANA_VALUE=5
-const EFFECT_OPS=["evasion","buff","charge","next_energy","reserve_mana","energy","draw","retain"]
+const EFFECT_OPS=["evasion","buff","charge","next_energy","reserve_mana","energy","draw","retain","witch_focus"]
 
 static func amount(effect: Dictionary, spec: Dictionary) -> int:
  var value=effect.get("amount",0)
  return int(spec.get(value,0) if value is String else value)
+
+static func worn_gain(face: Dictionary, count: int) -> int:
+ return int(count/int(face.worn_resource.divisor)) if face.has("worn_resource") else 0
 
 static func hand_batch_matches(type: String, batch: Dictionary) -> bool:
  return batch.include_type in type_tags(type) if batch.has("include_type") else batch.exclude_type not in type_tags(type)
@@ -216,9 +247,11 @@ static func hand_batch_type_text(batch: Dictionary) -> String:
  return TYPES[batch.include_type] if batch.has("include_type") else "非"+TYPES[batch.exclude_type]
 
 static func definition_reason(spec: Dictionary) -> String:
+ if spec.has("x_cost") and (spec.x_cost!=true or spec.cost!=0 or spec.mode!="self"): return "X费卡需要零占位费用和自身效果。"
  if spec.has("reward_excluded") and not spec.reward_excluded is bool: return "卡牌随机奖励资格需要布尔配置。"
  if spec.has("encyclopedia_hidden") and not spec.encyclopedia_hidden is bool: return "卡牌图鉴展示设置需要布尔配置。"
  if spec.has("cast_free") and (not spec.cast_free is bool or not spec.has("casting") or spec.has("self_faces")): return "自由面施法需要有效施法配置。"
+ if spec.has("free_mana_cost") and (not (spec.free_mana_cost is int or spec.free_mana_cost is float) or not is_finite(float(spec.free_mana_cost)) or spec.free_mana_cost<0 or not spec.get("cast_free",false)): return "自由面魔力费用需要有效施法配置和非负数值。"
  if spec.has("mana_cost") and (not (spec.mana_cost is int or spec.mana_cost is float) or not is_finite(float(spec.mana_cost)) or spec.mana_cost<0 or not spec.has("casting") or spec.has("self_faces")): return "卡牌魔力费用不正确。"
  if spec.has("worn_damage"):
   var scaling=spec.worn_damage
@@ -248,6 +281,7 @@ static func definition_reason(spec: Dictionary) -> String:
    if face.has("buff") and face.buff not in BUFFS: return "卡牌增益没有登记。"
    if face.has("exhaust_hand") and (not face.exhaust_hand is bool or spec.mode!="self"): return "指定消耗手牌需要自身牌面的布尔配置。"
    if face.has("refresh_spell") and face.refresh_spell not in FIXED_MAGIC: return "刷新次数需要已登记的法术。"
+   if face.has("requires_successful_spell") and face.requires_successful_spell not in FIXED_MAGIC: return "施法前置需要已登记的法术。"
    if face.has("requires_hand") and not face.requires_hand is bool: return "手部使用条件必须为布尔值。"
    if face.has("exhaust_hand_batch"):
     var batch=face.exhaust_hand_batch
@@ -262,6 +296,9 @@ static func definition_reason(spec: Dictionary) -> String:
    if face.has("spell_base_bonus"):
     var bonus=face.spell_base_bonus
     if not bonus is Dictionary or bonus.get("spell","") not in FIXED_MAGIC or not bonus.get("amount") is int or bonus.amount<1 or bonus.amount>100: return "永久法术加伤需要已登记的法术及1—100整数。"
+   if face.has("worn_resource"):
+    var gain=face.worn_resource
+    if spec.mode!="self" or not gain is Dictionary or gain.keys().any(func(key):return key not in ["resource","divisor"]) or gain.get("resource","") not in ["mana","turn_strength"] or not gain.get("divisor") is int or gain.divisor<1: return "佩戴件数收益需要合法资源及正整数除数。"
    for key in ["mana_cost","mana_gain","energy_cost","energy_gain","pressure_energy"]:
     if face.has(key) and (not (face[key] is int or face[key] is float) or not is_finite(float(face[key])) or face[key]<0): return "卡牌资源数值不正确。"
    if face.has("pressure_energy") and face.pressure_energy<=0: return "能量转换需要正数快感间隔。"
@@ -282,7 +319,12 @@ static func definition_reason(spec: Dictionary) -> String:
    effect_groups.append(face.get("exhaust_hand_batch",{}).get("effects",[]))
    if face.has("buff"):
     var buff=BUFFS[face.buff]
+    if buff.has("stack_uses") and (not buff.stack_uses is bool or not (buff.has("attack_uses") or buff.has("replay"))): return "累计次数需要攻击次数或复放配置。"
     if buff.has("stackable") and (not buff.stackable is bool or spec.mode!="power"): return "能力叠加需要布尔配置。"
+    for key in ["card_cast_bonus","cast_minimum"]:
+     if buff.has(key) and ((key=="card_cast_bonus" and spec.mode!="power") or not (buff[key] is int or buff[key] is float) or not is_finite(float(buff[key])) or buff[key]<=0 or buff[key]>1): return "施法能力需要0至1之间的正数。"
+    if buff.has("magic_card_traction") and (spec.mode!="power" or not buff.magic_card_traction is int or buff.magic_card_traction!=1): return "魔法牌额外牵扯按1能量触发。"
+    if buff.has("worn_mana_reduction") and (spec.mode!="power" or not (buff.worn_mana_reduction is float or buff.worn_mana_reduction is int) or not is_finite(float(buff.worn_mana_reduction)) or buff.worn_mana_reduction<=0 or buff.worn_mana_reduction>1): return "每件拘束的耗魔减免需要0至1之间的正数。"
     if buff.has("worn_attributes"):
      var attributes=buff.worn_attributes
      if spec.mode!="power" or not attributes is Dictionary or attributes.is_empty() or attributes.keys().any(func(key):return key not in ["strength","dexterity"] or not attributes[key] is int or attributes[key]<=0 or attributes[key]>100): return "动态装备属性需要有效的力量或灵巧整数加值。"
@@ -294,6 +336,7 @@ static func definition_reason(spec: Dictionary) -> String:
     if buff.has("restraint_draw"):
      var trigger=buff.restraint_draw
      if spec.mode!="power" or not trigger is Dictionary or trigger.get("event","") not in ["worn","released"] or not trigger.get("next_turn") is bool or not trigger.get("amount") is int or trigger.amount<1: return "装备触发抽牌需要有效时机和正整数张数。"
+     if trigger.has("energy") and (trigger.event!="released" or trigger.next_turn or not trigger.energy is int or trigger.energy<1): return "挣脱回能需要即时触发的正整数能量。"
     if buff.has("replay"):
      var replay=buff.replay
      if not replay is Dictionary or replay.get("kind","") not in ["card","attack"] or (replay.kind=="card" and replay.get("distinct_faces")!=true) or (replay.kind=="attack" and replay.get("spell","") not in FIXED_MAGIC): return "复放增益需要有效的卡牌或法术条件。"
@@ -310,7 +353,8 @@ static func definition_reason(spec: Dictionary) -> String:
     if effect.op!="draw" or not filter is Dictionary or filter.size()!=1 or filter.get("tag","") not in TYPES: return "定向抽牌条件不正确。"
    var value=effect.get("amount",0)
    if value is String: value=spec.get(value,null)
-   if not value is int or value<0 or (effect.op=="retain" and value==0): return "卡牌附加效果数量不正确。"
+   if effect.has("all") and (effect.op!="retain" or effect.all!=true or effect.has("amount")): return "全部保留不能同时指定选牌数量。"
+   if not value is int or value<0 or (effect.op=="retain" and value==0 and not effect.get("all",false)): return "卡牌附加效果数量不正确。"
    if not effect.get("draw_after",0) is int or effect.get("draw_after",0)<0: return "保留后的抽牌数不正确。"
  var modifiers=spec.get("hand_modifiers",{})
  if not modifiers is Dictionary: return "手牌持续加成必须是属性表。"
@@ -323,6 +367,9 @@ static func definition_reason(spec: Dictionary) -> String:
 
 static func effect_text(effect: Dictionary, spec: Dictionary, compact: bool=false) -> String:
  var value=amount(effect,spec)
+ if effect.op=="witch_focus": return "精神集中%d" % value
+ if effect.op=="buff" and BUFFS[effect.buff].get("witch_hand",false): return "下2次手部基础动作忽略拘束条件"
+ if effect.op=="retain" and effect.get("all",false): return "保留全部手牌"+("，随后抽%d张" % effect.draw_after if effect.get("draw_after",0)>0 else "")
  if compact:
   if effect.op=="buff" and BUFFS[effect.buff].get("ignore_restraints",false): return "下%d次手部体术无视拘束限制与减益" % BUFFS[effect.buff].attack_uses
   match effect.op:

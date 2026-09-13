@@ -58,7 +58,7 @@ static func marble_reduction(t) -> void:
  t.check(is_equal_approx(g.state.pressure,33.2) and is_equal_approx(g.state.logs.back().data.gain_multiplier,0.6),"MARBLE also reduces fixed gains without applying Sensitive")
  var before=g.export_snapshot();var view=g.get_view();g.candidates()
  t.check(g.state==before and is_equal_approx(view.pressure.gain_multiplier,0.72),"MARBLE preview uses combined multiplier without changing state")
- t.check(t.action(g,"calm").ok and is_equal_approx(g.state.pressure,8.2),"MARBLE never reduces cooling amounts")
+ t.check(t.action(g,"calm").ok and is_equal_approx(g.state.pressure,13.2),"MARBLE never reduces cooling amounts")
  g.state.pressure=97;g.Pressure.gain(g,5,"阈值")
  t.check(g.state.overload_total==1 and is_equal_approx(g.state.pressure,0.6),"MARBLE reduced amount drives overload and remainder")
  g=Game.new(42);g.state.relics=[id,"green_bird"];g.state.pressure=98

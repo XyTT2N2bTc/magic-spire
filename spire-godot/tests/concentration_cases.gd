@@ -47,12 +47,12 @@ static func run(t) -> void:
  var immune=t.find_action(g,"card",{"uid":card.uid,"target":target.id,"free":true},true)
  t.check(immune.valid and immune.payload.preview.damage==0 and g.dispatch(immune.id,g.state.version).ok and g.Cards.instance(g,card.uid).get("damage_bonus",0)==3,"CONCENTRATION legal zero-damage slip still counts as one use")
  f=setup();g=f.g;card=f.card;target=f.target
- g.state.card_buffs.append("echo_cast_bound")
+ g.Cards.grant_buff(g,"echo_cast_bound")
  var replay=t.find_action(g,"card",{"uid":card.uid,"target":target.id,"free":true},true)
  var before=g.export_snapshot()
  t.check(g.dispatch(replay.id,g.state.version).ok and g.Cards.instance(g,card.uid).get("damage_bonus",0)==6 and g.state.energy==before.energy-1 and "echo_cast_bound" not in g.state.card_buffs,"CONCENTRATION second bound face replays freely and both actual releases grow")
  var hits=g.state.logs.filter(func(log):return log.data.has("action_result") and log.data.has("base"))
  t.check(hits.size()==2 and hits[0].data.base==6 and hits[1].data.base==9 and hits.all(func(log):return log.data.action_result.contains("滑脱")),"CONCENTRATION replay preserves second-face type and recomputes the grown base")
  f=setup();g=f.g;card=f.card;target=f.target
- target.durability=0.5;g.state.card_buffs.append("echo_cast_bound")
+ target.durability=0.5;g.Cards.grant_buff(g,"echo_cast_bound")
  t.check(t.action(g,"card",{"uid":card.uid,"target":target.id}).ok and g.Cards.instance(g,card.uid).get("damage_bonus",0)==3 and g.state.logs.any(func(log):return log.data.get("replay",{}).get("skipped",false)),"CONCENTRATION missing original target skips replay and its growth")

@@ -41,6 +41,7 @@ const EquipmentOffers=preload("res://core/equipment_offers.gd")
 const Services=preload("res://core/room_services.gd")
 const Events=preload("res://core/room_events.gd")
 const Cards=preload("res://core/card_effects.gd")
+const Character=preload("res://core/witch_character.gd")
 const RelicEffects=preload("res://core/relic_effects.gd")
 const Relics=preload("res://data/relics.gd")
 const Prison = preload("res://core/prison.gd")
@@ -54,19 +55,21 @@ var _magic_failed=false
 var state: Dictionary = {}
 var _scene_start: Dictionary = {}
 
-func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String="equipment", initialize: bool=true, chastity_locks_enabled: bool=false, chastity_lock_chance: int=25, cursed_plate_start: bool=false) -> void:
+func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String="equipment", initialize: bool=true, chastity_locks_enabled: bool=false, chastity_lock_chance: int=25, cursed_plate_start: bool=false, cursed_plate_masochist_mode: bool=false, character_id: String="original") -> void:
+ Character.register(self)
  SpecialEquipment.ensure_catalog()
  Content.ensure(self)
  state = {"version":1, "seed":run_seed, "rng":{}, "phase":"battle", "encounter":0,
   "round":0, "tick":0, "weakness_turns":0, "order":"first", "posture":"stand", "energy":B.ENERGY, "mana":B.MANA_MAX,
-  "mana_max":B.MANA_MAX,"flask_mana":0.0,"flask_deposits":0,"combat":{"serial":0,"active":false,"first_turn":false,"turn":0,"energy":0,"mana_spent":0.0,"mana_used":false,"attack_uses":{},"attack_started":{}},"relic_seen":[],"battle_relic_drop":"","boss_relic_options":[],
+  "calm_uses":0,"shop_removals":0,
+  "mana_max":B.MANA_MAX,"flask_mana":0.0,"flask_deposits":0,"combat":{"serial":0,"active":false,"first_turn":false,"turn":0,"energy":0,"mana_spent":0.0,"mana_used":false,"attack_uses":{},"attack_started":{},"successful_spells":[]},"relic_seen":[],"battle_relic_drop":"","boss_relic_options":[],
   "strength":0.0,"dexterity":0.0,"wall":"rough","wall_distance":0, "equipment":[], "next_equipment":1,"links":[],"next_link":1,"composites":[],"next_composite":1,"practice_kind":practice_kind,
-  "special_equipment":[],"chastity_locks_enabled":chastity_locks_enabled,"chastity_lock_chance":clampi(chastity_lock_chance,0,100),"chastity_climax_factor":3,"slip_ejaculation_turns":0,"slip_ejaculation_force_last":false,"pressure":0.0,"pressure_sources":[],"overloaded":false,"overload_energy":0,"overload_count":0,"overload_total":0,
+  "special_equipment":[],"chastity_locks_enabled":chastity_locks_enabled,"chastity_lock_chance":clampi(chastity_lock_chance,0,100),"cursed_plate_masochist_mode":cursed_plate_masochist_mode and chastity_locks_enabled,"chastity_climax_factor":3,"slip_ejaculation_turns":0,"slip_ejaculation_force_last":false,"pressure":0.0,"pressure_sources":[],"overloaded":false,"overload_energy":0,"overload_count":0,"overload_total":0,
   "cursed_plate_released":false,"relic_bundle":{},"relics":["ember"],"relic_used":{},"relic_pending":{},"relic_counters":{},"ribbon_tick":-1,"card_chain":{},"retain_left":0,"retain_draw_after":0,"reward_options":[],"rest_cards":[],"room_event":{},"security":0,"capture":{},"guard_bind":{},"prison":{},"tower_generation":0,
   "enemies":[], "deck":[], "draw":[], "hand":[], "play":[], "discard":[], "exhaust":[], "powers":[], "card_buffs":[], "card_buff_uses":{}, "evasion":0, "rare_offset":Cards.Rules.RARE_OFFSET_INITIAL, "next_card":1,"draw_serial":0,
-  "charge":0,"charge_all":false,"temporary_mana":0.0,"next_energy":0,"kick_last":-10,"heavy_used":false,"spell_base_bonuses":{},
+  "turn_strength":0,"charge":0,"charge_all":false,"temporary_mana":0.0,"next_energy":0,"kick_last":-10,"heavy_used":false,"spell_base_bonuses":{},
   "sure_cast":false,"body_buffs":[],"item_drop_chance":Tools.DROP_INITIAL,"battle_item_drop":"",
-  "prepare_left":0,"reward_count":0,"reward_claimed":{},"logs":[],"summary":"", "pending_retain":false,
+  "prepare_left":0,"reward_count":0,"reward_claimed":{},"battle_flask_drop":0,"logs":[],"summary":"", "pending_retain":false,
   "room":"entrance","map_region":"tower","last_strong_group":"","completed_rooms":[],"journey":{},"travel_turns":0,"traversed_edges":[],
   "rest_left":0,"hook_uses":0,"items":[],"next_item":1,"practice":practice,"room_encounters":{},"next_enemy":1}
  state.departure={}
@@ -76,13 +79,19 @@ func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String
  for domain in B.RNG_SALTS: state.rng[domain]=0
  state.save_revision=Snapshot.REVISION
  state.save_slot="practice" if practice else "tower"
+ if character_id==Character.ID:
+  Character.initialize(self)
+  state.chastity_locks_enabled=false;state.cursed_plate_masochist_mode=false
  if not initialize: return
  _generate_tower()
- for i in range(4):
-  state.deck.append(_make_card("strain"))
-  state.deck.append(_make_card("slip"))
- state.deck.append(_make_card("ease"))
- state.deck.append(_make_card("unlock"))
+ if Character.active(self):
+  for type in Character.STARTER: state.deck.append(_make_card(type))
+ else:
+  for i in range(4):
+   state.deck.append(_make_card("strain"))
+   state.deck.append(_make_card("slip"))
+  state.deck.append(_make_card("ease"))
+  state.deck.append(_make_card("magic_slip"))
  if practice: _start_practice()
  elif room_data(state.room).kind=="entry":
   _gain_tool("return_seal")
@@ -145,9 +154,14 @@ func _make_card(type: String) -> Dictionary:
 func reward_offer(pool: Array, source: String="fixed", rng=null, count: int=-1) -> Array:
  # Explicit counts are stock samples; only newly generated reward choices expand.
  if count<0: count=3+int(Relics.value(state.relics,"reward_card_options"))
- return preload("res://core/card_rewards.gd").offer(self,pool,source,rng,count)
+ return preload("res://core/card_rewards.gd").offer(self,Character.pool(self,pool),source,rng,count)
+
+func can_offer_card(type: String) -> bool:
+ return preload("res://core/card_rewards.gd").eligible(self,type)
 
 func _gain_card(type: String) -> void:
+ type=Character.card_id(self,type)
+ if not Character.allowed_card(self,type): return
  var card=_make_card(type)
  state.deck.append(card.duplicate(true))
  state.discard.append(card)
@@ -286,6 +300,7 @@ func _discard_end(end_session: bool=false) -> void:
  state.retain_left=0;state.retain_draw_after=0
 
 func _start_battle() -> void:
+ state.battle_flask_drop=0
  state.sure_cast=false
  state.battle_item_drop=""
  state.battle_relic_drop=""
@@ -381,11 +396,13 @@ func _append_enemies(members: Array, inherited_health: bool=false) -> Array:
    state.enemies[-1].constriction=0
    state.enemies[-1].next_climax_capture=spec.climax_capture_threshold
   added.append(state.enemies[-1])
+ for enemy in added:
+  if Enemies.TYPES[enemy.type].behavior=="puppeteer": Puppets.summon(self,enemy)
  return added
 
 func _damage_enemy(e: Dictionary, amount: float, damage_type: String, label: String, details: Dictionary={}) -> void:
  if e.is_empty() or e.gone: return
- var dealt=amount*Enemies.damage_multiplier(e.type,damage_type)
+ var dealt=amount*Enemies.damage_multiplier(e.type,damage_type)*Character.damage_multiplier(self)
  if Puppets.damage(self,e,dealt,damage_type,label,details): return
  e.hp=maxf(0.0,e.hp-dealt)
  var record={"damage":dealt,"damage_type":damage_type,"enemy":e.id}
@@ -455,6 +472,7 @@ func _start_preparation() -> void:
 
 func _begin_player_turn() -> void:
  state.ribbon_tick=-1
+ state.calm_uses=0
  # Shared resource/draw boundary; each phase owns its timer and side effects.
  state.tick += 1
  state.flask_deposits=0
@@ -462,7 +480,12 @@ func _begin_player_turn() -> void:
  state.overload_count=0
  var slip_penalty=1 if state.slip_ejaculation_turns>0 else 0
  state.energy = state.combat.energy+maxi(0,max_energy() + state.next_energy-state.overload_energy-slip_penalty)
- if state.slip_ejaculation_turns>0: state.slip_ejaculation_turns-=1
+ if state.slip_ejaculation_turns>0:
+  var mana_before=state.mana
+  var lost=minf(mana_before,B.SLIP_EJACULATION_MANA)
+  state.mana-=lost
+  state.slip_ejaculation_turns-=1
+  _emit("event","滑精：损失%s魔力，剩余%d回合。" % [number(lost),state.slip_ejaculation_turns],{"slip_ejaculation_tick":true,"mana_before":mana_before,"mana_lost":lost,"mana_after":state.mana,"remaining":state.slip_ejaculation_turns})
  state.combat.energy=0
  state.overload_energy=0
  state.next_energy = 0
@@ -518,6 +541,7 @@ func _finish_battle(saturated: bool=false) -> void:
  RelicRewards.battle_drop(self)
  state.phase = "reward"
  state.reward_claimed={}
+ state.battle_flask_drop=B.BOSS_FLASK_MANA if not saturated and _all_gone() and room_data(state.room).get("boss",false) and not Prison.is_exit_battle(self) and state.enemies.any(func(enemy):return enemy.get("defeated",false)) else 0
  var reward_source="boss" if room_data(state.room).get("boss",false) else ("elite" if Enemies.ENCOUNTERS.get(state.room_encounters.get(state.room,""),{}).get("rank","")=="elite" else "normal")
  state.reward_options=reward_offer(Cards.Rules.REWARDS,reward_source)
  Prison.won(self)
@@ -682,6 +706,7 @@ func _special_install_reason(type: String, slot: String) -> String:
  SpecialEquipment.ensure_catalog()
  if not SpecialEquipment.DESIGNS.has(type) or not SpecialEquipment.TYPES.has(type): return "这件装备尚未定义。"
  var design=SpecialEquipment.DESIGNS[type]
+ if design.slots.any(func(point):return not Character.has_slot(self,point)): return "该角色没有此装备所需的身体部位。"
  if design.slots.is_empty() or slot!=design.slots[0]: return "该装备不能安装在这个位置。"
  if SpecialEquipment.TYPES[type].get("component_only",false): return "加固带只能随平板锁自动附加。"
  if SpecialEquipment.is_chastity_type(type):
@@ -738,7 +763,7 @@ func _tick_special(timing: String) -> void:
  for item in state.special_equipment.duplicate():
   if item.durability<=0.000001: continue
   var spec=SpecialEquipment.TYPES[item.type]
-  var amount=SpecialEquipment.gain(item,timing)
+  var amount=SpecialEquipment.effective_gain(self,item,timing)
   if amount>0:
    var source_slots=spec.get("turn_stimulates",spec.stimulates) if timing=="turn_start" else spec.stimulates
    Pressure.gain(self,amount,spec.name+"（"+SpecialEquipment.location_name(item)+"）",false,source_slots)
@@ -789,6 +814,7 @@ func _refresh_equipment(target: Dictionary) -> void:
  Shoulders.refresh(self,target)
 
 func _can_tighten(target: Dictionary) -> bool:
+ if Equipment.lock_only(target): return false
  if cursed_eyes(target): return false
  return _reinforcement_locks(target) or Binding.can_tighten(target) or Shoulders.missing(self,target)
 
@@ -970,7 +996,7 @@ func _execute_enemy_operation(e: Dictionary, intent: Dictionary) -> void:
    if intent.get("final",false): e.gone=true
    return
  match intent.kind:
-  "puppet_summon","puppet_awaken","puppet_mend","puppet_composite","puppet_special":
+  "puppet_awaken","puppet_mend","puppet_composite","puppet_special":
    Puppets.execute(self,e,intent)
   "apply":
    var spec=EnemyPlans.application_spec(self,e,intent)
@@ -1134,6 +1160,8 @@ func _installation_reason(template: String, slot: String, grade: int, locked: bo
 
 # Resolve exact points and structural layer once for both queries and creation.
 func _prepare_installation(template: String, slot: String, grade: int, locked: bool=false, point: String="", layer: int=-1) -> Dictionary:
+ if Equipment.TEMPLATES.get(template,{}).get("lock_only",false) and state.equipment.any(func(e):return Equipment.lock_only(e)):
+  return {"reason":"已经佩戴限制项圈。"}
  if cursed_eyes({"slot":slot}): return {"reason":"诅咒眼罩封闭了眼部装备操作。"}
  var reason=Equipment.definition_reason(template,slot,grade,locked)
  if reason!="": return {"reason":reason}
@@ -1163,7 +1191,7 @@ func _install_template(template: String, slot: String, durability: float, maximu
  state.equipment.append(e)
  _refresh_equipment(e)
  RelicEffects._mana_hook(self,"restraint_mana","佩戴"+e.name)
- Cards.restraint_changed(self,"worn")
+ if not Equipment.lock_only(e): Cards.restraint_changed(self,"worn")
  return e
 
 # Only tests use fixture injection. The UI does not expose this method.
@@ -1246,6 +1274,7 @@ func _stack_items(target: Dictionary) -> Array:
  return physical_pieces().filter(func(e):return Equipment.overlaps(target,e) and (not target.get("independent",false) or e.id==target.id or e.get("root_id","")!=target.get("root_id","")))
 
 func _slip_reason(target: Dictionary, method: String="slip") -> String:
+ if Equipment.lock_only(target): return Equipment.LOCK_ONLY_REASON
  if cursed_plate(target): return SpecialEquipment.CURSED_PLATE_REASON
  if cursed_eyes(target): return "诅咒眼罩封闭了眼部装备操作。"
  if Equipment.has_mouth_harness(target): return "马具固定着口球，不能通过滑脱取下；可以使用挣扎类卡牌，或满足条件后徒手解除。"
@@ -1285,7 +1314,8 @@ func _strain_release_root(target: Dictionary) -> Dictionary:
  return root
 
 # Shared direct loosening effect; permission and cost belong to the caller's candidate.
-func _apply_manual_release(target: Dictionary, after: float) -> void:
+func _apply_manual_release(target: Dictionary, after: float, release_lock_only: bool=false) -> void:
+ if Equipment.lock_only(target) and not release_lock_only: return
  if cursed_plate(target): return
  if cursed_eyes(target): return
  target.durability=after
@@ -1402,6 +1432,7 @@ func escape_preview(target: Dictionary, mode: String, base: float, assist_profil
   reason="";bonus=0.0;charge=0.0;immune=false
  if cursed_eyes(target): reason="诅咒眼罩封闭了眼部装备操作。"
  if cursed_plate(target): reason=SpecialEquipment.CURSED_PLATE_REASON
+ if Equipment.lock_only(target): reason=Equipment.LOCK_ONLY_REASON
  var mult = _damage_multiplier(ratio)
  if not is_strain: penalty*=Shoulders.factor(self,target)
  var target_factor=SpecialEquipment.DESIGNS[target.type].damage_factor if SpecialEquipment.is_special(target) else Equipment.TEMPLATES[target.template].get("damage_factor",1.0)
@@ -1433,24 +1464,30 @@ func _formula(p: Dictionary) -> String:
  return expression+" = "+number(p.damage)
 
 func _mana_cost(base: float) -> float:
- return maxf(0.0,base*Pressure.magic_multiplier(state.pressure,Pressure.maximum(self)))
+ return maxf(0.0,base*Pressure.magic_multiplier(state.pressure,Pressure.maximum(self))*Cards.mana_cost_multiplier(self))
 
 func _mana_payment(payload: Dictionary, mana: float) -> Dictionary:
  if payload.get("payment","")=="flask": return {"mana":0.0,"temporary_mana":0.0,"flask_mana":mana}
- var eligible=payload.kind=="card" or (payload.kind=="prison" and payload.has("uid")) or (payload.kind=="attack" and payload.type=="fireball")
+ var eligible=payload.kind=="card" or (payload.kind=="prison" and payload.has("uid")) or (payload.kind=="attack" and Cards.Rules.FIXED_MAGIC.has(payload.type))
  var temporary=minf(state.temporary_mana,mana) if eligible else 0.0
  return {"mana":mana-temporary,"temporary_mana":temporary,"flask_mana":0.0}
 
 func _candidate(out: Array, payload: Dictionary, label: String, detail: String, cost: int = 0, mana: float = 0.0, reason: String = "", risk: String = "", group: String = "action") -> void:
+ var lock_target=_equipment(payload.get("target",""))
+ if Equipment.lock_only(lock_target):
+  var unlock=payload.get("mode","")=="unlock" or (payload.kind=="item_use" and Tools.operation(_item(payload.item).get("type",""))=="unlock")
+  if payload.kind!="manual" and not unlock: reason=Equipment.LOCK_ONLY_REASON;detail=reason
  if cursed_plate(_equipment(payload.get("target",""))): reason=SpecialEquipment.CURSED_PLATE_REASON
  if cursed_eyes(_equipment(payload.get("target",""))) or cursed_eyes({"slot":payload.get("slot","")}): reason="诅咒眼罩封闭了眼部装备操作。"
- var uses_magic=(payload.kind in ["card","prison"] and payload.has("uid") and Cards.uses_magic(payload)) or (payload.kind=="attack" and payload.type=="fireball")
+ var uses_magic=(payload.kind in ["card","prison"] and payload.has("uid") and Cards.uses_magic(payload)) or (payload.kind=="attack" and Cards.Rules.FIXED_MAGIC.has(payload.type))
  if reason=="" and uses_magic and cast_view(Cards.cast_profile(self,payload.type,mana>0)).chance<=0.0: reason="当前施法成功率为0%。"
  var pressure_risk=Pressure.action_risk(self,payload)
+ var extra_traction=Cards.magic_card_traction(self,payload)
+ if extra_traction>0: detail+="\n熟练而已：无论成败，额外牵扯%d次（每次按1能量，不扣能量）。" % extra_traction
  if cost>0:
   var gain=0.0
   for item in state.special_equipment: gain+=SpecialEquipment.gain(item,"energy")
-  if gain>0: pressure_risk+=("\n" if pressure_risk!="" else "")+"消耗能量后，佩戴的性玩具合计增加%s快感值。" % number(gain*Pressure.gain_multiplier(self))
+  if gain>0: pressure_risk+=("\n" if pressure_risk!="" else "")+"牵扯：佩戴的性玩具合计增加%s快感值。" % number(gain*Pressure.gain_multiplier(self))
  if pressure_risk!="": risk+=("\n" if risk!="" else "")+pressure_risk
  if reason == "" and state.energy < cost: reason = "需要%d能量，当前只有%d。" % [cost,state.energy]
  var payment=_mana_payment(payload,mana)
@@ -1462,11 +1499,20 @@ func _candidate(out: Array, payload: Dictionary, label: String, detail: String, 
  out.append({"id":JSON.stringify(payload).sha256_text().substr(0,24),"payload":payload,"label":label,"detail":detail,"cost":cost,"mana":mana,"mana_payment":payment,"valid":reason=="","reason":reason,"risk":risk,"group":group})
 
 func candidates() -> Array:
- if not state.relic_bundle.is_empty(): return RelicBundle.candidates(self)
- if state.phase=="departure": return Departure.candidates(self)
+ if not state.relic_bundle.is_empty():
+  var bundled=RelicBundle.candidates(self)
+  Consumables.noncombat_candidates(self,bundled)
+  ManaFlask.candidates(self,bundled,true)
+  return bundled
+ if state.phase=="departure":
+  var starting=Departure.candidates(self)
+  Consumables.noncombat_candidates(self,starting)
+  ManaFlask.candidates(self,starting,true)
+  return starting
  if Binding.state_issue(self)!="": return []
  if SpecialEquipment.validate(state.get("special_equipment"))!="": return []
  var out=_phase_candidates()
+ Consumables.noncombat_candidates(self,out)
  _route_candidates(out)
  if state.phase=="battle" and not state.overloaded and state.enemies.any(func(enemy):return not enemy.gone):
   _candidate(out,{"kind":"surrender"},"投降","放弃战斗，被逮捕并直接进入牢房。",0,0,"","","surrender")
@@ -1521,6 +1567,8 @@ func _phase_candidates() -> Array:
   if not state.reward_claimed.has("card"):
    for type in state.reward_options:
     _candidate(out,{"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",Cards.face_text(self,type,false)+"\n"+Cards.face_text(self,type,true),0,0,"","","reward")
+  if state.battle_flask_drop>0 and not state.reward_claimed.has("flask"):
+   _candidate(out,{"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,"全部存入贴身魔瓶，不占用存入次数。",0,0,"","","reward")
   for category in ["item","relic"]:
    var type=state.battle_item_drop if category=="item" else state.battle_relic_drop
    if type=="" or state.reward_claimed.has(category): continue
@@ -1556,7 +1604,7 @@ func _phase_candidates() -> Array:
  if state.phase=="rest": _rest_candidates(out)
  if state.phase=="prison": Prison.candidates(self,out)
  var calm=Pressure.calm(self)
- _candidate(out,{"kind":"calm"},"深呼吸","快感－%s，下回合能量＋%d。" % [number(calm.reduction),B.CALM_NEXT_ENERGY],B.CALM_COST,0,calm.reason if calm.reason!="" else ("当前快感已经降到最低。" if state.pressure<=0 else ""),"","pressure")
+ _candidate(out,{"kind":"calm"},"深呼吸","快感－%s，下回合能量＋%d。本回合剩余%d／%d次。" % [number(calm.reduction),B.CALM_NEXT_ENERGY,calm.remaining,B.CALM_USES_PER_TURN],B.CALM_COST,0,calm.reason if calm.reason!="" else ("当前快感已经降到最低。" if state.pressure<=0 else ""),"","pressure")
  _candidate(out,{"kind":"end"},"结束回合",("保留手牌。" if Relics.value(state.relics,"keep_hand")>0 else "弃置未保留手牌。")+("敌人按原定行动执行。" if state.phase=="battle" and state.order=="first" else ""),0,0,"","","flow")
  if state.phase == "prepare":
   _candidate(out,{"kind":"finish_prepare"},"提前结束整备","放弃剩余整备回合，不获得额外资源。",0,0,"","","flow")
@@ -1646,6 +1694,9 @@ func kick_profile() -> Dictionary:
  return {"label":label,"cost":cost,"damage":damage,"reason":reason,"fall":bound,"interrupt":infused_justice or (not justice and (state.posture=="stand" or not bound)),"cooldown_turns":0 if justice and not infused_justice else spec.cooldown_turns}
 
 func _attack_candidates(out: Array) -> void:
+ if Character.active(self):
+  Character.attack_candidates(self,out)
+  return
  for e in state.enemies:
   if e.gone: continue
   for type in BasicAttacks.TYPES:
@@ -1745,6 +1796,10 @@ func _manual_candidates(out: Array) -> void:
  for target in equipment_targets():
   var reason=""
   var full=level("arms")==0
+  if Equipment.lock_only(target):
+   reason="先用开锁术或开锁工具打开限制项圈的锁。" if target.locked else ("双臂需要完全自由才能取下限制项圈。" if not full else "")
+   _candidate(out,{"kind":"manual","target":target.id,"after":0.0},"取下限制项圈","取下已开锁的限制项圈，花费1能量。",1,0,reason,"","manual")
+   continue
   if not Equipment.allows(target,"manual"): reason=Equipment.TEMPLATES[target.template].name+"不能徒手快速解开。"
   elif occupied("wrist") or occupied("fingers"): reason="手腕需要自由，并且手指能精细操作。"
   elif target.locked: reason="目标已上锁，先开锁才能徒手松解。"
@@ -1835,6 +1890,9 @@ func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
   if c.id==candidate_id: chosen=c; break
  if chosen.is_empty(): return {"ok":false,"error":"该行动已经失效，请重新选择。"}
  if not chosen.valid: return {"ok":false,"error":chosen.reason}
+ var extra_traction=Cards.magic_card_traction(self,chosen.payload)
+ var traction_mark=Cards.hand_modifier(self,"energy_pressure")
+ var traction_guard=CaptureBind.has_bind(self,"guard")
  var original=state
  var hero_copy_context={
   "cost":chosen.cost,
@@ -1885,6 +1943,9 @@ func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
   state=original
   return {"ok":false,"error":"行动未提交："+execution_issue}
  _settle_energy_pressure()
+ for pulse in range(extra_traction):
+  _emit("event","熟练而已：额外牵扯1次。",{"traction":{"extra":true,"energy":1,"card_uid":chosen.payload.uid}})
+  _apply_traction(1,traction_guard,traction_mark)
  if chosen.payload.kind=="card" and not _magic_failed: Cards.record_play(self,chosen.payload.type,chosen.payload.get("free",false),chosen.payload.get("uid",""))
  _cleanup()
  Cards.normalize(self)
@@ -1968,9 +2029,11 @@ func _cast_path(part: String, profile: Dictionary) -> Dictionary:
   formula+="\n%s：%s×%s，紧度%d档×%s" % [e.name,Equipment.GRADES[e.grade],number(grade_factor),tightness,number(tightness_factor)]
  if profile.get("multiplier",1.0)!=1.0: formula+="\n法术加成：×"+number(profile.multiplier)
  if profile.get("body_free",false): formula+="\n火焰精通：不受口部装备影响，不获得手势施法加成。"
- var chance_bonus=float(profile.get("chance_bonus",0.0))
+ var modifiers=Cards.casting_modifiers(self)
+ var chance_bonus=float(profile.get("chance_bonus",0.0))+modifiers.bonus
  if chance_bonus!=0.0: formula+="\n成功率额外加成：＋%s个百分点（倍率之后）。" % number(chance_bonus*100)
- var winning_rolls=roundi(clampf(base*multiplier+chance_bonus,0.0,1.0)*B.CAST_ROLL_STEPS)
+ if modifiers.minimum>0: formula+="\n"+"、".join(modifiers.minimum_sources)+("：施法成功率固定为100%。" if modifiers.minimum==1.0 else "：最终成功率最低%s%%。" % number(modifiers.minimum*100))
+ var winning_rolls=roundi(clampf(maxf(base*multiplier+chance_bonus,modifiers.minimum),0.0,1.0)*B.CAST_ROLL_STEPS)
  var guarantee=RelicEffects.cast_guarantee(self) if profile.get("paid_cast",true) and reason=="" else ""
  if guarantee!="":
   winning_rolls=B.CAST_ROLL_STEPS
@@ -1982,7 +2045,7 @@ func _cast_path(part: String, profile: Dictionary) -> Dictionary:
   winning_rolls=0
   formula+="\n"+reason
  var chance=float(winning_rolls)/B.CAST_ROLL_STEPS
- return {"part":part,"reason":reason,"chance":chance,"winning_rolls":winning_rolls,"base":base,"factors":factors,"multiplier":multiplier,"chance_bonus":chance_bonus,"percent":number(chance*100)+"%","formula":formula,"detail":formula+"\n嘴部施法受口部装备影响；手部施法默认需要双手的手掌和手指均自由，施法动作教程可放宽为一只完整自由手。多种可用部位取最高成功率。失败仍扣能量和魔力，卡牌留在手中，不弃置或消耗。"}
+ return {"part":part,"reason":reason,"chance":chance,"winning_rolls":winning_rolls,"base":base,"factors":factors,"multiplier":multiplier,"chance_bonus":chance_bonus,"percent":number(chance*100)+"%","formula":formula,"detail":formula+"\n嘴部施法受口部装备影响；手部施法默认需要双手的手掌和手指均自由，施法动作教程可放宽为一只完整自由手。多种可用部位取最高成功率。"+Cards.failure_refund_detail(self)+"；能量照扣，卡牌留手。"}
 
 func _cast_magic(c: Dictionary) -> bool:
  var paid=not c.payload.get("replay",false) and c.mana>0
@@ -1998,11 +2061,22 @@ func _cast_magic(c: Dictionary) -> bool:
   roll=_random_index("magic",B.CAST_ROLL_STEPS)
   success=roll<casting.winning_rolls
  _magic_failed=not success
+ var refund={"mana":0.0,"temporary_mana":0.0}
+ if not success and not c.payload.get("replay",false):
+  var refund_rates=Cards.failure_refund_rates(self)
+  for field in refund:
+   refund[field]=float(c.mana_payment.get(field,0.0))*refund_rates[field]
+   if field=="mana": refund[field]=minf(refund[field],maxf(0.0,state.mana_max-state.mana))
+   state[field]+=refund[field]
  var name=B.CARD_NAMES[c.payload.type] if c.payload.has("uid") else c.label
  var result=("额外施放「%s」" if c.payload.get("replay",false) else "「%s」施法") % name
  result+=("成功" if success else "失败")+"（成功率%s%%）。" % ActionCopy.number(chance*100)
+ if refund.mana>0: result+="返还%s魔力。" % number(refund.mana)
+ if refund.temporary_mana>0: result+="返还%s临时魔力。" % number(refund.temporary_mana)
+ if not success and c.payload.type=="fireball" and not c.payload.get("replay",false): result+="火球术次数未消耗。"
  if not success and c.payload.has("uid") and not c.payload.get("replay",false): result+="卡牌留在手中。"
- _emit("event",result,{"spell":{"success":success,"chance":chance,"roll":roll,"pressure":state.pressure,"base":casting.base,"factors":casting.factors,"chance_bonus":casting.chance_bonus,"part":casting.part,"type":c.payload.type}})
+ _emit("event",result,{"spell":{"success":success,"chance":chance,"roll":roll,"pressure":state.pressure,"base":casting.base,"factors":casting.factors,"chance_bonus":casting.chance_bonus,"part":casting.part,"type":c.payload.type,"mana_refund":refund}})
+ if success and c.payload.type in Cards.Rules.FIXED_MAGIC and c.payload.type not in state.combat.successful_spells: state.combat.successful_spells.append(c.payload.type)
  Cards.spell_used(self,c.payload.type)
  return success
 
@@ -2023,7 +2097,7 @@ func _execute(c: Dictionary) -> void:
    var replay=Replay.take(self,"attack",p.type)
    var targets=state.enemies.filter(func(enemy):return not enemy.gone).map(func(enemy):return enemy.id) if p.all else [p.enemy]
    _execute_attack(c,targets)
-   if replay: Replay.spell(self,c,targets)
+   if replay: Replay.spell(self,c,targets,replay)
    if state.phase=="battle" and _all_gone(): _finish_battle()
   "wall_move":
    if state.phase=="prison":
@@ -2045,15 +2119,17 @@ func _execute(c: Dictionary) -> void:
   "chain": Cards.continue_card(self,p)
   "manual":
    var target=_equipment(p.target)
-   _apply_manual_release(target,p.after)
-   if SpecialEquipment.is_special(target): _emit("event","双臂和双手已经完全自由，你直接取出了"+target.name+"。")
+   _apply_manual_release(target,p.after,Equipment.lock_only(target) and not target.locked and level("arms")==0)
+   if Equipment.lock_only(target): _emit("event","取下了已开锁的限制项圈。")
+   elif SpecialEquipment.is_special(target): _emit("event","双臂和双手已经完全自由，你直接取出了"+target.name+"。")
    else: _emit("event",c.label+"："+target.name+"，剩余耐久"+number(p.after)+"。")
   "end": _end_turn()
   "calm":
    var reduced=minf(state.pressure,Pressure.calm(self).reduction)
    state.pressure-=reduced
    state.next_energy+=B.CALM_NEXT_ENERGY
-   _emit("event","深呼吸：快感降低%s，当前%s；下回合能量＋%d。" % [number(reduced),number(state.pressure),B.CALM_NEXT_ENERGY])
+   state.calm_uses+=1
+   _emit("event","深呼吸：快感降低%s，当前%s；下回合能量＋%d。本回合剩余%d次。" % [number(reduced),number(state.pressure),B.CALM_NEXT_ENERGY,B.CALM_USES_PER_TURN-state.calm_uses],{"calm_uses":state.calm_uses,"calm_remaining":B.CALM_USES_PER_TURN-state.calm_uses,"pressure_loss":reduced})
   "finish_prepare", "finish_rest":
    _finish_preparation()
   "finish_pack": _finish_preparation()
@@ -2131,7 +2207,11 @@ func _execute(c: Dictionary) -> void:
       _gain_tool(p.type)
       _emit("event","领取"+Tools.TYPES[p.type].name+"，收入道具栏。")
      "relic": RelicEffects.gain(self,p.type)
+     "flask":
+      state.flask_mana+=state.battle_flask_drop
+      _emit("event","领取Boss奖励，贴身魔瓶获得%d魔力。" % state.battle_flask_drop,{"boss_flask_reward":state.battle_flask_drop})
    else:
+    state.battle_flask_drop=0
     state.battle_item_drop=""
     state.battle_relic_drop=""
     state.boss_relic_options=[]
@@ -2144,12 +2224,15 @@ func _execute(c: Dictionary) -> void:
   "retain_skip": Cards.finish_retain(self)
 
 func _execute_attack(c: Dictionary, targets: Array) -> void:
+ if c.payload.get("witch_action",false):
+  Character.execute(self,c)
+  return
  var p=c.payload
  if not p.get("replay",false) and BasicAttacks.TYPES[p.type][0].has("first_use_cost"): state.combat.attack_started[p.type]=true
- if not p.get("replay",false) and BasicAttacks.TYPES[p.type][0].has("uses_per_turn"): state.combat.attack_uses[p.type]=int(state.combat.attack_uses.get(p.type,0))+1
  if p.type=="fireball":
   if not _cast_magic(c): return
  else: _consume_charge()
+ if not p.get("replay",false) and BasicAttacks.TYPES[p.type][0].has("uses_per_turn"): state.combat.attack_uses[p.type]=int(state.combat.attack_uses.get(p.type,0))+1
  if p.get("target","")!="":
   var equipment=_equipment(p.target)
   var before=equipment.durability
@@ -2230,15 +2313,17 @@ func _cleanup(released: bool=true) -> void:
   var remaining=Cards.restraint_roots(self)
   Cards.restraint_changed(self,"released",roots.filter(func(id):return id not in remaining).size())
 
+func _apply_traction(amount: int, guard_effect: bool, hand_pressure: float) -> void:
+ CaptureBind.energy_spent(self,amount,guard_effect)
+ _tick_special("energy")
+ if hand_pressure>0: Pressure.gain(self,hand_pressure,"小腹上的淫纹")
+
 func _settle_energy_pressure() -> void:
  if not _energy_pressure_pending: return
  _energy_pressure_pending=false
- if not _capture_energy_pending.is_empty():
-  var spent=_capture_energy_pending
-  _capture_energy_pending={}
-  CaptureBind.energy_spent(self,spent.amount,spent.guard)
- _tick_special("energy")
- if _card_energy_pressure_pending>0: Pressure.gain(self,_card_energy_pressure_pending,"小腹上的淫纹")
+ var spent=_capture_energy_pending
+ _capture_energy_pending={}
+ _apply_traction(int(spent.get("amount",0)),spent.get("guard",false),_card_energy_pressure_pending)
  _card_energy_pressure_pending=0.0
 
 func _end_turn() -> void:
@@ -2252,6 +2337,8 @@ func _end_turn() -> void:
  _discard_end()
  EnemyPlans.tick_install(self,"turn_end")
  RelicEffects.end_turn(self)
+ Cards.expire_turn_buffs(self)
+ Pressure.relax(self)
  if state.phase=="battle" and _all_gone():
   _finish_battle()
   return
@@ -2412,6 +2499,7 @@ func _advance_travel() -> void:
  state.travel_turns+=1
  state.flask_deposits=0
  SlipMotion.apply(self,"travel")
+ Pressure.relax(self)
  if state.journey.remaining>0:
   _emit("event","你继续"+state.journey.mode+"，距离"+room_data(state.journey.target).name+"还有%d回合。" % state.journey.remaining)
   return
@@ -2460,12 +2548,14 @@ func route_view(choices: Variant=null) -> Array:
  return result
 
 func validate() -> String:
+ var character_issue=Character.validate(self,state)
+ if character_issue!="": return character_issue
  var departure_issue=Departure.validate(self,state)
  if departure_issue!="": return departure_issue
  var buff_issue=Consumables.validate_buffs(self,state.get("body_buffs"))
  if buff_issue!="": return buff_issue
  if not Snapshot.fields(state,"charge_all:b"): return "蓄力模式不正确。"
- if not Snapshot.fields(state,"chastity_locks_enabled:b chastity_lock_chance:i chastity_climax_factor:i slip_ejaculation_turns:i slip_ejaculation_force_last:b") or state.chastity_lock_chance<0 or state.chastity_lock_chance>100 or state.chastity_lock_chance%5!=0 or state.chastity_climax_factor<3 or state.slip_ejaculation_turns<0 or state.slip_ejaculation_turns>2: return "贞操锁生成或滑精状态不正确。"
+ if not Snapshot.fields(state,"chastity_locks_enabled:b chastity_lock_chance:i cursed_plate_masochist_mode:b chastity_climax_factor:i slip_ejaculation_turns:i slip_ejaculation_force_last:b") or state.chastity_lock_chance<0 or state.chastity_lock_chance>100 or state.chastity_lock_chance%5!=0 or state.chastity_climax_factor<3 or (not state.cursed_plate_masochist_mode and state.chastity_climax_factor>SpecialEquipment.CHASTITY_CLIMAX_FACTOR_LIMIT) or state.slip_ejaculation_turns<0 or state.slip_ejaculation_turns>2: return "平板锁生成、高潮保留或滑精状态不正确。"
  var demo_issue=DemoExit.validate(state)
  if demo_issue!="": return demo_issue
  if not Snapshot.fields(state,"temporary_mana:n") or state.temporary_mana<0: return "临时魔力记录不正确。"
@@ -2475,6 +2565,7 @@ func validate() -> String:
  if state.battle_item_drop!="" and state.battle_item_drop not in Tools.DROP_POOL: return "掉落道具不在当前道具池中。"
  if state.sure_cast and not RelicEffects.keeps_combat_state(self): return "定咒只能在本场战斗及整备中保留。"
  var shoulder_issue=Shoulders.validate(self)
+ if state.equipment.filter(func(e):return Equipment.lock_only(e)).size()>1: return "不能重复佩戴限制项圈。"
  if shoulder_issue!="": return shoulder_issue
  for e in state.equipment:
   var binding_issue=Binding.validate(self,e)
@@ -2613,7 +2704,10 @@ func restore_snapshot(saved: Dictionary) -> Dictionary:
 # Scene checkpoints are outside the live state: no nested snapshots or second rule state.
 static func _scene_key(s: Dictionary) -> Array:
  var phase="prison" if s.phase=="inspection" else s.phase
- return [s.seed,s.tower_generation,s.map_region,s.room,phase,s.encounter if phase=="battle" else 0,s.combat.serial if phase in ["battle","prison","rest","prepare"] else 0,s.demo_finished]
+ # Rest rewards and playable rest belong to one room entry, even though choosing
+ # a reward starts a new combat lifecycle and increments its serial.
+ if phase=="rest_choice": phase="rest"
+ return [s.seed,s.tower_generation,s.map_region,s.room,phase,s.encounter if phase=="battle" else 0,s.combat.serial if phase in ["battle","prison","prepare"] else 0,s.demo_finished]
 
 func _commit_scene_start(before: Dictionary) -> void:
  if _scene_key(state)!=_scene_key(before):

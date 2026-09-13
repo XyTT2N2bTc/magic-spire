@@ -7,6 +7,7 @@ const TEXT=Color("eee8d9")
 const MUTED=Color("a5b3bd")
 const RED=Color("ed9393")
 const INK=Color("111d29")
+const UI_FONT=preload("res://assets/fonts/NotoSansCJKsc-Regular.otf")
 
 static func surface(bg: Color=INK, border: Color=GOLD.darkened(0.5), radius: int=8) -> StyleBoxFlat:
  var s=StyleBoxFlat.new()
@@ -33,8 +34,8 @@ static func button_style(state: String, accent: Color=GOLD) -> StyleBoxFlat:
  if state in ["hover","pressed"]: s.border_width_left=3
  return s
 
-static func controls(font: Font) -> Theme:
- var t=Theme.new();t.default_font=font;t.default_font_size=16
+static func controls() -> Theme:
+ var t=Theme.new();t.default_font=UI_FONT;t.default_font_size=16
  for type in ["Button","OptionButton"]:
   for state in ["normal","hover","pressed","disabled","focus"]: t.set_stylebox(state,type,button_style(state))
   t.set_color("font_color",type,TEXT);t.set_color("font_hover_color",type,TEXT);t.set_color("font_pressed_color",type,TEXT)

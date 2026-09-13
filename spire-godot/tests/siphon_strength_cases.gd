@@ -15,7 +15,8 @@ static func run(t) -> void:
    var swap=removed;removed=kept;kept=swap
   var c=t.find_action(g,"card",{"uid":source.uid,"free":free})
   var before=g.export_snapshot()
-  t.check(c.valid and c.cost==1 and c.mana==0 and g.Cards.Rules.SPECS[TYPE].casting.parts==["hand"] and TYPE in g.Cards.Rules.UNCOMMON,"SIPHON STRENGTH uncommon one-energy hand spell needs no mana")
+  t.check(c.valid and c.cost==1 and c.mana==0 and g.Cards.Rules.SPECS[TYPE].casting.parts==["hand"] and TYPE in g.Cards.Rules.RARE and TYPE not in g.Cards.Rules.UNCOMMON,"SIPHON STRENGTH rare one-energy hand spell needs no mana")
+  t.check(g.Cards.Rules.SPECS[TYPE].rarity=="rare" and preload("res://data/encyclopedia.gd").card(TYPE).rarity=="rare" and g.get_view().hand.filter(func(row):return row.uid==source.uid)[0].rarity=="rare","SIPHON STRENGTH runtime card and encyclopedia share rare rarity")
   t.check(g.candidates().filter(func(a):return a.payload.get("uid","")==source.uid).size()==2 and not c.payload.has("hand_uid") and g.state==before,"SIPHON STRENGTH one candidate per face with no manual selection")
   t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"SIPHON STRENGTH stale play rolls back every zone and resource")
   var result=g.dispatch(c.id,g.state.version)

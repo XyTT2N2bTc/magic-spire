@@ -1,16 +1,29 @@
 extends Control
 
 const Art=preload("res://ui/pixel_art.gd")
-var clock=0.0
 var rest=false
+
+class Dust extends Control:
+ var clock=0.0
+ var pending=0.0
+
+ func _process(delta: float) -> void:
+  clock+=delta;pending+=delta
+  if pending<1.0/30.0: return
+  pending=fmod(pending,1.0/30.0)
+  queue_redraw()
+
+ func _draw() -> void:
+  for i in range(16):
+   var point=Vector2(400+fmod(i*173.0+clock*3,1160),160+fmod(i*71.0-clock*4+10000,245))
+   draw_circle(point,1.2,Color(0.89,0.83,1.0,0.12+sin(clock+i)*0.06),true,-1,true)
 
 func _ready() -> void:
  mouse_filter=Control.MOUSE_FILTER_IGNORE
  texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
-
-func _process(delta: float) -> void:
- clock+=delta
- queue_redraw()
+ var dust=Dust.new();dust.name="AmbientDust"
+ dust.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ add_child(dust)
 
 func _draw() -> void:
  draw_rect(Rect2(Vector2.ZERO,size),Color("10101b"))
@@ -24,9 +37,6 @@ func _draw() -> void:
  for x in [407,1571]:
   draw_line(Vector2(x,83),Vector2(x,114),Color(0.66,0.55,0.35,0.42),1)
   draw_line(Vector2(x,83),Vector2(x+(24 if x<500 else -24),83),Color(0.66,0.55,0.35,0.42),1)
- for i in range(16):
-  var point=Vector2(400+fmod(i*173.0+clock*3,1160),160+fmod(i*71.0-clock*4+10000,245))
-  draw_circle(point,1.2,Color(0.89,0.83,1.0,0.12+sin(clock+i)*0.06),true,-1,true)
  draw_rect(Rect2(0,62,376,478),Color(0.03,0.025,0.055,0.42))
  for i in range(24):
   draw_rect(Rect2(376,475+i*14,1224,14),Color(0.025,0.05,0.085,minf(0.98,float(i)/13.0)))

@@ -133,7 +133,7 @@ static func entries() -> Dictionary:
  plate_lock.special_equipment=[{"type":"negative_vibrator_lock_catheter_high","slot":"special_2_a","tier":3}]
  plate_lock.opening_cards=["unlock"]
  result.plate_lock=entry("plate_lock","special_2",plate_lock)
- var pressure=scenario("快感与持续刺激练习","本房挣扎后快感增加20，每回合结束增加25。可花1能量深呼吸降低25快感，下回合能量＋1；普通固定带本身不会额外增加快感。",[ordinary("belt","wrist",2)])
+ var pressure=scenario("快感与持续刺激练习","本房挣扎后快感增加20，每回合结束增加25。每回合可深呼吸2次，每次花1能量降低20快感，下回合能量＋1；普通固定带本身不会额外增加快感。",[ordinary("belt","wrist",2)])
  pressure.pressure=70.0
  pressure.pressure_sources=[{"id":"practice_resonance","name":"挣扎时身体与训练垫的摩擦","timing":"strain","amount":20.0,"room":"rest"},{"id":"practice_field","name":"训练室的低频震动装置","timing":"turn_end","amount":25.0,"room":"rest"}]
  result.pressure=entry("pressure","wrist",pressure)

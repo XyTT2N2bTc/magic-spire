@@ -33,9 +33,12 @@ const TRADER_DESCRIPTION="行动：①初级2档拘束具×2；②无力化1回�
 
 static func card(type: String) -> Dictionary:
  var info=B.card_info(type)
- var result={"uid":"catalog_"+type,"type":type,"name":B.CARD_NAMES[type],"cost":"—" if B.CARD_TRAITS.get(type,{}).get("unplayable",false) else str(Cards.SPECS[type].cost),"tag":info[0],"bound":info[1],"free":info[2],"note":info[3],"single_face":Cards.single_face(type)}
+ var result={"uid":"catalog_"+type,"type":type,"name":B.CARD_NAMES[type],"cost":"—" if B.CARD_TRAITS.get(type,{}).get("unplayable",false) else Cards.energy_label(type),"tag":info[0],"bound":info[1],"free":info[2],"note":info[3],"single_face":Cards.single_face(type)}
  result.merge(Cards.classification(type))
  result.merge(B.card_metadata(type))
+ result.face_costs={}
+ for side in ["bound","free"]:
+  result.face_costs[side]=result.cost if result.cost in ["X","—"] else str(Cards.energy_cost(type,side=="free"))
  return result
 
 static func row(id: String, category: String, group: String, title: String, text: String, grade: int=0) -> Dictionary:
@@ -63,6 +66,7 @@ static func entries() -> Array:
     for method in ["strain","slip","manual","lock"]:
      if E.allows(sample,method): methods.append(METHODS[method])
     var text="部位："+"、".join(spec.slots.map(func(slot):return B.SLOT_NAMES[slot]))+"\n材质："+E.material_name(sample)+"\n最大耐久："+str(E.maximum(grade))+"\n方法："+" / ".join(methods)
+    if E.lock_only(sample): text="3级及以上入狱时固定佩戴，不计入件数。\n佩戴时无法使用普通 henshin。\n"+E.LOCK_ONLY_REASON
     if id=="mouth_band": text+="\n组合效果以该品质的口球结构为准。"
     out.append(row("equipment_"+id+"_%d_%d" % [grade,variant],"equipment",E.MATERIAL_NAMES[spec.material],(E.name_for(id,spec.slots[0],grade,variant) if id=="mouth_band" else spec.name)+" · "+E.material_name(sample),text,grade))
     out[-1].image=Images.path(sample)
@@ -94,7 +98,7 @@ static func entries() -> Array:
   var text="位置："+"、".join(spec.slots.map(S.slot_name))+"\n最大耐久：%s" % spec.maximum
   text+="\n可用方法："+" / ".join(spec.methods.map(func(m):return METHODS[m]))
   text+="\n借力环境："+("无" if spec.environments.is_empty() else "、".join(spec.environments.map(func(e):return S.ENVIRONMENT_NAMES[e])))
-  text+="\n每次消耗能量触发的基础值：%s；每回合开始触发的基础值：%s。" % [definition.energy_gain,definition.turn_gain]
+  text+="\n牵扯（每次消耗能量）触发的基础值：%s；每回合开始触发的基础值：%s。" % [definition.energy_gain,definition.turn_gain]
   var climax_rule=S.climax_slip_rule(type)
   if climax_rule!="": text+="\n"+climax_rule
   if definition.duration>0: text+="\n持续%d回合。" % definition.duration
@@ -114,7 +118,7 @@ static func entries() -> Array:
   if N.FirstFloor.ELITE_ENCOUNTERS.any(func(id):return N.ENCOUNTERS[id].get("variants",[id]).any(func(v):return N.ENCOUNTERS[v].members.any(func(m):return m.type==type))): sources.append("精英房")
   if N.ENCOUNTERS[N.FirstFloor.SUMMIT_ENCOUNTER].members.any(func(m):return m.type==type): sources.append("塔顶")
   var text="生命：%s\n" % spec.hp+BEHAVIORS.get(spec.behavior,"")
-  if type=="puppeteer": text="生命：%s\n开场：召唤10生命玩偶→赋予玩偶嘲讽与受伤反击。\n行动：玩偶生命上限＋5并回满→准备中级2档复合拘束具→准备中级3档特殊装备，循环。两类装备各保留1件，同类新准备替换旧准备。\n牵线保护：玩偶生命最低为1，溢出伤害全额转给玩偶师。击败玩偶师，玩偶同时消失。" % spec.hp
+  if type=="puppeteer": text="生命：%s\n开场：自带10生命玩偶。首回合赋予玩偶嘲讽与受伤反击。\n行动：玩偶生命上限＋5并回满→准备中级2档复合拘束具→准备中级3档特殊装备，循环。两类装备各保留1件，同类新准备替换旧准备。\n牵线保护：玩偶生命最低为1，溢出伤害全额转给玩偶师。击败玩偶师，玩偶同时消失。" % spec.hp
   if type=="puppet": text="生命：%s\n行动：不主动行动，由玩偶师召唤。\n牵线保护：生命最低为1，溢出伤害全额转给玩偶师。\n引敌缚咒：获得嘲讽；每段正数伤害使你被施加1件中级2档普通拘束具，遗物伤害也会触发。群攻不受嘲讽限制。\n备装：下一次攻击命中时，额外施加已准备的复合／特殊装备，各1件；多段只触发1次，遗物伤害不触发。位置不足时可替换。" % spec.hp
   if spec.has("cycle") and not spec.has("split_threshold"):
    text="生命：%s\n行动：准备→施加1件%s2档%s类拘束具→加固同类拘束具，循环。不会自行离场。" % [spec.hp,E.GRADES[spec.install_grade],spec.restraint_name]

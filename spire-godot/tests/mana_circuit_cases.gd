@@ -52,12 +52,12 @@ static func run(t) -> void:
  g.state.energy=0;before=g.export_snapshot()
  t.check(not t.action(g,"card",{"uid":card.uid,"free":false}).ok and g.state==before,"CIRCUIT cannot use future refunds to pay an unaffordable spell")
  # Existing optional extra mana payment also reaches the same meter.
- g=fresh();activate(t,g,true);spend(t,g);spend(t,g);card=Cards.give(g,"embers");energy=g.state.energy
- t.check(t.action(g,"card",{"uid":card.uid,"free":false}).ok and g.state.powers[0].power_mana_progress==0 and g.state.energy==energy+1,"CIRCUIT optional extra draw payment completes thirty without double counting")
+ g=fresh();t.action(g,"attack",{"type":"fireball"});activate(t,g,true);spend(t,g);spend(t,g);card=Cards.give(g,"embers");energy=g.state.energy
+ t.check(t.action(g,"card",{"uid":card.uid,"free":false}).ok and g.state.powers[0].power_mana_progress==2 and g.state.energy==energy+1,"CIRCUIT six plus six payment crosses thirty and preserves remainder")
  g.Cards.end_powers(g)
  t.check(g.state.powers.is_empty() and g.state.discard.all(func(c):return not c.has("power_mana_progress")) and g.validate()=="","CIRCUIT battle cleanup removes each counter from physical cards")
  # Replay doubles one cast's effect, ordinary duplicates each keep their own meter.
- g=fresh();g.state.card_buffs.append("echo_cast_bound");activate(t,g,false);spend(t,g);spend(t,g)
+ g=fresh();g.Cards.grant_buff(g,"echo_cast_bound");activate(t,g,false);spend(t,g);spend(t,g)
  t.check(g.state.powers[0].power_stacks==2 and g.state.charge==2,"CIRCUIT existing ability replay stacks once on one meter")
  var bad=g.export_snapshot();bad.powers[0].power_mana_progress=20
  t.check(not g.restore_snapshot(bad).ok,"CIRCUIT snapshot rejects an unsettled threshold")

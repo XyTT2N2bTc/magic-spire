@@ -10,7 +10,7 @@ static func run(t) -> void:
   ui.render();await t.frames()
   if ui.card_faces.get(source.uid,false)!=free: await t.flip(source.uid)
   var face=ui.card_buttons[source.uid]
-  t.check(face.rarity=="uncommon" and t.visible_text(face).contains("手部") and t.visible_text(face).contains("恢复10魔力" if free else "获得1层蓄力"),"SIPHON STRENGTH UI shows uncommon hand spell and complete per-card effect")
+  t.check(face.rarity=="rare" and t.visible_text(face).contains("手部") and t.visible_text(face).contains("恢复10魔力" if free else "获得1层蓄力"),"SIPHON STRENGTH UI shows rare hand spell and complete per-card effect")
   t.check(face.ILLUSTRATIONS.has("siphon_strength"),"SIPHON STRENGTH UI uses dedicated illustration")
   await preload("res://tests/curse_ui_cases.gd").click_card(t,source.uid)
   t.check(not ui._selecting_hand() and ui.find_child("HandSelectionBar",true,false)==null and ui.find_child("HandTargetPicker",true,false)==null,"SIPHON STRENGTH UI one click resolves without any hand picker")

@@ -11,7 +11,7 @@ static func energy_cost(g, type: String, form: int=0) -> int:
 
 static func cost_description(type: String) -> String:
  var spec=TYPES[type][0]
- return "每回合首发%d能量，之后%d能量。" % [spec.first_use_cost,spec.cost] if spec.has("first_use_cost") else ""
+ return ("每回合首发%d能量，之后%d能量。" % [spec.first_use_cost,spec.cost]+("施法失败不消耗次数。" if type=="fireball" else "")) if spec.has("first_use_cost") else ""
 
 static func kick_cooldown(g) -> int:
  return maxi(0,g.state.kick_last+int(TYPES.kick[0].cooldown_turns)+1-g.state.round)

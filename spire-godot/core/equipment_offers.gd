@@ -7,7 +7,7 @@ const C=preload("res://data/composites.gd")
 static func ordinary(g, grade: int=2, free: bool=false, templates: Array=[], locked: bool=false, legal_only: bool=true) -> Array:
  var offers=[]
  for template in (E.TEMPLATES.keys() if templates.is_empty() else templates):
-  if not E.TEMPLATES.has(template): continue
+  if not E.TEMPLATES.has(template) or not E.TEMPLATES[template].get("generated",true): continue
   for slot in E.TEMPLATES[template].slots:
    if E.definition_reason(template,slot,grade,locked)!="": continue
    if free and g.occupied(slot): continue

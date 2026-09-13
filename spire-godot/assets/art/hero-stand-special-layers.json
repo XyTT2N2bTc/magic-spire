@@ -1,0 +1,56 @@
+{
+  "free_crop": [
+    349,
+    60,
+    1138,
+    2268
+  ],
+  "sources": {
+    "free": {
+      "path": "C:\\Users\\16563\\Downloads\\hand0legs0.png",
+      "sha256": "2C28A89B08E7BEE0F4761445A615CCDF34FDA43427C0C7C7CC33D5A1785AA41B"
+    },
+    "flat_lock": {
+      "path": "C:\\Users\\16563\\Downloads\\QQ图片202609131041226.png",
+      "sha256": "B176781AADDA42CFE15E2F90432E1EDC55E1072748BC9857D61C5F095BA82442"
+    },
+    "reinforced": {
+      "path": "C:\\Users\\16563\\Downloads\\QQ图片20260913104126.png",
+      "sha256": "BF5EA5A1FBDB8E80321DF085726B1479D687B0760C9E1A45D6A13449795EF544"
+    }
+  },
+  "layers": [
+    {
+      "id": "flat_lock",
+      "texture": "res://assets/art/hero-overlay-flat-lock-free-v1.png",
+      "origin": [
+        774,
+        894
+      ],
+      "size": [
+        138,
+        284
+      ],
+      "source_pair": [
+        "free",
+        "flat_lock"
+      ]
+    },
+    {
+      "id": "flat_lock_reinforcement",
+      "texture": "res://assets/art/hero-overlay-flat-lock-reinforcement-free-v1.png",
+      "origin": [
+        634,
+        956
+      ],
+      "size": [
+        390,
+        180
+      ],
+      "source_pair": [
+        "flat_lock",
+        "reinforced"
+      ]
+    }
+  ]
+}

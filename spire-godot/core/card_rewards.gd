@@ -1,6 +1,12 @@
 extends RefCounted
 const Rules=preload("res://data/card_rules.gd")
 
+static func eligible(g, type: String) -> bool:
+ if not g.Character.allowed_card(g,type): return false
+ var spec=Rules.SPECS[type]
+ if spec.card_type!="power" or not Rules.unique_face(type,false) or not Rules.unique_face(type,true): return true
+ return not g.state.deck.any(func(card):return card.type==type)
+
 # Roll each displayed slot in order. Negative rare probability also reduces
 # the uncommon band; clamping the first threshold would change the distribution.
 static func rarity(source: String, offset: int, roll: int) -> String:
@@ -15,7 +21,7 @@ static func next_offset(offset: int, tier: String) -> int:
  return mini(Rules.RARE_OFFSET_MAX,offset+1) if tier=="common" else offset
 
 static func offer(g, pool: Array, source: String, rng=null, count: int=3) -> Array:
- var available=pool.duplicate()
+ var available=pool.filter(func(type):return eligible(g,type))
  var chosen=[]
  while not available.is_empty() and chosen.size()<count:
   var tier=""
@@ -23,6 +29,7 @@ static func offer(g, pool: Array, source: String, rng=null, count: int=3) -> Arr
    var roll=g._random_index("reward",100) if rng==null else rng.randi_range(0,99)
    tier=rarity(source,g.state.rare_offset,roll)
   var candidates=available if tier=="" else available.filter(func(id):return Rules.SPECS[id].rarity==tier)
+  if candidates.is_empty() and g.Character.active(g): candidates=available
   # Formal weighted pools contain at least three cards of every tier.
   assert(not candidates.is_empty(),"Reward pool lacks the selected rarity")
   if candidates.is_empty(): return []

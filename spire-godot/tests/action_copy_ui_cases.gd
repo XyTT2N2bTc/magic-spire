@@ -6,7 +6,7 @@ static func run(t) -> void:
  ui.restart(42);await t.frames()
  t.check(ui.find_child("HeroSpeech",true,false)==null and ui.find_child("ActionSidebar",true,false)!=null,"COPY UI sidebar present, no untriggered speech")
  var hero=ui.find_child("HeroArt",true,false)
- t.check(hero.position.y==200 and hero.get_rect().end.y<553,"COPY UI hero lowered without entering action bar")
+ t.check(hero.get_rect().is_equal_approx(ui.HERO_STAGE_RECT) and hero.get_rect().end.y<553,"COPY UI hero remains in its display area above action bar")
  var foe=ui.view.enemies[0].id
  await t.drag_control_to(t.action_button("strike"),foe)
  t.check(ui.find_child("HeroSpeech",true,false)!=null and ui.view.speech.cue=="hero.attack.upper.low.clear" and ui.view.speech.name=="魔法少女","COPY UI real attack drag opens character bubble")
@@ -66,4 +66,4 @@ static func concise_log(t) -> void:
  var text=t.visible_text(ui.find_child("ActionSidebar",true,false))
  var formatted=ui.game.ActionCopy.number(choice.mana_payment.mana)
  t.check(ui.game._magic_failed and text.contains("施法失败") and text.contains("%s魔力" % formatted) and text.contains("消耗%d能量" % choice.cost) and ui.game.state.energy==before.energy-choice.cost,"LOG UI real failed first fireball displays failure and both exact-source costs")
- t.check(not text.contains("未产生法术效果") and not text.contains("不退回") and not text.contains("卡牌留在手中") and is_equal_approx(ui.game.state.mana,before.mana-choice.mana_payment.mana),"LOG UI failure does not invent a card or repeat payment rules, actual mana keeps precision")
+ t.check(not text.contains("未产生法术效果") and not text.contains("不退回") and not text.contains("卡牌留在手中") and is_equal_approx(ui.game.state.mana,before.mana-choice.mana_payment.mana*(1.0-ui.game.B.CAST_FAILURE_REFUND)),"LOG UI failure preserves exact mana after the current failure refund and never invents a card")

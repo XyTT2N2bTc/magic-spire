@@ -11,8 +11,9 @@ static func fixture(id: String):
 static func run(t) -> void:
  custom_start(t)
  var g=Game.new(42);var before=g.export_snapshot()
+ t.check(g.state.deck.size()==10 and g.state.deck.filter(func(card):return card.type=="strain").size()==4 and g.state.deck.filter(func(card):return card.type=="slip").size()==4 and g.state.deck.filter(func(card):return card.type=="ease").size()==1 and g.state.deck.filter(func(card):return card.type=="magic_slip").size()==1 and g.state.deck.all(func(card):return g.Cards.Rules.SPECS[card.type].rarity=="basic"),"OPENING ten basic cards contain one magic slip instead of unlock")
  t.check(g.state.phase=="departure" and g.state.round==0 and not g.state.combat.active and g.state.departure.options.size()==4,"OPENING actual run starts at zero with four choices and no combat effects")
- t.check(g.get_view().reward_panel.entries.size()==5 and g.candidates().all(func(c):return c.payload.kind=="departure") and not g.room_entry_reason(g.room_data(g.room_data(g.state.room).next[0])).is_empty(),"OPENING choices and skip only; route cannot bypass opening")
+ t.check(g.get_view().reward_panel.entries.size()==5 and g.candidates().all(func(c):return c.payload.kind=="departure" or (c.payload.kind=="flask" and c.payload.op=="withdraw")) and not g.room_entry_reason(g.room_data(g.room_data(g.state.room).next[0])).is_empty(),"OPENING choices and resource recovery do not let route bypass opening")
  for i in range(3): g.get_view();g.route_view();g.candidates()
  t.check(g.export_snapshot()==before and Game.new(42).state.departure==g.state.departure,"OPENING previews and same seed preserve offers, hidden outcomes and resources")
  var restored=Game.new(99)
@@ -62,7 +63,7 @@ static func run(t) -> void:
    "shining_lamp": t.check(g.state.mana_max==50 and g.state.mana==50,"OPENING boss lamp pays full max-mana cost")
    "tattoo_sticker": t.check(g.state.deck.filter(func(c):return c.type=="lewd_mark").size()==2,"OPENING tattoo applies both curse cards")
    "nesting_doll":
-    t.check(g.get_view().reward_panel.layout=="relic_bundle" and g.candidates().all(func(c):return c.payload.kind=="relic_bundle"),"OPENING nesting doll opens its normal three-relic window")
+    t.check(g.get_view().reward_panel.layout=="relic_bundle" and g.candidates().all(func(c):return c.payload.kind=="relic_bundle" or (c.payload.kind=="flask" and c.payload.op=="withdraw")),"OPENING nesting doll preserves its three-relic selection while allowing resource recovery")
     t.action(g,"relic_bundle",{"op":"finish"})
     t.check(g.get_view().reward_panel.layout=="departure" and g.state.departure.stage=="done","OPENING nesting doll returns to completed opening")
   t.check(g.validate()=="" and restored.restore_snapshot(g.export_snapshot()).ok,"OPENING boss pickup and costs have valid snapshot "+boss)

@@ -32,6 +32,6 @@ static func run(t) -> void:
  while g._random_index("magic",g.B.CAST_ROLL_STEPS)<g.cast_view(g.Cards.cast_profile(g,"rekindle")).winning_rolls: rng=g.state.rng.magic
  g.state.rng.magic=rng
  var before=g.export_snapshot()
- t.check(g.dispatch(c.id,g.state.version).ok and g._magic_failed and g.state.combat.attack_uses.fireball==2 and g.state.mana==before.mana-c.mana and g.state.energy==before.energy-1 and g.state.hand.any(func(x):return x.uid==card.uid),"REKINDLE failed hand spell pays adjusted mana and keeps card without refresh")
+ t.check(g.dispatch(c.id,g.state.version).ok and g._magic_failed and g.state.combat.attack_uses.fireball==2 and is_equal_approx(g.state.mana,before.mana-c.mana*0.5) and g.state.energy==before.energy-1 and g.state.hand.any(func(x):return x.uid==card.uid),"REKINDLE failed hand spell pays adjusted mana and keeps card without refresh")
  var bad=g.Cards.Rules.SPECS.rekindle.duplicate(true);bad.self_faces.free.refresh_spell="missing"
  t.check(g.Cards.Rules.definition_reason(bad)!="","REKINDLE definition rejects unregistered spell refresh")

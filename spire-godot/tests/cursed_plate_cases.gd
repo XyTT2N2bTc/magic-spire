@@ -22,13 +22,32 @@ static func run(t) -> void:
  t.check(not replacement.ok and g._equipment(lock.id)==original,"CURSED PLATE cannot be replaced")
  g._gain_card("henshin");var card=t.hand_card(g,"henshin")
  t.check(t.action(g,"card",{"uid":card.uid,"free":false}).ok and g._equipment(lock.id)==original,"CURSED PLATE henshin preserves lock")
- for i in range(12): g._tick_special("turn_start")
- t.check(g._equipment(lock.id).remaining==0 and g.SpecialEquipment.gain(g._equipment(lock.id),"turn_start")>0,"CURSED PLATE duration remains infinite")
+ g.state.combat.active=true
+ var pulses=0
+ for turn in range(1,8):
+  g.state.combat.turn=turn;g.state.pressure=0
+  var before_logs=g.state.logs.size();g._tick_special("turn_start")
+  if g.state.logs.size()>before_logs: pulses+=1
+ t.check(pulses==6 and g._equipment(lock.id).remaining==0 and g.SpecialEquipment.effective_gain(g,g._equipment(lock.id),"turn_start")==0,"CURSED PLATE default vibrator stops after the first six turns of a session")
+ g.RelicEffects.begin_combat(g);g.RelicEffects.begin_turn(g);g.state.pressure=0;g._tick_special("turn_start")
+ t.check(g.state.pressure>0,"CURSED PLATE vibrator becomes active again in the first turn of the next session")
+ g.state.chastity_climax_factor=10;g.state.pressure=g.Pressure.maximum(g)-1
+ g.Pressure.gain(g,1,"测试高潮",true,["special_2_a"])
+ t.check(g.state.chastity_climax_factor==10 and g.state.pressure==60,"CURSED PLATE default climax retention factor stops at ten")
+ var concise=g.SpecialEquipment.description(lock,1.0,3,true,{"climax_factor":g.state.chastity_climax_factor,"masochist":false,"session_turn":7,"session_active":true})
+ t.check(concise.contains("前6回合的刺激已经结束") and concise.contains("当前系数10＝60") and concise.contains("最高10") and not concise.contains("总刺激计算后×0.4"),"CURSED PLATE current description shows concrete stimulation and capped retention without the old formula dump")
  var snapshot=g.export_snapshot();var restored=Game.new(3)
  t.check(restored.restore_snapshot(snapshot).ok,"CURSED PLATE active curse roundtrips")
  var bad=snapshot.duplicate(true);bad.special_equipment=[]
  var before=restored.export_snapshot()
  t.check(not restored.restore_snapshot(bad).ok and restored.state==before,"CURSED PLATE missing lock rejects atomically")
+ bad=snapshot.duplicate(true);bad.chastity_climax_factor=11
+ t.check(not restored.restore_snapshot(bad).ok and restored.state==before,"CURSED PLATE capped mode rejects an over-limit retained factor")
+ var extreme=Game.new(42,false,"equipment",true,true,25,false,true)
+ extreme.RelicEffects.gain(extreme,TYPE);var extreme_lock=extreme.state.special_equipment.filter(extreme.SpecialEquipment.is_cursed_plate)[0]
+ extreme.state.combat.active=true;extreme.state.combat.turn=12;extreme.state.pressure=0;extreme._tick_special("turn_start")
+ extreme.state.chastity_climax_factor=10;extreme.state.pressure=extreme.Pressure.maximum(extreme)-1;extreme.Pressure.gain(extreme,1,"测试高潮",true,["special_2_a"])
+ t.check(extreme.state.pressure>0 and extreme.state.chastity_climax_factor==11 and extreme.SpecialEquipment.description(extreme_lock,1.0,3,true,{"climax_factor":11,"masochist":true,"session_turn":12,"session_active":true}).contains("没有上限"),"CURSED PLATE masochist mode keeps the original unlimited vibrator and retention growth")
  for boundary in ["normal","saturated","boss"]:
   g=Game.new(42);g.RelicEffects.gain(g,TYPE)
   if boundary!="normal": g.state.room="summit";g._start_battle()
