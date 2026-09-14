@@ -18,7 +18,7 @@ static func chest(g, rng=null) -> String:
 
 static func available(g, source: String="normal") -> Array:
  var pool=g.Relics.shop_pool() if source=="shop" else g.Relics.REWARDS
- return pool.filter(func(id):return id not in g.state.relics)
+ return pool.filter(func(id):return id not in g.state.relics and g.Character.relic_allowed(g,id) and (not g.Character.active(g) or g.RelicEffects.gain_reason(g,id)==""))
 
 static func offer(g, source: String="normal", rng=null, excluded: Array=[]) -> String:
  var pool=available(g,source).filter(func(id):return id not in excluded)

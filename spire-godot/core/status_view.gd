@@ -36,11 +36,13 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
  if g.Character.active(g):
   for part in g.Character.PARTS:
    var count=s.witch_charges[part]
-   entry(out,"witch_charge_"+part,"benefit",g.Character.NAMES[part]+"蓄力","%d层" % count,"释放消耗1层；每层额外触发一次法术效果。对应部位被施加拘束时可消耗1层抵挡。腿部需4层才能飞踹。","基础动作","本场整备结束或高潮时清空","good")
-   mark(out,"magic",str(count))
+   var detail="至少4层可使用魔女飞踹：伤害1，打断，消耗全部腿部蓄力。" if part=="legs" else "释放时每层额外触发一次法术效果，消耗该部位全部蓄力；失败保留。"
+   if part!="mind": detail+="对应部位被施加拘束时可消耗2层抵挡；不足2层不能抵挡。"
+   entry(out,"witch_charge_"+part,"benefit",g.Character.NAMES[part]+"蓄力","%d层" % count,detail,"基础动作","本场整备结束或高潮时清空","good")
+   mark(out,{"hand":"hand","mouth":"mouth","legs":"foot","mind":"ritual"}[part],str(count))
   if s.witch_focus>0:
-   entry(out,"witch_focus","benefit","精神集中","%d层" % s.witch_focus,"下次造成伤害的魔法每段伤害＋%d，整次施放消耗全部层数。" % s.witch_focus,"卡牌","使用后或本场整备结束时清除","good")
-   mark(out,"magic",str(s.witch_focus))
+   entry(out,"witch_focus","benefit","精神集中","%d层" % s.witch_focus,"下次造成伤害的魔法每段伤害＋%d，整次施放消耗全部层数。施法失败或高潮时失去1层。" % s.witch_focus,"卡牌／遗物","使用后清除；跨战斗最多保留%d层" % (2+g.combat_retention_bonus()),"good")
+   mark(out,"ritual",str(s.witch_focus))
  for buff in s.body_buffs:
   var spec=g.Tools.TYPES[buff.type]
   var group=g.Equipment.panel_groups().filter(func(p):return p.id==buff.group)[0]

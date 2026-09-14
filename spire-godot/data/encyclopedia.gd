@@ -16,6 +16,7 @@ const CARD_VARIANTS={"magic_hand":["magic_hand_gift"],"light_as_swallow":["hanny
 const VARIANT_SOURCES={"magic_hand_gift":"欧内的手赠牌","hannya_swallow":"般若汤赠牌","hannya_infusion":"般若汤赠牌","hannya_henshin":"般若汤赠牌"}
 
 static func related_cards(type: String) -> Array:
+ if type=="witch_magic_hand": return ["witch_magic_hand_gift"]
  var result=CARD_VARIANTS.get(type,[]).duplicate()
  var stage=int(Cards.SPECS.get(type,{}).get("hannya_stage",0))
  if stage>0:
@@ -44,7 +45,7 @@ static func card(type: String) -> Dictionary:
 static func row(id: String, category: String, group: String, title: String, text: String, grade: int=0) -> Dictionary:
  return {"id":id,"category":category,"group":group,"title":title,"text":text,"grade":grade}
 
-static func entries() -> Array:
+static func entries(g=null) -> Array:
  var out=[]
  for type in Tools.TYPES:
   var spec=Tools.TYPES[type]
@@ -80,8 +81,11 @@ static func entries() -> Array:
    out[-1].image=Images.path({"template":spec.parts.body.template,"grade":grade,"variant":0})
  out.append(row("link_rope","equipment","链接","链接绳","连接两件合法装备，两端共享一份耐久。可挣扎、徒手处理或使用适用工具；不能滑脱或上锁。同一区域的不同子部位可互连，跨区域只接相邻边界；每对具体装备最多一条，每方向按区域剩余子部位数限额、最低1。股绳可连接手腕或大腿根装备。"))
  out[-1].image=Images.path({"template":"link_rope","grade":1,"variant":0})
- for type in Cards.SPECS:
-  if Cards.SPECS[type].get("encyclopedia_hidden",false): continue
+ var card_types=Cards.SPECS.keys().filter(func(type):return not Cards.SPECS[type].get("encyclopedia_hidden",false))
+ if g!=null and g.Character.active(g):
+  card_types=g.Character.pool(g,card_types)
+  card_types.append_array(["witch_key","witch_preparation","witch_accumulation"])
+ for type in card_types:
   var data=card(type)
   var group=data.type_name+"牌"
   var entry=row(type,"cards",group,data.name,data.face_names.bound+"："+data.bound+"\n"+"；".join(data.face_requirements.bound)+"\n"+data.face_names.free+"："+data.free+"\n"+"；".join(data.face_requirements.free)+"\n"+data.note)
@@ -90,6 +94,8 @@ static func entries() -> Array:
   entry.search_text="\n".join(entry.related_cards.map(func(child):var info=card(child);return info.name+"\n"+info.bound+"\n"+info.free+"\n"+info.note))
   out.append(entry)
  for relic in Relics.view(Relics.TYPES.keys()):
+  if g!=null and not g.Character.relic_allowed(g,relic.id): continue
+  if g==null and Relics.TYPES[relic.id].get("character_id","")=="witch": continue
   var entry=row(relic.id,"relics","商店限定" if Relics.TYPES[relic.id].get("shop_only",false) else ("Boss遗物" if relic.id in Relics.BOSS_POOL else ("奖励遗物" if relic.id in Relics.REWARDS else "初始遗物")),relic.name,relic.detail)
   entry.rarity=relic.rarity;entry.rarity_name=relic.rarity_name;out.append(entry)
  for type in S.TYPES:
@@ -131,7 +137,7 @@ static func entries() -> Array:
   if type=="binding_box": text="生命：%s\n特性：非魔法伤害减半。\n开场：捕缚40/100，固定坐姿，上身束缚等级至少1。捕缚期间，每个玩家回合开始施加1件中级2档皮革拘束具，捕缚＋10；无位置仍增加进度。\n行动：随机施加2件中级2档皮革拘束具／口球，或加固皮革共4档→准备→施加1件备用复合拘束具，循环。没有加固目标时只选施加。\n备装：中级2档短上段单腿套、短下段单腿套、露手直肩带单手套各1件。成功施加才消耗，满位可替换，用尽后改为捕缚＋10；捕缚解除不会补充备装。" % spec.hp
   if type=="versatile": text="生命：%s\n行动：首次行动停顿，此后循环“施加1件初级2档性玩具→随机上锁1件或加固至多2件至3档”。\n选择：上锁与加固各50%%；只有一项能用时选该项，都不能用时改为施加性玩具。已预告的行动失去目标后不生效。\n范围：性玩具满位时可替换；不施加飞机杯或外置震动棒。" % spec.hp
   if type=="drone": text="生命：%s\n特性：非魔法伤害减半。\n开场：捕缚30/100，固定站姿，上身束缚等级至少1。\n行动：随机施加2件初级1档胶带或加固胶带共2档→捕缚＋10→停顿，循环。没有加固目标时只选施加。\n捕缚效果：每累计消耗2能量，施加1件初级2档胶带，捕缚＋10。余数跨回合保留，无位置仍增加进度。胶带包括眼罩和嘴部胶带。" % spec.hp
-  if type=="six_bind": text="生命：%s\n开场：展开六缚阵→眼部、口部、双臂、手腕与手部、大腿、小腿与足部六区各施加1件初级2档拘束具，并施加1件初级性玩具。\n行动：戏弄封缚→双重束缚→调教升温→戏弄封缚→复合束装→调教升温→六缚齐收→空闲，循环。\n戏弄封缚：中级2档拘束具×1，加入「玩弄」×1。双重束缚：中级2档拘束具×2，无法新增的次数改为加固。\n复合束装：中级2档复合拘束具×1，无法施加时改为加固共3档。六缚齐收：再次束缚六区，加入「玩弄+」×3。空闲：本回合不行动。\n调教升温：施加、加固性玩具各1＋收束层数次，然后收束＋1。首轮初级，此后中级；满位可替换，不施加飞机杯。\n状态牌：「玩弄」／「玩弄+」不可打出，回合结束留在手中时快感分别＋5／＋8。\n高潮逮捕：累计第%d次高潮时准备逮捕，此后每次高潮都会再次准备。被打断时取消本次逮捕，下一回合恢复原行动。\n收押：普通、复合拘束具均无新增位置且无法加固时，预告收押；性玩具空位或可替换装备不会阻止收押。" % [spec.hp,spec.climax_capture_threshold]
+  if type=="six_bind": text="生命：%s\n开场：展开六缚阵→眼部、口部、双臂、手腕与手部、大腿、小腿与足部六区各施加1件初级2档拘束具，并施加1件初级性玩具。\n行动：戏弄封缚→双重束缚→调教升温→戏弄封缚→复合束装→调教升温→六缚齐收→空闲，循环。\n戏弄封缚：中级2档拘束具×1，加入「玩弄」×1。双重束缚：中级2档拘束具×2，无法新增的次数改为加固。\n复合束装：中级2档复合拘束具×1，无法施加时改为加固共3档。六缚齐收：再次束缚六区，加入「玩弄+」×3。空闲：本回合不行动。\n调教升温：施加、加固性玩具各1＋收束层数次，然后收束＋1。首轮初级，此后中级；满位可替换，不施加飞机杯。\n状态牌：「玩弄」／「玩弄+」不可打出，回合结束留在手中时快感分别＋5／＋8。\n高潮逮捕：本场战斗累计第%d次高潮时准备逮捕，此后每次高潮都会再次准备。被打断时取消本次逮捕，下一回合恢复原行动。\n收押：普通、复合拘束具均无新增位置且无法加固时，预告收押；性玩具空位或可替换装备不会阻止收押。" % [spec.hp,spec.climax_capture_threshold]
   if type=="mixed_bundle": text="生命：%s\n开场：散缚，施加2件初级2档拘束具。\n行动：之后随机选招。散缚同开场；翻卷收紧先施加1件初级2档，再加固1件至3档；躁动膨胀获得1层狂躁。\n狂躁：每层使后续施加数量＋1，不增加加固次数。\n限制：散缚、躁动膨胀不连用，翻卷收紧最多连用2次。可施加各类初级普通拘束具（含口球、链接绳），不会替换。" % spec.hp
   if type=="rope_serpent": text="生命：%s\n行动：缠身→随机收紧或甩缚，循环；两种招式各50%%。\n缠身：紧缠＋1层。每个玩家回合结束，每层施加1件初级2档绳索类拘束具。\n收紧：加固1件绳索类拘束具至3档。甩缚：施加2件初级2档绳索类拘束具，含链接绳。\n特殊：预告收紧时没有目标则改为甩缚；预告后失去目标则不生效。打断不停止紧缠，击败该绳蛇才停止。" % spec.hp
   if type in ["ominous_circle","small_circle"]: text="生命：%s\n开场：获得%d点仪式，此后每个自身回合结束，施加数量＋%d。\n行动：从第2次行动起持续施加拘束具，数量通常为%d、%d、%d……；每件随机为初级2档或中级1档，含链接绳。\n无位置时：剩余每次施加改为加固1次；也无法加固则结束，不累计到下回合。\n特殊：仪式启动后，打断施加不会阻止数量增长；击败后停止。" % [spec.hp,spec.ritual_gain,spec.ritual_gain,1+spec.ritual_gain,1+2*spec.ritual_gain,1+3*spec.ritual_gain]

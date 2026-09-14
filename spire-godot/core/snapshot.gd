@@ -138,6 +138,7 @@ static func check(s: Dictionary, g) -> String:
  var demo_issue=g.DemoExit.validate(s)
  if demo_issue!="": return demo_issue
  for key in g.state:
+  if key in ["character_id","witch_charges","witch_focus"]: continue
   if not s.has(key): return "缺少必要的进度记录。"
   var reference=g.state[key]
   if reference is int or reference is float:
@@ -203,7 +204,7 @@ static func check(s: Dictionary, g) -> String:
  var reward_count=3+int(g.Relics.value(s.relics,"reward_card_options"))
  for entry in [[s.reward_options,[0,3,reward_count]],[s.rest_cards,[0,3,reward_count]]]:
   var pool=entry[0]
-  if pool.size() not in entry[1] or pool.any(func(id):return id not in g.Cards.Rules.REWARDS or pool.count(id)!=1): return "奖励牌结果重复或不存在。"
+  if pool.size() not in entry[1] or pool.any(func(id):return not g.Character.reward_member(g,id,s.get("character_id","original")) or pool.count(id)!=1): return "奖励牌结果重复或不存在。"
  if s.phase=="rest_choice" and (s.rest_left!=g.B.REST_TURNS or s.rest_cards.size() not in [3,reward_count]): return "休息前的回合数或卡牌选项不完整。"
  if not s.rest_cards.is_empty():
   if s.rest_cards.any(func(id):return g.Cards.Rules.SPECS[id].rarity!="uncommon"): return "休息选牌必须为罕见卡。"
@@ -212,6 +213,7 @@ static func check(s: Dictionary, g) -> String:
  if event_item_reward and (not s.reward_options.is_empty() or not s.boss_relic_options.is_empty() or s.battle_item_drop!="" or s.battle_relic_drop!="" or not s.reward_claimed.is_empty()): return "事件道具奖励混入了战斗奖励记录。"
  for zone in ["deck"]+g.Cards.ZONES:
   for c in s[zone]:
+   if c.has("exhaust_after_play") and (zone!="play" or c.exhaust_after_play!=true): return "卡牌消耗记录不正确。"
    if not fields(c,"uid:s type:s retain_until:i") or not g.Cards.Rules.SPECS.has(c.type): return "卡牌记录损坏或类型不存在。"
    if c.has("draw_serial") and (not c.draw_serial is int or c.draw_serial<0): return "卡牌的抽取记录损坏。"
    if c.has("draw_free") and not c.draw_free is bool: return "卡牌的抽取牌面损坏。"
@@ -320,7 +322,7 @@ static func check(s: Dictionary, g) -> String:
   elif e.has("ritual") or e.has("application_bonus"): return "该敌人没有施加数量加成。"
   if g.Enemies.behavior(e.type)=="six_bind":
    var capture_step=g.Enemies.TYPES[e.type].climax_capture_threshold
-   if not fields(e,"constriction:i next_climax_capture:i") or e.constriction<0 or e.constriction>1023 or e.next_climax_capture<capture_step or e.next_climax_capture>maxi(capture_step,s.overload_total+1): return "六缚的收束或逮捕记录损坏。"
+   if not fields(e,"constriction:i next_climax_capture:i") or e.constriction<0 or e.constriction>1023 or e.next_climax_capture<capture_step or e.next_climax_capture>s.overload_total+capture_step: return "六缚的收束或逮捕记录损坏。"
    if e.intent.get("kind","")=="six_tune" and (e.intent.count!=1+e.constriction or e.intent.grade!=(1 if e.stage<3+g.EnemyPlans.SIX_CYCLE_LENGTH else 2)): return "六缚的调教升温数量或品质不正确。"
    if e.intent.get("cancel_on_interrupt",false) and (s.overload_total<e.next_climax_capture or e.intent.get("climax_threshold",0)!=e.next_climax_capture): return "六缚的高潮逮捕意图与当前记录不一致。"
   elif e.has("constriction") or e.has("next_climax_capture") or e.intent.get("cancel_on_interrupt",false): return "该敌人不应具有六缚专属记录。"
@@ -365,7 +367,7 @@ static func check(s: Dictionary, g) -> String:
   if not fields(event,"id:s stage:s options:a refs:d report:s reward:z winner:i relic:s") or event.id not in g.Events.Data.TYPES: return "事件进度不完整。"
   if event.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "事件结果标记损坏。"
   if event.has("prepare_pending") and not event.prepare_pending is bool: return "事件战后的整备进度损坏。"
-  if event.refs.values().any(func(id):return not id is String) or event.reward.any(func(id):return id not in g.Cards.Rules.REWARDS): return "事件结果类型不存在。"
+  if event.refs.values().any(func(id):return not id is String) or event.reward.any(func(id):return not g.Character.reward_member(g,id,s.get("character_id","original"))): return "事件结果类型不存在。"
   for option in event.options:
    if not option is Dictionary or option.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "事件选项结果标记损坏。"
    # "advanced" is accepted only for an in-progress save created before rewards were split by rarity.

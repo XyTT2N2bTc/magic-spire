@@ -66,10 +66,10 @@ static func run(t) -> void:
  g.RelicEffects.gain(g,TYPE)
  g.state.phase="shop"
  var jobs=g.Services.release_jobs(g).filter(func(job):return job.name=="诅咒平板锁")
- t.check(jobs.size()==1 and jobs[0].reason==g.SpecialEquipment.CURSED_PLATE_REASON,"CURSED PLATE shop shows dedicated-key restriction and never permits removal")
+ t.check(jobs.size()==1 and jobs[0].reason==g.Services.ShopCopy.CURSED_PLATE_SERVICE_REASON,"CURSED PLATE shop shows current service restriction and never permits removal")
  g=Game.new(42)
  var ordinary=g._install_special("negative_vibrator_lock_catheter_high","special_2_a",3)
- t.check(not g.cursed_plate(ordinary) and g.SpecialEquipment.TYPES[ordinary.type].duration==8,"CURSED PLATE original powered lock retains finite duration and normal unlock rules")
+ t.check(not g.cursed_plate(ordinary) and g.SpecialEquipment.TYPES[ordinary.type].duration==12,"CURSED PLATE original powered lock retains twelve-turn battery and normal unlock rules")
  ordinary.locked=false
  g._apply_equipment_damage(ordinary,1,"magic_slip");g._cleanup()
  t.check(g._equipment(ordinary.id).is_empty(),"CURSED PLATE ordinary unlocked lock still releases with positive slip damage")

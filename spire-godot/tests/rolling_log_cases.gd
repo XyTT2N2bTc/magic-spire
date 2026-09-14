@@ -51,7 +51,9 @@ static func run(t) -> void:
   before=g.export_snapshot()
   for index in range(stock.size()):
    if stock[index].kind!="relic": continue
-   t.check(t.action(g,"service",{"op":"take","index":index,"payment":"flask" if kind=="shop" else "self"}).ok,"LOG real "+kind+" pickup remains available with copies owned")
+   var choice={"op":"take","index":index}
+   if kind=="shop": choice.payment="flask"
+   t.check(t.action(g,"service",choice).ok,"LOG real "+kind+" pickup remains available with copies owned")
   t.check(g.state.relic_counters.rolling_log==1+logs.size() and g.state.mana==before.mana and g.state.mana_max==before.mana_max,"LOG acquisition changes only count and explicit shop payment")
   t.check(g.state.flask_mana==before.flask_mana-(135 if kind=="shop" else 0),"LOG shop retains normal payment, chest is free")
  t.check(Game.new(42).state.relic_counters.is_empty(),"LOG new runs do not inherit collectible count")

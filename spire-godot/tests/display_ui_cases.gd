@@ -9,8 +9,64 @@ static func choose(t, name: String, index: int) -> void:
  picker.select(index);picker.item_selected.emit(index)
  await t.frames(10)
 
+static func portrait_refresh(t) -> void:
+ var ui=t.ui
+ ui.restart(20260906);await t.frames(8)
+ var before=ui.game.export_snapshot()
+ var hero=ui.find_child("HeroArt",true,false)
+ var equipment=ui.find_child("EquipmentPortrait",true,false)
+ var enemy=ui.find_child("EnemyArt_*",true,false)
+ var layout_id=ui.layout.get_instance_id()
+ var sprite=hero.hero_sprite
+ var draws=[0,0,0]
+ hero.draw.connect(func():draws[0]+=1)
+ equipment.draw.connect(func():draws[1]+=1)
+ enemy.draw.connect(func():draws[2]+=1)
+ await t.frames(8)
+ draws.assign([0,0,0])
+ for count in range(3):
+  ui.render(ui.view)
+  await t.frames(3)
+ t.check(ui.layout.get_instance_id()==layout_id,"DISPLAY scene root persists across ordinary view refreshes")
+ t.check(ui.find_child("HeroArt",true,false)==hero and hero.hero_sprite==sprite,"DISPLAY unchanged hero keeps its arena and sprite instances")
+ t.check(ui.find_child("EquipmentPortrait",true,false)==equipment and ui.find_child("EnemyArt_*",true,false)==enemy,"DISPLAY equipment and enemy portrait instances survive UI refreshes")
+ t.check(draws==[0,0,0],"DISPLAY unrelated UI refreshes do not redraw portraits")
+ t.check(not hero.is_processing() and not enemy.is_processing(),"DISPLAY portraits have no idle frame callbacks")
+ t.check(ui.game.export_snapshot()==before,"DISPLAY retained scenes never mutate game state")
+ # The procedural fallback must also stay idle (not just texture-backed enemies).
+ var fallback=preload("res://ui/elements/arena.tscn").instantiate()
+ fallback.mode="six_bind";fallback.size=Vector2(240,288)
+ ui.add_child(fallback)
+ var fallback_draws=[0]
+ fallback.draw.connect(func():fallback_draws[0]+=1)
+ await t.frames(8);fallback_draws[0]=0
+ await t.frames(12)
+ t.check(fallback_draws[0]==0 and not fallback.is_processing(),"DISPLAY procedural enemy portrait does not redraw every frame")
+ ui.remove_child(fallback);fallback.queue_free()
+ var changed=ui.view.duplicate(true)
+ changed.posture="sit"
+ hero.configure_hero(changed,false);await t.frames(3)
+ t.check(hero.pose=="sit" and hero.hero_sprite.texture==preload("res://ui/pixel_art.gd").hero_texture("sit",ui.view.has_restraint_level),"DISPLAY posture changes update the existing hero scene")
+ hero.configure_hero(ui.view,false);await t.frames(3)
+ t.check(hero.pose==ui.view.posture,"DISPLAY restoring the pose restores the retained portrait")
+ hero.configure_hero(ui.view,true);equipment.configure(ui.view,true);await t.frames(4)
+ draws.assign([0,0,0])
+ hero.configure_hero(changed,true);equipment.configure(changed,true);await t.frames(4)
+ t.check(draws[0]==0 and draws[1]==0,"DISPLAY fixed portraits ignore posture changes that cannot alter their image")
+ hero.configure_hero(ui.view,false);equipment.configure(ui.view,false);await t.frames(4)
+ draws.assign([0,0,0])
+ ui.display_settings.art_changed.emit("cards",enemy.template)
+ ui.display_settings.art_changed.emit("enemies","unrelated_enemy")
+ await t.frames(3)
+ t.check(draws[2]==0,"DISPLAY unrelated art imports do not invalidate this enemy")
+ var enemy_node=enemy.get_instance_id()
+ ui.display_settings.art_changed.emit("enemies",enemy.template)
+ await t.frames(3)
+ t.check(enemy.get_instance_id()==enemy_node and draws[2]>0,"DISPLAY matching art imports refresh the existing enemy scene")
+
 static func run(t) -> void:
  var ui=t.ui
+ await portrait_refresh(t)
  var backdrop=ui.find_child("MoonlitGallery",true,false)
  var static_draws=[0]
  backdrop.draw.connect(func():static_draws[0]+=1)

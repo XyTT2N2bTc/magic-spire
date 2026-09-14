@@ -96,7 +96,7 @@ func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String
  elif room_data(state.room).kind=="entry":
   _gain_tool("return_seal")
   state.phase="map";state.energy=0;state.wall="normal";state.wall_distance=1;state.draw=state.deck.duplicate(true)
-  Departure.start(self,cursed_plate_start and chastity_locks_enabled)
+  Departure.start(self,cursed_plate_start and state.chastity_locks_enabled)
  else: _start_battle()
  _scene_start=export_snapshot()
 
@@ -217,7 +217,9 @@ func _start_practice() -> void:
  state.energy+=int(spec.get("opening_energy",0))
  # Practice-only setup supplies declared cards through the regular draw path.
  for type in spec.get("opening_cards",[]):
-  var card=_make_card(type)
+  var resolved="witch_key" if Character.active(self) and type=="unlock" else Character.card_id(self,type)
+  if not Character.allowed_card(self,resolved): continue
+  var card=_make_card(resolved)
   state.deck.append(card.duplicate(true))
   state.draw.append(card)
   _draw(1)
@@ -394,7 +396,7 @@ func _append_enemies(members: Array, inherited_health: bool=false) -> Array:
    state.enemies[-1].application_bonus=0;state.enemies[-1].last_move="";state.enemies[-1].move_streak=0
   if spec.behavior=="six_bind":
    state.enemies[-1].constriction=0
-   state.enemies[-1].next_climax_capture=spec.climax_capture_threshold
+   state.enemies[-1].next_climax_capture=state.overload_total+spec.climax_capture_threshold
   added.append(state.enemies[-1])
  for enemy in added:
   if Enemies.TYPES[enemy.type].behavior=="puppeteer": Puppets.summon(self,enemy)
@@ -402,7 +404,7 @@ func _append_enemies(members: Array, inherited_health: bool=false) -> Array:
 
 func _damage_enemy(e: Dictionary, amount: float, damage_type: String, label: String, details: Dictionary={}) -> void:
  if e.is_empty() or e.gone: return
- var dealt=amount*Enemies.damage_multiplier(e.type,damage_type)*Character.damage_multiplier(self)
+ var dealt=amount*Enemies.damage_multiplier(e.type,damage_type)*(1.0 if details.has("puppet_transfer") else Character.damage_multiplier(self))
  if Puppets.damage(self,e,dealt,damage_type,label,details): return
  e.hp=maxf(0.0,e.hp-dealt)
  var record={"damage":dealt,"damage_type":damage_type,"enemy":e.id}
@@ -1441,7 +1443,7 @@ func escape_preview(target: Dictionary, mode: String, base: float, assist_profil
  var link_factor=1.0 if is_strain else Links.slip_factor(self,target)
  var scaled_damage = 0.0 if immune or reason != "" else (base+bonus+charge+assist.bonus)*mult*penalty*lock_multiplier*position.factor*link_factor/divisor
  var environment_true=0.0 if passive or area_effect or splash or reason!="" or target_factor<=0 else _wall_bonus()
- var buff_multiplier=Cards.damage_multiplier(self,"equipment")
+ var buff_multiplier=Cards.damage_multiplier(self,"equipment")*Character.damage_multiplier(self)
  scaled_damage*=buff_multiplier
  environment_true*=buff_multiplier
  scaled_damage*=slip_buff
@@ -1514,7 +1516,7 @@ func candidates() -> Array:
  var out=_phase_candidates()
  Consumables.noncombat_candidates(self,out)
  _route_candidates(out)
- if state.phase=="battle" and not state.overloaded and state.enemies.any(func(enemy):return not enemy.gone):
+ if state.phase=="battle" and state.enemies.any(func(enemy):return not enemy.gone):
   _candidate(out,{"kind":"surrender"},"投降","放弃战斗，被逮捕并直接进入牢房。",0,0,"","","surrender")
  for item in state.items:
   _candidate(out,{"kind":"item_discard","item":item.id},"丢弃"+Tools.TYPES[item.type].name,"丢弃后无法取回。不消耗能量、魔力或回合。",0,0,"","","item")
@@ -1545,7 +1547,7 @@ func _phase_candidates() -> Array:
   return out
  if state.phase=="prison_end": return out
  if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES:
-  _candidate(out,{"kind":"end"},"继续 · 高潮后缓一缓","身体暂时使不上力，剩余行动已跳过。"+("敌人仍按原定行动执行。" if state.phase=="battle" and state.order=="first" else "")+"下一玩家回合按累计乏力恢复能量。",0,0,"","","flow")
+  _candidate(out,{"kind":"end"},"继续 · 高潮后缓一缓","身体暂时使不上力，剩余行动已跳过。"+("敌人仍按原定行动执行。" if state.phase=="battle" and state.order=="first" else "")+"下一玩家回合按累计乏力恢复能量。"+("若持续无法行动，也可以投降进入牢房。" if state.phase=="battle" else ""),0,0,"","","flow")
   return out
  if not state.card_chain.is_empty():
   Cards.continuation(self,out)
@@ -2018,7 +2020,7 @@ func _cast_path(part: String, profile: Dictionary) -> Dictionary:
  var base=Pressure.cast_chance(state.pressure,Pressure.maximum(self))
  var multiplier=float(profile.get("multiplier",1.0))
  var factors=[]
- var reason=hand_cast_reason() if part=="hand" else ""
+ var reason=hand_cast_reason() if part=="hand" and not profile.get("body_free",false) else ""
  var formula=("无需身体部位" if part=="none" else "施法部位："+Cards.Rules.CAST_PART_NAMES[part])+"\n当前快感下的基础成功率：%s%%" % String.num(base*100,6)
  for e in (equipment_at("mouth") if part=="mouth" else []):
   var tightness=tier(e.durability,e.maximum)
@@ -2028,7 +2030,7 @@ func _cast_path(part: String, profile: Dictionary) -> Dictionary:
   factors.append({"id":e.id,"grade":e.grade,"tier":tightness,"grade_factor":grade_factor,"tightness_factor":tightness_factor})
   formula+="\n%s：%s×%s，紧度%d档×%s" % [e.name,Equipment.GRADES[e.grade],number(grade_factor),tightness,number(tightness_factor)]
  if profile.get("multiplier",1.0)!=1.0: formula+="\n法术加成：×"+number(profile.multiplier)
- if profile.get("body_free",false): formula+="\n火焰精通：不受口部装备影响，不获得手势施法加成。"
+ if profile.get("body_free",false): formula+="\n魔术手：本次手部基础动作忽略拘束条件。" if Character.active(self) and part=="hand" else "\n火焰精通：不受口部装备影响，不获得手势施法加成。"
  var modifiers=Cards.casting_modifiers(self)
  var chance_bonus=float(profile.get("chance_bonus",0.0))+modifiers.bonus
  if chance_bonus!=0.0: formula+="\n成功率额外加成：＋%s个百分点（倍率之后）。" % number(chance_bonus*100)
@@ -2061,6 +2063,7 @@ func _cast_magic(c: Dictionary) -> bool:
   roll=_random_index("magic",B.CAST_ROLL_STEPS)
   success=roll<casting.winning_rolls
  _magic_failed=not success
+ if not success: Character.lose_focus(self,1,"施法失败")
  var refund={"mana":0.0,"temporary_mana":0.0}
  if not success and not c.payload.get("replay",false):
   var refund_rates=Cards.failure_refund_rates(self)

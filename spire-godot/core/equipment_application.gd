@@ -95,11 +95,12 @@ static func execute(g, spec: Dictionary, source: String, domain: String="enemy")
    result.reason="没有符合来源要求的装备或安装位置。"
    break
   var outcome=execute_concrete(g,request,source,spec.get("replace",false),current.protected_ids)
-  if not outcome.ok:
+  if not outcome.ok and outcome.evaded==0:
    result.reason=outcome.reason
    break
   var units=request.requests.size() if request.get("kind","")=="application_group" else 1
   attempts+=units
+  result.evaded+=outcome.evaded
   result.ready_used+=mini(units,current.ready_layers)
   result.installed.append_array(outcome.installed)
   result.removed.append_array(outcome.removed)

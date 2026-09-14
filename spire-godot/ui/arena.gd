@@ -19,29 +19,71 @@ var inactive=false
 var has_restraint_level=false
 var fixed_portrait=false
 var hero_view: Dictionary={}
-var time=0.0
 var hero_sprite: TextureRect
 var enemy_sprite: TextureRect
+var appearance: Array=[]
+
+func configure_hero(view: Dictionary, fixed: bool) -> void:
+ var next_pose="stand" if fixed else view.posture
+ var details=[] if fixed else (EquipmentPortrait.visual_facts(view) if next_pose=="stand" else [view.has_restraint_level])
+ var next_appearance=[next_pose,fixed,details]
+ if appearance==next_appearance:return
+ appearance=next_appearance
+ mode="hero";pose=next_pose;fixed_portrait=fixed
+ has_restraint_level=view.has_restraint_level
+ # Retain visual facts only, not the entire game view or its candidates.
+ hero_view={"has_restraint_level":has_restraint_level,
+  "equipment_portrait_layers":view.get("equipment_portrait_layers",[]).duplicate(),
+  "body_coverage":view.body_coverage.duplicate(true),
+  "bodies":view.bodies.map(func(body):return {"id":body.id,"occupied":body.occupied})}
+ if is_node_ready():_refresh_hero()
+
+func configure_enemy(enemy: Dictionary, settings) -> void:
+ var next_appearance=[enemy.type,enemy.visual_variant,enemy.template,enemy.gone]
+ var settings_changed=art_settings!=settings
+ if appearance==next_appearance and not settings_changed:return
+ if settings_changed and art_settings!=null and art_settings.art_changed.is_connected(_art_changed):
+  art_settings.art_changed.disconnect(_art_changed)
+ appearance=next_appearance
+ mode=enemy.type;variant=enemy.visual_variant;template=enemy.template;inactive=enemy.gone
+ art_settings=settings
+ if is_node_ready():
+  _connect_art_settings()
+  _refresh_enemy_art()
+
+func _connect_art_settings() -> void:
+ if art_settings!=null and not art_settings.art_changed.is_connected(_art_changed):
+  art_settings.art_changed.connect(_art_changed)
 
 func _ready() -> void:
  mouse_filter=Control.MOUSE_FILTER_IGNORE
  texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
  if mode=="hero":
-  var free_special=hero_view.get("equipment_portrait_layers",[]).any(func(id):return id in ["flat_lock","flat_lock_reinforcement"])
-  if fixed_portrait:
-   pose="stand"
-   hero_sprite=_sprite(EquipmentPortrait.FREE,"HeroPose")
-  elif pose=="stand" and (has_restraint_level or free_special):
+  resized.connect(_place_hero)
+  _refresh_hero()
+ else:
+  _connect_art_settings()
+  _refresh_enemy_art()
+ set_process(false)
+
+func _refresh_hero() -> void:
+ var free_special=hero_view.get("equipment_portrait_layers",[]).any(func(id):return id in ["flat_lock","flat_lock_reinforcement"])
+ var layered=not fixed_portrait and pose=="stand" and (has_restraint_level or free_special)
+ if is_instance_valid(hero_sprite) and (hero_sprite is EquipmentPortrait)!=layered:
+  remove_child(hero_sprite);hero_sprite.queue_free();hero_sprite=null
+ if layered:
+  if not is_instance_valid(hero_sprite):
    hero_sprite=EquipmentPortrait.new();hero_sprite.name="HeroPose"
    hero_sprite.configure(hero_view,false,true);add_child(hero_sprite)
-  else:
-   hero_sprite=_sprite(Art.hero_texture(pose,has_restraint_level),"HeroPose")
-  hero_sprite.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
-  resized.connect(_place_hero);_place_hero()
+  else:hero_sprite.configure(hero_view,false,true)
  else:
-  if art_settings!=null: art_settings.art_changed.connect(_art_changed)
-  _refresh_enemy_art()
- set_process(mode!="hero" and not inactive)
+  if fixed_portrait:pose="stand"
+  var image=EquipmentPortrait.FREE if fixed_portrait else Art.hero_texture(pose,has_restraint_level)
+  if not is_instance_valid(hero_sprite):hero_sprite=_sprite(image,"HeroPose")
+  elif hero_sprite.texture!=image:hero_sprite.texture=image
+ hero_sprite.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
+ _place_hero()
+ queue_redraw()
 
 func _art_changed(category: String, id: String) -> void:
  if category=="enemies" and id==template: _refresh_enemy_art()
@@ -75,11 +117,6 @@ func _place_hero() -> void:
  var scale_factor=minf(size.y*Art.HERO_HEIGHTS[pose]/source_size.y,(size.x-16)/source_size.x)
  hero_sprite.size=source_size*scale_factor
  hero_sprite.position=Vector2((size.x-hero_sprite.size.x)/2,size.y-hero_sprite.size.y)
-
-func _process(delta: float) -> void:
- time+=delta
- if is_instance_valid(enemy_sprite) and mode!="guard": enemy_sprite.position.y=sin(time*1.6)*3
- if mode in ["tape","cable_tie","toybox","rope_mass","rope_heap","belt_mass","belt_heap","six_bind"]: queue_redraw()
 
 func _draw() -> void:
  draw_set_transform(Vector2(size.x/2,size.y-4),0,Vector2(1,0.13))
@@ -189,7 +226,7 @@ func _draw() -> void:
  # Small code-drawn equipment silhouettes share the arena's scale and inactive state.
  if mode not in ["tape","cable_tie","toybox","rope_mass","rope_heap","belt_mass","belt_heap"]: return
  var scale_value=minf(size.x/220.0,size.y/180.0)
- draw_set_transform(Vector2(size.x/2,size.y/2+sin(time*1.6)*3),0,Vector2.ONE*scale_value)
+ draw_set_transform(Vector2(size.x/2,size.y/2),0,Vector2.ONE*scale_value)
  var gold=Color("cdb780");var dark=Color("263943");var cyan=Color("8bdbd4")
  if inactive: gold.a=0.3;dark.a=0.3;cyan.a=0.3
  if mode in ["rope_mass","rope_heap","belt_mass","belt_heap"]:
@@ -294,7 +331,7 @@ func _draw_six_bind() -> void:
  var skin=Color("c99c89");var magic=Color("a46fca")
  if inactive: black.a=0.3;wine.a=0.3;gold.a=0.3;skin.a=0.3;magic.a=0.3
  for i in range(6):
-  var angle=TAU*float(i)/6.0+time*0.12
+  var angle=TAU*float(i)/6.0
   var center=Vector2(cos(angle)*68,-91+sin(angle)*55)
   draw_arc(center,13,0,TAU,24,magic,3,true)
   draw_line(center,center.normalized()*6+Vector2(0,-86),Color(magic,0.38),2,true)

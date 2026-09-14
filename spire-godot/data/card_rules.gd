@@ -188,6 +188,9 @@ static func draw_label(filter: Dictionary) -> String:
  if filter.get("tag","")=="magic": return "魔力牌"
  return TYPES[filter.tag]+"牌" if filter.has("tag") else "牌"
 
+static func exhausts(type: String, free: bool, traits: Dictionary) -> bool:
+ return traits.get("exhaust",false) or SPECS[type].get("self_faces",{}).get("free" if free else "bound",{}).get("exhaust",false)
+
 static func energy_cost(type: String, free: bool=false) -> int:
  var spec=SPECS[type]
  var side="free" if free else "bound"
@@ -277,6 +280,7 @@ static func definition_reason(spec: Dictionary) -> String:
    if not faces.get(side) is Dictionary: return "卡牌缺少对应牌面。"
    var face=faces[side]
    if spec.mode=="power" and (not face.has("buff") or face.keys().any(func(key):return key not in ["buff","cast","mana_cost","energy_cost"])): return "能力牌的每个牌面需要一个持续增益及可选的施法费用。"
+   if face.has("exhaust") and (not face.exhaust is bool or spec.mode!="self"): return "牌面消耗需要技能或魔法自身效果的布尔配置。"
    if face.has("cast") and (not face.cast is bool or (face.cast and spec.get("casting",{}).get("parts",[]).is_empty())): return "施法牌面需要有效的施法条件。"
    if face.has("buff") and face.buff not in BUFFS: return "卡牌增益没有登记。"
    if face.has("exhaust_hand") and (not face.exhaust_hand is bool or spec.mode!="self"): return "指定消耗手牌需要自身牌面的布尔配置。"

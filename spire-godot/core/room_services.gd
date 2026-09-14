@@ -156,7 +156,7 @@ static func validate(g) -> String:
    if not g.Snapshot.fields(offer,"kind:s type:s price:n taken:b") or offer.price<0: return "商品记录不完整。"
    match offer.kind:
     "card":
-     if offer.type not in g.Cards.Rules.REWARDS: return "商品卡牌不存在。"
+     if not g.Character.reward_member(g,offer.type): return "商品卡牌不存在。"
     "tool":
      if offer.type not in Data.TOOLS: return "商品道具不存在。"
     "relic":

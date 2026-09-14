@@ -14,7 +14,7 @@ func _ready() -> void:
  ui._place(character,Rect2(1030,140,365,36),self)
  var character_hint=ui._label("",18,ui.CYAN);character_hint.name="CharacterDescription"
  ui._place(character_hint,Rect2(150,505,690,140),self)
- var refresh_character=func(): character_hint.text="四部位蓄力 · 释放消耗1层\n精神集中强化魔法，蓄力可抵挡对应部位的拘束。\n11张初始牌 · 独立卡池 · 固定站立立绘" if ui.selected_character=="witch" else "原角色的基础动作、卡牌与规则保持不变。"
+ var refresh_character=func(): character_hint.text="分部位蓄力 · 法术释放消耗该部位全部蓄力\n精神集中强化魔法，2层蓄力可抵挡对应部位的拘束。魔力／快感上限75，初始魔瓶50魔力。\n11张初始牌 · 独立卡池 · 固定站立立绘" if ui.selected_character=="witch" else "原角色的基础动作、卡牌与规则保持不变。"
  character.item_selected.connect(func(index):ui.selected_character="witch" if index==1 else "original";refresh_character.call())
  refresh_character.call()
  var title=ui._label(ui._text("ui.home.title","紧缚尖塔"),96,ui.GOLD);title.name="HomeTitle"
@@ -68,21 +68,26 @@ func _ready() -> void:
  var custom_hint=ui._label("",13,ui.MUTED);custom_hint.name="HomeCursedPlateHint"
  ui._place(custom_hint,Rect2(1030,869,365,18),self)
  var refresh_chastity=func():
+  var witch=ui.selected_character=="witch"
+  fixed.disabled=witch
+  fixed.set_pressed_no_signal(witch or ui.display_settings.fixed_hero_portrait)
+  fixed.text="角色2 · 固定站立立绘" if witch else "扶她出去 · "+("开" if fixed.button_pressed else "关")
   chastity.set_pressed_no_signal(ui.display_settings.chastity_locks_enabled)
   var state=ui.localization.display("开" if chastity.button_pressed else "关")
   chastity.text=ui.localization.display("贞操锁池 · %s（%d%%）" % [state,ui.display_settings.chastity_lock_chance])
-  chastity.disabled=ui.display_settings.fixed_hero_portrait
+  chastity.disabled=witch or ui.display_settings.fixed_hero_portrait
   down.disabled=chastity.disabled or not chastity.button_pressed or ui.display_settings.chastity_lock_chance<=5
   up.disabled=chastity.disabled or not chastity.button_pressed or ui.display_settings.chastity_lock_chance>=100
   custom.disabled=chastity.disabled or not chastity.button_pressed
   custom.set_pressed_no_signal(ui.display_settings.cursed_plate_start)
   masochist.disabled=chastity.disabled or not chastity.button_pressed
   masochist.set_pressed_no_signal(ui.display_settings.cursed_plate_masochist_mode)
-  custom_hint.text=ui.localization.display("开启贞操锁池后可选" if custom.disabled else "仅新局生效")
+  custom_hint.text="角色2不使用这些开局选项" if witch else ui.localization.display("开启贞操锁池后可选" if custom.disabled else "仅新局生效")
   custom.tooltip_text=ui.localization.display("新局以「诅咒平板锁」替换「余烬护符」，保留前三项开局选择和直接出发。")
   masochist.tooltip_text=ui.localization.display("诅咒平板锁的跳蛋不受6回合限制，高潮后快感保留系数也没有上限。")
   chastity.tooltip_text=ui.localization.display("概率为5%～100%，每次调整5%。开启后，随机施加性玩具时按该概率选择可佩戴的平板锁；没有合法锁时概率归还普通性玩具。漂浮锁无目标离场前固定尝试附加中级平板锁，不受该概率影响。")
  refresh_chastity.call()
+ character.item_selected.connect(func(_index):refresh_chastity.call())
  fixed.toggled.connect(func(enabled):
   ui.display_settings.set_fixed_hero_portrait(enabled)
   fixed.text="扶她出去 · "+("开" if enabled else "关")

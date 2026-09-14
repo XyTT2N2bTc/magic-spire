@@ -2,6 +2,8 @@ extends Control
 
 # Only renders the counter supplied by the shared relic projection.
 const ART={
+ "witch_amulet":preload("res://assets/ui/relics/witch_amulet.svg"),
+ "witch_noodles":preload("res://assets/ui/relics/witch_noodles.svg"),
  "cursed_plate_lock":preload("res://assets/ui/relics/cursed_plate_lock.svg"),
  "gourd_flask":preload("res://assets/ui/relics/gourd_flask.svg"),
  "shrimp_paste":preload("res://assets/ui/relics/shrimp_paste.svg"),

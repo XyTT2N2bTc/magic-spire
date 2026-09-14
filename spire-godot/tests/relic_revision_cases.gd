@@ -272,6 +272,21 @@ static func periodic_energy(t) -> void:
  t.check(g.state.relic_counters.happy_fa==1,"FA duplicate grant preserves accumulated progress")
  var fresh=Game.new(42)
  t.check(fresh.state.relic_counters.is_empty(),"FA new game starts without carried progress")
+ for carried in [1,2]:
+  var replay=Game.new(42)
+  replay.RelicEffects.gain(replay,"happy_fa")
+  replay.state.relic_counters.happy_fa=carried
+  replay._start_battle()
+  var entry=replay.export_snapshot()
+  t.check(entry.relic_counters.happy_fa==(carried+1)%3 and entry.energy==(4 if carried==2 else 3),"FA battle entry carries progress and includes an opening proc in energy")
+  t.check(t.action(replay,"end").ok,"FA advances a real turn before quick SL")
+  var next_turn=replay.export_snapshot()
+  t.check(replay.restore_snapshot(replay.restart_snapshot()).ok,"FA quick SL restores the battle entry")
+  var restored=replay.export_snapshot();entry.erase("version");restored.erase("version")
+  t.check(restored==entry,"FA quick SL preserves counter and already-granted opening energy without a second trigger")
+  t.check(t.action(replay,"end").ok,"FA replay advances the same real player turn")
+  restored=replay.export_snapshot();next_turn.erase("version");restored.erase("version")
+  t.check(restored==next_turn and replay.state.energy==(4 if carried==1 else 3),"FA replay still triggers the originally due energy and does not duplicate an earlier proc")
 
 static func casting_manual(t) -> void:
  var g=Game.new(42)

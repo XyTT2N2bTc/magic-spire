@@ -1,0 +1,36 @@
+extends RefCounted
+const Click=preload("res://tests/interface_ui_cases.gd")
+
+static func run(t) -> void:
+ var ui=t.ui
+ var factory=ui.game_factory
+ ui.game_factory=preload("res://core/game.gd")
+ ui._return_home();await t.frames()
+ var select=ui.find_child("CharacterSelect",true,false)
+ var before=ui.game.export_snapshot()
+ select.select(1);select.item_selected.emit(1);await t.frames()
+ t.check(ui.selected_character=="witch" and ui.game.state==before and t.visible_text(ui.find_child("CharacterDescription",true,false)).contains("11张"),"WITCH UI selection changes next-run choice only")
+ await t.capture("ui-witch-selection.png")
+ await Click.press(t,"HomeNewGame")
+ t.check(ui.game.Character.active(ui.game) and ui.game.state.deck.size()==11 and ui.view.phase=="departure","WITCH UI new game starts selected character through normal opening")
+ t.check(await t.click("departure",{"op":"skip"}),"WITCH UI completes opening through candidate")
+ ui.game_factory=preload("res://tests/game_fixture.gd");ui.restart(42);await t.frames()
+ t.check(ui.find_child("HeroArt",true,false).fixed_portrait and not ui.view.body_groups.any(func(body):return body.id=="special_2"),"WITCH UI fixed standing art and removed body region")
+ var button=ui.find_child("BasicAttack_witch_hand",true,false)
+ t.check(button!=null and ui.actions.select("attack").all(func(c):return c.payload.get("witch_action",false)),"WITCH UI replaces original attacks with four paired basic actions")
+ t.check(await t.click("attack",{"type":"witch_hand","form":0}),"WITCH UI charge submits the real action")
+ t.check(ui.game.state.witch_charges.hand==1 and ui.view.statuses.any(func(row):return row.id=="witch_charge_hand" and row.value=="1层"),"WITCH UI charge count updates in status")
+ t.check(await t.click("attack",{"type":"witch_hand","form":0}) and ui.game.state.witch_charges.hand==2,"WITCH UI builds multiple layers through real actions")
+ button=ui.find_child("BasicAttack_witch_hand",true,false)
+ var point=button.get_global_rect().get_center()
+ await t.mouse_button(point,MOUSE_BUTTON_RIGHT,true)
+ await t.mouse_button(point,MOUSE_BUTTON_RIGHT,false)
+ t.check(ui.attack_forms.witch_hand==1 and t.visible_text(ui.find_child("BasicAttack_witch_hand",true,false)).contains("烈焰箭"),"WITCH UI right-click selects charged release without charge mutation")
+ await t.capture("ui-witch-battle.png")
+ t.check(await t.click("attack",{"type":"witch_hand","form":1}) and ui.game.state.witch_charges.hand==0,"WITCH UI release consumes all accumulated hand layers")
+ t.check(ui.attack_forms.witch_hand==0 and t.visible_text(ui.find_child("BasicAttack_witch_hand",true,false)).contains("施法蓄力"),"WITCH UI release resets the selected body action to charging")
+ ui.game_factory=factory
+ ui._return_home();await t.frames()
+ select=ui.find_child("CharacterSelect",true,false);select.select(0);select.item_selected.emit(0)
+ await Click.press(t,"HomeNewGame")
+ t.check(not ui.game.Character.active(ui.game) and ui.game.state.deck.size()==10,"WITCH UI switches back to untouched original starter")

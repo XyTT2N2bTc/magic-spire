@@ -376,6 +376,7 @@ static func base_damage(g, type: String, uid: String="") -> float:
  var spec=Rules.SPECS[type]
  var scaling=spec.get("worn_damage",{})
  var dynamic_bonus=0.0 if scaling.is_empty() else worn_count(g,scaling.include_special)*scaling.per_item
+ if g.Character.active(g) and spec.mode=="magic_slip": dynamic_bonus+=g.state.witch_focus
  return float(spec.get("base",0.0))+dynamic_bonus+g.Relics.card_base_bonus(g.state.relics,type)+instance(g,uid).get("damage_bonus",0)
 
 static func grow(g, type: String, uid: String) -> void:
@@ -397,10 +398,10 @@ static func cast_profile(g, type: String, paid: bool=true) -> Dictionary:
  return profile
 
 static func end_powers(g) -> void:
- g.Character.clear(g)
  g.state.turn_strength=0
  g.state.evasion=0
  flush_mana_powers(g)
+ g.Character.retain_focus(g)
  for zone in ZONES:
   for card in g.state[zone]: card.erase("damage_bonus")
  for card in g.state.powers:
@@ -492,11 +493,12 @@ static func bind_payload(g, type: String, uid: String="", second: bool=false) ->
  var attribute="strength" if is_strain else "dexterity"
  var bonus=g.RelicEffects.attribute(g,attribute)
  var charge=g.charge_bonus()
- var multiplier=g.CaptureBind.damage_multiplier(g)*damage_multiplier(g,"equipment")*card_damage_multiplier(g,mode)
+ var buff_multiplier=damage_multiplier(g,"equipment")*card_damage_multiplier(g,mode)*g.Character.damage_multiplier(g)
+ var multiplier=g.CaptureBind.damage_multiplier(g)*buff_multiplier
  var base=base_damage(g,type,uid)
  var raw=base+bonus+charge
  return {"type":type,"slot":g.CaptureBind.BIND_TARGET,"target":g.CaptureBind.BIND_TARGET,"free":second,"mode":mode,
-  "preview":{"guard_multiplier":g.CaptureBind.damage_multiplier(g),"damage_buff_multiplier":damage_multiplier(g,"equipment")*card_damage_multiplier(g,mode),"base":base,"bonus":bonus,"charge":charge,"raw":raw,"multiplier":multiplier,"damage":raw*multiplier,"environment_true":0.0}}
+  "preview":{"guard_multiplier":g.CaptureBind.damage_multiplier(g),"damage_buff_multiplier":buff_multiplier,"base":base,"bonus":bonus,"charge":charge,"raw":raw,"multiplier":multiplier,"damage":raw*multiplier,"environment_true":0.0}}
 
 static func reason(g, p: Dictionary) -> String:
  if p.type=="henshin" and g.state.equipment.any(func(e):return g.Equipment.lock_only(e)):
@@ -701,7 +703,11 @@ static func retain(g, uid: String) -> void:
 static func settle_played_card(g) -> void:
  if g.state.play.is_empty(): return
  var card=g.state.play.pop_back()
- var exhaust=g.B.CARD_TRAITS.get(card.type,{}).get("exhaust",false)
+ if g.Character.active(g) and Rules.SPECS[card.type].mode=="magic_slip" and card.get("witch_used_focus",false):
+  g.state.witch_focus=0
+  card.erase("witch_used_focus")
+ var exhaust=g.B.CARD_TRAITS.get(card.type,{}).get("exhaust",false) or card.get("exhaust_after_play",false)
+ card.erase("exhaust_after_play")
  g._card_motion("play_exhaust" if exhaust else "play",card)
  if exhaust: g.state.exhaust.append(card)
  else: g.state.discard.append(card)
@@ -735,7 +741,9 @@ static func play(g, c: Dictionary) -> void:
   g._emit("event","获得「"+buff.name+"」。",{"power":p.type,"face":card.power_face})
   if replay: g._emit("event","唯一：这张能力不会重复生效。" if Rules.unique_face(card.type,p.free) else ("余势复演：这张能力牌的效果额外生效%d次。" % replay),{"replay":{"type":p.type,"skipped":Rules.unique_face(card.type,p.free)}})
   return
+ if Rules.exhausts(p.type,p.free,g.B.CARD_TRAITS.get(p.type,{})): card.exhaust_after_play=true
  g.state.play.append(card)
+ if g.Character.active(g) and not p.free and Rules.SPECS[card.type].mode=="magic_slip": card.witch_used_focus=true
  var used=resolve(g,p)
  grow(g,p.type,p.uid)
  if not p.free and not p.get("self_target",false) and Rules.SPECS[p.type].get("hits",1)>1:

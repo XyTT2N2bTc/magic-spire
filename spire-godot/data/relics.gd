@@ -1,12 +1,14 @@
 extends RefCounted
 
-const MODIFIER_LIMITS={"reward_card_options":1,"elite_entry_mana":100,"boss_entry_mana":100,"prison_entry_mana":100,"pickup_mana_full":1,"pressure_reduction_percent":100,"max_energy":10,"keep_hand":1,"turn_end_pressure_loss":100,"turn_start_pressure":100,"combat_retention_layers":10,"unspent_turn_mana":100,"pressure_guard_turns":10,"unrestricted_items":1,"shop_flask_mana":100,"capacity":10,"battle_mana":100,"low_mana_end_restore":100,"restraint_mana":100,"preparation_turns":10,"strength":10,"dexterity":10,"leg_dexterity":10,"opening_draw":10,"opening_energy":10,"opening_charge":10,"turn_draw":10,"opening_mana":100,"retain_energy":1,"pickup_mana_max":100,"pickup_mana":100,"mana_energy_step":100,"turn_energy_step":100,"single_hand_cast":1,"soften_locked_strain":1,"always_wall":1}
+const MODIFIER_LIMITS={"battle_turn_reserve":10,"battle_opening_focus":10,"reward_card_options":1,"elite_entry_mana":100,"boss_entry_mana":100,"prison_entry_mana":100,"pickup_mana_full":1,"pressure_reduction_percent":100,"max_energy":10,"keep_hand":1,"turn_end_pressure_loss":100,"turn_start_pressure":100,"combat_retention_layers":10,"unspent_turn_mana":100,"pressure_guard_turns":10,"unrestricted_items":1,"shop_flask_mana":100,"capacity":10,"battle_mana":100,"low_mana_end_restore":100,"restraint_mana":100,"preparation_turns":10,"strength":10,"dexterity":10,"leg_dexterity":10,"opening_draw":10,"opening_energy":10,"opening_charge":10,"turn_draw":10,"opening_mana":100,"retain_energy":1,"pickup_mana_max":100,"pickup_mana":100,"mana_energy_step":100,"turn_energy_step":100,"single_hand_cast":1,"soften_locked_strain":1,"always_wall":1}
 
 const RARITIES={"common":"普通","uncommon":"罕见","rare":"稀有","boss":"Boss","special":"特殊"}
 const BOSS_POOL=["gourd_flask","tattoo_sticker","cursed_blindfold","nesting_doll","binding_pyramid","shining_lamp","cursed_plate_lock"]
 const FALLBACK="rolling_log"
 
 static var TYPES={
+ "witch_amulet":{"rarity":"special","character_id":"witch","name":"魔女护符","detail":"战斗中每回合开始时，获得1层魔力预备。","modifiers":{"battle_turn_reserve":1}},
+ "witch_noodles":{"rarity":"common","character_id":"witch","name":"辣椒炒肉拌面","detail":"战斗开始时，获得2层精神集中。","modifiers":{"battle_opening_focus":2}},
  "gourd_flask":{"rarity":"boss","name":"葫芦酒壶","detail":"拾取时，将一张「般若汤-其一」加入卡组。","modifiers":{},"pickup_cards":["hannya_1"]},
  "shrimp_paste":{"rarity":"uncommon","name":"虾滑","detail":"拾起时，魔力上限＋12，恢复12魔力。","modifiers":{"pickup_mana_max":12,"pickup_mana":12}},
  "magnifying_glass":{"rarity":"rare","name":"放大镜","detail":"选择奖励牌时，可供选择的牌增加1张。拾起时，同一窗口中已生成的奖励牌不受影响。","modifiers":{"reward_card_options":1}},
@@ -54,7 +56,7 @@ static var TYPES={
  "ember":{"rarity":"common","name":"余烬护符","detail":"战后整备结束时，恢复10魔力。休息结束不触发。","modifiers":{"battle_mana":10.0}},
  "toolbox":{"rarity":"common","name":"折叠工具匣","detail":"随身道具容量＋1。","modifiers":{"capacity":1}},
  "hourglass":{"rarity":"uncommon","name":"整备沙漏","detail":"战后整备延长1回合。","modifiers":{"preparation_turns":1}}}
-static var REWARDS=["shrimp_paste","magnifying_glass","axe_amulet","oune_hand","marble_stone","ice_heart","magic_blood","turtle_shell","olihakimi","green_bird","braised_eggplant","tentacle_friend","spicy_rice_noodles","flyer","kings_gift_revised","marble","graduate_certificate","little_pig","small_gem","desire_cube","happy_fa","casting_manual","mana_earring","ready_backpack","smooth_stockings","donut","small_sigil","martial_book","strawberry","toolbox","hourglass","break_bracer","silk_ring","turn_ribbon","ember_crystal"]
+static var REWARDS=["witch_noodles","shrimp_paste","magnifying_glass","axe_amulet","oune_hand","marble_stone","ice_heart","magic_blood","turtle_shell","olihakimi","green_bird","braised_eggplant","tentacle_friend","spicy_rice_noodles","flyer","kings_gift_revised","marble","graduate_certificate","little_pig","small_gem","desire_cube","happy_fa","casting_manual","mana_earring","ready_backpack","smooth_stockings","donut","small_sigil","martial_book","strawberry","toolbox","hourglass","break_bracer","silk_ring","turn_ribbon","ember_crystal"]
 
 static func trigger(id: String) -> Dictionary:
  return TYPES[id].get("trigger",{})

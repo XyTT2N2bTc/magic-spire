@@ -3,6 +3,9 @@ extends RefCounted
 # Read-only card wording, derived from the same face effects and eligibility data.
 const Rules=preload("res://data/card_rules.gd")
 const TERMS={
+ "mind":{"name":"精神施法","detail":"无需手部或嘴部动作，仍受快感及施法成功率加成影响。"},
+ "legs":{"name":"腿部蓄力","detail":"成功率受快感和腿部受限等级影响。"},
+ "witch_focus":{"name":"精神集中","detail":"下次造成伤害的魔法每段伤害增加对应层数，整次施放消耗全部层数。施法失败或高潮时失去1层。跨战斗最多保留2层，乌龟壳提高至4层。"},
  "unique":{"name":"唯一","detail":"同一效果不可叠加，包括复放；不同牌面的效果可以同时生效。原有刷新效果仍只刷新次数或时长。"},
  "traction":{"name":"牵扯","detail":"触发花费能量引起的装备刺激、手牌刺激与捕缚效果。额外牵扯1次按1能量判定，不实际扣能量。"},
  "innate":{"name":"固有","detail":"每场开始时，优先进入起始手牌。"},
@@ -97,7 +100,7 @@ static func keywords(type: String, free: bool, traits: Dictionary) -> Array:
  else:
   for key in (["free_effects"] if free else ["hit_effects","lowered_effects","destroyed_effects"]): _effect_terms(ids,spec.get(key,[]))
  if spec.card_type=="power": ids.append("power")
- if traits.get("exhaust",false): ids.append("exhaust")
+ if Rules.exhausts(type,free,traits): ids.append("exhaust")
  if traits.get("retain",false): ids.append("auto_retain")
  if free and spec.has("free_max_levels"): ids.append("levels")
  var result=[];var seen=[]

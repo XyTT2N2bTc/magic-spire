@@ -32,6 +32,17 @@ var equipped_eyes=false
 var active_leg_layers: Array=[]
 var active_special_layers: Array=[]
 static var leg_layers: Dictionary=_load_leg_layers()
+var appearance: Array=[]
+
+static func visual_facts(view: Dictionary) -> Array:
+ var legs=[]
+ for key in leg_layers:
+  var spec=leg_layers[key]
+  if spec.value in view.get("body_coverage",{}).get(spec.field,[]):legs.append(key)
+ var bodies=view.get("bodies",[])
+ return [view.get("has_restraint_level",false),view.get("equipment_portrait_layers",[]).duplicate(),legs,
+  bodies.any(func(body):return body.id=="mouth" and body.occupied),
+  bodies.any(func(body):return body.id=="eyes" and body.occupied)]
 
 static func _load_leg_layers() -> Dictionary:
  var entries=JSON.parse_string(FileAccess.get_file_as_string("res://assets/art/equipment-leg-layers.json"))
@@ -41,6 +52,9 @@ static func _load_leg_layers() -> Dictionary:
  return result
 
 func configure(view: Dictionary, fixed: bool=false, battle_free: bool=false) -> void:
+ var next_appearance=[fixed,battle_free,[] if fixed else visual_facts(view)]
+ if appearance==next_appearance:return
+ appearance=next_appearance
  fixed_portrait=fixed
  battle_free_portrait=battle_free
  variant=0 if view.has_restraint_level and not fixed else -1
@@ -59,6 +73,7 @@ func configure(view: Dictionary, fixed: bool=false, battle_free: bool=false) -> 
  if is_node_ready(): _align_layers()
 
 func _ready() -> void:
+ if texture==null:texture=FREE
  var layers=LAYERS.merged(leg_layers)
  for key in layers:
   var layer=TextureRect.new();layer.name="Overlay_"+key;layer.texture=layers[key].texture

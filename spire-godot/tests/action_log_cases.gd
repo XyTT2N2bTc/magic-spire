@@ -30,7 +30,7 @@ static func run(t) -> void:
  var text=g.get_view().action_log.map(func(row):return row.text).reduce(func(a,b):return a+"\n"+b,"")
  t.check(text.contains("魔力撑隙") and text.contains("施法失败") and text.contains("卡牌留在手中") and text.contains("成功率%s%%" % Copy.number(profile.chance*100)),"LOG failure names the spell, chance and actual card destination")
  t.check(text.contains("消耗1能量、%s魔力" % Copy.number(c.mana_payment.mana)) and text.find("施法失败")<text.find("消耗") and text.count("消耗")==1,"LOG outcome precedes one accurately rounded payment")
- t.check(not text.contains("未产生法术效果") and not text.contains("不退回") and g.state.hand==before.hand and is_equal_approx(g.state.mana,before.mana-c.mana_payment.mana) and g.state.equipment==before.equipment,"LOG concise failure preserves exact payment, cards and equipment")
+ t.check(not text.contains("未产生法术效果") and not text.contains("不退回") and g.state.hand==before.hand and is_equal_approx(g.state.mana,before.mana-c.mana_payment.mana*0.5) and g.state.equipment==before.equipment,"LOG concise failure preserves half refund, cards and equipment")
  before=g.export_snapshot();g.get_view();g.get_view()
  t.check(g.state==before and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"LOG viewing and stale requests do not add text or change state")
 

@@ -7,6 +7,7 @@ static func open_pressure(t) -> void:
   await Navigation.press(t,"StatusFilter_pressure")
 
 static func run(t) -> void:
+ await forced_loop_surrender(t)
  await climax_card_practice(t)
  t.ui.restart(42);t.ui.game.state.pressure=10
  for enemy in t.ui.game.state.enemies: enemy.intent.delayed=true
@@ -106,3 +107,17 @@ static func climax_card_practice(t) -> void:
  t.check(ui.view.hand.is_empty() and ui.view.energy==0 and ui.view.pressure.energy_penalty==1,"CLIMAX PRACTICE overlay reflects ordinary discard and weakness")
  await t.capture("ui-climax-card-practice.png")
 
+
+static func forced_loop_surrender(t) -> void:
+ var ui=t.ui
+ ui.restart(3440322309)
+ ui.game=preload("res://tests/pressure_cases.gd").forced_loop_fixture()
+ ui.render();await t.frames()
+ var button=ui.find_child("SurrenderButton",true,false)
+ t.check(ui.view.pressure.overloaded and button!=null and button.is_visible_in_tree(),"FEEDBACK UI forced-loop state still exposes surrender")
+ if button==null: return
+ var before=ui.game.export_snapshot()
+ await Navigation.press(t,"SurrenderButton")
+ t.check(ui.game.state==before and t.visible_text(ui.find_child("SurrenderButton",true,false)).contains("确定"),"FEEDBACK UI interrupted surrender still needs confirmation")
+ await Navigation.press(t,"SurrenderButton")
+ t.check(ui.game.state.phase=="prison" and ui.game.state.security==1 and ui.game.validate()=="","FEEDBACK UI confirmed surrender leaves the forced-loop battle")

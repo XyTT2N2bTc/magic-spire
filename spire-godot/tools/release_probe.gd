@@ -14,7 +14,9 @@ func _initialize() -> void:
 
 func run() -> void:
  check(not FileAccess.file_exists("res://project.godot"),"Probe must load exported project.binary, not source files")
- check(ProjectSettings.get_setting("application/config/version","")=="0.16","Release version must be 0.16")
+ var expected_version=OS.get_environment("SPIRE_PROBE_VERSION")
+ if expected_version=="": expected_version="0.16"
+ check(ProjectSettings.get_setting("application/config/version","")==expected_version,"Release version must match package manifest")
  check(not ResourceLoader.exists("res://tests/test_game.gd") and not ResourceLoader.exists("res://tools/check_content.gd"),"Development scripts must not be exported")
  var scene=load("res://main.tscn")
  check(scene!=null,"Main scene must be present in PCK")
@@ -57,10 +59,55 @@ func run() -> void:
  ui.restart(42,true,"equipment")
  await process_frame
  check(ui.view.practice and ui.game.validate()=="","Exported practice loads equipment and real action rules")
+ if expected_version=="0.17":
+  check(ui.find_child("CharacterSelect",true,false)!=null or ui.selected_character=="original","Character selection controller is included")
+  ui.selected_character="witch";ui.restart(42)
+  await process_frame
+  await process_frame
+  check(ui.game.Character.active(ui.game) and ui.game.state.deck.size()==11 and ui.game.validate()=="","Exported role two has its eleven-card starter and valid state")
+  var spec=ui.game.Cards.Rules.SPECS.witch_magic_hand
+  if OS.get_environment("SPIRE_PROBE_WITCH_BALANCE")=="1":
+   var g=ui.game
+   check(g.state.mana_max==75 and g.state.mana==75 and g.Pressure.maximum(g)==75 and g.state.flask_mana==50 and g.state.relics==["witch_amulet"],"Balanced release includes revised role-two starting resources")
+   check(spec.free_effects==[{"op":"evasion","amount":2}] and spec.mana_cost==30 and spec.hits==4,"Balanced release includes revised magic hand faces")
+   check(load("res://assets/ui/relics/witch_amulet.svg")!=null and load("res://assets/ui/relics/witch_noodles.svg")!=null,"Balanced release includes both new relic icons")
+   check(g.Relics.TYPES.witch_noodles.rarity=="common" and not g.Character.allowed_card(g,"ease"),"Balanced release includes exclusive relic and card restrictions")
+  check(spec.free_effects[0].get("buff","")=="witch_hand_freedom" or (spec.free_effects==[{"op":"evasion","amount":2}] and spec.mana_cost==30.0),"Exported magic hand has role-two free effect")
+  var packed=store.pack(ui.game.export_snapshot())
+  var decoded=store.unpack(packed)
+  check(decoded.ok,"Exported role-two snapshot serializes")
+  if decoded.ok:
+   var resumed=game_class.new(7)
+   check(resumed.restore_snapshot(decoded.snapshot).ok and resumed.Character.active(resumed),"Exported role-two save restores its character")
+ if OS.get_environment("SPIRE_PROBE_CHARGE_ALL")=="1":
+  probe_charge_all(game_class)
  print("RELEASE CONTENT PACKS: ",catalog.report.files)
  ui.queue_free()
  await process_frame
  finish()
+
+func probe_charge_all(game_class) -> void:
+ var g=game_class.new(42,false,"equipment",true,false,25,false,false,"witch")
+ var room=g.room_data(g.state.room)
+ room.kind="battle";room.encounter="belt_tie"
+ room.erase("encounter_choices");room.erase("encounter_selected")
+ g.state.room_encounters[room.id]="belt_tie"
+ g._start_battle()
+ g.state.energy=20;g.state.mana=g.state.mana_max;g.state.pressure=0
+ for enemy in g.state.enemies:
+  enemy.hp=1000.0;enemy.max_hp=1000.0
+ for part in ["hand","mouth","mind"]:
+  g.state.witch_charges={"hand":3,"mouth":3,"legs":4,"mind":3}
+  var expected=g.state.witch_charges.duplicate();expected[part]=0
+  var actions=g.candidates().filter(func(c):return c.payload.get("type")=="witch_"+part and c.payload.get("form")==1)
+  check(not actions.is_empty(),"Patch release candidate exists: "+part)
+  if actions.is_empty(): continue
+  var action=actions[0]
+  check(action.valid and action.payload.hits==4,"Patch uses pre-release charge count: "+part)
+  check(g.dispatch(action.id,g.state.version).ok and g.state.witch_charges==expected,"Patch consumes all and only selected charges: "+part)
+  actions=g.candidates().filter(func(c):return c.payload.get("type")=="witch_"+part and c.payload.get("form")==1)
+  check(not actions.is_empty() and actions[0].payload.hits==1,"Patch next release has one hit: "+part)
+ print("CHARGE ALL PROBE COMPLETE")
 
 func finish() -> void:
  if failures.is_empty(): print("RELEASE PROBE PASS")

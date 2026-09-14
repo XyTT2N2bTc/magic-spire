@@ -19,7 +19,7 @@ static func run(t) -> void:
  var home_title=ui.find_child("HomeTitle",true,false)
  var disclaimer=ui.find_child("HomeDisclaimer",true,false)
  var title_area=ui.find_child("GameHome",true,false).get_children().filter(func(n):return n is Control and n.position.x<1000)
- t.check(home_title!=null and home_title.text=="紧缚尖塔" and title_area==[home_title,disclaimer] and ui.game.export_snapshot()==initial,"HOME left area contains the title and free-release disclaimer without changing game state")
+ t.check(home_title!=null and home_title.text=="紧缚尖塔" and title_area.size()==3 and title_area.has(home_title) and title_area.has(disclaimer) and title_area.has(ui.find_child("CharacterDescription",true,false)) and ui.game.export_snapshot()==initial,"HOME left area contains title, character description and disclaimer without changing game state")
  t.check(disclaimer!=null and disclaimer.text.contains("免费发布") and disclaimer.text.contains("花钱购买") and disclaimer.text.contains("上当了") and disclaimer.position.x==100 and disclaimer.position.y>=800 and disclaimer.get_rect().end.y<=900 and disclaimer.get_line_count()==2 and disclaimer.get_theme_color("font_color")==Color("858585") and disclaimer.mouse_filter==Control.MOUSE_FILTER_IGNORE,"HOME disclaimer is complete, small gray text at lower left and never intercepts clicks")
  var chastity=ui.find_child("HomeChastityLocks",true,false);var down=ui.find_child("HomeChastityChanceDown",true,false);var up=ui.find_child("HomeChastityChanceUp",true,false)
  var custom=ui.find_child("HomeCursedPlateStart",true,false)
@@ -64,6 +64,7 @@ static func run(t) -> void:
  await preload("res://tests/departure_ui_cases.gd").run(t)
  await henshin_practice(t)
  await plate_lock_practice(t)
+ await preload("res://tests/witch_character_ui_cases.gd").run(t)
 
 static func custom_opening(t) -> void:
  var ui=t.ui

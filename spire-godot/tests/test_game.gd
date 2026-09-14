@@ -74,6 +74,7 @@ func _initialize() -> void:
   quit(1)
 
 func _core_cases() -> void:
+ preload("res://tests/witch_character_cases.gd").run(self)
  var g = Game.new(42)
  check(g.state.hand.size() == 5, "TC-CORE-0001 initial draw")
  check(g.state.deck.size() == 10, "TC-CORE-0001 ten cards")

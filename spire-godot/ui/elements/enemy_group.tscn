@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://ui/elements/arena.tscn" id="1"]
+
+[node name="EnemyGroup" type="Control"]
+offset_right = 280.0
+offset_bottom = 497.0
+mouse_filter = 2
+
+[node name="Portrait" parent="." instance=ExtResource("1")]
+mode = "enemy"

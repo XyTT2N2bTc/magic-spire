@@ -124,6 +124,7 @@ static func free_cooling(t) -> void:
  t.check(t.action(g,"end").ok and g.state.pressure==0,"FREE COOLING fractional remainder stops at zero")
 
 static func run(t) -> void:
+ forced_loop_exit(t)
  free_cooling(t)
  flat_mana_cost(t)
  climax_card_practice(t)
@@ -284,7 +285,52 @@ static func climax_card_practice(t) -> void:
  t.check(result.ok and g.state.overloaded and g.state.overload_total==1 and g.state.overload_count==1 and g.state.pressure==5,"CLIMAX PRACTICE paid card triggers the existing special equipment and one formal climax")
  t.check(g.state.energy==0 and g.state.mana==before.mana-g.B.OVERLOAD_MANA and g.state.overload_energy==g.B.OVERLOAD_ENERGY and g.state.special_equipment[0].type=="urethral_rod_low","CLIMAX PRACTICE uses normal interruption, mana loss, weakness and keeps the real equipment")
  var actions=g.candidates().filter(func(candidate):return candidate.payload.kind not in ["flask","item_discard"])
- t.check(actions.size()==1 and actions[0].payload.kind=="end" and result.get("music_feedback",[]).is_empty(),"CLIMAX PRACTICE leaves only formal continue action and no unrelated music")
+ t.check(actions.size()==2 and actions.any(func(c):return c.payload.kind=="end") and actions.any(func(c):return c.payload.kind=="surrender") and result.get("music_feedback",[]).is_empty(),"CLIMAX PRACTICE keeps continue and surrender while ordinary actions stay blocked")
  var normal=Game.new(42)
  t.check(normal.state.pressure==0 and normal.state.special_equipment.is_empty(),"CLIMAX PRACTICE setup never enters a normal run")
 
+
+# Feedback 1847ba708526785c2322abae5cdd7561: explicit unlimited-mode fixture.
+static func forced_loop_fixture():
+ var g=Game.new(3440322309,false,"equipment",true,true,25,false,true)
+ g.RelicEffects.gain(g,"cursed_plate_lock")
+ g.RelicEffects.gain(g,"ice_heart")
+ g.state.room_encounters[g.state.room]="mixed_pair"
+ g.room_data(g.state.room).erase("enemy_members")
+ g.state.posture="lie"
+ g._start_battle()
+ g.state.mana=0;g.state.chastity_climax_factor=24
+ g.state.pressure=P.maximum(g)-1
+ P.gain(g,1,"fixture",true)
+ return g
+
+static func forced_loop_exit(t) -> void:
+ var g=forced_loop_fixture()
+ t.check(g.validate()=="" and g.state.overloaded and g.state.energy==0 and g.state.enemies.size()==2,"FEEDBACK forced loop uses a valid two-enemy unlimited-mode state")
+ for i in range(3):
+  var round_before=g.state.round
+  var stages=g.state.enemies.map(func(enemy):return enemy.stage)
+  t.check(t.action(g,"end").ok and g.state.round==round_before+1 and g.state.overloaded and g.state.energy==0,"FEEDBACK continue advances a new round and reproduces repeated interruption")
+  t.check(g.state.enemies[0].stage==stages[0]+1 and g.state.enemies[1].stage==stages[1]+1,"FEEDBACK each enemy acts once per continued round")
+ var exits=g.candidates().filter(func(c):return c.payload.kind=="surrender")
+ t.check(exits.size()==1 and exits[0].valid,"FEEDBACK interrupted battle keeps its formal surrender exit")
+ if not exits.is_empty():
+  var before=g.export_snapshot();var exit=exits[0]
+  t.check(not g.dispatch(exit.id,g.state.version-1).ok and g.state==before,"FEEDBACK stale forced-loop surrender rolls back")
+  t.check(g.dispatch(exit.id,g.state.version).ok and g.state.phase=="prison" and g.state.security==1 and g.validate()=="","FEEDBACK surrender exits the interrupted battle through actual intake")
+  before=g.export_snapshot()
+  t.check(not g.dispatch(exit.id,g.state.version).ok and g.state==before,"FEEDBACK repeated surrender cannot apply a second intake")
+ g=forced_loop_fixture()
+ for enemy in g.state.enemies.duplicate(): g._damage_enemy(enemy,9999,"magic","fixture")
+ g._finish_battle()
+ t.check(t.action(g,"reward",{"type":"skip"}).ok and g.state.phase=="prepare" and g.state.overloaded,"FEEDBACK reward enters interrupted preparation")
+ var stages=g.state.enemies.map(func(enemy):return enemy.stage)
+ var count=g.state.prepare_left
+ for i in range(count):
+  t.check(t.action(g,"end").ok,"FEEDBACK preparation continuation commits")
+  t.check(g.state.prepare_left==count-i-1 and g.state.enemies.map(func(enemy):return enemy.stage)==stages,"FEEDBACK preparation countdown decreases without dead enemies acting")
+ t.check(g.state.phase=="map" and not g.state.overloaded and g.state.room in g.state.completed_rooms,"FEEDBACK repeated interruption cannot freeze preparation completion")
+
+ g=forced_loop_fixture();g.state.security=4
+ var exit=t.find_action(g,"surrender")
+ t.check(exit.valid and g.dispatch(exit.id,g.state.version).ok and g.state.phase=="prison_end" and g.state.security==5,"FEEDBACK screenshot security-four surrender reaches the existing terminal state")

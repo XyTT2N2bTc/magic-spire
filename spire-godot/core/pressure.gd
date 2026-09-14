@@ -25,7 +25,7 @@ static func relax(g) -> void:
  g._emit("event","身体完全自由，快感降低%s点。" % g.number(loss),{"free_pressure_relief":true,"pressure_before":before,"pressure_after":g.state.pressure,"loss":loss})
 
 static func maximum(g) -> float:
- var result=B.PRESSURE_MAX
+ var result=75.0 if g.Character.active(g) else B.PRESSURE_MAX
  for item in g.state.special_equipment:
   if g.SpecialEquipment.is_chastity(item) and item.durability>0:
    result+=(int(item.grade)+g.tier(item.durability,item.maximum))*5
@@ -156,7 +156,8 @@ static func balance_mana(g) -> void:
 
 static func _apply_overloads(g, count: int) -> void:
  if count==0: return
- g.Character.clear(g)
+ g.Character.clear(g,false)
+ g.Character.lose_focus(g,count,"高潮")
  var slip_ejaculation=g.state.special_equipment.any(func(item):return g.SpecialEquipment.is_chastity(item) and item.durability>0) and g.state.special_equipment.any(func(item):return item.durability>0 and (g.SpecialEquipment.catheter(item) or (not g.SpecialEquipment.is_reinforcement(item) and "special_2_d" in g.SpecialEquipment.occupied_slots(item))))
  g.CaptureBind.overload(g,count)
  var climax_equipment_released=g._climax_special_slip(count)

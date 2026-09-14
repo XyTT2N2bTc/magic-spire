@@ -95,8 +95,10 @@ const SECTIONS={
   ["高潮与深呼吸","快感达到%s：损失%s魔力，结束当前行动，下回合能量－%d。快感跨战保留，能量惩罚不跨战。滑精时免除高潮的即时魔力损失，后续两回合开始时各损失%s魔力。\n深呼吸：每回合最多2次，%d能量，基础快感－%s，下回合能量＋%d。嘴部拘束的等级＋紧度总值为2／3／4／5／6时，快感降低量衰减20%%／40%%／60%%／80%%／100%%；多件取最高总值。高级、紧度3档时无法使用。成功使用仍获得完整的下回合能量。" % [B.PRESSURE_MAX,B.OVERLOAD_MANA,B.OVERLOAD_ENERGY,B.SLIP_EJACULATION_MANA,B.CALM_COST,B.CALM_REDUCTION,B.CALM_NEXT_ENERGY]]]
 }
 
-static func entries() -> Array:
+static func entries(g=null) -> Array:
  var out: Array=[]
+ if g!=null and g.Character.active(g):
+  out.append({"id":"witch_basics","category":"basics","title":"角色2：蓄力与释放","text":"点击使用，右键切换蓄力／释放；也可拖到敌人身上。\n四部位蓄力均消耗1能量、5魔力。火焰箭：1能量5魔力，6伤；吹雪：2能量10魔力，全体4伤；思维侵入：1能量5魔力，4伤。每层蓄力额外造成一段伤害，成功释放消耗对应部位全部蓄力。\n腿部蓄力至少4层可用魔女飞踹：1能量、1伤害、打断，消耗全部腿部蓄力。各动作按对应部位判定成功率；失败保留蓄力，精神集中失去1层。\n精神集中每层使下一次伤害魔法各段＋1，整次用完。对应身体部位将被拘束时，2层蓄力可抵挡1次；高潮清空四部位蓄力并失去1层精神集中。精神集中跨战斗最多保留2层，乌龟壳提高至4层。释放后动作自动切回蓄力。初始魔力与快感上限75，魔瓶50魔力；魔女护符在战斗每回合开始时获得1层魔力预备。"})
  for category in SECTIONS:
   for i in range(SECTIONS[category].size()):
    var row=SECTIONS[category][i]

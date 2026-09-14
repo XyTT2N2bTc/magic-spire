@@ -106,6 +106,7 @@ static func _card_group(payload: Dictionary, context: Dictionary) -> String:
 
 static func _paid_group(payload: Dictionary, context: Dictionary) -> String:
  var kind=str(payload.get("kind",""))
+ if payload.get("witch_action",false): return ""
  if kind in ["card","card_continue"] or (kind=="prison" and payload.has("uid")):
   return _card_group(payload,context)
  if kind=="attack" and payload.get("type","")=="fireball":

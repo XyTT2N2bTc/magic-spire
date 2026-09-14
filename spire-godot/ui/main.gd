@@ -372,27 +372,23 @@ func render(snapshot: Dictionary={}) -> void:
  drawer_layer=null;drawer_base_candidates.clear()
  candidate_buttons.clear(); card_buttons.clear(); body_buttons.clear()
  actor_targets.clear()
- if is_instance_valid(layout):
-  remove_child(layout)
-  layout.queue_free()
- layout=Control.new()
- add_child(layout)
- layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+ if not is_instance_valid(layout):
+  layout=preload("res://ui/shell/game_layout.tscn").instantiate()
+  add_child(layout)
+ layout.begin_frame(show_home)
  if show_home:
   var home=preload("res://ui/home_screen.gd").new();home.ui=self;home.name="GameHome"
   _place(home,Rect2(0,0,1600,900))
   _refresh_drawers()
   _localize_controls(layout)
+  layout.end_frame()
   return
  if view.phase=="battle" and not show_route and not display_settings.first_battle_tutorial_seen:
   _close_drawers()
   tutorial_category="basics"
   show_tutorial=true
   display_settings.mark_first_battle_tutorial_seen()
- var bg=Backdrop.new()
- bg.name="MoonlitGallery"
- bg.rest=view.phase in ["rest","rest_choice"]
- _place(bg,Rect2(0,0,1600,900))
+ layout.get_node("MoonlitGallery").rest=view.phase in ["rest","rest_choice"]
  _header()
  if view.reward_panel.get("layout","")=="relic_bundle": _rewards()
  elif view.phase=="captured": _capture_screen()
@@ -440,6 +436,7 @@ func render(snapshot: Dictionary={}) -> void:
  if view.phase=="shop" and not show_route: ShopScreen.payment_overlay(self)
  if notice!="" and actor_targets.has("hero"):
   _show_term(actor_targets.hero,{"label":"","detail":notice})
+ layout.end_frame()
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
  _localize_controls(layout)
 
@@ -501,64 +498,9 @@ func _localize_controls(root: Node) -> void:
   if node.tooltip_text!="": node.tooltip_text=localization.display(node.tooltip_text)
 
 func _header() -> void:
- var strip=ColorRect.new(); strip.color=Color(0.045,0.07,0.09,0.94)
- _place(strip,Rect2(0,0,1600,62))
- var trim=ColorRect.new();trim.color=GOLD.darkened(0.62);trim.mouse_filter=Control.MOUSE_FILTER_IGNORE
- _place(trim,Rect2(0,61,1600,1))
- var info=Panel.new();info.name="HeaderInfo";info.mouse_filter=Control.MOUSE_FILTER_IGNORE
- var info_style=_style(Color("121e27"),Color("35424a"),9);info_style.shadow_size=0
- info.add_theme_stylebox_override("panel",info_style)
- _place(info,Rect2(20,10,674,42))
- var location=Panel.new();location.mouse_filter=Control.MOUSE_FILTER_IGNORE
- var location_style=_style(Color("302d25"),Color("65583e"),8);location_style.shadow_size=0
- location.add_theme_stylebox_override("panel",location_style)
- _place(location,Rect2(1,1,118,40),info)
- for x in [372,514]:
-  var divider=ColorRect.new();divider.color=Color("35424a");divider.mouse_filter=Control.MOUSE_FILTER_IGNORE
-  _place(divider,Rect2(x,12,1,18),info)
- var order_tone=RED if view.run_header.last else CYAN
- var order_badge=Panel.new();order_badge.name="HeaderOrderBadge";order_badge.mouse_filter=Control.MOUSE_FILTER_IGNORE
- var order_style=_style(order_tone.darkened(0.82),order_tone.darkened(0.62),6);order_style.shadow_size=0
- order_badge.add_theme_stylebox_override("panel",order_style)
- _place(order_badge,Rect2(262,7,100,28),info)
- for entry in [["HeaderFloor",view.run_header.location,12,96,20,GOLD],["HeaderRound",view.run_header.turn,132,108,17,TEXT],["HeaderOrder",view.run_header.order,262,100,16,order_tone]]:
-  var label=_label(entry[1],entry[4],entry[5]);label.name=entry[0]
-  label.autowrap_mode=TextServer.AUTOWRAP_OFF;label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
-  _place(label,Rect2(entry[2],0,entry[3],42),info)
- if view.wall!="none":
-  var distance_label=_label("距墙%d格" % view.wall_position.distance,16,MUTED)
-  distance_label.name="WallPosition"
-  distance_label.autowrap_mode=TextServer.AUTOWRAP_OFF;distance_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;distance_label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
-  _place(distance_label,Rect2(384,0,118,42),info)
- var security_label=_label("警戒度%d级" % view.security,16,GOLD)
- security_label.name="HeaderSecurity"
- security_label.autowrap_mode=TextServer.AUTOWRAP_OFF;security_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;security_label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
- _place(security_label,Rect2(526,0,136,42),info)
- var book=_button("教程书",func():_open_tutorial(),GOLD)
- book.name="OpenTutorial"
- for state in ["normal","hover","pressed"]:
-  var glow=_style(Color("514127") if state=="normal" else Color("695433") if state=="hover" else Color("3c3020"),Color("e4c17e"),8)
-  glow.shadow_color=Color(0.79,0.65,0.34,0.22);glow.shadow_size=4
-  book.add_theme_stylebox_override(state,glow)
-  book.add_theme_color_override("font_color" if state=="normal" else "font_"+state+"_color",Color("ffe4a6"))
- _place(book,Rect2(714,12,100,38))
- var status_button=_button("状态 !" if view.pressure.overloaded else "状态",func():_open_drawer("show_pressure"),RED if view.pressure.overloaded else CYAN)
- status_button.name="OpenStatus";_place(status_button,Rect2(830,12,144,38))
- var items_button=_button("道具 %d / %d" % [view.carried_items,view.capacity],func():_open_drawer("show_items"));items_button.name="OpenItems"
- _place(items_button,Rect2(990,12,154,38))
- var deck_button=_button("卡组 %d" % view.deck_count,func():_open_drawer("show_deck"));deck_button.name="OpenDeck"
- _place(deck_button,Rect2(1160,12,118,38))
- var in_prison=view.prison.get("active",false) or view.phase in ["captured","prison_end"]
- var map_button=_button("牢房说明" if in_prison else "返回房间" if show_route and view.phase in ["battle","prepare","reward","rest","event","shop","treasure","departure"] else ("练习说明" if view.practice else "塔路"),func():
-  if in_prison:
-   _open_tutorial("prison")
-  elif view.phase in ["battle","prepare","reward","rest","event","shop","treasure","departure"]:
-   show_route=not show_route;_close_drawers()
-   selected_card=""; show_body=false
-   render(view),CYAN)
- map_button.name="OpenPrisonTutorial" if in_prison else "OpenMap";_place(map_button,Rect2(1294,12,118,38))
- var menu_button=_button("菜单 !" if save_failed else "菜单 ≡",func():_open_drawer("show_menu"),RED if save_failed else MUTED)
- menu_button.name="OpenMenu";_place(menu_button,Rect2(1428,12,136,38))
+ var header=preload("res://ui/shell/header.tscn").instantiate()
+ _place(header,Rect2(0,0,1600,62))
+ header.configure(self)
  _relic_row()
 
 func _relic_row() -> void:
@@ -631,13 +573,7 @@ func _status_strip(owner: String, rect: Rect2, parent: Control=null, vertical: b
  for entry in entries: row.add_child(_status_control(entry,true))
 
 func _battle_scene() -> void:
- var hero=Arena.new()
- hero.name="HeroArt"
- hero.fixed_portrait=display_settings.fixed_hero_portrait or game.Character.active(game)
- hero.pose=view.posture
- hero.has_restraint_level=view.has_restraint_level
- hero.hero_view=view
- _place(hero,HERO_STAGE_RECT)
+ layout.hero_portrait(view,display_settings.fixed_hero_portrait or game.Character.active(game),HERO_STAGE_RECT)
  var hero_target=_actor_drop_area(HERO_STAGE_RECT.grow_individual(-38,0,-38,0))
  hero_target.accepted_kind="player"
  hero_target.hover_card=func(data): _player_drag_preview(data)
@@ -677,10 +613,9 @@ func _battle_scene() -> void:
  var enemy_row_start=ENEMY_STAGE_LEFT+(ENEMY_STAGE_WIDTH-enemy_row_width)/2.0
  for i in range(enemy_count):
   var e=living[i]
-  var group=Control.new();group.name="EnemyGroup_"+e.id
-  group.mouse_filter=Control.MOUSE_FILTER_IGNORE
+  var group=layout.enemy_group(e,display_settings)
   var screen_x=enemy_row_start+i*ENEMY_GROUP_WIDTH*enemy_scale
-  _place(group,Rect2(screen_x,497.0*(1.0-enemy_scale),ENEMY_GROUP_WIDTH,497))
+  group.position=Vector2(screen_x,497.0*(1.0-enemy_scale))
   group.scale=Vector2.ONE*enemy_scale
   var x=(ENEMY_GROUP_WIDTH-226.0)/2.0
   var guard=e.type in ["guard","six_bind","puppeteer"]
@@ -694,10 +629,9 @@ func _battle_scene() -> void:
    icon.z_index=8
    icon.mouse_entered.connect(func():_show_term(icon,entry));icon.mouse_exited.connect(_hide_term)
    icon.focus_entered.connect(func():_show_term(icon,entry));icon.focus_exited.connect(_hide_term)
-  var picture=Arena.new(); picture.name="EnemyArt_"+e.id;picture.mode=e.type;picture.variant=e.visual_variant;picture.inactive=e.gone
-  picture.template=e.template;picture.art_settings=display_settings
+  var picture=group.get_child(0)
   var picture_rect=Rect2(x+35,126,156,288) if e.type=="guard" else (Rect2(x-8,126,242,288) if guard else Rect2(x-19,198,264,216))
-  _place(picture,picture_rect,group)
+  picture.position=picture_rect.position;picture.size=picture_rect.size
   var receiver_rect=picture_rect
   var receiver=_actor_drop_area(receiver_rect,group,true)
   receiver.pressed.connect(func():_select_enemy(e.id))
@@ -796,7 +730,7 @@ func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: St
   extra.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT;extra.autowrap_mode=TextServer.AUTOWRAP_OFF
   _place(extra,Rect2(detail.size.x+12,31,rect.size.x-detail.size.x-22,17),btn)
  var tooltip=("当前施法成功率："+c.casting.percent+"\n" if c.has("casting") else "")+c.detail
- if c.has("casting"): tooltip+="\n失败返还本次耗魔的50%，能量照扣，火球术次数不消耗。"
+ if c.has("casting"): tooltip+="\n失败返还本次耗魔的50%，能量照扣。"+("蓄力保留，精神集中失去1层。" if c.payload.get("witch_action",false) else "火球术次数不消耗。")
  if not c.valid: tooltip+="\n"+c.reason
  if c.risk!="": tooltip+="\n"+c.risk
  if can_flip: tooltip+="\n右键切换招式"
@@ -1134,40 +1068,7 @@ func _body_card_actions(slot: String, uid: String) -> Array:
  return unique
 
 func _body_drawer() -> void:
- var panel=_panel(Rect2(24,82,330,512))
- panel.name="BodyEquipmentPanel"
- panel.z_index=20
- var canvas=Control.new();panel.add_child(canvas)
- _place(_label("身体与拘束具",21,GOLD),Rect2(0,0,306,30),canvas)
- var portrait=EquipmentPortrait.new();portrait.name="EquipmentPortrait";portrait.configure(view,display_settings.fixed_hero_portrait or game.Character.active(game))
- _place(portrait,Rect2(0,34,178,454),canvas)
- var divider=ColorRect.new();divider.color=GOLD.darkened(0.65);divider.mouse_filter=Control.MOUSE_FILTER_IGNORE
- _place(divider,Rect2(178,36,1,442),canvas)
- var index=0
- for body in view.body_groups:
-  var b=_button(body.name+("  "+str(body.count) if body.occupied else "")+("·链" if not body.links.is_empty() else ""),func():
-   show_body=not show_body if _body_at(selected_slot).id==body.id else true
-   selected_slot=body.id; selected_candidate=""; player_pick=false
-   render(view),CYAN if body.id==_body_at(selected_slot).id else (GOLD if body.occupied else MUTED.darkened(0.5)),true)
-  b.tooltip_text=body.name+(" · %d件" % body.count if body.occupied else " · 自由")
-  if body.can_release:
-   b.add_theme_stylebox_override("normal",_style(Color("254b50"),CYAN))
-   b.tooltip_text+=" · 可一键解除"
-  b.set_meta("can_release",body.can_release)
-  b.name="BodySlot_"+body.id;b.custom_minimum_size=Vector2(120,29)
-  b.accepted_kind="any"
-  b.add_theme_font_size_override("font_size",12)
-  b.hover_card=func(data):
-   _show_drop_targets(body.id,data)
-  b.accept_card=func(data):
-   var c=_free_player_candidate(data,body.id)
-   return not c.is_empty() and c.valid
-  b.receive_card=func(data):
-   var c=_free_player_candidate(data,body.id)
-   if not c.is_empty() and c.valid: call_deferred("_submit",c,int(data.version))
-  _place(b,Rect2(186,34+index*32,120,29),canvas);body_buttons[body.id]=b
-  for alias in body.slots: body_buttons[alias]=b
-  index+=1
+ layout.body_sidebar(self)
  if not _selecting_hand() and (show_body or selected_card!="" or view.pending_retain): _body_details()
 
 func _body_equipment_entries(body: Dictionary) -> Dictionary:
@@ -1826,6 +1727,7 @@ func _submit(c: Dictionary, expected_version: int=-1) -> void:
  var updated=game.get_view()
  notice="" if result.ok else result.error
  if result.ok:
+  if c.payload.get("witch_action",false) and not c.payload.charge_action: attack_forms[c.payload.type]=0
   _save_progress()
   if c.payload.kind=="demo_continue": _reset_interface(updated)
   player_pick=false

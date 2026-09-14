@@ -50,6 +50,10 @@ static func gain(g, id: String) -> void:
  g.state.pressure=cap_pressure(g,g.state.pressure)
 
 static func gain_reason(g, id: String) -> String:
+ if not g.Character.relic_allowed(g,id): return "该遗物不适用于当前角色。"
+ if g.Character.active(g):
+  if id=="cursed_plate_lock": return "该角色没有此遗物所需的身体部位。"
+  if g.Relics.TYPES[id].get("pickup_cards",[]).any(func(type):return not g.Character.allowed_card(g,type)): return "该遗物提供的卡牌不适用于当前角色。"
  if id=="shining_lamp" and g.state.mana_max-50<g.B.MANA_MAX_FLOOR: return "魔力上限不足以降低50点。"
  return ""
 
@@ -83,6 +87,11 @@ static func begin_combat(g) -> void:
  g.state.energy=0
  _mana_hook(g,"opening_mana","战斗开始")
  for id in g.state.relics:
+  if g.Character.active(g) and g.state.phase=="battle":
+   var focus=int(g.Relics.TYPES[id].modifiers.get("battle_opening_focus",0))
+   if focus>0:
+    g.state.witch_focus+=focus
+    g._emit("event",g.Relics.TYPES[id].name+"：精神集中＋%d。" % focus,{"relic_trigger":{"id":id,"name":g.Relics.TYPES[id].name}})
   var amount=int(g.Relics.TYPES[id].modifiers.get("opening_charge",0))
   if amount<=0: continue
   g._gain_charge(amount)
@@ -153,6 +162,11 @@ static func begin_turn(g) -> void:
  g.state.combat.successful_spells=[]
  g.state.combat.mana_used=false
  for id in g.state.relics:
+  if g.Character.active(g) and g.state.phase=="battle":
+   var reserve=int(g.Relics.TYPES[id].modifiers.get("battle_turn_reserve",0))
+   if reserve>0:
+    g.state.temporary_mana+=reserve*5.0
+    g._emit("event",g.Relics.TYPES[id].name+"：获得%d层魔力预备。" % reserve,{"relic_trigger":{"id":id,"name":g.Relics.TYPES[id].name}})
   var opening=int(g.Relics.TYPES[id].modifiers.get("opening_energy",0))
   if g.state.combat.first_turn and opening>0:
    g.state.energy+=opening

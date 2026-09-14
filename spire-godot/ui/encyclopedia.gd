@@ -16,7 +16,7 @@ var grades: OptionButton
 var count: Label
 
 func setup(ui) -> void:
- host=ui;rows=Catalog.entries();name="Encyclopedia"
+ host=ui;rows=Catalog.entries(ui.game);name="Encyclopedia"
  size_flags_vertical=Control.SIZE_EXPAND_FILL;add_theme_constant_override("separation",20)
  var sidebar=VBoxContainer.new();sidebar.custom_minimum_size.x=160;add_child(sidebar)
  for id in Catalog.CATEGORIES:

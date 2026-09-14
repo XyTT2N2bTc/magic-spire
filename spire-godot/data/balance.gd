@@ -173,7 +173,7 @@ static func card_info(type: String, mana: Variant=null, base: Variant=null, inli
   if traits.get("unplayable",false): result[side]="不可打出。"+result[side]
   if traits.get("retain",false): result[side]+="保留。"
   if rules.unique_face(type,side==2): result[side]+="唯一。"
-  if traits.get("exhaust",false): result[side]+="消耗。"
+  if rules.exhausts(type,side==2,traits): result[side]+="消耗。"
   if traits.get("ethereal",false): result[side]+="虚无。"
   if traits.get("innate",false): result[side]="固有。"+result[side]
  return result

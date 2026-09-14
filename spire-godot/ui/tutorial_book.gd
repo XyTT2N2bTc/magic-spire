@@ -11,7 +11,7 @@ var caption: Label
 var categories: Dictionary={}
 
 func setup(ui, initial: String="") -> void:
- host=ui;category="basics" if initial=="" else initial;rows=Book.entries()
+ host=ui;category="basics" if initial=="" else initial;rows=Book.entries(ui.game)
  name="TutorialBook";size_flags_vertical=Control.SIZE_EXPAND_FILL
  add_theme_constant_override("separation",22)
  var left=VBoxContainer.new();left.custom_minimum_size.x=170;add_child(left)

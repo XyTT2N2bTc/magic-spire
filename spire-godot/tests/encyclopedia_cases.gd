@@ -30,7 +30,8 @@ static func run(t) -> void:
   seen.append(key)
  var variants=["magic_hand_gift","hannya_swallow","hannya_infusion","hannya_henshin","hannya_2","hannya_3","hannya_4","good_soup","double_unlock"]
  var card_entries=entries.filter(func(e):return e.category=="cards")
- t.check(card_entries.size()==Book.Cards.SPECS.size()-variants.size() and variants.all(func(type):return not card_entries.any(func(e):return e.id==type)),"BOOK duplicate special variants omitted from public entries")
+ var visible_types=Book.Cards.SPECS.keys().filter(func(type):return not Book.Cards.SPECS[type].get("encyclopedia_hidden",false))
+ t.check(card_entries.size()==visible_types.size() and variants.all(func(type):return not card_entries.any(func(e):return e.id==type)) and not card_entries.any(func(e):return e.id.begins_with("witch_")),"BOOK duplicate special variants and other-character cards omitted from original entries")
  for type in variants:
   t.check(Book.Cards.SPECS.has(type) and Book.card(type).name==Book.B.CARD_NAMES[type],"BOOK hidden variant retains full gameplay card display: "+type)
  for original in Book.CARD_VARIANTS:
@@ -54,7 +55,7 @@ static func run(t) -> void:
  t.check(not entries.filter(func(e):return e.category=="special" and e.id=="urethral_full_cup_high")[0].text.contains("固定滑脱伤害"),"BOOK integrated urethral cup does not inherit the separate rod-family rule")
  t.check(entries.filter(func(e):return e.category=="enemies").size()==Book.N.TYPES.size(),"BOOK all registered enemies included, not pending designs")
  var relics=entries.filter(func(e):return e.category=="relics")
- t.check(relics.size()==g.Relics.TYPES.size() and relics.all(func(e):return e.rarity==g.Relics.TYPES[e.id].rarity and e.rarity_name==g.Relics.RARITIES[e.rarity]),"RELIC every registered relic has its authoritative rarity in encyclopedia")
+ t.check(relics.size()==g.Relics.TYPES.values().filter(func(spec):return spec.get("character_id","")!="witch").size() and relics.all(func(e):return e.rarity==g.Relics.TYPES[e.id].rarity and e.rarity_name==g.Relics.RARITIES[e.rarity]),"RELIC every registered relic has its authoritative rarity in encyclopedia")
  t.check(relics.any(func(e):return e.id=="ember" and e.group=="初始遗物") and "ember" not in g.Relics.REWARDS,"RELIC starter classification does not add it to reward sources")
  var projected=g.get_view().relics[0]
  t.check(projected.rarity=="common" and projected.rarity_name=="普通" and projected.detail==g.Relics.TYPES[projected.id].detail,"RELIC owned view keeps effect and explicit rarity together")

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$Directory)
+param([Parameter(Mandatory)][string]$Directory,[switch]$ChargeAll,[switch]$WitchBalance)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'find-godot.ps1')
 $releaseDirectory=(Resolve-Path -LiteralPath $Directory).Path
@@ -22,6 +22,9 @@ function Invoke-PackageCheck {
     $start.Environment['APPDATA']=Join-Path $checkDirectory 'profile'
     $start.Environment['SPIRE_PROBE_SAVES']=Join-Path $checkDirectory 'saves'
     $start.Environment['SPIRE_PROBE_CONTENT']=Join-Path $releaseDirectory 'content/packs'
+    $start.Environment['SPIRE_PROBE_VERSION']=[string]$manifest.version
+    if ($ChargeAll) { $start.Environment['SPIRE_PROBE_CHARGE_ALL']='1' }
+    if ($WitchBalance) { $start.Environment['SPIRE_PROBE_WITCH_BALANCE']='1' }
     foreach ($argument in (@('--log-file',$log)+$Arguments)) { $start.ArgumentList.Add($argument) }
     $process=[Diagnostics.Process]::Start($start)
     try {
