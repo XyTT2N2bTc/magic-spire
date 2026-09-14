@@ -103,7 +103,7 @@ static func bulk_release(t) -> void:
  var energy=g.state.energy
  var result=t.action(g,"card",{"uid":card.uid,"free":false})
  t.check(result.ok and g.Cards.restraint_roots(g).is_empty() and result.card_feedback.filter(func(e):return e.kind=="draw").size()==expected,"EMBRACE batch release draws per whole physical restraint, not per component")
- t.check(g.state.energy==energy-2+expected,"EMBRACE batch release grants one energy per physical root")
+ t.check(g.state.energy==energy-g.Cards.Rules.energy_cost("henshin",false)+expected,"EMBRACE batch release grants one energy per physical root")
  g=fresh();activate(t,g,true);activate(t,g,false)
  var forearm=Replace.install(g,Replace.request("forearm",1,1,"mid_forearm"))
  var wrist=Replace.install(g,Replace.request("wrist",1,1))

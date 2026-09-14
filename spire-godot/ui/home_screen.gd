@@ -8,13 +8,14 @@ func _ready() -> void:
  mouse_filter=Control.MOUSE_FILTER_IGNORE
  texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
  var character=OptionButton.new();character.name="CharacterSelect"
- character.add_item("角色1 · 原版");character.add_item("角色2 · 蓄能魔女")
+ character.add_item(ui._text("ui.home.character.original","魔法少女(futa)"))
+ character.add_item(ui._text("ui.home.character.witch","小魔女·测试版"))
  character.select(1 if ui.selected_character=="witch" else 0)
  character.add_theme_font_size_override("font_size",18)
  ui._place(character,Rect2(1030,140,365,36),self)
  var character_hint=ui._label("",18,ui.CYAN);character_hint.name="CharacterDescription"
  ui._place(character_hint,Rect2(150,505,690,140),self)
- var refresh_character=func(): character_hint.text="分部位蓄力 · 法术释放消耗该部位全部蓄力\n精神集中强化魔法，2层蓄力可抵挡对应部位的拘束。魔力／快感上限75，初始魔瓶50魔力。\n11张初始牌 · 独立卡池 · 固定站立立绘" if ui.selected_character=="witch" else "原角色的基础动作、卡牌与规则保持不变。"
+ var refresh_character=func(): character_hint.text="分部位施法预备 · 每部位每回合释放1次\n精神集中强化魔法，2层施法预备可抵挡对应部位的拘束。魔力／快感上限75，初始魔瓶50魔力。\n11张初始牌 · 独立卡池 · 固定站立立绘" if ui.selected_character=="witch" else "原角色的基础动作、卡牌与规则保持不变。"
  character.item_selected.connect(func(index):ui.selected_character="witch" if index==1 else "original";refresh_character.call())
  refresh_character.call()
  var title=ui._label(ui._text("ui.home.title","紧缚尖塔"),96,ui.GOLD);title.name="HomeTitle"

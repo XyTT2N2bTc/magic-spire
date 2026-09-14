@@ -211,8 +211,8 @@
 
 | behavior | 行动骨架 | 附加定义 |
 |---|---|---|
-| `restraint` | 初级2档随机施加→加固同类，优先自身来源，生成意图时无目标才改选既有施加→准备→中级2档附着并离场 | `install_pool/final_pool`；真实子位置与最低品质过滤 |
-| `attachment` | 准备两次→固定部位附着并离场 | `attachment_slot/attachment_pool`；当前为初级2档口球，口部容量1 |
+| `restraint` | 初级2档随机施加→加固同类，优先自身来源，生成意图时无目标才改选既有施加→准备→中级3档附着并离场 | `install_pool/final_pool`；真实子位置与最低品质过滤 |
+| `attachment` | 准备两次→固定部位附着并离场 | `attachment_slot/attachment_pool`；当前为中级3档口球，口部容量1 |
 | `dispenser` | 准备→佩戴→停顿，循环不离场 | `special_pool` 显式白名单，复用特殊装备工厂 |
 | `lock` | 预告上锁→上锁，循环不离场，仅已有装备 | 共用上锁资格、预告与目标复核 |
 | `guard` | 既有警卫序列、附加行动、收押准备与执行 | `core/guard.gd`，不是任意动作数组解释器 |

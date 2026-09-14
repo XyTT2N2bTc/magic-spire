@@ -116,7 +116,7 @@ static func henshin_capture(t) -> void:
   var enemy=g.state.enemies[0]
   enemy.stage=4
   preload("res://tests/guard_cases.gd").bind(g,enemy)
-  g.state.energy=4 if free else 2
+  g.state.energy=g.Cards.Rules.energy_cost("henshin",free)
   t.check(cast(t,g,"henshin",free).ok,"HENSHIN casts with capture active")
   t.check(g.state.guard_bind.is_empty()==not free,"HENSHIN only release face clears capture")
   if not free:

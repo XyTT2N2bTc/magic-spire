@@ -155,12 +155,12 @@ static func validate(g, s: Dictionary) -> String:
   if not g.Snapshot.fields(e,"id:s cards:z changes:d relics:z potion:s curse:s") or e.id not in Data.GROUPS[i]: return "开局选项分类不正确。"
   if e.id in ["uncommon","rare_card"]:
    var pool=g.Cards.Rules.UNCOMMON if e.id=="uncommon" else g.Cards.Rules.RARE
-   if e.cards.size()!=3 or not e.cards.all(func(id):return g.Character.reward_member(g,id,s.get("character_id","original")) and id.trim_prefix("witch_") in pool) or e.cards[0]==e.cards[1] or e.cards[0]==e.cards[2] or e.cards[1]==e.cards[2]: return "开局奖励牌不正确。"
+   if e.cards.size()!=3 or not e.cards.all(func(id):return g.Character.reward_member(g,id,s.get("character_id","original")) and id in g.Character.pool(g,pool,s.get("character_id","original"))) or e.cards[0]==e.cards[1] or e.cards[0]==e.cards[2] or e.cards[1]==e.cards[2]: return "开局奖励牌不正确。"
   elif not e.cards.is_empty(): return "开局选项不应含有奖励牌。"
   if e.id=="transform":
    if e.changes.is_empty(): return "变化结果缺失。"
    for uid in e.changes:
-    if not uid is String or not g.Character.reward_member(g,e.changes[uid],s.get("character_id","original")) or e.changes[uid].trim_prefix("witch_") not in g.Cards.Rules.COMMON+g.Cards.Rules.UNCOMMON: return "变化结果不正确。"
+    if not uid is String or not g.Character.reward_member(g,e.changes[uid],s.get("character_id","original")) or e.changes[uid] not in g.Character.pool(g,g.Cards.Rules.COMMON+g.Cards.Rules.UNCOMMON,s.get("character_id","original")): return "变化结果不正确。"
   elif not e.changes.is_empty(): return "开局选项不应含有变化结果。"
   var tiers={"common_relic":["common"],"rare_relic":["rare"],"basics":["common","uncommon"],"wrist":["uncommon"],"boss":["boss"]}.get(e.id,[])
   if e.relics.size()!=tiers.size(): return "开局遗物数量不正确。"

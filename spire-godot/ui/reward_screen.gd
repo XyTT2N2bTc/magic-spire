@@ -10,8 +10,7 @@ static func build(ui) -> void:
   return
  var root=Control.new();root.name="BattleRewards";root.z_index=80;root.mouse_filter=Control.MOUSE_FILTER_IGNORE
  ui._place(root,Rect2(0,0,1600,900))
- var shade=ColorRect.new();shade.color=Color(0.018,0.026,0.04,0.90)
- ui._place(shade,Rect2(0,78,1600,822),root)
+ preload("res://ui/reward_backdrop.gd").build(ui,root,0.90)
  var crest=TextureRect.new();crest.texture=preload("res://assets/ui/crest.svg");crest.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
  crest.mouse_filter=Control.MOUSE_FILTER_IGNORE;ui._place(crest,Rect2(766,101,68,68),root)
  var title=ui._label("选择一件遗物" if ui.show_reward_relics else ("选择一张牌" if ui.show_reward_cards else ui.view.reward_title),36,ui.GOLD)

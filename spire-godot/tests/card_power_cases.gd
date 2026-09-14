@@ -10,6 +10,7 @@ static func fire(t,g) -> Dictionary:
  return t.find_action(g,"attack",{"type":"fireball","enemy":g.state.enemies[0].id})
 
 static func run(t) -> void:
+ preload("res://tests/self_binding_cases.gd").run(t)
  reuse(t)
  preload("res://tests/resonance_cases.gd").run(t)
  preload("res://tests/cumulative_cards_cases.gd").run(t)
@@ -139,66 +140,96 @@ static func stacking(t) -> void:
    t.check(g.state.powers.is_empty() and id not in g.Cards.active_buffs(g),"STACK all layers expire together "+id)
 
 
+static func reuse_setup(t, free: bool, role: String="original"):
+ var Cards=preload("res://tests/curse_cases.gd")
+ var g=Game.new(42,false,"equipment",true,false,25,false,false,role)
+ g._discard_end();g.state.equipment.clear();g.state.relics=[];g.state.energy=30
+ g.add_fixture("wrist",8);g.add_fixture("ankle",8)
+ t.check(Cards.play(t,g,"reuse",free).ok,"MASTERY activates selected face "+role)
+ return g
+
+static func reuse_fail(t,g,type: String="fireball", free: bool=false) -> Dictionary:
+ var Cards=preload("res://tests/curse_cases.gd")
+ g.state.pressure=75
+ var c: Dictionary
+ if type=="fireball": c=fire(t,g)
+ else:
+  var card=Cards.give(g,type)
+  c=t.find_action(g,"card",{"uid":card.uid,"free":free})
+ preload("res://tests/practiced_cases.gd").force_failure(g,type)
+ var before=g.export_snapshot()
+ g.get_view();g.candidates();g.Cards.failure_outcome(g,c)
+ t.check(g.state==before and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"MASTERY previews and stale attempts do not consume quota")
+ t.check(c.valid and g.dispatch(c.id,g.state.version).ok and g._magic_failed,"MASTERY real failed cast "+type)
+ return {"before":before,"candidate":c,"spell":g.state.logs.filter(func(row):return row.data.has("spell")).back().data.spell}
+
 static func reuse(t) -> void:
  var Cards=preload("res://tests/curse_cases.gd")
  var Rules=preload("res://data/card_rules.gd")
- t.check("reuse" in Rules.UNCOMMON and Rules.energy_cost("reuse",true)==1 and Rules.energy_cost("reuse",false)==2 and Rules.unique_face("reuse",true) and Rules.unique_face("reuse",false),"REUSE uncommon reward, asymmetric costs and both unique faces")
- # Positive, nearest counterexamples and exact two-level boundary.
- for levels in [[0,0],[1,2],[2,1],[2,2]]:
-  var g=Game.new(42);g._discard_end();g.state.energy=30;g.state.equipment.clear()
-  if levels[0]>0: g.add_fixture("wrist" if levels[0]==2 else "upper_arm",8)
-  if levels[1]>0: g.add_fixture("ankle" if levels[1]==2 else "thigh",8)
-  var card=Cards.give(g,"reuse")
-  var c=t.find_action(g,"card",{"uid":card.uid,"free":false})
-  var before=g.export_snapshot();g.get_view();g.candidates()
-  var allowed=levels==[2,2]
-  t.check(c.valid==allowed and g.state==before,"REUSE both regions required at exact level two: "+str(levels))
-  t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"REUSE stale play preserves resources, piles and random state")
-  if not allowed:
-   t.check(c.reason.contains("束缚等级需≥2") and not g.dispatch(c.id,g.state.version).ok and g.state==before,"REUSE blocked play reports missing region and rolls back")
-  else:
-   t.check(g.dispatch(c.id,g.state.version).ok and g.state.energy==28 and g.state.powers.size()==1 and g.state.rng.magic==0,"REUSE activation pays two without a spell roll")
- # Each source is refunded to its own pool, without stacking percentages.
- for faces in [[],[true],[false],[true,false]]:
+ t.check("reuse" in Rules.UNCOMMON and Rules.energy_cost("reuse",true)==1 and Rules.energy_cost("reuse",false)==2 and Rules.unique_face("reuse",true) and Rules.unique_face("reuse",false),"MASTERY rarity costs and unique unchanged")
+ t.check(Rules.energy_cost("henshin",false)==3 and Rules.energy_cost("henshin",true)==4 and Rules.energy_cost("hannya_henshin",false)==0 and Rules.energy_cost("hannya_henshin",true)==2,"HENSHIN bound costs three, free remains four, perfect variant unchanged")
+ for role in ["original","witch"]:
+  var g=reuse_setup(t,true,role)
+  t.check(g.B.CARD_NAMES.reuse=="魔路精通" and g.Character.card_id(g,"reuse")=="reuse" and g.Character.card_id(g,"henshin")=="henshin","MASTERY both characters share definitions")
+  for side in [true,false]:
+   var card=Cards.give(g,"reuse");var before=g.export_snapshot()
+   var c=t.find_action(g,"card",{"uid":card.uid,"free":side})
+   t.check(not c.valid and c.reason.contains("互斥") and not g.dispatch(c.id,g.state.version).ok and g.state==before,"MASTERY same and opposite faces reject atomically")
+  var extra=Cards.give(g,"reuse");g.state.hand.erase(extra);extra.power_face="bound";g.state.powers.append(extra)
+  var invalid=g.export_snapshot();var copy=Game.new(0);var before=copy.export_snapshot()
+  t.check(not copy.restore_snapshot(invalid).ok and copy.state==before,"MASTERY snapshot rejects mutually exclusive faces")
+ # Paid basic spell: pure personal, split payment, pure temporary.
+ for side in [true,false]:
   for temporary in [0.0,4.0,30.0]:
-   var g=Game.new(42);g._discard_end();g.state.equipment.clear();g.state.relics=[];g.state.energy=30
-   g.add_fixture("wrist",8);g.add_fixture("ankle",8)
-   for free in faces: t.check(Cards.play(t,g,"reuse",free).ok,"REUSE activates each distinct face")
-   g.state.pressure=75;g.state.mana=50;g.state.temporary_mana=temporary
-   var cursor=g.state.rng.get("magic",0)
-   while g._random_index("magic",g.B.CAST_ROLL_STEPS)<g.cast_view().winning_rolls: cursor=g.state.rng.magic
-   g.state.rng.magic=cursor
-   var c=fire(t,g);var before=g.export_snapshot()
-   var permanent_rate=0.8 if false in faces else 0.5
-   var temporary_rate=0.8 if not faces.is_empty() else 0.5
-   t.check(g.dispatch(c.id,g.state.version).ok and g._magic_failed,"REUSE real paid spell fails")
-   var spell=g.state.logs.filter(func(row):return row.data.has("spell")).back().data.spell
-   t.check(is_equal_approx(g.state.mana,before.mana-c.mana_payment.mana*(1-permanent_rate)) and is_equal_approx(g.state.temporary_mana,before.temporary_mana-c.mana_payment.temporary_mana*(1-temporary_rate)),"REUSE separate refund pools for "+str(faces)+" temporary="+str(temporary))
-   t.check(is_equal_approx(spell.mana_refund.mana,c.mana_payment.mana*permanent_rate) and is_equal_approx(spell.mana_refund.temporary_mana,c.mana_payment.temporary_mana*temporary_rate) and g.state.energy==before.energy-c.cost and g.state.flask_mana==before.flask_mana,"REUSE structured log matches refunds, energy remains spent and flask untouched")
- var g=Game.new(42);g._discard_end();g.state.energy=30;g.state.equipment.clear()
- var wrist=g.add_fixture("wrist",8);g.add_fixture("ankle",8)
- Cards.play(t,g,"reuse",true);Cards.play(t,g,"reuse",false)
- for free in [true,false]:
-  var card=Cards.give(g,"reuse");var before=g.export_snapshot()
-  t.check(not t.action(g,"card",{"uid":card.uid,"free":free}).ok and g.state==before,"REUSE same face unique rejects duplicate without payment")
- g._equipment(wrist.id).durability=0;g._cleanup()
- t.check(g.Cards.failure_refund_rates(g)=={"mana":0.5,"temporary_mana":0.8} and g.get_view().statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("未生效")),"REUSE removal immediately pauses bound refund and preserves free refund")
- g.add_fixture("wrist",8)
- t.check(g.Cards.failure_refund_rates(g)=={"mana":0.8,"temporary_mana":0.8},"REUSE re-equipping restores eighty percent refund without replaying the power")
+   var g=reuse_setup(t,side);g.state.mana=50;g.state.temporary_mana=temporary
+   var result=reuse_fail(t,g);var c=result.candidate;var before=result.before
+   var eligible=not side or c.mana_payment.mana==0
+   var rate=(0.0 if side else 1.0) if eligible else 0.5
+   t.check(is_equal_approx(g.state.mana,before.mana-c.mana_payment.mana*(1-rate)) and is_equal_approx(g.state.temporary_mana,before.temporary_mana-c.mana_payment.temporary_mana*(1-rate)),"MASTERY actual refund matches paid sources")
+   t.check(g.state.energy==before.energy-c.cost+(1 if eligible else 0) and result.spell.energy_refund==(1 if eligible else 0) and g.state.flask_mana==before.flask_mana,"MASTERY energy and log agree; flask untouched")
+   t.check(g.state.powers[0].power_failure_count==0,"MASTERY paid actions never consume zero-card quota")
+ # Zero-energy spells: exactly two conversions, third returns normal 50%.
+ for side in [true,false]:
+  var g=reuse_setup(t,side)
+  for n in range(3):
+   g.state.mana=50;g.state.temporary_mana=30
+   var result=reuse_fail(t,g,"mana_surge")
+   var rate=(0.0 if side else 1.0) if n<2 else 0.5
+   t.check(result.candidate.cost==0 and result.spell.energy_refund==(1 if n<2 else 0) and is_equal_approx(result.spell.mana_refund.temporary_mana,result.candidate.mana*rate),"MASTERY zero-card conversion exact quota "+str(n))
+  t.check(g.state.powers[0].power_failure_count==2,"MASTERY counter saturates at limit")
+  var copy=Game.new(0)
+  t.check(copy.restore_snapshot(g.export_snapshot()).ok and copy.state.powers[0].power_failure_count==2,"MASTERY saving cannot refresh spent quota")
+  var bad=g.export_snapshot();bad.powers[0].power_failure_count=3;var before=copy.export_snapshot()
+  t.check(not copy.restore_snapshot(bad).ok and copy.state==before,"MASTERY invalid quota restores atomically")
+  g._begin_player_turn()
+  t.check(g.state.powers[0].power_failure_count==0,"MASTERY next turn restores two opportunities")
+ # Dynamic 2/2 -> 3/2 -> 3/3 -> 2/3 -> missing requirement.
+ var g=reuse_setup(t,false);g.state.powers[0].power_failure_count=2
  var palm=g.add_fixture("palm",8)
- t.check(g.level("arms")==3 and g.level("legs")==2 and g.Cards.failure_refund_rates(g).mana==0.8,"REUSE only upper level three does not upgrade refund")
- var foot=g.add_fixture("foot",8)
- t.check(g.level("arms")==3 and g.level("legs")==3 and g.Cards.failure_refund_rates(g)=={"mana":1.0,"temporary_mana":1.0},"REUSE both regions at three immediately upgrade to full refund")
- g.state.pressure=99;g.state.mana=50;g.state.temporary_mana=4
- var full=fire(t,g);var full_before=g.export_snapshot()
- t.check(g.dispatch(full.id,g.state.version).ok and g._magic_failed and g.state.mana==full_before.mana and g.state.temporary_mana==full_before.temporary_mana and g.state.energy==full_before.energy-full.cost,"REUSE live three-three failure returns both entire payments but never energy")
- g._equipment(palm.id).durability=0;g._cleanup()
- t.check(g.level("arms")==2 and g.level("legs")==3 and g.Cards.failure_refund_rates(g).mana==0.8,"REUSE only lower level three and downgrade immediately use eighty percent")
- g.add_fixture("palm",8)
- var restored=Game.new(0)
- t.check(restored.restore_snapshot(g.export_snapshot()).ok and restored.Cards.failure_refund_rates(restored)==g.Cards.failure_refund_rates(g),"REUSE current save restores both faces and live eligibility")
- g.state.pressure=0;g.state.mana=50;g.state.temporary_mana=4
+ g.state.mana=50;g.state.temporary_mana=30
+ var result=reuse_fail(t,g,"mana_surge")
+ t.check(g.level("arms")==3 and g.level("legs")==2 and result.spell.energy_refund==0,"MASTERY one level-three region does not remove cap")
+ g.add_fixture("foot",8)
+ for n in range(3):
+  g.state.mana=50;g.state.temporary_mana=30
+  result=reuse_fail(t,g,"mana_surge")
+  t.check(g.level("arms")==3 and g.level("legs")==3 and result.spell.energy_refund==1 and result.spell.mana_refund.temporary_mana==result.candidate.mana,"MASTERY both regions level three permit repeated full refunds")
+ g._equipment(palm.id).durability=0;g._cleanup();g.state.temporary_mana=30
+ result=reuse_fail(t,g,"mana_surge")
+ t.check(result.spell.energy_refund==0 and g.state.powers[0].power_failure_count==2,"MASTERY lowering a region restores cap without refreshing it")
+ g.state.equipment.clear();g.state.temporary_mana=30
+ result=reuse_fail(t,g)
+ t.check(result.spell.energy_refund==0 and g.get_view().statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("未生效")),"MASTERY lost requirement immediately pauses conversion")
+ g.add_fixture("wrist",8);g.add_fixture("ankle",8);g.state.temporary_mana=30
+ result=reuse_fail(t,g)
+ t.check(result.spell.energy_refund==1,"MASTERY re-equipping reactivates without replaying power")
+ # Success, replay, zero-mana and lifecycle boundaries.
+ g=reuse_setup(t,true);g.state.pressure=0;g.state.temporary_mana=30
  var c=fire(t,g);var before=g.export_snapshot()
- t.check(g.dispatch(c.id,g.state.version).ok and not g._magic_failed and is_equal_approx(g.state.mana,before.mana-c.mana_payment.mana) and is_equal_approx(g.state.temporary_mana,before.temporary_mana-c.mana_payment.temporary_mana),"REUSE successful spell gets no failure refund")
+ t.check(g.dispatch(c.id,g.state.version).ok and not g._magic_failed and g.state.energy==before.energy-c.cost and g.state.temporary_mana==before.temporary_mana-c.mana and g.state.powers[0].power_failure_count==0,"MASTERY success never converts refunds or consumes quota")
+ var no_payment=c.duplicate(true);no_payment.mana_payment={"mana":0.0,"temporary_mana":0.0}
+ t.check(g.Cards.failure_outcome(g,no_payment).energy==0,"MASTERY zero mana is not a fully temporary payment")
+ c.payload.replay=true
+ t.check(g.Cards.failure_outcome(g,c).energy==0,"MASTERY replay never generates energy")
  g.Cards.end_powers(g)
- t.check(g.state.powers.is_empty() and g.Cards.failure_refund_rates(g)=={"mana":0.5,"temporary_mana":0.5},"REUSE effect expires with the existing battle power lifecycle")
+ t.check(g.state.powers.is_empty() and g.state.discard.all(func(card):return not card.has("power_failure_count")) and g.validate()=="","MASTERY end of preparation clears power counters")

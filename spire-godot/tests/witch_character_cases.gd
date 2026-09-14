@@ -7,6 +7,7 @@ static func fresh(seed_value: int=42):
  return g
 
 static func run(t) -> void:
+ preload("res://tests/witch_expansion_cases.gd").run(t)
  _revision(t)
  _cards_and_flows(t)
  var original=Game.new(42);var old=original.export_snapshot()
@@ -95,7 +96,7 @@ static func _cards_and_flows(t) -> void:
    candidate=t.find_action(g,"attack",{"type":"witch_mouth","form":1})
    t.check(candidate.cost==0 and g.dispatch(candidate.id,g.state.version).ok and t.find_action(g,"attack",{"type":"witch_hand","form":0}).cost==1,"WITCH discount applies once to any basic action")
   else: t.check(g.state.witch_focus==3,"WITCH ready bound grants three focus")
- g=fresh();g.state.energy=10;card=t.hand_card(g,"witch_magic_hand")
+ g=fresh();g.state.energy=10;card=give(t,g,"magic_hand")
  t.check(t.action(g,"card",{"uid":card.uid,"free":true}).ok,"WITCH magic hand free casts normally")
  t.check(g.state.mana==70 and g.state.evasion==2 and not g.state.card_buffs.has("witch_hand_freedom"),"WITCH magic hand pays thirty for two evasion")
  for free_face in [false,true]:
@@ -115,7 +116,7 @@ static func _cards_and_flows(t) -> void:
  t.check(candidate.brief.begins_with("11.7") and g.dispatch(candidate.id,g.state.version).ok and is_equal_approx(g.state.enemies[0].hp,988.3),"WITCH accumulation uses mana after payment and preview agrees")
  g.Cards.grant_buff(g,"henshin_free");g.state.mana=100
  t.check(g.Cards.bind_payload(g,"witch_strain").preview.damage_buff_multiplier==4.0,"WITCH accumulation and henshin also affect capture escape damage")
- t.check(t.action(g,"attack",{"type":"witch_hand","form":1}).ok and is_equal_approx(g.state.enemies[0].hp,964.9),"WITCH compatible henshin doubles new basic damage")
+ t.check(t.action(g,"attack",{"type":"witch_mind","form":1}).ok and is_equal_approx(g.state.enemies[0].hp,972.7),"WITCH compatible henshin doubles another body part's basic damage")
  g.Cards.end_powers(g)
  t.check(g.state.witch_focus==0 and g.state.witch_charges.values().all(func(n):return n==0),"WITCH preparation end clears character effects")
  var outcomes={}
@@ -138,7 +139,7 @@ static func _cards_and_flows(t) -> void:
   t.check(g.validate()=="" and Game.new(1).restore_snapshot(g.export_snapshot()).ok,"WITCH real opening and departure rewards validate and restore")
   var rng=RandomNumberGenerator.new();rng.seed=seed_value
   var transform=g.Departure.freeze(g,"transform",rng)
-  t.check(transform.changes.size()==10 and transform.changes.values().all(func(type):return g.Character.allowed_card(g,type)),"WITCH all ten basic starter transformations use compatible pool")
+  t.check(transform.changes.size()==11 and transform.changes.values().all(func(type):return g.Character.allowed_card(g,type)),"WITCH all eleven basic starter transformations use compatible pool")
   g.state.room=g.state.rooms.filter(func(room):return room.kind=="shop")[0].id;g.Services.start(g)
   var stock=g.room_data(g.state.room).stock
   t.check(stock.filter(func(row):return row.kind=="card").all(func(row):return g.Character.allowed_card(g,row.type)) and g.validate()=="" and Game.new(1).restore_snapshot(g.export_snapshot()).ok,"WITCH shop offers and save restore use character pool")
@@ -210,7 +211,7 @@ static func _revision(t) -> void:
 
  g=fresh();g.state.energy=20
  var target=g.add_fixture("wrist",10);var other=g.add_fixture("thigh",10)
- var hand=t.hand_card(g,"witch_magic_hand")
+ var hand=give(t,g,"magic_hand")
  var cast=t.find_action(g,"card",{"uid":hand.uid,"free":false,"target":target.id})
  var before=g.export_snapshot()
  t.check(not g.dispatch(cast.id,g.state.version-1).ok and g.state==before,"WITCH revised magic hand stale target refuses atomically")

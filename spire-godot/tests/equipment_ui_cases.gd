@@ -49,7 +49,11 @@ static func run(t) -> void:
  t.check(not ui.find_child("BodySlot_mouth",true,false).get_meta("can_release"),"RELEASE unavailable energy prevents actionable highlight")
  ui.game.state.energy=3;ui.render();await t.frames()
  var old_energy=ui.game.state.energy
+ var old_details=ui.find_child("EquipmentCard_"+removable.id,true,false)
  t.check(await t.click("manual",{"target":removable.id}) and ui.game._equipment(removable.id).is_empty() and ui.game.state.energy==old_energy-1,"RELEASE actual button removes target and pays formal cost")
+ await t.frames()
+ t.check(not is_instance_valid(old_details) and ui.find_child("EquipmentCard_"+removable.id,true,false)==null,"RELEASE removed restraint releases its old detail nodes")
+ t.check(ui.game._equipment_read.is_empty() and ui.candidate_buttons.values().all(func(button):return is_instance_valid(button) and button.is_inside_tree()),"RELEASE no read index or detached action control survives the new state")
  t.check(not ui.find_child("BodySlot_mouth",true,false).get_meta("can_release"),"RELEASE highlight disappears after removal")
  await t.start_practice("Practice_lock_solo")
  var lock_target=ui.game.state.equipment[0]

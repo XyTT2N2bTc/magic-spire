@@ -33,7 +33,7 @@ static func line(cue: String, params: Dictionary, hero: bool=false) -> String:
  return template.format(params)
 
 static func view(logs: Array, need_climax: bool=false) -> Dictionary:
- var speech={};var speech_seen=false;var climax={};var climax_seen=false;var actions=[]
+ var speech={};var speech_seen=false;var npc_speech={};var npc_seen=false;var climax={};var climax_seen=false;var actions=[]
  for i in range(logs.size()-1,-1,-1):
   var log=logs[i]
   var note=log.data.get("action_copy",{})
@@ -68,9 +68,14 @@ static func view(logs: Array, need_climax: bool=false) -> Dictionary:
   elif need_climax and is_climax_log:
    # Never surface an older action line as if it belonged to the current climax.
    speech_seen=true
-  if actions.size()==40 and speech_seen and (climax_seen or not need_climax): break
+  var npc=log.data.get("npc_copy",{})
+  if not npc_seen and npc is Dictionary and npc.get("cue",null) is String:
+   npc_seen=true
+   var npc_text=line(npc.cue,{},true)
+   if npc_text!="": npc_speech={"id":i,"text":npc_text,"cue":npc.cue,"visual":str(npc.get("visual","guard_purple")),"phase":str(log.get("phase",""))}
+  if actions.size()==40 and speech_seen and npc_seen and (climax_seen or not need_climax): break
  actions.reverse()
- return {"speech":speech,"climax":climax,"actions":actions}
+ return {"speech":speech,"npc_speech":npc_speech,"climax":climax,"actions":actions}
 
 static func mouth_mode(equipment: Array) -> String:
  if equipment.is_empty(): return "clear"

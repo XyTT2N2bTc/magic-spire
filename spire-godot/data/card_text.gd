@@ -4,7 +4,7 @@ extends RefCounted
 const Rules=preload("res://data/card_rules.gd")
 const TERMS={
  "mind":{"name":"精神施法","detail":"无需手部或嘴部动作，仍受快感及施法成功率加成影响。"},
- "legs":{"name":"腿部蓄力","detail":"成功率受快感和腿部受限等级影响。"},
+ "legs":{"name":"腿部施法预备","detail":"成功率受快感和腿部受限等级影响。"},
  "witch_focus":{"name":"精神集中","detail":"下次造成伤害的魔法每段伤害增加对应层数，整次施放消耗全部层数。施法失败或高潮时失去1层。跨战斗最多保留2层，乌龟壳提高至4层。"},
  "unique":{"name":"唯一","detail":"同一效果不可叠加，包括复放；不同牌面的效果可以同时生效。原有刷新效果仍只刷新次数或时长。"},
  "traction":{"name":"牵扯","detail":"触发花费能量引起的装备刺激、手牌刺激与捕缚效果。额外牵扯1次按1能量判定，不实际扣能量。"},
@@ -41,6 +41,8 @@ const TERMS={
 static func requirements(type: String, free: bool, names: Dictionary) -> Array:
  var spec=Rules.SPECS[type]
  var result=[]
+ var requirement=spec.get("witch_requirements",{}).get("free" if free else "bound","")
+ if requirement!="": result.append({"mouth_grade":"嘴部拘束等级＜3","mouth_score":"嘴部拘束等级＋紧度＜4","tightness":"各部位拘束总紧度≤3"}[requirement])
  if spec.get("drinking",false): result.append("饮用：受嘴部与姿势限制")
  if spec.get("self_faces",{}).get("free" if free else "bound",{}).get("requires_hand",false): result.append("手部自由")
  if Rules.face_casts(type,free): result.append("施法："+"或".join(spec.casting.parts.map(func(part):return Rules.CAST_PART_NAMES[part])))
@@ -141,7 +143,10 @@ static func mana_entries(type: String, free: bool, cost: float, worn_count: Vari
 
 static func metadata(type: String, traits: Dictionary, names: Dictionary, mana_costs: Dictionary, worn_count: Variant=null) -> Dictionary:
  var result={"face_requirements":{},"face_keywords":{},"cast_faces":{},"face_mana":{},"face_names":{},"free_faces":{}}
+ result.face_type_names={};result.face_warnings={}
  for side in ["bound","free"]:
+  result.face_type_names[side]="／".join(Rules.type_tags(type,side=="free").map(func(tag):return Rules.TYPES[tag]))
+  result.face_warnings[side]=Rules.SPECS[type].get("warning","")
   result.face_names[side]=Rules.face_name(type,side=="free")
   result.free_faces[side]=Rules.free_effect(type,side=="free")
   result.face_requirements[side]=requirements(type,side=="free",names)

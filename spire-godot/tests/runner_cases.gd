@@ -11,6 +11,9 @@ static func run(t) -> void:
     t.check(name in Selection.resolve(t.SUITES.keys(),[area],true).selected,"RUNNER extracted feature keeps its former reward integration coverage: "+name+" / "+area)
  t.check(t.SUITES.values().all(func(suite):return suite==null or suite is String),"RUNNER registries contain resource paths so unselected suites are never preloaded")
  var names=t.SUITES.keys()
+ t.check(Selection.resolve(names,["witch_character"]).selected==["witch_character"],"RUNNER witch character rules have an executable complete scope")
+ for area in Selection.CROSS_AREAS.witch_character:
+  t.check("witch_character" in Selection.resolve(names,[area],true).selected,"RUNNER witch character follows its affected boundary "+area)
  var direct=Selection.resolve(names,["casting","casting"])
  t.check(direct.ok and direct.selected==["casting"] and direct.reasons.casting=="requested","RUNNER focus mode executes only the named complete suite once")
  t.check(not Selection.resolve(names,["contact"]).ok and Selection.resolve(names,["contact"],true).ok,"RUNNER synthetic areas require explicit impact expansion")

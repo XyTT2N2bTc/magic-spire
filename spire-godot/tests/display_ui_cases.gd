@@ -1,6 +1,8 @@
 extends RefCounted
 const Navigation=preload("res://tests/interface_ui_cases.gd")
 const Settings=preload("res://ui/display_settings.gd")
+const Portrait=preload("res://ui/equipment_portrait.gd")
+const Art=preload("res://ui/pixel_art.gd")
 
 static func choose(t, name: String, index: int) -> void:
  var picker=t.ui.find_child(name,true,false)
@@ -8,6 +10,51 @@ static func choose(t, name: String, index: int) -> void:
  if picker==null or picker.disabled: return
  picker.select(index);picker.item_selected.emit(index)
  await t.frames(10)
+
+static func portrait_snapshot_boundary(t) -> void:
+ var ui=t.ui
+ var saved_fixed=ui.display_settings.fixed_hero_portrait
+ var saved_character=ui.selected_character
+ ui.display_settings.fixed_hero_portrait=false
+ ui.selected_character="original";ui.restart(42);await t.frames()
+ var original_game=ui.game;var original_view=ui.view
+ var original_state=original_game.export_snapshot()
+ ui.selected_character="witch";ui.restart(42);await t.frames()
+ var witch_game=ui.game;var witch_view=ui.view
+ var witch_state=witch_game.export_snapshot()
+ var witch_hero=ui.find_child("HeroArt",true,false)
+ var witch_sidebar=ui.find_child("EquipmentPortrait",true,false)
+ t.check(not witch_hero.fixed_portrait and not witch_sidebar.fixed_portrait and witch_hero.get_node("HeroPose").texture==Art.WITCH_POSES[witch_view.posture] and witch_sidebar.texture==Portrait.WITCH_SIDEBAR,"DISPLAY witch snapshot selects its posture art and narrow sidebar crop in both scenes")
+ # Render a detached snapshot while the authoritative game is a different character.
+ # Neither portrait may call live character rules behind that snapshot.
+ ui.render(original_view);await t.frames()
+ t.check(not ui.find_child("HeroArt",true,false).fixed_portrait and not ui.find_child("EquipmentPortrait",true,false).fixed_portrait,"DISPLAY original snapshot controls both portraits even while live game is witch")
+ ui.display_settings.fixed_hero_portrait=true;ui.render(original_view);await t.frames()
+ t.check(ui.find_child("HeroArt",true,false).fixed_portrait and ui.find_child("EquipmentPortrait",true,false).fixed_portrait,"DISPLAY explicit fixed preference still overrides original snapshot in both scenes")
+ ui.display_settings.fixed_hero_portrait=false;ui.game=original_game;ui.render(witch_view);await t.frames()
+ witch_hero=ui.find_child("HeroArt",true,false);witch_sidebar=ui.find_child("EquipmentPortrait",true,false)
+ t.check(not witch_hero.fixed_portrait and not witch_sidebar.fixed_portrait and witch_hero.get_node("HeroPose").texture==Art.WITCH_POSES[witch_view.posture] and witch_sidebar.texture==Portrait.WITCH_SIDEBAR,"DISPLAY witch snapshot controls both character-specific portraits even while live game is original")
+ t.check(original_game.export_snapshot()==original_state and witch_game.export_snapshot()==witch_state,"DISPLAY snapshot rendering and preferences do not change either game's state or random domains")
+ ui.display_settings.fixed_hero_portrait=saved_fixed;ui.selected_character=saved_character
+ ui.restart(42);await t.frames()
+
+static func portrait_composite_boundary(t) -> void:
+ var ui=t.ui
+ var saved_fixed=ui.display_settings.fixed_hero_portrait
+ ui.display_settings.fixed_hero_portrait=false
+ for practice in ["glove_short","glove_long"]:
+  ui.game=preload("res://tests/game_fixture.gd").new(42,true,practice)
+  var before=ui.game.export_snapshot()
+  ui.render();await t.frames()
+  var hero=ui.find_child("HeroArt",true,false)
+  var sidebar=ui.find_child("EquipmentPortrait",true,false)
+  t.check(hero.hero_sprite is Portrait and hero.hero_sprite.texture==sidebar.texture and sidebar.texture==Portrait.BOUND_SINGLE_GLOVE,"DISPLAY composite portrait reaches both arena and sidebar: "+practice)
+  t.check(hero.hero_sprite.active_composite_layers==["single_glove"] and hero.hero_sprite.get_node("Overlay_thigh_root").texture==Portrait.SINGLE_GLOVE_THIGH.free,"DISPLAY arena retains composite layer and matching slice: "+practice)
+  var exposed=ui.view.duplicate(true)
+  var retained=Portrait.snapshot(exposed)
+  exposed.composite_portrait_layers.clear();exposed.body_coverage.clear();exposed.bodies[0].occupied=not exposed.bodies[0].occupied
+  t.check(retained==Portrait.snapshot(ui.view) and not retained.has("candidates") and ui.game.export_snapshot()==before,"DISPLAY retained appearance is detached from mutable input and does not retain gameplay candidates: "+practice)
+ ui.display_settings.fixed_hero_portrait=saved_fixed;ui.restart(42);await t.frames()
 
 static func portrait_refresh(t) -> void:
  var ui=t.ui
@@ -64,8 +111,48 @@ static func portrait_refresh(t) -> void:
  await t.frames(3)
  t.check(enemy.get_instance_id()==enemy_node and draws[2]>0,"DISPLAY matching art imports refresh the existing enemy scene")
 
-static func run(t) -> void:
+static func sidebar_refresh(t) -> void:
  var ui=t.ui
+ ui.restart(42);await t.frames(8)
+ ui.selected_slot="region_upper";ui.show_body=true;ui.render(ui.view);await t.frames(5)
+ var panel=ui.find_child("BodyEquipmentPanel",true,false)
+ panel.size.y=300;await t.frames(5)
+ var scroll=panel.find_child("BodyRegionContent_region_upper",true,false)
+ scroll.scroll_vertical=40;await t.frames(3)
+ var offset=scroll.scroll_vertical
+ var header=ui.body_buttons.region_upper
+ var header_text=header.text
+ var scroll_height=scroll.size.y
+ var wrist=ui.body_buttons.wrist
+ var before=ui.game.export_snapshot()
+ t.check(offset>0,"DISPLAY sidebar fixture has real scrollable overflow")
+ for count in range(3):
+  ui.render(ui.view);await t.frames(3)
+ t.check(ui.body_buttons.region_upper==header and ui.body_buttons.wrist==wrist,"DISPLAY unchanged body controls retain their instances and input index")
+ scroll=panel.find_child("BodyRegionContent_region_upper",true,false)
+ t.check(scroll.scroll_vertical==offset,"DISPLAY ordinary refresh preserves the scrolled body region")
+ t.check(ui.game.export_snapshot()==before,"DISPLAY cached body presentation does not mutate gameplay")
+ # Same visible facts in a fresh view must not depend on dictionary identity.
+ ui.render(ui.view.duplicate(true));await t.frames(3)
+ t.check(ui.body_buttons.wrist==wrist,"DISPLAY equivalent fresh projection retains body controls")
+ ui.localization.set_locale("en_US");ui.render(ui.view);await t.frames(5)
+ t.check(ui.body_buttons.region_upper.text!=header_text and not ui.body_buttons.region_upper.text.contains("手胸"),"DISPLAY body labels update when language changes")
+ ui.localization.set_locale("zh_CN");ui.render(ui.view);await t.frames(5)
+ t.check(ui.body_buttons.region_upper.text.contains("手胸"),"DISPLAY retained sidebar returns to Chinese without stale translated labels")
+ var old_count=ui.view.body_regions.filter(func(region):return region.id=="region_upper")[0].count
+ ui.game.add_fixture("upper_arm",4,10);ui.render();await t.frames(5)
+ var new_count=ui.view.body_regions.filter(func(region):return region.id=="region_upper")[0].count
+ t.check(new_count>old_count and ui.body_buttons.region_upper.text.contains(str(new_count)),"DISPLAY equipment changes invalidate the body count")
+ ui.selected_slot="wrist";ui.render(ui.view);await t.frames(3)
+ t.check(ui.body_buttons.wrist.get_theme_stylebox("hover").border_color==ui.CYAN,"DISPLAY inspection focus refreshes body selection styles")
+ panel.size.y=512;await t.frames(5)
+ t.check(panel.find_child("BodyRegionContent_region_upper",true,false).size.y>scroll_height,"DISPLAY resized body panel recalculates its visible region")
+
+static func run(t) -> void:
+ await portrait_snapshot_boundary(t)
+ await portrait_composite_boundary(t)
+ var ui=t.ui
+ await sidebar_refresh(t)
  await portrait_refresh(t)
  var backdrop=ui.find_child("MoonlitGallery",true,false)
  var static_draws=[0]

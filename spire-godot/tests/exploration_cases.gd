@@ -203,7 +203,7 @@ static func distance_and_warning(t) -> void:
  g=fresh();Fixture.position(g,[0,3]);g._gain_tool("shard");var item=g.state.items[0]
  t.check(t.action(g,"item_install",{"item":item.id,"mount":"hand_wall"}).ok,"EXP tool location uses real installation")
  var installed=Space.view(g).sites.filter(func(site):return site.id=="tool_"+item.id)[0]
- t.check(installed.here and installed.installed.uses==3 and installed.installed.mount==g.Tools.MOUNTS.hand_wall and installed.interaction.item==item.id,"EXP mounted card identifies the actual tool and mount")
+ t.check(installed.here and installed.installed.uses==3 and installed.installed.mount==g.Tools.mount_label("hand_wall") and installed.interaction.item==item.id,"EXP mounted card identifies the actual tool and mount")
  Fixture.position(g,[6,6]);installed=Space.view(g).sites.filter(func(site):return site.id=="tool_"+item.id)[0]
  t.check(installed.distance>installed.initial_distance and installed.initial_distance==3,"EXP mounted distance can exceed fixed entry baseline")
  var saved=g.export_snapshot();var copy=Game.new(9)

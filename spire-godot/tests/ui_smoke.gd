@@ -121,11 +121,20 @@ func close_information() -> void:
 func inspect_body(slot: String) -> void:
  await close_information()
  if ui.show_body and ui._body_at(ui.selected_slot).id==ui._body_at(slot).id: return
+ await reveal_body(slot)
  var point=ui.body_buttons[slot].get_global_rect().get_center()
  await move_mouse(point)
  await mouse_button(point,MOUSE_BUTTON_LEFT,true)
  await mouse_button(point,MOUSE_BUTTON_LEFT,false)
  check(ui.show_body and ui._body_at(ui.selected_slot).id==ui._body_at(slot).id and ui.find_child("EquipmentDetails",true,false)!=null,"BODY native click opens selected body details")
+
+func reveal_body(slot: String) -> void:
+ var button=ui.body_buttons[slot]
+ if button.get_meta("body_id",slot)==ui._body_at(slot).id: return
+ var point=button.get_global_rect().get_center()
+ await move_mouse(point)
+ await mouse_button(point,MOUSE_BUTTON_LEFT,true)
+ await mouse_button(point,MOUSE_BUTTON_LEFT,false)
 
 func click(kind: String, extra: Dictionary={}, settle_feedback: bool=true) -> bool:
  # Result acknowledgement is a real UI click, not a rule action or skipped stage.
@@ -211,6 +220,7 @@ func flip(uid: String) -> void:
 func start_drag(uid: String, slot: String) -> void:
  drag_test_slot=slot
  await close_information()
+ await reveal_body(slot)
  await move_mouse(card_point(uid))
  var point=card_point(uid)
  await mouse_button(point,MOUSE_BUTTON_LEFT,true)

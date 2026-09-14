@@ -13,9 +13,45 @@ var dragging=false
 var scrolling: ScrollContainer
 var pressed_control: WeakRef
 var details_allowed=false
+var popup_context=false
+var active_popup: WeakRef
 
 func _ready() -> void:
  Input.emulate_mouse_from_touch=false
+ popup_context=get_viewport() is PopupMenu
+ if popup_context:
+  get_viewport().popup_hide.connect(cancel)
+ else:
+  get_tree().node_added.connect(_popup_added)
+  _scan_popups(host)
+
+func _scan_popups(node: Node) -> void:
+ if node is PopupMenu: _popup_added(node)
+ for child in node.get_children(true): _scan_popups(child)
+
+func _popup_added(node: Node) -> void:
+ if node is PopupMenu: _attach_popup.call_deferred(weakref(node))
+
+func _attach_popup(reference: WeakRef) -> void:
+ var popup=reference.get_ref()
+ if not is_instance_valid(popup) or not host.is_ancestor_of(popup) or popup.has_node("TouchInput"): return
+ # A PopupMenu owns a separate viewport. Root-window input does not reach it.
+ var bridge=get_script().new();bridge.name="TouchInput";bridge.host=host
+ popup.add_child(bridge)
+ popup.about_to_popup.connect(func():active_popup=reference)
+
+func dismiss_popup() -> bool:
+ var popup=active_popup.get_ref() if active_popup!=null else null
+ if not is_instance_valid(popup) or not popup.visible: return false
+ popup.hide()
+ return true
+
+func _popup_scroller(node: Node) -> ScrollContainer:
+ for child in node.get_children(true):
+  if child is ScrollContainer: return child
+  var result=_popup_scroller(child)
+  if result!=null: return result
+ return null
 
 func _input(event: InputEvent) -> void:
  if event is InputEventScreenTouch:
@@ -34,6 +70,7 @@ func _input(event: InputEvent) -> void:
      scrolling=parent;break
     parent=parent.get_parent()
    if control!=null and "drag_payload" in control and not control.drag_payload.is_empty(): scrolling=null
+   if popup_context and scrolling==null: scrolling=_popup_scroller(get_viewport())
   elif event.index==finger:
    if event.canceled: cancel()
    else: release(event.position)
@@ -47,11 +84,12 @@ func _input(event: InputEvent) -> void:
    move_drag(previous)
   elif point.distance_to(origin)>MOVE_THRESHOLD:
    dragging=true
-   if not is_instance_valid(scrolling):
+   if not popup_context and not is_instance_valid(scrolling):
     motion(origin);button(origin,MOUSE_BUTTON_LEFT,true)
    move_drag(previous)
 
 func _process(delta: float) -> void:
+ if popup_context: return
  if finger<0 or held or dragging: return
  elapsed+=delta
  if elapsed<HOLD_SECONDS: return
@@ -86,18 +124,22 @@ func move_drag(previous: Vector2) -> void:
 func release(position: Vector2) -> void:
  if held: button(position,MOUSE_BUTTON_RIGHT,false)
  elif dragging:
-  if not is_instance_valid(scrolling): button(position,MOUSE_BUTTON_LEFT,false)
+  if not popup_context and not is_instance_valid(scrolling): button(position,MOUSE_BUTTON_LEFT,false)
  else:
   var control=pressed_control.get_ref() if pressed_control!=null else null
-  if is_instance_valid(control) and control.is_visible_in_tree():
-   motion(position);button(position,MOUSE_BUTTON_LEFT,true);button(position,MOUSE_BUTTON_LEFT,false)
+  if (popup_context and get_viewport().visible) or (is_instance_valid(control) and control.is_visible_in_tree()):
+   motion(position);button(position,MOUSE_BUTTON_LEFT,true)
+   var opened=active_popup.get_ref() if active_popup!=null else null
+   # A tall menu can overlap its opener. The opening tap must not select a row.
+   if popup_context or not is_instance_valid(opened) or not opened.visible:
+    button(position,MOUSE_BUTTON_LEFT,false)
  finger=-1;held=false;dragging=false;scrolling=null;pressed_control=null
 
 func cancel() -> void:
  if finger<0: return
  motion(Vector2(-1000,-1000))
  if held: button(Vector2(-1000,-1000),MOUSE_BUTTON_RIGHT,false)
- elif dragging and not is_instance_valid(scrolling): button(Vector2(-1000,-1000),MOUSE_BUTTON_LEFT,false)
+ elif dragging and not popup_context and not is_instance_valid(scrolling): button(Vector2(-1000,-1000),MOUSE_BUTTON_LEFT,false)
  finger=-1;held=false;dragging=false;scrolling=null;pressed_control=null;details_allowed=false
  host._hide_term()
 
@@ -107,10 +149,24 @@ func _notification(what: int) -> void:
 func motion(position: Vector2, relative: Vector2=Vector2.ZERO, mask: int=0) -> void:
  var event=InputEventMouseMotion.new()
  event.position=position;event.global_position=position;event.relative=relative;event.button_mask=mask
- get_viewport().push_input(event,true)
+ dispatch_mouse(event)
 
 func button(position: Vector2, index: int, down: bool) -> void:
  var event=InputEventMouseButton.new()
  event.position=position;event.global_position=position;event.button_index=index;event.pressed=down
  event.button_mask=(MOUSE_BUTTON_MASK_LEFT if index==MOUSE_BUTTON_LEFT else MOUSE_BUTTON_MASK_RIGHT) if down else 0
- get_viewport().push_input(event,true)
+ dispatch_mouse(event)
+
+func dispatch_mouse(event: InputEventMouse) -> void:
+ var viewport=get_viewport()
+ if popup_context:
+  # PopupMenu handles selection at the Window input boundary, before push_input.
+  # Route through its embedding viewport so Godot enters that native boundary.
+  if viewport.is_embedded():
+   event.position+=Vector2(viewport.position);event.global_position=event.position
+   viewport.get_parent().get_viewport().push_input(event,true)
+  else:
+   event.window_id=viewport.get_window_id()
+   Input.parse_input_event(event)
+ else:
+  viewport.push_input(event,true)

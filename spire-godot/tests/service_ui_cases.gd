@@ -74,7 +74,7 @@ static func run(t) -> void:
  ui.restart(42,true,"equipment");await t.frames()
  await t.inspect_body("wrist")
  var text=t.visible_text(ui.find_child("EquipmentDetails",true,false))
- t.check(text.contains("耐久 4 / 10") and text.contains("紧度 1档"),"BODY UI equipment keeps explicit basic labels")
+ t.check(text.contains("耐久 4 / 10") and text.contains("紧度1档"),"BODY UI equipment keeps explicit basic labels")
  var single=ui.view.bodies.filter(func(body):return body.id=="wrist")[0].equipment[0].id
  var blocked=ui.actions.find("manual",{"target":single})
  t.check(not blocked.valid and text.contains(blocked.reason) and ui.candidate_buttons[blocked.id].disabled,"BODY UI single equipment opens its unavailable action and exact reason")

@@ -15,6 +15,7 @@ static func run(t) -> void:
  t.check("tailor" not in EventData.TYPES and "locksmith" not in EventData.TYPES,"TOWER retired tailor and locksmith definitions are fully removed")
  t.check("binding_cleric" in event_pool and "succubus_three_games" in event_pool and "succubus_magic_pawnshop" in event_pool and "enchanters_empty_studio" in event_pool and "smuggled_mana_potions" in event_pool and "floating_belt_cluster" in event_pool and "alchemist_tasting_stall" in event_pool and "abandoned_storeroom" in event_pool and "bound_dream_guest_room" in event_pool and "mysterious_woman_statue" in event_pool and "maze_survey_team" in event_pool,"TOWER current authored events remain eligible for normal generation")
  elite_classification(t)
+ prison_strong_pool(t)
  route_contract_cases(t)
  merged_departure_cases(t)
  travel_cases(t)
@@ -195,3 +196,38 @@ static func elite_classification(t) -> void:
   t.check(false,"TOWER classification fixture requires four ordinary rooms")
  g.Enemies.ENCOUNTERS=encounters
  g.Enemies.FirstFloor.POOLS=pools
+
+static func prison_strong_pool(t) -> void:
+ # This seed has a real shop on an eligible release floor.
+ var g=Game.new(47)
+ g._restart_tower()
+ var ordinary=g.state.rooms.filter(func(room):return room.has("encounter_choices"))
+ t.check(not ordinary.is_empty() and ordinary.all(func(room):return room.pool=="strong" and not room.has("encounter_selected")),"TOWER prison restart marks all ordinary rooms strong without drawing them early")
+ var stable=g.export_snapshot()
+ t.check(g.room_description(ordinary[0])=="普通战斗 · 强怪池。" and g.state==stable,"TOWER strong room preview describes the pool without rolling enemies")
+ var saved=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"prison strong map before selecting start")
+ var shops=g.state.rooms.filter(func(room):return room.kind=="shop" and g.Prison.start_room(room))
+ t.check(not shops.is_empty(),"TOWER strong-pool fixture has a real eligible shop start")
+ if shops.is_empty(): return
+ var shop=shops[0]
+ preload("res://tests/persistence_cases.gd").step_both(t,g,saved,"depart",{"room":shop.id})
+ ordinary=g.state.rooms.filter(func(room):return room.has("encounter_choices"))
+ t.check(not g.state.tower_start_pending and ordinary.all(func(room):return room.pool=="strong"),"TOWER shop start does not consume or clear the persistent strong-room setting")
+ var previous=""
+ # Isolate several room entries without manufacturing cleared early battles.
+ for room in ordinary.slice(0,3):
+  for run in [g,saved]:
+   run.state.room=room.id
+   run._start_battle()
+  var encounter=g.state.room_encounters[room.id]
+  t.check(room.encounter_selected=="strong" and g.Enemies.ENCOUNTERS[encounter].rank=="strong" and encounter!=previous,"TOWER every post-prison battle uses strong pool and avoids consecutive repeats")
+  t.check(preload("res://tests/persistence_cases.gd").same(g.state,saved.state) and g.validate()=="","TOWER saved post-prison entry preserves draws and valid encounter members")
+  previous=encounter
+ var invalid=g.export_snapshot()
+ invalid.rooms.filter(func(room):return room.id==g.state.room)[0].encounter_selected="weak"
+ var before=g.export_snapshot()
+ t.check(not g.restore_snapshot(invalid).ok and g.state==before,"TOWER strong-only snapshot rejects a weak selected face atomically")
+ g._restart_tower(true)
+ var fresh=g.state.rooms.filter(func(room):return room.has("encounter_choices"))[0]
+ g.state.room=fresh.id;g._start_battle()
+ t.check(fresh.pool=="ordinary" and fresh.encounter_selected=="weak","TOWER continuing from the tower exit retains normal early weak encounters")

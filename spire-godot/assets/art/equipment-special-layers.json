@@ -58,7 +58,8 @@
       "source_pair": [
         "reinforced",
         "urethral_rod"
-      ]
+      ],
+      "note": "display only when any flat lock is worn and an integrated catheter or separate urethral rod is present"
     }
   ]
 }

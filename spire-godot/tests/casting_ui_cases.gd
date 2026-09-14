@@ -69,6 +69,26 @@ static func run(t) -> void:
  await mana_badges(t)
  await unlock_preparation(t)
  await prepared_chant(t)
+ await secret_weapon(t)
+
+static func secret_weapon(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames();ui.game._discard_end()
+ var g=ui.game
+ g.add_fixture("palm",4)
+ var target=g.add_fixture("ankle",8,10,true)
+ var card=preload("res://tests/curse_cases.gd").give(g,"unlock")
+ g.RelicEffects.gain(g,"secret_weapon")
+ ui.card_faces[card.uid]=false;ui.render();await t.frames()
+ var before=g.export_snapshot()
+ var shown=ui.view.hand.filter(func(c):return c.uid==card.uid)[0]
+ t.check(shown.casting.source_part=="toes" and shown.casting.detail.contains("脚趾") and ui.find_child("RelicShortcut_secret_weapon",true,false)!=null and preload("res://ui/relic_icon.gd").ART.has("secret_weapon"),"SECRET UI shared relic icon and card casting details show toe route")
+ await t.move_mouse(t.card_point(card.uid));await t.frames()
+ t.check(g.state==before,"SECRET UI inspection never spends resources")
+ preload("res://tests/secret_weapon_cases.gd").toes(g,2,2)
+ ui.render();await t.frames()
+ shown=ui.view.hand.filter(func(c):return c.uid==card.uid)[0]
+ t.check(shown.availability.bound.dim and ui.view.statuses.any(func(s):return s.id=="secret_weapon_traction" and s.detail.contains("基础快感＋3")),"SECRET UI bound toes disable hand spell and show current traction calculation")
 
 static func prepared_chant(t) -> void:
  var ui=t.ui

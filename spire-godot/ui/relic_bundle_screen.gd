@@ -4,8 +4,7 @@ static func build(ui) -> void:
  var panel=ui.view.reward_panel
  var root=Control.new();root.name="RelicBundleRewards";root.z_index=81
  ui._place(root,Rect2(0,78,1600,822))
- var shade=ColorRect.new();shade.color=Color(0.018,0.026,0.04,0.94)
- ui._place(shade,Rect2(0,0,1600,822),root)
+ preload("res://ui/reward_backdrop.gd").build(ui,root,0.94)
  var title=ui._label(panel.title,36,ui.GOLD);title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
  ui._place(title,Rect2(420,83,760,58),root)
  var subtitle=ui._label(panel.destination,18,ui.MUTED);subtitle.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER

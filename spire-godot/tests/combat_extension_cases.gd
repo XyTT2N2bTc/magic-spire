@@ -6,12 +6,12 @@ const Cards=preload("res://tests/card_expansion_cases.gd")
 static func run(t) -> void:
  for free in [false,true]:
   var g=Game.new(42);var card=Cards.give(t,g,"henshin")
-  var cost=4 if free else 2
+  var cost=4 if free else 3
   g.state.energy=cost-1
   var before=g.export_snapshot()
   t.check(not t.action(g,"card",{"uid":card.uid,"free":free}).ok and g.state==before,"EXTENSION henshin rejects below the selected face cost atomically")
   g.state.energy=cost
-  t.check(t.action(g,"card",{"uid":card.uid,"free":free}).ok and g.state.energy==0 and g.state.mana==60,"EXTENSION henshin charges two bound or four free energy and forty mana")
+  t.check(t.action(g,"card",{"uid":card.uid,"free":free}).ok and g.state.energy==0 and g.state.mana==60,"EXTENSION henshin charges three bound or four free energy and forty mana")
  var g=Game.new(42);g.state.relics=["ember","marble","small_sigil","small_gem"]
  g.state.energy=10
  t.check(Cards.cast(t,g,"adaptability",false).ok and Cards.cast(t,g,"henshin",true).ok,"EXTENSION actual powers and henshin activate")

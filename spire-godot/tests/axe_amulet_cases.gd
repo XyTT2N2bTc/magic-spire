@@ -32,8 +32,9 @@ static func run(t) -> void:
 static func prison(t) -> void:
  var g=setup();var c=t.find_action(g,"surrender");var before=g.export_snapshot()
  t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"AXE stale surrender cannot heal or enter prison")
- t.check(g.dispatch(c.id,g.state.version).ok and g.state.phase=="prison" and g.state.mana==60 and triggers(g).size()==1,"AXE formal surrender heals once across capture and cell entry")
- t.check(not g.dispatch(c.id,g.state.version).ok and g.state.mana==60,"AXE repeated surrender is rejected without recovery")
+ t.check(g.dispatch(c.id,g.state.version).ok and g.state.phase=="captured" and g.state.mana==40 and triggers(g).size()==1,"AXE formal surrender drains twenty during intake, then applies its one prison-entry recovery")
+ t.check(not g.dispatch(c.id,g.state.version).ok and g.state.mana==40,"AXE repeated surrender is rejected without recovery")
+ t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison" and g.state.mana==40,"AXE intake confirmation does not repeat either milking or recovery")
  g.state.prison.left=1
  t.action(g,"end");t.action(g,"prison",{"action":"inspect"});t.action(g,"prison",{"action":"accept"});t.action(g,"prison",{"action":"resume"})
  t.check(g.state.phase=="prison" and triggers(g).size()==1,"AXE inspection and resumed exploration never repeat intake recovery")
@@ -42,4 +43,5 @@ static func prison(t) -> void:
  t.check(g.state.phase=="battle" and triggers(g).size()==1,"AXE resisting inside prison is not a new room entry")
  t.check(t.action(g,"surrender").ok and triggers(g).size()==2,"AXE actual recapture grants a new recovery")
  g=setup();g.state.security=4
- t.check(t.action(g,"surrender").ok and g.state.phase=="prison_end" and g.state.mana==60 and triggers(g).size()==1,"AXE final high-security intake also heals exactly once")
+ t.check(t.action(g,"surrender").ok and g.state.phase=="captured" and g.state.mana==40 and triggers(g).size()==1,"AXE final high-security intake also drains and heals exactly once")
+ t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison_end","AXE final intake confirmation reaches high security")

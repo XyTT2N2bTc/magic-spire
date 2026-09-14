@@ -19,6 +19,7 @@ static func eye_capacity(t) -> void:
  t.check(result.ok and result.removed.size()==1 and g.equipment_at("eyes").size()==2 and g.equipment_at("eyes").any(func(e):return e.id not in old_ids) and g.validate()=="","EYES authorized replacement swaps one at the two-slot limit without creating a third")
 
 static func run(t) -> void:
+ release_projection(t)
  precise_positions(t)
  eye_capacity(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
@@ -84,7 +85,7 @@ static func run(t) -> void:
    var plan=g.EnemyPlans.application([template],2 if final else 1,2,1,final)
    enemy.intent=plan
    t.check(plan.kind=="apply" and plan.templates==[template],"POOL actual source declares allowed equipment "+template)
-   t.check(plan.grade==(2 if final else 1) and plan.tier==2,"POOL grade independent of application tier "+template)
+   t.check(plan.grade==(2 if final else 1) and plan.tier==(3 if final else 2),"POOL normal application retains requested tier; departure uses declared middle-grade tier three "+template)
    t.check(g.state.rng.deck==deck_rng and g.state.rng.equipment==equipment_rng,"POOL declaration does not draw card or material randomness")
    before=JSON.stringify(g.state)
    g.get_view();g.candidates()
@@ -131,6 +132,25 @@ static func run(t) -> void:
  for i in range(6): t.action(g,"end")
  t.check(g.state.phase=="cleared" and g.state.completed_rooms.is_empty() and g.candidates().all(func(c):return c.payload.kind=="item_discard"),"PRACTICE ends after six real rounds without tower progress; only universal item discard remains")
  t.check(g.validate()=="","PRACTICE final state valid")
+
+static func release_projection(t) -> void:
+ var g=Game.new(42);g.state.equipment.clear();g._discard_end();g.state.wall="normal"
+ var target=g.add_fixture("ankle",10,10)
+ var slip=preload("res://tests/curse_cases.gd").give(g,"slip")
+ var before=g.export_snapshot()
+ var c=g.get_view().candidates.filter(func(action):return action.payload.kind=="card" and action.payload.uid==slip.uid and action.payload.get("target","")==target.id and not action.payload.free)[0]
+ t.check(c.valid and c.release_preview.before==c.release_preview.after and not c.release_preview.modifiers.is_empty(),"RELEASE immune slip is an explicit zero-change preview, not a blocked method")
+ t.check(g.export_snapshot()==before,"RELEASE projection changes no state, payment, logs or RNG")
+ g.state.equipment.clear();g._discard_end()
+ var collar=g._install_template("restriction_collar","neck",1,1,true,"fixture",3)
+ var card=preload("res://tests/curse_cases.gd").give(g,"unlock")
+ g.state.sure_cast=true
+ c=g.get_view().candidates.filter(func(action):return action.payload.kind=="card" and action.payload.uid==card.uid and action.payload.get("target","")==collar.id and not action.payload.free)[0]
+ t.check(c.valid and c.release_preview.headline=="已上锁 → 已开锁" and not c.release_preview.headline.contains("耐久"),"RELEASE lock-only equipment shows lock outcome without fake durability")
+ t.check(g.dispatch(c.id,g.state.version).ok and not g._equipment(collar.id).locked,"RELEASE original unlock transaction still commits")
+ c=g.get_view().candidates.filter(func(action):return action.payload.kind=="manual" and action.payload.target==collar.id)[0]
+ t.check(c.valid and c.release_preview.headline=="整件取下","RELEASE unlocked collar uses categorical removal preview")
+ t.check(g.dispatch(c.id,g.state.version).ok and g._equipment(collar.id).is_empty(),"RELEASE categorical removal matches the actual lifecycle")
 
 static func precise_positions(t) -> void:
  var g=Game.new(42)

@@ -21,12 +21,20 @@ static func run(t) -> void:
  for id in Tower.all_practices():
   var g=Game.new(42,true,id)
   var spec=Tower.practice_spec(id)
-  t.check(g.validate()=="" and g.state.equipment.size()==spec.equipment.size() and g.state.composites.size()==spec.get("composites",[]).size(),"CATALOG complete legal scenario "+id)
+  var intake=spec.get("start","") in ["prison_release","prison_release_violation","prison_gate_exit"]
+  var layout_matches=g.state.equipment.size()==spec.equipment.size() and g.state.composites.size()==spec.get("composites",[]).size()
+  if intake: layout_matches=not g.state.capture.is_empty() and not g.state.capture.baseline.is_empty() and g.state.capture.baseline==g.equipment_targets().map(func(e):return e.id)
+  if spec.get("start","")=="prison_gate_exit": layout_matches=g.Cards.worn_count(g,false)>=g.B.PRISON_INTAKE[1].floor+g.B.PRISON_INTAKE[1].extra and g.state.special_equipment.size()==g.B.PRISON_INTAKE[1].special
+  t.check(g.validate()=="" and layout_matches,"CATALOG complete legal scenario "+id)
   var correct_phase=(g.state.phase=="battle" and g.state.encounter==1) if spec.has("encounter") else (g.state.phase=="rest" and g.state.rest_left==6)
   if spec.has("event"): correct_phase=g.state.phase=="event" and g.state.room_event.id==spec.event
   if spec.get("start","")=="prison": correct_phase=g.state.phase=="prison" and g.state.prison.left==g.B.PRISON_INTERVALS[0] and g.state.posture=="lie"
   if spec.get("start","")=="shop": correct_phase=g.state.phase=="shop" and g.state.energy==0 and not g.room_data(g.state.room).stock.is_empty()
-  t.check(g.state.links.size()==spec.get("links",[]).size()+spec.get("component_links",[]).size() and correct_phase,"CATALOG links and timer match declaration "+id)
+  var links_match=g.state.links.size()==spec.get("links",[]).size()+spec.get("component_links",[]).size()
+  if intake:
+   correct_phase=g.state.phase=="battle" and g.Prison.is_exit_battle(g) if spec.start=="prison_gate_exit" else g.state.phase=="captured"
+   links_match=not g.state.links.is_empty() if spec.start=="prison_gate_exit" else g.state.links.map(func(e):return e.id)==g.state.capture.links and g.state.special_equipment.map(func(e):return e.id)==g.state.capture.special_baseline
+  t.check(links_match and correct_phase,"CATALOG links and entry phase match declared layout or formal intake "+id)
   var before=JSON.stringify(g.state)
   var view=g.get_view()
   t.check(JSON.stringify(g.state)==before and view.practice_kind==id and view.candidates.size()>0,"CATALOG projection and actual actions "+id)
@@ -35,7 +43,9 @@ static func run(t) -> void:
   if definition.slots.is_empty(): continue
   for grade in [1,2,3]:
    var g=Game.new(42)
-   var e=g._install_template(template,definition.slots[0],E.maximum(grade)*0.4,E.maximum(grade),false,"fixture",grade)
+   var maximum=1.0 if definition.get("lock_only",false) else E.maximum(grade)
+   var durability=1.0 if definition.get("lock_only",false) else maximum*0.4
+   var e=g._install_template(template,definition.slots[0],durability,maximum,false,"fixture",grade)
    if grade<definition.get("min_grade",1):
     t.check(e.is_empty() and g.validate()=="","GRADE rejects below template minimum "+template+str(grade))
    else: t.check(not e.is_empty() and e.grade==grade and g.validate()=="","GRADE actual legal material/grade "+template+str(grade))

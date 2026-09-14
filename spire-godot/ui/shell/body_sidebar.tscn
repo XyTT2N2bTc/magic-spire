@@ -7,7 +7,7 @@
 z_index = 20
 offset_left = 24.0
 offset_top = 82.0
-offset_right = 354.0
+offset_right = 334.0
 offset_bottom = 594.0
 script = ExtResource("1")
 
@@ -16,7 +16,7 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="Title" type="Label" parent="Canvas"]
-offset_right = 306.0
+offset_right = 286.0
 offset_bottom = 30.0
 theme_override_font_sizes/font_size = 21
 text = "身体与拘束具"

@@ -62,6 +62,21 @@ static func run(t) -> void:
  p=ui.find_child("EquipmentPortrait",true,false)
  t.check(ui.view.legs==3 and not "thigh_root" in p.active_leg_layers and not "mid_thigh" in p.active_leg_layers and not "above_knee" in p.active_leg_layers and "ankle" in p.active_leg_layers and p.equipped_eyes and p.equipped_mouth,"PORTRAIT body reduction refreshes variant without clearing face equipment")
 
+ # Active short and long single-glove assemblies share the supplied local arm replacement.
+ for practice in ["glove_short","glove_long"]:
+  ui.game=Game.new(42,true,practice)
+  var before=ui.game.export_snapshot()
+  ui.render();await t.frames();p=ui.find_child("EquipmentPortrait",true,false)
+  t.check(p.texture==Portrait.BOUND_SINGLE_GLOVE and p.active_composite_layers==["single_glove"],"PORTRAIT %s selects the supplied single-glove replacement from the real composite" % practice)
+  t.check(p.get_node("Overlay_thigh_root").texture==Portrait.SINGLE_GLOVE_THIGH.free,"PORTRAIT single glove keeps the matching free thigh-root slice")
+  t.check(ui.game.export_snapshot()==before,"PORTRAIT single-glove display does not change state or random cursor")
+ await t.capture("ui-equipment-single-glove.png")
+
+ ui.game._install_special("negative_plate_lock_medium","special_2_a",2)
+ ui.render();await t.frames();p=ui.find_child("EquipmentPortrait",true,false)
+ t.check(p.texture==Portrait.BOUND_SINGLE_GLOVE_FLAT_LOCK and p.get_node("Overlay_thigh_root").texture==Portrait.SINGLE_GLOVE_THIGH.flat_lock_free,"PORTRAIT single glove and flat lock select their combined replacement without restoring old arm pixels")
+ await t.capture("ui-equipment-single-glove-flat-lock.png")
+
  # Special-equipment differences are read-only layers on the bound standing art.
  ui.game=Game.new(42);ui.game.add_fixture("wrist",4)
  ui.game._install_special("negative_plate_lock_medium","special_2_a",2)
@@ -79,7 +94,13 @@ static func run(t) -> void:
  ui.game=Game.new(42);ui.game.add_fixture("wrist",4)
  ui.game._install_special("urethral_rod_low","special_2_d")
  ui.render();await t.frames();p=ui.find_child("EquipmentPortrait",true,false)
- t.check(p.texture==Portrait.BOUND_BASE and p.active_special_layers==["urethral_rod"] and p.get_node("Overlay_urethral_rod").visible,"PORTRAIT a standalone urethral rod keeps the ordinary bound base and shows only its difference")
+ t.check(p.texture==Portrait.BOUND_BASE and p.active_special_layers.is_empty() and not p.get_node("Overlay_urethral_rod").visible,"PORTRAIT a standalone urethral rod has no flat-lock-specific difference")
+
+ ui.game=Game.new(42);ui.game.add_fixture("wrist",4)
+ ui.game._install_special("negative_plate_lock_medium","special_2_a",2)
+ ui.game._install_special("urethral_rod_low","special_2_d")
+ ui.render();await t.frames();p=ui.find_child("EquipmentPortrait",true,false)
+ t.check(p.texture==Portrait.BOUND_FLAT_LOCK and p.active_special_layers==["flat_lock","urethral_rod"] and p.get_node("Overlay_urethral_rod").visible,"PORTRAIT a separate urethral rod uses its difference only together with a worn flat lock")
 
  ui.game=Game.new(42)
  ui.game._install_special("negative_vibrator_lock_catheter_high","special_2_a",3)

@@ -11,6 +11,7 @@ const RouteMap=preload("res://ui/route_map.gd")
 const DropTarget=preload("res://ui/drop_target.gd")
 const DragTargets=preload("res://ui/drag_targets.gd")
 const ActionIndex=preload("res://ui/action_index.gd")
+const TargetQueries=preload("res://ui/target_queries.gd")
 const Backdrop=preload("res://ui/dungeon_backdrop.gd")
 const Palette=preload("res://ui/visual_theme.gd")
 const CombatFeedback=preload("res://ui/combat_feedback.gd")
@@ -58,6 +59,11 @@ var layout: Control
 var drawer_layer: Control
 var drawer_base_candidates={}
 var building_drawer=false
+var quick_release_open=false
+var quick_release_region=""
+var quick_release_parts: Dictionary={}
+var quick_release_targets: Dictionary={}
+var quick_release_inspected=""
 var selected_card=""
 var selected_slot="wrist"
 var selected_enemy=""
@@ -72,6 +78,7 @@ var show_reward_cards=false
 var reward_card_row=""
 var show_reward_relics=false
 var show_body=false
+var expanded_body_regions: Array=[]
 var show_log=false
 var show_feedback=false
 var feedback_report: Node
@@ -428,8 +435,8 @@ func render(snapshot: Dictionary={}) -> void:
  elif view.phase!="departure":
   _bottom_controls()
   _body_drawer()
-  _installed_tools()
  if not show_route and view.phase in ["battle","prepare","rest","prison","event","shop","treasure"]: _action_sidebar()
+ _npc_speech_bubble()
  if player_pick: _player_picker()
  if selected_card!="" and not _selecting_hand(): DragTargets.focus_bodies(self,{"card_uid":selected_card,"free":card_faces.get(selected_card,false),"version":view.version})
  _refresh_drawers()
@@ -556,6 +563,8 @@ func _status_control(status: Dictionary, compact: bool) -> Button:
     if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
      button.accept_event();_hide_term();_submit(choice))
  button.pressed.connect(func():
+  if status.has("item_id"):
+   selected_item=status.item_id;_open_drawer("show_items");return
   selected_status=status.id
   if compact: status_filter="all";_open_drawer("show_pressure")
   else: _refresh_drawers())
@@ -573,7 +582,7 @@ func _status_strip(owner: String, rect: Rect2, parent: Control=null, vertical: b
  for entry in entries: row.add_child(_status_control(entry,true))
 
 func _battle_scene() -> void:
- layout.hero_portrait(view,display_settings.fixed_hero_portrait or game.Character.active(game),HERO_STAGE_RECT)
+ layout.hero_portrait(view,EquipmentPortrait.uses_fixed_portrait(view,display_settings.fixed_hero_portrait),HERO_STAGE_RECT)
  var hero_target=_actor_drop_area(HERO_STAGE_RECT.grow_individual(-38,0,-38,0))
  hero_target.accepted_kind="player"
  hero_target.hover_card=func(data): _player_drag_preview(data)
@@ -587,18 +596,7 @@ func _battle_scene() -> void:
  if not view.guard_bind.is_empty():
   var bind_label=_place(_label("捕缚",11,RED),Rect2(meter_x-40,537,40,15));bind_label.name="HeroGuardBindCaption"
   _resource_meter("HeroGuardBind",Rect2(meter_x,538,160,13),view.guard_bind.value,view.guard_bind.maximum,RED)
-  var bind_target=_actor_drop_area(Rect2(meter_x-40,535,200,19),null,true)
-  bind_target.name="GuardBindTarget"
-  bind_target.accepted_kind="card"
-  bind_target.tooltip_text=view.guard_bind.detail
-  bind_target.hover_card=func(data): _guard_bind_drag_preview(data)
-  bind_target.accept_card=func(data):
-   var c=_guard_bind_card_candidate(data)
-   return not c.is_empty() and c.valid
-  bind_target.receive_card=func(data):
-   var c=_guard_bind_card_candidate(data)
-   if not c.is_empty() and c.valid: call_deferred("_submit",c,int(data.version))
-  bind_target.pressed.connect(_activate_guard_bind_target)
+  var bind_target=_guard_bind_drop_target(Rect2(meter_x-40,535,200,19),"GuardBindTarget")
   actor_targets["guard_bind"]=bind_target
  var cast_label=_label("嘴部施法成功率 "+view.casting.percent,11,CYAN)
  cast_label.name="HeroCastingChance";cast_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
@@ -667,14 +665,43 @@ func _select_enemy(enemy_id: String) -> void:
 func _fixed_actions() -> void:
  if view.phase=="rest": _rest_controls()
  if view.phase=="prison": _prison_controls()
- if view.phase=="battle":
+ _build_action_rail()
+
+func _build_action_rail() -> void:
+ if view.phase in ["battle","prepare","rest","prison"]:
   var container=Control.new();container.name="AttackActions";container.mouse_filter=Control.MOUSE_FILTER_IGNORE
   _place(container,Rect2(0,0,1600,900))
-  var rail=_panel(Rect2(384,550,1195,66),container)
+  var rail=_panel(Rect2(384,550,1195,72),container)
   rail.name="BasicActionRail";rail.mouse_filter=Control.MOUSE_FILTER_IGNORE
+  var switcher=_button("⇄",func():preload("res://ui/quick_release_bar.gd").toggle(self),CYAN)
+  switcher.name="ActionRailToggle"
+  switcher.tooltip_text=preload("res://ui/quick_release_bar.gd").message(self,"to_actions","切换至动作栏") if quick_release_open else preload("res://ui/quick_release_bar.gd").message(self,"to_release","切换至快捷挣脱栏")
+  _place(switcher,Rect2(1530,556,39,60),container)
+  if quick_release_open:
+   preload("res://ui/quick_release_bar.gd").build(self,container,218.6)
+   return
   var offers=actions.select("attack",{"enemy":selected_enemy}).filter(func(c):return c.payload.form==attack_forms.get(c.payload.type,0))
+  if view.phase!="battle":
+   var spells=actions.select("attack",{"type":"fireball","enemy":""})
+   var spell=preload("res://ui/quick_release_bar.gd").first(spells)
+   offers=[] if spell.is_empty() else [spell]
+  var heavy_index=-1;var kick_index=-1
+  for i in range(offers.size()):
+   if offers[i].payload.type=="heavy": heavy_index=i
+   elif offers[i].payload.type=="kick": kick_index=i
+  if heavy_index>=0 and kick_index>=0:
+   var heavy=offers[heavy_index]
+   offers[heavy_index]=offers[kick_index];offers[kick_index]=heavy
   offers.append_array(actions.select("pressure"))
-  var width=(1195.0-20.0-maxi(0,offers.size()-1)*8.0)/maxi(1,offers.size())
+  var width=218.6
+  if view.phase!="battle":
+   _place(_label(preload("res://ui/quick_release_bar.gd").message(self,"exploration","切换至快捷挣脱栏，可对选中的拘束具使用解除牌，也可使用已安装道具。"),15,MUTED),Rect2(402,565,650,38),container)
+  if view.phase!="battle" and not offers.any(func(c):return c.payload.kind=="attack"):
+   var reason=preload("res://ui/quick_release_bar.gd").message(self,"fire_locked","尚未获得用火球术解除拘束具的能力。") if not view.equipment_fireball_unlocked else preload("res://ui/quick_release_bar.gd").message(self,"fire_empty","没有拘束具可供火球术选为目标。")
+   var empty_fire=_button(localization.display("火球术")+"\n"+reason,func():pass,CYAN)
+   empty_fire.name="BasicAttack_fireball";empty_fire.disabled=true;empty_fire.tooltip_text=reason
+   empty_fire.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;empty_fire.add_theme_font_size_override("font_size",12)
+   _place(empty_fire,Rect2(1073.8,556,218.6,60),container)
   for i in range(offers.size()):
    var c=offers[i]
    var attack=c.payload.kind=="attack"
@@ -682,7 +709,7 @@ func _fixed_actions() -> void:
    var summary=c.get("brief",c.detail.trim_suffix("。"))
    var tags=c.get("brief_tags","")
    if c.has("casting"): tags+=(" · " if tags!="" else "")+c.casting.percent
-   var btn=_basic_action_tile(c,Rect2(394+i*(width+8),556,width,54),container,summary,tags,alternatives.size()>1)
+   var btn=_basic_action_tile(c,Rect2(394+(i if view.phase=="battle" else 3 if attack else 4)*(width+8),556,width,60),container,summary,tags,alternatives.size()>1)
    if attack:
     btn.name="BasicAttack_"+c.payload.type
     btn.drag_payload={"action_type":c.payload.type,"form":c.payload.form,"version":view.version}
@@ -695,41 +722,17 @@ func _fixed_actions() -> void:
    else: btn.name="DeepBreath"
 
 
- for c in ([] if view.phase=="battle" else actions.select("pressure")):
-  var parent=layout
-  var btn=_button(c.label+" · %d能量" % c.cost,func():_submit(c),CYAN)
-  btn.name="DeepBreath";btn.disabled=not c.valid
-  btn.add_theme_font_size_override("font_size",15)
-  btn.tooltip_text=c.detail+("\n"+c.risk if c.risk!="" else "") if c.valid else c.reason
-  _place(btn,Rect2(1347,555,218,38),parent)
-  candidate_buttons[c.id]=btn
-  var detail=_label(c.detail if c.valid else c.reason,12,MUTED if c.valid else RED)
-  detail.name="DeepBreathDetail"
-  _place(detail,Rect2(1347,598,218,40),parent)
 
-# Two-line action tiles share the original candidates, tooltips and drag receiver.
+# Action tiles share the original candidates, tooltips and drag receiver.
 func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: String, tags: String, can_flip: bool) -> Button:
  var accent=CYAN if c.payload.kind=="calm" or c.has("casting") else GOLD
- var btn=_button("",func():_submit(c),accent,c.payload.kind=="attack")
+ var btn=_button("",func():
+  if view.phase!="battle" and c.payload.kind=="attack": keyboard_input.select_attack(c.payload.type)
+  else: _submit(c),accent,c.payload.kind=="attack")
  btn.disabled=not c.valid;btn.clip_contents=true
  _place(btn,rect,parent);candidate_buttons[c.id]=btn
- var cost="%d能量" % c.cost+(" · %s魔力" % game.number(c.mana) if c.mana>0 else "")
- var cost_width=102.0 if c.mana>0 else 44.0
- var title=_label(c.label,14,TEXT if c.valid else MUTED)
- title.autowrap_mode=TextServer.AUTOWRAP_OFF;title.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
- _place(title,Rect2(10,5,rect.size.x-cost_width-24,20),btn)
- var price=_label(cost,11,accent if c.valid else MUTED)
- price.autowrap_mode=TextServer.AUTOWRAP_OFF;price.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
- _place(price,Rect2(rect.size.x-cost_width-10,7,cost_width,17),btn)
- var detail=_label(summary if c.valid else c.reason.trim_suffix("。"),15 if c.valid else 11,TEXT if c.valid else RED)
- detail.name="BasicAttackDetail_"+c.payload.type if c.payload.kind=="attack" else "DeepBreathDetail"
- _place(detail,Rect2(10,29 if c.valid else 27,rect.size.x-20,24 if c.valid else 26),btn)
- if c.valid and tags!="":
-  detail.size.x=112 if tags.length()>10 else 126
-  var extra=_label(tags,10,RED if c.payload.get("fall",false) else accent)
-  extra.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT;extra.autowrap_mode=TextServer.AUTOWRAP_OFF
-  _place(extra,Rect2(detail.size.x+12,31,rect.size.x-detail.size.x-22,17),btn)
- var tooltip=("当前施法成功率："+c.casting.percent+"\n" if c.has("casting") else "")+c.detail
+ _attack_tile_labels(btn,c,rect.size,summary,tags,accent)
+ var tooltip="部位："+c.body_part+"\n消耗%d能量。\n" % c.cost+("当前施法成功率："+c.casting.percent+"\n" if c.has("casting") else "")+c.detail
  if c.has("casting"): tooltip+="\n失败返还本次耗魔的50%，能量照扣。"+("蓄力保留，精神集中失去1层。" if c.payload.get("witch_action",false) else "火球术次数不消耗。")
  if not c.valid: tooltip+="\n"+c.reason
  if c.risk!="": tooltip+="\n"+c.risk
@@ -738,6 +741,77 @@ func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: St
  btn.mouse_entered.connect(func():_show_term(btn,entry));btn.mouse_exited.connect(_hide_term)
  btn.focus_entered.connect(func():_show_term(btn,entry));btn.focus_exited.connect(_hide_term)
  return btn
+
+# Cost stays in the left medallion; both text rows share the remaining space.
+func _attack_tile_labels(btn: Button, c: Dictionary, bounds: Vector2, summary: String, tags: String, accent: Color) -> void:
+ var badge=TextureRect.new();badge.name="BasicActionEnergy"
+ badge.texture=preload("res://assets/ui/energy-medallion.svg")
+ badge.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;badge.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+ badge.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ badge.modulate=Color.WHITE if c.valid else Color(0.6,0.6,0.6)
+ _place(badge,Rect2(7,(bounds.y-32)/2,32,32),btn)
+ var energy=_label(str(c.cost),17,TEXT if c.valid else MUTED)
+ energy.autowrap_mode=TextServer.AUTOWRAP_OFF;energy.clip_text=true
+ energy.name="EnergyCost";energy.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;energy.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+ _place(energy,Rect2(0,0,32,32),badge)
+ var inset=46.0
+ var available=bounds.x-inset-12
+ var title=_label(c.label,16,TEXT if c.valid else MUTED)
+ title.name="BasicAttackTitle";title.autowrap_mode=TextServer.AUTOWRAP_OFF
+ title.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS;title.clip_text=true
+ var value=_label(summary,16,TEXT if c.valid else MUTED)
+ var detail_name="BasicAttackDetail_"+c.payload.type if c.payload.kind=="attack" else "DeepBreathDetail"
+ value.name=detail_name if c.valid else "BasicAttackDamage"
+ value.autowrap_mode=TextServer.AUTOWRAP_OFF;value.clip_text=true
+ var row_y=3 if c.valid else 0
+ var row_height=28 if c.valid else 24
+ _place(title,Rect2(inset,row_y,1,row_height),btn);_place(value,Rect2(inset,row_y,1,row_height),btn)
+ var font=title.get_theme_font("font")
+ var fs=16
+ var gap=6.0
+ while fs>10 and ceilf(font.get_string_size(title.text,HORIZONTAL_ALIGNMENT_LEFT,-1,fs).x)+ceilf(font.get_string_size(value.text,HORIZONTAL_ALIGNMENT_LEFT,-1,fs).x)+gap>available: fs-=1
+ title.add_theme_font_size_override("font_size",fs);value.add_theme_font_size_override("font_size",fs)
+ var value_width=ceilf(font.get_string_size(value.text,HORIZONTAL_ALIGNMENT_LEFT,-1,fs).x)
+ var title_width=ceilf(font.get_string_size(title.text,HORIZONTAL_ALIGNMENT_LEFT,-1,fs).x)
+ var start=inset+(available-title_width-value_width-gap)/2
+ title.position.x=start;title.size.x=title_width
+ value.position.x=start+title_width+gap;value.size.x=value_width
+ title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;value.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+ title.vertical_alignment=VERTICAL_ALIGNMENT_CENTER;value.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+ var metadata=[c.body_part]
+ if c.mana>0: metadata.append("%s魔力" % game.number(c.mana))
+ if tags!="": metadata.append(tags)
+ var secondary=_label("  ".join(metadata).replace(" · ","  "),14 if c.valid else 11,accent if c.valid else MUTED)
+ secondary.name="BasicAttackMeta"
+ secondary.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;secondary.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+ secondary.autowrap_mode=TextServer.AUTOWRAP_OFF
+ secondary.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS;secondary.clip_text=true
+ _place(secondary,Rect2(inset,32 if c.valid else 24,bounds.x-inset-18,24 if c.valid else 17),btn)
+ var secondary_size=14 if c.valid else 11
+ while secondary_size>12 and font.get_string_size(secondary.text,HORIZONTAL_ALIGNMENT_LEFT,-1,secondary_size).x>secondary.size.x: secondary_size-=1
+ secondary.add_theme_font_size_override("font_size",secondary_size)
+ if not c.valid:
+  var reason=_label(_basic_action_reason(c),11,RED)
+  reason.name=detail_name
+  reason.autowrap_mode=TextServer.AUTOWRAP_OFF;reason.clip_text=true
+  reason.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
+  reason.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;reason.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+  _place(reason,Rect2(inset,41,bounds.x-inset-18,17),btn)
+
+# Short display copy only; eligibility and full hover text stay with the candidate.
+func _basic_action_reason(c: Dictionary) -> String:
+ var short={
+  "双臂活动受限达到三级，无法完成"+c.label+"。":"双臂受限达到三级",
+  "近身短打需要双腿活动自由。":"需要双腿活动自由",
+  "正义飞踢需要双腿活动自由。":"需要双腿活动自由",
+  "站着踢需要双腿活动自由。":"需要双腿活动自由",
+  "腿部严密度达到4级，无法坐着踢。":"腿部严密度达到4级",
+  "双腿无法独立活动，不能横扫。":"双腿无法独立活动",
+  "无力化：本回合不能使用基础攻击。":"无力化，无法攻击",
+  "本回合"+c.label+"次数已用完。":"本回合次数已用完",
+  c.label+"需要站姿。":"需要站姿",
+ }
+ return short.get(c.reason,c.reason.trim_suffix("。"))
 
 func _posture_layout(count: int) -> Dictionary:
  var with_move=view.phase=="battle" and not actions.select("wall_move",{"direction":"toward"}).is_empty()
@@ -774,10 +848,11 @@ func _posture_controls() -> void:
   _place(btn,Rect2(128 if c.payload.wall else 0,index*placement.stride,121 if has_wall else 249,placement.stride-4),container)
   candidate_buttons[c.id]=btn
 
-func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0, parent: Node=null, hand_interaction: bool=true, lift: bool=true) -> Button:
+func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0, parent: Node=null, hand_interaction: bool=true, lift: bool=true, live_state: bool=true) -> Button:
  card=card.duplicate()
- card.merge(view.card_texts.get(card.type,{}),true)
- card.merge(view.get("card_instances",{}).get(card.get("physical_uid",card.uid),{}),true)
+ if live_state:
+  card.merge(view.card_texts.get(card.type,{}),true)
+  card.merge(view.get("card_instances",{}).get(card.get("physical_uid",card.uid),{}),true)
  var button=CardFace.new()
  button.art_settings=display_settings
  button.localize=localization.display
@@ -834,11 +909,11 @@ func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0,
  return button
 
 # Catalog, shop and deck use the hand face with no gameplay drag or hover displacement.
-func _display_card(type: String, parent: Node, fn: Callable=Callable(), key: String="", dimensions: Vector2=Vector2(226,290), physical_uid: String="") -> Button:
+func _display_card(type: String, parent: Node, fn: Callable=Callable(), key: String="", dimensions: Vector2=Vector2(226,290), physical_uid: String="", live_state: bool=true) -> Button:
  var data=preload("res://data/encyclopedia.gd").card(type)
  data.uid="display_"+key+"_"+type
  data.physical_uid=physical_uid
- var button=_card(data,Rect2(Vector2.ZERO,dimensions),fn if fn.is_valid() else func():pass,0,parent,false,false)
+ var button=_card(data,Rect2(Vector2.ZERO,dimensions),fn if fn.is_valid() else func():pass,0,parent,false,false,live_state)
  button.custom_minimum_size=dimensions
  button.size_flags_horizontal=Control.SIZE_SHRINK_BEGIN
  button.size_flags_vertical=Control.SIZE_SHRINK_BEGIN
@@ -858,11 +933,14 @@ func _refresh_card_face(button: Button, card: Dictionary) -> void:
  var textbox=text_area.get_node("Content")
  for child in textbox.get_children():
   textbox.remove_child(child);child.queue_free()
- var classification=_label(card.type_name+" · "+card.rarity_name+("" if card.single_face else (" · "+card.face_names[side]))+(" · 保留" if card.get("retained",false) else ""),11,button.RARITY_COLORS[card.rarity])
+ var classification=_label(card.get("face_type_names",{}).get(side,card.type_name)+" · "+card.rarity_name+("" if card.single_face else (" · "+card.face_names[side]))+(" · 保留" if card.get("retained",false) else ""),11,button.RARITY_COLORS[card.rarity])
  classification.name="CardClassification";textbox.add_child(classification)
- var body=_label(card.face_effects[side],14,TEXT)
+ var warning=card.get("face_warnings",{}).get(side,"")
+ var body=_label(card.face_effects[side].replace(warning,"") if warning!="" else card.face_effects[side],14,TEXT)
  body.visible=body.text!=""
  body.name="CardEffect";textbox.add_child(body)
+ if warning!="":
+  var warning_label=_label(warning,14,RED);warning_label.name="CardWarning";textbox.add_child(warning_label)
  for text in card.face_requirements[side]:
   var requirement=_label(text,11,CYAN)
   requirement.name="CardRequirement";textbox.add_child(requirement)
@@ -974,6 +1052,7 @@ func _bottom_controls(include_tools: bool=true) -> void:
   caption.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
   _place(caption,Rect2(38,center-12,64,24))
   _resource_meter(meter.id,Rect2(104,center-bar_height/2,234,bar_height),meter.value,meter.maximum,meter.color)
+  if meter.id=="MainGuardBind": _guard_bind_drop_target(Rect2(32,center-14,310,28),"SidebarGuardBindTarget")
  var mana_bar=find_child("MainMana",true,false)
  mana_bar.mouse_filter=Control.MOUSE_FILTER_STOP;mana_bar.tooltip_text="嘴部施法成功率 · "+view.casting.percent+"\n临时魔力优先抵扣法术和卡牌耗魔，不受上限限制；不能存瓶或购物，本场结束清空。"
  if include_tools: preload("res://ui/mana_flask.gd").build(self)
@@ -1033,13 +1112,14 @@ func _wall_controls() -> void:
  if choices.is_empty(): return
  var c=choices[0]
  var text="向墙移动 · %d格 / %d能量" % [c.payload.distance,c.cost] if c.payload.distance>0 else "向墙移动 · 距墙0格"
- if c.payload.distance>0 and not c.valid: text+="\n"+c.reason
+ var placement=_posture_layout(actions.select("posture").filter(func(action):return action.payload.adjacent and not action.payload.wall).size())
+ if not c.valid and (c.payload.distance>0 or not view.guard_bind.is_empty()):
+  text=c.reason if placement.with_move and placement.stride<48 else text+"\n"+c.reason
  var btn=_button(text,func():_submit(c),GOLD)
  btn.name="WallMove_toward";btn.disabled=not c.valid
- btn.add_theme_font_size_override("font_size",13)
+ btn.add_theme_font_size_override("font_size",11 if placement.with_move and placement.stride<48 else 13)
  btn.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
  btn.tooltip_text=c.detail if c.valid else c.reason
- var placement=_posture_layout(actions.select("posture").filter(func(action):return action.payload.adjacent and not action.payload.wall).size())
  if placement.with_move:
   btn.custom_minimum_size.y=placement.stride-4
   for state_name in ["normal","hover","pressed","focus","disabled"]:
@@ -1050,63 +1130,36 @@ func _wall_controls() -> void:
  candidate_buttons[c.id]=btn
 
 func _body_at(slot: String) -> Dictionary:
- for body in view.body_groups:
-  if body.id==slot or slot in body.slots: return body
- return view.body_groups[0]
+ return TargetQueries.body_at(view,slot)
 
 func _body_card_actions(slot: String, uid: String) -> Array:
- var body=_body_at(slot)
- var choices=actions.select("card",{"uid":uid}).filter(func(c):return c.payload.slot in body.slots or (body.id=="neck" and body.targets.has(c.payload.target)))
- var seen={};var unique=[]
- for c in choices:
-  # Merged hand/foot groups must show a shared physical piece only once.
-  var key=(c.payload.target if c.payload.target!="" or body.id=="neck" else c.payload.slot)+str(c.payload.free)
-  if not seen.has(key):
-   seen[key]=unique.size();unique.append(c)
-  elif c.valid and not unique[seen[key]].valid:
-   unique[seen[key]]=c
- return unique
+ return TargetQueries.body_cards(actions,_body_at(slot),uid)
 
 func _body_drawer() -> void:
  layout.body_sidebar(self)
  if not _selecting_hand() and (show_body or selected_card!="" or view.pending_retain): _body_details()
 
 func _body_equipment_entries(body: Dictionary) -> Dictionary:
- var entries={}
- for section in body.sections:
-  for e in section.equipment:
-   if not entries.has(e.id): entries[e.id]={"equipment":e,"locations":[]}
-   entries[e.id].locations.append(section.name)
- return entries
+ return TargetQueries.equipment_entries(body)
 
 func _single_body_card_action(slot: String, uid: String) -> Dictionary:
- var entries=_body_equipment_entries(_body_at(slot))
- if entries.size()!=1: return {}
- var choices=_body_card_actions(slot,uid).filter(func(c):return c.payload.free==card_faces.get(uid,false))
- if choices.size()!=1 or not entries.has(choices[0].payload.target): return {}
- return choices[0]
+ return TargetQueries.single_body_card(actions,_body_at(slot),uid,card_faces.get(uid,false))
 
 func _single_restraint_card_action(uid: String) -> Dictionary:
- var entries={}
- for body in view.body_groups:
-  entries.merge(_body_equipment_entries(body))
- if entries.size()!=1: return {}
- var target=entries.keys()[0]
- var fields={"uid":uid,"free":card_faces.get(uid,false)}
- var choices=actions.select("card",fields).filter(func(c):return c.payload.get("target","")!="")
- # A capture bar or any other explicit target still requires player choice.
- if choices.is_empty() or choices.any(func(c):return c.payload.target!=target): return {}
- fields.target=target
- return actions.first_usable("card",fields)
+ return TargetQueries.single_equipment_card(actions,view.body_groups,uid,card_faces.get(uid,false))
 
 func _body_details() -> void:
- var panel=_panel(Rect2(364,132,388,402));panel.name="EquipmentDetails";panel.z_index=180
+ var compact=selected_card!="" and not _single_body_card_action(selected_slot,selected_card).is_empty() and view.guard_bind.is_empty()
+ var sidebar=find_child("BodyEquipmentPanel",true,false)
+ var detail_x=sidebar.position.x+sidebar.size.x+10 if sidebar!=null else 344.0
+ var panel=_panel(Rect2(detail_x,100,448,350 if compact else 440 if quick_release_open else 470));panel.name="EquipmentDetails";panel.z_index=180
  var v=VBoxContainer.new();v.add_theme_constant_override("separation",8);panel.add_child(v)
  var heading=HBoxContainer.new();v.add_child(heading)
- var title=_label("部位装备",20,GOLD);title.size_flags_horizontal=Control.SIZE_EXPAND_FILL;heading.add_child(title)
+ var title=_label(_body_at(selected_slot).name+" · 解缚",20,GOLD);title.size_flags_horizontal=Control.SIZE_EXPAND_FILL;heading.add_child(title)
  var book=_button("教程",func():_open_tutorial("equipment"),CYAN);book.name="EquipmentTutorial";heading.add_child(book)
  var close=_button("关闭 ×",func():show_body=false;selected_card="";selected_candidate="";player_pick=false;render(view),MUTED)
  close.name="CloseEquipmentDetails";heading.add_child(close)
+ preload("res://ui/release_details.gd").region_summary(self,v,_body_at(selected_slot))
  var content=_scroll(v)
  if view.pending_retain:
   content.add_child(_label("还可保留%d张，保留至下回合结束" % view.retain_left,16,CYAN))
@@ -1116,25 +1169,35 @@ func _body_details() -> void:
   content.add_child(_label(card.name,22,CYAN))
   var bind_action=actions.find("card",{"uid":selected_card,"target":"guard_bind","free":card_faces.get(selected_card,false)})
   if not bind_action.is_empty():
-   _card_target(content,bind_action)
+   _card_target(content,bind_action,false,v)
    content.add_child(HSeparator.new())
   var choices=_body_card_actions(selected_slot,selected_card)
   var single=_single_body_card_action(selected_slot,selected_card)
   if not single.is_empty(): selected_candidate=single.id
   for c in choices:
-   if c.payload.free==card_faces.get(selected_card,false): _card_target(content,c,not single.is_empty())
+   if c.payload.free==card_faces.get(selected_card,false): _card_target(content,c,not single.is_empty(),v)
    elif not choices.any(func(other):return other.payload.free==card_faces.get(selected_card,false)): content.add_child(_label("请右键切换到"+card.face_names["free" if c.payload.free else "bound"]+"。",14,RED))
  else:
   var body=_body_at(selected_slot)
-  content.add_child(_label(body.name+(" · 自由" if body.equipment.is_empty() else " · 装备"),16,CYAN))
-  if body.equipment.is_empty(): content.add_child(_label("该部位自由。",14,MUTED))
-  var grid=_equipment_grid(content)
-  var entries=_body_equipment_entries(body)
-  var empty=[]
-  for section in body.sections:
-   if section.equipment.is_empty(): empty.append(section.name)
-  for entry in entries.values(): _equipment_tile(grid,entry.equipment,"、".join(entry.locations),entries.size()==1)
-  if not empty.is_empty(): content.add_child(_label("空位："+"、".join(empty),12,MUTED))
+  var members=body.get("members",[body])
+  var shown={};var free_names=[];var all_entries=_body_equipment_entries(body)
+  for member in members:
+   var entries=_body_equipment_entries(member)
+   if entries.is_empty():
+    if members.size()==1: free_names.append_array(member.sections.map(func(part):return part.name))
+    else: free_names.append(member.name)
+    continue
+   var fresh=entries.keys().filter(func(id):return not shown.has(id))
+   if members.size()==1:
+    for part in member.sections:
+     if part.equipment.is_empty(): free_names.append(part.name)
+   if fresh.is_empty(): continue
+   if members.size()>1: content.add_child(_label(member.name,16,CYAN))
+   var grid=_equipment_grid(content)
+   for id in fresh:
+    var entry=all_entries[id];shown[id]=true
+    _equipment_tile(grid,entry.equipment,"、".join(entry.locations),(entries.size()==1 and members.size()==1) or (quick_release_open and id==quick_release_inspected))
+  if not free_names.is_empty(): content.add_child(_label("自由："+"、".join(free_names),12,MUTED))
   if view.phase=="rest": content.add_child(_label("休息房只能使用卡牌拘束效果。",13,CYAN))
 
 func _equipment_grid(parent: Node) -> GridContainer:
@@ -1143,7 +1206,7 @@ func _equipment_grid(parent: Node) -> GridContainer:
  grid.add_theme_constant_override("h_separation",8)
  grid.add_theme_constant_override("v_separation",8)
  parent.add_child(grid)
- grid.resized.connect(func():grid.columns=maxi(1,mini(grid.get_child_count(),int((grid.size.x+8)/166))))
+ # One vertical sequence per body section makes physical layers legible.
  return grid
 
 # Shared presentation only: each card retains its projected physical target.
@@ -1152,12 +1215,12 @@ func _equipment_tile(parent: Node, e: Dictionary, location: String="", expanded:
  card.set_meta("equipment_id",e.id)
  card.size_flags_horizontal=Control.SIZE_EXPAND_FILL
  card.size_flags_vertical=Control.SIZE_SHRINK_BEGIN
- card.custom_minimum_size=Vector2(158,158)
+ card.custom_minimum_size=Vector2(158,0)
  var accent=RED if e.tier==3 else (CYAN if e.linked else GOLD)
  card.add_theme_stylebox_override("panel",_style(Color("192a38"),accent.darkened(0.35),10))
  parent.add_child(card)
  var box=VBoxContainer.new();box.add_theme_constant_override("separation",5);card.add_child(box)
- _equipment_card_face(box,e,location,accent)
+ preload("res://ui/release_details.gd").equipment_header(self,box,e,location,accent)
  for c in actions.select("manual",{"target":e.id}):
   if c.valid and c.payload.after==0.0:
    var release=_button("一键解除 · %d能量" % c.cost,func():_submit(c),CYAN)
@@ -1167,15 +1230,30 @@ func _equipment_tile(parent: Node, e: Dictionary, location: String="", expanded:
  var toggle=_button("收起详情 −" if expanded else "查看详情 ＋",func():pass,MUTED)
  toggle.pressed.connect(func():
   details.visible=not details.visible
-  toggle.text="收起详情 −" if details.visible else "查看详情 ＋")
+  if details.visible and details.get_child_count()==0: _equipment_actions(details,e)
+  toggle.text=localization.display("收起详情 −" if details.visible else "查看详情 ＋"))
  toggle.name="EquipmentCardDetailsToggle";toggle.custom_minimum_size.y=26
+ toggle.size_flags_horizontal=Control.SIZE_SHRINK_END
+ for state in ["normal","hover","pressed","focus","disabled"]:
+  var style=toggle.get_theme_stylebox(state).duplicate()
+  style.content_margin_top=3;style.content_margin_bottom=3
+  toggle.add_theme_stylebox_override(state,style)
  toggle.add_theme_font_size_override("font_size",12);box.add_child(toggle)
- box.add_child(details);details.add_child(_label(e.description,12,TEXT))
+ box.add_child(details)
+ if expanded: _equipment_actions(details,e)
+
+func _equipment_actions(details: VBoxContainer, e: Dictionary) -> void:
+ var description=_label(e.description,12,MUTED);description.visible=false
+ var more=_button("装备说明 ＋",func():description.visible=not description.visible,MUTED)
+ more.name="EquipmentDescriptionToggle"
+ more.custom_minimum_size.y=24;more.add_theme_font_size_override("font_size",11)
+ details.add_child(more);details.add_child(description)
  for c in actions.select("attack",{"target":e.id}):
   _action_row(details,c)
   candidate_buttons[c.id].name="EquipmentSpell_"+e.id
  for c in actions.select("manual",{"target":e.id}):
   if not c.valid or c.payload.after!=0.0: _action_row(details,c)
+ _localize_controls(details)
 
 func _equipment_card_face(box: Node,e: Dictionary,location: String,accent: Color,compact: bool=false) -> void:
  if location!="": box.add_child(_label(location,12,CYAN))
@@ -1212,10 +1290,11 @@ func _action_row(parent: Node,c: Dictionary,label: String="") -> void:
  b.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
  b.disabled=not c.valid
  parent.add_child(b); candidate_buttons[c.id]=b
- parent.add_child(_label(c.detail if c.valid else c.reason,14,MUTED if c.valid else RED))
+ if c.has("release_preview") and c.valid: preload("res://ui/release_details.gd").preview(self,parent,c)
+ else: parent.add_child(_label(c.detail if c.valid else c.reason,14,MUTED if c.valid else RED))
  if c.risk!="" and c.valid: parent.add_child(_label(c.risk,13,RED))
 
-func _card_target(parent: Node,c: Dictionary, automatic: bool=false) -> void:
+func _card_target(parent: Node,c: Dictionary, automatic: bool=false, footer: Node=null) -> void:
  if automatic:
   parent.add_child(_label(c.label,16,CYAN if c.valid else MUTED))
  else:
@@ -1223,14 +1302,17 @@ func _card_target(parent: Node,c: Dictionary, automatic: bool=false) -> void:
   b.name="CardTarget_"+c.payload.target;b.disabled=not c.valid
   DragTargets.focus(self,b,c.valid)
   parent.add_child(b)
+ var equipment=_body_at(selected_slot).targets.get(c.payload.target,{})
+ if not equipment.is_empty(): parent.add_child(_label(equipment.position_text+" · "+equipment.get("layer_label",""),12,MUTED))
  if not c.valid: parent.add_child(_label(c.reason,14,RED))
  elif c.risk!="": parent.add_child(_label(c.risk,14,RED))
  if selected_candidate==c.id and c.valid:
-  parent.add_child(_label(c.detail,15,TEXT))
+  if c.has("release_preview"): preload("res://ui/release_details.gd").preview(self,parent,c)
+  else: parent.add_child(_label(c.detail,15,TEXT))
   var fee=str(c.cost)+"能量"+(" / "+game.number(c.mana)+"魔力" if c.mana>0 else "")
   var commit=_button("打出 · "+fee,func(): _submit(c),CYAN)
   commit.name="PlaySelectedCard"
-  parent.add_child(commit); candidate_buttons[c.id]=commit
+  (footer if footer!=null else parent).add_child(commit); candidate_buttons[c.id]=commit
 
 func _rewards() -> void:
  preload("res://ui/reward_screen.gd").build(self)
@@ -1251,44 +1333,80 @@ func _practice_screen() -> void:
  v.add_child(_label(view.summary,16,MUTED))
 
 func _capture_screen() -> void:
- var panel=_panel(Rect2(397,158,1140,530))
- var v=VBoxContainer.new(); v.add_theme_constant_override("separation",17); panel.add_child(v)
- v.add_child(_label("收押完成",29,RED))
- v.add_child(_label(view.capture.by+"将你送入监狱。当前警戒度：%d。" % view.security,21))
- v.add_child(_label(view.prison.intake_rule,18,GOLD))
- v.add_child(_label("原有装备、锁、链接、卡组、遗物、魔力和快感保留；本次没有战后恢复或卡牌奖励。",18,CYAN))
- v.add_child(_label("没收%d件道具，清除临时增益。追加%d件拘束具、%d条链接、%d件特殊装备。" % [view.capture.confiscated,view.capture.added.size(),view.capture.links.size(),view.capture.special_added.size()],18))
- if view.security>=3: v.add_child(_label("限制项圈不计入件数；开锁后须双臂自由才能取下，品相完美版 henshin 可直接解除。",16,CYAN))
- v.add_child(_label("五级将移入高安全监室，补齐高级三档装备，本局结束。" if view.security==5 else "可在左侧检查装备，然后进入牢房，开始探索与逃脱。",18,GOLD))
- for c in actions.select("prison"): _action_row(v,c)
- if view.practice:
-  v.add_child(_button("再次挑战同一组魅魔警卫",func(): restart(view.seed,true,view.practice_kind),CYAN))
+ var panel=_panel(Rect2(405,158,895,652));panel.name="PrisonIntakePanel"
+ var row=HBoxContainer.new();row.add_theme_constant_override("separation",24);panel.add_child(row)
+ var left=VBoxContainer.new();left.custom_minimum_size.x=300;row.add_child(left)
+ var artwork=PanelContainer.new();artwork.name="PrisonIntakeArtwork";artwork.custom_minimum_size=Vector2(300,520)
+ artwork.add_theme_stylebox_override("panel",_style(Color("111923"),GOLD.darkened(0.5)));left.add_child(artwork)
+ artwork.add_child(_guard_portrait(game.Prison.SENIOR_GUARD,Vector2(300,520)))
+ var right=VBoxContainer.new();right.name="PrisonIntakeContent";right.size_flags_horizontal=Control.SIZE_EXPAND_FILL;right.add_theme_constant_override("separation",12);row.add_child(right)
+ right.add_child(_label("监狱收押",25,GOLD))
+ var banner=PanelContainer.new();banner.name="PrisonIntakeBanner";banner.custom_minimum_size.y=64
+ banner.add_theme_stylebox_override("panel",_style(Color("10221e"),Color("8fdfba")));right.add_child(banner)
+ var banner_label=_label("✓  收押完成",30,Color("8fdfba"));banner_label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER;banner.add_child(banner_label)
+ var prose=_scroll(right);prose.name="PrisonIntakeNarrative";prose.get_parent().name="PrisonIntakeNarrativeScroll"
+ var scene=view.capture.get("intake_scene",{})
+ if scene.is_empty():
+  prose.add_child(_label("棕发狱警把你押到牢门前，逐件收紧新添的拘束，最后在登记板上盖下印章。",18,TEXT))
  else:
-  v.add_child(_button("重新开始塔路",func(): restart(view.seed),CYAN))
- v.add_child(_button("选择其他练习",func():_open_drawer("show_settings")))
+  prose.add_child(_label(scene.opening,18,TEXT))
+  prose.add_child(_label("“%s”" % scene.guard_intro,18,CYAN))
+  for line in scene.restraints: prose.add_child(_label(line,17,TEXT))
+  for line in scene.links: prose.add_child(_label(line,17,TEXT))
+  for line in scene.toys: prose.add_child(_label(line,17,TEXT))
+  prose.add_child(_label(scene.milking,18,TEXT))
+  prose.add_child(_label(scene.closing,18,TEXT))
+  prose.add_child(_label("“%s”" % scene.guard_done,18,CYAN))
+ var climax=scene.get("climax",{})
+ right.add_child(_label("警戒度 %d　·　没收道具 %d件　·　榨取魔力 %s" % [view.security,view.capture.confiscated,game.number(climax.get("mana_lost",0.0))],15,MUTED))
+ right.add_child(HSeparator.new())
+ var options=VBoxContainer.new();options.name="PrisonIntakeChoices";options.add_theme_constant_override("separation",8);right.add_child(options)
+ for c in actions.select("prison"): preload("res://ui/event_screen.gd").action(self,options,c)
+ if view.practice:
+  left.add_child(_button("再次挑战",func(): restart(view.seed,true,view.practice_kind),CYAN))
+ else:
+  left.add_child(_button("重新开始",func(): restart(view.seed),CYAN))
+ left.add_child(_button("其他练习",func():_open_drawer("show_settings")))
 
 func _inspection_screen() -> void:
- var panel=_panel(Rect2(397,158,1140,530))
- var v=VBoxContainer.new(); v.add_theme_constant_override("separation",18); panel.add_child(v)
- if view.phase=="pack":
-  v.add_child(_label("整理随身道具",29,GOLD))
-  v.add_child(_label("反抗战后的整备结束。先使用或放弃超出容量的工具，再返回牢房；巡视继续暂停。",20))
-  v.add_child(_button("打开道具栏",func():_open_drawer("show_items"),CYAN))
-  for c in actions.select("flow"): _action_row(v,c)
+ if view.phase in ["pack","prison_end"]:
+  var flow_panel=_panel(Rect2(397,158,1140,530))
+  var flow=VBoxContainer.new();flow.add_theme_constant_override("separation",14);flow_panel.add_child(flow)
+  if view.phase=="pack":
+   flow.add_child(_label("整理随身道具",29,GOLD))
+   flow.add_child(_label("反抗战后的整备结束。先使用或放弃超出容量的工具，再返回牢房；巡视继续暂停。",20))
+   flow.add_child(_button("打开道具栏",func():_open_drawer("show_items"),CYAN))
+   for c in actions.select("flow"): _action_row(flow,c)
+  else:
+   flow.add_child(_label("本次逃脱失败",29,RED))
+   flow.add_child(_label("监狱警戒度已经达到5，普通逃脱流程结束。",21))
+   flow.add_child(_label(view.prison.terminal_text,18,GOLD))
+   flow.add_child(_label("可在左侧查看最终装备；选择重新开始会替换本局进度。",17,MUTED))
+   flow.add_child(_button("重新开始一局",func():restart(view.seed),CYAN))
   return
- if view.phase=="prison_end":
-  v.add_child(_label("本次逃脱失败",29,RED))
-  v.add_child(_label("监狱警戒度已经达到5，普通逃脱流程结束。",21))
-  v.add_child(_label(view.prison.terminal_text,18,GOLD))
-  v.add_child(_label("可在左侧查看最终装备；选择重新开始会替换本局进度。",17,MUTED))
-  v.add_child(_button("重新开始一局",func(): restart(view.seed),CYAN))
-  return
+ var panel=_panel(Rect2(405,158,895,652));panel.name="PrisonInspectionPanel"
+ var row=HBoxContainer.new();row.add_theme_constant_override("separation",24);panel.add_child(row)
+ var left=VBoxContainer.new();left.custom_minimum_size.x=300;row.add_child(left)
+ var artwork=PanelContainer.new();artwork.name="PrisonInspectionArtwork";artwork.custom_minimum_size=Vector2(300,520)
+ artwork.add_theme_stylebox_override("panel",_style(Color("111923"),GOLD.darkened(0.5)));left.add_child(artwork)
+ if view.phase=="inspection": artwork.add_child(_guard_portrait(view.prison.get("guard_visual",game.Prison.PATROL_GUARD),Vector2(300,520)))
+ var v=VBoxContainer.new();v.size_flags_horizontal=Control.SIZE_EXPAND_FILL;v.add_theme_constant_override("separation",14);row.add_child(v)
  var p=view.prison
- v.add_child(_label({"arrival":"狱警来到门前","result":"检查结果","done":"检查完成"}[p.stage],29,GOLD))
- v.add_child(_label("已完成%d次检查 · 警戒度%d" % [p.checks,view.security],18,CYAN))
- v.add_child(_label("可以接受检查，或现在反抗；反抗会与魅魔警卫战斗。" if p.stage=="arrival" else p.report,20))
- v.add_child(_label("巡视中：仅可检查或反抗。",16,MUTED))
- for c in actions.select("prison"): _action_row(v,c)
+ v.add_child(_label("狱警巡视",25,GOLD))
+ var status=p.get("result_status","neutral")
+ var tone=Color("8fdfba") if status=="success" else (Color("ff8797") if status=="failure" else GOLD)
+ var banner=PanelContainer.new();banner.name="PrisonInspectionBanner";banner.custom_minimum_size.y=64
+ banner.set_meta("result_status",status);banner.add_theme_stylebox_override("panel",_style(Color(tone.r*0.14,tone.g*0.14,tone.b*0.14,1),tone));v.add_child(banner)
+ var banner_text={"arrival":"◇  巡视开始","result":"✓  登记无误" if status=="success" else "×  发现问题","done":"✓  检查通过" if status=="success" else "×  处罚执行"}[p.stage]
+ var banner_label=_label(banner_text,30,tone);banner_label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER;banner.add_child(banner_label)
+ var prose=_scroll(v);prose.name="PrisonInspectionNarrative";prose.get_parent().name="PrisonInspectionNarrativeScroll"
+ if p.get("narrative","")!="": prose.add_child(_label(p.narrative,18,TEXT))
+ if p.get("guard_dialogue","")!="": prose.add_child(_label("“%s”" % p.guard_dialogue,18,CYAN))
+ if p.stage!="arrival" and p.report!="": prose.add_child(_label(p.report,18,TEXT))
+ v.add_child(_label(p.sentence,15,MUTED))
+ v.add_child(HSeparator.new())
+ var options=VBoxContainer.new();options.name="PrisonInspectionChoices";options.add_theme_constant_override("separation",8);v.add_child(options)
+ for c in actions.select("prison"): EventScreen.action(self,options,c)
 
 func _prison_controls() -> void:
  var p=view.prison
@@ -1298,6 +1416,7 @@ func _prison_controls() -> void:
  var title=_label("巡视暂停" if p.paused else "巡视剩余 %d 回合" % p.left,20,GOLD)
  title.size_flags_horizontal=Control.SIZE_EXPAND_FILL;heading.add_child(title)
  var remaining=_label("待探索 %d" % p.remaining,16,MUTED);remaining.name="PrisonRemaining";remaining.autowrap_mode=TextServer.AUTOWRAP_OFF;heading.add_child(remaining)
+ var sentence=_label(p.sentence,16,CYAN);sentence.name="PrisonSentence";v.add_child(sentence)
  var selected=p.space.sites.filter(func(site):return site.id==prison_detail and not site.interaction.is_empty())
  if not selected.is_empty():
   _prison_location_details(v,selected[0]);return
@@ -1439,6 +1558,9 @@ func _door_candidate(data: Dictionary) -> Dictionary:
 
 func _route_screen() -> void:
  var current=view.route.filter(func(r):return r.current)[0].id
+ if view.tower_start_pending:
+  var starts=view.route.filter(func(r):return r.status=="available")
+  if not starts.is_empty(): current=starts[0].id
  if map_current_room!=current:
   map_current_room=current; map_scroll_value=-1; route_focus=current
  if not view.route.any(func(r):return r.id==route_focus): route_focus=current
@@ -1447,6 +1569,9 @@ func _route_screen() -> void:
  var map_column=VBoxContainer.new();map_column.name="RouteMapColumn"
  map_column.size_flags_horizontal=Control.SIZE_EXPAND_FILL
  map_column.add_theme_constant_override("separation",4);row.add_child(map_column)
+ if view.tower_start_pending:
+  var title=_label("选择出狱起点 · 第10—11层非休息、非宝箱区域 · 不消耗回合",20,GOLD)
+  title.name="PrisonStartTitle";map_column.add_child(title)
  var relic_strip=layout.find_child("RelicStrip",true,false)
  if relic_strip!=null:
   relic_strip.reparent(map_column)
@@ -1563,7 +1688,7 @@ func _restore_map_scroll(scroll: ScrollContainer, graph: Control, offset: int) -
  if not is_instance_valid(scroll) or not is_instance_valid(graph): return
  if offset>=0: scroll.scroll_vertical=offset
  else:
-  var room=graph.rooms.filter(func(r):return r.current)[0]
+  var room=graph.rooms.filter(func(r):return r.id==route_focus if view.tower_start_pending else r.current)[0]
   scroll.scroll_vertical=int(graph.point_for(room).y-scroll.size.y*0.62)
  map_scroll_value=scroll.scroll_vertical
  scroll.get_v_scroll_bar().value_changed.connect(func(value):map_scroll_value=int(value))
@@ -1631,6 +1756,28 @@ func _speech_bubble(point_to_hero: bool=true) -> void:
  if point_to_hero:
   var center=HERO_STAGE_RECT.get_center().x
   var tail=Polygon2D.new();tail.polygon=PackedVector2Array([Vector2(center-8,177),Vector2(center+8,177),Vector2(center,192)]);tail.color=Color(0.055,0.09,0.135,0.97);speech_group.add_child(tail)
+
+func _guard_portrait(visual: String, minimum: Vector2) -> TextureRect:
+ var portrait=TextureRect.new();portrait.name="PrisonGuardPortrait";portrait.custom_minimum_size=minimum
+ portrait.texture=Arena.Art.GUARD_PORTRAITS.get(visual,Arena.Art.GUARD_PORTRAITS.guard_purple)
+ portrait.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;portrait.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+ portrait.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR;portrait.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ return portrait
+
+func _npc_speech_bubble() -> void:
+ var entry=view.get("npc_speech",{})
+ if entry.is_empty(): return
+ var release_after_inspection=entry.get("cue","")=="prison.guard.release_pass" and view.get("tower_start_pending",false)
+ if entry.get("phase","")!=view.phase and not release_after_inspection: return
+ if not _speech_visible("npc:"+str(entry.id)): return
+ speech_group=Control.new();speech_group.name="NpcSpeechGroup";speech_group.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ speech_group.z_index=220;_place(speech_group,Rect2(0,0,0,0))
+ var panel=_panel(Rect2(930,72,472,112));panel.name="NpcSpeech";panel.reparent(speech_group)
+ var row=HBoxContainer.new();row.add_theme_constant_override("separation",12);panel.add_child(row)
+ row.add_child(_guard_portrait(entry.get("visual",game.Prison.PATROL_GUARD),Vector2(64,64)))
+ var body=_label(entry.text,15,TEXT);body.name="NpcSpeechText"
+ body.size_flags_horizontal=Control.SIZE_EXPAND_FILL;body.size_flags_vertical=Control.SIZE_EXPAND_FILL
+ body.vertical_alignment=VERTICAL_ALIGNMENT_CENTER;row.add_child(body)
 
 func _action_sidebar() -> void:
  var report_button=_button("问题与建议",feedback_report.open,CYAN);report_button.name="OpenFeedback"
@@ -1727,6 +1874,7 @@ func _submit(c: Dictionary, expected_version: int=-1) -> void:
  var updated=game.get_view()
  notice="" if result.ok else result.error
  if result.ok:
+  preload("res://ui/shell/body_sidebar.gd").expand_applied(self,previous,updated)
   if c.payload.get("witch_action",false) and not c.payload.charge_action: attack_forms[c.payload.type]=0
   _save_progress()
   if c.payload.kind=="demo_continue": _reset_interface(updated)
@@ -1805,7 +1953,8 @@ func _reset_interface(initial: Dictionary) -> void:
  action_log_open=false;action_log_pinned=false
  status_filter="all"
  selected_card=""; selected_candidate=""; selected_slot=initial.practice_focus if initial.practice else "wrist"; selected_enemy=""
- notice=""; show_body=false; show_route=false;prison_detail=""
+ quick_release_open=false;quick_release_region="";quick_release_parts.clear();quick_release_targets.clear();quick_release_inspected=""
+ notice=""; show_body=false;expanded_body_regions.clear(); show_route=false;prison_detail=""
  card_faces.clear()
  card_draw_serials.clear()
  selected_item=""
@@ -1842,6 +1991,7 @@ func _notification(what: int) -> void:
  if what==NOTIFICATION_DRAG_BEGIN: _begin_target_drag.call_deferred()
  if what==NOTIFICATION_WM_GO_BACK_REQUEST:
   touch_input.cancel();_hide_term()
+  if touch_input.dismiss_popup(): return
   var modal=modal_region()
   if modal!=null:
    modal.find_child("ShopPaymentContinue",true,false).pressed.emit();return
@@ -1990,9 +2140,20 @@ func _drag_rejection(anchor: Control, reason: String) -> void:
   anchor.mouse_exited.connect(func():
    if term_anchor==anchor and is_instance_valid(term_popup) and term_popup.has_meta("drag_reason"): _hide_term())
 
-func _guard_bind_drag_preview(data: Dictionary) -> void:
- var c=_guard_bind_card_candidate(data)
- _drag_rejection(actor_targets.guard_bind,"这张牌不能处理捕缚。" if c.is_empty() else ("" if c.valid else c.reason))
+func _guard_bind_drop_target(rect: Rect2, node_name: String) -> Button:
+ var target=_actor_drop_area(rect,null,true)
+ target.custom_minimum_size=Vector2.ZERO;target.size=rect.size
+ target.name=node_name;target.accepted_kind="card"
+ target.tooltip_text=view.guard_bind.detail
+ target.hover_card=func(data):
+  var c=_guard_bind_card_candidate(data)
+  _drag_rejection(target,"这张牌不能处理捕缚。" if c.is_empty() else ("" if c.valid else c.reason))
+ target.accept_card=func(data):return _guard_bind_card_candidate(data).get("valid",false)
+ target.receive_card=func(data):
+  var c=_guard_bind_card_candidate(data)
+  if not c.is_empty() and c.valid: call_deferred("_submit",c,int(data.version))
+ target.pressed.connect(_activate_guard_bind_target)
+ return target
 
 func _activate_guard_bind_target() -> void:
  if selected_card=="": return
@@ -2063,9 +2224,7 @@ func _free_player_candidate(data: Dictionary, slot: String="") -> Dictionary:
  var fields={"uid":data.get("card_uid",""),"free":true}
  if slot=="": return actions.first_usable("card",fields)
  var matches=_body_card_actions(slot,data.get("card_uid","")).filter(func(c):return c.payload.free)
- for c in matches:
-  if c.valid: return c
- return matches[0] if not matches.is_empty() else {}
+ return TargetQueries.first_usable(matches)
 
 func _use_free_card(data: Dictionary) -> void:
  var c=_free_player_candidate(data)
@@ -2095,6 +2254,16 @@ func _activate_card(uid: String) -> void:
  if _card_is_free(uid,card_faces.get(uid,false)):
   _use_free_card({"card_uid":uid,"free":true,"version":view.version})
   return
+ if quick_release_open and quick_release_region!="":
+  var data={"card_uid":uid,"free":card_faces.get(uid,false),"version":view.version}
+  var quick=preload("res://ui/quick_release_bar.gd").candidate(self,quick_release_region,data)
+  if not quick.is_empty() and quick.valid:
+   _submit(quick,int(data.version));return
+  var matching=actions.select("card",{"uid":uid,"free":data.free})
+  if matching.any(func(c):return c.payload.get("mode","") in TargetQueries.RELEASE_MODES):
+   notice=quick.reason if not quick.is_empty() else preload("res://ui/quick_release_bar.gd").message(self,"wrong_card","这张牌不能用于当前选中的拘束具")
+   selected_card=uid;selected_candidate="";show_body=false
+   render(view);return
  var single=_single_restraint_card_action(uid)
  if not single.is_empty():
   if single.valid:
@@ -2161,7 +2330,7 @@ func _rest_controls() -> void:
  v.add_child(button)
  v.add_child(_label("免费 · 紧度－1档",14,MUTED))
  v.add_child(_label("剩余%d回合休息" % view.rest_left,22,GOLD))
- _place(_label("自由效果禁用 · 不自然回魔"+(" · 练习工具已预置" if view.practice else ""),17,CYAN),Rect2(475,551,1020,42))
+ _place(_label("自由效果禁用 · 不自然回魔"+(" · 练习工具已预置" if view.practice else ""),17,CYAN),Rect2(805,497,730,36))
 
 func _hook_drawer() -> void:
  var v=_drawer_shell(view.hook_location+" · 剩余%d次" % view.hook_uses,Rect2(650,150,870,560))
@@ -2199,11 +2368,14 @@ func _pressure_drawer() -> void:
   box.add_child(_label(selected.detail,15,TEXT))
   box.add_child(_label("来源："+selected.source+"\n持续："+selected.duration,13,MUTED))
 
-func _installed_tools() -> void:
+func _installed_tools(placement: Rect2, parent: Control) -> void:
  if show_route or view.phase not in ["battle","prepare","rest","prison"]: return
  var installed=view.items.filter(func(item):return item.installed)
  if installed.is_empty(): return
- var panel=_panel(Rect2(24,706,330,46));panel.name="InstalledTools"
+ var panel=_panel(placement,parent);panel.name="InstalledTools"
+ var frame=panel.get_theme_stylebox("panel").duplicate()
+ frame.content_margin_top=3;frame.content_margin_bottom=3
+ panel.add_theme_stylebox_override("panel",frame)
  var rows=_scroll(panel)
  
  for item in installed:
@@ -2213,6 +2385,10 @@ func _installed_tools() -> void:
   button.name="InstalledTool_"+item.id
   button.custom_minimum_size.y=26
   button.add_theme_font_size_override("font_size",12)
+  for state_name in ["normal","hover","pressed","focus","disabled"]:
+   var style=button.get_theme_stylebox(state_name).duplicate()
+   style.content_margin_top=2;style.content_margin_bottom=2
+   button.add_theme_stylebox_override(state_name,style)
   rows.add_child(button)
 
 func _items_drawer() -> void:
@@ -2479,4 +2655,3 @@ func _chain_screen() -> void:
 func _service_screen() -> void:
  var shop=ShopScreen.new();shop.ui=self;shop.name="RoomServicePanel";shop.size=Vector2(1552,790)
  _place(shop,Rect2(24,84,1552,790))
-

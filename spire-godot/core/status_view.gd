@@ -10,6 +10,23 @@ static func mark(out: Array, icon: String, badge: String="", active: bool=true, 
  out.back().merge({"icon":icon,"badge":badge,"active":active,"owner":owner},true)
  if owner!="hero": out.back().category="enemy"
 
+# Fixed cutters have no direct-use candidate; their formal card bonus identifies them.
+static func append_usable_items(out: Array, items: Array, actions: Array) -> void:
+ var usable={}
+ for action in actions:
+  if not action.valid: continue
+  var payload=action.payload
+  var bonus=payload.get("tool_bonus",{})
+  if not bonus.is_empty(): usable[bonus.item]=true
+ for item in items:
+  if not item.installed or item.uses<=0 or not usable.has(item.id): continue
+  var detail=item.passive_text
+  if item.contact_text!="": detail+="\n"+item.contact_text
+  entry(out,"usable_item_"+item.id,"environment",item.name,"剩余%d次" % item.uses,detail,item.mount,"随使用次数和可用条件变化更新","good")
+  mark(out,"item",str(item.uses))
+  out.back().item_id=item.id
+  out.back().item_type=item.type
+
 static func power_art(g, id: String) -> Dictionary:
  if g.Cards.Rules.BUFFS[id].has("hannya_level"): return {"card_type":"hannya_%d" % g.Cards.Rules.BUFFS[id].hannya_level,"face":"free"}
  for type in g.Cards.Rules.SPECS:
@@ -33,12 +50,20 @@ static func sources(g, slots: Array, side: String="", joint_only: bool=false) ->
 static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
  var out: Array=[]
  var s=g.state
+ var toe=g.RelicEffects.toe_traction(g)
+ if toe.base>0:
+  var details: Array[String]=[]
+  for source in toe.sources: details.append("%s：%s、紧度%d档，基础快感＋%s。" % [source.name,g.Equipment.GRADES[source.grade],source.tier,g.number(source.base)])
+  entry(out,"secret_weapon_traction","limit","脚趾牵扯","＋%s快感" % g.number(toe.gain),"每次消耗能量时触发一次；额外牵扯也会触发。\n"+"\n".join(details)+"\n脚趾施法成功率×0%；解除脚趾拘束后停止。","秘密武器","脚趾被拘束时","bad")
+  mark(out,"foot",g.number(toe.gain))
  if g.Character.active(g):
   for part in g.Character.PARTS:
    var count=s.witch_charges[part]
-   var detail="至少4层可使用魔女飞踹：伤害1，打断，消耗全部腿部蓄力。" if part=="legs" else "释放时每层额外触发一次法术效果，消耗该部位全部蓄力；失败保留。"
+   var detail="至少4层可使用魔女飞踹：伤害1，打断，消耗全部腿部施法预备。" if part=="legs" else "释放时每层额外触发一次法术效果，消耗该部位全部施法预备；失败保留。"
+   detail+="每回合预备次数不限；各部位每回合只能成功释放1次。"
+   if g.Character.Expansion.protects_preparation(g): detail+="耐心耐心～生效：暂不消耗施法预备，也不抵挡拘束。"
    if part!="mind": detail+="对应部位被施加拘束时可消耗2层抵挡；不足2层不能抵挡。"
-   entry(out,"witch_charge_"+part,"benefit",g.Character.NAMES[part]+"蓄力","%d层" % count,detail,"基础动作","本场整备结束或高潮时清空","good")
+   entry(out,"witch_charge_"+part,"benefit",g.Character.NAMES[part]+"施法预备","%d层" % count,detail,"基础动作","本场整备结束或高潮时清空","good")
    mark(out,{"hand":"hand","mouth":"mouth","legs":"foot","mind":"ritual"}[part],str(count))
   if s.witch_focus>0:
    entry(out,"witch_focus","benefit","精神集中","%d层" % s.witch_focus,"下次造成伤害的魔法每段伤害＋%d，整次施放消耗全部层数。施法失败或高潮时失去1层。" % s.witch_focus,"卡牌／遗物","使用后清除；跨战斗最多保留%d层" % (2+g.combat_retention_bonus()),"good")
@@ -60,6 +85,11 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
   entry(out,"guard_bind","limit","捕缚","%s / %s" % [g.number(bind.value),g.number(bind.maximum)],bind.detail,bind.source,"进度归零解除；达到100后下一敌方回合收押","bad")
   mark(out,"bind",g.number(bind.value))
  if s.phase=="battle":
+  if g.Prison.reinforcements_active(g):
+   var count=s.prison.reinforcements;var limit=1+s.security
+   var left=g.Prison.reinforcements_left(g)
+   entry(out,"prison_reinforcements","environment","援军","已达上限" if count>=limit else "%d回合后抵达" % left,"每4回合召来1名警卫。已召来%d / %d名；战斗胜利后停止。" % [count,limit],"监狱警卫战","本场战斗结束时消失","bad")
+   mark(out,"stock","✓" if count>=limit else str(left),true)
   for enemy in s.enemies:
    var definition=g.Enemies.TYPES[enemy.type]
    if not enemy.gone and (definition.has("defeat_spawns") or definition.has("split_threshold")):
@@ -219,7 +249,7 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
  if s.security>0: entry(out,"security","environment","监狱警戒度","%d / 5级" % s.security,g.Prison.intake_label(g)+"3级起固定佩戴限制项圈，不占件数。","累计入狱记录","携带卡组与遗物继续游玩仍累计；新开游戏归零","bad")
  if s.prison.get("active",false) and s.phase!="prison_end":
   var prison=g.Prison.view(g)
-  entry(out,"inspection","environment","狱警巡视","已暂停" if prison.paused else "剩余%d回合" % prison.left,"持有监门钥匙或正在反抗时暂停巡视。拘束具或性玩具缺件会分别触发补装；每次完整检查最后补满性玩具电池。","当前牢房与警戒度","随牢房回合和巡视进度变化")
+  entry(out,"inspection","environment","狱警巡视","已暂停" if prison.paused else "剩余%d回合" % prison.left,"持有监门钥匙或正在反抗时暂停巡视。拘束具或性玩具缺件会分别触发补装；每次完整检查最后补满性玩具电池。\n"+prison.sentence,"当前牢房与警戒度","随牢房回合和巡视进度变化")
  if s.phase=="prison_end": entry(out,"terminal","limit","高安全监室","本局结束","无法继续回合或使用逃离道具；可以查看当前装备与状态。","五级警戒度","本局终局","bad")
  var special_status_ids=[]
  var special_details=[]

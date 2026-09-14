@@ -96,7 +96,9 @@ static func run(t) -> void:
 
 static func mandarin_duck(t) -> void:
  var ui=t.ui
- ui.restart(42,true,"henshin");await t.frames()
+ ui.restart(42,true,"henshin")
+ # This scenario plays several cards in one turn; do not rely on starter energy.
+ ui.game.state.energy=10;ui.render();await t.frames()
  ui.card_music.configure(true,0.0)
  t.check(ui.view.hand.any(func(c):return c.type=="hannya_2"),"DUCK MUSIC practice includes second soup in starting hand")
  var card=ui.view.hand.filter(func(c):return c.type=="henshin")[0]
@@ -117,8 +119,12 @@ static func mandarin_duck(t) -> void:
  var original=ui.card_music.stream
  card=Give.give(ui.game,"hannya_2");ui.render();await t.frames()
  if ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+ t.check(ui.actions.find("card",{"uid":card.uid,"free":false}).valid,"DUCK MUSIC repeated-play fixture can pay for the next real card")
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
- t.check(ui.game.state.exhaust.any(func(c):return c.uid==card.uid) and ui.card_music.stream==original and ui.card_music.get_playback_position()>=paused,"DUCK MUSIC repeated actual soup play preserves progress")
+ var exhausted=ui.game.state.exhaust.any(func(c):return c.uid==card.uid)
+ var same_stream=ui.card_music.stream==original
+ var resumed_position=ui.card_music.get_playback_position()
+ t.check(exhausted and same_stream and resumed_position>=paused,"DUCK MUSIC repeated actual soup play preserves progress: exhausted=%s same_stream=%s position=%s paused=%s" % [exhausted,same_stream,resumed_position,paused])
  ui.card_music.seek(60.8)
  await t.create_timer(0.5).timeout
  t.check(ui.card_music.playing and ui.card_music.get_playback_position()<2.0,"DUCK MUSIC battle loops at trimmed clip boundary")

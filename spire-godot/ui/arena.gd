@@ -18,24 +18,23 @@ var art_settings
 var inactive=false
 var has_restraint_level=false
 var fixed_portrait=false
+var character_id="original"
 var hero_view: Dictionary={}
 var hero_sprite: TextureRect
 var enemy_sprite: TextureRect
 var appearance: Array=[]
 
 func configure_hero(view: Dictionary, fixed: bool) -> void:
+ var next_character=view.get("character_id","original")
  var next_pose="stand" if fixed else view.posture
- var details=[] if fixed else (EquipmentPortrait.visual_facts(view) if next_pose=="stand" else [view.has_restraint_level])
- var next_appearance=[next_pose,fixed,details]
+ var details=[] if fixed or next_character=="witch" else (EquipmentPortrait.visual_facts(view) if next_pose=="stand" else [view.has_restraint_level])
+ var next_appearance=[next_character,next_pose,fixed,details]
  if appearance==next_appearance:return
  appearance=next_appearance
- mode="hero";pose=next_pose;fixed_portrait=fixed
+ mode="hero";pose=next_pose;fixed_portrait=fixed;character_id=next_character
  has_restraint_level=view.has_restraint_level
  # Retain visual facts only, not the entire game view or its candidates.
- hero_view={"has_restraint_level":has_restraint_level,
-  "equipment_portrait_layers":view.get("equipment_portrait_layers",[]).duplicate(),
-  "body_coverage":view.body_coverage.duplicate(true),
-  "bodies":view.bodies.map(func(body):return {"id":body.id,"occupied":body.occupied})}
+ hero_view=EquipmentPortrait.snapshot(view)
  if is_node_ready():_refresh_hero()
 
 func configure_enemy(enemy: Dictionary, settings) -> void:
@@ -68,7 +67,7 @@ func _ready() -> void:
 
 func _refresh_hero() -> void:
  var free_special=hero_view.get("equipment_portrait_layers",[]).any(func(id):return id in ["flat_lock","flat_lock_reinforcement"])
- var layered=not fixed_portrait and pose=="stand" and (has_restraint_level or free_special)
+ var layered=character_id!="witch" and not fixed_portrait and pose=="stand" and (has_restraint_level or free_special)
  if is_instance_valid(hero_sprite) and (hero_sprite is EquipmentPortrait)!=layered:
   remove_child(hero_sprite);hero_sprite.queue_free();hero_sprite=null
  if layered:
@@ -78,7 +77,7 @@ func _refresh_hero() -> void:
   else:hero_sprite.configure(hero_view,false,true)
  else:
   if fixed_portrait:pose="stand"
-  var image=EquipmentPortrait.FREE if fixed_portrait else Art.hero_texture(pose,has_restraint_level)
+  var image=EquipmentPortrait.FREE if fixed_portrait else Art.hero_texture(pose,has_restraint_level,character_id)
   if not is_instance_valid(hero_sprite):hero_sprite=_sprite(image,"HeroPose")
   elif hero_sprite.texture!=image:hero_sprite.texture=image
  hero_sprite.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR

@@ -1,6 +1,51 @@
 extends RefCounted
 const Navigation=preload("res://tests/interface_ui_cases.gd")
 
+static func query_contract(t) -> void:
+ var queries=preload("res://ui/target_queries.gd")
+ var index=preload("res://ui/action_index.gd")
+ var make=func(id,slot,free,valid):return {"id":id,"group":"card","valid":valid,"reason":id,"payload":{"kind":"card","uid":"card","slot":slot,"target":"gear","free":free,"mode":"strain"}}
+ var left=make.call("left-blocked","left",false,false)
+ var right=make.call("right-ready","right",false,true)
+ var second=make.call("second-face","left",true,true)
+ var gear={"id":"gear"}
+ var body={"id":"hands","slots":["left","right"],"targets":{"gear":gear},"sections":[{"name":"左手","equipment":[gear]},{"name":"右手","equipment":[gear]}]}
+ var candidates=[left,right,second];var actions=index.new(candidates)
+ var before=candidates.duplicate(true);var body_before=body.duplicate(true)
+ var data={"card_uid":"card","free":false,"version":7}
+ var grouped=queries.body_cards(actions,body,"card")
+ t.check(grouped==[right,second] and is_same(grouped[0],actions.by_id[right.id]),"TARGET QUERY body merge keeps both faces and the original usable candidate for one physical target")
+ t.check(queries.single_body_card(actions,body,"card",false)==right and queries.single_equipment_card(actions,[body],"card",false)==right,"TARGET QUERY single-equipment click uses the same physical target as body selection")
+ t.check(queries.release_candidate(actions,body,"gear",data,7)==right,"TARGET QUERY quick release selects the same original bound candidate")
+ var free=data.duplicate();free.free=true
+ t.check(queries.release_candidate(actions,body,"gear",free,7)==second and queries.payload_candidates(actions,free,7)==[second],"TARGET QUERY face switch is reflected without a new version")
+ t.check(queries.release_candidate(actions,body,"other",data,7).is_empty(),"TARGET QUERY missing explicit target cannot fall back to another equipment")
+ t.check(queries.equipment_choices(actions,data,7,body)==[left],"TARGET QUERY generic drag preserves its first-per-target rejection policy")
+ var entries=queries.equipment_entries(body);entries.gear.locations.clear();entries.clear();grouped.clear()
+ t.check(queries.equipment_entries(body).gear.locations==["左手","右手"] and candidates==before and body==body_before,"TARGET QUERY result containers do not mutate source candidates or body sections")
+ for version in [6,8]:
+  t.check(queries.payload_candidates(actions,data,version).is_empty() and queries.release_choices(actions,body,data,version).is_empty(),"TARGET QUERY mismatched version blocks drag and quick selection: "+str(version))
+ var missing=data.duplicate();missing.erase("version")
+ t.check(queries.payload_candidates(actions,missing,7).is_empty() and queries.release_candidate(actions,body,"gear",missing,7).is_empty(),"TARGET QUERY missing version cannot acquire an action")
+ var blocked=right.duplicate(true);blocked.valid=false
+ var rejected=index.new([left,blocked])
+ t.check(queries.first_usable([left,blocked])==left and rejected.first_usable("card")==blocked and rejected.find("card")==left,"TARGET QUERY first and last rejection policies remain distinct")
+ var capture=right.duplicate(true);capture.id="capture";capture.payload.target="guard_bind"
+ t.check(queries.single_equipment_card(index.new([right,capture]),[body],"card",false).is_empty(),"TARGET QUERY capture alongside one equipment still requires explicit choice")
+ var hand_a=left.duplicate(true);hand_a.payload.hand_uid="hand-a"
+ var hand_b=hand_a.duplicate(true);hand_b.id="hand-b";hand_b.payload.hand_uid="hand-b";hand_b.valid=true
+ var self_card=hand_b.duplicate(true);self_card.id="self";self_card.payload.self_target=true
+ var door={"id":"door","group":"prison","valid":true,"payload":{"kind":"prison","action":"unlock","uid":"card"}}
+ var drag_actions=index.new([hand_a,hand_b,self_card,second,door])
+ t.check(queries.payload_candidates(drag_actions,data,7)==[hand_a,self_card,door],"TARGET QUERY hand-target dedup keeps first choice and retains self-target and prison unlock entries")
+ t.check(queries.payload_candidates(drag_actions,free,7)==[second],"TARGET QUERY the other face cannot acquire a prison unlock action")
+ var ids={"candidate_ids":["missing","second-face","door","second-face"],"version":7}
+ t.check(queries.payload_candidates(drag_actions,ids,7)==[second,door,second],"TARGET QUERY explicit IDs retain caller order and duplicates while dropping missing IDs")
+ var fire={"id":"fire","group":"attack","valid":true,"payload":{"kind":"attack","type":"fireball","form":0,"target":"gear"}}
+ var attacks=index.new([fire]);var fire_data={"action_type":"fireball","version":7}
+ t.check(queries.payload_candidates(attacks,fire_data,7)==[fire] and queries.release_candidate(attacks,body,"gear",fire_data,7)==fire,"TARGET QUERY fireball drag and exact equipment selection share the formal action")
+ t.check(queries.release_candidate(attacks,body,"gear",fire_data,8).is_empty(),"TARGET QUERY stale fireball cannot retain a previously usable action")
+
 static func press(t, control: Control) -> void:
  var point=control.get_global_rect().get_center()
  await t.move_mouse(point)
@@ -8,6 +53,7 @@ static func press(t, control: Control) -> void:
  await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
 
 static func run(t) -> void:
+ query_contract(t)
  await unavailable_body_hint(t)
  await bound_face_hint(t)
  await automatic_targets(t)
@@ -128,7 +174,7 @@ static func automatic_targets(t) -> void:
   var ids=ui.drop_targets.keys().map(func(id):return ui.actions.by_id[id].payload.target)
   var expected=wrist.id if slot=="wrist" else ankle.id
   var anchor=ui.layout.get_global_transform().affine_inverse()*ui.body_buttons[slot].get_global_rect()
-  t.check(ids==[expected] and ui.drop_panel.get_meta("body_id")==slot,"TARGET aiming at a different body replaces the strip without other regions")
+  t.check(ids==[expected] and ui.drop_panel.get_meta("body_id")==ui.body_buttons[slot].get_meta("body_id"),"TARGET aiming at a different region replaces the strip without other regions")
   t.check(is_equal_approx(ui.drop_panel.position.x,anchor.end.x+3) and is_equal_approx(ui.drop_panel.position.y,anchor.position.y),"TARGET strip aligns beside the aimed body in canvas coordinates")
  t.check(ui.game.export_snapshot()==before,"TARGET aiming and changing body groups never pays or changes RNG")
  await t.capture("ui-body-local-drag-targets.png")
@@ -178,10 +224,10 @@ static func unavailable_body_hint(t) -> void:
   if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
   if scaled:
    ui.layout.scale=Vector2(0.85,0.85);ui.layout.position=Vector2(35,25);await t.frames()
-  var unavailable=ui.view.body_groups.filter(func(body):return ui._body_card_actions(body.id,card.uid).is_empty())
-  var available=ui.view.body_groups.filter(func(body):return ui._body_card_actions(body.id,card.uid).any(func(c):return c.valid and c.payload.free))
-  t.check(unavailable.size()>=2 and not available.is_empty(),"TARGET fixture has both unavailable and legal free body targets")
-  if unavailable.size()<2 or available.is_empty(): continue
+  var unavailable=ui.view.body_regions.filter(func(body):return ui._body_card_actions(body.id,card.uid).is_empty())
+  var available=ui.view.body_regions.filter(func(body):return ui._body_card_actions(body.id,card.uid).any(func(c):return c.valid and c.payload.free))
+  t.check(not unavailable.is_empty() and not available.is_empty(),"TARGET fixture has both unavailable and legal free region targets")
+  if unavailable.is_empty() or available.is_empty(): continue
   var before=ui.game.export_snapshot();var point=t.card_point(card.uid)
   await t.move_mouse(point);await t.mouse_button(point,MOUSE_BUTTON_LEFT,true);await t.move_mouse(point+Vector2(0,-42),true)
   var ghost=t.root.find_child("CardDragPreview",true,false)

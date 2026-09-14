@@ -253,6 +253,17 @@ static func turn_draw(g) -> int:
   g._emit("event",g.Relics.TYPES[id].name+"：本回合额外抽%d张牌。" % count,{"relic_trigger":{"id":id,"name":g.Relics.TYPES[id].name}})
  return total
 
+static func toe_traction(g) -> Dictionary:
+ var result={"base":0.0,"gain":0.0,"sources":[]}
+ if g.Relics.value(g.state.relics,"toe_cast")<=0: return result
+ for piece in g.equipment_at("toes"):
+  var tightness=g.tier(piece.durability,piece.maximum)
+  var value=float(g.Relics.SECRET_WEAPON_TRACTION.get(int(piece.grade)+tightness,0.0))
+  result.base+=value
+  result.sources.append({"id":piece.id,"name":g._equipment_name(piece),"grade":piece.grade,"tier":tightness,"base":value})
+ result.gain=result.base*g.Pressure.source_multiplier(g,["toes"])
+ return result
+
 static func mana_lost(g, amount: float, temporary: float=0.0) -> void:
  g.Cards.mana_spent(g,amount+temporary)
  if amount<=0 or g.state.phase not in COMBAT_PHASES: return
@@ -297,6 +308,9 @@ static func validate(g) -> String:
  if not combat.active and not combat.attack_started.is_empty(): return "场次结束后不能保留首次攻击记录。"
  if not combat.get("attack_uses") is Dictionary: return "本回合攻击次数记录不完整。"
  for type in combat.attack_uses:
+  if g.Character.active(g) and type.trim_prefix("witch_") in g.Character.PARTS and type.begins_with("witch_"):
+   if not combat.attack_uses[type] is int or combat.attack_uses[type]!=1: return "本回合部位法术释放次数不正确。"
+   continue
   if not g.BasicAttacks.TYPES.has(type) or not g.BasicAttacks.TYPES[type][0].has("uses_per_turn") or not combat.attack_uses[type] is int or combat.attack_uses[type]<0: return "本回合攻击次数记录不正确。"
  if not g.Snapshot.fields(combat,"successful_spells:z") or combat.successful_spells.any(func(spell):return spell not in g.Cards.Rules.FIXED_MAGIC or combat.successful_spells.count(spell)!=1): return "本回合成功施法记录不正确。"
  if not combat.active and not combat.successful_spells.is_empty(): return "场次结束后不能保留成功施法记录。"

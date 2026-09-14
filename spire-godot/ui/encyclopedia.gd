@@ -8,6 +8,7 @@ var query=""
 var group=""
 var grade=0
 var rarity=""
+var character="original"
 var selected=""
 var list: VBoxContainer
 var detail: VBoxContainer
@@ -17,8 +18,16 @@ var count: Label
 
 func setup(ui) -> void:
  host=ui;rows=Catalog.entries(ui.game);name="Encyclopedia"
+ character=ui.view.get("character_id","original")
  size_flags_vertical=Control.SIZE_EXPAND_FILL;add_theme_constant_override("separation",20)
  var sidebar=VBoxContainer.new();sidebar.custom_minimum_size.x=160;add_child(sidebar)
+ var roles=OptionButton.new();roles.name="EncyclopediaCharacter"
+ roles.add_item("魔法少女(futa)");roles.add_item("小魔女·测试版")
+ roles.select(1 if character=="witch" else 0);sidebar.add_child(roles)
+ roles.item_selected.connect(func(index):
+  character="witch" if index==1 else "original"
+  rows=Catalog.entries(host.game,character)
+  group="";grade=0;rarity="";selected="";update_filters();refresh())
  for id in Catalog.CATEGORIES:
   var button=host._button(Catalog.CATEGORIES[id],func():category=id;group="";grade=0;rarity="";selected="";update_filters();refresh(),host.GOLD)
   button.name="EncyclopediaCategory_"+id;sidebar.add_child(button)
@@ -109,7 +118,10 @@ func show_entry(entry: Dictionary) -> void:
    var picture=preload("res://ui/arena.gd").new();picture.mode=entry.visual;picture.custom_minimum_size=Vector2(240,300)
    picture.name="EncyclopediaEnemyImage";picture.template=entry.id;picture.art_settings=host.display_settings
    picture.size_flags_horizontal=Control.SIZE_SHRINK_BEGIN;detail.add_child(picture)
-  detail.add_child(host._label(entry.text,17,host.TEXT))
+  var description=host._label(entry.text,18 if entry.category=="equipment" else 17,host.TEXT)
+  description.name="EncyclopediaDescription"
+  if entry.category=="equipment": description.add_theme_constant_override("line_spacing",6)
+  detail.add_child(description)
  detail.get_parent().scroll_vertical=0
 
 func _card_family(entry: Dictionary) -> void:
@@ -123,7 +135,7 @@ func _card_family(entry: Dictionary) -> void:
   if not related.is_empty():
    var label="当前卡牌" if type==entry.card else Catalog.VARIANT_SOURCES.get(type,"衍生牌")
    column.add_child(host._label(label,15,host.CYAN if type==entry.card else host.GOLD))
-  host._display_card(type,column,Callable(),"encyclopedia_"+type)
+  host._display_card(type,column,Callable(),"encyclopedia_"+type,Vector2(226,290),"",false)
   var note=Catalog.card(type).note
   if note!="":
    var text=host._label(note,14,host.MUTED);text.custom_minimum_size.x=226

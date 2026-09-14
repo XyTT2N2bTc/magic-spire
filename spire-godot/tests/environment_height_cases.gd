@@ -4,6 +4,8 @@ const Exploration=preload("res://tests/exploration_cases.gd")
 const SpaceFixture=preload("res://tests/exploration_fixture.gd")
 
 static func run(t) -> void:
+ for mount in Game.Tools.HEIGHTS:
+  t.check(Game.Tools.mount_label(mount)=="离地%s米的墙缝" % str(Game.Tools.HEIGHTS[mount].height),"HEIGHT mount labels use the fixed world height: "+mount)
  # Lifting the lower legs must not bring the thighs or covered inner layers along.
  var g=Game.new(42);g.state.equipment.clear();g.state.posture="lie";g._gain_tool("shard")
  var tool=g.state.items[0];tool.mount="high_wall"

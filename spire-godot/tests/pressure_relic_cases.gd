@@ -3,7 +3,7 @@ const Game=preload("res://tests/game_fixture.gd")
 
 static func run(t) -> void:
  marble_reduction(t)
- for entry in [["ice_heart","common"],["magic_blood","rare"]]:
+ for entry in [["ice_heart","common"],["magic_blood","uncommon"]]:
   var g=Game.new(42)
   var excluded=g.Relics.REWARDS.filter(func(id):return id!=entry[0])
   t.check(preload("res://tests/rolling_log_cases.gd").offer_tier(g,entry[1],excluded)==entry[0],"PRESSURE RELIC enters its rarity reward pool")
@@ -16,7 +16,7 @@ static func run(t) -> void:
    "prepare": g._start_preparation()
    "rest": g._start_rest();t.action(g,"rest_begin")
    "prison": g.Prison.enter(g)
-  t.check(g.state.pressure==15 and g.RelicEffects.attribute(g,"strength")==3,"PRESSURE RELIC first player turn gains five and strength three: "+phase)
+  t.check(g.state.pressure==15 and g.RelicEffects.attribute(g,"strength")==2,"PRESSURE RELIC first player turn gains five and strength two: "+phase)
   var before=g.export_snapshot();g.get_view();g.candidates()
   t.check(g.state==before and not g.dispatch("missing",g.state.version).ok and g.state==before,"PRESSURE RELIC previews and rejected commands do not trigger")
   var start=g.state.logs.size()
@@ -30,7 +30,7 @@ static func run(t) -> void:
  g=Game.new(42);g.state.relics=["magic_blood"]
  var attack=t.find_action(g,"attack",{"type":"strike","form":0})
  var target=g.add_fixture("wrist",60,100)
- t.check(attack.payload.damage==11 and g.RelicEffects.attribute(g,"strength",target)==3,"MAGIC BLOOD existing strength applies to body attacks and restraint calculations")
+ t.check(attack.payload.damage==10 and g.RelicEffects.attribute(g,"strength",target)==2,"MAGIC BLOOD existing strength applies to body attacks and restraint calculations")
  g.state.pressure=98;var count=g.state.overload_total
  t.check(t.action(g,"end").ok and g.state.overload_total==count+1 and g.state.pressure==3 and g.state.overloaded and g.state.hand.is_empty(),"MAGIC BLOOD uses real threshold and clears drawn cards on overload")
  g=Game.new(42);g.state.relics=["magic_blood","green_bird"];g.state.pressure=98

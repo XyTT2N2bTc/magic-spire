@@ -5,6 +5,9 @@ const Special=preload("res://data/special_equipment.gd")
 # A physical crotch rope supplies one canonical contact, without ordinary limb occupancy.
 const CROTCH_CONTACT="special_3_a"
 
+static func wear_text(name: String="连接绳") -> String:
+ return "她又将「%s」扣在两件拘束具之间，拉紧后才把余绳盘回腰侧。" % name
+
 static func is_crotch_anchor(target: Dictionary) -> bool:
  return Special.is_special(target) and Special.TYPES.get(target.get("type",""),{}).get("family","")=="crotch_rope"
 

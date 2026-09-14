@@ -42,6 +42,8 @@ static func run(t) -> void:
  var eyes=ui.game.equipment_at("eyes")[0];eyes.durability=0;ui.game._cleanup();ui.render();await t.frames()
  t.check(t.visible_text(ui.find_child("PrisonExploration",true,false)).contains("前往") and not ui.view.prison.space.blind,"EXP UI removing blindfold immediately restores destinations")
 
+ # Remote-use presentation requires an available key route, not a random unlock draw.
+ ui.game.state.prison.key=true;ui.render();await t.frames()
  await open_details(t,"place_1")
  t.check(ui.actor_targets.has("prison_door") and ui.find_child("PrisonLocationDetails",true,false)!=null and ui.find_child("PrisonExploration",true,false)==null,"EXP UI door only appears in its secondary page")
  var text=t.visible_text(ui.find_child("PrisonLocationDetails",true,false))
@@ -77,7 +79,7 @@ static func distance_and_installed(t) -> void:
  t.check(await t.click("item_install",{"item":item.id,"mount":"foot_wall"}),"EXP UI tool installs through the existing item action")
  await t.close_information()
  var tile=ui.find_child("PrisonSite_tool_"+item.id,true,false)
- t.check(tile!=null and t.visible_text(tile).contains("墙缝一") and t.visible_text(tile).contains("剩余3次"),"EXP UI installation immediately creates a named destination with mount and charges")
+ t.check(tile!=null and t.visible_text(tile).contains(preload("res://data/field_tools.gd").mount_label("foot_wall")) and t.visible_text(tile).contains("剩余3次"),"EXP UI installation immediately creates a named destination with mount and charges")
  Spatial.position(ui.game,[6,6]);ui.render();await t.frames()
  var meter=ui.find_child("PrisonDistance_tool_"+item.id,true,false)
  t.check(meter!=null and meter.get_node("Overflow").value>meter.get_node("Normal").value,"EXP UI exposes red overflow beyond original distance")

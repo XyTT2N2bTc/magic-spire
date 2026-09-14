@@ -11,6 +11,9 @@ static func kind(g, enemy: Dictionary) -> String:
 static func has_bind(g, source_kind: String="") -> bool:
  return g.state.phase=="battle" and not g.state.guard_bind.is_empty() and (source_kind=="" or g.state.guard_bind.sources.has(source_kind))
 
+static func movement_reason(g) -> String:
+ return "被捕缚时无法移动，先解除捕缚。" if has_bind(g) else ""
+
 static func fixed_posture(g) -> String:
  if not has_bind(g): return ""
  for source in g.state.guard_bind.sources.values():
@@ -128,7 +131,7 @@ static func view(g) -> Dictionary:
  if has_bind(g,"drone"): descriptions.append("无人机捕缚：固定为站姿；每累计消耗2能量，施加1件初级2档胶带并使捕缚＋10。当前累计%d/2能量。" % g.state.guard_bind.sources.drone.energy)
  if has_bind(g,"binding_box"): descriptions.append("拘束盒捕缚：固定为坐姿；每个玩家回合开始，施加1件中级2档皮革拘束具，并使捕缚＋10。")
  for source in g.state.guard_bind.sources.values(): names.append(g._enemy(source.enemy).name)
- var detail="挣扎／滑脱牌可直接削减进度；除眼罩、口球外没有其他拘束具时伤害翻倍，不受环境加成。上身受限至少按1级计算。同种捕缚不叠加；新种类增加其初始值的一半。降至0全部解除，达到100后下一敌方回合执行收押。"
+ var detail="被捕缚时无法移动，先解除捕缚。挣扎／滑脱牌可直接削减进度；除眼罩、口球外没有其他拘束具时伤害翻倍，不受环境加成。上身受限至少按1级计算。同种捕缚不叠加；新种类增加其初始值的一半。降至0全部解除，达到100后下一敌方回合执行收押。"
  return {"name":"捕缚","value":g.state.guard_bind.progress,"maximum":BIND_MAXIMUM,"source":"、".join(names),"text":"捕缚进度 %s/100" % g.number(g.state.guard_bind.progress),"detail":detail+"\n"+"\n".join(descriptions)}
 
 static func validate(g) -> String:

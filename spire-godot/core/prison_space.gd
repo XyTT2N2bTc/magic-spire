@@ -127,7 +127,7 @@ static func view(g) -> Dictionary:
    item.wall_warning=wall_warning(g,route)
   if (not blind or here) and site.id.begins_with("tool_"):
    var tool=g._item(site.id.trim_prefix("tool_"))
-   item.installed={"mount":g.Tools.MOUNTS[tool.mount],"uses":tool.uses}
+   item.installed={"mount":g.Tools.mount_label(tool.mount),"uses":tool.uses}
   sites.append(item)
  return {"blind":blind,"sites":sites,"fall":fall_profile(g),"stride":g.wall_movement_profile().distance,"cost":g.wall_movement_profile().cost}
 

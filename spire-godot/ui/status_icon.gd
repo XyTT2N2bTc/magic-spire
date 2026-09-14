@@ -2,10 +2,11 @@ extends Control
 
 # Artwork and counters only; the status projection owns all values and lifetimes.
 const CardArt=preload("res://ui/card_face.gd")
-const KINDS=["info","flame","weakness","bind","stock","shield","charge","ritual","ready","puppet","split","arms","legs","hand","foot","eye","mouth","movement","strength","dexterity","sure_cast","power","mana","energy","pressure","wall","cards"]
+const KINDS=["info","flame","weakness","bind","stock","shield","charge","ritual","ready","puppet","split","arms","legs","hand","foot","eye","mouth","movement","strength","dexterity","sure_cast","power","mana","energy","pressure","wall","cards","item"]
 var status: Dictionary={}
 var ink=Color("d8c18f")
 var badge: Label
+var item_art: Control
 
 func _ready() -> void:
  mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -18,6 +19,10 @@ func _ready() -> void:
   art.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(art)
   art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
   art.offset_left=5;art.offset_top=5;art.offset_right=-5;art.offset_bottom=-5
+ if status.icon=="item":
+  item_art=preload("res://ui/shop_glyph.gd").new();item_art.name="StatusItemArt"
+  item_art.kind="tool";item_art.symbol="return_scroll" if status.item_type=="return_seal" else status.item_type
+  item_art.size=Vector2(80,80);add_child(item_art)
  if status.badge!="":
   badge=Label.new();badge.name="StatusCount";badge.text=status.badge
   badge.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT;badge.mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -27,6 +32,9 @@ func _ready() -> void:
  resized.connect(_fit);_fit()
 
 func _fit() -> void:
+ if is_instance_valid(item_art):
+  var factor=minf(size.x,size.y)/80.0
+  item_art.scale=Vector2.ONE*factor;item_art.position=(size-Vector2(80,80)*factor)/2.0
  if is_instance_valid(badge):
   badge.size=badge.get_minimum_size();badge.position=size-badge.size+Vector2(0,2)
  queue_redraw()
@@ -40,6 +48,7 @@ func _draw() -> void:
  draw_arc(Vector2(24,24),20,0,TAU,48,ink.darkened(0.55),1.3,true)
  if status.get("emphasized",false): draw_arc(Vector2(24,24),22,0,TAU,48,ink,2.0,true)
  match status.icon:
+  "item": pass
   "charge","energy":
    var points=PackedVector2Array([Vector2(26,6),Vector2(14,25),Vector2(23,25),Vector2(20,41),Vector2(36,19),Vector2(27,19)])
    draw_colored_polygon(points,ink)

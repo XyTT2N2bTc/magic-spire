@@ -400,7 +400,7 @@ static func pressure_relics(t) -> void:
   await t.move_mouse(icon.get_global_rect().get_center());await t.frames()
   t.check(is_instance_valid(ui.term_popup) and t.visible_text(ui.term_popup).contains(ui.game.Relics.TYPES[id].name) and ui.game.state==before,"PRESSURE RELIC UI hover explains relic without changing state")
  await t.move_mouse(Vector2(650,60));await t.frames()
- t.check(ui.actions.find("attack",{"type":"strike","form":0,"enemy":ui.selected_enemy}).payload.damage==11,"MAGIC BLOOD UI previews strength plus three damage")
+ t.check(ui.actions.find("attack",{"type":"strike","form":0,"enemy":ui.selected_enemy}).payload.damage==10,"MAGIC BLOOD UI previews strength plus two damage")
  t.check(await t.click("end") and ui.game.state.pressure==10,"PRESSURE RELIC UI real end turn reduces three, adds five, then free-state relief lowers two")
  ui.restart(42);await t.frames()
 

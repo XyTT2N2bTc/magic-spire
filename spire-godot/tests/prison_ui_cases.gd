@@ -10,11 +10,16 @@ static func enter(t, security: int=1) -> void:
  e.intent={"kind":"capture","text":"执行收押 · 可打断","delayed":false}
  t.ui.render();await t.frames()
  t.check(await t.click("end") and t.ui.view.phase=="captured","PRISON UI actual enemy action reaches intake")
- t.check(t.visible_text(t.ui.layout).contains("当前警戒度：%d" % security) and t.visible_text(t.ui.layout).contains(t.ui.game.Prison.intake_label(t.ui.game)),"PRISON UI intake displays current security and shared floor/tightening rule")
- t.check(t.visible_text(t.ui.layout).contains("%d件特殊装备" % t.ui.view.capture.special_added.size()),"PRISON UI intake reports the actual installed count without a false fixed quota")
+ var scene=t.ui.view.capture.intake_scene
+ t.check(t.visible_text(t.ui.layout).contains("警戒度 %d" % security) and not t.visible_text(t.ui.layout).contains("拘束具保底") and not scene.is_empty(),"PRISON UI intake keeps current security and exposes its one-time authored scene")
+ t.check(scene.restraints.size()>=t.ui.view.capture.added.size() and scene.links.size()==t.ui.view.capture.links.size() and scene.toys.size()==t.ui.view.capture.special_added.size(),"PRISON UI intake receives concrete reusable prose for every installed equipment category")
  t.check(await t.click("prison",{"action":"enter"}) and t.ui.view.phase==("prison_end" if security==5 else "prison"),"PRISON UI real intake button starts configured cell or ending")
+ if security<5:
+  var speech=t.ui.find_child("NpcSpeech",true,false)
+  t.check(speech==null or not speech.visible or not t.visible_text(speech).contains("欢迎入住"),"PRISON UI cell entry does not replay a persistent intake dialogue")
 
 static func run(t) -> void:
+ await release_case(t)
  await surrender_case(t)
  var ui=t.ui
  await practice_cases(t)
@@ -35,11 +40,18 @@ static func run(t) -> void:
  while ui.view.phase=="prison" and n<20:
   t.check(await t.click("end"),"PRISON UI countdown progresses to patrol")
   n+=1
- t.check(ui.view.phase=="inspection" and ui.card_buttons.is_empty() and t.visible_text(ui.layout).contains("狱警来到门前"),"PRISON UI arrival closes hand and explains decisions")
+ t.check(ui.view.phase=="inspection" and ui.card_buttons.is_empty() and t.visible_text(ui.layout).contains("例行巡视"),"PRISON UI arrival closes hand and presents the patrol")
+ var patrol_portrait=ui.find_child("PrisonGuardPortrait",true,false)
+ var patrol_speech=ui.find_child("NpcSpeech",true,false)
+ var patrol_event=ui.find_child("PrisonInspectionPanel",true,false)
+ t.check(patrol_portrait!=null and patrol_portrait.texture==ui.Arena.Art.GUARD_PORTRAITS.guard_purple and patrol_event!=null and patrol_speech==null and t.visible_text(patrol_event).contains("例行巡视") and not t.visible_text(patrol_event).contains("魅魔警卫"),"PRISON UI patrol uses the purple guard inside its event page without a floating dialogue bubble")
+ t.check(not t.visible_text(ui.layout).contains("仅可检查或反抗") and not t.visible_text(ui.layout).contains("处罚一次性执行"),"PRISON UI patrol omits repeated procedure explanations")
  t.check(await t.click("prison",{"action":"inspect"}),"PRISON UI reveal actual check result")
- t.check(t.visible_text(ui.layout).contains("装备与性玩具清单齐全"),"PRISON UI clean check text matches both retained manifests")
+ t.check(t.visible_text(ui.layout).contains("一件也没少") and t.visible_text(ui.layout).contains("还敢在牢房里藏工具") and not t.visible_text(ui.layout).contains("清单齐全"),"PRISON UI mounted-tool finding uses concise in-world wording inside the event page")
  await t.capture("ui-38-prison-inspection.png")
- t.check(await t.click("prison",{"action":"accept"}) and ui.view.items.size()==1 and ui.view.prison.checks==1,"PRISON UI check removes installed tool, preserves carried items and increments check once")
+ var mana_before=ui.view.mana
+ t.check(await t.click("prison",{"action":"accept"}) and ui.view.items.size()==1 and ui.view.prison.checks==1 and ui.view.mana==maxf(0,mana_before-ui.game.B.OVERLOAD_MANA),"PRISON UI check removes installed tool, milks once and increments check once")
+ t.check(ui.view.prison.narrative.contains("量杯") and t.visible_text(ui.layout).contains("精液"),"PRISON UI accepted patrol shows the authored hand-milking scene")
  t.check(await t.click("prison",{"action":"resume"}) and ui.view.prison.left==16,"PRISON UI resumes fresh patrol interval")
  Spatial.at_site(ui.game,"vent");ui.render();await t.frames()
  await preload("res://tests/exploration_ui_cases.gd").open_details(t,"place_4")
@@ -106,7 +118,12 @@ static func run(t) -> void:
  t.check(use_button!=null and use.cost==0 and use.mana==0 and use_button.tooltip_text.contains("不耗能量或魔力") and use_button.tooltip_text.contains("手指或脚趾"),"SEAL UI explains zero-cost use and actual body conditions")
  await t.capture("ui-64-return-seal.png")
  var seal_mana=ui.view.mana
- t.check(await t.click("item_use",{"item":seal.id,"target":"hero"}) and ui.view.phase=="map" and ui.view.room_name=="出发点" and ui.view.mana==seal_mana,"SEAL UI actual item button leaves cell for prison route without healing")
+ var prison_end_restore=0.0
+ if seal_mana<=ui.view.mana_max*0.5:
+  for relic in ui.game.state.relics: prison_end_restore+=float(ui.game.Relics.TYPES[relic].modifiers.get("low_mana_end_restore",0.0))
+ for relic in ui.game.state.relics: prison_end_restore+=float(ui.game.Relics.TYPES[relic].modifiers.get("battle_mana",0.0))
+ var expected_seal_mana=minf(ui.view.mana_max,seal_mana+prison_end_restore)
+ t.check(await t.click("item_use",{"item":seal.id,"target":"hero"}) and ui.view.phase=="map" and ui.view.room_name=="出发点" and ui.view.mana==expected_seal_mana,"SEAL UI actual item button leaves the cell and preserves the established low-mana prison-end relic hook")
  t.check(not ui.view.items.any(func(i):return i.id==seal.id),"SEAL UI consumed card disappears")
  await enter(t,5)
  t.check(ui.view.arms==4 and ui.view.legs==4 and ui.view.candidates.is_empty() and t.visible_text(ui.layout).contains("24/24"),"TERMINAL UI displays real fixed values and no continuing actions")
@@ -149,14 +166,14 @@ static func exit_route(t) -> void:
  ui.render();await t.frames()
  var reward_before=ui.view.reward_count
  t.check(await t.click("attack",{"type":"strike","enemy":ui.view.enemies[0].id}) and ui.view.phase=="reward" and ui.view.reward_count==reward_before+1,"PRISON UI guard victory offers one reward")
- t.check(t.visible_text(ui.layout).contains("继续后返回塔路") and ui.view.seed==original_seed,"PRISON UI reward explains destination before reseeding")
+ t.check(t.visible_text(ui.layout).contains("继续后选择第10—11层") and ui.view.seed==original_seed,"PRISON UI reward explains destination before reseeding")
  t.check(await t.click("reward",{"type":"skip"}),"PRISON UI resolves exit reward once")
  if ui.view.phase=="pack":
   while ui.game.carried_items()>ui.game.item_capacity():
    ui.show_items=true;ui.render();await t.frames()
    t.check(await t.click("item_discard",{"item":ui.view.items[0].id}),"PRISON UI sorts excess reward inventory")
   ui.show_items=false;ui.render();await t.frames();t.check(await t.click("finish_pack"),"PRISON UI completes inventory sorting")
- t.check(ui.view.phase=="map" and ui.view.room_name=="塔底入口" and ui.view.map_name=="塔路" and ui.view.seed!=original_seed and ui.view.route.size()>3,"PRISON UI returns to fresh tower after reward, without preparation")
+ t.check(ui.view.phase=="map" and ui.view.room_name=="选择出狱起点" and ui.view.tower_start_pending and ui.view.map_name=="塔路" and ui.view.seed!=original_seed and ui.view.route.size()>3,"PRISON UI returns to fresh tower after reward, without preparation")
 
 static func punishment_case(t) -> void:
  await enter(t)
@@ -172,9 +189,9 @@ static func punishment_case(t) -> void:
  while t.ui.view.phase=="prison":
   t.check(await t.click("end"),"PRISON UI violation timer uses actual turns")
  t.check(await t.click("prison",{"action":"inspect"}),"PRISON UI opens missing equipment report")
- t.check(t.visible_text(t.ui.layout).contains("%d件初级二档" % quota) and t.visible_text(t.ui.layout).contains("补装2件初级性玩具") and t.visible_text(t.ui.layout).contains("补满仍佩戴性玩具的电池"),"PRISON UI displays separate missing quotas and battery service")
+ t.check(t.visible_text(t.ui.layout).contains("%d件初级二档" % quota) and t.visible_text(t.ui.layout).contains("又拿来了2件初级性玩具") and not t.visible_text(t.ui.layout).contains("检查结束时会补满"),"PRISON UI displays separate missing quotas without reciting the later service steps")
  t.check(await t.click("prison",{"action":"accept"}),"PRISON UI accepts replacement punishment once")
- t.check(t.visible_text(t.ui.layout).contains("补装%d/%d" % [quota,quota]) and t.visible_text(t.ui.layout).contains("重新登记%d件装备与组件、%d件性玩具" % [g.state.prison.baseline.size(),g.state.prison.special_baseline.size()]) and g.state.special_equipment.all(func(item):return item.remaining==g.SpecialEquipment.TYPES[item.type].duration if g.SpecialEquipment.TYPES[item.type].duration>0 else item.remaining==0),"PRISON UI displays completed quotas, refreshed manifests and full batteries")
+ t.check(t.visible_text(t.ui.layout).contains("拘束具补回%d/%d件" % [quota,quota]) and t.visible_text(t.ui.layout).contains("性玩具补回2/2件") and not t.visible_text(t.ui.layout).contains("重新登记") and g.state.prison.baseline==g.equipment_targets().map(func(e):return e.id) and g.state.prison.special_baseline==g.state.special_equipment.map(func(e):return e.id) and g.state.special_equipment.all(func(item):return item.remaining==g.SpecialEquipment.TYPES[item.type].duration if g.SpecialEquipment.TYPES[item.type].duration>0 else item.remaining==0),"PRISON UI keeps the result concise while the refreshed manifests and batteries remain correct")
 
 static func collect(t) -> void:
  # Arrival fixtures isolate discovery widgets and subsequent patrol/exit workflows.
@@ -194,4 +211,44 @@ static func surrender_case(t) -> void:
  t.check(button.text=="确定要投降吗" and t.ui.game.state==before,"SURRENDER first real click only requests confirmation")
  await t.capture("ui-surrender-confirm.png")
  await preload("res://tests/interface_ui_cases.gd").press(t,"SurrenderButton")
- t.check(t.ui.view.phase=="prison" and t.ui.view.security==1 and t.ui.find_child("SurrenderButton",true,false)==null,"SURRENDER second real click completes arrest and enters jail")
+ t.check(t.ui.view.phase=="captured" and t.ui.view.security==1 and t.ui.find_child("PrisonIntakePanel",true,false)!=null and t.ui.find_child("SurrenderButton",true,false)==null,"SURRENDER second real click opens the one-time intake page")
+ t.check(await t.click("prison",{"action":"enter"}) and t.ui.view.phase=="prison","SURRENDER intake page enters the cell through its sole formal choice")
+
+static func release_case(t) -> void:
+ await t.start_practice("Practice_prison_release_violation")
+ var blocked=t.ui.game
+ t.check(t.ui.view.phase=="captured" and not blocked.state.capture.baseline.is_empty() and not blocked.state.capture.special_baseline.is_empty(),"PRISON UI delay entry displays actual intake and registered equipment")
+ t.check(await t.click("prison",{"action":"enter"}) and t.visible_text(t.ui.layout).contains("已服刑0／20回合"),"PRISON UI delay practice enters the first real prison turn")
+ t.check(await t.click("end") and t.ui.view.phase=="prison" and blocked.state.prison.served_turns==1,"PRISON UI first practice turn cannot directly release")
+ # Only accelerate this UI boundary case after verifying the real entry.
+ # Rules coverage plays the full sentence; retain actual equipment and manifests.
+ blocked.state.prison.served_turns=19
+ blocked.state.equipment[0].durability=0;blocked._cleanup()
+ t.ui.render();await t.frames()
+ var patrol_left=blocked.state.prison.left
+ t.check(await t.click("end") and t.ui.view.phase=="prison","PRISON UI due violation continues prison instead of opening map")
+ t.check(t.visible_text(t.ui.layout).contains("已服刑20／28回合") and t.ui.view.prison.left==patrol_left-1,"PRISON UI displays delayed release with unchanged patrol cycle")
+ t.check(blocked.state.prison.baseline==blocked.equipment_targets().map(func(e):return e.id) and not blocked.state.prison.baseline.is_empty(),"PRISON UI failed check retains the real replacement equipment")
+ await t.start_practice("Practice_prison_release")
+ var ui=t.ui
+ t.check(ui.view.phase=="captured" and await t.click("prison",{"action":"enter"}),"PRISON UI release entry requires normal intake confirmation")
+ t.check(t.visible_text(ui.layout).contains("已服刑0／20回合") and ui.view.prison.left==16,"PRISON UI shows full sentence and normal patrol at entry")
+ for turn in range(20):
+  t.check(await t.click("end"),"PRISON UI practice plays every actual sentence turn")
+  if turn<19: t.check(not ui.view.tower_start_pending,"PRISON UI no premature practice release")
+  if turn==15:
+   t.check(ui.view.phase=="inspection","PRISON UI actual periodic check precedes release")
+   for op in ["inspect","accept","resume"]: t.check(await t.click("prison",{"action":op}),"PRISON UI practice uses ordinary inspection buttons")
+ t.check(ui.view.tower_start_pending,"PRISON UI full sentence and compliant check open start selection")
+ var release_speech=ui.find_child("NpcSpeech",true,false)
+ var release_portrait=ui.find_child("PrisonGuardPortrait",true,false)
+ t.check(release_speech!=null and t.visible_text(release_speech).contains("手续办完了") and release_portrait!=null and release_portrait.texture==ui.Arena.Art.GUARD_PORTRAITS.guard_brown,"PRISON UI normal release opens the senior guard's nameless dialogue bubble")
+ var strong_room=ui.game.state.rooms.filter(func(room):return room.get("pool","")=="strong")[0]
+ t.check(ui.game.room_description(strong_room)=="普通战斗 · 强怪池。" and ui.view.route.filter(func(room):return room.id==strong_room.id)[0].icon=="battle","PRISON UI strong encounters retain normal battle icons and describe the stronger pool")
+ t.check(ui.find_child("PrisonStartTitle",true,false)!=null and t.visible_text(ui.layout).contains("第10—11层非休息、非宝箱区域"),"PRISON UI start range and zero time visible")
+ var starts=ui.view.route.filter(func(r):return r.status=="available")
+ t.check(not starts.is_empty() and starts.all(func(r):return ui.game.Prison.start_room(ui.game.room_data(r.id))),"PRISON UI highlights all legal start nodes")
+ var before=ui.game.export_snapshot()
+ ui.render();await t.frames()
+ t.check(ui.game.state==before,"PRISON UI route rendering stays read-only")
+ t.check(await t.click("depart",{"room":starts[0].id}) and not ui.view.tower_start_pending and ui.game.state.travel_turns==0,"PRISON UI start button enters formal room")

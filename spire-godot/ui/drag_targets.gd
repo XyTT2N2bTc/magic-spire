@@ -1,24 +1,12 @@
 extends RefCounted
+const Queries=preload("res://ui/target_queries.gd")
 
 # Presentation only: every target is an existing candidate from this view/version.
 static func choices(ui, data: Dictionary) -> Array:
  return candidates(ui,data).filter(func(c):return c.valid)
 
 static func candidates(ui, data: Dictionary) -> Array:
- if data.get("version",-1)!=ui.view.version: return []
- if data.has("card_uid"):
-  var out=ui.actions.select("card",{"uid":data.card_uid,"free":data.get("free",false)})
-  if not data.get("free",false): out.append_array(ui.actions.select("prison",{"action":"unlock","uid":data.card_uid}))
-  var seen=[]
-  return out.filter(func(c):
-   if not c.payload.has("hand_uid") or c.payload.get("self_target",false): return true
-   var key=[c.payload.target,c.payload.slot]
-   if key in seen: return false
-   seen.append(key);return true)
- if data.has("action_type"):
-  return ui.actions.select("attack",{"type":data.action_type,"form":data.get("form",0)})
- var ids=data.get("candidate_ids",[data.self_action_id] if data.has("self_action_id") else [])
- return ids.filter(func(id):return ui.actions.by_id.has(id)).map(func(id):return ui.actions.by_id[id])
+ return Queries.payload_candidates(ui.actions,data,ui.view.version)
 
 static func targeted(c: Dictionary) -> bool:
  return c.payload.get("target","")!="" and c.payload.kind in ["item_use","hook","chain","release","attack"]
@@ -34,12 +22,7 @@ static func siblings(ui, source: Dictionary) -> Array:
  return ui.actions.select(source.group,fields).filter(func(c):return c.payload.get("target","")!="")
 
 static func equipment_choices(ui, data: Dictionary, body: Dictionary) -> Array:
- var out=[];var seen=[]
- for c in candidates(ui,data):
-  var target=c.payload.get("target","")
-  if target in seen or not body.targets.has(target): continue
-  seen.append(target);out.append(c)
- return out
+ return Queries.equipment_choices(ui.actions,data,ui.view.version,body)
 
 static func clear(ui) -> void:
  for entry in ui.drag_hints:
@@ -48,7 +31,7 @@ static func clear(ui) -> void:
  for entry in ui.drag_hidden:
   if is_instance_valid(entry): entry.show()
  ui.drag_hidden.clear()
- for actor in ui.actor_targets.values()+ui.body_buttons.values():
+ for actor in ui.actor_targets.values()+ui.body_buttons.values()+[ui.find_child("SidebarGuardBindTarget",true,false)]:
   if is_instance_valid(actor) and actor.has_meta("idle_normal"):
    actor.add_theme_stylebox_override("normal",actor.get_meta("idle_normal"))
    actor.add_theme_stylebox_override("hover",actor.get_meta("idle_hover"))
@@ -59,6 +42,7 @@ static func clear(ui) -> void:
    actor.remove_meta("idle_modulate")
    actor.remove_meta("idle_normal");actor.remove_meta("idle_hover")
  ui.active_drag={}
+ preload("res://ui/quick_release_bar.gd").refresh(ui,preload("res://ui/quick_release_bar.gd").selected_data(ui))
 
 static func begin(ui, data: Dictionary) -> void:
  clear(ui);ui._clear_drop_targets();ui._hide_term()
@@ -89,6 +73,12 @@ static func begin(ui, data: Dictionary) -> void:
    if enemy.id==id: title=enemy.name
   var detail=c.get("brief",c.detail)
   if id=="guard_bind" and c.payload.has("preview"): detail=ui.game.number(c.payload.preview.damage)+"点伤害"
+  if id=="guard_bind":
+   var sidebar=ui.find_child("SidebarGuardBindTarget",true,false)
+   if sidebar!=null:
+    highlight(ui,sidebar)
+    var rect=ui.layout.get_global_transform().affine_inverse()*sidebar.get_global_rect()
+    hint(ui,"guard_bind_sidebar",title,detail,Rect2(rect.position.x,rect.end.y+4,rect.size.x,52))
   var bounds=ui.layout.get_global_transform().affine_inverse()*actor.get_global_rect()
   hint(ui,id,title,detail,Rect2(bounds.position.x,bounds.end.y+6,maxf(150,minf(230,bounds.size.x)),52))
  for uid in hands:
@@ -99,8 +89,9 @@ static func begin(ui, data: Dictionary) -> void:
   receiver(ui,panel,"HandDragTarget_"+uid,c,data)
 
 static func focus_bodies(ui, data: Dictionary) -> void:
+ preload("res://ui/quick_release_bar.gd").refresh(ui,data)
  var available=choices(ui,data)
- for body in ui.view.body_groups:
+ for body in ui.view.body_groups+ui.view.body_regions:
   if not ui.body_buttons.has(body.id): continue
   var usable=available.any(func(c):return c.payload.get("slot","") in body.slots or body.targets.has(c.payload.get("target","")))
   focus(ui,ui.body_buttons[body.id],usable)
@@ -110,6 +101,7 @@ static func focus(ui, control: Control, selectable: bool) -> void:
  control.set_meta("target_selectable",selectable)
  control.modulate=control.get_meta("idle_modulate") if selectable else Color(0.48,0.48,0.48,1)
  var style=ui._style(Color("254b50"),ui.CYAN,8) if selectable else ui._style(Color("14202a"),ui.MUTED.darkened(0.55),8)
+ preserve_margins(style,control.get_meta("idle_normal"))
  for key in ["normal","hover","disabled"]: control.add_theme_stylebox_override(key,style)
 
 static func highlight(ui, control: Control) -> void:
@@ -118,7 +110,11 @@ static func highlight(ui, control: Control) -> void:
  control.set_meta("idle_modulate",control.modulate)
  control.set_meta("idle_disabled",control.get_theme_stylebox("disabled"))
  var style=ui._style(Color(0.15,0.55,0.6,0.10),ui.CYAN,12)
+ preserve_margins(style,control.get_meta("idle_normal"))
  control.add_theme_stylebox_override("normal",style);control.add_theme_stylebox_override("hover",style)
+
+static func preserve_margins(style: StyleBox, original: StyleBox) -> void:
+ for side in [SIDE_LEFT,SIDE_TOP,SIDE_RIGHT,SIDE_BOTTOM]: style.set_content_margin(side,original.get_margin(side))
 
 static func receiver(ui, panel: Control, name: String, c: Dictionary, data: Dictionary) -> void:
  var target=ui.DropTarget.new();target.accepted_kind="any";target.name=name

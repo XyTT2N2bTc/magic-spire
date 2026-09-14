@@ -1,5 +1,6 @@
 """Extract edge-connected white backdrop without changing the source illustration."""
 import argparse
+import sys
 from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -10,6 +11,8 @@ parser.add_argument("output", type=Path)
 parser.add_argument("--background-seed", action="append", default=[], help="Verified enclosed backdrop point, source x,y")
 parser.add_argument("--white-floor", type=int, default=242, help="Minimum RGB channel for the source backdrop")
 parser.add_argument("--clear-border", action="store_true", help="Remove isolated edge artifacts when all source borders are known background")
+parser.add_argument("--foreground-seed", help="Keep only the connected foreground containing source x,y")
+parser.add_argument("--opencv-path", type=Path, help="Directory containing the optional cv2 dependency")
 parser.add_argument("--bounds", help="Shared crop x0,y0,x1,y1 for aligned image variants")
 args = parser.parse_args()
 source = Image.open(args.source).convert("RGB")
@@ -31,6 +34,16 @@ alpha[edge] = np.clip((255-rgb[edge].min(axis=1).astype(float))/24, 0, 1)*255
 if args.clear_border:
     alpha[[0,-1],:]=0
     alpha[:,[0,-1]]=0
+if args.foreground_seed:
+    x,y=map(int,args.foreground_seed.split(","))
+    if alpha[y,x]==0:
+        raise ValueError(f"Foreground seed {args.foreground_seed} is transparent")
+    if args.opencv_path:
+        sys.path.insert(0,str(args.opencv_path.resolve()))
+    import cv2
+    _,labels,_,_=cv2.connectedComponentsWithStats((alpha>0).astype(np.uint8),8)
+    foreground_label=labels[y,x]
+    alpha[labels!=foreground_label]=0
 # Remove white matte only on antialiased edge pixels; opaque source pixels stay exact.
 colors = rgb.copy()
 soft = (alpha > 0) & (alpha < 255)

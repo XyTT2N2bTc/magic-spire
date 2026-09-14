@@ -114,6 +114,7 @@ static func action_risk(g, payload: Dictionary) -> String:
 
 static func gain_multiplier(g, fixed: bool=false) -> float:
  var multiplier=1.0 if fixed else g.Cards.hand_multiplier(g,"pleasure_multiplier")
+ multiplier*=g.Character.Expansion.pressure_multiplier(g)
  for id in g.state.relics:
   multiplier*=1.0-g.Relics.TYPES[id].modifiers.get("pressure_reduction_percent",0.0)/100.0
  return multiplier
@@ -154,7 +155,20 @@ static func balance_mana(g) -> void:
   g._emit("event","魔力已达上限，保留%s魔力。" % g.number(g.state.mana))
  _apply_overloads(g,count)
 
-static func _apply_overloads(g, count: int) -> void:
+static func scripted_climax(g, source: String) -> Dictionary:
+ # Scripted scenes share the ordinary climax body/equipment rules, but they are
+ # resolved like room events even when the surrounding phase is prison/rest.
+ # This keeps the semen-bound mana loss immediate and avoids creating a combat
+ # interruption or the two-turn slip-ejaculation penalty.
+ var mana_before=float(g.state.mana)
+ var total_before=int(g.state.overload_total)
+ var log_before=g.state.logs.size()
+ _apply_overloads(g,1,true)
+ if g.state.logs.size()>log_before:
+  g.state.logs[-1].data.scripted_climax={"source":source,"count":1}
+ return {"count":int(g.state.overload_total)-total_before,"mana_before":mana_before,"mana_lost":mana_before-float(g.state.mana),"mana_after":float(g.state.mana)}
+
+static func _apply_overloads(g, count: int, scripted: bool=false) -> void:
  if count==0: return
  g.Character.clear(g,false)
  g.Character.lose_focus(g,count,"高潮")
@@ -162,11 +176,11 @@ static func _apply_overloads(g, count: int) -> void:
  g.CaptureBind.overload(g,count)
  var climax_equipment_released=g._climax_special_slip(count)
  var mana_before=g.state.mana
- var deferred_mana=g.state.phase!="event" and (g.state.slip_ejaculation_turns>0 or (slip_ejaculation and g.state.phase in ["battle","prepare","rest","prison"]))
+ var deferred_mana=not scripted and g.state.phase!="event" and (g.state.slip_ejaculation_turns>0 or (slip_ejaculation and g.state.phase in ["battle","prepare","rest","prison"]))
  var lost=0.0 if deferred_mana else minf(mana_before,count*B.OVERLOAD_MANA)
  g.state.mana-=lost
  g.state.overload_total+=count
- if g.state.phase in ["battle","prepare","rest","prison"]:
+ if not scripted and g.state.phase in ["battle","prepare","rest","prison"]:
   if slip_ejaculation:
    g.state.slip_ejaculation_turns=maxi(g.state.slip_ejaculation_turns,2)
    g.state.slip_ejaculation_force_last=true
@@ -189,7 +203,7 @@ static func _apply_overloads(g, count: int) -> void:
   g.state.chastity_climax_factor+=count
   if not masochist: g.state.chastity_climax_factor=mini(g.state.chastity_climax_factor,g.SpecialEquipment.CHASTITY_CLIMAX_FACTOR_LIMIT)
  if climax_equipment_released: g._cleanup()
- g._emit("event",("滑精" if slip_ejaculation else "高潮")+"%d次，损失%s魔力，快感回落至%s。" % [count,g.number(lost),g.number(g.state.pressure)],{"overloads":count,"mana_before":mana_before,"mana_lost":lost,"mana_after":g.state.mana,"remainder":g.state.pressure,"energy_penalty":g.state.overload_energy,"slip_ejaculation":slip_ejaculation})
+ g._emit("event",("滑精" if slip_ejaculation else "高潮")+"%d次，损失%s魔力，快感回落至%s。" % [count,g.number(lost),g.number(g.state.pressure)],{"overloads":count,"mana_before":mana_before,"mana_lost":lost,"mana_after":g.state.mana,"remainder":g.state.pressure,"energy_penalty":g.state.overload_energy,"slip_ejaculation":slip_ejaculation,"scripted":scripted})
 
 static func settle_maximum(g, source: String) -> void:
  g.state.pressure=g.RelicEffects.cap_pressure(g,g.state.pressure)

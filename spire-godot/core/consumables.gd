@@ -1,5 +1,5 @@
 extends RefCounted
-const Tools=preload("res://data/field_tools.gd")
+const Tools=preload("res://core/tool_rules.gd")
 
 static func amount(g, type: String, base: int=-1) -> int:
  var spec=Tools.TYPES[type]

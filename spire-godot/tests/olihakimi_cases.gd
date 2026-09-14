@@ -30,7 +30,7 @@ static func run(t) -> void:
  t.check(t.action(g,"attack",{"type":"fireball"}).ok,"OLI expenditure before obtaining relic commits")
  g.RelicEffects.gain(g,"olihakimi");var paid=g.state.mana
  t.check(t.action(g,"end").ok and g.state.mana==paid,"OLI late pickup still knows earlier expenditure")
- g=fresh();g.state.relics.append("mana_earring");g.RelicEffects.mana_lost(g,20)
+ g=fresh();g.state.relics.append("mana_earring");g.RelicEffects.mana_lost(g,30)
  t.check(g.state.combat.mana_spent==0 and g.state.combat.mana_used,"OLI earring threshold reset cannot erase turn expenditure")
  g.RelicEffects.end_turn(g)
  t.check(g.state.mana==40,"OLI spent turn has no reward even after earring threshold")

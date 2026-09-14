@@ -5,7 +5,9 @@ static func attack(t,g,type: String,form: int) -> Dictionary:
  return t.find_action(g,"attack",{"type":type,"form":form,"enemy":g.state.enemies[0].id})
 
 static func run(t) -> void:
+ body_part_projection(t)
  zero_energy_fireball(t)
+
  ordinary_kicks(t)
  justice_opening(t)
  interrupt_cooldown(t)
@@ -156,3 +158,14 @@ static func bound_kick_scaling(t) -> void:
    t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"BOUND KICK stale scaled attack preserves all resources")
    var hp=g.state.enemies[0].hp
    t.check(g.dispatch(c.id,g.state.version).ok and is_equal_approx(g.state.enemies[0].hp,hp-expected) and g.state.charge==0 and g.state.energy==before.energy-1 and g.state.posture=="lie","BOUND KICK actual scaled damage includes the zero-multiplier boundary and consumes charge once")
+
+static func body_part_projection(t) -> void:
+ var g=Game.new(42)
+ var before=g.export_snapshot()
+ var view=g.get_view()
+ var expected={"strike":"双臂","heavy":"双臂／双腿","kick":"双腿","fireball":"嘴部"}
+ for type in expected:
+  var offers=view.candidates.filter(func(c):return c.payload.kind=="attack" and c.payload.type==type)
+  t.check(not offers.is_empty() and offers.all(func(c):return c.body_part==expected[type]),"BASIC body-part projection follows every attack form "+type)
+ var calm=view.candidates.filter(func(c):return c.payload.kind=="calm")[0]
+ t.check(calm.body_part=="嘴部" and calm.brief.contains(g.number(g.Pressure.calm(g).reduction)) and g.state==before,"BASIC breathing body and compact effect projection are read-only")

@@ -46,7 +46,7 @@ static func run(t) -> void:
 
  await t.start_practice("Practice_pressure_battle")
  var breath=ui.find_child("DeepBreath",true,false)
- t.check(breath!=null and t.visible_text(breath).strip_edges().begins_with("深呼吸") and not ui.show_pressure,"STATUS deep breath is available without opening status")
+ t.check(breath!=null and breath.find_child("BasicAttackTitle",true,false).text.begins_with("深呼吸") and not ui.show_pressure,"STATUS deep breath is available without opening status")
  for type in ["strike","heavy","kick","fireball"]:
   var attack=ui.find_child("BasicAttack_"+type,true,false)
   t.check(attack.get_global_rect().end.x<=breath.get_global_rect().position.x and is_equal_approx(attack.position.y,breath.position.y),"STATUS deep breath sits right of each attack on same row")

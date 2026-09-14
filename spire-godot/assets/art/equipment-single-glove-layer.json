@@ -1,0 +1,49 @@
+{
+  "bound_crop": [
+    390,
+    90,
+    1130,
+    2304
+  ],
+  "difference_roi": [
+    450,
+    420,
+    1050,
+    1230
+  ],
+  "difference_bounds": [
+    477,
+    446,
+    1030,
+    1213
+  ],
+  "sources": {
+    "single_glove": {
+      "path": "C:\\Users\\16563\\Downloads\\00105-3376505697.png",
+      "sha256": "075487EA317622794B8B956B8E7BC16F5BE26007A47B4952B027532CFDDCACD2"
+    },
+    "reference": {
+      "path": "C:\\Users\\16563\\Downloads\\00077-1312644243.png",
+      "sha256": "23E76BA8FA2E76B3F55B39B2010936C66A25F4CACC9369CC4A6AE2AAE5E1DEA5"
+    }
+  },
+  "overlay": {
+    "texture": "res://assets/art/equipment-overlay-single-glove-v1.png",
+    "origin": [
+      469,
+      438
+    ],
+    "note": "Inspection asset; runtime uses replacement bases so removed rope and hand pixels stay transparent."
+  },
+  "replacement_bases": {
+    "plain": "res://assets/art/equipment-body-single-glove-v1.png",
+    "flat_lock": "res://assets/art/equipment-body-single-glove-flat-lock-v1.png"
+  },
+  "thigh_root_textures": {
+    "bound": "res://assets/art/equipment-leg-thigh_root-single-glove-v1.png",
+    "free": "res://assets/art/equipment-leg-thigh_root-single-glove-free-v1.png",
+    "flat_lock_bound": "res://assets/art/equipment-leg-thigh_root-single-glove-flat-lock-v1.png",
+    "flat_lock_free": "res://assets/art/equipment-leg-thigh_root-single-glove-flat-lock-free-v1.png"
+  },
+  "runtime_condition": "active composite root with kind == glove"
+}

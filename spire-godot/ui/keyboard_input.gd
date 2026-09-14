@@ -61,6 +61,9 @@ func handle(event: InputEvent) -> bool:
  if base==KEY_ESCAPE:
   cancel();return true
  if text_entry(): return false
+ if base in [KEY_LEFT,KEY_RIGHT] and event.get_modifiers_mask()==0 and not blocked() and selection.is_empty() and host.quick_release_open and host.quick_release_region!="" and not host.show_route and not host._selecting_hand() and not get_viewport().gui_is_dragging():
+  preload("res://ui/quick_release_bar.gd").cycle(host,host.quick_release_region,-1 if base==KEY_LEFT else 1)
+  return true
  var action=settings.match_key(key)
  if action=="": return not selection.is_empty() and base in [KEY_SPACE,KEY_ENTER,KEY_KP_ENTER,KEY_TAB]
  if blocked():
@@ -86,7 +89,13 @@ func handle(event: InputEvent) -> bool:
  if action.begins_with("card_"):
   var index=int(action.trim_prefix("card_"))-1
   if index<host.view.hand.size(): select_card(host.view.hand[index].uid)
- elif action in ["strike","heavy","kick","fireball"]: select_attack(action)
+ elif action in ["strike","heavy","kick","fireball"]:
+  var quick=preload("res://ui/quick_release_bar.gd")
+  var region=quick.ORDER[quick.SLOT_ACTIONS.find(action)]
+  var button=host.find_child("QuickRelease_"+region,true,false)
+  if host.quick_release_open and button!=null and button.is_visible_in_tree() and not host.show_route:
+   quick.activate(host,region)
+  else:select_attack(action)
  elif action=="flip": flip()
  elif action=="confirm": confirm()
  elif action in ["next","previous"]: cycle(-1 if action=="previous" else 1)
@@ -282,6 +291,14 @@ func refresh_hints() -> void:
  for id in nodes:
   var button=host.find_child(nodes[id],true,false)
   if button!=null: hint(button,settings.caption(id))
+ var quick=preload("res://ui/quick_release_bar.gd")
+ for i in range(quick.ORDER.size()):
+  var button=host.find_child("QuickRelease_"+quick.ORDER[i],true,false)
+  if button==null:continue
+  hint(button,settings.caption(quick.SLOT_ACTIONS[i]))
+  var label=button.get_node("KeyboardHint")
+  label.position=Vector2(button.size.x-quick.ARROW_WIDTH-4-label.get_minimum_size().x,0)
+  button.get_node("Title").size.x=maxf(0,label.position.x-button.get_node("Title").position.x-4)
  if is_instance_valid(host.end_button): hint(host.end_button,settings.caption("end"))
  for index in range(host.view.hand.size()):
   var button=host.card_buttons.get(host.view.hand[index].uid)

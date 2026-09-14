@@ -6,11 +6,11 @@ static func run(t) -> void:
  var portrait=ui.find_child("EquipmentPortrait",true,false)
  var panel=ui.find_child("BodyEquipmentPanel",true,false)
  t.check(portrait.texture.get_image().detect_alpha()!=Image.ALPHA_NONE and portrait.stretch_mode==TextureRect.STRETCH_KEEP_ASPECT_CENTERED,"BODY transparent original portrait keeps aspect ratio")
- var slots=["eyes","mouth","neck","upper_arm","special_1","forearm","wrist","hands","special_2","special_3","thigh","calf","ankle","feet"]
+ var slots=["region_head","region_upper","region_intimate","region_lower"]
  var previous=0.0
  for slot in slots:
   var rect=ui.body_buttons[slot].get_global_rect()
-  t.check(rect.position.y>previous and panel.get_global_rect().encloses(rect) and rect.position.x>=portrait.get_global_rect().end.x,"BODY visible anatomical row fits beside portrait: "+slot)
+  t.check(rect.position.y>previous and panel.get_global_rect().encloses(rect) and rect.position.x>=portrait.get_global_rect().end.x,"BODY four anatomical region entries fit beside portrait: "+slot)
   previous=rect.position.y
  t.check(ui.find_child("EquipmentDetails",true,false)==null,"BODY compact sidebar starts without large details overlay")
  await t.capture("ui-83-portrait-equipment-sidebar.png")
@@ -24,13 +24,18 @@ static func run(t) -> void:
  await t.inspect_body("eyes")
  t.check(ui.game.export_snapshot()==before and t.visible_text(ui.find_child("EquipmentDetails",true,false)).contains("眼罩"),"BODY head details show actual equipment without action")
  var cards=ui.find_child("EquipmentDetails",true,false).find_children("EquipmentCard_*","PanelContainer",true,false)
- t.check(cards.size()==2 and cards[0].get_parent() is GridContainer and cards[0].get_parent().columns==2,"BODY all masks share two-column small equipment cards")
+ t.check(cards.size()==2 and cards[0].get_parent() is GridContainer and cards[0].get_parent().columns==1,"BODY masks use one readable vertical layer sequence")
  var first_rect=cards[0].get_global_rect()
  var second_rect=cards[1].get_global_rect()
- t.check(is_equal_approx(first_rect.position.y,second_rect.position.y) and first_rect.end.x<=second_rect.position.x,"BODY small cards sit beside each other without overlap")
+ t.check(first_rect.end.y<=second_rect.position.y and is_equal_approx(first_rect.position.x,second_rect.position.x),"BODY layer rows follow vertically without overlap")
  var toggle=cards[0].find_child("EquipmentCardDetailsToggle",true,false)
+ t.check(cards.all(func(card):return card.find_child("EquipmentActions",true,false).get_child_count()==0),"BODY collapsed equipment does not build hidden action trees")
  await Pointer.press(t,toggle)
- t.check(toggle.text.contains("收起") and t.visible_text(cards[0]).contains("视觉受阻") and ui.game.export_snapshot()==before,"BODY expanding card reveals real details without state changes")
+ t.check(toggle.text.contains("收起") and cards[0].find_child("EquipmentActions",true,false).visible and ui.game.export_snapshot()==before,"BODY expanding equipment reveals methods without state changes")
+ var action_panel=cards[0].find_child("EquipmentActions",true,false)
+ var retained_children=action_panel.get_children()
+ toggle.pressed.emit();toggle.pressed.emit();await t.frames()
+ t.check(action_panel.get_children()==retained_children and ui.game.export_snapshot()==before,"BODY reopening details reuses their controls without duplicating actions or spending resources")
  await Pointer.press(t,toggle)
  t.check(toggle.text.contains("查看") and not t.visible_text(cards[0]).contains("视觉受阻") and ui.game.export_snapshot()==before,"BODY closing card details stays local and preserves gameplay")
  await t.capture("ui-84-body-equipment-details.png")
@@ -54,12 +59,136 @@ static func run(t) -> void:
  ui.render();await t.frames();await t.inspect_body("hands")
  detail=ui.find_child("EquipmentDetails",true,false)
  cards=detail.find_children("EquipmentCard_*","PanelContainer",true,false)
- t.check(cards.size()==2 and cards[0].get_parent()==cards[1].get_parent() and is_equal_approx(cards[0].position.y,cards[1].position.y),"BODY different hand subslots pack into the same row")
+ t.check(cards.size()==2 and cards[0].get_parent()==cards[1].get_parent() and cards[0].position.y<cards[1].position.y,"BODY different hand subslots keep separate labeled rows")
  t.check(t.visible_text(cards[0]).contains("手掌") and t.visible_text(cards[1]).contains("手指"),"BODY packed cards retain their exact subslot labels")
  await t.capture("ui-110-compact-cross-slot-cards.png")
  await shared_hand_target(t)
  await selection_focus(t)
  await single_click_play(t)
+ await release_preview(t)
+ await adaptive_regions(t)
+ await applied_regions(t)
+
+static func applied_regions(t) -> void:
+ var ui=t.ui
+ ui.game=preload("res://tests/enemy_cases.gd").encounter("double_rope")
+ ui._reset_interface(ui.game.get_view());ui.render();await t.frames()
+ t.check(ui.expanded_body_regions.is_empty(),"AUTO REGION new battle does not expand starting equipment")
+ var before=ui.game.export_snapshot()
+ ui._submit(ui.actions.find("flow",{"kind":"end"}),ui.view.version-1);await t.frames()
+ t.check(ui.expanded_body_regions.is_empty() and ui.game.export_snapshot()==before,"AUTO REGION rejected action never opens a region or changes state")
+ t.check(await t.click("end"),"AUTO REGION enemy application uses actual end-turn submission")
+ var affected=ui.view.body_regions.filter(func(region):return not region.targets.is_empty())
+ t.check(not affected.is_empty() and affected.all(func(region):return region.id in ui.expanded_body_regions),"AUTO REGION new enemy restraints open their projected regions")
+ t.check(not ui.show_body and ui.find_child("EquipmentDetails",true,false)==null,"AUTO REGION does not force an inspection overlay")
+ var region_id=affected.back().id
+ await Pointer.press(t,ui.body_buttons[region_id])
+ before=ui.game.export_snapshot()
+ ui.render();await t.frames()
+ t.check(region_id not in ui.expanded_body_regions and ui.game.export_snapshot()==before,"AUTO REGION manual close survives redraw without gameplay changes")
+ t.check(await t.click("end") and region_id not in ui.expanded_body_regions,"AUTO REGION reinforcement of existing equipment does not reopen the region")
+ # Equal-count replacement must compare IDs, not aggregate region counts.
+ var old=ui.game.get_view()
+ var item=ui.game.state.equipment[0]
+ item.id="auto_region_replacement"
+ var updated=ui.game.get_view()
+ var sidebar=preload("res://ui/shell/body_sidebar.gd")
+ before=ui.game.export_snapshot()
+ sidebar.expand_applied(ui,old,updated);ui.render(updated);await t.frames()
+ t.check(region_id in ui.expanded_body_regions and ui.game.export_snapshot()==before,"AUTO REGION equal-count replacement opens the region using read-only projection")
+ ui.expanded_body_regions.clear()
+ old.phase="rest"
+ sidebar.expand_applied(ui,old,updated)
+ t.check(ui.expanded_body_regions.is_empty(),"AUTO REGION nonbattle actions do not force expansion")
+ ui.restart(42);await t.frames()
+
+static func adaptive_regions(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames()
+ var panel=ui.find_child("BodyEquipmentPanel",true,false)
+ var before=ui.game.export_snapshot()
+ t.check(panel.size.x==310 and ui.body_buttons.region_head.size.x==100,"REGIONS narrower sidebar and region column")
+ await Pointer.press(t,ui.body_buttons.region_head)
+ await Pointer.press(t,ui.body_buttons.region_lower)
+ t.check(ui.expanded_body_regions==["region_head","region_lower"],"REGIONS retain two expanded groups when their measured rows fit")
+ t.check(ui.body_buttons.thigh.get_theme_font_size("font_size")==14,"REGIONS precise body labels use enlarged font")
+ var last=panel.find_child("BodyRegionContent_region_lower",true,false)
+ var exact=last.position.y+last.size.y+panel.GAP+panel.BOTTOM+panel.get_theme_stylebox("panel").get_minimum_size().y
+ panel.size.y=exact;await t.frames(5)
+ t.check(ui.expanded_body_regions==["region_head","region_lower"],"REGIONS exact-height boundary retains both groups")
+ panel.size.y=exact-1;await t.frames(5)
+ t.check(ui.expanded_body_regions==["region_lower"],"REGIONS one-pixel overflow evicts the oldest group only")
+ panel.size.y=512;await t.frames(5)
+ await Pointer.press(t,ui.body_buttons.region_intimate)
+ await Pointer.press(t,ui.body_buttons.region_upper)
+ t.check(ui.expanded_body_regions==["region_intimate","region_upper"],"REGIONS opening newest group evicts only enough older groups to fit")
+ for button in ui.body_buttons.values():
+  if button.is_visible_in_tree(): t.check(panel.get_global_rect().encloses(button.get_global_rect()),"REGIONS every visible button stays within its frame")
+ ui.render(ui.view);await t.frames()
+ t.check(ui.expanded_body_regions==["region_intimate","region_upper"] and ui.game.export_snapshot()==before,"REGIONS refresh preserves expansion order without changing gameplay")
+ await Pointer.press(t,ui.body_buttons.region_upper)
+ t.check(ui.expanded_body_regions==["region_intimate"],"REGIONS manual close does not collapse another group")
+ await Pointer.press(t,ui.body_buttons.region_upper)
+ panel.size.y=300;await t.frames(5)
+ var scroll=panel.find_child("BodyRegionContent_region_upper",true,false)
+ t.check(ui.expanded_body_regions==["region_upper"] and scroll.get_v_scroll_bar().max_value>scroll.size.y,"REGIONS an individually oversized newest group uses local scrolling")
+ panel.size.y=512;await t.frames(5)
+ ui.game.state.equipment.clear();ui.game.state.composites.clear();ui.game.state.links.clear()
+ ui.game.add_fixture("upper_arm",4,10)
+ ui.selected_slot="region_upper";ui.show_body=true;ui.render();await t.frames()
+ var severity=ui.view.body_regions.filter(func(region):return region.id=="region_upper")[0].severity
+ t.check(severity.value==ui.game.restraint_degree("arms") and severity.value==0.5,"REGIONS severity preserves authoritative fractional degree instead of rounded level")
+ t.check(t.visible_text(ui.find_child("RegionSeverity",true,false)).contains("0.50 / 4"),"REGIONS current degree appears beside its visible meter")
+ t.check(ui.view.body_regions.filter(func(region):return region.id in ["region_head","region_intimate"]).all(func(region):return region.severity.is_empty()),"REGIONS no invented overall degree for head or special equipment")
+ await Pointer.press(t,ui.body_buttons.region_intimate)
+ await Pointer.press(t,ui.body_buttons.upper_arm)
+ await capture_panel(t,"ui-release-adaptive-panel.png")
+
+static func release_preview(t) -> void:
+ var ui=t.ui
+ ui.restart(42);ui.game.state.equipment.clear();ui.game._discard_end()
+ ui.game.state.wall="normal"
+ var target=ui.game.add_fixture("wrist",10,10)
+ target.locked=true
+ var card=preload("res://tests/curse_cases.gd").give(ui.game,"strain")
+ ui.game.add_fixture("ankle",4,10)
+ var before=ui.game.export_snapshot()
+ ui.selected_card=card.uid;ui.card_faces[card.uid]=false;ui.selected_slot="wrist";ui.show_body=true
+ ui.render();await t.frames()
+ var c=ui.actions.find("card",{"uid":card.uid,"target":target.id,"free":false})
+ var result=c.release_preview
+ t.check(c.valid and result.modifiers.any(func(text):return text.contains("锁具 ×0.5")),"RELEASE reduced damage identifies the actual lock factor")
+ t.check(ui.game.export_snapshot()==before and result.before==10 and is_equal_approx(result.after,10-c.payload.preview.damage),"RELEASE projected numbers match authoritative damage without mutating resources/RNG")
+ var details=ui.find_child("EquipmentDetails",true,false)
+ var text=t.visible_text(details)
+ t.check(text.contains(result.headline) and not text.contains("手部辅助）") and details.find_child("ReleasePreview",true,false)!=null,"RELEASE numeric before/after replaces default formula text")
+ await t.capture("ui-release-numeric-preview.png")
+ await capture_panel(t,"ui-release-numeric-panel.png")
+ var commit=ui.find_child("PlaySelectedCard",true,false)
+ t.check(details.get_global_rect().encloses(commit.get_global_rect()) and commit.get_parent()==details.get_child(0),"RELEASE confirm stays in the fixed footer outside scrolling effects")
+ await Pointer.press(t,commit)
+ t.check(is_equal_approx(ui.game._equipment(target.id).durability,result.after) and ui.game.state.energy==before.energy-c.cost,"RELEASE actual commit equals numeric prediction and charges exactly once")
+ # Display order follows physical layers, not action eligibility: a highest-tightness
+ # inner piece can still be a legitimate strain target under the original rules.
+ ui.game.state.equipment.clear();ui.game._discard_end()
+ var inner=ui.game.add_fixture("wrist",8,10);inner.layer=0
+ var outer=ui.game.add_fixture("wrist",4,10);outer.layer=1
+ before=ui.game.export_snapshot();ui.selected_card="";ui.show_body=true;ui.selected_slot="region_upper"
+ ui.render();await t.frames()
+ var body=ui._body_at("wrist")
+ t.check(body.sections[0].equipment[0].id==outer.id and body.targets[inner.id].covers==[ui.game._equipment_name(outer)],"RELEASE same-point layer order and covering label use actual equipment facts")
+ t.check(ui.game.export_snapshot()==before and ui.view.body_regions.size()==4,"RELEASE region inspection remains read-only and preserves all four entrances")
+ await t.capture("ui-release-region-layers.png")
+ await capture_panel(t,"ui-release-region-panel.png")
+
+static func capture_panel(t, filename: String) -> void:
+ if filename not in t.screenshots: return
+ await RenderingServer.frame_post_draw
+ var x=t.ui.body_buttons.region_head.get_global_rect().position.x-8
+ var details=t.ui.find_child("EquipmentDetails",true,false).get_global_rect()
+ var sidebar=t.ui.find_child("BodyEquipmentPanel",true,false).get_global_rect()
+ var rect=Rect2i(int(x),int(sidebar.position.y),int(details.end.x-x+4),int(sidebar.size.y))
+ t.check(t.root.get_texture().get_image().get_region(rect).save_png("res://build/"+filename)==OK,"RELEASE focused UI screenshot "+filename)
 
 static func single_click_play(t) -> void:
  var ui=t.ui
@@ -172,6 +301,9 @@ static func shared_hand_target(t) -> void:
  var inner=choices.filter(func(c):return c.payload.target==tape.id)[0]
  await t.start_drag(uid,"hands")
  t.check(choices.size()==2 and ui.drop_targets.size()==2 and ui.drop_targets.has(shell.id) and ui.drop_targets.has(inner.id),"BODY aimed hand shows its two physical pieces including blocked entries, without other regions")
+ if not ui.drop_targets.has(inner.id):
+  await t.mouse_button(Vector2(1500,70),MOUSE_BUTTON_LEFT,false)
+  return
  t.check(ui.drop_targets.values().all(func(button):return not button.get_meta("target_selectable") and button.get_parent().modulate.r<0.5),"BODY blocked hand pieces are visible at low brightness")
  await t.release_target(await t.reveal_drop_target(inner.id))
  t.check(ui.game.export_snapshot()==before and ui.drop_targets.is_empty(),"BODY releasing over dimmed equipment rejects the action without payment or state changes")

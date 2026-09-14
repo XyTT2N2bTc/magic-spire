@@ -90,6 +90,41 @@ static func run(t) -> void:
  var settings=ui.display_settings;settings.mobile=true
  ui._open_drawer("show_options");await t.frames()
  t.check(ui.find_child("DisplayMode",true,false)==null and ui.find_child("FeedbackSpeed",true,false)!=null,"TOUCH Android settings omit desktop window controls and retain feedback speed")
+ var picker=ui.find_child("FeedbackSpeed",true,false)
+ var options_scroll=ui.find_child("DisplayOptionsScroll",true,false)
+ options_scroll.ensure_control_visible(picker);await t.frames()
+ await tap(t,picker)
+ t.check(picker.get_popup().visible,"TOUCH Android tap opens a settings dropdown")
+ var popup=picker.get_popup()
+ await t.create_timer(0.4).timeout
+ var row_height=(popup.size.y-popup.get_theme_stylebox("panel").get_minimum_size().y)/popup.item_count
+ var choice=Vector2(popup.size.x/2.0,popup.get_theme_stylebox("panel").get_margin(SIDE_TOP)+row_height*2.5)
+ for down in [true,false]:
+  await finger(t,Vector2(popup.position)+choice,down)
+ t.check(not popup.visible and is_equal_approx(ui.feedback_duration,1.8),"TOUCH selecting a dropdown row applies its value through real popup touch input")
+ # Reopen a newly built dropdown: cancellation, a second contact and Android back.
+ picker=ui.find_child("FeedbackSpeed",true,false)
+ options_scroll=ui.find_child("DisplayOptionsScroll",true,false)
+ options_scroll.ensure_control_visible(picker);await t.frames();await tap(t,picker)
+ popup=picker.get_popup();await t.frames()
+ choice=Vector2(popup.position)+Vector2(popup.size.x/2.0,20)
+ await finger(t,choice,true);await finger(t,choice,false,0,true)
+ t.check(popup.visible and is_equal_approx(ui.feedback_duration,1.8),"TOUCH canceled popup contact preserves the selection")
+ ui._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST);await t.frames()
+ t.check(not popup.visible and ui.show_options,"TOUCH Android back closes the dropdown before its settings drawer")
+ # Long option lists use the same popup bridge and must scroll without selecting.
+ var long_picker=OptionButton.new();long_picker.position=Vector2(650,250);long_picker.size=Vector2(300,50)
+ long_picker.z_index=290
+ ui.layout.add_child(long_picker)
+ for index in range(40): long_picker.add_item("Option "+str(index))
+ var choices=[0];long_picker.item_selected.connect(func(_index):choices[0]+=1)
+ await t.frames();await tap(t,long_picker);popup=long_picker.get_popup();await t.frames()
+ var popup_scroll=popup.get_node("TouchInput")._popup_scroller(popup)
+ popup_scroll.scroll_vertical=0;await t.frames()
+ point=Vector2(popup.position)+Vector2(100,minf(popup.size.y-30,300))
+ await finger(t,point,true);await move(t,point-Vector2(0,90));await finger(t,point-Vector2(0,90),false)
+ t.check(popup.visible and popup_scroll.scroll_vertical>0 and choices[0]==0,"TOUCH popup swipe scrolls options without selecting")
+ popup.hide();long_picker.queue_free();await t.frames()
  var size=t.root.size;settings.set_mode(0);settings.set_resolution(Vector2i(1280,720))
  t.check(t.root.size==size,"TOUCH mobile settings cannot resize native Android window")
  settings.mobile=false;ui._close_drawers();ui._refresh_drawers();await t.frames()

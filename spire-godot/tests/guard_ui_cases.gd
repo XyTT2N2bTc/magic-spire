@@ -1,6 +1,7 @@
 extends RefCounted
 
 static func run(t) -> void:
+ await sidebar_drag(t)
  var ui=t.ui
  await t.start_practice("Practice_guard")
  t.check(ui.view.phase=="battle" and ui.view.enemies.size()==1 and ui.view.enemies[0].type=="guard" and ui.view.enemies[0].maximum==90,"GUARD UI practice starts real succubus guard")
@@ -20,6 +21,11 @@ static func run(t) -> void:
  t.check(await t.click("end") and ui.game._enemy(enemy).intent.kind=="bind_prepare","GUARD UI opening resolves before bind preparation")
  t.check(await t.click("end") and ui.game._enemy(enemy).intent.kind=="bind_apply","GUARD UI preparation occupies one enemy action")
  t.check(await t.click("end") and ui.view.guard_bind.value==50.0,"GUARD UI bind application starts at fifty")
+ var move=ui.find_child("WallMove_toward",true,false)
+ t.check(move!=null and move.disabled and move.text.contains("被捕缚时无法移动"),"GUARD UI capture visibly disables movement with its concrete reason")
+ var move_rect=move.get_global_rect()
+ var posture_choices=ui.find_child("PostureChoices",true,false)
+ t.check(posture_choices==null or move_rect.end.y<=posture_choices.get_global_rect().position.y,"GUARD UI disabled capture movement does not overlap posture choices")
  t.check(ui.find_child("HeroGuardBind",true,false)!=null and ui.find_child("HeroGuardBindValue",true,false).text=="50/100" and ui.actor_targets.has("guard_bind"),"GUARD UI compact bind meter appears below mana and accepts card targeting")
  t.check(ui.view.statuses.any(func(status):return status.id=="guard_bind"),"GUARD UI status panel receives the bind rules")
  var bind_bar=ui.find_child("HeroGuardBind",true,false)
@@ -57,8 +63,8 @@ static func run(t) -> void:
  ui.render();await t.frames()
  var mana=ui.view.mana
  var deck=ui.view.deck_count
- t.check(await t.click("end") and ui.view.phase=="captured" and ui.view.security==1 and ui.view.reward_count==0 and ui.view.mana==mana and ui.view.deck_count==deck,"GUARD UI next enemy action captures at full bind without victory reward")
- t.check(t.visible_text(ui.layout).contains("收押完成") and t.visible_text(ui.layout).contains("开始探索与逃脱"),"GUARD UI capture result offers prison continuation")
+ t.check(await t.click("end") and ui.view.phase=="captured" and ui.view.security==1 and ui.view.reward_count==0 and ui.view.mana==maxf(0.0,mana-20.0) and ui.view.deck_count==deck,"GUARD UI next enemy action captures, milks once and grants no battle reward")
+ t.check(ui.find_child("PrisonIntakePanel",true,false)!=null and t.visible_text(ui.layout).contains("监狱收押") and t.visible_text(ui.layout).contains("榨取魔力 20") and t.visible_text(ui.layout).contains("登记台前") and not t.visible_text(ui.layout).contains("本次没有战后恢复"),"GUARD UI capture uses the one-time event-style intake page with its real mana loss")
 
  await t.start_practice("Practice_double_guard")
  t.check(ui.view.enemies.size()==2 and ui.view.enemies[0].id!=ui.view.enemies[1].id,"GUARD UI double guards retain independent ids")
@@ -86,3 +92,66 @@ static func run(t) -> void:
    await t.capture("ui-guard-brown-portrait.png")
    break
  t.check(brown_found,"GUARD UI registered brown portrait is reachable through formal seeded generation")
+ await reinforcements(t)
+
+static func reinforcements(t) -> void:
+ var ui=t.ui
+ await preload("res://tests/prison_ui_cases.gd").enter(t)
+ var g=ui.game
+ for i in range(g.state.prison.left): t.check(await t.click("end"),"REINFORCEMENTS UI reach patrol through completed turns")
+ preload("res://tests/prison_reinforcement_cases.gd").quiet(g);g.state.posture="stand"
+ ui.render();await t.frames()
+ t.check(await t.click("prison",{"action":"resist"}),"REINFORCEMENTS UI formal resistance starts field")
+ var icon=ui.find_child("StatusIcon_prison_reinforcements",true,false)
+ t.check(icon!=null and ui.view.statuses.any(func(row):return row.id=="prison_reinforcements" and row.value=="4回合后抵达"),"REINFORCEMENTS UI visible field badge at battle start")
+ for i in range(4):
+  preload("res://tests/prison_reinforcement_cases.gd").quiet(g);ui.render();await t.frames()
+  t.check(await t.click("end"),"REINFORCEMENTS UI actual end button advances field")
+ t.check(ui.view.enemies.size()==2 and ui.actor_targets.has(g.state.enemies.back().id) and ui.view.statuses.any(func(row):return row.id=="prison_reinforcements" and row.detail.contains("1 / 2")),"REINFORCEMENTS UI new guard is targetable and shared count updates")
+
+
+static func sidebar_drag(t) -> void:
+ var ui=t.ui
+ ui.restart(42,true,"guard")
+ preload("res://tests/guard_cases.gd").bind(ui.game,ui.game.state.enemies[0],36.0)
+ ui.game.state.energy=5
+ ui.game.state.draw.append_array(ui.game.state.hand);ui.game.state.hand.clear()
+ for type in ["strain","slip","unlock"]:preload("res://tests/curse_cases.gd").give(ui.game,type)
+ ui.render();await t.frames()
+ var sidebar=ui.find_child("SidebarGuardBindTarget",true,false)
+ t.check(sidebar!=null and sidebar.get_global_rect().encloses(ui.find_child("MainGuardBind",true,false).get_global_rect()) and sidebar.get_global_rect().encloses(ui.find_child("MainGuardBindCaption",true,false).get_global_rect()),"GUARD sidebar whole capture row accepts drops including caption and meter")
+ t.check(not sidebar.get_global_rect().intersects(ui.find_child("FlaskDeposit",true,false).get_global_rect()),"GUARD sidebar receiver does not overlap flask controls")
+ for type in ["strain","slip"]:
+  var card=ui.view.hand.filter(func(entry):return entry.type==type)[0]
+  if ui.card_faces.get(card.uid,false):await t.flip(card.uid)
+  var c=ui.actions.find("card",{"uid":card.uid,"target":"guard_bind","free":false})
+  t.check(c.valid,"GUARD sidebar uses existing capture escape candidate "+type)
+  var frozen=ui.game.export_snapshot()
+  var point=t.card_point(card.uid)
+  await t.move_mouse(point);await t.mouse_button(point,MOUSE_BUTTON_LEFT,true);await t.move_mouse(point+Vector2(0,-42),true)
+  sidebar=ui.find_child("SidebarGuardBindTarget",true,false)
+  t.check(t.root.gui_is_dragging() and sidebar.has_meta("idle_normal") and ui.find_child("GuardBindTarget",true,false).has_meta("idle_normal"),"GUARD both capture meters highlight for the same dragged card")
+  point=sidebar.get_global_rect().position+Vector2(24,sidebar.size.y/2) if type=="strain" else sidebar.get_global_rect().get_center()
+  await t.move_mouse(point,true)
+  t.check(t.root.gui_get_hovered_control()==sidebar,"GUARD drag actually reaches sidebar: "+str(t.root.gui_get_hovered_control()))
+  t.check(ui.game.export_snapshot()==frozen,"GUARD sidebar hover does not pay or change capture")
+  await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
+  t.check(is_equal_approx(ui.view.guard_bind.value,frozen.guard_bind.progress-c.payload.preview.damage) and ui.view.energy==frozen.energy-c.cost and not ui.view.hand.any(func(entry):return entry.uid==card.uid),"GUARD native drop on sidebar applies formal damage and cost exactly once "+type+" "+str([ui.notice,ui.view.guard_bind.value,ui.view.energy,c.payload.preview.damage]))
+ sidebar=ui.find_child("SidebarGuardBindTarget",true,false)
+ var card=ui.view.hand[0]
+ if ui.card_faces.get(card.uid,false):await t.flip(card.uid)
+ sidebar=ui.find_child("SidebarGuardBindTarget",true,false)
+ var frozen=ui.game.export_snapshot()
+ var point=t.card_point(card.uid)
+ await t.move_mouse(point);await t.mouse_button(point,MOUSE_BUTTON_LEFT,true);await t.move_mouse(point+Vector2(0,-42),true)
+ point=sidebar.get_global_rect().get_center();await t.move_mouse(point,true)
+ t.check(is_instance_valid(ui.term_popup) and t.visible_text(ui.term_popup).contains("这张牌不能处理捕缚"),"GUARD invalid sidebar drag explains the actual incompatible target")
+ await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
+ t.check(ui.game.export_snapshot()==frozen,"GUARD invalid sidebar drop does not use card or resources")
+ var data={"card_uid":card.uid,"free":false,"version":ui.view.version-1}
+ sidebar=ui.find_child("SidebarGuardBindTarget",true,false)
+ t.check(not sidebar.accept_card.call(data),"GUARD sidebar rejects stale drag versions")
+ sidebar.receive_card.call(data);await t.frames()
+ t.check(ui.game.export_snapshot()==frozen,"GUARD stale receiver cannot bypass submission checks")
+ ui.game.state.guard_bind={};ui.render();await t.frames()
+ t.check(ui.find_child("SidebarGuardBindTarget",true,false)==null and ui.find_child("GuardBindTarget",true,false)==null,"GUARD both drop receivers disappear when capture is removed")

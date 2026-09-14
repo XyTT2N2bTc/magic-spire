@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'find-godot.ps1')
 $gameDirectory = Split-Path -Parent $PSScriptRoot
 $apkPath = (Resolve-Path -LiteralPath $Apk).Path
+$manifest = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $apkPath) 'manifest.json') -Raw | ConvertFrom-Json
+if ((Get-FileHash -LiteralPath $apkPath).Hash -ine $manifest.sha256) { throw 'APK checksum does not match its manifest.' }
 $directory = Join-Path $gameDirectory ('build/android-probe-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff'))
 [IO.Directory]::CreateDirectory($directory) | Out-Null
 # Read APK assets unchanged through Godot's ZIP resource loader on the host.
@@ -28,6 +30,7 @@ $start.CreateNoWindow = $true
 $start.Environment['APPDATA'] = Join-Path $directory 'profile'
 $start.Environment['SPIRE_PROBE_SAVES'] = Join-Path $directory 'saves'
 $start.Environment['SPIRE_PROBE_CONTENT'] = 'res://content/packs'
+$start.Environment['SPIRE_PROBE_VERSION'] = [string]$manifest.version
 foreach ($arg in @('--headless','--path',$directory,'--main-pack',$resourceZip,'--script',(Join-Path $PSScriptRoot 'release_probe.gd'),'--log-file',$log)) { $start.ArgumentList.Add($arg) }
 $process = [Diagnostics.Process]::Start($start)
 try {

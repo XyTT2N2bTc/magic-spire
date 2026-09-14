@@ -1,12 +1,15 @@
 extends RefCounted
 
-const MODIFIER_LIMITS={"battle_turn_reserve":10,"battle_opening_focus":10,"reward_card_options":1,"elite_entry_mana":100,"boss_entry_mana":100,"prison_entry_mana":100,"pickup_mana_full":1,"pressure_reduction_percent":100,"max_energy":10,"keep_hand":1,"turn_end_pressure_loss":100,"turn_start_pressure":100,"combat_retention_layers":10,"unspent_turn_mana":100,"pressure_guard_turns":10,"unrestricted_items":1,"shop_flask_mana":100,"capacity":10,"battle_mana":100,"low_mana_end_restore":100,"restraint_mana":100,"preparation_turns":10,"strength":10,"dexterity":10,"leg_dexterity":10,"opening_draw":10,"opening_energy":10,"opening_charge":10,"turn_draw":10,"opening_mana":100,"retain_energy":1,"pickup_mana_max":100,"pickup_mana":100,"mana_energy_step":100,"turn_energy_step":100,"single_hand_cast":1,"soften_locked_strain":1,"always_wall":1}
+const SECRET_WEAPON_TRACTION={2:1.0,3:2.0,4:3.0,5:4.0,6:6.0}
+
+const MODIFIER_LIMITS={"toe_cast":1,"battle_turn_reserve":10,"battle_opening_focus":10,"reward_card_options":1,"elite_entry_mana":100,"boss_entry_mana":100,"prison_entry_mana":100,"pickup_mana_full":1,"pressure_reduction_percent":100,"max_energy":10,"keep_hand":1,"turn_end_pressure_loss":100,"turn_start_pressure":100,"combat_retention_layers":10,"unspent_turn_mana":100,"pressure_guard_turns":10,"unrestricted_items":1,"shop_flask_mana":100,"capacity":10,"battle_mana":100,"low_mana_end_restore":100,"restraint_mana":100,"preparation_turns":10,"strength":10,"dexterity":10,"leg_dexterity":10,"opening_draw":10,"opening_energy":10,"opening_charge":10,"turn_draw":10,"opening_mana":100,"retain_energy":1,"pickup_mana_max":100,"pickup_mana":100,"mana_energy_step":100,"turn_energy_step":100,"single_hand_cast":1,"soften_locked_strain":1,"always_wall":1}
 
 const RARITIES={"common":"普通","uncommon":"罕见","rare":"稀有","boss":"Boss","special":"特殊"}
 const BOSS_POOL=["gourd_flask","tattoo_sticker","cursed_blindfold","nesting_doll","binding_pyramid","shining_lamp","cursed_plate_lock"]
 const FALLBACK="rolling_log"
 
 static var TYPES={
+ "secret_weapon":{"rarity":"rare","name":"秘密武器","detail":"脚趾可代替手部施法，取两者较高成功率。脚趾被拘束时不能施法，并产生牵扯。等级＋紧度为2／3／4／5／6时，每次牵扯基础快感＋1／2／3／4／6，多件累加；脚趾被拘束的优先级提高至与嘴部相同，仅次于手腕。","modifiers":{"toe_cast":1}},
  "witch_amulet":{"rarity":"special","character_id":"witch","name":"魔女护符","detail":"战斗中每回合开始时，获得1层魔力预备。","modifiers":{"battle_turn_reserve":1}},
  "witch_noodles":{"rarity":"common","character_id":"witch","name":"辣椒炒肉拌面","detail":"战斗开始时，获得2层精神集中。","modifiers":{"battle_opening_focus":2}},
  "gourd_flask":{"rarity":"boss","name":"葫芦酒壶","detail":"拾取时，将一张「般若汤-其一」加入卡组。","modifiers":{},"pickup_cards":["hannya_1"]},
@@ -22,7 +25,7 @@ static var TYPES={
  "binding_pyramid":{"rarity":"boss","name":"缚纹金字塔","detail":"回合结束时，不再丢弃手牌。","modifiers":{"keep_hand":1}},
  "shining_lamp":{"rarity":"boss","name":"闪耀的灯球","detail":"最大能量＋1。拾取时，魔力上限－50。","modifiers":{"max_energy":1}},
  "ice_heart":{"rarity":"common","name":"冰心诀","detail":"回合结束时，快感－3。","modifiers":{"turn_end_pressure_loss":3}},
- "magic_blood":{"rarity":"rare","name":"魔血","detail":"力量＋3。回合开始时，快感＋5。","modifiers":{"strength":3,"turn_start_pressure":5}},
+ "magic_blood":{"rarity":"uncommon","name":"魔血","detail":"力量＋2。回合开始时，快感＋5。","modifiers":{"strength":2,"turn_start_pressure":5}},
  "turtle_shell":{"rarity":"rare","name":"乌龟壳","detail":"能量、蓄力、临时魔力的跨战斗保留上限各增加2层：额外能量最多3点、蓄力最多4层、临时魔力最多30点。","modifiers":{"combat_retention_layers":2}},
  "olihakimi":{"rarity":"uncommon","name":"奥利哈基米","detail":"回合结束时，若本回合未消耗魔力，恢复8魔力。","modifiers":{"unspent_turn_mana":8}},
  "green_bird":{"rarity":"rare","name":"绿色小鸟","detail":"每场战斗前6回合，快感不会超过当前快感上限－1。","modifiers":{"pressure_guard_turns":6}},
@@ -42,7 +45,7 @@ static var TYPES={
  "casting_manual":{"rarity":"rare","name":"施法动作教程","detail":"只需一只手的手掌和手指自由，即可满足手部施法条件。","modifiers":{"single_hand_cast":1}},
  "enchanters_needle_case":{"rarity":"rare","name":"魅纹师的针匣","detail":"每回合开始时，额外抽1张牌。","modifiers":{"turn_draw":1}},
  "softened_buckle":{"rarity":"rare","name":"软化扣环","detail":"上锁拘束具的挣扎伤害倍率提高至×0.75。","modifiers":{"soften_locked_strain":1}},
- "mana_earring":{"rarity":"rare","name":"魔力耳坠","detail":"每场战斗中，每累计消耗20魔力，获得1能量。","modifiers":{"mana_energy_step":20}},
+ "mana_earring":{"rarity":"rare","name":"魔力耳坠","detail":"每场战斗中，每累计消耗30魔力，获得1能量。","modifiers":{"mana_energy_step":30}},
  "ready_backpack":{"rarity":"common","name":"准备背包","detail":"战斗第1回合，额外抽2张牌。","modifiers":{"opening_draw":2}},
  "smooth_stockings":{"rarity":"uncommon","name":"光滑的丝袜","detail":"腿部、脚踝及足部灵巧＋2。","modifiers":{"leg_dexterity":2}},
  "donut":{"rarity":"rare","name":"甜甜圈","detail":"未使用的能量保留到下一回合。","modifiers":{"retain_energy":1}},
@@ -56,7 +59,7 @@ static var TYPES={
  "ember":{"rarity":"common","name":"余烬护符","detail":"战后整备结束时，恢复10魔力。休息结束不触发。","modifiers":{"battle_mana":10.0}},
  "toolbox":{"rarity":"common","name":"折叠工具匣","detail":"随身道具容量＋1。","modifiers":{"capacity":1}},
  "hourglass":{"rarity":"uncommon","name":"整备沙漏","detail":"战后整备延长1回合。","modifiers":{"preparation_turns":1}}}
-static var REWARDS=["witch_noodles","shrimp_paste","magnifying_glass","axe_amulet","oune_hand","marble_stone","ice_heart","magic_blood","turtle_shell","olihakimi","green_bird","braised_eggplant","tentacle_friend","spicy_rice_noodles","flyer","kings_gift_revised","marble","graduate_certificate","little_pig","small_gem","desire_cube","happy_fa","casting_manual","mana_earring","ready_backpack","smooth_stockings","donut","small_sigil","martial_book","strawberry","toolbox","hourglass","break_bracer","silk_ring","turn_ribbon","ember_crystal"]
+static var REWARDS=["secret_weapon","witch_noodles","shrimp_paste","magnifying_glass","axe_amulet","oune_hand","marble_stone","ice_heart","magic_blood","turtle_shell","olihakimi","green_bird","braised_eggplant","tentacle_friend","spicy_rice_noodles","flyer","kings_gift_revised","marble","graduate_certificate","little_pig","small_gem","desire_cube","happy_fa","casting_manual","mana_earring","ready_backpack","smooth_stockings","donut","small_sigil","martial_book","strawberry","toolbox","hourglass","break_bracer","silk_ring","turn_ribbon","ember_crystal"]
 
 static func trigger(id: String) -> Dictionary:
  return TYPES[id].get("trigger",{})

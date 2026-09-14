@@ -2,6 +2,7 @@ extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 
 static func run(t) -> void:
+ preload("res://tests/secret_weapon_cases.gd").run(t)
  preload("res://tests/combat_extension_cases.gd").run(t)
  preload("res://tests/axe_amulet_cases.gd").run(t)
  preload("res://tests/oune_hand_cases.gd").run(t)
@@ -339,6 +340,14 @@ static func pickup(t) -> void:
 
 static func combat(t) -> void:
  var g=Game.new(74)
+ g.state.relics=["mana_earring"]
+ var opening_energy=g.state.energy
+ g.RelicEffects.mana_lost(g,20)
+ t.check(g.state.energy==opening_energy and g.state.combat.mana_spent==20,"RELIC earring no longer triggers at twenty mana")
+ g.RelicEffects.mana_lost(g,9)
+ t.check(g.state.energy==opening_energy and g.RelicEffects.counter(g,"mana_earring").goal==30 and g.state.combat.mana_spent==29,"RELIC earring displays thirty-mana threshold and waits at twenty-nine")
+ g.RelicEffects.mana_lost(g,1)
+ t.check(g.state.energy==opening_energy+1 and g.state.combat.mana_spent==0,"RELIC earring grants one energy at exactly thirty mana")
  g.state.relics=["ember","small_sigil","ready_backpack","enchanters_needle_case","donut","mana_earring","ember_crystal"]
  for phase in ["battle","prepare","rest","prison"]:
   g.state.phase=phase;g.state.mana=30;g.state.next_energy=0
@@ -352,7 +361,7 @@ static func combat(t) -> void:
   var before=g.state.energy
   g.RelicEffects.mana_lost(g,15)
   g.RelicEffects.end_turn(g);g._discard_end();g._begin_player_turn()
-  g.RelicEffects.mana_lost(g,25)
+  g.RelicEffects.mana_lost(g,45)
   t.check(g.state.energy==before+3+2 and g.state.combat.mana_spent==0,"RELIC mana spending remainder crosses turns and supports multiple thresholds "+phase)
   g.RelicEffects.end_combat(g)
   var after=g.state.mana
@@ -361,7 +370,7 @@ static func combat(t) -> void:
  # Actual paid conversion and rejected actions use the authoritative transaction.
  g=Game.new(75);g.state.relics=["mana_earring"];g.state.mana=60
  var card=preload("res://tests/reward_cases.gd").give(t,g,"mana_conversion")
- g.state.combat.mana_spent=10
+ g.state.combat.mana_spent=20
  var energy=g.state.energy
  t.check(t.action(g,"card",{"uid":card.uid,"target":"self","free":false}).ok and g.state.energy==energy+2 and g.state.mana==50,"RELIC actual fixed mana exchange triggers earring as well as card energy")
  var before=JSON.stringify(g.state)
@@ -410,7 +419,7 @@ static func lifecycle(t) -> void:
  var saved=g.export_snapshot();var twin=Game.new(80)
  t.check(twin.restore_snapshot(saved).ok and twin.state.combat==g.state.combat,"RELIC paused special battle restores its own lifecycle")
  t.action(g,"prison",{"action":"inspect"});t.action(g,"prison",{"action":"accept"});t.action(g,"prison",{"action":"resume"})
- t.check(g.state.phase=="prison" and g.state.combat.serial==serial and g.state.energy==5 and g.state.mana==30,"RELIC inspection resume neither reopens session nor loses saved energy")
+ t.check(g.state.phase=="prison" and g.state.combat.serial==serial and g.state.energy==5 and g.state.mana==10,"RELIC inspection resume neither reopens session nor loses saved energy, while the accepted inspection keeps its scripted twenty-mana loss")
  g.state.mana=140;g.state.mana_max=156
  g._gain_tool("mana_potion")
  # Clear only the potion's operator obstruction in this focused resource fixture.

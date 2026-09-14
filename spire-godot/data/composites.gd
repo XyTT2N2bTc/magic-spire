@@ -8,8 +8,19 @@ const LEGS={"upper":["thigh"],"lower":["calf","ankle"],"ankle":["thigh","calf","
 const LEG_BANDS={"thigh_root":["大腿根外带","thigh"],"above_knee":["膝上外带","thigh"],"below_knee":["膝下外带","calf"],"ankle":["脚踝外带","ankle"]}
 const PART_NAMES={"body":"套体","left":"左肩带","right":"右肩带","cross":"交叉肩带"}
 
+const WEAR_TEXTS={
+ "glove":"她将「{name}」从你的手指一路套上双臂，理平套体后逐条收紧肩带。双臂被牢牢包在一起，连手指也只能隔着紧绷的材质徒劳蜷动。",
+ "leg":"她把「{name}」套上你的双腿，沿着大腿、小腿一路收紧外带。两条腿被整件拘束具并在一起，只能勉强挪动。",
+ "jacket":"她把「{name}」套到你身上，将双臂折进封闭的袖筒，再扣紧衣身与下摆。你的手被压在身后，肩膀也难以抬起。",
+ "wrap":"她合拢你的手掌与手指，用「{name}」一层层裹紧。整只手被包得严严实实，指节再也无法分开。"
+}
+
 static func name_for(variant: String) -> String:
  return ("长型" if variant=="long" else "短型")+"单手套"
+
+static func wear_text(root: Dictionary) -> String:
+ var name=str(root.get("name","复合拘束具"))
+ return str(WEAR_TEXTS.get(root.get("kind",""),"她把「{name}」套到你身上，逐一收紧外侧的固定带，将覆盖的部位牢牢拘束起来。")).replace("{name}",name)
 
 static func spec(kind: String, variant: String, straps: String="straight") -> Dictionary:
  var result={"kind":kind,"variant":variant,"straps":straps,"name":"","coverage":[],"closed":[],"parts":{},"minimum":2}

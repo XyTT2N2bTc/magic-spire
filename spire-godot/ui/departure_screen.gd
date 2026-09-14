@@ -4,8 +4,7 @@ static func build(ui) -> void:
  var panel=ui.view.reward_panel
  var root=Control.new();root.name="BattleRewards";root.z_index=80
  ui._place(root,Rect2(0,78,1600,822))
- var shade=ColorRect.new();shade.color=Color(0.018,0.026,0.04,0.94)
- ui._place(shade,Rect2(0,0,1600,822),root)
+ preload("res://ui/reward_backdrop.gd").build(ui,root,0.94)
  var crest=TextureRect.new();crest.texture=preload("res://assets/ui/crest.svg");crest.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
  ui._place(crest,Rect2(773,34,54,54),root);crest.mouse_filter=Control.MOUSE_FILTER_IGNORE
  var title=ui._label(panel.title,36,ui.GOLD);title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER

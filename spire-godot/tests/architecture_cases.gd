@@ -2,6 +2,20 @@ extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 const Rewards=preload("res://tests/reward_cases.gd")
 
+class UncachedGame extends "res://tests/game_fixture.gd":
+ func _begin_equipment_read() -> Dictionary:
+  return {}
+
+class PreviewCountingGame extends "res://tests/game_fixture.gd":
+ var escape_builds=0
+ var cast_builds=0
+ func _build_escape_preview(target: Dictionary, mode: String, base: float, assist_profiles: Array=[], passive: bool=false, area_effect: bool=false, continuation: bool=false, splash: bool=false) -> Dictionary:
+  escape_builds+=1
+  return super._build_escape_preview(target,mode,base,assist_profiles,passive,area_effect,continuation,splash)
+ func _build_cast_view(profile: Dictionary) -> Dictionary:
+  cast_builds+=1
+  return super._build_cast_view(profile)
+
 static func containers(value, path: String, out: Array) -> void:
  if value is Dictionary:
   out.append({"value":value,"path":path})
@@ -19,6 +33,8 @@ static func shared(view: Dictionary, authority: Dictionary) -> String:
  return ""
 
 static func run(t) -> void:
+ tool_registry_boundary(t)
+ equipment_read_batches(t)
  var images=preload("res://data/equipment_images.gd")
  var missing=[]
  for family in images.MATERIALS:
@@ -50,6 +66,15 @@ static func run(t) -> void:
  g._cleanup()
  t.check(g.export_snapshot()==settled,"ARCH cleanup reaches a fixed point without repeated events")
 
+static func tool_registry_boundary(t) -> void:
+ var catalog=preload("res://data/field_tools.gd")
+ var tools=Game.Tools
+ for field in ["TYPES","DROP_POOL","HEIGHTS","OPERATOR_HEIGHTS","POINT_HEIGHTS"]:
+  t.check(is_same(tools[field],catalog[field]),"ARCH tool rules inherit the original registry without a mutable duplicate: "+field)
+ var names=catalog.new().get_method_list().map(func(method):return method.name)
+ t.check(not "install_reason" in names and not "target_contact" in names and not "description" in names,"ARCH item catalog does not expose state-dependent tool queries")
+ t.check(catalog.HEIGHTS.is_read_only() and tools.HEIGHTS.is_read_only() and catalog.HEIGHTS.keys().all(func(mount):return tools.mount_label(mount)==catalog.mount_label(mount)),"ARCH inherited height definitions stay read-only and expose the same labels")
+
 static func card_identity(t) -> void:
  for damage in ["type","orphan","duplicate"]:
   var g=Rewards.setup()
@@ -69,12 +94,127 @@ static func projection_contract(t, g, label: String) -> void:
  var before=g.state.duplicate(true)
  var view=g.get_view()
  var candidates=g.candidates()
+ var targets=g.action_targets();var target_ids={}
+ for target in targets: target_ids[target.id]=true
+ t.check(target_ids.size()==targets.size() and targets.all(func(target):return is_same(target,g._equipment(target.id))),"ARCH action target identities are unique and resolve to canonical objects "+label)
+ var reference=UncachedGame.new(42)
+ reference.state=before.duplicate(true)
+ t.check(view==reference.get_view() and candidates==reference.candidates(),"ARCH indexed and live equipment queries produce identical full projections "+label)
+ t.check(g._equipment_read.is_empty(),"ARCH read batch releases all equipment references "+label)
  t.check(g.state==before,"ARCH preview preserves all state and random domains "+label)
  var alias=shared(view,{"state":g.state,"equipment":g.Equipment.TEMPLATES,"special":g.SpecialEquipment.TYPES,"regions":g.SpecialEquipment.REGIONS,"cards":g.Cards.Rules.SPECS,"buffs":g.Cards.Rules.BUFFS,"relics":g.Relics.TYPES,"enemies":g.Enemies.TYPES,"attacks":g.BasicAttacks.TYPES,"body_groups":g.Equipment.PANEL_GROUPS,"shop_copy":g.Services.ShopCopy.PERFORMANCES})
  t.check(alias=="","ARCH view has no writable references to state or registries "+label+": "+alias)
  var ids={}
  for candidate in candidates: ids[candidate.id]=true
  t.check(ids.size()==candidates.size() and candidates.map(func(c):return c.id)==view.candidates.map(func(c):return c.id),"ARCH distinct stable candidate identities survive repeat projection "+label)
+
+static func equipment_read_batches(t) -> void:
+ equipment_projection_batches(t)
+ preview_read_batches(t)
+ var g=Game.new(42)
+ g.state.equipment.clear()
+ for i in range(3):
+  for slot in g.B.SLOTS: g.add_fixture(slot,7,10)
+ var reference=UncachedGame.new(42);reference.state=g.state.duplicate(true)
+ var before=g.export_snapshot()
+ t.check(g.validate()=="" and g.physical_pieces().size()>20,"ARCH dense equipment fixture respects formal capacities")
+ t.check(g.get_view()==reference.get_view() and g.candidates()==reference.candidates(),"ARCH dense indexed queries preserve every candidate, value and visible text")
+ t.check(g.state==before and g._equipment_read.is_empty(),"ARCH dense reads leave state, random cursors and query lifetime unchanged")
+ var target=g.equipment_at("wrist")[0]
+ target.durability=2
+ reference.state=g.state.duplicate(true)
+ t.check(g.get_view()==reference.get_view(),"ARCH new read observes changed equipment even without a version increment")
+ var previous=g._begin_equipment_read()
+ var members=g.equipment_at("wrist");members.clear()
+ t.check(not g.equipment_at("wrist").is_empty(),"ARCH sorting or clearing a returned query array cannot corrupt the index")
+ var original=g.state;g.state=original.duplicate(true);g.state.equipment.clear()
+ t.check(g.equipment_at("wrist").is_empty() and g._equipment(target.id).is_empty(),"ARCH speculative replacement state bypasses the outer read index")
+ g.state=original
+ t.check(g._equipment(target.id)==target and not g.equipment_at("wrist").is_empty(),"ARCH returning from speculation restores the original query context")
+ g._equipment_read=previous
+ g=Game.new(42);g._discard_end();g.state.energy=2
+ preload("res://tests/curse_cases.gd").give(g,"self_binding")
+ projection_contract(t,g,"self-binding speculative installation")
+
+static func equipment_projection_batches(t) -> void:
+ var g=Game.new(42,true,"jacket")
+ var target=g.physical_pieces().filter(func(e):return e.template=="jacket_body")[0]
+ var slots=g.Equipment.coverage(target)
+ var before=g.export_snapshot()
+ var previous=g._begin_equipment_read()
+ var first=g.View.equipment_entry(g,target,slots[0])
+ first.description="changed";first.slot="changed";first.extra={"changed":true}
+ var second=g.View.equipment_entry(g,target,slots[-1])
+ var reference=UncachedGame.new(42);reference.state=g.state.duplicate(true)
+ t.check(second==reference.View.equipment_entry(reference,reference._equipment(target.id),slots[-1]),"ARCH shared equipment description retains the requested body slot without leaked annotations")
+ t.check(g._equipment_read.equipment_views.size()==1 and not second.has("extra"),"ARCH cross-slot equipment projection builds one isolated base row")
+ var copied=target.duplicate(true);copied.durability=1
+ t.check(g.View.equipment_entry(g,copied,slots[0])==reference.View.equipment_entry(reference,copied,slots[0]),"ARCH copied equipment object bypasses canonical display reuse")
+ var original=g.state;g.state=original.duplicate(true);g._equipment(target.id).durability=1
+ reference.state=g.state.duplicate(true)
+ t.check(g.View.equipment_entry(g,g._equipment(target.id),slots[0])==reference.View.equipment_entry(reference,reference._equipment(target.id),slots[0]),"ARCH temporary state cannot reuse the outer equipment description")
+ g.state=original;g._equipment_read=previous
+ t.check(g.export_snapshot()==before and g._equipment_read.is_empty(),"ARCH equipment display batch does not retain state references or mutate gameplay")
+ target.durability=1
+ reference.state=g.state.duplicate(true)
+ t.check(g.get_view()==reference.get_view(),"ARCH subsequent full projection observes changed durability without a version increment")
+
+static func preview_read_batches(t) -> void:
+ var g=PreviewCountingGame.new(42)
+ g.state.equipment.clear();g.state.relics=[]
+ var target=g.add_fixture("thigh",7,10)
+ g.add_fixture("thigh",5,10)
+ var reference=UncachedGame.new(42);reference.state=g.state.duplicate(true)
+ var before=g.export_snapshot()
+ var previous=g._begin_equipment_read()
+ var profiles=g.HandAssist.profiles(g)
+ var equivalent=true
+ for mode in ["strain","slip","magic_slip"]:
+  for base in [7.0,7.000000000001]:
+   for flags in range(16):
+    var arguments=[target,mode,base,profiles,bool(flags&1),bool(flags&2),bool(flags&4),bool(flags&8)]
+    var expected=reference.escape_preview(reference._equipment(target.id),mode,base,profiles,bool(flags&1),bool(flags&2),bool(flags&4),bool(flags&8))
+    equivalent=equivalent and g.callv("escape_preview",arguments)==expected and g.callv("escape_preview",arguments)==expected
+ t.check(equivalent,"ARCH preview reuse preserves mode, full precision base and every passive/area/continuation/splash combination")
+ t.check(g.escape_builds==96,"ARCH identical full-argument previews calculate once within the read batch")
+ var preview=g.escape_preview(target,"strain",7,profiles)
+ preview.assist.hands.clear();preview.assist.bonus=-999;preview.position.factor=-999
+ t.check(g.escape_preview(target,"strain",7,profiles)==reference.escape_preview(reference._equipment(target.id),"strain",7,profiles),"ARCH nested result edits cannot poison a reused escape preview")
+ var original_profiles=profiles.duplicate(true)
+ profiles[0].points.clear();profiles[0].assist_factor=0.25
+ t.check(g.escape_preview(target,"strain",7,profiles)==reference.escape_preview(reference._equipment(target.id),"strain",7,profiles),"ARCH changed nested hand profiles do not reuse earlier assistance")
+ t.check(g.escape_preview(target,"strain",7,original_profiles)==reference.escape_preview(reference._equipment(target.id),"strain",7,original_profiles),"ARCH reused input arrays cannot rewrite an earlier preview key")
+ var copy=target.duplicate(true);copy.durability=1
+ t.check(g.escape_preview(copy,"slip",7)==reference.escape_preview(copy,"slip",7),"ARCH copied target with the same ID bypasses canonical preview reuse")
+ var cast_profiles=[{"parts":["mouth"],"multiplier":1.0},{"parts":["hand","mouth"],"multiplier":1.0},{"parts":["hand"],"multiplier":1.0,"body_free":true},{"parts":["mouth"],"multiplier":0.5},{"parts":["mouth"],"multiplier":1.0,"chance_bonus":0.1},{"parts":["mouth"],"multiplier":1.0,"paid_cast":false}]
+ equivalent=true
+ for profile in cast_profiles:
+  equivalent=equivalent and g.cast_view(profile)==reference.cast_view(profile) and g.cast_view(profile)==reference.cast_view(profile)
+ t.check(equivalent and g.cast_builds==cast_profiles.size(),"ARCH casting reuses only equal complete profiles including routes, free-body, multiplier, bonus and payment")
+ var casting=g.cast_view(cast_profiles[0]);casting.factors.append({"invalid":true});casting.chance=-1
+ cast_profiles[0].parts.append("hand")
+ t.check(g.cast_view(cast_profiles[0])==reference.cast_view(cast_profiles[0]) and g.cast_view()==reference.cast_view(),"ARCH casting input and output mutations cannot poison another route")
+ var original=g.state;g.state=original.duplicate(true);g.state.pressure=80;g._equipment(target.id).durability=1
+ reference.state=g.state.duplicate(true)
+ var temporary=g._begin_equipment_read()
+ t.check(g.cast_view()==reference.cast_view() and g.escape_preview(g._equipment(target.id),"slip",7)==reference.escape_preview(reference._equipment(target.id),"slip",7),"ARCH nested speculative state gets its own cast and escape previews")
+ g._equipment_read=temporary;g.state=original;reference.state=original.duplicate(true)
+ t.check(g.cast_view()==reference.cast_view() and g.escape_preview(target,"strain",7,original_profiles)==reference.escape_preview(reference._equipment(target.id),"strain",7,original_profiles),"ARCH original previews survive temporary state restoration")
+ g._equipment_read=previous
+ t.check(g.export_snapshot()==before and g._equipment_read.is_empty(),"ARCH preview batch leaves no state/RNG writes or retained results")
+ g.state.pressure=80;target.durability=1;reference.state=g.state.duplicate(true)
+ t.check(g.cast_view()==reference.cast_view() and g.escape_preview(target,"slip",7)==reference.escape_preview(reference._equipment(target.id),"slip",7),"ARCH subsequent live read observes resource and durability changes without version increment")
+ for kind in ["component_links","shoulder_links","torso_binding","special_equipment"]:
+  g=PreviewCountingGame.new(42,true,kind)
+  reference.state=g.state.duplicate(true)
+  t.check(g.get_view()==reference.get_view(),"ARCH preview reuse preserves composite/link/special projection "+kind)
+  for step in range(2):
+   var available=g.candidates().filter(func(c):return c.valid and c.payload.kind=="card")
+   if available.is_empty(): break
+   var candidate=available[0]
+   var outcome=g.dispatch(candidate.id,g.state.version)
+   var expected=reference.dispatch(candidate.id,reference.state.version)
+   t.check(outcome==expected and outcome.ok and g.export_snapshot()==reference.export_snapshot(),"ARCH preview reuse preserves actual payment, RNG and cleanup across sequential card commits "+kind+"/"+str(step))
 
 static func current_effect_boundaries(t) -> void:
  var g=Game.new(42)

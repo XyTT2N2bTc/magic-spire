@@ -65,6 +65,8 @@ static func run(t) -> void:
  t.check(await t.click("item_install",{"item":item.id,"mount":"foot_wall"}),"MOUTH UI existing item button installs using free mouth")
  await t.close_information()
  t.check(ui.view.energy==2 and ui.game._item(item.id).uses==3 and ui.find_child("PrisonSite_tool_"+item.id,true,false)!=null,"MOUTH UI install spends one energy and creates real mounted location")
+ var tool_panel=ui.find_child("InstalledTools",true,false)
+ t.check(tool_panel!=null and not tool_panel.get_global_rect().intersects(ui.find_child("ManaFlask",true,false).get_global_rect()) and ui.card_buttons.values().all(func(card):return tool_panel.get_global_rect().end.y<=card.get_global_rect().position.y),"TOOL noncombat installed shortcut stays above the hand and clear of the flask")
  if not ui.action_log_open: await Pointer.press(t,ui.find_child("OpenActionLog",true,false))
  t.check(t.visible_text(ui.find_child("ActionSidebar",true,false)).contains("用嘴部"),"MOUTH UI action log names the operation")
  await t.capture("ui-121-mouth-installation.png")

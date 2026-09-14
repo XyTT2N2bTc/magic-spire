@@ -317,7 +317,7 @@ static func forced_loop_exit(t) -> void:
  if not exits.is_empty():
   var before=g.export_snapshot();var exit=exits[0]
   t.check(not g.dispatch(exit.id,g.state.version-1).ok and g.state==before,"FEEDBACK stale forced-loop surrender rolls back")
-  t.check(g.dispatch(exit.id,g.state.version).ok and g.state.phase=="prison" and g.state.security==1 and g.validate()=="","FEEDBACK surrender exits the interrupted battle through actual intake")
+  t.check(g.dispatch(exit.id,g.state.version).ok and g.state.phase=="captured" and g.state.security==1 and g.validate()=="","FEEDBACK surrender exits the interrupted battle through the actual intake page")
   before=g.export_snapshot()
   t.check(not g.dispatch(exit.id,g.state.version).ok and g.state==before,"FEEDBACK repeated surrender cannot apply a second intake")
  g=forced_loop_fixture()
@@ -333,4 +333,5 @@ static func forced_loop_exit(t) -> void:
 
  g=forced_loop_fixture();g.state.security=4
  var exit=t.find_action(g,"surrender")
- t.check(exit.valid and g.dispatch(exit.id,g.state.version).ok and g.state.phase=="prison_end" and g.state.security==5,"FEEDBACK screenshot security-four surrender reaches the existing terminal state")
+ t.check(exit.valid and g.dispatch(exit.id,g.state.version).ok and g.state.phase=="captured" and g.state.security==5,"FEEDBACK security-four surrender reaches final intake before the terminal state")
+ t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison_end","FEEDBACK final intake proceeds to the existing terminal state")

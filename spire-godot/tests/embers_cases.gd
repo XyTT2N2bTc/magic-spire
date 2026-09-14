@@ -45,7 +45,7 @@ static func run(t) -> void:
   t.check(c.cost==0 and c.mana==6 and g.state==before,"EMBERS preview only requires base payment and does not draw")
   t.check(g.dispatch(c.id,g.state.version).ok and g.state.hand.size()==sample[1] and is_equal_approx(g.state.mana,sample[2]) and g.state.energy==0,"EMBERS optional fixed payment follows remaining balance including fractional boundary")
  var g=primed(t);g.state.mana=6;g.state.temporary_mana=6;g.state.energy=0
- g.RelicEffects.gain(g,"mana_earring");g.state.combat.mana_spent=15
+ g.RelicEffects.gain(g,"mana_earring");g.state.combat.mana_spent=25
  t.check(play(t,g,"embers",false).ok and g.state.hand.size()==2 and g.state.mana==0 and g.state.temporary_mana==0 and g.state.energy==1,"EMBERS temporary mana pays first; extra self payment triggers existing mana relic")
  g=Game.new(42);g._discard_end();g.state.energy=20
  for enemy in g.state.enemies: enemy.hp=200;enemy.max_hp=200

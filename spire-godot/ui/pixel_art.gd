@@ -6,6 +6,10 @@ const HERO_POSES={
  "stand":preload("res://assets/art/hero-stand-cutout-v2.png"),
  "sit":preload("res://assets/art/hero-sit-cutout-v2.png"),
  "lie":preload("res://assets/art/hero-lie-cutout-v2.png")}
+const WITCH_POSES={
+ "stand":preload("res://assets/art/witch-stand-cutout-v1.png"),
+ "sit":preload("res://assets/art/witch-sit-cutout-v1.png"),
+ "lie":preload("res://assets/art/witch-lie-cutout-v1.png")}
 const HERO_RESTRAINED_POSES={
  "sit":preload("res://assets/art/hero-restrained-sit-v1.png"),
  "lie":preload("res://assets/art/hero-restrained-lie-v1.png")}
@@ -16,7 +20,8 @@ const BACKGROUND=preload("res://assets/art/moonlit-gallery-v1.png")
 const GUARD_PORTRAITS={
  "guard_purple":preload("res://assets/art/enemy-guards-v1/guard-purple-v1.png"),
  "guard_brown":preload("res://assets/art/enemy-guards-v1/guard-brown-v1.png")}
-static func hero_texture(pose: String, has_restraint_level: bool=false) -> Texture2D:
+static func hero_texture(pose: String, has_restraint_level: bool=false, character_id: String="original") -> Texture2D:
+ if character_id=="witch": return WITCH_POSES[pose]
  if has_restraint_level and HERO_RESTRAINED_POSES.has(pose): return HERO_RESTRAINED_POSES[pose]
  return HERO_POSES[pose]
 const REGIONS={

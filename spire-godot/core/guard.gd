@@ -26,6 +26,7 @@ static func application(templates: Array, count: int=1, required_slots: Array=[]
  if not required_slots.is_empty():
   plan.required_slots=required_slots.duplicate()
   plan.shoulders=false
+  plan.tighten_missing=true
  return plan
 
 static func opening() -> Dictionary:
@@ -74,7 +75,10 @@ static func execute(g, e: Dictionary, intent: Dictionary) -> void:
   "guard_sequence":
    for operation in intent.operations:
     if g.state.phase!="battle": break
-    g._enemy_operation(e,operation)
+    var current=operation.duplicate(true)
+    # Earlier saves may already contain the announced opening without fallback.
+    if e.stage==1 and current.kind=="apply" and not current.get("required_slots",[]).is_empty(): current.tighten_missing=true
+    g._enemy_operation(e,current)
   _:
    var operation=intent
    if intent.kind=="apply" and intent.get("pool","")=="composite" and not g.Application.can_apply(g,g.EnemyPlans.application_spec(g,e,intent),e.id):
@@ -91,7 +95,8 @@ static func capture(g, captor: Dictionary) -> void:
  var retained=g.equipment_targets().map(func(e):return e.id)
  var retained_special=g.state.special_equipment.map(func(e):return e.id)
  var confiscated=g.state.items.size()
- g.state.items.clear()
+ g.state.items=g.state.items.filter(func(item):return g.Tools.TYPES[item.type].get("keep_on_capture",false))
+ confiscated-=g.state.items.size()
  for card in g.state.hand: card.retain_until=-1
  g._discard_end()
  g.Cards.purge_temporary(g)
@@ -122,10 +127,11 @@ static func capture(g, captor: Dictionary) -> void:
   var pair=candidates[g._random_index("equipment",candidates.size())]
   var rope=g._install_link(pair.ends[0],pair.ends[1],E.maximum(spec.grade)*[0.0,0.4,0.8,1.0][spec.tier],"prison",spec.grade,[],pair.slots,pair.contact_points)
   if not rope.is_empty(): links.append(rope.id)
- g.state.capture={"by":captor.name,"security":g.state.security,"retained":retained,"added":added,"links":links,"retained_special":retained_special,"special_added":special_added,"special_baseline":g.state.special_equipment.map(func(e):return e.id),"confiscated":confiscated,"baseline":g.equipment_targets().map(func(e):return e.id)}
- var tightening="原有拘束具收紧1档，最多3档。" if intake.enough else "普通与复合拘束具收紧至至少2档。"
- if g.state.security>=5: tightening="即将转入高安全监室。"
- g._emit("event",captor.name+"执行收押。警戒度升至%d，没收%d件道具；追加%d件拘束具、%d条链接和%d件特殊装备。" % [g.state.security,confiscated,added.size(),links.size(),special_added.size()]+tightening+("佩戴限制项圈。" if intake.collar_added else ""),{"prison_intake":intake})
+ var installed_links=g.state.links.filter(func(link):return link.id in links)
+ var climax=g.Prison.intake_climax(g)
+ var scene=g.Prison.intake_scene(g,intake,installed_links,climax)
+ g.state.capture={"by":captor.name,"security":g.state.security,"retained":retained,"added":added,"links":links,"retained_special":retained_special,"special_added":special_added,"special_baseline":g.state.special_equipment.map(func(e):return e.id),"confiscated":confiscated,"baseline":g.equipment_targets().map(func(e):return e.id),"intake_scene":scene}
+ g._emit("event","收押完成：警戒度%d；没收道具%d件；新增拘束具%d件、连接绳%d条、性玩具%d件；榨取%s魔力。" % [g.state.security,confiscated,added.size(),links.size(),special_added.size(),g.number(climax.mana_lost)]+(" 已戴上限制项圈。" if intake.collar_added else ""),{"prison_intake":intake,"prison_intake_climax":climax})
 
  g.RelicEffects._mana_hook(g,"prison_entry_mana","进入监狱")
 
@@ -141,7 +147,7 @@ static func validate(g) -> String:
    for op in e.intent.operations:
     if op.kind not in ["apply","install","assembly","shoulder","tighten","lock","idle"] or op.get("final",false): return "魅魔警卫连续行动只能包含不离场的装备操作。"
  if g.state.phase=="captured":
-  if g.state.capture.is_empty() or g.state.capture.security!=g.state.security or g.state.room!="prison" or not g.state.items.is_empty() or g.state.energy!=0: return "入狱结算不完整。"
+  if g.state.capture.is_empty() or g.state.capture.security!=g.state.security or g.state.room!="prison" or g.state.items.any(func(item):return not g.Tools.TYPES.get(item.type,{}).get("keep_on_capture",false)) or g.state.energy!=0: return "入狱结算不完整。"
   if g.state.capture.baseline!=g.equipment_targets().map(func(e):return e.id): return "入狱装备基准与实际装备不一致。"
   if g.state.capture.special_baseline!=g.state.special_equipment.map(func(e):return e.id): return "入狱性玩具清单与实际装备不一致。"
  return ""

@@ -6,6 +6,7 @@ static func run(t) -> void:
  var ui=t.ui
  ui.game_factory=preload("res://core/game.gd");ui.restart(42);await t.frames()
  var before=ui.game.export_snapshot()
+ preload("res://tests/relic_bundle_ui_cases.gd").check_backdrop(t,ui.find_child("BattleRewards",true,false))
  t.check(ui.view.phase=="departure" and ui.find_child("HeaderFloor",true,false).text=="第0层" and ui.find_child("DepartureOption_3",true,false)!=null,"OPENING UI shows floor zero and four categories")
  t.check(ui.view.reward_panel.entries[3].detail.contains("Boss") and ui.view.reward_panel.entries[3].label=="初始遗物交换","OPENING UI fourth slot always describes starter exchange")
  await t.capture("ui-departure.png")

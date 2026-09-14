@@ -2,7 +2,7 @@ extends RefCounted
 
 # Shape checks precede existing rule validators, so damaged nested data never reaches UI.
 const Phases=preload("res://data/phases.gd")
-const REVISION=51
+const REVISION=52
 const INCOMPATIBLE="这份存档与当前版本不兼容，请从主界面开始新游戏。"
 const SLOTS=["tower","practice"]
 const PIECE="id:s name:s template:s material:s variant:i grade:i locked:b slot:s durability:n maximum:n source:s"
@@ -152,8 +152,10 @@ static func check(s: Dictionary, g) -> String:
   if claimed_relic==s.battle_relic_drop and s.battle_relic_drop not in s.relics: return "战斗遗物领取记录损坏。"
   if claimed_relic not in [s.battle_relic_drop,"skip"] and (claimed_relic!="" or not g.Relics.can_gain(s.relics,s.battle_relic_drop)): return "战斗遗物领取记录损坏。"
  if not typed(s.boss_relic_options,"z") or s.boss_relic_options.size()>3: return "Boss遗物选项损坏。"
- if s.battle_flask_drop not in [0,g.B.BOSS_FLASK_MANA]: return "Boss魔瓶奖励数值损坏。"
- if s.battle_flask_drop>0 and (s.phase!="reward" or s.boss_relic_options.is_empty()): return "Boss魔瓶奖励阶段损坏。"
+ var prison_exit=s.map_region=="prison" and s.room=="prison_gate"
+ if s.tower_start_pending and (s.phase!="map" or s.map_region!="tower" or s.room!="tower_bottom" or not s.prison.is_empty() or not s.journey.is_empty()): return "出狱起点选择阶段不正确。"
+ if s.battle_flask_drop not in [0,g.B.PRISON_EXIT_FLASK_MANA if prison_exit else g.B.BOSS_FLASK_MANA]: return "Boss魔瓶奖励数值损坏。"
+ if s.battle_flask_drop>0 and (s.phase!="reward" or (s.boss_relic_options.is_empty() and not prison_exit)): return "Boss魔瓶奖励阶段损坏。"
  if s.reward_claimed.has("flask") and s.reward_claimed.flask!="boss_mana": return "Boss魔瓶奖励领取记录损坏。"
  if s.phase=="reward" and s.reward_claimed.has("flask") and s.battle_flask_drop==0: return "Boss魔瓶奖励领取记录缺少对应奖励。"
  if not s.boss_relic_options.is_empty():
@@ -215,8 +217,11 @@ static func check(s: Dictionary, g) -> String:
   for c in s[zone]:
    if c.has("exhaust_after_play") and (zone!="play" or c.exhaust_after_play!=true): return "卡牌消耗记录不正确。"
    if not fields(c,"uid:s type:s retain_until:i") or not g.Cards.Rules.SPECS.has(c.type): return "卡牌记录损坏或类型不存在。"
+   var practice_issue=g.Character.Expansion.validate_card(g,c)
+   if practice_issue!="": return practice_issue
    if c.has("draw_serial") and (not c.draw_serial is int or c.draw_serial<0): return "卡牌的抽取记录损坏。"
    if c.has("draw_free") and not c.draw_free is bool: return "卡牌的抽取牌面损坏。"
+   if c.has("power_failure_count") and (zone!="powers" or not typed(c.power_failure_count,"i") or c.power_failure_count<0 or c.power_failure_count>2): return "能力牌的本回合失败记录损坏。"
    if c.has("power_cast_count") and (zone!="powers" or not typed(c.power_cast_count,"i") or c.power_cast_count<0): return "能力牌的本回合出牌记录损坏。"
    if c.has("power_stacks") and (zone!="powers" or not c.power_stacks is int or c.power_stacks<2): return "能力牌的额外生效记录损坏。"
    if c.has("power_mana_progress") and (zone!="powers" or not typed(c.power_mana_progress,"n") or c.power_mana_progress<0): return "能力牌的累计耗魔记录损坏。"
@@ -259,6 +264,7 @@ static func check(s: Dictionary, g) -> String:
     if id not in g.Enemies.ENCOUNTERS or g.Enemies.ENCOUNTERS[id].rank!=rank: return "房间敌人池损坏。"
    if r.get("encounter_selected","")=="strong" and r.encounter_choices.strong=="": return "房间尚未配置强怪遭遇。"
   if r.has("encounter_selected") and r.encounter_selected not in ["weak","strong"]: return "房间遭遇进度损坏。"
+  if r.get("pool","")=="strong" and r.has("encounter_choices") and r.get("encounter_selected","strong")!="strong": return "房间遭遇进度损坏。"
   if r.kind=="event" and r.has("event") and (not r.event is String or (r.event!="" and r.event not in g.Events.Data.TYPES)): return "事件房类型不存在。"
  if s.room not in room_ids or s.completed_rooms.any(func(id):return id not in room_ids): return "当前房间或已完成房间不存在。"
  var history_issue=g.Events.history_issue(s)
@@ -342,6 +348,8 @@ static func check(s: Dictionary, g) -> String:
    if not effect.stack and e.turn_install_layers!=1: return "该持续施加效果不能叠层。"
   if e.has("split_basis") and not typed(e.split_basis,"n"): return "分裂时生命记录损坏。"
   if e.has("acted_round") and not e.acted_round is int: return "敌人行动次数损坏。"
+  if e.has("reinforcement_round"):
+   if e.type!="guard" or not fields(e,"reinforcement_round:i acted_round:i") or e.reinforcement_round<4 or e.reinforcement_round%4!=0 or e.reinforcement_round>s.round or e.acted_round<e.reinforcement_round: return "援军出场回合不正确。"
   if e.has("spawned_from") or e.has("spawned_round"):
    if not fields(e,"spawned_from:s spawned_round:i acted_round:i") or e.spawned_round<1 or e.spawned_round>s.round or e.acted_round<e.spawned_round: return "分裂敌人的出场回合损坏。"
   if g.Enemies.TYPES[e.type].has("capture_kind") and (not fields(e.get("guard"),"bind_ready:b cycle_step:i") or e.guard.cycle_step not in [0,1,2]): return "魅魔警卫进度不完整。"
@@ -358,10 +366,16 @@ static func check(s: Dictionary, g) -> String:
    if source.has(definition.split(":")[0]) and not fields(source,definition): return "刺激来源的持续记录类型不正确。"
  for log in s.logs:
   if not fields(log,"kind:s text:s round:i phase:s data:d"): return "行动记录不完整。"
- if not s.prison.is_empty() and not fields(s.prison,"active:b left:i turn:i stage:s missing:z baseline:z special_missing:z special_baseline:z discovery_pool:z discoveries:z found:z vent_hits:i vent_tick:i door_open:b key:b resisting:b checks:i report:s"): return "牢房进度不完整。"
+ if not s.prison.is_empty() and not fields(s.prison,"served_turns:i sentence_extra:i active:b left:i turn:i stage:s missing:z baseline:z special_missing:z special_baseline:z discovery_pool:z discoveries:z found:z vent_hits:i vent_tick:i door_open:b key:b resisting:b checks:i report:s"): return "牢房进度不完整。"
+ var reinforcement_issue=g.Prison.reinforcement_issue(s)
+ if reinforcement_issue!="": return reinforcement_issue
  if s.capture.has("terminal_equipment") and not fields(s.capture,"terminal_equipment:z"): return "高安全终局清单记录不完整。"
  if s.phase in ["captured","prison_end"] and s.capture.is_empty(): return "缺少收押记录。"
  if not s.capture.is_empty() and not fields(s.capture,"by:s security:i retained:z added:z links:z retained_special:z special_added:z special_baseline:z confiscated:i baseline:z"): return "收押记录不完整。"
+ if s.capture.has("intake_scene"):
+  var scene=s.capture.intake_scene
+  if not fields(scene,"opening:s guard_intro:s restraints:a links:a toys:a milking:s closing:s guard_done:s climax:d"): return "收押演出记录不完整。"
+  if not (scene.restraints+scene.links+scene.toys).all(func(line):return line is String): return "收押装备文案记录不完整。"
  if not s.room_event.is_empty():
   var event=s.room_event
   if not fields(event,"id:s stage:s options:a refs:d report:s reward:z winner:i relic:s") or event.id not in g.Events.Data.TYPES: return "事件进度不完整。"

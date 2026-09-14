@@ -1,9 +1,12 @@
 extends RefCounted
 const Equipment=preload("res://data/equipment.gd")
+const B=preload("res://data/balance.gd")
 const SIX_CYCLE_LENGTH=8
 
 # Intent declarations hold scope and costs, not targets. Concrete choices happen on execution.
 static func application(templates: Array, grade: int=1, tightness: int=2, count: int=1, final: bool=false) -> Dictionary:
+ if final:
+  grade=B.ENEMY_DEPARTURE_GRADE;tightness=B.ENEMY_DEPARTURE_TIER
  return {"kind":"apply","pool":"ordinary","templates":templates.duplicate(),"grade":grade,"tier":tightness,"count":count,"locked":false,"final":final,"replace":false,"text":"施加拘束具"+("，随后离场" if final else ""),"delayed":false}
 
 static func special_application(g, e: Dictionary) -> Dictionary:
@@ -247,8 +250,10 @@ static func tick_install(g, timing: String) -> void:
   if spec.turn_install_effect.timing!=timing: continue
   g._enemy_operation(e,application(spec.install_pool,1,2,e.turn_install_layers))
 
-static func targets(g, e: Dictionary, kind: String) -> Array:
+static func targets(g, e: Dictionary, kind: String, required_slots: Array=[]) -> Array:
  var choices=g.physical_pieces().filter(func(x):return g._can_tighten(x) if kind=="tighten" else Equipment.allows(x,"lock") and not x.locked)
+ if not required_slots.is_empty():
+  choices=choices.filter(func(x):return Equipment.coverage(x).any(func(slot):return slot in required_slots))
  var definition=g.Enemies.TYPES[e.type]
  if kind=="tighten" and definition.has("reinforce_material"):
   choices=choices.filter(func(x):return x.material==definition.reinforce_material and (g.tier(x.durability,x.maximum)<3 or g._reinforcement_locks(x)))
@@ -264,7 +269,7 @@ static func targets(g, e: Dictionary, kind: String) -> Array:
 static func resolve(g, e: Dictionary, original: Dictionary) -> Dictionary:
  var p=original.duplicate(true)
  if p.kind in ["tighten","lock"]:
-  var choices=targets(g,e,p.kind)
+  var choices=targets(g,e,p.kind,p.get("required_slots",[]))
   if p.has("target"):
    # Explicit target declarations do not silently become unspecified actions.
    if choices.any(func(x):return x.id==p.target): return p

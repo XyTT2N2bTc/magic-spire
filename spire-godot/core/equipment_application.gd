@@ -111,7 +111,7 @@ static func execute(g, spec: Dictionary, source: String, domain: String="enemy")
 
 # A frozen request never retargets or draws randomness. Replacement owns all removal,
 # link preservation and whole-group commit; the original factories own plain installs.
-static func execute_concrete(g, request: Dictionary, source: String, allow_replace: bool=false, protected_ids: Array=[]) -> Dictionary:
+static func execute_concrete(g, request: Dictionary, source: String, allow_replace: bool=false, protected_ids: Array=[], voluntary: bool=false) -> Dictionary:
  var requests=request.get("requests",[]) if request.get("kind","")=="application_group" else [request]
  if requests.is_empty(): return _failure("本次没有指定要安装的装备。")
  for entry in requests:
@@ -124,7 +124,7 @@ static func execute_concrete(g, request: Dictionary, source: String, allow_repla
   if not allow_replace: return _failure("本次来源没有整组替换装备的权限。")
   var planned=_replacement_plan(g,requests,source,protected_ids)
   if not planned.get("ok",false): return _failure(planned.get("reason","这组装备无法替换现有装备。"))
-  if evade(g,source) or g.Character.evade(g,requests,source): return _evaded(requests.size())
+  if not voluntary and (evade(g,source) or g.Character.evade(g,requests,source)): return _evaded(requests.size())
   var committed=Replacement.execute(g,planned)
   if not committed.get("ok",false): return _failure(committed.get("reason","装备替换未能完成。"))
   var result=_result()
@@ -135,7 +135,8 @@ static func execute_concrete(g, request: Dictionary, source: String, allow_repla
   return result
  var p=requests[0]
  if placement_reason!="": return _failure(placement_reason)
- if evade(g,source) or g.Character.evade(g,requests,source): return _evaded(1)
+ # Voluntary self-equipping is a card's cost, not an incoming attack to evade.
+ if not voluntary and (evade(g,source) or g.Character.evade(g,requests,source)): return _evaded(1)
  var items=[];var removed=[]
  var grade=p.get("grade",2)
  var maximum=E.maximum(grade)

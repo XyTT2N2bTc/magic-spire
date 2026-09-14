@@ -1,4 +1,12 @@
-# Windows v0.1 打包
+# Windows / Android 打包
+
+## v0.17 发布
+
+Windows和Android脚本均从project.godot读取版本0.17，并选择同名导出预设；Android安装版本为9，沿用已有签名。成品默认分别写入outputs/spire-v0.17-windows-x64-<编号>和outputs/spire-v0.17-android-<编号>。版本说明见release-v0.17.txt和release-android-v0.17.txt。
+
+Android资源探针读取相邻manifest.json核对APK的SHA256及预期版本。触屏桥接覆盖主窗口与PopupMenu的独立窗口，嵌入弹窗通过父Viewport转发到Godot原生Window输入边界；选择、滑动、取消和返回键沿原菜单处理，不直接修改游戏状态。需单独确认真机运行，不能以桌面探针替代。
+
+以下保留早期打包环境说明；当前版本号以项目配置与脚本为准。当前Android允许主动反馈所需的网络权限。
 
 ## Android v0.1
 

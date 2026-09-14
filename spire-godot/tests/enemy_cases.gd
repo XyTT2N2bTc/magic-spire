@@ -6,6 +6,7 @@ static func encounter(id: String, seed_value: int=42):
  var g=Game.new(seed_value);g.state.room_encounters.entrance=id;g._start_battle();return g
 
 static func run(t) -> void:
+ humanoid_equipment_audit(t)
  preload("res://tests/enemy_health_cases.gd").run(t)
  preload("res://tests/reinforcement_lock_cases.gd").run(t)
  preload("res://tests/puppeteer_cases.gd").run(t)
@@ -78,7 +79,7 @@ static func mouth_cases(t) -> void:
   t.check(t.action(g,"end").ok and g.state.phase=="reward" and g.state.reward_count==1,"MOUTH third action departs and rewards once")
   var applied=g.equipment_at("mouth")[0]
   templates[applied.template]=true
-  t.check(applied.template in Enemies.TYPES.gag.attachment_pool and applied.grade==1 and g.tier(applied.durability,applied.maximum)==2 and g.state.pressure==0,"MOUTH execution installs basic tier two from its pool without hidden pressure")
+  t.check(applied.template in Enemies.TYPES.gag.attachment_pool and applied.grade==2 and g.tier(applied.durability,applied.maximum)==3 and g.state.pressure==0,"MOUTH departure installs medium tier three without hidden pressure")
   t.check(g.state.composites.is_empty(),"MOUTH ordinary attachment does not add harness")
  t.check(templates.keys()==["mouth_band"],"MOUTH only the dedicated ball gag generates")
  for stage in [1,2,3]:
@@ -122,7 +123,7 @@ static func mouth_cases(t) -> void:
  var gesture=t.grant_fixture_card(g,"unlock")
  t.check(t.find_action(g,"card",{"uid":gesture.uid,"free":true}).valid,"MOUTH free preparation still usable while mouth chance is reduced")
  var target=g.equipment_at("mouth")[0]
- t.check(target.grade==1,"MOUTH combined fixture installs basic-grade mouth equipment")
+ t.check(target.grade==2 and g.tier(target.durability,target.maximum)==3,"MOUTH combined encounter installs medium tier-three mouth equipment")
  t.check(g.escape_preview(target,"strain",5).reason=="","MOUTH ordinary oral equipment retains formal strain route")
  var h=Save.roundtrip(t,g,"mouth enemy-first attachment")
  Save.step_both(t,g,h,"end")
@@ -193,10 +194,10 @@ static func ordinary_cases(t) -> void:
    t.check(g._enemy(id).stage==3 and g._enemy(id).intent.kind=="charge","WEAK third action prepares")
    var h=Save.roundtrip(t,g,"final charge "+type)
    Save.step_both(t,g,h,"end")
-   t.check(g._enemy(id).intent.kind=="apply" and g._enemy(id).intent.final and g._enemy(id).intent.grade==2 and g._enemy(id).intent.tier==2,"WEAK preparation advances to final middle-grade tier-two application")
+   t.check(g._enemy(id).intent.kind=="apply" and g._enemy(id).intent.final and g._enemy(id).intent.grade==2 and g._enemy(id).intent.tier==3,"WEAK preparation advances to final middle-grade tier-three application")
    Save.step_both(t,g,h,"end")
    t.check(g.state.phase=="reward" and g.state.reward_count==1 and g._enemy(id).gone,"WEAK final leaves with one reward")
-   t.check(g.state.equipment.any(func(e):return e.source==id and e.template in Enemies.TYPES[type].final_pool and e.grade==2 and g.tier(e.durability,e.maximum)==2),"WEAK sampled final equipment remains from final pool")
+   t.check(g.state.equipment.any(func(e):return e.source==id and e.template in Enemies.TYPES[type].final_pool and e.grade==2 and g.tier(e.durability,e.maximum)==3),"WEAK sampled final equipment remains from final pool at medium tier three")
  var head=encounter("tape_solo")
  head.add_fixture("wrist",8);head.add_fixture("fingers",8,10,false,0,"cord")
  t.check(head.Application.choose(head,{"templates":Enemies.TYPES.tape.install_pool,"grade":1},"test").template=="mouth_tape","WEAK tape chooses empty mouth before third-band eyes")
@@ -228,7 +229,7 @@ static func ordinary_cases(t) -> void:
   t.check(t.action(g,"end").ok and g.state.equipment.size()==1,"WEAK substitute declaration executes exactly one installation")
   var installed=g.state.equipment[0]
   var pool=Enemies.TYPES.rope.final_pool if declared.final else Enemies.TYPES.rope.install_pool
-  t.check(installed.template in pool and installed.grade==(2 if declared.final else 1) and g.tier(installed.durability,installed.maximum)==2 and g._enemy(id).gone==declared.final,"WEAK drawn application retains its actual pool, grade and departure behavior")
+  t.check(installed.template in pool and installed.grade==(2 if declared.final else 1) and g.tier(installed.durability,installed.maximum)==(3 if declared.final else 2) and g._enemy(id).gone==declared.final,"WEAK only departure upgrades tier; normal application keeps its original grade and tier")
  # Fill wrists after the final declaration; execution selects the now-empty mouth.
  g=encounter("tape_solo");t.action(g,"end");t.action(g,"end");t.action(g,"end")
  for i in range(5):g._install_template("tape","wrist",4,10,false,"fixture")
@@ -365,7 +366,8 @@ static func lock_departure_cases(t) -> void:
   t.check(g.state.special_equipment.is_empty() and not g._enemy(id).gone,"LOCK DEPARTURE interruption postpones attachment and departure together")
   Save.step_both(t,g,twin,"end")
   var locks=g.state.special_equipment.filter(g.SpecialEquipment.is_chastity)
-  t.check(locks.size()==1 and locks[0].type=="negative_plate_lock_medium" and locks[0].grade==2 and g.tier(locks[0].durability,locks[0].maximum)==2 and locks[0].locked,"LOCK DEPARTURE both probability bounds install the fixed locked medium tier-two plate")
+  t.check(locks.size()==1 and locks[0].type=="negative_plate_lock_medium" and locks[0].grade==2 and g.tier(locks[0].durability,locks[0].maximum)==3 and locks[0].locked,"LOCK DEPARTURE both probability bounds install the fixed locked medium tier-three plate")
+  t.check(g.state.special_equipment.any(func(item):return item.type=="chastity_reinforcement_medium"),"LOCK DEPARTURE tier three uses the normal automatic reinforcement-band rule")
   t.check(g._enemy(id).gone and g.state.phase=="reward" and g.state.reward_count==1,"LOCK DEPARTURE applies before leaving and rewards once")
  for existing in ["negative_plate_lock_medium","negative_vibrator_lock_catheter_high"]:
   var g=lock_battle();g.state.chastity_locks_enabled=true
@@ -522,3 +524,52 @@ static func strong_group_cases(t) -> void:
   elif corrupt=="wrong_recipe": room.enemy_members=[{"type":"rope_mass","grade":2},{"type":"rope","grade":1}] if bad.room_encounters[room.id]=="four_weak" else [{"type":"rope","grade":1},{"type":"rope","grade":1},{"type":"rope","grade":1},{"type":"rope","grade":1}]
   else: bad.last_strong_group="missing"
   t.check(not g.restore_snapshot(bad).ok and g.state==before,"STRONG corrupt saved "+corrupt+" rejected atomically")
+
+# Audit source permissions separately from factory behavior. Named action specs
+# are narrowed only inside fixtures to force their real full-slot branch.
+static func humanoid_equipment_audit(t) -> void:
+ var R=preload("res://tests/replacement_cases.gd")
+ var humans=Enemies.TYPES.keys().filter(func(id):return Enemies.TYPES[id].get("humanoid",false))
+ for type in humans:
+  var g=Game.new(42,true,"puppeteer_solo" if type=="puppet" else ("guard" if type=="guard" else type+"_solo"))
+  if type=="six_bind": g=preload("res://tests/six_bind_cases.gd").encounter()
+  var actors=g.state.enemies.filter(func(enemy):return enemy.type==type)
+  t.check(actors.size()==1,"HUMAN AUDIT real encounter contains registered actor: "+type)
+  if actors.is_empty(): continue
+  var e=actors[0]
+  var before=g.export_snapshot()
+  var plans=g.EnemyPlans.installation_intents(g,e)
+  t.check(not plans.is_empty() and plans.all(func(plan):return plan.get("replace",false) and g.EnemyPlans.application_spec(g,e,plan).replace),"HUMAN AUDIT every declared installation retains replacement permission: "+type)
+  t.check(g.export_snapshot()==before,"HUMAN AUDIT repertoire inspection is read-only: "+type)
+  var ordinary=plans.filter(func(plan):return plan.pool=="ordinary" and "belt" in plan.templates)
+  if ordinary.is_empty(): continue
+  g.state.equipment.clear();g.state.composites.clear();g.state.links.clear()
+  var existing=R.fill(g,"wrist",1,1)
+  var outside=R.install(g,R.request("ankle",3,2)).duplicate(true)
+  var plan=ordinary[0].duplicate(true)
+  plan.count=1;plan.templates=["belt"];plan.required_slots=["wrist"];plan.allow_links=false;plan.shoulders=false
+  g._enemy_operation(e,plan)
+  t.check(existing.filter(func(item):return g._equipment(item.id).is_empty()).size()==1 and g.equipment_at("wrist").any(func(item):return item.grade==plan.grade and item.template=="belt"),"HUMAN AUDIT real operation replaces one weaker full-slot item: "+type)
+  t.check(g._equipment(outside.id)==outside and g.state.logs.any(func(log):return not log.data.get("replaced",[]).is_empty()),"HUMAN AUDIT replacement reports actual removal and preserves unrelated equipment: "+type)
+ # Six-bind opening and finale must reinforce the same full mouth area when
+ # stronger equipment refuses replacement, rather than skipping the area.
+ for grade in [1,2]:
+  var g=preload("res://tests/six_bind_cases.gd").encounter(41)
+  var mouth=R.install(g,R.request("mouth",3,2))
+  var id=mouth.id
+  g._six_area_sweep(g.state.enemies[0],grade,2)
+  t.check(not g._equipment(id).is_empty() and g.tier(g._equipment(id).durability,g._equipment(id).maximum)==3,"HUMAN AUDIT six-bind area sweep reinforces stronger occupied mouth at grade "+str(grade))
+ # Multi-target control uses the same tier-three locking + durability recovery.
+ var g=Game.new(42,true,"versatile_solo")
+ g.state.equipment.clear();g.state.composites.clear();g.state.links.clear()
+ var ids=[]
+ for slot in ["wrist","ankle"]:
+  var request=R.request(slot,3,3);request.template="belt"
+  var item=R.install(g,request);item.durability=item.maximum*0.9;g._refresh_equipment(item);ids.append(item.id)
+ var e=g.state.enemies[0]
+ var plan=g.EnemyPlans.batch(g,e,2,2,3,true,g.Enemies.TYPES[e.type].install_pool)
+ g._enemy_operation(e,plan)
+ t.check(ids.all(func(id):return g._equipment(id).locked and g._equipment(id).durability==g._equipment(id).maximum),"HUMAN AUDIT versatile two-item reinforcement locks and fully repairs both tier-three targets")
+ var before=g.export_snapshot()
+ g._enemy_operation(e,plan)
+ t.check(g.state.equipment==before.equipment and g.state.rng.enemy==before.rng.enemy,"HUMAN AUDIT exhausted reinforcement does not replace equipment or consume target randomness")

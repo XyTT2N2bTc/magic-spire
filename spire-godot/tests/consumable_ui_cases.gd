@@ -45,7 +45,11 @@ static func run(t) -> void:
  t.check(await t.click("item_use",{"item":id}) and ui.game._item(id).is_empty(),"FRIEND UI real scroll click works with bound fingers and toes")
  ui.game._gain_tool("shard");id=ui.game.state.items.back().id
  ui.selected_item=id;ui.render();await t.frames()
- t.check(t.visible_text(ui.layout).contains("触手固定") and t.visible_text(ui.layout).contains("全身") and ui.find_child("InstalledTool_"+id,true,false)!=null,"FRIEND UI carried cutter displays full-body fixed passive")
+ var fixed_before=ui.game.export_snapshot()
+ await t.close_information()
+ if not ui.quick_release_open: await navigation.press(t,"ActionRailToggle")
+ await navigation.press(t,"InstalledTool_"+id)
+ t.check(t.visible_text(ui.layout).contains("触手固定") and t.visible_text(ui.layout).contains("全身") and ui.selected_item==id and ui.game.export_snapshot()==fixed_before,"FRIEND UI quick-rail tool opens full-body fixed passive without acting")
  await t.capture("ui-consumable-items.png")
  ui.game.state.item_drop_chance=100
  ui.game._finish_battle();ui._close_drawers();ui.render();await t.frames()

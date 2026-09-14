@@ -96,6 +96,9 @@ static func paid_dialogue_matrix(t) -> void:
  for cue in ["climax.narration.normal","climax.narration.repeated","climax.narration.low"]:
   var prose=g.ActionCopy.line(cue,{},true)
   t.check(prose.begins_with("你的") and not prose.contains("她的"),"COPY climax narration is second person: "+cue)
+ var npc_logs=[{"kind":"event","text":"巡视完成。","round":1,"phase":"inspection","data":{"npc_copy":{"cue":"prison.guard.milk.normal","visual":"guard_purple"}}}]
+ var npc_view=g.ActionCopy.view(npc_logs)
+ t.check(npc_view.npc_speech.cue=="prison.guard.milk.normal" and npc_view.npc_speech.visual=="guard_purple" and npc_view.npc_speech.phase=="inspection" and not npc_view.npc_speech.has("name"),"COPY guard dialogue keeps cue, portrait and phase without a displayed name")
 
  var failure_seed=-1
  for seed_value in range(8):

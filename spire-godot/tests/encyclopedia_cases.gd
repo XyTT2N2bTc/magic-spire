@@ -9,12 +9,32 @@ static func run(t) -> void:
  var neutral=Game.new(42);neutral.state.equipment.clear();neutral.state.relics=[]
  for entry in items:
   var spec=Book.Tools.TYPES[entry.id]
-  t.check(entry.text.contains(Book.Tools.description(neutral,entry.id)) and entry.text.contains("使用次数：%d" % spec.uses),"BOOK item effect and charges share inventory formatter "+entry.id)
+  t.check(entry.text.contains(neutral.Tools.description(neutral,entry.id)) and entry.text.contains("使用次数：%d" % spec.uses),"BOOK item effect and charges share inventory formatter "+entry.id)
   if not spec.get("trigger_damage_types",[]).is_empty():
    t.check(entry.text.contains(Book.InstalledTools.effect_description(entry.id,spec.damage)),"BOOK installed passive uses shared actual trigger contract "+entry.id)
  t.check(items.filter(func(entry):return entry.group=="药剂").size()==Book.Tools.TYPES.values().filter(func(spec):return spec.get("category","")=="potion").size(),"BOOK potion branch follows registered categories")
 
  var illustrated=entries.filter(func(e):return e.category=="equipment")
+ t.check(illustrated.all(func(e):return not e.text.contains("紧度：剩余耐久")),"BOOK omits the unwanted generic tightness-band explanation")
+ var wrap=illustrated.filter(func(e):return e.id=="composite_wrap_left_straight3")[0]
+ t.check(wrap.text.contains("覆盖：手掌、手指\n\n包裹：耐久24；") and not wrap.text.contains("组件：包裹") and not wrap.text.contains("24.0") and wrap.text.contains("\n\n只包裹"),"BOOK compact composite paragraphs separate coverage, component values and effects without duplicate labels")
+ for config in [[1,0],[2,0],[2,1],[3,0]]:
+  var entry=entries.filter(func(e):return e.id=="equipment_mouth_band_%d_%d" % config)[0]
+  var grade_factor=Book.B.MOUTH_CAST_GRADE[config[0]]
+  t.check(entry.text.contains("品质倍率×"+str(grade_factor)) and not entry.text.contains("组合效果以该品质"),"BOOK gag states actual grade multiplier rather than a placeholder")
+  for tightness in [1,2,3]:
+   t.check(entry.text.contains(str(grade_factor*Book.B.MOUTH_CAST_TIGHTNESS[tightness])),"BOOK gag lists every actual combined tightness multiplier")
+  t.check(entry.text.contains("马具结构禁止")==Book.E.mouth_combination(config[0],config[1]).harness,"BOOK only harness combinations claim structural slip prohibition")
+ for entry in illustrated:
+  if entry.id.begins_with("equipment_eye_"): t.check(entry.text.contains("看不到敌人意图"),"BOOK every eye cover explains visual limitation")
+  if entry.id.begins_with("composite_"): t.check(entry.text.contains("耐久"),"BOOK composite components include actual durability and methods")
+ t.check(illustrated.filter(func(e):return e.id=="composite_glove_long_cross2")[0].text.contains("滑脱效果×0.5") and illustrated.filter(func(e):return e.id=="composite_leg_toes_straight2")[0].text.contains("外带保留"),"BOOK composite structure exceptions are explicit")
+ t.check(illustrated.filter(func(e):return e.id=="link_rope")[0].text.contains("×1.25"),"BOOK link explains the ordinary downward-link modifier")
+ for entry in entries.filter(func(e):return e.category=="special"):
+  var spec=Book.S.TYPES[entry.id]
+  if spec.duration>0: t.check(entry.text.contains("装备不会自动解除"),"BOOK battery expiry does not imply removal")
+  if "manual" in Book.S.DESIGNS[entry.id].methods: t.check(entry.text.contains("1能量直接取出"),"BOOK manual special equipment explains actual cost and body conditions")
+  if Book.S.is_chastity_type(entry.id): t.check(entry.text.contains(spec.detail) and entry.text.contains("品质＋紧度"),"BOOK plate-lock entries include their registered exceptions and numerical effects")
  t.check(not illustrated.is_empty() and illustrated.all(func(e):return e.get("image","")!="" and load(e.image) is Texture2D),"BOOK ordinary, composite and link entries have loadable equipment images")
  var missing=entries.filter(func(e):return e.category=="special" and Book.S.TYPES[e.id].family not in Book.Images.SPECIAL)
  t.check(missing.all(func(e):return e.image==""),"BOOK special equipment without existing art keeps no unrelated image")
@@ -30,7 +50,7 @@ static func run(t) -> void:
   seen.append(key)
  var variants=["magic_hand_gift","hannya_swallow","hannya_infusion","hannya_henshin","hannya_2","hannya_3","hannya_4","good_soup","double_unlock"]
  var card_entries=entries.filter(func(e):return e.category=="cards")
- var visible_types=Book.Cards.SPECS.keys().filter(func(type):return not Book.Cards.SPECS[type].get("encyclopedia_hidden",false))
+ var visible_types=Book.Cards.SPECS.keys().filter(func(type):return not Book.Cards.SPECS[type].get("encyclopedia_hidden",false) and Book.Cards.SPECS[type].get("character_id","original")=="original")
  t.check(card_entries.size()==visible_types.size() and variants.all(func(type):return not card_entries.any(func(e):return e.id==type)) and not card_entries.any(func(e):return e.id.begins_with("witch_")),"BOOK duplicate special variants and other-character cards omitted from original entries")
  for type in variants:
   t.check(Book.Cards.SPECS.has(type) and Book.card(type).name==Book.B.CARD_NAMES[type],"BOOK hidden variant retains full gameplay card display: "+type)

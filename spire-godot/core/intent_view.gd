@@ -52,5 +52,5 @@ static func build(g, enemy: Dictionary, visible: bool) -> Array:
   add(out,"hidden")
   return out
  operation(out,enemy.intent)
- if not enemy.intent.get("delayed",false) and enemy.get("spawned_round",-1)==g.state.round: add(out,"spawned")
+ if not enemy.intent.get("delayed",false) and (enemy.get("spawned_round",-1)==g.state.round or enemy.get("reinforcement_round",-1)==g.state.round): add(out,"spawned")
  return out

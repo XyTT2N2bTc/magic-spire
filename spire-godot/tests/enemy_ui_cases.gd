@@ -182,6 +182,8 @@ static func run(t) -> void:
  t.check(await t.click("end") and ui.view.enemies[0].intent_icons[0].detail=="敌人正在蓄力","MOUTH real first charge advances public intent")
  t.check(await t.click("end") and ui.view.bodies.filter(func(b):return b.id=="mouth")[0].equipment.is_empty(),"MOUTH two charges do not apply early")
  t.check(await t.click("end") and ui.view.phase=="reward" and ui.view.bodies.filter(func(b):return b.id=="mouth")[0].equipment.size()==1,"MOUTH actual attachment leaves one retained equipment and one reward screen")
+ var attached=ui.game.equipment_at("mouth")[0]
+ t.check(attached.grade==2 and ui.game.tier(attached.durability,attached.maximum)==3,"MOUTH UI departure applies the announced medium tier-three equipment")
  t.check(await t.click("reward",{"type":"skip"}) and ui.view.phase=="prepare","MOUTH reward enters normal preparation")
  ui.selected_slot="mouth";ui.render();await t.frames()
  var target=ui.view.bodies.filter(func(b):return b.id=="mouth")[0].equipment[0]

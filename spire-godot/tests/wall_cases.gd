@@ -3,6 +3,7 @@ const Game=preload("res://core/game.gd")
 const Fixture=preload("res://tests/game_fixture.gd")
 
 static func run(t) -> void:
+ capture_blocks_movement(t)
  little_pig(t)
  true_bonus(t)
  mouth_installation(t)
@@ -193,3 +194,22 @@ static func true_bonus(t) -> void:
  var initial=locked.durability
  g._apply_equipment_damage(locked,5,"cut")
  t.check(locked.durability==maxf(0,initial-5),"WALL cutting stays fixed and never adds wall damage")
+
+static func capture_blocks_movement(t) -> void:
+ for type in ["guard","drone","binding_box"]:
+  var g=Fixture.new(42);g.state.enemies=[]
+  var enemy=g._append_enemies([{"type":type,"grade":2}])[0]
+  g.state.wall_distance=2;g.state.energy=10
+  var previous=t.find_action(g,"wall_move",{"direction":"toward"})
+  t.check(previous.valid,"BIND MOVE unbound movement exists before "+type)
+  g.CaptureBind.apply_bind(g,enemy)
+  var before=g.export_snapshot()
+  for direction in ["toward","away"]:
+   var c=t.find_action(g,"wall_move",{"direction":direction})
+   t.check(not c.valid and c.reason=="被捕缚时无法移动，先解除捕缚。","BIND MOVE both directions show a precise restriction for "+type)
+   t.check(not g.dispatch(c.id,g.state.version).ok and g.export_snapshot()==before,"BIND MOVE rejection preserves position, energy, turn, RNG and bind")
+  t.check(not g.dispatch(previous.id,g.state.version).ok and g.export_snapshot()==before,"BIND MOVE formerly available movement is rechecked at submission")
+  t.check(g.CaptureBind.view(g).detail.contains("被捕缚时无法移动"),"BIND MOVE status explains the restriction")
+  g.CaptureBind.damage_bind(g,100.0,"测试解除")
+  var distance=g.state.wall_distance
+  t.check(t.action(g,"wall_move",{"direction":"toward"}).ok and g.state.wall_distance<distance,"BIND MOVE release restores formal movement for "+type)

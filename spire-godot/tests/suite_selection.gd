@@ -1,7 +1,7 @@
 extends RefCounted
 
 # Scheduling labels never suppress explicitly selected tests.
-const ACTIVE=["card_power","card_expansion","relics","rewards","basic_attacks","casting","keyboard"]
+const ACTIVE=["witch_character","card_power","card_expansion","relics","rewards","basic_attacks","casting","keyboard"]
 const DEFERRED=["persistence","home_persistence"]
 const LONG_RUNS=["normal_play","baseline"]
 
@@ -14,6 +14,7 @@ static func stage(name: String) -> String:
 # Named suites run directly. Explicit impact mode expands ONCE from the request,
 # never from suites added as coverage; helper imports are not test prerequisites.
 const CROSS_AREAS={
+ "witch_character":["core","basic_attacks","casting","card_power","card_expansion","equipment","special_equipment","application","pressure","status","enemies","relics","services","prison","rewards","content","persistence"],
  "localization":["content"],
  "card_power":["rewards","casting","core","equipment","composites","links","status","pressure","persistence","content","special_equipment","slip_motion","services","prison","enemies"],
  "card_expansion":["rewards","casting","core","equipment","enemies","basic_attacks","status","pressure","persistence","content","special_equipment","slip_motion","services","prison"],
@@ -31,7 +32,7 @@ const CROSS_AREAS={
  "composites":["contact","equipment","links"],
  "equipment_complete":["contact","equipment","links","composites"],
  "casting":["pressure","core","services","consumables","persistence","status"],
- "prison":["contact","casting","guard","wall","application","replacement","persistence","tower","rewards"],
+ "prison":["contact","casting","guard","wall","application","replacement","persistence","tower","rewards","enemies","status","content"],
  "status":["hand_assist","casting","wall","pressure","special_equipment","rewards","enemies","intent","basic_attacks","equipment","guard","prison","core","card_power","card_expansion","relics"],
  "rewards":["content","pressure","casting","special_equipment","persistence","status","equipment","slip_motion","services","prison","core","enemies","card_power","card_expansion","relics"],
  "special_equipment":["casting","pressure","equipment","hand_assist","wall","persistence"],

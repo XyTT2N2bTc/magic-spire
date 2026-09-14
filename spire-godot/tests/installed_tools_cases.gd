@@ -1,6 +1,31 @@
 extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 
+static func usable_statuses(t) -> void:
+ var g=fresh();var target=g.add_fixture("wrist",8,10,true);g._gain_tool("shard")
+ var tool=g.state.items[0];tool.mount="hand_wall"
+ t.hand_card(g,"strain")
+ var find_item=func():return g.get_view().statuses.filter(func(row):return row.get("item_id","")==tool.id)
+ var before=g.export_snapshot();var rows=find_item.call()
+ t.check(rows.size()==1 and rows[0].active and rows[0].category=="environment" and rows[0].badge=="3" and rows[0].source==g.Tools.mount_label("hand_wall"),"TOOL STATUS reachable passive cutter appears once as environment with height and charges")
+ t.check(g.export_snapshot()==before,"TOOL STATUS reading usable items preserves snapshot and random state")
+ g.state.wall_distance=1
+ t.check(find_item.call().is_empty(),"TOOL STATUS unreachable wall cutter is absent")
+ g.state.wall_distance=0;tool.uses=0
+ t.check(find_item.call().is_empty(),"TOOL STATUS exhausted cutter is absent")
+ tool.uses=3;g.state.phase="map"
+ t.check(find_item.call().is_empty(),"TOOL STATUS cutter without an actionable trigger is absent outside action phases")
+ g.state.phase="battle";g.state.overloaded=true
+ t.check(find_item.call().is_empty(),"TOOL STATUS forced turn does not advertise passive use")
+ g.state.overloaded=false;g.state.posture="stand";tool.mount="high_wall"
+ t.check(find_item.call().is_empty(),"TOOL STATUS cutter above its target is absent")
+ tool.mount="carry";target.locked=false
+ t.check(find_item.call().is_empty(),"TOOL STATUS carried cutter stays out of environment statuses even when usable")
+ g.state.items.clear();g.state.equipment.clear();g._gain_tool("mana_potion");g.state.mana=0
+ var potion=g.state.items[0]
+ var action=t.find_action(g,"item_use",{"item":potion.id})
+ t.check(action.valid and not g.get_view().statuses.any(func(row):return row.get("item_id","")==potion.id),"TOOL STATUS usable potions stay out of environment statuses")
+
 static func fresh() -> RefCounted:
  var g=Game.new(42);g.state.equipment.clear();g.state.composites.clear();g.state.links.clear();g.state.items.clear();g.state.strength=0;g.state.dexterity=0;g.state.wall="normal"
  return g
@@ -11,6 +36,7 @@ static func play(t,g,target,type: String="strain") -> Dictionary:
  return t.action(g,"card",{"uid":card.uid,"target":target.id,"free":false})
 
 static func run(t) -> void:
+ usable_statuses(t)
  var g=fresh();var target=g.add_fixture("wrist",8,10,true);g._gain_tool("shard")
  var tool=g.state.items[0];tool.mount="hand_wall"
  var card=t.hand_card(g,"strain");var c=t.find_action(g,"card",{"uid":card.uid,"target":target.id})

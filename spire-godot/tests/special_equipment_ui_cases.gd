@@ -2,6 +2,15 @@ extends RefCounted
 const Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
 const Game=preload("res://tests/game_fixture.gd")
 
+static func expand_description(t, card: Control) -> void:
+ if not card.find_child("EquipmentActions",true,false).visible:
+  await Pointer.press(t,card.find_child("EquipmentCardDetailsToggle",true,false))
+ var toggle=card.find_child("EquipmentDescriptionToggle",true,false)
+ var scroller=toggle.get_parent()
+ while scroller!=null and not scroller is ScrollContainer: scroller=scroller.get_parent()
+ if scroller!=null: scroller.ensure_control_visible(toggle)
+ await t.frames();await Pointer.press(t,toggle)
+
 static func run(t) -> void:
  var ui=t.ui
  await t.start_practice("Practice_special_equipment")
@@ -15,6 +24,8 @@ static func run(t) -> void:
  var before=ui.game.export_snapshot()
  await t.inspect_body("special_2")
  var details=ui.find_child("EquipmentDetails",true,false)
+ t.check(not t.visible_text(details).contains("6－紧度2－等级2＝2"),"SPECIAL UI formulas are collapsed by default")
+ for panel in details.find_children("EquipmentCard_*","PanelContainer",true,false): await expand_description(t,panel)
  t.check(t.visible_text(details).contains("马眼") and t.visible_text(details).contains("8毫米×20厘米硅胶马眼棒") and t.visible_text(details).contains("耐久"),"SPECIAL UI named penis subslots show actual equipment durability")
  t.check(t.visible_text(details).contains("高潮时滑脱伤害") and t.visible_text(details).contains("6－紧度2－等级2＝2") and t.visible_text(details).contains("凸粒隔着肉棒正面清楚鼓起"),"SPECIAL UI urethral rod detail shows current formula and physical stimulation")
  t.check(not t.visible_text(details).contains("专用位置") and not t.visible_text(details).contains("/7"),"SPECIAL UI shares ordinary equipment detail layout without special capacity banner")
@@ -56,7 +67,7 @@ static func run(t) -> void:
  ui.render();await t.frames()
  await t.inspect_body("special_2")
  details=ui.find_child("EquipmentDetails",true,false)
- t.check(t.visible_text(details).contains("柱身") and t.visible_text(details).contains("空位：马眼") and not t.visible_text(details).contains("/2容量") and not t.visible_text(details).contains("/1容量"),"SPECIAL UI uses ordinary position and empty-position display without capacity counters")
+ t.check(t.visible_text(details).contains("柱身") and t.visible_text(details).contains("自由：马眼") and not t.visible_text(details).contains("/2容量") and not t.visible_text(details).contains("/1容量"),"SPECIAL UI uses ordinary position and free-position display without capacity counters")
  t.check(ui.body_buttons.special_2.text==ui.view.body_groups.filter(func(b):return b.id=="special_2")[0].name+"  2" and not ui.body_buttons.special_1.text.contains("/"),"SPECIAL UI shows actual equipment count and plain empty region name")
  t.check(ui.game.SpecialEquipment.used_capacity(ui.game.state.special_equipment,"special_2_a")==2 and ui.game._install_special("urethral_full_cup_high","special_2_a").is_empty(),"SPECIAL UI simplification preserves formal capacity restrictions")
  await t.close_information()
@@ -102,6 +113,7 @@ static func run(t) -> void:
  details=ui.find_child("EquipmentDetails",true,false)
  var lock_card=details.find_child("EquipmentCard_"+lock.id,true,false)
  await Pointer.press(t,lock_card.find_child("EquipmentCardDetailsToggle",true,false))
+ await expand_description(t,lock_card)
  var text=t.visible_text(lock_card)
  t.check(t.visible_text(details).contains("高级平板锁加固带") and text.contains("负数跳蛋锁（导尿管）") and text.contains("自动上锁") and text.contains("消耗能量行动") and text.contains("当前系数3＝18") and text.contains("锁内震动系数0.4"),"CHASTITY UI shows the current stimulation and retention formulas")
  var lock_icon=lock_card.find_child("EquipmentLock_"+lock.id,true,false)

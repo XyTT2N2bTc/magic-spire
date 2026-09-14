@@ -107,6 +107,7 @@ static func plate_lock_practice(t) -> void:
  var details=ui.find_child("EquipmentDetails",true,false)
  var lock_card=details.find_child("EquipmentCard_"+locks[0].id,true,false)
  await Pointer.press(t,lock_card.find_child("EquipmentCardDetailsToggle",true,false))
+ await Pointer.press(t,lock_card.find_child("EquipmentDescriptionToggle",true,false))
  t.check(t.visible_text(lock_card).contains("状态：已上锁") and t.visible_text(details).contains("高级平板锁加固带"),"PLATE LOCK HOME visibly identifies the locked state and linked plate-lock reinforcement")
  await t.capture("ui-119-plate-lock-practice.png")
  ui._return_home()

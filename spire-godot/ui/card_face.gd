@@ -2,6 +2,7 @@ extends Button
 
 const Palette=preload("res://ui/visual_theme.gd")
 const ILLUSTRATIONS={
+ "self_binding":preload("res://assets/ui/cards/self_binding.svg"),
  "prepared_chant":preload("res://assets/ui/cards/prepared_chant.svg"),
  "confluence":preload("res://assets/ui/cards/confluence.svg"),
  "reuse":preload("res://assets/ui/cards/reuse.svg"),

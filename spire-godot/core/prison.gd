@@ -4,6 +4,70 @@ const B=preload("res://data/balance.gd")
 const Space=preload("res://core/prison_space.gd")
 const ACTIVE_DISCOVERIES=["shard","saw","vent"]
 const HIGH_SECURITY_ASSEMBLIES=[["glove","long","cross"],["leg","toes","straight"]]
+const PATROL_GUARD="guard_purple"
+const SENIOR_GUARD="guard_brown"
+
+static func has_flat_lock(g) -> bool:
+ return g.state.special_equipment.any(func(item):return item.get("durability",0)>0 and g.SpecialEquipment.is_chastity(item))
+
+static func inspection_climax(g, temporary: bool=false) -> Dictionary:
+ var mana_before=float(g.state.mana)
+ var flat=has_flat_lock(g)
+ var low=mana_before<B.OVERLOAD_MANA
+ var suffix="flat_low" if flat and low else ("flat" if flat else ("low" if low else "normal"))
+ var narration_cue="prison.inspection.milk."+suffix
+ var dialogue_cue="prison.guard.milk."+suffix
+ var visual=SENIOR_GUARD if temporary else PATROL_GUARD
+ var resolved=g.Pressure.scripted_climax(g,"出狱前巡视的手部榨精" if temporary else "例行巡视的手部榨精")
+ var narrative=g.ActionCopy.line(narration_cue,{},true)
+ var record={"temporary":temporary,"method":"hand","flat_lock":flat,"low_semen":low,"count":resolved.count,"mana_before":resolved.mana_before,"mana_lost":resolved.mana_lost,"mana_after":resolved.mana_after,"narration_cue":narration_cue,"dialogue_cue":dialogue_cue,"visual":visual}
+ g._emit("event",narrative,{"prison_inspection_climax":record})
+ return record
+
+static func intake_climax(g) -> Dictionary:
+ var mana_before=float(g.state.mana)
+ var flat=has_flat_lock(g)
+ var low=mana_before<B.OVERLOAD_MANA
+ var suffix="flat_low" if flat and low else ("flat" if flat else ("low" if low else "normal"))
+ var resolved=g.Pressure.scripted_climax(g,"收押时的手部榨精")
+ return {"method":"hand","flat_lock":flat,"low_semen":low,"count":resolved.count,"mana_before":resolved.mana_before,"mana_lost":resolved.mana_lost,"mana_after":resolved.mana_after,"narration_cue":"prison.intake.milk."+suffix}
+
+static func intake_scene(g, intake: Dictionary, links: Array, climax: Dictionary) -> Dictionary:
+ var restraints: Array[String]=[]
+ for item in intake.get("installed",[]):
+  if item.has("components"): restraints.append(g.Composites.wear_text(item))
+  else: restraints.append(g.Equipment.wear_text(item.name,item.slot))
+ var collar=intake.get("collar",{})
+ if not collar.is_empty(): restraints.append(g.Equipment.wear_text(collar.name,collar.slot))
+ var toys: Array[String]=[]
+ for item in intake.get("special",[]):
+  var wear=g.SpecialEquipment.wear_text(item.type)
+  if wear!="": toys.append(wear)
+ var link_lines: Array[String]=[]
+ for link in links: link_lines.append(g.Links.wear_text(link.name))
+ return {
+  "opening":g.ActionCopy.line("prison.intake.opening",{},true),
+  "guard_intro":g.ActionCopy.line("prison.guard.intake",{},true),
+  "restraints":restraints,
+  "links":link_lines,
+  "toys":toys,
+  "milking":g.ActionCopy.line(climax.narration_cue,{},true),
+  "closing":g.ActionCopy.line("prison.intake.closing",{},true),
+  "guard_done":g.ActionCopy.line("prison.guard.intake_done",{},true),
+  "climax":climax.duplicate(true)
+ }
+
+static func latest_inspection_scene(g) -> Dictionary:
+ for index in range(g.state.logs.size()-1,-1,-1):
+  var record=g.state.logs[index].data.get("prison_inspection_climax",{})
+  if record is Dictionary and not record.is_empty(): return record
+ return {}
+
+static func latest_inspection_result(g) -> Dictionary:
+ for index in range(g.state.logs.size()-1,-1,-1):
+  var record=g.state.logs[index].data.get("inspection",{})
+  if record is Dictionary and not record.is_empty(): return record
+ return {}
 
 static func intake_equipment(g) -> Dictionary:
  var rule=B.PRISON_INTAKE.get(g.state.security,{})
@@ -35,7 +99,7 @@ static func intake_equipment(g) -> Dictionary:
  var toys=toy_spec(g,rule.get("special",2),false)
  if not rule.is_empty(): toys.tier=2
  var special=g.Application.execute(g,toys,"prison","prison").installed
- return {"added":installed.map(func(e):return e.id),"special_added":special.map(func(e):return e.id),"collar_added":not collar.is_empty(),"before":count,"floor":rule.get("floor",0),"quota":quota,"enough":enough}
+ return {"added":installed.map(func(e):return e.id),"special_added":special.map(func(e):return e.id),"collar_added":not collar.is_empty(),"before":count,"floor":rule.get("floor",0),"quota":quota,"enough":enough,"installed":installed.duplicate(true),"special":special.duplicate(true),"collar":collar.duplicate(true)}
 
 static func intake_label(g) -> String:
  var rule=B.PRISON_INTAKE.get(g.state.security,{})
@@ -74,7 +138,7 @@ static func initial(g) -> Dictionary:
  for i in range(pool.size()-1,0,-1):
   var j=g._random_index("prison",i+1)
   var swap=pool[i]; pool[i]=pool[j]; pool[j]=swap
- return {"active":true,"left":B.PRISON_INTERVALS[mini(B.PRISON_INTERVALS.size()-1,g.state.security-1)],"turn":0,"stage":"","missing":[],"baseline":g.state.capture.baseline.duplicate(),"special_missing":[],"special_baseline":g.state.capture.special_baseline.duplicate(),"discovery_pool":ACTIVE_DISCOVERIES.duplicate(),"discoveries":pool,"found":[],"vent_hits":0,"vent_tick":-1,"door_open":false,"key":false,"resisting":false,"checks":0,"report":""}
+ return {"served_turns":0,"sentence_extra":0,"active":true,"left":B.PRISON_INTERVALS[mini(B.PRISON_INTERVALS.size()-1,g.state.security-1)],"turn":0,"stage":"","missing":[],"baseline":g.state.capture.baseline.duplicate(),"special_missing":[],"special_baseline":g.state.capture.special_baseline.duplicate(),"discovery_pool":ACTIVE_DISCOVERIES.duplicate(),"discoveries":pool,"found":[],"vent_hits":0,"vent_tick":-1,"door_open":false,"key":false,"resisting":false,"checks":0,"report":""}
 
 static func discoverable(p: Dictionary) -> Array:
  return p.discoveries.duplicate()
@@ -151,7 +215,7 @@ static func end_turn(g) -> void:
  g.state.phase="inspection"; g.state.prison.stage="arrival"
  # Keep the next-turn penalty while the non-turn inspection is on screen.
  g.state.overloaded=false; g.state.overload_count=0; g.state.energy=0
- g._emit("event","狱警来到门前。可以接受检查，或立即反抗。")
+ g._emit("event","紫发狱警打开牢门，例行巡视开始。可以接受检查，或立即反抗。")
 
 static func add(out: Array, g, action: String, label: String, detail: String, cost: int=0, reason: String="", extra: Dictionary={}) -> void:
  var payload={"kind":"prison","action":action}
@@ -160,13 +224,13 @@ static func add(out: Array, g, action: String, label: String, detail: String, co
 
 static func candidates(g, out: Array) -> void:
  if g.state.phase=="captured":
-  add(out,g,"enter","进入牢房" if g.state.security<5 else "查看终局","保留入狱结果。"+("开始抽牌并启动巡视倒计时。" if g.state.security<5 else "警戒度5，普通逃脱流程结束。"))
+  add(out,g,"enter","进入牢房" if g.state.security<5 else "查看终局","牢门会在你身后锁上。" if g.state.security<5 else "进入高安全监室。")
   return
  if g.state.phase=="inspection":
   var stage=g.state.prison.stage
-  var text={"arrival":["inspect","接受检查","狱警核对入狱清单；只降低耐久不算缺少装备。"],"result":["accept","接受检查结果","处罚一次性执行，期间不能插入操作；完成后恢复消耗牌。"],"done":["resume","继续牢房回合","巡视重新计时，正常补能和抽牌。"]}[stage]
+  var text={"arrival":["inspect","接受检查","让她核对你身上的装备。"],"result":["accept","让她继续","处理这次检查的结果。"],"done":["resume","返回牢房","继续服刑。"]}[stage]
   add(out,g,text[0],text[1],text[2])
-  add(out,g,"resist","反抗狱警","与魅魔警卫战斗；保留当前牌堆，暂停巡视。胜利获得牢门钥匙，失败再次入狱。")
+  add(out,g,"resist","反抗狱警","与她战斗。胜利可取得牢门钥匙。")
   return
  if g.state.phase!="prison": return
  var p=g.state.prison
@@ -219,10 +283,11 @@ static func execute(g, c: Dictionary) -> String:
    p.special_missing=p.special_baseline.filter(func(id):return id not in current_special)
    p.stage="result"
    var findings=[]
-   if not p.missing.is_empty(): findings.append("拘束清单少了%d件：将补装%d件%s；保留的原装备收紧到三档。" % [p.missing.size(),p.missing.size()+B.PRISON_VIOLATION_EXTRA,equipment_label(g)])
-   if not p.special_missing.is_empty(): findings.append("性玩具清单少了%d件：将补装%d件%s。" % [p.special_missing.size(),p.special_missing.size()+1,toy_label(g)])
-   if findings.is_empty(): findings.append("装备与性玩具清单齐全，不因耐久下降收紧。已安装在墙面的工具会被发现并没收。")
-   findings.append("检查结束时会补满仍佩戴性玩具的电池。")
+   if not p.missing.is_empty(): findings.append("少了%d件拘束具。她准备再给你加上%d件%s。" % [p.missing.size(),p.missing.size()+B.PRISON_VIOLATION_EXTRA,equipment_label(g)])
+   if not p.special_missing.is_empty(): findings.append("少了%d件性玩具。她又拿来了%d件%s。" % [p.special_missing.size(),p.special_missing.size()+1,toy_label(g)])
+   if findings.is_empty(): findings.append("一件也没少。")
+   var exposed_tools=g.state.items.filter(func(item):return item.mount!="carry").size()
+   if exposed_tools>0: findings.append("牢房里的%d件工具也被她找到了。" % exposed_tools)
    p.report="".join(findings)
    g._emit("event",p.report)
   "accept":
@@ -253,18 +318,21 @@ static func execute(g, c: Dictionary) -> String:
    for card in g.state.exhaust: card.retain_until=-1
    g.state.discard.append_array(g.state.exhaust); g.state.exhaust=[]
    var recharged=refill_batteries(g)
+   var climax=inspection_climax(g,c.payload.get("temporary",false))
+   var extension=B.PRISON_SENTENCE_PENALTY if violation or confiscated>0 else 0
+   p.sentence_extra+=extension
    p.checks+=1; p.stage="done"
-   var summary=""
+   var results=[]
    if equipment_violation:
-    summary="补装%d/%d件%s，替下%d件旧装备或组件；原有装备已收紧。" % [outcome.count,requested,equipment_label(g),outcome.removed.size()]
-    if outcome.get("evaded",0)>0: summary+="闪避抵消了%d件。" % outcome.evaded
-    if outcome.count+outcome.get("evaded",0)<requested: summary+="其余%d件没有满足容量、结构与强度要求的位置。" % [requested-outcome.count-outcome.get("evaded",0)]
+    results.append("拘束具补回%d/%d件。" % [outcome.count,requested])
    if toy_violation:
-    summary+="补装%d/%d件%s，替下%d件旧装备或组件。" % [toy_outcome.count,toy_requested,toy_label(g),toy_outcome.removed.size()]
-    if toy_outcome.get("evaded",0)>0: summary+="闪避抵消了%d件。" % toy_outcome.evaded
-    if toy_outcome.count+toy_outcome.get("evaded",0)<toy_requested: summary+="其余%d件没有满足容量与强度要求的位置。" % [toy_requested-toy_outcome.count-toy_outcome.get("evaded",0)]
-   p.report="检查完成："+summary+"没收%d件道具，%d张消耗牌回到弃牌堆。已重新登记%d件装备与组件、%d件性玩具；%d件有电池的性玩具已经充满。" % [confiscated,restored,p.baseline.size(),p.special_baseline.size(),recharged.size()]
-   g._emit("event",p.report,{"inspection":{"missing":p.missing.duplicate(),"requested":requested,"installed":outcome.installed.map(func(e):return e.id),"removed":outcome.removed.duplicate(),"lost_links":outcome.lost_links.duplicate(),"registered":p.baseline.size(),"special_missing":p.special_missing.duplicate(),"special_requested":toy_requested,"special_installed":toy_outcome.installed.map(func(e):return e.id),"special_removed":toy_outcome.removed.duplicate(),"special_registered":p.special_baseline.size(),"recharged":recharged,"confiscated":confiscated,"restored":restored}})
+    results.append("性玩具补回%d/%d件。" % [toy_outcome.count,toy_requested])
+   if confiscated>0: results.append("没收工具%d件。" % confiscated)
+   if recharged.size()>0: results.append("%d件性玩具已经充好电。" % recharged.size())
+   if extension>0: results.append("刑期＋%d回合。" % extension)
+   if results.is_empty(): results.append("检查结束。")
+   p.report=" ".join(results)
+   g._emit("event",p.report,{"inspection":{"temporary":c.payload.get("temporary",false),"sentence_extension":extension,"missing":p.missing.duplicate(),"requested":requested,"installed":outcome.installed.map(func(e):return e.id),"removed":outcome.removed.duplicate(),"lost_links":outcome.lost_links.duplicate(),"registered":p.baseline.size(),"special_missing":p.special_missing.duplicate(),"special_requested":toy_requested,"special_installed":toy_outcome.installed.map(func(e):return e.id),"special_removed":toy_outcome.removed.duplicate(),"special_registered":p.special_baseline.size(),"recharged":recharged,"confiscated":confiscated,"restored":restored,"climax":climax}})
   "resume":
    p.left=B.PRISON_INTERVALS[g.state.security-1]; p.stage=""; p.missing=[];p.special_missing=[]
    begin_turn(g)
@@ -272,6 +340,7 @@ static func execute(g, c: Dictionary) -> String:
    g.RelicEffects.end_combat(g)
    g.RelicEffects.begin_combat(g)
    p.resisting=true
+   p.reinforcements=0
    g.state.wall_distance=g._initial_wall_distance(true)
    g.state.phase="battle"; g.state.round=0; g.state.encounter+=1
    g.state.kick_last=-10; g.state.heavy_used=false
@@ -279,13 +348,40 @@ static func execute(g, c: Dictionary) -> String:
    g.Pressure.clear_penalties(g)
    g._spawn_enemies("guard_solo")
    g._emit("event","你反抗巡视狱警，战斗开始。巡视暂停，消耗牌不会因反抗自动恢复。")
+   g._emit("event","援军将在4回合后抵达，之后每4回合召来1名警卫；本场最多%d名。" % (1+g.state.security))
    g._start_round()
  return ""
 
 static func won(g) -> void:
  if not g.state.prison.get("resisting",false): return
+ g.state.prison.erase("reinforcements")
  g.state.prison.resisting=false; g.state.prison.key=true
  g._emit("event","击败巡视狱警，获得牢门钥匙；不占道具容量。奖励与整备后返回牢房，巡视继续暂停。")
+
+static func reinforcements_active(g) -> bool:
+ return g.state.phase=="battle" and g.state.room=="prison" and g.state.prison.get("active",false) and g.state.prison.get("resisting",false) and not is_exit_battle(g)
+
+static func reinforcements_left(g) -> int:
+ return maxi(0,4*(g.state.prison.get("reinforcements",0)+1)-(g.state.round-1))
+
+static func tick_reinforcements(g) -> void:
+ if not reinforcements_active(g) or g._all_gone(): return
+ var count=g.state.prison.reinforcements
+ if count>=1+g.state.security or g.state.round<4*(count+1): return
+ var guard=g._append_enemies([{"type":"guard","grade":2}])[0]
+ guard.reinforcement_round=g.state.round
+ guard.acted_round=g.state.round;guard.intent=g._plan(guard)
+ g.state.prison.reinforcements=count+1
+ g._emit("event","援军抵达：%s加入战斗，从下一回合开始行动。已召来%d / %d名警卫。" % [guard.name,count+1,1+g.state.security],{"prison_reinforcements":{"enemy":guard.id,"count":count+1,"limit":1+g.state.security}})
+
+static func reinforcement_issue(s: Dictionary) -> String:
+ var p=s.prison
+ if not p.has("reinforcements"):
+  return "反抗战斗缺少援军进度，请重新开始此局。" if p.get("resisting",false) else ""
+ if not p.reinforcements is int or p.reinforcements<0 or p.reinforcements>1+s.security: return "援军数量不正确。"
+ if s.phase!="battle" or s.room!="prison" or not p.get("active",false) or not p.get("resisting",false): return "援军只能出现在牢房内的反抗战斗。"
+ if p.reinforcements>int(maxi(0,s.round-1)/4): return "援军尚未到达对应回合。"
+ return ""
 
 static func after_preparation(g) -> bool:
  if is_exit_battle(g):
@@ -321,6 +417,8 @@ static func return_to_tower(g) -> void:
  g._restart_tower()
 
 static func validate(g) -> String:
+ var reinforcement_error=reinforcement_issue(g.state)
+ if reinforcement_error!="": return reinforcement_error
  if g.state.capture.has("terminal_equipment"):
   if g.state.phase!="prison_end" or g.state.security!=5 or g.state.capture.terminal_equipment!=g.equipment_targets().map(func(e):return e.id): return "高安全终局装备清单不完整。"
   if not g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty()): return "高安全终局存在未覆盖部位。"
@@ -333,6 +431,7 @@ static func validate(g) -> String:
  var p=g.state.prison
  if g.state.phase in ["prison","inspection"] and not p.get("active",false): return "牢房流程缺少入狱记录。"
  if p.is_empty(): return ""
+ if p.served_turns<0 or p.sentence_extra<0 or p.sentence_extra%B.PRISON_SENTENCE_PENALTY!=0 or p.sentence_extra>p.checks*B.PRISON_SENTENCE_PENALTY: return "出狱期限记录不正确。"
  var space_issue=Space.validate(g)
  if space_issue!="": return space_issue
  if p.left<0 or p.left>B.PRISON_INTERVALS[mini(B.PRISON_INTERVALS.size()-1,g.state.security-1)] or p.vent_hits<0 or p.vent_hits>B.PRISON_VENT_HITS: return "巡视或通风口进度不合法。"
@@ -352,4 +451,89 @@ static func view(g) -> Dictionary:
   return {"terminal_text":"本局已经结束，可以查看最终装备或重新开始。"}
  var p=g.state.prison
  if p.is_empty(): return {"intake_rule":intake_label(g),"equipment_rule":equipment_label(g),"toy_rule":toy_label(g)} if g.state.phase=="captured" else {}
- return {"space":Space.view(g),"active":p.active,"left":p.left,"turn":p.turn,"stage":p.stage,"remaining":discoverable(p).size(),"found":p.found.duplicate(),"vent_hits":p.vent_hits,"vent_total":B.PRISON_VENT_HITS,"door_open":p.door_open,"key":p.key,"report":p.report,"checks":p.checks,"paused":p.key or p.resisting,"equipment_rule":equipment_label(g),"toy_rule":toy_label(g)}
+ var narrative=""
+ var dialogue=""
+ var visual=PATROL_GUARD
+ var result_status="neutral"
+ if g.state.phase=="inspection":
+  if p.stage=="arrival":
+   narrative=g.ActionCopy.line("prison.inspection.arrival",{},true)
+   dialogue=g.ActionCopy.line("prison.guard.arrival",{},true)
+  elif p.stage=="result":
+   var exposed_tools=g.state.items.any(func(item):return item.mount!="carry")
+   var violation=not p.missing.is_empty() or not p.special_missing.is_empty()
+   narrative=g.ActionCopy.line("prison.inspection.result.violation" if violation else "prison.inspection.result.clean",{},true)
+   dialogue=g.ActionCopy.line("prison.guard.result.violation" if violation else ("prison.guard.result.tools" if exposed_tools else "prison.guard.result.clean"),{},true)
+   result_status="failure" if violation or exposed_tools else "success"
+  elif p.stage=="done":
+   var scene=latest_inspection_scene(g)
+   narrative=g.ActionCopy.line(scene.get("narration_cue",""),{},true)
+   dialogue=g.ActionCopy.line(scene.get("dialogue_cue",""),{},true)
+   visual=scene.get("visual",PATROL_GUARD)
+   result_status="failure" if int(latest_inspection_result(g).get("sentence_extension",0))>0 else "success"
+ return {"sentence":sentence_label(g),"served_turns":p.served_turns,"sentence_limit":sentence_limit(g),"space":Space.view(g),"active":p.active,"left":p.left,"turn":p.turn,"stage":p.stage,"remaining":discoverable(p).size(),"found":p.found.duplicate(),"vent_hits":p.vent_hits,"vent_total":B.PRISON_VENT_HITS,"door_open":p.door_open,"key":p.key,"report":p.report,"checks":p.checks,"paused":p.key or p.resisting,"equipment_rule":equipment_label(g),"toy_rule":toy_label(g),"guard_visual":visual,"narrative":narrative,"guard_dialogue":dialogue,"result_status":result_status}
+
+static func sentence_limit(g) -> int:
+ var base=B.PRISON_SENTENCE[clampi(g.state.security-1,0,3)]
+ return base+int(g.state.prison.get("sentence_extra",0)) if base>0 else 0
+
+static func sentence_label(g) -> String:
+ var served=int(g.state.prison.get("served_turns",0))
+ var limit=sentence_limit(g)
+ return "已服刑%d回合 · 不自动出狱" % served if limit==0 else "已服刑%d／%d回合 · 出狱剩余%d回合" % [served,limit,maxi(0,limit-served)]
+
+static func completed_turn(g) -> bool:
+ if not g.state.prison.get("active",false): return false
+ g.state.prison.served_turns+=1
+ var limit=sentence_limit(g)
+ if limit==0 or g.state.prison.served_turns<limit: return false
+ if not release_inspection(g): return false
+ var outcome=intake_equipment(g)
+ g._emit("event","出狱前检查通过，按当前安全等级补齐出狱装备。接下来可以选择新塔路第10—11层的起点。",{"sentence_release":{"served":g.state.prison.served_turns,"limit":limit,"equipment":outcome},"npc_copy":{"cue":"prison.guard.release_pass","visual":SENIOR_GUARD}})
+ g.RelicEffects.end_combat(g)
+ g.Pressure.clear_penalties(g)
+ g.CaptureBind.clear_bind(g)
+ g.state.weakness_turns=0
+ g.state.practice=false
+ g._restart_tower()
+ return true
+
+static func release_inspection(g) -> bool:
+ # Runs inside the completed-turn transaction. Do not enter the periodic
+ # inspection phase or reset its countdown; a failed release resumes that turn.
+ var p=g.state.prison
+ var stage=p.stage
+ var missing=p.missing.duplicate()
+ var special_missing=p.special_missing.duplicate()
+ var extra=p.sentence_extra
+ g._emit("event","出狱期限已到，资深狱警进入牢房进行额外检查；本次不计入正常巡视周期。",{"npc_copy":{"cue":"prison.guard.release_check","visual":SENIOR_GUARD}})
+ execute(g,{"payload":{"action":"inspect","temporary":true}})
+ execute(g,{"payload":{"action":"accept","temporary":true}})
+ p.stage=stage;p.missing=missing;p.special_missing=special_missing
+ if p.sentence_extra==extra: return true
+ g._emit("event","出狱前检查未通过，出狱期限延长8回合；继续服刑，正常巡视按原周期进行。",{"sentence_delayed":{"limit":sentence_limit(g),"extension":p.sentence_extra-extra},"npc_copy":{"cue":"prison.guard.release_fail","visual":SENIOR_GUARD}})
+ return false
+
+static func start_room(room: Dictionary) -> bool:
+ var displayed_floor=int(room.get("floor",-2))+1
+ return displayed_floor in [10,11] and room.get("kind","") in ["battle","event","shop"]
+
+static func health_bonus(g, s: Dictionary) -> float:
+ if s.get("map_region","")!="tower" or s.get("room","")=="prison": return 0.0
+ var level=maxi(0,int(s.get("security",0))-1)
+ var rooms=s.rooms.filter(func(room):return room.id==s.room)
+ if rooms.is_empty(): return 0.0
+ var room=rooms[0]
+ var rank=g.Enemies.ENCOUNTERS.get(s.room_encounters.get(s.room,""),{}).get("rank","")
+ return float(level*(30 if room.get("boss",false) or rank=="boss" else (20 if rank=="elite" else 10)))
+
+static func exit_practice(g, kind: String) -> void:
+ # Practice starts with the real intake result, including both equipment manifests.
+ # The player enters the cell normally; neither the sentence nor patrol is skipped.
+ g.Guard.capture(g,g.Enemies.TYPES.guard)
+ if kind in ["prison_release","prison_release_violation"]: return
+ enter(g)
+ escape(g,"door_exit")
+ g.state.room="prison_gate"
+ g.state.completed_rooms=["prison_start","prison_rest"]
+ g._start_battle()

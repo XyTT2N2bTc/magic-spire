@@ -9,7 +9,45 @@ static func key(t, code: int, down: bool=true, shift: bool=false, echo: bool=fal
 static func tap(t, code: int, shift: bool=false) -> void:
  await key(t,code,true,shift);await key(t,code,false,shift)
 
+static func quick_region_keys(t) -> void:
+ var ui=t.ui;var input=ui.keyboard_input
+ var click=preload("res://tests/target_sidebar_ui_cases.gd")
+ var quick=preload("res://ui/quick_release_bar.gd")
+ input.settings.defaults();input.held_keys.clear();input.clear()
+ ui.restart(42);await t.frames()
+ var frozen=ui.game.export_snapshot()
+ await click.press(t,ui.find_child("ActionRailToggle",true,false))
+ var codes=[KEY_Z,KEY_X,KEY_V,KEY_F]
+ for i in range(codes.size()):
+  var button=ui.find_child("QuickRelease_"+quick.ORDER[i],true,false)
+  t.check(button.get_node("KeyboardHint").text==input.settings.caption(quick.SLOT_ACTIONS[i]),"QUICK KEYS local toggle shows matching slot shortcut "+quick.ORDER[i])
+  await tap(t,codes[i])
+  t.check(ui.quick_release_region==quick.ORDER[i] and input.selection.is_empty() and ui.game.export_snapshot()==frozen,"QUICK KEYS slot selects region without attacking or spending "+quick.ORDER[i])
+  var details=ui.find_child("EquipmentDetails",true,false)
+  t.check(ui.show_body and details!=null and details.get_global_rect().end.y<ui.find_child("BasicActionRail",true,false).get_global_rect().position.y,"QUICK KEYS same-slot selection opens body details above rail even for an empty part")
+ await tap(t,KEY_F)
+ t.check(not ui.show_body and ui.quick_release_region=="region_lower" and ui.game.export_snapshot()==frozen,"QUICK KEYS same slot toggles details closed and preserves selection")
+ await tap(t,KEY_F)
+ t.check(ui.show_body and ui.game.export_snapshot()==frozen,"QUICK KEYS same slot reopens details without acting")
+ await tap(t,KEY_I);await tap(t,KEY_Z)
+ t.check(ui.show_items and ui.quick_release_region=="region_lower" and ui.game.export_snapshot()==frozen,"QUICK KEYS drawer blocks background region shortcuts")
+ await tap(t,KEY_I)
+ t.check(input.settings.assign("strike",0,KEY_Q),"QUICK KEYS custom slot binding accepted")
+ input.refresh_hints();await t.frames()
+ t.check(ui.find_child("QuickRelease_region_head",true,false).get_node("KeyboardHint").text=="Q","QUICK KEYS hint follows custom action binding")
+ await tap(t,KEY_Z)
+ t.check(ui.quick_release_region=="region_lower","QUICK KEYS replaced default key no longer selects region")
+ await tap(t,KEY_Q)
+ t.check(ui.quick_release_region=="region_head" and ui.game.export_snapshot()==frozen,"QUICK KEYS custom binding selects same slot without a second key registry")
+ await click.press(t,ui.find_child("ActionRailToggle",true,false))
+ await tap(t,KEY_Q)
+ t.check(input.selection.get("type","")=="strike" and ui.game.export_snapshot()==frozen,"QUICK KEYS switching back restores original custom-bound attack selection")
+ await tap(t,KEY_ESCAPE)
+ input.settings.defaults();input.held_keys.clear();input.clear()
+ ui.restart(42);await t.frames()
+
 static func run(t) -> void:
+ await quick_region_keys(t)
  await reward_navigation(t)
  var ui=t.ui;var input=ui.keyboard_input
  input.settings.defaults();input.held_keys.clear();input.clear()

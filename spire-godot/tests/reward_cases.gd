@@ -158,14 +158,16 @@ static func run(t) -> void:
  preload("res://tests/prison_cases.gd").clear_fixture(g)
  preload("res://tests/exploration_fixture.gd").at_site(g,"door")
  a=g.add_fixture("thigh",4,10,true);card=give(t,g,"double_unlock");g.state.temporary_mana=5
- t.check(t.action(g,"prison",{"action":"unlock","uid":card.uid}).ok and g.state.prison.door_open and g.state.energy==2 and g.state.temporary_mana==0 and g.state.mana==95,"REWARD door-first double spell shares reserve and one payment")
- t.check(t.action(g,"chain",{"target":a.id}).ok and not g._equipment(a.id).locked and g.state.mana==95 and g.state.card_chain.is_empty(),"REWARD door-first second equipment lock uses same continuation")
+ var prison_mana=g.state.mana
+ t.check(t.action(g,"prison",{"action":"unlock","uid":card.uid}).ok and g.state.prison.door_open and g.state.energy==2 and g.state.temporary_mana==0 and g.state.mana==prison_mana-5,"REWARD door-first double spell shares reserve and one payment")
+ t.check(t.action(g,"chain",{"target":a.id}).ok and not g._equipment(a.id).locked and g.state.mana==prison_mana-5 and g.state.card_chain.is_empty(),"REWARD door-first second equipment lock uses same continuation")
  g=preload("res://tests/prison_cases.gd").intake(t)
  preload("res://tests/prison_cases.gd").clear_fixture(g)
  preload("res://tests/exploration_fixture.gd").at_site(g,"door")
  a=g.add_fixture("thigh",4,10,true);card=give(t,g,"double_unlock")
+ prison_mana=g.state.mana
  play(t,g,card,"thigh",a.id)
- t.check(t.action(g,"chain",{"target":"prison_door"}).ok and g.state.prison.door_open and g.state.energy==2 and g.state.mana==90,"REWARD equipment-first spell can open cell door as second lock")
+ t.check(t.action(g,"chain",{"target":"prison_door"}).ok and g.state.prison.door_open and g.state.energy==2 and g.state.mana==prison_mana-10,"REWARD equipment-first spell can open cell door as second lock")
  g=setup();a=g.add_fixture("thigh",4,10,true);b=g.add_fixture("ankle",4,10,true);card=give(t,g,"double_unlock")
  play(t,g,card,"thigh",a.id)
  t.check(t.action(g,"chain",{"action":"stop"}).ok and g._equipment(b.id).locked and g.state.energy==2 and g.state.mana==90,"REWARD optional second unlock stops without refund or additional changes")

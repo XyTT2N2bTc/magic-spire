@@ -89,10 +89,10 @@ static func entries() -> Dictionary:
  result.torso_binding=entry("torso_binding","forearm",scenario("躯干固缚练习","大臂、小臂或手腕单件达到3档，随机形成连接式或一体式固缚；降档不移除。连接式可以单独挣脱，再加固到3档会恢复。",[ordinary("rope","forearm",1,false,1.0),ordinary("belt","upper_arm",1,false,1.0)]))
  for id in ["rope_solo","belt_solo","tape_solo","cable_tie_solo","gag_solo","toybox_solo","lock_solo","belt_gag"]:
   var names={"rope_solo":"漂浮绳索","belt_solo":"漂浮皮带","tape_solo":"漂浮胶带","cable_tie_solo":"漂浮扎带","gag_solo":"漂浮口球","toybox_solo":"漂浮玩具箱","lock_solo":"漂浮锁","belt_gag":"皮带与口球"}
-  var hint="施加初级2档、加固、准备、附着中级2档并离场。预告加固时若无目标，改为预告自身的施加行动；出手时再选目标，加固已无目标则空过。"
-  if id in ["gag_solo","belt_gag"]: hint="口球准备两回合后附着初级2档并离场；口部已有装备时不会覆盖。"
+  var hint="施加初级2档、加固、准备、附着中级3档并离场。预告加固时若无目标，改为预告自身的施加行动；出手时再选目标，加固已无目标则空过。"
+  if id in ["gag_solo","belt_gag"]: hint="口球准备两回合后附着中级3档并离场；口部已有装备时不会覆盖。"
   if id=="toybox_solo": hint="准备、佩戴、停顿，每三回合循环。打断会推迟当前步骤。"
-  if id=="lock_solo": hint="预告上锁、上锁，两步循环。开启平板锁池时，无目标后尝试附加中级2档负数平板锁再离场；无法佩戴仍离场。"
+  if id=="lock_solo": hint="预告上锁、上锁，两步循环。开启平板锁池时，无目标后尝试附加中级3档负数平板锁及其加固带再离场；无法佩戴仍离场。"
   var spec=scenario(names[id]+"练习",hint)
   spec.description="独立战斗，正常奖励与三回合整备。"
   spec.encounter=id
@@ -149,8 +149,8 @@ static func entries() -> Dictionary:
  result.pressure_battle=entry("pressure_battle","wrist",battle)
  for count in [1,2]:
   var id="guard" if count==1 else "double_guard"
-  var guard=scenario("魅魔警卫练习" if count==1 else "双魅魔警卫收押练习","开场会束住手腕、口部和脚踝，再准备并施加50/100的捕缚。用挣扎或滑脱牌削减捕缚；达到100后，警卫下一次行动会收押你。",[])
-  guard.description="捕缚存在时，每次花能量都会牵动一个随机特殊部位；只能依次从躺姿坐起、再站起，且每次切换使进度＋10。击败全部警卫获得正常奖励；被收押则保留装备、魔力与快感，没收道具并进入监狱。"
+  var guard=scenario("魅魔警卫练习" if count==1 else "双魅魔警卫收押练习","开场会束住手腕、口部和脚踝，再准备并施加50/100的捕缚。无法新增或合法替换时，改为加固该处1次；紧度3且可上锁时，上锁并恢复满耐久。用挣扎或滑脱牌削减捕缚；达到100后，警卫下一次行动会收押你。",[])
+  guard.description="捕缚存在时，每次花能量都会牵动一个随机特殊部位；只能依次从躺姿坐起、再站起，且每次切换使进度＋10。击败全部警卫获得正常奖励；被收押则保留装备与快感，收押时榨精并损失最多20魔力；传送符保留，其他道具没收。"
   guard.encounter="guard_solo" if count==1 else "double_guard"
   result[id]=entry(id,"wrist",guard)
  var gamble={"name":"魅魔的三局赌牌 · 事件练习","description":"进行三局赌牌，可以中途兑现筹码离开。","hint":"可以在第一局前拒绝；第一、二局后可兑现筹码离开。第三局会在故事中描写魅魔暂时解下、随后重新戴回原有性玩具。","equipment":[ordinary("rope","wrist",1,false,0.8),ordinary("belt","ankle",2,true,0.8)],"items":[],"start":"event","event":"succubus_three_games"}
@@ -177,4 +177,14 @@ static func entries() -> Dictionary:
  result.mysterious_woman_statue=entry("mysterious_woman_statue","special_2",statue)
  var survey={"name":"迷宫测绘队 · 事件练习","description":"可以独自探险，获得100魔瓶魔力并佩戴两件中级2档拘束具；也可以结伴而行，安全获得30魔瓶魔力。","hint":"独自探险只添加普通单件拘束具；两件无法全部佩戴时，该选项不出现。","equipment":[],"items":[],"start":"event","event":"maze_survey_team"}
  result.maze_survey_team=entry("maze_survey_team","wrist",survey)
+ var exit_practices={
+  "prison_release":["到期出狱练习","从正常收押开始，按1级监狱规则佩戴装备并登记；进入牢房后从第1回合开始，初始刑期20回合，巡视间隔16回合。","自行挣脱、探索或等待；每次检查有违规最多延长8回合。到期临时检查通过后，才能选择10—11层非休息、非宝箱起点。"],
+  "prison_release_violation":["巡视与延期练习","同样从正常收押和第1回合开始。可尝试解除已登记装备，观察巡视时的补装和延期；练习不会预设检查结果。","登记装备缺失或检查时工具被没收，当次期限延长8回合。到期另做临时检查，不通过则继续服刑，不重置正常巡视周期。"],
+  "prison_gate_exit":["击败守卫出狱练习","保留正常收押生成的装备，从出口守卫战开始，守卫使用正常血量。胜利后领取稀有卡三选一、遗物和60魔瓶魔力，再选择10—11层起点。","守卫胜利后进入新地图起点选择；休息点和宝箱房不可选。"]}
+ for id in exit_practices:
+  var info=exit_practices[id]
+  var practice=scenario(info[0],info[2])
+  practice.start=id;practice.items=[]
+  practice.description=info[1]
+  result[id]=entry(id,"",practice)
  return result

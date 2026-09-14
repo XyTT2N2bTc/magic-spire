@@ -120,4 +120,4 @@ static func forced_loop_surrender(t) -> void:
  await Navigation.press(t,"SurrenderButton")
  t.check(ui.game.state==before and t.visible_text(ui.find_child("SurrenderButton",true,false)).contains("确定"),"FEEDBACK UI interrupted surrender still needs confirmation")
  await Navigation.press(t,"SurrenderButton")
- t.check(ui.game.state.phase=="prison" and ui.game.state.security==1 and ui.game.validate()=="","FEEDBACK UI confirmed surrender leaves the forced-loop battle")
+ t.check(ui.game.state.phase=="captured" and ui.game.state.security==1 and ui.find_child("PrisonIntakePanel",true,false)!=null and ui.game.validate()=="","FEEDBACK UI confirmed surrender leaves the forced-loop battle for the intake page")

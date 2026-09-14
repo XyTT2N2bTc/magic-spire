@@ -365,3 +365,6 @@ RuleChangePackage：修复现有规则遗漏，不新增规则、状态、随机
 2026-09-13火堆SL：rest_choice与rest统一场景键，不以开始休息时递增的combat.serial区分起点；奖励、支付、休息行动及随机均从入场撤回。其他场景边界不变；精确restore_snapshot仍精确恢复输入，旧文件中已覆盖的入场数据不可追溯重建。
 
 2026-09-13出口继续游玩在DemoExit内追加固定40快感减值与站姿，仍由正式demo_continue提交且保存新阶段起点；候选说明和结构化日志同步，中文／英文兼容目录及生成器人工词表更新。共享_restart_tower的监狱返塔路径不追加该收益，无新增字段或迁移。
+
+
+2026-09-14：self_binding正式登记罕见X费技能，具体完整规则见game-design.md“自缚正式接入”。仅此卡启用self_binding声明；SelfBinding内部助手复用Application／原收紧工厂，候选检查完整2件空间或2X收紧额度，复放保存原X。Application.execute_concrete的voluntary参数仅供主动自装代价使用，默认false保留原敌人／事件闪避与魔女抵挡；不得由UI直接传参绕过正式卡牌事务。

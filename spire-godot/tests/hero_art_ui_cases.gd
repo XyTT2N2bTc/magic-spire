@@ -53,10 +53,17 @@ static func run(t) -> void:
  var equipment=ui.find_child("EquipmentPortrait",true,false)
  t.check(sprite.get_script()==Portrait and sprite.texture==equipment.texture and sprite.variant==equipment.variant and sprite.active_leg_layers==equipment.active_leg_layers,"ART restrained standing battle portrait matches equipment portrait composition")
  await t.capture("ui-96-hero-restrained-stand.png")
+
+ ui.game=Game.new(42,true,"glove_short")
+ ui.render();await t.frames()
+ hero=ui.find_child("HeroArt",true,false);sprite=hero.get_node("HeroPose");equipment=ui.find_child("EquipmentPortrait",true,false)
+ t.check(sprite.get_script()==Portrait and sprite.texture==Portrait.BOUND_SINGLE_GLOVE and sprite.texture==equipment.texture and sprite.active_composite_layers==["single_glove"],"ART active single-glove assembly reaches both bound-standing portrait instances")
+ await t.capture("ui-hero-single-glove.png")
+
  ui.game._install_special("negative_vibrator_lock_catheter_high","special_2_a",3)
  ui.render();await t.frames()
  hero=ui.find_child("HeroArt",true,false);sprite=hero.get_node("HeroPose")
- t.check(sprite.get_script()==Portrait and sprite.texture==Portrait.BOUND_FLAT_LOCK and sprite.active_special_layers==["flat_lock","flat_lock_reinforcement","urethral_rod"],"ART restrained standing battle portrait reuses the special-equipment composition")
+ t.check(sprite.get_script()==Portrait and sprite.texture==Portrait.BOUND_SINGLE_GLOVE_FLAT_LOCK and sprite.active_special_layers==["flat_lock","flat_lock_reinforcement","urethral_rod"],"ART restrained standing battle portrait reuses the combined single-glove and special-equipment composition")
  await t.capture("ui-hero-restrained-special-equipment.png")
  for pose in ["sit","lie"]:
   t.check(await t.click("posture",{"dest":pose,"wall":false}),"ART restrained real adjacent posture action "+pose)
@@ -71,7 +78,25 @@ static func run(t) -> void:
  ui.render();await t.frames()
  hero=ui.find_child("HeroArt",true,false);sprite=hero.get_node("HeroPose")
  t.check(not ui.view.has_restraint_level and sprite.texture==Art.HERO_POSES.stand,"ART face-only equipment does not invent an arm or leg restraint level")
+ await witch_portraits(t)
  await fixed_portrait(t)
+
+static func witch_portraits(t) -> void:
+ var ui=t.ui
+ ui.game=Game.new(42,false,"equipment",true,false,25,false,false,"witch")
+ ui.game.add_fixture("eyes",4)
+ ui.render();await t.frames()
+ var sidebar=ui.find_child("EquipmentPortrait",true,false)
+ t.check(sidebar.texture==Portrait.WITCH_SIDEBAR and sidebar.witch_portrait and sidebar.get_children().all(func(n):return not n.visible),"ART witch sidebar uses its narrow source crop without unavailable restraint differences")
+ for pose in ["stand","sit","lie"]:
+  if pose!="stand": t.check(await t.click("posture",{"dest":pose,"wall":false}),"ART witch real adjacent posture action "+pose)
+  var hero=ui.find_child("HeroArt",true,false)
+  var sprite=hero.get_node("HeroPose")
+  var expected=Art.WITCH_POSES[pose]
+  t.check(hero.pose==pose and hero.character_id=="witch" and not hero.fixed_portrait and sprite.texture==expected,"ART witch formal posture selects supplied cutout "+pose)
+  t.check(sprite.get_script()!=Portrait and sprite.texture.get_image().detect_alpha()!=Image.ALPHA_NONE and is_equal_approx(sprite.size.x/expected.get_width(),sprite.size.y/expected.get_height()),"ART witch keeps real alpha and source proportions "+pose)
+  t.check(is_equal_approx(sprite.position.y+sprite.size.y,hero.size.y) and sprite.position.x>=0 and sprite.position.x+sprite.size.x<=hero.size.x,"ART witch complete sprite fits and shares the battle ground line "+pose)
+  await t.capture("ui-witch-portrait-"+pose+".png")
 
 static func fixed_portrait(t) -> void:
  var ui=t.ui

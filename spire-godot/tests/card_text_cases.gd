@@ -4,6 +4,7 @@ const Book=preload("res://data/encyclopedia.gd")
 const Text=preload("res://data/card_text.gd")
 
 static func run(t) -> void:
+ paired_faces(t)
  var g=Game.new(42);var before=g.export_snapshot()
  var pot=Book.card("pot_of_greed")
  t.check(pot.face_keywords.bound==[Text.TERMS.exhaust] and pot.face_keywords.free==[Text.TERMS.exhaust] and pot.note=="","TERMS pot explains exhaust on both faces without a redundant draw glossary")
@@ -53,3 +54,31 @@ static func mana_badges(t) -> void:
  t.check(view.card_texts.adaptability.face_mana.free.is_empty() and view.card_texts.adaptability.face_effects.free.contains("回合开始：获得1层魔力预备"),"MANA turn-start power is not advertised as immediate gain")
  t.check(view.card_texts.embers.face_mana.bound.size()==1 and view.card_texts.embers.face_effects.bound.contains("再耗6魔力"),"MANA optional extra spending retains its condition and is not charged in the base badge")
  t.check(view.card_texts.strain.face_mana.bound.is_empty() and view.card_texts.strain.face_mana.free.is_empty(),"MANA no resource interaction means no badge on either face")
+
+static func paired_faces(t) -> void:
+ var g=Game.new(42)
+ for pressure in [0,75,99]:
+  g.state.pressure=pressure
+  var before=g.export_snapshot()
+  var text_matches=true;var metadata_matches=true
+  for type in g.Cards.Rules.SPECS:
+   var faces=g.Cards.face_texts(g,type)
+   text_matches=text_matches and faces.bound==g.Cards.face_text(g,type,false) and faces.free==g.Cards.face_text(g,type,true)
+   var costs={"bound":3.125,"free":17.875}
+   var combined=g.B.card_info(type,costs,12.5,false,7)
+   metadata_matches=metadata_matches and combined[1]==g.B.card_info(type,costs.bound,12.5,false,7)[1] and combined[2]==g.B.card_info(type,costs.free,12.5,false,7)[2]
+   combined=g.B.card_info(type,{"bound":"3.13","free":"17.88"},12.5,true,7)
+   text_matches=text_matches and combined[1]==g.B.card_info(type,"3.13",12.5,true,7)[1] and combined[2]==g.B.card_info(type,"17.88",12.5,true,7)[2]
+  t.check(text_matches and metadata_matches,"TERMS batch faces preserve independent costs, inline rounding, base damage and equipment quantities at pressure "+str(pressure))
+  t.check(g.export_snapshot()==before,"TERMS batch card text leaves all state and random domains unchanged")
+ var original=g.Cards.Rules.SPECS.mana_search.duplicate(true)
+ var old_text=g.Cards.face_texts(g,"mana_search")
+ g.Cards.Rules.SPECS.mana_search.self_faces.free.effects[0].amount=3
+ var updated=g.Cards.face_texts(g,"mana_search")
+ t.check(updated!=old_text and updated.free==g.Cards.face_text(g,"mana_search",true),"TERMS batch text observes changed rule data without a stale static catalog")
+ g.Cards.Rules.SPECS.mana_search=original
+ for type in ["concentration","hannya_1","hannya_2"]:
+  var card=preload("res://tests/curse_cases.gd").give(g,type)
+  if type=="concentration": card.damage_bonus=6
+  var faces=g.Cards.face_texts(g,type,card.uid)
+  t.check(faces.bound==g.Cards.face_text(g,type,false,card.uid) and faces.free==g.Cards.face_text(g,type,true,card.uid),"TERMS batch faces retain physical growth and staged drink text "+type)

@@ -58,7 +58,7 @@ static func definitions() -> Dictionary:
  "cable_tie":{"install_pool":["cable_tie"],"final_pool":["cable_tie"],"behavior":"restraint","visual":"cable_tie","name":"漂浮扎带","hp":30,"strength":1,"order":35},
  "gag":{"attachment_pool":["mouth_band"],"attachment_slot":"mouth","behavior":"attachment","visual":"silencer","name":"漂浮口球","hp":B.SILENCER_HP,"strength":1,"order":40},
  "lock":{"behavior":"lock","visual":"lock","name":"漂浮锁","hp":B.LOCK_HP,"strength":1,"order":36,
-  "chastity_departure":{"kind":"apply","pool":"special","templates":["negative_plate_lock_medium"],"grade":2,"tier":2,"count":1,"locked":false,"final":true,"replace":false,"text":"附加中级平板锁，随后离场","delayed":false}},
+  "chastity_departure":{"kind":"apply","pool":"special","templates":["negative_plate_lock_medium"],"grade":B.ENEMY_DEPARTURE_GRADE,"tier":B.ENEMY_DEPARTURE_TIER,"count":1,"locked":false,"final":true,"replace":false,"text":"附加中级3档平板锁，随后离场","delayed":false}},
  "toybox":{"behavior":"dispenser","visual":"toybox","name":"漂浮玩具箱","hp":30,"strength":1,"order":45,
   "special_pool":Special.RANDOM_POOLS[1].duplicate()}}
  # Material variants inherit the complete cycle and split rules; only their pool,

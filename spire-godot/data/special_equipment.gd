@@ -253,11 +253,13 @@ static func catheter(item: Dictionary) -> bool:
 static func portrait_layers(items: Array) -> Array:
  ensure_catalog()
  var layers=[]
- if items.any(func(item):return item.get("durability",0)>0 and is_chastity(item)):
+ var has_chastity=items.any(func(item):return item.get("durability",0)>0 and is_chastity(item))
+ if has_chastity:
   layers.append("flat_lock")
  if items.any(func(item):return item.get("durability",0)>0 and is_reinforcement(item)):
   layers.append("flat_lock_reinforcement")
- if items.any(func(item):return item.get("durability",0)>0 and (catheter(item) or TYPES.get(item.get("type",""),{}).get("family","")=="urethral_rod")):
+ var has_urethral=items.any(func(item):return item.get("durability",0)>0 and (catheter(item) or TYPES.get(item.get("type",""),{}).get("family","")=="urethral_rod"))
+ if has_chastity and has_urethral:
   layers.append("urethral_rod")
  return layers
 

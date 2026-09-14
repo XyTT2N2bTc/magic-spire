@@ -3,6 +3,7 @@ const Cards=preload("res://tests/curse_cases.gd")
 const Click=preload("res://tests/target_sidebar_ui_cases.gd")
 
 static func run(t) -> void:
+ await self_binding(t)
  await reuse(t)
  await confluence(t)
  await resonance(t)
@@ -110,12 +111,12 @@ static func run(t) -> void:
 static func henshin_costs(t) -> void:
  var ui=t.ui
  for free in [false,true]:
-  var cost=4 if free else 2
+  var cost=4 if free else 3
   ui.restart(42);await t.frames();ui.game._discard_end();ui.game.state.energy=cost
   var card=Cards.give(ui.game,"henshin")
   ui.render();await t.frames()
   if ui.card_faces.get(card.uid,false)!=free: await t.flip(card.uid)
-  t.check(ui.card_buttons[card.uid].get_node("CardCost").text==str(cost),"HENSHIN UI bound shows two and free shows four energy")
+  t.check(ui.card_buttons[card.uid].get_node("CardCost").text==str(cost),"HENSHIN UI bound shows three and free shows four energy")
   await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
   t.check(ui.game.state.energy==0 and ui.game.state.mana==60 and ui.game.state.exhaust.any(func(c):return c.uid==card.uid),"HENSHIN UI actual click pays selected face cost, forty mana and exhausts")
 
@@ -653,7 +654,7 @@ static func combat_extension(t) -> void:
  var card=Cards.give(ui.game,"henshin")
  ui.render();await t.frames()
  var text=ui.view.card_texts.henshin
- t.check(text.face_costs.bound=="2" and text.face_costs.free=="4","EXTENSION UI henshin shows two bound and four free energy")
+ t.check(text.face_costs.bound=="3" and text.face_costs.free=="4","EXTENSION UI henshin shows three bound and four free energy")
  await t.flip(card.uid)
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  t.check(ui.game.state.energy==0 and "henshin_free" in ui.game.state.card_buffs,"EXTENSION UI henshin native play pays displayed cost")
@@ -732,7 +733,7 @@ static func reuse(t) -> void:
  var card=Cards.give(ui.game,"reuse");ui.render();await t.frames()
  if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
  var face=ui.card_buttons[card.uid]
- t.check(face.rarity=="uncommon" and face.get_node("CardCost").text=="1" and t.visible_text(face).contains("80%") and t.visible_text(face).contains("唯一") and face.ILLUSTRATIONS.has("reuse"),"REUSE UI uncommon free face shows one energy, unique, temporary refund and artwork")
+ t.check(face.rarity=="uncommon" and face.get_node("CardCost").text=="1" and t.visible_text(face).contains("不返还魔力") and t.visible_text(face).contains("魔路精通") and t.visible_text(face).contains("唯一") and face.ILLUSTRATIONS.has("reuse"),"REUSE UI uncommon free face shows one energy, unique, temporary conversion and artwork")
  await t.flip(card.uid)
  face=ui.card_buttons[card.uid]
  var blocked=ui.actions.find("card",{"uid":card.uid,"free":false})
@@ -740,8 +741,31 @@ static func reuse(t) -> void:
  var wrist=ui.game.add_fixture("wrist",8);ui.game.add_fixture("ankle",8);ui.render();await t.frames()
  t.check(ui.actions.find("card",{"uid":card.uid,"free":false}).valid,"REUSE UI condition changes enable the original card")
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
- t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("80%")),"REUSE UI actual play creates the eighty percent refund power status")
+ t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("100%") and row.value.contains("剩余2次")),"REUSE UI actual play creates the full refund and energy power status")
  ui.game.add_fixture("palm",8);ui.game.add_fixture("foot",8);ui.render();await t.frames()
- t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("100%")),"REUSE UI both level-three regions immediately display full refund")
+ t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("不限次数")),"REUSE UI both level-three regions immediately display full refund")
  ui.game._equipment(wrist.id).durability=0;ui.game._cleanup();ui.render();await t.frames()
  t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("未生效") and row.value.contains("上身")),"REUSE UI status explicitly reports the lost ongoing requirement")
+
+
+static func self_binding(t) -> void:
+ var ui=t.ui
+ ui.game=preload("res://tests/self_binding_cases.gd").setup(1)
+ var card=Cards.give(ui.game,"self_binding")
+ ui.render();await t.frames()
+ if not ui.card_buttons[card.uid].free_face: await t.flip(card.uid)
+ var face=ui.card_buttons[card.uid]
+ t.check(face.get_node("CardCost").text=="X" and face.rarity=="uncommon" and face.ILLUSTRATIONS.has("self_binding"),"SELF BIND UI shows X cost, uncommon rarity and its existing illustration")
+ t.check(t.visible_text(face).contains("每件品质＋紧度＝2X") and t.visible_text(face).contains("15X") and t.visible_text(face).contains("空间不足"),"SELF BIND UI keeps complete formula and failure conditions")
+ await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+ t.check(ui.game.state.equipment.size()==2 and ui.game.state.energy==0 and ui.game.state.mana==15 and not ui.card_buttons.has(card.uid),"SELF BIND UI click actually installs two restraints and pays the X cost")
+ ui.game=preload("res://tests/self_binding_cases.gd").setup(2)
+ card=Cards.give(ui.game,"self_binding");ui.game.add_fixture("ankle",4)
+ ui.render();await t.frames()
+ if ui.card_buttons[card.uid].free_face: await t.flip(card.uid)
+ var before=ui.game.export_snapshot()
+ var c=ui.actions.find("card",{"uid":card.uid,"free":false})
+ t.check(not c.valid and c.reason.contains("需要收紧4档") and c.reason.contains("只能收紧2档"),"SELF BIND UI explains the exact shortfall on the bound face")
+ await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+ t.check(ui.game.export_snapshot()==before and ui.card_buttons.has(card.uid),"SELF BIND UI unavailable click changes neither equipment nor mana nor card zone")
+ ui.restart(42);await t.frames()

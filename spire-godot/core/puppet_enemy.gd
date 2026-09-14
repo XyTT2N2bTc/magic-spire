@@ -14,6 +14,7 @@ static func plan(e: Dictionary) -> Dictionary:
 static func summon(g, master: Dictionary) -> void:
  if not owned(g,master).is_empty(): return
  var doll=g._append_enemies([{"type":"puppet","grade":2}])[0]
+ doll.puppet_security_bonus=g.Prison.health_bonus(g,g.state)
  doll.puppet_owner=master.id;doll.puppet_awakened=false;doll.puppet_prepared={};doll.puppet_mends=0
  doll.acted_round=g.state.round;doll.intent=g._plan(doll)
  g._emit("event",master.name+"带着一个%s点生命的玩偶登场。" % g.number(doll.hp),{"summoned":{"enemy":doll.id,"owner":master.id}})
@@ -110,7 +111,9 @@ static func validate(g, enemies: Array, health_scale: float=1.0) -> String:
   var masters=enemies.filter(func(e):return e.id==doll.puppet_owner and g.Enemies.TYPES[e.type].behavior=="puppeteer")
   if masters.size()!=1 or doll.puppet_owner in owners: return "玩偶的操纵者或召唤数量不正确。"
   owners.append(doll.puppet_owner)
-  if doll.puppet_mends<0 or doll.max_hp!=10*health_scale+5*doll.puppet_mends: return "玩偶的缝补生命上限不正确。"
+  var bonus=doll.get("puppet_security_bonus",0.0)
+  if not (bonus is float or bonus is int) or not is_finite(float(bonus)) or bonus<0 or bonus>120: return "玩偶的安全等级生命加成不正确。"
+  if doll.puppet_mends<0 or doll.max_hp!=10*health_scale+bonus+5*doll.puppet_mends: return "玩偶的缝补生命上限不正确。"
   if not doll.gone and (masters[0].gone or doll.hp<1): return "玩偶的保护或操纵者状态不正确。"
   if doll.gone and (doll.puppet_awakened or not doll.puppet_prepared.is_empty()): return "离场玩偶不能保留生效装束。"
   for pool in doll.puppet_prepared:

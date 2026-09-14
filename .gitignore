@@ -5,3 +5,8 @@
 !/ASSET_RIGHTS.md
 !/版本更新内容.txt
 !/spire-godot/
+!/AGENTS.md
+!/.github/
+!/docs/
+!/tools/
+**/__pycache__/

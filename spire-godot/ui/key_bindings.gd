@@ -4,7 +4,7 @@ const ACTIONS={
  "card_1":["手牌1",KEY_1],"card_2":["手牌2",KEY_2],"card_3":["手牌3",KEY_3],"card_4":["手牌4",KEY_4],"card_5":["手牌5",KEY_5],
  "card_6":["手牌6",KEY_6],"card_7":["手牌7",KEY_7],"card_8":["手牌8",KEY_8],"card_9":["手牌9",KEY_9],"card_10":["手牌10",KEY_0],
  "flip":["翻面／切换",KEY_R],"confirm":["使用／确认目标",KEY_SPACE,KEY_ENTER],"next":["下一个目标",KEY_TAB],"previous":["上一个目标",KEY_TAB|KEY_MASK_SHIFT],
- "end":["结束回合",KEY_E],"strike":["肘击",KEY_Z],"heavy":["近身短打",KEY_X],"kick":["腿部动作",KEY_V],"fireball":["火球术",KEY_F],
+ "end":["结束回合",KEY_E],"strike":["肘击",KEY_Z],"heavy":["近身短打",KEY_V],"kick":["腿部动作",KEY_X],"fireball":["火球术",KEY_F],
  "draw":["抽牌堆",KEY_A],"discard":["弃牌堆",KEY_D],"deck":["完整卡组",KEY_C],"powers":["能力区",KEY_P],"items":["道具",KEY_I],
  "body":["身体与拘束具",KEY_B],"status":["角色状态",KEY_S],"map":["地图",KEY_M],"log":["行动日志",KEY_L]}
 var bindings={}
@@ -36,6 +36,8 @@ func initialize(enabled: bool) -> void:
    used.append(key)
  bindings=saved.duplicate(true)
  hold_end=config.get_value("keyboard","hold_end",false)==true
+ if bindings.heavy==[KEY_X] and bindings.kick==[KEY_V]:
+  bindings.heavy=[KEY_V];bindings.kick=[KEY_X];save()
 
 func assign(id: String, slot: int, key: int) -> bool:
  error=""
