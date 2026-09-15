@@ -19,6 +19,7 @@ static func _builders() -> Dictionary:
  if _table.is_empty():
   _table["card.face"]=func(g,args): return Cards.text_entry(g,String(args.get("type","")),String(args.get("uid","")))
   _table["card.catalog"]=func(g,args): return Catalog.card(String(args.get("type","")))
+  _table["card.target"]=Callable(Cards,"target_detail")
   _table["mana_flask.deposit"]=Callable(ManaFlask,"deposit_detail")
   _table["mana_flask.withdraw"]=Callable(ManaFlask,"withdraw_detail")
   _table["demo_exit.end"]=Callable(DemoExit,"end_detail")

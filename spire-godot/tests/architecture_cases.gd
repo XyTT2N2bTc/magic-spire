@@ -573,7 +573,7 @@ static func copy_single_entry_matches_projection(t) -> void:
 static func copy_route_bytes_unchanged(t) -> void:
  var router=preload("res://core/copy_router.gd")
  var catalog=preload("res://data/encyclopedia.gd")
- t.check(router.categories()==["card.catalog","card.face","demo_exit.continue","demo_exit.end","mana_flask.deposit","mana_flask.withdraw"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
+ t.check(router.categories()==["card.catalog","card.face","card.target","demo_exit.continue","demo_exit.end","mana_flask.deposit","mana_flask.withdraw"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
  for phase in ["battle","departure"]:
   for count in [0,12,26]:
    var key="%s:%d" % [phase,count]
@@ -659,6 +659,16 @@ static func copy_migrated_kinds(t,router) -> void:
   two_face_seen.service+=1
   if candidate.detail!=router.two_face(shop_game,String(offer.type)): two_face_mismatch.append("service "+candidate.id)
  t.check(two_face_seen.reward>0 and two_face_seen.event>0 and two_face_seen.service>0 and two_face_mismatch.is_empty(),"COPY R2 reward, event and shop card texts use the shared two-face fragment: "+JSON.stringify(two_face_seen)+" "+str(two_face_mismatch.slice(0,3)))
+ # R3a: card 目标候选经路由的渲染加上共用组装，必须逐字节等于包装产出的值。
+ var target_game=copy_baseline_fixture("battle",12)
+ var target_mismatch=[];var target_seen=0
+ for candidate in target_game.candidates():
+  if candidate.payload.get("kind","")!="card": continue
+  target_seen+=1
+  var base=router.text(target_game,{"kind":"card.target","args":{"payload":candidate.payload},"fallback":sentinel})
+  var assembled=target_game._candidate_detail(base,candidate.payload,target_game.Cards.magic_card_traction(target_game,candidate.payload),candidate.mana_payment)
+  if assembled!=candidate.detail: target_mismatch.append(candidate.id)
+ t.check(target_seen>0 and target_mismatch.is_empty() and target_game.copy_router_failures.is_empty(),"COPY R3a card.target renders like the wrapper for every card candidate: "+str(target_seen)+" "+str(target_mismatch.slice(0,3)))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.candidates():
