@@ -104,10 +104,11 @@ static func copy_missing_key_never_crashes(t) -> void:
  for candidate in detail_copy.candidates:
   if candidate.payload.get("kind","")=="card": candidate.erase("detail");removed+=1
  t.check(removed>0,"COPY fixture removes detail from the card candidate group")
- ui.card_faces[card.uid]=true
- ui.render(detail_copy);await t.frames()
- var without_detail=await copy_drag_text(t,card.uid,"thigh")
- t.check(without_detail!=baseline[true] and not without_detail.hints.contains(free_detail),"COPY removed candidate detail changes the rendered section instead of being hidden")
+ for free_face in [false,true]:
+  ui.card_faces[card.uid]=free_face
+  ui.render(detail_copy);await t.frames()
+  var recomputed=await copy_drag_text(t,card.uid,"thigh")
+  t.check(recomputed==baseline[free_face],"COPY removed candidate detail is recomputed byte-identically for face "+str(free_face))
  t.check(ui.projection_misses.any(func(entry):return entry.point=="detail_of"),"COPY removed candidate detail is recorded instead of silently blank: "+str(ui.projection_misses))
  t.check(ui.projection_misses.all(func(entry):return entry.view_version==ui.view.version),"COPY miss records name the render they belong to")
  t.check(ui.game.export_snapshot()==before,"COPY missing-key rendering never changes state or random cursors")

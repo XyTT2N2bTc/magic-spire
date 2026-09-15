@@ -872,11 +872,11 @@ func card_face_name(type: String, uid: String, free: bool) -> String:
  _record_projection_miss("card_face_name",type+"#"+side)
  return ""
 
-# 候选详情的唯一取用点（docs/ondemand-copy.md §3）：命中即用，缺失时记录并按 §2 只读入口补算。
+# 候选详情的唯一取用点（docs/ondemand-copy.md §3）：命中即用，缺失时经 §2 只读入口按 payload 补算并记录。
 func detail_of(candidate: Dictionary) -> String:
  if candidate.has("detail"): return candidate.detail
  _record_projection_miss("detail_of",String(candidate.get("id","")))
- return ""
+ return game.candidate_detail(candidate)
 
 func _record_projection_miss(point: String, key: String) -> void:
  var version=int(view.get("version",-1))

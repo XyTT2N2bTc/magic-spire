@@ -4,6 +4,9 @@ var _card_feedback: Array=[]
 var _equipment_read: Dictionary={}
 # Build-time self check records (§6): one entry per voided read batch, on this instance only.
 var _equipment_index_issues: Array=[]
+# 文案路由失败记录（docs/ondemand-copy.md §11.2）：未知 kind／无效 builder／结果类型不符时追加一条。
+# 只读诊断：不进 state、不进 View、不进存档、不渲染、不做成计数器。
+var copy_router_failures: Array=[]
 
 # A read batch owns its indexes; commands and subsequent views never reuse them.
 # Speculative installation replaces state, so it must use live queries instead.
@@ -182,6 +185,7 @@ const EquipmentOffers=preload("res://core/equipment_offers.gd")
 const Services=preload("res://core/room_services.gd")
 const Events=preload("res://core/room_events.gd")
 const Cards=preload("res://core/card_effects.gd")
+const CopyRouter=preload("res://core/copy_router.gd")
 const Character=preload("res://core/witch_character.gd")
 const RelicEffects=preload("res://core/relic_effects.gd")
 const Relics=preload("res://data/relics.gd")
@@ -1682,19 +1686,19 @@ func _mana_payment(payload: Dictionary, mana: float) -> Dictionary:
  var temporary=minf(state.temporary_mana,mana) if eligible else 0.0
  return {"mana":mana-temporary,"temporary_mana":temporary,"flask_mana":0.0}
 
-func _candidate(out: Array, payload: Dictionary, label: String, detail: String, cost: int = 0, mana: float = 0.0, reason: String = "", risk: String = "", group: String = "action") -> void:
+func _candidate(out: Array, payload: Dictionary, label: String, copy, cost: int = 0, mana: float = 0.0, reason: String = "", risk: String = "", group: String = "action") -> void:
+ var detail=CopyRouter.text(self,copy)
  if payload.kind=="end" and Character.Expansion.end_reason(self)!="": reason=Character.Expansion.end_reason(self)
  var lock_target=_equipment(payload.get("target",""))
  if Equipment.lock_only(lock_target):
   var unlock=payload.get("mode","")=="unlock" or (payload.kind=="item_use" and Tools.operation(_item(payload.item).get("type",""))=="unlock")
-  if payload.kind!="manual" and not unlock: reason=Equipment.LOCK_ONLY_REASON;detail=reason
+  if payload.kind!="manual" and not unlock: reason=Equipment.LOCK_ONLY_REASON
  if cursed_plate(lock_target): reason=SpecialEquipment.CURSED_PLATE_REASON
  if cursed_eyes(lock_target) or cursed_eyes({"slot":payload.get("slot","")}): reason="诅咒眼罩封闭了眼部装备操作。"
  var uses_magic=(payload.kind in ["card","prison"] and payload.has("uid") and Cards.uses_magic(payload)) or (payload.kind=="attack" and Cards.Rules.FIXED_MAGIC.has(payload.type))
  if reason=="" and uses_magic and cast_view(Cards.cast_profile(self,payload.type,mana>0)).chance<=0.0: reason="当前施法成功率为0%。"
  var pressure_risk=Pressure.action_risk(self,payload)
  var extra_traction=Cards.magic_card_traction(self,payload)
- if extra_traction>0: detail+="\n熟练而已：无论成败，额外牵扯%d次（每次按1能量，不扣能量）。" % extra_traction
  if cost>0 or extra_traction>0:
   var toe_gain=RelicEffects.toe_traction(self).gain*(int(cost>0)+extra_traction)
   if toe_gain>0: pressure_risk+=("\n" if pressure_risk!="" else "")+"秘密武器：脚趾牵扯增加%s快感值。" % number(toe_gain)
@@ -1708,9 +1712,38 @@ func _candidate(out: Array, payload: Dictionary, label: String, detail: String, 
  var flask=payload.get("payment","")=="flask"
  var balance=state.flask_mana if flask else state.mana
  var required=payment.flask_mana if flask else payment.mana
- if payment.temporary_mana>0: detail+="\n临时魔力抵扣%s点，自身魔力支付%s点。" % [number(payment.temporary_mana),number(payment.mana)]
  if reason == "" and balance < required: reason = "需要%s%s，当前只有%s。" % [number(required),"魔瓶魔力" if flask else "魔力",number(balance)]
- out.append({"id":JSON.stringify(payload).sha256_text().substr(0,24),"payload":payload,"label":label,"detail":detail,"cost":cost,"mana":mana,"mana_payment":payment,"valid":reason=="","reason":reason,"risk":risk,"group":group})
+ var detail_text=_candidate_detail(detail,payload,extra_traction,payment)
+ out.append({"id":JSON.stringify(payload).sha256_text().substr(0,24),"payload":payload,"label":label,"detail":detail_text,"cost":cost,"mana":mana,"mana_payment":payment,"valid":reason=="","reason":reason,"risk":risk,"group":group})
+
+# 候选 detail 的唯一组装点（docs/ondemand-copy.md §1.5／§11.2）：eager 路径与候选只读入口共用，
+# 追加顺序与原实现一致（锁定项圈改写 → 熟练牵扯 → 临时魔力抵扣）。
+func _candidate_detail(base: String, payload: Dictionary, extra_traction: int, payment: Dictionary) -> String:
+ var detail=base
+ var lock_target=_equipment(payload.get("target",""))
+ if Equipment.lock_only(lock_target):
+  var unlock=payload.get("mode","")=="unlock" or (payload.kind=="item_use" and Tools.operation(_item(payload.item).get("type",""))=="unlock")
+  if payload.kind!="manual" and not unlock: detail=Equipment.LOCK_ONLY_REASON
+ if extra_traction>0: detail+="\n熟练而已：无论成败，额外牵扯%d次（每次按1能量，不扣能量）。" % extra_traction
+ if payment.temporary_mana>0: detail+="\n临时魔力抵扣%s点，自身魔力支付%s点。" % [number(payment.temporary_mana),number(payment.mana)]
+ return detail
+
+# card 目标候选的基础文案（core/card_effects.gd 的 target_candidate／candidates 原表达式），
+# 供候选只读入口在 detail 缺失时按 payload 现算；其余组始终保持预生成 detail。
+func _candidate_base_detail(payload: Dictionary) -> String:
+ var text=Cards.detail(self,payload)
+ if payload.get("hand_uid","")!="" and not payload.get("self_target",false):
+  var chosen=_card(payload.hand_uid)
+  if not chosen.is_empty(): text+="\n本次消耗「%s」。" % B.CARD_NAMES[chosen.type]
+ return text
+
+# 候选 detail 的只读入口（docs/ondemand-copy.md §1.5／§2）：当前 View 的候选逐字节等于投影值。
+# 陈旧候选允许按当前 state 重算（§2）；不写 state、不推进随机、不改 version、不产生日志与事件。
+func candidate_detail(candidate: Dictionary) -> String:
+ if candidate.has("detail"): return String(candidate.detail)
+ var payload=candidate.get("payload",{})
+ if payload.get("kind","")!="card": return ""
+ return _candidate_detail(_candidate_base_detail(payload),payload,Cards.magic_card_traction(self,payload),_mana_payment(payload,float(candidate.get("mana",0.0))))
 
 func candidates() -> Array:
  var previous=_begin_equipment_read()

@@ -80,6 +80,8 @@ static func run(t) -> void:
  index_entry_parity(t)
  index_self_check_falls_back(t)
  copy_projection_masked_baseline(t)
+ copy_single_entry_matches_projection(t)
+ copy_route_bytes_unchanged(t)
  var images=preload("res://data/equipment_images.gd")
  var missing=[]
  for family in images.MATERIALS:
@@ -532,3 +534,86 @@ static func copy_projection_masked_baseline(t) -> void:
    t.check(removed.card_texts==declared.card_texts and removed.card_instances==declared.card_instances and removed.candidate_detail==declared.candidate_detail,"COPY mask removes exactly the declared display subset "+key)
    t.check(JSON.stringify(view).sha256_text()==COPY_BASELINE[key][1] and JSON.stringify(candidates).sha256_text()==COPY_BASELINE[key][0],"COPY masked projection equals the frozen §8.2 baseline "+key)
  print("COPY BASELINE: six fixtures match the §8.2 hashes with an empty mask declaration")
+
+# §5.2 card half while the set is not narrowed yet: every registered type is still projected, the
+# single entry equals that projection field by field, the hand instance rows answer the same way and
+# each call hands back an isolated container without touching state or the turn version.
+static func copy_single_entry_matches_projection(t) -> void:
+ var g=copy_baseline_fixture("battle",12)
+ preload("res://tests/curse_cases.gd").give(g,"hannya_1")
+ var before=g.state.duplicate(true)
+ var view=g.get_view()
+ var mismatched=[]
+ for type in g.Cards.Rules.SPECS:
+  if view.card_texts.has(type) and g.live_card_text(type)!=view.card_texts[type]: mismatched.append(type)
+ t.check(mismatched.is_empty() and view.card_texts.size()==g.Cards.Rules.SPECS.size(),"COPY single entry equals the projected card text for every registered type: "+str(mismatched.slice(0,5)))
+ var instances=[];var extra={}
+ for card in g.state.hand:
+  if not view.card_instances.has(card.uid): continue
+  var entry=g.live_card_text(card.type,card.uid)
+  var stored=view.card_instances[card.uid]
+  for key in stored:
+   if not entry.has(key) or entry[key]!=stored[key]: instances.append(card.uid+"#"+str(key))
+  var added=entry.keys().filter(func(key):return not stored.has(key))
+  added.sort()
+  extra[card.uid]=added
+  # The projected instance row carries the two-step pair; the single entry is the four-step entry
+  # (§1.1), so its only additions may be the face costs and, for casting cards, the cast block.
+  if not ("face_costs" in added) or not added.all(func(key):return key in ["casting","face_costs"]): instances.append(card.uid+"#extra"+str(added))
+ t.check(instances.is_empty() and not view.card_instances.is_empty(),"COPY single entry keeps every projected instance field and adds only the face costs and casting of its own four-step entry: "+str(instances.slice(0,3))+" "+str(extra))
+ var fresh=g.live_card_text("strain")
+ fresh.face_effects.bound="changed"
+ t.check(g.live_card_text("strain").face_effects.bound!="changed","COPY single entry returns a fresh container on every call")
+ t.check(g.state==before and g.state.version==view.version,"COPY single entry leaves state, random domains and turn version unchanged")
+
+# §6 scenario 7 in its R0 form and §11.5 R0: no producer is migrated in this batch, so the direct
+# string channel must return every producer string byte for byte, the candidate entry must equal the
+# projected detail, the registered kinds must render exactly like their own builders, and the router
+# must record nothing until something really is unknown.
+static func copy_route_bytes_unchanged(t) -> void:
+ var router=preload("res://core/copy_router.gd")
+ var catalog=preload("res://data/encyclopedia.gd")
+ t.check(router.categories()==["card.catalog","card.face"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
+ for phase in ["battle","departure"]:
+  for count in [0,12,26]:
+   var key="%s:%d" % [phase,count]
+   var g=copy_baseline_fixture(phase,count)
+   var before=g.state.duplicate(true)
+   var candidates=g.candidates()
+   var direct=[];var projected=[]
+   for candidate in candidates:
+    if router.text(g,candidate.detail)!=candidate.detail: direct.append(candidate.payload.get("kind","")+"#"+candidate.id)
+    if g.candidate_detail(candidate)!=candidate.detail: projected.append(candidate.payload.get("kind","")+"#"+candidate.id)
+   t.check(direct.is_empty(),"COPY direct string channel returns the producer text unchanged "+key+": "+str(direct.slice(0,3)))
+   t.check(projected.is_empty(),"COPY candidate_detail returns the projected detail for every candidate "+key+": "+str(projected.slice(0,3)))
+   t.check(g.copy_router_failures.is_empty() and g.state==before,"COPY routing records no failure and changes no state "+key)
+ var sample=copy_baseline_fixture("battle",12)
+ var reference=sample.candidates()
+ var stripped=reference.duplicate(true)
+ var card_group=0
+ for candidate in stripped:
+  if candidate.payload.get("kind","")=="card":
+   candidate.erase("detail");card_group+=1
+ var recomputed=[]
+ for i in range(stripped.size()):
+  if reference[i].payload.get("kind","")!="card": continue
+  if sample.candidate_detail(stripped[i])!=reference[i].detail: recomputed.append(reference[i].id)
+ t.check(card_group>0 and recomputed.is_empty(),"COPY card candidates recomputed from their payload equal the projected detail: "+str(recomputed.slice(0,3)))
+ var g2=copy_baseline_fixture("battle",12)
+ var g2_before=g2.state.duplicate(true)
+ var kind_mismatch=[];var fragment_mismatch=[]
+ for type in g2.Cards.Rules.SPECS:
+  var args={"type":type}
+  if router.entry(g2,{"kind":"card.face","args":args,"fallback":{}})!=g2.Cards.text_entry(g2,type): kind_mismatch.append("card.face "+type)
+  if router.entry(g2,{"kind":"card.catalog","args":args,"fallback":{}})!=catalog.card(type): kind_mismatch.append("card.catalog "+type)
+  if router.two_face(g2,type)!=g2.Cards.face_text(g2,type,false)+"\n"+g2.Cards.face_text(g2,type,true): fragment_mismatch.append(type)
+ t.check(kind_mismatch.is_empty(),"COPY ROUTER registered kinds render exactly like their own builders: "+str(kind_mismatch.slice(0,3)))
+ t.check(fragment_mismatch.is_empty(),"COPY ROUTER two_face fragment equals the producer expression: "+str(fragment_mismatch.slice(0,3)))
+ var failures=g2.copy_router_failures.size()
+ var fallback=router.text(g2,{"kind":"missing.kind","args":{},"fallback":"保留原文案"})
+ t.check(fallback=="保留原文案" and g2.copy_router_failures.size()==failures+1 and g2.copy_router_failures[-1].kind=="missing.kind","COPY ROUTER unknown kind returns its fallback and records it")
+ var blank=router.text(g2,{"kind":"missing.kind","args":{}})
+ t.check(blank=="" and g2.copy_router_failures.size()==failures+2,"COPY ROUTER unknown kind without a fallback returns an empty string and still records it")
+ var refused=router.text(g2,{"kind":"card.face","args":{"type":"strain"},"fallback":"回退"})
+ t.check(refused=="回退" and g2.copy_router_failures.size()==failures+3 and g2.copy_router_failures[-1].stage=="result","COPY ROUTER refuses a dictionary result on the string entry and records it")
+ t.check(router.failures(g2).size()==failures+3 and g2.state==g2_before,"COPY ROUTER diagnostics stay on the instance and never touch state")
