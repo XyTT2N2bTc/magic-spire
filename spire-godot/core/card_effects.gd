@@ -612,7 +612,8 @@ static func reason(g, p: Dictionary) -> String:
 static func detail(g, p: Dictionary) -> String:
  if p.get("self_target",false):
   if Rules.SPECS[p.type].has("hannya_stage"): return Hannya.detail(g,Rules.SPECS[p.type].hannya_stage,p.free)+Rules.SPECS[p.type].get("play_music_text","")
-  var text=face_text(g,p.type,p.free)
+  var face_args={"type":p.type,"free":p.free,"uid":""}
+  var text=g.CopyRouter.text(g,{"kind":"card.face_text","args":face_args,"fallback":face_text_detail(g,face_args)})
   if Rules.SPECS[p.type].has("self_binding"): text+="\n"+SelfBinding.detail(g,p)
   if p.get("hand_uid","")!="":
    var chosen=g._card(p.hand_uid)
@@ -673,6 +674,10 @@ static func target_candidate(g, out: Array, p: Dictionary, label: String, cost: 
   g._candidate(out,choice,label,{"kind":"card.target","args":args,"fallback":target_detail(g,args)},cost,mana,reason(g,choice),risk,"card")
 
 # R3（docs/ondemand-copy.md §11.5）：转发包装的文案参数改走路由，签名与产出保持不变。
+# R6（docs/ondemand-copy.md §11.5）：单面卡面正文的 builder，正文留在本模块。
+static func face_text_detail(g, args: Dictionary) -> String:
+ return face_text(g,String(args.get("type","")),bool(args.get("free",false)),String(args.get("uid","")))
+
 static func target_detail(g, args: Dictionary) -> String:
  var payload=args.get("payload",{})
  var text=detail(g,payload)

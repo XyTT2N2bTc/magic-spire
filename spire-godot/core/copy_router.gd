@@ -21,6 +21,7 @@ const Consumables=preload("res://core/consumables.gd")
 const WitchCharacter=preload("res://core/witch_character.gd")
 # game.gd 反向引用本模块（_candidate 走路由），循环 preload 只在函数体内使用，引擎允许。
 const Game=preload("res://core/game.gd")
+const WitchExpansion=preload("res://core/witch_expansion.gd")
 
 static var _table: Dictionary={}
 
@@ -31,6 +32,7 @@ static func _builders() -> Dictionary:
   _table["card.catalog"]=func(g,args): return Catalog.card(String(args.get("type","")))
   _table["card.target"]=Callable(Cards,"target_detail")
   _table["card.two_face"]=func(g,args): return two_face(g,String(args.get("type","")))
+  _table["card.face_text"]=Callable(Cards,"face_text_detail")
   _table["mana_flask.deposit"]=Callable(ManaFlask,"deposit_detail")
   _table["mana_flask.withdraw"]=Callable(ManaFlask,"withdraw_detail")
   _table["demo_exit.end"]=Callable(DemoExit,"end_detail")
@@ -60,6 +62,7 @@ static func _builders() -> Dictionary:
   _table["service.leave"]=Callable(RoomServices,"leave_detail")
   _table["consumables.description"]=Callable(Consumables,"description_detail")
   _table["witch.attack"]=Callable(WitchCharacter,"attack_detail")
+  _table["witch.card_log"]=Callable(WitchExpansion,"card_log_detail")
   _table["game.surrender"]=Callable(Game,"copy_surrender")
   _table["game.item_discard"]=Callable(Game,"copy_item_discard")
   _table["game.status_toggle"]=Callable(Game,"copy_status_toggle")

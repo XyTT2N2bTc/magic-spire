@@ -573,7 +573,7 @@ static func copy_single_entry_matches_projection(t) -> void:
 static func copy_route_bytes_unchanged(t) -> void:
  var router=preload("res://core/copy_router.gd")
  var catalog=preload("res://data/encyclopedia.gd")
- t.check(router.categories()==["card.catalog","card.face","card.target","card.two_face","consumables.description","demo_exit.continue","demo_exit.end","departure.description","departure.finish","departure.skip","event.choice","event.prepare","event.reward_skip","game.attack","game.attack_release","game.calm","game.depart","game.end_climax","game.end_turn","game.finish_pack","game.finish_prepare","game.finish_rest","game.hook","game.item_cut","game.item_discard","game.item_door_lock","game.item_escape","game.item_install","game.item_retrieve","game.item_unlock","game.manual_collar","game.manual_release","game.manual_retrieve","game.posture","game.posture_wall","game.rest_begin","game.rest_card","game.rest_flask","game.rest_rare","game.retain","game.retain_skip","game.reward_flask","game.reward_item","game.reward_item_skip","game.reward_other","game.reward_relic","game.reward_skip","game.reward_skip_category","game.status_toggle","game.surrender","game.travel_step","game.wall_move","mana_flask.deposit","mana_flask.withdraw","prison.door_exit","prison.enter","prison.inspection","prison.key","prison.resist","prison.unlock_door","prison.vent_exit","prison.vent_kick","prison_space.explore_blind","prison_space.explore_site","relic_bundle.claim","relic_bundle.finish","relic_bundle.skip","service.leave","service.offer","service.release_job","service.remove_card","witch.attack"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
+ t.check(router.categories()==["card.catalog","card.face","card.face_text","card.target","card.two_face","consumables.description","demo_exit.continue","demo_exit.end","departure.description","departure.finish","departure.skip","event.choice","event.prepare","event.reward_skip","game.attack","game.attack_release","game.calm","game.depart","game.end_climax","game.end_turn","game.finish_pack","game.finish_prepare","game.finish_rest","game.hook","game.item_cut","game.item_discard","game.item_door_lock","game.item_escape","game.item_install","game.item_retrieve","game.item_unlock","game.manual_collar","game.manual_release","game.manual_retrieve","game.posture","game.posture_wall","game.rest_begin","game.rest_card","game.rest_flask","game.rest_rare","game.retain","game.retain_skip","game.reward_flask","game.reward_item","game.reward_item_skip","game.reward_other","game.reward_relic","game.reward_skip","game.reward_skip_category","game.status_toggle","game.surrender","game.travel_step","game.wall_move","mana_flask.deposit","mana_flask.withdraw","prison.door_exit","prison.enter","prison.inspection","prison.key","prison.resist","prison.unlock_door","prison.vent_exit","prison.vent_kick","prison_space.explore_blind","prison_space.explore_site","relic_bundle.claim","relic_bundle.finish","relic_bundle.skip","service.leave","service.offer","service.release_job","service.remove_card","witch.attack","witch.card_log"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
  for phase in ["battle","departure"]:
   for count in [0,12,26]:
    var key="%s:%d" % [phase,count]
@@ -712,6 +712,7 @@ static func copy_migrated_kinds(t,router) -> void:
  if explore_candidate.is_empty() or router.text(explore_game,{"kind":"prison_space.explore_site","args":explore_args,"fallback":sentinel})!=explore_candidate.get("detail",""): prison_mismatch.append("prison_space.explore_site/room")
  t.check(prison_seen==9 and prison_mismatch.is_empty(),"COPY R3c all nine Prison.add sites render like their candidates: "+str(prison_mismatch.slice(0,3)))
  copy_r4_sites(t,router,sentinel)
+ copy_r6_sites(t,router,sentinel)
 
 # §11.5 R4: the direct call sites of the remaining modules render through the router as well.
 static func copy_r4_sites(t,router,sentinel: String) -> void:
@@ -777,6 +778,32 @@ static func copy_r4_sites(t,router,sentinel: String) -> void:
  r4_seen+=1
  if door_candidate.is_empty() or router.text(door_game,{"kind":"prison.unlock_door","args":{"type":String(door_candidate.payload.get("type",""))},"fallback":sentinel})!=door_candidate.get("detail",""): r4_mismatch.append("prison.unlock_door")
  t.check(r4_seen==13 and r4_mismatch.is_empty(),"COPY R4 the remaining direct call sites render like their candidates: "+str(r4_mismatch.slice(0,4)))
+
+# §11.5 R6: the two producers outside the View route their text through the router as well.
+static func copy_r6_sites(t,router,sentinel: String) -> void:
+ var cards=copy_baseline_fixture("battle",0)
+ var face_mismatch=[];var face_seen=0
+ for type in cards.Cards.Rules.SPECS:
+  for side in [false,true]:
+   face_seen+=1
+   var args={"type":type,"free":side,"uid":""}
+   if router.text(cards,{"kind":"card.face_text","args":args,"fallback":sentinel})!=cards.Cards.face_text(cards,type,side): face_mismatch.append(type+"#"+str(side))
+ t.check(face_seen>0 and face_mismatch.is_empty(),"COPY R6 card.face_text renders like the module expression for every type and face: "+str(face_mismatch.slice(0,3)))
+ var witch=Game.new(42,false,"equipment",true,false,25,false,false,"witch")
+ preload("res://tests/curse_cases.gd").give(witch,"witch_patience")
+ for candidate in witch.candidates():
+  if String(candidate.payload.get("type",""))=="witch_patience" and candidate.valid:
+   witch.dispatch(candidate.id,witch.state.version)
+   break
+ var logged=""
+ for row in witch.state.logs:
+  if String(row.get("data",{}).get("witch_card",""))!="": logged=String(row.get("text",""))
+ var log_matched=false
+ for type in witch.Cards.Rules.SPECS:
+  for side in [false,true]:
+   var log_args={"type":type,"free":side}
+   if router.text(witch,{"kind":"witch.card_log","args":log_args,"fallback":sentinel})==logged and logged!="": log_matched=true
+ t.check(log_matched,"COPY R6 witch.card_log renders like the emitted card log: "+logged)
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.candidates():
