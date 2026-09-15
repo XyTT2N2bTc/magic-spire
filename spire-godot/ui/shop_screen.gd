@@ -153,7 +153,11 @@ static func services(ui, parent: VBoxContainer) -> void:
   for c in candidates:
    var entry=ui.view.deck_cards.filter(func(e):return e.uid==c.payload.uid)[0]
    var box=VBoxContainer.new();grid.add_child(box)
-   var face=ui._display_card(entry.type,box,func():ui._submit(c),"remove_"+entry.uid)
+   var live=ui.game.live_card_text_set([{"type":entry.type,"uid":entry.uid}])
+   var source={}
+   source.merge(live.texts.get(entry.type,{}),true)
+   source.merge(live.instances.get(entry.uid,{}),true)
+   var face=ui._display_card(entry.type,box,func():ui._submit(c),"remove_"+entry.uid,Vector2(226,290),entry.uid,true,source)
    face.disabled=not c.valid;ui.candidate_buttons[c.id]=face
    face.mouse_entered.connect(func():ui._shop_chatter(_chatter_pool(ui,c)))
    box.add_child(ui._label(ui.game.number(c.mana)+("魔瓶魔力" if ui.shop_payment=="flask" else "魔力"),16,ui.GOLD))

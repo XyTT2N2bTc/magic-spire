@@ -515,12 +515,12 @@ static func copy_masked_projection(view: Dictionary, candidates: Array, declared
    candidate.erase("detail");removed.candidate_detail.append(candidate.id)
  return removed
 
-# §5.1 B0 judgement and §5.4 mask protocol: while no display set is narrowed, the six masked
-# projections must still hash to the frozen §8.2 baseline, and the declared subset must equal the
-# keys the mask actually removes (printed so a later batch cannot hide a difference).
+# §5.4 mask protocol in its on-demand form: the declared display set is recomputed here from the
+# display entrances §1.2 lists (independent of View.build), and the narrowed projection must contain
+# exactly that set, in registry order, with unchanged entries. The byte-for-byte comparison against the
+# frozen baseline JSON stays in the build-directory oracle, which is the only place that has it.
 static func copy_projection_masked_baseline(t) -> void:
- var declared={"card_texts":[],"card_instances":[],"candidate_detail":[]}
- print("COPY MASK DECLARATION "+JSON.stringify(declared))
+ print("COPY MASK DECLARATION "+JSON.stringify({"card_texts":"S complement","card_instances":"non-hand uids","candidate_detail":"card group","view_keys":["deck_list"]}))
  for phase in ["battle","departure"]:
   for count in [0,12,26]:
    var key="%s:%d" % [phase,count]
@@ -529,11 +529,41 @@ static func copy_projection_masked_baseline(t) -> void:
    t.check(pieces==count and g.state.equipment.size()==count and g.state.links.is_empty() and g.state.composites.is_empty() and g.state.special_equipment.is_empty() and g.validate()=="","COPY §5.5 fixture sequence holds for "+key)
    var candidates=g.candidates()
    var view=g.get_view()
-   t.check(view.card_texts.size()==g.Cards.Rules.SPECS.size() and candidates.all(func(candidate):return candidate.has("detail")),"COPY this batch narrows neither the card set nor the candidate detail "+key)
-   var removed=copy_masked_projection(view,candidates,declared)
-   t.check(removed.card_texts==declared.card_texts and removed.card_instances==declared.card_instances and removed.candidate_detail==declared.candidate_detail,"COPY mask removes exactly the declared display subset "+key)
-   t.check(JSON.stringify(view).sha256_text()==COPY_BASELINE[key][1] and JSON.stringify(candidates).sha256_text()==COPY_BASELINE[key][0],"COPY masked projection equals the frozen §8.2 baseline "+key)
- print("COPY BASELINE: six fixtures match the §8.2 hashes with an empty mask declaration")
+   var shown=copy_display_set(g,candidates)
+   var missing=shown.keys().filter(func(type):return not view.card_texts.has(type))
+   var extra=view.card_texts.keys().filter(func(type):return not shown.has(type))
+   t.check(missing.is_empty() and extra.is_empty(),"COPY card_texts holds exactly the display set S "+key+": missing="+str(missing.slice(0,3))+" extra="+str(extra.slice(0,3)))
+   var registry=g.Cards.Rules.SPECS.keys()
+   var order=view.card_texts.keys()
+   var positions=order.map(func(type):return registry.find(type))
+   var sorted_positions=positions.duplicate()
+   sorted_positions.sort()
+   t.check(positions==sorted_positions and view.card_texts.size()<registry.size(),"COPY narrowed card_texts keeps registry key order without every type "+key)
+   var entry_mismatch=order.filter(func(type):return view.card_texts[type]!=g.live_card_text(type))
+   t.check(entry_mismatch.is_empty(),"COPY narrowed entries still equal the single read entry "+key+": "+str(entry_mismatch.slice(0,3)))
+   var hand_uids=g.state.hand.map(func(card):return card.uid)
+   var foreign=view.card_instances.keys().filter(func(uid):return not hand_uids.has(uid))
+   t.check(foreign.is_empty(),"COPY card_instances only carries hand uids "+key+": "+str(foreign.slice(0,3)))
+   t.check(not view.has("deck_list"),"COPY deck_list left the View "+key)
+
+# 独立重算 S（§1.2 的显示入口），供 mask 声明与 View 断言比对。
+static func copy_display_set(g, candidates: Array) -> Dictionary:
+ var shown={}
+ for card in g.state.hand: shown[card.type]=true
+ for type in g.state.reward_options: shown[type]=true
+ for type in g.state.rest_cards: shown[type]=true
+ for candidate in candidates:
+  var type=String(candidate.payload.get("type",""))
+  if g.Cards.Rules.SPECS.has(type): shown[type]=true
+ for row in g.Services.view(g).get("stock",[]):
+  if row.get("kind","")=="card": shown[String(row.get("type",""))]=true
+ for selection in g.Events.view(g).get("selections",[]):
+  if selection.get("kind","")!="card": continue
+  for option in selection.get("options",[]):
+   var selected=option.get("selected",{})
+   var type=String(selected.get("type",option.get("type","")))
+   if g.Cards.Rules.SPECS.has(type): shown[type]=true
+ return shown
 
 # §5.2 card half while the set is not narrowed yet: every registered type is still projected, the
 # single entry equals that projection field by field, the hand instance rows answer the same way and
@@ -546,7 +576,16 @@ static func copy_single_entry_matches_projection(t) -> void:
  var mismatched=[]
  for type in g.Cards.Rules.SPECS:
   if view.card_texts.has(type) and g.live_card_text(type)!=view.card_texts[type]: mismatched.append(type)
- t.check(mismatched.is_empty() and view.card_texts.size()==g.Cards.Rules.SPECS.size(),"COPY single entry equals the projected card text for every registered type: "+str(mismatched.slice(0,5)))
+ t.check(mismatched.is_empty() and not view.card_texts.is_empty(),"COPY single entry equals the projected card text for every displayed type: "+str(mismatched.slice(0,5)))
+ # §5.2 按需 == 全量：全部注册牌型在三个入口上逐字段相等；S 内的键必须在视图里，S 外的键不得出现。
+ var full_mismatch=[]
+ var shown=copy_display_set(g,g.candidates())
+ for type in g.Cards.Rules.SPECS:
+  var single=g.live_card_text(type)
+  if single!=g.live_card_text_set([{"type":type}]).texts.get(type,{}): full_mismatch.append("set "+type)
+  if view.card_texts.has(type)!=shown.has(type): full_mismatch.append("scope "+type)
+  elif shown.has(type) and view.card_texts[type]!=single: full_mismatch.append("value "+type)
+ t.check(full_mismatch.is_empty(),"COPY single entry, full entry and the projected entry agree for every registered type: "+str(full_mismatch.slice(0,5)))
  var instances=[];var extra={}
  for card in g.state.hand:
   if not view.card_instances.has(card.uid): continue

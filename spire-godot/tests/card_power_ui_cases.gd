@@ -653,7 +653,7 @@ static func combat_extension(t) -> void:
  ui.restart(42);ui.game.state.relics=[];ui.game._discard_end();ui.game.state.energy=4
  var card=Cards.give(ui.game,"henshin")
  ui.render();await t.frames()
- var text=ui.view.card_texts.henshin
+ var text=ui.game.live_card_text("henshin")
  t.check(text.face_costs.bound=="3" and text.face_costs.free=="4","EXTENSION UI henshin shows three bound and four free energy")
  await t.flip(card.uid)
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)

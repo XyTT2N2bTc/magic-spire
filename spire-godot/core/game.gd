@@ -1897,6 +1897,18 @@ func candidates() -> Array:
  _equipment_read=previous
  return result
 
+# 全量卡面文案的只读入口（docs/ondemand-copy.md §1.3）：输入 [{type,uid}]，逐项按 §1.1 现算，容器全部新建。
+func live_card_text_set(cards: Array) -> Dictionary:
+ var texts={}
+ var instances={}
+ for row in cards:
+  var type=String(row.get("type",""))
+  if not Cards.Rules.SPECS.has(type): continue
+  var uid=String(row.get("uid",""))
+  if not texts.has(type): texts[type]=Cards.text_entry(self,type)
+  if uid!="" and not instances.has(uid): instances[uid]=Cards.text_entry(self,type,uid)
+ return {"texts":texts,"instances":instances}
+
 # 单条卡面文案的只读入口（docs/ondemand-copy.md §1.4）：任意注册牌型现算一条，返回全新容器。
 # 不写 state、不推进随机、不改 version、不产生日志与事件（§2 共同语义）。
 func live_card_text(type: String, uid: String = "") -> Dictionary:

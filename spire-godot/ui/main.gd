@@ -945,8 +945,11 @@ func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0,
  return button
 
 # Catalog, shop and deck use the hand face with no gameplay drag or hover displacement.
-func _display_card(type: String, parent: Node, fn: Callable=Callable(), key: String="", dimensions: Vector2=Vector2(226,290), physical_uid: String="", live_state: bool=true) -> Button:
+func _display_card(type: String, parent: Node, fn: Callable=Callable(), key: String="", dimensions: Vector2=Vector2(226,290), physical_uid: String="", live_state: bool=true, source: Dictionary={}) -> Button:
  var data=preload("res://data/encyclopedia.gd").card(type)
+ # 全量入口的条目（docs/ondemand-copy.md §1.3）：非显示集合来源的卡面在这里合并，视图不再带它们的文案。
+ # 身份键在合并之后写入，避免被来源行的 uid／physical_uid 覆盖（卡面翻转共用同一个键）。
+ if not source.is_empty(): data.merge(source,true)
  data.uid="display_"+key+"_"+type
  data.physical_uid=physical_uid
  var button=_card(data,Rect2(Vector2.ZERO,dimensions),fn if fn.is_valid() else func():pass,0,parent,false,false,live_state)

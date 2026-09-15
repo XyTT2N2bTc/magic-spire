@@ -32,7 +32,7 @@ static func run(t) -> void:
   var card=t.hand_card(g,type)
   var before=g.export_snapshot();var shown=g.get_view()
   var printed=("挣扎" if type=="strain" else "滑脱")+"10"
-  t.check(shown.hand.any(func(row):return row.type==type and row.bound.contains(printed)) and shown.deck_list.any(func(row):return row.type==type and row.bound.contains(printed)),"DIPLOMA hand and deck projections share modified printed value: "+type)
+  t.check(shown.hand.any(func(row):return row.type==type and row.bound.contains(printed)) and g.live_card_text_set([{"type":type}]).texts[type].bound.contains(printed),"DIPLOMA hand and deck projections share modified printed value: "+type)
   t.check(g.state==before and g.Cards.Rules.SPECS==original,"DIPLOMA viewing never mutates state or shared card templates")
   var action=t.find_action(g,"card",{"uid":card.uid,"target":target.id,"free":false})
   var version=g.state.version;var durability=target.durability

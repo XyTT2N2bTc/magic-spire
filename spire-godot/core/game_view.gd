@@ -1,5 +1,24 @@
 extends RefCounted
 
+# B1（docs/ondemand-copy.md §1.2）：S 只按显示入口逐条取源、正向投影，不为收集新增规则查询。
+static func _card_display_set(g, actions: Array, shop: Dictionary, room_event: Dictionary) -> Dictionary:
+ var shown={}
+ for card in g.state.hand: shown[card.type]=true
+ for type in g.state.reward_options: shown[type]=true
+ for type in g.state.rest_cards: shown[type]=true
+ for candidate in actions:
+  var type=String(candidate.payload.get("type",""))
+  if g.Cards.Rules.SPECS.has(type): shown[type]=true
+ for row in shop.get("stock",[]):
+  if row.get("kind","")=="card": shown[String(row.get("type",""))]=true
+ for selection in room_event.get("selections",[]):
+  if selection.get("kind","")!="card": continue
+  for option in selection.get("options",[]):
+   var selected=option.get("selected",{})
+   var type=String(selected.get("type",option.get("type","")))
+   if g.Cards.Rules.SPECS.has(type): shown[type]=true
+ return shown
+
 static func battle_rewards(g, actions: Array) -> Array:
  if g.state.phase!="reward": return []
  var rows=[]
@@ -278,28 +297,25 @@ static func build(g) -> Dictionary:
   items.back().target_groups=groups
   items.back().unavailable_reasons=unavailable
  preload("res://core/status_view.gd").append_usable_items(statuses,items,actions)
- var deck_list: Array=[]
  var practice_options: Array=[]
  var practice_table=Tower.all_practices()
  for kind in practice_table:
   var entry=practice_table[kind]
   practice_options.append({"id":kind,"label":entry.label,"node":entry.node})
- var counts={}
- for card in state.deck: counts[card.type]=counts.get(card.type,0)+1
- for type in counts:
-  var faces=g.Cards.face_texts(g,type)
-  deck_list.append({"type":type,"name":B.CARD_NAMES[type],"count":counts[type],"bound":faces.bound,"free":faces.free})
  var costs={}
  var card_texts={}
  var card_instances={}
- for zone in g.Cards.ZONES:
-  for card in state[zone]:
-   if g.Cards.Rules.SPECS[card.type].has("damage_growth") or g.Cards.Rules.SPECS[card.type].has("hannya_stage"):
-    card_instances[card.uid]=g.Cards.face_texts(g,card.type,card.uid)
-    card_instances[card.uid].merge(g.Cards.metadata(g,card.type,card.uid))
+ for card in state.hand:
+  if g.Cards.Rules.SPECS[card.type].has("damage_growth") or g.Cards.Rules.SPECS[card.type].has("hannya_stage"):
+   card_instances[card.uid]=g.Cards.face_texts(g,card.type,card.uid)
+   card_instances[card.uid].merge(g.Cards.metadata(g,card.type,card.uid))
  for type in g.Cards.Rules.SPECS: costs[type]=g.Cards.Rules.energy_label(type)
+ # B1（docs/ondemand-copy.md §1.2）：card_texts 只带界面固有显示集合 S，键序仍按注册表，条目内容不变。
+ var shop=g.Services.view(g)
+ var room_event=g.Events.view(g)
+ var shown=_card_display_set(g,actions,shop,room_event)
  for type in g.Cards.Rules.SPECS:
-  card_texts[type]=g.Cards.text_entry(g,type)
+  if shown.has(type): card_texts[type]=g.Cards.text_entry(g,type)
  var chain={} if state.card_chain.is_empty() else {"name":B.CARD_NAMES[state.card_chain.type],"remaining":state.card_chain.remaining}
  var copy=g.ActionCopy.view(state.logs,pressure.overloaded)
  var grouped_bodies=body_groups(g,bodies,special_regions)
@@ -314,7 +330,7 @@ static func build(g) -> Dictionary:
  return {"run_header":run_header(g),"demo_cycle":state.demo_cycle,"demo_finished":state.demo_finished,"demo_exit":g.DemoExit.at_exit(g),"battle_rewards":reward.rows,"reward_panel":reward,"reward_title":reward.title,"reward_destination":reward.destination,"content_status":g.Content.report.duplicate(true),"card_chain":chain,"retain_left":state.retain_left,"card_costs":costs,"card_texts":card_texts,"card_instances":card_instances,"version":state.version,"seed":state.seed,"phase":state.phase,"phase_caption":preload("res://data/phases.gd").caption(state),"encounter":state.encounter,"round":state.round,"order":state.order,
   "character_id":state.get("character_id","original"),
   "equipment_fireball_unlocked":float(g.Cards.spell_power(g,"fireball").get("equipment_damage_factor",0.0))>0.0,
-  "powers":state.powers.map(func(card):return {"uid":card.uid,"type":card.type,"power_face":card.power_face}),"casting":g.cast_view(),"speech":copy.speech,"npc_speech":copy.npc_speech,"climax":copy.climax,"action_log":copy.actions,"travel_log":travel_log(state.logs),"pressure":pressure,"room_event":g.Events.view(g),"shop":g.Services.view(g),"relics":g.RelicEffects.view(g),
+  "powers":state.powers.map(func(card):return {"uid":card.uid,"type":card.type,"power_face":card.power_face}),"casting":g.cast_view(),"speech":copy.speech,"npc_speech":copy.npc_speech,"climax":copy.climax,"action_log":copy.actions,"travel_log":travel_log(state.logs),"pressure":pressure,"room_event":room_event,"shop":shop,"relics":g.RelicEffects.view(g),
   "battle_relic_drop":g.Relics.TYPES[state.battle_relic_drop].name if state.battle_relic_drop!="" else "",
   "battle_item_drop":Tools.TYPES[state.battle_item_drop].name if state.battle_item_drop!="" else "",
   "capture":state.capture.duplicate(true),"guard_bind":guard_bind,"security":state.security,"prison":g.Prison.view(g),
@@ -324,7 +340,7 @@ static func build(g) -> Dictionary:
   "wall":state.wall,"wall_position":wall_position,"wall_text":wall_position.name+" · "+wall_position.status,
   "practice":state.practice,"practice_kind":state.practice_kind,"practice_description":practice_table.get(state.practice_kind,Tower.PRACTICES.equipment).spec.description,"practice_hint":practice_table.get(state.practice_kind,Tower.PRACTICES.equipment).spec.hint,"practice_options":practice_options,"practice_focus":practice_table.get(state.practice_kind,Tower.PRACTICES.equipment).focus,
   "tower_start_pending":state.tower_start_pending,"map_name":"监狱" if state.map_region=="prison" else "塔路","map_region":state.map_region,"room_name":"选择出狱起点" if state.tower_start_pending else (g.room_data(state.room).name if state.room=="prison" else (Tower.practice_spec(state.practice_kind).name if state.practice else g.room_data(state.room).name)),"route":[] if state.practice or state.room=="prison" else g.route_view(actions),"movement":g.movement_profile(),"journey":state.journey.duplicate(true),"travel_turns":state.travel_turns,"rooms_completed":state.completed_rooms.size(),"reward_count":state.reward_count,
-  "candidates":actions,"logs":state.logs.duplicate(true),"summary":state.summary,"prepare_left":state.prepare_left,"preparation_turns":g.preparation_turns(),"draw_count":state.draw.size(),"discard_count":state.discard.size(),"draw_cards":state.draw.map(func(card):return {"uid":card.uid,"type":card.type}),"discard_cards":state.discard.map(func(card):return {"uid":card.uid,"type":card.type}),"deck_count":state.deck.size(),"deck_cards":state.deck.map(func(card):return {"uid":card.uid,"type":card.type}),"deck_list":deck_list,"pending_retain":state.pending_retain}
+  "candidates":actions,"logs":state.logs.duplicate(true),"summary":state.summary,"prepare_left":state.prepare_left,"preparation_turns":g.preparation_turns(),"draw_count":state.draw.size(),"discard_count":state.discard.size(),"draw_cards":state.draw.map(func(card):return {"uid":card.uid,"type":card.type}),"discard_cards":state.discard.map(func(card):return {"uid":card.uid,"type":card.type}),"deck_count":state.deck.size(),"deck_cards":state.deck.map(func(card):return {"uid":card.uid,"type":card.type}),"pending_retain":state.pending_retain}
 
 static func travel_log(logs: Array) -> Array:
  var result=[]

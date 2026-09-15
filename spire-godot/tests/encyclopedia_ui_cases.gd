@@ -218,10 +218,10 @@ static func static_cards(t) -> void:
  ui.game._install_template("mouth_band","mouth",24.0,24.0,false,"fixture",3,0)
  ui.render();await t.frames()
  var catalog=preload("res://data/encyclopedia.gd")
- t.check(ui.view.card_texts.confluence.face_effects!=catalog.card("confluence").face_effects and ui.view.card_texts.hannya_1.face_costs!=catalog.card("hannya_1").face_costs,"BOOK fixture has real equipment-dependent effects and mouth-dependent soup costs")
+ t.check(ui.game.live_card_text("confluence").face_effects!=catalog.card("confluence").face_effects and ui.game.live_card_text("hannya_1").face_costs!=catalog.card("hannya_1").face_costs,"BOOK fixture has real equipment-dependent effects and mouth-dependent soup costs")
  var live_face=ui.card_buttons[held.uid]
  var live_side="free" if live_face.free_face else "bound"
- t.check(live_face.get_node("CardText/Content/CardEffect").text==ui.view.card_texts.confluence.face_effects[live_side],"BOOK hand cards retain live equipment-dependent effects")
+ t.check(live_face.get_node("CardText/Content/CardEffect").text==ui.game.live_card_text("confluence").face_effects[live_side],"BOOK hand cards retain live equipment-dependent effects")
  var before=ui.game.export_snapshot()
  ui._open_drawer("show_encyclopedia");await t.frames()
  var book=ui.find_child("Encyclopedia",true,false)

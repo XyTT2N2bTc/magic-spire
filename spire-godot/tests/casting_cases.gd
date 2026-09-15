@@ -197,7 +197,7 @@ static func unlock_zero_energy(t) -> void:
  g.state.mana=10
  c=t.find_action(g,"card",{"uid":card.uid,"target":target.id,"free":false})
  var free=t.find_action(g,"card",{"uid":card.uid,"free":true})
- var costs=g.get_view().card_texts.unlock.face_costs
+ var costs=g.live_card_text("unlock").face_costs
  t.check(c.valid and not free.valid and free.cost==1 and costs.bound=="0" and costs.free=="1","UNLOCK bound is playable at zero energy while free preparation still costs one")
  before=g.export_snapshot()
  t.check(g.dispatch(c.id,before.version).ok and not g._equipment(target.id).locked and g._equipment(target.id).durability==8 and g.state.energy==0 and g.state.mana==0 and g.state.discard.any(func(row):return row.uid==card.uid),"UNLOCK zero-energy success pays mana opens only the lock and discards the card")
