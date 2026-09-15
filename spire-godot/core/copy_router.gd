@@ -12,6 +12,8 @@ const Catalog=preload("res://data/encyclopedia.gd")
 const ManaFlask=preload("res://core/mana_flask.gd")
 const DemoExit=preload("res://core/demo_exit.gd")
 const RoomServices=preload("res://core/room_services.gd")
+const Prison=preload("res://core/prison.gd")
+const PrisonSpace=preload("res://core/prison_space.gd")
 
 static var _table: Dictionary={}
 
@@ -28,6 +30,15 @@ static func _builders() -> Dictionary:
   _table["service.offer"]=Callable(RoomServices,"offer_detail")
   _table["service.release_job"]=Callable(RoomServices,"release_job_detail")
   _table["service.remove_card"]=Callable(RoomServices,"remove_card_detail")
+  _table["prison.enter"]=Callable(Prison,"enter_detail")
+  _table["prison.inspection"]=Callable(Prison,"inspection_detail")
+  _table["prison.resist"]=Callable(Prison,"resist_detail")
+  _table["prison.vent_kick"]=Callable(Prison,"vent_kick_detail")
+  _table["prison.vent_exit"]=Callable(Prison,"vent_exit_detail")
+  _table["prison.key"]=Callable(Prison,"key_detail")
+  _table["prison.door_exit"]=Callable(Prison,"door_exit_detail")
+  _table["prison_space.explore_blind"]=Callable(PrisonSpace,"explore_blind_detail")
+  _table["prison_space.explore_site"]=Callable(PrisonSpace,"explore_site_detail")
  return _table
 
 # 可枚举的类别清单；未迁移的生产者走字符串直传通道，不在此列（§11.7 据此核对已收口范围）。

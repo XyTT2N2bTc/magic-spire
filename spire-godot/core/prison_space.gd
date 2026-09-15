@@ -137,11 +137,19 @@ static func candidates(g, out: Array) -> void:
   for direction in DIRECTIONS:
    for steps in range(1,profile.distance+1):
     var route=direction_path(g,direction,steps)
-    g.Prison.add(out,g,"explore",NAMES[direction]+"摸索%d格" % steps,"遇到家具或墙会停下；经过地点自动探索。",profile.cost,"这个方向紧邻墙壁或家具，无法移动。" if route.is_empty() else "",{"direction":direction,"steps":steps,"wall_warning":wall_warning(g,route)})
+    g.Prison.add(out,g,"explore",NAMES[direction]+"摸索%d格" % steps,{"kind":"prison_space.explore_blind","args":{},"fallback":explore_blind_detail(g,{})},profile.cost,"这个方向紧邻墙壁或家具，无法移动。" if route.is_empty() else "",{"direction":direction,"steps":steps,"wall_warning":wall_warning(g,route)})
  else:
   for site in v.sites:
    var text="%s · %s · %d格 · %s" % [site.label,site.bearing,site.distance,"靠墙" if site.wall_distance==0 else "离墙%d格" % site.wall_distance]
-   g.Prison.add(out,g,"explore",text,"每次最多移动%d格，花%d能量；抵达或经过地点自动探索。" % [profile.distance,profile.cost],profile.cost,"已经在这里。" if site.here else "",{"site":site.id,"wall_warning":site.wall_warning})
+   var site_args={"distance":profile.distance,"cost":profile.cost}
+   g.Prison.add(out,g,"explore",text,{"kind":"prison_space.explore_site","args":site_args,"fallback":explore_site_detail(g,site_args)},profile.cost,"已经在这里。" if site.here else "",{"site":site.id,"wall_warning":site.wall_warning})
+
+# R3（docs/ondemand-copy.md §11.5）：探索文案的 builder，正文留在本模块。
+static func explore_blind_detail(_g, _args: Dictionary) -> String:
+ return "遇到家具或墙会停下；经过地点自动探索。"
+
+static func explore_site_detail(_g, args: Dictionary) -> String:
+ return "每次最多移动%d格，花%d能量；抵达或经过地点自动探索。" % [int(args.get("distance",0)),int(args.get("cost",0))]
 
 static func discover(g) -> void:
  for site in g.state.prison.space.sites:

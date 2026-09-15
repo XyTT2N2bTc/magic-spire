@@ -573,7 +573,7 @@ static func copy_single_entry_matches_projection(t) -> void:
 static func copy_route_bytes_unchanged(t) -> void:
  var router=preload("res://core/copy_router.gd")
  var catalog=preload("res://data/encyclopedia.gd")
- t.check(router.categories()==["card.catalog","card.face","card.target","demo_exit.continue","demo_exit.end","mana_flask.deposit","mana_flask.withdraw","service.offer","service.release_job","service.remove_card"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
+ t.check(router.categories()==["card.catalog","card.face","card.target","demo_exit.continue","demo_exit.end","mana_flask.deposit","mana_flask.withdraw","prison.door_exit","prison.enter","prison.inspection","prison.key","prison.resist","prison.vent_exit","prison.vent_kick","prison_space.explore_blind","prison_space.explore_site","service.offer","service.release_job","service.remove_card"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
  for phase in ["battle","departure"]:
   for count in [0,12,26]:
    var key="%s:%d" % [phase,count]
@@ -687,6 +687,30 @@ static func copy_migrated_kinds(t,router) -> void:
  paid_seen.remove+=1
  if remove_candidate.is_empty() or router.text(remove_game,{"kind":"service.remove_card","args":{},"fallback":sentinel})!=remove_candidate.get("detail",""): paid_mismatch.append("remove")
  t.check(paid_seen.offer>0 and paid_mismatch.is_empty(),"COPY R3b service.offer, release_job and remove_card render like the paid candidates: "+JSON.stringify(paid_seen)+" "+str(paid_mismatch.slice(0,3)))
+ # R3c: Prison.add 的九个站点经路由渲染必须逐字节等于候选值。
+ var prison_mismatch=[];var prison_seen=0
+ for entry in [["captured","prison.enter","enter",{}],["inspection","prison.inspection","inspect",{}],["inspection","prison.resist","resist",{}],["room","prison.vent_kick","vent_kick",{}],["room","prison.vent_exit","vent_exit",{}],["room","prison.key","key",{}],["room","prison.door_exit","door_exit",{}],["blind","prison_space.explore_blind","explore",{}]]:
+  var g=copy_baseline_fixture("battle",0)
+  g.state.security=2
+  match entry[0]:
+   "captured": g.state.phase="captured"
+   "inspection": g.state.phase="inspection";g.state.prison.stage="arrival"
+   "room": g=GameCore.new(42,true,"prison_test")
+   "blind": g=GameCore.new(42,true,"prison_test");g.add_fixture("eyes",4)
+  var candidate=copy_candidate(g,"prison",entry[2])
+  prison_seen+=1
+  var args=entry[3]
+  match entry[1]:
+   "prison.enter": args={"security":g.state.security}
+   "prison.inspection": args={"stage":g.state.prison.stage}
+   "prison_space.explore_site": args={"distance":g.wall_movement_profile().distance,"cost":g.wall_movement_profile().cost}
+  if candidate.is_empty() or router.text(g,{"kind":entry[1],"args":args,"fallback":sentinel})!=candidate.get("detail",""): prison_mismatch.append(entry[1]+"/"+entry[0])
+ var explore_game=GameCore.new(42,true,"prison_test")
+ var explore_candidate=copy_candidate(explore_game,"prison","explore")
+ prison_seen+=1
+ var explore_args={"distance":explore_game.wall_movement_profile().distance,"cost":explore_game.wall_movement_profile().cost}
+ if explore_candidate.is_empty() or router.text(explore_game,{"kind":"prison_space.explore_site","args":explore_args,"fallback":sentinel})!=explore_candidate.get("detail",""): prison_mismatch.append("prison_space.explore_site/room")
+ t.check(prison_seen==9 and prison_mismatch.is_empty(),"COPY R3c all nine Prison.add sites render like their candidates: "+str(prison_mismatch.slice(0,3)))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.candidates():

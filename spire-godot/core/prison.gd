@@ -223,20 +223,44 @@ static func end_turn(g) -> void:
  g.state.overloaded=false; g.state.overload_count=0; g.state.energy=0
  g._emit("event","紫发狱警打开牢门，例行巡视开始。可以接受检查，或立即反抗。")
 
-static func add(out: Array, g, action: String, label: String, detail: String, cost: int=0, reason: String="", extra: Dictionary={}) -> void:
+static func add(out: Array, g, action: String, label: String, copy, cost: int=0, reason: String="", extra: Dictionary={}) -> void:
  var payload={"kind":"prison","action":action}
  payload.merge(extra)
- g._candidate(out,payload,label,detail,cost,0,reason,"","prison")
+ g._candidate(out,payload,label,copy,cost,0,reason,"","prison")
+
+# R3（docs/ondemand-copy.md §11.5）：Prison.add 各站点文案的 builder，正文留在本模块，路由只做分派。
+static func enter_detail(g, args: Dictionary) -> String:
+ return "牢门会在你身后锁上。" if int(args.get("security",g.state.security))<5 else "进入高安全监室。"
+
+static func inspection_detail(_g, args: Dictionary) -> String:
+ return {"arrival":"让她核对你身上的装备。","result":"处理这次检查的结果。","done":"继续服刑。"}.get(String(args.get("stage","")),"")
+
+static func resist_detail(_g, _args: Dictionary) -> String:
+ return "与她战斗。胜利可取得牢门钥匙。"
+
+static func vent_kick_detail(_g, _args: Dictionary) -> String:
+ return "合法坐姿踢击一次推进1次，共需%d次；每回合一次。" % B.PRISON_VENT_HITS
+
+static func vent_exit_detail(_g, _args: Dictionary) -> String:
+ return "格栅开启后即可离开；不检查站姿移动速度。"
+
+static func key_detail(_g, _args: Dictionary) -> String:
+ return "钥匙不占道具容量；开门后可直接逃离，不检查行动速度。"
+
+static func door_exit_detail(_g, _args: Dictionary) -> String:
+ return "自行开锁后速度须至少1；狱警钥匙路线不检查速度。点击离开时重新判定。"
 
 static func candidates(g, out: Array) -> void:
  if g.state.phase=="captured":
-  add(out,g,"enter","进入牢房" if g.state.security<5 else "查看终局","牢门会在你身后锁上。" if g.state.security<5 else "进入高安全监室。")
+  var enter_args={"security":g.state.security}
+  add(out,g,"enter","进入牢房" if g.state.security<5 else "查看终局",{"kind":"prison.enter","args":enter_args,"fallback":enter_detail(g,enter_args)})
   return
  if g.state.phase=="inspection":
   var stage=g.state.prison.stage
-  var text={"arrival":["inspect","接受检查","让她核对你身上的装备。"],"result":["accept","让她继续","处理这次检查的结果。"],"done":["resume","返回牢房","继续服刑。"]}[stage]
-  add(out,g,text[0],text[1],text[2])
-  add(out,g,"resist","反抗狱警","与她战斗。胜利可取得牢门钥匙。")
+  var text={"arrival":["inspect","接受检查"],"result":["accept","让她继续"],"done":["resume","返回牢房"]}[stage]
+  var stage_args={"stage":stage}
+  add(out,g,text[0],text[1],{"kind":"prison.inspection","args":stage_args,"fallback":inspection_detail(g,stage_args)})
+  add(out,g,"resist","反抗狱警",{"kind":"prison.resist","args":{},"fallback":resist_detail(g,{})})
   return
  if g.state.phase!="prison": return
  var p=g.state.prison
@@ -249,14 +273,14 @@ static func candidates(g, out: Array) -> void:
  elif g.state.posture!="sit": reason="需要坐姿才能踢到墙脚的格栅。"
  elif kick.reason!="": reason=kick.reason
  elif p.vent_tick==g.state.tick: reason="本回合已经踢过格栅。"
- add(out,g,"vent_kick","踢击通风口","合法坐姿踢击一次推进1次，共需%d次；每回合一次。" % B.PRISON_VENT_HITS,1,reason)
- add(out,g,"vent_exit","从通风口逃离","格栅开启后即可离开；不检查站姿移动速度。",0,"先发现并踢开通风口格栅。" if p.vent_hits<B.PRISON_VENT_HITS else ("需要先到通风口前。" if not Space.at(g,"vent") else capacity_reason(g)))
- add(out,g,"key","使用牢门钥匙","钥匙不占道具容量；开门后可直接逃离，不检查行动速度。",0,"需要先击败巡视狱警，取得专用钥匙。" if not p.key else ("需要先到牢门前。" if not Space.at(g,"door") else ("牢门已经打开。" if p.door_open else "")))
+ add(out,g,"vent_kick","踢击通风口",{"kind":"prison.vent_kick","args":{},"fallback":vent_kick_detail(g,{})},1,reason)
+ add(out,g,"vent_exit","从通风口逃离",{"kind":"prison.vent_exit","args":{},"fallback":vent_exit_detail(g,{})},0,"先发现并踢开通风口格栅。" if p.vent_hits<B.PRISON_VENT_HITS else ("需要先到通风口前。" if not Space.at(g,"vent") else capacity_reason(g)))
+ add(out,g,"key","使用牢门钥匙",{"kind":"prison.key","args":{},"fallback":key_detail(g,{})},0,"需要先击败巡视狱警，取得专用钥匙。" if not p.key else ("需要先到牢门前。" if not Space.at(g,"door") else ("牢门已经打开。" if p.door_open else "")))
  reason="牢门仍然上锁；可用手中的术式解锁牌，或击败狱警取得钥匙。" if not p.door_open else ""
  if reason=="" and not Space.at(g,"door"): reason="需要先到牢门前。"
  if reason=="" and not p.key and g.movement_profile().speed<1: reason="自行开锁逃离需要行动速度至少1；请先站起。"
  if reason=="": reason=capacity_reason(g)
- add(out,g,"door_exit","离开牢门","自行开锁后速度须至少1；狱警钥匙路线不检查速度。点击离开时重新判定。",0,reason)
+ add(out,g,"door_exit","离开牢门",{"kind":"prison.door_exit","args":{},"fallback":door_exit_detail(g,{})},0,reason)
  for card in g.state.hand:
   if g.Cards.Rules.SPECS[card.type].mode!="unlock": continue
   reason="牢门已经打开。" if p.door_open else ("需要先到牢门前。" if not Space.at(g,"door") else g.Cards.body_reason(g,card.type))
