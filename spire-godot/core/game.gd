@@ -1038,11 +1038,15 @@ func _slip_block_reason(target: Dictionary) -> String:
    return link.name+"牵住了这件装备，须先解除链接或它连接的另一件装备。"
  return ""
 
+# §5: presence and side questions read the slot edge directly; the hand special case stays
+# side-based and never degrades into a plain non-empty test.
 func occupied(slot: String) -> bool:
  if slot in ["palm","fingers"]: return hand_blocked(slot,"left") and hand_blocked(slot,"right")
+ if _equipment_read_active(): return not _equipment_read.slots.get(slot,[]).is_empty()
  return not equipment_at(slot).is_empty()
 
 func hand_blocked(slot: String, side: String) -> bool:
+ if _equipment_read_active(): return _equipment_read.slots.get(slot,[]).any(func(e):return e.get("side","") in ["",side])
  return equipment_at(slot).any(func(e):return e.get("side","") in ["",side])
 
 func hands_can_hold() -> bool:

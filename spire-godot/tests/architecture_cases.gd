@@ -60,6 +60,7 @@ static func run(t) -> void:
  equipment_read_batches(t)
  index_materializes_once_per_scope(t)
  index_id_edge_parity(t)
+ index_predicate_parity(t)
  index_self_check_falls_back(t)
  var images=preload("res://data/equipment_images.gd")
  var missing=[]
@@ -252,6 +253,53 @@ static func index_id_edge_parity(t) -> void:
  plain._equipment(piece.id).durability=3
  plain._equipment_read=scope
  t.check(plain.state.equipment.filter(func(e):return e.id==piece.id)[0].durability==3,"INDEX id edge writes through to the authoritative instance, never to a copy")
+
+# Batch B8 (§11 scenario 4): presence and count predicates keep their §5 values on the indexed
+# read path, including the hand truth table and the non-authoritative capacity argument.
+static func index_predicate_parity(t) -> void:
+ var cases=[]
+ var single=Game.new(42)
+ single.state.equipment.clear()
+ single.add_fixture("palm",4,10).side="left"
+ cases.append({"label":"single-sided palm","game":single,"slot":"palm","occupied":false,"left":true,"right":false})
+ var both=Game.new(42)
+ both.state.equipment.clear()
+ both.add_fixture("palm",4,10).side="left"
+ both.add_fixture("fingers",4,10).side="right"
+ cases.append({"label":"separate hand sides","game":both,"slot":"palm","occupied":false,"left":true,"right":false})
+ var sideless=Game.new(42)
+ sideless.state.equipment.clear()
+ sideless.add_fixture("fingers",4,10)
+ cases.append({"label":"side-less hand piece","game":sideless,"slot":"fingers","occupied":true,"left":true,"right":true})
+ for kind in ["component_links","special_equipment","shoulder_links"]:
+  cases.append({"label":kind,"game":Game.new(42,true,kind)})
+ for entry in cases:
+  var g=entry.game
+  var reference=UncachedGame.new(42);reference.state=g.state.duplicate(true)
+  var before=g.export_snapshot()
+  var previous=g._begin_equipment_read()
+  var parity=true
+  for slot in g.B.SLOTS:
+   parity=parity and g.occupied(slot)==reference.occupied(slot)
+   for side in ["left","right"]: parity=parity and g.hand_blocked(slot,side)==reference.hand_blocked(slot,side)
+   parity=parity and g.capacity_used(slot)==reference.capacity_used(slot)
+  for point in g.Equipment.ANATOMY: parity=parity and g._point_count(point)==reference._point_count(point)
+  parity=parity and g._capacity_issue(g.physical_pieces())==reference._capacity_issue(reference.physical_pieces())
+  parity=parity and g._capacity_issue(g.physical_pieces()+g.state.equipment.duplicate())==reference._capacity_issue(reference.physical_pieces()+reference.state.equipment.duplicate())
+  parity=parity and g._capacity_issue(g.state.equipment.slice(0,1))==reference._capacity_issue(reference.state.equipment.slice(0,1))
+  if entry.has("slot"):
+   parity=parity and g.occupied(entry.slot)==entry.occupied and g.hand_blocked(entry.slot,"left")==entry.left and g.hand_blocked(entry.slot,"right")==entry.right
+  g._equipment_read=previous
+  t.check(parity and g.export_snapshot()==before and g._equipment_read.is_empty(),"INDEX predicate parity with the live path "+entry.label)
+ var dense=Game.new(42)
+ dense.state.equipment.clear()
+ for slot in dense.B.SLOTS: dense.add_fixture(slot,7,10)
+ var dense_reference=UncachedGame.new(42);dense_reference.state=dense.state.duplicate(true)
+ var dense_scope=dense._begin_equipment_read()
+ var doubled=dense._capacity_issue(dense.physical_pieces()+dense.state.equipment.duplicate())
+ t.check(doubled!="" and doubled==dense_reference._capacity_issue(dense_reference.physical_pieces()+dense_reference.state.equipment.duplicate()),"INDEX non-authoritative capacity argument keeps its live reason text: "+doubled)
+ t.check(dense.capacity_used("wrist")==dense_reference.capacity_used("wrist") and dense.occupied("wrist") and dense.hand_blocked("wrist","left"),"INDEX dense counts and presence match the live path")
+ dense._equipment_read=dense_scope
 
 static func equipment_projection_batches(t) -> void:
  var g=Game.new(42,true,"jacket")

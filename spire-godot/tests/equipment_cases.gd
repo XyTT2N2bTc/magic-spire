@@ -25,6 +25,7 @@ static func run(t) -> void:
  precise_positions(t)
  eye_capacity(t)
  index_slot_edge_parity(t)
+ index_predicate_parity(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")
  t.check(E.ANIMATED_WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.ANIMATED_WEAR_TEXTS.has(slot)),"WEAR animated restraint prose covers every approved body location")
@@ -135,6 +136,30 @@ static func run(t) -> void:
  for i in range(6): t.action(g,"end")
  t.check(g.state.phase=="cleared" and g.state.completed_rooms.is_empty() and g.candidates().all(func(c):return c.payload.kind=="item_discard"),"PRACTICE ends after six real rounds without tower progress; only universal item discard remains")
  t.check(g.validate()=="","PRACTICE final state valid")
+
+# Batch B8 (§8.3 sampling): presence and count predicates over ordinary equipment in precise
+# positions answer exactly like the live path, and agree with the slot and point edges.
+static func index_predicate_parity(t) -> void:
+ var g=Game.new(42)
+ g.state.equipment.clear()
+ for slot in ["thigh","calf","ankle","foot","wrist","palm","eyes","fingers"]: g.add_fixture(slot,7,10)
+ g._install_template("belt","calf",4,10,false,"fixture",1,0,0,"below_knee")
+ g._install_template("rope","thigh",4,10,false,"fixture",1,0,0,"mid_thigh")
+ var reference=Arch.UncachedGame.new(42);reference.state=g.state.duplicate(true)
+ var before=g.export_snapshot()
+ var previous=g._begin_equipment_read()
+ var parity=true
+ for slot in g.B.SLOTS:
+  parity=parity and g.occupied(slot)==reference.occupied(slot) and g.capacity_used(slot)==reference.capacity_used(slot)
+  for side in ["left","right"]: parity=parity and g.hand_blocked(slot,side)==reference.hand_blocked(slot,side)
+ for point in g.Equipment.ANATOMY+["missing_point"]: parity=parity and g._point_count(point)==reference._point_count(point)
+ parity=parity and g._capacity_issue(g.physical_pieces())==reference._capacity_issue(reference.physical_pieces())
+ parity=parity and g._capacity_issue(g.physical_pieces()+g.state.equipment.duplicate())==reference._capacity_issue(reference.physical_pieces()+reference.state.equipment.duplicate())
+ parity=parity and g.occupied("calf")==(not g.equipment_at("calf").is_empty()) and g.hand_blocked("palm","left")==g.equipment_at("palm").any(func(e):return e.get("side","") in ["","left"])
+ parity=parity and g._point_count("below_knee")==g.physical_pieces().filter(func(e):return "below_knee" in g.Equipment.capacity_points(e)).size() and g._point_count("missing_point")==0
+ g._equipment_read=previous
+ t.check(parity and g.export_snapshot()==before and g._equipment_read.is_empty(),"INDEX predicate parity with the live path over precise positions")
+ t.check(g.occupied("calf")==reference.occupied("calf") and g.capacity_used("calf")==reference.capacity_used("calf") and g._point_count("below_knee")==reference._point_count("below_knee"),"INDEX predicates outside a scope stay live")
 
 static func index_fixture(kind: String):
  if kind=="component": return Game.new(42,true,"component_links")
