@@ -35,13 +35,14 @@ func _build_equipment_read_index() -> void:
  _equipment_read.links=_materialize_link_edge()
  _equipment_read.anchors=_materialize_anchor_list()
  _equipment_read.targets=_materialize_equipment_targets()
+ _equipment_read.connections=_materialize_connection_edge()
  _equipment_read.actions=_materialize_action_targets()
  _equipment_read.ids=_materialize_id_edge()
  _equipment_read.capacity_points=_materialize_capacity_points(pieces)
  _equipment_read.physical_points=_materialize_physical_points(pieces)
 
 # Slot to rope with the §1 durability filter. The list edges below keep the §1 concatenation
-# order; only the connection part of the action list is still assembled on the spot (B7).
+# order; the connection edge is the projection the action list and targets_at share.
 func _materialize_link_edge() -> Dictionary:
  var links={}
  for link in state.links:
@@ -57,8 +58,12 @@ func _materialize_anchor_list() -> Array:
 func _materialize_equipment_targets() -> Array:
  return _equipment_read.pieces.duplicate()+state.links
 
+# The helper's own scan over state.equipment runs once per scope instead of once per list query.
+func _materialize_connection_edge() -> Array:
+ return Binding.connections(self)
+
 func _materialize_action_targets() -> Array:
- return _equipment_read.targets.duplicate()+state.special_equipment+Binding.connections(self)
+ return _equipment_read.targets.duplicate()+state.special_equipment+_equipment_read.connections.duplicate()
 
 # Root id to root, in root order, so every component lookup reads one projection of
 # state.composites instead of rescanning it; components stay reachable as root.components.
@@ -787,7 +792,8 @@ func targets_at(slot: String) -> Array:
   if slot in Composites.definition(root).coverage and Composites.active(root):
    for e in root.components:
     if not Equipment.is_shoulder(e) and not targets.has(e): targets.append(e)
- return targets+links_at(slot)+Binding.connections(self).filter(func(e):return e.slot==slot)
+ var connections=_equipment_read.connections.duplicate() if _equipment_read_active() else Binding.connections(self)
+ return targets+links_at(slot)+connections.filter(func(e):return e.slot==slot)
 
 func _composite(id: String) -> Dictionary:
  if _equipment_read_active(): return _equipment_read.roots.get(id,{})
