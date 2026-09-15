@@ -66,20 +66,33 @@ static func candidates(g) -> Array:
  var out=[];var d=g.state.departure
  if d.stage=="choose":
   for entry in d.options:
-   g._candidate(out,{"kind":"departure","op":"choose","option":entry.id},Data.CATEGORIES[out.size()],description(g,entry.id),0,0,reason(g,entry),"","reward")
-  g._candidate(out,{"kind":"departure","op":"skip"},"直接出发","放弃本次开局奖励。",0,0,"","","flow")
+   var choose_args={"entry_id":entry.id}
+   g._candidate(out,{"kind":"departure","op":"choose","option":entry.id},Data.CATEGORIES[out.size()],{"kind":"departure.description","args":choose_args,"fallback":description_detail(g,choose_args)},0,0,reason(g,entry),"","reward")
+  g._candidate(out,{"kind":"departure","op":"skip"},"直接出发",{"kind":"departure.skip","args":{},"fallback":skip_detail(g,{})},0,0,"","","flow")
  elif d.stage=="card":
   var entry=selected(g)
   if entry.id in ["remove","transform"]:
    for card in g.state.deck:
     if entry.id=="transform" and not entry.changes.has(card.uid): continue
-    g._candidate(out,{"kind":"departure","op":"card","uid":card.uid,"type":card.type},g.B.CARD_NAMES[card.type],description(g,entry.id),0,0,reason(g,entry),"","reward")
+    var card_args={"entry_id":entry.id}
+    g._candidate(out,{"kind":"departure","op":"card","uid":card.uid,"type":card.type},g.B.CARD_NAMES[card.type],{"kind":"departure.description","args":card_args,"fallback":description_detail(g,card_args)},0,0,reason(g,entry),"","reward")
   else:
    for type in entry.cards:
-    g._candidate(out,{"kind":"departure","op":"card","type":type},g.B.CARD_NAMES[type],description(g,entry.id),0,0,reason(g,entry),"","reward")
+    var type_args={"entry_id":entry.id}
+    g._candidate(out,{"kind":"departure","op":"card","type":type},g.B.CARD_NAMES[type],{"kind":"departure.description","args":type_args,"fallback":description_detail(g,type_args)},0,0,reason(g,entry),"","reward")
  else:
-  g._candidate(out,{"kind":"departure","op":"finish"},"出发  ›","选择第一层的入口。",0,0,"","","flow")
+  g._candidate(out,{"kind":"departure","op":"finish"},"出发  ›",{"kind":"departure.finish","args":{},"fallback":finish_detail(g,{})},0,0,"","","flow")
  return out
+
+# R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+static func description_detail(g, args: Dictionary) -> String:
+ return description(g,String(args.get("entry_id","")))
+
+static func skip_detail(_g, _args: Dictionary) -> String:
+ return "放弃本次开局奖励。"
+
+static func finish_detail(_g, _args: Dictionary) -> String:
+ return "选择第一层的入口。"
 
 static func execute(g, p: Dictionary) -> String:
  var d=g.state.departure

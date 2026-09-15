@@ -285,10 +285,16 @@ static func candidates(g, out: Array) -> void:
   if g.Cards.Rules.SPECS[card.type].mode!="unlock": continue
   reason="牢门已经打开。" if p.door_open else ("需要先到牢门前。" if not Space.at(g,"door") else g.Cards.body_reason(g,card.type))
   var payload={"kind":"prison","action":"unlock","uid":card.uid,"type":card.type,"target":"prison_door","slot":"wrist","mode":"unlock","free":false}
-  g._candidate(out,payload,g.B.CARD_NAMES[card.type]+" · 牢门","打出这张牌打开牢门；临时魔力优先抵扣耗魔。"+("随后可选择另一把外露锁。" if g.Cards.Rules.SPECS[card.type].get("hits",1)>1 else ""),g.Cards.Rules.energy_cost(card.type),g._mana_cost(B.SPELL_COST),reason,"","prison")
+  var door_args={"type":card.type}
+  g._candidate(out,payload,g.B.CARD_NAMES[card.type]+" · 牢门",{"kind":"prison.unlock_door","args":door_args,"fallback":unlock_door_detail(g,door_args)},g.Cards.Rules.energy_cost(card.type),g._mana_cost(B.SPELL_COST),reason,"","prison")
 
 static func capacity_reason(g) -> String:
  return "随身道具超出容量，请在道具栏使用或放弃多出的工具。" if g.carried_items()>g.item_capacity() else ""
+
+# R4（docs/ondemand-copy.md §11.5）：牢门解锁牌候选文案改走路由，正文留在本模块。
+static func unlock_door_detail(g, args: Dictionary) -> String:
+ var type=String(args.get("type",""))
+ return "打出这张牌打开牢门；临时魔力优先抵扣耗魔。"+("随后可选择另一把外露锁。" if g.Cards.Rules.SPECS[type].get("hits",1)>1 else "")
 
 static func execute(g, c: Dictionary) -> String:
  var action=c.payload.action

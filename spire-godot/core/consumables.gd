@@ -75,7 +75,12 @@ static func candidates(g, out: Array, item: Dictionary) -> void:
  var targets=g.Equipment.panel_groups() if spec.get("target_scope","")=="body_group" else [{"id":"hero","name":""}]
  for target in targets:
   var label="使用"+spec.name+(" · "+target.name if target.name!="" else "")
-  g._candidate(out,{"kind":"item_use","item":item.id,"target":target.id},label,description(g,item.type),0,0,reason(g,item.type),"","item")
+  var use_args={"item_type":item.type}
+  g._candidate(out,{"kind":"item_use","item":item.id,"target":target.id},label,{"kind":"consumables.description","args":use_args,"fallback":description_detail(g,use_args)},0,0,reason(g,item.type),"","item")
+
+# R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+static func description_detail(g, args: Dictionary) -> String:
+ return description(g,String(args.get("item_type","")))
 
 static func slip_multiplier(g, target: Dictionary) -> float:
  var result=1.0

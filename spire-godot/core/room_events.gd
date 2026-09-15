@@ -590,8 +590,22 @@ static func availability_issue(g, option: Dictionary) -> String:
 
 static func append_choice_candidate(g, out: Array, option: Dictionary) -> void:
  var reason=probe_choice(g,option)
- g._candidate(out,{"kind":"event","action":"choose","choice":option.id},option.label,option.detail,0,0,reason,"","event")
+ var choice_args={"option_id":option.id}
+ g._candidate(out,{"kind":"event","action":"choose","choice":option.id},option.label,{"kind":"event.choice","args":choice_args,"fallback":choice_detail(g,choice_args)},0,0,reason,"","event")
  if reason!="" and reason==availability_issue(g,option): out[-1].reason_surface="secondary"
+
+# R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+static func choice_detail(g, args: Dictionary) -> String:
+ var option_id=String(args.get("option_id",""))
+ for option in g.state.room_event.get("options",[]):
+  if option.get("id","")==option_id: return String(option.get("detail",""))
+ return ""
+
+static func reward_skip_detail(_g, _args: Dictionary) -> String:
+ return ""
+
+static func prepare_detail(g, args: Dictionary) -> String:
+ return "进行%d回合整备。" % g.preparation_turns() if bool(args.get("prepare",false)) else ""
 
 static func probe_cleanup(g) -> String:
  return probe(g,g.state.room_event.get("cleanup_effects",[]),{},true)
@@ -605,11 +619,11 @@ static func candidates(g, out: Array) -> void:
   "reward":
    for type in event.reward:
     g._candidate(out,{"kind":"event","action":"reward","type":type},"领取「"+g.B.CARD_NAMES[type]+"」",g.CopyRouter.two_face(g,type),0,0,"","","event")
-   g._candidate(out,{"kind":"event","action":"reward","type":"skip"},"跳过选牌","",0,0,"","","event")
+   g._candidate(out,{"kind":"event","action":"reward","type":"skip"},"跳过选牌",{"kind":"event.reward_skip","args":{},"fallback":reward_skip_detail(g,{})},0,0,"","","event")
   "result":
    var prepare=event.get("prepare_pending",false)
-   var detail="进行%d回合整备。" % g.preparation_turns() if prepare else ""
-   g._candidate(out,{"kind":"event","action":"leave"},"开始整备" if prepare else "离开",detail,0,0,probe_cleanup(g),"","event")
+   var prepare_args={"prepare":prepare}
+   g._candidate(out,{"kind":"event","action":"leave"},"开始整备" if prepare else "离开",{"kind":"event.prepare","args":prepare_args,"fallback":prepare_detail(g,prepare_args)},0,0,probe_cleanup(g),"","event")
   _:
    if event.get("flow",false):
     for option in event.options:

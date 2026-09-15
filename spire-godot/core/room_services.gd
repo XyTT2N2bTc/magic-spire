@@ -60,6 +60,9 @@ static func release_job_detail(_g, args: Dictionary) -> String:
 static func remove_card_detail(_g, _args: Dictionary) -> String:
  return "永久移除这张牌。本店仅能使用一次。"
 
+static func leave_detail(_g, _args: Dictionary) -> String:
+ return "保留已获得的物品，继续向上一层前进。"
+
 static func paid_candidate(g, out: Array, payload: Dictionary, label: String, info, price: float, reason: String, group: String, required_payment: String="") -> void:
  for source in (["self","flask"] if g.state.phase=="shop" else ["self"]):
   var action=payload.duplicate();action.payment=source
@@ -84,7 +87,8 @@ static func candidates(g, out: Array) -> void:
   if offer.kind=="relic" and not g.Relics.can_gain(g.state.relics,offer.type): reason="已经拥有这件遗物。"
   var payload={"kind":"service","op":"take","index":index}
   if room.kind=="treasure":
-   g._candidate(out,payload,"打开宝箱 · "+name(g,offer),detail(g,offer),0,0,reason,"","service")
+   var treasure_args={"offer":offer}
+   g._candidate(out,payload,"打开宝箱 · "+name(g,offer),{"kind":"service.offer","args":treasure_args,"fallback":offer_detail(g,treasure_args)},0,0,reason,"","service")
   else:
    var required_payment=g.Relics.TYPES[offer.type].get("shop_payment","") if offer.kind=="relic" else ""
    var offer_args={"offer":offer}
@@ -96,7 +100,7 @@ static func candidates(g, out: Array) -> void:
  if room.kind=="shop" and not room.remove_used:
   for card in g.state.deck:
    paid_candidate(g,out,{"kind":"service","op":"remove","uid":card.uid},"移除「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"service.remove_card","args":{},"fallback":remove_card_detail(g,{})},Data.removal_price(g.state.shop_removals),"","service_remove")
- g._candidate(out,{"kind":"service","op":"leave"},"离开房间","保留已获得的物品，继续向上一层前进。",0,0,"","","service_flow")
+ g._candidate(out,{"kind":"service","op":"leave"},"离开房间",{"kind":"service.leave","args":{},"fallback":leave_detail(g,{})},0,0,"","","service_flow")
 
 static func execute(g, p: Dictionary) -> String:
  var room=g.room_data(g.state.room)

@@ -573,7 +573,7 @@ static func copy_single_entry_matches_projection(t) -> void:
 static func copy_route_bytes_unchanged(t) -> void:
  var router=preload("res://core/copy_router.gd")
  var catalog=preload("res://data/encyclopedia.gd")
- t.check(router.categories()==["card.catalog","card.face","card.target","demo_exit.continue","demo_exit.end","mana_flask.deposit","mana_flask.withdraw","prison.door_exit","prison.enter","prison.inspection","prison.key","prison.resist","prison.vent_exit","prison.vent_kick","prison_space.explore_blind","prison_space.explore_site","service.offer","service.release_job","service.remove_card"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
+ t.check(router.categories()==["card.catalog","card.face","card.target","consumables.description","demo_exit.continue","demo_exit.end","departure.description","departure.finish","departure.skip","event.choice","event.prepare","event.reward_skip","mana_flask.deposit","mana_flask.withdraw","prison.door_exit","prison.enter","prison.inspection","prison.key","prison.resist","prison.unlock_door","prison.vent_exit","prison.vent_kick","prison_space.explore_blind","prison_space.explore_site","relic_bundle.claim","relic_bundle.finish","relic_bundle.skip","service.leave","service.offer","service.release_job","service.remove_card","witch.attack"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
  for phase in ["battle","departure"]:
   for count in [0,12,26]:
    var key="%s:%d" % [phase,count]
@@ -711,6 +711,72 @@ static func copy_migrated_kinds(t,router) -> void:
  var explore_args={"distance":explore_game.wall_movement_profile().distance,"cost":explore_game.wall_movement_profile().cost}
  if explore_candidate.is_empty() or router.text(explore_game,{"kind":"prison_space.explore_site","args":explore_args,"fallback":sentinel})!=explore_candidate.get("detail",""): prison_mismatch.append("prison_space.explore_site/room")
  t.check(prison_seen==9 and prison_mismatch.is_empty(),"COPY R3c all nine Prison.add sites render like their candidates: "+str(prison_mismatch.slice(0,3)))
+ copy_r4_sites(t,router,sentinel)
+
+# §11.5 R4: the direct call sites of the remaining modules render through the router as well.
+static func copy_r4_sites(t,router,sentinel: String) -> void:
+ var r4_mismatch=[];var r4_seen=0
+ var choose=GameCore.new(42)
+ var choose_candidate=copy_candidate(choose,"departure","choose")
+ r4_seen+=1
+ if choose_candidate.is_empty() or router.text(choose,{"kind":"departure.description","args":{"entry_id":String(choose_candidate.payload.get("option",""))},"fallback":sentinel})!=choose_candidate.get("detail",""): r4_mismatch.append("departure.description")
+ r4_seen+=1
+ if router.text(choose,{"kind":"departure.skip","args":{},"fallback":sentinel})!=copy_candidate(choose,"departure","skip").get("detail",""): r4_mismatch.append("departure.skip")
+ r4_seen+=1
+ if router.text(choose,{"kind":"departure.finish","args":{},"fallback":sentinel})!="选择第一层的入口。": r4_mismatch.append("departure.finish")
+ var event_game=copy_baseline_fixture("battle",0)
+ event_game.state.phase="event"
+ preload("res://core/room_events.gd").start(event_game,preload("res://data/room_events.gd").pool()[0])
+ var event_candidate=copy_candidate(event_game,"event","choose")
+ r4_seen+=1
+ if event_candidate.is_empty() or router.text(event_game,{"kind":"event.choice","args":{"option_id":String(event_candidate.payload.get("choice",""))},"fallback":sentinel})!=event_candidate.get("detail",""): r4_mismatch.append("event.choice")
+ event_game.state.room_event.stage="result"
+ var prepare_args={"prepare":bool(event_game.state.room_event.get("prepare_pending",false))}
+ r4_seen+=1
+ if router.text(event_game,{"kind":"event.prepare","args":prepare_args,"fallback":sentinel})!=copy_candidate(event_game,"event","leave").get("detail",""): r4_mismatch.append("event.prepare")
+ var bundle_game=copy_baseline_fixture("battle",0)
+ preload("res://core/relic_bundle.gd").start(bundle_game,"reward")
+ var bundle_claim=copy_candidate(bundle_game,"relic_bundle","claim")
+ r4_seen+=1
+ if bundle_claim.is_empty() or router.text(bundle_game,{"kind":"relic_bundle.claim","args":{"relic_id":String(bundle_game.state.relic_bundle.entries[0].type)},"fallback":sentinel})!=bundle_claim.get("detail",""): r4_mismatch.append("relic_bundle.claim")
+ r4_seen+=1
+ if router.text(bundle_game,{"kind":"relic_bundle.skip","args":{},"fallback":sentinel})!=copy_candidate(bundle_game,"relic_bundle","skip").get("detail",""): r4_mismatch.append("relic_bundle.skip")
+ r4_seen+=1
+ if router.text(bundle_game,{"kind":"relic_bundle.finish","args":{},"fallback":sentinel})!=copy_candidate(bundle_game,"relic_bundle","finish").get("detail",""): r4_mismatch.append("relic_bundle.finish")
+ var treasure_game=GameCore.new(42,true,"shop")
+ treasure_game.room_data(treasure_game.state.room).kind="treasure"
+ var treasure_stock=treasure_game.room_data(treasure_game.state.room).stock
+ var treasure_candidate=copy_candidate(treasure_game,"service","take")
+ var treasure_offer=treasure_stock[int(treasure_candidate.get("payload",{}).get("index",-1))] if not treasure_candidate.is_empty() else {}
+ r4_seen+=1
+ if treasure_candidate.is_empty() or router.text(treasure_game,{"kind":"service.offer","args":{"offer":treasure_offer},"fallback":sentinel})!=treasure_candidate.get("detail",""): r4_mismatch.append("service.offer/treasure")
+ r4_seen+=1
+ if router.text(treasure_game,{"kind":"service.leave","args":{},"fallback":sentinel})!=copy_candidate(treasure_game,"service","leave").get("detail",""): r4_mismatch.append("service.leave")
+ var item_game=copy_baseline_fixture("battle",0)
+ item_game.state.equipment.clear();item_game.add_fixture("wrist",8,10)
+ item_game._gain_tool("mana_potion")
+ var use_candidate={}
+ for candidate in item_game.candidates():
+  if candidate.payload.get("kind","")=="item_use" and candidate.payload.get("target","")=="hero": use_candidate=candidate;break
+ r4_seen+=1
+ if use_candidate.is_empty() or router.text(item_game,{"kind":"consumables.description","args":{"item_type":String(item_game._item(String(use_candidate.payload.get("item",""))).type)},"fallback":sentinel})!=use_candidate.get("detail",""): r4_mismatch.append("consumables.description")
+ var witch_game=Game.new(42,false,"equipment",true,false,25,false,false,"witch")
+ var witch_candidate={}
+ for candidate in witch_game.candidates():
+  if candidate.payload.get("kind","")=="attack" and candidate.payload.get("charge_action",false): witch_candidate=candidate;break
+ r4_seen+=1
+ if witch_candidate.is_empty():
+  r4_mismatch.append("witch.attack")
+ else:
+  var witch_args={"part":witch_candidate.payload.get("part",""),"charge":true,"stacks":int(witch_game.state.witch_charges[String(witch_candidate.payload.get("part",""))]),"damage":float(witch_candidate.payload.get("damage",0.0)),"hits":int(witch_candidate.payload.get("hits",1)),"all_targets":bool(witch_candidate.payload.get("all",false)),"focus":0}
+  var witch_assembled=witch_game._candidate_detail(router.text(witch_game,{"kind":"witch.attack","args":witch_args,"fallback":sentinel}),witch_candidate.payload,witch_game.Cards.magic_card_traction(witch_game,witch_candidate.payload),witch_candidate.mana_payment)
+  if witch_assembled!=witch_candidate.detail: r4_mismatch.append("witch.attack")
+ var door_game=GameCore.new(42,true,"prison_test")
+ preload("res://tests/curse_cases.gd").give(door_game,"unlock")
+ var door_candidate=copy_candidate(door_game,"prison","unlock")
+ r4_seen+=1
+ if door_candidate.is_empty() or router.text(door_game,{"kind":"prison.unlock_door","args":{"type":String(door_candidate.payload.get("type",""))},"fallback":sentinel})!=door_candidate.get("detail",""): r4_mismatch.append("prison.unlock_door")
+ t.check(r4_seen==13 and r4_mismatch.is_empty(),"COPY R4 the remaining direct call sites render like their candidates: "+str(r4_mismatch.slice(0,4)))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.candidates():

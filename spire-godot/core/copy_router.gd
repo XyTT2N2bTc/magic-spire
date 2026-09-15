@@ -14,6 +14,11 @@ const DemoExit=preload("res://core/demo_exit.gd")
 const RoomServices=preload("res://core/room_services.gd")
 const Prison=preload("res://core/prison.gd")
 const PrisonSpace=preload("res://core/prison_space.gd")
+const Departure=preload("res://core/departure.gd")
+const RoomEvents=preload("res://core/room_events.gd")
+const RelicBundle=preload("res://core/relic_bundle.gd")
+const Consumables=preload("res://core/consumables.gd")
+const WitchCharacter=preload("res://core/witch_character.gd")
 
 static var _table: Dictionary={}
 
@@ -39,6 +44,19 @@ static func _builders() -> Dictionary:
   _table["prison.door_exit"]=Callable(Prison,"door_exit_detail")
   _table["prison_space.explore_blind"]=Callable(PrisonSpace,"explore_blind_detail")
   _table["prison_space.explore_site"]=Callable(PrisonSpace,"explore_site_detail")
+  _table["prison.unlock_door"]=Callable(Prison,"unlock_door_detail")
+  _table["departure.description"]=Callable(Departure,"description_detail")
+  _table["departure.skip"]=Callable(Departure,"skip_detail")
+  _table["departure.finish"]=Callable(Departure,"finish_detail")
+  _table["event.choice"]=Callable(RoomEvents,"choice_detail")
+  _table["event.reward_skip"]=Callable(RoomEvents,"reward_skip_detail")
+  _table["event.prepare"]=Callable(RoomEvents,"prepare_detail")
+  _table["relic_bundle.claim"]=Callable(RelicBundle,"claim_detail")
+  _table["relic_bundle.skip"]=Callable(RelicBundle,"skip_detail")
+  _table["relic_bundle.finish"]=Callable(RelicBundle,"finish_detail")
+  _table["service.leave"]=Callable(RoomServices,"leave_detail")
+  _table["consumables.description"]=Callable(Consumables,"description_detail")
+  _table["witch.attack"]=Callable(WitchCharacter,"attack_detail")
  return _table
 
 # 可枚举的类别清单；未迁移的生产者走字符串直传通道，不在此列（§11.7 据此核对已收口范围）。
