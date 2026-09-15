@@ -5,6 +5,7 @@ const Text=preload("res://data/card_text.gd")
 
 static func run(t) -> void:
  paired_faces(t)
+ copy_fixed_set_matches_full_entry(t)
  var g=Game.new(42);var before=g.export_snapshot()
  var pot=Book.card("pot_of_greed")
  t.check(pot.face_keywords.bound==[Text.TERMS.exhaust] and pot.face_keywords.free==[Text.TERMS.exhaust] and pot.note=="","TERMS pot explains exhaust on both faces without a redundant draw glossary")
@@ -34,6 +35,43 @@ static func run(t) -> void:
  t.check(Book.card("mana_search").free=="检索魔法3。" and Book.card("mana_search").face_requirements.free==["上身束缚等级≤1"],"TERMS text follows mechanical quantity and gate without a second lookup table")
  g.Cards.Rules.SPECS.mana_search=spec
  mana_badges(t)
+
+# docs/ondemand-copy.md §6 场景 1（copy_fixed_set_matches_full_entry）：三个入口对全部注册牌型逐字段
+# 相等；S 内的键在视图里、S 外的键不在；读取不改状态、随机与版本。
+static func copy_fixed_set_matches_full_entry(t) -> void:
+ var g=Game.new(42)
+ preload("res://tests/curse_cases.gd").give(g,"strain")
+ var before=g.export_snapshot()
+ var view=g.get_view()
+ var candidates=g.candidates()
+ var shown=battle_display_set(g,candidates)
+ var mismatch=[]
+ for type in g.Cards.Rules.SPECS:
+  var single=g.live_card_text(type)
+  if single!=g.live_card_text_set([{"type":type}]).texts.get(type,{}): mismatch.append("set "+type)
+  if view.card_texts.has(type)!=shown.has(type): mismatch.append("scope "+type)
+  elif shown.has(type) and view.card_texts[type]!=single: mismatch.append("value "+type)
+ t.check(mismatch.is_empty(),"COPY scenario 1 three entries agree for every registered type: "+str(mismatch.slice(0,5)))
+ t.check(g.export_snapshot()==before and g.state.version==view.version,"COPY scenario 1 reads leave state, random domains and version unchanged")
+
+# S 按 §1.2 的显示入口独立重算（与 game_view 的实现分开写）。
+static func battle_display_set(g, candidates: Array) -> Dictionary:
+ var shown={}
+ for card in g.state.hand: shown[card.type]=true
+ for type in g.state.reward_options: shown[type]=true
+ for type in g.state.rest_cards: shown[type]=true
+ for candidate in candidates:
+  var type=String(candidate.payload.get("type",""))
+  if g.Cards.Rules.SPECS.has(type): shown[type]=true
+ for row in g.Services.view(g).get("stock",[]):
+  if row.get("kind","")=="card": shown[String(row.get("type",""))]=true
+ for selection in g.Events.view(g).get("selections",[]):
+  if selection.get("kind","")!="card": continue
+  for option in selection.get("options",[]):
+   var selected=option.get("selected",{})
+   var type=String(selected.get("type",option.get("type","")))
+   if g.Cards.Rules.SPECS.has(type): shown[type]=true
+ return shown
 
 static func mana_badges(t) -> void:
  var g=Game.new(42);g.state.pressure=75

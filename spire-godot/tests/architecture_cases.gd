@@ -755,6 +755,7 @@ static func copy_migrated_kinds(t,router) -> void:
  t.check(prison_seen==9 and prison_mismatch.is_empty(),"COPY R3c all nine Prison.add sites render like their candidates: "+str(prison_mismatch.slice(0,3)))
  copy_r4_sites(t,router,sentinel)
  copy_r6_sites(t,router,sentinel)
+ copy_candidate_detail_on_demand(t)
 
 # §11.5 R4: the direct call sites of the remaining modules render through the router as well.
 static func copy_r4_sites(t,router,sentinel: String) -> void:
@@ -846,6 +847,30 @@ static func copy_r6_sites(t,router,sentinel: String) -> void:
    var log_args={"type":type,"free":side}
    if router.text(witch,{"kind":"witch.card_log","args":log_args,"fallback":sentinel})==logged and logged!="": log_matched=true
  t.check(log_matched,"COPY R6 witch.card_log renders like the emitted card log: "+logged)
+
+# docs/ondemand-copy.md §6 场景 5（copy_candidate_detail_on_demand）：card 组不带 detail、按需入口
+# 逐字节等于包装产出的值，其余组保持预生成；候选 ID 仍由 payload 决定，写路径不受影响。
+static func copy_candidate_detail_on_demand(t) -> void:
+ var g=copy_baseline_fixture("battle",12)
+ var before=g.state.duplicate(true)
+ var candidates=g.candidates()
+ var mismatch=[];var card_group=0
+ for candidate in candidates:
+  var detail=g.candidate_detail(candidate)
+  if candidate.payload.get("kind","")=="card":
+   card_group+=1
+   if candidate.has("detail"): mismatch.append("stray "+candidate.id)
+   if detail=="": mismatch.append("empty "+candidate.id)
+  elif detail!=candidate.detail: mismatch.append("eager "+candidate.payload.get("kind","")+"#"+candidate.id)
+  if candidate.id!=JSON.stringify(candidate.payload).sha256_text().substr(0,24): mismatch.append("id "+candidate.id)
+ t.check(card_group>0 and mismatch.is_empty(),"COPY scenario 5 card details are on demand and ids stay payload derived: "+str(mismatch.slice(0,3)))
+ var played=0
+ for candidate in candidates:
+  if candidate.payload.get("kind","")!="card" or not candidate.valid: continue
+  t.check(g.dispatch(candidate.id,g.state.version).ok and g.state.version>0,"COPY scenario 5 a card candidate still commits through dispatch")
+  played+=1
+  break
+ t.check(played==1 and g.state!=before,"COPY scenario 5 write path unaffected by on-demand detail")
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.candidates():
