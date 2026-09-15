@@ -604,7 +604,7 @@ static func candidates(g, out: Array) -> void:
     append_choice_candidate(g,out,option)
   "reward":
    for type in event.reward:
-    g._candidate(out,{"kind":"event","action":"reward","type":type},"领取「"+g.B.CARD_NAMES[type]+"」",g.Cards.face_text(g,type,false)+"\n"+g.Cards.face_text(g,type,true),0,0,"","","event")
+    g._candidate(out,{"kind":"event","action":"reward","type":type},"领取「"+g.B.CARD_NAMES[type]+"」",g.CopyRouter.two_face(g,type),0,0,"","","event")
    g._candidate(out,{"kind":"event","action":"reward","type":"skip"},"跳过选牌","",0,0,"","","event")
   "result":
    var prepare=event.get("prepare_pending",false)

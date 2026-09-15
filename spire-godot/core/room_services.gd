@@ -38,7 +38,7 @@ static func name(g, offer: Dictionary) -> String:
 
 static func detail(g, offer: Dictionary) -> String:
  match offer.kind:
-  "card": return g.Cards.face_text(g,offer.type,false)+"\n"+g.Cards.face_text(g,offer.type,true)
+  "card": return g.CopyRouter.two_face(g,offer.type)
   "tool":
    return "共%d次使用。\n" % g.Tools.TYPES[offer.type].uses+g.Tools.description(g,offer.type)
   "relic": return g.Relics.RARITIES[g.Relics.TYPES[offer.type].rarity]+"遗物 · "+g.Relics.TYPES[offer.type].detail

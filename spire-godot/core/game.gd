@@ -1824,7 +1824,7 @@ func _phase_candidates() -> Array:
    return out
   if not state.reward_claimed.has("card"):
    for type in state.reward_options:
-    _candidate(out,{"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",Cards.face_text(self,type,false)+"\n"+Cards.face_text(self,type,true),0,0,"","","reward")
+    _candidate(out,{"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",CopyRouter.two_face(self,type),0,0,"","","reward")
   if state.battle_flask_drop>0 and not state.reward_claimed.has("flask"):
    _candidate(out,{"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,"全部存入贴身魔瓶，不占用存入次数。",0,0,"","","reward")
   for category in ["item","relic"]:

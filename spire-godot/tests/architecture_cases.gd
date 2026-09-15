@@ -633,6 +633,32 @@ static func copy_migrated_kinds(t,router) -> void:
  t.check(router.text(exit_game,{"kind":"demo_exit.end","args":{},"fallback":sentinel})==copy_candidate(exit_game,"demo_end","").get("detail",""),"COPY R1 demo_exit.end renders like the exit candidate")
  t.check(router.text(exit_game,{"kind":"demo_exit.continue","args":{"next_cycle":1},"fallback":sentinel})==copy_candidate(exit_game,"demo_continue","").get("detail",""),"COPY R1 demo_exit.continue renders like the continuation candidate")
  t.check(flask.copy_router_failures.is_empty() and exit_game.copy_router_failures.is_empty(),"COPY R1 migrated kinds are all registered and record no failure")
+ # R2: 三处两面拼接改走共享片段，产出的候选必须逐字节等于 two_face。
+ var reward_game=copy_baseline_fixture("battle",0)
+ reward_game.state.phase="reward";reward_game.state.reward_options=["strain","brace"];reward_game.state.reward_claimed={}
+ var event_game=copy_baseline_fixture("battle",0)
+ event_game.state.phase="event"
+ preload("res://core/room_events.gd").start(event_game,preload("res://data/room_events.gd").pool()[0])
+ event_game.state.room_event.stage="reward";event_game.state.room_event.reward=["strain","brace"]
+ var shop_game=GameCore.new(42,true,"shop")
+ var stock=shop_game.room_data(shop_game.state.room).stock
+ stock.append({"kind":"card","type":"strain","price":40,"taken":false})
+ var two_face_mismatch=[];var two_face_seen={"reward":0,"event":0,"service":0}
+ for candidate in reward_game.candidates():
+  if candidate.payload.get("kind","")!="reward" or candidate.payload.get("category","")!="card": continue
+  two_face_seen.reward+=1
+  if candidate.detail!=router.two_face(reward_game,String(candidate.payload.type)): two_face_mismatch.append("reward "+candidate.id)
+ for candidate in event_game.candidates():
+  if candidate.payload.get("kind","")!="event" or candidate.payload.get("action","")!="reward" or candidate.payload.get("type","")=="skip": continue
+  two_face_seen.event+=1
+  if candidate.detail!=router.two_face(event_game,String(candidate.payload.type)): two_face_mismatch.append("event "+candidate.id)
+ for candidate in shop_game.candidates():
+  if candidate.payload.get("kind","")!="service" or candidate.payload.get("op","")!="take": continue
+  var offer=stock[int(candidate.payload.index)]
+  if offer.kind!="card": continue
+  two_face_seen.service+=1
+  if candidate.detail!=router.two_face(shop_game,String(offer.type)): two_face_mismatch.append("service "+candidate.id)
+ t.check(two_face_seen.reward>0 and two_face_seen.event>0 and two_face_seen.service>0 and two_face_mismatch.is_empty(),"COPY R2 reward, event and shop card texts use the shared two-face fragment: "+JSON.stringify(two_face_seen)+" "+str(two_face_mismatch.slice(0,3)))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.candidates():
