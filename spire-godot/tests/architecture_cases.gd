@@ -21,6 +21,8 @@ class IndexCountingGame extends "res://tests/game_fixture.gd":
  var piece_builds=0
  var slot_builds=0
  var id_builds=0
+ var capacity_builds=0
+ var physical_builds=0
  func _materialize_physical_pieces() -> Array:
   piece_builds+=1
   return super._materialize_physical_pieces()
@@ -30,6 +32,12 @@ class IndexCountingGame extends "res://tests/game_fixture.gd":
  func _materialize_id_edge() -> Dictionary:
   id_builds+=1
   return super._materialize_id_edge()
+ func _materialize_capacity_points(pieces: Array) -> Dictionary:
+  capacity_builds+=1
+  return super._materialize_capacity_points(pieces)
+ func _materialize_physical_points(pieces: Array) -> Dictionary:
+  physical_builds+=1
+  return super._materialize_physical_points(pieces)
 
 static func containers(value, path: String, out: Array) -> void:
  if value is Dictionary:
@@ -161,21 +169,26 @@ static func index_materializes_once_per_scope(t) -> void:
  for slot in g.B.SLOTS: g.add_fixture(slot,7,10)
  var before=g.export_snapshot()
  var previous=g._begin_equipment_read()
- t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1,"INDEX entry materializes the piece set, slot edge and id edge once per scope")
+ t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1 and g.capacity_builds==1 and g.physical_builds==1,"INDEX entry materializes the piece set and every edge once per scope")
  for slot in g.B.SLOTS: g.equipment_at(slot)
  for step in range(3): g.physical_pieces()
  var ids=g.physical_pieces().map(func(e):return e.id)
  for id in ids: g._equipment(id)
- t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1,"INDEX repeated slot and id queries inside one scope never rebuild an edge")
+ for slot in g.B.SLOTS: g.capacity_used(slot)
+ for point in g.Equipment.ANATOMY: g._point_count(point)
+ t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1 and g.capacity_builds==1 and g.physical_builds==1,"INDEX repeated slot, id and point queries inside one scope never rebuild an edge")
  var members=g.equipment_at("wrist");members.clear();members.append({})
  t.check(not g.equipment_at("wrist").is_empty(),"INDEX clearing a materialized slot answer cannot corrupt the edge")
  var built=g.piece_builds;var slot_builds=g.slot_builds;var id_builds=g.id_builds
+ var capacity_builds=g.capacity_builds;var physical_builds=g.physical_builds
  g._equipment_read=previous
  t.check(g._equipment_read.is_empty(),"INDEX read scope releases its materialized edges")
  for step in range(3):
   g.equipment_at("wrist");g.physical_pieces()
  for id in ids: g._equipment(id)
- t.check(g.piece_builds==built and g.slot_builds==slot_builds and g.id_builds==id_builds,"INDEX queries without a scope never build an edge table")
+ for slot in g.B.SLOTS: g.capacity_used(slot)
+ for point in g.Equipment.ANATOMY: g._point_count(point)
+ t.check(g.piece_builds==built and g.slot_builds==slot_builds and g.id_builds==id_builds and g.capacity_builds==capacity_builds and g.physical_builds==physical_builds,"INDEX queries without a scope never build an edge table")
  t.check(g.export_snapshot()==before,"INDEX materialization leaves state, logs and random cursors unchanged")
 
 # Batch B1 (§11 scenario 3): an inconsistent graph voids the whole scope, records one named issue

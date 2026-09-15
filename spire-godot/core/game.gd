@@ -32,6 +32,8 @@ func _build_equipment_read_index() -> void:
  _equipment_read.pieces=pieces
  _equipment_read.slots=_materialize_slot_edge(pieces)
  _equipment_read.ids=_materialize_id_edge()
+ _equipment_read.capacity_points=_materialize_capacity_points(pieces)
+ _equipment_read.physical_points=_materialize_physical_points(pieces)
 
 # Built from the assembled action target list, so a later batch never re-runs its scans.
 func _materialize_id_edge() -> Dictionary:
@@ -39,6 +41,31 @@ func _materialize_id_edge() -> Dictionary:
  for target in action_targets():
   if not ids.has(target.id): ids[target.id]=target
  return ids
+
+# Both point edges project the whole piece set, so neither carries a durability filter of its own:
+# a caller that needs one iterates the durability-filtered slot edge (equipment_at) and uses the
+# point edge only as a membership test.
+func _materialize_capacity_points(pieces: Array) -> Dictionary:
+ return _materialize_point_edge(pieces,Equipment.capacity_points)
+
+func _materialize_physical_points(pieces: Array) -> Dictionary:
+ return _materialize_point_edge(pieces,Equipment.physical_points)
+
+func _materialize_point_edge(pieces: Array, points_of: Callable) -> Dictionary:
+ var points={}
+ for piece in pieces:
+  for point in points_of.call(piece):
+   if not points.has(point): points[point]=[]
+   points[point].append(piece)
+ return points
+
+func _capacity_point_count(point: String) -> int:
+ if _equipment_read_active(): return _equipment_read.capacity_points.get(point,[]).size()
+ return physical_pieces().filter(func(e):return point in Equipment.capacity_points(e)).size()
+
+func _piece_covers_point(point: String, e: Dictionary) -> bool:
+ if _equipment_read_active(): return _equipment_read.physical_points.get(point,[]).has(e)
+ return point in Equipment.physical_points(e)
 
 func _materialize_physical_pieces() -> Array:
  var pieces=state.equipment.duplicate()
@@ -756,6 +783,9 @@ func _assembly_reason(layout: Dictionary, attached_to: String="") -> String:
  return ""
 
 func _capacity_issue(pieces: Array) -> String:
+ # The input is not guaranteed to be the authoritative piece set (validation and the replacement
+ # tail pass their own arrays), so it always counts live; array values cannot declare authority,
+ # so the batch capacity edge is never used here.
  var counts={}
  for e in pieces:
   for point in Equipment.capacity_points(e): counts[point]=counts.get(point,0)+1
@@ -767,7 +797,7 @@ func _capacity_issue(pieces: Array) -> String:
 func capacity_used(slot: String) -> int:
  var amount=0
  for point in Equipment.points(slot):
-  amount=maxi(amount,physical_pieces().filter(func(e):return point in Equipment.capacity_points(e)).size())
+  amount=maxi(amount,_capacity_point_count(point))
  return amount
 
 func _prepare_assembly(kind: String, variant: String, source: String, grade: int=2, tightness: int=2, overrides: Dictionary={}, straps: String="straight", attached_to: String="") -> Dictionary:
@@ -1251,7 +1281,7 @@ func _installation_points(slot: String, point: String="") -> Array:
  return [options[0]]
 
 func _point_count(point: String) -> int:
- return physical_pieces().filter(func(e):return point in Equipment.capacity_points(e)).size()
+ return _capacity_point_count(point)
 
 func _installation_reason(template: String, slot: String, grade: int, locked: bool=false, point: String="", layer: int=-1) -> String:
  return _prepare_installation(template,slot,grade,locked,point,layer).reason
@@ -1267,7 +1297,7 @@ func _prepare_installation(template: String, slot: String, grade: int, locked: b
  if reason!="": return {"reason":reason}
  var locations=_installation_points(slot,point)
  if locations.is_empty(): return {"reason":"该具体位置不属于所选身体部位。"}
- var overlaps=equipment_at(slot).filter(func(e):return Equipment.physical_points(e).any(func(p):return p in locations))
+ var overlaps=equipment_at(slot).filter(func(e):return locations.any(func(p):return _piece_covers_point(p,e)))
  var proposed=layer
  if proposed<0:
   proposed=0
@@ -1353,7 +1383,7 @@ func _outer_at(target: Dictionary, slot: String, point: String="") -> bool:
 func _outer_cover_at(target: Dictionary, slot: String, point: String="") -> Dictionary:
  if Equipment.is_shoulder(target): return {}
  for e in equipment_at(slot):
-  if point!="" and point not in Equipment.physical_points(e): continue
+  if point!="" and not _piece_covers_point(point,e): continue
   if target.get("side","")!="" and e.get("side","") not in ["",target.side]: continue
   if target.has("points") and not Equipment.overlaps(target,e): continue
   if e.get("root_id",e.id)!=target.get("root_id",target.id) and e.layer>target.layer: return e
