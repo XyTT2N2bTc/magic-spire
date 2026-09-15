@@ -148,9 +148,40 @@ static func sidebar_refresh(t) -> void:
  panel.size.y=512;await t.frames(5)
  t.check(panel.find_child("BodyRegionContent_region_upper",true,false).size.y>scroll_height,"DISPLAY resized body panel recalculates its visible region")
 
+# docs/ondemand-copy.md §4.1/§6 scenario 0: the body detail section resolves the card face through
+# the single display entry, so a deleted card_texts key must recompute the same text and leave a
+# named record instead of raising or silently blanking.
+static func copy_missing_key_never_crashes(t) -> void:
+ var ui=t.ui
+ ui.restart(42);ui.game.state.equipment.clear();ui.game.state.wall="normal"
+ var card=preload("res://tests/curse_cases.gd").give(ui.game,"strain")
+ ui.game.add_fixture("wrist",4,10,false);ui.game.add_fixture("wrist",4,10,false)
+ ui.selected_slot="wrist";ui.show_body=true;ui.selected_card=card.uid
+ ui.render();await t.frames()
+ t.check(ui.projection_misses.is_empty(),"COPY complete projection records no display miss")
+ var before=ui.game.export_snapshot()
+ var baseline={};var hinted=false
+ for free_face in [false,true]:
+  ui.card_faces[card.uid]=free_face
+  ui.render();await t.frames()
+  t.check(ui.find_child("EquipmentDetails",true,false)!=null,"COPY body detail section renders for face "+str(free_face))
+  baseline[free_face]=t.visible_text(ui.find_child("EquipmentDetails",true,false))
+  hinted=hinted or baseline[free_face].contains("请右键切换到")
+ t.check(hinted,"COPY body detail fixture exercises the right-click face hint")
+ var copy=ui.game.get_view().duplicate(true)
+ copy.card_texts.erase(card.type)
+ for free_face in [false,true]:
+  ui.card_faces[card.uid]=free_face
+  ui.render(copy);await t.frames()
+  var erased=t.visible_text(ui.find_child("EquipmentDetails",true,false))
+  t.check(erased==baseline[free_face],"COPY deleted card_texts key keeps the body detail text identical for face "+str(free_face))
+ t.check(ui.projection_misses.any(func(entry):return entry.point=="card_entry" and entry.key.begins_with(card.type)),"COPY deleted card key is recomputed through the single entry and recorded: "+str(ui.projection_misses))
+ t.check(ui.game.export_snapshot()==before,"COPY missing-key rendering never changes state or random cursors")
+
 static func run(t) -> void:
  await portrait_snapshot_boundary(t)
  await portrait_composite_boundary(t)
+ await copy_missing_key_never_crashes(t)
  var ui=t.ui
  await sidebar_refresh(t)
  await portrait_refresh(t)

@@ -411,6 +411,15 @@ static func metadata(g, type: String, uid: String="") -> Dictionary:
    for side in ["bound","free"]: result.face_mana[side]=result.face_mana[side].filter(func(entry):return entry.kind!="gain")
  return result
 
+# 界面固有卡面文案的唯一生成函数（docs/ondemand-copy.md §1.1）：实时路径的四个步骤在此一处。
+# 输入按牌型与实例 uid，输出全新 Dictionary，只读且不影响判定、随机与存档。
+static func text_entry(g, type: String, uid: String="") -> Dictionary:
+ var entry=face_texts(g,type,uid)
+ entry.face_costs={"bound":"—" if g.B.CARD_TRAITS.get(type,{}).get("unplayable",false) else g.Cards.energy_label(g,type,false),"free":"—" if g.B.CARD_TRAITS.get(type,{}).get("unplayable",false) else g.Cards.energy_label(g,type,true)}
+ entry.merge(metadata(g,type,uid))
+ if not Rules.cast_profile(type).is_empty(): entry.casting=g.cast_view(cast_profile(g,type))
+ return entry
+
 static func base_damage(g, type: String, uid: String="") -> float:
  var spec=Rules.SPECS[type]
  var scaling=spec.get("worn_damage",{})

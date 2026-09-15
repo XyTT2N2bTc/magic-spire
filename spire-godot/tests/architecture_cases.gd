@@ -1,7 +1,19 @@
 extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
+const GameCore=preload("res://core/game.gd")
 const Rewards=preload("res://tests/reward_cases.gd")
 const Guard=preload("res://core/guard.gd")
+
+# docs/ondemand-copy.md §5.1: frozen docs/equipment-query-seam.md §8.2 hashes recomputed with
+# unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for the §5.5 fixtures.
+const COPY_BASELINE={
+ "battle:0":["bf8d97d58f3be03b42cb65ee5b36afebca335f25e496fbb3301db3285fcc46fe","e2b375c5019c2ccae9d088a5050b9ee445d199f74c0e524e9e63cd2bc6ccfb4a"],
+ "battle:12":["c07e59259326f1ec2e380bcc1d7f2ed8e9b05e8442f16b3bb288133ff2b9a6df","81f7796e55826b580131762445db711651815b83b7bb0a9ab89560971ccb2f32"],
+ "battle:26":["361c37774a2901bb985926fe0ce4dd9bb4f1c2e7b349d6fb39dca2a9f59d91d8","f7401077920a93d96b699052708a19597ffaa02496c0925b4578aee61469fc06"],
+ "departure:0":["74b735a41f761e8bae611d38bffc58b103c40f1d534ba086f00bc30f2dd9fc3c","472f1bd7efbd2271be1e720ffff59d284d43081eb4a41362fe49d0a2362933cd"],
+ "departure:12":["74b735a41f761e8bae611d38bffc58b103c40f1d534ba086f00bc30f2dd9fc3c","c0d28042a3cfefcf74c4ec3a6df1b28ccad66dee8ab9e576ccee83ca832dc150"],
+ "departure:26":["74b735a41f761e8bae611d38bffc58b103c40f1d534ba086f00bc30f2dd9fc3c","92ce21c9462bcdb8cdbd8b78793d78f61f398a3260fb1a0fe5c1701e94b336a7"],
+}
 
 static func ids_for(values: Array) -> Array:
  return values.map(func(e):return e.get("id",""))
@@ -67,6 +79,7 @@ static func run(t) -> void:
  index_predicate_parity(t)
  index_entry_parity(t)
  index_self_check_falls_back(t)
+ copy_projection_masked_baseline(t)
  var images=preload("res://data/equipment_images.gd")
  var missing=[]
  for family in images.MATERIALS:
@@ -476,3 +489,46 @@ static func instance_effect_boundaries(t) -> void:
  g=Game.new(42,true,"shop")
  t.check(t.action(g,"service",{"op":"take","index":0,"payment":"self"}).ok,"ARCH shop transaction freezes its actual payment source")
  projection_contract(t,g,"shop result and presentation registry")
+
+# docs/ondemand-copy.md §5.5: the six fixture sequence, constructed by name in this file.
+static func copy_baseline_fixture(phase: String, count: int):
+ var g=Game.new(42) if phase=="battle" else GameCore.new(42)
+ if count>=12:
+  for slot in g.B.SLOTS: g.add_fixture(slot,7,10)
+ if count==26:
+  for slot in g.B.SLOTS: g.add_fixture(slot,7,10)
+  for slot in ["upper_arm","wrist","thigh"]: g.add_fixture(slot,7,10)
+ return g
+
+# §5.4 mask: delete only the declared keys, and report what was actually removed so the caller
+# can demand "exactly the declared set, no more and no fewer".
+static func copy_masked_projection(view: Dictionary, candidates: Array, declared: Dictionary) -> Dictionary:
+ var removed={"card_texts":[],"card_instances":[],"candidate_detail":[]}
+ for key in declared.card_texts:
+  if view.card_texts.has(key): view.card_texts.erase(key);removed.card_texts.append(key)
+ for key in declared.card_instances:
+  if view.card_instances.has(key): view.card_instances.erase(key);removed.card_instances.append(key)
+ for candidate in candidates:
+  if declared.candidate_detail.has(candidate.id) and candidate.has("detail"):
+   candidate.erase("detail");removed.candidate_detail.append(candidate.id)
+ return removed
+
+# §5.1 B0 judgement and §5.4 mask protocol: while no display set is narrowed, the six masked
+# projections must still hash to the frozen §8.2 baseline, and the declared subset must equal the
+# keys the mask actually removes (printed so a later batch cannot hide a difference).
+static func copy_projection_masked_baseline(t) -> void:
+ var declared={"card_texts":[],"card_instances":[],"candidate_detail":[]}
+ print("COPY MASK DECLARATION "+JSON.stringify(declared))
+ for phase in ["battle","departure"]:
+  for count in [0,12,26]:
+   var key="%s:%d" % [phase,count]
+   var g=copy_baseline_fixture(phase,count)
+   var pieces=g.physical_pieces().size()
+   t.check(pieces==count and g.state.equipment.size()==count and g.state.links.is_empty() and g.state.composites.is_empty() and g.state.special_equipment.is_empty() and g.validate()=="","COPY §5.5 fixture sequence holds for "+key)
+   var candidates=g.candidates()
+   var view=g.get_view()
+   t.check(view.card_texts.size()==g.Cards.Rules.SPECS.size() and candidates.all(func(candidate):return candidate.has("detail")),"COPY this batch narrows neither the card set nor the candidate detail "+key)
+   var removed=copy_masked_projection(view,candidates,declared)
+   t.check(removed.card_texts==declared.card_texts and removed.card_instances==declared.card_instances and removed.candidate_detail==declared.candidate_detail,"COPY mask removes exactly the declared display subset "+key)
+   t.check(JSON.stringify(view).sha256_text()==COPY_BASELINE[key][1] and JSON.stringify(candidates).sha256_text()==COPY_BASELINE[key][0],"COPY masked projection equals the frozen §8.2 baseline "+key)
+ print("COPY BASELINE: six fixtures match the §8.2 hashes with an empty mask declaration")

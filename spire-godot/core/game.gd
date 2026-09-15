@@ -1718,6 +1718,11 @@ func candidates() -> Array:
  _equipment_read=previous
  return result
 
+# 单条卡面文案的只读入口（docs/ondemand-copy.md §1.4）：任意注册牌型现算一条，返回全新容器。
+# 不写 state、不推进随机、不改 version、不产生日志与事件（§2 共同语义）。
+func live_card_text(type: String, uid: String = "") -> Dictionary:
+ return Cards.text_entry(self,type,uid)
+
 func _build_candidates() -> Array:
  if not state.relic_bundle.is_empty():
   var bundled=RelicBundle.candidates(self)

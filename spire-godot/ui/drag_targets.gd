@@ -71,7 +71,8 @@ static func begin(ui, data: Dictionary) -> void:
   var title="希凛" if id=="hero" else "捕缚" if id=="guard_bind" else ""
   for enemy in ui.view.enemies:
    if enemy.id==id: title=enemy.name
-  var detail=c.get("brief",c.detail)
+  var detail=c.get("brief","")
+  if not c.has("brief"): detail=ui.detail_of(c)
   if id=="guard_bind" and c.payload.has("preview"): detail=ui.game.number(c.payload.preview.damage)+"点伤害"
   if id=="guard_bind":
    var sidebar=ui.find_child("SidebarGuardBindTarget",true,false)

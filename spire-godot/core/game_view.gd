@@ -299,10 +299,7 @@ static func build(g) -> Dictionary:
     card_instances[card.uid].merge(g.Cards.metadata(g,card.type,card.uid))
  for type in g.Cards.Rules.SPECS: costs[type]=g.Cards.Rules.energy_label(type)
  for type in g.Cards.Rules.SPECS:
-  card_texts[type]=g.Cards.face_texts(g,type)
-  card_texts[type].face_costs={"bound":"—" if B.CARD_TRAITS.get(type,{}).get("unplayable",false) else g.Cards.energy_label(g,type,false),"free":"—" if B.CARD_TRAITS.get(type,{}).get("unplayable",false) else g.Cards.energy_label(g,type,true)}
-  card_texts[type].merge(g.Cards.metadata(g,type))
-  if not g.Cards.Rules.cast_profile(type).is_empty(): card_texts[type].casting=g.cast_view(g.Cards.cast_profile(g,type))
+  card_texts[type]=g.Cards.text_entry(g,type)
  var chain={} if state.card_chain.is_empty() else {"name":B.CARD_NAMES[state.card_chain.type],"remaining":state.card_chain.remaining}
  var copy=g.ActionCopy.view(state.logs,pressure.overloaded)
  var grouped_bodies=body_groups(g,bodies,special_regions)

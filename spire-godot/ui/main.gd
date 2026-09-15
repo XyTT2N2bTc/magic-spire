@@ -55,6 +55,9 @@ var localization=preload("res://ui/localization.gd").new()
 var game_factory=Game
 var game=Game.new()
 var view: Dictionary
+# Read-only display diagnostics (docs/ondemand-copy.md §3): one entry per (point, key, view version),
+# cleared when ui.view is replaced. Never rendered, logged, saved or counted.
+var projection_misses: Array=[]
 var layout: Control
 var drawer_layer: Control
 var drawer_base_candidates={}
@@ -365,6 +368,7 @@ func render(snapshot: Dictionary={}) -> void:
  DragTargets.clear(self)
  _hide_term()
  view=game.get_view() if snapshot.is_empty() else snapshot
+ projection_misses=[]
  if is_instance_valid(card_music): card_music.sync_phase(view.phase,show_home)
  if not view.reward_panel.active or view.battle_rewards.any(func(entry):return entry.category=="card" and entry.claimed): show_reward_cards=false
  if not view.reward_panel.active or view.battle_rewards.any(func(entry):return entry.category=="relic" and entry.claimed): show_reward_relics=false
@@ -706,7 +710,8 @@ func _build_action_rail() -> void:
    var c=offers[i]
    var attack=c.payload.kind=="attack"
    var alternatives=actions.select("attack",{"enemy":selected_enemy,"type":c.payload.type}) if attack else []
-   var summary=c.get("brief",c.detail.trim_suffix("。"))
+   var summary=c.get("brief","")
+   if not c.has("brief"): summary=detail_of(c).trim_suffix("。")
    var tags=c.get("brief_tags","")
    if c.has("casting"): tags+=(" · " if tags!="" else "")+c.casting.percent
    var btn=_basic_action_tile(c,Rect2(394+(i if view.phase=="battle" else 3 if attack else 4)*(width+8),556,width,60),container,summary,tags,alternatives.size()>1)
@@ -847,6 +852,37 @@ func _posture_controls() -> void:
   btn.disabled=not c.valid;btn.tooltip_text=c.detail if c.valid else c.reason
   _place(btn,Rect2(128 if c.payload.wall else 0,index*placement.stride,121 if has_wall else 249,placement.stride-4),container)
   candidate_buttons[c.id]=btn
+
+# 显示边界的唯一卡面取用点（docs/ondemand-copy.md §3）：命中投影即用，未命中经 §1.4 单条入口补算并记录。
+func card_entry(type: String, uid: String="") -> Dictionary:
+ var texts=view.get("card_texts",{})
+ var instances=view.get("card_instances",{})
+ if texts.has(type) or (uid!="" and instances.has(uid)):
+  var entry=(texts[type] if texts.has(type) else {}).duplicate()
+  if uid!="" and instances.has(uid): entry.merge(instances[uid],true)
+  return entry
+ _record_projection_miss("card_entry",type if uid=="" else type+"#"+uid)
+ return game.live_card_text(type,uid) if game.Cards.Rules.SPECS.has(type) else {}
+
+# 卡面名称的安全取用：缺条目时补算并记录，仍取不到时返回空串，由调用方保留原文案。
+func card_face_name(type: String, uid: String, free: bool) -> String:
+ var side="free" if free else "bound"
+ var names=card_entry(type,uid).get("face_names",{})
+ if names.has(side): return names[side]
+ _record_projection_miss("card_face_name",type+"#"+side)
+ return ""
+
+# 候选详情的唯一取用点（docs/ondemand-copy.md §3）：命中即用，缺失时记录并按 §2 只读入口补算。
+func detail_of(candidate: Dictionary) -> String:
+ if candidate.has("detail"): return candidate.detail
+ _record_projection_miss("detail_of",String(candidate.get("id","")))
+ return ""
+
+func _record_projection_miss(point: String, key: String) -> void:
+ var version=int(view.get("version",-1))
+ for entry in projection_misses:
+  if entry.point==point and entry.key==key and entry.view_version==version: return
+ projection_misses.append({"point":point,"key":key,"view_version":version})
 
 func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0, parent: Node=null, hand_interaction: bool=true, lift: bool=true, live_state: bool=true) -> Button:
  card=card.duplicate()
@@ -1176,7 +1212,9 @@ func _body_details() -> void:
   if not single.is_empty(): selected_candidate=single.id
   for c in choices:
    if c.payload.free==card_faces.get(selected_card,false): _card_target(content,c,not single.is_empty(),v)
-   elif not choices.any(func(other):return other.payload.free==card_faces.get(selected_card,false)): content.add_child(_label("请右键切换到"+card.face_names["free" if c.payload.free else "bound"]+"。",14,RED))
+   elif not choices.any(func(other):return other.payload.free==card_faces.get(selected_card,false)):
+    var face_name=card_face_name(card.type,card.uid,c.payload.free)
+    if face_name!="": content.add_child(_label("请右键切换到"+face_name+"。",14,RED))
  else:
   var body=_body_at(selected_slot)
   var members=body.get("members",[body])
@@ -2048,7 +2086,8 @@ func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false
   var reason=c.reason
   if data.has("card_uid") and c.payload.free!=data.free:
    if choices.any(func(other):return other.payload.free==data.free): continue
-   reason="请右键切换到"+view.card_texts[c.payload.type].face_names["free" if c.payload.free else "bound"]+"。"
+   var face_name=card_face_name(c.payload.type,c.payload.get("uid",""),c.payload.free)
+   if face_name!="": reason="请右键切换到"+face_name+"。"
   if data.version!=view.version: reason="状态已变化，请重新拖牌。"
   var effect=reason
   if reason=="":
@@ -2056,9 +2095,9 @@ func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false
     var damage_type=preload("res://data/card_rules.gd").damage_type(c.payload.type,c.payload.free) if c.payload.kind=="card" else c.payload.get("damage_type",c.payload.get("mode",""))
     effect="%s点%s伤害" % [game.number(c.payload.preview.damage),{"strain":"挣扎","slip":"滑脱","cut":"切割"}.get(damage_type,"")]
    elif c.payload.has("after"): effect="耐久降至%s" % game.number(c.payload.after)
-   elif c.payload.get("free",false): effect=c.detail
+   elif c.payload.get("free",false): effect=detail_of(c)
    elif c.payload.get("mode","")=="unlock": effect="开锁"
-   else: effect=c.detail
+   else: effect=detail_of(c)
    if not c.payload.get("tool_bonus",{}).is_empty(): effect+="\n另加%s点切割伤害" % game.number(c.payload.tool_bonus.damage)
    if c.payload.get("preview",{}).get("release",false): effect+="\n整件脱下"
   var tone=RED if reason!="" or c.risk!="" else CYAN
