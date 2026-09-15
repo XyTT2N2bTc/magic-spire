@@ -31,9 +31,22 @@ func _build_equipment_read_index() -> void:
   return
  _equipment_read.pieces=pieces
  _equipment_read.slots=_materialize_slot_edge(pieces)
+ _equipment_read.roots=_materialize_root_edge()
  _equipment_read.ids=_materialize_id_edge()
  _equipment_read.capacity_points=_materialize_capacity_points(pieces)
  _equipment_read.physical_points=_materialize_physical_points(pieces)
+
+# Root id to root, in root order, so every component lookup reads one projection of
+# state.composites instead of rescanning it; components stay reachable as root.components.
+func _materialize_root_edge() -> Dictionary:
+ var roots={}
+ for root in state.composites:
+  if not roots.has(root.id): roots[root.id]=root
+ return roots
+
+func _composite_roots() -> Array:
+ if _equipment_read_active(): return _equipment_read.roots.values()
+ return state.composites
 
 # Built from the assembled action target list, so a later batch never re-runs its scans.
 func _materialize_id_edge() -> Dictionary:
@@ -743,13 +756,14 @@ func targets_at(slot: String) -> Array:
  if slot=="shoulder": return physical_pieces().filter(func(e):return Equipment.is_shoulder(e) and e.durability>0)
  if slot in SpecialEquipment.slots(): return state.special_equipment.filter(func(e):return SpecialEquipment.occupies(e,slot))+links_at(slot)
  var targets=equipment_at(slot)
- for root in state.composites:
+ for root in _composite_roots():
   if slot in Composites.definition(root).coverage and Composites.active(root):
    for e in root.components:
     if not Equipment.is_shoulder(e) and not targets.has(e): targets.append(e)
  return targets+links_at(slot)+Binding.connections(self).filter(func(e):return e.slot==slot)
 
 func _composite(id: String) -> Dictionary:
+ if _equipment_read_active(): return _equipment_read.roots.get(id,{})
  for root in state.composites:
   if root.id==id: return root
  return {}
