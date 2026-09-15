@@ -16,6 +16,8 @@
 | 监狱及出狱 | docs/prison-release.md、docs/prison-reinforcements.md |
 | 平板锁 | docs/cursed-plate-lock.md |
 | 界面拆分与装备详情 | docs/ui-scene-refresh.md、docs/release-interface.md |
+| 输入到落地的提交与刷新 | docs/response-pipeline.md |
+| 装备只读查询 | docs/equipment-query-seam.md |
 | 文案与本地化 | docs/action-copy-guide.md、docs/localization.md |
 | 美术来源与差分 | assets/art/ART-NOTES.md、assets/vendor/CREDITS.md |
 | 验证结果 | docs/verification.md |
