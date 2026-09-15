@@ -279,7 +279,7 @@ static func flame_flourish(t) -> void:
  card=Cards.give(ui.game,"flame_flourish");ui.render();await t.frames();await t.flip(card.uid)
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  candidate=ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy})
- t.check(candidate.detail.contains("2／3次") and ui.game.state.powers.size()==2,"FLAME UI free face increases shared remaining count in fireball description")
+ t.check(ui.game.candidate_detail(candidate).contains("2／3次") and ui.game.state.powers.size()==2,"FLAME UI free face increases shared remaining count in fireball description")
 
 static func embers(t) -> void:
  var ui=t.ui

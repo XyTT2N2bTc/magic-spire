@@ -15,7 +15,7 @@ static func run(t) -> void:
   var card=Cards.give(g,"rekindle")
   var c=t.find_action(g,"card",{"uid":card.uid,"free":free})
   var before=g.export_snapshot()
-  t.check(c.valid and c.cost==1 and c.mana==10 and c.detail.contains("0／%d" % limit),"REKINDLE both faces show correct payment and remaining uses")
+  t.check(c.valid and c.cost==1 and c.mana==10 and g.candidate_detail(c).contains("0／%d" % limit),"REKINDLE both faces show correct payment and remaining uses")
   t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"REKINDLE stale submission cannot refresh or spend")
   t.check(g.dispatch(c.id,g.state.version).ok and g.state.energy==before.energy-1 and g.state.mana==before.mana-10 and g.BasicAttacks.usage(g,"fireball").remaining==limit and g.state.discard.any(func(x):return x.uid==card.uid),"REKINDLE succeeds, restores current limit and normally discards")
   t.check(t.action(g,"attack",{"type":"fireball"}).ok and g.BasicAttacks.usage(g,"fireball").remaining==limit-1,"REKINDLE restored counter enables a real same-turn fireball")

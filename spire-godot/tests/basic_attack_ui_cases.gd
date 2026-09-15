@@ -105,7 +105,7 @@ static func bound_kick(t) -> void:
  var ui=t.ui
  ui.restart(42);ui.game.state.posture="sit";ui.game.add_fixture("ankle",4);ui.render();await t.frames()
  var c=ui.actions.find("attack",{"type":"kick","form":0,"enemy":ui.selected_enemy})
- t.check(c.valid and c.payload.fall and c.detail.contains("3回合冷却") and c.risk.contains("躺下") and ui.find_child("BasicAttackDetail_kick",true,false).text.contains("3 伤害"),"BOUND KICK UI shows reduced seated damage shared cooldown and fall cost")
+ t.check(c.valid and c.payload.fall and ui.game.candidate_detail(c).contains("3回合冷却") and c.risk.contains("躺下") and ui.find_child("BasicAttackDetail_kick",true,false).text.contains("3 伤害"),"BOUND KICK UI shows reduced seated damage shared cooldown and fall cost")
  t.check(await t.click("attack",{"type":"kick","form":0,"enemy":ui.selected_enemy}) and ui.view.posture=="lie","BOUND KICK UI actual seated kick leaves the player lying down")
  t.check(await t.click("posture",{"dest":"sit","wall":false}),"BOUND KICK UI recovers through actual posture action")
  c=ui.actions.find("attack",{"type":"kick","form":0,"enemy":ui.selected_enemy})
