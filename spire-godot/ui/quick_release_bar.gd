@@ -152,7 +152,7 @@ static func update_tile(ui, button: Button, region_id: String, data: Dictionary)
  button.get_node("Status").text=status
  button.get_node("Reason").text=reason
  button.tooltip_text=title+"\n"+detail+"\n"+status+"\n"+message(ui,"help","先选部位再点牌，或直接拖牌；右键切小部位，左右箭头切换拘束具。")
- if not c.is_empty(): button.tooltip_text+="\n"+ui.localization.display(c.reason if not c.valid else c.detail)
+ if not c.is_empty(): button.tooltip_text+="\n"+ui.localization.display(c.reason if not c.valid else ui.detail_of(c))
  button.modulate=Color(0.55,0.55,0.55,1) if not data.is_empty() and (c.is_empty() or not c.valid) else Color.WHITE
  button.set_meta("body_id",body.id)
  button.set_meta("target_id",equipment.get("id",""))

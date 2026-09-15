@@ -737,7 +737,7 @@ func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: St
  btn.disabled=not c.valid;btn.clip_contents=true
  _place(btn,rect,parent);candidate_buttons[c.id]=btn
  _attack_tile_labels(btn,c,rect.size,summary,tags,accent)
- var tooltip="部位："+c.body_part+"\n消耗%d能量。\n" % c.cost+("当前施法成功率："+c.casting.percent+"\n" if c.has("casting") else "")+c.detail
+ var tooltip="部位："+c.body_part+"\n消耗%d能量。\n" % c.cost+("当前施法成功率："+c.casting.percent+"\n" if c.has("casting") else "")+detail_of(c)
  if c.has("casting"): tooltip+="\n失败返还本次耗魔的50%，能量照扣。"+("蓄力保留，精神集中失去1层。" if c.payload.get("witch_action",false) else "火球术次数不消耗。")
  if not c.valid: tooltip+="\n"+c.reason
  if c.risk!="": tooltip+="\n"+c.risk
@@ -849,7 +849,7 @@ func _posture_controls() -> void:
    var style=btn.get_theme_stylebox(state_name).duplicate()
    style.content_margin_top=2;style.content_margin_bottom=2
    btn.add_theme_stylebox_override(state_name,style)
-  btn.disabled=not c.valid;btn.tooltip_text=c.detail if c.valid else c.reason
+  btn.disabled=not c.valid;btn.tooltip_text=detail_of(c) if c.valid else c.reason
   _place(btn,Rect2(128 if c.payload.wall else 0,index*placement.stride,121 if has_wall else 249,placement.stride-4),container)
   candidate_buttons[c.id]=btn
 
@@ -875,7 +875,10 @@ func card_face_name(type: String, uid: String, free: bool) -> String:
 # 候选详情的唯一取用点（docs/ondemand-copy.md §3）：命中即用，缺失时经 §2 只读入口按 payload 补算并记录。
 func detail_of(candidate: Dictionary) -> String:
  if candidate.has("detail"): return candidate.detail
- _record_projection_miss("detail_of",String(candidate.get("id","")))
+ # B3（docs/ondemand-copy.md §1.5）：card 目标候选组本来就不带 detail，现算是正常路径，不记缺失；
+ # 其余组缺 detail 才是意外，留具名记录而不是静默空白。
+ if String(candidate.payload.get("kind",""))!="card":
+  _record_projection_miss("detail_of",String(candidate.get("id","")))
  return game.candidate_detail(candidate)
 
 func _record_projection_miss(point: String, key: String) -> void:
@@ -1158,7 +1161,7 @@ func _wall_controls() -> void:
  btn.name="WallMove_toward";btn.disabled=not c.valid
  btn.add_theme_font_size_override("font_size",11 if placement.with_move and placement.stride<48 else 13)
  btn.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
- btn.tooltip_text=c.detail if c.valid else c.reason
+ btn.tooltip_text=detail_of(c) if c.valid else c.reason
  if placement.with_move:
   btn.custom_minimum_size.y=placement.stride-4
   for state_name in ["normal","hover","pressed","focus","disabled"]:
@@ -1332,7 +1335,7 @@ func _action_row(parent: Node,c: Dictionary,label: String="") -> void:
  b.disabled=not c.valid
  parent.add_child(b); candidate_buttons[c.id]=b
  if c.has("release_preview") and c.valid: preload("res://ui/release_details.gd").preview(self,parent,c)
- else: parent.add_child(_label(c.detail if c.valid else c.reason,14,MUTED if c.valid else RED))
+ else: parent.add_child(_label(detail_of(c) if c.valid else c.reason,14,MUTED if c.valid else RED))
  if c.risk!="" and c.valid: parent.add_child(_label(c.risk,13,RED))
 
 func _card_target(parent: Node,c: Dictionary, automatic: bool=false, footer: Node=null) -> void:
@@ -1349,7 +1352,7 @@ func _card_target(parent: Node,c: Dictionary, automatic: bool=false, footer: Nod
  elif c.risk!="": parent.add_child(_label(c.risk,14,RED))
  if selected_candidate==c.id and c.valid:
   if c.has("release_preview"): preload("res://ui/release_details.gd").preview(self,parent,c)
-  else: parent.add_child(_label(c.detail,15,TEXT))
+  else: parent.add_child(_label(detail_of(c),15,TEXT))
   var fee=str(c.cost)+"能量"+(" / "+game.number(c.mana)+"魔力" if c.mana>0 else "")
   var commit=_button("打出 · "+fee,func(): _submit(c),CYAN)
   commit.name="PlaySelectedCard"
@@ -1572,11 +1575,11 @@ func _compact_action(parent: Node,c: Dictionary,caption: String="",show_free_cos
  var targeted=DragTargets.targeted(c)
  var button=_button(label,func():_submit(c),CYAN,targeted)
  if targeted: DragTargets.source(self,button,c)
- button.disabled=not c.valid;button.tooltip_text=c.detail if c.valid else c.reason
+ button.disabled=not c.valid;button.tooltip_text=detail_of(c) if c.valid else c.reason
  parent.add_child(button);candidate_buttons[c.id]=button
  if not c.valid: parent.add_child(_label(c.reason,13,RED))
  elif c.risk!="": parent.add_child(_label(c.risk,13,RED))
- elif c.payload.kind in ["item_install","item_retrieve"]: parent.add_child(_label(c.detail,13,CYAN))
+ elif c.payload.kind in ["item_install","item_retrieve"]: parent.add_child(_label(detail_of(c),13,CYAN))
 
 func _tool_target_card(parent: Node,c: Dictionary) -> void:
  var equipment={}
@@ -1591,7 +1594,7 @@ func _tool_target_card(parent: Node,c: Dictionary) -> void:
  var box=VBoxContainer.new();panel.add_child(box)
  _compact_action(box,c,"使用工具 · 1次")
  _equipment_card_face(box,equipment,equipment.get("position_text",""),CYAN if c.valid else MUTED,true)
- if c.valid: box.add_child(_label(c.detail,13,CYAN))
+ if c.valid: box.add_child(_label(detail_of(c),13,CYAN))
 
 func _door_candidate(data: Dictionary) -> Dictionary:
  if data.get("version",-1)!=view.version or data.get("free",true): return {}

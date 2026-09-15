@@ -22,7 +22,7 @@ static func run(t) -> void:
  var summary=t.visible_text(ui.find_child("EquipmentDetails",true,false))
  t.check(summary.contains(candidate.release_preview.headline) and summary.contains(candidate.release_preview.change),"CONCENTRATION UI collapsed second-face summary shows the formal outcome")
  await Click.press(t,"ReleaseEffectDetails")
- t.check(t.visible_text(ui.find_child("EquipmentDetails",true,false)).contains(candidate.detail),"CONCENTRATION UI selected second-face preview uses the formal candidate")
+ t.check(t.visible_text(ui.find_child("EquipmentDetails",true,false)).contains(ui.game.candidate_detail(candidate)),"CONCENTRATION UI selected second-face preview uses the formal candidate")
  await Click.press(t,"PlaySelectedCard");await t.frames()
  t.check(ui.game.Cards.base_damage(ui.game,card.type,card.uid)==9 and ui.game.state.energy==before.energy-1,"CONCENTRATION UI selected slip executes once and grows once")
  preload("res://tests/concentration_cases.gd").redraw(ui.game,card)

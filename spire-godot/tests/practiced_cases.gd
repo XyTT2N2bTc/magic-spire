@@ -61,7 +61,7 @@ static func traction(t) -> void:
    if failed: force_failure(g,type)
    var c=t.find_action(g,"card",{"uid":card.uid,"free":type=="ease"})
    var before=g.export_snapshot();var start=g.state.logs.size()
-   t.check(c.valid and c.detail.contains("额外牵扯"),"TRACTION zero-cost and paid magic candidates explain extra pulse")
+   t.check(c.valid and g.candidate_detail(c).contains("额外牵扯"),"TRACTION zero-cost and paid magic candidates explain extra pulse")
    t.check(g.dispatch(c.id,g.state.version).ok and g._magic_failed==failed,"TRACTION commits successful and failed magic cards")
    t.check(is_equal_approx(g.state.pressure,before.pressure+4*(2 if c.cost>0 else 1)) and g.state.energy==before.energy-c.cost,"TRACTION one extra one-energy pulse without extra payment")
    t.check(g.state.logs.slice(start).filter(func(x):return x.data.has("traction")).size()==1,"TRACTION extra pulse logged once per card")

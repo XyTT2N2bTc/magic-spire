@@ -20,7 +20,7 @@ static func build(ui) -> void:
   var label="存入" if op=="deposit" else "取出"
   var button=ui._button(label,func():ui._submit(choice),ui.CYAN)
   button.name="FlaskDeposit" if op=="deposit" else "FlaskWithdraw"
-  button.disabled=not choice.valid;button.tooltip_text=choice.detail if choice.valid else choice.reason
+  button.disabled=not choice.valid;button.tooltip_text=ui.detail_of(choice) if choice.valid else choice.reason
   button.add_theme_font_size_override("font_size",13);button.custom_minimum_size.y=28
   for state in ["normal","disabled"]:
    var style=ui._style(Color("13222e"),Color("456068") if state=="normal" else Color("303f48"),6)

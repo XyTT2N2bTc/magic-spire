@@ -670,8 +670,8 @@ static func target_candidate(g, out: Array, p: Dictionary, label: String, cost: 
   if choices.is_empty():
    p.hand_uid="";choices.append(p)
  for choice in choices:
-  var args={"payload":choice}
-  g._candidate(out,choice,label,{"kind":"card.target","args":args,"fallback":target_detail(g,args)},cost,mana,reason(g,choice),risk,"card")
+  # B3（docs/ondemand-copy.md §1.5）：descriptor 只留类别与参数，detail 由 Game.candidate_detail 现算。
+  g._candidate(out,choice,label,{"kind":"card.target","args":{"payload":choice}},cost,mana,reason(g,choice),risk,"card")
 
 # R3（docs/ondemand-copy.md §11.5）：转发包装的文案参数改走路由，签名与产出保持不变。
 # R6（docs/ondemand-copy.md §11.5）：单面卡面正文的 builder，正文留在本模块。
@@ -703,11 +703,11 @@ static func candidates(g, out: Array, card: Dictionary) -> void:
     if choices.is_empty():
      p.hand_uid="";choices.append(p)
    for choice in choices:
-    g._candidate(out,choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+("自由面" if choice.free else "挣脱面"),detail(g,choice),energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),reason(g,choice),"","card")
+    g._candidate(out,choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+("自由面" if choice.free else "挣脱面"),{"kind":"card.target","args":{"payload":choice}},energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),reason(g,choice),"","card")
   return
  if Rules.single_face(card.type):
   var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":false,"mode":spec.mode,"self_target":true}
-  g._candidate(out,p,"打出「"+g.B.CARD_NAMES[card.type]+"」",detail(g,p),energy_cost(g,card.type),0,reason(g,p),"","card")
+  g._candidate(out,p,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":p}},energy_cost(g,card.type),0,reason(g,p),"","card")
   return
  if Rules.damage(card.type) and (not spec.has("target_slots") or spec.has("witch_training_stage")) and g.CaptureBind.has_bind(g):
   for second in ([false,true] if spec.has("bound_modes") else [false]):

@@ -621,8 +621,12 @@ static func copy_route_bytes_unchanged(t) -> void:
    var candidates=g.candidates()
    var direct=[];var projected=[]
    for candidate in candidates:
-    if router.text(g,candidate.detail)!=candidate.detail: direct.append(candidate.payload.get("kind","")+"#"+candidate.id)
-    if g.candidate_detail(candidate)!=candidate.detail: projected.append(candidate.payload.get("kind","")+"#"+candidate.id)
+    # B3: the card group carries no detail; the on-demand entry is the value to compare everywhere.
+    var detail=g.candidate_detail(candidate)
+    if router.text(g,detail)!=detail: direct.append(candidate.payload.get("kind","")+"#"+candidate.id)
+    if candidate.payload.get("kind","")=="card":
+     if candidate.has("detail"): projected.append("stray "+candidate.id)
+    elif detail!=candidate.detail: projected.append(candidate.payload.get("kind","")+"#"+candidate.id)
    t.check(direct.is_empty(),"COPY direct string channel returns the producer text unchanged "+key+": "+str(direct.slice(0,3)))
    t.check(projected.is_empty(),"COPY candidate_detail returns the projected detail for every candidate "+key+": "+str(projected.slice(0,3)))
    t.check(g.copy_router_failures.is_empty() and g.state==before,"COPY routing records no failure and changes no state "+key)
@@ -630,14 +634,13 @@ static func copy_route_bytes_unchanged(t) -> void:
  var reference=sample.candidates()
  var stripped=reference.duplicate(true)
  var card_group=0
- for candidate in stripped:
-  if candidate.payload.get("kind","")=="card":
-   candidate.erase("detail");card_group+=1
  var recomputed=[]
  for i in range(stripped.size()):
   if reference[i].payload.get("kind","")!="card": continue
-  if sample.candidate_detail(stripped[i])!=reference[i].detail: recomputed.append(reference[i].id)
- t.check(card_group>0 and recomputed.is_empty(),"COPY card candidates recomputed from their payload equal the projected detail: "+str(recomputed.slice(0,3)))
+  card_group+=1
+  if reference[i].has("detail"): recomputed.append("stray "+reference[i].id)
+  if sample.candidate_detail(reference[i])=="": recomputed.append("empty "+reference[i].id)
+ t.check(card_group>0 and recomputed.is_empty(),"COPY card candidates recompute on demand and carry no projected detail: "+str(recomputed.slice(0,3)))
  var g2=copy_baseline_fixture("battle",12)
  var g2_before=g2.state.duplicate(true)
  var kind_mismatch=[];var fragment_mismatch=[]
@@ -706,7 +709,7 @@ static func copy_migrated_kinds(t,router) -> void:
   target_seen+=1
   var base=router.text(target_game,{"kind":"card.target","args":{"payload":candidate.payload},"fallback":sentinel})
   var assembled=target_game._candidate_detail(base,candidate.payload,target_game.Cards.magic_card_traction(target_game,candidate.payload),candidate.mana_payment)
-  if assembled!=candidate.detail: target_mismatch.append(candidate.id)
+  if assembled!=target_game.candidate_detail(candidate): target_mismatch.append(candidate.id)
  t.check(target_seen>0 and target_mismatch.is_empty() and target_game.copy_router_failures.is_empty(),"COPY R3a card.target renders like the wrapper for every card candidate: "+str(target_seen)+" "+str(target_mismatch.slice(0,3)))
  # R3b: paid_candidate 的三个站点经路由渲染必须逐字节等于候选值。
  var paid_mismatch=[];var paid_seen={"offer":0,"release":0,"remove":0}

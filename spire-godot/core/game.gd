@@ -1687,7 +1687,9 @@ func _mana_payment(payload: Dictionary, mana: float) -> Dictionary:
  return {"mana":mana-temporary,"temporary_mana":temporary,"flask_mana":0.0}
 
 func _candidate(out: Array, payload: Dictionary, label: String, copy, cost: int = 0, mana: float = 0.0, reason: String = "", risk: String = "", group: String = "action") -> void:
- var detail=CopyRouter.text(self,copy)
+ # B3（docs/ondemand-copy.md §1.5）：card 目标候选组不再预生成 detail，显示时经 candidate_detail 现算。
+ var on_demand=String(payload.get("kind",""))=="card"
+ var detail="" if on_demand else CopyRouter.text(self,copy)
  if payload.kind=="end" and Character.Expansion.end_reason(self)!="": reason=Character.Expansion.end_reason(self)
  var lock_target=_equipment(payload.get("target",""))
  if Equipment.lock_only(lock_target):
@@ -1713,8 +1715,20 @@ func _candidate(out: Array, payload: Dictionary, label: String, copy, cost: int 
  var balance=state.flask_mana if flask else state.mana
  var required=payment.flask_mana if flask else payment.mana
  if reason == "" and balance < required: reason = "需要%s%s，当前只有%s。" % [number(required),"魔瓶魔力" if flask else "魔力",number(balance)]
- var detail_text=_candidate_detail(detail,payload,extra_traction,payment)
- out.append({"id":JSON.stringify(payload).sha256_text().substr(0,24),"payload":payload,"label":label,"detail":detail_text,"cost":cost,"mana":mana,"mana_payment":payment,"valid":reason=="","reason":reason,"risk":risk,"group":group})
+ var detail_text="" if on_demand else _candidate_detail(detail,payload,extra_traction,payment)
+ var row={}
+ row.id=JSON.stringify(payload).sha256_text().substr(0,24)
+ row.payload=payload
+ row.label=label
+ if not on_demand: row.detail=detail_text
+ row.cost=cost
+ row.mana=mana
+ row.mana_payment=payment
+ row.valid=reason==""
+ row.reason=reason
+ row.risk=risk
+ row.group=group
+ out.append(row)
 
 # 候选 detail 的唯一组装点（docs/ondemand-copy.md §1.5／§11.2）：eager 路径与候选只读入口共用，
 # 追加顺序与原实现一致（锁定项圈改写 → 熟练牵扯 → 临时魔力抵扣）。
@@ -1731,11 +1745,7 @@ func _candidate_detail(base: String, payload: Dictionary, extra_traction: int, p
 # card 目标候选的基础文案（core/card_effects.gd 的 target_candidate／candidates 原表达式），
 # 供候选只读入口在 detail 缺失时按 payload 现算；其余组始终保持预生成 detail。
 func _candidate_base_detail(payload: Dictionary) -> String:
- var text=Cards.detail(self,payload)
- if payload.get("hand_uid","")!="" and not payload.get("self_target",false):
-  var chosen=_card(payload.hand_uid)
-  if not chosen.is_empty(): text+="\n本次消耗「%s」。" % B.CARD_NAMES[chosen.type]
- return text
+ return Cards.target_detail(self,{"payload":payload})
 
 # R5（docs/ondemand-copy.md §11.5）：本模块直呼点的文案 builder，正文留在本模块，路由只做分派。
 static func copy_surrender(_g, _args: Dictionary) -> String:

@@ -79,7 +79,7 @@ static func copy_missing_key_never_crashes(t) -> void:
  ui.game.add_fixture("wrist",4,10,false);ui.game.add_fixture("wrist",4,10,false)
  var card=preload("res://tests/curse_cases.gd").give(ui.game,"strain")
  ui.render();await t.frames()
- var free_detail=ui.actions.find("card",{"uid":card.uid,"free":true}).detail
+ var free_detail=ui.game.candidate_detail(ui.actions.find("card",{"uid":card.uid,"free":true}))
  var before=ui.game.export_snapshot()
  var baseline={}
  for free_face in [false,true]:
@@ -109,7 +109,8 @@ static func copy_missing_key_never_crashes(t) -> void:
   ui.render(detail_copy);await t.frames()
   var recomputed=await copy_drag_text(t,card.uid,"thigh")
   t.check(recomputed==baseline[free_face],"COPY removed candidate detail is recomputed byte-identically for face "+str(free_face))
- t.check(ui.projection_misses.any(func(entry):return entry.point=="detail_of"),"COPY removed candidate detail is recorded instead of silently blank: "+str(ui.projection_misses))
+ # B3：card 目标候选组本就不带 detail，现算是正常路径；此处断言它不再被当作缺失记录。
+ t.check(ui.projection_misses.all(func(entry):return entry.point!="detail_of"),"COPY on-demand card details are no longer recorded as misses: "+str(ui.projection_misses))
  t.check(ui.projection_misses.all(func(entry):return entry.view_version==ui.view.version),"COPY miss records name the render they belong to")
  t.check(ui.game.export_snapshot()==before,"COPY missing-key rendering never changes state or random cursors")
 
