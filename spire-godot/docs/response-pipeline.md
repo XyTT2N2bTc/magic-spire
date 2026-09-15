@@ -19,11 +19,11 @@
 - `game.dispatch` 的唯一调用点是 `ui/main.gd:1873`；UI 侧 `game.*` 全部读取只有
   `get_view`×4（main.gd:278、367、1874、1919）、`dispatch`×1、`restore_snapshot`×1、
   `restart_snapshot`×1、`number`（显示格式化）、`Prison` 常量（立绘选择）。UI 不读也不写 `game.state`。
-  **按需入口（2026-09-15，部分已落地）**：`docs/ondemand-copy.md` 的收口阶段引入三个只读入口——
-  **已落地**：`game.live_card_text`（B0 提交 `cc5e8f0`）、`game.candidate_detail`（R0 提交 `7f1c748`）；
-  **未落地**：`game.live_card_text_set`（属按需批 B2，仍为预告）。
+  **按需入口（2026-09-15，三个均已落地）**：`docs/ondemand-copy.md` 的收口与按需阶段引入三个只读入口——
+  `game.live_card_text`（B0 提交 `cc5e8f0`）、`game.candidate_detail`（R0 提交 `7f1c748`）、
+  `game.live_card_text_set`（B2 提交 `6eca6e0`）。
   三者都**不属于 `get_view` 白名单**（§2.2），也不得经 `get_view` 参数化实现；
-  `live_card_text_set` 落地后本行须补上，以仓库现状为准。
+  本行按仓库现状维护，接口语义以 `docs/ondemand-copy.md` 为准。
 - `_submit`：1864 守卫（`show_home` 或 `enemy_feedback` 有效即 return）→ 1866 `_use_self_card` 分流 →
   1873 `dispatch` → 1874 `get_view` → 1875 notice → 成功分支 1877 `expand_applied`／1879 `_save_progress`／
   1880 `_reset_interface`（仅 demo_continue）→ **1891 `render(updated)` 在 `if result.ok` 之外（失败也整树重建）**
