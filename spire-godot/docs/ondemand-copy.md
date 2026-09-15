@@ -30,6 +30,11 @@
 
 ### 0.2 已核实事实（本片据此写，落地前不改这些事实）
 
+> 行号约定：本文行号捕获于 2026-09-15；`core/game.gd` 在邻接表片（`docs/equipment-query-seam.md`）
+> 与本片收口／按需阶段推进期间会移动（例：`func _candidate` 捕获时 `:1667`、同日已 `:1685`；
+> `get_view` 捕获时 `:2805`、同日已 `:2948`）。**函数名是稳定锚点**，行号以落地时仓库为准，
+> 动手前用 `rg` 复算（§10 第 7 条给了命令）。
+
 成本（headless，26 件 battle，一次完整 View 93–114ms；与 pristine 批不可直接比）：
 
 | 分项 | 耗时 | 次数 |
@@ -37,7 +42,7 @@
 | `card_texts` 全量注册牌型循环 | 25.0ms（26.8%） | 83 型；`face_texts` 9.3ms/103、`cast_view` 1.4ms/212、`cast_profile` 1.2ms/210 |
 | 候选 `detail` 文案 | 18.9ms | 130 条（≈145µs／条，self 86µs 为纯字符串拼装） |
 | `worn_count(g)` | — | 每次 View 约 166 次（`core/card_effects.gd:388` 与 `:400` 各一次）；手牌通常只有 5 张 |
-| `escape_preview` | 13.9ms | 属邻接表片 B7，本片不做 |
+| `escape_preview` | 13.9ms | 本片不做；其按需化目前**两片都未承接**（归属待裁决，见 §10 第 8 条） |
 
 构造点：`core/game_view.gd:293-305`（`card_texts` 全量循环）、`:288-291`（`deck_list`）、
 `:294-299`（`card_instances`）；候选详情在 `core/card_effects.gd:653-730`（`target_candidate`／
@@ -109,7 +114,8 @@
 - 不改任何玩家可见文案本身：按需取回的字符串必须与旧路径逐字节相同。
 - 不新增第三方依赖；除经人批的 `core/copy_router.gd`（§10 第 5 条）外不新增生产源码文件。
 - 收口阶段（§11）不重命名、不重排、不做风格统一、不夹带措辞改动；原入口一律保留为薄别名（§11.6）。
-- 不动 `escape_preview`（邻接表片 B7）、不动 UI 响应路径与节键。
+- 不动 `escape_preview`：其作用域内的命中率复用属装备查询片（`docs/equipment-query-seam.md` §1／§3），
+  其**按需化两片都未承接**（归属待裁决，见 §10 第 8 条）；不动 UI 响应路径与节键。
 
 ## 1. 三个入口与一个生成函数
 
@@ -207,8 +213,11 @@ event／departure）保持预生成；理由与代价见 §9 假设 3。
   - `detail_of(candidate) -> String`：`candidate.detail` 存在即用；缺失 → `game.candidate_detail(candidate)` 并记录。
 - 除这两个 helper 外，UI 全仓不得直接读 `view.card_texts[…]`、`view.card_instances[…]`、`c.detail`；
   含 `ui/drag_targets.gd:74` 这种 `.get("brief", c.detail)` 的**预求值**写法（GDScript 会先算默认参数，缺键即崩）。
-- 记录：`ui.projection_misses`，元素 `{"point":String,"key":String,"version":int}`；每 `view.version` 每
-  (point,key) 至多一条；随新 View 版本清空；不渲染、不进日志／存档／快照、不做成计数器。
+- 记录：`ui.projection_misses`，元素 `{"point":String,"key":String,"view_version":int}`；每
+  (point,key,view_version) 至多一条；**清空时机是"`ui.view` 被替换（新 View 赋值）"，不是"version 数字变化"**；
+  `view_version` 只是诊断标签，**不得当缓存键或失效键**（既有禁令见 `docs/response-pipeline.md` §4.1 与
+  `docs/equipment-query-seam.md` §3），也不得据它判定任何渲染内容的新旧；
+  不渲染、不进日志／存档／快照、不做成计数器。
 - 允许的"没省到"：`ui/card_motion.gd:65` 的打出／抽牌幽灵卡（该 type 在投影时不保证在 S 内）。
 - 禁止：静默空白、静默回落到目录基础文本（现 `ui/main.gd:854` 的 `.get(type,{})` 正是该风险）、
   用 helper 存第二份跨调用缓存。
@@ -287,6 +296,11 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
 夹具沿用 `docs/equipment-query-seam.md` §8.1 的 battle／departure × 0／12／26 件序列（在既有测试文件内
 具名构造，不新建夹具文件）；基线脚本、baseline JSON、oracle 日志只放已忽略的 `build/ondemand-copy-<date>/`，
 用完删除，入库的只有摘要。
+
+**基线可复现性（返工用，勿省）**：mask 判据要的是基线 View 的**原始值**，哈希不够。
+摘要里必须记录：①开工时 HEAD 的 commit id；②基线捕获脚本在该 commit 下的路径；③声明集合与 6 个哈希。
+文件删除后若需重取基线，用该 commit 的临时 worktree 重跑同一脚本（不得改基线迁就实现，也不得把
+`build/` 内容入库）。同一条也适用于装备片的 §8.2 基线（其哈希可由同一 commit 复算）。
 
 ## 6. Gherkin（场景名 → 既有分类的具名 check）
 
@@ -400,7 +414,7 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
   收口批次做完后代码不能跑、不能测（§11.6 第 3 条）；
 - 新增生产源码文件（§11.6 允许的路由模块除外）或第三方依赖；改判定／随机／存档／快照／候选资格／
   候选 ID／可见文案；
-- 实现 `escape_preview`（邻接表片 B7）或改 UI 响应路径与节键；
+- 实现 `escape_preview` 按需化（未授权；归属待裁决，见 §10 第 8 条）或改 UI 响应路径与节键；
 - 以耗时数字或"应该更快"作完成判据；宣称完整回归。
 
 ## 9. 假设与最可能爆掉的假设
@@ -440,10 +454,15 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
    - tests：既有 `tests/*_cases.gd` 追加具名 check 与 §8 的迁移。
 2. **新增只读入口（需要人批）**：`game.live_card_text`、`game.live_card_text_set`、`game.candidate_detail`
    三个公有只读方法 + `Cards.text_entry` 静态生成函数；不改已有接口签名。
-3. **文档修订（协调者／规划者执行）**：`docs/response-pipeline.md` §0／§2.2 的"UI 侧 `game.*` 调用点唯一集合"
-   需加入本片三个只读入口（事实行更新，不改编排语义）；`docs/equipment-query-seam.md` §0.3／§9 的"押后"
-   改指向本文件；`spire-godot/AGENTS.md` 文档入口表的那一行已由协调者加入
-   （现行文字：`| 玩家可见文案的收口与按需 | docs/ondemand-copy.md |`），以仓库现状为准，勿重复添加。
+3. **文档修订（协调者／规划者执行；现状已就位，落地时只剩一处同步）**：
+   - `docs/response-pipeline.md`：§0 现状行已加**预告 + 指向本文件**（三个只读入口尚未落地）；
+     §2.2 已加"**新入口不属于 `get_view` 白名单**"；§6.1 的"越界待批"已改指向本契约。
+     本片落地后只需把 §0 预告改成既成事实（届时以仓库现状为准）。
+   - `docs/equipment-query-seam.md`：§0.3／§9／§10 结论／§13 算未完成已把"押后"改为**指向本文件**，
+     并注明 `escape_preview` 按需化两片都未承接；§8.2 已加"跨契约有效期"说明（其整份 View 哈希
+     在本片落地后改用本片 mask 判据）。
+   - `spire-godot/AGENTS.md` 文档入口表的那一行已由协调者加入
+     （现行文字：`| 玩家可见文案的收口与按需 | docs/ondemand-copy.md |`），以仓库现状为准，勿重复添加。
 4. **待人确认**：`deck_list` 是否移出 View（§9 假设 4）；按需批 B3 组范围是否只做 card 组（§9 假设 3）；
    收口批是否按 §11.5 的模块顺序执行（人已定"先收口"，顺序待确认）。
 5. **需要人批的例外：新增 `core/copy_router.gd`。** 现 §0.4 写的是"不新增生产源码文件"（沿用邻接表片口径），
@@ -456,6 +475,11 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
    其中 `core/game.gd` 的 face_text 双调用在 **:1777**（测绘初稿写 :1771）。
    复算命令：`rg -n '(?<![A-Za-z0-9_])_candidate\(' core/`、`rg -n 'Prison\.add\(|^\s*add\(out' core/prison*.gd`、
    `rg -n 'target_candidate\(|paid_candidate\(' core/`、`rg -n 'face_text' core/*.gd`（脚本留档见 §5.5 的 build 目录）。
+8. **需协调者裁决：`escape_preview` 按需化的归属。** `docs/equipment-query-seam.md` §0.3／§9 把它列在
+   "押后为独立一片"的清单里（即指向本文件），而本片按人当时的交代把它排除在外（它属装备片 B7 的连接边批，
+   不是 escape_preview 优化）。现状是**两片都没有承接这一项**（13.9ms／26 件 battle）。三个选择：
+   ①并入装备片（在既有的 read scope 里继续命中率复用，不做按需化）；②并入本片的收口阶段另立一批；
+   ③单独立项。**在裁决前两片都不得实现**（本文件 §0.4／§8 与装备片 §0.3 已按"未承接"写死）。
 
 ## 11. 文案路由收口（第一阶段；先于按需）
 

@@ -13,9 +13,15 @@
   以及"选择类点击"与"提交类点击"两条路径。
 
 已核实现状（契约据此写，落地前不改这些事实）：
+> 行号约定：本文行号捕获于 2026-09-15；`core/game.gd` 在邻接表片（docs/equipment-query-seam.md）与
+> 文案收口／按需片（docs/ondemand-copy.md）推进期间会移动（例：`get_view` 捕获时在 `:2805`，
+> 同日随邻接表片 B9 已到 `:2948`）。**函数名才是稳定锚点**，行号以落地时仓库为准，动手前用 `rg` 复算。
 - `game.dispatch` 的唯一调用点是 `ui/main.gd:1873`；UI 侧 `game.*` 全部读取只有
   `get_view`×4（main.gd:278、367、1874、1919）、`dispatch`×1、`restore_snapshot`×1、
   `restart_snapshot`×1、`number`（显示格式化）、`Prison` 常量（立绘选择）。UI 不读也不写 `game.state`。
+  **预告（2026-09-15，尚未落地）**：`docs/ondemand-copy.md` 的收口阶段将引入三个只读入口
+  `game.live_card_text`／`game.live_card_text_set`／`game.candidate_detail`。它们不属于 `get_view` 白名单（§2.2），
+  落地前本行仍是现状事实；落地后本行须同步加上这三个入口，以仓库现状为准。
 - `_submit`：1864 守卫（`show_home` 或 `enemy_feedback` 有效即 return）→ 1866 `_use_self_card` 分流 →
   1873 `dispatch` → 1874 `get_view` → 1875 notice → 成功分支 1877 `expand_applied`／1879 `_save_progress`／
   1880 `_reset_interface`（仅 demo_continue）→ **1891 `render(updated)` 在 `if result.ok` 之外（失败也整树重建）**
@@ -135,13 +141,19 @@
 - 纯只读投影（`core/game.gd:2805` → `core/game_view.gd:175 build`）。内部含
   `g.candidates()`（:176）、每个 action 的 `ReleaseView.preview`（:179）、
   全量注册牌型 `card_texts` 循环（:301-305，约 83 型，无条件）以及 room_event／shop／relics／prison 四个 view（:320-323，无条件）。
+  **（预告 2026-09-15）**"无条件全量"是当前事实、不是长期不变量：`card_texts` 的收窄由
+  `docs/ondemand-copy.md` §1.2（界面固有显示集合 S）持有授权，落地前不改本行。
 - 成本事实：单次成本与装备件数相关（候选生成中位 6.4/41.3/146.8ms @0/12/29 件，docs/equipment-performance.md:49-51），
   空装备时仍有固定投影成本（显示生成 20.869ms，docs/equipment-performance.md:69）。
 - **UI 侧只能减少 get_view 的调用次数，不能降低单次成本。** 单次成本在 `core/game_view.gd`，
-  属本片授权范围外：记为"越界待批"接缝，不得以 UI 缓存绕过（见 §4.1）。
+  属本片授权范围外：记为"越界待批"接缝，不得以 UI 缓存绕过（见 §4.1）；
+  该越界项已由 `docs/ondemand-copy.md` 承接（见 §6.1）。
 - 允许的调用点（唯一集合，任何新增即契约违例）：
   `ui/main.gd:278`（`_resume_snapshot`）、`:367`（`render` 空快照）、`:1874`（`commit` 成功必取；被拒且展示版本落后时取）、
   `:1919`（`restart`）。
+- **新入口不属于本白名单**：`game.live_card_text`／`game.live_card_text_set`／`game.candidate_detail`
+  （见 §0 预告与 `docs/ondemand-copy.md`）是三个**独立的只读入口**，不改变本白名单，也不得经
+  `get_view` 参数化实现；本白名单只约束 `get_view` 的调用点。
 - 版本语义：`view.version == game.state.version`；`restore_snapshot` 把 version 抬到 `max(prev, saved)+1`
   （core/game.gd:2826），因此"版本回退"只可能来自 UI 自己传入的独立快照（display 测试就这么用），
   键不得依赖单调 version。
@@ -336,6 +348,8 @@ _submit(c, expected_version=-1)
 - 本片授权不含 `core/`：**UI 侧只能减少 get_view 调用次数**，不得降低其单次成本，
   不得用 UI 缓存／懒加载／跳过投影来绕过（graph、奖励、牌堆浏览共用该投影）。
 - core 侧接缝（把 `card_texts` 改成按需／增量）记为越界待批，需人明确授权后才能进 core。
+  **（2026-09-15 更新）**该待批项已由独立契约承接：`docs/ondemand-copy.md`（先收口文案路由、后按需投影）。
+  本片与 UI 仍不得自行用缓存／懒加载／跳过投影绕过；按需化只在那一契约的分批与授权下进行。
 
 ### 6.2 候选计时矛盾（P0 必须取证）
 
