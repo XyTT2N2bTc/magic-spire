@@ -1,6 +1,69 @@
 extends RefCounted
 
 const Game=preload("res://tests/game_fixture.gd")
+# Living index-off reference for the B5 parity checks (single definition in the architecture suite).
+const Arch=preload("res://tests/architecture_cases.gd")
+
+static func ids(values: Array) -> Array:
+ return values.map(func(e):return e.id)
+
+# Batch B5 (§8.3): the rope, anchor and target-list edges keep the §1 order and the durability
+# differences between them: a dead rope leaves links_at, yet links stay unfiltered in the lists.
+static func index_link_edge_parity(t) -> void:
+ for kind in ["component_links","crotch","plain"]:
+  var g=Game.new(42)
+  g.state.equipment.clear();g.state.composites.clear();g.state.links.clear();g.state.special_equipment.clear()
+  if kind=="component_links":
+   var root=g._install_assembly("leg","upper","fixture",2,2)
+   var body=root.components.filter(func(e):return e.part=="body")[0]
+   g._install_link(body.id,at(g,"below_knee").id,8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+  elif kind=="crotch":
+   var crotch=g._install_special("crotch_rope_low","special_3_a")
+   g._install_link(crotch.id,g.add_fixture("wrist",8).id,8,"fixture")
+  else:
+   at(g,"wrist",8)
+   g.add_fixture("ankle",8)
+  var reference=Arch.UncachedGame.new(42);reference.state=g.state.duplicate(true)
+  var before=g.export_snapshot()
+  var previous=g._begin_equipment_read()
+  var parity=true
+  for slot in g.B.SLOTS:
+   parity=parity and g.links_at(slot)==reference.links_at(slot) and ids(g.links_at(slot))==ids(reference.links_at(slot))
+  parity=parity and g.link_anchors()==reference.link_anchors() and ids(g.link_anchors())==ids(reference.link_anchors())
+  parity=parity and g.equipment_targets()==reference.equipment_targets() and ids(g.equipment_targets())==ids(reference.equipment_targets())
+  parity=parity and g.action_targets()==reference.action_targets() and ids(g.action_targets())==ids(reference.action_targets())
+  g._equipment_read=previous
+  t.check(parity and g.export_snapshot()==before and g._equipment_read.is_empty(),"INDEX link edge parity with the live path "+kind)
+ var rope_fixture=Game.new(42)
+ rope_fixture.state.equipment.clear();rope_fixture.state.composites.clear();rope_fixture.state.links.clear()
+ var rope_root=rope_fixture._install_assembly("leg","upper","fixture",2,2)
+ var band=at(rope_fixture,"below_knee",8)
+ var end=rope_root.components.filter(func(e):return e.part=="body")[0]
+ var rope=rope_fixture._install_link(end.id,band.id,8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+ var live=Arch.UncachedGame.new(42);live.state=rope_fixture.state.duplicate(true)
+ rope.durability=0
+ band.durability=0
+ live.state=rope_fixture.state.duplicate(true)
+ var before=rope_fixture.export_snapshot()
+ var scope=rope_fixture._begin_equipment_read()
+ var parity=rope_fixture.links_at("calf").is_empty() and rope_fixture.equipment_at("calf").is_empty()
+ parity=parity and ids(rope_fixture.action_targets())==ids(live.action_targets()) and ids(rope_fixture.equipment_targets())==ids(live.equipment_targets())
+ parity=parity and rope_fixture.action_targets().any(func(e):return e.id==rope.id) and rope_fixture.action_targets().any(func(e):return e.id==band.id)
+ for slot in rope_fixture.B.SLOTS: parity=parity and ids(rope_fixture.links_at(slot))==ids(live.links_at(slot))
+ rope_fixture._equipment_read=scope
+ t.check(parity and rope_fixture.export_snapshot()==before,"INDEX dead rope leaves the link edge yet stays in the target lists")
+ var anchor_fixture=Game.new(42)
+ anchor_fixture.state.equipment.clear();anchor_fixture.state.composites.clear();anchor_fixture.state.links.clear();anchor_fixture.state.special_equipment.clear()
+ var special=anchor_fixture._install_special("crotch_rope_low","special_3_a")
+ var other=anchor_fixture._install_special("nipple_clamp_low","special_1_a")
+ var anchor_live=Arch.UncachedGame.new(42);anchor_live.state=anchor_fixture.state.duplicate(true)
+ var anchor_before=anchor_fixture.export_snapshot()
+ var anchor_scope=anchor_fixture._begin_equipment_read()
+ var anchor_parity=anchor_fixture.link_anchors().any(func(e):return e.id==special.id) and not anchor_fixture.link_anchors().any(func(e):return e.id==other.id)
+ anchor_parity=anchor_parity and not anchor_fixture.equipment_targets().any(func(e):return e.id==special.id) and anchor_fixture.action_targets().any(func(e):return e.id==special.id)
+ anchor_parity=anchor_parity and ids(anchor_fixture.link_anchors())==ids(anchor_live.link_anchors())
+ anchor_fixture._equipment_read=anchor_scope
+ t.check(anchor_parity and anchor_fixture.export_snapshot()==anchor_before,"INDEX crotch anchor reaches link_anchors and action_targets but not equipment_targets")
 
 
 # Count work at the existing factory boundary without changing any rule result.
@@ -78,6 +141,7 @@ static func precise_tool_projection(t) -> void:
  t.check(not g.dispatch(c.id,g.state.version).ok and g.export_snapshot()==before,"CONTACT covered link rejection preserves tool, equipment and resources")
 
 static func run(t) -> void:
+ index_link_edge_parity(t)
  offer_enumeration(t)
  precise_tool_projection(t)
  regional_cases(t)

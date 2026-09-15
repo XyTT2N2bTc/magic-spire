@@ -32,9 +32,33 @@ func _build_equipment_read_index() -> void:
  _equipment_read.pieces=pieces
  _equipment_read.slots=_materialize_slot_edge(pieces)
  _equipment_read.roots=_materialize_root_edge()
+ _equipment_read.links=_materialize_link_edge()
+ _equipment_read.anchors=_materialize_anchor_list()
+ _equipment_read.targets=_materialize_equipment_targets()
+ _equipment_read.actions=_materialize_action_targets()
  _equipment_read.ids=_materialize_id_edge()
  _equipment_read.capacity_points=_materialize_capacity_points(pieces)
  _equipment_read.physical_points=_materialize_physical_points(pieces)
+
+# Slot to rope with the §1 durability filter. The list edges below keep the §1 concatenation
+# order; only the connection part of the action list is still assembled on the spot (B7).
+func _materialize_link_edge() -> Dictionary:
+ var links={}
+ for link in state.links:
+  if link.durability<=0: continue
+  for slot in link.slots:
+   if not links.has(slot): links[slot]=[]
+   links[slot].append(link)
+ return links
+
+func _materialize_anchor_list() -> Array:
+ return _equipment_read.pieces.duplicate()+state.special_equipment.filter(Links.is_crotch_anchor)
+
+func _materialize_equipment_targets() -> Array:
+ return _equipment_read.pieces.duplicate()+state.links
+
+func _materialize_action_targets() -> Array:
+ return _equipment_read.targets.duplicate()+state.special_equipment+Binding.connections(self)
 
 # Root id to root, in root order, so every component lookup reads one projection of
 # state.composites instead of rescanning it; components stay reachable as root.components.
@@ -743,13 +767,16 @@ func physical_pieces() -> Array:
 
 # Link eligibility is separate from ordinary coverage/capacity and special removal routes.
 func link_anchors() -> Array:
+ if _equipment_read_active(): return _equipment_read.anchors.duplicate()
  return physical_pieces()+state.special_equipment.filter(Links.is_crotch_anchor)
 
 func equipment_targets() -> Array:
+ if _equipment_read_active(): return _equipment_read.targets.duplicate()
  return physical_pieces()+state.links
 
 # Player removal queries include the independent family, enemy application does not.
 func action_targets() -> Array:
+ if _equipment_read_active(): return _equipment_read.actions.duplicate()
  return equipment_targets()+state.special_equipment+Binding.connections(self)
 
 func targets_at(slot: String) -> Array:
@@ -967,6 +994,7 @@ func _reinforce_equipment(target: Dictionary, to_tier: int=0) -> String:
  return "收紧到%d档" % tier(target.durability,target.maximum)
 
 func links_at(slot: String) -> Array:
+ if _equipment_read_active(): return _equipment_read.links.get(slot,[]).duplicate()
  return state.links.filter(func(link):return link.durability>0 and slot in link.slots)
 
 func _prepare_link(a: String, b: String, durability: float, source: String, grade: int=1, blocked_slip: Array=[], connection_slots: Array=[], connection_points: Array=[]) -> Dictionary:
