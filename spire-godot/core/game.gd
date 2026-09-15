@@ -2,16 +2,68 @@ extends RefCounted
 var _resource_feedback
 var _card_feedback: Array=[]
 var _equipment_read: Dictionary={}
+# Build-time self check records (§6): one entry per voided read batch, on this instance only.
+var _equipment_index_issues: Array=[]
 
 # A read batch owns its indexes; commands and subsequent views never reuse them.
 # Speculative installation replaces state, so it must use live queries instead.
+# Entry materializes the piece set and the whole slot edge once; a failed self check voids
+# the batch instead of rebuilding it, and every later query in it answers from the live path.
 func _begin_equipment_read() -> Dictionary:
  var previous=_equipment_read
- if not _equipment_read_active(): _equipment_read={"state":state,"slots":{},"stacks":{},"escapes":{},"casts":[]}
+ if not _equipment_read_active() and (previous.is_empty() or not is_same(previous.get("state",null),state)):
+  _equipment_read={"state":state,"slots":{},"stacks":{},"escapes":{},"casts":[]}
+  _build_equipment_read_index()
  return previous
 
 func _equipment_read_active() -> bool:
- return not _equipment_read.is_empty() and is_same(_equipment_read.state,state)
+ return not _equipment_read.is_empty() and not _equipment_read.get("invalid",false) and is_same(_equipment_read.state,state)
+
+# Edges follow the verified build direction only: authoritative containers project forward into
+# piece order. An inconsistent graph is neither repaired nor partly trusted (§6).
+func _build_equipment_read_index() -> void:
+ var pieces=_materialize_physical_pieces()
+ var issue=_equipment_index_issue(pieces)
+ if not issue.is_empty():
+  _equipment_read.invalid=true
+  _equipment_index_issues.append(issue)
+  return
+ _equipment_read.pieces=pieces
+ _equipment_read.slots=_materialize_slot_edge(pieces)
+
+func _materialize_physical_pieces() -> Array:
+ var pieces=state.equipment.duplicate()
+ for root in state.composites: pieces.append_array(root.components)
+ for host in state.equipment:
+  if host.has("shoulders"): pieces.append_array(host.shoulders.pieces)
+ return pieces
+
+func _materialize_slot_edge(pieces: Array) -> Dictionary:
+ var slots={"shoulder":[]}
+ for slot in SpecialEquipment.slots(): slots[slot]=[]
+ for piece in pieces:
+  if piece.durability<=0: continue
+  for slot in Equipment.coverage(piece):
+   if not slots.has(slot): slots[slot]=[]
+   slots[slot].append(piece)
+ return slots
+
+func _equipment_index_issue(pieces: Array) -> Dictionary:
+ var by_id={}
+ for piece in pieces:
+  var id=piece.get("id","")
+  if by_id.has(id): return {"check":3,"edge":"pieces","id":id}
+  by_id[id]=piece
+ for root in state.composites:
+  for component in root.components:
+   if component.get("root_id","")!=root.id: return {"check":1,"edge":"components","id":component.get("id","")}
+   if not is_same(by_id.get(component.get("id",""),null),component): return {"check":1,"edge":"components","id":component.get("id","")}
+ for piece in pieces:
+  if not piece.has("shoulder_host"): continue
+  if not by_id.has(piece.shoulder_host): return {"check":2,"edge":"shoulders","id":piece.get("id","")}
+  var host=by_id[piece.shoulder_host]
+  if not host.get("shoulders",{}).get("pieces",[]).any(func(entry):return is_same(entry,piece)): return {"check":2,"edge":"shoulders","id":piece.get("id","")}
+ return {}
 
 func _card_motion(kind: String, card: Dictionary={}) -> void:
  if _resource_feedback!=null:
@@ -634,9 +686,8 @@ func _equipment_name(target: Dictionary) -> String:
 
 func equipment_at(slot: String) -> Array:
  if _equipment_read_active():
-  if not _equipment_read.slots.has(slot):
-   _equipment_read.slots[slot]=physical_pieces().filter(func(e):return slot in Equipment.coverage(e) and e.durability>0)
-  return _equipment_read.slots[slot].duplicate()
+  if _equipment_read.slots.has(slot): return _equipment_read.slots[slot].duplicate()
+  return []
  return physical_pieces().filter(func(e): return slot in Equipment.coverage(e) and e.durability>0)
 
 # One physical list powers targeting, contact, enemies and validation; roots carry no extra durability.
@@ -645,7 +696,6 @@ func physical_pieces() -> Array:
  var pieces=state.equipment.duplicate()
  for root in state.composites: pieces.append_array(root.components)
  pieces.append_array(Shoulders.pieces(self))
- if _equipment_read_active(): _equipment_read.pieces=pieces.duplicate()
  return pieces
 
 # Link eligibility is separate from ordinary coverage/capacity and special removal routes.

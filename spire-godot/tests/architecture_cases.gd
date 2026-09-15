@@ -16,6 +16,17 @@ class PreviewCountingGame extends "res://tests/game_fixture.gd":
   cast_builds+=1
   return super._build_cast_view(profile)
 
+# Test-side counters for "each edge materializes at most once per scope"; production has none.
+class IndexCountingGame extends "res://tests/game_fixture.gd":
+ var piece_builds=0
+ var slot_builds=0
+ func _materialize_physical_pieces() -> Array:
+  piece_builds+=1
+  return super._materialize_physical_pieces()
+ func _materialize_slot_edge(pieces: Array) -> Dictionary:
+  slot_builds+=1
+  return super._materialize_slot_edge(pieces)
+
 static func containers(value, path: String, out: Array) -> void:
  if value is Dictionary:
   out.append({"value":value,"path":path})
@@ -35,6 +46,8 @@ static func shared(view: Dictionary, authority: Dictionary) -> String:
 static func run(t) -> void:
  tool_registry_boundary(t)
  equipment_read_batches(t)
+ index_materializes_once_per_scope(t)
+ index_self_check_falls_back(t)
  var images=preload("res://data/equipment_images.gd")
  var missing=[]
  for family in images.MATERIALS:
@@ -135,6 +148,61 @@ static func equipment_read_batches(t) -> void:
  g=Game.new(42);g._discard_end();g.state.energy=2
  preload("res://tests/curse_cases.gd").give(g,"self_binding")
  projection_contract(t,g,"self-binding speculative installation")
+
+# Batch B1 (§11 scenario 2): each edge materializes at most once per scope and never outside one.
+static func index_materializes_once_per_scope(t) -> void:
+ var g=IndexCountingGame.new(42)
+ g.state.equipment.clear()
+ for slot in g.B.SLOTS: g.add_fixture(slot,7,10)
+ var before=g.export_snapshot()
+ var previous=g._begin_equipment_read()
+ t.check(g.piece_builds==1 and g.slot_builds==1,"INDEX entry materializes the piece set and slot edge once per scope")
+ for slot in g.B.SLOTS: g.equipment_at(slot)
+ for step in range(3): g.physical_pieces()
+ t.check(g.piece_builds==1 and g.slot_builds==1,"INDEX repeated queries inside one scope never rebuild an edge")
+ var members=g.equipment_at("wrist");members.clear();members.append({})
+ t.check(not g.equipment_at("wrist").is_empty(),"INDEX clearing a materialized slot answer cannot corrupt the edge")
+ var built=g.piece_builds;var slot_builds=g.slot_builds
+ g._equipment_read=previous
+ t.check(g._equipment_read.is_empty(),"INDEX read scope releases its materialized edges")
+ for step in range(3):
+  g.equipment_at("wrist");g.physical_pieces()
+ t.check(g.piece_builds==built and g.slot_builds==slot_builds,"INDEX queries without a scope never build an edge table")
+ t.check(g.export_snapshot()==before,"INDEX materialization leaves state, logs and random cursors unchanged")
+
+# Batch B1 (§11 scenario 3): an inconsistent graph voids the whole scope, records one named issue
+# and answers every later query in that scope from the live path.
+static func index_self_check_falls_back(t) -> void:
+ var root=Game.new(42,true,"component_links")
+ root.state.composites[0].components[0].root_id=root.state.composites[1].id
+ var host=Game.new(42,true,"shoulder_links")
+ var special=host._install_special("nipple_clamp_medium","special_1_a")
+ host.state.equipment[0].shoulders.pieces[0].shoulder_host=special.id
+ var twin=Game.new(42,true,"shoulder_links")
+ twin.state.equipment.append(twin.state.equipment[0].duplicate(true))
+ for damage in [{"label":"component root mismatch","game":root,"check":1},{"label":"shoulder host outside the piece set","game":host,"check":2},{"label":"two instances sharing one id","game":twin,"check":3}]:
+  var g=damage.game
+  var reference=UncachedGame.new(42);reference.state=g.state.duplicate(true)
+  var before=g.export_snapshot()
+  var recorded=g._equipment_index_issues.size()
+  var view=g.get_view()
+  var candidates=g.candidates()
+  t.check(view==reference.get_view() and candidates==reference.candidates(),"INDEX damaged graph answers exactly like the live reference "+damage.label)
+  var issues=g._equipment_index_issues
+  t.check(issues.size()==recorded+2 and issues[-1].check==damage.check and issues[-1].edge!="" and issues[-1].id!="","INDEX one named record per voided scope "+damage.label+": "+str(issues))
+  t.check(g._equipment_read.is_empty() and g.export_snapshot()==before,"INDEX fallback leaves no scope, state, log or save change "+damage.label)
+ var dangling=Game.new(42,true,"shoulder_links")
+ var piece=dangling.state.equipment[0].shoulders.pieces[0]
+ piece.shoulder_host="missing_host"
+ var live_reference=UncachedGame.new(42);live_reference.state=dangling.state.duplicate(true)
+ var dangling_before=dangling.export_snapshot()
+ var recorded=dangling._equipment_index_issues.size()
+ var dangling_scope=dangling._begin_equipment_read()
+ # The live projection aborts on a dangling shoulder host, so this fixture compares leaf queries only.
+ var parity=dangling.physical_pieces()==live_reference.physical_pieces() and dangling.equipment_at(piece.slot)==live_reference.equipment_at(piece.slot) and dangling._equipment_name(piece)==live_reference._equipment_name(live_reference._equipment(piece.id))
+ t.check(parity and dangling._equipment_index_issues.size()==recorded+1 and dangling._equipment_index_issues[-1].check==2,"INDEX dangling shoulder host voids the scope before display code reads it")
+ dangling._equipment_read=dangling_scope
+ t.check(dangling._equipment_read.is_empty() and dangling.export_snapshot()==dangling_before,"INDEX dangling host fallback leaves no scope or state change")
 
 static func equipment_projection_batches(t) -> void:
  var g=Game.new(42,true,"jacket")
