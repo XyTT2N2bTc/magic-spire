@@ -49,7 +49,18 @@ static func payment_notice(g, source: String) -> String:
   return ShopCopy.PLATE_SELF_BLOCK_REASON
  return ""
 
-static func paid_candidate(g, out: Array, payload: Dictionary, label: String, info: String, price: float, reason: String, group: String, required_payment: String="") -> void:
+# R3（docs/ondemand-copy.md §11.5）：「购买／解除／移除」三处文案的 builder，正文留在本模块。
+static func offer_detail(g, args: Dictionary) -> String:
+ return detail(g,args.get("offer",{}))
+
+static func release_job_detail(_g, args: Dictionary) -> String:
+ var job=args.get("job",{})
+ return String(job.get("detail",""))+"\n"+String(job.get("price_detail",""))
+
+static func remove_card_detail(_g, _args: Dictionary) -> String:
+ return "永久移除这张牌。本店仅能使用一次。"
+
+static func paid_candidate(g, out: Array, payload: Dictionary, label: String, info, price: float, reason: String, group: String, required_payment: String="") -> void:
  for source in (["self","flask"] if g.state.phase=="shop" else ["self"]):
   var action=payload.duplicate();action.payment=source
   var payment_reason=reason
@@ -76,14 +87,15 @@ static func candidates(g, out: Array) -> void:
    g._candidate(out,payload,"打开宝箱 · "+name(g,offer),detail(g,offer),0,0,reason,"","service")
   else:
    var required_payment=g.Relics.TYPES[offer.type].get("shop_payment","") if offer.kind=="relic" else ""
-   paid_candidate(g,out,payload,"购买 · "+name(g,offer),detail(g,offer),offer.price,reason,"service",required_payment)
+   var offer_args={"offer":offer}
+   paid_candidate(g,out,payload,"购买 · "+name(g,offer),{"kind":"service.offer","args":offer_args,"fallback":offer_detail(g,offer_args)},offer.price,reason,"service",required_payment)
  if room.kind=="shop":
   for job in release_jobs(g):
-   var info=job.detail+"\n"+job.price_detail
-   paid_candidate(g,out,{"kind":"service","op":"release","target":job.id},"解除「"+job.name+"」",info,job.price,job.reason,"service_release")
+   var job_args={"job":job}
+   paid_candidate(g,out,{"kind":"service","op":"release","target":job.id},"解除「"+job.name+"」",{"kind":"service.release_job","args":job_args,"fallback":release_job_detail(g,job_args)},job.price,job.reason,"service_release")
  if room.kind=="shop" and not room.remove_used:
   for card in g.state.deck:
-   paid_candidate(g,out,{"kind":"service","op":"remove","uid":card.uid},"移除「"+g.B.CARD_NAMES[card.type]+"」","永久移除这张牌。本店仅能使用一次。",Data.removal_price(g.state.shop_removals),"","service_remove")
+   paid_candidate(g,out,{"kind":"service","op":"remove","uid":card.uid},"移除「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"service.remove_card","args":{},"fallback":remove_card_detail(g,{})},Data.removal_price(g.state.shop_removals),"","service_remove")
  g._candidate(out,{"kind":"service","op":"leave"},"离开房间","保留已获得的物品，继续向上一层前进。",0,0,"","","service_flow")
 
 static func execute(g, p: Dictionary) -> String:

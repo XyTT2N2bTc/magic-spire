@@ -573,7 +573,7 @@ static func copy_single_entry_matches_projection(t) -> void:
 static func copy_route_bytes_unchanged(t) -> void:
  var router=preload("res://core/copy_router.gd")
  var catalog=preload("res://data/encyclopedia.gd")
- t.check(router.categories()==["card.catalog","card.face","card.target","demo_exit.continue","demo_exit.end","mana_flask.deposit","mana_flask.withdraw"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
+ t.check(router.categories()==["card.catalog","card.face","card.target","demo_exit.continue","demo_exit.end","mana_flask.deposit","mana_flask.withdraw","service.offer","service.release_job","service.remove_card"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
  for phase in ["battle","departure"]:
   for count in [0,12,26]:
    var key="%s:%d" % [phase,count]
@@ -669,6 +669,24 @@ static func copy_migrated_kinds(t,router) -> void:
   var assembled=target_game._candidate_detail(base,candidate.payload,target_game.Cards.magic_card_traction(target_game,candidate.payload),candidate.mana_payment)
   if assembled!=candidate.detail: target_mismatch.append(candidate.id)
  t.check(target_seen>0 and target_mismatch.is_empty() and target_game.copy_router_failures.is_empty(),"COPY R3a card.target renders like the wrapper for every card candidate: "+str(target_seen)+" "+str(target_mismatch.slice(0,3)))
+ # R3b: paid_candidate 的三个站点经路由渲染必须逐字节等于候选值。
+ var paid_mismatch=[];var paid_seen={"offer":0,"release":0,"remove":0}
+ for candidate in shop_game.candidates():
+  if candidate.payload.get("kind","")!="service" or candidate.payload.get("op","")!="take": continue
+  paid_seen.offer+=1
+  if router.text(shop_game,{"kind":"service.offer","args":{"offer":stock[int(candidate.payload.index)]},"fallback":sentinel})!=candidate.detail: paid_mismatch.append("offer "+candidate.id)
+ var release_game=GameCore.new(42,true,"shop")
+ release_game.add_fixture("wrist",8,10)
+ var release_jobs=release_game.Services.release_jobs(release_game)
+ var release_candidate=copy_candidate(release_game,"service","release")
+ paid_seen.release+=1
+ if release_jobs.is_empty() or router.text(release_game,{"kind":"service.release_job","args":{"job":release_jobs[0]},"fallback":sentinel})!=release_candidate.get("detail",""): paid_mismatch.append("release")
+ var remove_game=GameCore.new(42,true,"shop")
+ remove_game.state.shop_removals=3
+ var remove_candidate=copy_candidate(remove_game,"service","remove")
+ paid_seen.remove+=1
+ if remove_candidate.is_empty() or router.text(remove_game,{"kind":"service.remove_card","args":{},"fallback":sentinel})!=remove_candidate.get("detail",""): paid_mismatch.append("remove")
+ t.check(paid_seen.offer>0 and paid_mismatch.is_empty(),"COPY R3b service.offer, release_job and remove_card render like the paid candidates: "+JSON.stringify(paid_seen)+" "+str(paid_mismatch.slice(0,3)))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.candidates():
