@@ -11,9 +11,17 @@ static func at_exit(g) -> bool:
 
 static func candidates(g, out: Array) -> void:
  if not at_exit(g) or g.state.demo_finished: return
- g._candidate(out,{"kind":"demo_end"},"结束并返回菜单","结束本次游玩。",0,0,"","","demo_exit")
+ g._candidate(out,{"kind":"demo_end"},"结束并返回菜单",{"kind":"demo_exit.end","args":{},"fallback":end_detail(g,{})},0,0,"","","demo_exit")
  if g.state.demo_cycle<2:
-  g._candidate(out,{"kind":"demo_continue"},"继续游玩","保留卡组、遗物、成长与监狱警戒度，开启全新塔路。怪物基础生命×%s；解除可解除的装备并补满魔力，快感降低%s（最低0），姿势变为站立。" % [g.number(HEALTH[g.state.demo_cycle+1]),g.number(PRESSURE_RELIEF)],0,0,"","","demo_exit")
+  var continue_args={"next_cycle":g.state.demo_cycle+1}
+  g._candidate(out,{"kind":"demo_continue"},"继续游玩",{"kind":"demo_exit.continue","args":continue_args,"fallback":continue_detail(g,continue_args)},0,0,"","","demo_exit")
+
+# R1（docs/ondemand-copy.md §11.5）：文案类别登记在路由，正文仍留本模块。
+static func end_detail(_g, _args: Dictionary) -> String:
+ return "结束本次游玩。"
+
+static func continue_detail(g, args: Dictionary) -> String:
+ return "保留卡组、遗物、成长与监狱警戒度，开启全新塔路。怪物基础生命×%s；解除可解除的装备并补满魔力，快感降低%s（最低0），姿势变为站立。" % [g.number(HEALTH[int(args.get("next_cycle",1))]),g.number(PRESSURE_RELIEF)]
 
 static func continue_run(g) -> void:
  for target in g.action_targets():

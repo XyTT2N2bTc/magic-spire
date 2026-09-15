@@ -9,14 +9,20 @@ extends RefCounted
 # 语言限制：GDScript 无异常捕获，builder 内部的引擎错误由套件当作失败处理（不再是静默空值）。
 const Cards=preload("res://core/card_effects.gd")
 const Catalog=preload("res://data/encyclopedia.gd")
+const ManaFlask=preload("res://core/mana_flask.gd")
+const DemoExit=preload("res://core/demo_exit.gd")
 
 static var _table: Dictionary={}
 
-# 类别 → builder(g, args)。卡面实时与静态两条实现都在各自模块原地保留（§11.4 不合并两份实现）。
+# 类别 → builder(g, args)。卡面实时与静态两条实现、各模块的文案构建函数都在原地保留（§11.4 不合并两份实现）。
 static func _builders() -> Dictionary:
  if _table.is_empty():
   _table["card.face"]=func(g,args): return Cards.text_entry(g,String(args.get("type","")),String(args.get("uid","")))
   _table["card.catalog"]=func(g,args): return Catalog.card(String(args.get("type","")))
+  _table["mana_flask.deposit"]=Callable(ManaFlask,"deposit_detail")
+  _table["mana_flask.withdraw"]=Callable(ManaFlask,"withdraw_detail")
+  _table["demo_exit.end"]=Callable(DemoExit,"end_detail")
+  _table["demo_exit.continue"]=Callable(DemoExit,"continue_detail")
  return _table
 
 # 可枚举的类别清单；未迁移的生产者走字符串直传通道，不在此列（§11.7 据此核对已收口范围）。

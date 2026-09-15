@@ -573,7 +573,7 @@ static func copy_single_entry_matches_projection(t) -> void:
 static func copy_route_bytes_unchanged(t) -> void:
  var router=preload("res://core/copy_router.gd")
  var catalog=preload("res://data/encyclopedia.gd")
- t.check(router.categories()==["card.catalog","card.face"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
+ t.check(router.categories()==["card.catalog","card.face","demo_exit.continue","demo_exit.end","mana_flask.deposit","mana_flask.withdraw"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
  for phase in ["battle","departure"]:
   for count in [0,12,26]:
    var key="%s:%d" % [phase,count]
@@ -617,3 +617,26 @@ static func copy_route_bytes_unchanged(t) -> void:
  var refused=router.text(g2,{"kind":"card.face","args":{"type":"strain"},"fallback":"回退"})
  t.check(refused=="回退" and g2.copy_router_failures.size()==failures+3 and g2.copy_router_failures[-1].stage=="result","COPY ROUTER refuses a dictionary result on the string entry and records it")
  t.check(router.failures(g2).size()==failures+3 and g2.state==g2_before,"COPY ROUTER diagnostics stay on the instance and never touch state")
+ copy_migrated_kinds(t,router)
+
+# §11.5 R1/R2/R3: every migrated kind must render exactly like the producer expression it replaced.
+# The descriptor carries a sentinel fallback, so a fallback return (unknown kind, invalid builder or a
+# wrong result type) shows up as a mismatch instead of hiding behind identical text.
+static func copy_migrated_kinds(t,router) -> void:
+ var sentinel="COPY-SENTINEL"
+ var flask=copy_baseline_fixture("battle",0)
+ flask.state.mana=50.0;flask.state.flask_mana=8.0;flask.state.flask_deposits=1
+ t.check(router.text(flask,{"kind":"mana_flask.deposit","args":{"amount":10.0,"remaining":1},"fallback":sentinel})==copy_candidate(flask,"flask","deposit").get("detail",""),"COPY R1 mana_flask.deposit renders like the deposit candidate")
+ t.check(router.text(flask,{"kind":"mana_flask.withdraw","args":{"drawn":8.0,"restored":8.0},"fallback":sentinel})==copy_candidate(flask,"flask","withdraw").get("detail",""),"COPY R1 mana_flask.withdraw renders like the withdraw candidate")
+ var exit_game=copy_baseline_fixture("battle",0)
+ preload("res://tests/demo_exit_cases.gd").exit_fixture(exit_game)
+ t.check(router.text(exit_game,{"kind":"demo_exit.end","args":{},"fallback":sentinel})==copy_candidate(exit_game,"demo_end","").get("detail",""),"COPY R1 demo_exit.end renders like the exit candidate")
+ t.check(router.text(exit_game,{"kind":"demo_exit.continue","args":{"next_cycle":1},"fallback":sentinel})==copy_candidate(exit_game,"demo_continue","").get("detail",""),"COPY R1 demo_exit.continue renders like the continuation candidate")
+ t.check(flask.copy_router_failures.is_empty() and exit_game.copy_router_failures.is_empty(),"COPY R1 migrated kinds are all registered and record no failure")
+
+static func copy_candidate(g, kind: String, op: String) -> Dictionary:
+ for candidate in g.candidates():
+  if candidate.payload.get("kind","")!=kind: continue
+  if op!="" and candidate.payload.get("action",candidate.payload.get("op",""))!=op: continue
+  return candidate
+ return {}
