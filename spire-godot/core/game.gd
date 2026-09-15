@@ -847,7 +847,15 @@ func capacity_used(slot: String) -> int:
   amount=maxi(amount,_capacity_point_count(point))
  return amount
 
+# §3.1 item 10: the planning half reads through one scope; the write side stays in
+# _install_assembly, which runs after the scope is released.
 func _prepare_assembly(kind: String, variant: String, source: String, grade: int=2, tightness: int=2, overrides: Dictionary={}, straps: String="straight", attached_to: String="") -> Dictionary:
+ var previous=_begin_equipment_read()
+ var root=_plan_assembly(kind,variant,source,grade,tightness,overrides,straps,attached_to)
+ _equipment_read=previous
+ return root
+
+func _plan_assembly(kind: String, variant: String, source: String, grade: int=2, tightness: int=2, overrides: Dictionary={}, straps: String="straight", attached_to: String="") -> Dictionary:
  var layout=Composites.spec(kind,variant,straps)
  if layout.is_empty() or not Equipment.GRADES.has(grade) or grade<layout.minimum or tightness not in [1,2,3]: return {}
  if _assembly_reason(layout,attached_to)!="": return {}

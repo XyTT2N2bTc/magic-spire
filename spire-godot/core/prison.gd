@@ -173,8 +173,14 @@ static func high_security(g) -> String:
  # Three-tier upgrades may create shoulder pieces after the original target list.
  # Their factory supplies the upgraded grade/durability; finalize their locks too.
  for e in g.Shoulders.pieces(g): e.locked=g.Equipment.allows(e,"lock")
- if not g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty()): return "高安全监室仍有未被覆盖的部位。"
- g.state.capture.terminal_equipment=g.equipment_targets().map(func(e):return e.id)
+ # §3.1 item 8: only this tail is read-only; the upgrade half above writes equipment and the
+ # shoulder line stays a fresh read, so both remain outside the scope.
+ var previous=g._begin_equipment_read()
+ var covered=g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty())
+ var terminal=[] if not covered else g.equipment_targets().map(func(e):return e.id)
+ g._equipment_read=previous
+ if not covered: return "高安全监室仍有未被覆盖的部位。"
+ g.state.capture.terminal_equipment=terminal
  return ""
 
 static func enter(g) -> String:
@@ -416,17 +422,28 @@ static func is_exit_battle(g) -> bool:
 static func return_to_tower(g) -> void:
  g._restart_tower()
 
+# §3.1 item 9: the terminal equipment read block keeps one scope and one exit; a nested call
+# under Game.validate is a no-op because the outer scope is reused.
+static func _terminal_equipment_issue(g) -> String:
+ var previous=g._begin_equipment_read()
+ var issue=""
+ if g.state.phase!="prison_end" or g.state.security!=5 or g.state.capture.terminal_equipment!=g.equipment_targets().map(func(e):return e.id): issue="高安全终局装备清单不完整。"
+ elif not g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty()): issue="高安全终局存在未覆盖部位。"
+ else:
+  for e in g.equipment_targets():
+   if g.Equipment.lock_only(e):
+    if not e.locked: issue="高安全监室的限制项圈必须上锁。"; break
+    continue
+   if e.grade!=3 or e.maximum!=g.Equipment.maximum(3) or e.durability!=e.maximum or e.locked!=g.Equipment.allows(e,"lock"): issue="高安全终局装备必须为高级三档，并锁住所有可上锁处。"; break
+ g._equipment_read=previous
+ return issue
+
 static func validate(g) -> String:
  var reinforcement_error=reinforcement_issue(g.state)
  if reinforcement_error!="": return reinforcement_error
  if g.state.capture.has("terminal_equipment"):
-  if g.state.phase!="prison_end" or g.state.security!=5 or g.state.capture.terminal_equipment!=g.equipment_targets().map(func(e):return e.id): return "高安全终局装备清单不完整。"
-  if not g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty()): return "高安全终局存在未覆盖部位。"
-  for e in g.equipment_targets():
-   if g.Equipment.lock_only(e):
-    if not e.locked: return "高安全监室的限制项圈必须上锁。"
-    continue
-   if e.grade!=3 or e.maximum!=g.Equipment.maximum(3) or e.durability!=e.maximum or e.locked!=g.Equipment.allows(e,"lock"): return "高安全终局装备必须为高级三档，并锁住所有可上锁处。"
+  var terminal_issue=_terminal_equipment_issue(g)
+  if terminal_issue!="": return terminal_issue
  if g.state.phase=="prison_end" and not g.state.capture.has("terminal_equipment"): return "高安全终局缺少装备清单。"
  var p=g.state.prison
  if g.state.phase in ["prison","inspection"] and not p.get("active",false): return "牢房流程缺少入狱记录。"

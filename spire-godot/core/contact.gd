@@ -46,6 +46,8 @@ static func limited_slots(g) -> Array:
  return ["thigh"] if g.state.posture=="stand" else ["thigh","ankle","foot","toes"]
 
 static func workspace(g, operation: String) -> Array:
+ # §3.1 item 2: one read scope for the whole workspace table.
+ var previous=g._begin_equipment_read()
  var slots=[]
  var stand=g.state.posture=="stand"
  if operation=="cut":
@@ -56,7 +58,9 @@ static func workspace(g, operation: String) -> Array:
  else:
   slots=(g.B.SLOTS+["neck"]).filter(func(slot):return not stand or slot not in ["calf","ankle","foot","toes"])
   if operation=="manual" and g.level("arms")!=0: slots=limited_slots(g)
- return g.Binding.filter_points(g,slot_points(slots))
+ var points=g.Binding.filter_points(g,slot_points(slots))
+ g._equipment_read=previous
+ return points
 
 static func slot_points(slots: Array) -> Array:
  var points=[]

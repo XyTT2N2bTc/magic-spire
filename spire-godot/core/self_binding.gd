@@ -35,12 +35,19 @@ static func installation_plan(g, type: String, x: int, randomize: bool=false) ->
    return [first.duplicate(true),second.duplicate(true)]
  return []
 
+# §3.1 item 5: both leaves read through one scope; speculation swaps state, so the identity
+# check in _equipment_read_active() bypasses the batch by itself.
 static func tighten_targets(g) -> Array:
- return g.physical_pieces().filter(func(item):return item.durability>0 and g.tier(item.durability,item.maximum)<3 and g._can_tighten(item))
+ var previous=g._begin_equipment_read()
+ var targets=g.physical_pieces().filter(func(item):return item.durability>0 and g.tier(item.durability,item.maximum)<3 and g._can_tighten(item))
+ g._equipment_read=previous
+ return targets
 
 static func capacity(g) -> int:
+ var previous=g._begin_equipment_read()
  var result=0
  for item in tighten_targets(g): result+=3-g.tier(item.durability,item.maximum)
+ g._equipment_read=previous
  return result
 
 static func reason(g, p: Dictionary) -> String:

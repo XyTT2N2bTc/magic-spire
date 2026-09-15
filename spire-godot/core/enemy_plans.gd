@@ -251,6 +251,8 @@ static func tick_install(g, timing: String) -> void:
   g._enemy_operation(e,application(spec.install_pool,1,2,e.turn_install_layers))
 
 static func targets(g, e: Dictionary, kind: String, required_slots: Array=[]) -> Array:
+ # §3.1 item 1: one read scope per call; the enemy plan only reads equipment.
+ var previous=g._begin_equipment_read()
  var choices=g.physical_pieces().filter(func(x):return g._can_tighten(x) if kind=="tighten" else Equipment.allows(x,"lock") and not x.locked)
  if not required_slots.is_empty():
   choices=choices.filter(func(x):return Equipment.coverage(x).any(func(slot):return slot in required_slots))
@@ -264,6 +266,7 @@ static func targets(g, e: Dictionary, kind: String, required_slots: Array=[]) ->
   if own_a!=own_b: return own_a>own_b
   if a.durability/a.maximum!=b.durability/b.maximum: return a.durability/a.maximum<b.durability/b.maximum
   return a.id.naturalnocasecmp_to(b.id)<0)
+ g._equipment_read=previous
  return choices
 
 static func resolve(g, e: Dictionary, original: Dictionary) -> Dictionary:

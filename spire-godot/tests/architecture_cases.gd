@@ -1,6 +1,10 @@
 extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 const Rewards=preload("res://tests/reward_cases.gd")
+const Guard=preload("res://core/guard.gd")
+
+static func ids_for(values: Array) -> Array:
+ return values.map(func(e):return e.get("id",""))
 
 class UncachedGame extends "res://tests/game_fixture.gd":
  func _begin_equipment_read() -> Dictionary:
@@ -61,6 +65,7 @@ static func run(t) -> void:
  index_materializes_once_per_scope(t)
  index_id_edge_parity(t)
  index_predicate_parity(t)
+ index_entry_parity(t)
  index_self_check_falls_back(t)
  var images=preload("res://data/equipment_images.gd")
  var missing=[]
@@ -169,6 +174,9 @@ static func index_materializes_once_per_scope(t) -> void:
  g.state.equipment.clear()
  for slot in g.B.SLOTS: g.add_fixture(slot,7,10)
  var before=g.export_snapshot()
+ # Count only this window: earlier read-only entries (plan/offer/contact calls) legitimately
+ # opened and released scopes of their own during construction.
+ g.piece_builds=0;g.slot_builds=0;g.id_builds=0;g.capacity_builds=0;g.physical_builds=0
  var previous=g._begin_equipment_read()
  t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1 and g.capacity_builds==1 and g.physical_builds==1,"INDEX entry materializes the piece set and every edge once per scope")
  for slot in g.B.SLOTS: g.equipment_at(slot)
@@ -300,6 +308,59 @@ static func index_predicate_parity(t) -> void:
  t.check(doubled!="" and doubled==dense_reference._capacity_issue(dense_reference.physical_pieces()+dense_reference.state.equipment.duplicate()),"INDEX non-authoritative capacity argument keeps its live reason text: "+doubled)
  t.check(dense.capacity_used("wrist")==dense_reference.capacity_used("wrist") and dense.occupied("wrist") and dense.hand_blocked("wrist","left"),"INDEX dense counts and presence match the live path")
  dense._equipment_read=dense_scope
+
+# Batch B9 (§11 scenario 5): every §3.1 outer entry opens and releases its own scope and answers
+# exactly like the index-off reference; entries that swap state still leave no scope behind.
+static func index_entry_parity(t) -> void:
+ var g=IndexCountingGame.new(42)
+ g.add_fixture("wrist",4,10)
+ g.add_fixture("thigh",8,10)
+ var reference=UncachedGame.new(42);reference.state=g.state.duplicate(true)
+ var before=g.export_snapshot()
+ var enemy=reference.state.enemies[0]
+ # Each entry opens exactly one scope and releases it before returning.
+ var opened=g.piece_builds
+ var parity=ids_for(g.EnemyPlans.targets(g,enemy,"tighten"))==ids_for(reference.EnemyPlans.targets(reference,enemy,"tighten")) and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and ids_for(g.EnemyPlans.targets(g,enemy,"lock"))==ids_for(reference.EnemyPlans.targets(reference,enemy,"lock")) and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and g.Contact.workspace(g,"cut")==reference.Contact.workspace(reference,"cut") and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and g.Contact.workspace(g,"manual")==reference.Contact.workspace(reference,"manual") and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ var options=g.EquipmentOffers.ordinary(g)
+ parity=parity and options==reference.EquipmentOffers.ordinary(reference) and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and g.EquipmentOffers.preferred(g,options)==reference.EquipmentOffers.preferred(reference,options) and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and g.EquipmentOffers.for_pool(g,2,["rope","belt"])==reference.EquipmentOffers.for_pool(reference,2,["rope","belt"]) and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and g.EquipmentOffers.links(g,2)==reference.EquipmentOffers.links(reference,2) and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and ids_for(g.Cards.SelfBinding.tighten_targets(g))==ids_for(reference.Cards.SelfBinding.tighten_targets(reference)) and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and g.Cards.SelfBinding.capacity(g)==reference.Cards.SelfBinding.capacity(reference) and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and g.Events.selector_values(g,{"kind":"restraint"})==reference.Events.selector_values(reference,{"kind":"restraint"}) and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ opened=g.piece_builds
+ parity=parity and g.Events.selector_values(g,{"kind":"card"})==reference.Events.selector_values(reference,{"kind":"card"}) and g._equipment_read.is_empty() and g.piece_builds==opened
+ opened=g.piece_builds
+ parity=parity and g._prepare_assembly("glove","short","fixture")==reference._prepare_assembly("glove","short","fixture") and g._equipment_read.is_empty() and g.piece_builds==opened+1
+ t.check(parity and g.export_snapshot()==before and g._equipment_read.is_empty(),"INDEX read-only entries answer like the live reference, open one scope each and release it")
+ var compiled=g.Events.compile(g,"tighten_or_medium")
+ var compiled_reference=reference.Events.compile(reference,"tighten_or_medium")
+ t.check(compiled==compiled_reference and g.export_snapshot()==reference.export_snapshot() and g._equipment_read.is_empty(),"INDEX event compilation advances the same random domain and releases its scope")
+ var captured=Game.new(42,true,"guard")
+ captured.state.security=5
+ Guard.capture(captured,captured.state.enemies[0])
+ var prison_reference=UncachedGame.new(42);prison_reference.state=captured.state.duplicate(true)
+ var opened_prison=captured._equipment_read
+ var entered=captured.Prison.enter(captured)
+ var entered_reference=prison_reference.Prison.enter(prison_reference)
+ t.check(entered==entered_reference and captured.export_snapshot()==prison_reference.export_snapshot() and captured._equipment_read.is_empty() and is_same(opened_prison,captured._equipment_read), "INDEX high security entry matches the live reference and releases its tail scope")
+ var prison_validate=captured.validate()
+ var prison_validate_reference=prison_reference.validate()
+ t.check(prison_validate==prison_validate_reference and captured.Prison.validate(captured)==prison_reference.Prison.validate(prison_reference) and captured._equipment_read.is_empty(),"INDEX nested prison validation agrees with the live reference")
 
 static func equipment_projection_batches(t) -> void:
  var g=Game.new(42,true,"jacket")

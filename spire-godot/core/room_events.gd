@@ -212,6 +212,8 @@ static func selector_values(g, selector: Dictionary) -> Array:
     if selector.get("exclude_curses",false) and g.B.CARD_TRAITS.get(card.type,{}).get("curse",false): continue
     result.append({"id":card.uid,"name":g.B.CARD_NAMES[card.type],"type":card.type,"kind":"card","slot":"卡组"})
   "restraint":
+   # §3.1 item 6: only this display branch reads equipment; the card branch reads the deck.
+   var previous=g._begin_equipment_read()
    for item in g.physical_pieces():
     if item.durability<=0: continue
     result.append({"id":item.id,"name":g._equipment_name(item),"type":item.template,"kind":"restraint","slot":g.B.SLOT_NAMES[item.slot]})
@@ -219,6 +221,7 @@ static func selector_values(g, selector: Dictionary) -> Array:
      if not selector.get("include_special",true): continue
      if item.durability<=0 or not g.SpecialEquipment.allows(item,"lower"): continue
      result.append({"id":item.id,"name":g._equipment_name(item),"type":item.type,"kind":"restraint","slot":g.SpecialEquipment.slot_name(item.slot)})
+   g._equipment_read=previous
  return result
 
 static func selector_combinations(values: Array, count: int, start: int=0, prefix: Array=[]) -> Array:
@@ -334,7 +337,11 @@ static func compile(g, recipe: String) -> Array:
    var effect=pick(g,ordinary(g,1,true,["rope","belt"]))
    return [] if effect.is_empty() else [effect]
   "tighten_or_medium":
+   # §3.1 item 7: only this filter expression is a read scope; the locked_assembly branch
+   # below swaps state, so the function itself must not be wrapped.
+   var previous=g._begin_equipment_read()
    var targets=g.physical_pieces().filter(func(e):return g._can_tighten(e))
+   g._equipment_read=previous
    if not targets.is_empty():
     var target=targets[g._random_index("event",targets.size())]
     return [{"op":"tighten","target":target.id}]
