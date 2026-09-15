@@ -1737,6 +1737,152 @@ func _candidate_base_detail(payload: Dictionary) -> String:
   if not chosen.is_empty(): text+="\n本次消耗「%s」。" % B.CARD_NAMES[chosen.type]
  return text
 
+# R5（docs/ondemand-copy.md §11.5）：本模块直呼点的文案 builder，正文留在本模块，路由只做分派。
+static func copy_surrender(_g, _args: Dictionary) -> String:
+ return "放弃战斗，被逮捕并进入收押处理。"
+
+static func copy_item_discard(_g, _args: Dictionary) -> String:
+ return "丢弃后无法取回。不消耗能量、魔力或回合。"
+
+static func copy_status_toggle(_g, args: Dictionary) -> String:
+ return "每次触发消耗1层。" if bool(args.get("charge_all",false)) else "下一次触发使用全部蓄力。"
+
+static func copy_rest_rare(_g, _args: Dictionary) -> String:
+ return "剩余%d回合休息。" % (B.REST_TURNS-B.REST_CARD_TURNS.rare)
+
+static func copy_rest_card(_g, args: Dictionary) -> String:
+ return "从%d张%s卡中选一张，剩余%d回合休息。" % [int(args.get("count",0)),Cards.Rules.RARITIES[String(args.get("rarity","common"))],B.REST_TURNS-int(args.get("turns",0))]
+
+static func copy_rest_flask(_g, _args: Dictionary) -> String:
+ return "剩余%d回合用于休息，不改变自身魔力。" % (B.REST_TURNS-B.REST_FLASK_TURNS)
+
+static func copy_rest_begin(_g, args: Dictionary) -> String:
+ return "保留%d回合休息时间。" % int(args.get("left",0))
+
+static func copy_end_climax(_g, args: Dictionary) -> String:
+ return "身体暂时使不上力，剩余行动已跳过。"+("敌人仍按原定行动执行。" if bool(args.get("battle",false)) and bool(args.get("first",false)) else "")+"下一玩家回合按累计乏力恢复能量。"+("若持续无法行动，也可以投降进入牢房。" if bool(args.get("battle",false)) else "")
+
+static func copy_retain(_g, _args: Dictionary) -> String:
+ return "保留到下一玩家回合结束。"
+
+static func copy_retain_skip(_g, args: Dictionary) -> String:
+ return "保留已选手牌，不再选择。"+("随后抽1张。" if int(args.get("draw_after",0))>0 else "继续行动。")
+
+static func copy_reward_item(_g, _args: Dictionary) -> String:
+ return "收入道具栏；本事件不会进入整理道具。"
+
+static func copy_reward_item_skip(_g, _args: Dictionary) -> String:
+ return "未领取的道具将被放弃；直接返回塔路，不进入整备或整理道具。"
+
+static func copy_reward_flask(_g, _args: Dictionary) -> String:
+ return "全部存入贴身魔瓶，不占用存入次数。"
+
+static func copy_reward_other(_g, args: Dictionary) -> String:
+ return "收入道具栏。" if String(args.get("category",""))=="item" else Relics.TYPES[String(args.get("type",""))].detail
+
+static func copy_reward_relic(_g, args: Dictionary) -> String:
+ return Relics.TYPES[String(args.get("type",""))].detail
+
+static func copy_reward_skip_category(_g, args: Dictionary) -> String:
+ return "放弃本次"+("卡牌" if String(args.get("category",""))=="card" else "遗物")+"奖励，其他奖励仍可领取。"
+
+static func copy_reward_skip(_g, _args: Dictionary) -> String:
+ return "未领取的奖励将被放弃。"
+
+static func copy_travel_step(_g, args: Dictionary) -> String:
+ return "沿已选路线前进，不抽牌、不恢复资源；本段剩余%d回合。" % int(args.get("remaining",0))
+
+static func copy_finish_pack(_g, _args: Dictionary) -> String:
+ return "只携带容量允许的随身道具。"
+
+static func copy_calm(g, args: Dictionary) -> String:
+ return "快感－%s，下回合能量＋%d。本回合剩余%d／%d次。" % [g.number(float(args.get("reduction",0.0))),B.CALM_NEXT_ENERGY,int(args.get("remaining",0)),B.CALM_USES_PER_TURN]
+
+static func copy_end_turn(g, args: Dictionary) -> String:
+ return ("保留手牌。" if bool(args.get("keep_hand",false)) else "弃置未保留手牌。")+("敌人按原定行动执行。" if bool(args.get("battle",false)) and bool(args.get("first",false)) else "")
+
+static func copy_finish_prepare(_g, _args: Dictionary) -> String:
+ return "放弃剩余整备回合，不获得额外资源。"
+
+static func copy_finish_rest(_g, _args: Dictionary) -> String:
+ return "放弃剩余休息回合，固定工具留在房间。"
+
+static func copy_wall_move(_g, args: Dictionary) -> String:
+ return "移动%d格；%s。" % [int(args.get("distance",0)),String(args.get("result",""))]
+
+static func copy_posture(g, args: Dictionary) -> String:
+ return ("眼罩使站起额外消耗1能量。" if bool(args.get("blind_cost",false)) else "")+RelicEffects.posture_detail(g,String(args.get("dest","")))+String(args.get("bind_detail",""))
+
+static func copy_posture_wall(g, args: Dictionary) -> String:
+ return String(args.get("support",""))+"，额外减1能量；本回合仍可继续行动。"+("眼罩使站起额外消耗1能量。" if bool(args.get("blind_cost",false)) else "")+String(args.get("bind_detail",""))
+
+# 攻击候选的正文：参数带完整 payload 与展示伤害，其余按当前 state 只读现算。
+static func copy_attack(g, args: Dictionary) -> String:
+ var payload=args.get("payload",{})
+ var type=String(payload.get("type",""))
+ var spec=BasicAttacks.TYPES[type][int(payload.get("form",0))]
+ var e=g._enemy(String(payload.get("enemy","")))
+ var all_targets=bool(payload.get("all",false))
+ var damage=float(payload.get("damage",0.0))
+ var shown_damage=float(args.get("shown_damage",0.0))
+ var damage_type=String(payload.get("damage_type",""))
+ var interrupt=bool(payload.get("interrupt",false))
+ var cooldown_turns=int(payload.get("cooldown_turns",0))
+ var usage=BasicAttacks.usage(g,type)
+ var detail="对%s造成%s点伤害%s。" % ["全部敌人" if all_targets else e.name,g.number(damage if all_targets else shown_damage),"，共%d次" % spec.hits if spec.hits>1 else ""]
+ detail+=BasicAttacks.cost_description(type)
+ if Cards.attack_ignores_restraints(g,type): detail+="本次体术按自由态发动，忽略拘束限制与减益。"
+ if damage_type!="magic" and (Enemies.damage_multiplier(e.type,damage_type)<1.0 or all_targets): detail+="坚硬：机械敌人受到的非魔法伤害减半。"
+ if interrupt: detail+="将尚未执行的意图延后一回合。"
+ if cooldown_turns>0: detail+="与坐姿踢击、并腿踢击共用%d回合冷却。" % (cooldown_turns+1)
+ if usage.limit>0: detail+="本回合剩余%d／%d次。" % [usage.remaining,usage.limit]
+ if type=="fireball": detail+=("火焰精通：无视身体施法限制，不获得手势加成。" if Cards.spell_power(g,type).get("disable_gesture",false) else (("秘密武器：脚趾代替手部，获得手势加成。" if g.physical_hand_cast_reason()!="" else "满足手部条件，获得手势加成。") if g.hand_cast_reason()=="" else g.hand_cast_reason()+"目前只使用咏唱威力。"))
+ return detail
+
+static func copy_attack_release(g, args: Dictionary) -> String:
+ var usage=BasicAttacks.usage(g,"fireball")
+ return "对%s造成%s点魔法伤害。本回合剩余%d／%d次。" % [String(args.get("target_name","")),g.number(float(args.get("damage",0.0))),usage.remaining,usage.limit]+BasicAttacks.cost_description("fireball")
+
+static func copy_manual_collar(_g, _args: Dictionary) -> String:
+ return "取下已开锁的限制项圈，花费1能量。"
+
+static func copy_manual_release(g, args: Dictionary) -> String:
+ return "%s：耐久 %s → %s。" % [String(args.get("name","")),g.number(float(args.get("durability",0.0))),g.number(float(args.get("after",0.0)))]
+
+static func copy_manual_retrieve(_g, args: Dictionary) -> String:
+ return "取出"+String(args.get("name",""))+"；花费1能量，不使用挣扎或滑脱牌。"
+
+static func copy_hook(g, args: Dictionary) -> String:
+ return "耐久%s → %s；%s消耗1次挂钩，不耗能量。" % [g.number(float(args.get("durability",0.0))),g.number(float(args.get("after",0.0))),"仅削减连接耐久，原装备紧度不变；" if bool(args.get("parent",false)) else "降低一档；"]
+
+static func copy_item_escape(_g, args: Dictionary) -> String:
+ var grip="由触手朋友协助撕开。" if bool(args.get("assisted",false)) else "任意姿态可用，需要手指或脚趾任一部位自由。"
+ return "消耗此符，不耗能量或魔力；"+grip+"进入监狱出发点，仍需通过出口警卫战；使用后剩余道具须符合容量。"
+
+static func copy_item_unlock(_g, _args: Dictionary) -> String:
+ return "解除一把锁，不改变耐久或紧度；消耗1次开锁针，不耗能量。"
+
+static func copy_item_door_lock(_g, _args: Dictionary) -> String:
+ return "消耗1次开锁针，不耗能量；离开牢房仍须满足行动速度。"
+
+static func copy_item_cut(g, args: Dictionary) -> String:
+ return "固定减少%s耐久，不受紧度和锁减伤影响；消耗1次工具。" % g.number(float(args.get("damage",0.0))*float(args.get("multiplier",1.0)))
+
+static func copy_item_install(g, args: Dictionary) -> String:
+ var operators=args.get("operators",[])
+ return Tools.contact_text(g,String(args.get("mount","")))+("" if operators.is_empty() else "；可用部位："+"／".join(operators.map(func(op):return Tools.OPERATOR_NAMES[op])))
+
+static func copy_item_retrieve(_g, args: Dictionary) -> String:
+ var operators=args.get("operators",[])
+ return "取回后保留剩余次数"+("" if operators.is_empty() else "；可用部位："+"／".join(operators.map(func(op):return Tools.OPERATOR_NAMES[op])))
+
+static func copy_depart(g, args: Dictionary) -> String:
+ var room=g.room_data(String(args.get("room_id","")))
+ var detail="%s · 路程需要%d回合。\n%s" % [String(args.get("mode","")),int(args.get("turns",0)),g.room_description(room)]
+ if String(args.get("phase","")) in ["prepare","rest"]: detail+="\n离开时结束剩余整备回合。" if String(args.get("phase",""))=="prepare" else "\n离开时结束剩余休息回合。"
+ if bool(args.get("tower_start",false)): detail="选择此区域作为出狱起点，不消耗回合。\n"+g.room_description(room)
+ return detail
+
 # 候选 detail 的只读入口（docs/ondemand-copy.md §1.5／§2）：当前 View 的候选逐字节等于投影值。
 # 陈旧候选允许按当前 state 重算（§2）；不写 state、不推进随机、不改 version、不产生日志与事件。
 func candidate_detail(candidate: Dictionary) -> String:
@@ -1773,24 +1919,27 @@ func _build_candidates() -> Array:
  Consumables.noncombat_candidates(self,out)
  _route_candidates(out)
  if state.phase=="battle" and state.enemies.any(func(enemy):return not enemy.gone):
-  _candidate(out,{"kind":"surrender"},"投降","放弃战斗，被逮捕并进入收押处理。",0,0,"","","surrender")
+  _candidate(out,{"kind":"surrender"},"投降",{"kind":"game.surrender","args":{},"fallback":copy_surrender(self,{})},0,0,"","","surrender")
  for item in state.items:
-  _candidate(out,{"kind":"item_discard","item":item.id},"丢弃"+Tools.TYPES[item.type].name,"丢弃后无法取回。不消耗能量、魔力或回合。",0,0,"","","item")
+  _candidate(out,{"kind":"item_discard","item":item.id},"丢弃"+Tools.TYPES[item.type].name,{"kind":"game.item_discard","args":{},"fallback":copy_item_discard(self,{})},0,0,"","","item")
  ManaFlask.candidates(self,out)
  if state.charge>0 and not state.overloaded and state.phase not in ["cleared","prison_end"]:
-  _candidate(out,{"kind":"status_toggle","status":"charge","enabled":not state.charge_all},"切换为普通蓄力" if state.charge_all else "切换为全量蓄力","每次触发消耗1层。" if state.charge_all else "下一次触发使用全部蓄力。",0,0,"","","status_toggle")
+  var toggle_args={"charge_all":state.charge_all}
+  _candidate(out,{"kind":"status_toggle","status":"charge","enabled":not state.charge_all},"切换为普通蓄力" if state.charge_all else "切换为全量蓄力",{"kind":"game.status_toggle","args":toggle_args,"fallback":copy_status_toggle(self,toggle_args)},0,0,"","","status_toggle")
  return out
 
 func _phase_candidates() -> Array:
  var out: Array = []
  if state.phase=="rest_choice":
-  _candidate(out,{"kind":"rest_rare"},"随机获得1张稀有卡 · 扣除%d回合" % B.REST_CARD_TURNS.rare,"剩余%d回合休息。" % (B.REST_TURNS-B.REST_CARD_TURNS.rare),0,0,"休息回合不足。" if state.rest_left<B.REST_CARD_TURNS.rare else "","","rest_service")
+  _candidate(out,{"kind":"rest_rare"},"随机获得1张稀有卡 · 扣除%d回合" % B.REST_CARD_TURNS.rare,{"kind":"game.rest_rare","args":{},"fallback":copy_rest_rare(self,{})},0,0,"休息回合不足。" if state.rest_left<B.REST_CARD_TURNS.rare else "","","rest_service")
   for type in state.rest_cards:
    var rarity=Cards.Rules.SPECS[type].rarity
    var turns=B.REST_CARD_TURNS[rarity]
-   _candidate(out,{"kind":"rest_card","type":type},"领取「"+B.CARD_NAMES[type]+"」 · 扣除%d回合" % turns,"从%d张%s卡中选一张，剩余%d回合休息。" % [state.rest_cards.size(),Cards.Rules.RARITIES[rarity],B.REST_TURNS-turns],0,0,"休息回合不足。" if state.rest_left<turns else "","","rest_service")
-  _candidate(out,{"kind":"rest_flask"},"魔瓶补充%d魔力 · 扣除%d回合" % [B.REST_FLASK_MANA,B.REST_FLASK_TURNS],"剩余%d回合用于休息，不改变自身魔力。" % (B.REST_TURNS-B.REST_FLASK_TURNS),0,0,"休息回合不足。" if state.rest_left<B.REST_FLASK_TURNS else "","","rest_service")
-  _candidate(out,{"kind":"rest_begin"},"跳过奖励，直接休息","保留%d回合休息时间。" % state.rest_left,0,0,"","","rest_service")
+   var rest_args={"count":state.rest_cards.size(),"rarity":rarity,"turns":turns}
+   _candidate(out,{"kind":"rest_card","type":type},"领取「"+B.CARD_NAMES[type]+"」 · 扣除%d回合" % turns,{"kind":"game.rest_card","args":rest_args,"fallback":copy_rest_card(self,rest_args)},0,0,"休息回合不足。" if state.rest_left<turns else "","","rest_service")
+  _candidate(out,{"kind":"rest_flask"},"魔瓶补充%d魔力 · 扣除%d回合" % [B.REST_FLASK_MANA,B.REST_FLASK_TURNS],{"kind":"game.rest_flask","args":{},"fallback":copy_rest_flask(self,{})},0,0,"休息回合不足。" if state.rest_left<B.REST_FLASK_TURNS else "","","rest_service")
+  var begin_args={"left":state.rest_left}
+  _candidate(out,{"kind":"rest_begin"},"跳过奖励，直接休息",{"kind":"game.rest_begin","args":begin_args,"fallback":copy_rest_begin(self,begin_args)},0,0,"","","rest_service")
   return out
  if state.phase in ["shop","treasure"]:
   Services.candidates(self,out)
@@ -1803,7 +1952,8 @@ func _phase_candidates() -> Array:
   return out
  if state.phase=="prison_end": return out
  if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES:
-  _candidate(out,{"kind":"end"},"继续 · 高潮后缓一缓","身体暂时使不上力，剩余行动已跳过。"+("敌人仍按原定行动执行。" if state.phase=="battle" and state.order=="first" else "")+"下一玩家回合按累计乏力恢复能量。"+("若持续无法行动，也可以投降进入牢房。" if state.phase=="battle" else ""),0,0,"","","flow")
+  var climax_args={"battle":state.phase=="battle","first":state.order=="first"}
+  _candidate(out,{"kind":"end"},"继续 · 高潮后缓一缓",{"kind":"game.end_climax","args":climax_args,"fallback":copy_end_climax(self,climax_args)},0,0,"","","flow")
   return out
  if not state.card_chain.is_empty():
   Cards.continuation(self,out)
@@ -1811,46 +1961,49 @@ func _phase_candidates() -> Array:
  if state.pending_retain:
   for card in state.hand:
    if not Cards.can_select_retain(self,card): continue
-   _candidate(out,{"kind":"retain","uid":card.uid},"保留「"+B.CARD_NAMES[card.type]+"」","保留到下一玩家回合结束。",0,0,"","","retain")
-  _candidate(out,{"kind":"retain_skip"},"跳过剩余选牌","保留已选手牌，不再选择。"+("随后抽1张。" if state.retain_draw_after>0 else "继续行动。"),0,0,"","","retain")
+   _candidate(out,{"kind":"retain","uid":card.uid},"保留「"+B.CARD_NAMES[card.type]+"」",{"kind":"game.retain","args":{},"fallback":copy_retain(self,{})},0,0,"","","retain")
+  var retain_args={"draw_after":state.retain_draw_after}
+  _candidate(out,{"kind":"retain_skip"},"跳过剩余选牌",{"kind":"game.retain_skip","args":retain_args,"fallback":copy_retain_skip(self,retain_args)},0,0,"","","retain")
   return out
  if state.phase == "reward":
   if Events.active_item_rewards(self):
    for row in Events.item_reward_rows(self):
     if row.claimed: continue
     var full_reason="随身道具栏已满，无法拾取这件道具。" if carried_items()>=item_capacity() else ""
-    _candidate(out,{"kind":"reward","category":"item","type":row.type,"reward_id":row.id},"领取「"+Tools.TYPES[row.type].name+"」","收入道具栏；本事件不会进入整理道具。",0,0,full_reason,"","reward")
-   _candidate(out,{"kind":"reward","type":"skip"},"继续","未领取的道具将被放弃；直接返回塔路，不进入整备或整理道具。",0,0,"","","reward")
+    _candidate(out,{"kind":"reward","category":"item","type":row.type,"reward_id":row.id},"领取「"+Tools.TYPES[row.type].name+"」",{"kind":"game.reward_item","args":{},"fallback":copy_reward_item(self,{})},0,0,full_reason,"","reward")
+   _candidate(out,{"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_item_skip","args":{},"fallback":copy_reward_item_skip(self,{})},0,0,"","","reward")
    return out
   if not state.reward_claimed.has("card"):
    for type in state.reward_options:
-    _candidate(out,{"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",CopyRouter.two_face(self,type),0,0,"","","reward")
+    _candidate(out,{"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",{"kind":"card.two_face","args":{"type":type},"fallback":CopyRouter.two_face(self,type)},0,0,"","","reward")
   if state.battle_flask_drop>0 and not state.reward_claimed.has("flask"):
-   _candidate(out,{"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,"全部存入贴身魔瓶，不占用存入次数。",0,0,"","","reward")
+   _candidate(out,{"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,{"kind":"game.reward_flask","args":{},"fallback":copy_reward_flask(self,{})},0,0,"","","reward")
   for category in ["item","relic"]:
    var type=state.battle_item_drop if category=="item" else state.battle_relic_drop
    if type=="" or state.reward_claimed.has(category): continue
    var title=Tools.TYPES[type].name if category=="item" else Relics.TYPES[type].name
-   _candidate(out,{"kind":"reward","category":category,"type":type},"领取「"+title+"」","收入道具栏。" if category=="item" else Relics.TYPES[type].detail,0,0,"","","reward")
+   var other_args={"category":category,"type":type}
+   _candidate(out,{"kind":"reward","category":category,"type":type},"领取「"+title+"」",{"kind":"game.reward_other","args":other_args,"fallback":copy_reward_other(self,other_args)},0,0,"","","reward")
   if not state.reward_claimed.has("relic"):
    for type in state.boss_relic_options:
-    _candidate(out,{"kind":"reward","category":"relic","type":type},"选择「"+Relics.TYPES[type].name+"」",Relics.TYPES[type].detail,0,0,RelicEffects.gain_reason(self,type),"","reward")
+    _candidate(out,{"kind":"reward","category":"relic","type":type},"选择「"+Relics.TYPES[type].name+"」",{"kind":"game.reward_relic","args":{"type":type},"fallback":copy_reward_relic(self,{"type":type})},0,0,RelicEffects.gain_reason(self,type),"","reward")
   for category in ["card","relic"]:
    var offered=not state.reward_options.is_empty() if category=="card" else (state.battle_relic_drop!="" or not state.boss_relic_options.is_empty())
    if offered and not state.reward_claimed.has(category):
-    _candidate(out,{"kind":"reward_skip","category":category},"跳过","放弃本次"+("卡牌" if category=="card" else "遗物")+"奖励，其他奖励仍可领取。",0,0,"","","reward")
-  _candidate(out,{"kind":"reward","type":"skip"},"继续","未领取的奖励将被放弃。",0,0,"","","reward")
+    _candidate(out,{"kind":"reward_skip","category":category},"跳过",{"kind":"game.reward_skip_category","args":{"category":category},"fallback":copy_reward_skip_category(self,{"category":category})},0,0,"","","reward")
+  _candidate(out,{"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_skip","args":{},"fallback":copy_reward_skip(self,{})},0,0,"","","reward")
   return out
  if state.phase == "map": return out
  if state.phase == "travel":
-  _candidate(out,{"kind":"travel_step"},"继续前进 · 1回合","沿已选路线前进，不抽牌、不恢复资源；本段剩余%d回合。" % state.journey.remaining,0,0,travel_route_reason(),SlipMotion.hint(),"route")
+  var step_args={"remaining":state.journey.remaining}
+  _candidate(out,{"kind":"travel_step"},"继续前进 · 1回合",{"kind":"game.travel_step","args":step_args,"fallback":copy_travel_step(self,step_args)},0,0,travel_route_reason(),SlipMotion.hint(),"route")
   return out
  if state.phase == "cleared":
   DemoExit.candidates(self,out)
   return out
  if state.phase == "pack":
   _item_candidates(out)
-  _candidate(out,{"kind":"finish_pack"},"整理完成，离开房间","只携带容量允许的随身道具。",0,0,"请使用或放下超出容量的道具。" if carried_items()>item_capacity() else "","","flow")
+  _candidate(out,{"kind":"finish_pack"},"整理完成，离开房间",{"kind":"game.finish_pack","args":{},"fallback":copy_finish_pack(self,{})},0,0,"请使用或放下超出容量的道具。" if carried_items()>item_capacity() else "","","flow")
   return out
  _wall_move_candidates(out)
  _posture_candidates(out)
@@ -1862,11 +2015,13 @@ func _phase_candidates() -> Array:
  if state.phase=="rest": _rest_candidates(out)
  if state.phase=="prison": Prison.candidates(self,out)
  var calm=Pressure.calm(self)
- _candidate(out,{"kind":"calm"},"深呼吸","快感－%s，下回合能量＋%d。本回合剩余%d／%d次。" % [number(calm.reduction),B.CALM_NEXT_ENERGY,calm.remaining,B.CALM_USES_PER_TURN],B.CALM_COST,0,calm.reason if calm.reason!="" else ("当前快感已经降到最低。" if state.pressure<=0 else ""),"","pressure")
- _candidate(out,{"kind":"end"},"结束回合",("保留手牌。" if Relics.value(state.relics,"keep_hand")>0 else "弃置未保留手牌。")+("敌人按原定行动执行。" if state.phase=="battle" and state.order=="first" else ""),0,0,"","","flow")
+ var calm_args={"reduction":calm.reduction,"remaining":calm.remaining}
+ _candidate(out,{"kind":"calm"},"深呼吸",{"kind":"game.calm","args":calm_args,"fallback":copy_calm(self,calm_args)},B.CALM_COST,0,calm.reason if calm.reason!="" else ("当前快感已经降到最低。" if state.pressure<=0 else ""),"","pressure")
+ var turn_args={"keep_hand":Relics.value(state.relics,"keep_hand")>0,"battle":state.phase=="battle","first":state.order=="first"}
+ _candidate(out,{"kind":"end"},"结束回合",{"kind":"game.end_turn","args":turn_args,"fallback":copy_end_turn(self,turn_args)},0,0,"","","flow")
  if state.phase == "prepare":
-  _candidate(out,{"kind":"finish_prepare"},"提前结束整备","放弃剩余整备回合，不获得额外资源。",0,0,"","","flow")
- if state.phase=="rest": _candidate(out,{"kind":"finish_rest"},"提前离开休息房","放弃剩余休息回合，固定工具留在房间。",0,0,"","","flow")
+  _candidate(out,{"kind":"finish_prepare"},"提前结束整备",{"kind":"game.finish_prepare","args":{},"fallback":copy_finish_prepare(self,{})},0,0,"","","flow")
+ if state.phase=="rest": _candidate(out,{"kind":"finish_rest"},"提前离开休息房",{"kind":"game.finish_rest","args":{},"fallback":copy_finish_rest(self,{})},0,0,"","","flow")
  return out
 
 # Position is saved once per encounter; previews only read it.
@@ -1916,7 +2071,8 @@ func _wall_move_candidates(out: Array) -> void:
   var label="靠近墙面" if direction=="toward" else "离开墙面"
   var result="到达墙边，获得贴墙" if after==0 else "距墙%d格，不能借用墙面" % after
   if after>0 and Relics.value(state.relics,"always_wall")>0: result="距墙%d格，遗物仍提供贴墙效果" % after
-  _candidate(out,{"kind":"wall_move","direction":direction,"distance":distance,"after":after},label,"移动%d格；%s。" % [distance,result],profile.cost,0,reason,SlipMotion.hint(),"wall_move")
+  var move_args={"distance":distance,"result":result}
+  _candidate(out,{"kind":"wall_move","direction":direction,"distance":distance,"after":after},label,{"kind":"game.wall_move","args":move_args,"fallback":copy_wall_move(self,move_args)},profile.cost,0,reason,SlipMotion.hint(),"wall_move")
 
 func _posture_candidates(out: Array) -> void:
  for dest in ["stand","sit","lie"]:
@@ -1932,10 +2088,12 @@ func _posture_candidates(out: Array) -> void:
   var blind_cost=1 if key=="sit>stand" and occupied("eyes") else 0
   cost+=blind_cost
   var bind_detail="捕缚进度＋10。" if reason=="" and CaptureBind.has_bind(self,"guard") else ""
-  _candidate(out,{"kind":"posture","dest":dest,"wall":false,"adjacent":reason==""},"转为"+B.POSE_NAMES[dest],("眼罩使站起额外消耗1能量。" if blind_cost else "")+RelicEffects.posture_detail(self,dest)+bind_detail,cost,0,reason,"","posture")
+  var posture_args={"dest":dest,"blind_cost":blind_cost,"bind_detail":bind_detail}
+  _candidate(out,{"kind":"posture","dest":dest,"wall":false,"adjacent":reason==""},"转为"+B.POSE_NAMES[dest],{"kind":"game.posture","args":posture_args,"fallback":copy_posture(self,posture_args)},cost,0,reason,"","posture")
   if reason=="" and key in ["sit>stand","lie>sit"] and state.phase in ["battle","prepare","rest","prison"] and at_wall():
    var support="借墙起身" if wall_contact() else "借助遗物支撑起身"
-   _candidate(out,{"kind":"posture","dest":dest,"wall":true,"adjacent":true},"贴墙站起" if dest=="stand" else "贴墙坐起",support+"，额外减1能量；本回合仍可继续行动。"+("眼罩使站起额外消耗1能量。" if blind_cost else "")+bind_detail,maxi(0,cost-blind_cost-1)+blind_cost,0,"","","posture")
+   var wall_posture_args={"support":support,"blind_cost":blind_cost,"bind_detail":bind_detail}
+   _candidate(out,{"kind":"posture","dest":dest,"wall":true,"adjacent":true},"贴墙站起" if dest=="stand" else "贴墙坐起",{"kind":"game.posture_wall","args":wall_posture_args,"fallback":copy_posture_wall(self,wall_posture_args)},maxi(0,cost-blind_cost-1)+blind_cost,0,"","","posture")
 
 func kick_profile() -> Dictionary:
  var bound=_bound_feet()
@@ -2015,15 +2173,9 @@ func _attack_offer(out: Array, e: Dictionary, type: String, form: int) -> void:
  var damage_type="magic" if type=="fireball" else "physical"
  if reason=="": reason=Puppets.taunt_reason(self,e,all_targets)
  var shown_damage=damage*Enemies.damage_multiplier(e.type,damage_type)
- var detail="对%s造成%s点伤害%s。" % ["全部敌人" if all_targets else e.name,number(damage if all_targets else shown_damage),"，共%d次" % spec.hits if spec.hits>1 else ""]
- detail+=BasicAttacks.cost_description(type)
- if Cards.attack_ignores_restraints(self,type): detail+="本次体术按自由态发动，忽略拘束限制与减益。"
- if damage_type!="magic" and (Enemies.damage_multiplier(e.type,damage_type)<1.0 or all_targets): detail+="坚硬：机械敌人受到的非魔法伤害减半。"
- if interrupt: detail+="将尚未执行的意图延后一回合。"
- if cooldown_turns>0: detail+="与坐姿踢击、并腿踢击共用%d回合冷却。" % (cooldown_turns+1)
- if usage.limit>0: detail+="本回合剩余%d／%d次。" % [usage.remaining,usage.limit]
- if type=="fireball": detail+=("火焰精通：无视身体施法限制，不获得手势加成。" if Cards.spell_power(self,type).get("disable_gesture",false) else (("秘密武器：脚趾代替手部，获得手势加成。" if physical_hand_cast_reason()!="" else "满足手部条件，获得手势加成。") if hand_cast_reason()=="" else hand_cast_reason()+"目前只使用咏唱威力。"))
- _candidate(out,{"kind":"attack","type":type,"form":form,"hits":spec.hits,"all":all_targets,"enemy":e.id,"damage":damage,"damage_type":damage_type,"interrupt":interrupt,"fall":fall,"cooldown_turns":cooldown_turns},label,detail,Cards.attack_cost(self,type,cost),mana,reason,risk,"attack")
+ var attack_payload={"kind":"attack","type":type,"form":form,"hits":spec.hits,"all":all_targets,"enemy":e.id,"damage":damage,"damage_type":damage_type,"interrupt":interrupt,"fall":fall,"cooldown_turns":cooldown_turns}
+ var attack_args={"payload":attack_payload,"shown_damage":shown_damage}
+ _candidate(out,attack_payload,label,{"kind":"game.attack","args":attack_args,"fallback":copy_attack(self,attack_args)},Cards.attack_cost(self,type,cost),mana,reason,risk,"attack")
  # Compact display uses the same target-adjusted damage as the detailed preview.
  var brief_damage=number(damage if all_targets else shown_damage)
  if brief_damage.contains("."): brief_damage=brief_damage.rstrip("0").rstrip(".")
@@ -2045,8 +2197,8 @@ func _equipment_spell_candidates(out: Array) -> void:
   elif definition.get("damage_factor",1.0)==0.0: reason=target.name+"无法受到伤害。"
   elif usage.remaining<=0: reason="本回合火球术次数已用完。"
   var damage=BasicAttacks.fireball_damage(self)*factor
-  var detail="对%s造成%s点魔法伤害。本回合剩余%d／%d次。" % [target.name,number(damage),usage.remaining,usage.limit]+BasicAttacks.cost_description("fireball")
-  _candidate(out,{"kind":"attack","type":"fireball","form":0,"hits":1,"all":false,"enemy":"","target":target.id,"damage":damage,"damage_type":"magic","interrupt":false,"fall":false},"火球术 · 自解",detail,Cards.attack_cost(self,"fireball",BasicAttacks.energy_cost(self,"fireball")),_mana_cost(B.SPELL_COST),reason,"","attack")
+  var release_args={"target_name":target.name,"damage":damage}
+  _candidate(out,{"kind":"attack","type":"fireball","form":0,"hits":1,"all":false,"enemy":"","target":target.id,"damage":damage,"damage_type":"magic","interrupt":false,"fall":false},"火球术 · 自解",{"kind":"game.attack_release","args":release_args,"fallback":copy_attack_release(self,release_args)},Cards.attack_cost(self,"fireball",BasicAttacks.energy_cost(self,"fireball")),_mana_cost(B.SPELL_COST),reason,"","attack")
   out.back().brief=number(damage)+" 伤害"
   out.back().brief_tags="%d/%d次" % [usage.remaining,usage.limit]
 
@@ -2059,7 +2211,7 @@ func _manual_candidates(out: Array) -> void:
   var full=level("arms")==0
   if Equipment.lock_only(target):
    reason="先用开锁术或开锁工具打开限制项圈的锁。" if target.locked else ("双臂需要完全自由才能取下限制项圈。" if not full else "")
-   _candidate(out,{"kind":"manual","target":target.id,"after":0.0},"取下限制项圈","取下已开锁的限制项圈，花费1能量。",1,0,reason,"","manual")
+   _candidate(out,{"kind":"manual","target":target.id,"after":0.0},"取下限制项圈",{"kind":"game.manual_collar","args":{},"fallback":copy_manual_collar(self,{})},1,0,reason,"","manual")
    continue
   if not Equipment.allows(target,"manual"): reason=Equipment.TEMPLATES[target.template].name+"不能徒手快速解开。"
   elif occupied("wrist") or occupied("fingers"): reason="手腕需要自由，并且手指能精细操作。"
@@ -2067,11 +2219,12 @@ func _manual_candidates(out: Array) -> void:
   else:
    reason=Tools.Contact.reason(self,target,"manual")
   var after=0.0 if full else lower_durability(target.durability,target.maximum)
-  _candidate(out,{"kind":"manual","target":target.id,"after":after},"快速解开" if full else "手动松解","%s：耐久 %s → %s。" % [target.name,number(target.durability),number(after)],1,0,reason,"","manual")
+  var release_args={"name":target.name,"durability":target.durability,"after":after}
+  _candidate(out,{"kind":"manual","target":target.id,"after":after},"快速解开" if full else "手动松解",{"kind":"game.manual_release","args":release_args,"fallback":copy_manual_release(self,release_args)},1,0,reason,"","manual")
  for target in state.special_equipment:
   if not SpecialEquipment.allows(target,"manual"): continue
   var reason=SpecialEquipment.manual_reason(self,target)
-  _candidate(out,{"kind":"manual","target":target.id,"after":0.0},"直接取出","取出"+target.name+"；花费1能量，不使用挣扎或滑脱牌。",1,0,reason,"","manual")
+  _candidate(out,{"kind":"manual","target":target.id,"after":0.0},"直接取出",{"kind":"game.manual_retrieve","args":{"name":target.name},"fallback":copy_manual_retrieve(self,{"name":target.name})},1,0,reason,"","manual")
 
 func _rest_candidates(out: Array) -> void:
  for target in action_targets():
@@ -2084,7 +2237,8 @@ func _rest_candidates(out: Array) -> void:
    reason="当前姿势下，"+Tools.target_parts(self,target)+"碰不到挂钩。" if contact.code=="out_of_reach" else contact.reason
   if reason=="": reason=_slip_reason(target,"hook")
   var after=lower_durability(target.durability,target.maximum)
-  _candidate(out,{"kind":"hook","target":target.id,"after":after},"挂钩 · "+_equipment_name(target),"耐久%s → %s；%s消耗1次挂钩，不耗能量。" % [number(target.durability),number(after),"仅削减连接耐久，原装备紧度不变；" if target.has("parent_id") else "降低一档；"],0,0,reason,"","hook")
+  var hook_args={"name":_equipment_name(target),"durability":target.durability,"after":after,"parent":target.has("parent_id")}
+  _candidate(out,{"kind":"hook","target":target.id,"after":after},"挂钩 · "+_equipment_name(target),{"kind":"game.hook","args":hook_args,"fallback":copy_hook(self,hook_args)},0,0,reason,"","hook")
 
 func item_capacity() -> int:
  return 3+int(state.departure.get("capacity_bonus",0))+int(Relics.value(state.relics,"capacity"))-(1 if level("arms")>=3 or occupied("fingers") else 0)-(1 if level("legs")>=3 else 0)
@@ -2105,14 +2259,15 @@ func _item_candidates(out: Array) -> void:
    continue
   if Tools.operation(item.type)=="escape":
    var grip="由触手朋友协助撕开。" if Tools.assisted(self) else "任意姿态可用，需要手指或脚趾任一部位自由。"
-   _candidate(out,{"kind":"item_use","item":item.id,"target":"hero"},"撕开传送符，离开牢房","消耗此符，不耗能量或魔力；"+grip+"进入监狱出发点，仍需通过出口警卫战；使用后剩余道具须符合容量。",0,0,Tools.escape_reason(self),"","item")
+   var escape_args={"assisted":Tools.assisted(self)}
+   _candidate(out,{"kind":"item_use","item":item.id,"target":"hero"},"撕开传送符，离开牢房",{"kind":"game.item_escape","args":escape_args,"fallback":copy_item_escape(self,escape_args)},0,0,Tools.escape_reason(self),"","item")
    continue
   if Tools.operation(item.type)=="unlock":
    for target in action_targets():
-    _candidate(out,{"kind":"item_use","item":item.id,"target":target.id},"开锁 · "+_equipment_name(target),"解除一把锁，不改变耐久或紧度；消耗1次开锁针，不耗能量。",0,0,Tools.unlock_reason(self,target),"","item")
+    _candidate(out,{"kind":"item_use","item":item.id,"target":target.id},"开锁 · "+_equipment_name(target),{"kind":"game.item_unlock","args":{},"fallback":copy_item_unlock(self,{})},0,0,Tools.unlock_reason(self,target),"","item")
    if state.phase=="prison":
     var reason="牢门已经打开。" if state.prison.door_open else ("需要先到牢门前。" if not Tools.assisted(self) and not Prison.Space.at(self,"door") else Tools.unlock_reason(self))
-    _candidate(out,{"kind":"item_use","item":item.id,"target":"prison_door"},"打开牢门锁","消耗1次开锁针，不耗能量；离开牢房仍须满足行动速度。",0,0,reason,"","item")
+    _candidate(out,{"kind":"item_use","item":item.id,"target":"prison_door"},"打开牢门锁",{"kind":"game.item_door_lock","args":{},"fallback":copy_item_door_lock(self,{})},0,0,reason,"","item")
    continue
   if item.mount=="carry" and Tools.is_fixed(self,item):
    continue
@@ -2122,16 +2277,17 @@ func _item_candidates(out: Array) -> void:
     var reason="手指被拘束，不能握持工具直接切割。" if not Tools.assisted(self) and occupied("fingers") else ""
     if reason=="": reason=Tools.contact_reason(self,target,item)
     if reason=="" and not spec.materials.has(target.material): reason=spec.name+"不能切割"+Equipment.MATERIAL_NAMES[target.material]+"；请换用兼容的工具。"
-    _candidate(out,{"kind":"item_use","item":item.id,"target":target.id},"切割 · "+_equipment_name(target),"固定减少%s耐久，不受紧度和锁减伤影响；消耗1次工具。" % number(spec.damage*Cards.damage_multiplier(self,"equipment")),0,0,reason,"","item")
+    var cut_args={"damage":spec.damage,"multiplier":Cards.damage_multiplier(self,"equipment")}
+    _candidate(out,{"kind":"item_use","item":item.id,"target":target.id},"切割 · "+_equipment_name(target),{"kind":"game.item_cut","args":cut_args,"fallback":copy_item_cut(self,cut_args)},0,0,reason,"","item")
   if item.mount=="carry":
    for mount in Tools.HEIGHTS:
     var operators=Tools.install_operators(self,mount,item.type)
-    var detail=Tools.contact_text(self,mount)+("" if operators.is_empty() else "；可用部位："+"／".join(operators.map(func(op):return Tools.OPERATOR_NAMES[op])))
-    _candidate(out,{"kind":"item_install","item":item.id,"mount":mount,"operator":operators[0] if not operators.is_empty() else ""},"安装到"+Tools.mount_label(mount),detail,1,0,Tools.install_reason(self,mount,item.type),"","item")
+    var install_args={"mount":mount,"operators":operators}
+    _candidate(out,{"kind":"item_install","item":item.id,"mount":mount,"operator":operators[0] if not operators.is_empty() else ""},"安装到"+Tools.mount_label(mount),{"kind":"game.item_install","args":install_args,"fallback":copy_item_install(self,install_args)},1,0,Tools.install_reason(self,mount,item.type),"","item")
   else:
    var operators=Tools.install_operators(self,item.mount,item.type)
-   var detail="取回后保留剩余次数"+("" if operators.is_empty() else "；可用部位："+"／".join(operators.map(func(op):return Tools.OPERATOR_NAMES[op])))
-   _candidate(out,{"kind":"item_retrieve","item":item.id,"mount":"carry","operator":operators[0] if not operators.is_empty() else ""},"取回工具",detail,0,0,Tools.retrieve_reason(self,item),"","item")
+   var retrieve_args={"operators":operators}
+   _candidate(out,{"kind":"item_retrieve","item":item.id,"mount":"carry","operator":operators[0] if not operators.is_empty() else ""},"取回工具",{"kind":"game.item_retrieve","args":retrieve_args,"fallback":copy_item_retrieve(self,retrieve_args)},0,0,Tools.retrieve_reason(self,item),"","item")
 
 func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
  var buff_issue=Consumables.validate_buffs(self,state.get("body_buffs"))
@@ -2742,10 +2898,8 @@ func _route_candidates(out: Array) -> void:
  for id in destinations:
   if state.completed_rooms.has(id): continue
   var room=room_data(id)
-  var detail="%s · 路程需要%d回合。\n%s" % [profile.mode,profile.turns,room_description(room)]
-  if state.phase in ["prepare","rest"]: detail+="\n离开时结束剩余整备回合。" if state.phase=="prepare" else "\n离开时结束剩余休息回合。"
-  if state.tower_start_pending: detail="选择此区域作为出狱起点，不消耗回合。\n"+room_description(room)
-  _candidate(out,{"kind":"depart","room":id},("从这里开始 · " if state.tower_start_pending else "前往")+room.name,detail,0,0,room_entry_reason(room,exit_action),SlipMotion.hint(),"route")
+  var depart_args={"mode":profile.mode,"turns":profile.turns,"room_id":id,"phase":state.phase,"tower_start":state.tower_start_pending}
+  _candidate(out,{"kind":"depart","room":id},("从这里开始 · " if state.tower_start_pending else "前往")+room.name,{"kind":"game.depart","args":depart_args,"fallback":copy_depart(self,depart_args)},0,0,room_entry_reason(room,exit_action),SlipMotion.hint(),"route")
 
 func room_entry_reason(room: Dictionary, exit_action: Variant=null) -> String:
  if state.tower_start_pending:
