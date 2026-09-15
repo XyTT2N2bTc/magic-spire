@@ -7,8 +7,9 @@ var _equipment_index_issues: Array=[]
 
 # A read batch owns its indexes; commands and subsequent views never reuse them.
 # Speculative installation replaces state, so it must use live queries instead.
-# Entry materializes the piece set and the whole slot edge once; a failed self check voids
-# the batch instead of rebuilding it, and every later query in it answers from the live path.
+# Entry materializes the piece set and every edge derived from it once; a failed self check
+# voids the batch instead of rebuilding it, and every later query in it answers from the
+# live path.
 func _begin_equipment_read() -> Dictionary:
  var previous=_equipment_read
  if not _equipment_read_active() and (previous.is_empty() or not is_same(previous.get("state",null),state)):
@@ -30,6 +31,14 @@ func _build_equipment_read_index() -> void:
   return
  _equipment_read.pieces=pieces
  _equipment_read.slots=_materialize_slot_edge(pieces)
+ _equipment_read.ids=_materialize_id_edge()
+
+# Built from the assembled action target list, so a later batch never re-runs its scans.
+func _materialize_id_edge() -> Dictionary:
+ var ids={}
+ for target in action_targets():
+  if not ids.has(target.id): ids[target.id]=target
+ return ids
 
 func _materialize_physical_pieces() -> Array:
  var pieces=state.equipment.duplicate()
@@ -657,13 +666,7 @@ func _enemy(id: String) -> Dictionary:
  return {}
 
 func _equipment(id: String) -> Dictionary:
- if _equipment_read_active():
-  if not _equipment_read.has("ids"):
-   var ids={}
-   for target in action_targets():
-    if not ids.has(target.id): ids[target.id]=target
-   _equipment_read.ids=ids
-  return _equipment_read.ids.get(id,{})
+ if _equipment_read_active(): return _equipment_read.ids.get(id,{})
  for e in action_targets():
   if e.id == id:
    return e

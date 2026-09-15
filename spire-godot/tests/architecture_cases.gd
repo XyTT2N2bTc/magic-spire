@@ -20,12 +20,16 @@ class PreviewCountingGame extends "res://tests/game_fixture.gd":
 class IndexCountingGame extends "res://tests/game_fixture.gd":
  var piece_builds=0
  var slot_builds=0
+ var id_builds=0
  func _materialize_physical_pieces() -> Array:
   piece_builds+=1
   return super._materialize_physical_pieces()
  func _materialize_slot_edge(pieces: Array) -> Dictionary:
   slot_builds+=1
   return super._materialize_slot_edge(pieces)
+ func _materialize_id_edge() -> Dictionary:
+  id_builds+=1
+  return super._materialize_id_edge()
 
 static func containers(value, path: String, out: Array) -> void:
  if value is Dictionary:
@@ -47,6 +51,7 @@ static func run(t) -> void:
  tool_registry_boundary(t)
  equipment_read_batches(t)
  index_materializes_once_per_scope(t)
+ index_id_edge_parity(t)
  index_self_check_falls_back(t)
  var images=preload("res://data/equipment_images.gd")
  var missing=[]
@@ -156,18 +161,21 @@ static func index_materializes_once_per_scope(t) -> void:
  for slot in g.B.SLOTS: g.add_fixture(slot,7,10)
  var before=g.export_snapshot()
  var previous=g._begin_equipment_read()
- t.check(g.piece_builds==1 and g.slot_builds==1,"INDEX entry materializes the piece set and slot edge once per scope")
+ t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1,"INDEX entry materializes the piece set, slot edge and id edge once per scope")
  for slot in g.B.SLOTS: g.equipment_at(slot)
  for step in range(3): g.physical_pieces()
- t.check(g.piece_builds==1 and g.slot_builds==1,"INDEX repeated queries inside one scope never rebuild an edge")
+ var ids=g.physical_pieces().map(func(e):return e.id)
+ for id in ids: g._equipment(id)
+ t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1,"INDEX repeated slot and id queries inside one scope never rebuild an edge")
  var members=g.equipment_at("wrist");members.clear();members.append({})
  t.check(not g.equipment_at("wrist").is_empty(),"INDEX clearing a materialized slot answer cannot corrupt the edge")
- var built=g.piece_builds;var slot_builds=g.slot_builds
+ var built=g.piece_builds;var slot_builds=g.slot_builds;var id_builds=g.id_builds
  g._equipment_read=previous
  t.check(g._equipment_read.is_empty(),"INDEX read scope releases its materialized edges")
  for step in range(3):
   g.equipment_at("wrist");g.physical_pieces()
- t.check(g.piece_builds==built and g.slot_builds==slot_builds,"INDEX queries without a scope never build an edge table")
+ for id in ids: g._equipment(id)
+ t.check(g.piece_builds==built and g.slot_builds==slot_builds and g.id_builds==id_builds,"INDEX queries without a scope never build an edge table")
  t.check(g.export_snapshot()==before,"INDEX materialization leaves state, logs and random cursors unchanged")
 
 # Batch B1 (§11 scenario 3): an inconsistent graph voids the whole scope, records one named issue
@@ -203,6 +211,34 @@ static func index_self_check_falls_back(t) -> void:
  t.check(parity and dangling._equipment_index_issues.size()==recorded+1 and dangling._equipment_index_issues[-1].check==2,"INDEX dangling shoulder host voids the scope before display code reads it")
  dangling._equipment_read=dangling_scope
  t.check(dangling._equipment_read.is_empty() and dangling.export_snapshot()==dangling_before,"INDEX dangling host fallback leaves no scope or state change")
+
+# Batch B2 (§8.3): the materialized id edge answers like the live lookup over every target
+# family and keeps the authoritative instance reference (§2 exception one).
+static func index_id_edge_parity(t) -> void:
+ for kind in ["plain","component_links","shoulder_links","torso_binding","special_equipment"]:
+  var g=Game.new(42,true,kind) if kind!="plain" else Game.new(42)
+  if kind=="plain":
+   for slot in ["wrist","ankle","thigh"]: g.add_fixture(slot,7,10)
+  var reference=UncachedGame.new(42);reference.state=g.state.duplicate(true)
+  var before=g.export_snapshot()
+  var targets=reference.action_targets()
+  var previous=g._begin_equipment_read()
+  var indexed={}
+  for target in targets: indexed[target.id]=g._equipment(target.id)
+  var parity=not targets.is_empty()
+  for target in targets:
+   parity=parity and not indexed[target.id].is_empty() and indexed[target.id]==target
+  parity=parity and g._equipment("missing_id").is_empty()
+  g._equipment_read=previous
+  for target in targets:
+   parity=parity and is_same(indexed[target.id],g._equipment(target.id))
+  t.check(parity and g.export_snapshot()==before and g._equipment_read.is_empty(),"INDEX id edge parity with the live path "+kind)
+ var plain=Game.new(42)
+ var piece=plain.add_fixture("thigh",7,10)
+ var scope=plain._begin_equipment_read()
+ plain._equipment(piece.id).durability=3
+ plain._equipment_read=scope
+ t.check(plain.state.equipment.filter(func(e):return e.id==piece.id)[0].durability==3,"INDEX id edge writes through to the authoritative instance, never to a copy")
 
 static func equipment_projection_batches(t) -> void:
  var g=Game.new(42,true,"jacket")
