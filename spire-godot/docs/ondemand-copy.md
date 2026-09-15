@@ -42,7 +42,7 @@
 | `card_texts` 全量注册牌型循环 | 25.0ms（26.8%） | 83 型；`face_texts` 9.3ms/103、`cast_view` 1.4ms/212、`cast_profile` 1.2ms/210 |
 | 候选 `detail` 文案 | 18.9ms | 130 条（≈145µs／条，self 86µs 为纯字符串拼装） |
 | `worn_count(g)` | — | 每次 View 约 166 次（`core/card_effects.gd:388` 与 `:400` 各一次）；手牌通常只有 5 张 |
-| `escape_preview` | 13.9ms | 本片不做；其按需化目前**两片都未承接**（归属待裁决，见 §10 第 8 条） |
+| `escape_preview` | 13.9ms | 本片不做；其按需化**已判归装备片后续批次（未排期）**（见 §10 第 8 条） |
 
 构造点：`core/game_view.gd:293-305`（`card_texts` 全量循环）、`:288-291`（`deck_list`）、
 `:294-299`（`card_instances`）；候选详情在 `core/card_effects.gd:653-730`（`target_candidate`／
@@ -115,7 +115,7 @@
 - 不新增第三方依赖；除经人批的 `core/copy_router.gd`（§10 第 5 条）外不新增生产源码文件。
 - 收口阶段（§11）不重命名、不重排、不做风格统一、不夹带措辞改动；原入口一律保留为薄别名（§11.6）。
 - 不动 `escape_preview`：其作用域内的命中率复用属装备查询片（`docs/equipment-query-seam.md` §1／§3），
-  其**按需化两片都未承接**（归属待裁决，见 §10 第 8 条）；不动 UI 响应路径与节键。
+  其**按需化已判归装备片后续批次（未排期）**（见 §10 第 8 条）；不动 UI 响应路径与节键。
 
 ## 1. 三个入口与一个生成函数
 
@@ -265,9 +265,16 @@ card 组候选的 `detail`），渲染对应节，断言无引擎错误、文本
 
 ### 5.2 判据① 按需 == 全量
 
-- 卡面：对**全部注册牌型** `type`：`game.live_card_text(type)` 与
+- 卡面（**三路相等**）：对**全部注册牌型** `type`：`game.live_card_text(type)` 与
   `game.live_card_text_set([{type}]).texts[type]` 逐字段相等；`type ∈ S` 时还必须与 `view.card_texts[type]`
-  逐字段相等；`type` 在手牌时 `game.live_card_text(type,uid)` 与 `view.card_instances[uid]` 逐字段相等。
+  逐字段相等。
+- **实例字段是包含关系，不是相等关系**（实测差异恒定）：`game.live_card_text(type,uid)` 是四步
+  （`face_texts → face_costs → merge(metadata) → casting`），而 `view.card_instances[uid]` 是两步
+  （`face_texts(uid) + metadata(uid)`）。因此断言写成：`view.card_instances[uid]` 的**每个字段与
+  `live_card_text(type,uid)` 的同名字段逐项相等**，且两者键集合之差**只允许** `face_costs`（恒有）与
+  `casting`（仅施法牌）两个**新增键**；**不得要求整字典相等**。
+- **`card_instances` 维持现状不动**：不为了补齐 `face_costs`／`casting` 去做无收益的改动，也不去撞 §5.1 的全等基线。
+  实现侧断言（`tests/architecture_cases.gd`）已按上面两句写，措辞不得改回"相等"。
 - 候选：对基线 View 的**每个**候选：`game.candidate_detail(c)` 与基线 `c.detail` 逐字节相等
   （card 组走新入口，其余组走 eager 值；两者都必须相等，同时证明共用组装函数没走样）。
 
@@ -357,14 +364,21 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
 
 1. 范围预检（不算通过）：
    `& tools/check.ps1 -Suite card_power,architecture,casting,card_growth -Impact -ListOnly`
-   `& tools/check.ps1 -UIOnly -UISuite display,targeting,keyboard,interface,card_power,card_growth -ListOnly`
+   `& tools/check.ps1 -UIOnly -UISuite display,targeting,keyboard,interface,card_power,card_growth,shoulder,torso_binding -ListOnly`
    → 输出 `PLAN ONLY:` 且列出上述分类；缺一即范围问题。
 2. 规则门：`& tools/check.ps1 -Suite card_power,architecture,casting,card_growth -Impact -TimeoutSeconds 900`
-   → 退出码 0；输出含 `RULE SCOPE:`、每个 `SUITE RESULT: PASS <name>`、`PASS: N assertions`；
+   → 目标判据：退出码 0；输出含 `RULE SCOPE:`、每个 `SUITE RESULT: PASS <name>`、`PASS: N assertions`；
    `summary.json` 的 `status=passed` 且 `before==after` 指纹（`source_changed` 不算通过）。
+   **既有阻塞项豁免写法**：若失败集**恰好等于**§8 表中的两项既有阻塞项（`card_power` 的 5 条 `witch_*`、
+   UI 的 `shoulder` 2 条 + `torso_binding` 1 条），则记录为"本片判据通过 + 既有阻塞项未通过"：
+   退出码与 `status` 允许为红，但必须在证据里给出阻塞项的日志 id，并证明本片新增／迁移的断言与其余套件全绿。
+   失败集多出任何一条，即本片未完成。**不得**为此把 `card_power` 从命令里删掉。
 3. 界面门：
-   `& tools/check.ps1 -UI -Suite architecture -UISuite display,targeting,keyboard,interface,card_power,card_growth -TimeoutSeconds 900`
-   → 退出码 0、`UI PASS: N assertions`；不默认截图。
+   `& tools/check.ps1 -UI -Suite architecture -UISuite display,targeting,keyboard,interface,card_power,card_growth,shoulder,torso_binding -TimeoutSeconds 900`
+   → 判据同第 2 条（同样适用既有阻塞项豁免写法）。`shoulder`／`torso_binding` 是**故意列进来**的：
+   它们正是 §8 表里 3 条既有 UI 阻塞项的所在套件，列上才能把"确实红在哪、红在谁身上"写进证据，
+   而不是把红的套件从门里拿掉；本片涉及的 `display`／`targeting`／`keyboard`／`interface` 必须全绿。
+   不默认截图。
 4. 人的路径证明（判据是套件布尔 check，按顺序操作界面）：
    - 战斗中打出／翻面手牌：卡面文本与实时装备状态一致，幽灵卡文本为实时值；
    - 打开卡组一览：每张牌文本与手中同型牌一致；商店去卡显示的牌文本与牌堆一致；
@@ -387,25 +401,43 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
 & tools/check.ps1 -Suite <该批模块套件> -TimeoutSeconds 600
 # 按需批 B1…B3
 & tools/check.ps1 -Suite <B1…B3 的批套件> -TimeoutSeconds 600
-# 两阶段各自的收尾门（收口阶段收尾也要跑这两条）
+# 两阶段各自的收尾门（收口阶段收尾也要跑这两条；含既有阻塞项所在套件，见下）
 & tools/check.ps1 -Suite card_power,architecture,casting,card_growth -Impact -TimeoutSeconds 900
-& tools/check.ps1 -UI -Suite architecture -UISuite display,targeting,keyboard,interface,card_power,card_growth -TimeoutSeconds 900
+& tools/check.ps1 -UI -Suite architecture -UISuite display,targeting,keyboard,interface,card_power,card_growth,shoulder,torso_binding -TimeoutSeconds 900
 ```
 
-必过的场景：§6 的 0–6 全部具名 check（场景 0 = B0）；收口批另加 §11.5 的 `copy_route_bytes_unchanged`
-（逐候选逐字节）与 "路由直传通道 = 原路径" 检查；被本片触及的既有断言
+必过的场景：§6 的 0–7 全部具名 check（场景 0 = B0，场景 7 = 收口批）；收口批另加 §11.5 的
+`copy_route_bytes_unchanged`（逐候选逐字节）与"路由直传通道 = 原路径"检查；被本片触及的既有断言
 （`tests/card_text_cases.gd` 全类型读取、`tests/casting_cases.gd:200`、`tests/hannya_ui_cases.gd:29/34`、
 `tests/card_power_ui_cases.gd:656`、`tests/encyclopedia_ui_cases.gd:221/224`、
 `tests/concentration_cases.gd:33`、`tests/graduate_certificate_cases.gd:35`，以及 tests 中全部
 `.detail` 读取）按 §2 的新入口 1:1 迁移后仍通过，期望值与断言语义不变。
 
+**既有阻塞项（在 HEAD、未改源码即失败；本片必须如实登记为未通过／未验证，不得据此改写、放宽或删除任何断言，
+也不得把"整片绿"当成完成条件）**
+
+| 阻塞项 | 证据 | 归因 | 本片处理 |
+| --- | --- | --- | --- |
+| `card_power` 5 条 `witch_*` 断言在 HEAD 即失败 | 协调者复跑日志 `20260915T163500673-34468`（5 失败／1781），命中 `tests/card_power_cases.gd:85` 的 `CARD reward membership follows rarity and explicit gift exclusion`；**该日志尚未登记进 `docs/verification.md`，落地时须补登记** | `core/witch_expansion.gd` 的 `REWARDS` 与 `rules.SPECS.rarity`（根因在卡池注册，非本片引入，本片不修） | 登记为未通过；本片自有的具名 check 单独出结论 |
+| `shoulder` UI 2 条 + `torso_binding` UI 1 条在 HEAD 即失败 | `docs/verification.md` 装备片条目：`20260915T160616347-54344`（19 项、2 错）、`20260915T160711923-52452`（11 项、1 错：`BIND UI attachment and independent durability are visible`） | `ui/release_details.gd:35-38`（v0.17 `e635bf5` 起；既有 UI 文案渲染 vs 测试期望，公共提交上同样复现，归属未定） | 同上；不得因它是 UI 文案问题就顺手改渲染或改期望 |
+
+- 完成判据改为：**§6 场景 0–7 与该批被触及模块的断言全部通过**；上表两项按"既有阻塞项／未通过"写进
+  `docs/verification.md`（含日志 id），并在总结里明确它们是**先于本片存在**的失败；
+  `-Suite card_power` 的套件结论在这些断言修好前**允许为红**，但本片新增／迁移的断言不得在其中。
+- 禁止：把阻塞项从必跑命令里删掉、把 `summary.json` 的失败说成通过、修改或删除红断言换取绿灯、
+  或在报告里宣称完整回归。
+
 必有的证据：§5.1 基线复算记录（6 哈希 + baseline JSON）、每批一次的 oracle 比对记录
 （按需：三条判据 + mask 声明集合；收口：逐候选逐字节 + 该批模块的差异路径）、收尾两份 check 日志 +
-`summary.json`（status=passed、指纹稳定）；`build/` 数据未入库。
+`summary.json`；`summary.json` 判读按 §7 第 2 条：`status=passed` 最好，含既有阻塞项时为
+`status=failed` 但失败集必须恰好等于 §8 的两项（另标注"本片判据通过 + 既有阻塞项未通过"）；
+`source_changed`／`plan` 不算通过；`build/` 数据未入库。
 
 算未完成（任一）：
 
-- 任一必跑套件未执行、失败、未知或被跳过；`summary.json` 为 `source_changed`／`failed`／`plan`；
+- 任一必跑套件未执行、未知或被跳过；`summary.json` 为 `source_changed`／`plan`；
+  或为 `failed` 而失败集**不止**上表两项既有阻塞项（即本片引入的失败混在里面）；
+  把既有阻塞项当成通过、或把它们从必跑命令里删掉；
 - 用旧版本的通过拼接最终结论；删／弱化既有断言换取绿灯；把"全类型等价"断言直接删除而不是迁到
   `live_card_text_set`；
 - 出现跨调用缓存（含 UI 侧第二份文案副本）、惰性对象，或给 `get_view` 加显示需求参数；
@@ -414,7 +446,7 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
   收口批次做完后代码不能跑、不能测（§11.6 第 3 条）；
 - 新增生产源码文件（§11.6 允许的路由模块除外）或第三方依赖；改判定／随机／存档／快照／候选资格／
   候选 ID／可见文案；
-- 实现 `escape_preview` 按需化（未授权；归属待裁决，见 §10 第 8 条）或改 UI 响应路径与节键；
+- 实现 `escape_preview` 按需化（未经授权：已判归装备片后续批次、未排期，见 §10 第 8 条）或改 UI 响应路径与节键；
 - 以耗时数字或"应该更快"作完成判据；宣称完整回归。
 
 ## 9. 假设与最可能爆掉的假设
@@ -450,24 +482,28 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
    - 收口批（§11）：上列 core 三个模块 + 含 detail 表达式点的 `core/departure.gd`、`core/room_events.gd`、
      `core/relic_bundle.gd`、`core/room_services.gd`、`core/demo_exit.gd`、`core/mana_flask.gd`、
      `core/prison.gd`、`core/prison_space.gd`、`core/consumables.gd`、`core/witch_character.gd`、
-     `core/witch_expansion.gd`，**以及新增的 `core/copy_router.gd`（见第 5 条，待批）**。
+     `core/witch_expansion.gd`，**以及新增的 `core/copy_router.gd`（已授权并落地，R0 `7f1c748`；见第 5 条）**。
    - tests：既有 `tests/*_cases.gd` 追加具名 check 与 §8 的迁移。
-2. **新增只读入口（需要人批）**：`game.live_card_text`、`game.live_card_text_set`、`game.candidate_detail`
+2. **新增只读入口**：`game.live_card_text`、`game.live_card_text_set`、`game.candidate_detail`
    三个公有只读方法 + `Cards.text_entry` 静态生成函数；不改已有接口签名。
+   **现状（2026-09-15）**：`live_card_text`（B0 `cc5e8f0`）与 `candidate_detail`（R0 `7f1c748`）已授权并落地；
+   `live_card_text_set` 未落地（属按需批 B2）。落地后须同步 `docs/response-pipeline.md` §0 事实行（已写好豁免写法）。
 3. **文档修订（协调者／规划者执行；现状已就位，落地时只剩一处同步）**：
-   - `docs/response-pipeline.md`：§0 现状行已加**预告 + 指向本文件**（三个只读入口尚未落地）；
-     §2.2 已加"**新入口不属于 `get_view` 白名单**"；§6.1 的"越界待批"已改指向本契约。
-     本片落地后只需把 §0 预告改成既成事实（届时以仓库现状为准）。
+   - `docs/response-pipeline.md`：§0 现状行已改为**部分既成事实**（B0／R0 两个入口 + `live_card_text_set` 仍为预告）
+     并保留"不属 `get_view` 白名单、不得经 `get_view` 参数化"；§2.2 已加"**新入口不属于白名单**"；
+     §6.1 的"越界待批"已改指向本契约；§5 第 3 条已标**已完成**（AGENTS 三行索引、126 行／7896 字节）。
+     本片落地后只需再把 `live_card_text_set` 从句中"未落地"挪进"已落地"。
    - `docs/equipment-query-seam.md`：§0.3／§9／§10 结论／§13 算未完成已把"押后"改为**指向本文件**，
-     并注明 `escape_preview` 按需化两片都未承接；§8.2 已加"跨契约有效期"说明（其整份 View 哈希
-     在本片落地后改用本片 mask 判据）。
+     并注明 `escape_preview` 按需化**已判归装备片后续批次（未排期）**；§8.2 已加"跨契约有效期"说明
+     （其整份 View 哈希在本片落地后改用本片 mask 判据）。
    - `spire-godot/AGENTS.md` 文档入口表的那一行已由协调者加入
      （现行文字：`| 玩家可见文案的收口与按需 | docs/ondemand-copy.md |`），以仓库现状为准，勿重复添加。
 4. **待人确认**：`deck_list` 是否移出 View（§9 假设 4）；按需批 B3 组范围是否只做 card 组（§9 假设 3）；
    收口批是否按 §11.5 的模块顺序执行（人已定"先收口"，顺序待确认）。
-5. **需要人批的例外：新增 `core/copy_router.gd`。** 现 §0.4 写的是"不新增生产源码文件"（沿用邻接表片口径），
-   而人新要求"不要为了不新增文件把路由塞进已经很大的 `core/game.gd`"。两条冲突，按人新要求走：
-   新增一个路由模块，但**仅在授权后**；§0.4 的措辞据此改为"除 `core/copy_router.gd`（经人批）外不新增文件"。
+5. **已决（协调者 2026-09-15）：允许新增 `core/copy_router.gd`，且已随 R0 落地（`7f1c748`）。**
+   原冲突（旧 §0.4"不新增生产源码文件" vs"不要为了不新增文件把路由塞进已经很大的 `core/game.gd`"）
+   按后者处理：§0.4 的措辞已改为"除 `core/copy_router.gd`（经人批）外不新增"，本项不再是待批项；
+   后续只允许在该文件上增删类别与片段，不得再新增文件。
 6. **实现顺序**：邻接表片 B4–B9 完成之后 → B0 → §11 收口 → §4 按需；本片代码不得与邻接表片并发修改 `core/`。
 7. **测绘数字的复算（供协调者核对，勿按旧数字下令）**：候选 detail 表达式点实测 **86**
    （`_candidate` 直接调用 71 + 包装调用 15：`Prison.add` 9、`target_candidate` 3、`paid_candidate` 3）；
@@ -475,11 +511,10 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
    其中 `core/game.gd` 的 face_text 双调用在 **:1777**（测绘初稿写 :1771）。
    复算命令：`rg -n '(?<![A-Za-z0-9_])_candidate\(' core/`、`rg -n 'Prison\.add\(|^\s*add\(out' core/prison*.gd`、
    `rg -n 'target_candidate\(|paid_candidate\(' core/`、`rg -n 'face_text' core/*.gd`（脚本留档见 §5.5 的 build 目录）。
-8. **需协调者裁决：`escape_preview` 按需化的归属。** `docs/equipment-query-seam.md` §0.3／§9 把它列在
-   "押后为独立一片"的清单里（即指向本文件），而本片按人当时的交代把它排除在外（它属装备片 B7 的连接边批，
-   不是 escape_preview 优化）。现状是**两片都没有承接这一项**（13.9ms／26 件 battle）。三个选择：
-   ①并入装备片（在既有的 read scope 里继续命中率复用，不做按需化）；②并入本片的收口阶段另立一批；
-   ③单独立项。**在裁决前两片都不得实现**（本文件 §0.4／§8 与装备片 §0.3 已按"未承接"写死）。
+8. **已决（协调者 2026-09-15）：`escape_preview` 按需化归入装备片后续批次，未排期。** 理由：它是只读查询
+   （不是文案），装备片的索引／作用域基建正好服务它；成本已实测 13.9ms（228 次调用、131 次真算）。
+   本片与装备片现存契约都写成"**未承接 / 未排期**"的一致表述（装备片 §0.3／§9／§10 结论／§13 已同步），
+   不再留成"无人承接"的空洞；两片在排期确认前都不得实现。
 
 ## 11. 文案路由收口（第一阶段；先于按需）
 
@@ -517,10 +552,14 @@ mask 只按**显式键集合**删除，不得按"新视图有什么就比什么"
 
 1. 直传通道（String）→ 原样返回，行为与今天一致；
 2. descriptor 命中 builder → 返回该 builder 的字符串；
-3. 未知 kind 或 builder 抛错 → 追加一条 `copy_router_failures` 记录（游戏实例上的独立诊断列表：
-   含 kind、调用位置、涉事 payload；**不进 `state`／不进 View／不进存档／不渲染／不做成计数器**），
-   返回 descriptor 自带的 `fallback`（迁移期生产者必须提供）；没有 `fallback` 时返回空串**并记录**，
+3. **未知 kind／无效 builder／结果类型不符** → 追加一条 `copy_router_failures` 记录（游戏实例上的独立诊断列表：
+   含 kind、入口、失败点与涉事 descriptor；**不进 `state`／不进 View／不进存档／不渲染／不做成计数器**），
+   返回 descriptor 自带的 `fallback`（迁移期生产者必须提供）；没有 `fallback` 时返回空值**并记录**，
    绝不允许"空白且无记录"。
+**语言限制（按 GDScript 事实写，勿写成"捕获异常"）**：GDScript **无异常捕获**，builder 内部的引擎错误会
+中断调用栈，**无法实现"捕获 builder 抛错"**。因此第三态只覆盖**可判定的失败**（未知 kind／无效 builder／
+结果类型不符）；真正的引擎错误由测试套件当作失败处理，不再是静默空值。
+该说明与 `core/copy_router.gd` 头部注释必须保持同一措辞（当前实现即此，见该文件头部"失败三态"段）。
 
 ### 11.3 descriptor 选型与实测依据
 

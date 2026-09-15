@@ -19,9 +19,11 @@
 - `game.dispatch` 的唯一调用点是 `ui/main.gd:1873`；UI 侧 `game.*` 全部读取只有
   `get_view`×4（main.gd:278、367、1874、1919）、`dispatch`×1、`restore_snapshot`×1、
   `restart_snapshot`×1、`number`（显示格式化）、`Prison` 常量（立绘选择）。UI 不读也不写 `game.state`。
-  **预告（2026-09-15，尚未落地）**：`docs/ondemand-copy.md` 的收口阶段将引入三个只读入口
-  `game.live_card_text`／`game.live_card_text_set`／`game.candidate_detail`。它们不属于 `get_view` 白名单（§2.2），
-  落地前本行仍是现状事实；落地后本行须同步加上这三个入口，以仓库现状为准。
+  **按需入口（2026-09-15，部分已落地）**：`docs/ondemand-copy.md` 的收口阶段引入三个只读入口——
+  **已落地**：`game.live_card_text`（B0 提交 `cc5e8f0`）、`game.candidate_detail`（R0 提交 `7f1c748`）；
+  **未落地**：`game.live_card_text_set`（属按需批 B2，仍为预告）。
+  三者都**不属于 `get_view` 白名单**（§2.2），也不得经 `get_view` 参数化实现；
+  `live_card_text_set` 落地后本行须补上，以仓库现状为准。
 - `_submit`：1864 守卫（`show_home` 或 `enemy_feedback` 有效即 return）→ 1866 `_use_self_card` 分流 →
   1873 `dispatch` → 1874 `get_view` → 1875 notice → 成功分支 1877 `expand_applied`／1879 `_save_progress`／
   1880 `_reset_interface`（仅 demo_continue）→ **1891 `render(updated)` 在 `if result.ok` 之外（失败也整树重建）**
@@ -152,7 +154,7 @@
   `ui/main.gd:278`（`_resume_snapshot`）、`:367`（`render` 空快照）、`:1874`（`commit` 成功必取；被拒且展示版本落后时取）、
   `:1919`（`restart`）。
 - **新入口不属于本白名单**：`game.live_card_text`／`game.live_card_text_set`／`game.candidate_detail`
-  （见 §0 预告与 `docs/ondemand-copy.md`）是三个**独立的只读入口**，不改变本白名单，也不得经
+  （见 §0"按需入口"与 `docs/ondemand-copy.md`）是三个**独立的只读入口**，不改变本白名单，也不得经
   `get_view` 参数化实现；本白名单只约束 `get_view` 的调用点。
 - 版本语义：`view.version == game.state.version`；`restore_snapshot` 把 version 抬到 `max(prev, saved)+1`
   （core/game.gd:2826），因此"版本回退"只可能来自 UI 自己传入的独立快照（display 测试就这么用），
@@ -331,7 +333,9 @@ _submit(c, expected_version=-1)
    不改这些文件；若本片要收窄它们的刷新，需授权扩展范围。
 2. 测试文件：Gherkin 要落在既有 `tests/*_cases.gd` 与 `tests/architecture_cases.gd`（改动既有文件），
    授权清单只列了 ui/；需要把"tests 既有用例文件追加具名 check"纳入范围。
-3. `spire-godot/AGENTS.md` 文档入口表加一行 `docs/response-pipeline.md`（协调者／战略契约作者执行；当前 123 行／7708 字节，上限 10000）。
+3. **已完成（2026-09-15）**：`spire-godot/AGENTS.md` 文档入口表已加入三行索引——响应管线、装备查询、
+   文案收口与按需（`docs/response-pipeline.md`、`docs/equipment-query-seam.md`、`docs/ondemand-copy.md`）；
+   该文件现 126 行／7896 字节（上限 500 行／10000 字节，指引门禁通过）。保留本行供追溯，**不再是待办**。
 4. 若节键／commit 需要独立文件（如 `ui/section_keys.gd`），不得自行新建；先向协调者提案。
 5. **触屏被拒的反馈策略（人已决，不再是待转问题；保留在此供追溯）**：
    拒绝提示必须可见，桌面与触屏一致；只让拒绝/notice 走 §3.5 的不受 `_show_term:1712` 守卫限制的
