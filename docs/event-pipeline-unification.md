@@ -149,7 +149,7 @@
 | B2c（`1f450d7`，登记 `3aee25a`） | 四份作者文档补 `conditions`／选项级 `unavailable`／`mode`／叠加语义并删过期标注；**已完成**（§9 已更新） |
 | B3 核心（`f95e96f`，父 `3aee25a`） | `core/room_events.gd`：`probe_result`（唯一实现，`probe()` 保留原签名＝返回 `.reason`）：`effects`→`probe_failed`、`next_node`→取节点入口 gate、`validate`→**`validate_failed`**、暂存未归还→**`held_pending`**；`enter_node_result`（唯一实现）：空节点→**`node_empty`**、节点不存在→**`stage_missing`**，**issue 文案一字未改**；`feasibility_gate` 改从 `probe_result` 取 gate；debug trace＝`Events.trace_enabled(g)`／`event_trace(g)`／`trace_entry(...)`（**元数据实现**，条目 11 字段，见 A20） |
 | B3 核心判据（协调者两遍） | 开关关闭与开启**均**退出码 0／`PASS (94 scenarios, 0 failures)`／摘要**逐字相同** `1f11bea5…`；冻结 oracle `cf48529a…` 与基线 `bdf08765…` 未变 |
-| 未完成 | ①§10 场景 03／04／10／19 四条具名 check 未落；②release 不产出的证据链未给出；③**B3 核心待修**：`start` 的清空行与访问器用了**两种存储**（见下）；④`installed_tools` 新红待分类（A21） |
+| 未完成 | ①§10 场景 03／04／10／19 四条具名 check 未落（已写出但按纪律移除，见下）；②release 不产出的证据链未给出；③`start` 清空缺陷**已修**（`9e08d2a` 的 `clear_trace`）；④trace 行字段语义缺口**已钉死**（A25，待按新口径重写断言）；⑤`installed_tools` 已定类为既有红项（A23） |
 
 **B3 核心待修（磁盘复核，属 B3b 收口）**：`core/room_events.gd:25` 写作
 `if g.get("event_trace_enabled")==true: g.event_trace=[]`，而访问器用的是
@@ -168,6 +168,19 @@ E0 摘要不受影响（E0 不读 trace），但 §4.5「每次 `start` 在启�
 | A20 | trace 落点（§20 与 §4.5 的措辞冲突） | **裁定：以"游戏对象上的普通调试字段、不进 `state`／`View`／存档"为语义实质**；**接受元数据实现**（`set_meta("event_trace_enabled")`／`set_meta("event_trace")` ＋ `Events.trace_enabled(g)`／`event_trace(g)`／`trace_entry(...)`）；**不授权改 `core/game.gd`**。§4.5 与 §20 已改为"trace 只挂在游戏对象上的调试字段（实现可经元数据或普通字段，均不得进 state／View／存档）"，依赖规范同步 |
 | A21 | `installed_tools` 新红＝**待分类项**（不得写成既有项） | 现象：`tests/installed_tools_cases.gd:43` `SCRIPT ERROR: Invalid access to property or key 'detail'`、`FAIL: 0/9 assertions; 1 engine errors`；`t.find_action(g,"card",…)` 返回兜底 `{valid:false,payload:{}}`（该卡牌候选没生成）。实现者证据：把 `core/room_events.gd` 还原到 `1f450d7`（B3 之前）单跑该套件**同样报错、同样 0/9** → 排除 B3；但 HEAD 含 B1／B2／B2b／B2c，**不能排除本片早期提交引入**。该分类在 `docs/verification.md` 只有历史通过记录，**从未登记为阻塞项**。**两条路径**：①在 `4d22a00`（B1 之前）重跑同一套件 → 若同样红＝既有项，由协调者登记并把门禁红集改为 ⊆ {`card_power` 5 条, `installed_tools`}；②若在 `4d22a00` 绿而在本片某项后变红＝本片回归 → **停下 B3 收口，先修复再做收口**。`tests/installed_tools_cases.gd` **不在实现者可改清单内**：若结论是夹具过时，回到协调者裁定后再动 |
 | A22 | 方法论口径（与 E0 比较器、hidden 立证并列） | **发现新红时，分类的第一步是"在引入点之前重跑同一套件"，而不是先解释现象**；分类前**不得**把红项登记为既有项、也**不得**直接修（§14 假设 9 已并入） |
+| A23 | `installed_tools` 定类结论 | **既有红项**（协调者已登记 `docs/verification.md` 2026-09-16 B3 条目：`tests/installed_tools_cases.gd:43` 脚本错误、`0/9`；在 `4d22a00` 同样红 → **非本片回归**；根因方向＝夹具前置条件与当前卡牌／工具接口漂移，未定类未修）。**门禁红集口径自此为 ⊆ {`card_power` 5 条, `installed_tools` 1 条}**；§12 与 §20／§20.1 已同步 |
+| A24 | E0 两遍的判据补强 | E0 的"关／开两遍摘要逐字相同"**必须与"引擎错误日志命中 0 行"一起用**（oracle 显式 `quit(0)`，退出码不反映脚本错误）；已写进 §12 命令块与 §20.1 的 D2／D5 |
+| A25 | trace 行的 `index`／`source_choice`／`option_id` 语义与不变量 | **补齐契约缺口**（本轮误红的根因）：`index`＝条件条目在选项声明列表中的下标（0 起，任意求值恒定；非条件 gate 的 `index` 只是本次求值的记账位置、**不参与跨 purpose 比较**）；`source_choice`＝作者选项 id；`option_id`＝冻结实例 id（选择器选项带 `__<实例>` 后缀）；**状态条件行跨 purpose 必须逐字段相同（仅 `purpose` 可变），缺行即实现缺陷**；**禁止按 trace 总行数断言**。§4.5 已写全，§10 场景 03／19 与 §20.1 D1／D1a 已对齐 |
+
+### B3 收口本轮事实（提交 `beb3005`，父 `9e08d2a`）
+
+| 项 | 内容 |
+| --- | --- |
+| 分类结论 | **夹具期望写错，非产品缺陷**（独立最小复现 `build/b3-trace-20260916/repro_trace.gd`：单事件＋单选项＋两条 `optional` 的 `has_relic`，打印全部行）——条目字段齐备、命中两条各一行、`index` 0／1 与声明序一致、`mode=optional`、`reason` 甲乙按声明序、关闭时 0 行、第二次 `start` 后 `rows=2`（`clear_trace` 生效）。**产品与 §4.5／场景 19 字面相符**；先前断言把选择器场景与 `candidates()` 之后的追加行**计数写死**，属期望错误 |
+| 已修 | `start` 清空改走 `clear_trace(g)`（D3 完成，`9e08d2a` 记录） |
+| 仍未落地 | 场景 03／19 的 check 已写出但断言仍红，实现者按纪律**移除而未弱化、未提交**（占位说明留在 `tests/event_cases.gd:49-55`）。现象：套件上下文里 `candidates()` 后 trace 总数＝4（与独立复现一致），但**没有 `purpose=="candidate" and index==0` 的行**；选择器选项的冻结 id 带 `__` 后缀，前缀匹配仍报同一句 → **根因即 A25 的字段语义未钉死（`source_choice`／`option_id` 现为同一值）＋断言按总行数写死** |
+| 判据（实现者实测） | E0 两遍摘要逐字相同且**引擎错误日志命中 0 行**；内容门 12 file(s)；`-Impact` 红集＝{`card_power`, `installed_tools`}（均在 A23 允许集内）；UI 900 秒 PASS 231。**B3 仍未完成** |
+| 下一步 | 实现者补交**套件上下文下 trace 行的原始全字段数据**（不是断言结果）；按 A25 判定是"实现不一致"还是"断言超纲"，据此派修或改断言 |
 
 ## 0. 领域、裁决与不变量
 
@@ -571,10 +584,35 @@ freeze_one():
 - 落点：**只挂在游戏对象上的调试字段**（默认关闭；实现可经元数据或普通字段，§A20）：
   **不进 `state`／不进 View／不进存档／不渲染／不做成计数器**；接口为 `Events.trace_enabled(g)`／
   `Events.event_trace(g)`／`Events.trace_entry(g,fields)`，清空必须走同一接口（`Events.clear_trace(g)`）。
-- 条目：`{"event","node","source_choice","option_id","decision","gate","reason","purpose"}`。
-- 每次 `start` 在启用时清空；`enter_node`／`evaluate_option`／`probe_choice` 写入；测试显式开启后断言。
+- 条目：`{"event","node","source_choice","option_id","decision","gate","kind","mode","index","reason","purpose"}`
+  （11 字段；`node_empty`／`stage_missing` 这类**无选项**的行不带 `option_id`／`source_choice`）。
+- **字段语义（钉死，裁定 A25；此前只有字段名没有定义，导致断言口径分歧）**：
+  1. `index` ＝ **该条件条目在其选项声明列表中的下标，从 0 起**：规范拼写 `conditions` 取数组下标；
+     兼容拼写 `availability` 恒为 `0`。**同一选项在任意一次求值中取值相同**（与 `purpose` 无关）。
+     非条件类 gate（`condition_unmet`／`relic_pool_empty`／`relic_already_offered`／`selector_empty`／
+     `recipe_empty`／`freeze_failed`／`probe_failed`／`encounter_invalid`／`validate_failed`／
+     `held_pending`／`chain_loop`）的 `index` 是**本次求值里的记账位置**，沿用现状（状态条件之后＝
+     `entries.size()`）；**它不参与跨 purpose 比较**，也不得被断言当作稳定标识。
+  2. `source_choice` ＝ **作者选项 id**（选择器选项**不含** `__<实例>` 后缀）。
+  3. `option_id` ＝ **本次求值的冻结实例 id**：非选择器选项＝作者 id；选择器选项＝
+     `<作者 id>__<实例 id>[__<实例 id>…]`，与 `room_event.options[*].id`、候选 `payload.choice` 同值。
+     **现状实现把 `source_choice` 与 `option_id` 写成同一个值（`room_events.gd:210,398`）→ B3b 必修**
+     （D1 的一部分），否则选择器选项的断言无法建立。
+  4. `node`：普通求值行＝当前 `room_event.stage`；节点入口失败行（`node_empty`／`stage_missing`）＝
+     **被尝试进入的节点 id**（该行以 `gate`＋`node`＋空 `option_id` 识别）。
+- **行集合不变量（裁定 A25）**：
+  - **状态条件行**（`kind` ∈ §5.1 声明表）：同一选项在 `arrival`／`candidate`／`probe` 的**任意两次求值**
+    产出**逐字段相同**的行，**唯一允许变化的是 `purpose`**（`reason` 对状态条件恒为作者原文）。
+    **缺行即实现缺陷**，不是"上下文差异"。
+  - **非条件行**：按阶段产生（如 `freeze_failed` 只在 `arrival`、`validate_failed` 在探测阶段），
+    **不做跨 purpose 相等承诺**；承诺是"同一次求值内每个命中各一行、不重复、按声明／求值顺序追加"。
+  - **禁止按 trace 总行数断言**：trace 是**追加流水**（同一选项可有多行，跨求值累积、跨事件由
+    `start` 清空）；断言必须按 `(purpose, source_choice, option_id, gate|kind, index)` **过滤后判定**。
+    本轮夹具写死计数而误红，根因即此。
+- 每次 `start` 在启用时清空（经 `Events.clear_trace(g)`，同一存储）；`enter_node`／`evaluate_option`／
+  `probe_choice` 写入；测试显式开启后断言。
 - 硬约束：开启与关闭时 `candidates`／`view`／`options`／`snapshot`／`rng` 摘要必须相同
-  （用 E0 跑两遍证明）；release 默认关闭，运行不产出。
+  （用 E0 跑两遍证明，且**两遍都要核引擎错误日志命中 0 行**，见 A24）；release 默认关闭，运行不产出。
 - 不新增 `game.event_diagnostics()`（先前未授权），不加 View 字段。
 
 ## 5. 状态条件的单一声明与叠加求值
@@ -866,7 +904,7 @@ static var CONDITIONS={
 | B2b 收口 | 仅补 B2 未完成的三块：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`；④以 B2 的完整门禁命令（含 `localization`）复跑交证 | 见 §18（不改产品语义；`probe()` 内部与 `node_empty` 的单独 gate 名属 B3） | **已完成**（`5a60cda` 三项交付＋`b6d45b5` 收口 C1／C2；C3 按 A15 无需补） |
 | B2c 文档收尾 | 把 `conditions` 规范拼写、选项级 `unavailable`、`mode` 与叠加语义补进四份作者文档，并取消 B1b 留下的"B2 起生效"标注（A6 的收口） | 见 §19 | **已完成**（`1f450d7`，登记 `3aee25a`） |
 | B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`／`validate_failed` 的单独命名，裁定 A13）＋叠加命中逐条记录；debug trace＋开关；测试断言；release 不产出 | 见 §20：E0 全绿（开关开／关各跑一遍、摘要逐字相同）＋ §10 场景 03／04／10／19 | **核心已落地、本批未完成**（`f95e96f`；四条 check／release 证据／清空缺陷见 §20 收口清单） |
-| B3b 收口 | 仅补 B3 未完成的三块＋一条待分类：①场景 03／04／10／19 具名 check；②release 不产出的证据链；③修 `start` 清空走同一接口；④`installed_tools` 待分类（A21，分类结论出来前不得当既有项） | 见 §20 收口清单 | 待派工 |
+| B3b 收口 | ①场景 03／04／10／19 具名 check（按 A25 口径重写断言）；②release 不产出的证据链（含引擎错误日志）；③`source_choice`／`option_id` 字段拆分（D1a）；④复核红集口径 ⊆ {`card_power`, `installed_tools`} | 见 §20.1 收口清单 | 待派工 |
 | B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | 见 §21：E0 全绿 ＋ §10 场景 11／12 ＋ 依赖规范 §4.2 的新键半 | 待派工（§21） |
 
 每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1b 与 B2 之间代码必须可跑可测
@@ -886,9 +924,16 @@ static var CONDITIONS={
     Given 每份内容的每个节点／选项；When 读取声明；Then 声明值与 §2.2／§2.3 现值表逐项相等
     （普通节点 `disable/pool/generators/option/in_place/allow`；多阶段节点 `hide/claimed/always/option/staged/fail`）。
 03. `event_gate_names_are_total`（`tests/event_cases.gd`，`events`）
-    Given 开启 trace；When 逐事件构建选项、构建候选、提交；Then 每个作者选项至少出现一条 trace，
-    `decision∈{generated,dropped,hidden,disabled}`，且每条丢弃／隐藏都带 §4.2 的具名 gate
-    （含 `selector_empty`）；候选数组、View、随机计数与关闭 trace 时逐字节相同。
+    Given 开启 trace；When 逐事件执行 `arrival`（`Events.start`）与 `candidates()`；
+    Then（**按 §4.5 过滤判定，禁止按总行数**）：
+    ①每个**作者选项**（按 `source_choice` 分组）至少一行；
+    ②每行 `decision ∈ {generated,dropped,hidden,disabled}`；
+    ③`decision ∈ {dropped,hidden}` 的行必须带非空 `gate` 且 gate ∈ §4.2 清单；
+    ④**状态条件行**在 `arrival` 与 `candidate` 两次求值中逐字段相同（仅 `purpose` 不同）——**缺行即失败**；
+    ⑤选择器选项：`source_choice`＝作者 id（无 `__` 后缀）、`option_id`＝冻结实例 id（有后缀），
+    两者都要按各自形态断言（这是 A25 的钉死点，也是本轮误红的根因）；
+    ⑥节点入口失败行以 `gate=="node_empty"`／`"stage_missing"` ＋ `node==<目标节点>` ＋ 空 `option_id` 识别；
+    ⑦候选数组、View、随机计数与关闭 trace 时逐字节相同。
 04. `event_hidden_relic_option_traced`（`tests/event_flow_cases.gd`，`event_flow`）
     Given 已持有 `softened_buckle` 的漂浮皮带群；When 构建选项；Then 【硬闯】缺席且 trace 记录
     `source_choice=fight`＋具名 gate，候选集合与 E0 基线一致（E6 政策维持现状）。
@@ -957,9 +1002,14 @@ static var CONDITIONS={
     `hidden` 模式的两条叠加同样只列命中项。
 19. `event_stacked_condition_trace_and_release`（`tests/event_cases.gd`，`events`；
     存档侧同断言落 `tests/persistence_cases.gd`，`persistence`）
-    Given 开启 trace 的夹具；When 构建与提交；Then trace 对**每条命中条件各一条**记录
-    （`kind`／`mode`／`gate`／`reason`／`index` 齐备，`index` 与声明序一致）；
-    When 关闭开关（release 路径）；Then `g.event_trace` 为空且候选／View／存档／`rng` 摘要与开启时相同。
+    Given 开启 trace 的叠加夹具；When 执行 `arrival` → `candidates()`；
+    Then（**按 §4.5 过滤判定，禁止按总行数**）：
+    ①每条命中的条件各一行，按 `(purpose, source_choice, index)` 过滤即可定位；
+    ②`index` 与声明序一致（0／1），`mode` 与作者声明一致（`optional`／`hidden`），`reason` 为作者原文；
+    ③同一选项的状态条件行在 `arrival` 与 `candidate` 两次求值中除 `purpose` 外逐字段相同（缺行即失败）；
+    ④第二次 `start` 后旧行不残留（`clear_trace` 生效）；
+    When 关闭开关（release 路径）；Then `Events.event_trace(g)` 为空、该次求值产出 0 行，
+    且候选／View／存档／`rng` 摘要与开启时相同。
 20. `event_stacked_conditions_keep_current_content`（`tests/content_cases.gd`，`content`）
     Given 12 份迁移内容；When 逐选项跑 `condition_entries`；Then 每个选项解析出**恰好一条**条目
     （形状·条件 6 处＝`optional`＋`hidden` 覆盖、其余状态条件＝`optional`、`when`＝`hidden`、
@@ -1020,7 +1070,7 @@ B2b 三项交付绿（`5a60cda`）≠ B2b 完成（R1／R2 未收口）；
 命令（每批一次 ＋ 收尾一次；不无故重复）。**第 0、2 条命令覆盖 §10 全部 20 个具名 check 的分类**：
 
 ```powershell
-# 0) 冻结判据（每批必跑；基线只读；判据＝94 场景 0 失败）
+# 0) 冻结判据（每批必跑；基线只读；判据＝94 场景 0 失败 **且引擎错误日志命中 0 行**（A24））
 & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
 # 1) 内容包校验（改 content/packs、content/templates 或站点文档示例后必跑）
 & tools/check-content.ps1
@@ -1042,13 +1092,11 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 `card_power`（`docs/verification.md:29`，5 条 `witch_*`）为红；**多出一条即本片未完成**；
 其余分类（含 `persistence`、`special_equipment`、`equipment`、`pressure`、`tower`）必须全绿。
 
-**新红 `installed_tools` 的处置（裁定 A21，临时口径，不得当作既有项）**：
-`tests/installed_tools_cases.gd:43` 报 `Invalid access to property or key 'detail'`、`0/9 assertions`。
-在分类结论出来前：①**不得**把它登记为既有阻塞项、②**不得**为凑绿改断言或把套件从门禁里拿掉；
-③B3b 的收口报告必须给出分类结论（`4d22a00` 之前重跑同一套件的结果）。两种分歧的路径：
-- **既有项**：由协调者登记进 `docs/verification.md`，门禁红集口径改为
-  `红集 ⊆ {card_power 5 条, installed_tools}`，并写明复现提交与日志 id；
-- **本片回归**：**停下 B3 收口，先定位并修复**（必要时回滚相关提交），修复后 B3 全部判据重跑。
+**红集口径（裁定 A21 → A23 定类）**：`红集 ⊆ {`card_power` 5 条（`docs/verification.md:29`）,
+`installed_tools` 1 条（`docs/verification.md` 2026-09-16 B3 条目）}`；多出任何一条即本片未完成。
+`installed_tools` 的定类过程留档：先按 A21 记为**待分类项**（不得当既有项），再按 A22 在
+`4d22a00`（B1 之前）重跑同一套件 → 同样红 → 判为**既有红项，非本片回归**（根因方向＝夹具前置条件与
+当前卡牌／工具接口漂移；未定类未修）。**不得**为凑绿改该套件断言或把它从门禁里拿掉。
 
 `normal_play`（`docs/verification.md:58` 的 2026-09-14 全量尝试条目）**不进本片、不派修**；
 登记措辞按事实：既有登记项；B1 实现者在 `HEAD~1` 复现出同样打转，但**因主动终止未能证明旧版
@@ -1428,8 +1476,8 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   候选集合与 E0 基线一致）、10 `event_trace_never_reaches_state_or_save`（snapshot／存档／View／`rng`
   不含 trace；开／关摘要相同）、19 `event_stacked_condition_trace_and_release`（叠加下每条命中条件各一条
   trace，`index` 与声明序一致；关开关后 `g.event_trace` 为空）。
-- **DoD**：E0 开／关两遍退出码 0 且摘要**逐字相同**；`-KeepGoing` 红集只允许 `card_power`
-  （**`installed_tools` 未分类前不计入既有项**，见 A21）；四条具名 check 通过；
+- **DoD**：E0 开／关两遍退出码 0 且摘要**逐字相同**且**引擎错误日志命中 0 行**（A24）；
+  `-KeepGoing` 红集 ⊆ {`card_power` 5 条, `installed_tools` 1 条}（A23）；四条具名 check 通过；
   `validate_failed`／`node_empty` 在 trace 与 `gates` 里可区分；
   玩家可见文案与候选 `reason` 逐字不变；`docs/verification.md` 记录域＝events／persistence。
 - **非目标**：跨事件 `next` 与 `chain`（B4）；把 trace 暴露给 UI／译文；改任何文案。
@@ -1438,11 +1486,12 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 
 | # | 收口项 | 判据 |
 | --- | --- | --- |
-| D1 | §10 场景 03／04／10／19 四条具名 check 落地 | 四条 check 通过；03 必须覆盖 `validate_failed`／`node_empty`／`held_pending` 的具名 |
-| D2 | release 不产出的证据链 | 默认关闭下：①`Events.trace_enabled(g)` 为假且 `event_trace(g)` 为空；②E0 关／开两遍摘要逐字相同（已由协调者两遍复核，仍需在收口报告里复述并附日志）；③**开关打开那遍必须核引擎错误日志**——oracle 显式 `quit(0)`，退出码不反映脚本错误 |
-| D3 | 修 `start` 清空走同一接口（磁盘复核缺陷） | `core/room_events.gd:25` 的 `g.get("event_trace_enabled")`／`g.event_trace=[]` 改成经 `Events.clear_trace(g)`（或等价单一接口）清空；场景 03／19 显式断言"上一事件的行不残留"；修后 E0 关／开两遍摘要仍逐字相同 |
-| D4 | `installed_tools` 待分类（A21） | 在 `4d22a00`（B1 之前）重跑同一套件并给出结论：既有项 → 协调者登记＋门禁红集口径更新；本片回归 → 停收口先修。**分类方式：回到引入点之前的提交重跑，不是先解释现象**（A22） |
-| D5 | B3b 判据命令 | 见 §20 命令块（含 A17 的 900 秒时限）；报告需给 D1–D4 的逐项证据与 E0 两遍摘要 |
+| D1 | §10 场景 03／04／10／19 四条具名 check 落地 | 四条 check 通过；03／19 按 **§4.5 A25 口径**写断言（**按 `(purpose, source_choice, option_id, gate\|kind, index)` 过滤，禁止按总行数**；选择器选项 `source_choice`＝作者 id、`option_id`＝冻结实例 id）；03 必须覆盖 `validate_failed`／`node_empty`／`held_pending` 的具名与**状态条件行的跨 purpose 相等不变量（缺行即失败）** |
+| D1a | 修 `source_choice`／`option_id` 的字段语义（A25） | `trace_entry` 现把两者写成同一值（`room_events.gd:210,398`）→ 拆成"作者 id"与"冻结实例 id"；只影响 trace 行，不影响 state／View／存档／随机（E0 摘要必须不变） |
+| D2 | release 不产出的证据链 | 默认关闭下：①`Events.trace_enabled(g)` 为假且 `event_trace(g)` 为空、该次求值 0 行；②E0 关／开两遍**摘要逐字相同**（协调者已两遍复核，收口报告需复述并附日志）；③**两遍都要核引擎错误日志命中 0 行**（A24；oracle 显式 `quit(0)`，退出码不反映脚本错误） |
+| D3 | 修 `start` 清空走同一接口（磁盘复核缺陷） | ~~`core/room_events.gd:25` 的 `g.get("event_trace_enabled")`／`g.event_trace=[]`~~ → **已在 `9e08d2a` 修为 `clear_trace(g)`**；保留判据：场景 03／19 显式断言"上一事件的行不残留"，且 E0 关／开两遍摘要仍逐字相同 |
+| D4 | `installed_tools` 分类结论 | **已定类＝既有红项**（A23，协调者已登记进 `docs/verification.md` 2026-09-16 B3 条目：`4d22a00` 之前同样红 → 非本片回归；根因方向＝夹具前置条件与当前卡牌／工具接口漂移，未定类未修）。B3b 只需复核门禁红集口径 ⊆ {`card_power` 5 条, `installed_tools` 1 条} |
+| D5 | B3b 判据命令 | 见 §20 命令块（含 A17 的 900 秒时限）；报告需给 D1／D1a／D2／D3 的逐项证据、E0 两遍摘要与**引擎错误日志命中数** |
 
 ## 21. B4 派工要点（事件链：`next` 指向另一事件的节点）
 
