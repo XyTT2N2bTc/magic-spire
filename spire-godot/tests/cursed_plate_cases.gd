@@ -52,7 +52,7 @@ static func run(t) -> void:
   g=Game.new(42);g.RelicEffects.gain(g,TYPE)
   if boundary!="normal": g.state.room="summit";g._start_battle()
   for enemy in g.state.enemies.duplicate(): g._damage_enemy(enemy,99999,"magic","测试")
-  g._finish_battle(boundary=="saturated")
+  g._finish_battle("saturated" if boundary=="saturated" else "victory")
   var released=boundary=="boss"
   t.check(g.state.cursed_plate_released==released and g.state.special_equipment.any(g.SpecialEquipment.is_chastity)!=released,"CURSED PLATE key only follows an actual Boss defeat: "+boundary)
   if released:

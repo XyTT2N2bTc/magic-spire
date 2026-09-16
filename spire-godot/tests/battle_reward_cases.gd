@@ -43,7 +43,7 @@ static func boss_flask(t) -> void:
   for enemy in g.state.enemies:
    if result in ["victory","ordinary"]: g._damage_enemy(enemy,1000,"physical","测试")
    else: enemy.gone=true;enemy.intent={}
-  g._finish_battle(result=="saturated")
+  g._finish_battle("saturated" if result=="saturated" else "victory")
   var choices=g.get_view().candidates.filter(func(c):return c.payload.kind=="reward" and c.payload.get("category","")=="flask")
   if result!="victory":
    t.check(choices.is_empty() and g.state.flask_mana==137.5,"BOSS FLASK no bonus for "+result)

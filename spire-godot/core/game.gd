@@ -680,9 +680,10 @@ func _rest_round() -> void:
  _begin_player_turn()
  _emit("event","休息还有%d回合；悬挂挂钩剩余%d次。" % [state.rest_left,state.hook_uses])
 
-func _finish_battle(saturated: bool=false) -> void:
+func _finish_battle(end_kind: String="victory") -> void:
  if state.phase != "battle":
   return
+ var saturated=end_kind=="saturated"
  var event_battle=Events.active_battle(self)
  CaptureBind.clear_bind(self)
  Pressure.cleanup(self)
@@ -706,24 +707,38 @@ func _finish_battle(saturated: bool=false) -> void:
  var ending="监狱出口的警卫已全部被击败。收取战利品后，选择新塔路第10—11层的非休息、非宝箱区域开始。" if Prison.is_exit_battle(self) else (("敌人已无法继续添加或加固装备，遭遇结束。" if saturated else ("六缚已被击败，整备后可以前往出口。" if room_data(state.room).get("boss",false) else "遭遇结束。"))+"收取战利品后，点击继续进行整备。")
  _emit("event",ending,{"battle_end":"saturated" if saturated else "cleared"})
 
-func _finish_if_saturated() -> bool:
- if state.phase!="battle" or not state.card_chain.is_empty(): return false
- if _all_gone():
-  _finish_battle()
-  return true
- if room_data(state.room).get("requires_defeat",false) or Events.battle_requires_defeat(self): return false
+# docs/transition-pipeline.md §2.2: the single battle-end judgement every call site shares
+# (the 13 reference points keep their own position in the control flow and only ask this).
+# "" = the battle continues, "victory" = every enemy is gone, "captured" = a living enemy
+# announces arrest through its next normal intent, "saturated" = no living enemy can add or
+# reinforce equipment any more.
+func _battle_end_reason() -> String:
+ if state.phase!="battle": return ""
+ if _all_gone(): return "victory"
+ if room_data(state.room).get("requires_defeat",false) or Events.battle_requires_defeat(self): return ""
  # Human/mechanical enemies announce arrest through the next normal intent;
  # exhausting equipment options is never a victory against these sources.
- if state.enemies.any(func(enemy):return EnemyPlans.can_arrest(self,enemy)): return false
+ if state.enemies.any(func(enemy):return EnemyPlans.can_arrest(self,enemy)): return "captured"
  # Even a blocked departure attachment gets its normal action before leaving.
- if state.enemies.any(func(enemy):return EnemyPlans.lock_departure_pending(self,enemy)): return false
- if EnemyPlans.has_equipment_space(self): return false
+ if state.enemies.any(func(enemy):return EnemyPlans.lock_departure_pending(self,enemy)): return ""
+ if EnemyPlans.has_equipment_space(self): return ""
+ return "saturated"
+
+# The original saturation entry, now a thin wrapper over the single judgement and the single
+# executor; callers and their order are unchanged.
+func _finish_if_saturated() -> bool:
+ if state.phase!="battle" or not state.card_chain.is_empty(): return false
+ var end_kind=_battle_end_reason()
+ if end_kind=="victory":
+  _finish_battle("victory")
+  return true
+ if end_kind!="saturated": return false
  for enemy in state.enemies:
   if enemy.gone: continue
   enemy.gone=true
   enemy.intent={}
   enemy.erase("turn_install_layers")
- _finish_battle(true)
+ _finish_battle("saturated")
  return true
 
 func _all_gone() -> bool:
@@ -1164,7 +1179,7 @@ func _enemy_phase() -> void:
   CaptureBind.observe(self)
   _copy_context={}
   if _finish_if_saturated(): break
- if state.phase=="battle" and _all_gone(): _finish_battle()
+ if _battle_end_reason()=="victory": _finish_battle("victory")
 
 func _enemy_operation(e: Dictionary, intent: Dictionary) -> void:
  var previous=_copy_context
@@ -2389,7 +2404,7 @@ func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
  Cards.normalize(self)
  if state.card_chain.is_empty() and Cards.flush_powers(self):
   _cleanup()
-  if state.phase=="battle" and _all_gone(): _finish_battle()
+  if _battle_end_reason()=="victory": _finish_battle("victory")
  if state.card_chain.is_empty(): RelicEffects.flush(self)
  # Only the completed action contributes; phase transitions own their start/end pulses.
  if state.card_chain.is_empty() and not _magic_failed: Pressure.tick(self,Pressure.escape_timing(chosen.payload))
@@ -2562,7 +2577,7 @@ func _execute(c: Dictionary) -> void:
    var targets=state.enemies.filter(func(enemy):return not enemy.gone).map(func(enemy):return enemy.id) if p.all else [p.enemy]
    _execute_attack(c,targets)
    if replay: Replay.spell(self,c,targets,replay)
-   if state.phase=="battle" and _all_gone(): _finish_battle()
+   if _battle_end_reason()=="victory": _finish_battle("victory")
   "wall_move":
    if state.phase=="prison":
     Prison.Space.move(self,Prison.Space.wall_path(self,p.direction=="toward"),"wall_move")
@@ -2806,8 +2821,8 @@ func _end_turn() -> void:
  Cards.expire_turn_buffs(self)
  Pressure.relax(self)
  if Prison.completed_turn(self): return
- if state.phase=="battle" and _all_gone():
-  _finish_battle()
+ if _battle_end_reason()=="victory":
+  _finish_battle("victory")
   return
  if state.phase=="prison":
   Prison.end_turn(self)
