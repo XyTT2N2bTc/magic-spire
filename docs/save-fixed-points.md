@@ -4,7 +4,11 @@
 工作区干净。行号捕获于该提交；**函数名是稳定锚点**，动手前用 `rg` 复算。
 本文件不写执行结果：通过／失败／未执行只登记到 `docs/verification.md`。
 
-**状态：`needs-human-review`（见 §10）。实现者不得在协调者记录人审前开工。**
+**状态：暂停（parked，2026-09-16 协调者排期裁定）。** 代码半成品在 `git stash`（`stash@{0}`：仅 `core/game.gd`／`ui/main.gd` 的 checkpoint 键与 UI 触发改造，无测试无判据）；**不并进后续切片**。
+**§2 的 P1／P2／P3 与 §6 的正反例标注为「待重写」**：排期改为先做**状态迁移管线收束**
+（见 `docs/transition-pipeline.md`）；收束完成后本片按**收束后的主路径**重新规划——届时的固定点判定
+应挂在主路径的迁移声明上，**不再需要"比 `floor`／比 `phase`"的探测**。本文件其余内容（扫描全集表、
+闭环 check、失败语义与性能口径）仍作为复工输入，**不得按旧触发集直接复工**。
 
 **修订记录**：本文件取代 `docs/save-write-skip.md`（"逐操作内容比对"方案，已删）与上一版
 "全量触发集"方案。人审原话：**"只有你进入新的一层时存档，完成战斗时存档，完成休整后存档，
@@ -40,9 +44,9 @@ battle:26 一次成功提交 ≈ dispatch 58.8 ＋ get_view 63.5 ＋ save 44.1 �
 
 | # | 固定点 | 确切时机（判定条件，锚点） | 写入内容 | **预期恢复点** |
 | --- | --- | --- | --- | --- |
-| P1 | **进入新的一层** | **同一座塔内**当前房间 `floor` ≠ 提交前（`room_data(state.room).floor` vs `room_data(original.room).floor`，**任一方向都算**）**且** `tower_generation` 未变；在 `dispatch` 成功、提交后。**换塔／出狱返塔不写盘**（人审裁定）：单纯比 `floor` 会让 `_restart_tower`（塔底 floor 变化）误触发，故必须带 `tower_generation` 不变这一排除项——见 §2.5 枚举与 §10 | 提交后的 `restart_snapshot()` ＋ 当时线稿 | **该层入口**（新层第一个房间的起点） |
-| P2 | **完成战斗** | `original.phase` ∈ {`battle`} 且 `state.phase` ≠ `battle`（普通胜利→`reward`、事件战→`event`、监狱出口战→`reward`、被收押→`captured`／`prison_end`）；锚点 `_finish_battle`（`core/game.gd:683-707`）把 `battle` 改写为 `reward`／`event`；提交后 | 同上 | **战斗结束后的阶段起点**（奖励／事件结果／收押结果） |
-| P3 | **完成休整之后** | `original.phase=="prepare"` 且 `state.phase!="prepare"`（离开整备：结束回合用尽、提前结束、进入下一场景）；提交后 | 同上 | **整备结束后的起点**（下一步行动前） |
+| P1（**待重写**） | **进入新的一层** | **同一座塔内**当前房间 `floor` ≠ 提交前（`room_data(state.room).floor` vs `room_data(original.room).floor`，**任一方向都算**）**且** `tower_generation` 未变；在 `dispatch` 成功、提交后。**换塔／出狱返塔不写盘**（人审裁定）：单纯比 `floor` 会让 `_restart_tower`（塔底 floor 变化）误触发，故必须带 `tower_generation` 不变这一排除项——见 §2.5 枚举与 §10 | 提交后的 `restart_snapshot()` ＋ 当时线稿 | **该层入口**（新层第一个房间的起点） |
+| P2（**待重写**） | **完成战斗** | `original.phase` ∈ {`battle`} 且 `state.phase` ≠ `battle`（普通胜利→`reward`、事件战→`event`、监狱出口战→`reward`、被收押→`captured`／`prison_end`）；锚点 `_finish_battle`（`core/game.gd:683-707`）把 `battle` 改写为 `reward`／`event`；提交后 | 同上 | **战斗结束后的阶段起点**（奖励／事件结果／收押结果） |
+| P3（**待重写**） | **完成休整之后** | `original.phase=="prepare"` 且 `state.phase!="prepare"`（离开整备：结束回合用尽、提前结束、进入下一场景）；提交后 | 同上 | **整备结束后的起点**（下一步行动前） |
 
 - 三者互斥判定，同时成立时**取优先级 P2 ＞ P3 ＞ P1**（并要求抽样夹具覆盖这一并集不产生歧义）。
 - `dispatch` 成功字典新增**加性**键 `"checkpoint"`，取值 `""`／`"floor"`／`"battle_end"`／`"prepare_end"`；
@@ -52,56 +56,109 @@ battle:26 一次成功提交 ≈ dispatch 58.8 ＋ get_view 63.5 ＋ save 44.1 �
   若人指的是休息房（`rest`／`rest_choice`），P3 条件改为 `original.phase ∈ {rest_choice, rest}` 且
   `state.phase ∉ {rest_choice, rest}`，同时 §6 的反例 N9 转为正例。
 
-### 2.5 枚举扫描：三类状态变化各由哪些代码路径产生（静态，2026-09-16 实测）
+### 2.5 枚举扫描：三类状态变化各由哪些代码路径产生（静态全集，2026-09-16 实测）
 
-> 扫描方式：`rg -n "state\.room\s*=[^=]" core/`、`rg -n "state\.phase\s*=[^=]" core/`、
-> `rg -n "_finish_battle|_finish_if_saturated" core/`，再逐条回溯一层调用者判断是否在
-> `dispatch` 事务内（事务内＝`_execute`／`dispatch` 可达；事务外＝setup／重开／读档）。
-> **结论：三类变化全部存在、且绝大多数发生在 `dispatch` 事务内**——所以"边界前后对比"能覆盖它们；
-> 仅 setup／重开／读档路径在事务外（按设计不触发检查点，见下）。
+> **扫描方式**：对 `core/*.gd`（47 文件）逐行取";code"（`#` 之后为注释，不计入），排除 `==`，
+> 按四组模式扫描：① `state.room=`／`g.state.room=` ② `state.phase=`／`g.state.phase=` ③ `_finish_battle(`／
+> `_finish_if_saturated(` ④ `_restart_tower(`。**全集＝53 点**（①10 ②26 ③13 ④4）。
+> **键＝`文件|函数|规范化行文本`**（规范化＝压缩空白、去注释）；**行号只作诊断**，不入判据。
+>
+> **分类列（每点可属多类）**：
+> - **A**＝可改当前房间／`floor`；**B**＝可结束战斗；**C**＝可结束 `prepare`；
+> - **D**＝事务外（构造／重开／读档／练习初始化）；
+> - **T**＝**事务内阶段迁移，但不是三个触发点**——例如进入 `battle`／`prepare`、到达房间、进入商店／事件、
+>   牢房阶段切换等。**每个 T 点都必须在"说明"列写明"为何不是触发点"**（这是本列的定义，
+>   也是"所有 `state.phase=` 赋值点都有归属"这条不变量得以成立的方式）。
+>
+> **事务内＝可由 `dispatch`／`_execute` 到达**（边界前后对比即可捕获）；**事务外＝不参与 P1／P2／P3**
+> （理由逐条见 D 组的"说明"列与本节末尾的更正说明）。
 
-**A. 能改变当前房间 `floor` 的路径（`state.room=`／`g.state.room=` 全部命中）**
+**① `state.room=`／`g.state.room=`（10 点）**
 
-| 位置（函数） | 是否在 `dispatch` 事务内 | 证据（调用者） | 本契约处理 |
-| --- | --- | --- | --- |
-| `game.gd:272` `_restart_tower`（含 `:278` 的 phase） | **是**（可由 `prison.gd:453/545` 逃狱／出狱返塔、`demo_exit.gd:36` 出口继续 触发） | `Prison.execute`／`DemoExit` 在事务内 | **不触发 P1**：`tower_generation` 变化被排除（换塔裁定） |
-| `game.gd:331/356/365` `_start_practice` | 否（setup） | `_init`／练习入口 | 不触发（新局／练习起点由 T3／T4 或首次固定点覆盖） |
-| `game.gd:2963` `_depart`（进入相邻房间） | **是** | `dispatch` → payload `depart` | **P1 候选**（同层不写、异层写） |
-| `game.gd:2985` `_advance_travel`（多回合移动落点） | **是** | `_execute` → payload `travel_step` | **P1 候选** |
-| `prison.gd:148` `start_practice` | 否（setup） | 练习入口 | 不触发 |
-| `prison.gd:444` `escape`（逃狱返塔） | **是** | `Prison.execute` | **不触发 P1**（换塔，同 `_restart_tower`） |
-| `prison.gd:584` `exit_practice`（练习出口） | 否（练习） | 练习入口／`execute` | 不触发（练习局；若经 `execute` 则落 `_restart_tower` 分支） |
-| `guard.gd:117` `capture`（收押入狱） | **是** | `Guard.execute`（敌方阶段） | 不触发 P1（换场所但同层语义；`map_region` 变，`floor` 判据见 §10 第 3 条） |
-
-**B. 能结束战斗的路径（`_finish_battle`／`_finish_if_saturated` 全部命中）**
-
-| 位置 | 是否在事务内 | 证据 | 本契约处理 |
-| --- | --- | --- | --- |
-| `game.gd:690/698` `_finish_battle` 本体（→`event`／`reward`／`captured` 由 `Guard.capture` 另行设置） | **是** | 调用者：`dispatch`（`:2392`）、`_execute`、`_end_turn`、`_enemy_phase`、`_finish_if_saturated`（`:712/726`）、`room_events` 事件战结算 | **P2 判定点** |
-| `game.gd:1167` `_end_turn` 内 `_all_gone()` | **是** | `_execute` → payload `end` | **P2 候选**（结束回合后全灭） |
-| `game.gd:2392` `dispatch` 内 `_all_gone()` | **是** | 任意会打死最后一敌的命令 | **P2 候选**（普通攻击／技能） |
-| `game.gd:2565`（另一处 `_all_gone()`） | **是** | 事务内 | **P2 候选** |
-| `game.gd:600/608/1126` `_finish_if_saturated()` | **是** | 事务内 | **P2 候选**（空间耗尽提前结束） |
-| `room_events` 事件战：`Events.finish_battle` → `battle_spec_issue` 路径 | **是** | `_finish_battle` 的 event 分支 | **P2 候选**（事件战） |
-| `prison.gd:381` `execute` 内 `phase="battle"`（出口战开始）→ 其结束仍走 `_finish_battle` | **是** | `Prison.execute` | **P2 候选**（监狱出口战） |
-| `guard.gd:113` `capture` 设 `phase="captured"`（不经 `_finish_battle`） | **是** | `Guard.execute` | **P2 候选**（收押＝战斗结束，人审已确认） |
-
-**C. 能结束 `prepare` 的路径（`_finish_preparation` 的 3 个分支）**
-
-| 位置 | 是否在事务内 | 证据 | 本契约处理 |
-| --- | --- | --- | --- |
-| `game.gd:2836` `_finish_preparation` → `pack` | **是** | `_execute`／`_end_turn`（payload `end` 用尽回合、`finish_prepare` 提前结束） | **P3 判定点** |
-| `game.gd:2841` → `map` | **是** | 同上 | **P3** |
-| `game.gd:2846` → `cleared` | **是** | 同上（练习／阶段完成） | **P3** |
-
-**D. 事务外路径（setup／重开／读档）——不触发检查点，逐条给出理由**
-
-| 路径 | 位置 | 理由 |
+| 键 `文件|函数|规范化行文本`（行号仅作诊断） | 分类 | 说明（`T` 行必须写明"为何不是触发点"） |
 | --- | --- | --- |
-| 新局初始化 | `_init`（`:243` 起） | 尚无"上一个固定点"；由 T3（新局替换不兼容档）落盘 |
-| 快速 SL／重开 | `_restart_tower` 经 `restart`／`_quick_sl` 的入口 | 内容等于正在恢复／重建的起点；恢复后不写（§1 第 3 条） |
-| 读档 | `restore_snapshot`（`:3184`） | 磁盘内容与内存语义相同，写盘只会污染 `.bak` |
-| 练习初始化 | `_start_practice`／`Prison.start_practice` | 练习局；起点由 T4（手动）或首个固定点覆盖 |
+| `game.gd|_restart_tower|state.room="tower_bottom"; state.wall="normal"; state.wall_distance=1`（`:L272`） | A,D | 塔底 `room` 变化＝**换塔**（P1 用 `tower_generation` 排除，不触发）；事务外（见 D） |
+| `game.gd|_start_practice|state.room="rest"`（`:L331`） | A,D | 练习房间（构造期）；事务外（见 D） |
+| `game.gd|_start_practice|state.room=state.rooms.filter(func(room):return room.kind=="shop")[0].id`（`:L356`） | A,D | 练习房间（构造期）；事务外（见 D） |
+| `game.gd|_start_practice|state.room="entrance"`（`:L365`） | A,D | 练习房间（构造期）；事务外（见 D） |
+| `game.gd|_depart|state.room=c.payload.room`（`:L2963`） | A | **P1 候选**：进入相邻房间（同层不写、异层写） |
+| `game.gd|_advance_travel|state.room=state.journey.target`（`:L2985`） | A | **P1 候选**：多回合移动落点 |
+| `guard.gd|capture|g.state.room="prison";g.state.wall="rough";g.state.wall_distance=0`（`:L117`） | A,B | 收押入狱（同时属 B：战斗以失败结束） |
+| `prison.gd|start_practice|g.state.security=1;g.state.room="prison";g.state.wall="rough";g.state.wall_distance=0`（`:L148`） | A,D | 练习牢房（构造期）；事务外（见 D） |
+| `prison.gd|escape|g.state.room="prison_start";g.state.wall="normal";g.state.wall_distance=1`（`:L444`） | A,D | 逃狱返塔＝**换塔**（不触发）；事务外（见 D） |
+| `prison.gd|exit_practice|g.state.room="prison_gate"`（`:L584`） | A,D | 练习出口（构造期）；事务外（见 D） |
+
+**② `state.phase=`／`g.state.phase=`（26 点）**
+
+| 键 `文件|函数|规范化行文本`（行号仅作诊断） | 分类 | 说明（`T` 行必须写明"为何不是触发点"） |
+| --- | --- | --- |
+| `departure.gd|start|g.state.phase="departure"`（`:L21`） | D | 事务外：构造期（由 `_init` 调用，`game.gd:244`） |
+| `departure.gd|execute|d.stage="done";g.state.phase="map"`（`:L101`） | T | 出发选牌完成→`map`；不写（开局由 T3 落盘） |
+| `game.gd|_init|state.phase="map";state.energy=0;state.wall="normal";state.wall_distance=1;state.draw=state.deck.duplicate(true)`（`:L243`） | D | 事务外：构造期（新局初始化） |
+| `game.gd|_restart_tower|state.enemies=[]; state.phase="map"; state.energy=0`（`:L278`） | D | 事务外：定义行；重开／返塔（新塔） |
+| `game.gd|_start_battle|state.phase = "battle"`（`:L470`） | T | 进入战斗＝场景内迁移（`floor` 未变）→ 不写；恢复点仍为进层时的起点 |
+| `game.gd|_start_preparation|state.phase = "prepare"`（`:L621`） | T | 进入整备不是"完成休整"；**P3 的时机在离开 `prepare`** |
+| `game.gd|_start_rest|state.phase="rest_choice"`（`:L664`） | T | 进入休息房不是三个触发点（人审：休息房内行动不写） |
+| `game.gd|_begin_rest|state.phase="rest"`（`:L674`） | T | 同上（休息回合推进不写） |
+| `game.gd|_finish_battle|state.phase="event"`（`:L690`） | B | **P2 判定点**（战斗结束的实现本体） |
+| `game.gd|_finish_battle|state.phase = "reward"`（`:L698`） | B | **P2 判定点**（战斗结束的实现本体） |
+| `game.gd|_finish_preparation|state.phase="pack"`（`:L2836`） | C | **P3 判定点**（离开 `prepare` 的实现分支之一） |
+| `game.gd|_finish_preparation|state.phase="map"`（`:L2841`） | C | **P3 判定点**（离开 `prepare` 的实现分支之一） |
+| `game.gd|_finish_preparation|state.phase="cleared"`（`:L2846`） | C | **P3 判定点**（离开 `prepare` 的实现分支之一） |
+| `game.gd|_depart|state.phase="travel";state.wall="none";state.wall_distance=0`（`:L2969`） | T | 出发／移动开始；换层由**同一次提交内** `_arrive_room` 的 `floor` 变化触发 P1 |
+| `game.gd|_arrive_room|state.phase="cleared"`（`:L2992`） | T | 到达房间＝场景内迁移（同层不写；异层由 P1 触发） |
+| `game.gd|_arrive_room|state.phase="map";state.energy=0;state.wall=room.wall`（`:L2996`） | T | 到达房间＝场景内迁移（同层不写；异层由 P1 触发） |
+| `guard.gd|capture|g.state.phase="captured";g.state.energy=0;g.state.weakness_turns=0`（`:L113`） | B | 收押＝战斗结束（人审确认计入 P2） |
+| `prison.gd|enter|g.state.phase="prison_end"`（`:L190`） | T,D | 牢房进／出阶段迁移；**监狱进出不写**（人审）；练习入口时为事务外 |
+| `prison.gd|begin_turn|g.state.phase="prison"`（`:L207`） | T | 牢房回合开始；不写（牢房行动不写） |
+| `prison.gd|end_turn|g.state.phase="inspection"; g.state.prison.stage="arrival"`（`:L221`） | T | 巡视切换；不写（同上） |
+| `prison.gd|execute|g.state.phase="battle"; g.state.round=0; g.state.encounter+=1`（`:L381`） | T | 出口战**开始**；其结束由 B 组（`_finish_battle`）触发 P2 |
+| `prison.gd|escape|g.state.enemies=[];g.state.phase="map";g.state.energy=0`（`:L446`） | D | 事务外：逃狱返塔＝新塔 |
+| `room_events.gd|start|g.state.phase="map";g.state.wall=room.wall;g.state.energy=0`（`:L22`） | T | 进入事件房／空房间；不写（事件选择不写） |
+| `room_events.gd|start|g.state.phase="event"`（`:L28`） | T | 进入事件房／空房间；不写（事件选择不写） |
+| `room_events.gd|begin_item_rewards|g.state.phase="reward"`（`:L1060`） | T | 进入事件道具奖励阶段；不写 |
+| `room_services.gd|start|g.state.phase=room.kind;g.state.wall=room.wall;g.state.energy=0;g.state.enemies=[]`（`:L7`） | T | 进入商店／宝箱；不写（商店交易不写） |
+
+**③ `_finish_battle(`／`_finish_if_saturated(`（13 点）**
+
+| 键 `文件|函数|规范化行文本`（行号仅作诊断） | 分类 | 说明（`T` 行必须写明"为何不是触发点"） |
+| --- | --- | --- |
+| `game.gd|_start_round|if _finish_if_saturated(): return`（`:L600`） | B | 回合开始时的全灭检查 |
+| `game.gd|_start_round|if _finish_if_saturated(): return`（`:L608`） | B | 回合开始时的全灭检查 |
+| `game.gd|_finish_battle|func _finish_battle(saturated: bool=false) -> void:`（`:L683`） | B | **P2 判定点**（战斗结束的实现本体） |
+| `game.gd|_finish_if_saturated|func _finish_if_saturated() -> bool:`（`:L709`） | B | P2 的提前结束入口（空间耗尽；含自递归 `_finish_battle()`／`_finish_battle(true)`） |
+| `game.gd|_finish_if_saturated|_finish_battle()`（`:L712`） | B | P2 的提前结束入口（空间耗尽；含自递归 `_finish_battle()`／`_finish_battle(true)`） |
+| `game.gd|_finish_if_saturated|_finish_battle(true)`（`:L726`） | B | P2 的提前结束入口（空间耗尽；含自递归 `_finish_battle()`／`_finish_battle(true)`） |
+| `game.gd|_enemy_phase|if _finish_if_saturated(): return`（`:L1126`） | B | 敌方阶段的全灭检查（含 `break` 分支） |
+| `game.gd|_enemy_phase|if _finish_if_saturated(): break`（`:L1166`） | B | 敌方阶段的全灭检查（含 `break` 分支） |
+| `game.gd|_enemy_phase|if state.phase=="battle" and _all_gone(): _finish_battle()`（`:L1167`） | B | 敌方阶段的全灭检查（含 `break` 分支） |
+| `game.gd|dispatch|if state.phase=="battle" and _all_gone(): _finish_battle()`（`:L2392`） | B | 提交路径上的全灭检查／饱和结束 |
+| `game.gd|dispatch|_finish_if_saturated()`（`:L2397`） | B | 提交路径上的全灭检查／饱和结束 |
+| `game.gd|_execute|if state.phase=="battle" and _all_gone(): _finish_battle()`（`:L2565`） | B | 执行路径上的全灭检查 |
+| `game.gd|_end_turn|_finish_battle()`（`:L2810`） | B | 结束回合时的全灭检查 |
+
+**④ `_restart_tower(`（4 点）**
+
+| 键 `文件|函数|规范化行文本`（行号仅作诊断） | 分类 | 说明（`T` 行必须写明"为何不是触发点"） |
+| --- | --- | --- |
+| `demo_exit.gd|continue_run|g._restart_tower(true)`（`:L36`） | D | 事务外：出口继续游玩＝新塔（`_restart_tower`） |
+| `game.gd|_restart_tower|func _restart_tower(from_exit: bool=false) -> void:`（`:L248`） | D | 事务外：定义行；重开／返塔（新塔） |
+| `prison.gd|return_to_tower|g._restart_tower()`（`:L453`） | A,D | 调用 `_restart_tower`（→ 组①的 272）：**换塔**，P1 排除；事务外（见 D） |
+| `prison.gd|completed_turn|g._restart_tower()`（`:L545`） | A,D | 同上（回合用尽后返塔）；事务外（见 D） |
+
+**事务外（D）路径的事实更正（人审转实现者实测）**：旧表述"`_restart_tower` 经 `restart`／`_quick_sl` 的入口"
+**不成立**——UI 的 `restart()` 走 `Game.new`→`_init`，`_quick_sl` 走 `restore_snapshot`，**两者都不进
+`_restart_tower`**。`_restart_tower` 的实际入口只有三处：`demo_exit.gd:36`（出口继续游玩）、
+`prison.gd:453`（逃狱返塔）、`prison.gd:545`（回合用尽返塔），**且都在 `dispatch` 事务内**（换塔，P1 排除）。
+正确的 D 组＝`_init`（新局）、`_start_practice`／`Prison.start_practice`／`Prison.exit_practice`（练习）、
+`Departure.start`（构造期，`game.gd:244` 调用）、`Prison.escape` 的 `phase` 写入（返塔）；此外
+`restore_snapshot`（读档，`game.gd:3184` 的 `_scene_start` 赋值）也属事务外，但它不在本四组扫描模式内
+（它不写 `room`／`phase`），登记在此供完整性。
+
+**枚举结论（回答"进新的一层是否同一个方法"）**：**是**——能改变当前房间 `floor` 且发生在事务内的路径
+只有 `_depart`（`depart` 命令）与 `_advance_travel`（`travel_step` 命令）两条，二者都在**同一次提交内**
+调用 `_arrive_room`，因此"提交前后当前房间 `floor` 不同"这一判定可以完整捕获 P1；
+其余房间写入全部是构造期／练习／换塔（D 或 A+D，P1 已排除换塔）。
 
 ## 3. 非进度写盘（按显式意图／独立产物保留）
 
@@ -193,13 +250,12 @@ battle:26 一次成功提交 ≈ dispatch 58.8 ＋ get_view 63.5 ＋ save 44.1 �
 **闭环 check（机器可执行；`architecture` 分类的源码扫描；取代旧版"扫 `_scene_start`"）**
 
 08. `save_transition_sites_are_enumerated`（`tests/architecture_cases.gd`，`architecture`）
-    Given 读取 `res://core/` 下的 `.gd` 源文本；When 提取
-    ① `state.room\s*=`／`g.state.room\s*=`（排除 `==`）② `state.phase\s*=`／`g.state.phase\s*=`（排除 `==`）
-    ③ `_finish_battle(`／`_finish_if_saturated(` ④ `_restart_tower(` 的**全部赋值／引用点**；
-    Then 每个点必须落在 §2.5 的表 A／B／C／D 中（**表外即红**，打印文件:行:函数）；
-    **新增任一能改 `floor`／`phase` 或结束战斗的路径，必须同批更新 §2.5 的表与 Gherkin 映射**。
-    （与旧版的区别：旧版扫 `_scene_start` 赋值点，只能证明"冻结点没变多"；本版扫**能造成三类状态变化的
-    赋值点**，直接回答"进新的一层是否同一个方法"。）
+    Given 读取 `res://core/` 下的 `.gd` 源文本（`#` 之后为注释，**不计入判定**；排除 `==`）；
+    When 按 §2.5 的四组模式扫描全集，与 §2.5 的**扫描全集表双向比对**：
+    ①**扫描集 ⊆ 表**（表外点即红，打印 `文件:行:函数`）；
+    ②**表内每一点都必须被扫到**（陈旧行同样红，打印该行的键）；
+    Then 双向均无差异时通过；**新增任一能改 `room`／`phase` 或结束战斗的路径，必须同批更新
+    §2.5 的表与 §6 的映射表**（红时先按 A22 口径定性：契约未更新 vs 实现新增路径）。
 
 **触发点 → 命令／方法 → 具名 check 映射（正向抽样必须按此表驱动）**
 
@@ -305,7 +361,10 @@ battle:26 一次成功提交 ≈ dispatch 58.8 ＋ get_view 63.5 ＋ save 44.1 �
    加这一排除项是执行人的裁定，不是新增语义（§2.5 表 A 已列证据）。
    **待否决的解释**：`floor` 变化按**任一方向**都算（上行也触发），最贴近"进入新的一层"的字面；
    若人反对，改条件即可（例如只算上行）。
-9. **全量扫描已按人审重新纳入**（§2.5 枚举 ＋ 场景 08 闭环 check）：它回答"每个触发点由哪些方法产生、
+9. **全量扫描已按人审重新纳入**（§2.5 扫描全集表 ＋ 场景 08 双向比对）：全集 53 点、四组分类
+   （A 12／B 16／C 3／D 6／T 16，含多标签点按主类计），**所有 `state.phase=` 赋值点都有归属**
+   （靠 `T` 类成立），所有 `state.room=` 赋值点都是 A（或 A+D）。**"进新的一层"＝同一方法族**
+   （`_depart`／`_advance_travel` → `_arrive_room`，均在事务内）。D 组事实更正见 §2.5 末尾。
    是否在 `dispatch` 事务内"——结论是**三类变化全部存在且绝大多数在事务内**（仅 setup／重开／读档在事务外，
    按设计不触发）；三条"事务外"路径（快速 SL／重开、读档、练习初始化）各自的理由见 §2.5 表 D。
 4. **恢复粒度变粗**（§4）：崩溃／退出后只能回到三个点中最近的一个——本次产品取舍，需人认可。
