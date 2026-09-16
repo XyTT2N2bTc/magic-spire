@@ -4,10 +4,18 @@
 !/LICENSE
 !/ASSET_RIGHTS.md
 !/版本更新内容.txt
-!/spire-godot/
 !/AGENTS.md
-!/.github/
 !/docs/
+!/release/
 !/tools/
-**/__pycache__/
+!/.github/
 !/.zcode/
+!/spire-godot/
+
+# 不提交的内容（原 spire-godot/.gitignore 上移，仓库内通用）
+.godot/
+build/
+*.log
+*.tmp
+*.pyc
+**/__pycache__/

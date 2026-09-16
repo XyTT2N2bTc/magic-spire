@@ -17,6 +17,6 @@ GitHub 当前提供的源码及全部发布下载包统一按 GPL-2.0-only 发�
 - `spire-godot/`：游戏源码、素材、内容包、规则文档、测试和打包工具。
 - `版本更新内容.txt`：版本更新记录。
 
-用 Godot 打开 `spire-godot/project.godot` 后运行项目。开发、测试及打包说明见 [变更与开发记录](docs/changelog.md)，协作规则见 [AGENTS.md](spire-godot/AGENTS.md)。
+用 Godot 打开 `spire-godot/project.godot` 后运行项目。开发、测试及打包说明见 [变更与开发记录](docs/changelog.md)，协作规则见 [AGENTS.md](AGENTS.md)。
 
 仓库不包含 Godot 缓存、本地构建工具、测试日志、个人设置、签名私钥及安装包。发布时需在本机配置 Godot 导出模板；安卓另需 SDK、JDK 和个人签名配置。素材及第三方许可说明位于 `spire-godot/assets/vendor/CREDITS.md` 与 `docs/licenses/`。

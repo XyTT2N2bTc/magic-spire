@@ -1,7 +1,7 @@
 # 变更与开发记录
 
 《紧缚尖塔》模块的按日期记录（最新在上），取代原先的 `spire-godot/README.md`。
-链接目标与本文同目录（`docs/`）；协作规范见 `../spire-godot/AGENTS.md`。
+链接目标与本文同目录（`docs/`）；协作规范见仓库根 `../AGENTS.md`。
 
 ## v0.17：小魔女与界面更新（2026-09-15）
 
@@ -396,7 +396,7 @@ Windows 双击 **开始游戏.vbs**，直接打开游戏，不显示命令行窗
 | 牢房探索与环境接触 | [探索说明](prison-exploration-proposal.md)、[环境接口](environment-interaction-proposal-v1.md) |
 | 动作文案 | [文案替换指南](action-copy-guide.md)，正文为 `data/action_copy.json` |
 | 检查范围、失败记录和验证日志 | [验证记录](verification.md) |
-| 协作约束 | [AGENTS.md](../spire-godot/AGENTS.md) |
+| 协作约束 | [AGENTS.md](../AGENTS.md) |
 
 `content/templates/` 提供五类不自动启用的 JSON 模板；多阶段事件另有 `.disabled` 示例。复制需要的模板到 `content/packs/`、修改 ID 并校验，重启新局加载。新增效果仍须实现正式规则，不能仅填文案使其生效。卡牌目前没有额外 JSON 加载接口。
 

@@ -3,7 +3,7 @@
 ## 模块
 
 - `spire-godot/`：《紧缚尖塔》，Godot 4 塔路与卡牌游戏，本仓当前唯一模块。
-  规则以该模块 docs 为准，入口 `spire-godot/AGENTS.md`。
+  规则以 `docs/` 为准；规范集中在本仓根 `AGENTS.md`。
 
 ## 目录职责
 
