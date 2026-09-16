@@ -98,9 +98,14 @@ rg -n "res://tests/" spire-godot/core/ spire-godot/data/ spire-godot/ui/
 未落地即未完成；本表 5 条与 `docs/event-pipeline-unification.md` §10 的 01–20 是同一批判据，
 不得择一执行。
 
-### 4.3 B1 执行现状（2026-09-16，commit `d770aea`）
+### 4.3 执行现状（2026-09-16）
 
-- §4.1 的 7 条手工命令已执行：**未新增 preload 边**（`room_events.gd` 仍只有
-  `data/room_events.gd`＋`data/relics.gd` 两条）、`core/` 无 `ui/`、生产代码不引用 `res://tests/`。
-- §4.2 的 5 条 check **尚未落地代码**，按上表分派到 B1b／B2／B4；
-  B1 未落地它们不是缺口（其内容在 B1 已满足，只是没有具名 check 承载）。
+- B1（commit `d770aea`）：§4.1 的 7 条手工命令已执行——**未新增 preload 边**
+  （`room_events.gd` 仍只有 `data/room_events.gd`＋`data/relics.gd` 两条）、`core/` 无 `ui/`、
+  生产代码不引用 `res://tests/`。
+- B1b（commit `a57dec3`）：`event_dependency_edges_pinned` 与 `event_definition_accessors_only`
+  **已落地**（`tests/architecture_cases.gd`），即 §4.2 的前两条追溯 check 已可执行；
+  `event_author_manual_lists_current_fields`（`tests/content_cases.gd`）同批落地。
+- 其余三条（`event_condition_kinds_share_one_declaration`、`event_single_evaluation_entry`、
+  `event_pipeline_writes_only_declared_keys`）尚未落地代码，按上表分派到 B2／B4；
+  未落地不是缺口（其内容在对应批次才产生）。

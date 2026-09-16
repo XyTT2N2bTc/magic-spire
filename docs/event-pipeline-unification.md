@@ -44,6 +44,17 @@
 
 **判据按增量判定成立**：B1 未引入新红项，E0 逐字节不变。
 
+### B1b 落地事实（commit `a57dec3`，判据登记 `4d5bc8f`；工作区干净）
+
+| 项 | 内容 |
+| --- | --- |
+| 范围 | 六份文件：`spire-godot/content/README.md` §3 整节重写为节点形态（定义字段、七个节点声明键与取值、合并后选项白名单含"适用形态"列、起始节点免费出口只约束多节点）；`docs/content-templates.md`／`content-generation.md`／`content-extension.md` 同步（模板为真源、文档跟随；已死的选项级 `pressure` 示例删除；`wager`／`reward:"keys"` 这类 B1 前就不被接受的写法改为显式标注为早期设计记录）；`tests/architecture_cases.gd` 的 `event_dependency_edges_pinned`／`event_definition_accessors_only`；`tests/content_cases.gd` 的 `event_author_manual_lists_current_fields` |
+| 判据 | E0 退出码 0／摘要 `1f11bea5…`；`check-content.ps1` 12 file(s) PASS；模板探针 `-Path build/b1b-docs-20260916/template-probe` 2 file(s) PASS；四类套件全 PASS（2147 断言）；`-Impact` 红集恰好 `card_power` 五条；四份文档旧形态残留零命中（`rg` 退出码 1） |
+| 独立复核 | 协调者重跑 E0（同摘要）、内容门、模板探针、四类套件 |
+| 具名 check 非空洞 | `event_author_manual_lists_current_fields` 在修正 `allow_refuse` 取值前**真实红过一次**（反向对照成立） |
+
+**依赖规范 §4.2 的两条追溯 check 已随 B1b 落地**；其余三条按 §9 分派 B2／B4。
+
 ### 裁定与偏差（协调者转人裁，2026-09-16 第二批；本节即偏差登记）
 
 | # | 事项 | 裁定与契约位置 |
@@ -56,6 +67,14 @@
 | A6 | 文档同步缺口（唯一实质缺口） | **立 B1b 批**（§8.3、§16）：`content/README.md`、`docs/content-templates.md`、`docs/content-generation.md`、`docs/content-extension.md` 仍教旧形态，照文档写出的包会被新校验拒绝 |
 | A7 | 根指引"仍写 Godot 入口见 `spire-godot/AGENTS.md`" | **磁盘复核：不存在**（根 `AGENTS.md` 只有"## 模块规则（spire-godot/）"＋文档入口表；无该句、无 `tools/check_agents.py`、无"CI 检查指引行数"节）。此前表述来自注入副本，已在 §8.3 更正；新增假设见 §14 |
 | A8 | 依赖规范 §4.2 的 5 条架构 check 归属 | 确认原意是分批判据，现按 §7.4／依赖规范 §4.2 明确分配：两条随 B1b，两条随 B2，一条 B2＋B4 两半 |
+
+### 裁定与偏差（协调者转人裁，2026-09-16 第三批；B1b 之后）
+
+| # | 事项 | 裁定与契约位置 |
+| --- | --- | --- |
+| A9 | 本地化词表漂移（`assets/localization/legacy-en_US.json` 仍登记被删除的旧文案、新文案缺译；安全回退显示源文，无玩法影响） | **不另立批次，并入 B2 范围**（§17）：B1 改掉了校验文案，B2 还会再动（并集、`conditions`、叠加），单独刷一次会立刻返工。B2 同批刷新英文字典并使其与新校验文案一致；命令、口径与验收方式写死在 §17（判据见 §12 命令 5） |
+| A10 | `docs/event-structure.md` §1 结构地图已过期（描述 B1 前的 `stages/start_stage`） | **已由规划者处理**：§1 顶部加带日期状态注（指明现行形态见本契约执行记录，§2 缺陷 1／3／4／5／6／8 的状态以本契约执行记录为准）；§7.2 加同样的指向注。测绘原文保留，不重写 |
+| A11 | `docs/content-generation.md` §7.4 的早期设计记录（`wager`／`keys`） | **接受现处理**（显式标注、不删）；不另派，仅登记 |
 
 
 
@@ -738,8 +757,8 @@ static var CONDITIONS={
 | 批 | 范围 | 判据 | 状态 |
 | --- | --- | --- | --- |
 | B1 定义形态归一 | 定义级 `nodes/start_node` 落地；内容 12 份＋模板＋生成来源迁移；`content_catalog` 单一形态校验（含 §2.5 并集规则与路径改写）；`view`／`validate`／`snapshot`／测试夹具改走 `definition/node/node_ids`；`enter_stage`→`enter_node`（行为仍按现状两条分支） | E0 全绿 ＋ `-Suite event_flow,events,content,architecture -Impact` ＋ `check-content.ps1`；§10 场景 01／02／06／07／20 | **已完成**（`d770aea`，见执行记录） |
-| B1b 文档同步 | 四份仍教旧形态的文档改成节点形态（清单见 §8.3）；不含选项级 `conditions`／`unavailable` | E0 全绿 ＋ `check-content.ps1` ＋ 文档示例编译探针（§16） ＋ 依赖规范 §4.2 的两条 B1 追溯 check | 待派工（§16） |
-| B2 声明与单入口 | 节点声明生效（`frozen_form`／`relic_gate`／`random_freeze`／`outcome_draw`／`unavailable`／`empty_node` 不再是死数据）；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖两形态；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；`conditions`／`unavailable` 规范拼写与声明表同批接受；删除死分支与平行真相；`snapshot` 增量补新键检查 | E0 全绿 ＋ `check-content.ps1` ＋ §10 场景 05／08／09／13／15–18 ＋ 依赖规范 §4.2 的 `event_single_evaluation_entry`＋`event_condition_kinds_share_one_declaration`＋`event_pipeline_writes_only_declared_keys`（内容半） | 待派工（§17） |
+| B1b 文档同步 | 四份仍教旧形态的文档改成节点形态（清单见 §8.3）；不含选项级 `conditions`／`unavailable` | E0 全绿 ＋ `check-content.ps1` ＋ 文档示例编译探针（§16） ＋ 依赖规范 §4.2 的两条 B1 追溯 check | **已完成**（`a57dec3`，判据登记 `4d5bc8f`，见执行记录） |
+| B2 声明与单入口 | 节点声明生效（`frozen_form`／`relic_gate`／`random_freeze`／`outcome_draw`／`unavailable`／`empty_node` 不再是死数据）；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖两形态；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；`conditions`／`unavailable` 规范拼写与声明表同批接受；删除死分支与平行真相；`snapshot` 增量补新键检查；**同批刷新英文字典**（裁定 A9，§17） | E0 全绿 ＋ `check-content.ps1` ＋ `localization` 规则／界面门 ＋ §10 场景 05／08／09／13／15–18 ＋ 依赖规范 §4.2 的 `event_single_evaluation_entry`＋`event_condition_kinds_share_one_declaration`＋`event_pipeline_writes_only_declared_keys`（内容半） | 待派工（§17） |
 | B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`）；叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | E0 全绿（开关开／关各跑一遍）＋ §10 场景 03／04／10／19 | 待派工 |
 | B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | E0 全绿 ＋ §10 场景 11／12 ＋ 依赖规范 §4.2 的新键半 | 待派工 |
 
@@ -887,6 +906,11 @@ B2 落 05／08／09／13／15–18；B3 落 03／04／10／19；B4 落 11／12�
 & tools/check.ps1 -UIOnly -UISuite events -TimeoutSeconds 600
 # 4) B1b 专用：文档示例编译探针（把两份模板复制为 .json 到临时目录后校验，见 §16）
 & tools/check-content.ps1 -Path <临时目录>
+# 5) B2 专用：本地化词表刷新与验收（裁定 A9；在 spire-godot/ 下执行）
+python tools/localization_inventory.py
+python tools/build_english_catalog.py          # 需要离线模型／缓存；不可用时改人工补齐（见 §17）
+& tools/check.ps1 -Suite localization -TimeoutSeconds 600
+& tools/check.ps1 -UIOnly -UISuite localization -TimeoutSeconds 600
 ```
 
 **每批判据的"恰好红集"**：`-Suite ... -Impact -KeepGoing` 时只允许
@@ -903,8 +927,8 @@ B2 落 05／08／09／13／15–18；B3 落 03／04／10／19；B4 落 11／12�
 **既有反例只允许改写路径或新增，不得删除**。
 
 必有的证据：oracle 比对输出（含 `EVENT RESULT: PASS`）、两份 check 日志 ＋ `summary.json`
-（`status=passed`、指纹稳定；红集只允许 §12 的 `card_power` 项）、§8.3 的文档同步记录
-（B1b 完成后才齐全）。
+（`status=passed`、指纹稳定；红集只允许 §12 的 `card_power` 项）、本地化盘点数字与套件结果、
+§8.3 的文档同步记录（B1b 已完成，见执行记录）。
 
 算未完成（任一）：
 
@@ -923,6 +947,7 @@ B2 落 05／08／09／13／15–18；B3 落 03／04／10／19；B4 落 11／12�
 - 新增 `get_view` 只读字段、新增 `game.event_diagnostics()`、改 `ui/` 或 `core/game.gd` 提交管线；
 - 删／弱化既有断言（含 `event_flow_cases` 的隐藏选项断言、`persistence_cases:event_conditions`）换绿灯；
 - 把 `normal_play` 的既有红项写成"与 B1 无关"的结论，或据此改断言、删套件；
+- 本地化把缺译写成通过、以"离线模型不可用"为由跳过字典刷新、或只改目录不改盘点口径（裁定 A9）；
 - 落地迁移脚本或改启动链（人审：不落地）；
 - 12 份内容之外的内容包被写入链形态（E0 不覆盖）；
 - B1b 未完成就开始 B2（文档与代码形态不一致期不得叠批）；
@@ -1040,9 +1065,10 @@ B2 落 05／08／09／13／15–18；B3 落 03／04／10／19；B4 落 11／12�
 - **可改文件（授权清单）**：
   - `spire-godot/core/room_events.gd`、`spire-godot/core/content_catalog.gd`、`spire-godot/core/snapshot.gd`
   - `spire-godot/tests/{event_cases,event_flow_cases,content_cases,persistence_cases,architecture_cases}.gd`
+  - `spire-godot/assets/localization/legacy-en_US.json`（裁定 A9：同批刷新英文字典）
   - **不改**：`content/packs/*`（七个节点声明 B1 已写好，值＝现值）、`content/templates/*`、
-    `ui/**`、`core/game.gd` 提交管线、`core/game_view.gd`、`docs/**`（文档随 B2 另派，
-    见 §8.3 的"B1b 明确缓到 B2"清单——B2 完成后必须补文档，否则又落回 A6 的缺口）。
+    `ui/**`、`core/game.gd` 提交管线、`core/game_view.gd`、`docs/**`（B2 后另派的作者手册补充，
+    见 §8.3 的"B1b 明确缓到 B2"清单——B2 落地后必须补，否则又落回 A6 的缺口）。
 - **交付物（接口级，按 §4／§5）**：
   1. `CONDITIONS` 声明表 ＋ `condition_kinds`／`condition_entries`／`condition_issue`／
      `condition_probe`／`condition_saved_fields`（一处声明，三处消费者集合相等）；
@@ -1058,13 +1084,32 @@ B2 落 05／08／09／13／15–18；B3 落 03／04／10／19；B4 落 11／12�
      （裁定 A4：不得以放宽换统一）；
   7. 删除死分支（选项级 `pressure`／`pressure_source`）与平行真相（`condition_met`／
      `availability_issue` 内部 match 改为查表）；
-  8. `probe`／`candidates`／`execute` 全经入口，`purpose` 检查清单按 §4.4（多一步少一步都算红）。
+  8. `probe`／`candidates`／`execute` 全经入口，`purpose` 检查清单按 §4.4（多一步少一步都算红）；
+  9. **英文字典刷新（裁定 A9）**：`assets/localization/legacy-en_US.json` 与 B2 收口后的校验文案
+     一致——B1／B2 删除或改写的中文源文条目从目录移除，B1／B2 新增或改写的源文有非空译文；
+     口径与验收见下面的"本地化验收"。
+- **本地化验收（口径写死，判定可复核；入口＝`docs/localization.md` §维护流程／§验证，
+  项目 skill `spire-ui-content` 指向同一文档）**：
+  - 判定①**旧源文**：某目录条目的 `source` 不再出现在 `python tools/localization_inventory.py` 的
+    盘点源文集合（范围 `project.godot`／`*.tscn`／`core`／`data`／`ui`／`content/packs`，
+    跳过 `legacy-*`）→ 该条为旧源文，**必须删除**；抽查范围＝本片动到的文案。
+  - 判定②**缺译**：盘点集合中的源文在目录里没有条目、或条目 `text` 为空 → 缺译；
+    运行期 `Localizer.display()` 未命中即原样返回中文源文（安全回退，无诊断、不改判定）。
+  - 判定③**通过条件**：本片删除的源文条目清零（由 `REMOVED_SOURCES` 断言保证）、
+    本片新增/改写的源文有非空译文（由 `REQUIRED_SOURCES` 断言保证）；全量盘点数字
+    （目录条目数 before／after、缺译条数）与套件结果进 `docs/verification.md`。
+  - `python tools/build_english_catalog.py` 需要离线模型／缓存；**模型不可用时按"人工补齐本片动到的
+    条目"完成**（数量有限、逐条可数），**不得**以环境为由跳过；仍无法产出译文的条目登记为
+    未完成 → 该批未完成，不得宣称通过。
 - **判据命令（一次，不无故重复）**：
   ```powershell
   & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
   & tools/check-content.ps1
-  & tools/check.ps1 -Suite event_flow,events,content,architecture -Impact -TimeoutSeconds 900
-  & tools/check.ps1 -UIOnly -UISuite events -TimeoutSeconds 600
+  & tools/check.ps1 -Suite event_flow,events,content,architecture,localization -Impact -TimeoutSeconds 900
+  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 600
+  # 本地化刷新（在 spire-godot/ 下执行；顺序即口径）
+  python tools/localization_inventory.py
+  python tools/build_english_catalog.py
   ```
 - **DoD**：
   - E0 退出码 0、`PASS (94 scenarios, 0 failures)`、摘要 `1f11bea5…`（**摘要必须逐字相同**）；
@@ -1074,10 +1119,18 @@ B2 落 05／08／09／13／15–18；B3 落 03／04／10／19；B4 落 11／12�
   - 依赖规范 §4.2：`event_condition_kinds_share_one_declaration`、`event_single_evaluation_entry`
     落地；`event_pipeline_writes_only_declared_keys` 的"12 份内容不出现 `conditions`／`chain`"半落地；
   - `tests/persistence_cases.gd:event_conditions` 与既有反例断言保持通过（只允许新增/改路径）；
-  - 报告必须给出：`gates` 顺序与多命中拼接的样例、四个 `purpose` 的检查清单对照、E0 摘要；
-  - **B2 完成前不得打包、不得发版**（§12）。
+  - **本地化（裁定 A9）**：`& tools/check.ps1 -Suite localization` 与
+    `& tools/check.ps1 -UIOnly -UISuite localization` 通过；新增具名 check
+    `locale_legacy_catalog_matches_current_sources`（`tests/localization_cases.gd`）：以本片动到的
+    文案清单为常量（`REMOVED_SOURCES` 已删除的旧中文串、`REQUIRED_SOURCES` 新增/改写的源文），
+    断言目录中不存在 `REMOVED_SOURCES`、`REQUIRED_SOURCES` 全部存在且 `text` 非空；
+    `docs/verification.md` 登记目录条目数 before／after 与缺译条数；
+  - 报告必须给出：`gates` 顺序与多命中拼接的样例、四个 `purpose` 的检查清单对照、E0 摘要、
+    本地化口径①②③的判定结果；
+  - **B2 完成前不得打包、不得发版**（§12；过渡态下"能编译但不生效"的键与未刷新的字典都会随包外发）。
 - **已知最可能爆的点**：求值顺序与随机消耗（§4.3）——`relic_gate` 冻结前／后位置、
   `outcome_draw` 与 selector 展开的先后、生成器判定在 `resolve_effect_copy` 之后；
-  以及 `frozen_form`＝`in_place` 必须保持"作者对象回声"布局（键序不变）。
+  以及 `frozen_form`＝`in_place` 必须保持"作者对象回声"布局（键序不变）；
+  本地化侧：把缺译写成通过，或只改目录不改盘点口径。
 - **非目标**：trace 与 gate 全覆盖（B3）、跨事件 `next` 对象形态与 `chain`（B4）、
-  文档（B2 后另派）、`get_view` 字段、`ui/`、提交管线。
+  作者手册再补文档（B2 后另派）、`get_view` 字段、`ui/`、提交管线。
