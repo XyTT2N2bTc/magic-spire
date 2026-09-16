@@ -46,6 +46,9 @@ static func event_definition_single_form(t) -> void:
   t.check(view.intro==spec.intro or walk.state.room_event.get("flow",false),"EVENT DEFINITION single-node introduction stays byte-identical "+id)
  t.check(single_count==8 and multi_count==4,"EVENT DEFINITION eight single-node and four multi-node events registered")
 
+# Scenario 03 (gate names are total) is not landed: its trace assertions failed and the
+# fixture needs a focused repro. Reported for the coordinator.
+
 static func run(t) -> void:
  preload("res://tests/event_draw_cases.gd").run(t)
  event_definition_single_form(t)
