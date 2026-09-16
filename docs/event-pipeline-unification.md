@@ -142,6 +142,33 @@
 | A18 | 归因纪律（新 check 首次变红时） | **写进 §14 假设节**：先分类"**判据／夹具写错** vs **行为漂移**"，用最小复现定类后再动手；**禁止把红断言直接改成通过**。本轮已两次实例：E0 比较器修复（`4d22a00`）与 `hidden` 立证（`b6d45b5`）。最小复现产物放已忽略的 `build/<topic>-<date>/`，摘要进 `docs/verification.md` |
 | A19 | 旧待办更正：根 `AGENTS.md` 文档入口表两行 | **已在 `fa96370` 加好**（磁盘：`AGENTS.md:133` 事件定义形态与管线统一、`:134` 事件管线依赖约束；`git show fa96370:AGENTS.md` 命中 2 处）。此前把它列为"待协调者转派"是**我沿用了旧清单未复核磁盘**——已从 §8.3／§16／§18 的待办中删除，并作为"写规范前先核磁盘"的第三例（§14 假设 8） |
 
+### B2c 与 B3 核心落地事实
+
+| 项 | 内容 |
+| --- | --- |
+| B2c（`1f450d7`，登记 `3aee25a`） | 四份作者文档补 `conditions`／选项级 `unavailable`／`mode`／叠加语义并删过期标注；**已完成**（§9 已更新） |
+| B3 核心（`f95e96f`，父 `3aee25a`） | `core/room_events.gd`：`probe_result`（唯一实现，`probe()` 保留原签名＝返回 `.reason`）：`effects`→`probe_failed`、`next_node`→取节点入口 gate、`validate`→**`validate_failed`**、暂存未归还→**`held_pending`**；`enter_node_result`（唯一实现）：空节点→**`node_empty`**、节点不存在→**`stage_missing`**，**issue 文案一字未改**；`feasibility_gate` 改从 `probe_result` 取 gate；debug trace＝`Events.trace_enabled(g)`／`event_trace(g)`／`trace_entry(...)`（**元数据实现**，条目 11 字段，见 A20） |
+| B3 核心判据（协调者两遍） | 开关关闭与开启**均**退出码 0／`PASS (94 scenarios, 0 failures)`／摘要**逐字相同** `1f11bea5…`；冻结 oracle `cf48529a…` 与基线 `bdf08765…` 未变 |
+| 未完成 | ①§10 场景 03／04／10／19 四条具名 check 未落；②release 不产出的证据链未给出；③**B3 核心待修**：`start` 的清空行与访问器用了**两种存储**（见下）；④`installed_tools` 新红待分类（A21） |
+
+**B3 核心待修（磁盘复核，属 B3b 收口）**：`core/room_events.gd:25` 写作
+`if g.get("event_trace_enabled")==true: g.event_trace=[]`，而访问器用的是
+`get_meta("event_trace_enabled")`／`get_meta("event_trace")`（`:383-396`）。两者不是同一存储：
+①经 `set_meta` 打开开关时，第 25 行的守卫恒为假（`Object.get()` 读不到元数据）→ **`start` 不会清空**，
+trace 会跨事件累积陈旧条目；②`g.event_trace=[]` 在 `core/game.gd` 无该成员时会触发脚本错误。
+E0 摘要不受影响（E0 不读 trace），但 §4.5「每次 `start` 在启用时清空」与场景 03／19 的判据会被这条破坏。
+**修法**：清空改走同一接口（如 `Events.clear_trace(g)` 或 `event_trace(g).clear()`），并让场景 03／19
+显式断言"上一事件的行不残留"。另：**开关打开那遍必须核引擎错误日志**——oracle 显式 `quit(0)`，
+退出码不反映脚本错误。
+
+### 裁定与偏差（协调者转人裁，2026-09-16 第七批；B3 核心之后）
+
+| # | 事项 | 裁定与契约位置 |
+| --- | --- | --- |
+| A20 | trace 落点（§20 与 §4.5 的措辞冲突） | **裁定：以"游戏对象上的普通调试字段、不进 `state`／`View`／存档"为语义实质**；**接受元数据实现**（`set_meta("event_trace_enabled")`／`set_meta("event_trace")` ＋ `Events.trace_enabled(g)`／`event_trace(g)`／`trace_entry(...)`）；**不授权改 `core/game.gd`**。§4.5 与 §20 已改为"trace 只挂在游戏对象上的调试字段（实现可经元数据或普通字段，均不得进 state／View／存档）"，依赖规范同步 |
+| A21 | `installed_tools` 新红＝**待分类项**（不得写成既有项） | 现象：`tests/installed_tools_cases.gd:43` `SCRIPT ERROR: Invalid access to property or key 'detail'`、`FAIL: 0/9 assertions; 1 engine errors`；`t.find_action(g,"card",…)` 返回兜底 `{valid:false,payload:{}}`（该卡牌候选没生成）。实现者证据：把 `core/room_events.gd` 还原到 `1f450d7`（B3 之前）单跑该套件**同样报错、同样 0/9** → 排除 B3；但 HEAD 含 B1／B2／B2b／B2c，**不能排除本片早期提交引入**。该分类在 `docs/verification.md` 只有历史通过记录，**从未登记为阻塞项**。**两条路径**：①在 `4d22a00`（B1 之前）重跑同一套件 → 若同样红＝既有项，由协调者登记并把门禁红集改为 ⊆ {`card_power` 5 条, `installed_tools`}；②若在 `4d22a00` 绿而在本片某项后变红＝本片回归 → **停下 B3 收口，先修复再做收口**。`tests/installed_tools_cases.gd` **不在实现者可改清单内**：若结论是夹具过时，回到协调者裁定后再动 |
+| A22 | 方法论口径（与 E0 比较器、hidden 立证并列） | **发现新红时，分类的第一步是"在引入点之前重跑同一套件"，而不是先解释现象**；分类前**不得**把红项登记为既有项、也**不得**直接修（§14 假设 9 已并入） |
+
 ## 0. 领域、裁决与不变量
 
 领域（只在这里动）：
@@ -541,8 +568,9 @@ freeze_one():
 
 ### 4.5 trace（debug 开关）
 
-- 落点：`g.event_trace_enabled`（默认 `false`）＋`g.event_trace`（数组），
-  与 `g.copy_router_failures` 同一模式：**不进 `state`／不进 View／不进存档／不渲染／不做成计数器**。
+- 落点：**只挂在游戏对象上的调试字段**（默认关闭；实现可经元数据或普通字段，§A20）：
+  **不进 `state`／不进 View／不进存档／不渲染／不做成计数器**；接口为 `Events.trace_enabled(g)`／
+  `Events.event_trace(g)`／`Events.trace_entry(g,fields)`，清空必须走同一接口（`Events.clear_trace(g)`）。
 - 条目：`{"event","node","source_choice","option_id","decision","gate","reason","purpose"}`。
 - 每次 `start` 在启用时清空；`enter_node`／`evaluate_option`／`probe_choice` 写入；测试显式开启后断言。
 - 硬约束：开启与关闭时 `candidates`／`view`／`options`／`snapshot`／`rng` 摘要必须相同
@@ -836,8 +864,9 @@ static var CONDITIONS={
 | B1b 文档同步 | 四份仍教旧形态的文档改成节点形态（清单见 §8.3）；不含选项级 `conditions`／`unavailable` | E0 全绿 ＋ `check-content.ps1` ＋ 文档示例编译探针（§16） ＋ 依赖规范 §4.2 的两条 B1 追溯 check | **已完成**（`a57dec3`，判据登记 `4d5bc8f`，见执行记录） |
 | B2 声明与单入口 | 节点声明生效（`frozen_form`／`relic_gate`／`random_freeze`／`outcome_draw`／`unavailable`／`empty_node` 不再是死数据）；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖两形态；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；`conditions`／`unavailable` 规范拼写与声明表同批接受；删除死分支与平行真相；`snapshot` 增量补新键检查；**同批刷新英文字典**（裁定 A9，§17） | E0 全绿 ＋ `check-content.ps1` ＋ `localization` 规则／界面门 ＋ §10 场景 05／08／09／13／15–18 ＋ 依赖规范 §4.2 三条 check | **已完成**（核心 `60869fc`＋B2b `5a60cda`＋收口 `b6d45b5`；判据逐提交复核，登记 `df856b7`） |
 | B2b 收口 | 仅补 B2 未完成的三块：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`；④以 B2 的完整门禁命令（含 `localization`）复跑交证 | 见 §18（不改产品语义；`probe()` 内部与 `node_empty` 的单独 gate 名属 B3） | **已完成**（`5a60cda` 三项交付＋`b6d45b5` 收口 C1／C2；C3 按 A15 无需补） |
-| B2c 文档收尾 | 把 `conditions` 规范拼写、选项级 `unavailable`、`mode` 与叠加语义补进四份作者文档，并取消 B1b 留下的"B2 起生效"标注（A6 的收口） | 见 §19 | 待派工（§19） |
-| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`／`validate_failed` 的单独命名，裁定 A13）＋叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | 见 §20：E0 全绿（开关开／关各跑一遍、摘要逐字相同）＋ §10 场景 03／04／10／19 | 待派工（§20） |
+| B2c 文档收尾 | 把 `conditions` 规范拼写、选项级 `unavailable`、`mode` 与叠加语义补进四份作者文档，并取消 B1b 留下的"B2 起生效"标注（A6 的收口） | 见 §19 | **已完成**（`1f450d7`，登记 `3aee25a`） |
+| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`／`validate_failed` 的单独命名，裁定 A13）＋叠加命中逐条记录；debug trace＋开关；测试断言；release 不产出 | 见 §20：E0 全绿（开关开／关各跑一遍、摘要逐字相同）＋ §10 场景 03／04／10／19 | **核心已落地、本批未完成**（`f95e96f`；四条 check／release 证据／清空缺陷见 §20 收口清单） |
+| B3b 收口 | 仅补 B3 未完成的三块＋一条待分类：①场景 03／04／10／19 具名 check；②release 不产出的证据链；③修 `start` 清空走同一接口；④`installed_tools` 待分类（A21，分类结论出来前不得当既有项） | 见 §20 收口清单 | 待派工 |
 | B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | 见 §21：E0 全绿 ＋ §10 场景 11／12 ＋ 依赖规范 §4.2 的新键半 | 待派工（§21） |
 
 每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1b 与 B2 之间代码必须可跑可测
@@ -1013,9 +1042,20 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 `card_power`（`docs/verification.md:29`，5 条 `witch_*`）为红；**多出一条即本片未完成**；
 其余分类（含 `persistence`、`special_equipment`、`equipment`、`pressure`、`tower`）必须全绿。
 
+**新红 `installed_tools` 的处置（裁定 A21，临时口径，不得当作既有项）**：
+`tests/installed_tools_cases.gd:43` 报 `Invalid access to property or key 'detail'`、`0/9 assertions`。
+在分类结论出来前：①**不得**把它登记为既有阻塞项、②**不得**为凑绿改断言或把套件从门禁里拿掉；
+③B3b 的收口报告必须给出分类结论（`4d22a00` 之前重跑同一套件的结果）。两种分歧的路径：
+- **既有项**：由协调者登记进 `docs/verification.md`，门禁红集口径改为
+  `红集 ⊆ {card_power 5 条, installed_tools}`，并写明复现提交与日志 id；
+- **本片回归**：**停下 B3 收口，先定位并修复**（必要时回滚相关提交），修复后 B3 全部判据重跑。
+
 `normal_play`（`docs/verification.md:58` 的 2026-09-14 全量尝试条目）**不进本片、不派修**；
 登记措辞按事实：既有登记项；B1 实现者在 `HEAD~1` 复现出同样打转，但**因主动终止未能证明旧版
 断言同样红 → 归因未定**。**不得写成"与 B1 无关"的结论，也不得据此改断言或删套件。**
+
+**新红的分类口径（裁定 A22，与 A18 配套）**：发现新红时，**分类的第一步是"在引入点之前重跑同一
+套件"**，而不是先解释现象；结论出来前既不得登记为既有项，也不得直接修。
 
 必过的场景：§10 的 01–20 全部具名 check（按 §9 的批次归属逐批验收，B1b 不新增场景）；E0 的 94 场景 0 失败；`check-content.ps1` 通过；
 `docs/event-pipeline-dependency-spec.md` §4.2 的 5 条检查按 §9（§7.4）归属批次落地并通过
@@ -1103,6 +1143,12 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
    本轮两次实例：E0 比较器修复（`4d22a00`）、`hidden` 立证（`b6d45b5`，结论＝夹具／断言问题）。
    另记一条读法坑（C1 附带）：给 `evaluate_option` 传作者选项而非冻结选项时，
    第 4 步按设计跳过状态条件——诊断新拼写必须走 `request_for`／`frozen`。
+10. **新红的两步定类法（裁定 A22，与假设 9 配套）**：**第一步永远是"在引入点之前重跑同一套件"**，
+   不是先解释现象；结论出来前**不得**登记为既有项、**不得**直接修、**不得**改断言或把套件从门禁里拿掉。
+   本轮实例：`installed_tools`（`tests/installed_tools_cases.gd:43`，`detail` 取键失败、0/9）——
+   已排除 B3（还原 `room_events.gd` 到 `1f450d7` 同样红），但**尚未排除本片早期提交**（须在 `4d22a00`
+   之前重跑）；分类结论未定前它是**待分类项**（A21）。
+   三条并列实例：E0 比较器、`hidden` 立证、`installed_tools`。
 
 ## 15. `needs-human-review` 判定（历史记录）
 
@@ -1361,10 +1407,12 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
      节点不存在 → gate `stage_missing`（现状文案"下一阶段不存在。"）。
   3. `evaluate_option` 的可行性条目改从 `probe_result` 取 gate（`validate_failed`／`probe_failed`／
      `encounter_invalid`），叠加命中仍走状态条件条目（不变）；`chain_loop` 留给 B4。
-- **debug 开关形态（§4.5 已定，按此实现）**：`g.event_trace_enabled`（默认 `false`）＋
-  `g.event_trace`（数组）；条目 `{"event","node","source_choice","option_id","decision","gate","kind","mode","index","reason","purpose"}`；
-  每次 `start` 在启用时清空；**不进 `state`／不进 View／不进存档／不渲染／不做成计数器**；
-  release 默认关闭、运行不产出。同 `g.copy_router_failures` 的模式。
+- **debug 开关形态（§4.5 已定＋裁定 A20）**：trace 只挂在**游戏对象上的调试字段**（实现可经元数据或
+  普通字段，均不得进 `state`／`View`／存档）；接口 `Events.trace_enabled(g)`／`event_trace(g)`／
+  `trace_entry(g,fields)`／`clear_trace(g)`；条目 11 字段
+  `{event,node,source_choice,option_id,decision,gate,kind,mode,index,reason,purpose}`；
+  每次 `start` 在启用时**经同一接口**清空；release 默认关闭、运行不产出；
+  **不授权改 `core/game.gd`**。
 - **判据命令（一次；含开／关两遍 E0，A17 时限固化）**：
   ```powershell
   # 开关关闭（默认）
@@ -1380,10 +1428,21 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   候选集合与 E0 基线一致）、10 `event_trace_never_reaches_state_or_save`（snapshot／存档／View／`rng`
   不含 trace；开／关摘要相同）、19 `event_stacked_condition_trace_and_release`（叠加下每条命中条件各一条
   trace，`index` 与声明序一致；关开关后 `g.event_trace` 为空）。
-- **DoD**：E0 开／关两遍退出码 0 且摘要**逐字相同**；`-KeepGoing` 红集只允许 `card_power`；
-  四条具名 check 通过；`validate_failed`／`node_empty` 在 trace 与 `gates` 里可区分；
+- **DoD**：E0 开／关两遍退出码 0 且摘要**逐字相同**；`-KeepGoing` 红集只允许 `card_power`
+  （**`installed_tools` 未分类前不计入既有项**，见 A21）；四条具名 check 通过；
+  `validate_failed`／`node_empty` 在 trace 与 `gates` 里可区分；
   玩家可见文案与候选 `reason` 逐字不变；`docs/verification.md` 记录域＝events／persistence。
 - **非目标**：跨事件 `next` 与 `chain`（B4）；把 trace 暴露给 UI／译文；改任何文案。
+
+### 20.1 B3b 收口清单（B3 核心已落地 `f95e96f`，本批未完成）
+
+| # | 收口项 | 判据 |
+| --- | --- | --- |
+| D1 | §10 场景 03／04／10／19 四条具名 check 落地 | 四条 check 通过；03 必须覆盖 `validate_failed`／`node_empty`／`held_pending` 的具名 |
+| D2 | release 不产出的证据链 | 默认关闭下：①`Events.trace_enabled(g)` 为假且 `event_trace(g)` 为空；②E0 关／开两遍摘要逐字相同（已由协调者两遍复核，仍需在收口报告里复述并附日志）；③**开关打开那遍必须核引擎错误日志**——oracle 显式 `quit(0)`，退出码不反映脚本错误 |
+| D3 | 修 `start` 清空走同一接口（磁盘复核缺陷） | `core/room_events.gd:25` 的 `g.get("event_trace_enabled")`／`g.event_trace=[]` 改成经 `Events.clear_trace(g)`（或等价单一接口）清空；场景 03／19 显式断言"上一事件的行不残留"；修后 E0 关／开两遍摘要仍逐字相同 |
+| D4 | `installed_tools` 待分类（A21） | 在 `4d22a00`（B1 之前）重跑同一套件并给出结论：既有项 → 协调者登记＋门禁红集口径更新；本片回归 → 停收口先修。**分类方式：回到引入点之前的提交重跑，不是先解释现象**（A22） |
+| D5 | B3b 判据命令 | 见 §20 命令块（含 A17 的 900 秒时限）；报告需给 D1–D4 的逐项证据与 E0 两遍摘要 |
 
 ## 21. B4 派工要点（事件链：`next` 指向另一事件的节点）
 

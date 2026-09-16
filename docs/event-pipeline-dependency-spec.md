@@ -43,6 +43,11 @@ data/*  →  core/*  →  ui/*
 9. 状态条件 kind 字面量只允许出现在 `Events.CONDITIONS` 声明表内。
 10. 存档写入：`room_event.chain` 只允许在跨事件跳转时写入；`room_event.options[*].conditions`
     只允许由冻结投影写入；其他模块不得改写这两个键。
+11. debug trace（裁定 A20）：只允许挂在**游戏对象上的调试字段**（元数据或普通字段皆可，实现落在
+    `core/room_events.gd` 的 `Events.trace_enabled/event_trace/trace_entry/clear_trace`）；
+    **不得**为此改 `core/game.gd`；不得进 `state`／`View`／存档／日志，也不得做成计数器；
+    清空与读取必须走同一存储（当前 `room_events.gd:25` 的属性式清空与元数据访问器不一致，
+    属 B3b 收口项 D3）。
 
 ## 3. 文件与职责边界
 
