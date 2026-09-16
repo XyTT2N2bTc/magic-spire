@@ -242,6 +242,9 @@ RNG 推进都不同。以下为逐行核对结果（行号对应提交 `bf206d8`
 
 另有一处死代码：普通路径存在 `choice_definition.get("pressure",0)>0` 分支
 （`room_events.gd:53`），但普通选项白名单不含 `pressure`，通过校验的内容包无法触发它。
+核对：`content/packs/*.json` 里选项级 `"pressure":` 与 `pressure_source` 均为 0 处命中；
+包里的快感都是效果级的 `{"op":"pressure",...}`（走效果白名单，与这条分支无关）。
+夹具若要触发它，只能绕过 `ContentCatalog.compile` 直接改 `Data.TYPES`。
 
 对本片的影响：
 
