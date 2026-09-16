@@ -103,9 +103,12 @@ static func event_conditions(t) -> void:
   t.check(not g.restore_snapshot(saved).ok and g.export_snapshot()==before,"SAVE malformed option condition rejected atomically "+JSON.stringify(broken))
 
 # docs/event-pipeline-dependency-spec.md §4.2: the pipeline writes only the declared
-# new keys, so the twelve shipped events carry neither conditions nor chain.
+# new keys, so the twelve shipped events carry neither conditions nor chain — while a real
+# cross-event jump adds exactly chain and the save accepts only its declared shape.
 static func event_pipeline_writes_only_declared_keys(t) -> void:
  var events=preload("res://tests/event_cases.gd")
+ var flow=preload("res://tests/event_flow_cases.gd")
+ var catalog=preload("res://core/content_catalog.gd")
  var g=Game.new(42)
  for id in g.Events.Data.TYPES.keys():
   var walk=Game.new(42)
@@ -117,6 +120,29 @@ static func event_pipeline_writes_only_declared_keys(t) -> void:
   var resumed=Game.new(42)
   t.check(resumed.restore_snapshot(saved).ok,"SAVE shipped event state round-trips: "+id)
   t.check(not resumed.state.room_event.has("chain"),"SAVE restore introduces no undeclared key: "+id)
+ # Chain half: the same check against a real jump, where chain is the only new key.
+ var baseline=catalog.tables(g)
+ var compiled=catalog.compile(g,flow.chain_documents())
+ t.check(compiled.ok,"SAVE chain fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ catalog.commit(g,compiled.tables)
+ var chain=Game.new(42)
+ events.arrive(chain,"chain_source_fixture")
+ var arrival=chain.export_snapshot()
+ t.check(not arrival.room_event.has("chain"),"SAVE an arrival instance carries no chain key")
+ var declared=arrival.room_event.keys().map(func(key):return str(key))
+ t.check(t.action(chain,"event",{"action":"choose","choice":"depart"}).ok,"SAVE the chain jump commits")
+ var jumped=chain.export_snapshot()
+ var added=jumped.room_event.keys().map(func(key):return str(key)).filter(func(key):return key not in declared)
+ t.check(added==["chain"] and jumped.room_event.chain==["chain_source_fixture"],"SAVE a real jump adds exactly the declared chain key: "+str(added))
+ var restored=roundtrip(t,chain,"event chain instance")
+ if restored!=null:
+  t.check(restored.state.room_event.chain==["chain_source_fixture"] and restored.state.room_event.id=="chain_target_fixture","SAVE the chain instance keeps its chain and current event")
+ for broken in [[], "chain_source_fixture", ["no_such_event"], ["chain_source_fixture","chain_source_fixture"], ["chain_source_fixture",42]]:
+  var saved=jumped.duplicate(true)
+  saved.room_event.chain=broken
+  t.check(not chain.restore_snapshot(saved).ok and chain.export_snapshot()==jumped,"SAVE malformed chain rejected atomically: "+JSON.stringify(broken))
+ catalog.commit(g,baseline)
 
 # Scenario 10 (the trace never reaches the state or the save) is not landed: its trace
 # assertions failed. Reported for the coordinator.

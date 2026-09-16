@@ -185,8 +185,46 @@ static func event_union_validation_rules(t) -> void:
  t.check(not Catalog.compile(g,[rewarded_next]).ok,"EVENT UNION a rewarded option must end the event")
  t.check(Catalog.tables(g)==baseline,"EVENT UNION validation leaves the registries untouched")
 
+# docs/event-pipeline-unification.md §21 static counterexamples: a cross-event next has to name
+# a registered event and one of its real nodes, and may never reference its own event.
+static func event_chain_references_fail_closed(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var source=template_document("example_multistage_challenge")
+ t.check(not source.is_empty() and source.data.nodes.size()==3,"EVENT CHAIN templates are available")
+ if source.is_empty(): return
+ var target=source.duplicate(true)
+ target.data.id="example_chain_target"
+ source.data.nodes[1].choices[0].next={"event":"example_chain_target","node":"entry"}
+ var accepted=Catalog.compile(g,[source,target])
+ t.check(accepted.ok,"EVENT CHAIN a registered event node is accepted: "+str(accepted.errors))
+ var rejected=[]
+ var self_reference=source.duplicate(true)
+ self_reference.data.nodes[1].choices[0].next={"event":"example_multistage_challenge","node":"finish"}
+ rejected.append(["self reference",self_reference])
+ var unknown_event=source.duplicate(true)
+ unknown_event.data.nodes[1].choices[0].next={"event":"no_such_event","node":"entry"}
+ rejected.append(["unregistered event",unknown_event])
+ var unknown_node=source.duplicate(true)
+ unknown_node.data.nodes[1].choices[0].next={"event":"example_chain_target","node":"no_such_node"}
+ rejected.append(["missing target node",unknown_node])
+ var short_form=source.duplicate(true)
+ short_form.data.nodes[1].choices[0].next={"event":"example_chain_target"}
+ rejected.append(["missing node field",short_form])
+ var extra_key=source.duplicate(true)
+ extra_key.data.nodes[1].choices[0].next={"event":"example_chain_target","node":"entry","stage":"penalty"}
+ rejected.append(["extra field",extra_key])
+ var wrong_type=source.duplicate(true)
+ wrong_type.data.nodes[1].choices[0].next={"event":"example_chain_target","node":42}
+ rejected.append(["non-string node",wrong_type])
+ for entry in rejected:
+  var failed=Catalog.compile(g,[entry[1],target])
+  t.check(not failed.ok and failed.tables.is_empty() and Catalog.tables(g)==baseline,"EVENT CHAIN rejected without registering: "+entry[0])
+ t.check(Catalog.tables(g)==baseline,"EVENT CHAIN static validation leaves the registries untouched")
+
 static func run(t) -> void:
  event_author_manual_lists_current_fields(t)
+ event_chain_references_fail_closed(t)
  event_stage_available_condition_validates(t)
  event_definition_form_rejects_legacy_shape(t)
  event_stacked_conditions_keep_current_content(t)

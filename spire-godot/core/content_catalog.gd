@@ -294,8 +294,8 @@ static func _event_references(g, e: Dictionary, data: Dictionary) -> String:
    if not choice.has("recipe") and not choice.has("effects") and not choice.has("outcomes"): return "选项至少需要 effects、recipe 或 outcomes。"
    if choice.has("recipe") and (not choice.recipe is String or choice.recipe not in ["free_basic","tighten_or_medium","locked_assembly"]): return "选项使用了未知 recipe。"
    if choice.has("effects") and (not choice.effects is Array or choice.effects.size()>12): return "选项 effects 最多12项。"
-   if choice.get("reward","none")!="none" and choice.get("next","result")!="result": return "带奖励的选项必须结束事件，不能在领奖后继续下一阶段。"
-   issue=_flow_next(choice.get("next","result"),stage_index,stage_ids)
+   if choice.get("reward","none")!="none" and not _next_ends_event(choice.get("next","result")): return "带奖励的选项必须结束事件，不能在领奖后继续下一阶段。"
+   issue=_flow_next(choice.get("next","result"),stage_index,stage_ids,e.id,data)
    if issue!="": return "nodes."+stage.id+"."+choice.id+": "+issue
    if choice.has("report") and not words(choice.report): return "选项结果文案不正确。"
    if choice.has("report_variants"):
@@ -339,9 +339,9 @@ static func _event_references(g, e: Dictionary, data: Dictionary) -> String:
      if outcome.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "随机结果 result_status 必须为 neutral、success 或 failure。"
      if outcome.get("reward",choice.reward) not in ["none","common","uncommon","rare","relic"]: return "随机结果奖励不受支持。"
      var next=outcome.get("next",choice.get("next","result"))
-     issue=_flow_next(next,stage_index,stage_ids)
+     issue=_flow_next(next,stage_index,stage_ids,e.id,data)
      if issue!="": return "随机结果："+issue
-     if outcome.get("reward",choice.reward)!="none" and next!="result": return "带奖励的随机结果目前必须结束事件。"
+     if outcome.get("reward",choice.reward)!="none" and not _next_ends_event(next): return "带奖励的随机结果目前必须结束事件。"
      if outcome.has("report") and not words(outcome.report): return "随机结果文案不正确。"
      if outcome.has("report_variants"):
       issue=_copy_variants(outcome.report_variants,data,1200)
@@ -360,7 +360,24 @@ static func _event_references(g, e: Dictionary, data: Dictionary) -> String:
   if not event.get("cleanup_effects",[]).any(func(effect):return effect.key==key): return "暂存装备必须在 cleanup_effects 中原样归还。"
  return ""
 
-static func _flow_next(next, current: int, stage_ids: Array) -> String:
+# A declared next ends the event only as the "result" sentinel; the cross-event object form
+# never does, and comparing that object with a String would raise at runtime.
+static func _next_ends_event(next) -> bool:
+ return not next is String or next=="result"
+
+# §3.2: next is "result", a later node of this definition, or {"event","node"} — a jump to
+# another registered event's node. The in-definition form keeps the forward-only rule; the
+# cross-event form resolves against the compiled batch and refuses a self-reference.
+static func _flow_next(next, current: int, stage_ids: Array, event_id: String, data: Dictionary) -> String:
+ if next is Dictionary:
+  var issue=shape(next,"event node")
+  if issue!="": return "跨事件跳转需要 event 与 node。"
+  if not next.event is String or not next.node is String: return "跨事件跳转需要 event 与 node。"
+  if next.event==event_id: return "跨事件跳转不能引用事件自身。"
+  if not data.get("event",{}).has(next.event): return "跨事件跳转引用了尚未登记的事件。"
+  var targets=data.event[next.event].get("nodes",[]).map(func(entry):return str(entry.get("id","")))
+  if next.node not in targets: return "跨事件跳转引用了不存在的节点。"
+  return ""
  if not next is String or (next!="result" and next not in stage_ids): return "next 必须引用后续阶段或 result。"
  if next!="result" and stage_ids.find(next)<=current: return "多阶段事件不能倒退或形成循环。"
  return ""
@@ -368,7 +385,7 @@ static func _flow_next(next, current: int, stage_ids: Array) -> String:
 static func _has_free_exit(stage: Dictionary) -> bool:
  for choice in stage.get("choices",[]):
   var effects=choice.get("effects",null)
-  if choice.get("reward","")!="none" or choice.get("next","result")!="result": continue
+  if choice.get("reward","")!="none" or not _next_ends_event(choice.get("next","result")): continue
   if choice.has("selector") or choice.has("when") or choice.has("recipe") or choice.has("outcomes"): continue
   if effects is Array and effects.is_empty(): return true
  return false

@@ -380,6 +380,15 @@ static func check(s: Dictionary, g) -> String:
   var event=s.room_event
   if not fields(event,"id:s stage:s options:a refs:d report:s reward:z winner:i relic:s") or event.id not in g.Events.Data.TYPES: return "事件进度不完整。"
   if event.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "事件结果标记损坏。"
+  # §3.3／§6.2: chain exists only after a real cross-event jump and lists the events already
+  # left, each one registered and named once. No other key is added or dropped by the jump.
+  if event.has("chain"):
+   var chain=event.chain
+   if not chain is Array or chain.is_empty(): return "事件链记录不完整。"
+   var passed=[]
+   for id in chain:
+    if not id is String or not g.Events.Data.TYPES.has(id) or id in passed: return "事件链记录不完整。"
+    passed.append(id)
   if event.has("prepare_pending") and not event.prepare_pending is bool: return "事件战后的整备进度损坏。"
   if event.refs.values().any(func(id):return not id is String) or event.reward.any(func(id):return not g.Character.reward_member(g,id,s.get("character_id","original"))): return "事件结果类型不存在。"
   for option in event.options:
@@ -427,7 +436,12 @@ static func check(s: Dictionary, g) -> String:
     var declared=current_node.choices.map(func(choice):return choice.id)+(["refuse"] if current_node.allow_refuse else [])
     for option in event.options:
      var source_choice=option.get("source_choice",option.id)
-     if not fields(option,"next:s report:s") or source_choice not in declared or (option.next!="result" and (option.next not in stage_ids or stage_ids.find(option.next)<=current)): return "多阶段事件冻结选项损坏。"
+     if not fields(option,"report:s") or not option.has("next") or source_choice not in declared: return "多阶段事件冻结选项损坏。"
+     if option.next is Dictionary:
+      # §3.2 cross-event form: the frozen target stays a registered event node, never this event.
+      if not fields(option.next,"event:s node:s") or not g.Events.Data.TYPES.has(option.next.event) or option.next.event==event.id: return "多阶段事件冻结选项损坏。"
+      if option.next.node not in g.Events.node_ids(g.Events.Data.TYPES[option.next.event]): return "多阶段事件冻结选项损坏。"
+     elif not option.next is String or (option.next!="result" and (option.next not in stage_ids or stage_ids.find(option.next)<=current)): return "多阶段事件冻结选项损坏。"
    var held=[]
    for key in event.held:
     if not key is String or not event.held[key] is Array: return "事件暂存装备记录损坏。"

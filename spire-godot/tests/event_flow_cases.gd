@@ -125,6 +125,32 @@ static func flow(t, seed_value: int=17):
  t.check(g.state.room_event.flow and g.state.room_event.stage=="entry","EVENT FLOW starts declared stage")
  return g
 
+# docs/event-pipeline-unification.md §3.2／§3.3 chain fixtures (never shipped content): the
+# source holds one key and counts once before jumping to the target's entry node; that node
+# holds a second key, offers a loop back to the source, and ends at its own finale node.
+static func chain_documents() -> Array:
+ return [
+  {"file":"memory://chain_source.json","data":{
+   "schema_version":2,"kind":"event","id":"chain_source_fixture","name":"事件链起点夹具",
+   "intro":"只用于验证事件链的起点夹具。","start_node":"choice",
+   "cleanup_effects":[{"op":"restore_held","key":"chain_source_gear"}],
+   "nodes":[{"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[
+    {"id":"depart","label":"动身前往下一段事件","reward":"none","next":{"event":"chain_target_fixture","node":"entry"},"detail":"暂时取下指定位置的性玩具，记下一次计数，然后进入另一段事件。",
+     "effects":[{"op":"hold_special","key":"chain_source_gear","slots":["special_2_a"]},{"op":"counter","key":"chain_seen","amount":1}]},
+    {"id":"stay","label":"留在这里","reward":"none","next":"result","detail":"不进入另一段事件。","effects":[{"op":"mana_gain","amount":1}]}]}]}},
+  {"file":"memory://chain_target.json","data":{
+   "schema_version":2,"kind":"event","id":"chain_target_fixture","name":"事件链目标夹具",
+   "intro":"只用于验证事件链的目标夹具。","start_node":"entry",
+   "cleanup_effects":[{"op":"restore_held","key":"chain_target_gear"}],
+   "nodes":[
+    {"id":"entry","title":"链上第一段","intro":"链上换成了另一份定义。","allow_refuse":false,"unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
+     {"id":"proceed","label":"继续链上流程","reward":"none","next":"finale","detail":"暂时取下另一件装备，然后进入链上最后一段。","effects":[{"op":"hold_special","key":"chain_target_gear","slots":["special_2_c"]}]},
+     {"id":"proceed_alt","label":"换一种方式继续","reward":"none","next":"finale","detail":"不取下装备，直接进入链上最后一段。","effects":[{"op":"mana_gain","amount":1}]},
+     {"id":"loop_back","label":"回到起点事件","reward":"none","next":{"event":"chain_source_fixture","node":"choice"},"detail":"事件链不能回到已经走过的事件。","effects":[{"op":"mana_gain","amount":1}]},
+     {"id":"step_out","label":"直接结束这段事件","reward":"none","next":"result","detail":"不继续链上流程。","effects":[]}]},
+    {"id":"finale","title":"链上最后一段","intro":"链上事件的收尾。","allow_refuse":false,"unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
+     {"id":"settle","label":"结束链上事件","reward":"none","next":"result","detail":"结束这段链上事件。","effects":[{"op":"pressure","amount":2,"source":"事件链夹具"}]}]}]}}]
+
 static func empty_studio(t) -> void:
  var g=Game.new(90,true,"enchanters_empty_studio")
  var temper=g.candidates().filter(func(c):return c.payload.get("choice","").begins_with("temper__"))
@@ -487,6 +513,111 @@ static func event_node_empty_policy_kept(t) -> void:
  t.check(hollow_probe=="这一阶段没有能够执行的选项。","EVENT EMPTY NODE the probe path reports the empty next node: "+hollow_probe)
  Catalog.commit(g,baseline)
 
+# docs/event-pipeline-unification.md §10 scenario 11: a committed cross-event jump keeps one
+# instance — the target's id and node, the source in chain, continuing counters and holds, the
+# chain union cleanup (one step per key, run once on leaving) and the target in event_seen.
+static func event_chain_jumps_to_another_event_node(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_documents())
+ t.check(compiled.ok,"EVENT CHAIN fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ t.check(g.Events.chain_cleanup([{"op":"restore_held","key":"first"}],[{"op":"restore_held","key":"first"},{"op":"restore_held","key":"second"}]).map(func(entry):return entry.key)==["first","second"],"EVENT CHAIN the cleanup union keeps one step per key, source first")
+ var walk=Game.new(42)
+ t.check(not walk._install_special("shaft_ring_low","special_2_a").is_empty() and not walk._install_special("corona_ring_low","special_2_c").is_empty(),"EVENT CHAIN the fixture wears two real special items")
+ Events.arrive(walk,"chain_source_fixture")
+ t.check(walk.state.room_event.options.map(func(option):return option.id)==["depart","stay"] and not walk.state.room_event.has("chain"),"EVENT CHAIN the source node freezes its authored options without a chain key")
+ var jump=t.action(walk,"event",{"action":"choose","choice":"depart"})
+ t.check(jump.ok,"EVENT CHAIN the source option commits through the formal command: "+str(jump.get("error","")))
+ var event=walk.state.room_event
+ t.check(event.id=="chain_target_fixture" and event.stage=="entry","EVENT CHAIN the commit rewrites the instance to the target event and its node: "+str(event.id)+"/"+str(event.stage))
+ t.check(event.chain==["chain_source_fixture"],"EVENT CHAIN the chain records the events already left behind: "+str(event.chain))
+ t.check(event.values.get("chain_seen",0)==1,"EVENT CHAIN counters continue across the chain")
+ t.check(event.held.has("chain_source_gear") and event.held.chain_source_gear.size()==1,"EVENT CHAIN holds continue across the chain")
+ t.check(event.flow and walk.Events.definition(event.id).nodes.size()==2,"EVENT CHAIN the flow mirror follows the target definition")
+ t.check(walk.state.event_seen.count("chain_target_fixture")==1 and walk.state.event_seen.count("chain_source_fixture")==1,"EVENT CHAIN the target joins event_seen exactly once")
+ t.check(event.cleanup_effects.map(func(entry):return entry.key)==["chain_source_gear","chain_target_gear"],"EVENT CHAIN cleanup is the chain union with one step per key: "+str(event.cleanup_effects.map(func(entry):return entry.key)))
+ t.check(walk.validate()=="","EVENT CHAIN the rewritten instance still validates: "+walk.validate())
+ t.check(t.action(walk,"event",{"action":"choose","choice":"proceed"}).ok and walk.state.room_event.stage=="finale","EVENT CHAIN the target event advances through its own nodes")
+ t.check(walk.state.room_event.held.keys().size()==2,"EVENT CHAIN both chain holds coexist in one instance")
+ t.check(t.action(walk,"event",{"action":"choose","choice":"settle"}).ok and walk.state.room_event.stage=="result","EVENT CHAIN the target event reaches its result")
+ var logs_before=walk.state.logs.size()
+ t.check(t.action(walk,"event",{"action":"leave"}).ok,"EVENT CHAIN the chain leaves through the formal command")
+ var restored=walk.state.logs.slice(logs_before).filter(func(log):return str(log.text).contains("原样装回"))
+ t.check(restored.size()==2,"EVENT CHAIN every chain cleanup step runs exactly once: "+str(restored.size()))
+ t.check(walk.state.special_equipment.size()==2 and walk.state.room_event.held.is_empty(),"EVENT CHAIN the union restores every held instance")
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §10 scenario 12: the chain may not return to an event it
+# already left — the option stays visible but invalid with gate chain_loop, and evaluating or
+# submitting it changes neither the state, the random domains nor the save.
+static func event_chain_loop_refused(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_documents())
+ t.check(compiled.ok,"EVENT CHAIN LOOP fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ Events.arrive(walk,"chain_source_fixture")
+ t.check(t.action(walk,"event",{"action":"choose","choice":"depart"}).ok and walk.state.room_event.chain==["chain_source_fixture"],"EVENT CHAIN LOOP the fixture arrives at the target with the source already left")
+ var settled=walk.export_snapshot()
+ var domain=walk.state.rng.duplicate(true)
+ var loop_option=walk.state.room_event.options.filter(func(option):return option.id=="loop_back")
+ t.check(loop_option.size()==1,"EVENT CHAIN LOOP the looping option stays among the frozen options")
+ var loop=walk.candidates().filter(func(candidate):return candidate.payload.get("choice","")=="loop_back")
+ t.check(loop.size()==1 and not loop[0].valid,"EVENT CHAIN LOOP the looping option stays visible but invalid: "+str(loop[0].get("reason","")) if not loop.is_empty() else "EVENT CHAIN LOOP the looping option stays visible but invalid")
+ var result=walk.Events.evaluate_option(walk,walk.Events.request_for(walk,loop_option[0],"candidate"))
+ t.check(result.decision=="disabled" and result.gates.size()==1 and str(result.gates[0].gate)=="chain_loop" and str(result.gates[0].kind)=="chain" and str(result.gates[0].detail)=="chain_source_fixture","EVENT CHAIN LOOP the looping option reports the chain_loop gate: "+JSON.stringify(result.gates))
+ t.check(result.reason==walk.Events.CHAIN_LOOP_REASON and result.reason!="","EVENT CHAIN LOOP the disabled option carries its own reason")
+ t.check(walk.export_snapshot()==settled and walk.state.rng==domain,"EVENT CHAIN LOOP evaluating the loop leaves the state, the save and the random domains untouched")
+ var before_submit=walk.export_snapshot()
+ t.check(not t.action(walk,"event",{"action":"choose","choice":"loop_back"}).ok and walk.export_snapshot()==before_submit,"EVENT CHAIN LOOP a looping option cannot commit")
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §4.5 rulings A30／A31: both node-entry failures write one
+# node-level row with the target node and no option, the next-node look-ahead uses its own
+# purpose, and repeated look-aheads of one target never repeat the row.
+static func event_chain_trace_rows(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_documents())
+ t.check(compiled.ok,"EVENT CHAIN TRACE fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ walk.set_meta("event_trace_enabled",true)
+ Events.arrive(walk,"chain_source_fixture")
+ walk.Events.enter_node_result(walk,"missing_node")
+ walk.Events.enter_node_result(walk,"missing_node")
+ walk.Events.enter_node(walk,"other_missing_node")
+ var missing=walk.Events.event_trace(walk).filter(func(row):return row.gate=="stage_missing")
+ t.check(missing.size()==2 and missing[0].node=="missing_node" and missing[1].node=="other_missing_node","EVENT CHAIN TRACE a missing node writes one node-level row per target: "+JSON.stringify(missing))
+ t.check(missing.all(func(row):return str(row.option_id)=="" and str(row.source_choice)=="" and str(row.purpose)=="arrival" and str(row.event)=="chain_source_fixture"),"EVENT CHAIN TRACE the missing-node row carries the target node, no option and the arrival purpose: "+JSON.stringify(missing))
+ # A31: the emptied target node is looked ahead by two frozen options, and the identical
+ # node-level rows collapse into one carrying purpose next_probe. The registries are restored
+ # first, because the compiled event table is shared by every game in this process.
+ var blocked=chain_documents()
+ blocked[1].data.nodes[1].choices[0].when={"counter":"never_seen","equals":1}
+ Catalog.commit(g,baseline)
+ var blocked_compile=Catalog.compile(g,blocked)
+ t.check(blocked_compile.ok,"EVENT CHAIN TRACE the emptied-target fixtures compile: "+str(blocked_compile.errors))
+ if blocked_compile.ok:
+  Catalog.commit(g,blocked_compile.tables)
+  var probe=Game.new(42)
+  probe.set_meta("event_trace_enabled",true)
+  Events.arrive(probe,"chain_source_fixture")
+  t.check(t.action(probe,"event",{"action":"choose","choice":"depart"}).ok,"EVENT CHAIN TRACE the emptied-target chain still jumps")
+  probe.candidates()
+  # Gate node_empty also names the per-option feasibility hit (kind feasibility); the A31 row
+  # is the node-level one, identified by its empty option_id.
+  var empty=probe.Events.event_trace(probe).filter(func(row):return row.gate=="node_empty" and str(row.option_id)=="")
+  t.check(empty.size()==1 and str(empty[0].purpose)=="next_probe" and str(empty[0].node)=="finale","EVENT CHAIN TRACE the look-ahead uses its own purpose and writes one row per target: "+JSON.stringify(empty))
+  t.check(empty.all(func(row):return str(row.event)=="chain_target_fixture" and str(row.option_id)=="" and str(row.source_choice)==""),"EVENT CHAIN TRACE the look-ahead row names the probed node and no option")
+  t.check(probe.Events.event_trace(probe).filter(func(row):return row.purpose=="next_probe").size()==1,"EVENT CHAIN TRACE frozen instances never repeat the look-ahead row")
+ Catalog.commit(g,baseline)
+
 # docs/event-pipeline-unification.md §10 scenarios 15-18: stacked condition modes.
 static func event_stacked_conditions(t) -> void:
  var g=Game.new(42)
@@ -596,6 +727,9 @@ static func run(t) -> void:
  event_hidden_relic_option_traced(t)
  event_single_node_declarations(t)
  event_node_empty_policy_kept(t)
+ event_chain_jumps_to_another_event_node(t)
+ event_chain_loop_refused(t)
+ event_chain_trace_rows(t)
  event_stacked_conditions(t)
  event_mana_cost(t)
  event_option_policies_match_current_behaviour(t)

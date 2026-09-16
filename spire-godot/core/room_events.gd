@@ -2,6 +2,8 @@ extends RefCounted
 const Data=preload("res://data/room_events.gd")
 const Relics=preload("res://data/relics.gd")
 const RESULT_STATUSES=["neutral","success","failure"]
+# §3.3: the player-visible reason of the chain-loop gate, declared once.
+const CHAIN_LOOP_REASON="这段事件已经走过，不能再回头。"
 
 # Internal phase helper, called only through Game.dispatch. Choices contain frozen
 # effects, not functions or localized identifiers. Probes always restore state.
@@ -61,6 +63,50 @@ static func node_ids(spec: Dictionary) -> Array:
  var ids=[]
  for entry in spec.get("nodes",[]): ids.append(entry.get("id",""))
  return ids
+
+# §3.2: the single interpreter of a declared next target: the "result" sentinel that ends the
+# event (also the missing value), another node of this definition, or {"event","node"} — a
+# jump to another registered event. Callers never read the authored shape themselves.
+static func next_target(next) -> Dictionary:
+ if next is Dictionary: return {"kind":"event","event":str(next.get("event","")),"node":str(next.get("node",""))}
+ if next is String and next!="result": return {"kind":"node","node":next,"event":""}
+ return {"kind":"result","node":"","event":""}
+
+# §3.3: the chain cleanup is the union of every cleanup step of the chain, one entry per key,
+# source definition first. Leaving runs each step once, so a key must never repeat.
+static func chain_cleanup(current: Array, target: Array) -> Array:
+ var result=current.duplicate(true)
+ for entry in target:
+  if result.any(func(other):return str(other.get("key",""))==str(entry.get("key",""))): continue
+  result.append(entry.duplicate(true))
+ return result
+
+# §3.2／§3.3: the single advance entry for a resolved target; a node target reuses the node
+# pipeline, an event target rewrites this instance into the chain first. "arrival" is the
+# real advance, "next_probe" is the caller-owned look-ahead of probe_result (A31).
+static func enter_target(g, target: Dictionary, purpose: String="arrival") -> Dictionary:
+ if target.get("kind","")=="event": return _enter_chain(g,target,purpose)
+ # A "result" target ends the event and owns no node: the caller sets the result stage.
+ if target.get("kind","")=="result": return {"issue":"","gate":"","detail":""}
+ return enter_node_result(g,str(target.get("node","")),purpose)
+
+# A real cross-event jump keeps one instance (§3.3): the target becomes the current
+# definition, counters and holds continue, cleanup becomes the chain union, event_seen gains
+# the target, the flow mirror follows the new definition, and chain records the events already
+# left behind — the key appears only here, never on arrival.
+static func _enter_chain(g, target: Dictionary, purpose: String) -> Dictionary:
+ var event=g.state.room_event
+ var spec=definition(target.event)
+ if not target.event in g.state.event_seen: g.state.event_seen.append(target.event)
+ var chain=event.get("chain",[])
+ if not chain is Array: chain=[]
+ var left=chain.duplicate()
+ left.append(str(event.get("id","")))
+ event.chain=left
+ event.id=target.event
+ event.cleanup_effects=chain_cleanup(event.get("cleanup_effects",[]),spec.get("cleanup_effects",[]))
+ event.flow=node_ids(spec).size()>1
+ return enter_node_result(g,target.node,purpose)
 
 # One declaration for every state condition. Adding a condition means adding one row here:
 # content validation, runtime evaluation, the save key set and the trace naming all derive
@@ -201,6 +247,11 @@ static func evaluate_option(g, request: Dictionary) -> Dictionary:
    if condition_probe(g,entry) and (purpose!="execute" or mode=="optional"):
     gates.append({"gate":"availability_unmet","kind":entry.get("kind",""),"mode":mode,"index":index,"detail":"","reason":str(entry.get("reason",""))})
    index+=1
+  # §3.3: the chain may not return to an event it already left. The option stays visible but
+  # disabled, so the loop is refused at the candidate stage instead of silently disappearing.
+  var chain_target=next_target(options[0].get("next","result"))
+  if purpose!="execute" and chain_target.kind=="event" and chain_target.event in Array(g.state.room_event.get("chain",[])):
+   gates.append({"gate":"chain_loop","kind":"chain","mode":"optional","index":index,"detail":chain_target.event,"reason":CHAIN_LOOP_REASON})
   if purpose!="execute" and (purpose!="arrival" or choice.get("hide_when_unavailable",false)):
    var feasibility=feasibility_gate(g,options[0])
    if not feasibility.is_empty():
@@ -352,13 +403,18 @@ static func freeze_choice(g, definition: Dictionary, selected={}, fixed_outcome:
 # allow_refuse, unavailable, relic_gate, random_freeze, outcome_draw, frozen_form, empty_node.
 # The node count no longer decides anything.
 static func enter_node(g, id: String) -> String:
- return str(enter_node_result(g,id).get("issue",""))
+ return str(enter_node_result(g,id,"arrival").get("issue",""))
 
 # One implementation of the node pipeline; the string form above is its issue projection.
-static func enter_node_result(g, id: String) -> Dictionary:
+# The purpose is the caller's declaration: a real advance uses "arrival", the next-node
+# look-ahead of probe_result passes "next_probe" (§4.5 A31).
+static func enter_node_result(g, id: String, purpose: String="arrival") -> Dictionary:
  var spec=definition(g.state.room_event.get("id",""))
  var node_entry=node(spec,id)
- if node_entry.is_empty(): return {"issue":"下一阶段不存在。","gate":"stage_missing","detail":id}
+ if node_entry.is_empty():
+  # A30: a missing node writes the same node-entry failure row as an empty one.
+  trace_entry(g,{"node":id,"decision":"dropped","gate":"stage_missing","detail":id,"purpose":purpose})
+  return {"issue":"下一阶段不存在。","gate":"stage_missing","detail":id}
  var options=[]
  for choice in node_entry.get("choices",[]):
   var selections=selections_for(g,choice)
@@ -376,7 +432,7 @@ static func enter_node_result(g, id: String) -> Dictionary:
 
  if node_entry.get("allow_refuse",false): options.append(refusal(g))
  if options.is_empty() and node_entry.get("empty_node","fail")=="fail":
-  trace_entry(g,{"node":id,"decision":"dropped","gate":"node_empty","detail":id})
+  trace_entry(g,{"node":id,"decision":"dropped","gate":"node_empty","detail":id,"purpose":purpose})
   return {"issue":"这一阶段没有能够执行的选项。","gate":"node_empty","detail":id}
  g.state.room_event.stage=id
  g.state.room_event.options=options
@@ -406,6 +462,12 @@ static func trace_entry(g, fields: Dictionary) -> void:
  var option_id=str(fields.get("option_id",""))
  var row={"event":str(room_event.get("id","")),"node":str(room_event.get("stage","")),"source_choice":str(fields.get("source_choice",option_id)),"option_id":option_id,"decision":str(fields.get("decision","")),"gate":str(fields.get("gate","")),"kind":str(fields.get("kind","")),"mode":str(fields.get("mode","")),"index":int(fields.get("index",0)),"reason":str(fields.get("reason","")),"purpose":str(fields.get("purpose",""))}
  if str(fields.get("node",""))!="": row.node=str(fields.node)
+ if option_id=="":
+  # A31: node-level rows (node_empty／stage_missing) keep one row per (event, purpose, node,
+  # gate) inside this instance — the first writer wins, so frozen instances never repeat the
+  # same target row and a probe row stays distinguishable from the arrival row.
+  for other in event_trace(g):
+   if str(other.get("option_id",""))=="" and str(other.get("event",""))==row.event and str(other.get("purpose",""))==row.purpose and str(other.get("node",""))==row.node and str(other.get("gate",""))==row.gate: return
  event_trace(g).append(row)
 
 static func weighted(g, outcomes: Array) -> Dictionary:
@@ -846,8 +908,9 @@ static func probe_result(g, effects: Array, option: Dictionary={}, cleanup: bool
  g.state=original.duplicate(true)
  var issue=apply_effects(g,effects,g.state.room_event.refs,option.is_empty() and not cleanup)
  var gate="probe_failed"
- if issue=="" and not option.is_empty() and option.has("next") and option.get("next","result")!="result" and option.reward=="none":
-  var next_result=enter_node_result(g,option.next)
+ var next=next_target(option.get("next","result")) if option.has("next") else {"kind":"result"}
+ if issue=="" and not option.is_empty() and next.kind!="result" and option.reward=="none":
+  var next_result=enter_target(g,next,"next_probe")
   issue=next_result.issue
   gate=str(next_result.get("gate","probe_failed"))
  if issue=="" and cleanup and not g.state.room_event.held.is_empty():
@@ -952,8 +1015,9 @@ static func execute(g, c: Dictionary) -> String:
     if option.reward=="relic":
      issue=apply_effects(g,[{"op":"relic","type":event.relic}],event.refs)
      event.report+="\n获得"+Relics.TYPES[event.relic].name+"。"
-    if option.get("next","result")!="result": issue=enter_node(g,option.next)
-    else: event.stage="result"
+    var target=next_target(option.get("next","result"))
+    if target.kind=="result": event.stage="result"
+    else: issue=enter_target(g,target).issue
    g._emit("event",event.report)
   "reward":
    if p.type!="skip": issue=apply_effects(g,[{"op":"card","type":p.type}],event.refs)
