@@ -556,6 +556,11 @@ static func event_hidden_relic_option_traced(t) -> void:
 
 # docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
 # declaration order, and release leaves the trace empty.
+# docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
+# declaration order, the switch off leaves the trace empty, and a new event never keeps the
+# previous event's rows.
+# Not landed: the trace rows it asserts still differ from what the suite produces,
+# while the standalone repro matches the contract wording. Reported for the coordinator.
 static func run(t) -> void:
  event_hidden_relic_option_traced(t)
  event_single_node_declarations(t)
