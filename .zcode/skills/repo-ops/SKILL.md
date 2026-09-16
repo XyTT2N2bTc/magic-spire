@@ -8,7 +8,7 @@ description: >-
 
 # 本仓命令与操作流程
 
-规范见仓库根 `AGENTS.md`（含模块规范）；本文件只放操作与命令。
+规范见仓库根 `AGENTS.md` 与同目录技能（`spire-architecture`／`spire-ui-content`／`spire-validation-release`）；本文件只放操作与命令。
 命令在标明的目录执行；占位分类替换为本次实际影响的分类。
 
 ## 仓库根
