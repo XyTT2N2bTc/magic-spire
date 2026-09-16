@@ -4,9 +4,10 @@
 节点与事件链模型、存档表示与显式声明清单；内部实现以代码为准，接口语义以本文件为准。
 本文件不写执行结果：通过／失败／未执行只登记到 `docs/verification.md`。
 
-**状态：本片通过整片验收（validator 独立会话，对象提交 `3e64cff`，登记 `1881568`）。**
-B1–B5（含 B1b／B2b／B2c／B3b）全部完成；**未打包、未发版**；红集口径为 **A35 四项集**；
-唯一未决批次＝**B6**（A37：把场景 14 的具名 check 落进仓库内 `tests/persistence_cases.gd`）。
+**状态：B1–B6 全部完成；整片通过验收（`3e64cff`，登记 `1881568`）；B6 补齐场景 14 的仓库内入口
+（`3011cff`，登记 `6949cec`）；未打包、未发版；红集口径为 A35 四项集。**
+唯一遗留＝**A40 的既有缺口**（单节点 in_place 实例的 `next` 不被存档校验覆盖，另行排期）
+与五个既有红项（`card_power`／`installed_tools`／`tower_progression`／`hand_assist`／`normal_play`）。
 
 行号捕获于 commit `3bfec7e`；**函数名与稳定 id 才是锚点**，动手前用 `rg` 复算。
 
@@ -265,6 +266,26 @@ E0 摘要不受影响（E0 不读 trace），但 §4.5「每次 `start` 在启�
 | A37 | 场景 14 必须落**仓库内可复现**的具名 check | 磁盘复核 `rg -n event_frozen_options_roundtrip spire-godot/tests/` **零命中**：验收只由**忽略目录里的 validator 脚本**覆盖 → 该场景在仓库内不可复现（脚本随 `build/` 消失）。裁定：在 `tests/persistence_cases.gd` 落正式具名 check（域＝存档），覆盖 12 份内容的冻结选项与 `room_event` 经真实 `SaveStore.pack/unpack` 与正式入口往返**逐字节相等**、`next` 只在 staged 布局出现、六类畸形 `next` **原子拒绝**且文案＝"无法继续这份存档：多阶段事件冻结选项损坏。"。已派 **B6**；§10 场景 14 的归属指向该文件 |
 | A38 | 场景 19 的落点更正 | 字面写 `persistence_cases.gd`，**实际在 `tests/event_flow_cases.gd:800`**（同断言内含"存档与 View 不含 trace"半）。**裁定改契约字面**（断言等效且已在册），**不搬代码**；§10 场景 19 已更正 |
 | A39 | §11 第 6 条措辞更正 | "付费离开"在现有内容里**已无对应选项**（`rg 支付费用 spire-godot/content/packs/` 零命中——`refusal()` 是运行期函数，12 份内容均 `allow_refuse:false`），字面无法执行。**裁定改措辞**为"**正式离开路径**（含人路径 H2／H6 立证）"，与 validator 的实际做法一致；§11 已更正 |
+
+### B6 完成事实（提交 `3011cff`，父 `b9e5639`；登记 `6949cec`；**本片代码／文档／验证三线收口**）
+
+| 项 | 内容 |
+| --- | --- |
+| 范围 | 仅 `tests/persistence_cases.gd`（+75）：`event_frozen_options_roundtrip` 落地（定义 `:153`、调用 `:255`） |
+| 断言内容 | 12 份内容的冻结选项与 `room_event` 经真实 `SaveStore.pack/unpack` 与正式入口 `restore_snapshot` 往返 **`JSON.stringify` 逐字节相等**；`next` 只在 staged 布局出现（含单节点 in_place 事件里由共享 staged 构建器冻结的选择器实例）；**六类畸形 `next` 整包原子拒绝**且文案＝`无法继续这份存档：多阶段事件冻结选项损坏。`；断言只改快照副本 |
+| 敏感性证明（两次有效注入） | 改错期望文案 → **恰 6 条红**；往返比对注入漂移 → **12 条红**并打印 `SAVE DIFF`。"把比对改成恒真"因按构造不可能变红而**弃用**（判据设计判断正确）；两次注入均已还原、工作区干净 |
+| 判据（协调者重跑） | E0 两遍退出码 0／摘要 `1f11bea5…` 逐字相同／**错误日志 0 行**；`persistence,event_flow,events,content,architecture` 全 PASS（3544 断言）；实现者侧 `-Impact` 红集在 A35 四项集内、`unrun` 补跑后为 0；UI 900 秒 PASS 231；内容门 12 file(s) |
+
+### 裁定与偏差（协调者转人裁，2026-09-16 第十二批；B6 之后）
+
+| # | 事项 | 裁定与契约位置 |
+| --- | --- | --- |
+| A40 | 单节点 **in_place** 实例的 `next` 不被存档校验覆盖＝**既有缺口** | **不修、不纳入本片验收，登记为既有缺口另行排期**。事实与最小复现见 §6.3；来源判读＝分支结构先于 B1，且 B2 已论证"改成按 `option.has('next')` 判定"会放宽 flow 侧既有拒绝（属既有、非本片回归）；运行期影响有限（`next_target` 会经 `stage_missing` 等具名 gate 失败）。§6.3 已按现状口径改写，并附规划者的 **B7 排期建议**（纯增量、不改既有分支，故不会放宽 flow 侧） |
+
+**待排期既有项（与红项分开记；本片不修）**：A40（契约／实现口径差异，非红项）、
+`card_power` 5 条、`installed_tools` 1 条、`tower_progression` 10 规则＋1 界面、`hand_assist` 1 条、
+`normal_play`（归因未定，A5）。
+
 
 
 
@@ -821,26 +842,37 @@ static var CONDITIONS={
 `chain` 只在跨事件跳转后出现（§3.3）；用规范拼写 `conditions` 的新内容才会在冻结选项里出现
 `conditions` 键——12 份迁移内容与 E0 夹具都不产生这两个键。
 
-### 6.3 事件段存档校验改为按"选项自身形态"判定
+### 6.3 事件段存档校验：现状口径（staged 已落地；in_place 的 `next` 是既有缺口 A40）
 
+**已落地（B2 起，增量、未放宽）**：
 - 基础形状（`id/label/detail/reward/effects`＋`result_status`）保持；
-- **新增**：`option.has("next")` 时要求 `next:s`／`report:s` 且 `source_choice∈declared`
-  （`declared`＝该节点选项 id ＋ 节点 `allow_refuse` 时的 `refuse`）——
-  由 `flow` 标志分支改为按选项键判定；`staged` 选项都有 `next`，`in_place` 选项都没有，
-  因此现状两种内容的结论不变；
-- **状态条件两条分支，都从 §5 的同一张表派生**：
-  - `option.availability`（兼容）：键集恰好等于 `condition_saved_fields(kind)`（现状不变）；
-  - `option.conditions`（规范）：必须是 1–8 条数组，每条键集恰好等于
-    `condition_saved_fields(kind)+["mode"]`，且 `mode∈{"optional","hidden"}`；
-  - 两种键**不得同时出现**；未知 kind／多余键／缺字段一律拒绝；
-- 节点集合判定用 `node_ids(definition)` 替换 `definition.stages`；
-- `values`／`held`／`cleanup_effects` 的检查保持（两种形态的实例本来就都带这些键）。
+- **`flow` 实例**：既有分支的全部检查逐条保留（`held`／`values`／`cleanup_effects`／`next_stage`、阶段集合、
+  `source_choice∈declared`、`next` 的逐键校验——含"缺 `next` 的损坏多阶段冻结选项被拒"）；
+- **`conditions` 键**（规范拼写）：增量接受——1–8 条数组、键集＝`condition_saved_fields(kind)+["mode"]`、
+  `mode∈{optional,hidden}`、`reason` 非空、与 `availability` **互斥**；`availability` 分支的键集检查不变；
+- 节点集合判定用 `node_ids(definition)`；`chain` 增量接受（数组、已登记、不重复、非空，B4）；
+- **未采用**"按 `option.has("next")` 判定"的写法：那会**放宽** flow 侧既有的拒绝（缺 `next` 的损坏多阶段
+  选项今天被拒），故按契约保留分支不动。
 
-**B2 的完成方式（裁定 A4，必须增量、不得放宽）**：B1 保留了现有 `flow` 分支的全部检查，
-只把定义访问改走访问器。B2 必须**同时**做到：①保留现有分支检查（`flow` 实例的
-`held/values/cleanup_effects/next_stage`、阶段集合、`source_choice∈declared`）；②新增
-`conditions` 条目的键集与 `mode` 检查；③新键检查不得成为放宽的替代品——**禁止**用
-"按选项键判定"删掉或弱化任何既有断言；`tests/persistence_cases.gd:event_conditions` 保持通过。
+**既有缺口（裁定 A40，非本片引入、不在本片内修、另行排期）**：
+单节点 **in_place** 事件的冻结选项 `next` **不被存档校验覆盖**——`core/snapshot.gd:427` 的 `next`
+校验挂在 `if event.get("flow",false)` 分支内，普通事件从不进入该分支。最小复现：把 in_place 事件的选择器
+实例（`alchemist_tasting_stall` 的 `dissolve__equipment_2`）的 `next` 改成未知节点／未登记事件／`42`，
+`restore_snapshot` **全部接受**（证据 `build/b6-probe-20260916/probe_inplace_next.gd`）。
+来源判读：分支结构先于 B1；B2 已论证"改成按 `option.has("next")` 判定"会放宽 flow 侧既有拒绝。
+运行期影响有限：`next_target` 解析对未知目标会经 `stage_missing` 等具名 gate 失败（B3 的产物），
+不是崩溃路径。
+
+**A40 的排期建议（规划者；**不纳入本片**，仅供协调者决定是否立批）**：
+- 批次名称建议 **B7**；范围＝`core/snapshot.gd` 事件段（＋`tests/persistence_cases.gd` 一个具名 check）。
+- **做法（不会放宽 flow 侧）**：**不触碰**既有 `flow` 分支的任何检查；在它**之外**新增一条**只针对
+  in_place 实例**的校验：`if not event.get("flow",false)` 时，对 `event.options` 中 `has("next")` 的选项，
+  要求 `next is String` 且 ∈ `{"result"} ∪ node_ids(definition)`（单节点定义即恒为 `"result"`）；
+  链对象形态另按 §3.2 形态校验。即"新增一条更窄的分支"，而不是改写既有判定条件。
+- 判据：反例＝in_place 选择器实例的 `next` 改成未知节点／未登记事件／数字 → **原子拒绝**；
+  正例＝12 份内容存档往返逐字节不变（E0 摘要不变）；`-Suite persistence,event_flow,events -Impact` 通过；
+  红集 ⊆ A35 四项集。
+- 风险与代价：低（纯增量校验，不动既有分支）；收益＝补上 A40 的确定性与可复现入口。
 
 ### 6.4 启动期迁移脚本（**人审：不落地，设计留档**）
 
@@ -1007,7 +1039,7 @@ static var CONDITIONS={
 | B3b 收口 | ①场景 03 具名 check（D1）；②release 不产出的证据链（D2）；③D1a `source_choice`／`option_id` 拆分；④D1b `selector_empty` 具名化；⑤红集口径复核（A35 四项集） | 见 §20.1（D 清单**全部收口**） | **已完成**（`4e9a1a2`＋场景 03 `79bd622`；登记 `4244b88`） |
 | B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例；**同批补 A30／A31 两条 trace 形状缺口** | 见 §21：E0 **两遍**摘要逐字不变＋错误日志 0 行 ＋ §10 场景 11／12 ＋ 静态反例 ＋ 依赖规范新键半；红集 ⊆ **A35 四项集**，且按 A29 补齐 `unrun` 后判"恰好" | **已完成**（`8633bd9`，登记 `da8142f`；当时红集恰好＝A28 三元集，A35 后口径为四项集） |
 | B5 收尾 | A32 跳转重抽遗物、A33 跨定义 hold key 静态拒绝、A34 链文案本地化；四份作者文档补链语义并删 `content/README.md:219` 的"B4 起生效"标注 | 见 §22 | **已完成**（`556a231`，登记 `84f8ea3`；红集按 A35 为四项集） |
-| B6 验收复现 | 把场景 14（`event_frozen_options_roundtrip`）从 validator 私有脚本搬进仓库内 `tests/persistence_cases.gd`（A37） | 见 §10 场景 14 与 §11.2：`-Suite persistence -Impact -KeepGoing` 通过；E0 摘要不变；红集 ⊆ A35 四项集 | 待派工（A37） |
+| B6 验收复现 | 把场景 14（`event_frozen_options_roundtrip`）从 validator 私有脚本搬进仓库内 `tests/persistence_cases.gd`（A37） | 见 §10 场景 14 与 §11.2：`-Suite persistence -Impact -KeepGoing` 通过；E0 摘要不变；红集 ⊆ A35 四项集 | **已完成**（`3011cff`，登记 `6949cec`；敏感性 6 红／12 红两次注入） |
 
 每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1b 与 B2 之间代码必须可跑可测
 （B1 的两条分支仍在，只是由节点形态驱动；B2 才把节点声明接上）。
@@ -1081,8 +1113,8 @@ static var CONDITIONS={
     Given 12 份内容的冻结选项与 `room_event`；When 经真实 `SaveStore.pack/unpack` 与正式入口往返；
     Then 逐字节相等、`next` 只在 staged 布局出现、六类畸形 `next` 原子拒绝且文案＝
     "无法继续这份存档：多阶段事件冻结选项损坏。"。
-    **状态（A37）：整片验收时该项只在忽略目录的 validator 脚本里覆盖 → 仓库内不可复现；
-    已派 B6 落正式具名 check（域＝存档），落地后本场景的归属即此文件。**
+    **状态：已落地（B6 `3011cff`，`tests/persistence_cases.gd:153`，调用 `:255`）**；敏感性与两次
+    有效注入的记录见执行记录「B6 完成事实」。
 
 **叠加条件（R1 澄清后的 trigger 系统能力；夹具用规范拼写 `conditions`，本片无内容使用）**
 
@@ -1206,14 +1238,13 @@ B2b 三项交付绿（`5a60cda`）≠ B2b 完成（R1／R2 未收口）；
   | 场景 01／03／06／07／09／10／13／15／16／17／18／19／20 | `tests/event_cases.gd`、`tests/event_flow_cases.gd`、`tests/content_cases.gd`、`tests/persistence_cases.gd`、`tests/architecture_cases.gd`、`tests/localization_cases.gd` |
   | 场景 02／04／08／11／12 | `tests/event_flow_cases.gd` |
   | 场景 05 | `tests/architecture_cases.gd`（裁定 A15：一条 check 覆盖三处消费者） |
-  | **场景 14** | **`tests/persistence_cases.gd`（A37／B6 落地后）**——落地前该项**仓库内不可复现** |
+  | **场景 14** | **`tests/persistence_cases.gd:event_frozen_options_roundtrip`（已落地 `3011cff`，A37／B6）** |
   | E0 两遍＋错误日志 | `build/event-oracle-20260916/event_oracle.gd`＋`baseline.json`（仓库内，判据含引擎错误日志 0 行） |
   | 依赖规范五条 | `tests/{architecture_cases,content_cases,persistence_cases}.gd` 的具名 check |
   | 本地化口径①②③ | `tools/localization_inventory.py`＋`assets/localization/legacy-en_US.json`＋`tests/localization_cases.gd` |
 - **A39 的措辞更正**：人在界面上的证明用"**正式离开路径**（含人路径 H2／H6 立证）"，
   不使用已无对应选项的"付费离开"。
-- **A37 未落地前**：本片结论里的场景 14 记为"**已由私有脚本覆盖，仓库内不可复现**"，
-  不得把它算作仓库内通过项；B6 落地后本表即为完整可复现清单。
+- **A37 已落地（`3011cff`）**：上表即为**完整可复现清单**（validator 私有脚本不再承担任何判据）。
 
 ## 12. 完成定义（DoD）
 
@@ -1702,7 +1733,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   B2c 的文档（链的文档化在 B4 之后另派，属同一 A6 收口链）。
 
 
-## 22. B5 派工要点（收尾批：链的落地收口；**本片最后一个批次**）
+## 22. B5 派工要点（收尾批：链的落地收口；已完成 `556a231`——其后另有验收复现批 B6，见 §9 与 §11.2）
 
 - **定位**：B4 已让事件链可用，但留三处收口：**A32 跳转按目标事件重抽遗物**（正确性）、
   **A33 跨定义 `hold_special` key 静态拒绝**（编译期确定性）、**A34 链文案本地化**（`CHAIN_LOOP_REASON`），
