@@ -76,7 +76,22 @@
 | A10 | `docs/event-structure.md` §1 结构地图已过期（描述 B1 前的 `stages/start_stage`） | **已由规划者处理**：§1 顶部加带日期状态注（指明现行形态见本契约执行记录，§2 缺陷 1／3／4／5／6／8 的状态以本契约执行记录为准）；§7.2 加同样的指向注。测绘原文保留，不重写 |
 | A11 | `docs/content-generation.md` §7.4 的早期设计记录（`wager`／`keys`） | **接受现处理**（显式标注、不删）；不另派，仅登记 |
 
+### B2 核心落地事实（commit `60869fc`，父 `fa96370`；**本批未完成**，收口见 §18）
 
+| 项 | 内容 |
+| --- | --- |
+| 范围 | 四份文件：`core/room_events.gd`（`CONDITIONS` 单一声明表＋四处派生 `condition_kinds`／`condition_entries`／`condition_issue`／`condition_probe`／`condition_saved_fields`；`evaluate_option` 单入口带 `gates` 逐条与四种 `decision`、多命中按声明序 `"\n"` 拼接；`enter_node` 成唯一节点管线、七个声明全部生效、**节点数分支消失**；`probe`／`candidates`／`execute`／`view`／`validate` **不再读 `flow` 镜像**；删选项级 `pressure`／`pressure_source` 死分支）、`core/content_catalog.gd`（白名单加 `conditions`（1—8 条、每条 `mode`）与选项级 `unavailable`；`availability`＋`conditions` 互斥、`unavailable`＋`hide_when_unavailable` 互斥；kind 校验改调 `condition_issue`，第二份 kind 清单消失）、`core/snapshot.gd`（**增量**：保留 `flow` 分支全部检查，另加 `conditions` 形状／键集＝`condition_saved_fields(kind)+["mode"]`／`mode∈{optional,hidden}`／与 `availability` 互斥）、`tests/event_flow_cases.gd`（夹具把注入选项的 `stage` 从旧 `"choice"` 改为真实节点 `"service"`，断言未变） |
+| 判据（协调者独立重跑） | E0 退出码 0／摘要 `1f11bea5…` **逐字相同**；`event_flow,events,content,architecture,persistence` 五套件全 PASS（2767 断言）；`-UIOnly -UISuite events` PASS 180；`check-content.ps1` 12 file(s) PASS；`-Impact` 红集经实现者枚举为恰好 `card_power` 五条（`docs/verification.md:29`） |
+| 未完成（故 **B2 不得宣称通过**） | §10 场景 05／08／09／13／15–18 的具名 check **一条未落**；依赖规范 §4.2 三条 check 未落；本地化（裁定 A9）**完全未做**（字典未刷、盘点未出、`locale_legacy_catalog_matches_current_sources` 未产出） |
+| 磁盘复核（规划者） | `room_events.gd` 已无 `get("flow")` 读取；`frozen_form` 判据＝`in_place 且无 selector`（§2.3／§6.1）；`empty_node` 只决定是否返回既有 issue 文案、**未记 gate**；可分离失败已记 `probe_failed`／`encounter_invalid`，无 `validate_failed`；`assets/localization/legacy-en_US.json` 最后改动仍停在 `e635bf5`（v0.17） |
+
+### 裁定与偏差（协调者转人裁，2026-09-16 第四批；B2 核心之后）
+
+| # | 事项 | 裁定与契约位置 |
+| --- | --- | --- |
+| A12 | `frozen_form` 的布局选择 | **接受并写进契约**（§2.3／§6.1）：**节点声明 `in_place` 且选项无 `selector` 时用 in_place 布局，否则用 staged**。依据 §1.1 P2：普通事件的选择器选项现状就由共享 staged 构建器冻结；只按节点声明选构建器会让 `temper`／`dissolve` 这类选项的冻结 id 与 `selected` 键改变 → E0 必红 |
+| A13 | `validate_failed` 与 `node_empty` 的 gate 命名 | **缓到 B3（接受）**：B2 已把可分离的失败记成 `probe_failed`／`encounter_invalid`；单独命名 `validate_failed` 要拆 `probe()` 内部，属 B3「gate 命名全覆盖」；`node_empty` 现仍以既有 issue 文案返回、未单独记 gate，同属 B3。§4.2 表与 §10 场景 09／03 已标注 |
+| A14 | B2 收口批 | **立 B2b（本批收口，不另立切片）**：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`（按 §17 写死的口径①②③）；④以 B2 完整门禁命令（含 `localization`）复跑并交证据。**B2b 落地前本片仍不得打包发版**（§12） |
 
 ## 0. 领域、裁决与不变量
 
@@ -254,6 +269,11 @@ E0 冻结的不只是玩家可见文本，还包括**运行期数据布局**：`
   避免同一份资格出现两个真相源。
 - `mode` 只允许 `"optional"`（显示但禁用）与 `"hidden"`（不生成）；省略时按 §5.3 的模式解析
   （**B2 起接受**）。
+- **布局判据（裁定 A12，就近写明，不留在代码注释里）**：冻结布局**不是**只看节点声明——
+  `frozen_form=="in_place"` **且选项没有 `selector`** 时才用 in_place 布局，其余情况一律 staged。
+  依据：§1.1 P2 已证实"普通事件的选择器选项历来由共享 staged 构建器冻结"；若只按节点声明选布局，
+  `temper`／`dissolve` 这类选项的冻结 `id`（含 `__<实例id>` 后缀）与 `selected` 键会变 → E0 必红。
+  节点声明仍决定 staged 节点的整体布局，`frozen_form=="staged"` 时任何选项都不走 in_place。
 - **冻结产物键集（兼容要求，不是设计目标）**：用兼容拼写的内容，冻结选项里保留原键
   （`availability` 原对象、`hide_when_unavailable` 原布尔、`when` 不进 staged 布局）；
   用规范拼写 `conditions` 的新内容，冻结选项携带 `conditions` 数组（含 `mode`）。
@@ -381,6 +401,10 @@ static func condition_entries(node: Dictionary, choice: Dictionary) -> Array
 
 # 节点级构建／推进：普通与多阶段共用
 static func enter_node(g, node_id: String) -> String   # "" = 成功；否则具名 issue（替换 enter_stage）
+
+# 请求装配器（B2 核心已落地）：从"当前实例 + 冻结选项"还原出 request 的**唯一**构造点，
+# 供 candidates／probe／execute／测试复用；它只装配，不做任何判定。
+static func request_for(g, option: Dictionary, purpose: String) -> Dictionary
 ```
 
 - 生成侧：`start`（起始节点）与 `execute`／`probe` 的节点推进都调用 `enter_node`；
@@ -404,7 +428,7 @@ static func enter_node(g, node_id: String) -> String   # "" = 成功；否则具
 | `disabled` | 生成但**禁用**（只有 `optional` 模式条目命中；列出全部命中条目） | 普通事件保留 `availability`／效果不可行时的候选 |
 
 `gate` 具名清单（全部具名，无静默丢弃；每条命中都带 `index`（条目序号）＋`kind`＋`mode`＋`detail`，
-因此可区分到**每条条件**）：
+因此可区分到**每条条件**；`validate_failed`／`node_empty` 两条见下表的 B3 标注）：
 
 | gate | 明细字段 | 现状出处 |
 | --- | --- | --- |
@@ -417,9 +441,9 @@ static func enter_node(g, node_id: String) -> String   # "" = 成功；否则具
 | `freeze_failed` | `kind`＝`feasibility`（`random_freeze`） | `start:59`／`freeze_choice:264` |
 | `probe_failed` | `kind`＝`feasibility` | `probe_choice` 的效果探测失败 |
 | `encounter_invalid` | `kind`＝`feasibility` | `probe_choice` 的战斗记录或胜利效果探测 |
-| `validate_failed` | `kind`＝`feasibility` | `probe` 末尾 `g.validate()` |
-| `node_empty` | 节点级（`enter_node` 的 issue） | `enter_stage:314` |
-| `chain_loop` | `kind`＝`chain` | 新增（§3.3） |
+| `validate_failed` | `kind`＝`feasibility` | `probe` 末尾 `g.validate()`——**B2 未单独命名**（要与 `probe_failed` 分离须拆 `probe()` 内部），**B3 收口**（裁定 A13） |
+| `node_empty` | 节点级（`enter_node` 的 issue） | `enter_stage:314`——**B2 仍以既有 issue 文案返回、未记 gate**，**B3 收口**（裁定 A13） |
+| `chain_loop` | `kind`＝`chain` | 新增（§3.3）；B4 落地 |
 
 `reason` 一律为**现状字符串原文**（候选原因、issue 文案），不得改写措辞；多条 `optional` 命中时
 的新拼接规则见 §5.3（现有内容最多一条，原文不变）。
@@ -565,13 +589,17 @@ static var CONDITIONS={
 钉在了逐字节摘要上（§0.1）。因此：
 
 - 新内容用规范拼写（`conditions` 等）时不受旧布局约束，冻结算法规格见 §2.3；
-- 旧内容的兼容布局由**一条声明**（`frozen_form`）选择，而不是两套构建器；
+- 旧内容的兼容布局由**一条声明**（`frozen_form`）选择，而不是两套构建器；**布局判据（裁定 A12）**：
+  `frozen_form=="in_place"` **且选项无 `selector`** → in_place 布局；其余一律 staged
+  （普通事件的选择器选项历来由共享 staged 构建器冻结，见 §1.1 P2）。该判据写在 §2.3 与本节，
+  不只留在代码注释里；改它必须重新人审（会让 `temper`／`dissolve` 的冻结 id 与 `selected` 键变化）；
 - 若将来人决定放松 E0 判据（重取基线），删除兼容布局只需要把 `frozen_form` 与兼容拼写移除，
   求值入口、声明表、条目解析都不受影响——这正是"兼容层可拆"的判据。
 
 `flow` 与 `next_stage` 在新实现里降级为**兼容镜像**：`flow` 仍按定义节点数（>1）写入，
-`next_stage` 仍写 `""`（现状从未赋值），但**不再有任何运行分支读它们**（`probe`／`candidates`／
-`execute`／`validate` 的分支由 `next` 的声明形态与 `node_ids` 取代）。
+`next_stage` 仍写 `""`（现状从未赋值），但**不再有任何运行分支读它们**（B2 核心已落地：
+`room_events.gd` 内 `get("flow")` 读取为零；`probe`／`candidates`／`execute`／`validate`／`view`
+的分支由 `next` 的声明形态与 `node_ids` 取代）。
 
 ### 6.2 新增键只在链实际发生时出现
 
@@ -758,8 +786,9 @@ static var CONDITIONS={
 | --- | --- | --- | --- |
 | B1 定义形态归一 | 定义级 `nodes/start_node` 落地；内容 12 份＋模板＋生成来源迁移；`content_catalog` 单一形态校验（含 §2.5 并集规则与路径改写）；`view`／`validate`／`snapshot`／测试夹具改走 `definition/node/node_ids`；`enter_stage`→`enter_node`（行为仍按现状两条分支） | E0 全绿 ＋ `-Suite event_flow,events,content,architecture -Impact` ＋ `check-content.ps1`；§10 场景 01／02／06／07／20 | **已完成**（`d770aea`，见执行记录） |
 | B1b 文档同步 | 四份仍教旧形态的文档改成节点形态（清单见 §8.3）；不含选项级 `conditions`／`unavailable` | E0 全绿 ＋ `check-content.ps1` ＋ 文档示例编译探针（§16） ＋ 依赖规范 §4.2 的两条 B1 追溯 check | **已完成**（`a57dec3`，判据登记 `4d5bc8f`，见执行记录） |
-| B2 声明与单入口 | 节点声明生效（`frozen_form`／`relic_gate`／`random_freeze`／`outcome_draw`／`unavailable`／`empty_node` 不再是死数据）；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖两形态；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；`conditions`／`unavailable` 规范拼写与声明表同批接受；删除死分支与平行真相；`snapshot` 增量补新键检查；**同批刷新英文字典**（裁定 A9，§17） | E0 全绿 ＋ `check-content.ps1` ＋ `localization` 规则／界面门 ＋ §10 场景 05／08／09／13／15–18 ＋ 依赖规范 §4.2 的 `event_single_evaluation_entry`＋`event_condition_kinds_share_one_declaration`＋`event_pipeline_writes_only_declared_keys`（内容半） | 待派工（§17） |
-| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`）；叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | E0 全绿（开关开／关各跑一遍）＋ §10 场景 03／04／10／19 | 待派工 |
+| B2 声明与单入口 | 节点声明生效（`frozen_form`／`relic_gate`／`random_freeze`／`outcome_draw`／`unavailable`／`empty_node` 不再是死数据）；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖两形态；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；`conditions`／`unavailable` 规范拼写与声明表同批接受；删除死分支与平行真相；`snapshot` 增量补新键检查；**同批刷新英文字典**（裁定 A9，§17） | E0 全绿 ＋ `check-content.ps1` ＋ `localization` 规则／界面门 ＋ §10 场景 05／08／09／13／15–18 ＋ 依赖规范 §4.2 的 `event_single_evaluation_entry`＋`event_condition_kinds_share_one_declaration`＋`event_pipeline_writes_only_declared_keys`（内容半） | **核心已落地、本批未完成**（`60869fc`；核心判据全绿，场景／依赖 check／本地化未落） |
+| B2b 收口 | 仅补 B2 未完成的三块：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`；④以 B2 的完整门禁命令（含 `localization`）复跑交证 | 见 §18（不改产品语义；`probe()` 内部与 `node_empty` 的单独 gate 名属 B3） | 待派工（§18） |
+| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`／`validate_failed` 的单独命名，裁定 A13）＋叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | E0 全绿（开关开／关各跑一遍）＋ §10 场景 03／04／10／19 | 待派工 |
 | B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | E0 全绿 ＋ §10 场景 11／12 ＋ 依赖规范 §4.2 的新键半 | 待派工 |
 
 每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1b 与 B2 之间代码必须可跑可测
@@ -768,7 +797,8 @@ static var CONDITIONS={
 ## 10. Gherkin（场景名 → 既有分类的具名 check）
 
 不新建流程文件、不新建看板；用具名函数加入既有 case 文件，复用 `tests/game_fixture.gd` 与
-`tests/event_cases.gd.arrive`。**已落地（B1）**：01／02／06／07／20；其余按 §9 的批次归属。
+`tests/event_cases.gd.arrive`。**已落地（B1）**：01／02／06／07／20；B2 核心已落地产品代码但
+**场景一条未落**，故 05／08／09／13／15–18 归 **B2b**；03／04／10／19 归 B3；11／12 归 B4。
 
 01. `event_definition_single_form`（`tests/event_cases.gd`，`events`）
     Given 12 份迁移后的内容包；When 编译并逐个进入；Then `Data.TYPES[id]` 只含 `nodes/start_node`，
@@ -854,7 +884,14 @@ static var CONDITIONS={
     叠加能力上线前后 E0 94 场景摘要一致（由 §12 第 0 条命令执行）。
 
 场景 01–20 是 B1–B4 的逐步落地对象；未落地即未完成。归属：B1 已落 01／02／06／07／20；
-B2 落 05／08／09／13／15–18；B3 落 03／04／10／19；B4 落 11／12；B1b 不新增场景（判据见 §16）。
+B2b 落 05／08／09／13／15–18（B2 核心只落了产品代码，场景一条未落，故 B2 未完成）；
+B3 落 03／04／10／19；B4 落 11／12；B1b 不新增场景（判据见 §16）。
+
+**裁定 A13 的落点标注**：
+- 场景 09（`event_node_empty_policy`）的**行为半**（普通节点保持零候选、多阶段节点返回既有 issue
+  文案、上一节点选项 invalid）属 **B2b**；**`node_empty` 单独记 gate 的命名半**属 **B3**；
+- 场景 03／04 的 gate 清单里 `validate_failed`（拆 `probe()` 内部才能与 `probe_failed` 分离）
+  与 `node_empty` 的具名，同属 **B3**；B2b 只断言现有 gate 名集合与叠加逐条记录。
 
 ## 11. Validator procedure（agent 可运行；操作必须走真实输入）
 
@@ -951,6 +988,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 - 落地迁移脚本或改启动链（人审：不落地）；
 - 12 份内容之外的内容包被写入链形态（E0 不覆盖）；
 - B1b 未完成就开始 B2（文档与代码形态不一致期不得叠批）；
+- **B2b 未完成就宣称 B2 通过**（核心绿≠本批绿：§10 场景、依赖 check、本地化三块必须同批收口，§18）；
 - 宣称完整回归或提速。
 
 ## 13. 裁定记录（R1 按人审澄清改写；其余按推荐执行）
@@ -1016,7 +1054,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 6. **判据相互作用**：E0 全绿这一判据与"内容必须合并成一种形态"存在张力（冻结产物不能被统一），
    本契约的解法是把差异降为声明；该解法需人认可，否则整片范围与判据都要改。
 
-## 16. B1b 派工要点（文档同步；可直接开工）
+## 16. B1b 派工要点（文档同步；**已完成 `a57dec3`，此处留档**）
 
 - **一句话**：把四份仍教旧形态的文档改成节点形态，并在文档里写清"单节点不得使用
   `next`／`when`／`outcomes`"，使照文档写出的包能被当前校验接受。
@@ -1056,7 +1094,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   `start_stage`／顶层 `choices`。允许实现者收窄为"只查字段表小节"，**不得弱化为不检查**。
 - **非目标**：不改任何内容包语义、不改模板、不动 B2 才开放的拼写、不打包。
 
-## 17. B2 派工要点（声明与单入口；可直接开工）
+## 17. B2 派工要点（声明与单入口；**核心已落地 `60869fc`，收口见 §18**）
 
 - **一句话**：让 B1 写进内容的节点声明真正生效，把资格四通道收敛成"条件条目 ＋ 单求值入口"，
   并同批接受 `conditions`／选项级 `unavailable` 规范拼写与叠加求值。
@@ -1134,3 +1172,54 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   本地化侧：把缺译写成通过，或只改目录不改盘点口径。
 - **非目标**：trace 与 gate 全覆盖（B3）、跨事件 `next` 对象形态与 `chain`（B4）、
   作者手册再补文档（B2 后另派）、`get_view` 字段、`ui/`、提交管线。
+
+## 18. B2b 派工要点（B2 收口；不另立切片）
+
+- **定位**：B2 核心（`60869fc`）已改完产品代码且核心判据全绿，但**本批未完成**——缺三块：
+  具名 check、依赖 check、本地化刷新。B2b 只补这三块与复跑证据，**不改产品语义**。
+- **域**：测试（具名 check）、依赖规范检查、本地化词表。产品代码（`core/room_events.gd`／
+  `content_catalog.gd`／`snapshot.gd`）**只有在补场景过程中发现真缺陷时才可动**；动了就必须
+  按 B2 的完整门禁重跑并说明原因。
+- **可改文件（授权清单）**：
+  - `spire-godot/tests/{event_cases,event_flow_cases,content_cases,persistence_cases,architecture_cases,localization_cases}.gd`
+  - `spire-godot/assets/localization/legacy-en_US.json`
+  - 必要时 `spire-godot/core/{room_events,content_catalog,snapshot}.gd`（仅修缺陷，须在报告里列明）
+  - **不改**：`content/packs/*`、`content/templates/*`、`ui/**`、`core/game.gd`、`core/game_view.gd`、`docs/**`
+- **交付物**：
+  1. **§10 场景 05／08／09／13／15–18** 的具名 check：
+     - 05 `event_condition_kinds_share_one_declaration`（三处 kind 集合相等；未知 kind 三处一致拒绝）
+     - 08 `event_unified_option_capabilities`（含"单节点 + selector + outcomes"按 `outcome_draw` 抽取）
+     - 09 `event_node_empty_policy`（**行为半**：普通节点零候选、多阶段返回既有 issue、上一节点选项 invalid；
+       `node_empty` 单独 gate 名属 B3）
+     - 13 `event_probe_and_projection_readonly`
+     - 15／16／17／18 叠加四条（单条 optional／单条 hidden／两类叠加／同类多条叠加，含 `gates` 顺序、
+       `mode`、`reason` 的 `"\n"` 拼接）
+  2. **依赖规范 §4.2 三条 check**：`event_condition_kinds_share_one_declaration`、
+     `event_single_evaluation_entry`（测试侧计数包装，生产无计数器）、
+     `event_pipeline_writes_only_declared_keys`（内容半：12 份内容不出现 `conditions`／`chain`）
+  3. **本地化（裁定 A9，口径见 §17）**：`python tools/localization_inventory.py` →
+     `python tools/build_english_catalog.py`（模型不可用则人工补齐本片动到的条目）→
+     词典与 B1／B2 收口后的校验文案一致 → 具名 check `locale_legacy_catalog_matches_current_sources`
+     （`REMOVED_SOURCES` 清零、`REQUIRED_SOURCES` 有非空译文）
+  4. **复跑证据**：B2 的完整门禁命令，含 `localization` 规则与界面门
+- **判据命令（一次，不无故重复；在 spire-godot/ 下）**：
+  ```powershell
+  & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
+  & tools/check-content.ps1
+  python tools/localization_inventory.py
+  python tools/build_english_catalog.py
+  & tools/check.ps1 -Suite event_flow,events,content,architecture,persistence,localization -Impact -KeepGoing -TimeoutSeconds 900
+  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 600
+  ```
+- **DoD**：
+  - E0 退出码 0、`PASS (94 scenarios, 0 failures)`、摘要 `1f11bea5…`（**逐字相同**）；
+  - `-KeepGoing` 红集**只允许** `card_power`（`docs/verification.md:29`）；任何新红项即未完成；
+  - §10 场景 05／08／09／13／15–18 全部具名 check 通过；依赖规范三条 check 落地并通过；
+  - 本地化：`localization` 规则／界面门通过；口径①②③判定结果写入 `docs/verification.md`
+    （目录条目数 before／after、缺译条数、`REMOVED_SOURCES`／`REQUIRED_SOURCES` 结论）；
+  - 报告必须给出：`gates` 顺序与多命中拼接的实际输出样例、四个 `purpose` 的检查清单对照、
+    `event_single_evaluation_entry` 的计数方式、本地化判定①②③、E0 摘要；
+  - **B2b 完成前本片不得打包、不得发版**（§12；过渡态键与未刷新的字典都会随包外发）。
+- **非目标**：`validate_failed`／`node_empty` 的单独 gate 命名与 trace（B3）；跨事件 `next` 与 `chain`（B4）；
+  作者手册补写 `conditions`／`unavailable`／叠加语义（B2b 后另派，见 §8.3）；改 `content/packs` 语义；
+  `get_view` 字段、`ui/`、提交管线。

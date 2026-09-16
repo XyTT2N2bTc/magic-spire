@@ -91,9 +91,9 @@ rg -n "res://tests/" spire-godot/core/ spire-godot/data/ spire-godot/ui/
 | --- | --- | --- | --- |
 | `event_dependency_edges_pinned` | `architecture` | **B1b**（B1 已满足其内容，追溯判据） | `room_events.gd`／`content_catalog.gd`／`snapshot.gd` 的 preload 目标集合恰好等于本文件 §1 表列出的集合（多一个或少一个即红） |
 | `event_definition_accessors_only` | `architecture` | **B1b**（B1 已满足其内容，追溯判据） | 行为式：`definition`／`node`／`node_ids` 之外取不到节点与选项；非法键（旧 `stages`／`start_stage`）返回空且不抛错 |
-| `event_condition_kinds_share_one_declaration` | `architecture`＋`content`＋`persistence` | **B2**（随 §5 声明表） | kind 集合在内容校验／运行时求值／存档校验三处相等；未知 kind 三处一致拒绝 |
-| `event_single_evaluation_entry` | `architecture` | **B2**（随求值入口） | 计数包装：构建一次事件时 `evaluate_option` 的调用次数＝该节点展开出的评估次数；`probe_choice`／`availability_issue` 的调用只来自入口内部（测试侧包装，生产无计数器） |
-| `event_pipeline_writes_only_declared_keys` | `persistence` | **B2（内容半）＋ B4（链半）** | 存档往返后新增键只可能是 `chain`（跨事件跳转时）与 `conditions`（规范拼写内容）；B2 先断言 **12 份内容一个都不出现**；B4 补 `chain` 的跨事件断言 |
+| `event_condition_kinds_share_one_declaration` | `architecture`＋`content`＋`persistence` | **B2b**（声明表已在 `60869fc` 落地，缺具名 check） | kind 集合在内容校验／运行时求值／存档校验三处相等；未知 kind 三处一致拒绝 |
+| `event_single_evaluation_entry` | `architecture` | **B2b**（求值入口已在 `60869fc` 落地，缺具名 check） | 计数包装：构建一次事件时 `evaluate_option` 的调用次数＝该节点展开出的评估次数；`probe_choice`／`availability_issue` 的调用只来自入口内部（测试侧包装，生产无计数器） |
+| `event_pipeline_writes_only_declared_keys` | `persistence` | **B2b（内容半）＋ B4（链半）** | 存档往返后新增键只可能是 `chain`（跨事件跳转时）与 `conditions`（规范拼写内容）；B2b 先断言 **12 份内容一个都不出现**；B4 补 `chain` 的跨事件断言 |
 
 未落地即未完成；本表 5 条与 `docs/event-pipeline-unification.md` §10 的 01–20 是同一批判据，
 不得择一执行。
@@ -106,6 +106,7 @@ rg -n "res://tests/" spire-godot/core/ spire-godot/data/ spire-godot/ui/
 - B1b（commit `a57dec3`）：`event_dependency_edges_pinned` 与 `event_definition_accessors_only`
   **已落地**（`tests/architecture_cases.gd`），即 §4.2 的前两条追溯 check 已可执行；
   `event_author_manual_lists_current_fields`（`tests/content_cases.gd`）同批落地。
-- 其余三条（`event_condition_kinds_share_one_declaration`、`event_single_evaluation_entry`、
-  `event_pipeline_writes_only_declared_keys`）尚未落地代码，按上表分派到 B2／B4；
-  未落地不是缺口（其内容在对应批次才产生）。
+- B2 核心（commit `60869fc`）：产品代码已具备单求值入口与单一声明表；三条 check 的**代码承载仍未落地**
+  （测试未写），按上表分派到 **B2b**（`event_condition_kinds_share_one_declaration`／
+  `event_single_evaluation_entry`／`event_pipeline_writes_only_declared_keys` 的内容半）与 B4（链半）。
+  **B2 因此判定为"核心已落地、本批未完成"**：未落地不是缺口而是未完成项，未完成前不得宣称通过。
