@@ -39,9 +39,9 @@ git diff --name-only
 - `all` 只用于明确完整回归；检查通过后不无故重复运行。
 - 内容包校验：`& tools/check-content.ps1`（改动 `spire-godot/content/packs/` 后必跑）。
 - 引擎与启动：`tools/find-godot.ps1` 定位引擎（`GODOT_BIN` 或项目内探测），`tools/launch.ps1` 启动游戏。
-- 打包与发布：`tools/check-package.ps1`、`tools/package.ps1`、`tools/package-android.ps1`、`tools/check-android-package.ps1`；先读 `spire-godot/docs/packaging.md`，不以旧发布说明代替当前脚本。
+- 打包输出默认写到仓库根 `outputs/`（`package.ps1 -OutputRoot` 可覆盖）；打包与发布：`tools/check-package.ps1`、`tools/package.ps1`、`tools/package-android.ps1`、`tools/check-android-package.ps1`；先读 `docs/packaging.md`，不以旧发布说明代替当前脚本。
 
 ## 产物与清理
 
 - 计时脚本、基准数据、验收补充脚本等一次性产物放已忽略的 `spire-godot/build/`，
-  不入库、不进运行时；摘要登记到 `spire-godot/docs/verification.md` 后清理原始目录。
+  不入库、不进运行时；摘要登记到 `docs/verification.md` 后清理原始目录。

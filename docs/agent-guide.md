@@ -9,7 +9,7 @@
 - Godot：先读 [模块指引](../spire-godot/AGENTS.md)，再读其中对应专题。
 - 网页模块已不在本工作区；其历史约束只在归档中追溯，不作为当前要求。
 - 追溯旧根指令：搜索 [根指令原文归档](history/root-agent-contract-2026-09-14.md)。
-- 追溯 Godot 功能与修订：搜索 [Godot 原文归档](../spire-godot/docs/history/agent-contract-2026-09-14.md)。
+- 追溯 Godot 功能与修订：搜索 [Godot 原文归档](history/agent-contract-2026-09-14.md)。
 
 这两份归档是精简前的完整文件副本，保留相互覆盖的历史记录。
 不要在每轮任务自动全文加载；只搜索主题并读取匹配上下文。

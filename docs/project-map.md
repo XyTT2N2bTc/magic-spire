@@ -7,7 +7,7 @@
 
 ## 目录职责
 
-- `docs/`：背景、指引与历史索引，入口 `docs/agent-guide.md`。
+- `docs/`：仓库级文档——背景与指引索引、模块设计/契约/验证、发布说明与许可副本；入口 `docs/agent-guide.md`。
 - `spire-godot/`：游戏源码、内容包、测试与分类检查脚本。
 - 命令与操作流程不在 AGENTS.md：见 `.zcode/skills/repo-ops/SKILL.md`。
 

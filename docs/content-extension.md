@@ -22,7 +22,7 @@ RuleChangePackage：沿原combat.active/serial/turn、牌区和资源字段，�
 
 2026-09-08架构检查：接触资格与道具可选位置共用`Contact.evaluate`，其`slots`只列出通过真实连接点、手部和外层检查的位置；`usable_slots`仅合并左右手结果。新增接触入口不得另写区域级判断来代替链接的`contact_points`。工具安装／取回的操作部位和具体原因统一由`FieldTools.operator_profile`生成，原查询接口继续读取这份结果。事件普通效果、阶段选择与结束归还共用`RoomEvents.probe`的状态副本、校验和恢复过程，阶段跳转与未归还检查仍按原入口区分。
 
-2026-09-07：优先使用 [五类内容包模板](../content/README.md) 完成现有机制内的扩展；放入 `content/packs/` 后由启动加载器检查并登记。本文保留为新增规则和手工开发的内部说明。
+2026-09-07：优先使用 [五类内容包模板](../spire-godot/content/README.md) 完成现有机制内的扩展；放入 `content/packs/` 后由启动加载器检查并登记。本文保留为新增规则和手工开发的内部说明。
 
 扩展内容先读[生成规则](content-generation.md)，填写[内容模板](content-templates.md)。两份文档覆盖普通／复合拘束具、链接、特殊部位装备、道具、遗物、敌人、遭遇与事件；本页保留执行、显示与测试接口。核对日期：2026-09-07。
 

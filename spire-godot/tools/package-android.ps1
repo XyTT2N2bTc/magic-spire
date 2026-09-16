@@ -2,6 +2,7 @@ param([string]$BuildId, [string]$SigningConfig = 'G:\CodexData\keys\spire-androi
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'find-godot.ps1')
 $gameDirectory = Split-Path -Parent $PSScriptRoot
+$docsDirectory = Join-Path (Split-Path -Parent $gameDirectory) 'docs'
 $projectText = Get-Content -LiteralPath (Join-Path $gameDirectory 'project.godot') -Raw
 $versionMatch = [regex]::Match($projectText, '(?m)^config/version="([0-9]+\.[0-9]+(?:\.[0-9]+)?)"')
 if (-not $versionMatch.Success) { throw 'Project version is missing or invalid.' }
@@ -80,7 +81,7 @@ try {
 } finally { $archive.Dispose() }
 $manifest = [ordered]@{ version = $packageVersion; platform = 'Android ARM64 + ARMv7'; package = 'org.magic.spire'; build = $BuildId; file = [IO.Path]::GetFileName($apk); bytes = (Get-Item -LiteralPath $apk).Length; sha256 = (Get-FileHash -LiteralPath $apk).Hash.ToLowerInvariant() }
 $manifest | ConvertTo-Json | Set-Content (Join-Path $destination 'manifest.json') -Encoding utf8
-Copy-Item -LiteralPath (Join-Path $gameDirectory ('docs/release-android-v' + $packageVersion + '.txt')) -Destination $destination
+Copy-Item -LiteralPath (Join-Path $docsDirectory ('release-android-v' + $packageVersion + '.txt')) -Destination $destination
 Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $gameDirectory) '版本更新内容.txt') -Destination $destination
 foreach ($name in @('LICENSE','ASSET_RIGHTS.md')) {
     Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $gameDirectory) $name) -Destination $destination
@@ -90,7 +91,7 @@ $licenseDirectory = Join-Path $destination 'licenses'
 Copy-Item -LiteralPath (Join-Path $gameDirectory 'assets/vendor/CREDITS.md') -Destination $licenseDirectory
 Copy-Item -LiteralPath (Join-Path $gameDirectory 'assets/fonts/OFL') -Destination (Join-Path $licenseDirectory 'NotoSansCJK-OFL.txt')
 foreach ($name in @('GODOT-LICENSE.txt','GODOT-COPYRIGHT.txt')) {
-    Copy-Item -LiteralPath (Join-Path $gameDirectory ('docs/licenses/' + $name)) -Destination $licenseDirectory
+    Copy-Item -LiteralPath (Join-Path $docsDirectory ('licenses/' + $name)) -Destination $licenseDirectory
 }
 Write-Output ('ANDROID APK: ' + $apk)
 Write-Output ('VERIFICATION: ' + $logDirectory)

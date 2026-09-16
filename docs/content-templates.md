@@ -8,7 +8,7 @@
 
 核对日期：2026-09-07。先读[生成规则](content-generation.md)，再选本页对应模板；实现接口见[内容扩展接口](content-extension.md)。拘束结构以[装备设计](equipment-design.md)为完整依据。
 
-2026-09-07：**可直接放入游戏的五类 JSON 模板已完成**，见 [内容包说明](../content/README.md) 与 `content/templates/`。按那里格式填写，放进 `content/packs/` 后重启新局即可。
+2026-09-07：**可直接放入游戏的五类 JSON 模板已完成**，见 [内容包说明](../spire-godot/content/README.md) 与 `content/templates/`。按那里格式填写，放进 `content/packs/` 后重启新局即可。
 
 本文以下保留的是高级设计表和内部注册表示例，不是可直接加载的完整内容文件；涉及复合结构、链接、新行为等超出内容包范围的设计仍需补底层实现。不要把以下片段直接复制到 packs。所有 `sample_` ID 都是未登记样例，本批不会将它们加入游戏。
 

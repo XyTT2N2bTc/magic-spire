@@ -7,23 +7,23 @@
 
 | 任务 | 按需阅读 |
 | --- | --- |
-| 玩法、场次、奖励、资源 | docs/game-design.md |
-| 装备、覆盖、链接、解除 | docs/equipment-design.md |
-| 卡牌与内容扩展 | docs/card-framework.md、docs/content-extension.md |
-| 生成与模板 | docs/content-generation.md、docs/content-templates.md |
-| 角色2 | docs/character-two.md |
-| 监狱及出狱 | docs/prison-release.md、docs/prison-reinforcements.md |
-| 平板锁 | docs/cursed-plate-lock.md |
-| 界面拆分与装备详情 | docs/ui-scene-refresh.md、docs/release-interface.md |
-| 输入到落地的提交与刷新 | docs/response-pipeline.md |
-| 装备只读查询 | docs/equipment-query-seam.md |
-| 玩家可见文案的收口与按需 | docs/ondemand-copy.md |
-| 事件系统结构 | docs/event-structure.md |
-| 文案与本地化 | docs/action-copy-guide.md、docs/localization.md |
+| 玩法、场次、奖励、资源 | ../docs/game-design.md |
+| 装备、覆盖、链接、解除 | ../docs/equipment-design.md |
+| 卡牌与内容扩展 | ../docs/card-framework.md、../docs/content-extension.md |
+| 生成与模板 | ../docs/content-generation.md、../docs/content-templates.md |
+| 角色2 | ../docs/character-two.md |
+| 监狱及出狱 | ../docs/prison-release.md、../docs/prison-reinforcements.md |
+| 平板锁 | ../docs/cursed-plate-lock.md |
+| 界面拆分与装备详情 | ../docs/ui-scene-refresh.md、../docs/release-interface.md |
+| 输入到落地的提交与刷新 | ../docs/response-pipeline.md |
+| 装备只读查询 | ../docs/equipment-query-seam.md |
+| 玩家可见文案的收口与按需 | ../docs/ondemand-copy.md |
+| 事件系统结构 | ../docs/event-structure.md |
+| 文案与本地化 | ../docs/action-copy-guide.md、../docs/localization.md |
 | 美术来源与差分 | assets/art/ART-NOTES.md、assets/vendor/CREDITS.md |
-| 验证结果 | docs/verification.md |
-| 打包与反馈服务 | docs/packaging.md、docs/feedback-deployment.md |
-| 历史决策追溯 | docs/history/agent-contract-2026-09-14.md |
+| 验证结果 | ../docs/verification.md |
+| 打包与反馈服务 | ../docs/packaging.md、../docs/feedback-deployment.md |
+| 历史决策追溯 | ../docs/history/agent-contract-2026-09-14.md |
 
 历史归档包含已被推翻的记录；先搜索主题再读取相关段落，
 按用户最终要求和最新专题文档判断，不能整份视为现行指令。
@@ -59,7 +59,7 @@
 - 新功能先查现有模板、通用字段和事务；确有无法复用的边界时，
   向用户说明具体缺口并确认后再新增机制。
 - 一次完成一个可试玩闭环；小修改不创建新流程文件。
-  任务记录在 README，验证在 docs/verification.md，不另建重复看板。
+  任务记录在 README，验证在 ../docs/verification.md，不另建重复看板。
 
 ## 界面、文案与素材
 
