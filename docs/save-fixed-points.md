@@ -6,9 +6,15 @@
 
 **状态：暂停（parked，2026-09-16 协调者排期裁定）。** 代码半成品在 `git stash`（`stash@{0}`：仅 `core/game.gd`／`ui/main.gd` 的 checkpoint 键与 UI 触发改造，无测试无判据）；**不并进后续切片**。
 **§2 的 P1／P2／P3 与 §6 的正反例标注为「待重写」**：排期改为先做**状态迁移管线收束**
-（见 `docs/transition-pipeline.md`）；收束完成后本片按**收束后的主路径**重新规划——届时的固定点判定
-应挂在主路径的迁移声明上，**不再需要"比 `floor`／比 `phase`"的探测**。本文件其余内容（扫描全集表、
-闭环 check、失败语义与性能口径）仍作为复工输入，**不得按旧触发集直接复工**。
+（见 `docs/transition-pipeline.md`，**已落地 `35f3411`**）；**挂点已具体化**——
+**`core/game.gd` 的 `_apply_transition(kind, args)` 与它的 `_transition_log`（进程内数组，
+不进 `state`／存档／View）就是固定点判定的挂点**：恢复本片时的**第一步是在 `TRANSITIONS` 声明表里
+标出三个固定点（kind 级）**，而不是再比 `floor`／`phase`。届时：进入新的一层绑定已落地的
+`floor_enter` kind（语义＝**目标层高于当前层**，见 `transition-pipeline.md` §0.1 D2 备注）；
+完成战斗绑定 `battle_end_victory`／`battle_end_saturated`／`battle_end_captured`（收押含在内，见 §0.1 D1）；
+完成休整绑定 `prepare_end`。本文件其余内容（扫描全集表、闭环 check、失败语义与性能口径）仍作为复工输入，
+**不得按旧触发集直接复工**；§2.5 的 53 点扫描表在收束后绝大多数点已消失（现只剩 `_apply_transition` 内 2 处），
+其价值转为历史对照与"散落回归"的防线参照。
 
 **修订记录**：本文件取代 `docs/save-write-skip.md`（"逐操作内容比对"方案，已删）与上一版
 "全量触发集"方案。人审原话：**"只有你进入新的一层时存档，完成战斗时存档，完成休整后存档，

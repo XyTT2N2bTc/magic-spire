@@ -4,7 +4,8 @@
 工作区干净（`docs/save-fixed-points.md` 有一处未提交的扫描表更新，见 §0）。行号捕获于该提交；
 **函数名是稳定锚点**，动手前用 `rg` 复算。本文件不写执行结果：通过／失败／未执行只登记到 `docs/verification.md`。
 
-**状态：`needs-human-review`（见 §9）。实现者不得在协调者记录人审前开工。**
+**状态：已落地（`9ee7a2f` 冻结基线 → `d519402` → `a1744de` → `9d5a6af` → `35f3411`，协调者复核主判据）。**
+本节以下为规划原文；**执行事实与四处偏差见 §0.1**（契约按"计划不得落后于执行"同步）。
 
 ## 0. 切片与排期裁定（协调者记录，2026-09-16）
 
@@ -17,6 +18,38 @@
 2. 收束完成后，固定点存档的判定应**挂在收束后的主路径上**（届时不再需要"比 `floor`／比 `phase`"的探测）——
    已在 `save-fixed-points` 写入"待迁移收束后按主路径重新规划"，并把其 P1／P2／P3 标注为**待重写**。
 3. 本片的**现状图与目标表对照基准**＝`docs/save-fixed-points.md` §2.5 的 53 点扫描全集（A／B／C／D／T 分类）。
+
+## 0.1 落地事实与四处偏差（协调者复核，2026-09-16）
+
+**规模收束（实测）**：`state.phase=` **26 → 1**、`state.room=` **10 → 1**，两点都只在
+`_apply_transition` 内（磁盘：`core/game.gd:737`／`:740`）；战斗结束判定 **1 处**
+（`_battle_end_reason`，`:788`）＋执行 **1 处**（`_finish_battle(end_kind)`，`:754`），
+**13 个调用位点保留**（判定合并、位点不动，避免改变随机消耗与日志顺序）；
+`_restart_tower` 的 3 个调用保留。声明表 `TRANSITIONS`（`:691`）**27 个 kind**，
+字段＝`{"phases":[允许的阶段], "room":bool, "tx":bool, "owners":[允许的调用者]}`；
+迁移日志 `_transition_log`（`:198`）为进程内数组，**不进 `state`／存档／View**。
+
+**闭环表规模**：`tests/architecture_cases.gd:104` 的 `transition_write_sites_are_pinned`，
+钉住的点表＝**14 项（`文件|函数|组|行数`）**，双向比对（扫描集 ⊆ 表 ∧ 表内点都被扫到）。
+敏感性证明：临时插入一处表外 `state.phase="battle"` → `FAIL 1/462` 并打印 `文件:行:函数`，还原后 PASS 466。
+
+**判据实测（墙钟）**：迁移 oracle **7s**（31/31 PASS，跨两次运行摘要稳定，基线哈希未变）；
+规则门 **2m08s**（11 类 → `-Impact` 展开 44 类）；`unrun` **合并一次调用**补跑 **3m29s**
+（23 PASS＋`tower_progression` FAIL 10 条＝已登记）；界面门 **1m22s**（`persistence,home,events`，369 断言）；
+闭环 check **25s**。受影响七类套件全 PASS **3678 断言**。
+
+### 四处偏差（以执行事实为准；下文相应小节已同步）
+
+| # | 偏差 | 契约同步位置 |
+| --- | --- | --- |
+| D1 | **收押不经 `_finish_battle`**：`Guard.capture` 对同一 kind 调用 `_apply_transition("battle_end_captured", …)` **两次**（先 `phase`、后 `room`，磁盘 `guard.gd:113/117`），**不经过 `_finish_battle`**（后者只拥有胜利／饱和的奖励体）；收押副作用仍在 `Guard.capture`、顺序不变 | §2.2 接口块、§3 表 `battle_end_captured` 行、§5 场景 04 |
+| D2 | **新增两个 kind**：`floor_enter` 与 `demo_end`。`floor_enter` 由 `_room_transition_kind(target)` 判定：**目标层高于当前层 ⇒ `floor_enter`，否则 ⇒ `room_enter`**（只用于真实移动与换塔的落点；构造期由各自构造 kind 承担）；`demo_end` 承担 demo 结束的迁移 | §3 表补两行＋本表下方语义说明（并见 D2 备注） |
+| D3 | **`_enemy_phase` 尾部的战斗结束判定在真实流程不可达**（仅非法卡链状态可达）；oracle 单列 `skip_validate` 场景把它冻结 | §3 表注＋§8 假设，登记为**已冻结的不可达路径** |
+| D4 | **oracle 脚本在基线冻结后改过**：脚本指纹 `b49b0164… → 59d41c68…`，冻结摘要 `00089c29…` ≠ 当前脚本打印 `14eb8cf9…`（**基线文件哈希未变、比对仍 31/31 PASS**） | §6 判据节口径（比对是门禁、摘要是脚本版本指纹） |
+
+**D2 备注（落地语义）**：`floor_enter` **只认上行**（目标 `floor` 更高）。这与暂停中的存档切片
+`save-fixed-points` 里 P1 的"任一方向都算"**不一致**——复工该切片时**以本片落地语义为准**，
+并在声明表里按 kind 标固定点（见该文件 §0 的挂点更新）。
 
 ## 1. 领域与问题（现状，来自 53 点扫描）
 
@@ -46,7 +79,9 @@ _apply_transition(kind: String, args: Dictionary = {}) -> String
 # 唯一战斗结束判定："" ／ "victory" ／ "saturated" ／ "captured"
 _battle_end_reason() -> String
 
-# 唯一战斗结束执行（原有实现保留，签名加 end kind；收押也走这里）
+# 唯一战斗结束执行（原有实现保留，签名加 end kind）——只拥有胜利／饱和的奖励体；
+# **收押不走这里**：`Guard.capture` 对 `battle_end_captured` 调用 `_apply_transition` 两次
+# （先 phase、后 room），副作用留在 `Guard.capture`（见 §0.1 D1）
 _finish_battle(end_kind: String = "victory") -> void
 ```
 
@@ -77,11 +112,13 @@ _finish_battle(end_kind: String = "victory") -> void
 | `battle_start` | `_start_battle`（`_arrive_room`／练习） | `battle` | 否 | `:470` → 主路径 |
 | `battle_end_victory` | `_battle_end_reason()=="victory"` → `_finish_battle("victory")` | `reward`（事件战＝`event`） | 否 | `:690/698` → 主路径（实现仍在 `_finish_battle`，写入经主路径） |
 | `battle_end_saturated` | `_battle_end_reason()=="saturated"` → `_finish_battle("saturated")` | `reward` | 否 | `:600/608/1126/1166/1167/2392/2397/2565/2810/712/726` 的**判定**合并为 `_battle_end_reason`，调用位点保留 |
-| `battle_end_captured` | `Guard.capture` 判定收押 → **经主路径**执行 | `captured` | **是**（`prison`） | `guard.gd:113/117` → 主路径（收押副作用仍在 `Guard.capture`，顺序不变） |
+| `battle_end_captured` | `Guard.capture` 判定收押 → **经主路径**执行（同一 kind **两次调用**：先 `phase`、后 `room`，不经过 `_finish_battle`） | `captured` | **是**（`prison`） | `guard.gd:113/117` → 主路径（收押副作用仍在 `Guard.capture`，顺序不变；§0.1 D1） |
 | `prepare_start` | `_start_preparation` | `prepare` | 否 | `:621` → 主路径 |
 | `prepare_end` | `_finish_preparation` 的三条分支 | `pack`／`map`／`cleared` | 否 | `:2836/2841/2846` → 主路径 |
 | `rest_start` | `_start_rest`／`_begin_rest` | `rest_choice`／`rest` | 否 | `:664/674` → 主路径 |
 | `room_enter` | `_arrive_room`（`_depart`／`_advance_travel` 内） | `map`／`cleared` | **是**（当前房间） | `:2992/2996`（＋`:2963/2985` 的房间写入） → 主路径 |
+| `floor_enter` | `_room_transition_kind(target)` 判定**目标层高于当前层**时的落点迁移（只用于真实移动与换塔） | `map`／`cleared` | **是**（目标房间） | 与 `room_enter` 同一写入点；**只认上行**（§0.1 D2 备注） |
+| `demo_end` | demo 结束的迁移（`cleared`／出口流程） | 声明表为准 | 否 | demo 结束相关写入 → 主路径 |
 | `travel_start` | `_depart` | `travel` | 否 | `:2969` → 主路径 |
 | `prison_enter`／`prison_turn`／`inspection_start`／`prison_exit_battle_start` | `prison.gd` 的 `enter`／`begin_turn`／`end_turn`／`execute` | `prison`／`prison_end`／`inspection`／`battle` | **是**（`prison`／`prison_start`／`prison_gate`） | `prison.gd:190/207/221/381/446/148/444/584` → 主路径 |
 | `event_enter`／`event_leave_empty` | `room_events.start` | `event`／`map` | 否 | `room_events.gd:22/28` → 主路径 |
@@ -95,6 +132,11 @@ _finish_battle(end_kind: String = "victory") -> void
 > **`state.phase=`／`state.room=` 只允许出现在 `_apply_transition` 内。**
 > 其余 52 个点全部改为"调用 `_apply_transition("<kind>", {...})`"，副作用（生成敌人、滚奖励、
 > 收押清理、牢房初始化等）**留在原函数、原顺序**。
+
+**注（`:enemy_phase` 尾部判定＝已冻结的不可达路径，§0.1 D3）**：真实流程不可达（仅非法卡链状态可达），
+oracle 单列 `skip_validate` 场景把它冻结。**保留理由**：它今天仍在源码里参与判定，
+删掉属行为变更（哪怕不可达），且有非法状态兜底价值；本片只收束判定入口，不删分支。
+将来若要删除，须单独立批并给出"不可达"的证明与 oracle 影响面。
 
 ## 4. 闭环检查（散落回归的防线；沿用 `save-fixed-points` §2.5 的式样）
 
@@ -123,8 +165,9 @@ _finish_battle(end_kind: String = "victory") -> void
     Given 同层换房与跨层移动（含多回合 `travel_step` 落点）；Then **同层不产生 `floor_enter`**、
     跨层产生恰一条 `floor_enter`，且 `room` 变化只出现在该迁移内。
 04. `capture_routes_through_the_main_path`（`guard`／`prison`）
-    Given 收押夹具；Then 迁移日志含 `battle_end_captured`、`phase`／`room` 与今天逐字节相同、
-    收押副作用（能量归零、无力化、牢房初始化）顺序不变。
+    Given 收押夹具；Then 迁移日志含 `battle_end_captured`（同一 kind 两次调用只记一条）、
+    `phase`／`room` 与今天逐字节相同、**未调用 `_finish_battle`**、
+    收押副作用（能量归零、无力化、牢房初始化）顺序不变（§0.1 D1）。
 05. `non_transitions_do_not_write`（`core`／`services`／`events`）
     Given 代表性非迁移提交（打牌／结束回合中未全灭／商店交易／事件选择／牢房行动）；
     Then 迁移日志为空、`state.phase`／`state.room` 未变。
@@ -144,10 +187,20 @@ _finish_battle(end_kind: String = "victory") -> void
 & tools/check.ps1 -UIOnly -UISuite persistence,home,events -TimeoutSeconds 900
 ```
 
+- **判据身份（§0.1 D4；必须写进验证册）**：**比对是门禁、摘要是脚本版本指纹**。
+  oracle 的**比对结果**（31/31 PASS 之类）与**基线文件哈希**是判据；脚本打印的**冻结摘要**
+  （`00089c29…`）随脚本本身版本变化（当前脚本打印 `14eb8cf9…`），**任何人重跑时摘要不一致不等于行为漂移**，
+  但仍须在验证册登记两组数字（冻结摘要＋当时脚本指纹、重跑摘要＋当时脚本指纹）。
+  **待补（实现者）**：抓取路径不变性证据（证明抓取范围／字段集合在两次运行间未变）。
 - 红集必须 **⊆ 已知既有项 {`card_power` 5 条, `installed_tools` 1 条, `tower_progression` 10 规则＋1 界面,
   `hand_assist` 1 条}**（均在 `docs/verification.md` 已登记），**不得出现新红**；
   `-KeepGoing` 下若有分类因 `SCRIPT ERROR` 变成 `unrun`，**必须逐分类补跑**，报告列出 `unrun` 清单
   （不得把未跑当通过）。`content/packs` 未改动，**不跑** `check-content.ps1`（非本片范围）。
+
+**判据提速口径（本片下发，作为后续切片默认；本片实测：oracle 7s／规则门 2m08s／补跑 3m29s／界面门 1m22s／闭环 25s）**：
+1. **每批只跑受影响套件 ＋ oracle**，不逐批跑全量（今天的 376 次门禁运行里相当一部分是重复全量与逐分类起进程）；
+2. `-KeepGoing` 下若出现 `unrun` 分类，**合并为一次调用补跑**（不逐分类各起一次进程）；
+3. 报告**必须带墙钟**（每段耗时），便于判断"慢在门禁还是慢在实现"。
 
 **(b) 迁移 oracle（新增，参照 E0 的摘要式判据；本片的核心证据）**
 
@@ -180,7 +233,9 @@ _finish_battle(end_kind: String = "victory") -> void
    缓解：只允许合并**判定**（`_battle_end_reason`），**调用位点保留**；oracle 的 `rng`／日志摘要兜住。
 4. **第四：声明表退化为"注释式清单"**（表里写了 kind，代码仍各写各的）。缓解：闭环 check 只放行
    `_apply_transition` 内的两个赋值点，表外即红。
-5. **第五：`tx=false` 的构造期路径经主路径后引入新的失败面**（`_init` 里没有 `original` 可回滚）。
+5. **`_enemy_phase` 尾部判定不可达但仍保留**（§0.1 D3）：它是**已冻结的不可达路径**，删掉属行为变更；
+   复工该处只能立批，并附"不可达"证明与 oracle 影响面。
+6. **第六：`tx=false` 的构造期路径经主路径后引入新的失败面**（`_init` 里没有 `original` 可回滚）。
    缓解：声明 `tx` 列并只做赋值，不引入新的校验失败；练习／新局由场景 08 与既有套件覆盖。
 
 ## 9. 需人确认（`needs-human-review` 的原因）
