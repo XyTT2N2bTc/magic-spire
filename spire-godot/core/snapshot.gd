@@ -386,6 +386,15 @@ static func check(s: Dictionary, g) -> String:
    if not option is Dictionary or option.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "事件选项结果标记损坏。"
    # "advanced" is accepted only for an in-progress save created before rewards were split by rarity.
    if not fields(option,"id:s label:s detail:s reward:s effects:a") or option.reward not in ["common","uncommon","rare","advanced","relic","none"] or not option.effects.all(func(e):return effect(e,g)): return "事件选项或代价记录损坏。"
+   # Canonical spelling: exact key set from the single declaration, plus its mode.
+   if option.has("conditions"):
+    if option.has("availability"): return "事件选项同时携带两种状态条件。"
+    if not option.conditions is Array or option.conditions.is_empty() or option.conditions.size()>8: return "事件选项的状态条件损坏。"
+    for entry in option.conditions:
+     if not entry is Dictionary or not entry.get("kind") is String: return "事件选项的状态条件损坏。"
+     var entry_fields=g.Events.condition_saved_fields(entry.kind)+["mode"]
+     if entry.size()!=entry_fields.size() or not entry_fields.all(func(key):return entry.has(key)): return "事件选项的状态条件损坏。"
+     if entry.mode not in ["optional","hidden"] or not entry.reason is String or entry.reason.strip_edges().is_empty(): return "事件选项的状态条件损坏。"
    if option.has("availability"):
     var availability=option.availability
     if not fields(availability,"kind:s reason:s") or availability.reason.strip_edges().is_empty(): return "事件选项的状态条件损坏。"

@@ -272,14 +272,22 @@ static func _event_references(g, e: Dictionary, data: Dictionary) -> String:
  for stage_index in range(stage_ids.size()):
   var stage=g.Events.node(event,stage_ids[stage_index]);var choice_ids=["refuse"]
   for choice in stage.choices:
-   var issue=shape(choice,"id label reward","recipe effects outcomes next report report_variants detail selector when result_status show_pressure_sources availability hide_when_unavailable encounter item_rewards")
+   var issue=shape(choice,"id label reward","recipe effects outcomes next report report_variants detail selector when result_status show_pressure_sources availability conditions unavailable hide_when_unavailable encounter item_rewards")
    if issue!="": return "nodes."+stage.id+".choices: "+issue
    if choice.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "选项 result_status 必须为 neutral、success 或 failure。"
    if choice.has("show_pressure_sources") and not choice.show_pressure_sources is bool: return "show_pressure_sources 必须为布尔值。"
    if choice.has("hide_when_unavailable") and not choice.hide_when_unavailable is bool: return "hide_when_unavailable 必须为布尔值。"
+   if choice.has("availability") and choice.has("conditions"): return "选项不能同时填写 availability 与 conditions。"
    if choice.has("availability"):
-    issue=_availability(choice.availability,data)
+    issue=_availability(g,choice.availability,data)
     if issue!="": return "nodes."+stage.id+"."+choice.get("id","")+".availability: "+issue
+   if choice.has("conditions"):
+    if not choice.conditions is Array or choice.conditions.is_empty() or choice.conditions.size()>8: return "conditions 需要1—8条条件。"
+    for entry in choice.conditions:
+     issue=g.Events.condition_issue(g,entry,data)
+     if issue!="": return "nodes."+stage.id+"."+choice.get("id","")+".conditions: "+issue
+   if choice.has("unavailable") and choice.unavailable not in ["hide","disable"]: return "选项 unavailable 只支持 hide 或 disable。"
+   if choice.has("unavailable") and choice.has("hide_when_unavailable"): return "选项不能同时填写 unavailable 与 hide_when_unavailable。"
    if not identifier(choice.id) or choice.id in choice_ids or not words(choice.label,80) or choice.reward not in ["none","common","uncommon","rare","relic"]: return "选项 id、文案或奖励不正确。"
    choice_ids.append(choice.id)
    if choice.has("recipe") and choice.has("effects"): return "选项不能同时填写 recipe 与 effects。"
@@ -375,14 +383,12 @@ static func _selector(selector, allow_count: bool) -> String:
  if selector.has("count") and not number(selector.count,1,4,true): return "count 必须是1—4的整数。"
  return ""
 
-static func _availability(availability, data: Dictionary={}) -> String:
+static func _availability(g, availability, data: Dictionary={}) -> String:
  if not availability is Dictionary: return "需要条件对象。"
  var issue=shape(availability,"kind reason","type")
  if issue!="": return issue
- if availability.kind not in ["no_chastity_lock","has_relic"]: return "尚未支持这种状态条件。"
- if availability.kind=="has_relic" and (not availability.get("type") is String or not data.relic.has(availability.type)): return "has_relic 需要已注册的遗物 id。"
- if not words(availability.reason,240): return "reason 需要1—240字的普通说明。"
- return ""
+ # Kinds and their required fields live in Events.CONDITIONS, never in a second list here.
+ return g.Events.condition_issue(g,availability,data)
 
 static func _copy_variants(variants, data: Dictionary, maximum: int) -> String:
  if not variants is Array or variants.is_empty() or variants.size()>8: return "需要1—8项条件文案。"

@@ -50,7 +50,8 @@ static func link_installation(t) -> void:
  var effect=frozen.effects[0]
  var detail=g.Events.describe(g,frozen.effects)
  t.check(detail.contains("链接绳") and effect.contact_points.all(func(point):return detail.contains(g.Equipment.point_name(point))),"EVENT link preview names both real body locations")
- g.state.room_event.flow=false;g.state.room_event.stage="choice"
+ # The injected option belongs to a real node: the legal stage set follows the definition.
+ g.state.room_event.flow=false;g.state.room_event.stage="service"
  g.state.room_event.options=[{"id":"link_test","label":"接受连接","detail":detail,"reward":"none","effects":[{"op":"mana_loss","amount":3},effect]}]
  var pending=g.export_snapshot()
  var twin=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"event frozen link offer")
