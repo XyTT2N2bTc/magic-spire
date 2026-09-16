@@ -213,7 +213,7 @@ E0 摘要不受影响（E0 不读 trace），但 §4.5「每次 `start` 在启�
 | 项 | 内容 |
 | --- | --- |
 | 范围（6 files／+309−16） | `content_catalog`：`next` 对象形态静态校验（事件已登记、节点存在于该定义、拒自引用、同定义内仍只向后）＋ `_next_ends_event`（避免"带奖励必须结束事件"与"起始节点可离开"对对象形态做 Dictionary↔String 比较）；`room_events`：`next_target`（唯一解析入口）／`enter_target`／`chain_cleanup`／`_enter_chain`，跳转重写 `id`／`stage`、`values`／`held` 延续、`cleanup_effects` 按 key 并集、`event_seen` 加入目标、`flow` 重算，`chain` 只在真跳转写且与 `event_seen.append` 同一事务，环守卫 `chain_loop`（候选 `disabled`），A30 `stage_missing` 行，A31 `next_probe` ＋ 节点级行 `(event,purpose,node,gate)` 去重；`snapshot`：增量接受 `chain`（数组、已登记、不重复、非空），既有检查逐条保留 |
-| 判据（协调者重跑） | E0 两遍退出码 0／摘要 `1f11bea5…` 逐字相同／**两遍错误日志命中 0 行**；五类套件全 PASS（3420 断言）；UI 900 秒 PASS 231；内容门 12 file(s)；按 A29 补齐 `unrun` 后**红集恰好＝A28 三元集** |
+| 判据（协调者重跑） | E0 两遍退出码 0／摘要 `1f11bea5…` 逐字相同／**两遍错误日志命中 0 行**；五类套件全 PASS（3420 断言）；UI 900 秒 PASS 231；内容门 12 file(s)；按 A29 补齐 `unrun` 后**红集恰好＝当时的 A28 三元集**（A35 后口径为四项集） |
 | 具名 check | 场景 11／12、A30／A31、静态反例整包拒绝、依赖规范链半，全部落地（清单见 `docs/verification.md`） |
 
 ### 裁定与偏差（协调者转人裁，2026-09-16 第九批；B4 之后）
@@ -223,6 +223,26 @@ E0 摘要不受影响（E0 不读 trace），但 §4.5「每次 `start` 在启�
 | A32 | 跳转必须**重抽遗物** | **按目标事件重算 `room_event.relic`**：目标定义含遗物奖励选项且池非空 → 按现有逻辑抽一次；目标不含遗物奖励 → **置空**。理由：现状保留来源事件的遗物会让目标事件发**别的事件的遗物**（`execute` 的"获得 RelicTypes[event.relic].name"会念出错名称）——正确性缺陷，非风格问题。**E0 不受影响**（12 份内容无链、随机域消耗不变），但**必须在链夹具里加三类具名 check**（抽／不抽／清空）。已写入 §3.3 |
 | A33 | 跨定义 `hold_special` key 必须**静态拒绝** | **补编译期检查（整包拒绝）**，运行期守卫保留。理由与全片取向一致：内容错误应在加载时确定性拒绝，而不是等事件中途被运行期挡住。已写入 §3.3 |
 | A34 | `CHAIN_LOOP_REASON` 本地化 | **并入收尾批 B5**（与跨事件 `next`／链语义补进四份作者文档同批）；**B5 落地前任何内容不得使用链**（现有 12 份也没有），**打包禁令照旧**。已写入 §12／§22 |
+
+### B5 完成事实（提交 `556a231`，父 `8808be5`；登记 `84f8ea3`；**B1–B5 全部收口**）
+
+| 项 | 内容 |
+| --- | --- |
+| A32 | 抽出唯一 `offer_relic(g,spec)`，`start` 与 `_enter_chain` 共用（磁盘：`room_events.gd:36,49,115`）；跳转按目标定义重算 `room_event.relic`（含奖励且池非空 → 抽一次；不含或池空 → 置空）。三类具名 check 各含随机域对拍，且**判据敏感性已证**（临时停用重算后 5 条断言变红） |
+| A33 | `_event_references` 沿跳转图逐路径校验 `hold_special` key（`_chain_hold_key_issue`／`_hold_keys`／`_jump_targets`，`content_catalog.gd:364-399`）：跨定义重复与 cleanup 引用外部 key **整包拒绝**；运行期守卫未改 |
+| A34 | `legacy-en_US.json` 增一条（`CHAIN_LOOP_REASON`）：条目 4947→4948、`needs_review` 5701→5702、旧源文零残留、译文非空；`REQUIRED_SOURCES` 纳入该常量 |
+| 文档 | 四份作者文档补链语义（对象形态／`chain`／并集／环／不能再回头）；`content/README.md:219` 的"B4 起生效，当前不接受"**已删除**并改写为现行能力描述；`event_author_manual_lists_current_fields` 加反向断言（只加未放宽） |
+| 判据（协调者重跑） | E0 两遍退出码 0／摘要 `1f11bea5…` 逐字相同／**两遍错误日志 0 行**；六类套件全 PASS（3586 断言）；UI 900 秒 PASS 231；内容门 12 file(s) |
+
+### 裁定与偏差（协调者转人裁，2026-09-16 第十批；B5 之后）
+
+| # | 事项 | 裁定与契约位置 |
+| --- | --- | --- |
+| A35 | 红集扩为**四项** | 按 A29 补齐 `unrun` 后红集 = A28 三元集 **＋ `hand_assist`**（`tests/hand_assist_cases.gd:38` `Invalid access … 'detail'`、`0/125`，与 `installed_tools` 同类）。按 A22 两步定类：把本批改动 `git stash` 后在 `8808be5` 上重跑**同样红** → **非本片回归**；协调者在 HEAD 复现同一错误并登记为既有红项。**红集口径自此为四项**：`{`card_power` 5 条, `installed_tools` 1 条, `tower_progression` 10 规则＋1 界面, `hand_assist` 1 条}`；§11／§12／§20.1／§21／§22 已统一，**后续批次沿用该口径** |
+| A36① | 英文目录重建的口径 | `python tools/build_english_catalog.py` 在本机**跑不起来**（`build/translation-lite` 与 `english-translation-cache-v4.json` 不存在），B5 按 §17"离线不可用则人工补齐"直接写目录。**日后重建必须把 `CHAIN_LOOP_REASON` 及其余本片新增源文补进生成器 `MANUAL`（`build_english_catalog.py:54/808`，优先级高于缓存）或缓存**，否则重建会静默丢失；已写入 §17 与 §22 |
+| A36② | 新增**作者层**校验文案未补译 | **裁定：可接受遗留**（作者层文案，非玩家主线；运行期安全回退中文，仅 `needs_review` +1）。需登记待补译清单（A33 的"事件链上重复使用了暂存 key："等），与 A36① 的重建清单一并处理；**若将来做面向作者的英文工作流，再另批补译** |
+| A36③ | 跨定义环（A→B→A）静态不拒绝 | **确认与 §3.4 意图一致**：静态**只拒自引用**；静态遍历按"路径上重复定义即停"保证终止，**跨定义环由运行期 `chain_loop` 守卫拒绝**（场景 12 立证）。§3.4 已写明 |
+
 
 
 ## 0. 领域、裁决与不变量
@@ -513,6 +533,10 @@ B1 的单一白名单让**单节点**选项也能编译 `next`／`when`／`outco
 
 - 同一定义内的 `next` 保持现状校验（不倒退、不循环、必须已声明）；
 - 跨事件跳转的目标必须已登记，且目标定义必须是多节点或普通形态都合法；
+- **环的处理（裁定 A36③）**：静态校验**只拒自引用**；静态遍历按"路径上重复定义即停"保证终止，
+  **跨定义环（A→B→A）由运行期 `chain_loop` 守卫拒绝**（候选保留但不可用，原因＝`CHAIN_LOOP_REASON`），
+  由 §10 场景 12 立证；静态不拒绝跨定义环是**有意的**（不引入跨事件图上的静态环检测）；
+- 跨定义的 `hold_special` key 在**编译期整包拒绝**（A33）；跳转的遗物按目标定义重算（A32，§3.3）。
 - 事件链**不得**出现在 12 份迁移内容里（E0 只覆盖单定义事件；链只在夹具与专门场景使用）。
 
 ## 4. 单一求值入口（资格通道整合）
@@ -956,9 +980,9 @@ static var CONDITIONS={
 | B2b 收口 | 仅补 B2 未完成的三块：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`；④以 B2 的完整门禁命令（含 `localization`）复跑交证 | 见 §18（不改产品语义；`probe()` 内部与 `node_empty` 的单独 gate 名属 B3） | **已完成**（`5a60cda` 三项交付＋`b6d45b5` 收口 C1／C2；C3 按 A15 无需补） |
 | B2c 文档收尾 | 把 `conditions` 规范拼写、选项级 `unavailable`、`mode` 与叠加语义补进四份作者文档，并取消 B1b 留下的"B2 起生效"标注（A6 的收口） | 见 §19 | **已完成**（`1f450d7`，登记 `3aee25a`） |
 | B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`／`validate_failed` 的单独命名，裁定 A13）＋叠加命中逐条记录；debug trace＋开关；测试断言；release 不产出 | 见 §20＋§20.1：E0 两遍（含错误日志 0 行）＋ §10 场景 03／04／10／19 | **已完成**（核心 `f95e96f`＋续批 `4e9a1a2`＋场景 03 `79bd622`；登记 `4244b88`）。**两条 trace 形状一致性缺口随 B4 收口**（A30 `stage_missing` 行、A31 `next_probe` purpose 与去重） |
-| B3b 收口 | ①场景 03 具名 check（19／04／10 已落，03 待落，按 A25 口径）；②release 不产出的证据链（含引擎错误日志）；③D1a `source_choice`／`option_id` 拆分（**已完成 `4e9a1a2`**）；④D1b `selector_empty` 具名化（**已完成 `4e9a1a2`**）；⑤复核红集 ⊆ {`card_power`, `installed_tools`}（A23） | 见 §20.1 | 收口中（仅剩 03 与 release 证据链） |
-| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例；**同批补 A30／A31 两条 trace 形状缺口** | 见 §21：E0 **两遍**摘要逐字不变＋错误日志 0 行 ＋ §10 场景 11／12 ＋ 静态反例 ＋ 依赖规范新键半；红集 ⊆ A28 三元集，且按 A29 补齐 `unrun` 后判"恰好" | **已完成**（`8633bd9`，登记 `da8142f`；红集恰好＝A28 三元集） |
-| B5 收尾 | A32 跳转重抽遗物、A33 跨定义 hold key 静态拒绝、A34 链文案本地化；四份作者文档补链语义并删 `content/README.md:219` 的"B4 起生效"标注 | 见 §22 | 待派工（§22） |
+| B3b 收口 | ①场景 03 具名 check（D1）；②release 不产出的证据链（D2）；③D1a `source_choice`／`option_id` 拆分；④D1b `selector_empty` 具名化；⑤红集口径复核（A35 四项集） | 见 §20.1（D 清单**全部收口**） | **已完成**（`4e9a1a2`＋场景 03 `79bd622`；登记 `4244b88`） |
+| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例；**同批补 A30／A31 两条 trace 形状缺口** | 见 §21：E0 **两遍**摘要逐字不变＋错误日志 0 行 ＋ §10 场景 11／12 ＋ 静态反例 ＋ 依赖规范新键半；红集 ⊆ **A35 四项集**，且按 A29 补齐 `unrun` 后判"恰好" | **已完成**（`8633bd9`，登记 `da8142f`；当时红集恰好＝A28 三元集，A35 后口径为四项集） |
+| B5 收尾 | A32 跳转重抽遗物、A33 跨定义 hold key 静态拒绝、A34 链文案本地化；四份作者文档补链语义并删 `content/README.md:219` 的"B4 起生效"标注 | 见 §22 | **已完成**（`556a231`，登记 `84f8ea3`；红集按 A35 为四项集） |
 
 每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1b 与 B2 之间代码必须可跑可测
 （B1 的两条分支仍在，只是由节点形态驱动；B2 才把节点声明接上）。
@@ -1120,10 +1144,26 @@ B2b 三项交付绿（`5a60cda`）≠ B2b 完成（R1／R2 未收口）；
 9. 证据：`build/checks/<id>/check-rules.log`、`check-ui.log`、`summary.json`、oracle 输出；
    结果与域写 `docs/verification.md`（validator 负责，不在本契约宣称通过）。
 
-**整片验收就绪度（规划者，2026-09-16）**：B5 收口后本契约 §11 即可整片执行——20 条具名场景、
-E0 两遍（摘要逐字相同＋错误日志 0 行）、内容门、六类规则套件（红集 ⊆ A28 三元集且按 A29 补齐 `unrun`）、
-`events,localization` UI（900 秒）、依赖规范 §4.2 五条 check、本地化口径①②③。
-**B5 未收口前不得开始整片验收，也不得打包发版**（A16／A34）。
+### 11.1 整片验收就绪确认（规划者，2026-09-16；B1–B5 全部收口后为**最终版**）
+
+- **就绪**：本片无待办批次（B1／B1b／B2／B2b／B2c／B3／B3b／B4／B5 全部完成并逐批判据复核）。
+  本节步骤 1–9、§10 的 20 条具名场景（01–20）、依赖规范 §4.2 五条 check、本地化口径①②③
+  构成本片验收合同，**不再改动**；任何后续改动都属新切片，须走协调者与新的计划审查。
+- **判据命令为最终版**：含 A17（UI 必须 `-TimeoutSeconds 900`）、A24（E0 两遍摘要逐字相同
+  **且引擎错误日志命中 0 行**）、A28/A29/A35（红集 ⊆ **四项集**，且"恰好"必须补齐 `unrun` 后判定、
+  报告列出 `unrun` 清单）。
+- **validator 的产出形态（固定，便于比对）**：
+  1. **落点**：`build/checks/<run-id>/`（`check-rules.log`／`check-ui.log`／`summary.json`）＋
+     oracle 输出（E0 两遍，含摘要与错误日志命中数）＋本地化盘点数字；
+     **结论登记到 `docs/verification.md`**（一个新条目：范围、提交、命令、退出码、断言数、红集、
+     `unrun` 清单、E0 两遍摘要、四态计数）；
+  2. **四态必须分开记**：`passed`（有命令与判据证据）／`failed`（红项＋归因方向）／
+     `unverified`（未跑或无有效结果）／`skipped`（经协调者授权跳过，须记授权与理由）；
+     **不得**用其中任一层代表整片结论，也不得把 `unrun` 当 `passed`；
+  3. **归因**：失败先分"实现代码／测试脚本／环境／程序本身"，不确定就保持未分类上报；
+     红集若超出 A35 四项集，**视为未完成**并回协调者，不得自行扩大豁免；
+  4. **证据不拼接**：不同提交的结果不得拼接；`source_changed` 不算通过，需在安定版本上重跑受影响域。
+- **打包禁令**：整片验收通过并由协调者记录前，**不得打包、不得发版**（A16／A34）。
 
 ## 12. 完成定义（DoD）
 
@@ -1152,9 +1192,10 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 `card_power`（`docs/verification.md:29`，5 条 `witch_*`）为红；**多出一条即本片未完成**；
 其余分类（含 `persistence`、`special_equipment`、`equipment`、`pressure`、`tower`）必须全绿。
 
-**红集口径（裁定 A21 → A23 定类 → A28 扩展为三元集）**：`红集 ⊆ {`card_power` 5 条
+**红集口径（裁定 A21 → A23 定类 → A28 三元集 → **A35 四项集**）**：`红集 ⊆ {`card_power` 5 条
 （`docs/verification.md:29`）, `installed_tools` 1 条（A23）, `tower_progression` 10 条规则 ＋ 1 条界面
-（`docs/verification.md:31`，四点定位、先于 v0.17）}`；多出任何一条即本片未完成。
+（`docs/verification.md:31`）, `hand_assist` 1 条（A35，`tests/hand_assist_cases.gd:38`，同为既有红项）}`；
+多出任何一条即本片未完成；**后续批次沿用该口径**。
 
 **"红集恰好"必须补充枚举（裁定 A29）**：`-Impact` 展开集里某一分类的 `SCRIPT ERROR` 会触发 runner 的
 `runtime_error` 分支，**其余分类变成 `unrun`**；因此判据是"**把 `unrun` 分类补跑完**之后红集恰好等于上表"，
@@ -1369,6 +1410,12 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   - `python tools/build_english_catalog.py` 需要离线模型／缓存；**模型不可用时按"人工补齐本片动到的
     条目"完成**（数量有限、逐条可数），**不得**以环境为由跳过；仍无法产出译文的条目登记为
     未完成 → 该批未完成，不得宣称通过。
+- **英文目录重建的口径（裁定 A36①，避免静默丢失）**：本机没有 `build/translation-lite` 与
+  `english-translation-cache-v4.json`，`python tools/build_english_catalog.py` 跑不起来；本片按"离线不可用→人工补齐"
+  直接写 `legacy-en_US.json`。**日后重建目录时必须把本片新增的源文补进生成器 `MANUAL`
+  （`tools/build_english_catalog.py:54/808`，优先级高于缓存）或缓存**，否则会被重建覆盖/丢失。
+  待补清单（至少）：`CHAIN_LOOP_REASON`（已写入目录，待补 MANUAL）、作者层校验文案
+  （A33 的"事件链上重复使用了暂存 key："等，见 A36②）。
 - **判据命令（一次，不无故重复）**：
   ```powershell
   & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
@@ -1560,7 +1607,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 | D1b | `selector_empty` 具名化（契约 §4.2 已要求、实现缺失的补齐） | **已完成**（`4e9a1a2`） | 选空的选择器选项仍经一次求值入口 → 得 `selector_empty` gate ＋ 一行 trace；**行为不变**（不进入冻结选项），E0 摘要逐字相同 |
 | D2 | release 不产出的证据链 | **已完成**（关／开两遍摘要＋错误日志 0 行已复核；关闭时 0 行由场景 19／03 断言） | 默认关闭下：①`Events.trace_enabled(g)` 为假且 `event_trace(g)` 为空、该次求值 0 行；②E0 关／开两遍**摘要逐字相同**（协调者已两遍复核，收口报告需复述并附日志）；③**两遍都要核引擎错误日志命中 0 行**（A24；oracle 显式 `quit(0)`，退出码不反映脚本错误） |
 | D3 | 修 `start` 清空走同一接口（磁盘复核缺陷） | **已完成**（`9e08d2a`） | ~~`core/room_events.gd:25` 的 `g.get("event_trace_enabled")`／`g.event_trace=[]`~~ → **已在 `9e08d2a` 修为 `clear_trace(g)`**；保留判据：场景 03／19 显式断言"上一事件的行不残留"，且 E0 关／开两遍摘要仍逐字相同 |
-| D4 | `installed_tools` 分类结论 | **已完成**（A23 已登记） | **已定类＝既有红项**（A23，协调者已登记进 `docs/verification.md` 2026-09-16 B3 条目：`4d22a00` 之前同样红 → 非本片回归；根因方向＝夹具前置条件与当前卡牌／工具接口漂移，未定类未修）。B3b 只需复核门禁红集口径 ⊆ {`card_power` 5 条, `installed_tools` 1 条} |
+| D4 | `installed_tools` 分类结论 | **已完成**（A23 已登记） | **已定类＝既有红项**（A23，协调者已登记进 `docs/verification.md` 2026-09-16 B3 条目：`4d22a00` 之前同样红 → 非本片回归；根因方向＝夹具前置条件与当前卡牌／工具接口漂移，未定类未修）。B3b 只需复核门禁红集口径 ⊆ **A35 四项集** |
 | D5 | B3b 判据命令 | **已完成**（B3 收口报告与协调者复核构成证据） | 见 §20 命令块（含 A17 的 900 秒时限）；报告需给 D1／D1a／D1b／D2／D3 的逐项证据、E0 两遍摘要与**引擎错误日志命中数** |
 
 ## 21. B4 派工要点（事件链：`next` 指向另一事件的节点）
@@ -1596,7 +1643,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   `event_seen` 含目标）、12 `event_chain_loop_refused`（再次跳向链上事件 → invalid、gate `chain_loop`、
   `state`／`rng`／存档不变）；另加**静态**反例：`next` 引用自身事件／未登记事件／不存在的节点 → 整包拒绝。
 - **DoD**：E0 **两遍**退出码 0、摘要逐字相同且**两遍错误日志命中 0 行**（A24；12 份内容不含链，摘要必须不变）；
-  `-KeepGoing` 红集 ⊆ **A28 三元集** {`card_power` 5 条, `installed_tools` 1 条, `tower_progression` 11 条}，
+  `-KeepGoing` 红集 ⊆ **A35 四项集** {`card_power` 5 条, `installed_tools` 1 条, `tower_progression` 11 条, `hand_assist` 1 条}，
   且**红集"恰好"必须补齐 `unrun` 分类后判定，报告列出 `unrun` 清单与补跑结果**（A29，不得把未跑当通过）；
   场景 11／12 与静态反例通过；A30／A31 两条 trace 形状通过；
   `chain` 不出现在 12 份内容与 E0 夹具里；依赖规范链半断言通过；
@@ -1645,7 +1692,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   rg -n "B4 起生效|当前不接受|start_stage|\"stages\"" spire-godot/content/README.md docs/content-templates.md docs/content-generation.md docs/content-extension.md
   ```
 - **DoD**：E0 两遍退出码 0／摘要逐字相同／**两遍错误日志命中 0 行**；`check-content.ps1` 12 file(s)；
-  `-Impact -KeepGoing` 红集 ⊆ A28 三元集且**按 A29 补齐 `unrun` 后恰好**；UI 900 秒 PASS；
+  `-Impact -KeepGoing` 红集 ⊆ **A35 四项集**且**按 A29 补齐 `unrun` 后恰好**；UI 900 秒 PASS；
   A32 三类 check、A33 反例、A34 词表条目与盘点数字齐备；
   `event_author_manual_lists_current_fields` 扩展为**纳入链关键词**（`next` 对象形态／`chain`／环）
   并加反向断言"**不得再写 B4 起生效／当前不接受**"（只许加断言，不得放宽）；
