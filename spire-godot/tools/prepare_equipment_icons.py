@@ -1,8 +1,10 @@
 """Remove the flat beige backing from the existing material icons, locally.
 
-Reads the sibling project's originals without modifying them. Requires Pillow
-and NumPy; no model, network request, or runtime chroma-key shader is used.
+Reads the originals from the sibling web-project repository (mahou-shoujo-escape),
+which is a separate project and is never modified here. Requires Pillow and NumPy;
+no model, network request, or runtime chroma-key shader is used.
 """
+import os
 from collections import deque
 from pathlib import Path
 
@@ -10,7 +12,8 @@ import numpy as np
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT.parent / "game-demo/public/assets/restraints"
+# Override with MAHOU_ASSETS when the sibling repository is checked out elsewhere.
+SOURCE = Path(os.environ.get("MAHOU_ASSETS", ROOT.parent.parent / "mahou-shoujo-escape/public/assets/restraints"))
 DESTINATION = ROOT / "assets/ui/equipment"
 FAMILIES = ("rope-", "fine-cord-", "leather-", "fine-belt-", "tape-", "cable-tie-")
 
