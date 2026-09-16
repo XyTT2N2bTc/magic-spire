@@ -239,7 +239,7 @@
 
 ### 7.2 数据与配方
 
-普通事件条目需要`name/intro/choices`；每个选择需唯一`id/label/reward`，配`recipe`或`effects`。顶层`allow_refuse`默认为真，设为假时不会生成默认付费离开；作者仍可用无奖励空`effects`提供免费离开。选项可用`hide_when_unavailable`要求完整效果当前无法成立时直接隐藏，也可使用与多阶段事件相同的`selector`。普通选项还可声明通用`encounter{id,requires_defeat,victory_effects,victory_report,result_status}`，进入已登记遭遇并在胜利后直接回到事件结果页；它不产生普通战利品或整备，普通`reward`必须为`none`。`item_rewards:[{id,pool}]`可从1—6个道具池各冻结一件，通过共用战利品界面逐件领取或放弃；容量已满时就地禁止，不进入整理或整备。多阶段事件改用`name/intro/start_stage/stages`，可加`cleanup_effects`，不能同时再填顶层`choices`。完整字段见内容包说明及`event_multistage.json.disabled`。
+事件条目需要`name/intro/start_node/nodes`；每个节点声明`allow_refuse/unavailable/relic_gate/random_freeze/outcome_draw/frozen_form/empty_node`并填写`choices`，每个选择需唯一`id/label/reward`，配`recipe`、`effects`或`outcomes`。节点`allow_refuse`无默认：为真时自动追加支付至多10魔力的付费离开选项，为假时不会生成默认离开；作者仍可用无奖励空`effects`提供免费离开。选项可用`hide_when_unavailable`要求完整效果当前无法成立时直接隐藏，也可使用通用`selector`。选项还可声明通用`encounter{id,requires_defeat,victory_effects,victory_report,result_status}`，进入已登记遭遇并在胜利后直接回到事件结果页；它不产生普通战利品或整备，`reward`必须为`none`。`item_rewards:[{id,pool}]`可从1—6个道具池各冻结一件，通过共用战利品界面逐件领取或放弃；容量已满时就地禁止，不进入整理或整备。定义级`cleanup_effects`可声明`restore_held`收尾；单节点定义的节点`id`固定为`choice`，多节点定义按`start_node`进入第一个节点。完整字段见内容包说明及两个`event`模板。
 
 | recipe | 当前固定行为 |
 |---|---|
@@ -292,15 +292,15 @@
 
 ### 7.4 离开与钥匙限制
 
-`allow_refuse:true`的事件自动追加保留 ID `refuse`：损失至多10魔力离开，无奖励，魔力不足扣剩余全部。不要手工再增加同名选择。`allow_refuse:false`可完全禁止默认离开；若需要免费离开，作者新增一个无奖励、空`effects`并直达结果的普通选项。其他离开惩罚仍须由已登记效果组合表达，不能只写 `exit_mode`。
+节点`allow_refuse:true`时自动追加保留 ID `refuse`：损失至多10魔力离开，无奖励，魔力不足扣剩余全部。不要手工再增加同名选择。`allow_refuse:false`可完全禁止默认离开；若需要免费离开，作者新增一个无奖励、空`effects`并直达结果的选项。多节点定义的起始节点必须能离开。其他离开惩罚仍须由已登记效果组合表达，不能只写 `exit_mode`。
 
-wager 复用全局三钥匙定义，不能在一个事件里直接改成独立概率：进房固定一枚有效钥匙，各选项成功率1/3，选择一次后直接结算。接受赌局后不能使用卡牌／道具穿插改变装备。
+早期设计记录（**当前校验不接受**`wager`配方与`reward: "keys"`，不要写进内容包）：wager 复用全局三钥匙定义，不能在一个事件里直接改成独立概率：进房固定一枚有效钥匙，各选项成功率1/3，选择一次后直接结算。接受赌局后不能使用卡牌／道具穿插改变装备。
 
 - 左：成功解除至多两把现有锁，优先新皮带；失败加入卡组的虚无诅咒「慌乱」。
 - 中：成功获得2次开锁针；失败将本次眼罩加固一档。
 - 右：成功获得固定的未拥有遗物；失败将本次皮带加固一档并增加既定压力。
 
-成败都保留本次眼罩与皮带；有效钥匙不能出现在玩家 ViewModel、提示或隐藏意图日志中。其他赌局优先使用通用`stages/outcomes`；只有确实需要现有接口无法表达的新规则时才扩充共享能力。
+成败都保留本次眼罩与皮带；有效钥匙不能出现在玩家 ViewModel、提示或隐藏意图日志中。其他赌局优先使用通用`nodes/outcomes`；只有确实需要现有接口无法表达的新规则时才扩充共享能力。
 
 ## 8. 塔路分布约束
 

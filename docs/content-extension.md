@@ -121,7 +121,7 @@ RuleChangePackage：沿原combat.active/serial/turn、牌区和资源字段，�
 | 合法装备方案 | `core/equipment_offers.gd` | `ordinary(grade, free, templates)`、`options()`；警卫与事件共用，查询不改状态 |
 | 敌人模板 | `data/enemies.gd` 的 `TYPES` | `behavior`选择现有计划、`visual`选择外观；实例ID、回合与打断共用 |
 | 遭遇与强怪池 | `data/enemies.gd::ENCOUNTERS`、`data/first_floor_enemy_pools.gd::POOLS` | 普通房间生成时冻结弱/强备选，首次进入按实际普通战斗次数选池并固定；不复制战斗逻辑 |
-| 事件 | `data/room_events.gd` 的 `TYPES`（位置统一由Tower随机生成） | `core/room_events.gd` 的进入、方案、候选、执行、只读投影 |
+| 事件 | `data/room_events.gd` 的 `TYPES`（单一节点形态：`start_node`＋`nodes`；位置统一由Tower随机生成） | `core/room_events.gd` 的定义访问`definition/node/node_ids`，以及进入、方案、候选、执行、只读投影 |
 | 事件卡牌奖励池 | `CARD_POOLS` | `_gain_card`，与战后、休息服务共用实际加牌 |
 | 卡牌规则与奖励池 | `data/card_rules.gd` 的 `SPECS/COMMON/ADVANCED/REWARDS` | `core/card_effects.gd`统一资格、伤害目标、自由效果和逐段执行；费用/方法/身体条件/段数共用 |
 | 卡牌文案与特性 | `data/balance.gd` 的 `CARD_INFO`、`CARD_NAMES`、`CARD_TRAITS` | 只读卡牌投影；虚无/不可打出由特性统一处理 |
@@ -134,10 +134,10 @@ RuleChangePackage：沿原combat.active/serial/turn、牌区和资源字段，�
 
 普通流程为`进入房间并冻结方案 → 选择 → 原子施加代价 → 选牌／钥匙／结果 → 容量整理 → 地图`。多阶段流程为`进入阶段并冻结该阶段全部选项 → 选择并原子提交 → 后续阶段或结果 → 通用收尾 → 地图`。事件选牌在支付代价后使用reward随机域生成，查看不重抽。
 
-- 每个事件定义名称、介绍和选择列表。选择提供稳定`id`、显示`label`、`recipe`或明确的`effects`，以及`reward`类别。
-- 现有配方：`free_basic`、`tighten_or_medium`、`locked_assembly`、`wager`。配方只在进入时生成，结果保存于本局状态；新增相同配方的事件不需要新的阶段处理。
+- 每个事件定义名称、开场介绍与节点：定义级`start_node`＋`nodes`，每个节点自带`allow_refuse/unavailable/relic_gate/random_freeze/outcome_draw/frozen_form/empty_node/choices`（取值见内容包说明 §3）。选择提供稳定`id`、显示`label`、`recipe`或明确的`effects`，以及`reward`类别。
+- 现有配方：`free_basic`、`tighten_or_medium`、`locked_assembly`。配方只在进入时生成，结果保存于本局状态；新增相同配方的事件不需要新的阶段处理。早期设计记录里的`wager`配方与`reward: "keys"`当前校验不接受。
 - 明确普通运行效果白名单为`install/special_install/assembly/tighten/tighten_to/unlock/mana_loss/mana_gain/mana_restore_full/mana_max_loss/flask_mana_gain/pressure/card/tool/relic/remove_card/ease_restraint/remove_restraints/hold_special/restore_held`。`mana_restore_full`恢复至当前上限；`mana_max_loss`永久降低上限并压低超出的当前魔力，但不能令上限低于1。`flask_mana_gain`直接增加贴身魔瓶储量，不受角色魔力上限约束且不占用手动存入次数；`remove_restraints`只接收选择器冻结的1—4个不同实例，全部复核后原子解除。普通与多阶段作者层可使用`install_random/tighten_random/random_amount`生成器；分别在进房或进入阶段时展开为具体普通效果，运行状态和快照不保存生成器。`random_amount`只包装已有的`mana_loss/mana_gain/flask_mana_gain/pressure`并冻结包含上下限的整数。未知效果拒绝，新增效果须同时实现执行、前后说明、快照和测试。
-- 多阶段定义使用`start_stage/stages`，阶段只能向后或进入`result`。起始阶段须保留默认付费离开，或明确提供一个无条件、无效果且直达结果页的免费离开选项。`outcomes`按权重冻结但只投影作者提供的公开`detail`；不把已抽秘密结果交给UI。
+- 多节点定义按`nodes`顺序推进，每个节点只能转向数组里靠后的节点或`result`。起始节点须保留付费离开，或明确提供一个无条件、无效果且直达结果页的免费离开选项。`outcomes`按权重冻结但只投影作者提供的公开`detail`；不把已抽秘密结果交给UI。**B2 起生效**：单节点节点也可写`next／when／outcomes`，条件规范拼写`conditions`与选项级`unavailable`同批开放。
 - 普通与多阶段选项可声明`availability{kind,reason}`。当前`no_chastity_lock`按正式特殊装备族判断：任一仍在佩戴的平板锁使该选项保持可见但不可提交；候选携带具体原因并指定二级说明表面，事件界面仅在按钮悬浮／聚焦时调用共用说明窗，不重复写入选项注语。冻结阶段保存条件声明，正式提交重新复核，不能按事件ID、装备中文名或锁定状态另写分支。
 - `hold_special`按`slots`选择既有性玩具，以`key`保存完整实例；有关联连接时拒绝。对应`restore_held`必须在`cleanup_effects`声明，离开命令先原样归还再完成房间。它是跨事件复用的暂存接口，不按事件ID分支。
 - 普通施加效果声明`template/slot/grade/tier/locked`；指定已有目标使用物理`target`。同批新增对象可用`ref`保存编号，后续通过`ref_target`引用。引用与真实装备绑定，不能根据中文名称查找。

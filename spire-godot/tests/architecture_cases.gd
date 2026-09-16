@@ -18,6 +18,52 @@ const COPY_BASELINE={
 static func ids_for(values: Array) -> Array:
  return values.map(func(e):return e.get("id",""))
 
+# docs/event-pipeline-dependency-spec.md §1／§4.2: the event modules preload exactly the
+# declared registry edges; one edge more or less fails, and no core file may reach ui/.
+static func event_dependency_edges_pinned(t) -> void:
+ var expected={"res://core/room_events.gd":["res://data/room_events.gd","res://data/relics.gd"],"res://core/content_catalog.gd":[],"res://core/snapshot.gd":["res://data/phases.gd"]}
+ var pattern=RegEx.new()
+ pattern.compile("preload\\(\"res://[^\"]+\"\\)")
+ for path in expected:
+  var file=FileAccess.open(path,FileAccess.READ)
+  t.check(file!=null,"ARCH event module is readable for its dependency edges "+path)
+  if file==null: continue
+  var found=[]
+  for hit in pattern.search_all(file.get_as_text()):
+   var target=hit.get_string().trim_prefix("preload(\"").trim_suffix("\")")
+   if target not in found: found.append(target)
+  found.sort()
+  var want=expected[path].duplicate();want.sort()
+  t.check(found==want,"ARCH event dependency edges pinned "+path+": "+str(found))
+ var ui_pattern=RegEx.new()
+ ui_pattern.compile("ui/")
+ for path in expected:
+  var file=FileAccess.open(path,FileAccess.READ)
+  if file==null: continue
+  t.check(ui_pattern.search(file.get_as_text())==null,"ARCH core event module never names ui/ "+path)
+
+# docs/event-pipeline-dependency-spec.md §4.2: nodes and options are reachable only through
+# definition／node／node_ids; legacy keys return empty instead of raising.
+static func event_definition_accessors_only(t) -> void:
+ var g=Game.new(42)
+ var events=g.Events
+ var legacy_keys=["stages","start_stage","choices"]
+ t.check(events.definition("no_such_event_for_accessor_check").is_empty() and events.definition("").is_empty(),"ARCH definition accessor returns empty for unknown ids")
+ t.check(events.node({},"choice").is_empty() and events.node_ids({}).is_empty(),"ARCH node accessors tolerate an empty definition")
+ t.check(not events.definition("floating_belt_cluster").is_empty(),"ARCH definition accessor resolves a shipped event")
+ for id in g.Events.Data.TYPES:
+  var spec=events.definition(id)
+  t.check(spec==g.Events.Data.TYPES[id] and spec.has("start_node") and spec.nodes is Array and not spec.nodes.is_empty(),"ARCH definition accessor returns the authored node form "+id)
+  for legacy in legacy_keys:
+   t.check(spec.get(legacy)==null,"ARCH compiled definition exposes no legacy key "+legacy+" "+id)
+   t.check(events.node(spec,legacy).is_empty(),"ARCH node accessor returns empty for the legacy key "+legacy+" "+id)
+  var ids=events.node_ids(spec)
+  t.check(ids.size()==spec.nodes.size() and spec.start_node in ids and ids.all(func(node_id):return node_id is String and node_id!=""),"ARCH node_ids enumerates every authored node "+id)
+  for node_id in ids:
+   var entry=events.node(spec,node_id)
+   t.check(not entry.is_empty() and entry.id==node_id and entry.choices is Array and not entry.choices.is_empty(),"ARCH node accessor returns the authored node "+id+"/"+node_id)
+  t.check(events.node(spec,"no_such_node_"+id).is_empty(),"ARCH node accessor returns empty for an unknown node id "+id)
+
 class UncachedGame extends "res://tests/game_fixture.gd":
  func _begin_equipment_read() -> Dictionary:
   return {}
@@ -72,6 +118,8 @@ static func shared(view: Dictionary, authority: Dictionary) -> String:
  return ""
 
 static func run(t) -> void:
+ event_dependency_edges_pinned(t)
+ event_definition_accessors_only(t)
  tool_registry_boundary(t)
  equipment_read_batches(t)
  index_materializes_once_per_scope(t)

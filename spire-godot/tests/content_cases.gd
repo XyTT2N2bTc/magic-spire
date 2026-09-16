@@ -96,6 +96,53 @@ static func event_stacked_conditions_keep_current_content(t) -> void:
    t.check(authored.size()==1 and option.availability==authored[0].availability,"EVENT CONDITION frozen option keeps the authored condition "+id+"/"+source)
  t.check(frozen_conditions==1,"EVENT CONDITION the held-relic event freezes its authored condition")
 
+# docs/event-pipeline-unification.md §16: the author manual must list the fields the
+# validator actually accepts, keep pointing at the shipped templates, and never teach the
+# retired definition shape.
+static func event_author_manual_lists_current_fields(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var file=FileAccess.open("res://content/README.md",FileAccess.READ)
+ t.check(file!=null,"EVENT MANUAL author manual is readable")
+ if file==null: return
+ var lines=file.get_as_text().split("\n")
+ var start=-1;var end=-1
+ for index in range(lines.size()):
+  if lines[index].begins_with("## 3. 事件"): start=index
+  elif start>=0 and lines[index].begins_with("## 4. 遗物"): end=index;break
+ t.check(start>=0 and end>start,"EVENT MANUAL event section is present")
+ if start<0 or end<=start: return
+ var section="\n".join(lines.slice(start,end))
+ t.check(not section.contains("start_stage") and not section.contains("`stages`") and not section.contains("顶层`choices`"),"EVENT MANUAL event section teaches no retired definition shape")
+ t.check(section.contains("templates/event.json") and section.contains("templates/event_multistage.json.disabled"),"EVENT MANUAL event section points at both shipped templates")
+ t.check(section.contains("B2 起生效") and section.contains("B4 起生效"),"EVENT MANUAL deferred spellings carry their batch marker")
+ # The manual's own tables, one entry per documented field or value token.
+ var vocabulary=["allow_refuse","availability","card","choices","cleanup_effects","counter","detail","ease_restraint","effects","empty_node","encounter","flask_mana_gain","free_basic","frozen_form","hide_when_unavailable","id","install","install_random","intro","item_rewards","kind","locked_assembly","mana_gain","mana_loss","mana_max_loss","mana_restore_full","name","next","nodes","op","outcome_draw","outcomes","pool","pressure","random_amount","random_freeze","recipe","relic","relic_gate","remove_card","remove_restraints","report","report_variants","result_status","schema_version","selector","show_pressure_sources","special_install","special_install_random","start_node","tighten_or_medium","tighten_random","title","tool","transform_card","unavailable","when"]
+ var documented={"allow_refuse":["true","false"],"unavailable":["hide","disable"],"relic_gate":["pool","claimed"],"random_freeze":["generators","always"],"outcome_draw":["option","selection"],"frozen_form":["in_place","staged"],"empty_node":["allow","fail"]}
+ var rows={}
+ var tokens=[]
+ for line in lines.slice(start,end):
+  if not line.begins_with("| `"): continue
+  var cells=line.split("|")
+  if cells.size()<3: return
+  var key_tokens=[];var value_tokens=[]
+  for hit in RegEx.create_from_string("`([^`]+)`").search_all(cells[1]): key_tokens.append(hit.get_string(1))
+  for hit in RegEx.create_from_string("`([^`]+)`").search_all(cells[2]): value_tokens.append(hit.get_string(1))
+  for token in key_tokens: tokens.append(token)
+  if key_tokens.size()==1: rows[key_tokens[0]]=value_tokens
+ t.check(tokens.all(func(token):return token in vocabulary),"EVENT MANUAL documented fields stay inside the accepted vocabulary: "+str(tokens.filter(func(token):return token not in vocabulary)))
+ for key in documented:
+  t.check(rows.has(key) and rows[key]==documented[key],"EVENT MANUAL node declaration documents every accepted value: "+key+" "+str(rows.get(key)))
+  for value in documented[key]:
+   # Probe on the second node: the start node additionally has to stay leavable.
+   var accepted=template_document("example_multistage_challenge")
+   accepted.data.nodes[1][key]=value=="true" if key=="allow_refuse" else value
+   t.check(Catalog.compile(g,[accepted]).ok,"EVENT MANUAL documented value is accepted by the validator: "+key+"="+value)
+  var rejected=template_document("example_multistage_challenge")
+  rejected.data.nodes[1][key]="retired_value"
+  t.check(not Catalog.compile(g,[rejected]).ok,"EVENT MANUAL undocumented value is rejected by the validator: "+key)
+ t.check(Catalog.tables(g)==baseline,"EVENT MANUAL manual review leaves the registries untouched")
+
 # docs/event-pipeline-unification.md §2.5 registrations: each merged allowance keeps what
 # both structures previously accepted, and nothing that used to be rejected is accepted.
 static func event_union_validation_rules(t) -> void:
@@ -135,6 +182,7 @@ static func event_union_validation_rules(t) -> void:
  t.check(Catalog.tables(g)==baseline,"EVENT UNION validation leaves the registries untouched")
 
 static func run(t) -> void:
+ event_author_manual_lists_current_fields(t)
  event_stage_available_condition_validates(t)
  event_definition_form_rejects_legacy_shape(t)
  event_stacked_conditions_keep_current_content(t)

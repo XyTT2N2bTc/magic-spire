@@ -392,8 +392,8 @@ recipe 或完整效果列表：二选一
 没有合法目标或没有奖励时：
 成功 / 失败 / 取消选牌后：
 
-离开：普通事件默认自动付费离开；必须完成交易时填写`allow_refuse:false`；其他自定义费用仍需先扩展通用规则
-结构：普通choices，或多阶段start_stage/stages（二选一）
+离开：按节点声明；`allow_refuse:true`自动追加付费离开，必须完成交易时写`false`；其他自定义费用仍需先扩展通用规则
+结构：`start_node`＋`nodes`；单节点用哨兵`choice`，多节点按 H4 写各阶段节点
 后续阶段：只指向数组中的后续阶段或result；是否带公开加权结果
 批量生成：是否使用install_random／tighten_random，哪些模板与数量
 暂存与收尾：hold_special的key／slots，以及cleanup_effects中的restore_held
@@ -405,28 +405,19 @@ recipe 或完整效果列表：二选一
 
 ### H2. 只用已有配方的例子
 
-合入 `data/room_events.gd:TYPES`：
+完整可复制文件是`content/templates/event.json`（单节点）与`content/templates/event_multistage.json.disabled`（多节点）；字段与节点声明的含义见`content/README.md` §3，本节不复制第二份完整 JSON。只用现有配方时，单个选项就是下面这个形状：
 
 ```json
-{
-  "sample_fitting_counter": {
-    "name": "试装换礼台",
-    "intro": "桌上列着两种交换方案。完成对应试装，就能挑选奖励。",
-    "choices": [
-      {"id": "try_one", "label": "试一件，换普通牌", "recipe": "free_basic", "reward": "common"},
-      {"id": "adjust_one", "label": "收紧装备，换罕见牌", "recipe": "tighten_or_medium", "reward": "uncommon", "pressure": 10.0}
-    ]
-  }
-}
+{"id": "try_one", "label": "试一件，换普通牌", "recipe": "free_basic", "reward": "common"}
 ```
 
-复用流程默认展示实际生成的部位／装备代价并追加`refuse`付费离开选项；填写`allow_refuse:false`可建立必须完成一项选择的普通事件。不要在choices里再写同名refuse。显式效果选项需在不可执行时完全隐藏，可设置`hide_when_unavailable:true`；接受后奖励牌才抽取并保存。
+`recipe`与`effects`至少要有一个，或只写`outcomes`；两者不能同时出现。配方默认展示实际生成的部位／装备代价。`allow_refuse:true`的节点会自动追加`refuse`付费离开选项，不要在`choices`里再写同名条目；写`false`则必须完成一项选择。显式效果选项需在不可执行时完全隐藏，可设置`hide_when_unavailable:true`；接受后奖励牌才抽取并保存。
 
-上例压力10是演示值；事件风险需一起确认。不使用 `exit_mode/weight/once_per_run/requirements` 等未实现字段。若事件要禁止离开或自定义离开惩罚，应先扩展真实流程，不能靠隐藏按钮绕过状态规则。
+快感写成效果`{"op": "pressure", "amount": 10}`，不是选项字段；事件风险需一起确认。不使用 `exit_mode/weight/once_per_run/requirements` 等未实现字段。若事件要禁止离开或自定义离开惩罚，应先扩展真实流程，不能靠隐藏按钮绕过状态规则。
 
 ### H3. 明确效果的最小例子
 
-以下是 choices 中的**一个完整条目**，只使用已经能预告并执行的安装效果：
+以下是节点`choices`中的**一个完整条目**，只使用已经能预告并执行的安装效果：
 
 ```json
 {
@@ -445,10 +436,10 @@ recipe 或完整效果列表：二选一
 
 ### H4. 多阶段事件
 
-完整可复制文件见`content/templates/event_multistage.json.disabled`。它使用通用阶段、加权结果、批量随机安装／收紧和事件结束归还接口，不包含任何按事件名分支的代码。
+完整可复制文件见`content/templates/event_multistage.json.disabled`。它使用通用节点、加权结果、批量随机安装／收紧和事件结束归还接口，不包含任何按事件名分支的代码。
 
-- `stages`按顺序列2—12个阶段；`start_stage`必须引用其中一个，阶段只能转向后面的阶段或`result`。
-- 每阶段填写`id/title/intro/allow_refuse/choices`。起始阶段必须允许默认付费离开，或包含一个无条件、无效果且直达结果页的免费离开选项；后续阶段可以禁止中途退出。
+- `nodes`按顺序列2—12个节点（上限12），`start_node`必须引用其中一个；每个节点只能转向数组里靠后的节点或`result`。
+- 每个节点必须写全`id/title/intro/allow_refuse/unavailable/relic_gate/random_freeze/outcome_draw/frozen_form/empty_node/choices`，取值见`content/README.md` §3。起始节点必须允许付费离开，或包含一个无条件、无效果且直达结果页的免费离开选项；后续节点可以禁止中途退出。
 - 每个选项可把`effects`、`recipe`与`outcomes`组合使用，但`effects`与`recipe`不能同时出现。`outcomes`需2—8项`weight/effects`，并在选项上提供不泄密的公开`detail`。
 - 选项可填写`show_pressure_sources:true`，按冻结效果顺序把每个`pressure.source`放到结果正文前；该选项必须实际包含至少一个带`source`的快感效果。
 - 选项／随机结果可用`report_variants`替换结果正文，`pressure`效果可用`source_variants`替换动作正文。每项填写`when:{kind:"equipped_special_family",value:"已登记family"}`和`text`；进入事件／阶段时读取真实在身装备并冻结正文。它只解决同一机械结果在不同佩戴状态下的叙述差分，不得改变效果、概率、资格或奖励。
