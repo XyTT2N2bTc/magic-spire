@@ -83,15 +83,24 @@ rg -n "res://tests/" spire-godot/core/ spire-godot/data/ spire-godot/ui/
 `evaluate_option`／`enter_node`／`probe`／`probe_cleanup` 命中；5／6 命中位置必须落在
 `room_events.gd` 的声明表与冻结投影内。
 
-### 4.2 架构分类的具名 check（cleaner 之后由 validator 复跑）
+### 4.2 架构分类的具名 check（按批承载；cleaner 之后由 validator 复跑）
 
-| check | 分类 | 判据 |
-| --- | --- | --- |
-| `event_dependency_edges_pinned` | `architecture` | `room_events.gd`／`content_catalog.gd`／`snapshot.gd` 的 preload 目标集合恰好等于本文件 §1 表列出的集合（多一个或少一个即红） |
-| `event_definition_accessors_only` | `architecture` | 行为式：`definition`／`node`／`node_ids` 之外取不到节点与选项；非法键（旧 `stages`／`start_stage`）返回空且不抛错 |
-| `event_condition_kinds_share_one_declaration` | `architecture`＋`content`＋`persistence` | §5 的 kind 集合在内容校验／运行时求值／存档校验三处相等；未知 kind 三处一致拒绝 |
-| `event_single_evaluation_entry` | `architecture` | 计数包装：构建一次事件时 `evaluate_option` 的调用次数＝该节点展开出的评估次数；`probe_choice`／`availability_issue` 的调用只来自入口内部（测试侧包装，生产无计数器） |
-| `event_pipeline_writes_only_declared_keys` | `persistence` | 存档往返后新增键只可能是 `chain`（跨事件跳转时）与 `conditions`（规范拼写内容）；12 份内容一个都不出现 |
+承载批次：B1b＝两条追溯项；B2＝求值入口与声明表两项 + 新键检查的内容半；B4＝新键检查的链半。
+
+| check | 分类 | 承载批次 | 判据 |
+| --- | --- | --- | --- |
+| `event_dependency_edges_pinned` | `architecture` | **B1b**（B1 已满足其内容，追溯判据） | `room_events.gd`／`content_catalog.gd`／`snapshot.gd` 的 preload 目标集合恰好等于本文件 §1 表列出的集合（多一个或少一个即红） |
+| `event_definition_accessors_only` | `architecture` | **B1b**（B1 已满足其内容，追溯判据） | 行为式：`definition`／`node`／`node_ids` 之外取不到节点与选项；非法键（旧 `stages`／`start_stage`）返回空且不抛错 |
+| `event_condition_kinds_share_one_declaration` | `architecture`＋`content`＋`persistence` | **B2**（随 §5 声明表） | kind 集合在内容校验／运行时求值／存档校验三处相等；未知 kind 三处一致拒绝 |
+| `event_single_evaluation_entry` | `architecture` | **B2**（随求值入口） | 计数包装：构建一次事件时 `evaluate_option` 的调用次数＝该节点展开出的评估次数；`probe_choice`／`availability_issue` 的调用只来自入口内部（测试侧包装，生产无计数器） |
+| `event_pipeline_writes_only_declared_keys` | `persistence` | **B2（内容半）＋ B4（链半）** | 存档往返后新增键只可能是 `chain`（跨事件跳转时）与 `conditions`（规范拼写内容）；B2 先断言 **12 份内容一个都不出现**；B4 补 `chain` 的跨事件断言 |
 
 未落地即未完成；本表 5 条与 `docs/event-pipeline-unification.md` §10 的 01–20 是同一批判据，
 不得择一执行。
+
+### 4.3 B1 执行现状（2026-09-16，commit `d770aea`）
+
+- §4.1 的 7 条手工命令已执行：**未新增 preload 边**（`room_events.gd` 仍只有
+  `data/room_events.gd`＋`data/relics.gd` 两条）、`core/` 无 `ui/`、生产代码不引用 `res://tests/`。
+- §4.2 的 5 条 check **尚未落地代码**，按上表分派到 B1b／B2／B4；
+  B1 未落地它们不是缺口（其内容在 B1 已满足，只是没有具名 check 承载）。

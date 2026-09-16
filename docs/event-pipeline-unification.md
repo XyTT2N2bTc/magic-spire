@@ -28,8 +28,36 @@
 §15 的 `needs-human-review` 理由保留为历史记录，不再是关口。
 
 已核实的既有缺陷（**不属本片范围，待排期**）：`content_catalog.gd:308` 阶段选项的
-`_availability()` 漏传 `data`，`has_relic` 写在阶段选项上永远无法通过校验；
-阶段 id 保留字清单缺 `battle`／`loot`（两者是运行时阶段哨兵值）。
+`_availability()` 漏传 `data`，`has_relic` 写在阶段选项上永远无法通过校验（**B1 已顺带修好**，
+见执行记录）；阶段 id 保留字清单缺 `battle`／`loot`（两者是运行时阶段哨兵值，B1 已并入保留字）。
+
+## 执行记录（B1 已落地；含裁定与偏差）
+
+### B1 落地事实（commit `d770aea`，父 `4d22a00`；工作区干净、未推送）
+
+| 项 | 内容 |
+| --- | --- |
+| 范围 | `core/room_events.gd`（唯一定义访问 `definition/node/node_ids`；`start` 按节点数驱动两条分支；`enter_stage`→`enter_node` 无别名；`probe/execute/view/validate` 全走访问器）、`core/content_catalog.gd`（事件 schema 升 2；单一形态校验 `start_node`＋`nodes`；§2.5 并集；`_flow_references` 与普通分支合并为 `_event_references`；`has_relic` 校验补传遗物表）、`core/snapshot.gd`（事件段改走访问器）、12 份内容包＋2 份模板＋生成来源迁移、3 个测试文件 |
+| 判据 | E0 退出码 0／`PASS (94 scenarios, 0 failures)`／摘要 `1f11bea5…`（日志 `build/e0-diagnostic-20260916/compare-b1-final.log`）；`-Suite event_flow,events,content,architecture -Impact` 退出码 1，唯一失败分类＝`card_power`（`-KeepGoing` 23/24 通过、5/10339 失败，逐条为已登记既有项）；`check-content.ps1` 退出码 0 |
+| 独立复核 | 协调者重跑 E0（同摘要）、四类套件全 PASS（1963 断言）、内容包校验 12 file(s) PASS |
+| 场景落点 | 01 `event_definition_single_form`（event_cases）、02 `event_option_policies_match_current_behaviour`（event_flow_cases）、06／07／20（content_cases） |
+
+**判据按增量判定成立**：B1 未引入新红项，E0 逐字节不变。
+
+### 裁定与偏差（协调者转人裁，2026-09-16 第二批；本节即偏差登记）
+
+| # | 事项 | 裁定与契约位置 |
+| --- | --- | --- |
+| A1 | 并集白名单过渡态：单节点选项在 B1 后可编译 `next`／`when`／`outcomes`／`encounter`／`item_rewards`，其中 `next`／`when`／`outcomes` 到 B2 才生效 | **接受并登记**（§2.5 过渡态段）：有意的过渡态，不是漏做；B2 同批使其生效，§10 场景 08 为该能力的具名 check；**B2 落地前不得打包、不得发版**（§12）；B2 前任何内容包不得使用这三个键（12 份内容＋E0 已覆盖） |
+| A2 | 起始节点免费出口规则只约束多节点定义 | **接受**（§2.5 登记表第 7 行注明读法）：字面约束单节点会让四份强制事件立即非法，与"只放宽不收紧"冲突 |
+| A3 | 选项级 `conditions`／`unavailable` 规范拼写缓到 B2 | **接受**（§2.3）：避免反向开放尚未实现的能力；与声明表同批落地 |
+| A4 | §6.3 按选项键判定暂缓到 B2 | **接受，但 B2 必须增量完成**（§6.3）：保留现有 `flow` 分支的检查，另补新键检查，**不得以放宽换取统一** |
+| A5 | `normal_play` 红项 | **不进本片、不派修**。登记措辞按事实：`docs/verification.md:58` 已有既有登记（2026-09-14 全量尝试条目）；B1 实现者在 `HEAD~1` 复现出同样打转，但**因主动终止未能证明旧版断言同样红 → 归因未定**；**不得写成"与 B1 无关"**（§12） |
+| A6 | 文档同步缺口（唯一实质缺口） | **立 B1b 批**（§8.3、§16）：`content/README.md`、`docs/content-templates.md`、`docs/content-generation.md`、`docs/content-extension.md` 仍教旧形态，照文档写出的包会被新校验拒绝 |
+| A7 | 根指引"仍写 Godot 入口见 `spire-godot/AGENTS.md`" | **磁盘复核：不存在**（根 `AGENTS.md` 只有"## 模块规则（spire-godot/）"＋文档入口表；无该句、无 `tools/check_agents.py`、无"CI 检查指引行数"节）。此前表述来自注入副本，已在 §8.3 更正；新增假设见 §14 |
+| A8 | 依赖规范 §4.2 的 5 条架构 check 归属 | 确认原意是分批判据，现按 §7.4／依赖规范 §4.2 明确分配：两条随 B1b，两条随 B2，一条 B2＋B4 两半 |
+
+
 
 ## 0. 领域、裁决与不变量
 
@@ -194,9 +222,9 @@ E0 冻结的不只是玩家可见文本，还包括**运行期数据布局**：`
 
 | 字段 | 取值 | 说明 |
 | --- | --- | --- |
-| `conditions` | 1–8 条条目的数组 | **规范拼写**（新增能力，R1 澄清的 trigger 系统）：每条 `{"kind":…, "mode":"optional"\|"hidden", "reason":…, …kind 字段}`；可叠加，两类模式可同时声明；求值语义见 §5.3 |
+| `conditions` | 1–8 条条目的数组 | **规范拼写**（新增能力，R1 澄清的 trigger 系统）：每条 `{"kind":…, "mode":"optional"\|"hidden", "reason":…, …kind 字段}`；可叠加，两类模式可同时声明；求值语义见 §5.3。**B2 起接受**（B1 只收兼容拼写，裁定 A3） |
 | `availability` | `{kind, ...}` | **兼容拼写**：等价于一条"按选项默认模式解析"的状态条件；只为 12 份内容与冻结产物键集而保留（§0.2、§13 R2） |
-| `unavailable` | `"hide"`／`"disable"` | 可选覆盖节点默认；决定该选项**未被显式 `mode` 约束的条目**的默认模式；与 `hide_when_unavailable` 冲突即拒绝 |
+| `unavailable` | `"hide"`／`"disable"` | 可选覆盖节点默认；决定该选项**未被显式 `mode` 约束的条目**的默认模式；与 `hide_when_unavailable` 冲突即拒绝。**选项级覆盖 B2 起接受**（节点级已在 B1 生效，裁定 A3） |
 | `hide_when_unavailable` | 布尔 | **兼容拼写**，等价 `unavailable:"hide"`（今日语义：状态条件与可行性探测**都**隐藏）；只为冻结产物键集而保留 |
 | `when` | `{counter\|selector, equals/minimum/maximum}` | **兼容拼写**：等价于一条 `mode:"hidden"` 的实例条件；kind 集合由 §5 的单一声明派生 |
 | `outcome_draw` | `"option"`／`"selection"` | 可选覆盖；只在有 `outcomes` 时有效 |
@@ -205,7 +233,8 @@ E0 冻结的不只是玩家可见文本，还包括**运行期数据布局**：`
 
 - 同一选项**不得**同时写 `conditions` 与 `availability`（两种容器只允许选一种）——否则拒收，
   避免同一份资格出现两个真相源。
-- `mode` 只允许 `"optional"`（显示但禁用）与 `"hidden"`（不生成）；省略时按 §5.3 的模式解析。
+- `mode` 只允许 `"optional"`（显示但禁用）与 `"hidden"`（不生成）；省略时按 §5.3 的模式解析
+  （**B2 起接受**）。
 - **冻结产物键集（兼容要求，不是设计目标）**：用兼容拼写的内容，冻结选项里保留原键
   （`availability` 原对象、`hide_when_unavailable` 原布尔、`when` 不进 staged 布局）；
   用规范拼写 `conditions` 的新内容，冻结选项携带 `conditions` 数组（含 `mode`）。
@@ -249,6 +278,31 @@ E0 冻结的不只是玩家可见文本，还包括**运行期数据布局**：`
 
 `build/event-oracle-20260916/event_oracle.gd` 只读 `Data.TYPES[id].name` 与键集合，**不改**，
 E0 命令保持不变。
+
+**第 7 行的读法（裁定 A2，B1 已按此落地）**：该规则**只约束多节点（staged）定义**。
+单节点定义可以是强制事件（`allow_refuse:false`、无无条件免费出口）——字面地把规则扩展到单节点
+会让四份已发布强制事件立即非法，与"只放宽不收紧"冲突。登记为读法而非新规则，
+改动它必须重新人审。
+
+**并集白名单的过渡态（裁定 A1，B1 现存事实，必须登记）**
+
+B1 的单一白名单让**单节点**选项也能编译 `next`／`when`／`outcomes`／`encounter`／`item_rewards`。
+逐项现状（B1 实测）：
+
+| 键 | 单节点现状 | 说明 |
+| --- | --- | --- |
+| `encounter`／`item_rewards` | **已生效** | 原普通路径本就支持（冻结与执行都在 in_place 分支里） |
+| `next` | **恒为 `"result"`** | 非 `"result"` 时校验先拒（`_flow_next` 不允许指向自身/回退）；运行期不读 |
+| `when` | **不生效** | 只被 `enter_node` 读取，单节点走 `start` 的 in_place 分支 |
+| `outcomes` | **仅在选择器选项上生效** | 无 selector 的选项不读；**有 selector 的选项经 `freeze_choice` 时按"每个 selection 抽一次"**（＝声明值 `outcome_draw:"selection"`），与节点声明的 `"option"` 暂不一致 |
+
+这是**有意的过渡态，不是漏做**：
+
+1. B2 同批让四者全部按节点声明生效（含把单节点选择器选项的 outcome 抽取改为遵循
+   `outcome_draw` 声明）；判据是 §10 场景 08（统一选项能力）＋ 场景 05（单声明）；
+2. **B2 落地前不得打包、不得发版**（写进 §12 的"算未完成"）；
+3. B2 前任何内容包不得在单节点上使用 `next`／`when`／`outcomes`；现有 12 份内容与 E0 夹具
+   都不使用（E0 已覆盖此点），新内容按本契约写。
 
 ## 3. 节点与事件链模型
 
@@ -520,6 +574,12 @@ static var CONDITIONS={
 - 节点集合判定用 `node_ids(definition)` 替换 `definition.stages`；
 - `values`／`held`／`cleanup_effects` 的检查保持（两种形态的实例本来就都带这些键）。
 
+**B2 的完成方式（裁定 A4，必须增量、不得放宽）**：B1 保留了现有 `flow` 分支的全部检查，
+只把定义访问改走访问器。B2 必须**同时**做到：①保留现有分支检查（`flow` 实例的
+`held/values/cleanup_effects/next_stage`、阶段集合、`source_choice∈declared`）；②新增
+`conditions` 条目的键集与 `mode` 检查；③新键检查不得成为放宽的替代品——**禁止**用
+"按选项键判定"删掉或弱化任何既有断言；`tests/persistence_cases.gd:event_conditions` 保持通过。
+
 ### 6.4 启动期迁移脚本（**人审：不落地，设计留档**）
 
 人审结论（2026-09-16，记录见文件头）：**不落地迁移脚本**，不改启动链；本节只留档设计，
@@ -635,42 +695,61 @@ static var CONDITIONS={
 - 多阶段／选择器选项进入 staged 布局，作者键不回声，但**产出字段的取值**必须一致
   （`next` 缺省 `"result"`、`report`／`result_status`／`detail` 的解析结果不变）。
 
-### 8.3 文档影响清单（本片只登记，不改这些文件）
+### 8.3 文档影响与 B1b 交付清单（裁定 A6：B1b 同批补齐）
 
-| 文档 | 需要的变更 |
+| 文档 | 需要的变更（执行批次） |
 | --- | --- |
-| `spire-godot/content/README.md` §3 事件（97–175 行） | 唯一作者手册：nodes/start_node、节点声明表、选项字段合并清单、schema 2、跨事件 `next`；`has_relic` 键集说明保留 |
-| `spire-godot/content/templates/event.json`、`event_multistage.json.disabled` | 见 §8.1（模板本身要在本片迁移） |
-| `spire-godot/content/packs/README.txt` | 无字段说明，通常不需要改（落地时复核） |
-| `docs/content-templates.md` | §H 事件模板、H4 多阶段、H5 界面约定、§497 行测试表：字段与形态改为单一形态 |
-| `docs/content-generation.md` | §7 事件生成与结算（242／275／279／285／289／291／295 行等）：两形态合并后的描述与"必须填写的声明" |
-| `docs/content-extension.md` | 事件流程段（133–150 行）与内容表（124 行）的事件行 |
-| `docs/event-structure.md` | §4 的 E1–E3 计划被本片吸收；§1 结构地图与 §7.2 的丢弃点编号需在落地后同步（**跨片越界，须协调者另派**） |
-| `docs/event-pipeline-dependency-spec.md` | 本片新增的依赖规范（§7.4 指向它；由本契约同批交付） |
+| `spire-godot/content/README.md` §3 事件（97–175 行） | 唯一作者手册：nodes/start_node、节点声明表、选项字段合并清单、schema 2、单节点禁用 `next`／`when`／`outcomes`；`has_relic` 键集说明保留（**B1b**；跨事件 `next` 与选项级 `conditions`／`unavailable` 缓到 B2／B4） |
+| `spire-godot/content/templates/event.json`、`event_multistage.json.disabled` | B1 已迁移为真源；B1b 只核对其正文与文档示例逐字一致（**不改内容**） |
+| `spire-godot/content/packs/README.txt` | 无字段说明，不需要改（B1b 复核一次） |
+| `docs/content-templates.md` | §H 事件模板、H4 多阶段、H5 界面约定、§488 行测试表：字段与形态改为单一形态（**B1b**） |
+| `docs/content-generation.md` | §7 事件生成与结算（242／275／279／285／289／291／295 行等）：两形态合并后的描述与"必须填写的声明"（**B1b**） |
+| `docs/content-extension.md` | 事件流程段（133–150 行）与内容表（124 行）的事件行（**B1b**） |
+| `docs/event-structure.md` | §4 的 E1–E3 计划被本片吸收；§1 结构地图与 §7.2 的丢弃点编号需同步（**跨片越界，须协调者另派，不并入 B1b**） |
+| `docs/event-pipeline-dependency-spec.md` | 本片新增的依赖规范（§7.4 指向它；由本契约同批交付，已落地） |
 | `docs/verification.md` | 只登记结果（validator 负责） |
-| 根 `AGENTS.md` 文档入口表 | 若本契约要进入口，由协调者按 `global-agent-baseline` 处理 |
+| 根 `AGENTS.md` 文档入口表 | 缺本契约与依赖规范两行；AGENTS 维护，由协调者按 `global-agent-baseline` 处理（**不在 B1b**） |
 
-另注：协调者简报与 `docs/response-pipeline.md` §5 引用的 `spire-godot/AGENTS.md` 在 HEAD 不存在
-（根 `AGENTS.md` 仍写"Godot 入口见 spire-godot/AGENTS.md"）；根指引的"CI 检查指引行数"一节也
-已被 `docs/agent-guide.md` 的 2026-09-16 条目废止。**这两处属指引维护缺口，报告给协调者，
-不在本片修**。
+另注（**已按磁盘复核更正**，裁定 A7）：根 `AGENTS.md` 在磁盘上只有"## 模块规则（spire-godot/）"＋
+文档入口表，**不含**"Godot 入口见 spire-godot/AGENTS.md"这句、**不含** `tools/check_agents.py`，
+也没有"CI 检查指引行数"一节（`grep` 三次均无命中）。此前契约与简报里的这两条表述来自注入副本，
+**是误报，已作废**；`docs/response-pipeline.md` §5 第 3 条提到的 `spire-godot/AGENTS.md` 属历史
+记录，磁盘无此文件。真正的缺口只剩一处：文档入口表还没有本契约与依赖规范两行，
+属 AGENTS 维护，由协调者按 `global-agent-baseline` 处理，不在本片。
 
-## 9. 分批（一个切片，四批；每批都以 E0 全绿收口）
+**B1b 的交付清单（裁定 A6；B1 只改了代码与内容，四份教旧形态的文档必须同批补齐）**
 
-| 批 | 范围 | 判据 |
-| --- | --- | --- |
-| B1 定义形态归一 | 定义级 `nodes/start_node` 落地；内容 12 份＋模板＋生成来源迁移；`content_catalog` 单一形态校验（含 §2.5 并集规则与路径改写）；`view`／`validate`／`snapshot`／测试夹具改走 `definition/node/node_ids`；`enter_stage`→`enter_node`（行为仍按现状两条分支） | E0 全绿 ＋ `-Suite event_flow,events,content,architecture -Impact` ＋ `check-content.ps1`；§10 场景 01／02／06／07／20 |
-| B2 声明与单入口 | 节点／选项声明写入内容；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖普通与多阶段；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；删除死分支与平行真相 | E0 全绿 ＋ 同上 ＋ §10 场景 03–05／08／12／13／15–18 |
-| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`）；叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | E0 全绿（开关开／关各跑一遍）＋ §10 场景 10／19 ＋ `persistence` 断言 trace 不进存档 |
-| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | E0 全绿 ＋ §10 场景 11／12 ＋ `architecture`／`persistence` |
+| 文件 | B1b 要改成什么 |
+| --- | --- |
+| `spire-godot/content/README.md` §3 事件（约 97–175 行） | 唯一作者手册：`schema_version:2`（事件）；定义级 `name/intro/pool/start_node/nodes/cleanup_effects`；节点级七个声明（`allow_refuse`／`unavailable`／`relic_gate`／`random_freeze`／`outcome_draw`／`frozen_form`／`empty_node`）逐项写清取值与当前含义；选项字段按"单节点可用／多阶段可用"两张清单重排；**明确写**：单节点定义**不得**使用 `next`／`when`／`outcomes`（B2 前会被接受但不生效，见 §2.5 过渡态）；起始节点免费出口只约束多节点（裁定 A2）；`availability` 现在在阶段选项上同样有效（B1 已修） |
+| `docs/content-templates.md` | §H 事件模板（约 375–446 行）换成节点形态示例；H4 多阶段（446–465）与 H5 界面约定（467–477）按新形态改写；§488 的测试表行同步 |
+| `docs/content-generation.md` §7 事件生成与结算（约 230–297 行） | 两形态合并后的生成／结算描述；节点声明与选项字段清单；`next`／`when`／`outcomes` 的单节点禁用说明 |
+| `docs/content-extension.md` | 事件流程段（约 133–150 行）与内容表 events 行（约 124 行）按新形态改写 |
+| `spire-godot/content/templates/event.json`、`event_multistage.json.disabled` | B1 已迁移，B1b 只需**核对其正文与文档示例逐字一致**（不改内容） |
+| `spire-godot/content/packs/README.txt` | 无字段说明，不需要改 |
 
-每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1 与 B2 之间代码必须可跑可测
-（现状两条分支仍在，只是由节点形态驱动）。
+**B1b 明确缓到 B2 的部分**（避免二次返工，裁定 A3）：选项级 `conditions` 数组、选项级
+`unavailable` 覆盖、`mode` 与叠加语义、"条件可选／条件隐藏"两类的作者写法——B2 与声明表同批
+落地后再补进上述四份文档。跨事件 `next={"event","node"}` 缓到 B4。
+`docs/event-structure.md` 的 §1／§7.2 同步仍需协调者另派（跨片契约，不并入 B1b）。
+
+## 9. 分批（每批都以 E0 全绿收口；B1 已落地，B1b／B2 见 §16／§17）
+
+| 批 | 范围 | 判据 | 状态 |
+| --- | --- | --- | --- |
+| B1 定义形态归一 | 定义级 `nodes/start_node` 落地；内容 12 份＋模板＋生成来源迁移；`content_catalog` 单一形态校验（含 §2.5 并集规则与路径改写）；`view`／`validate`／`snapshot`／测试夹具改走 `definition/node/node_ids`；`enter_stage`→`enter_node`（行为仍按现状两条分支） | E0 全绿 ＋ `-Suite event_flow,events,content,architecture -Impact` ＋ `check-content.ps1`；§10 场景 01／02／06／07／20 | **已完成**（`d770aea`，见执行记录） |
+| B1b 文档同步 | 四份仍教旧形态的文档改成节点形态（清单见 §8.3）；不含选项级 `conditions`／`unavailable` | E0 全绿 ＋ `check-content.ps1` ＋ 文档示例编译探针（§16） ＋ 依赖规范 §4.2 的两条 B1 追溯 check | 待派工（§16） |
+| B2 声明与单入口 | 节点声明生效（`frozen_form`／`relic_gate`／`random_freeze`／`outcome_draw`／`unavailable`／`empty_node` 不再是死数据）；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖两形态；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；`conditions`／`unavailable` 规范拼写与声明表同批接受；删除死分支与平行真相；`snapshot` 增量补新键检查 | E0 全绿 ＋ `check-content.ps1` ＋ §10 场景 05／08／09／13／15–18 ＋ 依赖规范 §4.2 的 `event_single_evaluation_entry`＋`event_condition_kinds_share_one_declaration`＋`event_pipeline_writes_only_declared_keys`（内容半） | 待派工（§17） |
+| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`）；叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | E0 全绿（开关开／关各跑一遍）＋ §10 场景 03／04／10／19 | 待派工 |
+| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | E0 全绿 ＋ §10 场景 11／12 ＋ 依赖规范 §4.2 的新键半 | 待派工 |
+
+每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1b 与 B2 之间代码必须可跑可测
+（B1 的两条分支仍在，只是由节点形态驱动；B2 才把节点声明接上）。
 
 ## 10. Gherkin（场景名 → 既有分类的具名 check）
 
 不新建流程文件、不新建看板；用具名函数加入既有 case 文件，复用 `tests/game_fixture.gd` 与
-`tests/event_cases.gd.arrive`。
+`tests/event_cases.gd.arrive`。**已落地（B1）**：01／02／06／07／20；其余按 §9 的批次归属。
 
 01. `event_definition_single_form`（`tests/event_cases.gd`，`events`）
     Given 12 份迁移后的内容包；When 编译并逐个进入；Then `Data.TYPES[id]` 只含 `nodes/start_node`，
@@ -699,7 +778,9 @@ static var CONDITIONS={
     `recipe` 与 `effects` 同填；When 编译；Then 逐例拒绝且整包不登记（`Catalog.tables(g)` 不变）。
 08. `event_unified_option_capabilities`（`tests/event_flow_cases.gd`，`event_flow`）
     Given 夹具把 `encounter`／`item_rewards`／`hide_when_unavailable` 写在阶段选项、
-    把 `when`／`outcomes` 写在普通选项；When 编译并执行；Then 全部生效（能力不再按结构分家），
+    把 `when`／`outcomes`／`next` 写在**单节点**选项（含"单节点 + selector + outcomes"一例）；
+    When 编译并执行；Then 全部按节点声明生效（`outcomes` 的抽取按 `outcome_draw` 声明、
+    `when` 参与显示判定、`next` 按目标推进）——**即 §2.5 过渡态的收口判据**，
     且 12 份内容的行为不变。
 09. `event_node_empty_policy_kept`（`tests/event_cases.gd`，`events`）
     Given 普通夹具节点的全部选项被丢弃；When 构建；Then 节点保持零候选、不进入失败结果页；
@@ -753,7 +834,8 @@ static var CONDITIONS={
     奖励遗物＝`hidden`），且 `gates` 长度恒为 0/1、`reason` 与基线逐字节相同；
     叠加能力上线前后 E0 94 场景摘要一致（由 §12 第 0 条命令执行）。
 
-场景 01–20 是 B1–B4 的逐步落地对象；未落地即未完成。15–20 属 B2／B3（能力上线即须有具名 check）。
+场景 01–20 是 B1–B4 的逐步落地对象；未落地即未完成。归属：B1 已落 01／02／06／07／20；
+B2 落 05／08／09／13／15–18；B3 落 03／04／10／19；B4 落 11／12；B1b 不新增场景（判据见 §16）。
 
 ## 11. Validator procedure（agent 可运行；操作必须走真实输入）
 
@@ -796,39 +878,54 @@ static var CONDITIONS={
 ```powershell
 # 0) 冻结判据（每批必跑；基线只读；判据＝94 场景 0 失败）
 & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
-# 1) 内容包校验（改 content/packs 或 content/templates 后必跑）
+# 1) 内容包校验（改 content/packs、content/templates 或站点文档示例后必跑）
 & tools/check-content.ps1
-# 2) 规则门（分类点名：events＝场景 01/03/09/19；event_flow＝02/04/08/11/12/15-18；
-#    content＝06/07/20；persistence＝10/14/19 存档侧；architecture＝05/13；
-#    -Impact 追加 persistence、rewards、pressure、equipment、special_equipment、tower）
+# 2) 规则门（分类点名：events＝01/03/09/19；event_flow＝02/04/08/11/12/15-18；
+#    content＝05/06/07/20；persistence＝10/14/19 存档侧；architecture＝05/13；各批实际归属见 §9）
 & tools/check.ps1 -Suite event_flow,events,content,architecture -Impact -TimeoutSeconds 900
 # 3) 界面回归（投影不动）
 & tools/check.ps1 -UIOnly -UISuite events -TimeoutSeconds 600
+# 4) B1b 专用：文档示例编译探针（把两份模板复制为 .json 到临时目录后校验，见 §16）
+& tools/check-content.ps1 -Path <临时目录>
 ```
 
-必过的场景：§10 的 01–20 全部具名 check；E0 的 94 场景 0 失败；`check-content.ps1` 通过；
-`docs/event-pipeline-dependency-spec.md` §4.2 的 5 条检查全部落地并通过（同批判据，不得择一执行）；
-§2.5 的两张表逐条落地（放宽项 8 条 ＋ 路径改写行），**既有反例只允许改写路径或新增，不得删除**。
+**每批判据的"恰好红集"**：`-Suite ... -Impact -KeepGoing` 时只允许
+`card_power`（`docs/verification.md:29`，5 条 `witch_*`）为红；**多出一条即本片未完成**；
+其余分类（含 `persistence`、`special_equipment`、`equipment`、`pressure`、`tower`）必须全绿。
+
+`normal_play`（`docs/verification.md:58` 的 2026-09-14 全量尝试条目）**不进本片、不派修**；
+登记措辞按事实：既有登记项；B1 实现者在 `HEAD~1` 复现出同样打转，但**因主动终止未能证明旧版
+断言同样红 → 归因未定**。**不得写成"与 B1 无关"的结论，也不得据此改断言或删套件。**
+
+必过的场景：§10 的 01–20 全部具名 check（按 §9 的批次归属逐批验收，B1b 不新增场景）；E0 的 94 场景 0 失败；`check-content.ps1` 通过；
+`docs/event-pipeline-dependency-spec.md` §4.2 的 5 条检查按 §9（§7.4）归属批次落地并通过
+（同批判据，不得择一执行）；§2.5 的两张表逐条落地（放宽项 8 条 ＋ 路径改写行），
+**既有反例只允许改写路径或新增，不得删除**。
 
 必有的证据：oracle 比对输出（含 `EVENT RESULT: PASS`）、两份 check 日志 ＋ `summary.json`
-（`status=passed`、指纹稳定）、§8.3 的文档同步记录（由协调者派单，不在本片内改的那些要留
-"待同步"清单）。
+（`status=passed`、指纹稳定；红集只允许 §12 的 `card_power` 项）、§8.3 的文档同步记录
+（B1b 完成后才齐全）。
 
 算未完成（任一）：
 
 - 任一必跑命令未执行、失败、未知或被跳过；`summary.json` 为 `source_changed`／`failed`／`plan`；
+  红集**超出** §12 规定的 `card_power` 项；
+- **B2 落地前打包、导出或发版**（裁定 A1：过渡态下"能编译但不生效"的键会随包外发）；
 - E0 出现红项而未解决、未显式上报人裁；用 `--write=` 重取基线让红变绿；
 - 冻结产物被"顺手统一"（`options`／`snapshot` 变红）——§6.1 已定：兼容布局是 E0 判据带来的要求，
   未经人裁不得改动；
-- 声明表以外的地方出现状态条件 kind 字面量、四处消费者枚举不一致；
+- B2 以"按选项键判定"删掉或弱化现有 `flow` 分支检查（裁定 A4）；
+- 声明表以外的地方出现状态条件 kind 字面量、三处消费者枚举不一致；
 - 叠加求值未按 §5.3：命中多条时只留一条原因、只给笼统 gate、或 `gates` 顺序与声明序不一致；
 - `conditions` 与 `availability` 同时出现在同一选项（两个真相源）而未被拒收；
 - 出现静默丢弃（无 trace 记录、无 gate 名）；
 - trace 进入 `state`／存档／View／日志，或 release 运行产出 trace；
 - 新增 `get_view` 只读字段、新增 `game.event_diagnostics()`、改 `ui/` 或 `core/game.gd` 提交管线；
 - 删／弱化既有断言（含 `event_flow_cases` 的隐藏选项断言、`persistence_cases:event_conditions`）换绿灯；
+- 把 `normal_play` 的既有红项写成"与 B1 无关"的结论，或据此改断言、删套件；
 - 落地迁移脚本或改启动链（人审：不落地）；
 - 12 份内容之外的内容包被写入链形态（E0 不覆盖）；
+- B1b 未完成就开始 B2（文档与代码形态不一致期不得叠批）；
 - 宣称完整回归或提速。
 
 ## 13. 裁定记录（R1 按人审澄清改写；其余按推荐执行）
@@ -871,6 +968,10 @@ static var CONDITIONS={
 7. 若把 §5.3 的叠加语义改成"OR／任一满足即可选"或"optional 优先于 hidden"，会出现同一选项
    在两种模式下给出不同 `gates`／`reason` 的实现分歧——判据是 §10 场景 17／18，
    规则以 §5.3 为准，改规则属重新规划。
+8. **写规范或核对事实前，先以磁盘文件为准**（`rg`／`sed` 实地读仓库文件），不采信注入副本、
+   历史会话摘要或协调者简报里的"现状引述"。本会话已出现两次同类误报：根指引被报"仍列
+   `tools/check_agents.py`"、被报"仍指 `spire-godot/AGENTS.md`"，两者在磁盘上都不存在
+   （裁定 A7）。凡引用"某文件现在写着 X"的结论，必须带当次核对的命令与命中行。
 
 ## 15. `needs-human-review` 判定（历史记录）
 
@@ -889,3 +990,94 @@ static var CONDITIONS={
    等于重新授权 E5（先前明确未授权），属范围变更。
 6. **判据相互作用**：E0 全绿这一判据与"内容必须合并成一种形态"存在张力（冻结产物不能被统一），
    本契约的解法是把差异降为声明；该解法需人认可，否则整片范围与判据都要改。
+
+## 16. B1b 派工要点（文档同步；可直接开工）
+
+- **一句话**：把四份仍教旧形态的文档改成节点形态，并在文档里写清"单节点不得使用
+  `next`／`when`／`outcomes`"，使照文档写出的包能被当前校验接受。
+- **域**：文档与作者手册的一致性。不改产品代码、不改测试、不改判据脚本、不改内容包与模板
+  （模板是 B1 已迁移并通过校验的真源，**文档跟随模板，不反过来改模板**）。
+- **可改文件（授权清单，只这四份）**：
+  1. `spire-godot/content/README.md`（§3 事件，约 97–175 行）
+  2. `docs/content-templates.md`（§H／H4／H5／§488 行测试表）
+  3. `docs/content-generation.md`（§7 事件生成与结算）
+  4. `docs/content-extension.md`（事件流程段、内容表 events 行）
+  内容与改写要点见 §8.3；`docs/event-structure.md`、根 `AGENTS.md`、本契约不在 B1b 授权内。
+- **判据命令（全跑，一次）**：
+  ```powershell
+  # 0) 冻结判据（文档改动不应影响它；红了先查是否误改代码/内容）
+  & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
+  # 1) 内容门（含模板）
+  & tools/check-content.ps1
+  # 2) 文档示例编译探针：把两份模板按 .json 复制到已忽略的临时目录后校验
+  & tools/check-content.ps1 -Path <临时目录>     # 判据：CONTENT PASS: 2 file(s)
+  # 3) 规则门（回归，防止误改代码）
+  & tools/check.ps1 -Suite event_flow,events,content,architecture -Impact -TimeoutSeconds 900
+  # 4) 旧形态残留扫描（人工判读；只允许出现在"迁移说明"段）
+  rg -n "start_stage|\"stages\"|顶层 .*choices|allow_refuse 默认" spire-godot/content/README.md docs/content-templates.md docs/content-generation.md docs/content-extension.md
+  ```
+- **DoD**：
+  - 四份文档的字段表与 `content_catalog.gd` 的实际白名单一致（节点七个声明取值、选项白名单、
+    `schema_version: 2`、"起始节点免费出口只约束多节点"、`availability` 在阶段选项同样有效）；
+  - 文档中的完整示例**指向** `content/templates/` 的两个文件，不复制第二份完整 JSON；
+  - 文档写明 B2 前单节点禁用 `next`／`when`／`outcomes`，以及"`conditions`／`unavailable` 规范拼写
+    将在 B2 提供"（**不作为可用能力描述**）；
+  - 上述 4 条命令退出码 0（第 4 条为人工判读，命中项须逐条给出理由）；
+  - 证据与结果写 `docs/verification.md`（域：文档同步）。
+- **具名 check**：依赖规范 §4.2 的两条 B1 追溯项（`event_dependency_edges_pinned`、
+  `event_definition_accessors_only`，B1 已满足、B1b 落地即可）＋ `tests/content_cases.gd` 新增
+  `event_author_manual_lists_current_fields`：读 `res://content/README.md` 的字段表小节，
+  断言其中出现的反引号标识符全部 ∈ 校验器白名单 ∪ 既有非字段词表，且不出现
+  `start_stage`／顶层 `choices`。允许实现者收窄为"只查字段表小节"，**不得弱化为不检查**。
+- **非目标**：不改任何内容包语义、不改模板、不动 B2 才开放的拼写、不打包。
+
+## 17. B2 派工要点（声明与单入口；可直接开工）
+
+- **一句话**：让 B1 写进内容的节点声明真正生效，把资格四通道收敛成"条件条目 ＋ 单求值入口"，
+  并同批接受 `conditions`／选项级 `unavailable` 规范拼写与叠加求值。
+- **域**：`room_events.gd` 的事件生成／求值／执行；`content_catalog.gd` 的作者层校验；
+  `snapshot.gd` 的事件段键集；对应测试。
+- **可改文件（授权清单）**：
+  - `spire-godot/core/room_events.gd`、`spire-godot/core/content_catalog.gd`、`spire-godot/core/snapshot.gd`
+  - `spire-godot/tests/{event_cases,event_flow_cases,content_cases,persistence_cases,architecture_cases}.gd`
+  - **不改**：`content/packs/*`（七个节点声明 B1 已写好，值＝现值）、`content/templates/*`、
+    `ui/**`、`core/game.gd` 提交管线、`core/game_view.gd`、`docs/**`（文档随 B2 另派，
+    见 §8.3 的"B1b 明确缓到 B2"清单——B2 完成后必须补文档，否则又落回 A6 的缺口）。
+- **交付物（接口级，按 §4／§5）**：
+  1. `CONDITIONS` 声明表 ＋ `condition_kinds`／`condition_entries`／`condition_issue`／
+     `condition_probe`／`condition_saved_fields`（一处声明，三处消费者集合相等）；
+  2. `evaluate_option(g, request)`：`gates` 数组（`gate`／`kind`／`mode`／`index`／`detail`／`reason`）、
+     四种 `decision`、按声明顺序、多命中 `reason` 按 `"\n"` 连接；
+  3. `enter_node` 成为唯一节点管线：节点声明 `frozen_form`／`relic_gate`／`random_freeze`／
+     `outcome_draw`／`unavailable`／`empty_node`／`allow_refuse` 全部被读取（B1 的节点数分支消失）；
+     包含过渡态里"单节点 + selector + outcomes 按 per-selection 抽"这一例改为遵循 `outcome_draw` 声明；
+  4. 模式解析优先级与叠加聚合（§5.3）＋ `reason_surface` 改由 gate 判定；
+  5. 白名单加 `conditions`（1–8 条、每条 `mode`）与选项级 `unavailable`；两者与 `availability`
+     不得并存；`content_catalog` 的状态条件校验改为调 `condition_issue`；
+  6. `snapshot` **增量**补齐：保留 `flow` 分支全部检查，另加 `conditions` 键集与 `mode` 检查
+     （裁定 A4：不得以放宽换统一）；
+  7. 删除死分支（选项级 `pressure`／`pressure_source`）与平行真相（`condition_met`／
+     `availability_issue` 内部 match 改为查表）；
+  8. `probe`／`candidates`／`execute` 全经入口，`purpose` 检查清单按 §4.4（多一步少一步都算红）。
+- **判据命令（一次，不无故重复）**：
+  ```powershell
+  & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
+  & tools/check-content.ps1
+  & tools/check.ps1 -Suite event_flow,events,content,architecture -Impact -TimeoutSeconds 900
+  & tools/check.ps1 -UIOnly -UISuite events -TimeoutSeconds 600
+  ```
+- **DoD**：
+  - E0 退出码 0、`PASS (94 scenarios, 0 failures)`、摘要 `1f11bea5…`（**摘要必须逐字相同**）；
+  - `-KeepGoing` 红集**只允许** `card_power`（`docs/verification.md:29`）；任何新红项即未完成；
+  - §10 场景 05／08／09／13／15–18 全部具名 check 通过（08 必须证明单节点上
+    `next`／`when`／`outcomes` 已按声明生效——即 §2.5 过渡态收口）；
+  - 依赖规范 §4.2：`event_condition_kinds_share_one_declaration`、`event_single_evaluation_entry`
+    落地；`event_pipeline_writes_only_declared_keys` 的"12 份内容不出现 `conditions`／`chain`"半落地；
+  - `tests/persistence_cases.gd:event_conditions` 与既有反例断言保持通过（只允许新增/改路径）；
+  - 报告必须给出：`gates` 顺序与多命中拼接的样例、四个 `purpose` 的检查清单对照、E0 摘要；
+  - **B2 完成前不得打包、不得发版**（§12）。
+- **已知最可能爆的点**：求值顺序与随机消耗（§4.3）——`relic_gate` 冻结前／后位置、
+  `outcome_draw` 与 selector 展开的先后、生成器判定在 `resolve_effect_copy` 之后；
+  以及 `frozen_form`＝`in_place` 必须保持"作者对象回声"布局（键序不变）。
+- **非目标**：trace 与 gate 全覆盖（B3）、跨事件 `next` 对象形态与 `chain`（B4）、
+  文档（B2 后另派）、`get_view` 字段、`ui/`、提交管线。
