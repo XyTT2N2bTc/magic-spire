@@ -274,7 +274,7 @@ func _restart_tower(from_exit: bool=false) -> void:
  if entry.kind=="entry": entry.id="tower_bottom"
  else: state.rooms.append({"id":"tower_bottom","name":"塔底入口","kind":"entry","wall":"normal","next":["entrance"],"floor":entry.floor-1,"lane":0.5})
  state.tower_start_pending=not from_exit
- state.room="tower_bottom"; state.wall="normal"; state.wall_distance=1
+ _apply_transition("tower_restart",{"room":"tower_bottom"}); state.wall="normal"; state.wall_distance=1
  state.completed_rooms=[]; state.traversed_edges=[]; state.journey={}
  state.travel_turns=0;state.room_event={};state.prison={};state.capture={}
  state.prepare_left=0;state.rest_left=0;state.rest_cards=[];state.hook_uses=0
@@ -333,7 +333,7 @@ func _gain_tool(type: String) -> void:
  state.next_item+=1
 
 func _start_practice() -> void:
- state.room="rest"
+ _apply_transition("practice_init",{"room":"rest"})
  state.draw=state.deck.duplicate(true)
  _shuffle(state.draw)
  var spec=Tower.practice_spec(state.practice_kind)
@@ -358,7 +358,7 @@ func _start_practice() -> void:
   s.erase("equipment_index")
   state.pressure_sources.append(s)
  if spec.get("start","")=="shop":
-  state.room=state.rooms.filter(func(room):return room.kind=="shop")[0].id
+  _apply_transition("practice_init",{"room":state.rooms.filter(func(room):return room.kind=="shop")[0].id})
   Services.start(self)
  elif spec.get("start","") in ["prison_release","prison_release_violation","prison_gate_exit"]:
   Prison.exit_practice(self,spec.start)
@@ -367,7 +367,7 @@ func _start_practice() -> void:
  elif spec.get("start","")=="event":
   Events.start(self,spec.event)
  elif spec.has("encounter"):
-  state.room="entrance"
+  _apply_transition("practice_init",{"room":"entrance"})
   state.room_encounters.entrance=spec.encounter
   _start_battle()
  else: _start_rest()
@@ -744,6 +744,11 @@ func _apply_transition(kind: String, args: Dictionary = {}) -> String:
  if not continuation: _transition_log.append(kind)
  _transition_written={"kind":kind,"fields":wrote}
  return ""
+
+# 进入某房间时使用的 kind（docs/transition-pipeline.md §3）：目标层高于当前层＝floor_enter，
+# 否则＝room_enter。只用于真实移动与换塔的落点；构造期写入由各自的构造 kind 承担。
+func _room_transition_kind(target: String) -> String:
+ return "floor_enter" if int(room_data(target).get("floor",0))>int(room_data(state.room).get("floor",0)) else "room_enter"
 
 func _finish_battle(end_kind: String="victory") -> void:
  if state.phase != "battle":
@@ -3043,7 +3048,7 @@ func _depart(c: Dictionary) -> String:
  _leave_mounted_tools()
  if state.tower_start_pending:
   state.tower_start_pending=false
-  state.room=c.payload.room
+  _apply_transition(_room_transition_kind(c.payload.room),{"room":c.payload.room})
   _emit("event","选择"+room_data(state.room).name+"作为新塔路起点。")
   _arrive_room()
   return ""
@@ -3065,7 +3070,7 @@ func _advance_travel() -> void:
   _emit("event","你继续"+state.journey.mode+"，距离"+room_data(state.journey.target).name+"还有%d回合。" % state.journey.remaining)
   return
  state.traversed_edges.append([state.room,state.journey.target])
- state.room=state.journey.target
+ _apply_transition(_room_transition_kind(state.journey.target),{"room":state.journey.target})
  state.journey={}
  _arrive_room()
 

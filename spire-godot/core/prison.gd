@@ -145,7 +145,7 @@ static func discoverable(p: Dictionary) -> Array:
 
 # Scenario initialization only; all subsequent actions use the ordinary prison pipeline.
 static func start_practice(g) -> void:
- g.state.security=1;g.state.room="prison";g.state.wall="rough";g.state.wall_distance=0
+ g.state.security=1;g._apply_transition("prison_cell_init",{"room":"prison"});g.state.wall="rough";g.state.wall_distance=0
  g.state.posture="lie"
  g.state.rooms.append({"id":"prison","name":"牢房","kind":"prison","wall":"rough","next":[],"floor":-1,"lane":0.5})
  var baseline=g.equipment_targets().map(func(e):return e.id)
@@ -441,7 +441,7 @@ static func escape(g, route: String) -> void:
  g.state.pressure_sources=g.state.pressure_sources.filter(func(s):return s.room=="")
  g.state.rooms=g.Tower.prison_route(g.state.security)
  g.state.room_encounters={"prison_gate":"guard_solo"}
- g.state.room="prison_start";g.state.wall="normal";g.state.wall_distance=1
+ g._apply_transition("prison_escape",{"room":"prison_start"});g.state.wall="normal";g.state.wall_distance=1
  g.state.room_event={};g.state.completed_rooms=[];g.state.traversed_edges=[];g.state.journey={}
  g.state.enemies=[];g._apply_transition("prison_escape");g.state.energy=0
  g._emit("event",("传送符将你带离牢房。" if route=="return_seal" else ("你爬出通风口，离开牢房。" if route=="vent_exit" else "你穿过牢门，离开牢房。"))+"来到监狱出发点。前方是休息点和出口精英战，出口由%d名魅魔警卫把守。" % g.state.security)
@@ -581,6 +581,6 @@ static func exit_practice(g, kind: String) -> void:
  if kind in ["prison_release","prison_release_violation"]: return
  enter(g)
  escape(g,"door_exit")
- g.state.room="prison_gate"
+ g._apply_transition("prison_gate_init",{"room":"prison_gate"})
  g.state.completed_rooms=["prison_start","prison_rest"]
  g._start_battle()
