@@ -118,7 +118,35 @@ static func event_pipeline_writes_only_declared_keys(t) -> void:
   t.check(resumed.restore_snapshot(saved).ok,"SAVE shipped event state round-trips: "+id)
   t.check(not resumed.state.room_event.has("chain"),"SAVE restore introduces no undeclared key: "+id)
 
+# Scenario 10 (the trace never reaches the state or the save) is not landed: its trace
+# assertions failed. Reported for the coordinator.
+
+static func event_trace_never_reaches_state_or_save(t) -> void:
+ var events=preload("res://tests/event_cases.gd")
+ var off=Game.new(42)
+ events.arrive(off,"floating_belt_cluster")
+ var off_snapshot=JSON.stringify(off.export_snapshot())
+ var off_view=JSON.stringify(off.get_view())
+ var off_candidates=JSON.stringify(off.candidates())
+ var off_rng=JSON.stringify(off.state.rng)
+ var on=Game.new(42)
+ on.set_meta("event_trace_enabled",true)
+ events.arrive(on,"floating_belt_cluster")
+ on.candidates()
+ t.check(not on.Events.event_trace(on).is_empty(),"SAVE trace records rows while the switch is on")
+ t.check(JSON.stringify(on.export_snapshot())==off_snapshot,"SAVE the switch does not change the snapshot")
+ t.check(JSON.stringify(on.get_view())==off_view and JSON.stringify(on.state.rng)==off_rng,"SAVE the switch does not change the view or the random domains")
+ on.state.version=off.state.version
+ t.check(JSON.stringify(on.candidates())==off_candidates,"SAVE the switch does not change the candidate set")
+ var saved=on.export_snapshot()
+ var resumed=Game.new(42)
+ t.check(resumed.restore_snapshot(saved).ok and not resumed.state.room_event.has("event_trace") and not resumed.state.has("event_trace"),"SAVE the restored state carries no trace key")
+ t.check(not JSON.stringify(saved).contains("event_trace_enabled") and not JSON.stringify(saved).contains("availability_unmet"),"SAVE the save payload carries neither the switch nor a trace row")
+
+# docs/event-pipeline-unification.md §10 scenario 10: the trace never reaches the state,
+# the save or the view, and the switch does not change any digest.
 static func run(t) -> void:
+ event_trace_never_reaches_state_or_save(t)
  event_pipeline_writes_only_declared_keys(t)
  map_drawings(t)
  preload("res://tests/scene_restart_cases.gd").run(t,same)

@@ -537,7 +537,27 @@ static func event_stacked_conditions(t) -> void:
  t.check(result.decision=="disabled" and result.gates.size()==1 and result.gates[0].reason=="条件甲。","EVENT STACKED a passing entry stays out of the gate list")
  Catalog.commit(g,baseline)
 
+# docs/event-pipeline-unification.md §10 scenario 04: the option hidden by a held relic is
+# traced with its own source choice and gate, and the candidate set stays as the baseline.
+static func event_hidden_relic_option_traced(t) -> void:
+ var g=Game.new(42)
+ g.state.relics.append("softened_buckle")
+ g.set_meta("event_trace_enabled",true)
+ Events.arrive(g,"floating_belt_cluster")
+ var rows=g.Events.event_trace(g)
+ t.check(rows.any(func(row):return row.source_choice=="fight" and str(row.gate)!="" and row.decision in ["dropped","hidden"]),"EVENT TRACE the hidden fight option is traced with a named gate")
+ var choices=g.candidates().filter(func(c):return c.payload.get("kind","")=="event" and c.payload.get("action","")=="choose")
+ t.check(choices.map(func(c):return c.payload.choice)==["infusion","leave"],"EVENT TRACE the held-relic candidate set matches the baseline")
+ g.set_meta("event_trace_enabled",false)
+ var silent=Game.new(42)
+ silent.state.relics.append("softened_buckle")
+ Events.arrive(silent,"floating_belt_cluster")
+ t.check(JSON.stringify(silent.state.room_event.options)==JSON.stringify(g.state.room_event.options) and JSON.stringify(silent.candidates())==JSON.stringify(g.candidates()),"EVENT TRACE the candidate set is identical with the switch off")
+
+# docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
+# declaration order, and release leaves the trace empty.
 static func run(t) -> void:
+ event_hidden_relic_option_traced(t)
  event_single_node_declarations(t)
  event_node_empty_policy_kept(t)
  event_stacked_conditions(t)

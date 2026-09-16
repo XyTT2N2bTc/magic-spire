@@ -22,7 +22,7 @@ static func start(g, id: String="") -> void:
   if g.state.room not in g.state.completed_rooms: g.state.completed_rooms.append(g.state.room)
   g._emit("event","房间里没有新的发现，可以继续前进。")
   return
- if g.get("event_trace_enabled")==true: g.event_trace=[]
+ clear_trace(g)
  g.state.phase="event"
  g.state.wall=g.room_data(g.state.room).wall
  g.state.enemies=[]
@@ -382,6 +382,10 @@ static func enter_node_result(g, id: String) -> Dictionary:
 # core/game.gd is outside this batch; the names are the contract's.
 static func trace_enabled(g) -> bool:
  return g.get_meta("event_trace_enabled",false)==true
+
+static func clear_trace(g) -> void:
+ if not trace_enabled(g): return
+ g.set_meta("event_trace",[])
 
 static func event_trace(g) -> Array:
  var rows=g.get_meta("event_trace",[])
