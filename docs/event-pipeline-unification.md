@@ -93,6 +93,35 @@
 | A13 | `validate_failed` 与 `node_empty` 的 gate 命名 | **缓到 B3（接受）**：B2 已把可分离的失败记成 `probe_failed`／`encounter_invalid`；单独命名 `validate_failed` 要拆 `probe()` 内部，属 B3「gate 命名全覆盖」；`node_empty` 现仍以既有 issue 文案返回、未单独记 gate，同属 B3。§4.2 表与 §10 场景 09／03 已标注 |
 | A14 | B2 收口批 | **立 B2b（本批收口，不另立切片）**：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`（按 §17 写死的口径①②③）；④以 B2 完整门禁命令（含 `localization`）复跑并交证据。**B2b 落地前本片仍不得打包发版**（§12） |
 
+### B2b 落地事实（commit `5a60cda`，父 `d67ac01`；**三项交付已落、四条判据绿；收口续批待完成**）
+
+| 项 | 内容 |
+| --- | --- |
+| 交付 | 五份文件：`tests/architecture_cases.gd`（+57：`event_condition_kinds_share_one_declaration`、`event_single_evaluation_entry`）、`tests/event_flow_cases.gd`（+100：`event_single_node_declarations`／`event_node_empty_policy_kept`／`event_stacked_conditions`）、`tests/persistence_cases.gd`（+17：`event_pipeline_writes_only_declared_keys`）、`tests/localization_cases.gd`（+81：`locale_legacy_catalog_matches_current_sources`）、`assets/localization/legacy-en_US.json`（删 25 条旧源文、增 29 条新校验文案，条目 4943→4947；`removed still present: []`／`required missing: []`） |
+| 判据（协调者独立复核） | E0 退出码 0／摘要 `1f11bea5…` **逐字相同**；`-Impact` 展开集红集**恰好** `card_power` 五条、`unrun=[]`；`event_flow,events,content,architecture,localization,persistence` 六类全 PASS（3035 断言）；`-UIOnly -UISuite events,localization` PASS 231；`check-content.ps1` 12 file(s) PASS |
+| 盘点 | `needs_review 5690`、`connected_static_call 33`；`en_US 52/52`、`ja_JP 0/52`（ja 缺译非本片引入、未动） |
+| 未完成／未证（3 项，**本批不得宣称通过**） | 见下面的"B2b 续批清单" |
+
+**B2b 续批清单（收口续批；每项都要有具名 check 或明确分类结论）**
+
+| # | 未完成／未证 | 字面判据（契约要求） | 归属 |
+| --- | --- | --- | --- |
+| C1 | `conditions` ＋ `mode:"hidden"` **未证实真正丢弃选项**：实现者夹具在 `enter_node` 后选项仍在 `room_event.options`，只有 `evaluate_option` 报 `decision=="hidden"`。磁盘复核：已落地的 `event_stacked_conditions` 里 `stacked_fixture_1`（`mode:"hidden"`）**只被构造、未被断言**，`stacked_fixture_2` 只断言"两条件都不命中后恢复" | §10 场景 16／17 的字面判据＝选项**不在** `room_event.options`／候选里（`decision=="hidden"` 是中间量，不是判据） | 实现者定位并分类（夹具／真缺口）；真缺口则修 `enter_node` 或 in_place 到达路径 |
+| C2 | 场景 09 第三段未落地：`next` 指向空节点时**上一节点候选变 invalid** | §10 场景 09 第三段；`probe` 的 `next` 探测路径必须有用例 | B2b 续批 |
+| C3 | 场景 05 断言分布：集中在 `architecture_cases.gd` 一条 check 内（三处消费者都断言），未按字面分文件 | **裁定 A15：接受**——判据是"三处一致"，一条 check 覆盖三处消费者即可，**不强制分文件**；§10 场景 05 措辞已按此改写 | 已裁定，无需补 |
+
+**为什么必须单独立证（E0 不能替代）**：现有 12 份内容走的是兼容拼写
+（`hide_when_unavailable` → `_state_mode` → hidden），E0 证明的是那条路径；
+**规范拼写 `conditions` 数组＋显式 `mode` 的容器解析不在 E0 覆盖内**（本片没有任何内容使用它），
+所以 C1 必须由具名 check 立证，不能以"E0 全绿"代替。
+
+### 裁定与偏差（协调者转人裁，2026-09-16 第五批；B2b 之后）
+
+| # | 事项 | 裁定与契约位置 |
+| --- | --- | --- |
+| A15 | 场景 05 是否必须"内容侧／存档侧分文件各出断言" | **裁定：接受"单 check 覆盖三处消费者"**。判据是**三处一致**（内容校验／运行时求值／存档校验），一条 check 同时断言三者与分文件的检出力等价，文件分布不影响效力；§10 场景 05 与依赖规范 §4.2 的登记措辞已同步为"一条 check 覆盖三处消费者即可（不强制分文件）" |
+| A16 | 打包与"完成"口径 | **记录并前置**：本片（含 B2b 收口）**未完成前不得打包发版**；**核心绿≠本批绿**（B2 核心绿≠B2 完成）、**B2b 续批绿≠整片完成**（B3／B4 未做）。任何报告不得用其中任一层绿色代表上一层（§12） |
+
 ## 0. 领域、裁决与不变量
 
 领域（只在这里动）：
@@ -787,7 +816,7 @@ static var CONDITIONS={
 | B1 定义形态归一 | 定义级 `nodes/start_node` 落地；内容 12 份＋模板＋生成来源迁移；`content_catalog` 单一形态校验（含 §2.5 并集规则与路径改写）；`view`／`validate`／`snapshot`／测试夹具改走 `definition/node/node_ids`；`enter_stage`→`enter_node`（行为仍按现状两条分支） | E0 全绿 ＋ `-Suite event_flow,events,content,architecture -Impact` ＋ `check-content.ps1`；§10 场景 01／02／06／07／20 | **已完成**（`d770aea`，见执行记录） |
 | B1b 文档同步 | 四份仍教旧形态的文档改成节点形态（清单见 §8.3）；不含选项级 `conditions`／`unavailable` | E0 全绿 ＋ `check-content.ps1` ＋ 文档示例编译探针（§16） ＋ 依赖规范 §4.2 的两条 B1 追溯 check | **已完成**（`a57dec3`，判据登记 `4d5bc8f`，见执行记录） |
 | B2 声明与单入口 | 节点声明生效（`frozen_form`／`relic_gate`／`random_freeze`／`outcome_draw`／`unavailable`／`empty_node` 不再是死数据）；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖两形态；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；`conditions`／`unavailable` 规范拼写与声明表同批接受；删除死分支与平行真相；`snapshot` 增量补新键检查；**同批刷新英文字典**（裁定 A9，§17） | E0 全绿 ＋ `check-content.ps1` ＋ `localization` 规则／界面门 ＋ §10 场景 05／08／09／13／15–18 ＋ 依赖规范 §4.2 的 `event_single_evaluation_entry`＋`event_condition_kinds_share_one_declaration`＋`event_pipeline_writes_only_declared_keys`（内容半） | **核心已落地、本批未完成**（`60869fc`；核心判据全绿，场景／依赖 check／本地化未落） |
-| B2b 收口 | 仅补 B2 未完成的三块：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`；④以 B2 的完整门禁命令（含 `localization`）复跑交证 | 见 §18（不改产品语义；`probe()` 内部与 `node_empty` 的单独 gate 名属 B3） | 待派工（§18） |
+| B2b 收口 | 仅补 B2 未完成的三块：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`；④以 B2 的完整门禁命令（含 `localization`）复跑交证 | 见 §18（不改产品语义；`probe()` 内部与 `node_empty` 的单独 gate 名属 B3） | **三项交付已落、四条判据绿**（`5a60cda`，协调者独立复核）；**续批待完成**：C1 hidden 立证／C2 场景 09 第三段（C3 已裁定 A15，无需补） |
 | B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`／`validate_failed` 的单独命名，裁定 A13）＋叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | E0 全绿（开关开／关各跑一遍）＋ §10 场景 03／04／10／19 | 待派工 |
 | B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | E0 全绿 ＋ §10 场景 11／12 ＋ 依赖规范 §4.2 的新键半 | 待派工 |
 
@@ -814,8 +843,8 @@ static var CONDITIONS={
 04. `event_hidden_relic_option_traced`（`tests/event_flow_cases.gd`，`event_flow`）
     Given 已持有 `softened_buckle` 的漂浮皮带群；When 构建选项；Then 【硬闯】缺席且 trace 记录
     `source_choice=fight`＋具名 gate，候选集合与 E0 基线一致（E6 政策维持现状）。
-05. `event_condition_kinds_share_one_declaration`（`tests/architecture_cases.gd`，`architecture`：
-    规则侧；`tests/content_cases.gd` 与 `tests/persistence_cases.gd` 各出对应断言）
+05. `event_condition_kinds_share_one_declaration`（**一条 check 覆盖三处消费者即可，不强制分文件**
+    ——裁定 A15：判据是"三处一致"；B2b 落在 `tests/architecture_cases.gd`，规则分类 `architecture`）
     Given `Events.condition_kinds()`；When 逐 kind 造最小合法 `availability`（普通选项与阶段选项各一次）；
     Then 内容编译通过、运行时求值返回非空、存档往返通过且键集＝`condition_saved_fields(kind)`；
     未知 kind 在三处一致拒绝；三处 kind 集合相等（条目解析为三者共用路径）。
@@ -835,6 +864,8 @@ static var CONDITIONS={
     Given 普通夹具节点的全部选项被丢弃；When 构建；Then 节点保持零候选、不进入失败结果页；
     Given 多阶段夹具节点同样情形；Then `enter_node` 返回具名 issue `node_empty`，
     上一节点的该选项在候选阶段变为 invalid。
+    **状态（B2b 续批 R2）：第三段（`next` 指向空节点 → 上一节点候选变 invalid）尚未落地**；
+    `node_empty` 的**单独 gate 名**仍属 B3（裁定 A13）。
 10. `event_trace_never_reaches_state_or_save`（`tests/persistence_cases.gd`，`persistence`）
     Given 开启 trace；When 进入事件、构建候选、提交、`export_snapshot`／存档往返；
     Then snapshot／存档／View／`rng` 不含 trace 字段，且与关闭 trace 时的摘要相同。
@@ -862,11 +893,14 @@ static var CONDITIONS={
 16. `event_single_hidden_condition_removes_choice`（同文件）
     Given 夹具选项声明 1 条 `mode:"hidden"` 的 `has_relic`（未持有）；When 构建；
     Then 选项**不在** `room_event.options`／候选里，`decision=="hidden"`、`gates` 长度 1。
+    **状态（B2b 续批 C1）：尚未立证**——已落地的 `event_stacked_conditions` 只构造了该夹具、
+    未断言；`decision=="hidden"` 是中间量，判据是"选项不在 `room_event.options`／候选里"。
 17. `event_stacked_condition_modes_combine`（同文件）
     Given 同一选项声明两条（`optional` 的 `has_relic` ＋ `hidden` 的 `no_chastity_lock`），
-    两条同时命中；When 构建；Then `decision=="hidden"` 且选项不生成；`gates` **同时含两条**
-    （按声明顺序，`mode` 分别为 `optional`／`hidden`）；把 `hidden` 那条置为不命中时，
-    同一选项变为 `disabled`、`gates` 只剩 `optional` 那条。
+    两条同时命中；When 构建；Then `decision=="hidden"` **且选项不在 `room_event.options`／候选里**；
+    `gates` **同时含两条**（按声明顺序，`mode` 分别为 `optional`／`hidden`）；把 `hidden` 那条
+    置为不命中时，同一选项变为 `disabled`、`gates` 只剩 `optional` 那条。
+    **状态（B2b 续批 C1）：与场景 16 同一未证项**（已落地的夹具只断言"两条件都不命中后恢复"）。
 18. `event_stacked_same_mode_lists_all_hits`（同文件）
     Given 同一选项两条 `optional`（两条都命中）与一条 `optional`（不命中）；When `candidate` 求值；
     Then `decision=="disabled"`、`gates` 恰为命中的两条（声明顺序）、
@@ -884,8 +918,13 @@ static var CONDITIONS={
     叠加能力上线前后 E0 94 场景摘要一致（由 §12 第 0 条命令执行）。
 
 场景 01–20 是 B1–B4 的逐步落地对象；未落地即未完成。归属：B1 已落 01／02／06／07／20；
-B2b 落 05／08／09／13／15–18（B2 核心只落了产品代码，场景一条未落，故 B2 未完成）；
+B2b 已落 05（裁定 A15：单 check 覆盖三处）／08／09（前两段，第三段见 R2）／13／15／18，
+**16／17 的"选项不在 `room_event.options`／候选里"仍待立证（C1）**；
 B3 落 03／04／10／19；B4 落 11／12；B1b 不新增场景（判据见 §16）。
+
+**完成口径（裁定 A16，逐层不得代偿）**：B2 核心绿（`60869fc`）≠ B2 完成；
+B2b 三项交付绿（`5a60cda`）≠ B2b 完成（R1／R2 未收口）；
+**B2b 续批绿 ≠ 整片完成**（B3／B4 未做）；全程不得打包发版。
 
 **裁定 A13 的落点标注**：
 - 场景 09（`event_node_empty_policy`）的**行为半**（普通节点保持零候选、多阶段节点返回既有 issue
@@ -989,6 +1028,8 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 - 12 份内容之外的内容包被写入链形态（E0 不覆盖）；
 - B1b 未完成就开始 B2（文档与代码形态不一致期不得叠批）；
 - **B2b 未完成就宣称 B2 通过**（核心绿≠本批绿：§10 场景、依赖 check、本地化三块必须同批收口，§18）；
+- **用任一层绿色代表上一层**（裁定 A16）：B2 核心绿≠B2 完成；B2b 交付绿≠B2b 完成（R1／R2 未收口）；
+  B2b 续批绿≠整片完成（B3／B4 未做）；**全程不得打包发版**；
 - 宣称完整回归或提速。
 
 ## 13. 裁定记录（R1 按人审澄清改写；其余按推荐执行）
@@ -1173,10 +1214,12 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 - **非目标**：trace 与 gate 全覆盖（B3）、跨事件 `next` 对象形态与 `chain`（B4）、
   作者手册再补文档（B2 后另派）、`get_view` 字段、`ui/`、提交管线。
 
-## 18. B2b 派工要点（B2 收口；不另立切片）
+## 18. B2b 派工要点（B2 收口；不另立切片；**三项交付已落 `5a60cda`，续批清单见执行记录**）
 
 - **定位**：B2 核心（`60869fc`）已改完产品代码且核心判据全绿，但**本批未完成**——缺三块：
   具名 check、依赖 check、本地化刷新。B2b 只补这三块与复跑证据，**不改产品语义**。
+  **当前状态**：三块已落（`5a60cda`，四条判据绿，协调者独立复核），**续批剩 C1（hidden 立证）
+  与 C2（场景 09 第三段）**；C3（场景 05 分文件）已按 A15 裁定，无需补。
 - **域**：测试（具名 check）、依赖规范检查、本地化词表。产品代码（`core/room_events.gd`／
   `content_catalog.gd`／`snapshot.gd`）**只有在补场景过程中发现真缺陷时才可动**；动了就必须
   按 B2 的完整门禁重跑并说明原因。
