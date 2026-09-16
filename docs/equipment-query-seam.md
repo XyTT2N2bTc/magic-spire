@@ -573,6 +573,8 @@ view 阶段（本批 wall 93.2ms）：
 1. **已完成**：`spire-godot/AGENTS.md` 文档入口表已加
    `| 装备只读查询 | docs/equipment-query-seam.md |`（协调者执行；指引门禁
    `PASS: 2 instruction files`、退出码 0，该文件 125 行／7830 字节，上限 500 行／10000 字节）。
+   （2026-09-16 注：`spire-godot/AGENTS.md` 已在 `ee9c54c` 合并进仓库根 `AGENTS.md`，该路径不再存在；
+   本条为历史记录，勿按原路径查文件。）
 2. **待人批（已由协调者转人）**：授权范围——本片需 `core/game.gd`、`core/game_view.gd`、
    `core/enemy_plans.gd`、`core/contact.gd`、`core/equipment_offers.gd`、`core/self_binding.gd`、
    `core/room_events.gd`、`core/prison.gd`（8 个 core 文件，仅加作用域进出或改内部取数），

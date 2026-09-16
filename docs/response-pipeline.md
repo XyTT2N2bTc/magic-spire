@@ -336,6 +336,8 @@ _submit(c, expected_version=-1)
 3. **已完成（2026-09-15）**：`spire-godot/AGENTS.md` 文档入口表已加入三行索引——响应管线、装备查询、
    文案收口与按需（`docs/response-pipeline.md`、`docs/equipment-query-seam.md`、`docs/ondemand-copy.md`）；
    该文件现 126 行／7896 字节（上限 500 行／10000 字节，指引门禁通过）。保留本行供追溯，**不再是待办**。
+   （2026-09-16 注：`spire-godot/AGENTS.md` 已在 `ee9c54c` 合并进仓库根 `AGENTS.md`，该路径不再存在；
+   本条为历史记录，勿按原路径查文件。）
 4. 若节键／commit 需要独立文件（如 `ui/section_keys.gd`），不得自行新建；先向协调者提案。
 5. **触屏被拒的反馈策略（人已决，不再是待转问题；保留在此供追溯）**：
    拒绝提示必须可见，桌面与触屏一致；只让拒绝/notice 走 §3.5 的不受 `_show_term:1712` 守卫限制的
