@@ -585,6 +585,8 @@ static func availability_issue(g, option: Dictionary) -> String:
  match availability.get("kind",""):
   "no_chastity_lock":
    if g.state.special_equipment.any(func(item):return item.get("durability",0)>0 and g.SpecialEquipment.is_chastity(item)): return availability.reason
+  "has_relic":
+   if not g.state.relics.has(String(availability.get("type",""))): return availability.reason
   _: return "事件选项的状态条件无法识别。"
  return ""
 

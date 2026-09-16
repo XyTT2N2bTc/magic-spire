@@ -229,7 +229,7 @@ static func _references(g, e: Dictionary, data: Dictionary) -> String:
   if choice.has("hide_when_unavailable") and not choice.hide_when_unavailable is bool: return "hide_when_unavailable 必须为布尔值。"
   if choice.has("show_pressure_sources") and not choice.show_pressure_sources is bool: return "show_pressure_sources 必须为布尔值。"
   if choice.has("availability"):
-   issue=_availability(choice.availability)
+   issue=_availability(choice.availability,data)
    if issue!="": return "choices."+choice.id+".availability: "+issue
   if choice.has("selector"):
    issue=_selector(choice.selector,true)
@@ -394,11 +394,12 @@ static func _selector(selector, allow_count: bool) -> String:
  if selector.has("count") and not number(selector.count,1,4,true): return "count 必须是1—4的整数。"
  return ""
 
-static func _availability(availability) -> String:
+static func _availability(availability, data: Dictionary={}) -> String:
  if not availability is Dictionary: return "需要条件对象。"
- var issue=shape(availability,"kind reason")
+ var issue=shape(availability,"kind reason","type")
  if issue!="": return issue
- if availability.kind!="no_chastity_lock": return "尚未支持这种状态条件。"
+ if availability.kind not in ["no_chastity_lock","has_relic"]: return "尚未支持这种状态条件。"
+ if availability.kind=="has_relic" and (not availability.get("type") is String or not data.relic.has(availability.type)): return "has_relic 需要已注册的遗物 id。"
  if not words(availability.reason,240): return "reason 需要1—240字的普通说明。"
  return ""
 
