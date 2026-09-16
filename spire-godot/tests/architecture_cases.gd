@@ -18,6 +18,116 @@ const COPY_BASELINE={
 static func ids_for(values: Array) -> Array:
  return values.map(func(e):return e.get("id",""))
 
+# docs/transition-pipeline.md §5 的测试侧只读助手：读进程内迁移日志（生产代码不带计数器）。
+static func transition_log(g) -> Array:
+ var log=g.get("_transition_log")
+ return log.duplicate() if log is Array else []
+
+static func transition_delta(g, before: Array) -> Array:
+ var log=transition_log(g)
+ return log.slice(before.size()) if log.size()>=before.size() else log
+
+static func transition_kinds(delta: Array, prefix: String) -> Array:
+ return delta.filter(func(kind):return String(kind).begins_with(prefix))
+
+# docs/transition-pipeline.md §4：闭环 check 的扫描面。四组模式各自的正则；注释按 `#` 之后截断，
+# `==` 以 `[^=]` 排除。返回 {counts: {"文件|函数|组": 次数}, sites: {key: ["文件:行:函数", ...]}}。
+const TRANSITION_PATTERNS={
+ "room":"(?:g\\.)?state\\.room\\s*=[^=]",
+ "phase":"(?:g\\.)?state\\.phase\\s*=[^=]",
+ "battle_end":"_finish_battle\\(|_finish_if_saturated\\(|_battle_end_reason\\(",
+ "tower_restart":"_restart_tower\\(",
+}
+
+static func transition_core_files() -> Array:
+ var result=[]
+ var pending=["res://core"]
+ while not pending.is_empty():
+  var directory=String(pending.pop_back())
+  var handle=DirAccess.open(directory)
+  if handle==null: continue
+  for name in handle.get_files():
+   if String(name).ends_with(".gd"): result.append(directory+"/"+name)
+  for name in handle.get_directories(): pending.append(directory+"/"+name)
+ result.sort()
+ return result
+
+static func transition_scan() -> Dictionary:
+ var compiled={}
+ for group in TRANSITION_PATTERNS:
+  var regex=RegEx.new()
+  regex.compile(TRANSITION_PATTERNS[group])
+  compiled[group]=regex
+ var counts={};var sites={}
+ var declaration=RegEx.new()
+ declaration.compile("^\\s*(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)")
+ for path in transition_core_files():
+  var file=FileAccess.open(path,FileAccess.READ)
+  if file==null: continue
+  var lines=file.get_as_text().split("\n")
+  var current="<file>"
+  for index in range(lines.size()):
+   var raw=String(lines[index])
+   var code=raw.split("#")[0]
+   var declared=declaration.search(code)
+   if declared!=null: current=declared.get_string(1)
+   for group in compiled:
+    for hit in compiled[group].search_all(code):
+     var key=path+"|"+current+"|"+group
+     counts[key]=int(counts.get(key,0))+1
+     if not sites.has(key): sites[key]=[]
+     sites[key].append(path+":"+str(index+1)+":"+current)
+ return {"counts":counts,"sites":sites}
+
+# docs/transition-pipeline.md §4／§5 场景 07：写入点双向比对——扫描集 ⊆ 声明表 且 表内每一点都被
+# 扫到；表外或未命中都打印 `文件:行:函数`。表内每项＝(文件, 函数, 组, 行数)。
+# ③ 的 8 个函数＝契约 §1 的"8 个语义入口"（13 个引用点保留为同一批函数；收束后一个位点由
+# "判定一行＋执行一行"两行承载，故行数大于 13，函数集不变）。
+const TRANSITION_SITES=[
+ {"file":"res://core/game.gd","func":"_apply_transition","group":"room","count":1},
+ {"file":"res://core/game.gd","func":"_apply_transition","group":"phase","count":1},
+ {"file":"res://core/game.gd","func":"_battle_end_reason","group":"battle_end","count":1},
+ {"file":"res://core/game.gd","func":"_finish_battle","group":"battle_end","count":1},
+ {"file":"res://core/game.gd","func":"_finish_if_saturated","group":"battle_end","count":4},
+ {"file":"res://core/game.gd","func":"_start_round","group":"battle_end","count":2},
+ {"file":"res://core/game.gd","func":"_enemy_phase","group":"battle_end","count":4},
+ {"file":"res://core/game.gd","func":"dispatch","group":"battle_end","count":3},
+ {"file":"res://core/game.gd","func":"_execute","group":"battle_end","count":2},
+ {"file":"res://core/game.gd","func":"_end_turn","group":"battle_end","count":2},
+ {"file":"res://core/game.gd","func":"_restart_tower","group":"tower_restart","count":1},
+ {"file":"res://core/demo_exit.gd","func":"continue_run","group":"tower_restart","count":1},
+ {"file":"res://core/prison.gd","func":"return_to_tower","group":"tower_restart","count":1},
+ {"file":"res://core/prison.gd","func":"completed_turn","group":"tower_restart","count":1},
+]
+const TRANSITION_BATTLE_END_FUNCTIONS=["_battle_end_reason","_end_turn","_enemy_phase","_execute","_finish_battle","_finish_if_saturated","_start_round","dispatch"]
+
+static func transition_write_sites_are_pinned(t) -> void:
+ var scan=transition_scan()
+ var counts=scan.counts
+ var sites=scan.sites
+ var table={}
+ for entry in TRANSITION_SITES:
+  table[String(entry.file)+"|"+String(entry.func)+"|"+String(entry.group)]=int(entry.count)
+ var keys=counts.keys()
+ keys.sort()
+ var outside=[]
+ for key in keys:
+  if not table.has(key): outside.append(str(sites[key]))
+ t.check(outside.is_empty(),"ARCH transition scan finds no write site outside the pinned table: "+str(outside))
+ var missing=[]
+ for key in table:
+  var found=int(counts.get(key,0))
+  if found!=table[key]: missing.append(key+" expected "+str(table[key])+" found "+str(found)+" "+str(sites.get(key,[])))
+ t.check(missing.is_empty(),"ARCH every pinned transition write site is scanned at its declared size: "+str(missing))
+ var owners=[]
+ for key in keys:
+  if not String(key).ends_with("|battle_end"): continue
+  var owner=String(key).split("|")[1]
+  if owner not in owners: owners.append(owner)
+ owners.sort()
+ t.check(owners==TRANSITION_BATTLE_END_FUNCTIONS,"ARCH every battle-end decision lives in the eight declared entries: "+str(owners))
+ t.check(int(counts.get("res://core/game.gd|_apply_transition|room",0))==1 and int(counts.get("res://core/game.gd|_apply_transition|phase",0))==1,"ARCH state.phase and state.room have exactly one write site each: "+str([counts.get("res://core/game.gd|_apply_transition|room",0),counts.get("res://core/game.gd|_apply_transition|phase",0)]))
+
 # docs/event-pipeline-dependency-spec.md §1／§4.2: the event modules preload exactly the
 # declared registry edges; one edge more or less fails, and no core file may reach ui/.
 static func event_dependency_edges_pinned(t) -> void:
@@ -173,6 +283,7 @@ static func event_single_evaluation_entry(t) -> void:
 
 static func run(t) -> void:
  event_dependency_edges_pinned(t)
+ transition_write_sites_are_pinned(t)
  event_condition_kinds_share_one_declaration(t)
  event_probe_and_projection_readonly(t)
  event_single_evaluation_entry(t)

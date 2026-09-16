@@ -244,7 +244,7 @@ func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String
  if practice: _start_practice()
  elif room_data(state.room).kind=="entry":
   _gain_tool("return_seal")
-  _apply_transition("setup_init")
+  _apply_transition("setup_init",{"phase":"map"})
   state.energy=0;state.wall="normal";state.wall_distance=1;state.draw=state.deck.duplicate(true)
   Departure.start(self,cursed_plate_start and state.chastity_locks_enabled)
  else: _start_battle()
@@ -280,7 +280,7 @@ func _restart_tower(from_exit: bool=false) -> void:
  state.prepare_left=0;state.rest_left=0;state.rest_cards=[];state.hook_uses=0
  state.reward_options=[];state.battle_item_drop=""
  state.battle_relic_drop="";state.boss_relic_options=[];state.battle_flask_drop=0;state.reward_claimed={}
- state.enemies=[]; _apply_transition("tower_restart"); state.energy=0
+ state.enemies=[]; _apply_transition("tower_restart",{"phase":"map"}); state.energy=0
  if not from_exit:
   _emit("event","已离开监狱。请选择新塔路第10—11层的任一非休息、非宝箱区域作为起点；保留当前装备、卡组、遗物与资源。新地图的普通战斗全部使用强怪池。",{"new_tower":{"previous_seed":previous_seed,"seed":next_seed}})
 
@@ -472,7 +472,7 @@ func _start_battle() -> void:
  state.wall_distance=_initial_wall_distance(true)
  RelicEffects.begin_combat(self)
  state.encounter += 1
- _apply_transition("battle_start")
+ _apply_transition("battle_start",{"phase":"battle"})
  state.weakness_turns=0
  state.round = 0
  state.kick_last = -10
@@ -623,7 +623,7 @@ func preparation_turns() -> int:
  return B.PREPARATION_TURNS+int(Relics.value(state.relics,"preparation_turns"))
 
 func _start_preparation() -> void:
- _apply_transition("prepare_start")
+ _apply_transition("prepare_start",{"phase":"prepare"})
  if not state.combat.active: RelicEffects.begin_combat(self)
  # A fresh player turn, using the same session and live card piles.
  _discard_end()
@@ -728,8 +728,9 @@ func _apply_transition(kind: String, args: Dictionary = {}) -> String:
   return "未声明的状态迁移："+kind
  var wrote=[]
  var phases=spec.get("phases",[])
- if not phases.is_empty():
-  var target=String(args.get("phase",phases[0]))
+ # 阶段只在调用点显式给出时写入，且必须落在声明表允许的集合内；只带 room 的续写调用不写阶段。
+ if args.has("phase"):
+  var target=String(args.phase)
   if not phases.has(target):
    push_error("迁移"+kind+"不接受阶段："+target)
    return "迁移"+kind+"不接受阶段："+target
@@ -3054,7 +3055,7 @@ func _depart(c: Dictionary) -> String:
   return ""
  var profile=movement_profile()
  state.journey={"from":state.room,"target":c.payload.room,"total":profile.turns,"remaining":profile.turns,"speed":profile.speed,"mode":profile.mode}
- _apply_transition("travel_start");state.wall="none";state.wall_distance=0
+ _apply_transition("travel_start",{"phase":"travel"});state.wall="none";state.wall_distance=0
  _emit("event","你离开"+room_data(state.room).name+"，以"+profile.mode+"前往"+room_data(c.payload.room).name+"，需要%d回合。" % profile.turns)
  return ""
 

@@ -19,13 +19,13 @@ static func start(g, id: String="") -> void:
   room.name="%02d · %s" % [room.floor+1,Data.TYPES[id].name if id!="" else "空房间"]
   if id!="" and id not in g.state.event_seen: g.state.event_seen.append(id)
  if id=="":
-  g._apply_transition("event_leave_empty");g.state.wall=room.wall;g.state.energy=0
+  g._apply_transition("event_leave_empty",{"phase":"map"});g.state.wall=room.wall;g.state.energy=0
   g.state.enemies=[];g.state.room_event={}
   if g.state.room not in g.state.completed_rooms: g.state.completed_rooms.append(g.state.room)
   g._emit("event","房间里没有新的发现，可以继续前进。")
   return
  clear_trace(g)
- g._apply_transition("event_enter")
+ g._apply_transition("event_enter",{"phase":"event"})
  g.state.wall=g.room_data(g.state.room).wall
  g.state.enemies=[]
  g.state.energy=0
@@ -1057,7 +1057,7 @@ static func begin_item_rewards(g, rows: Array) -> String:
  g.state.battle_relic_drop=""
  g.state.boss_relic_options=[]
  g.state.reward_claimed={}
- g._apply_transition("event_item_rewards")
+ g._apply_transition("event_item_rewards",{"phase":"reward"})
  return ""
 
 static func active_item_rewards(g) -> bool:

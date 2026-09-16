@@ -13,8 +13,33 @@ static func ready(g) -> void:
  enemy.stage=4
  enemy.intent=Guard.build(g,enemy)
 
+# docs/transition-pipeline.md §5 场景 04：收押经主路径——迁移日志含 `battle_end_captured`，阶段／房间
+# 与今天逐字节相同（oracle 冻结），收押副作用（能量归零、无力化、牢房初始化）顺序不变。
+static func capture_routes_through_the_main_path(t) -> void:
+ var arch=preload("res://tests/architecture_cases.gd")
+ for route in ["surrender","announced"]:
+  var g=Game.new(42) if route=="surrender" else Game.new(42,true,"guard")
+  if route=="announced":
+   var enemy=g.state.enemies[0]
+   bind(g,enemy,100.0)
+   enemy.stage=4
+   enemy.intent={"kind":"bind_gain","text":"捕缚进度＋10","delayed":false}
+   t.check(t.action(g,"end").ok and g.state.phase=="battle","TRANSITION CAPTURE the guard really announces arrest")
+  var before=arch.transition_log(g)
+  var outcome=t.action(g,"surrender") if route=="surrender" else t.action(g,"end")
+  t.check(outcome.ok,"TRANSITION CAPTURE capture commits "+route)
+  var delta=arch.transition_delta(g,before)
+  t.check(delta==["battle_end_captured"],"TRANSITION CAPTURE exactly one declared capture kind "+route+": "+str(delta))
+  t.check(String(g.state.phase)=="captured" and String(g.state.room)=="prison","TRANSITION CAPTURE phase and room unchanged "+route+": "+String(g.state.phase)+"/"+String(g.state.room))
+  t.check(g.state.energy==0 and g.state.weakness_turns==0 and g.state.prepare_left==0 and g.state.rest_left==0,"TRANSITION CAPTURE resource side effects unchanged "+route)
+  t.check(not g.state.capture.is_empty() and g.state.capture.security==g.state.security and g.state.capture.by!="","TRANSITION CAPTURE intake record written after the transition "+route)
+  t.check(g.state.capture.baseline==g.equipment_targets().map(func(e):return e.id) and g.state.capture.special_baseline==g.state.special_equipment.map(func(e):return e.id),"TRANSITION CAPTURE intake snapshot taken after the phase and room write "+route)
+  t.check(not g.room_data("prison").is_empty() and g.state.wall=="rough","TRANSITION CAPTURE cell exists and the wall is rough "+route)
+  t.check(g.validate()=="","TRANSITION CAPTURE captured state validates "+route+": "+g.validate())
 static func run(t) -> void:
  opening_fallback(t)
+ capture_routes_through_the_main_path(t)
+
  var g=Game.new(42,true,"guard")
  var e=g.state.enemies[0]
  var pool=g.Enemies.TYPES.guard.visual_pool

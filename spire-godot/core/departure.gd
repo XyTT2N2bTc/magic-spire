@@ -18,7 +18,7 @@ static func start(g, cursed_plate_start: bool=false) -> void:
   var group=Data.GROUPS[i]
   options.append(freeze(g,group[rng.randi_range(0,group.size()-1)],rng))
  g.state.departure={"options":options,"stage":"choose","selected":"","capacity_bonus":0,"result":"","cursed_plate_start":cursed_plate_start}
- g._apply_transition("departure_start")
+ g._apply_transition("departure_start",{"phase":"departure"})
  g._emit("event","抵达第0层。选择一项开局奖励，或直接出发。")
 
 static func freeze(g, id: String, rng) -> Dictionary:
@@ -98,7 +98,7 @@ static func execute(g, p: Dictionary) -> String:
  var d=g.state.departure
  if p.op in ["skip","finish"]:
   if p.op=="skip": d.selected="skip";d.result="放弃开局奖励。"
-  d.stage="done";g._apply_transition("departure_end")
+  d.stage="done";g._apply_transition("departure_end",{"phase":"map"})
   g._emit("event","开始攀塔。选择第一层的入口。")
   return ""
  if p.op=="choose":

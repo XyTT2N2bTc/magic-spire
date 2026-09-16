@@ -245,8 +245,26 @@ static func event_trace_never_reaches_state_or_save(t) -> void:
 
 # docs/event-pipeline-unification.md §10 scenario 10: the trace never reaches the state,
 # the save or the view, and the switch does not change any digest.
+# docs/transition-pipeline.md §5 场景 06：迁移日志只在进程内——不进 state、不进 View、不进存档。
+static func transition_log_never_reaches_state_or_view(t) -> void:
+ var arch=preload("res://tests/architecture_cases.gd")
+ var g=Game.new(42)
+ g._finish_battle()
+ t.check(not arch.transition_log(g).is_empty(),"SAVE the transition log exists in process: "+str(arch.transition_log(g)))
+ t.check(not g.state.keys().any(func(key):return String(key).contains("transition")),"SAVE state carries no transition key: "+str(g.state.keys().filter(func(key):return String(key).contains("transition"))))
+ var saved=g.export_snapshot()
+ var packed=String(Store.pack(saved))
+ t.check(not JSON.stringify(saved).contains("battle_end_") and not JSON.stringify(saved).contains("_transition_log"),"SAVE the exported snapshot carries no transition log")
+ t.check(not packed.contains("battle_end_") and not packed.contains("demo_continue"),"SAVE the packed save file carries no transition log")
+ t.check(not JSON.stringify(g.get_view()).contains("battle_end_") and not JSON.stringify(g.get_view()).contains("transition_log"),"SAVE the projected view carries no transition log")
+ var resumed=Game.new(7)
+ var restart_log=arch.transition_log(resumed)
+ t.check(resumed.restore_snapshot(saved).ok,"SAVE a fresh run accepts the captured save")
+ t.check(arch.transition_delta(resumed,restart_log).is_empty() and not JSON.stringify(resumed.export_snapshot()).contains("battle_end_"),"SAVE restoring a save logs no transition and carries no log")
 static func run(t) -> void:
+ transition_log_never_reaches_state_or_view(t)
  event_trace_never_reaches_state_or_save(t)
+
  event_pipeline_writes_only_declared_keys(t)
  map_drawings(t)
  preload("res://tests/scene_restart_cases.gd").run(t,same)
