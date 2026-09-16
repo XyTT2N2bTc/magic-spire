@@ -22,6 +22,7 @@ static func start(g, id: String="") -> void:
   if g.state.room not in g.state.completed_rooms: g.state.completed_rooms.append(g.state.room)
   g._emit("event","房间里没有新的发现，可以继续前进。")
   return
+ if g.get("event_trace_enabled")==true: g.event_trace=[]
  g.state.phase="event"
  g.state.wall=g.room_data(g.state.room).wall
  g.state.enemies=[]
@@ -207,6 +208,11 @@ static func evaluate_option(g, request: Dictionary) -> Dictionary:
     feasibility.index=index
     gates.append(feasibility)
  var decision=_decision(gates)
+ var option_id=str(choice.get("id",""))
+ for hit in gates:
+  trace_entry(g,{"option_id":option_id,"decision":decision,"gate":hit.gate,"kind":hit.get("kind",""),"mode":hit.get("mode",""),"index":hit.get("index",0),"reason":hit.get("reason",""),"purpose":purpose})
+ if gates.is_empty():
+  trace_entry(g,{"option_id":option_id,"decision":decision,"purpose":purpose})
  return {"decision":decision,"gates":gates,"gate":"" if gates.is_empty() else str(gates[0].gate),"reason":_joined_reason(gates),"option":{} if options.is_empty() else options[0]}
 
 static func _structural(gates: Array) -> bool:
@@ -232,11 +238,11 @@ static func _feasibility_mode(node_entry: Dictionary, choice: Dictionary) -> Str
 
 # The feasibility probe: the same checks and wording as before, reported as a named gate.
 static func feasibility_gate(g, option: Dictionary) -> Dictionary:
- var issue=probe(g,option.effects,option)
- if issue!="": return {"gate":"probe_failed","kind":"feasibility","detail":str(option.get("id","")),"reason":issue}
+ var probe_state=probe_result(g,option.effects,option)
+ if probe_state.reason!="": return {"gate":probe_state.gate,"kind":"feasibility","detail":str(option.get("id","")),"reason":probe_state.reason}
  if option.has("encounter"):
-  issue=battle_spec_issue(g,option.encounter)
-  if issue=="": issue=probe(g,option.encounter.victory_effects)
+  var issue=battle_spec_issue(g,option.encounter)
+  if issue=="": issue=probe_result(g,option.encounter.victory_effects,{}).reason
   if issue!="": return {"gate":"encounter_invalid","kind":"feasibility","detail":str(option.get("id","")),"reason":issue}
  return {}
 
@@ -344,9 +350,13 @@ static func freeze_choice(g, definition: Dictionary, selected={}, fixed_outcome:
 # allow_refuse, unavailable, relic_gate, random_freeze, outcome_draw, frozen_form, empty_node.
 # The node count no longer decides anything.
 static func enter_node(g, id: String) -> String:
+ return str(enter_node_result(g,id).get("issue",""))
+
+# One implementation of the node pipeline; the string form above is its issue projection.
+static func enter_node_result(g, id: String) -> Dictionary:
  var spec=definition(g.state.room_event.get("id",""))
  var node_entry=node(spec,id)
- if node_entry.is_empty(): return "下一阶段不存在。"
+ if node_entry.is_empty(): return {"issue":"下一阶段不存在。","gate":"stage_missing","detail":id}
  var options=[]
  for choice in node_entry.get("choices",[]):
   var selections=selections_for(g,choice)
@@ -359,10 +369,34 @@ static func enter_node(g, id: String) -> String:
    if result.decision in ["generated","disabled"]: options.append(result.option)
 
  if node_entry.get("allow_refuse",false): options.append(refusal(g))
- if options.is_empty() and node_entry.get("empty_node","fail")=="fail": return "这一阶段没有能够执行的选项。"
+ if options.is_empty() and node_entry.get("empty_node","fail")=="fail":
+  trace_entry(g,{"node":id,"decision":"dropped","gate":"node_empty","detail":id})
+  return {"issue":"这一阶段没有能够执行的选项。","gate":"node_empty","detail":id}
  g.state.room_event.stage=id
  g.state.room_event.options=options
- return ""
+ return {"issue":"","gate":"","detail":""}
+
+
+# Debug-only trace (§4.5): a switch plus an array on the game instance, never in state,
+# never in a View, never saved, never rendered. They live in object metadata because
+# core/game.gd is outside this batch; the names are the contract's.
+static func trace_enabled(g) -> bool:
+ return g.get_meta("event_trace_enabled",false)==true
+
+static func event_trace(g) -> Array:
+ var rows=g.get_meta("event_trace",[])
+ if not rows is Array:
+  rows=[]
+  g.set_meta("event_trace",rows)
+ return rows
+
+static func trace_entry(g, fields: Dictionary) -> void:
+ if not trace_enabled(g): return
+ var room_event=g.state.room_event
+ var option_id=str(fields.get("option_id",""))
+ var row={"event":str(room_event.get("id","")),"node":str(room_event.get("stage","")),"source_choice":option_id,"option_id":option_id,"decision":str(fields.get("decision","")),"gate":str(fields.get("gate","")),"kind":str(fields.get("kind","")),"mode":str(fields.get("mode","")),"index":int(fields.get("index",0)),"reason":str(fields.get("reason","")),"purpose":str(fields.get("purpose",""))}
+ if str(fields.get("node",""))!="": row.node=str(fields.node)
+ event_trace(g).append(row)
 
 static func weighted(g, outcomes: Array) -> Dictionary:
  var total=0
@@ -793,21 +827,32 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
    _: return "事件包含尚未支持的效果。"
  return ""
 
-static func probe(g, effects: Array, option: Dictionary={}, cleanup: bool=false) -> String:
+# Structured form of the effects probe: one implementation, and probe() stays the
+# string-shaped entry point used by the rest of the pipeline.
+static func probe_result(g, effects: Array, option: Dictionary={}, cleanup: bool=false) -> Dictionary:
  var original=g.state
  var feedback=g._resource_feedback
  g._resource_feedback=null
  g.state=original.duplicate(true)
  var issue=apply_effects(g,effects,g.state.room_event.refs,option.is_empty() and not cleanup)
- if issue=="" and not option.is_empty() and option.has("next") and option.get("next","result")!="result" and option.reward=="none": issue=enter_node(g,option.next)
- if issue=="" and cleanup and not g.state.room_event.held.is_empty(): issue="事件仍有尚未归还的装备。"
- if issue=="": issue=g.validate()
+ var gate="probe_failed"
+ if issue=="" and not option.is_empty() and option.has("next") and option.get("next","result")!="result" and option.reward=="none":
+  var next_result=enter_node_result(g,option.next)
+  issue=next_result.issue
+  gate=str(next_result.get("gate","probe_failed"))
+ if issue=="" and cleanup and not g.state.room_event.held.is_empty():
+  issue="事件仍有尚未归还的装备。"
+  gate="held_pending"
+ if issue=="" and gate!="held_pending":
+  issue=g.validate()
+  if issue!="": gate="validate_failed"
  g.state=original
  g._resource_feedback=feedback
- return issue
+ return {"gate":"" if issue=="" else gate,"reason":issue}
 
-# Kept entry point (§7.1): the state-condition wording authors already see, then the
-# feasibility probe. Both now come from the single evaluation entry.
+static func probe(g, effects: Array, option: Dictionary={}, cleanup: bool=false) -> String:
+ return str(probe_result(g,effects,option,cleanup).get("reason",""))
+
 static func probe_choice(g, option: Dictionary) -> String:
  var issue=availability_issue(g,option)
  if issue=="": issue=str(feasibility_gate(g,option).get("reason",""))
