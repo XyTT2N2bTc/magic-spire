@@ -274,6 +274,7 @@
 
 普通与多阶段选项的`selector`都可用`count:1—4`冻结多个不同实例；拘束具选择器可用`include_special:false`排除性玩具，卡牌选择器可用`exclude_curses:true`排除诅咒。多阶段作者效果另支持`install_random{templates,count,grade,tier,locked,allow_links?}`和`tighten_random{count,to_tier,templates?}`。两者会在进入阶段时沿`event`随机域依次选取合法结果，立即展开成上述运行效果；数量范围1—4，同一批收紧不会重复选择已经达到目标档位的对象。`allow_links`默认开启；明确写成`false`时只保留普通单件，不会因绳索／皮带来源自动加入链接绳。选项的`outcomes`支持2—8个加权结果，每项含`weight/effects`并可覆盖`next/reward/report`；选项必须提供不泄露已冻结结果的`detail`。
 
+状态条件写在选项上：规范拼写`conditions`（1—8条，每条`{kind, mode, reason, …}`）或兼容拼写`availability`，两者互斥；`kind`只取声明表里的种类。`mode`的`optional`使选项显示但禁用并给出`reason`，`hidden`使选项不生成（不进冻结选项与候选）。全部条目按 AND 判断，任一`hidden`命中即隐藏，只有`optional`命中时列出全部命中项，`reason`按声明顺序换行连接；选项级`unavailable`（`hide`／`disable`）是未被显式`mode`约束条目的默认模式，与`hide_when_unavailable`互斥。
 普通单件安装结果按真实部位读取`Equipment.WEAR_TEXTS`并代入具体装备名；这组正文属于跨事件共用内容。新增普通单件可安装部位时必须同步提供正文，不能退回“已装在某处”的机械占位句。事件定量恢复角色当前魔力使用`mana_gain`，完整恢复至当前上限使用`mana_restore_full`；直接补充贴身魔瓶使用`flask_mana_gain`，不冒充手动存入，也不改变角色当前魔力。
 
 普通与多阶段事件都可使用`install_random`；普通事件在进房时、多阶段事件在进入对应阶段时将生成器展开为具体安装效果，查看与提交不重抽。`special_install_random{types,replace?,fallback?}`同样只会冻结当前有合法位置的性玩具。省略`fallback`时，没有任何空余位置就不生成该选项；不能暗中改成另一种奖励，也不能挤掉原装备。实际安装结果统一读取具体类型的`wear_text`，不会显示“某件性玩具”或等级泛称。

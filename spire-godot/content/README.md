@@ -132,15 +132,17 @@
 |---|---|
 | `recipe` | 见下表的三选一配方；与`effects`不能同时出现 |
 | `effects` | 最多12项效果，按顺序在同一事务内执行；允许空数组，带奖励的选项也可以用空效果 |
-| `outcomes` | 2—8个加权结果；**B2 起生效**，当前只写进多节点定义的节点 |
-| `next` | 指向后续节点或`result`；**B2 起生效**，当前只写进多节点定义的节点。多节点内只能向后，不能倒退或循环；带奖励的选项必须写`result`（领奖后结束事件） |
-| `when` | 按事件`counter`或`selector`可选数量显示分支；**B2 起生效**，当前只写进多节点定义的节点 |
+| `outcomes` | 2—8个加权结果；单节点与多节点都可写 |
+| `next` | 指向后续节点或`result`；单节点定义只能写`result`。多节点内只能向后，不能倒退或循环；带奖励的选项必须写`result`（领奖后结束事件） |
+| `when` | 按事件`counter`或`selector`可选数量显示分支；单节点与多节点都可写 |
 | `result_status` | `success`／`failure`／`neutral`，缺省`neutral` |
 | `report` | 提交后的事件正文；省略时使用`label` |
 | `report_variants`／`detail` | 条件正文／选择前说明；`"detail": ""`明确省略注语 |
 | `selector` | 在当前卡组或实际佩戴的拘束具上展开（见下） |
-| `availability` | 状态条件；单节点与多节点都生效（见下） |
-| `hide_when_unavailable` | 布尔值；完整效果序列当前无法原子成立时不生成该选项。**B2 起生效**，当前只写进单节点定义的节点 |
+| `availability` | 兼容拼写的状态条件；单节点与多节点都生效（见下）。与`conditions`不能同时出现 |
+| `conditions` | 规范拼写的状态条件数组，1—8条；每条自带`mode`（见下）。与`availability`不能同时出现 |
+| `unavailable` | `hide`／`disable`；该选项**未被显式模式约束**的条目的默认模式。与兼容拼写 hide_when_unavailable 不能同时出现 |
+| `hide_when_unavailable` | 布尔值；完整效果序列当前无法原子成立时不生成该选项。兼容拼写，与`conditions`／`unavailable`的规范写法等价 |
 | `encounter`／`item_rewards` | 战斗／道具奖励选项（见下） |
 | `show_pressure_sources` | 布尔值；按效果顺序把已冻结的`pressure.source`作为结果正文显示 |
 
@@ -188,7 +190,17 @@
 
 `selector`既可写在选项上，也可用于`when`的条件来源。选项级选择器在当前卡组或实际佩戴的拘束具上展开；正文中的`{name}`／`{slot}`／`{type}`和效果中的`$selected`会冻结为所选实例。可选`count: 1—4`指定同时选择数量；拘束具可用`include_special: false`排除性玩具，卡牌可用`exclude_curses: true`排除诅咒。
 
-`availability`是状态条件，角色状态不满足时选项保持显示但不可选择，`reason`只在按钮悬浮／聚焦的二级说明窗中显示，正式提交前会再次复核。条件按`kind`分两种，键集固定：`{"kind": "no_chastity_lock", "reason": "……"}`（佩戴任一平板锁时生效，不检查上锁状态）；`{"kind": "has_relic", "type": "已登记遗物id", "reason": "……"}`（尚未持有该遗物时生效）。存档校验按同样的键集复核。条件叠加与规范拼写`conditions`／选项级`unavailable`／`mode`**B2 起生效**，当前不接受，不要写进内容包。
+状态条件写两类拼写，**只能选一种**：规范拼写`conditions`是1—8条数组，每条为`{"kind": "种类id", "mode": "optional"／"hidden", "reason": "……", …该种类的必填字段}`；兼容拼写`availability`是单个条件对象（`{"kind": "no_chastity_lock", "reason": "……"}`／`{"kind": "has_relic", "type": "已登记遗物id", "reason": "……"}`），与`hide_when_unavailable: true`配套使用。两种拼写同时出现在同一选项会被拒收；新内容优先用`conditions`。
+
+条件种类只能取现有两种：`no_chastity_lock`（佩戴任一平板锁时命中，不检查上锁状态）与`has_relic`（尚未持有该`type`遗物时命中）。新增种类需要代码侧扩展声明，内容包不得自造`kind`。
+
+`mode`决定命中后怎么处理，两种模式可混用并叠加：
+- `optional`＝**显示但禁用**：按钮保留，悬浮／聚焦时在二级说明窗显示该条`reason`，正式提交前再次复核；
+- `hidden`＝**不生成**：选项不出现在`room_event.options`，也不产生候选。
+
+模式解析优先级由高到低：条目自带的`mode` ＞ 选项`unavailable`（`"hide"`→`hidden`／`"disable"`→`optional`）＞ 选项`hide_when_unavailable: true`（→`hidden`）＞ 种类默认（状态条件为`optional`）。兼容拼写`availability`按这条链解析，因此它既有"显示但禁用"也有"不生成"两种用法。
+
+**叠加求值（同一选项的全部条目按 AND 判断）**：所有条目都满足才通过；**任一`hidden`条目命中即隐藏，优先级高于`optional`**；只有`optional`命中时选项保留为禁用，并把**全部**命中条目都列进判定结果。`reason`的拼接规则：单条命中＝该条原文；多条`optional`命中＝**按声明顺序**用换行连接——**声明顺序决定`reason`的拼接顺序**；未命中的条目不出现在结果里。
 
 选项及随机结果的`report`可另配`report_variants`，快感效果的`source`可另配`source_variants`。每项格式为`{"when": {"kind": "equipped_special_family", "value": "已登记family"}, "text": "条件正文"}`；进入事件／节点时按当时仍在佩戴的特殊装备族选中第一项匹配正文，并冻结为普通`report`／`source`，存档、查看与提交都不会重选。该接口只替换文案，不修改效果、次数、奖励或资格，也不能按事件 id 或中文装备名判断。
 

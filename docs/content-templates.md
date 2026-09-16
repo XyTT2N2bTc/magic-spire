@@ -446,6 +446,9 @@ recipe 或完整效果列表：二选一
 - `install_random`与`tighten_random`只存在于作者数据；普通事件在进房时、多阶段事件在进入对应阶段时冻结为普通`install`或`tighten_to`效果，保存与提交不重新选目标。`install_random.allow_links`默认为真；写成假时严格只生成普通单件。
 - `random_amount`同样只存在于作者数据；填写现有数值效果`effect`及包含上下限的`minimum/maximum`，进入事件或阶段时冻结为一个定值效果。它不能包装卡牌、遗物、装备或脚本。
 - `hold_special`按精准特殊部位暂存无连接的现有性玩具；同一`key`必须在顶层`cleanup_effects`恰好归还。暂存记录保留完整实例，不重建类型、剩余次数或编号。
+- 状态条件有两类拼写：规范拼写`conditions`（1—8条数组，每条`{kind, mode, reason, …}`）与兼容拼写`availability`（单个条件对象，可与`hide_when_unavailable:true`配套）；两种拼写在同一选项互斥，新内容优先用`conditions`。
+- `mode`的`optional`＝显示但禁用（保留按钮并显示`reason`），`hidden`＝不生成（不进`room_event.options`也不出候选）。全部条目按 AND 判断，**任一`hidden`命中即隐藏**，只有`optional`命中时列出全部命中条目，`reason`**按声明顺序**换行连接。
+- 选项级`unavailable`（`hide`／`disable`）给出未被显式`mode`约束的条目的默认模式，与`hide_when_unavailable`互斥；完整优先级见`content/README.md` §3。
 - `selector`可从卡组或当前真实拘束具生成选项，并用`$selected`把稳定实例ID传给`transform_card/remove_card/ease_restraint`；显示文案可用`{name}/{slot}/{type}`。
 - `counter`只写本事件内的非负整数；选项的`when`用`equals/minimum/maximum`读取该计数，从而组合筹码、累计胜场和分档兑现。`when`也可改填一个`selector`并比较当前可选数量，例如`{"selector":{"kind":"restraint"},"equals":0}`只在没有可选拘束具时显示后备选项；计数与选择器不能混填。
 - `special_install_random`从已登记类型中冻结一件与当前装备及暂存装备都兼容的性玩具，不能静默覆盖原装备。
