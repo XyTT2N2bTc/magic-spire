@@ -208,6 +208,23 @@ E0 摘要不受影响（E0 不读 trace），但 §4.5「每次 `start` 在启�
 | 判据（协调者重跑） | E0 两遍退出码 0／摘要 `1f11bea5…` 逐字相同／**两遍错误日志命中 0 行**；五类套件全 PASS（3362 断言）；UI 900 秒 PASS 231；内容门 12 file(s) |
 | 残留（转 B4，不影响 B3 判据） | A30 `stage_missing` 无 trace 行；A31 后继节点探测行的 `purpose`／重复（见 §4.5 第 5／6 条、§21） |
 
+### B4 完成事实（提交 `8633bd9`，父 `73e2f21`；登记 `da8142f`；**代码批次全部落地**）
+
+| 项 | 内容 |
+| --- | --- |
+| 范围（6 files／+309−16） | `content_catalog`：`next` 对象形态静态校验（事件已登记、节点存在于该定义、拒自引用、同定义内仍只向后）＋ `_next_ends_event`（避免"带奖励必须结束事件"与"起始节点可离开"对对象形态做 Dictionary↔String 比较）；`room_events`：`next_target`（唯一解析入口）／`enter_target`／`chain_cleanup`／`_enter_chain`，跳转重写 `id`／`stage`、`values`／`held` 延续、`cleanup_effects` 按 key 并集、`event_seen` 加入目标、`flow` 重算，`chain` 只在真跳转写且与 `event_seen.append` 同一事务，环守卫 `chain_loop`（候选 `disabled`），A30 `stage_missing` 行，A31 `next_probe` ＋ 节点级行 `(event,purpose,node,gate)` 去重；`snapshot`：增量接受 `chain`（数组、已登记、不重复、非空），既有检查逐条保留 |
+| 判据（协调者重跑） | E0 两遍退出码 0／摘要 `1f11bea5…` 逐字相同／**两遍错误日志命中 0 行**；五类套件全 PASS（3420 断言）；UI 900 秒 PASS 231；内容门 12 file(s)；按 A29 补齐 `unrun` 后**红集恰好＝A28 三元集** |
+| 具名 check | 场景 11／12、A30／A31、静态反例整包拒绝、依赖规范链半，全部落地（清单见 `docs/verification.md`） |
+
+### 裁定与偏差（协调者转人裁，2026-09-16 第九批；B4 之后）
+
+| # | 事项 | 裁定与契约位置 |
+| --- | --- | --- |
+| A32 | 跳转必须**重抽遗物** | **按目标事件重算 `room_event.relic`**：目标定义含遗物奖励选项且池非空 → 按现有逻辑抽一次；目标不含遗物奖励 → **置空**。理由：现状保留来源事件的遗物会让目标事件发**别的事件的遗物**（`execute` 的"获得 RelicTypes[event.relic].name"会念出错名称）——正确性缺陷，非风格问题。**E0 不受影响**（12 份内容无链、随机域消耗不变），但**必须在链夹具里加三类具名 check**（抽／不抽／清空）。已写入 §3.3 |
+| A33 | 跨定义 `hold_special` key 必须**静态拒绝** | **补编译期检查（整包拒绝）**，运行期守卫保留。理由与全片取向一致：内容错误应在加载时确定性拒绝，而不是等事件中途被运行期挡住。已写入 §3.3 |
+| A34 | `CHAIN_LOOP_REASON` 本地化 | **并入收尾批 B5**（与跨事件 `next`／链语义补进四份作者文档同批）；**B5 落地前任何内容不得使用链**（现有 12 份也没有），**打包禁令照旧**。已写入 §12／§22 |
+
+
 ## 0. 领域、裁决与不变量
 
 领域（只在这里动）：
@@ -488,7 +505,9 @@ B1 的单一白名单让**单节点**选项也能编译 `next`／`when`／`outco
 | `event_seen` | 链上目标事件加入 `event_seen`（不得被本局再次抽到） |
 | `flow` 镜像 | 每次跳转按当前定义是否有 >1 个节点重写（兼容键，见 §6.1） |
 | 新键 `chain` | **只在真的发生跨事件跳转时**写入：`chain:[event_id,...]`（抵达即不含该键） |
-| 环 | 目标事件已在当前实例 `chain` 中 → 该选项在候选阶段 `disabled`，gate=`chain_loop`；静态校验另拒绝"事件引用自身" |
+| 环 | 目标事件已在当前实例 `chain` 中 → 该选项在候选阶段 `disabled`，gate=`chain_loop`（`chain_loop` 已随 B4 落地；其 `reason`＝`CHAIN_LOOP_REASON`，本地化见 A34／§22）；静态校验另拒绝"事件引用自身" |
+| 遗物（裁定 A32） | 跳转时**按目标事件重算 `room_event.relic`**：目标定义含遗物奖励选项且池非空 → 按现有逻辑抽一次；目标不含遗物奖励 → **置空**。**不得**保留来源事件的遗物——否则目标事件会发别的事件的遗物，并在结果文案里念出错名称（正确性缺陷，非风格问题）。链夹具必须有"抽／不抽／清空"三类具名 check（§22） |
+| 暂存 key（裁定 A33） | **跨定义的 `hold_special` key 必须静态拒绝**（编译期整包拒绝）；运行期守卫保留。理由与全片取向一致：内容错误在加载时确定性拒绝，而不是等事件中途被运行期挡住 |
 
 ### 3.4 安全规则
 
@@ -558,7 +577,7 @@ static func request_for(g, option: Dictionary, purpose: String) -> Dictionary
 | `encounter_invalid` | `kind`＝`feasibility` | `probe_choice` 的战斗记录或胜利效果探测 |
 | `validate_failed` | `kind`＝`feasibility` | `probe` 末尾 `g.validate()`——**B2 未单独命名**（要与 `probe_failed` 分离须拆 `probe()` 内部），**B3 收口**（裁定 A13） |
 | `node_empty` | 节点级（`enter_node` 的 issue） | `enter_stage:314`——**B2 仍以既有 issue 文案返回、未记 gate**，**B3 收口**（裁定 A13） |
-| `chain_loop` | `kind`＝`chain` | 新增（§3.3）；B4 落地 |
+| `chain_loop` | `kind`＝`chain`，`detail`＝目标事件 id，`reason`＝`CHAIN_LOOP_REASON` | **已落地（B4 `8633bd9`）**；`reason` 文案的英／日条目归 B5（A34） |
 
 `reason` 一律为**现状字符串原文**（候选原因、issue 文案），不得改写措辞；多条 `optional` 命中时
 的新拼接规则见 §5.3（现有内容最多一条，原文不变）。
@@ -938,7 +957,8 @@ static var CONDITIONS={
 | B2c 文档收尾 | 把 `conditions` 规范拼写、选项级 `unavailable`、`mode` 与叠加语义补进四份作者文档，并取消 B1b 留下的"B2 起生效"标注（A6 的收口） | 见 §19 | **已完成**（`1f450d7`，登记 `3aee25a`） |
 | B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`／`validate_failed` 的单独命名，裁定 A13）＋叠加命中逐条记录；debug trace＋开关；测试断言；release 不产出 | 见 §20＋§20.1：E0 两遍（含错误日志 0 行）＋ §10 场景 03／04／10／19 | **已完成**（核心 `f95e96f`＋续批 `4e9a1a2`＋场景 03 `79bd622`；登记 `4244b88`）。**两条 trace 形状一致性缺口随 B4 收口**（A30 `stage_missing` 行、A31 `next_probe` purpose 与去重） |
 | B3b 收口 | ①场景 03 具名 check（19／04／10 已落，03 待落，按 A25 口径）；②release 不产出的证据链（含引擎错误日志）；③D1a `source_choice`／`option_id` 拆分（**已完成 `4e9a1a2`**）；④D1b `selector_empty` 具名化（**已完成 `4e9a1a2`**）；⑤复核红集 ⊆ {`card_power`, `installed_tools`}（A23） | 见 §20.1 | 收口中（仅剩 03 与 release 证据链） |
-| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例；**同批补 A30／A31 两条 trace 形状缺口** | 见 §21：E0 **两遍**摘要逐字不变＋错误日志 0 行 ＋ §10 场景 11／12 ＋ 静态反例 ＋ 依赖规范新键半；红集 ⊆ A28 三元集，且按 A29 补齐 `unrun` 后判"恰好" | 待派工（§21，口径已齐备） |
+| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例；**同批补 A30／A31 两条 trace 形状缺口** | 见 §21：E0 **两遍**摘要逐字不变＋错误日志 0 行 ＋ §10 场景 11／12 ＋ 静态反例 ＋ 依赖规范新键半；红集 ⊆ A28 三元集，且按 A29 补齐 `unrun` 后判"恰好" | **已完成**（`8633bd9`，登记 `da8142f`；红集恰好＝A28 三元集） |
+| B5 收尾 | A32 跳转重抽遗物、A33 跨定义 hold key 静态拒绝、A34 链文案本地化；四份作者文档补链语义并删 `content/README.md:219` 的"B4 起生效"标注 | 见 §22 | 待派工（§22） |
 
 每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1b 与 B2 之间代码必须可跑可测
 （B1 的两条分支仍在，只是由节点形态驱动；B2 才把节点声明接上）。
@@ -1100,6 +1120,11 @@ B2b 三项交付绿（`5a60cda`）≠ B2b 完成（R1／R2 未收口）；
 9. 证据：`build/checks/<id>/check-rules.log`、`check-ui.log`、`summary.json`、oracle 输出；
    结果与域写 `docs/verification.md`（validator 负责，不在本契约宣称通过）。
 
+**整片验收就绪度（规划者，2026-09-16）**：B5 收口后本契约 §11 即可整片执行——20 条具名场景、
+E0 两遍（摘要逐字相同＋错误日志 0 行）、内容门、六类规则套件（红集 ⊆ A28 三元集且按 A29 补齐 `unrun`）、
+`events,localization` UI（900 秒）、依赖规范 §4.2 五条 check、本地化口径①②③。
+**B5 未收口前不得开始整片验收，也不得打包发版**（A16／A34）。
+
 ## 12. 完成定义（DoD）
 
 命令（每批一次 ＋ 收尾一次；不无故重复）。**第 0、2 条命令覆盖 §10 全部 20 个具名 check 的分类**：
@@ -1172,6 +1197,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 - 删／弱化既有断言（含 `event_flow_cases` 的隐藏选项断言、`persistence_cases:event_conditions`）换绿灯；
 - 把 `normal_play` 的既有红项写成"与 B1 无关"的结论，或据此改断言、删套件；
 - 本地化把缺译写成通过、以"离线模型不可用"为由跳过字典刷新、或只改目录不改盘点口径（裁定 A9）；
+- **B5 落地前任何内容包使用事件链**（跨事件 `next` 对象形态）——链能力已随 B4 落地，但链文案本地化与作者文档（A34／B5）未就绪；现有 12 份内容不含链（E0 已覆盖）；
 - 落地迁移脚本或改启动链（人审：不落地）；
 - 12 份内容之外的内容包被写入链形态（E0 不覆盖）；
 - B1b 未完成就开始 B2（文档与代码形态不一致期不得叠批）；
@@ -1577,3 +1603,51 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   `docs/verification.md` 记录域＝events／persistence。
 - **非目标**：把链写进任何 `content/packs` 内容；UI 的链式展示（投影不动，`view.room_event` 字段不变）；
   B2c 的文档（链的文档化在 B4 之后另派，属同一 A6 收口链）。
+
+
+## 22. B5 派工要点（收尾批：链的落地收口；**本片最后一个批次**）
+
+- **定位**：B4 已让事件链可用，但留三处收口：**A32 跳转按目标事件重抽遗物**（正确性）、
+  **A33 跨定义 `hold_special` key 静态拒绝**（编译期确定性）、**A34 链文案本地化**（`CHAIN_LOOP_REASON`），
+  外加四份作者文档补链语义并删过期标注（A6 收口链最后一环）。
+- **可改文件（授权清单）**：
+  - `spire-godot/core/room_events.gd`（A32；A33 的运行期守卫保留）
+  - `spire-godot/core/content_catalog.gd`（A33 的静态检查）
+  - `spire-godot/tests/{event_flow_cases,content_cases,persistence_cases}.gd`（A32／A33 具名 check）
+  - `spire-godot/content/README.md`、`docs/content-templates.md`、`docs/content-generation.md`、
+    `docs/content-extension.md`（链语义文档；删 `content/README.md:219` 的"B4 起生效"）
+  - `spire-godot/assets/localization/legacy-en_US.json`（A34；必要时 `assets/localization/en_US.json`）
+  - **不改**：`content/packs/*`（**12 份内容仍不得使用链**）、`content/templates/*`、
+    `ui/**`、`core/game.gd`、`core/game_view.gd`、本契约与依赖规范。
+- **交付物**：
+  1. **A32**：`_enter_chain`／`enter_target` 在跳转时按目标定义重算 `room_event.relic`
+     （目标含遗物奖励选项且池非空 → 抽一次；否则置空）；**链夹具加三类具名 check**：
+     目标含遗物选项且池非空＝抽到且属于该目标可发池；目标不含遗物选项＝**置空**；
+     目标含遗物选项但池为空＝置空；并断言 `event` 随机域与 `relic` 域消耗与"单定义抵达"一致（无多余抽取）。
+  2. **A33**：`content_catalog` 在整包校验阶段拒绝跨定义的 `hold_special` key
+     （即跳转链上不同定义复用同一 key，或 `cleanup_effects` 引用了非本定义的 key）；反例走整包拒绝，
+     运行期守卫保留（不改）。
+  3. **A34**：`CHAIN_LOOP_REASON`（"这段事件已经走过，不能再回头。"）进英文字典；按 B2b 的口径
+     出盘点数字（词表条目数 before／after、缺译条数），并纳入 `locale_legacy_catalog_matches_current_sources`
+     的 `REQUIRED_SOURCES`（该 check 已有机制，只需加常量）。
+  4. **文档**：四份作者文档补"跨事件 `next` 对象形态＋链语义"（`values`／`held` 延续、`cleanup_effects` 并集、
+     `chain` 键只在真跳转出现、环被拒且原因文案、A33 的静态拒绝、**12 份内容不得使用链**的现状说明），
+     并**删除 `content/README.md:219` 的"B4 起生效，当前不接受"标注**。
+- **判据命令（一次；A17 时限与 A29 枚举固化）**：
+  ```powershell
+  & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json   # 两遍（开／关 trace）＋错误日志 0 行
+  & tools/check-content.ps1
+  python tools/localization_inventory.py
+  python tools/build_english_catalog.py
+  & tools/check.ps1 -Suite event_flow,events,content,architecture,localization,persistence -Impact -KeepGoing -TimeoutSeconds 900
+  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 900
+  # 文档残留与链关键词（人工判读）
+  rg -n "B4 起生效|当前不接受|start_stage|\"stages\"" spire-godot/content/README.md docs/content-templates.md docs/content-generation.md docs/content-extension.md
+  ```
+- **DoD**：E0 两遍退出码 0／摘要逐字相同／**两遍错误日志命中 0 行**；`check-content.ps1` 12 file(s)；
+  `-Impact -KeepGoing` 红集 ⊆ A28 三元集且**按 A29 补齐 `unrun` 后恰好**；UI 900 秒 PASS；
+  A32 三类 check、A33 反例、A34 词表条目与盘点数字齐备；
+  `event_author_manual_lists_current_fields` 扩展为**纳入链关键词**（`next` 对象形态／`chain`／环）
+  并加反向断言"**不得再写 B4 起生效／当前不接受**"（只许加断言，不得放宽）；
+  `docs/verification.md` 记录域＝文档收尾／本地化／events。
+- **非目标**：把链写进任何 `content/packs` 内容；UI 的链式展示（投影不动）；改判据脚本、契约与依赖规范；打包。
