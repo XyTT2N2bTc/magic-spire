@@ -394,7 +394,8 @@ recipe 或完整效果列表：二选一
 
 离开：按节点声明；`allow_refuse:true`自动追加付费离开，必须完成交易时写`false`；其他自定义费用仍需先扩展通用规则
 结构：`start_node`＋`nodes`；单节点用哨兵`choice`，多节点按 H4 写各阶段节点
-后续阶段：只指向数组中的后续阶段或result；是否带公开加权结果
+后续阶段：只指向数组中的后续阶段、result或跨事件对象{"event","node"}；是否带公开加权结果
+链语义：跨事件跳转的对象形态与延续／并集／环拒绝是否都写清
 批量生成：是否使用install_random／tighten_random，哪些模板与数量
 暂存与收尾：hold_special的key／slots，以及cleanup_effects中的restore_held
 不可穿插的行动：
@@ -446,6 +447,7 @@ recipe 或完整效果列表：二选一
 - `install_random`与`tighten_random`只存在于作者数据；普通事件在进房时、多阶段事件在进入对应阶段时冻结为普通`install`或`tighten_to`效果，保存与提交不重新选目标。`install_random.allow_links`默认为真；写成假时严格只生成普通单件。
 - `random_amount`同样只存在于作者数据；填写现有数值效果`effect`及包含上下限的`minimum/maximum`，进入事件或阶段时冻结为一个定值效果。它不能包装卡牌、遗物、装备或脚本。
 - `hold_special`按精准特殊部位暂存无连接的现有性玩具；同一`key`必须在顶层`cleanup_effects`恰好归还。暂存记录保留完整实例，不重建类型、剩余次数或编号。
+- 跨事件跳转把`next`写成对象`{"event":"已登记事件id","node":"该事件的节点id"}`：提交后同一个`room_event`实例改写为目标事件的`id`与`stage`，不新建实例也不经过地图，形成事件链。链语义：`values`计数与`held`暂存在整条链上继续共享、暂存`key`必须整条链唯一（跨定义重复或`cleanup_effects`引用别的定义的`key`会让整包拒绝，运行期的“同一保管位置不能重复使用”只是第二道守卫）；`cleanup_effects`取整条链的并集并按`key`去重，离开时各执行一次；`chain`键只在真的发生跨事件跳转时写入，记录已经走过的事件id（抵达时没有这个键），链上经过的目标事件都会加入`event_seen`；事件携带的遗物按目标事件的定义重算，目标没有遗物奖励选项或遗物池为空时置空，不会发出来源事件的遗物。跳转目标必须已登记，事件不能引用自身；回到链上已经走过的事件会被拒绝——选项保留但不可用，原因文案为“这段事件已经走过，不能再回头。”。链能力已可用，但当前 12 份迁移内容都没有使用，E0 基线只覆盖单定义事件。
 - 状态条件有两类拼写：规范拼写`conditions`（1—8条数组，每条`{kind, mode, reason, …}`）与兼容拼写`availability`（单个条件对象，可与`hide_when_unavailable:true`配套）；两种拼写在同一选项互斥，新内容优先用`conditions`。
 - `mode`的`optional`＝显示但禁用（保留按钮并显示`reason`），`hidden`＝不生成（不进`room_event.options`也不出候选）。全部条目按 AND 判断，**任一`hidden`命中即隐藏**，只有`optional`命中时列出全部命中条目，`reason`**按声明顺序**换行连接。
 - 选项级`unavailable`（`hide`／`disable`）给出未被显式`mode`约束的条目的默认模式，与`hide_when_unavailable`互斥；完整优先级见`content/README.md` §3。

@@ -618,6 +618,108 @@ static func event_chain_trace_rows(t) -> void:
   t.check(probe.Events.event_trace(probe).filter(func(row):return row.purpose=="next_probe").size()==1,"EVENT CHAIN TRACE frozen instances never repeat the look-ahead row")
  Catalog.commit(g,baseline)
 
+# docs/event-pipeline-unification.md §3.3 ruling A32 chain fixtures (never shipped content):
+# the source optionally offers a relic reward of its own, the target decides whether it offers
+# one, and neither end holds special equipment — so the only domains under test are the relic
+# draw and the target's own node entry.
+static func chain_relic_node(choices: Array) -> Dictionary:
+ return {"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":choices}
+
+static func chain_relic_documents(target_id: String, target_offers_relic: bool, source_offers_relic: bool=false) -> Array:
+ var source_choices=[{"id":"depart","label":"动身前往下一段事件","reward":"none","next":{"event":target_id,"node":"choice"},"detail":"带上一项计数进入另一段事件。","effects":[{"op":"counter","key":"chain_seen","amount":1}]}]
+ if source_offers_relic: source_choices.append({"id":"carry_relic","label":"先领走本事件冻结的遗物","reward":"relic","next":"result","detail":"领走一件随机遗物。","effects":[]})
+ var target_choices=[{"id":"stay","label":"留在本事件","reward":"none","next":"result","detail":"不领取遗物。","effects":[{"op":"mana_gain","amount":1}]}]
+ if target_offers_relic: target_choices.append({"id":"grab","label":"领走本事件冻结的遗物","reward":"relic","next":"result","detail":"领走一件随机遗物。","effects":[]})
+ return [
+  {"file":"memory://chain_relic_source.json","data":{"schema_version":2,"kind":"event","id":"chain_relic_source","name":"遗物重抽起点夹具","intro":"只用于验证跨事件跳转的遗物重抽。","start_node":"choice","nodes":[chain_relic_node(source_choices)]}},
+  {"file":"memory://"+target_id+".json","data":{"schema_version":2,"kind":"event","id":target_id,"name":"遗物重抽目标夹具","intro":"只用于验证跨事件跳转的遗物重抽。","start_node":"choice","nodes":[chain_relic_node(target_choices)]}}]
+
+# Per-domain random counters between two readings: a jump that recomputes the relic has to
+# spend exactly what the same definition spends on its own arrival.
+static func rng_delta(before: Dictionary, after: Dictionary) -> Dictionary:
+ var delta={}
+ for domain in after: delta[domain]=int(after[domain])-int(before.get(domain,0))
+ return delta
+
+# docs/event-pipeline-unification.md §3.3 ruling A32, class 1: a target that declares a relic
+# reward draws once on the jump, the drawn relic belongs to the pool that definition may grant,
+# and the event and relic domains spend exactly the single-definition arrival draws.
+static func event_chain_relic_drawn_from_target(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_relic_documents("chain_relic_gift",true))
+ t.check(compiled.ok,"EVENT CHAIN RELIC gift fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ Events.arrive(walk,"chain_relic_source")
+ t.check(walk.state.room_event.relic=="","EVENT CHAIN RELIC the source definition offers no relic reward, so it freezes none")
+ var chain_before=walk.state.rng.duplicate()
+ t.check(t.action(walk,"event",{"action":"choose","choice":"depart"}).ok,"EVENT CHAIN RELIC the source option commits through the formal command")
+ var event=walk.state.room_event
+ var chain_delta=rng_delta(chain_before,walk.state.rng)
+ t.check(event.id=="chain_relic_gift" and event.relic!="","EVENT CHAIN RELIC the jump draws a relic for the target definition: "+str(event.relic))
+ t.check(event.relic in walk.RelicRewards.available(walk) and event.relic not in walk.state.relics,"EVENT CHAIN RELIC the drawn relic belongs to the pool the target may grant: "+str(event.relic))
+ var direct=Game.new(42)
+ var direct_before=direct.state.rng.duplicate()
+ Events.arrive(direct,"chain_relic_gift")
+ var direct_delta=rng_delta(direct_before,direct.state.rng)
+ t.check(direct.state.room_event.relic==event.relic,"EVENT CHAIN RELIC the jump draws the same relic as a single-definition arrival: "+str(event.relic)+" vs "+str(direct.state.room_event.relic))
+ t.check(JSON.stringify(chain_delta)==JSON.stringify(direct_delta) and chain_delta.relic==direct_delta.relic and chain_delta.event==direct_delta.event,"EVENT CHAIN RELIC the jump spends exactly the single-definition draws in the event and relic domains: "+JSON.stringify({"chain":chain_delta,"direct":direct_delta}))
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §3.3 ruling A32, class 2: a target that declares no relic
+# reward clears the source relic instead of carrying it over, and spends no extra draw.
+static func event_chain_relic_cleared_without_target_offer(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_relic_documents("chain_relic_plain",false,true))
+ t.check(compiled.ok,"EVENT CHAIN RELIC plain fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ Events.arrive(walk,"chain_relic_source")
+ t.check(walk.state.room_event.relic!="","EVENT CHAIN RELIC the source definition freezes its own relic: "+str(walk.state.room_event.relic))
+ var chain_before=walk.state.rng.duplicate()
+ t.check(t.action(walk,"event",{"action":"choose","choice":"depart"}).ok,"EVENT CHAIN RELIC the source option commits through the formal command")
+ var event=walk.state.room_event
+ var chain_delta=rng_delta(chain_before,walk.state.rng)
+ t.check(event.id=="chain_relic_plain" and event.relic=="","EVENT CHAIN RELIC a target without a relic reward clears the source relic: "+str(event.relic))
+ t.check(not event.options.any(func(option):return option.reward=="relic"),"EVENT CHAIN RELIC the cleared target exposes no relic reward option")
+ var direct=Game.new(42)
+ var direct_before=direct.state.rng.duplicate()
+ Events.arrive(direct,"chain_relic_plain")
+ var direct_delta=rng_delta(direct_before,direct.state.rng)
+ t.check(direct.state.room_event.relic=="" and JSON.stringify(chain_delta)==JSON.stringify(direct_delta),"EVENT CHAIN RELIC clearing the source relic spends no extra draw: "+JSON.stringify({"chain":chain_delta,"direct":direct_delta}))
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §3.3 ruling A32, class 3: a target that declares the relic
+# reward still keeps the instance empty while the pool is empty, again without spending a draw.
+static func event_chain_relic_cleared_when_pool_empty(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_relic_documents("chain_relic_exhausted",true))
+ t.check(compiled.ok,"EVENT CHAIN RELIC exhausted fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ walk.state.relics.append_array(walk.Relics.REWARDS)
+ t.check(walk.RelicRewards.available(walk).is_empty(),"EVENT CHAIN RELIC the fixture owns the whole relic pool")
+ Events.arrive(walk,"chain_relic_source")
+ var chain_before=walk.state.rng.duplicate()
+ t.check(t.action(walk,"event",{"action":"choose","choice":"depart"}).ok,"EVENT CHAIN RELIC the source option commits through the formal command")
+ var event=walk.state.room_event
+ var chain_delta=rng_delta(chain_before,walk.state.rng)
+ t.check(event.id=="chain_relic_exhausted" and event.relic=="","EVENT CHAIN RELIC an empty relic pool leaves the target instance without a relic: "+str(event.relic))
+ t.check(not event.options.any(func(option):return option.reward=="relic"),"EVENT CHAIN RELIC the empty pool drops the target relic option before freezing")
+ var direct=Game.new(42)
+ direct.state.relics.append_array(direct.Relics.REWARDS)
+ var direct_before=direct.state.rng.duplicate()
+ Events.arrive(direct,"chain_relic_exhausted")
+ var direct_delta=rng_delta(direct_before,direct.state.rng)
+ t.check(direct.state.room_event.relic=="" and JSON.stringify(chain_delta)==JSON.stringify(direct_delta),"EVENT CHAIN RELIC an empty pool spends no draw on either path: "+JSON.stringify({"chain":chain_delta,"direct":direct_delta}))
+ Catalog.commit(g,baseline)
+
 # docs/event-pipeline-unification.md §10 scenarios 15-18: stacked condition modes.
 static func event_stacked_conditions(t) -> void:
  var g=Game.new(42)
@@ -730,6 +832,9 @@ static func run(t) -> void:
  event_chain_jumps_to_another_event_node(t)
  event_chain_loop_refused(t)
  event_chain_trace_rows(t)
+ event_chain_relic_drawn_from_target(t)
+ event_chain_relic_cleared_without_target_offer(t)
+ event_chain_relic_cleared_when_pool_empty(t)
  event_stacked_conditions(t)
  event_mana_cost(t)
  event_option_policies_match_current_behaviour(t)

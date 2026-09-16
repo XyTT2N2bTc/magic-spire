@@ -21163,6 +21163,11 @@
       "text": "There are no options that can be implemented at this stage."
     },
     {
+      "id": "legacy.hbe6fbb665a810824ce3c074b",
+      "source": "这段事件已经走过，不能再回头。",
+      "text": "This event has already happened. You cannot go back."
+    },
+    {
       "id": "legacy.h38d2d5d43fdc6532f5792529",
       "source": "这两件装备之间已经有一条链接绳。",
       "text": "There is already a link between the two items of equipment."

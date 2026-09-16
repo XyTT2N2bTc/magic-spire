@@ -358,7 +358,55 @@ static func _event_references(g, e: Dictionary, data: Dictionary) -> String:
   if cleanup.key not in held_keys: return "cleanup_effects 引用了从未建立的暂存 key。"
  for key in held_keys:
   if not event.get("cleanup_effects",[]).any(func(effect):return effect.key==key): return "暂存装备必须在 cleanup_effects 中原样归还。"
+ # §3.3 (A33): a jump keeps the source holds, so a hold key has to stay unique along the whole
+ # chain, not only inside one definition. The path walk below covers every jump path of this
+ # definition; cleanup_effects staying inside its own key set is already enforced above.
+ return _chain_hold_key_issue(g,data,e.id)
+
+# The jump graph is walked once per definition with the keys already in use on the current
+# path. Cycles cannot run (the runtime refuses them), but a crafted package still terminates:
+# a definition repeated on the same path is left to the runtime's chain guard.
+static func _chain_hold_key_issue(g, data: Dictionary, event_id: String, used: Array=[], path: Array=[]) -> String:
+ var event=data.get("event",{}).get(event_id,{})
+ if event.is_empty() or event_id in path: return ""
+ var keys=_hold_keys(event)
+ for key in keys:
+  if key in used: return "事件链上重复使用了暂存 key："+str(key)+"（"+event_id+"）。"
+ var accumulated=used.duplicate()+keys
+ var closed=path.duplicate()
+ closed.append(event_id)
+ for target in _jump_targets(g,event):
+  if target in closed: continue
+  var issue=_chain_hold_key_issue(g,data,target,accumulated,closed)
+  if issue!="": return issue
  return ""
+
+static func _hold_keys(event: Dictionary) -> Array:
+ var keys=[]
+ for node_entry in event.get("nodes",[]):
+  for choice in node_entry.get("choices",[]):
+   for effects in _choice_effect_lists(choice):
+    for effect in effects:
+     if effect.get("op","")!="hold_special": continue
+     if effect.get("key","") not in keys: keys.append(effect.get("key",""))
+ return keys
+
+static func _choice_effect_lists(choice: Dictionary) -> Array:
+ var lists=[choice.get("effects",[])]
+ for outcome in choice.get("outcomes",[]): lists.append(outcome.get("effects",[]))
+ return lists
+
+static func _jump_targets(g, event: Dictionary) -> Array:
+ var targets=[]
+ for node_entry in event.get("nodes",[]):
+  for choice in node_entry.get("choices",[]):
+   var nexts=[choice.get("next","result")]
+   for outcome in choice.get("outcomes",[]): nexts.append(outcome.get("next",choice.get("next","result")))
+   for next in nexts:
+    # The authored shape is interpreted by its single interpreter, never re-read here.
+    var target=g.Events.next_target(next)
+    if target.kind=="event" and target.event!="" and target.event not in targets: targets.append(target.event)
+ return targets
 
 # A declared next ends the event only as the "result" sentinel; the cross-event object form
 # never does, and comparing that object with a String would raise at runtime.

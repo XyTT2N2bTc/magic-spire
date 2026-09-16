@@ -75,7 +75,9 @@ const REQUIRED_SOURCES={
   "尚未支持这种状态条件。": "This state condition is not supported yet.",
   "需要条件对象。": "A condition object is required.",
   "reason 需要1—240字的普通说明。": "reason needs 1-240 plain characters.",
-  "has_relic 需要已注册的遗物 id。": "has_relic needs a registered relic id."}
+  "has_relic 需要已注册的遗物 id。": "has_relic needs a registered relic id.",
+ # B5 (A34): the chain-loop gate reason is player-visible, so it needs a manual entry too.
+ "这段事件已经走过，不能再回头。": "This event has already happened. You cannot go back."}
 
 static func locale_legacy_catalog_matches_current_sources(t) -> void:
  var file=FileAccess.open("res://assets/localization/legacy-en_US.json",FileAccess.READ)

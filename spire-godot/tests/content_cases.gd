@@ -116,7 +116,12 @@ static func event_author_manual_lists_current_fields(t) -> void:
  t.check(not section.contains("start_stage") and not section.contains("`stages`") and not section.contains("顶层`choices`"),"EVENT MANUAL event section teaches no retired definition shape")
  t.check(section.contains("templates/event.json") and section.contains("templates/event_multistage.json.disabled"),"EVENT MANUAL event section points at both shipped templates")
  t.check(not section.contains("B2 起生效") and not section.contains("待 B2") and not section.contains("尚不可用"),"EVENT MANUAL documents no landing ability as still pending")
- t.check(section.contains("B4 起生效"),"EVENT MANUAL the event-chain spelling keeps its batch marker")
+ # B5: the cross-event chain is current behaviour, so the manual documents its object form and
+ # semantics instead of carrying a batch marker.
+ t.check(section.contains('{"event"') and section.contains('"node"'),"EVENT MANUAL the cross-event next object form is documented")
+ t.check(section.contains("事件链") and section.contains("`chain`") and section.contains("并集"),"EVENT MANUAL the chain semantics name the chain key and the cleanup union")
+ t.check(section.contains("环") and section.contains("不能再回头"),"EVENT MANUAL the refused chain loop keeps its reason text")
+ t.check(not section.contains("B4 起生效") and not section.contains("当前不接受"),"EVENT MANUAL the event-chain wording carries no pending-batch marker")
  t.check(section.contains("conditions") and section.contains("unavailable") and section.contains("mode"),"EVENT MANUAL canonical spellings are documented")
  t.check(section.contains("optional") and section.contains("hidden"),"EVENT MANUAL both condition modes are documented")
  t.check(section.contains("声明顺序"),"EVENT MANUAL reason joining follows the declaration order")
@@ -195,6 +200,10 @@ static func event_chain_references_fail_closed(t) -> void:
  if source.is_empty(): return
  var target=source.duplicate(true)
  target.data.id="example_chain_target"
+ # A33: hold keys are unique on the whole chain, so the duplicated definition declares a key
+ # of its own instead of reusing the source's.
+ target.data.nodes[0].choices[0].effects[0].key="removed_gear_target"
+ target.data.cleanup_effects=[{"op":"restore_held","key":"removed_gear_target"}]
  source.data.nodes[1].choices[0].next={"event":"example_chain_target","node":"entry"}
  var accepted=Catalog.compile(g,[source,target])
  t.check(accepted.ok,"EVENT CHAIN a registered event node is accepted: "+str(accepted.errors))
@@ -222,9 +231,41 @@ static func event_chain_references_fail_closed(t) -> void:
   t.check(not failed.ok and failed.tables.is_empty() and Catalog.tables(g)==baseline,"EVENT CHAIN rejected without registering: "+entry[0])
  t.check(Catalog.tables(g)==baseline,"EVENT CHAIN static validation leaves the registries untouched")
 
+# docs/event-pipeline-unification.md §3.3 ruling A33: a hold key has to stay unique along the
+# whole chain, so a package whose jump path reuses a key — or whose cleanup names another
+# definition's key — is rejected as one batch before anything is registered. The runtime guard
+# ("同一保管位置不能重复使用。") stays untouched as the second line of defence.
+static func event_chain_hold_keys_fail_closed(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var source=template_document("example_multistage_challenge")
+ t.check(not source.is_empty() and source.data.nodes.size()==3,"EVENT CHAIN HOLD templates are available")
+ if source.is_empty(): return
+ # The target is duplicated before the source gains its jump, so the target keeps no jump of
+ # its own and the package never trips the self-reference rule.
+ var target=source.duplicate(true)
+ target.data.id="example_chain_hold_target"
+ target.data.nodes[0].choices[0].effects[0].key="target_only_gear"
+ target.data.cleanup_effects=[{"op":"restore_held","key":"target_only_gear"}]
+ source.data.nodes[1].choices[0].next={"event":"example_chain_hold_target","node":"entry"}
+ var accepted=Catalog.compile(g,[source,target])
+ t.check(accepted.ok,"EVENT CHAIN HOLD one key per definition along the jump is accepted: "+str(accepted.errors))
+ var clash=target.duplicate(true)
+ clash.data.nodes[0].choices[0].effects[0].key="removed_gear"
+ clash.data.cleanup_effects=[{"op":"restore_held","key":"removed_gear"}]
+ var reused=Catalog.compile(g,[source,clash])
+ t.check(not reused.ok and reused.tables.is_empty() and str(reused.errors).contains("事件链上重复使用了暂存 key") and Catalog.tables(g)==baseline,"EVENT CHAIN HOLD a key reused across the jump is rejected as one batch: "+str(reused.errors))
+ var foreign=target.duplicate(true)
+ foreign.data.nodes[0].choices[0].effects=[]
+ foreign.data.cleanup_effects=[{"op":"restore_held","key":"removed_gear"}]
+ var borrowed=Catalog.compile(g,[source,foreign])
+ t.check(not borrowed.ok and borrowed.tables.is_empty() and str(borrowed.errors).contains("cleanup_effects 引用了从未建立的暂存 key") and Catalog.tables(g)==baseline,"EVENT CHAIN HOLD a cleanup naming another definition's key is rejected as one batch: "+str(borrowed.errors))
+ t.check(Catalog.tables(g)==baseline,"EVENT CHAIN HOLD static validation leaves the registries untouched")
+
 static func run(t) -> void:
  event_author_manual_lists_current_fields(t)
  event_chain_references_fail_closed(t)
+ event_chain_hold_keys_fail_closed(t)
  event_stage_available_condition_validates(t)
  event_definition_form_rejects_legacy_shape(t)
  event_stacked_conditions_keep_current_content(t)

@@ -29,15 +29,11 @@ static func start(g, id: String="") -> void:
  g.state.wall=g.room_data(g.state.room).wall
  g.state.enemies=[]
  g.state.energy=0
- var available=g.RelicRewards.available(g)
  var spec=definition(id)
  # One definition form: a single node keeps the in-place layout, several nodes keep the
  # staged layout. B2 replaces this node-count branch with the declared node policies.
  var flow=node_ids(spec).size()>1
- var choices=[]
- for author_node in spec.get("nodes",[]): choices.append_array(author_node.get("choices",[]))
- var offers_relic=choices.any(func(choice):return choice.get("reward","")=="relic" or choice.get("outcomes",[]).any(func(outcome):return outcome.get("reward","")=="relic"))
- var event={"id":id,"stage":"choice","options":[],"refs":{},"values":{},"report":"","reward":[],"winner":-1,"relic":g.RelicRewards.offer(g) if offers_relic and not available.is_empty() else "","flow":flow,"held":{},"cleanup_effects":spec.get("cleanup_effects",[]).duplicate(true),"next_stage":""}
+ var event={"id":id,"stage":"choice","options":[],"refs":{},"values":{},"report":"","reward":[],"winner":-1,"relic":offer_relic(g,spec),"flow":flow,"held":{},"cleanup_effects":spec.get("cleanup_effects",[]).duplicate(true),"next_stage":""}
  g.state.room_event=event
  event.result_status="neutral"
  var issue=enter_node(g,spec.get("start_node",""))
@@ -45,6 +41,17 @@ static func start(g, id: String="") -> void:
   event.stage="result";event.report="事件无法开始："+issue
   event.result_status="failure"
  g._emit("event","进入"+Data.TYPES[id].name+"。")
+
+# §3.3 (A32): the relic an instance may grant belongs to the definition that owns the instance,
+# so an arrival and a chain jump compute it the same way: a definition whose options offer a
+# relic reward with a non-empty pool spends exactly one draw, every other definition stays
+# empty. Recomputing after a jump is what keeps the target from naming the source's relic.
+static func offer_relic(g, spec: Dictionary) -> String:
+ var choices=[]
+ for author_node in spec.get("nodes",[]): choices.append_array(author_node.get("choices",[]))
+ var offers_relic=choices.any(func(choice):return choice.get("reward","")=="relic" or choice.get("outcomes",[]).any(func(outcome):return outcome.get("reward","")=="relic"))
+ if not offers_relic or g.RelicRewards.available(g).is_empty(): return ""
+ return g.RelicRewards.offer(g)
 
 static func refusal(g) -> Dictionary:
  return {"id":"refuse","label":"支付费用，离开","reward":"none","effects":[{"op":"mana_loss","amount":minf(g.state.mana,Data.REFUSAL_MANA)}],"detail":"支付%s魔力。" % g.number(minf(g.state.mana,Data.REFUSAL_MANA)),"next":"result","report":"你转身离开。"}
@@ -91,9 +98,10 @@ static func enter_target(g, target: Dictionary, purpose: String="arrival") -> Di
  return enter_node_result(g,str(target.get("node","")),purpose)
 
 # A real cross-event jump keeps one instance (§3.3): the target becomes the current
-# definition, counters and holds continue, cleanup becomes the chain union, event_seen gains
-# the target, the flow mirror follows the new definition, and chain records the events already
-# left behind — the key appears only here, never on arrival.
+# definition, counters and holds continue, cleanup becomes the chain union, the relic is
+# recomputed from the target definition (A32), event_seen gains the target, the flow mirror
+# follows the new definition, and chain records the events already left behind — the key
+# appears only here, never on arrival.
 static func _enter_chain(g, target: Dictionary, purpose: String) -> Dictionary:
  var event=g.state.room_event
  var spec=definition(target.event)
@@ -104,6 +112,7 @@ static func _enter_chain(g, target: Dictionary, purpose: String) -> Dictionary:
  left.append(str(event.get("id","")))
  event.chain=left
  event.id=target.event
+ event.relic=offer_relic(g,spec)
  event.cleanup_effects=chain_cleanup(event.get("cleanup_effects",[]),spec.get("cleanup_effects",[]))
  event.flow=node_ids(spec).size()>1
  return enter_node_result(g,target.node,purpose)
