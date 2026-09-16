@@ -19,6 +19,7 @@
 | 输入到落地的提交与刷新 | docs/response-pipeline.md |
 | 装备只读查询 | docs/equipment-query-seam.md |
 | 玩家可见文案的收口与按需 | docs/ondemand-copy.md |
+| 事件系统结构 | docs/event-structure.md |
 | 文案与本地化 | docs/action-copy-guide.md、docs/localization.md |
 | 美术来源与差分 | assets/art/ART-NOTES.md、assets/vendor/CREDITS.md |
 | 验证结果 | docs/verification.md |
