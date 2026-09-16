@@ -144,6 +144,80 @@ static func event_pipeline_writes_only_declared_keys(t) -> void:
   t.check(not chain.restore_snapshot(saved).ok and chain.export_snapshot()==jumped,"SAVE malformed chain rejected atomically: "+JSON.stringify(broken))
  catalog.commit(g,baseline)
 
+# docs/event-pipeline-unification.md §10 scenario 14: every shipped event's frozen options and
+# its room_event survive a real SaveStore pack/unpack plus the formal restore entry byte for
+# byte (eight single-node and four multi-node instances). `next` is written only for options
+# frozen through the staged layout (§6.3 with the A12 judge: the node's frozen_form, or any
+# option carrying a selector), and all six malformed `next` shapes reject the whole save with
+# the existing wording while the live state stays untouched.
+static func event_frozen_options_roundtrip(t) -> void:
+ var events=preload("res://tests/event_cases.gd")
+ var data=preload("res://data/room_events.gd")
+ var single=0
+ var staged=0
+ var ids=data.TYPES.keys()
+ ids.sort()
+ for id in ids:
+  var g=Game.new(42)
+  events.arrive(g,id)
+  var definition=g.Events.definition(id)
+  if g.Events.node_ids(definition).size()==1: single+=1
+  else: staged+=1
+  var node=g.Events.node(definition,definition.start_node)
+  for option in g.state.room_event.options:
+   var source=node.choices.filter(func(choice):return str(choice.get("id",""))==str(option.get("source_choice",option.get("id",""))))
+   var staged_layout=str(node.get("frozen_form",""))!="in_place" or (not source.is_empty() and source[0].has("selector"))
+   t.check(option.has("next")==staged_layout,"SAVE the frozen layout writes next only for a staged option: "+id+"/"+str(option.get("id","")))
+  var options=JSON.stringify(g.state.room_event.options)
+  var room_event=JSON.stringify(g.state.room_event)
+  var decoded=Store.unpack(Store.pack(g.export_snapshot()))
+  t.check(decoded.ok,"SAVE the shipped frozen event unpacks: "+id+": "+str(decoded.get("error","")))
+  if not decoded.ok: continue
+  var restored=Game.new(0,false,"equipment",false)
+  var loaded=restored.restore_snapshot(decoded.snapshot)
+  t.check(loaded.ok,"SAVE the shipped frozen event restores through the formal entry: "+id+": "+str(loaded.get("error","")))
+  if not loaded.ok: continue
+  t.check(JSON.stringify(restored.state.room_event.options)==options and JSON.stringify(restored.state.room_event)==room_event,"SAVE frozen options and room_event stay byte-identical: "+id)
+  if JSON.stringify(restored.state.room_event)!=room_event: same(restored.state.room_event,g.state.room_event)
+  t.check(restored.validate()=="","SAVE the restored frozen event stays valid: "+id+": "+restored.validate())
+ t.check(single==8 and staged==4,"SAVE the shipped sample covers eight single-node and four multi-node events: "+str(single)+"/"+str(staged))
+ # A single-node in_place event still freezes its selector options through the shared staged
+ # builder (§1.1 P2), so those instances carry `next` while their plain siblings do not.
+ for id in ["alchemist_tasting_stall","enchanters_empty_studio"]:
+  var g=Game.new(42)
+  for slot in ["thigh","ankle"]: g.add_fixture(slot,6)
+  events.arrive(g,id)
+  var instances=g.state.room_event.options.filter(func(option):return str(option.get("id","")).contains("__"))
+  t.check(not instances.is_empty() and instances.all(func(option):return option.has("next") and option.has("source_choice")),"SAVE a single-node selector instance freezes through the staged layout: "+id)
+  t.check(g.state.room_event.options.filter(func(option):return not str(option.get("id","")).contains("__")).all(func(option):return not option.has("next")),"SAVE the plain options of the same in_place instance carry no next: "+id)
+  var options=JSON.stringify(g.state.room_event.options)
+  var decoded=Store.unpack(Store.pack(g.export_snapshot()))
+  var restored=Game.new(0,false,"equipment",false)
+  t.check(decoded.ok and restored.restore_snapshot(decoded.snapshot).ok and JSON.stringify(restored.state.room_event.options)==options,"SAVE the expanded selector instance round-trips byte-identically: "+id)
+ # The corruption happens on the snapshot copy, never on the live instance (A27).
+ var staged_game=Game.new(42)
+ events.arrive(staged_game,"binding_cleric")
+ var before=staged_game.export_snapshot()
+ var index=-1
+ for i in range(staged_game.state.room_event.options.size()):
+  if staged_game.state.room_event.options[i].has("next"): index=i;break
+ t.check(index>=0,"SAVE the staged sample carries a next key to corrupt")
+ if index>=0:
+  var cases=[
+   ["missing key",null],
+   ["non string or dictionary",42],
+   ["unknown node","no_such_node"],
+   ["unregistered event",{"event":"no_such_event","node":"entry"}],
+   ["self reference",{"event":"binding_cleric","node":"service"}],
+   ["unknown target node",{"event":"floating_belt_cluster","node":"no_such_node"}],
+  ]
+  for case in cases:
+   var saved=before.duplicate(true)
+   if case[1]==null: saved.room_event.options[index].erase("next")
+   else: saved.room_event.options[index].next=case[1]
+   var result=staged_game.restore_snapshot(saved)
+   t.check(not result.ok and str(result.get("error",""))=="无法继续这份存档：多阶段事件冻结选项损坏。" and staged_game.export_snapshot()==before,"SAVE a malformed next rejects the whole save with its existing wording and no partial load: "+case[0])
+
 # Scenario 10 (the trace never reaches the state or the save) is not landed: its trace
 # assertions failed. Reported for the coordinator.
 
@@ -178,6 +252,7 @@ static func run(t) -> void:
  preload("res://tests/scene_restart_cases.gd").run(t,same)
  revision_boundary(t)
  event_conditions(t)
+ event_frozen_options_roundtrip(t)
  t.check(Game.Snapshot.Phases.DEFINITIONS.values().all(func(stage):return stage.name!="" and stage.caption!=""),"SAVE every accepted phase has a homepage summary label")
  var sample_draw=Game.new(42)
  var unchanged=sample_draw.export_snapshot()
