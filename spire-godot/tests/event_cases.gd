@@ -54,6 +54,11 @@ static func event_definition_single_form(t) -> void:
 # gate, and the named probe/node gates cover their own stages.
 # Not landed: the trace rows it asserts still differ from what the suite produces,
 # while the standalone repro matches the contract wording. Reported for the coordinator.
+# docs/event-pipeline-unification.md §10 scenario 03: every authored option produces at
+# least one trace row, decisions stay in the four values, drops and hides carry a named
+# gate, and the named probe/node gates cover their own stages.
+# Scenario 03 is not landed yet: it needs the A25 wording (filter by purpose/source_choice,
+# no total counts). Reported for the coordinator.
 static func run(t) -> void:
  preload("res://tests/event_draw_cases.gd").run(t)
  event_definition_single_form(t)

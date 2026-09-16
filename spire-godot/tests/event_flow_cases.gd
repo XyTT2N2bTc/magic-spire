@@ -561,7 +561,38 @@ static func event_hidden_relic_option_traced(t) -> void:
 # previous event's rows.
 # Not landed: the trace rows it asserts still differ from what the suite produces,
 # while the standalone repro matches the contract wording. Reported for the coordinator.
+# docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
+# declaration order, the switch off leaves the trace empty, and a new event never keeps the
+# previous event's rows.
+static func event_stacked_condition_trace_and_release(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var node={"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[{"id":"stacked","label":"叠加条件","reward":"none","next":"result","detail":"条件决定是否可选。","effects":[{"op":"mana_gain","amount":2}],"conditions":[{"kind":"has_relic","type":"softened_buckle","reason":"条件甲。","mode":"optional"},{"kind":"has_relic","type":"small_gem","reason":"条件乙。","mode":"optional"}]}]}
+ var document={"file":"memory://trace_stacked.json","data":{"schema_version":2,"kind":"event","id":"trace_stacked_fixture","name":"trace 叠加夹具","intro":"只用于验证 trace 的夹具。","start_node":"choice","nodes":[node]}}
+ var compiled=Catalog.compile(g,[document])
+ t.check(compiled.ok,"EVENT TRACE stacked fixture compiles: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ walk.set_meta("event_trace_enabled",true)
+ Events.arrive(walk,"trace_stacked_fixture")
+ var arrival=walk.Events.event_trace(walk)
+ t.check(arrival.size()==2 and arrival[0].index==0 and arrival[1].index==1,"EVENT TRACE one row per hitting entry, in declaration order: "+JSON.stringify(arrival.map(func(row):return [row.index,row.mode])))
+ t.check(arrival[0].reason=="条件甲。" and arrival[1].reason=="条件乙。" and arrival[0].mode=="optional","EVENT TRACE every row keeps its own reason and mode")
+ t.check(arrival.all(func(row):return row.gate=="availability_unmet" and row.decision=="disabled" and row.purpose=="arrival"),"EVENT TRACE stacked rows keep the named gate and decision")
+ Events.arrive(walk,"trace_stacked_fixture")
+ var second=walk.Events.event_trace(walk)
+ t.check(second.size()==2 and second[0].index==0 and second[0].purpose=="arrival","EVENT TRACE a new event keeps no stale rows: "+str(second.size()))
+ walk.set_meta("event_trace_enabled",false)
+ var silent=Game.new(42)
+ Events.arrive(silent,"trace_stacked_fixture")
+ silent.candidates()
+ t.check(silent.Events.event_trace(silent).is_empty(),"EVENT TRACE release leaves the trace empty")
+ t.check(not JSON.stringify(silent.export_snapshot()).contains("event_trace") and not JSON.stringify(silent.get_view()).contains("event_trace"),"EVENT TRACE neither the save nor the view carries trace data")
+ Catalog.commit(g,baseline)
+
 static func run(t) -> void:
+ event_stacked_condition_trace_and_release(t)
  event_hidden_relic_option_traced(t)
  event_single_node_declarations(t)
  event_node_empty_policy_kept(t)

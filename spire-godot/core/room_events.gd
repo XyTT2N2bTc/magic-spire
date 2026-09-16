@@ -208,11 +208,13 @@ static func evaluate_option(g, request: Dictionary) -> Dictionary:
     feasibility.index=index
     gates.append(feasibility)
  var decision=_decision(gates)
- var option_id=str(choice.get("id",""))
+ var authored_id=str(choice.get("id",""))
+ var frozen_id="" if options.is_empty() else str(options[0].get("id",""))
+ if frozen_id=="": frozen_id=authored_id
  for hit in gates:
-  trace_entry(g,{"option_id":option_id,"decision":decision,"gate":hit.gate,"kind":hit.get("kind",""),"mode":hit.get("mode",""),"index":hit.get("index",0),"reason":hit.get("reason",""),"purpose":purpose})
+  trace_entry(g,{"source_choice":authored_id,"option_id":frozen_id,"decision":decision,"gate":hit.gate,"kind":hit.get("kind",""),"mode":hit.get("mode",""),"index":hit.get("index",0),"reason":hit.get("reason",""),"purpose":purpose})
  if gates.is_empty():
-  trace_entry(g,{"option_id":option_id,"decision":decision,"purpose":purpose})
+  trace_entry(g,{"source_choice":authored_id,"option_id":frozen_id,"decision":decision,"purpose":purpose})
  return {"decision":decision,"gates":gates,"gate":"" if gates.is_empty() else str(gates[0].gate),"reason":_joined_reason(gates),"option":{} if options.is_empty() else options[0]}
 
 static func _structural(gates: Array) -> bool:
@@ -360,7 +362,11 @@ static func enter_node_result(g, id: String) -> Dictionary:
  var options=[]
  for choice in node_entry.get("choices",[]):
   var selections=selections_for(g,choice)
-  if selections.is_empty(): continue
+  if selections.is_empty():
+   # A selector that expands to nothing still goes through the entry, so the
+   # selector_empty gate and its trace row exist (§4.2／§10 scenario 03).
+   evaluate_option(g,{"definition":spec,"node":node_entry,"choice":choice,"selected":{},"purpose":"arrival","outcome":{}})
+   continue
   # outcome_draw=="option" spends exactly one draw for the whole choice, then copies it.
   var shared={}
   if choice.has("outcomes") and node_entry.get("outcome_draw","option")=="option": shared=weighted(g,choice.outcomes)
@@ -398,7 +404,7 @@ static func trace_entry(g, fields: Dictionary) -> void:
  if not trace_enabled(g): return
  var room_event=g.state.room_event
  var option_id=str(fields.get("option_id",""))
- var row={"event":str(room_event.get("id","")),"node":str(room_event.get("stage","")),"source_choice":option_id,"option_id":option_id,"decision":str(fields.get("decision","")),"gate":str(fields.get("gate","")),"kind":str(fields.get("kind","")),"mode":str(fields.get("mode","")),"index":int(fields.get("index",0)),"reason":str(fields.get("reason","")),"purpose":str(fields.get("purpose",""))}
+ var row={"event":str(room_event.get("id","")),"node":str(room_event.get("stage","")),"source_choice":str(fields.get("source_choice",option_id)),"option_id":option_id,"decision":str(fields.get("decision","")),"gate":str(fields.get("gate","")),"kind":str(fields.get("kind","")),"mode":str(fields.get("mode","")),"index":int(fields.get("index",0)),"reason":str(fields.get("reason","")),"purpose":str(fields.get("purpose",""))}
  if str(fields.get("node",""))!="": row.node=str(fields.node)
  event_trace(g).append(row)
 
