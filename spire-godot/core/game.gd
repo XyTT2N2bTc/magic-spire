@@ -687,7 +687,8 @@ func _rest_round() -> void:
 
 # docs/transition-pipeline.md §3：迁移声明表。每个 kind 声明它允许进入的阶段（空＝不写阶段）、
 # 是否允许改当前房间（写值由调用点的 args.room 提供）、是否在已提交事务内（tx 列本片只登记事实，
-# 供存档切片消费），以及谁负责触发它。
+# 供存档切片消费）、是否是一个进度固定点（checkpoint 列，缺省＝不是；见 docs/save-fixed-points.md §2），
+# 以及谁负责触发它。
 const TRANSITIONS={
  "setup_init":{"phases":["map"],"room":false,"tx":false,"owners":["_init"]},
  "tower_restart":{"phases":["map"],"room":true,"tx":true,"owners":["_restart_tower"]},
@@ -695,14 +696,14 @@ const TRANSITIONS={
  "prison_cell_init":{"phases":[],"room":true,"tx":false,"owners":["Prison.start_practice"]},
  "prison_gate_init":{"phases":[],"room":true,"tx":false,"owners":["Prison.exit_practice"]},
  "battle_start":{"phases":["battle"],"room":false,"tx":true,"owners":["_start_battle"]},
- "battle_end_victory":{"phases":["reward","event"],"room":false,"tx":true,"owners":["_finish_battle"]},
- "battle_end_saturated":{"phases":["reward","event"],"room":false,"tx":true,"owners":["_finish_battle"]},
- "battle_end_captured":{"phases":["captured"],"room":true,"tx":true,"owners":["Guard.capture"]},
+ "battle_end_victory":{"phases":["reward","event"],"room":false,"tx":true,"checkpoint":"battle_end","owners":["_finish_battle"]},
+ "battle_end_saturated":{"phases":["reward","event"],"room":false,"tx":true,"checkpoint":"battle_end","owners":["_finish_battle"]},
+ "battle_end_captured":{"phases":["captured"],"room":true,"tx":true,"checkpoint":"battle_end","owners":["Guard.capture"]},
  "prepare_start":{"phases":["prepare"],"room":false,"tx":true,"owners":["_start_preparation"]},
- "prepare_end":{"phases":["pack","map","cleared"],"room":false,"tx":true,"owners":["_finish_preparation"]},
+ "prepare_end":{"phases":["pack","map","cleared"],"room":false,"tx":true,"checkpoint":"prepare_end","owners":["_finish_preparation"]},
  "rest_start":{"phases":["rest_choice","rest"],"room":false,"tx":true,"owners":["_start_rest","_begin_rest"]},
  "room_enter":{"phases":["map","cleared"],"room":true,"tx":true,"owners":["_arrive_room"]},
- "floor_enter":{"phases":[],"room":true,"tx":true,"owners":["_depart","_advance_travel"]},
+ "floor_enter":{"phases":[],"room":true,"tx":true,"checkpoint":"floor","owners":["_depart","_advance_travel"]},
  "travel_start":{"phases":["travel"],"room":false,"tx":true,"owners":["_depart"]},
  "prison_high_security":{"phases":["prison_end"],"room":false,"tx":true,"owners":["Prison.enter"]},
  "prison_cell_enter":{"phases":["prison"],"room":false,"tx":true,"owners":["Prison.begin_turn"]},
@@ -750,6 +751,16 @@ func _apply_transition(kind: String, args: Dictionary = {}) -> String:
 # 否则＝room_enter。只用于真实移动与换塔的落点；构造期写入由各自的构造 kind 承担。
 func _room_transition_kind(target: String) -> String:
  return "floor_enter" if int(room_data(target).get("floor",0))>int(room_data(state.room).get("floor",0)) else "room_enter"
+
+# docs/save-fixed-points.md §2／§5.1：进度固定点只由本次提交实际产生的迁移条目命名——不看上下文差异。
+# 同一次提交同时命中多类时按 battle_end ＞ prepare_end ＞ floor 取一个；没有命中返回 ""（UI 只在非空时写盘）。
+const CHECKPOINT_PRIORITY=["battle_end","prepare_end","floor"]
+
+func _checkpoint_kind(log_start: int) -> String:
+ for point in CHECKPOINT_PRIORITY:
+  for index in range(maxi(log_start,0),_transition_log.size()):
+   if String(TRANSITIONS.get(_transition_log[index],{}).get("checkpoint",""))==point: return point
+ return ""
 
 func _finish_battle(end_kind: String="victory") -> void:
  if state.phase != "battle":
@@ -2420,6 +2431,8 @@ func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
  var extra_traction=Cards.magic_card_traction(self,chosen.payload)
  var traction_mark=Cards.hand_modifier(self,"energy_pressure")
  var traction_guard=CaptureBind.has_bind(self,"guard")
+ # docs/save-fixed-points.md §5.1：本批提交新增的迁移日志条目决定 checkpoint 取值。
+ var log_start=_transition_log.size()
  var original=state
  var hero_copy_context={
   "cost":chosen.cost,
@@ -2527,11 +2540,12 @@ func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
  var card_events=_card_feedback
  _card_feedback=[]
  _commit_scene_start(original)
+ var checkpoint=_checkpoint_kind(log_start)
  var music_events=[]
  if chosen.payload.kind=="card" and not _magic_failed and original.phase in ["battle","prison"]:
   var track=Cards.Rules.SPECS[chosen.payload.type].get("play_music","")
   if track!="": music_events.append({"track":track,"phase":original.phase,"loop":original.phase=="battle"})
- return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events}
+ return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"checkpoint":checkpoint}
 
 func cast_view(profile: Dictionary={"parts":["mouth"],"multiplier":1.0}) -> Dictionary:
  if not _equipment_read_active(): return _build_cast_view(profile)

@@ -128,6 +128,42 @@ static func transition_write_sites_are_pinned(t) -> void:
  t.check(owners==TRANSITION_BATTLE_END_FUNCTIONS,"ARCH every battle-end decision lives in the eight declared entries: "+str(owners))
  t.check(int(counts.get("res://core/game.gd|_apply_transition|room",0))==1 and int(counts.get("res://core/game.gd|_apply_transition|phase",0))==1,"ARCH state.phase and state.room have exactly one write site each: "+str([counts.get("res://core/game.gd|_apply_transition|room",0),counts.get("res://core/game.gd|_apply_transition|phase",0)]))
 
+# docs/save-fixed-points.md §2：进度固定点集合＝声明表里标了 checkpoint 列的 kind（固定清单，
+# 多标一个或少标一个都红），且每个 checkpoint 名字都必须出现在 CHECKPOINT_PRIORITY 里。
+const SAVE_CHECKPOINT_KINDS={
+ "battle_end_captured":"battle_end",
+ "battle_end_saturated":"battle_end",
+ "battle_end_victory":"battle_end",
+ "floor_enter":"floor",
+ "prepare_end":"prepare_end",
+}
+
+static func save_checkpoint_kinds_are_pinned(t) -> void:
+ var declared={}
+ var wrong=[]
+ for kind in GameCore.TRANSITIONS:
+  var point=String(GameCore.TRANSITIONS[kind].get("checkpoint",""))
+  if point=="": continue
+  declared[kind]=point
+  if point not in ["battle_end","prepare_end","floor"]: wrong.append(kind+"->"+point)
+ t.check(wrong.is_empty(),"ARCH every declared fixed point uses a legal checkpoint name: "+str(wrong))
+ var missing=[]
+ for kind in SAVE_CHECKPOINT_KINDS:
+  if not declared.has(kind) or declared[kind]!=SAVE_CHECKPOINT_KINDS[kind]: missing.append(kind+"->"+str(declared.get(kind,"<missing>")))
+ var extra=[]
+ for kind in declared:
+  if not SAVE_CHECKPOINT_KINDS.has(kind): extra.append(kind+"->"+declared[kind])
+ t.check(missing.is_empty(),"ARCH every pinned fixed-point kind stays declared with its own checkpoint name: "+str(missing))
+ t.check(extra.is_empty(),"ARCH no transition kind beyond the three fixed points is marked as one: "+str(extra))
+ t.check(declared.size()==SAVE_CHECKPOINT_KINDS.size(),"ARCH the fixed-point declaration set keeps the pinned size: "+str(declared.size()))
+ var names=[]
+ for kind in declared:
+  if not names.has(declared[kind]): names.append(declared[kind])
+ names.sort()
+ var priority=Array(GameCore.CHECKPOINT_PRIORITY).duplicate()
+ priority.sort()
+ t.check(names==priority,"ARCH the simultaneous-hit priority resolves exactly the declared checkpoint names: "+str(names)+"/"+str(priority))
+
 # docs/event-pipeline-dependency-spec.md §1／§4.2: the event modules preload exactly the
 # declared registry edges; one edge more or less fails, and no core file may reach ui/.
 static func event_dependency_edges_pinned(t) -> void:
@@ -284,6 +320,7 @@ static func event_single_evaluation_entry(t) -> void:
 static func run(t) -> void:
  event_dependency_edges_pinned(t)
  transition_write_sites_are_pinned(t)
+ save_checkpoint_kinds_are_pinned(t)
  event_condition_kinds_share_one_declaration(t)
  event_probe_and_projection_readonly(t)
  event_single_evaluation_entry(t)

@@ -288,7 +288,8 @@ func _resume_snapshot(snapshot: Dictionary, drawings: Dictionary={}) -> bool:
 
 func _quick_sl() -> void:
  if view.demo_finished: return
- if _resume_snapshot(game.restart_snapshot(),map_drawings): _save_progress()
+ # docs/save-fixed-points.md §1：恢复不是进度固定点；磁盘仍持有上一次固定点内容。
+ _resume_snapshot(game.restart_snapshot(),map_drawings)
 
 func _save_unavailable(message: String) -> void:
  save_notice=message;save_failed=true;save_suspended=true
@@ -1920,7 +1921,9 @@ func _submit(c: Dictionary, expected_version: int=-1) -> void:
  if result.ok:
   preload("res://ui/shell/body_sidebar.gd").expand_applied(self,previous,updated)
   if c.payload.get("witch_action",false) and not c.payload.charge_action: attack_forms[c.payload.type]=0
-  _save_progress()
+  # docs/save-fixed-points.md §2／§5.1：只有提交结果带非空 checkpoint 才写盘；
+  # 不比较内容、不读快照，其余提交一律不写。
+  if String(result.get("checkpoint",""))!="": _save_progress()
   if c.payload.kind=="demo_continue": _reset_interface(updated)
   player_pick=false
   selected_card=""; selected_candidate=""; show_body=false
