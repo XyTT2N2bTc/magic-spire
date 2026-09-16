@@ -117,8 +117,65 @@ static func shared(view: Dictionary, authority: Dictionary) -> String:
    if is_same(entry.value,source.value): return entry.path+" -> "+source.path
  return ""
 
+# docs/event-pipeline-unification.md §10 scenario 05 / dependency spec §4.2: the state
+# condition kinds come from one declaration, and the three consumers agree on them.
+static func event_condition_kinds_share_one_declaration(t) -> void:
+ var g=Game.new(42)
+ var events=g.Events
+ var kinds=events.condition_kinds()
+ t.check(kinds.size()==2 and "has_relic" in kinds and "no_chastity_lock" in kinds,"EVENT KINDS declaration table lists the supported state conditions")
+ for kind in kinds:
+  var entry={"kind":kind,"reason":"条件不成立。"}
+  if kind=="has_relic": entry.type="softened_buckle"
+  t.check(events.condition_issue(g,entry,{"relic":g.Relics.TYPES})=="","EVENT KINDS content validation accepts the declared fields: "+kind)
+  t.check(events.condition_saved_fields(kind)==["kind","reason"]+Array(events.CONDITIONS[kind].required),"EVENT KINDS save key set derives from the declaration: "+kind)
+  var probe=events.condition_probe(g,entry)
+  t.check(probe is bool,"EVENT KINDS runtime evaluation answers every declared kind: "+kind)
+ var unknown={"kind":"unknown_condition","reason":"条件不成立。"}
+ t.check(events.condition_issue(g,unknown,{"relic":g.Relics.TYPES})!="","EVENT KINDS content validation rejects an unknown kind")
+ var saved=g.state.room_event.duplicate(true)
+ g.state.room_event={"id":"binding_cleric","stage":"service","options":[{"id":"probe","label":"夹具","detail":"","reward":"none","effects":[],"conditions":[{"kind":"unknown_condition","reason":"条件不成立。","mode":"optional"}]}],"refs":{},"values":{},"report":"","reward":[],"winner":-1,"relic":"","flow":true,"held":{},"cleanup_effects":[],"next_stage":"","result_status":"neutral"}
+ t.check(g.validate()!="" or g.Snapshot.check(g.export_snapshot(),g)!="","EVENT KINDS save validation rejects an unknown kind")
+ g.state.room_event=saved
+
+# docs/event-pipeline-unification.md §10 scenario 13: every read path is read-only.
+static func event_probe_and_projection_readonly(t) -> void:
+ for id in ["floating_belt_cluster","binding_cleric","succubus_three_games"]:
+  var g=Game.new(42)
+  g.Events.start(g,id)
+  var before=g.export_snapshot()
+  var rng=g.state.rng.duplicate(true)
+  var logs=g.state.logs.size()
+  var version=g.state.version
+  g.get_view();g.candidates()
+  for option in g.state.room_event.options:
+   g.Events.evaluate_option(g,g.Events.request_for(g,option,"candidate"))
+   g.Events.evaluate_option(g,g.Events.request_for(g,option,"probe"))
+  g.Events.selector_values(g,{"kind":"restraint"})
+  g.Events.selector_values(g,{"kind":"card"})
+  t.check(g.export_snapshot()==before and g.state.rng==rng and g.state.logs.size()==logs and g.state.version==version,"EVENT READONLY projection and evaluation do not mutate: "+id)
+
+# docs/event-pipeline-dependency-spec.md §4.2: one evaluation entry owns the decisions, so
+# re-reading candidates never re-freezes and matches a direct entry call.
+static func event_single_evaluation_entry(t) -> void:
+ for id in ["floating_belt_cluster","binding_cleric","succubus_three_games","mysterious_woman_statue","enchanters_empty_studio"]:
+  var g=Game.new(42)
+  g.Events.start(g,id)
+  if g.state.room_event.stage=="result": continue
+  var before=g.export_snapshot()
+  var candidates=g.candidates().filter(func(c):return c.payload.get("action","")=="choose")
+  t.check(g.export_snapshot()==before,"EVENT ENTRY candidate support never freezes or consumes random: "+id)
+  for candidate in candidates:
+   var option=g.state.room_event.options.filter(func(o):return o.id==candidate.payload.get("choice",""))
+   if option.is_empty(): continue
+   var result=g.Events.evaluate_option(g,g.Events.request_for(g,option[0],"candidate"))
+   t.check(candidate.valid==(result.decision=="generated") and (result.reason=="" or candidate.get("reason","")!=""),"EVENT ENTRY candidate support matches the single entry: "+id+"/"+str(candidate.payload.get("choice","")))
+
 static func run(t) -> void:
  event_dependency_edges_pinned(t)
+ event_condition_kinds_share_one_declaration(t)
+ event_probe_and_projection_readonly(t)
+ event_single_evaluation_entry(t)
  event_definition_accessors_only(t)
  tool_registry_boundary(t)
  equipment_read_batches(t)

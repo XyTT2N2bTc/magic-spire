@@ -102,7 +102,24 @@ static func event_conditions(t) -> void:
   saved.room_event.options[index].availability=broken.duplicate(true)
   t.check(not g.restore_snapshot(saved).ok and g.export_snapshot()==before,"SAVE malformed option condition rejected atomically "+JSON.stringify(broken))
 
+# docs/event-pipeline-dependency-spec.md §4.2: the pipeline writes only the declared
+# new keys, so the twelve shipped events carry neither conditions nor chain.
+static func event_pipeline_writes_only_declared_keys(t) -> void:
+ var events=preload("res://tests/event_cases.gd")
+ var g=Game.new(42)
+ for id in g.Events.Data.TYPES.keys():
+  var walk=Game.new(42)
+  events.arrive(walk,id)
+  for option in walk.state.room_event.options:
+   t.check(not option.has("conditions") and not option.has("chain"),"SAVE shipped option carries no canonical key yet: "+id+"/"+str(option.get("id","")))
+  var saved=walk.export_snapshot()
+  t.check(not saved.room_event.has("chain"),"SAVE shipped event state carries no chain key: "+id)
+  var resumed=Game.new(42)
+  t.check(resumed.restore_snapshot(saved).ok,"SAVE shipped event state round-trips: "+id)
+  t.check(not resumed.state.room_event.has("chain"),"SAVE restore introduces no undeclared key: "+id)
+
 static func run(t) -> void:
+ event_pipeline_writes_only_declared_keys(t)
  map_drawings(t)
  preload("res://tests/scene_restart_cases.gd").run(t,same)
  revision_boundary(t)

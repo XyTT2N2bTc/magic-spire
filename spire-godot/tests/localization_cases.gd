@@ -11,7 +11,88 @@ static func source() -> Dictionary:
 static func translation(messages: Dictionary) -> Dictionary:
  return {"schema_version":1,"locale":"ja_JP","messages":messages}
 
+# docs/event-pipeline-unification.md §17 (ruling A9): the legacy English catalog has to
+# match the validator wording this slice rewrote — retired sources deleted, rewritten
+# sources translated.
+const REMOVED_SOURCES=[
+ "事件必须在普通 choices 与多阶段 stages 中选择一种结构。",
+  "普通事件需要1—6个选项，allow_refuse 必须为布尔值。",
+  "多阶段事件分别在每个阶段填写 allow_refuse。",
+  "多阶段事件需要 start_stage 和2—12个阶段。",
+  "start_stage 必须引用已有阶段。",
+  "阶段 id、标题、介绍、离开设置或选项不正确。",
+  "阶段选项不能同时填写 recipe 与 effects。",
+  "阶段选项至少需要 effects、recipe 或 outcomes。",
+  "阶段选项使用了未知 recipe。",
+  "阶段选项 effects 最多12项。",
+  "带奖励的阶段选项目前必须结束事件，不能在领奖后继续下一阶段。",
+  "阶段结果文案不正确。",
+  "阶段预告文案不正确。",
+  "阶段选项 id、文案或奖励不正确。",
+  "阶段选择器：",
+  "阶段条件需要恰好一个事件计数或选择来源，以及 equals/minimum/maximum。",
+  "阶段条件的事件计数名无效。",
+  "阶段条件的选择来源：",
+  "阶段条件计数必须是0—100整数。",
+  "选项必须且只能填写 recipe 或 effects 之一。",
+  "空 effects 只能用于无奖励离开或战斗选项。",
+  "临时保管只允许用于声明了收尾步骤的多阶段事件。",
+  "effects 最多8个效果。",
+  "未知 recipe。",
+  "不支持的 reward。"]
+
+const REQUIRED_SOURCES={
+ "事件介绍不能为空或过长。": "The event introduction is empty or too long.",
+  "事件必须填写 start_node。": "The event needs start_node.",
+  "事件需要1—12个节点。": "An event needs 1-12 nodes.",
+  "节点 id 无效或重复。": "A node id is invalid or duplicated.",
+  "单节点事件的节点 id 必须为 choice。": "A single-node event has to use the id choice.",
+  "单节点事件不得填写 title 或 intro。": "A single-node event must not declare title or intro.",
+  "节点标题或介绍不正确。": "A node title or introduction is invalid.",
+  "节点必须填写 allow_refuse 布尔值。": "Every node has to declare allow_refuse.",
+  "节点的声明取值不正确。": "A node declaration uses an unsupported value.",
+  "节点需要1—6个选项。": "A node needs 1-6 options.",
+  "start_node 必须引用已有节点。": "start_node has to name an existing node.",
+  "选项 id、文案或奖励不正确。": "An option id, label or reward is invalid.",
+  "选项不能同时填写 recipe 与 effects。": "An option cannot declare both recipe and effects.",
+  "选项至少需要 effects、recipe 或 outcomes。": "An option needs effects, recipe or outcomes.",
+  "选项使用了未知 recipe。": "An option uses an unknown recipe.",
+  "选项 effects 最多12项。": "An option takes at most 12 effects.",
+  "带奖励的选项必须结束事件，不能在领奖后继续下一阶段。": "A rewarded option has to end the event instead of continuing.",
+  "选项结果文案不正确。": "An option result text is invalid.",
+  "选项预告文案不正确。": "An option preview text is invalid.",
+  "选项选择器：": "Option selector: ",
+  "选项条件需要恰好一个事件计数或选择来源，以及 equals/minimum/maximum。": "An option condition needs exactly one counter or selector source plus equals/minimum/maximum.",
+  "选项条件的事件计数名无效。": "The option condition counter name is invalid.",
+  "选项条件的选择来源：": "Option condition source: ",
+  "选项条件计数必须是0—100整数。": "An option condition count has to be an integer from 0 to 100.",
+  "选项不能同时填写 availability 与 conditions。": "An option cannot declare both availability and conditions.",
+  "conditions 需要1—8条条件。": "conditions needs 1-8 entries.",
+  "选项 unavailable 只支持 hide 或 disable。": "An option unavailable value supports only hide or disable.",
+  "选项不能同时填写 unavailable 与 hide_when_unavailable。": "An option cannot declare both unavailable and hide_when_unavailable.",
+  "事件选项同时携带两种状态条件。": "The event option carries both state condition spellings.",
+  "条件模式只支持 optional 或 hidden。": "A condition mode supports only optional or hidden.",
+  "尚未支持这种状态条件。": "This state condition is not supported yet.",
+  "需要条件对象。": "A condition object is required.",
+  "reason 需要1—240字的普通说明。": "reason needs 1-240 plain characters.",
+  "has_relic 需要已注册的遗物 id。": "has_relic needs a registered relic id."}
+
+static func locale_legacy_catalog_matches_current_sources(t) -> void:
+ var file=FileAccess.open("res://assets/localization/legacy-en_US.json",FileAccess.READ)
+ t.check(file!=null,"LOCALE legacy catalog is readable")
+ if file==null: return
+ var parsed=JSON.parse_string(file.get_as_text())
+ t.check(parsed is Dictionary and parsed.get("locale")=="en_US","LOCALE legacy catalog keeps its locale marker")
+ var by_source={}
+ for message in parsed.get("messages",[]):
+  by_source[message.get("source","")]=message
+ for source in REMOVED_SOURCES:
+  t.check(not by_source.has(source),"LOCALE retired source is deleted from the catalog: "+source)
+ for source in REQUIRED_SOURCES:
+  t.check(by_source.has(source) and str(by_source[source].get("text","")).strip_edges()!="","LOCALE rewritten source keeps a non-empty translation: "+source)
+
 static func run(t) -> void:
+ locale_legacy_catalog_matches_current_sources(t)
  bundled_font(t)
  var l=Localizer.new()
  t.check(l.diagnostics().is_empty() and l.locale=="zh_CN","LOCALE shipped resources load locally and default to Chinese: "+str(l.diagnostics()))

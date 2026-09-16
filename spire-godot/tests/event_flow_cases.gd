@@ -423,7 +423,107 @@ static func event_option_policies_match_current_behaviour(t) -> void:
  t.check(staged.start_node=="wager_card" and staged.nodes.size()==8 and g.Events.node_ids(staged)[7]=="remove_reward","EVENT POLICY staged definition keeps its authored order")
  t.check(g.Events.node(g.Events.Data.TYPES.binding_cleric,"service").choices.size()==3 and g.Events.node(staged,"missing").is_empty(),"EVENT POLICY node lookup resolves real ids and returns empty for unknown ones")
 
+# docs/event-pipeline-unification.md §10 scenario 08: a single node reads the declared
+# next／when／outcomes, and a selector plus outcomes spends exactly one draw per choice.
+static func event_single_node_declarations(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var nodes=[{"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[
+  {"id":"gated","label":"计数达标","reward":"none","next":"result","detail":"计数未达标时不生成。","when":{"counter":"seen","equals":1},"effects":[{"op":"mana_gain","amount":1}]},
+  {"id":"rolled","label":"随机结果","reward":"none","next":"result","detail":"从两种公开结果中随机确定一种。","outcomes":[{"weight":1,"effects":[{"op":"mana_gain","amount":3}],"report":"结果甲","result_status":"success"},{"weight":1,"effects":[{"op":"mana_gain","amount":5}],"report":"结果乙","result_status":"failure"}]}]}]
+ var document={"file":"memory://single_node.json","data":{"schema_version":2,"kind":"event","id":"single_node_fixture","name":"单节点声明夹具","intro":"只用于验证单节点声明的夹具。","start_node":"choice","nodes":nodes}}
+ var compiled=Catalog.compile(g,[document])
+ t.check(compiled.ok,"EVENT SINGLE NODE fixture compiles: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42);Events.arrive(walk,"single_node_fixture")
+ t.check(not walk.state.room_event.options.any(func(o):return o.id=="gated"),"EVENT SINGLE NODE unmet when leaves the option out")
+ var rolled=walk.state.room_event.options.filter(func(o):return o.id=="rolled")
+ t.check(rolled.size()==1 and rolled[0].effects.size()==1 and rolled[0].reward=="none" and rolled[0].next=="result" and rolled[0].report in ["结果甲","结果乙"] and rolled[0].result_status in ["success","failure"],"EVENT SINGLE NODE outcomes freeze into a concrete option")
+ walk.state.room_event.values.seen=1
+ walk.Events.enter_node(walk,"choice")
+ t.check(walk.state.room_event.options.any(func(o):return o.id=="gated"),"EVENT SINGLE NODE met when keeps the option")
+ var select_document=document.duplicate(true)
+ select_document.data.id="single_node_selector_fixture"
+ select_document.data.nodes[0].choices=[{"id":"pair","label":"解除2件","reward":"none","detail":"从公开结果中随机确定一种。","selector":{"kind":"restraint","count":2},"effects":[{"op":"remove_restraints","targets":"$selected"}],"outcomes":[{"weight":1,"effects":[{"op":"mana_gain","amount":4}],"report":"结果一"},{"weight":1,"effects":[{"op":"mana_gain","amount":6}],"report":"结果二"}]}]
+ t.check(Catalog.compile(walk,[select_document]).ok,"EVENT SINGLE NODE selector fixture compiles")
+ Catalog.commit(walk,Catalog.compile(walk,[select_document]).tables)
+ var pair=Game.new(43);pair.add_fixture("wrist",8);pair.add_fixture("ankle",8)
+ var rng_before=pair.state.rng.event
+ Events.arrive(pair,"single_node_selector_fixture")
+ var pair_options=pair.state.room_event.options
+ t.check(pair_options.size()==1 and pair_options[0].selected is Array and pair_options[0].selected.size()==2,"EVENT SINGLE NODE selector expands one atomic pair")
+ t.check(pair.state.rng.event-rng_before==1,"EVENT SINGLE NODE outcome_draw option spends exactly one draw for the whole choice")
+ Catalog.commit(g,baseline)
+ var restore=Game.new(42)
+ t.check(Catalog.tables(restore)==baseline,"EVENT SINGLE NODE fixture registries restored")
+
+# docs/event-pipeline-unification.md §10 scenario 09: empty nodes keep their declared policy.
+static func event_node_empty_policy_kept(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var empty_node={"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[
+  {"id":"waiting","label":"尚未开放","reward":"none","next":"result","detail":"计数未达标时不生成。","when":{"counter":"seen","equals":1},"effects":[{"op":"mana_gain","amount":1}]}]}
+ var document={"file":"memory://empty_node.json","data":{"schema_version":2,"kind":"event","id":"empty_node_fixture","name":"空节点夹具","intro":"只用于验证空节点策略的夹具。","start_node":"choice","nodes":[empty_node]}}
+ t.check(Catalog.compile(g,[document]).ok,"EVENT EMPTY NODE single-node empty fixture compiles")
+ Catalog.commit(g,Catalog.compile(g,[document]).tables)
+ var walk=Game.new(42);Events.arrive(walk,"empty_node_fixture")
+ t.check(walk.state.room_event.options.is_empty() and walk.state.room_event.stage=="choice" and walk.state.room_event.result_status=="neutral","EVENT EMPTY NODE single node keeps zero candidates instead of failing")
+ t.check(walk.candidates().filter(func(c):return c.payload.get("kind","")=="event").is_empty(),"EVENT EMPTY NODE zero candidates stay consistent")
+ t.check(walk.validate()=="","EVENT EMPTY NODE zero candidates stay valid")
+ var staged=document();staged.data.id="empty_stage_fixture"
+ for choice in staged.data.nodes[2].choices: choice.when={"counter":"seen","equals":1}
+ var staged_compile=Catalog.compile(g,[staged])
+ t.check(staged_compile.ok,"EVENT EMPTY NODE staged empty fixture compiles: "+str(staged_compile.errors))
+ if not staged_compile.ok: Catalog.commit(g,baseline); return
+ Catalog.commit(g,staged_compile.tables)
+ var flow=Game.new(44);Events.arrive(flow,"empty_stage_fixture")
+ t.check(flow.Events.enter_node(flow,"finale")=="这一阶段没有能够执行的选项。","EVENT EMPTY NODE staged node reports its named issue")
+ var go=flow.candidates().filter(func(c):return c.payload.get("choice","")=="tighten_two")
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §10 scenarios 15-18: stacked condition modes.
+static func event_stacked_conditions(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var entries=[[{"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。","mode":"optional"}],
+              [{"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。","mode":"hidden"}],
+              [{"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。","mode":"optional"},{"kind":"no_chastity_lock","reason":"平板锁封住了这里。","mode":"hidden"}],
+              [{"kind":"has_relic","type":"softened_buckle","reason":"条件甲。","mode":"optional"},{"kind":"has_relic","type":"unregistered_probe","reason":"条件乙。","mode":"optional"}]]
+ var documents=[]
+ for index in range(entries.size()):
+  var conditions=entries[index]
+  if index==3:
+   conditions=[{"kind":"has_relic","type":"softened_buckle","reason":"条件甲。","mode":"optional"},{"kind":"has_relic","type":"small_gem","reason":"条件乙。","mode":"optional"}]
+  var node={"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[{"id":"stacked","label":"叠加条件","reward":"none","next":"result","detail":"条件决定是否可选。","effects":[{"op":"mana_gain","amount":2}],"conditions":conditions}]}
+  documents.append({"file":"memory://stacked_%d.json" % index,"data":{"schema_version":2,"kind":"event","id":"stacked_fixture_%d" % index,"name":"叠加条件夹具","intro":"只用于验证叠加条件的夹具。","start_node":"choice","nodes":[node]}})
+ var compiled=Catalog.compile(g,documents)
+ t.check(compiled.ok,"EVENT STACKED fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var single=Game.new(42);Events.arrive(single,"stacked_fixture_0")
+ var option=single.state.room_event.options.filter(func(row):return row.id=="stacked")
+ t.check(option.size()==1 and single.candidates()[0].valid==false and single.candidates()[0].get("reason","")=="你还没有拿到那件扣环。","EVENT STACKED optional condition keeps the option visible but disabled")
+ t.check(single.candidates()[0].get("reason_surface","")=="secondary","EVENT STACKED disabled option keeps the secondary reason surface")
+ var hidden=Game.new(42);Events.arrive(hidden,"stacked_fixture_1")
+ var both=Game.new(42);Events.arrive(both,"stacked_fixture_2")
+ both._install_special("shaft_ring_low","special_2_a")
+ both.state.relics.append("softened_buckle")
+ both.Events.enter_node(both,"choice")
+ t.check(both.state.room_event.options.size()==1 and both.candidates()[0].valid,"EVENT STACKED clearing both hits restores the option")
+ var many=Game.new(42);Events.arrive(many,"stacked_fixture_3")
+ var result=many.Events.evaluate_option(many,many.Events.request_for(many,many.state.room_event.options[0],"candidate"))
+ t.check(result.decision=="disabled" and result.gates.size()==2 and result.gates[0].reason=="条件甲。" and result.gates[1].reason=="条件乙。" and result.reason=="条件甲。\n条件乙。","EVENT STACKED every optional hit is listed in declaration order and joined with newlines")
+ t.check(result.gates[0].index==0 and result.gates[1].index==1 and result.gates[0].mode=="optional","EVENT STACKED gate entries keep index and mode")
+ many.state.relics.append("small_gem")
+ result=many.Events.evaluate_option(many,many.Events.request_for(many,many.state.room_event.options[0],"candidate"))
+ t.check(result.decision=="disabled" and result.gates.size()==1 and result.gates[0].reason=="条件甲。","EVENT STACKED a passing entry stays out of the gate list")
+ Catalog.commit(g,baseline)
+
 static func run(t) -> void:
+ event_single_node_declarations(t)
+ event_node_empty_policy_kept(t)
+ event_stacked_conditions(t)
  event_mana_cost(t)
  event_option_policies_match_current_behaviour(t)
  link_installation(t)
