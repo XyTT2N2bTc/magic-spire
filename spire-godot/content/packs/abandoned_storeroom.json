@@ -1,44 +1,56 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "event",
   "id": "abandoned_storeroom",
   "name": "废弃储物室",
   "intro": "你推开一扇积满灰尘的木门。房间里堆着倒塌的货架与半开的补给箱，散落的药瓶大多已经干涸，卷轴也被潮气泡烂了不少。\n\n仔细翻找后，应该还能找到几件完好的东西。",
-  "allow_refuse": false,
-  "choices": [
+  "start_node": "choice",
+  "nodes": [
     {
-      "id": "search",
-      "label": "【搜索】翻找剩余补给",
-      "detail": "随机药剂、随机卷轴和随机工具各一件。",
-      "reward": "none",
-      "effects": [],
-      "item_rewards": [
+      "id": "choice",
+      "allow_refuse": false,
+      "unavailable": "disable",
+      "relic_gate": "pool",
+      "random_freeze": "generators",
+      "outcome_draw": "option",
+      "frozen_form": "in_place",
+      "empty_node": "allow",
+      "choices": [
         {
-          "id": "potion",
-          "pool": [
-            "mana_potion",
-            "energy_potion",
-            "charge_potion"
-          ]
-        },
-        {
-          "id": "scroll",
-          "pool": [
-            "draw_scroll",
-            "mana_scroll",
-            "casting_scroll"
-          ]
-        },
-        {
-          "id": "tool",
-          "pool": [
-            "shard",
-            "saw"
-          ]
+          "id": "search",
+          "label": "【搜索】翻找剩余补给",
+          "detail": "随机药剂、随机卷轴和随机工具各一件。",
+          "reward": "none",
+          "effects": [],
+          "item_rewards": [
+            {
+              "id": "potion",
+              "pool": [
+                "mana_potion",
+                "energy_potion",
+                "charge_potion"
+              ]
+            },
+            {
+              "id": "scroll",
+              "pool": [
+                "draw_scroll",
+                "mana_scroll",
+                "casting_scroll"
+              ]
+            },
+            {
+              "id": "tool",
+              "pool": [
+                "shard",
+                "saw"
+              ]
+            }
+          ],
+          "report": "你拉开储物柜最里面的抽屉，从成堆废品中找出了一瓶完好的药剂、一卷没有受潮的卷轴和一件仍能使用的工具。",
+          "result_status": "success"
         }
-      ],
-      "report": "你拉开储物柜最里面的抽屉，从成堆废品中找出了一瓶完好的药剂、一卷没有受潮的卷轴和一件仍能使用的工具。",
-      "result_status": "success"
+      ]
     }
   ]
 }

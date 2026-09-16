@@ -6,7 +6,139 @@ const Events=preload("res://tests/event_cases.gd")
 const EnemyCases=preload("res://tests/enemy_cases.gd")
 const SaveCases=preload("res://tests/persistence_cases.gd")
 
+static func template_document(id: String) -> Dictionary:
+ # The staged template stays disabled on disk, so both files are read explicitly.
+ for path in ["res://content/templates/event.json","res://content/templates/event_multistage.json.disabled"]:
+  var handle=FileAccess.open(path,FileAccess.READ)
+  if handle==null: continue
+  var data=JSON.parse_string(handle.get_as_text())
+  if data is Dictionary and data.get("id","")==id: return {"file":path,"data":data}
+ return {}
+
+# docs/event-pipeline-unification.md §10 scenario 06: a staged node option may declare a
+# registered-relic availability condition; malformed conditions stay rejected.
+static func event_stage_available_condition_validates(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var document=template_document("example_multistage_challenge")
+ t.check(not document.is_empty() and document.data.nodes.size()==3,"EVENT CONDITION staged template is available")
+ if document.is_empty(): return
+ document.data.nodes[1].choices[0].availability={"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。"}
+ t.check(Catalog.compile(g,[document]).ok,"EVENT CONDITION staged option accepts a registered-relic condition")
+ for invalid in [{"kind":"has_relic","reason":"条件不成立。"},{"kind":"has_relic","type":"unregistered_relic","reason":"条件不成立。"},{"kind":"has_relic","type":"softened_buckle","reason":"条件不成立。","extra":true},{"kind":"unknown","reason":"条件不成立。"},{"kind":"no_chastity_lock","reason":""}]:
+  var bad=document.duplicate(true)
+  bad.data.nodes[1].choices[0].availability=invalid
+  t.check(not Catalog.compile(g,[bad]).ok,"EVENT CONDITION staged option rejects a malformed condition "+str(invalid))
+ t.check(Catalog.tables(g)==baseline,"EVENT CONDITION validation leaves the registries untouched")
+
+# docs/event-pipeline-unification.md §10 scenario 07: the legacy shape and incomplete node
+# declarations are rejected as one batch without registering anything.
+static func event_definition_form_rejects_legacy_shape(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var concise=template_document("example_travel_cache")
+ var staged=template_document("example_multistage_challenge")
+ t.check(not concise.is_empty() and not staged.is_empty(),"EVENT FORM templates are available")
+ if concise.is_empty() or staged.is_empty(): return
+ var rejected=[]
+ var legacy=concise.duplicate(true)
+ legacy.data["choices"]=[{"id":"old","label":"旧形态选项","reward":"none","effects":[]}]
+ legacy.data["stages"]=staged.data.nodes
+ rejected.append(["choices and stages together",legacy])
+ var legacy_only=concise.duplicate(true)
+ legacy_only.data.erase("start_node");legacy_only.data.erase("nodes")
+ legacy_only.data["choices"]=[{"id":"old","label":"旧形态选项","reward":"none","effects":[]}]
+ rejected.append(["legacy document without nodes",legacy_only])
+ var no_start=concise.duplicate(true);no_start.data.erase("start_node")
+ rejected.append(["missing start_node",no_start])
+ for key in ["allow_refuse","unavailable","relic_gate","random_freeze","outcome_draw","frozen_form","empty_node"]:
+  var missing=staged.duplicate(true);missing.data.nodes[0].erase(key)
+  rejected.append(["node without "+key,missing])
+ for reserved in ["battle","loot"]:
+  var reserved_id=staged.duplicate(true);reserved_id.data.nodes[1].id=reserved
+  rejected.append(["reserved node id "+reserved,reserved_id])
+ var both=staged.duplicate(true)
+ both.data.nodes[0].choices[0].recipe="free_basic"
+ rejected.append(["recipe and effects together",both])
+ for entry in rejected:
+  var failed=Catalog.compile(g,[entry[1]])
+  t.check(not failed.ok and failed.tables.is_empty() and Catalog.tables(g)==baseline,"EVENT FORM rejected without registering: "+entry[0])
+
+# docs/event-pipeline-unification.md §10 scenario 20: the shipped content declares at most
+# one state condition per option and keeps the authored compatibility spelling verbatim.
+static func event_stacked_conditions_keep_current_content(t) -> void:
+ var g=Game.new(42)
+ var availability_sites=[]
+ var when_sites=0
+ var hidden_sites=0
+ for id in g.Events.Data.TYPES.keys():
+  var spec=g.Events.Data.TYPES[id]
+  for entry in spec.nodes:
+   t.check(entry.has("relic_gate") and entry.has("unavailable"),"EVENT CONDITION node keeps the declared eligibility policy "+id+"/"+str(entry.id))
+   for choice in entry.choices:
+    var declared=int(choice.has("availability"))+int(choice.has("when"))
+    t.check(declared<=1,"EVENT CONDITION authored option declares at most one state condition "+id+"/"+str(entry.id)+"/"+str(choice.id))
+    if choice.has("availability"): availability_sites.append(id+"/"+str(choice.id))
+    if choice.has("when"): when_sites+=1
+    if choice.get("hide_when_unavailable",false): hidden_sites+=1
+ t.check(availability_sites==["floating_belt_cluster/leave","mysterious_woman_statue/use_sleeve"],"EVENT CONDITION exactly the two authored availability conditions remain")
+ t.check(when_sites==11 and hidden_sites==6,"EVENT CONDITION authored instance conditions and hidden probes stay unchanged")
+ var frozen_conditions=0
+ for id in g.Events.Data.TYPES.keys():
+  var walk=Game.new(42)
+  Events.arrive(walk,id)
+  var spec=walk.Events.Data.TYPES[id]
+  for option in walk.state.room_event.get("options",[]):
+   if not option.has("availability"): continue
+   frozen_conditions+=1
+   var source=str(option.get("source_choice",option.get("id","")))
+   var authored=walk.Events.node(spec,spec.start_node).choices.filter(func(choice):return choice.id==source)
+   t.check(authored.size()==1 and option.availability==authored[0].availability,"EVENT CONDITION frozen option keeps the authored condition "+id+"/"+source)
+ t.check(frozen_conditions==1,"EVENT CONDITION the held-relic event freezes its authored condition")
+
+# docs/event-pipeline-unification.md §2.5 registrations: each merged allowance keeps what
+# both structures previously accepted, and nothing that used to be rejected is accepted.
+static func event_union_validation_rules(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var concise=template_document("example_travel_cache")
+ var staged=template_document("example_multistage_challenge")
+ t.check(not concise.is_empty() and not staged.is_empty(),"EVENT UNION templates are available")
+ if concise.is_empty() or staged.is_empty(): return
+ var twelve=concise.duplicate(true)
+ twelve.data.nodes[0].choices[0].effects=[]
+ for _index in range(12): twelve.data.nodes[0].choices[0].effects.append({"op":"pressure","amount":1,"source":"夹具来源"})
+ t.check(Catalog.compile(g,[twelve]).ok,"EVENT UNION twelve effects accepted on a single node")
+ var thirteen=twelve.duplicate(true)
+ thirteen.data.nodes[0].choices[0].effects.append({"op":"pressure","amount":1,"source":"夹具来源"})
+ t.check(not Catalog.compile(g,[thirteen]).ok,"EVENT UNION thirteen effects rejected on a single node")
+ var empty_effects=staged.duplicate(true)
+ empty_effects.data.nodes[2].choices[0].effects=[];empty_effects.data.nodes[2].choices[0].reward="common"
+ t.check(Catalog.compile(g,[empty_effects]).ok,"EVENT UNION empty effects with a card reward accepted on a staged node")
+ var only_outcomes=staged.duplicate(true)
+ only_outcomes.data.nodes[1].choices[0].erase("effects")
+ only_outcomes.data.nodes[1].choices[0].detail="两种公开结果之一。"
+ only_outcomes.data.nodes[1].choices[0].outcomes=[{"weight":1,"effects":[{"op":"pressure","amount":1,"source":"夹具来源"}]},{"weight":1,"effects":[{"op":"pressure","amount":2,"source":"夹具来源"}]}]
+ t.check(Catalog.compile(g,[only_outcomes]).ok,"EVENT UNION outcomes without effects or recipe accepted")
+ var held=concise.duplicate(true)
+ held.data.nodes[0].choices[0].effects=[{"op":"hold_special","key":"packed_toys","slots":["special_2_a"]}]
+ held.data.cleanup_effects=[{"op":"restore_held","key":"packed_toys"}]
+ t.check(Catalog.compile(g,[held]).ok,"EVENT UNION single node may hold and restore special equipment when cleanup balances")
+ var unpaired=concise.duplicate(true)
+ unpaired.data.nodes[0].choices[0].effects=[{"op":"hold_special","key":"packed_toys","slots":["special_2_a"]}]
+ t.check(not Catalog.compile(g,[unpaired]).ok,"EVENT UNION single node holding without cleanup is rejected")
+ var wrong_id=concise.duplicate(true);wrong_id.data.nodes[0].id="room";wrong_id.data.start_node="room"
+ t.check(not Catalog.compile(g,[wrong_id]).ok,"EVENT UNION a single node must use the choice sentinel id")
+ var rewarded_next=staged.duplicate(true)
+ rewarded_next.data.nodes[1].choices[0].reward="common";rewarded_next.data.nodes[1].choices[0].next="finish"
+ t.check(not Catalog.compile(g,[rewarded_next]).ok,"EVENT UNION a rewarded option must end the event")
+ t.check(Catalog.tables(g)==baseline,"EVENT UNION validation leaves the registries untouched")
+
 static func run(t) -> void:
+ event_stage_available_condition_validates(t)
+ event_definition_form_rejects_legacy_shape(t)
+ event_stacked_conditions_keep_current_content(t)
+ event_union_validation_rules(t)
  var g=Game.new(42)
  var baseline=Catalog.tables(g)
  var input=Catalog.read_directory("res://content/templates")
@@ -22,26 +154,26 @@ static func run(t) -> void:
  t.check(Catalog.compile(g,shuffled).tables==result.tables,"PACK file order does not change definitions")
  var invalids=[]
  var concise_event=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
- concise_event.data.choices[0].detail=""
+ concise_event.data.nodes[0].choices[0].detail=""
  var concise_result=Catalog.compile(g,[concise_event])
- t.check(concise_result.ok and concise_result.tables.event[concise_event.data.id].choices[0].detail=="" and Catalog.tables(g)==baseline,"PACK explicit empty event detail survives loading without changing rules or registries")
+ t.check(concise_result.ok and concise_result.tables.event[concise_event.data.id].nodes[0].choices[0].detail=="" and Catalog.tables(g)==baseline,"PACK explicit empty event detail survives loading without changing rules or registries")
  var conditional_event=concise_event.duplicate(true)
- conditional_event.data.choices[0].availability={"kind":"no_chastity_lock","reason":"平板锁封住了肉棒，无法使用这项服务。"}
+ conditional_event.data.nodes[0].choices[0].availability={"kind":"no_chastity_lock","reason":"平板锁封住了肉棒，无法使用这项服务。"}
  var conditional_result=Catalog.compile(g,[conditional_event])
- t.check(conditional_result.ok and conditional_result.tables.event[conditional_event.data.id].choices[0].availability==conditional_event.data.choices[0].availability and Catalog.tables(g)==baseline,"PACK event choice accepts one validated state-dependent availability condition")
+ t.check(conditional_result.ok and conditional_result.tables.event[conditional_event.data.id].nodes[0].choices[0].availability==conditional_event.data.nodes[0].choices[0].availability and Catalog.tables(g)==baseline,"PACK event choice accepts one validated state-dependent availability condition")
  var relic_condition=concise_event.duplicate(true)
- relic_condition.data.choices[0].availability={"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。"}
+ relic_condition.data.nodes[0].choices[0].availability={"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。"}
  var relic_result=Catalog.compile(g,[relic_condition])
- t.check(relic_result.ok and relic_result.tables.event[relic_condition.data.id].choices[0].availability==relic_condition.data.choices[0].availability and Catalog.tables(g)==baseline,"PACK event choice accepts a registered-relic availability condition")
+ t.check(relic_result.ok and relic_result.tables.event[relic_condition.data.id].nodes[0].choices[0].availability==relic_condition.data.nodes[0].choices[0].availability and Catalog.tables(g)==baseline,"PACK event choice accepts a registered-relic availability condition")
  for invalid_availability in [null,{},false,{"kind":"unknown","reason":"无法选择。"},{"kind":"no_chastity_lock","reason":""},{"kind":"no_chastity_lock","reason":"[invalid]"},{"kind":"no_chastity_lock","reason":"无法选择。","extra":true},{"kind":"has_relic","reason":"无法选择。"},{"kind":"has_relic","type":"unregistered_relic","reason":"无法选择。"},{"kind":"has_relic","type":"softened_buckle","reason":"无法选择。","extra":true}]:
-  var bad=concise_event.duplicate(true);bad.data.choices[0].availability=invalid_availability;invalids.append(bad)
+  var bad=concise_event.duplicate(true);bad.data.nodes[0].choices[0].availability=invalid_availability;invalids.append(bad)
  var animated_event=concise_event.duplicate(true)
- animated_event.data.choices[0].effects=[{"op":"install_random","templates":["rope"],"count":1,"grade":1,"tier":2,"locked":false,"allow_links":false,"wear_style":"animated"}]
+ animated_event.data.nodes[0].choices[0].effects=[{"op":"install_random","templates":["rope"],"count":1,"grade":1,"tier":2,"locked":false,"allow_links":false,"wear_style":"animated"}]
  t.check(Catalog.compile(g,[animated_event]).ok and Catalog.tables(g)==baseline,"PACK random restraint installation accepts the reusable animated wear style")
  for invalid_style in ["unknown",0,false]:
-  var bad=animated_event.duplicate(true);bad.data.choices[0].effects[0].wear_style=invalid_style;invalids.append(bad)
+  var bad=animated_event.duplicate(true);bad.data.nodes[0].choices[0].effects[0].wear_style=invalid_style;invalids.append(bad)
  for invalid_detail in [null,0,false,"   ","[invalid]","x".repeat(1201)]:
-  var bad=concise_event.duplicate(true);bad.data.choices[0].detail=invalid_detail;invalids.append(bad)
+  var bad=concise_event.duplicate(true);bad.data.nodes[0].choices[0].detail=invalid_detail;invalids.append(bad)
  var unspent=input.documents.filter(func(d):return d.data.kind=="relic")[0].duplicate(true)
  unspent.data.modifiers={"unspent_turn_mana":8}
  t.check(Catalog.compile(g,[unspent]).ok,"PACK unspent-turn mana hook supported")
@@ -121,35 +253,35 @@ static func run(t) -> void:
   bad.data.merge(changes,true);invalids.append(bad)
  for effect in [{"op":"arbitrary_script"},{"op":"relic","type":"missing"},{"op":"flask_mana_gain","amount":101},{"op":"random_amount","effect":"flask_mana_gain","minimum":60,"maximum":30},{"op":"random_amount","effect":"relic","minimum":30,"maximum":60},{"op":"mana_max_loss","amount":0},{"op":"mana_restore_full","amount":1},{"op":"install","template":"rope","slot":"wrist","grade":1.5,"tier":1,"locked":false},{"op":"tool","type":"saw","ignored":true},{"op":"special_install","type":"shaft_ring_low","slot":"wrist"}]:
   var bad=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
-  bad.data.choices[0].effects=[effect];invalids.append(bad)
+  bad.data.nodes[0].choices[0].effects=[effect];invalids.append(bad)
  var bad_encounter=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
- bad_encounter.data.choices[0].effects=[]
- bad_encounter.data.choices[0].encounter={"id":"missing_encounter","requires_defeat":true,"victory_effects":[{"op":"card","type":"panic"}],"victory_report":"战斗结束。","result_status":"success"}
+ bad_encounter.data.nodes[0].choices[0].effects=[]
+ bad_encounter.data.nodes[0].choices[0].encounter={"id":"missing_encounter","requires_defeat":true,"victory_effects":[{"op":"card","type":"panic"}],"victory_report":"战斗结束。","result_status":"success"}
  invalids.append(bad_encounter)
  var bad_victory_effect=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
- bad_victory_effect.data.choices[0].effects=[]
- bad_victory_effect.data.choices[0].encounter={"id":"belt_solo","requires_defeat":true,"victory_effects":[{"op":"arbitrary_script"}],"victory_report":"战斗结束。","result_status":"success"}
+ bad_victory_effect.data.nodes[0].choices[0].effects=[]
+ bad_victory_effect.data.nodes[0].choices[0].encounter={"id":"belt_solo","requires_defeat":true,"victory_effects":[{"op":"arbitrary_script"}],"victory_report":"战斗结束。","result_status":"success"}
  invalids.append(bad_victory_effect)
  var bad_item_rewards=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
- bad_item_rewards.data.choices[0].effects=[]
- bad_item_rewards.data.choices[0].item_rewards=[{"id":"potion","pool":["missing_item"]}]
+ bad_item_rewards.data.nodes[0].choices[0].effects=[]
+ bad_item_rewards.data.nodes[0].choices[0].item_rewards=[{"id":"potion","pool":["missing_item"]}]
  invalids.append(bad_item_rewards)
  var duplicate_item_groups=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
- duplicate_item_groups.data.choices[0].effects=[]
- duplicate_item_groups.data.choices[0].item_rewards=[{"id":"same","pool":["mana_potion"]},{"id":"same","pool":["draw_scroll"]}]
+ duplicate_item_groups.data.nodes[0].choices[0].effects=[]
+ duplicate_item_groups.data.nodes[0].choices[0].item_rewards=[{"id":"same","pool":["mana_potion"]},{"id":"same","pool":["draw_scroll"]}]
  invalids.append(duplicate_item_groups)
  var bad_refusal=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
- bad_refusal.data.allow_refuse="false";invalids.append(bad_refusal)
+ bad_refusal.data.nodes[0].allow_refuse="false";invalids.append(bad_refusal)
  var bad_hidden=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
- bad_hidden.data.choices[0].hide_when_unavailable="true";invalids.append(bad_hidden)
+ bad_hidden.data.nodes[0].choices[0].hide_when_unavailable="true";invalids.append(bad_hidden)
  for selector in [{"kind":"restraint","count":0},{"kind":"card","include_special":false},{"kind":"restraint","exclude_curses":true}]:
   var bad=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
-  bad.data.choices[0].selector=selector
-  bad.data.choices[0].effects=[{"op":"remove_restraints","targets":"$selected"}]
+  bad.data.nodes[0].choices[0].selector=selector
+  bad.data.nodes[0].choices[0].effects=[{"op":"remove_restraints","targets":"$selected"}]
   invalids.append(bad)
  var bad_multi_effect=input.documents.filter(func(d):return d.data.kind=="event")[0].duplicate(true)
- bad_multi_effect.data.choices[0].selector={"kind":"restraint","count":2}
- bad_multi_effect.data.choices[0].effects=[{"op":"remove_restraints","targets":["invented"]}]
+ bad_multi_effect.data.nodes[0].choices[0].selector={"kind":"restraint","count":2}
+ bad_multi_effect.data.nodes[0].choices[0].effects=[{"op":"remove_restraints","targets":["invented"]}]
  invalids.append(bad_multi_effect)
  for document in input.documents:
   for field in document.data:
@@ -187,12 +319,12 @@ static func run(t) -> void:
  # Independent content references resolve after the entire batch is staged.
  var documents=input.documents.duplicate(true)
  var event=documents.filter(func(d):return d.data.kind=="event")[0].data
- event.choices[0].effects.append({"op":"relic","type":"example_spare_pocket"})
- event.choices[0].effects.append({"op":"install","template":"example_soft_belt","slot":"ankle","grade":1,"tier":1,"locked":false})
+ event.nodes[0].choices[0].effects.append({"op":"relic","type":"example_spare_pocket"})
+ event.nodes[0].choices[0].effects.append({"op":"install","template":"example_soft_belt","slot":"ankle","grade":1,"tier":1,"locked":false})
  var restraint=documents.filter(func(d):return d.data.kind=="restraint")[0].data
  restraint.enemy_sources.append("example_patrol_rope")
  restraint.slots.append("upper_arm")
- event.choices.append({"id":"arm_fit","label":"安装大臂皮带","reward":"none","effects":[{"op":"install","template":"example_soft_belt","slot":"upper_arm","grade":3,"tier":3,"locked":false}]})
+ event.nodes[0].choices.append({"id":"arm_fit","label":"安装大臂皮带","reward":"none","effects":[{"op":"install","template":"example_soft_belt","slot":"upper_arm","grade":3,"tier":3,"locked":false}]})
  result=Catalog.compile(g,documents)
  t.check(result.ok,"PACK cross-file references compile without ordering requirements")
  if not result.ok: return

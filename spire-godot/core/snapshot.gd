@@ -409,12 +409,13 @@ static func check(s: Dictionary, g) -> String:
   if event.get("flow",false):
    if not fields(event,"flow:b held:d values:d cleanup_effects:a next_stage:s") or not event.cleanup_effects.all(func(e):return effect(e,g)) or event.values.keys().any(func(key):return not key is String or not event.values[key] is int or event.values[key]<0): return "多阶段事件记录不完整。"
    var definition=g.Events.Data.TYPES[event.id]
-   if not definition.has("stages"): return "多阶段事件定义不存在。"
-   var stage_ids=definition.stages.map(func(stage):return stage.id)
+   var stage_ids=g.Events.node_ids(definition)
+   if stage_ids.size()<=1: return "多阶段事件定义不存在。"
    if event.stage not in ["reward","result"]:
     var current=stage_ids.find(event.stage)
     if current<0: return "多阶段事件当前阶段不存在。"
-    var declared=definition.stages[current].choices.map(func(choice):return choice.id)+(["refuse"] if definition.stages[current].allow_refuse else [])
+    var current_node=g.Events.node(definition,event.stage)
+    var declared=current_node.choices.map(func(choice):return choice.id)+(["refuse"] if current_node.allow_refuse else [])
     for option in event.options:
      var source_choice=option.get("source_choice",option.id)
      if not fields(option,"next:s report:s") or source_choice not in declared or (option.next!="result" and (option.next not in stage_ids or stage_ids.find(option.next)<=current)): return "多阶段事件冻结选项损坏。"

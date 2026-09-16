@@ -1,40 +1,70 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "event",
   "id": "bound_dream_guest_room",
   "name": "缚梦客房",
   "intro": "你推开半掩的房门。屋里没有主人，只有一张铺得过分整齐的软床。床头留着一张魅魔旅店的便笺：\n\n“累了就躺下吧。房费会自己来收♥”\n\n淡蓝色魔力在床褥间缓缓流动，床柱中央则嵌着一枚闪着紫光的晶核。床底偶尔传来皮带扣与金属环轻轻碰撞的声音。",
-  "allow_refuse": false,
-  "choices": [
+  "start_node": "choice",
+  "nodes": [
     {
-      "id": "sleep",
-      "label": "【睡到自然醒】恢复全部魔力，随机佩戴3件中级1档拘束具",
-      "detail": "",
-      "reward": "none",
-      "effects": [
-        {"op": "mana_restore_full"},
+      "id": "choice",
+      "allow_refuse": false,
+      "unavailable": "disable",
+      "relic_gate": "pool",
+      "random_freeze": "generators",
+      "outcome_draw": "option",
+      "frozen_form": "in_place",
+      "empty_node": "allow",
+      "choices": [
         {
-          "op": "install_random",
-          "templates": ["rope", "cord", "belt", "fine_belt", "tape", "cable_tie", "eye_cloth", "eye_tape", "mouth_tape", "mouth_band"],
-          "count": 3,
-          "grade": 2,
-          "tier": 1,
-          "locked": false,
-          "allow_links": false,
-          "wear_style": "animated"
+          "id": "sleep",
+          "label": "【睡到自然醒】恢复全部魔力，随机佩戴3件中级1档拘束具",
+          "detail": "",
+          "reward": "none",
+          "effects": [
+            {
+              "op": "mana_restore_full"
+            },
+            {
+              "op": "install_random",
+              "templates": [
+                "rope",
+                "cord",
+                "belt",
+                "fine_belt",
+                "tape",
+                "cable_tie",
+                "eye_cloth",
+                "eye_tape",
+                "mouth_tape",
+                "mouth_band"
+              ],
+              "count": 3,
+              "grade": 2,
+              "tier": 1,
+              "locked": false,
+              "allow_links": false,
+              "wear_style": "animated"
+            }
+          ],
+          "report": "你刚躺进柔软的床褥，淡蓝色微光便贴着身体流入小腹。疲惫很快被暖意冲散，干涸的魔力也一点点补满。\n\n睡意最浓时，床下悄悄伸出三件拘束具，挑中身体上的空处逐件缠了上来。等你醒来，魔力已经完全恢复，身上却多了三件新添的束缚。",
+          "result_status": "success"
+        },
+        {
+          "id": "take_core",
+          "label": "【拔走床芯】最大魔力－8，获得一件随机遗物",
+          "detail": "",
+          "reward": "relic",
+          "effects": [
+            {
+              "op": "mana_max_loss",
+              "amount": 8
+            }
+          ],
+          "report": "你没有碰那张床，而是握住床柱中央的紫色晶核，用力将它拔了出来。\n\n整间客房的法阵骤然亮起。小腹中的魔力随之一阵收缩，原本能够容纳魔力的部分像是被法阵硬生生夺走了一截。片刻后光芒熄灭，拔出的晶核也在你手中凝成了一件遗物。",
+          "result_status": "success"
         }
-      ],
-      "report": "你刚躺进柔软的床褥，淡蓝色微光便贴着身体流入小腹。疲惫很快被暖意冲散，干涸的魔力也一点点补满。\n\n睡意最浓时，床下悄悄伸出三件拘束具，挑中身体上的空处逐件缠了上来。等你醒来，魔力已经完全恢复，身上却多了三件新添的束缚。",
-      "result_status": "success"
-    },
-    {
-      "id": "take_core",
-      "label": "【拔走床芯】最大魔力－8，获得一件随机遗物",
-      "detail": "",
-      "reward": "relic",
-      "effects": [{"op": "mana_max_loss", "amount": 8}],
-      "report": "你没有碰那张床，而是握住床柱中央的紫色晶核，用力将它拔了出来。\n\n整间客房的法阵骤然亮起。小腹中的魔力随之一阵收缩，原本能够容纳魔力的部分像是被法阵硬生生夺走了一截。片刻后光芒熄灭，拔出的晶核也在你手中凝成了一件遗物。",
-      "result_status": "success"
+      ]
     }
   ]
 }

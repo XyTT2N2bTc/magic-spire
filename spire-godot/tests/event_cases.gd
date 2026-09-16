@@ -13,8 +13,42 @@ static func arrive(g, id: String) -> void:
 static func choose(t,g,id: String) -> Dictionary:
  return t.action(g,"event",{"action":"choose","choice":id})
 
+# docs/event-pipeline-unification.md §10 scenario 01: the compiled registry entry is the
+# single author form, and the projection keeps the same visible fields as the baseline.
+static func event_definition_single_form(t) -> void:
+ var g=Game.new(42)
+ var declaration_keys=["allow_refuse","unavailable","relic_gate","random_freeze","outcome_draw","frozen_form","empty_node"]
+ var visible_keys=["id","name","intro","stage","report","hint","selections","page_id","result_status"]
+ t.check(Data.TYPES.size()==12,"EVENT DEFINITION twelve authored events compile into the single node form")
+ var single_count=0
+ var multi_count=0
+ for id in Data.TYPES.keys():
+  var spec=Data.TYPES[id]
+  t.check(spec.has("start_node") and spec.nodes is Array and not spec.nodes.is_empty(),"EVENT DEFINITION definition exposes start_node and nodes "+id)
+  for legacy in ["choices","stages","start_stage","allow_refuse"]:
+   t.check(not spec.has(legacy),"EVENT DEFINITION definition drops the legacy key "+legacy+" "+id)
+  var nodes=spec.nodes
+  if nodes.size()==1: single_count+=1
+  else: multi_count+=1
+  for entry in nodes:
+   t.check(declaration_keys.all(func(key):return entry.has(key)),"EVENT DEFINITION every node declares the full policy set "+id+"/"+str(entry.get("id","")))
+   t.check(entry.choices is Array and not entry.choices.is_empty() and entry.choices.size()<=6,"EVENT DEFINITION node keeps1—6 options "+id+"/"+str(entry.get("id","")))
+   if nodes.size()==1:
+    t.check(entry.id=="choice" and not entry.has("title") and not entry.has("intro"),"EVENT DEFINITION single node uses the sentinel id without stage copy "+id)
+   else:
+    t.check(entry.id not in ["choice","reward","result","battle","loot","keys"] and entry.has("title") and entry.has("intro"),"EVENT DEFINITION staged node keeps its id and stage copy "+id+"/"+str(entry.get("id","")))
+  var view={}
+  var walk=Game.new(42)
+  arrive(walk,id)
+  view=walk.get_view().room_event
+  t.check(view.keys().all(func(key):return key in visible_keys) and visible_keys.all(func(key):return view.has(key)),"EVENT DEFINITION projection keeps the frozen visible fields "+id)
+  t.check(view.id==id and view.stage==walk.state.room_event.stage and view.name.contains(spec.name),"EVENT DEFINITION projection identity matches the entered definition "+id)
+  t.check(view.intro==spec.intro or walk.state.room_event.get("flow",false),"EVENT DEFINITION single-node introduction stays byte-identical "+id)
+ t.check(single_count==8 and multi_count==4,"EVENT DEFINITION eight single-node and four multi-node events registered")
+
 static func run(t) -> void:
  preload("res://tests/event_draw_cases.gd").run(t)
+ event_definition_single_form(t)
  var g=Game.new(42)
  # Content registrations fail here rather than silently choosing another behavior.
  for id in g.Enemies.TYPES:
@@ -30,10 +64,11 @@ static func run(t) -> void:
   t.check(encounter.members.all(func(m):return g.Enemies.TYPES.has(m.type) and m.grade in [1,2,3]),"CONTENT encounters use real templates and grades")
  for pool in g.Enemies.FirstFloor.POOLS.values(): t.check(pool.all(func(id):return g.Enemies.ENCOUNTERS.has(id)),"CONTENT encounter pool references resolve")
  for spec in Data.TYPES.values():
-  if spec.has("choices"):
-   t.check(spec.choices.all(func(c):return (c.has("effects") or c.get("recipe","") in ["free_basic","tighten_or_medium","locked_assembly"]) and c.reward in ["none","common","uncommon","rare","relic"]),"CONTENT ordinary event recipes, effects and rewards registered")
+  if spec.nodes.size()==1:
+   var choices=spec.nodes[0].choices
+   t.check(spec.start_node=="choice" and choices.all(func(c):return (c.has("effects") or c.get("recipe","") in ["free_basic","tighten_or_medium","locked_assembly"]) and c.reward in ["none","common","uncommon","rare","relic"]),"CONTENT single-node event recipes, effects and rewards registered")
   else:
-   t.check(spec.has("stages") and spec.stages.size()>=2,"CONTENT staged event definitions remain registered")
+   t.check(spec.nodes.size()>=2,"CONTENT multi-node event definitions remain registered")
  for pool in Data.CARD_POOLS.values(): t.check(pool.size()>=3 and pool.all(func(id):return g.B.CARD_NAMES.has(id)),"CONTENT event card rewards are playable definitions")
  t.check(Data.CARD_POOLS.common==g.Cards.Rules.COMMON and Data.CARD_POOLS.uncommon==g.Cards.Rules.UNCOMMON and Data.CARD_POOLS.rare==g.Cards.Rules.RARE,"CONTENT event card pools match the three visible rarities")
  t.check(g.Events.reward_text("common").contains("普通牌") and g.Events.reward_text("uncommon").contains("罕见牌") and g.Events.reward_text("rare").contains("稀有牌"),"CONTENT event reward copy names each real rarity")

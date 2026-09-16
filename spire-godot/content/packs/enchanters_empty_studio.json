@@ -1,58 +1,70 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "event",
   "id": "enchanters_empty_studio",
   "name": "魅纹师的空房",
   "intro": "你推开一扇虚掩的门，里面没有主人，只有一张铺着黑色软垫的纹绘台。墙边立着一面暗红色的魔镜，桌上散着颜料、细针和几块写满魅纹的薄纱；最里面的抽屉没有关严，银色针匣的一角露在外面。\n\n魔镜里的光沿着你身上的拘束具慢慢扫过。每一道扣环与绳结都在镜中浮出细小的亮线，像是只要点一下，就能让它们松开。",
-  "allow_refuse": false,
-  "choices": [
+  "start_node": "choice",
+  "nodes": [
     {
-      "id": "temper",
-      "label": "【回火】解开2件拘束具",
-      "detail": "",
-      "reward": "none",
-      "selector": {
-        "kind": "restraint",
-        "count": 2,
-        "include_special": false
-      },
-      "effects": [
+      "id": "choice",
+      "allow_refuse": false,
+      "unavailable": "disable",
+      "relic_gate": "pool",
+      "random_freeze": "generators",
+      "outcome_draw": "option",
+      "frozen_form": "in_place",
+      "empty_node": "allow",
+      "choices": [
         {
-          "op": "remove_restraints",
-          "targets": "$selected",
-          "name": "{name}"
-        }
-      ],
-      "report": "你隔着镜面依次点过{name}。暗红色的亮线贴着它们绕了一圈，两件拘束具随即松开，从身上脱落下来。",
-      "result_status": "success"
-    },
-    {
-      "id": "search",
-      "label": "【翻查】打开银色针匣",
-      "detail": "获得稀有遗物「魅纹师的针匣」，同时获得诅咒「淫纹」。",
-      "reward": "none",
-      "hide_when_unavailable": true,
-      "effects": [
-        {
-          "op": "relic",
-          "type": "enchanters_needle_case"
+          "id": "temper",
+          "label": "【回火】解开2件拘束具",
+          "detail": "",
+          "reward": "none",
+          "selector": {
+            "kind": "restraint",
+            "count": 2,
+            "include_special": false
+          },
+          "effects": [
+            {
+              "op": "remove_restraints",
+              "targets": "$selected",
+              "name": "{name}"
+            }
+          ],
+          "report": "你隔着镜面依次点过{name}。暗红色的亮线贴着它们绕了一圈，两件拘束具随即松开，从身上脱落下来。",
+          "result_status": "success"
         },
         {
-          "op": "card",
-          "type": "lewd_mark"
+          "id": "search",
+          "label": "【翻查】打开银色针匣",
+          "detail": "获得稀有遗物「魅纹师的针匣」，同时获得诅咒「淫纹」。",
+          "reward": "none",
+          "hide_when_unavailable": true,
+          "effects": [
+            {
+              "op": "relic",
+              "type": "enchanters_needle_case"
+            },
+            {
+              "op": "card",
+              "type": "lewd_mark"
+            }
+          ],
+          "report": "你拉开抽屉，拿起那只银色针匣。匣盖刚一翻开，里面的细针便化作一道红光，钻进你的小腹。\n\n灼热的纹路在肌肤上迅速展开，最后凝成一枚鲜艳的淫纹。肉棒随之硬起，乳头与小穴也一阵发麻。",
+          "result_status": "success"
+        },
+        {
+          "id": "leave",
+          "label": "【离开】放下薄纱",
+          "detail": "",
+          "reward": "none",
+          "effects": [],
+          "report": "你把薄纱放回桌面，转身离开了空房。",
+          "result_status": "neutral"
         }
-      ],
-      "report": "你拉开抽屉，拿起那只银色针匣。匣盖刚一翻开，里面的细针便化作一道红光，钻进你的小腹。\n\n灼热的纹路在肌肤上迅速展开，最后凝成一枚鲜艳的淫纹。肉棒随之硬起，乳头与小穴也一阵发麻。",
-      "result_status": "success"
-    },
-    {
-      "id": "leave",
-      "label": "【离开】放下薄纱",
-      "detail": "",
-      "reward": "none",
-      "effects": [],
-      "report": "你把薄纱放回桌面，转身离开了空房。",
-      "result_status": "neutral"
+      ]
     }
   ]
 }

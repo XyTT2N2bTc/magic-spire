@@ -1,19 +1,28 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "event",
   "id": "example_multistage_challenge",
   "name": "多阶段挑战示例",
   "intro": "这是多阶段事件的数据模板；改名为 .json 并放入 content/packs 后才会加载。",
-  "start_stage": "entry",
   "cleanup_effects": [
-    {"op": "restore_held", "key": "removed_gear"}
+    {
+      "op": "restore_held",
+      "key": "removed_gear"
+    }
   ],
-  "stages": [
+  "start_node": "entry",
+  "nodes": [
     {
       "id": "entry",
       "title": "是否参加",
       "intro": "第一阶段必须允许使用默认付费离开。",
       "allow_refuse": true,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "accept",
@@ -22,11 +31,38 @@
           "next": "penalty",
           "detail": "暂时取下肉棒部位已有的性玩具，并从两种公开结果中随机确定一种。",
           "effects": [
-            {"op": "hold_special", "key": "removed_gear", "slots": ["special_2_a", "special_2_b", "special_2_c", "special_2_d"]}
+            {
+              "op": "hold_special",
+              "key": "removed_gear",
+              "slots": [
+                "special_2_a",
+                "special_2_b",
+                "special_2_c",
+                "special_2_d"
+              ]
+            }
           ],
           "outcomes": [
-            {"weight": 1, "effects": [{"op": "card", "type": "panic"}], "report": "获得了诅咒牌「慌乱」"},
-            {"weight": 1, "effects": [{"op": "card", "type": "sensitive"}], "report": "获得了诅咒牌「敏感」"}
+            {
+              "weight": 1,
+              "effects": [
+                {
+                  "op": "card",
+                  "type": "panic"
+                }
+              ],
+              "report": "获得了诅咒牌「慌乱」"
+            },
+            {
+              "weight": 1,
+              "effects": [
+                {
+                  "op": "card",
+                  "type": "sensitive"
+                }
+              ],
+              "report": "获得了诅咒牌「敏感」"
+            }
           ]
         }
       ]
@@ -36,6 +72,12 @@
       "title": "选择代价",
       "intro": "生成器会在进入本阶段时冻结为具体、可预览的正式效果。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "add_rope",
@@ -43,7 +85,16 @@
           "reward": "none",
           "next": "finish",
           "effects": [
-            {"op": "install_random", "templates": ["rope"], "count": 2, "grade": 1, "tier": 2, "locked": false}
+            {
+              "op": "install_random",
+              "templates": [
+                "rope"
+              ],
+              "count": 2,
+              "grade": 1,
+              "tier": 2,
+              "locked": false
+            }
           ]
         },
         {
@@ -52,7 +103,11 @@
           "reward": "none",
           "next": "finish",
           "effects": [
-            {"op": "tighten_random", "count": 2, "to_tier": 3}
+            {
+              "op": "tighten_random",
+              "count": 2,
+              "to_tier": 3
+            }
           ]
         }
       ]
@@ -62,8 +117,26 @@
       "title": "结束",
       "intro": "最后阶段仍使用普通效果白名单。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
-        {"id": "complete", "label": "完成事件", "reward": "none", "next": "result", "effects": [{"op": "pressure", "amount": 20, "source": "事件中的刺激"}]}
+        {
+          "id": "complete",
+          "label": "完成事件",
+          "reward": "none",
+          "next": "result",
+          "effects": [
+            {
+              "op": "pressure",
+              "amount": 20,
+              "source": "事件中的刺激"
+            }
+          ]
+        }
       ]
     }
   ]

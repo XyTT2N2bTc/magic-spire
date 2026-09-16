@@ -19,7 +19,7 @@ static func event_mana_cost(t) -> void:
     Events.arrive(g,offer[0])
     var expected_count=int(offer[2])
     if offer[0]=="succubus_three_games":
-     t.check(g.Events.enter_stage(g,"wager_semen")=="","EVENT MANA enters the authored third-round stage")
+     t.check(g.Events.enter_node(g,"wager_semen")=="","EVENT MANA enters the authored third-round stage")
      var frozen=g.state.room_event.options.filter(func(option):return option.source_choice=="begin")[0]
      expected_count=1 if frozen.result_status=="success" else 2
     g.state.mana=remaining_mana;g.state.temporary_mana=30;g.state.flask_mana=40
@@ -75,7 +75,7 @@ static func plate_lock_copy(t) -> void:
  for seed_value in range(72):
   var gamble=Game.new(seed_value,true,"succubus_three_games")
   if gamble._install_special("negative_plate_lock_medium","special_2_a").is_empty(): continue
-  t.check(gamble.Events.enter_stage(gamble,"wager_semen")=="","EVENT COPY opens the real semen-wager stage with a flat lock")
+  t.check(gamble.Events.enter_node(gamble,"wager_semen")=="","EVENT COPY opens the real semen-wager stage with a flat lock")
   var option=gamble.state.room_event.options.filter(func(row):return row.source_choice=="begin")[0]
   var sources=option.effects.filter(func(effect):return effect.op=="pressure").map(func(effect):return effect.source)
   t.check(sources.all(func(source):return source.contains("平板锁") or source.contains("锁具下")) and sources.all(func(source):return not source.contains("握住勃起") and not source.contains("足心贴住柱身") and not source.contains("夹进丰满的乳沟")),"EVENT COPY flat-lock gamble removes every incompatible penis-stimulation source")
@@ -93,23 +93,26 @@ static func plate_lock_copy(t) -> void:
 
 static func document() -> Dictionary:
  return {"file":"memory://event_flow.json","data":{
-  "schema_version":1,"kind":"event","id":"flow_test","name":"多阶段事件夹具",
-  "intro":"一个只用于验证通用事件接口的多阶段夹具。","start_stage":"entry",
+  "schema_version":2,"kind":"event","id":"flow_test","name":"多阶段事件夹具",
+  "intro":"一个只用于验证通用事件接口的多阶段夹具。","start_node":"entry",
   "cleanup_effects":[{"op":"restore_held","key":"selected_gear"}],
-  "stages":[
-   {"id":"entry","title":"第一阶段","intro":"进入事件并冻结本阶段的随机结果。","allow_refuse":true,"choices":[
+  "nodes":[
+   {"id":"entry","title":"第一阶段","intro":"进入事件并冻结本阶段的随机结果。","allow_refuse":true,
+    "unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
     {"id":"accept","label":"继续","reward":"none","next":"penalty","detail":"暂存指定部位的现有装备，并从公开结果池中确定一项结果。",
      "effects":[{"op":"hold_special","key":"selected_gear","slots":["special_2_a","special_2_b","special_2_c","special_2_d"]}],
      "outcomes":[
       {"weight":1,"effects":[{"op":"card","type":"panic"}],"report":"结果一"},
       {"weight":1,"effects":[{"op":"card","type":"sensitive"}],"report":"结果二"}]}
    ]},
-   {"id":"penalty","title":"第二阶段","intro":"从三种公开代价中选择一种。","allow_refuse":false,"choices":[
+   {"id":"penalty","title":"第二阶段","intro":"从三种公开代价中选择一种。","allow_refuse":false,
+    "unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
     {"id":"two_ropes","label":"随机安装两件初级绳索","reward":"none","next":"finale","effects":[{"op":"install_random","templates":["rope"],"count":2,"grade":1,"tier":2,"locked":false}]},
     {"id":"locked_belt","label":"随机安装一件上锁皮带","reward":"none","next":"finale","effects":[{"op":"install_random","templates":["belt"],"count":1,"grade":2,"tier":2,"locked":true}]},
     {"id":"tighten_two","label":"随机收紧两件拘束具","reward":"none","next":"finale","effects":[{"op":"tighten_random","count":2,"to_tier":3}]}
    ]},
-   {"id":"finale","title":"第三阶段","intro":"最后一项效果沿用正式快感接口。","allow_refuse":false,"choices":[
+   {"id":"finale","title":"第三阶段","intro":"最后一项效果沿用正式快感接口。","allow_refuse":false,
+    "unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
     {"id":"finish","label":"完成","reward":"none","next":"result","effects":[{"op":"pressure","amount":100,"source":"事件夹具"}]}
    ]}
   ]
@@ -390,8 +393,38 @@ static func maze_survey_team(t) -> void:
  t.check(result.ok and g.state.flask_mana==flask_before+30 and g.state.flask_deposits==deposits_before and g.state.equipment.size()==equipment_before,"SURVEY TEAM together branch grants thirty flask mana without adding restraints")
  t.check(g.state.room_event.stage=="result" and g.state.room_event.report.contains("合作愉快") and g.state.room_event.result_status=="success","SURVEY TEAM together branch reaches a clear successful result")
 
+# docs/event-pipeline-unification.md §10 scenario 02: every authored node declares the
+# policy that reproduces today's behaviour, and options keep the compatibility spelling.
+static func event_option_policies_match_current_behaviour(t) -> void:
+ var g=Game.new(42)
+ var single=["disable","pool","generators","option","in_place","allow"]
+ var multi=["hide","claimed","always","option","staged","fail"]
+ var single_count=0
+ var multi_count=0
+ for id in g.Events.Data.TYPES.keys():
+  var spec=g.Events.Data.TYPES[id]
+  for entry in spec.nodes:
+   var expected=multi if spec.nodes.size()>1 else single
+   var declared=[entry.unavailable,entry.relic_gate,entry.random_freeze,entry.outcome_draw,entry.frozen_form,entry.empty_node]
+   t.check(declared==expected,"EVENT POLICY node declares today's behaviour "+id+"/"+str(entry.id))
+   if spec.nodes.size()==1:
+    single_count+=1
+    t.check(entry.allow_refuse==false,"EVENT POLICY single node keeps its authored refusal "+id)
+    t.check(entry.id=="choice" and spec.start_node=="choice","EVENT POLICY single node keeps the sentinel start "+id)
+   else:
+    multi_count+=1
+    var expected_refusal=id=="succubus_three_games" and entry.id=="wager_card"
+    t.check(entry.allow_refuse==expected_refusal,"EVENT POLICY staged node keeps its authored refusal "+id+"/"+str(entry.id))
+   for choice in entry.choices:
+    t.check(not choice.has("conditions") and not choice.has("unavailable"),"EVENT POLICY authored option keeps the compatibility spelling "+id+"/"+str(entry.id)+"/"+str(choice.id))
+ t.check(single_count==8 and multi_count==21,"EVENT POLICY all twelve definitions declare their nodes")
+ var staged=g.Events.Data.TYPES.succubus_three_games
+ t.check(staged.start_node=="wager_card" and staged.nodes.size()==8 and g.Events.node_ids(staged)[7]=="remove_reward","EVENT POLICY staged definition keeps its authored order")
+ t.check(g.Events.node(g.Events.Data.TYPES.binding_cleric,"service").choices.size()==3 and g.Events.node(staged,"missing").is_empty(),"EVENT POLICY node lookup resolves real ids and returns empty for unknown ones")
+
 static func run(t) -> void:
  event_mana_cost(t)
+ event_option_policies_match_current_behaviour(t)
  link_installation(t)
  plate_lock_copy(t)
  empty_studio(t)
@@ -413,10 +446,10 @@ static func run(t) -> void:
  var compiled=Catalog.compile(g,[document()])
  t.check(compiled.ok,"EVENT FLOW generic staged document compiles: "+str(compiled.errors))
  if not compiled.ok: return
- var concise=document();concise.data.stages[1].choices[0].detail=""
+ var concise=document();concise.data.nodes[1].choices[0].detail=""
  var concise_result=Catalog.compile(g,[concise])
- t.check(concise_result.ok and concise_result.tables.event.flow_test.stages[1].choices[0].detail=="","EVENT FLOW deterministic stages support explicit empty notes")
- concise.data.stages[0].choices[0].detail=""
+ t.check(concise_result.ok and concise_result.tables.event.flow_test.nodes[1].choices[0].detail=="","EVENT FLOW deterministic stages support explicit empty notes")
+ concise.data.nodes[0].choices[0].detail=""
  t.check(not Catalog.compile(g,[concise]).ok,"EVENT FLOW random outcomes still require an authored public preview")
  Catalog.commit(g,compiled.tables)
 
@@ -461,29 +494,29 @@ static func run(t) -> void:
  t.check(t.action(g,"event",{"action":"choose","choice":"tighten_two"}).ok,"EVENT FLOW batch tighten option is executable")
  t.check(g.state.equipment.size()==2 and g.state.equipment.all(func(e):return g.tier(e.durability,e.maximum)==3),"EVENT FLOW batch tighten freezes distinct eligible targets")
 
- var bad=document();bad.data.id="flow_cycle";bad.data.stages[1].choices[0].next="entry"
+ var bad=document();bad.data.id="flow_cycle";bad.data.nodes[1].choices[0].next="entry"
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW backward stage references fail closed")
  bad=document();bad.data.id="flow_missing_cleanup";bad.data.cleanup_effects=[]
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW held equipment requires declared cleanup")
- bad=document();bad.data.id="flow_no_exit";bad.data.stages[0].allow_refuse=false
+ bad=document();bad.data.id="flow_no_exit";bad.data.nodes[0].allow_refuse=false
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW initial stage requires a safe refusal")
- bad=document();bad.data.id="flow_script";bad.data.stages[0].choices[0].effects=[{"op":"run_three_round_gamble"}]
+ bad=document();bad.data.id="flow_script";bad.data.nodes[0].choices[0].effects=[{"op":"run_three_round_gamble"}]
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW event-specific operation names are rejected")
- bad=document();bad.data.id="flow_bad_effects";bad.data.stages[0].choices[0].effects="not-an-array"
+ bad=document();bad.data.id="flow_bad_effects";bad.data.nodes[0].choices[0].effects="not-an-array"
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW malformed nested effects fail closed without a runtime error")
- bad=document();bad.data.id="flow_bad_result";bad.data.stages[0].choices[0].outcomes[0].result_status="maybe"
+ bad=document();bad.data.id="flow_bad_result";bad.data.nodes[0].choices[0].outcomes[0].result_status="maybe"
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW unknown authored result status is rejected")
- bad=document();bad.data.id="flow_bad_choice_result";bad.data.stages[0].choices[0].result_status=123
+ bad=document();bad.data.id="flow_bad_choice_result";bad.data.nodes[0].choices[0].result_status=123
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW non-string result status is rejected")
- bad=document();bad.data.id="flow_bad_pressure_copy";bad.data.stages[2].choices[0].show_pressure_sources=true;bad.data.stages[2].choices[0].effects[0].erase("source")
+ bad=document();bad.data.id="flow_bad_pressure_copy";bad.data.nodes[2].choices[0].show_pressure_sources=true;bad.data.nodes[2].choices[0].effects[0].erase("source")
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW visible pressure-source copy requires an authored source")
- bad=document();bad.data.id="flow_bad_copy_family";bad.data.stages[2].choices[0].report_variants=[{"when":{"kind":"equipped_special_family","value":"missing_family"},"text":"条件正文"}]
+ bad=document();bad.data.id="flow_bad_copy_family";bad.data.nodes[2].choices[0].report_variants=[{"when":{"kind":"equipped_special_family","value":"missing_family"},"text":"条件正文"}]
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW conditional copy rejects an unknown special-equipment family")
- bad=document();bad.data.id="flow_bad_source_variant";bad.data.stages[2].choices[0].effects[0].source_variants=[{"when":{"kind":"equipped_special_family","value":"chastity_lock"},"text":"x".repeat(121)}]
+ bad=document();bad.data.id="flow_bad_source_variant";bad.data.nodes[2].choices[0].effects[0].source_variants=[{"when":{"kind":"equipped_special_family","value":"chastity_lock"},"text":"x".repeat(121)}]
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW conditional pressure copy preserves the source length boundary")
- bad=document();bad.data.id="flow_bad_when_sources";bad.data.stages[1].choices[0].when={"counter":"wins","selector":{"kind":"restraint"},"equals":0}
+ bad=document();bad.data.id="flow_bad_when_sources";bad.data.nodes[1].choices[0].when={"counter":"wins","selector":{"kind":"restraint"},"equals":0}
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW condition cannot mix counter and selector sources")
- bad=document();bad.data.id="flow_bad_when_selector";bad.data.stages[1].choices[0].when={"selector":{"kind":"enemy"},"equals":0}
+ bad=document();bad.data.id="flow_bad_when_selector";bad.data.nodes[1].choices[0].when={"selector":{"kind":"enemy"},"equals":0}
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW selector-count condition rejects unsupported sources")
 
  # Shipped three-round event and its practice entry use the same authored flow.
@@ -563,7 +596,7 @@ static func run(t) -> void:
 
  # Stage fixture uses the authored payout and its normal selector/transaction.
  var removal=Game.new(27,true,"succubus_three_games")
- t.check(removal.Events.enter_stage(removal,"remove_reward")=="","EVENT removal fixture opens the authored card payout")
+ t.check(removal.Events.enter_node(removal,"remove_reward")=="","EVENT removal fixture opens the authored card payout")
  var selected_uid=removal.state.deck[0].uid
  var removal_choice=t.find_action(removal,"event",{"action":"choose","choice":"remove__"+selected_uid})
  var before_removal=removal.export_snapshot()
@@ -665,10 +698,10 @@ static func run(t) -> void:
  # or failure; the captive's equipment is not represented as a transferable pool.
  var trapped=Game.new(81,true,"bound_adventurer_relic")
  var trapped_definition=trapped.Events.Data.TYPES.bound_adventurer_relic
- t.check(trapped_definition.stages.size()==9 and trapped_definition.start_stage=="attempt_1","BOUND ADVENTURER declares the complete nine-attempt ladder")
+ t.check(trapped_definition.nodes.size()==9 and trapped_definition.start_node=="attempt_1","BOUND ADVENTURER declares the complete nine-attempt ladder")
  var expected_chances=[25,35,45,55,65,75,85,95]
  for index in range(9):
-  var stage=trapped_definition.stages[index]
+  var stage=trapped_definition.nodes[index]
   var stage_reach=stage.choices.filter(func(choice):return choice.id=="reach")[0]
   var leave=stage.choices.filter(func(choice):return choice.id=="leave")[0]
   var generators=stage_reach.effects.filter(func(effect):return effect.op=="install_random")
@@ -715,7 +748,7 @@ static func run(t) -> void:
  t.check(trapped.state.equipment==leave_before.equipment and trapped.state.relics==leave_before.relics and trapped.state.mana==leave_before.mana,"BOUND ADVENTURER leaving before a reach changes no equipment, relic or resource")
 
  var full=Game.new(83)
- var fill_templates=trapped_definition.stages[0].choices[0].effects[0].templates
+ var fill_templates=trapped_definition.nodes[0].choices[0].effects[0].templates
  var fill_spec={"pool":"ordinary","templates":fill_templates,"count":1,"grade":1,"tier":2,"locked":false,"replace":false,"allow_links":false,"variants":{}}
  for fill_template in fill_templates: fill_spec.variants[fill_template]=0
  for _index in range(80):

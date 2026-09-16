@@ -27,28 +27,31 @@ static func start(g, id: String="") -> void:
  g.state.enemies=[]
  g.state.energy=0
  var available=g.RelicRewards.available(g)
- var definition=Data.TYPES[id]
- var flow=definition.has("stages")
- var choices=definition.get("choices",[]).duplicate()
- for stage in definition.get("stages",[]): choices.append_array(stage.choices)
+ var spec=definition(id)
+ # One definition form: a single node keeps the in-place layout, several nodes keep the
+ # staged layout. B2 replaces this node-count branch with the declared node policies.
+ var flow=node_ids(spec).size()>1
+ var entry=node(spec,spec.get("start_node",""))
+ var choices=[]
+ for author_node in spec.get("nodes",[]): choices.append_array(author_node.get("choices",[]))
  var offers_relic=choices.any(func(choice):return choice.get("reward","")=="relic" or choice.get("outcomes",[]).any(func(outcome):return outcome.get("reward","")=="relic"))
- var event={"id":id,"stage":"choice","options":[],"refs":{},"values":{},"report":"","reward":[],"winner":-1,"relic":g.RelicRewards.offer(g) if offers_relic and not available.is_empty() else "","flow":flow,"held":{},"cleanup_effects":definition.get("cleanup_effects",[]).duplicate(true),"next_stage":""}
+ var event={"id":id,"stage":"choice","options":[],"refs":{},"values":{},"report":"","reward":[],"winner":-1,"relic":g.RelicRewards.offer(g) if offers_relic and not available.is_empty() else "","flow":flow,"held":{},"cleanup_effects":spec.get("cleanup_effects",[]).duplicate(true),"next_stage":""}
  g.state.room_event=event
  event.result_status="neutral"
  if flow:
-  var issue=enter_stage(g,definition.start_stage)
+  var issue=enter_node(g,spec.get("start_node",""))
   if issue!="":
    event.stage="result";event.report="事件无法开始："+issue
    event.result_status="failure"
  else:
-  for choice_definition in definition.choices:
+  for choice_definition in entry.get("choices",[]):
     if choice_definition.reward=="relic" and available.is_empty(): continue
     if choice_definition.has("selector"):
      for selected in selector_selections(g,choice_definition.selector):
       var selected_choice=freeze_choice(g,choice_definition,selected)
       if not selected_choice.is_empty(): event.options.append(selected_choice)
      continue
-    var effects=choice_definition.effects.duplicate(true) if choice_definition.has("effects") else compile(g,choice_definition.recipe)
+    var effects=choice_definition.effects.duplicate(true) if choice_definition.has("effects") else compile(g,choice_definition.get("recipe",""))
     if effects.is_empty() and not choice_definition.has("effects"): continue
     if choice_definition.get("pressure",0)>0: effects.append({"op":"pressure","amount":choice_definition.pressure,"source":choice_definition.get("pressure_source","事件中的身体刺激")})
     var choice=choice_definition.duplicate(true)
@@ -63,17 +66,26 @@ static func start(g, id: String="") -> void:
     choice.detail=choice_definition.get("detail",(describe(g,effects)+"\n"+reward_text(choice.reward,g)).strip_edges())
     if choice.get("hide_when_unavailable",false) and probe_choice(g,choice)!="": continue
     event.options.append(choice)
-  if definition.get("allow_refuse",true): event.options.append(refusal(g))
+  if entry.get("allow_refuse",false): event.options.append(refusal(g))
  g._emit("event","进入"+Data.TYPES[id].name+"。")
 
 static func refusal(g) -> Dictionary:
  return {"id":"refuse","label":"支付费用，离开","reward":"none","effects":[{"op":"mana_loss","amount":minf(g.state.mana,Data.REFUSAL_MANA)}],"detail":"支付%s魔力。" % g.number(minf(g.state.mana,Data.REFUSAL_MANA)),"next":"result","report":"你转身离开。"}
 
-static func flow_stage(g, id: String) -> Dictionary:
- var definition=Data.TYPES[g.state.room_event.id]
- if not definition.has("stages"): return {}
- var matches=definition.stages.filter(func(stage):return stage.id==id)
- return {} if matches.is_empty() else matches[0]
+# The compiled registry entry is the author form, so these three accessors are the only
+# way to reach nodes and their options; a missing id yields an empty result, not an error.
+static func definition(id: String) -> Dictionary:
+ return Data.TYPES.get(id,{})
+
+static func node(spec: Dictionary, node_id: String) -> Dictionary:
+ for entry in spec.get("nodes",[]):
+  if entry.get("id","")==node_id: return entry
+ return {}
+
+static func node_ids(spec: Dictionary) -> Array:
+ var ids=[]
+ for entry in spec.get("nodes",[]): ids.append(entry.get("id",""))
+ return ids
 
 static func weighted(g, outcomes: Array) -> Dictionary:
  var total=0
@@ -294,20 +306,20 @@ static func item_rewards_issue(g, rows, allow_claimed: bool=false) -> String:
   ids.append(row.id)
  return ""
 
-static func enter_stage(g, id: String) -> String:
- var stage=flow_stage(g,id)
+static func enter_node(g, id: String) -> String:
+ var stage=node(definition(g.state.room_event.get("id","")),id)
  if stage.is_empty(): return "下一阶段不存在。"
  var options=[]
- for definition in stage.choices:
-  if not condition_met(g,definition.get("when",{})): continue
-  if definition.has("selector"):
-   var outcome=weighted(g,definition.outcomes) if definition.has("outcomes") else {}
-   for selected in selector_selections(g,definition.selector):
-    var choice=freeze_choice(g,definition,selected,outcome)
+ for author_choice in stage.choices:
+  if not condition_met(g,author_choice.get("when",{})): continue
+  if author_choice.has("selector"):
+   var outcome=weighted(g,author_choice.outcomes) if author_choice.has("outcomes") else {}
+   for selected in selector_selections(g,author_choice.selector):
+    var choice=freeze_choice(g,author_choice,selected,outcome)
     if not choice.is_empty() and choice.reward=="relic" and g.state.room_event.relic=="": choice={}
     if not choice.is_empty(): options.append(choice)
   else:
-   var choice=freeze_choice(g,definition)
+   var choice=freeze_choice(g,author_choice)
    if not choice.is_empty() and choice.reward=="relic" and g.state.room_event.relic=="": choice={}
    if not choice.is_empty(): options.append(choice)
  if stage.get("allow_refuse",false): options.append(refusal(g))
@@ -563,7 +575,7 @@ static func probe(g, effects: Array, option: Dictionary={}, cleanup: bool=false)
  g._resource_feedback=null
  g.state=original.duplicate(true)
  var issue=apply_effects(g,effects,g.state.room_event.refs,option.is_empty() and not cleanup)
- if issue=="" and not option.is_empty() and g.state.room_event.get("flow",false) and option.get("next","result")!="result" and option.reward=="none": issue=enter_stage(g,option.next)
+ if issue=="" and not option.is_empty() and g.state.room_event.get("flow",false) and option.get("next","result")!="result" and option.reward=="none": issue=enter_node(g,option.next)
  if issue=="" and cleanup and not g.state.room_event.held.is_empty(): issue="事件仍有尚未归还的装备。"
  if issue=="": issue=g.validate()
  g.state=original
@@ -662,14 +674,14 @@ static func execute(g, c: Dictionary) -> String:
     if option.reward=="relic":
      issue=apply_effects(g,[{"op":"relic","type":event.relic}],event.refs)
      event.report+="\n获得"+Relics.TYPES[event.relic].name+"。"
-    if event.get("flow",false) and option.get("next","result")!="result": issue=enter_stage(g,option.next)
+    if event.get("flow",false) and option.get("next","result")!="result": issue=enter_node(g,option.next)
     else: event.stage="result"
    g._emit("event",event.report)
   "reward":
    if p.type!="skip": issue=apply_effects(g,[{"op":"card","type":p.type}],event.refs)
    event.result_status="neutral"
    event.report="你放弃了这份报酬。" if p.type=="skip" else "获得「"+g.B.CARD_NAMES[p.type]+"」。"
-   if event.get("flow",false) and event.next_stage!="": issue=enter_stage(g,event.next_stage)
+   if event.get("flow",false) and event.next_stage!="": issue=enter_node(g,event.next_stage)
    else: event.stage="result"
   "leave":
    issue=apply_effects(g,event.get("cleanup_effects",[]),event.refs)
@@ -810,14 +822,15 @@ static func pressure_source_report(effects: Array) -> String:
 static func view(g) -> Dictionary:
  var e=g.state.room_event
  if e.is_empty() or g.state.phase!="event": return {}
- var stage=flow_stage(g,e.stage) if e.get("flow",false) and e.stage!="result" else {}
- var name=Data.TYPES[e.id].name+(" · "+stage.title if not stage.is_empty() else "")
- var intro=stage.intro if not stage.is_empty() else Data.TYPES[e.id].intro
- if not stage.is_empty() and e.stage==Data.TYPES[e.id].start_stage: intro=Data.TYPES[e.id].intro+"\n\n"+stage.intro
+ var spec=definition(e.id)
+ var stage=node(spec,e.stage) if e.get("flow",false) and e.stage!="result" else {}
+ var name=spec.name+(" · "+stage.title if not stage.is_empty() else "")
+ var intro=stage.intro if not stage.is_empty() else spec.intro
+ if not stage.is_empty() and e.stage==spec.get("start_node",""): intro=spec.intro+"\n\n"+stage.intro
  # Expose selection identity, never frozen outcomes/effects. UI groups by authored
  # source choice, while every physical card/equipment keeps its original command.
  var selections=[]
- var definitions=stage.choices if not stage.is_empty() else (Data.TYPES[e.id].get("choices",[]) if e.stage=="choice" else [])
+ var definitions=stage.choices if not stage.is_empty() else (node(spec,e.stage).get("choices",[]) if e.stage=="choice" else [])
  if not definitions.is_empty():
   for definition in definitions:
    if not definition.has("selector"): continue
@@ -874,8 +887,7 @@ static func validate(g) -> String:
  var e=g.state.room_event
  if e.is_empty() or not Data.TYPES.has(e.get("id","")): return "事件阶段不合法。"
  if e.get("result_status","neutral") not in RESULT_STATUSES or e.options.any(func(option):return option.get("result_status","neutral") not in RESULT_STATUSES): return "事件结果标记不合法。"
- var definition=Data.TYPES[e.id]
- var stages=definition.get("stages",[]).map(func(stage):return stage.id)
+ var stages=node_ids(definition(e.id))
  if e.get("stage","") not in (["reward","result"]+stages if e.get("flow",false) else ["choice","reward","result"]): return "事件阶段不合法。"
  if e.winner!=-1 or (e.relic!="" and not Relics.is_reward(e.relic)): return "事件结果未正确冻结。"
  if not e.get("held",{}) is Dictionary or not e.get("values",{}) is Dictionary or not e.get("cleanup_effects",[]) is Array: return "事件的暂存装备、计数或收尾效果记录不完整。"
