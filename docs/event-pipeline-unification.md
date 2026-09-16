@@ -4,19 +4,32 @@
 节点与事件链模型、存档表示与显式声明清单；内部实现以代码为准，接口语义以本文件为准。
 本文件不写执行结果：通过／失败／未执行只登记到 `docs/verification.md`。
 
-**状态：`needs-human-review`（理由见 §15）。** 实现者在本片人审通过前不得开工。
+**状态：人审已通过（2026-09-16，记录见下与 §13／§15）。实现者可在本记录落地后按 B1→B4 开工。**
 
 行号捕获于 commit `3bfec7e`；**函数名与稳定 id 才是锚点**，动手前用 `rg` 复算。
 
-## 协调者记录（2026-09-16）
+## 人审决定记录（协调者转写，2026-09-16）
 
-- 本契约已交付并落库。规划者标记 `needs-human-review`，**人审记录尚未产生**：按角色规则，
-  实现者不得开工，本片停在此关口，不得以"协调者建议"代替人审。
-- 协调者建议（供人裁定，尚未生效）：R1 保留冻结选项双布局＋显式声明；R5 校验取并集并逐条登记；
-  R8 不落地迁移脚本、设计留档；R2／R3／R4／R6／R7／R9／R10／R11／R12 按 §13 推荐执行。
-- 已核实的既有缺陷（**不属本片范围，待排期**）：`content_catalog.gd:308` 阶段选项的
-  `_availability()` 漏传 `data`，`has_relic` 写在阶段选项上永远无法通过校验；
-  阶段 id 保留字清单缺 `battle`／`loot`（两者是运行时阶段哨兵值）。
+来源：人审问答。以下四条为裁定原文摘要，覆盖本文件先前所有"待裁／建议"措辞。
+
+1. **计划：接受，按契约执行**——B1→B4 分批，每批以 E0 94 场景全绿收口；`needs-human-review` 已解除。
+2. **R8 启动期迁移脚本：不落地，设计留档**——§6.4 只保留为留档设计，不写脚本、不改启动链。
+3. **R5 校验取值：取并集并逐条登记**——§2.5 的每条放宽项必须列出对应既有反例断言的期望更新。
+4. **R1 由人澄清改写（原话）**：
+   > 是我表达错误，应当是最后的功能实现，即玩家看到的不变，后端完善 trigger 系统，
+   > 分条件可选和条件隐藏，可叠加
+
+   含义（协调者转写，本契约按此修订）：**终态是后端 trigger 系统的完善**——"条件可选（显示但禁用）"
+   与"条件隐藏（不生成）"是**两类可并存的模式**，且**条件可以叠加**（同一选项可同时声明多条条件、
+   两类模式同时生效）；玩家可见行为不变仍是硬要求。**"保留冻结选项双布局"不是设计目标，只是
+   E0 逐字节不变这一硬判据带来的兼容要求**（§6.1 按此措辞）。
+
+其余条目按 §13 推荐执行（R2／R3／R4／R6／R7／R9／R10／R11／R12），不再单独人裁。
+§15 的 `needs-human-review` 理由保留为历史记录，不再是关口。
+
+已核实的既有缺陷（**不属本片范围，待排期**）：`content_catalog.gd:308` 阶段选项的
+`_availability()` 漏传 `data`，`has_relic` 写在阶段选项上永远无法通过校验；
+阶段 id 保留字清单缺 `battle`／`loot`（两者是运行时阶段哨兵值）。
 
 ## 0. 领域、裁决与不变量
 
@@ -179,17 +192,24 @@ E0 冻结的不只是玩家可见文本，还包括**运行期数据布局**：`
 
 ### 2.3 选项级字段（合并后的唯一清单）
 
-新增／统一的字段：
-
 | 字段 | 取值 | 说明 |
 | --- | --- | --- |
-| `unavailable` | `"hide"`／`"disable"` | 可选覆盖节点默认；与 `hide_when_unavailable` 同时出现且冲突即拒绝 |
-| `hide_when_unavailable` | 布尔 | **兼容拼写**，等价 `unavailable:"hide"`；只为冻结产物键集而保留（见 §0.2、§13 R2） |
+| `conditions` | 1–8 条条目的数组 | **规范拼写**（新增能力，R1 澄清的 trigger 系统）：每条 `{"kind":…, "mode":"optional"\|"hidden", "reason":…, …kind 字段}`；可叠加，两类模式可同时声明；求值语义见 §5.3 |
+| `availability` | `{kind, ...}` | **兼容拼写**：等价于一条"按选项默认模式解析"的状态条件；只为 12 份内容与冻结产物键集而保留（§0.2、§13 R2） |
+| `unavailable` | `"hide"`／`"disable"` | 可选覆盖节点默认；决定该选项**未被显式 `mode` 约束的条目**的默认模式；与 `hide_when_unavailable` 冲突即拒绝 |
+| `hide_when_unavailable` | 布尔 | **兼容拼写**，等价 `unavailable:"hide"`（今日语义：状态条件与可行性探测**都**隐藏）；只为冻结产物键集而保留 |
+| `when` | `{counter\|selector, equals/minimum/maximum}` | **兼容拼写**：等价于一条 `mode:"hidden"` 的实例条件；kind 集合由 §5 的单一声明派生 |
 | `outcome_draw` | `"option"`／`"selection"` | 可选覆盖；只在有 `outcomes` 时有效 |
-| `when` | `{counter|selector, equals/minimum/maximum}` | 与现状一致，但校验与求值都走同一声明入口 |
-| `availability` | `{kind, ...}` | 与现状一致；kind 集合由 §5 的单一声明派生 |
 | `next` | `"result"`／节点 id／`{"event":"<id>","node":"<id>"}` | 缺省 `"result"`；跨事件形态见 §3.2 |
 | `encounter`／`item_rewards`／`selector`／`outcomes`／`recipe`／`effects`／`report`／`report_variants`／`detail`／`result_status`／`show_pressure_sources` | 不变 | 白名单合并后，普通与多阶段**都可使用全部字段**（能力不再按结构分家） |
+
+- 同一选项**不得**同时写 `conditions` 与 `availability`（两种容器只允许选一种）——否则拒收，
+  避免同一份资格出现两个真相源。
+- `mode` 只允许 `"optional"`（显示但禁用）与 `"hidden"`（不生成）；省略时按 §5.3 的模式解析。
+- **冻结产物键集（兼容要求，不是设计目标）**：用兼容拼写的内容，冻结选项里保留原键
+  （`availability` 原对象、`hide_when_unavailable` 原布尔、`when` 不进 staged 布局）；
+  用规范拼写 `conditions` 的新内容，冻结选项携带 `conditions` 数组（含 `mode`）。
+  两者由 §6.3 的存档校验同时接受，且都由 §5 的同一张声明表派生。
 
 删除：选项级 `pressure`／`pressure_source`（死分支，无内容、无测试可达）。
 
@@ -199,20 +219,36 @@ E0 冻结的不只是玩家可见文本，还包括**运行期数据布局**：`
 `definition.choices`／`definition.stages`／`definition.start_stage` 三种并行访问：统一走
 `Events.definition(id)`／`Events.node(definition, node_id)`／`Events.node_ids(definition)`。
 
-### 2.5 校验规则合并取值
+### 2.5 校验规则合并取值（人审：取并集并逐条登记）
 
-| 规则 | 现状普通 | 现状多阶段 | 合并后（取并集，只放宽不收紧） |
-| --- | --- | --- | --- |
-| `recipe` 与 `effects` | 必须且只能一个 | 不能同时出现 | 不能同时出现；允许只有 `outcomes` |
-| `effects` 上限 | 8 | 12 | 12（`outcome.effects` 另计 12） |
-| 空 `effects` | 只允许无奖励离开／战斗选项 | 允许任何 reward | 允许（含带 reward）；不得作为"未填效果"的默认 |
-| `hold_special`／`restore_held` | 禁止 | 允许 | 允许（保持 key 唯一＋cleanup 配平） |
-| 奖励选项的 `next` | 无 `next` | 必须 `"result"` | 带 reward 的选项必须结束事件（`"result"`） |
-| 节点 id 保留字 | — | `choice/keys/reward/result` | 单节点必须 `choice`；多节点追加 `battle`／`loot` 禁用（sentinel 占用） |
-| `allow_refuse` | 顶层默认 true | 每阶段默认 false | 节点必填、无默认 |
-| `start_node` 免费出口 | — | 必须可离开 | 保持（起始节点 `allow_refuse:true` 或无条件免费离开选项） |
+合并＝**并集，只放宽不收紧**（现有 12 份内容在新旧两套取值下都合法，见 §8.1）。
+每条放宽项必须同时登记既有反例断言／夹具的期望更新；**不得删除任何反例，只允许改写路径或新增**。
 
-以上只影响新内容准入；12 份迁移内容在两种取值下都合法（已在 §8.1 逐项核对）。
+| # | 放宽项 | 现状普通 | 现状多阶段 | 合并后（并集） | 既有反例断言／夹具的期望更新（逐条） |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `effects` 上限 | 8 | 12 | 12（`outcome.effects` 另计 12） | 无既有反例（没有 9–12 项普通选项的拒绝用例）→ 新增"12 项接受／13 项拒绝"用例 |
+| 2 | 空 `effects` | 只允许无奖励离开／战斗选项 | 允许任何 reward | 允许（含带 reward） | `content_cases.gd` 的 `bad_encounter`／`bad_victory_effect`／`bad_item_rewards`／`duplicate_item_groups` 用的 reward 是 `none`，拒绝理由与空 `effects` 无关 → 期望不变；新增"阶段选项空 `effects`＋reward `common`"正例 |
+| 3 | `hold_special`／`restore_held` | 禁止（`_references` 有专门拒绝分支） | 允许（key 唯一＋cleanup 配平） | 允许（保持 key 唯一＋cleanup 配平） | 无既有反例（`event_flow_cases` 用的都是正例）→ 删除普通拒绝分支，新增"普通节点声明 `hold_special` 且 cleanup 配平通过／不配平拒绝"两例 |
+| 4 | `recipe` 与 `effects` | 必须且只能一个 | 不能同时出现 | 不能同时出现；允许只有 `outcomes` | 无既有反例 → 新增"只有 `outcomes` 接受／`recipe`＋`effects` 拒绝"两例 |
+| 5 | `allow_refuse` | 顶层默认 true | 每阶段默认 false | 节点必填、无默认 | `content_cases.gd:142` `bad_refusal`（字符串值）路径改 `nodes[0].allow_refuse`，仍拒绝；新增"缺 `allow_refuse`"反例 |
+| 6 | 节点 id 保留字 | — | 挡 `choice/keys/reward/result` | 单节点必须 `choice`；多节点追加挡 `battle`／`loot` | 无既有反例 → 新增"多节点用 `battle`／`loot` 拒绝"与"单节点非 `choice` 拒绝"两例 |
+| 7 | 起始节点免费出口 | — | 必须可离开 | 保持（`allow_refuse:true` 或无条件免费离开） | `event_flow_cases.gd:468` `flow_no_exit` 路径改 `nodes[0].allow_refuse`，断言不变 |
+| 8 | 奖励选项的 `next` | 无 `next` | 必须 `"result"` | 带 reward 的选项必须结束事件（`"result"`） | 无既有反例（守卫在 `_flow_next`／reward 检查里）→ 新增"带 reward 且 `next` 指向节点即拒绝"一例 |
+
+**非放宽项但必须同批登记的路径改写**（断言与语义不变，只改访问路径）：
+
+| 位置 | 现状 | 合并后 |
+| --- | --- | --- |
+| `tests/content_cases.gd:26,29,30,33,39,43,46,53,60,65,70,75,81,88,94,105,113…` | `document.data.choices[0]…`、`tables.event[id].choices[0]…` | `document.data.nodes[0].choices[0]…`、`tables.event[id].nodes[0].choices[0]…` |
+| `tests/content_cases.gd` 全字段类型反例 | 事件文档字段集＝`schema_version/kind/id/name/intro/pool/choices/allow_refuse` | 字段集＝`schema_version/kind/id/name/intro/pool/start_node/nodes`（4 个非法值仍逐项拒绝） |
+| `tests/event_flow_cases.gd:95-140`（`document()` 夹具）、`:411`（模板读取）、`:466-486`（8 个反例） | `data.stages[0]`、`data.start_stage`、`data.cleanup_effects` | `data.nodes[0]`、`data.start_node`、`data.cleanup_effects`（cleanup 仍在定义级） |
+| `tests/event_flow_cases.gd:667`（`trapped_definition`） | `.stages`／`.start_stage` | `.nodes`／`.start_node` |
+| `tests/event_cases.gd:32-37` | `spec.has("choices")` 分支 | `spec.nodes.size()==1` 与多节点两条分支 |
+| `tests/event_ui_cases.gd:233` | `Catalog.compile(ui.game,[Flow.document()])` | 夹具随形态改写，断言不变 |
+| `content/templates/event.json`、`event_multistage.json.disabled` | 旧形态 | 新形态（§8.1），`content_cases.gd:12` 的"5 份模板"断言不变 |
+
+`build/event-oracle-20260916/event_oracle.gd` 只读 `Data.TYPES[id].name` 与键集合，**不改**，
+E0 命令保持不变。
 
 ## 3. 节点与事件链模型
 
@@ -257,11 +293,18 @@ E0 冻结的不只是玩家可见文本，还包括**运行期数据布局**：`
 ### 4.1 接口
 
 ```gdscript
-# 唯一求值入口：任何"这条选项现在是什么状态"的判断都走这里
+# 唯一求值入口：任何"这条选项现在是什么状态"的判断都走这里（含叠加条件的聚合）
 # request={"definition":Dictionary,"node":String,"choice":Dictionary,
 #          "selected":<empty|Dictionary|Array>,"purpose":"arrival"|"candidate"|"probe"|"execute"}
-# 返回 {"decision":String,"gate":String,"reason":String,"option":Dictionary}
+# 返回 {"decision":String,
+#       "gates":Array[Dictionary],   # 全部命中条目，按声明顺序；每条 {"gate","kind","mode","index","detail","reason"}
+#       "gate":String,               # 兼容单值 = 首个命中的 gate（无命中为 ""）
+#       "reason":String,             # 单条命中＝原文；多条 optional 命中＝按声明顺序 "\n" 连接
+#       "option":Dictionary}
 static func evaluate_option(g, request: Dictionary) -> Dictionary
+
+# 唯一的条目解析入口：把作者声明＋节点策略解析成规范条目列表（校验与求值共用，§5）
+static func condition_entries(node: Dictionary, choice: Dictionary) -> Array
 
 # 节点级构建／推进：普通与多阶段共用
 static func enter_node(g, node_id: String) -> String   # "" = 成功；否则具名 issue（替换 enter_stage）
@@ -271,76 +314,84 @@ static func enter_node(g, node_id: String) -> String   # "" = 成功；否则具
   `enter_node` 内部对每个作者选项调用 `evaluate_option`。
 - 消费侧：`candidates`（`purpose:"candidate"`）、`probe`／`probe_choice`（`purpose:"probe"`）、
   `execute`（`purpose:"execute"`）都从同一入口取"决定＋具名原因"，不再各自重算资格。
+- `gates` **必须按条目逐条记录**：同一选项命中多条条件时，不许只留一个笼统原因；
+  `gate`／`reason` 只是给旧签名的兼容投影。
 - 入口**只读**（与 `probe` 同款：状态副本＋恢复），唯一写状态的分支是 `enter_node` 在
   `purpose=="arrival"` 时把冻结选项写入 `state.room_event`。
 
 ### 4.2 结果词汇与具名 gate
 
-`decision`：
+`decision`（由 `gates` 按 §5.3 聚合）：
 
 | 值 | 含义 | 现状对应 |
 | --- | --- | --- |
-| `generated` | 已生成且当前可执行 | 冻结成功且候选 `valid` |
+| `generated` | 已生成且当前可执行（`gates` 为空） | 冻结成功且候选 `valid` |
 | `dropped` | **未生成**（结构性闸门，冻结前） | 1／2／5／10 与 `when` 不满足 |
-| `hidden` | 生成后被**隐藏**（策略或探测判定） | 3／4／6／8 与多阶段的隐式隐藏 |
-| `disabled` | 生成但**禁用**（保留按钮、带原因） | 普通事件保留 `availability`／效果不可行时的候选 |
+| `hidden` | 生成后被**隐藏**（有 `hidden` 模式条目命中；可同时带 `optional` 命中） | 3／4／6／8 与多阶段的隐式隐藏 |
+| `disabled` | 生成但**禁用**（只有 `optional` 模式条目命中；列出全部命中条目） | 普通事件保留 `availability`／效果不可行时的候选 |
 
-`gate` 具名清单（全部具名，无静默丢弃）：
+`gate` 具名清单（全部具名，无静默丢弃；每条命中都带 `index`（条目序号）＋`kind`＋`mode`＋`detail`，
+因此可区分到**每条条件**）：
 
-| gate | 现状出处 |
-| --- | --- |
-| `condition_unmet` | `enter_stage:302` |
-| `relic_pool_empty` | `start:45`（`relic_gate:"pool"`） |
-| `relic_already_offered` | `enter_stage:307,311`（`relic_gate:"claimed"`） |
-| `selector_empty` | `start:47-49`／selector 展开为空 |
-| `recipe_empty` | `start:52`／`freeze_choice:261` |
-| `freeze_failed` | `start:59`／`freeze_choice:264`（`random_freeze`） |
-| `availability_unmet` | `availability_issue` |
-| `probe_failed` | `probe_choice` 的效果探测失败 |
-| `encounter_invalid` | `probe_choice` 的战斗记录或胜利效果探测 |
-| `validate_failed` | `probe` 末尾 `g.validate()` |
-| `node_empty` | `enter_stage:314`（节点级） |
-| `chain_loop` | 新增（§3.3） |
+| gate | 明细字段 | 现状出处 |
+| --- | --- | --- |
+| `condition_unmet` | `kind`＝`counter`／`selector_count`，`detail`＝key／selector.kind | `enter_stage:302` |
+| `availability_unmet` | `kind`＝状态条件种类（§5 表），`detail`＝`""` | `availability_issue` |
+| `relic_pool_empty` | `kind`＝`relic_pool` | `start:45`（`relic_gate:"pool"`） |
+| `relic_already_offered` | `kind`＝`relic_offered` | `enter_stage:307,311`（`relic_gate:"claimed"`） |
+| `selector_empty` | `kind`＝`selector` | `start:47-49`／selector 展开为空 |
+| `recipe_empty` | `kind`＝`recipe` | `start:52`／`freeze_choice:261` |
+| `freeze_failed` | `kind`＝`feasibility`（`random_freeze`） | `start:59`／`freeze_choice:264` |
+| `probe_failed` | `kind`＝`feasibility` | `probe_choice` 的效果探测失败 |
+| `encounter_invalid` | `kind`＝`feasibility` | `probe_choice` 的战斗记录或胜利效果探测 |
+| `validate_failed` | `kind`＝`feasibility` | `probe` 末尾 `g.validate()` |
+| `node_empty` | 节点级（`enter_node` 的 issue） | `enter_stage:314` |
+| `chain_loop` | `kind`＝`chain` | 新增（§3.3） |
 
-`reason` 一律为**现状字符串原文**（候选原因、`reason_surface`、issue 文案），不得改写措辞。
+`reason` 一律为**现状字符串原文**（候选原因、issue 文案），不得改写措辞；多条 `optional` 命中时
+的新拼接规则见 §5.3（现有内容最多一条，原文不变）。
 
 ### 4.3 求值顺序（按声明参数化，必须与 §1.2 等价）
 
 ```
 evaluate_option(purpose):
-  0. when 不满足                    → dropped(condition_unmet)
-  1. relic_gate=="pool" 且名义 reward=="relic" 且遗物池为空 → dropped(relic_pool_empty)
+  E. entries=condition_entries(node, choice)        # 规范条目（§5），声明顺序
+  0. 实例条件（when／selector_count）命中 → 记 gate condition_unmet
+  1. relic_gate=="pool" 且名义 reward=="relic" 且遗物池为空 → 记 gate relic_pool_empty
   2. 有 selector:
-       selections=selector_selections(...)；为空 → dropped(selector_empty)
+       selections=selector_selections(...)；为空 → 记 gate selector_empty
        outcome_draw=="option" 且有 outcomes → weighted() 抽一次
-       逐 selection: freeze_one() → （claimed 闸门见 3）
+       逐 selection: freeze_one()
      无 selector: freeze_one()
-  3. relic_gate=="claimed" 且冻结后 reward=="relic" 且 room_event.relic=="" → hidden(relic_already_offered)
-  4. 按选项策略 unavailable=="hide" 时：probe_choice(...) 非空 → hidden(首个具名 gate)
-     策略 "disable" 时不在这里丢弃（留给候选阶段给原因）
+  3. relic_gate=="claimed" 且冻结后 reward=="relic" 且 room_event.relic=="" → 记 gate relic_already_offered
+  4. 按 freeze_one 的结果与状态条件条目：命中则记 availability_unmet／freeze_failed…
+  5. 聚合 gates（§5.3）→ decision／reason；hidden 或 dropped 时该选项不进入 options
 freeze_one():
   a. 有 outcomes 且 outcome_draw=="selection" → weighted() 抽一次（每 selection 一次）
-  b. recipe → compile()；为空 → dropped(recipe_empty)
+  b. recipe → compile()；为空 → 记 gate recipe_empty
   c. 效果合并／$selected 替换／remove_restraints 归一（顺序同 `freeze_choice`）
-  d. random_freeze=="always" 或效果含生成器 → freeze_effects()；issue → hidden(freeze_failed)
+  d. random_freeze=="always" 或效果含生成器 → freeze_effects()；issue → 记 gate freeze_failed
   e. 按 frozen_form 组装（in_place＝作者对象就地更新；staged＝固定字段序）
   f. item_rewards 冻结 → detail 解析 → result_status/selected 落位
+  g. 可行性探测（含状态条件）在 arrival 时可按模式隐藏、在 candidate 时给原因（§4.4）
 ```
 
 **顺序是判据的一部分**：第 1 步在冻结前、第 3 步在冻结后，正是 `relic_gate` 声明的语义；
-把任一闸门挪位会改变 `event` 域消耗 → E0 红。
+把任一闸门挪位会改变 `event` 域消耗 → E0 红。条目**求值顺序**不影响随机消耗（只影响 `gates` 顺序
+与 `reason` 拼接），但必须按声明顺序记录，保证 trace 与原因可复现。
 
 ### 4.4 各 purpose 的检查清单（必须逐项等价，不得多不得少）
 
 | purpose | 执行到哪一步 | 现状依据 |
 | --- | --- | --- |
-| `arrival` | 全部（含 4 步的 hide 丢弃），并把结果写入 `room_event.options` | `start`／`enter_stage` |
-| `candidate` | 第 4 步的探测结果只影响 `valid/reason`；不写状态 | `append_choice_candidate`→`probe_choice` |
+| `arrival` | 全部（含 4 步的 hidden 丢弃），并把结果写入 `room_event.options` | `start`／`enter_stage` |
+| `candidate` | 第 4 步的探测结果只影响 `valid/reason`；不写状态；`hidden` 的选项不会出现在这里（arrival 已丢掉） | `append_choice_candidate`→`probe_choice` |
 | `probe` | 同 `candidate`，另在"有后继节点且 reward=="none""时探测后继节点（现状的 `flow` 分支由 `next!="result"` 取代） | `probe:566` |
-| `execute` | **只**复核 `availability`（现状如此，不得改成全量探测，否则拒绝文案会变） | `execute:641` |
+| `execute` | **只**复核 `optional` 模式的状态条件（现状只查 `availability`，不得改成全量探测，否则拒绝文案会变） | `execute:641` |
 
-`reason_surface="secondary"` 的判定改为 `evaluation.gate=="availability_unmet"`，不再二次调用
-`availability_issue`（同一结果，去掉一处平行真相）。
+`reason_surface="secondary"` 的判定改为：`decision=="disabled"` 且 `gates` 非空且**每条命中都是
+状态条件条目**（`kind` ∈ §5 表）；不再二次调用 `availability_issue`（同一结果，去掉平行真相）。
+现有内容每次最多命中一条状态条件 → 与现状逐字节相同。
 
 ### 4.5 trace（debug 开关）
 
@@ -352,53 +403,107 @@ freeze_one():
   （用 E0 跑两遍证明）；release 默认关闭，运行不产出。
 - 不新增 `game.event_diagnostics()`（先前未授权），不加 View 字段。
 
-## 5. 状态条件种类的单一声明
+## 5. 状态条件的单一声明与叠加求值
 
-### 5.1 声明表与三处派生
+### 5.1 声明表与四处派生
 
 单一声明落在 `core/room_events.gd`（不新增文件、不新增依赖边）：
 
 ```gdscript
-# 唯一声明：一种状态条件一行；新增条件只改这里
+# 唯一声明：一种条件一行；新增条件只改这里。
+# required/optional＝该条目的作者字段；check＝内容校验；probe(g, entry) -> bool＝是否命中；saved＝存档键集
 static var CONDITIONS={
   "no_chastity_lock":{"required":[],"optional":[],"check":Callable,"probe":Callable},
   "has_relic":{"required":["type"],"optional":[],"check":Callable,"probe":Callable},
 }
 ```
 
-三处派生（都读同一张表，禁止再写 kind 字面量）：
+条件**条目**（entry）是统一后的求值单位，规范形状：
+
+```
+{"kind":"has_relic"|"no_chastity_lock"|…, "mode":"optional"|"hidden", "reason":String, <kind required 字段…>}
+```
+
+四种派生（都读同一张表，`core/` 内禁止再写 kind 字面量）：
 
 | 消费者 | 派生接口 | 现状平行真相 |
 | --- | --- | --- |
-| 内容校验 | `Events.condition_issue(g, availability, data) -> String` | `content_catalog._availability`（且多阶段路径漏传 `data`） |
-| 运行时求值 | `Events.condition_probe(g, availability) -> bool`（被 `evaluate_option` 第 4 步调用） | `availability_issue` 内的 `match` |
+| 条目解析 | `Events.condition_entries(node, choice) -> Array`（作者拼写＋节点策略 → 规范条目，含每条的模式） | 两套路径各自在代码里决定 |
+| 内容校验 | `Events.condition_issue(g, entry, data) -> String`（逐条目，含 `mode` 合法性） | `content_catalog._availability`（且多阶段路径漏传 `data`） |
+| 运行时求值 | `Events.condition_probe(g, entry) -> bool`（被 `evaluate_option` 调用） | `availability_issue` 内的 `match` |
 | 存档校验 | `Events.condition_saved_fields(kind) -> Array`（＝`["kind","reason"]+required`） | `snapshot.gd:389-397` 手写键集 |
 
 配套：`Events.condition_kinds() -> Array` 给测试枚举；`condition_issue` 校验未登记 kind 时返回
 与现状一致的拒绝文案（"尚未支持这种状态条件。"）。
 
-### 5.2 验收点：新增条件只改一处
+### 5.2 作者拼写 → 规范条目（四种现有拼写都在此收敛）
 
-- `condition_kinds()` 的集合，必须与内容校验能接受的集合、存档校验能接受的集合、运行时能求值的
-  集合**三者相等**；测试对每个 kind 各跑一遍"编译通过＋求值有结果＋存档往返通过"，并对未知 kind
-  跑一遍三者一致拒绝。
+| 作者拼写 | 解析出的条目 | 模式（§5.3 解析） | 现状出处 |
+| --- | --- | --- | --- |
+| `availability:{kind,reason,…}` | 1 条状态条件 | 状态条件默认 `optional`；`hide_when_unavailable:true` 时为 `hidden` | `floating_belt_cluster.leave`（has_relic）、`mysterious_woman_statue.offering.use_sleeve`（no_chastity_lock） |
+| `when:{counter\|selector,…}` | 1 条实例条件（`counter`／`selector_count`） | 固定 `hidden` | `succubus_three_games` 的 10 处 counter 条件、`mysterious_woman_statue` 的 1 处 selector 条件 |
+| `hide_when_unavailable:true` | 1 条可行性条件（`kind:"infeasible"`，明细由探测给出 `probe_failed`／`encounter_invalid`／`validate_failed`） | 固定 `hidden` | 6 处选项 |
+| 节点 `relic_gate` | 1 条奖励遗物条件（`relic_pool`／`relic_offered`） | 固定 `hidden` | 普通＝池闸门、多阶段＝冻结后闸门 |
+| `conditions:[…]`（规范拼写） | 逐条解析，两类模式可混 | 每条自带 `mode` | 新增能力，本片无内容使用 |
+
+### 5.3 模式解析与叠加求值语义（本片最终规则）
+
+**模式解析（优先级由高到低）**：
+
+1. 条目自带 `mode`（只在规范拼写 `conditions` 下允许）；
+2. 选项 `unavailable`（`"hide"`→`hidden`／`"disable"`→`optional`）；
+3. `hide_when_unavailable:true` → `hidden`（今日语义：状态条件与可行性**都**隐藏）；
+4. 种类默认：状态条件＝`optional`（显示但禁用）；可行性条件＝节点 `unavailable` 默认
+   （普通节点 `disable`、多阶段节点 `hide`）；实例条件与奖励遗物条件＝`hidden`。
+
+**叠加求值（同一条目列表内，AND 语义）**：
+
+1. 所有条目都要满足才算"通过"；命中（不满足）的条目按声明顺序收集进 `gates`；
+2. 聚合优先级：**任一 `hidden` 命中 → `decision="hidden"`**（其余命中一并记进 `gates`）；
+3. 否则任一 `optional` 命中 → `decision="disabled"`，`gates` 列出**全部**命中的条目；
+4. 全部通过 → `decision="generated"`，`gates` 为空；
+5. `reason` 拼接：单条命中＝该条 `reason` 原文（现有内容走这条，逐字节不变）；
+   多条 `optional` 命中＝按声明顺序用 `"\n"` 连接；`hidden` 命中的 `reason` 供 trace 与节点 issue 使用。
+
+**与现状的等价性（12 份内容，逐项）**：每份内容的每个选项最多解析出**一条**状态条件条目，
+模式与现值一致（`floating_belt_cluster.leave`＝`optional`＋隐藏覆盖、`mysterious_woman_statue`
+的 `use_sleeve`＝`optional`、`when`＝`hidden`），因此 `gates` 长度恒为 0 或 1，
+`reason`／`reason_surface`／`decision` 与现状逐字节相同 → E0 不变。
+
+### 5.4 验收点：新增条件只改一处、叠加不改变现有内容
+
+- `condition_kinds()` 的集合，必须与**内容校验**能接受的集合、**运行时求值**能求值的集合、
+  **存档校验**能接受的集合**三处相等**（条目解析 `condition_entries` 是三者共用的一条路径，
+  不单独决定 kind 集合）；测试对每个 kind 各跑一遍"编译通过＋求值有结果＋存档往返通过"，
+  并对未知 kind 跑一遍三处一致拒绝。
 - 回归对照：`tests/persistence_cases.gd:event_conditions`（`has_relic` 往返＋5 类畸形拒绝）保持通过；
   `tests/content_cases.gd` 的 `has_relic` 正例与三类反例保持通过。
 - 撤销任一消费者的派生（回到手写列表）必须让这条用例变红——这是本条判据的"反向对照"。
+- 叠加能力上线后，12 份内容的 `decision`／`gates`／`reason` 在 E0 94 场景下不变（见 §10 场景 20）。
 
 ## 6. 存档表示
 
-### 6.1 不变量：`room_event` 与冻结选项逐字节不变
+### 6.1 冻结产物逐字节不变（**E0 硬判据带来的兼容要求，不是设计目标**）
 
 `room_event` 的键集合与键序、冻结选项的字段布局都**保持不变**（`flow`、`next_stage`、`held`、
 `values`、`cleanup_effects`、`refs`、`reward`、`winner`、`relic` 继续原样写入）。
+**这不是"要保留双布局"的设计意图**：按人审 R1 澄清，终态是后端 trigger 系统（条件可选／条件隐藏／
+可叠加，§5）与单一定义形态＋单求值入口；冻结产物的两套布局之所以并存，只因为 E0 把"玩家可见不变"
+钉在了逐字节摘要上（§0.1）。因此：
+
+- 新内容用规范拼写（`conditions` 等）时不受旧布局约束，冻结算法规格见 §2.3；
+- 旧内容的兼容布局由**一条声明**（`frozen_form`）选择，而不是两套构建器；
+- 若将来人决定放松 E0 判据（重取基线），删除兼容布局只需要把 `frozen_form` 与兼容拼写移除，
+  求值入口、声明表、条目解析都不受影响——这正是"兼容层可拆"的判据。
+
 `flow` 与 `next_stage` 在新实现里降级为**兼容镜像**：`flow` 仍按定义节点数（>1）写入，
 `next_stage` 仍写 `""`（现状从未赋值），但**不再有任何运行分支读它们**（`probe`／`candidates`／
 `execute`／`validate` 的分支由 `next` 的声明形态与 `node_ids` 取代）。
 
 ### 6.2 新增键只在链实际发生时出现
 
-`chain` 只在跨事件跳转后出现（§3.3），12 份迁移内容与 E0 夹具都不产生它。
+`chain` 只在跨事件跳转后出现（§3.3）；用规范拼写 `conditions` 的新内容才会在冻结选项里出现
+`conditions` 键——12 份迁移内容与 E0 夹具都不产生这两个键。
 
 ### 6.3 事件段存档校验改为按"选项自身形态"判定
 
@@ -407,14 +512,23 @@ static var CONDITIONS={
   （`declared`＝该节点选项 id ＋ 节点 `allow_refuse` 时的 `refuse`）——
   由 `flow` 标志分支改为按选项键判定；`staged` 选项都有 `next`，`in_place` 选项都没有，
   因此现状两种内容的结论不变；
+- **状态条件两条分支，都从 §5 的同一张表派生**：
+  - `option.availability`（兼容）：键集恰好等于 `condition_saved_fields(kind)`（现状不变）；
+  - `option.conditions`（规范）：必须是 1–8 条数组，每条键集恰好等于
+    `condition_saved_fields(kind)+["mode"]`，且 `mode∈{"optional","hidden"}`；
+  - 两种键**不得同时出现**；未知 kind／多余键／缺字段一律拒绝；
 - 节点集合判定用 `node_ids(definition)` 替换 `definition.stages`；
 - `values`／`held`／`cleanup_effects` 的检查保持（两种形态的实例本来就都带这些键）。
 
-### 6.4 启动期迁移脚本（形态与集成点，须人审）
+### 6.4 启动期迁移脚本（**人审：不落地，设计留档**）
 
-**推荐结论：本片不需要迁移脚本。** 因为 §6.1 保持存档形态不变，旧档由新代码直接读取；
-强行迁移没有可迁移的差异，只增加误写风险。下面是"若人选了会改变存档形态的选项（§13 R1）"
-时必须落地的设计，供人审：
+人审结论（2026-09-16，记录见文件头）：**不落地迁移脚本**，不改启动链；本节只留档设计，
+供将来真正改变存档形态时复用。
+
+**为什么现在不需要**：§6.1 按 E0 硬判据保持存档形态不变，旧档由新代码直接读取；
+没有可迁移的差异，强行迁移只增加误写风险。
+
+留档设计（若将来需要）：
 
 - 位置：`spire-godot/tools/migrate_saves.gd`（`SceneTree` 脚本，用引擎解析 `user://saves/`）＋
   可选 `tools/migrate.ps1` 包装（复用 `find-godot.ps1` 的引擎定位）。
@@ -460,20 +574,25 @@ static var CONDITIONS={
   模块规范只有"新增文件须有明确职责边界；大文件按职责拆，不按行数硬拆"。
 - 因此**本片不新增 core 文件**（`room_events.gd` 现状 890 行、`content_catalog.gd` 509 行，
   增长量在本片范围内可控，且拆分既有文件属 E5，先前未授权）。
-- 若人坚持 500 行硬线：最小清单为 `core/event_conditions.gd`（§5 的声明表与三处派生，约 80 行）
-  与 `core/event_options.gd`（§4 的求值入口＋冻结管线＋trace，约 250 行），允许依赖
+- 若人坚持 500 行硬线：最小清单为 `core/event_conditions.gd`（§5 的声明表与四处派生，约 90 行）
+  与 `core/event_options.gd`（§4 的求值入口＋条目解析＋冻结管线＋trace，约 260 行），允许依赖
   `data/room_events`、`core/room_events`（回调方向需再定），**但这仍需先拆既有 890 行文件**，
   建议另开切片（原 E5）。
 
-### 7.4 依赖规范草案（cleaner／架构分类执行）
+### 7.4 依赖规范（正式文件见 `docs/event-pipeline-dependency-spec.md`）
+
+本契约的同批交付物：`docs/event-pipeline-dependency-spec.md`（cleaner 与架构分类的检查对象）。
+摘要：
 
 1. 事件相关模块的 `preload` 集合不得超出 `data/room_events.gd`、`data/relics.gd`、
    `data/card_rules.gd`、`core/*`（不含 `ui/`）；
 2. `core/` 不得出现 `ui/` 字样（现状检查保持）；
 3. 事件定义访问只经 `definition/node/node_ids` 三个接口：`core/` 内不得再出现
    `\.stages`／`start_stage`／`\.choices` 直读（普通节点的 `choices` 只允许出现在 `node` 返回值上）；
-4. 状态条件 kind 只允许在 `CONDITIONS` 声明表内出现字面量；三处消费者的 kind 集合必须相等
-   （由 §5.2 的用例执行，不靠源码扫描）。
+4. 状态条件 kind 只允许在 `CONDITIONS` 声明表内出现字面量；内容校验／运行时求值／存档校验
+   三处枚举出的 kind 集合必须相等（由 §5.4 的用例执行，不靠源码扫描）；
+5. 兼容拼写（`availability`／`when`／`hide_when_unavailable`）只允许出现在条目解析与冻结投影处，
+   不得新增第二个消费点。
 
 ## 8. 内容迁移（12 份＋模板）
 
@@ -527,6 +646,7 @@ static var CONDITIONS={
 | `docs/content-generation.md` | §7 事件生成与结算（242／275／279／285／289／291／295 行等）：两形态合并后的描述与"必须填写的声明" |
 | `docs/content-extension.md` | 事件流程段（133–150 行）与内容表（124 行）的事件行 |
 | `docs/event-structure.md` | §4 的 E1–E3 计划被本片吸收；§1 结构地图与 §7.2 的丢弃点编号需在落地后同步（**跨片越界，须协调者另派**） |
+| `docs/event-pipeline-dependency-spec.md` | 本片新增的依赖规范（§7.4 指向它；由本契约同批交付） |
 | `docs/verification.md` | 只登记结果（validator 负责） |
 | 根 `AGENTS.md` 文档入口表 | 若本契约要进入口，由协调者按 `global-agent-baseline` 处理 |
 
@@ -539,10 +659,10 @@ static var CONDITIONS={
 
 | 批 | 范围 | 判据 |
 | --- | --- | --- |
-| B1 定义形态归一 | 定义级 `nodes/start_node` 落地；内容 12 份＋模板＋生成来源迁移；`content_catalog` 单一形态校验；`view`／`validate`／`snapshot`／测试夹具改走 `definition/node/node_ids`；`enter_stage`→`enter_node`（行为仍按现状两条分支） | E0 全绿 ＋ `-Suite event_flow,events,content,architecture -Impact` ＋ `check-content.ps1` |
-| B2 声明与单入口 | 节点／选项声明写入内容；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖普通与多阶段；四通道收敛；删除死分支与平行真相 | E0 全绿 ＋ 同上 ＋ 新具名 check（§10 的 03–05／12–13） |
-| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`）；`g.event_trace`＋开关；测试断言；release 不产出 | E0 全绿（开关开／关各跑一遍）＋ `persistence` 断言 trace 不进存档 |
-| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | E0 全绿 ＋ 链用例 ＋ `architecture`／`persistence` |
+| B1 定义形态归一 | 定义级 `nodes/start_node` 落地；内容 12 份＋模板＋生成来源迁移；`content_catalog` 单一形态校验（含 §2.5 并集规则与路径改写）；`view`／`validate`／`snapshot`／测试夹具改走 `definition/node/node_ids`；`enter_stage`→`enter_node`（行为仍按现状两条分支） | E0 全绿 ＋ `-Suite event_flow,events,content,architecture -Impact` ＋ `check-content.ps1`；§10 场景 01／02／06／07／20 |
+| B2 声明与单入口 | 节点／选项声明写入内容；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖普通与多阶段；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；删除死分支与平行真相 | E0 全绿 ＋ 同上 ＋ §10 场景 03–05／08／12／13／15–18 |
+| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`）；叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | E0 全绿（开关开／关各跑一遍）＋ §10 场景 10／19 ＋ `persistence` 断言 trace 不进存档 |
+| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | E0 全绿 ＋ §10 场景 11／12 ＋ `architecture`／`persistence` |
 
 每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1 与 B2 之间代码必须可跑可测
 （现状两条分支仍在，只是由节点形态驱动）。
@@ -570,7 +690,7 @@ static var CONDITIONS={
     规则侧；`tests/content_cases.gd` 与 `tests/persistence_cases.gd` 各出对应断言）
     Given `Events.condition_kinds()`；When 逐 kind 造最小合法 `availability`（普通选项与阶段选项各一次）；
     Then 内容编译通过、运行时求值返回非空、存档往返通过且键集＝`condition_saved_fields(kind)`；
-    未知 kind 在三处一致拒绝；三处 kind 集合相等。
+    未知 kind 在三处一致拒绝；三处 kind 集合相等（条目解析为三者共用路径）。
 06. `event_stage_available_condition_validates`（`tests/content_cases.gd`，`content`）
     Given 阶段选项声明 `has_relic`；When 编译；Then 通过（覆盖 `_availability` 漏传 `data` 的现状缺口），
     未登记遗物／缺 `type`／多余键仍拒绝。
@@ -602,7 +722,38 @@ static var CONDITIONS={
     Given 每个事件的冻结选项（普通与多阶段各取样例）；When 存档往返；Then 选项与 `room_event`
     逐字段相等，且 `option.has("next")` 的校验分支按 §6.3 判定。
 
-场景 01–14 是 B1–B4 的逐步落地对象；未落地即未完成。
+**叠加条件（R1 澄清后的 trigger 系统能力；夹具用规范拼写 `conditions`，本片无内容使用）**
+
+15. `event_single_optional_condition_keeps_choice_visible`（`tests/event_flow_cases.gd`，`event_flow`）
+    Given 夹具选项声明 1 条 `mode:"optional"` 的 `has_relic`（未持有）；When `arrival` 构建与
+    `candidate` 求值；Then 选项**仍在** `room_event.options` 里、候选 `valid=false`、
+    `reason`＝该条 `reason` 原文、`gates` 长度 1 且 `gate=="availability_unmet"`、
+    `reason_surface=="secondary"`。
+16. `event_single_hidden_condition_removes_choice`（同文件）
+    Given 夹具选项声明 1 条 `mode:"hidden"` 的 `has_relic`（未持有）；When 构建；
+    Then 选项**不在** `room_event.options`／候选里，`decision=="hidden"`、`gates` 长度 1。
+17. `event_stacked_condition_modes_combine`（同文件）
+    Given 同一选项声明两条（`optional` 的 `has_relic` ＋ `hidden` 的 `no_chastity_lock`），
+    两条同时命中；When 构建；Then `decision=="hidden"` 且选项不生成；`gates` **同时含两条**
+    （按声明顺序，`mode` 分别为 `optional`／`hidden`）；把 `hidden` 那条置为不命中时，
+    同一选项变为 `disabled`、`gates` 只剩 `optional` 那条。
+18. `event_stacked_same_mode_lists_all_hits`（同文件）
+    Given 同一选项两条 `optional`（两条都命中）与一条 `optional`（不命中）；When `candidate` 求值；
+    Then `decision=="disabled"`、`gates` 恰为命中的两条（声明顺序）、
+    `reason`＝两条 `reason` 用 `"\n"` 连接、未命中的那条不出现在 `gates` 里；
+    `hidden` 模式的两条叠加同样只列命中项。
+19. `event_stacked_condition_trace_and_release`（`tests/event_cases.gd`，`events`；
+    存档侧同断言落 `tests/persistence_cases.gd`，`persistence`）
+    Given 开启 trace 的夹具；When 构建与提交；Then trace 对**每条命中条件各一条**记录
+    （`kind`／`mode`／`gate`／`reason`／`index` 齐备，`index` 与声明序一致）；
+    When 关闭开关（release 路径）；Then `g.event_trace` 为空且候选／View／存档／`rng` 摘要与开启时相同。
+20. `event_stacked_conditions_keep_current_content`（`tests/content_cases.gd`，`content`）
+    Given 12 份迁移内容；When 逐选项跑 `condition_entries`；Then 每个选项解析出**恰好一条**条目
+    （形状·条件 6 处＝`optional`＋`hidden` 覆盖、其余状态条件＝`optional`、`when`＝`hidden`、
+    奖励遗物＝`hidden`），且 `gates` 长度恒为 0/1、`reason` 与基线逐字节相同；
+    叠加能力上线前后 E0 94 场景摘要一致（由 §12 第 0 条命令执行）。
+
+场景 01–20 是 B1–B4 的逐步落地对象；未落地即未完成。15–20 属 B2／B3（能力上线即须有具名 check）。
 
 ## 11. Validator procedure（agent 可运行；操作必须走真实输入）
 
@@ -628,27 +779,36 @@ static var CONDITIONS={
    - 多阶段事件（缚疗修女、魅魔三局赌牌）逐阶段点击，阶段标题与选项与基线一致；
    - 存档并在正式入口继续：选项、阶段、报告一致（旧档路径不变）；
    - 关闭 debug 开关：`g.event_trace` 为空。
-7. 归属判定：失败先分"实现代码／测试脚本／环境／程序本身"；不确定就保持未分类上报，
+7. 叠加条件证明（夹具能力，无内容依赖；判据是 §10 场景 15–18 的布尔 check）：
+   在测试夹具上逐项运行"单条可选／单条隐藏／两类叠加／同类多条叠加"，核对
+   `decision`／`gates`（条数、顺序、`mode`、`kind`）／`reason`（多条 `optional` 时 `"\n"` 连接）；
+   再开 trace 断言每条命中条件各一条记录，关开关后 `g.event_trace` 为空且摘要不变；
+   释放路径（关闭开关）不得产出 trace。
+8. 归属判定：失败先分"实现代码／测试脚本／环境／程序本身"；不确定就保持未分类上报，
    不自动改产品代码，不动判据。
-8. 证据：`build/checks/<id>/check-rules.log`、`check-ui.log`、`summary.json`、oracle 输出；
+9. 证据：`build/checks/<id>/check-rules.log`、`check-ui.log`、`summary.json`、oracle 输出；
    结果与域写 `docs/verification.md`（validator 负责，不在本契约宣称通过）。
 
 ## 12. 完成定义（DoD）
 
-命令（每批一次 ＋ 收尾一次；不无故重复）：
+命令（每批一次 ＋ 收尾一次；不无故重复）。**第 0、2 条命令覆盖 §10 全部 20 个具名 check 的分类**：
 
 ```powershell
-# 0) 冻结判据（每批必跑；基线只读）
+# 0) 冻结判据（每批必跑；基线只读；判据＝94 场景 0 失败）
 & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
-# 1) 内容包校验
+# 1) 内容包校验（改 content/packs 或 content/templates 后必跑）
 & tools/check-content.ps1
-# 2) 规则门（-Impact 会并入 persistence、rewards、pressure、equipment、special_equipment）
+# 2) 规则门（分类点名：events＝场景 01/03/09/19；event_flow＝02/04/08/11/12/15-18；
+#    content＝06/07/20；persistence＝10/14/19 存档侧；architecture＝05/13；
+#    -Impact 追加 persistence、rewards、pressure、equipment、special_equipment、tower）
 & tools/check.ps1 -Suite event_flow,events,content,architecture -Impact -TimeoutSeconds 900
 # 3) 界面回归（投影不动）
 & tools/check.ps1 -UIOnly -UISuite events -TimeoutSeconds 600
 ```
 
-必过的场景：§10 的 01–14 全部具名 check；E0 的 94 场景 0 失败；`check-content.ps1` 通过。
+必过的场景：§10 的 01–20 全部具名 check；E0 的 94 场景 0 失败；`check-content.ps1` 通过；
+`docs/event-pipeline-dependency-spec.md` §4.2 的 5 条检查全部落地并通过（同批判据，不得择一执行）；
+§2.5 的两张表逐条落地（放宽项 8 条 ＋ 路径改写行），**既有反例只允许改写路径或新增，不得删除**。
 
 必有的证据：oracle 比对输出（含 `EVENT RESULT: PASS`）、两份 check 日志 ＋ `summary.json`
 （`status=passed`、指纹稳定）、§8.3 的文档同步记录（由协调者派单，不在本片内改的那些要留
@@ -658,31 +818,38 @@ static var CONDITIONS={
 
 - 任一必跑命令未执行、失败、未知或被跳过；`summary.json` 为 `source_changed`／`failed`／`plan`；
 - E0 出现红项而未解决、未显式上报人裁；用 `--write=` 重取基线让红变绿；
-- 冻结选项布局被"顺手统一"（`options`／`snapshot` 变红）而未经人裁；
-- 定义了 kind 集合以外的地方出现 kind 字面量、三处消费者枚举不一致；
+- 冻结产物被"顺手统一"（`options`／`snapshot` 变红）——§6.1 已定：兼容布局是 E0 判据带来的要求，
+  未经人裁不得改动；
+- 声明表以外的地方出现状态条件 kind 字面量、四处消费者枚举不一致；
+- 叠加求值未按 §5.3：命中多条时只留一条原因、只给笼统 gate、或 `gates` 顺序与声明序不一致；
+- `conditions` 与 `availability` 同时出现在同一选项（两个真相源）而未被拒收；
 - 出现静默丢弃（无 trace 记录、无 gate 名）；
 - trace 进入 `state`／存档／View／日志，或 release 运行产出 trace；
 - 新增 `get_view` 只读字段、新增 `game.event_diagnostics()`、改 `ui/` 或 `core/game.gd` 提交管线；
 - 删／弱化既有断言（含 `event_flow_cases` 的隐藏选项断言、`persistence_cases:event_conditions`）换绿灯；
+- 落地迁移脚本或改启动链（人审：不落地）；
 - 12 份内容之外的内容包被写入链形态（E0 不覆盖）；
 - 宣称完整回归或提速。
 
-## 13. 需人裁清单（选项／后果／推荐）
+## 13. 裁定记录（R1 按人审澄清改写；其余按推荐执行）
 
-| # | 问题 | 选项与后果 | 推荐 |
-| --- | --- | --- | --- |
-| R1 | 冻结选项布局是否统一 | 保留 `frozen_form` 双布局＋显式声明（E0 可全绿）／统一为 staged（`options`＋`snapshot` 摘要必然变红，须重取基线并重新定义"语义不变"） | 保留双布局 |
-| R2 | `hide_when_unavailable` 是否改名 | 保留为 `unavailable:"hide"` 的兼容拼写（那 6 处选项的 `snapshot`／`options` 摘要不变）／只留新名（这 6 处选项的 `snapshot`／`options` 变红） | 保留兼容拼写 |
-| R3 | 声明粒度 | 节点默认＋选项覆盖（可表达同节点内差异）／仅节点级（无法表达普通事件 fight 藏、infusion 不藏）／仅选项级（普通非选择器选项会把策略写进存档→红） | 节点默认＋选项覆盖 |
-| R4 | `schema_version` | 事件升 2（新旧形态可判、迁移可判）／保持 1（靠字段形状判，工具易误判） | 升 2 |
-| R5 | 校验规则合并取值（§2.5） | 取并集（只放宽：`effects≤12`、空 `effects` 任意 reward、保留字加 `battle/loot`）／各自保留（则能力仍分家） | 取并集并逐条登记 |
-| R6 | 空节点策略 `empty_node`（实测新增差异） | 按现值声明（普通 allow、多阶段 fail）／统一为 fail（普通事件获得"无可选项即失败页"兜底，属玩家可见变化） | 按现值声明；统一另案 |
-| R7 | 事件链是否本片实现 | 实现最小跳转＋环守卫＋夹具（B4）／只留形态不实现（"分流指向事件"落空） | 实现（B4） |
-| R8 | 启动期迁移脚本 | 不落地（本片存档形态不变，无事可做）／落地并把冻结布局统一（与 R1 绑定） | 不落地；设计留档（§6.4） |
-| R9 | trace 落点 | `g.event_trace_enabled`＋`g.event_trace`（同 `copy_router_failures` 模式）／不落地 trace（定位能力退回现状）／`game.event_diagnostics()`（先前未授权，越白名单） | 前者 |
-| R10 | 删除死分支 | 删除选项级 `pressure`／`pressure_source`（无内容、无测试可达）／保留 | 删除 |
-| R11 | 是否新增 core 文件 | 不新增（本仓无行数门禁）／若按 500 行硬线：`core/event_conditions.gd`＋`core/event_options.gd`，且需先拆既有 890 行文件（E5） | 不新增 |
-| R12 | `get_view` 新只读字段 | 0 个（投影不动，缺口靠 trace 在 core 内解释）／新增 `hidden_options`（越白名单，且会让 UI 可见语义变化） | 0 个 |
+人审 2026-09-16（原话见文件头）：计划接受；R8 不落地、设计留档；R5 取并集并逐条登记；
+**R1 由人澄清改写**；其余按本表推荐执行。本表从此为决定记录，不再是待裁清单。
+
+| # | 问题 | 裁定 |
+| --- | --- | --- |
+| R1 | ~~冻结选项布局是否统一~~ → **终端功能＝后端 trigger 系统完善**：条件可选（显示但禁用）与条件隐藏（不生成）两类模式**可并存、可叠加**；玩家可见不变 | 按人审改写：§5 的条目模型＋§5.3 叠加语义＋§4 的 `gates` 逐条记录；`frozen_form` 降为**E0 兼容要求**（§6.1），不是设计目标；规范拼写 `conditions` 为新增能力，本片无内容使用，只由夹具覆盖（§10 场景 15–18） |
+| R2 | `hide_when_unavailable` 是否改名 | 按推荐：保留为兼容拼写（与 `unavailable` 冲突即拒收）；6 处选项摘要不变 |
+| R3 | 声明粒度 | 按推荐：节点默认＋选项覆盖（`mode` 优先级见 §5.3）；兼容拼写条目按选项默认模式解析 |
+| R4 | `schema_version` | 按推荐：事件升 2 |
+| R5 | 校验规则合并取值 | **人审：取并集并逐条登记**；登记表见 §2.5（8 条放宽项＋路径改写清单＋既有反例期望更新） |
+| R6 | 空节点策略 `empty_node` | 按推荐：按现值声明（普通 allow、多阶段 fail）；统一为 fail 属玩家可见变化，另案 |
+| R7 | 事件链是否本片实现 | 按推荐：实现最小跳转＋环守卫＋夹具（B4） |
+| R8 | 启动期迁移脚本 | **人审：不落地，设计留档**；§6.4 保留留档设计，不改启动链 |
+| R9 | trace 落点 | 按推荐：`g.event_trace_enabled`＋`g.event_trace`（同 `copy_router_failures` 模式）；叠加求值下每条命中条件各一条记录 |
+| R10 | 删除死分支 | 按推荐：删除选项级 `pressure`／`pressure_source` |
+| R11 | 是否新增 core 文件 | 按推荐：不新增（本仓无行数门禁）；500 行硬线属另案（E5） |
+| R12 | `get_view` 新只读字段 | 按推荐：0 个（投影不动；条件命中明细只进 core 内 trace） |
 
 ## 14. 假设与最可能爆掉的假设
 
@@ -701,12 +868,14 @@ static var CONDITIONS={
    多余键／空 `effects` 等），某几条在新规则下从"拒绝"变"接受"或反之。这不是产品缺陷，
    但会让 B1／B2 变红；处理方式是逐条按 §2.5 更新期望，**不得删除**。
 6. **链语义污染 12 份内容**：迁移时误写 `next` 的对象形态或 `chain` 键 → E0 红。
-7. 若人选择 R1 的"统一冻结布局"，则 E0 不再是本片判据，需要重取基线并重新定义验收——
-   本契约的分批、DoD 与假设都要重写，属重新规划而不是"顺手改一下"。
+7. 若把 §5.3 的叠加语义改成"OR／任一满足即可选"或"optional 优先于 hidden"，会出现同一选项
+   在两种模式下给出不同 `gates`／`reason` 的实现分歧——判据是 §10 场景 17／18，
+   规则以 §5.3 为准，改规则属重新规划。
 
-## 15. `needs-human-review` 判定与逐条理由
+## 15. `needs-human-review` 判定（历史记录）
 
-**判定：是（`needs-human-review`）。** 实现者不得在人审记录落地前开工。
+**原判定：是（`needs-human-review`）。人审已于 2026-09-16 通过，记录见文件头与 §13；
+本节保留当时的理由，供追溯，不再是关口。**
 
 1. **内容包 schema 变更**：12 份外部 JSON、2 份模板、1 处生成来源、7 份文档受影响；形态由人裁第 2 条
    授权，但**具体字段清单与默认值**（§2）需要人确认。
@@ -714,8 +883,8 @@ static var CONDITIONS={
    "是否仍要迁移脚本"（§6.4）这一对结论。
 3. **新增能力**：跨事件跳转与 `chain` 存档键是新能力（人裁第 5 条的方向），当前无任何内容使用，
    其语义（`values`／`held`／`cleanup`／`event_seen`／`room.event` 的延续规则）需人确认。
-4. **计划包含两处实测新增的隐式差异**（e 空节点处理、f 冻结选项布局），超出人列的 a–d；
-   其中 f 直接受 E0 判据约束，必须由人确认"保留双布局"。
+4. **计划包含两处实测新增的隐式差异**（e 空节点处理、f 冻结产物布局），超出人列的 a–d；
+   其中 f 直接受 E0 判据约束。
 5. **依赖规范与文件拆分**：本片结论是不新增文件、不新增依赖边；若人要求按 500 行硬线拆，
    等于重新授权 E5（先前明确未授权），属范围变更。
 6. **判据相互作用**：E0 全绿这一判据与"内容必须合并成一种形态"存在张力（冻结产物不能被统一），
