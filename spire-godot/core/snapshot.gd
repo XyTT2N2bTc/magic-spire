@@ -388,7 +388,13 @@ static func check(s: Dictionary, g) -> String:
    if not fields(option,"id:s label:s detail:s reward:s effects:a") or option.reward not in ["common","uncommon","rare","advanced","relic","none"] or not option.effects.all(func(e):return effect(e,g)): return "事件选项或代价记录损坏。"
    if option.has("availability"):
     var availability=option.availability
-    if not fields(availability,"kind:s reason:s") or availability.size()!=2 or availability.kind!="no_chastity_lock" or availability.reason.strip_edges().is_empty(): return "事件选项的状态条件损坏。"
+    if not fields(availability,"kind:s reason:s") or availability.reason.strip_edges().is_empty(): return "事件选项的状态条件损坏。"
+    # Each kind owns its key set; a new condition must extend this check with its shape.
+    if availability.kind=="no_chastity_lock":
+     if availability.size()!=2: return "事件选项的状态条件损坏。"
+    elif availability.kind=="has_relic":
+     if availability.size()!=3 or not availability.get("type") is String or not g.Relics.TYPES.has(availability.type): return "事件选项的状态条件损坏。"
+    else: return "事件选项的状态条件损坏。"
    if option.has("encounter") and g.Events.battle_spec_issue(g,option.encounter)!="": return "事件选项的战斗记录损坏。"
    if option.has("item_rewards") and g.Events.item_rewards_issue(g,option.item_rewards)!="": return "事件选项的道具奖励记录损坏。"
    if option.has("selected"):

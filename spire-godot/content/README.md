@@ -100,7 +100,7 @@
 
 普通事件有1—6个选项，每个必填`id/label/reward`，并且只填`recipe`或`effects`中的一个。顶层`allow_refuse`默认为`true`，此时自动增加支付至多10魔力离开的`refuse`选项；明确填`false`则进入后必须完成一个合法选项。不得重用`refuse`作为作者选项 id。无奖励离开或声明了`encounter`的战斗选项可以填写空`effects`；其他奖励不能使用空效果。
 
-普通选项可填写`detail`作为选择前说明、`report`作为提交后的事件正文，并可设置`hide_when_unavailable: true`：完整效果序列当前无法原子成立时，直接不生成该选项；未设置时仍显示具体不可用原因。普通与多阶段选项均可填写`availability: {"kind":"no_chastity_lock","reason":"……"}`；角色佩戴任一平板锁时，选项保持显示但不可选择，`reason`只在按钮悬浮／聚焦的二级说明窗中显示，正式提交前会再次复核。该条件不检查上锁状态，平板锁仍佩戴时便生效。以上开关与条件不能靠正文或事件 id 猜测资格。
+普通选项可填写`detail`作为选择前说明、`report`作为提交后的事件正文，并可设置`hide_when_unavailable: true`：完整效果序列当前无法原子成立时，直接不生成该选项；未设置时仍显示具体不可用原因。普通与多阶段选项均可填写`availability`，角色状态不满足时选项保持显示但不可选择，`reason`只在按钮悬浮／聚焦的二级说明窗中显示，正式提交前会再次复核。条件按`kind`分两种，键集固定：`{"kind":"no_chastity_lock","reason":"……"}`（佩戴任一平板锁时生效，不检查上锁状态）；`{"kind":"has_relic","type":"已登记遗物id","reason":"……"}`（尚未持有该遗物时生效）。存档校验按同样的键集复核，新增条件种类必须同时扩展校验。以上开关与条件不能靠正文或事件 id 猜测资格。
 
 选项及随机结果的`report`可另配`report_variants`，快感效果的`source`可另配`source_variants`。每项格式为`{"when":{"kind":"equipped_special_family","value":"已登记family"},"text":"条件正文"}`；进入事件／阶段时按当时仍在佩戴的特殊装备族选中第一项匹配正文，并冻结为普通`report/source`，存档、查看与提交都不会重选。该接口只替换文案，不修改效果、次数、奖励或资格，也不能按事件 id 或中文装备名判断。
 

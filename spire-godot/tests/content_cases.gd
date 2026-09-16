@@ -29,7 +29,11 @@ static func run(t) -> void:
  conditional_event.data.choices[0].availability={"kind":"no_chastity_lock","reason":"平板锁封住了肉棒，无法使用这项服务。"}
  var conditional_result=Catalog.compile(g,[conditional_event])
  t.check(conditional_result.ok and conditional_result.tables.event[conditional_event.data.id].choices[0].availability==conditional_event.data.choices[0].availability and Catalog.tables(g)==baseline,"PACK event choice accepts one validated state-dependent availability condition")
- for invalid_availability in [null,{},false,{"kind":"unknown","reason":"无法选择。"},{"kind":"no_chastity_lock","reason":""},{"kind":"no_chastity_lock","reason":"[invalid]"},{"kind":"no_chastity_lock","reason":"无法选择。","extra":true}]:
+ var relic_condition=concise_event.duplicate(true)
+ relic_condition.data.choices[0].availability={"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。"}
+ var relic_result=Catalog.compile(g,[relic_condition])
+ t.check(relic_result.ok and relic_result.tables.event[relic_condition.data.id].choices[0].availability==relic_condition.data.choices[0].availability and Catalog.tables(g)==baseline,"PACK event choice accepts a registered-relic availability condition")
+ for invalid_availability in [null,{},false,{"kind":"unknown","reason":"无法选择。"},{"kind":"no_chastity_lock","reason":""},{"kind":"no_chastity_lock","reason":"[invalid]"},{"kind":"no_chastity_lock","reason":"无法选择。","extra":true},{"kind":"has_relic","reason":"无法选择。"},{"kind":"has_relic","type":"unregistered_relic","reason":"无法选择。"},{"kind":"has_relic","type":"softened_buckle","reason":"无法选择。","extra":true}]:
   var bad=concise_event.duplicate(true);bad.data.choices[0].availability=invalid_availability;invalids.append(bad)
  var animated_event=concise_event.duplicate(true)
  animated_event.data.choices[0].effects=[{"op":"install_random","templates":["rope"],"count":1,"grade":1,"tier":2,"locked":false,"allow_links":false,"wear_style":"animated"}]

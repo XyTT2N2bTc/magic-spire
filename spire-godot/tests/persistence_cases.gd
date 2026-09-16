@@ -75,10 +75,38 @@ static func map_drawings(t) -> void:
  decoded=Store.unpack(JSON.stringify(envelope))
  t.check(decoded.ok and decoded.map_drawings.is_empty() and decoded.snapshot==snapshot,"SAVE current-format file without annotations remains readable")
 
+# A frozen option carries its own state condition into the save, so every kind must
+# keep its exact key set and an unknown or extra-keyed condition must never load.
+static func event_conditions(t) -> void:
+ var events=preload("res://tests/event_cases.gd")
+ var g=Game.new(42)
+ g.state.relics.append("softened_buckle")
+ events.arrive(g,"floating_belt_cluster")
+ var index=-1
+ for i in range(g.state.room_event.options.size()):
+  if g.state.room_event.options[i].get("id","")=="leave": index=i
+ t.check(index>=0 and g.state.room_event.options[index].availability.kind=="has_relic","SAVE held-relic option keeps its own condition")
+ if index<0: return
+ var restored=roundtrip(t,g,"event option condition")
+ if restored!=null:
+  t.check(restored.state.room_event.options.any(func(option):return option.get("availability",{}).get("type","")=="softened_buckle"),"SAVE held-relic condition survives the roundtrip")
+ var before=g.export_snapshot()
+ for broken in [
+  {"kind":"unknown_condition","reason":"条件不成立。"},
+  {"kind":"has_relic","reason":"条件不成立。"},
+  {"kind":"has_relic","type":"softened_buckle","reason":"条件不成立。","extra":true},
+  {"kind":"has_relic","type":"unregistered_relic","reason":"条件不成立。"},
+  {"kind":"no_chastity_lock","type":"softened_buckle","reason":"条件不成立。"},
+ ]:
+  var saved=before.duplicate(true)
+  saved.room_event.options[index].availability=broken.duplicate(true)
+  t.check(not g.restore_snapshot(saved).ok and g.export_snapshot()==before,"SAVE malformed option condition rejected atomically "+JSON.stringify(broken))
+
 static func run(t) -> void:
  map_drawings(t)
  preload("res://tests/scene_restart_cases.gd").run(t,same)
  revision_boundary(t)
+ event_conditions(t)
  t.check(Game.Snapshot.Phases.DEFINITIONS.values().all(func(stage):return stage.name!="" and stage.caption!=""),"SAVE every accepted phase has a homepage summary label")
  var sample_draw=Game.new(42)
  var unchanged=sample_draw.export_snapshot()
