@@ -122,6 +122,26 @@
 | A15 | 场景 05 是否必须"内容侧／存档侧分文件各出断言" | **裁定：接受"单 check 覆盖三处消费者"**。判据是**三处一致**（内容校验／运行时求值／存档校验），一条 check 同时断言三者与分文件的检出力等价，文件分布不影响效力；§10 场景 05 与依赖规范 §4.2 的登记措辞已同步为"一条 check 覆盖三处消费者即可（不强制分文件）" |
 | A16 | 打包与"完成"口径 | **记录并前置**：本片（含 B2b 收口）**未完成前不得打包发版**；**核心绿≠本批绿**（B2 核心绿≠B2 完成）、**B2b 续批绿≠整片完成**（B3／B4 未做）。任何报告不得用其中任一层绿色代表上一层（§12） |
 
+### B2 收口事实（commit `b6d45b5`，父 `5a60cda`；判据登记 `df856b7`；**B2 全批判为已完成**）
+
+| 项 | 内容 |
+| --- | --- |
+| 交付 | `tests/event_flow_cases.gd`（+23／−6，仅测试）：场景 16／17 改为契约字面判据（hidden 命中时选项**不在** `room_event.options`、候选里该选项 0 条；命中的 optional 条目使选项禁用并带作者原因）；场景 09 补第三段——进入 `penalty` 后 `next` 指向空节点的选项在候选阶段 invalid 且带非空原因，并同断言 `probe` 的 `next` 探测路径报同一 issue |
+| C1 归因结论 | **(a) 夹具／断言问题，不是产品缺口**（未改产品代码）。错因两条：①原断言把 `options.is_empty()` 与 `candidates().is_empty()` 用 `and` 相连，而 `candidates()` 含阶段级候选 → 断言恒假；②另一夹具的期望依赖 `no_chastity_lock` 命中，而未戴平板锁时该条件本不该命中。最小复现 `build/b2-pipeline-20260916/repro_hidden.gd`（两组夹具 × 戴锁／不戴锁）证明 `hidden` 命中确实丢弃选项 |
+| C1 附带读法坑（记入契约） | 给 `evaluate_option` 传**作者选项**而非**冻结选项**（`request.frozen` 缺失）时，第 4 步按设计**跳过状态条件**——诊断新拼写必须走 `request_for`／`frozen`，否则会把设计行为误读成缺口 |
+| C2 | **已补**。原拟用的 `tighten_two` 在进房时被合法丢弃（`freeze_failed`）因而不产生候选，改用同节点内会存活的 `two_ropes`——属流程事实，不是静默删除 |
+| C3 | 已按 A15 裁定，无需补 |
+| 判据（协调者独立重跑） | E0 退出码 0／摘要 `1f11bea5…` 逐字相同；`event_flow,events,content,architecture,localization,persistence` 六类全 PASS（3044 断言）；`-Impact` 红集恰好 `card_power` 五条；`-UIOnly -UISuite events,localization -TimeoutSeconds 900` PASS 231；`check-content.ps1` 12 file(s) |
+| **B2 状态** | **已完成**（核心 `60869fc`＋B2b `5a60cda`＋收口 `b6d45b5`，判据逐提交复核，登记 `df856b7`）。**整片仍未完成**：B2c（文档收尾）、B3、B4 未做；**打包禁令不变** |
+
+### 裁定与偏差（协调者转人裁，2026-09-16 第六批；B2 收口之后）
+
+| # | 事项 | 裁定与契约位置 |
+| --- | --- | --- |
+| A17 | UI 判据的时限口径 | **固化**：`-UIOnly -UISuite events,localization` **必须带 `-TimeoutSeconds 900`**；默认 300 秒会因负载在 `events` 套件中途被中止（证据 `build/checks/20260916T083346894-13484`：无 `UI RESULT` 行）。已写进 §12 命令块与 §18／§19／§20／§21 |
+| A18 | 归因纪律（新 check 首次变红时） | **写进 §14 假设节**：先分类"**判据／夹具写错** vs **行为漂移**"，用最小复现定类后再动手；**禁止把红断言直接改成通过**。本轮已两次实例：E0 比较器修复（`4d22a00`）与 `hidden` 立证（`b6d45b5`）。最小复现产物放已忽略的 `build/<topic>-<date>/`，摘要进 `docs/verification.md` |
+| A19 | 旧待办更正：根 `AGENTS.md` 文档入口表两行 | **已在 `fa96370` 加好**（磁盘：`AGENTS.md:133` 事件定义形态与管线统一、`:134` 事件管线依赖约束；`git show fa96370:AGENTS.md` 命中 2 处）。此前把它列为"待协调者转派"是**我沿用了旧清单未复核磁盘**——已从 §8.3／§16／§18 的待办中删除，并作为"写规范前先核磁盘"的第三例（§14 假设 8） |
+
 ## 0. 领域、裁决与不变量
 
 领域（只在这里动）：
@@ -781,17 +801,16 @@ static var CONDITIONS={
 | `docs/content-templates.md` | §H 事件模板、H4 多阶段、H5 界面约定、§488 行测试表：字段与形态改为单一形态（**B1b**） |
 | `docs/content-generation.md` | §7 事件生成与结算（242／275／279／285／289／291／295 行等）：两形态合并后的描述与"必须填写的声明"（**B1b**） |
 | `docs/content-extension.md` | 事件流程段（133–150 行）与内容表（124 行）的事件行（**B1b**） |
-| `docs/event-structure.md` | §4 的 E1–E3 计划被本片吸收；§1 结构地图与 §7.2 的丢弃点编号需同步（**跨片越界，须协调者另派，不并入 B1b**） |
 | `docs/event-pipeline-dependency-spec.md` | 本片新增的依赖规范（§7.4 指向它；由本契约同批交付，已落地） |
 | `docs/verification.md` | 只登记结果（validator 负责） |
-| 根 `AGENTS.md` 文档入口表 | 缺本契约与依赖规范两行；AGENTS 维护，由协调者按 `global-agent-baseline` 处理（**不在 B1b**） |
+| 根 `AGENTS.md` 文档入口表 | **已就位**（裁定 A19）：`AGENTS.md:133` 事件定义形态与管线统一、`:134` 事件管线依赖约束（`fa96370` 加入）。**不再是待办** |
+| `docs/event-structure.md`（§1／§7.2 状态注） | 已由规划者按 A10 加注；表内同步的其余内容仍属跨片，须协调者另派 |
 
-另注（**已按磁盘复核更正**，裁定 A7）：根 `AGENTS.md` 在磁盘上只有"## 模块规则（spire-godot/）"＋
+另注（**已按磁盘复核更正**，裁定 A7／A19）：根 `AGENTS.md` 在磁盘上只有"## 模块规则（spire-godot/）"＋
 文档入口表，**不含**"Godot 入口见 spire-godot/AGENTS.md"这句、**不含** `tools/check_agents.py`，
 也没有"CI 检查指引行数"一节（`grep` 三次均无命中）。此前契约与简报里的这两条表述来自注入副本，
 **是误报，已作废**；`docs/response-pipeline.md` §5 第 3 条提到的 `spire-godot/AGENTS.md` 属历史
-记录，磁盘无此文件。真正的缺口只剩一处：文档入口表还没有本契约与依赖规范两行，
-属 AGENTS 维护，由协调者按 `global-agent-baseline` 处理，不在本片。
+记录，磁盘无此文件。文档入口表的两行也已在本契约之外加好（A19）——**本片指引侧无未决待办**。
 
 **B1b 的交付清单（裁定 A6；B1 只改了代码与内容，四份教旧形态的文档必须同批补齐）**
 
@@ -807,7 +826,7 @@ static var CONDITIONS={
 **B1b 明确缓到 B2 的部分**（避免二次返工，裁定 A3）：选项级 `conditions` 数组、选项级
 `unavailable` 覆盖、`mode` 与叠加语义、"条件可选／条件隐藏"两类的作者写法——B2 与声明表同批
 落地后再补进上述四份文档。跨事件 `next={"event","node"}` 缓到 B4。
-`docs/event-structure.md` 的 §1／§7.2 同步仍需协调者另派（跨片契约，不并入 B1b）。
+`docs/event-structure.md` 的 §1／§7.2 状态注已按 A10 加好；表内其余同步仍属跨片，须协调者另派（不并入 B1b／B2c）。
 
 ## 9. 分批（每批都以 E0 全绿收口；B1 已落地，B1b／B2 见 §16／§17）
 
@@ -815,10 +834,11 @@ static var CONDITIONS={
 | --- | --- | --- | --- |
 | B1 定义形态归一 | 定义级 `nodes/start_node` 落地；内容 12 份＋模板＋生成来源迁移；`content_catalog` 单一形态校验（含 §2.5 并集规则与路径改写）；`view`／`validate`／`snapshot`／测试夹具改走 `definition/node/node_ids`；`enter_stage`→`enter_node`（行为仍按现状两条分支） | E0 全绿 ＋ `-Suite event_flow,events,content,architecture -Impact` ＋ `check-content.ps1`；§10 场景 01／02／06／07／20 | **已完成**（`d770aea`，见执行记录） |
 | B1b 文档同步 | 四份仍教旧形态的文档改成节点形态（清单见 §8.3）；不含选项级 `conditions`／`unavailable` | E0 全绿 ＋ `check-content.ps1` ＋ 文档示例编译探针（§16） ＋ 依赖规范 §4.2 的两条 B1 追溯 check | **已完成**（`a57dec3`，判据登记 `4d5bc8f`，见执行记录） |
-| B2 声明与单入口 | 节点声明生效（`frozen_form`／`relic_gate`／`random_freeze`／`outcome_draw`／`unavailable`／`empty_node` 不再是死数据）；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖两形态；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；`conditions`／`unavailable` 规范拼写与声明表同批接受；删除死分支与平行真相；`snapshot` 增量补新键检查；**同批刷新英文字典**（裁定 A9，§17） | E0 全绿 ＋ `check-content.ps1` ＋ `localization` 规则／界面门 ＋ §10 场景 05／08／09／13／15–18 ＋ 依赖规范 §4.2 的 `event_single_evaluation_entry`＋`event_condition_kinds_share_one_declaration`＋`event_pipeline_writes_only_declared_keys`（内容半） | **核心已落地、本批未完成**（`60869fc`；核心判据全绿，场景／依赖 check／本地化未落） |
-| B2b 收口 | 仅补 B2 未完成的三块：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`；④以 B2 的完整门禁命令（含 `localization`）复跑交证 | 见 §18（不改产品语义；`probe()` 内部与 `node_empty` 的单独 gate 名属 B3） | **三项交付已落、四条判据绿**（`5a60cda`，协调者独立复核）；**续批待完成**：C1 hidden 立证／C2 场景 09 第三段（C3 已裁定 A15，无需补） |
-| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`／`validate_failed` 的单独命名，裁定 A13）＋叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | E0 全绿（开关开／关各跑一遍）＋ §10 场景 03／04／10／19 | 待派工 |
-| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | E0 全绿 ＋ §10 场景 11／12 ＋ 依赖规范 §4.2 的新键半 | 待派工 |
+| B2 声明与单入口 | 节点声明生效（`frozen_form`／`relic_gate`／`random_freeze`／`outcome_draw`／`unavailable`／`empty_node` 不再是死数据）；一线管：单 `evaluate_option`＋单 `enter_node` 覆盖两形态；四通道收敛为**条件条目＋单求值入口**（§5）；叠加求值（`gates` 逐条）；`conditions`／`unavailable` 规范拼写与声明表同批接受；删除死分支与平行真相；`snapshot` 增量补新键检查；**同批刷新英文字典**（裁定 A9，§17） | E0 全绿 ＋ `check-content.ps1` ＋ `localization` 规则／界面门 ＋ §10 场景 05／08／09／13／15–18 ＋ 依赖规范 §4.2 三条 check | **已完成**（核心 `60869fc`＋B2b `5a60cda`＋收口 `b6d45b5`；判据逐提交复核，登记 `df856b7`） |
+| B2b 收口 | 仅补 B2 未完成的三块：①§10 场景 05／08／09／13／15–18 具名 check；②依赖规范 §4.2 三条 check；③本地化刷新＋盘点＋`locale_legacy_catalog_matches_current_sources`；④以 B2 的完整门禁命令（含 `localization`）复跑交证 | 见 §18（不改产品语义；`probe()` 内部与 `node_empty` 的单独 gate 名属 B3） | **已完成**（`5a60cda` 三项交付＋`b6d45b5` 收口 C1／C2；C3 按 A15 无需补） |
+| B2c 文档收尾 | 把 `conditions` 规范拼写、选项级 `unavailable`、`mode` 与叠加语义补进四份作者文档，并取消 B1b 留下的"B2 起生效"标注（A6 的收口） | 见 §19 | 待派工（§19） |
+| B3 具名丢弃与 trace | gate 命名全覆盖（含 `selector_empty`／`node_empty`／`validate_failed` 的单独命名，裁定 A13）＋叠加命中逐条记录；`g.event_trace`＋开关；测试断言；release 不产出 | 见 §20：E0 全绿（开关开／关各跑一遍、摘要逐字相同）＋ §10 场景 03／04／10／19 | 待派工（§20） |
+| B4 事件链路由 | `next` 支持 `{"event","node"}`；`chain` 条件键；环守卫；夹具与用例 | 见 §21：E0 全绿 ＋ §10 场景 11／12 ＋ 依赖规范 §4.2 的新键半 | 待派工（§21） |
 
 每批单独跑该批判据；**不得把前一批的绿色拼进下一批**。B1b 与 B2 之间代码必须可跑可测
 （B1 的两条分支仍在，只是由节点形态驱动；B2 才把节点声明接上）。
@@ -939,14 +959,14 @@ B2b 三项交付绿（`5a60cda`）≠ B2b 完成（R1／R2 未收口）；
 
 1. 范围预检（不算通过）：
    `& tools/check.ps1 -Suite event_flow,events,content,architecture,persistence -Impact -ListOnly`
-   与 `& tools/check.ps1 -UIOnly -UISuite events -ListOnly` → 输出 `PLAN ONLY:` 且列出上述分类。
+   与 `& tools/check.ps1 -UIOnly -UISuite events,localization -ListOnly` → 输出 `PLAN ONLY:` 且列出上述分类。
 2. 冻结判据（每批一次）：跑 §0.1 的 oracle 比对命令 → 退出码 0、`EVENT RESULT: PASS (94 scenarios, 0 failures)`；
    另在 trace 打开与关闭两种设置下各跑一次，两次输出摘要相同。
 3. 内容门：`& tools/check-content.ps1` → `CONTENT PASS: 12 file(s)`。
 4. 规则门：`& tools/check.ps1 -Suite event_flow,events,content,architecture -Impact -TimeoutSeconds 900`
    → 退出码 0；每个 `SUITE RESULT: PASS <name>`；`summary.json` 的 `status=passed` 且 `before==after`
    指纹（`source_changed` 不算通过）。
-5. 界面回归（投影不动）：`& tools/check.ps1 -UIOnly -UISuite events -TimeoutSeconds 600`
+5. 界面回归（投影不动）：`& tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 900`（**A17：必须 900**）
    → 退出码 0、`UI PASS: N assertions`。
 6. 人的路径证明（判据是套件的布尔 check，按顺序在真实界面上操作）：
    - 练习「漂浮皮带群」首次进入：事件候选（`payload.kind=="event"` 且 `action=="choose"`）恰为【硬闯】【接受灌注】，与基线一致；
@@ -978,8 +998,8 @@ B2b 三项交付绿（`5a60cda`）≠ B2b 完成（R1／R2 未收口）；
 # 2) 规则门（分类点名：events＝01/03/09/19；event_flow＝02/04/08/11/12/15-18；
 #    content＝05/06/07/20；persistence＝10/14/19 存档侧；architecture＝05/13；各批实际归属见 §9）
 & tools/check.ps1 -Suite event_flow,events,content,architecture -Impact -TimeoutSeconds 900
-# 3) 界面回归（投影不动）
-& tools/check.ps1 -UIOnly -UISuite events -TimeoutSeconds 600
+# 3) 界面回归（投影不动；A17 固化时限）
+& tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 900
 # 4) B1b 专用：文档示例编译探针（把两份模板复制为 .json 到临时目录后校验，见 §16）
 & tools/check-content.ps1 -Path <临时目录>
 # 5) B2 专用：本地化词表刷新与验收（裁定 A9；在 spire-godot/ 下执行）
@@ -1028,8 +1048,8 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
 - 12 份内容之外的内容包被写入链形态（E0 不覆盖）；
 - B1b 未完成就开始 B2（文档与代码形态不一致期不得叠批）；
 - **B2b 未完成就宣称 B2 通过**（核心绿≠本批绿：§10 场景、依赖 check、本地化三块必须同批收口，§18）；
-- **用任一层绿色代表上一层**（裁定 A16）：B2 核心绿≠B2 完成；B2b 交付绿≠B2b 完成（R1／R2 未收口）；
-  B2b 续批绿≠整片完成（B3／B4 未做）；**全程不得打包发版**；
+- **用任一层绿色代表上一层**（裁定 A16）：B2 核心绿≠B2 完成（现已完成）；
+  **B2 全批绿≠整片完成**（B2c／B3／B4 未做）；**B2c 绿≠B3／B4 绿**；**全程不得打包发版**；
 - 宣称完整回归或提速。
 
 ## 13. 裁定记录（R1 按人审澄清改写；其余按推荐执行）
@@ -1073,9 +1093,16 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
    在两种模式下给出不同 `gates`／`reason` 的实现分歧——判据是 §10 场景 17／18，
    规则以 §5.3 为准，改规则属重新规划。
 8. **写规范或核对事实前，先以磁盘文件为准**（`rg`／`sed` 实地读仓库文件），不采信注入副本、
-   历史会话摘要或协调者简报里的"现状引述"。本会话已出现两次同类误报：根指引被报"仍列
-   `tools/check_agents.py`"、被报"仍指 `spire-godot/AGENTS.md`"，两者在磁盘上都不存在
-   （裁定 A7）。凡引用"某文件现在写着 X"的结论，必须带当次核对的命令与命中行。
+   历史会话摘要或协调者简报里的"现状引述"。已出现**三次**同类误报：根指引被报"仍列
+   `tools/check_agents.py`"、被报"仍指 `spire-godot/AGENTS.md`"（裁定 A7），以及把根 `AGENTS.md`
+   文档入口表两行当成待办（裁定 A19，实际 `fa96370` 已加）。凡引用"某文件现在写着 X"的结论，
+   必须带当次核对的命令与命中行。
+9. **归因纪律（裁定 A18，新 check 首次变红时）**：先分类"**判据／夹具写错** vs **行为漂移**"，
+   用最小复现定类后再动手；**禁止把红断言直接改成通过**。最小复现放已忽略的
+   `build/<topic>-<date>/`，摘要（含定类与证据路径）进 `docs/verification.md`。
+   本轮两次实例：E0 比较器修复（`4d22a00`）、`hidden` 立证（`b6d45b5`，结论＝夹具／断言问题）。
+   另记一条读法坑（C1 附带）：给 `evaluate_option` 传作者选项而非冻结选项时，
+   第 4 步按设计跳过状态条件——诊断新拼写必须走 `request_for`／`frozen`。
 
 ## 15. `needs-human-review` 判定（历史记录）
 
@@ -1135,7 +1162,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   `start_stage`／顶层 `choices`。允许实现者收窄为"只查字段表小节"，**不得弱化为不检查**。
 - **非目标**：不改任何内容包语义、不改模板、不动 B2 才开放的拼写、不打包。
 
-## 17. B2 派工要点（声明与单入口；**核心已落地 `60869fc`，收口见 §18**）
+## 17. B2 派工要点（声明与单入口；**已完成**：核心 `60869fc`＋B2b `5a60cda`＋收口 `b6d45b5`）
 
 - **一句话**：让 B1 写进内容的节点声明真正生效，把资格四通道收敛成"条件条目 ＋ 单求值入口"，
   并同批接受 `conditions`／选项级 `unavailable` 规范拼写与叠加求值。
@@ -1146,8 +1173,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   - `spire-godot/tests/{event_cases,event_flow_cases,content_cases,persistence_cases,architecture_cases}.gd`
   - `spire-godot/assets/localization/legacy-en_US.json`（裁定 A9：同批刷新英文字典）
   - **不改**：`content/packs/*`（七个节点声明 B1 已写好，值＝现值）、`content/templates/*`、
-    `ui/**`、`core/game.gd` 提交管线、`core/game_view.gd`、`docs/**`（B2 后另派的作者手册补充，
-    见 §8.3 的"B1b 明确缓到 B2"清单——B2 落地后必须补，否则又落回 A6 的缺口）。
+    `ui/**`、`core/game.gd` 提交管线、`core/game_view.gd`、`docs/**`（作者手册补充归 **B2c**，见 §19；B2 已落地，该缺口按 A6 必须在 B2c 收口）。
 - **交付物（接口级，按 §4／§5）**：
   1. `CONDITIONS` 声明表 ＋ `condition_kinds`／`condition_entries`／`condition_issue`／
      `condition_probe`／`condition_saved_fields`（一处声明，三处消费者集合相等）；
@@ -1185,7 +1211,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
   & tools/check-content.ps1
   & tools/check.ps1 -Suite event_flow,events,content,architecture,localization -Impact -TimeoutSeconds 900
-  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 600
+  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 900   # A17：必须 900
   # 本地化刷新（在 spire-godot/ 下执行；顺序即口径）
   python tools/localization_inventory.py
   python tools/build_english_catalog.py
@@ -1212,9 +1238,9 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   以及 `frozen_form`＝`in_place` 必须保持"作者对象回声"布局（键序不变）；
   本地化侧：把缺译写成通过，或只改目录不改盘点口径。
 - **非目标**：trace 与 gate 全覆盖（B3）、跨事件 `next` 对象形态与 `chain`（B4）、
-  作者手册再补文档（B2 后另派）、`get_view` 字段、`ui/`、提交管线。
+  作者手册再补文档（归 B2c，§19）、`get_view` 字段、`ui/`、提交管线。
 
-## 18. B2b 派工要点（B2 收口；不另立切片；**三项交付已落 `5a60cda`，续批清单见执行记录**）
+## 18. B2b 派工要点（B2 收口；**已完成**：三项交付 `5a60cda`＋收口 C1／C2 `b6d45b5`）
 
 - **定位**：B2 核心（`60869fc`）已改完产品代码且核心判据全绿，但**本批未完成**——缺三块：
   具名 check、依赖 check、本地化刷新。B2b 只补这三块与复跑证据，**不改产品语义**。
@@ -1252,7 +1278,7 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
   python tools/localization_inventory.py
   python tools/build_english_catalog.py
   & tools/check.ps1 -Suite event_flow,events,content,architecture,persistence,localization -Impact -KeepGoing -TimeoutSeconds 900
-  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 600
+  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 900
   ```
 - **DoD**：
   - E0 退出码 0、`PASS (94 scenarios, 0 failures)`、摘要 `1f11bea5…`（**逐字相同**）；
@@ -1264,5 +1290,131 @@ python tools/build_english_catalog.py          # 需要离线模型／缓存；�
     `event_single_evaluation_entry` 的计数方式、本地化判定①②③、E0 摘要；
   - **B2b 完成前本片不得打包、不得发版**（§12；过渡态键与未刷新的字典都会随包外发）。
 - **非目标**：`validate_failed`／`node_empty` 的单独 gate 命名与 trace（B3）；跨事件 `next` 与 `chain`（B4）；
-  作者手册补写 `conditions`／`unavailable`／叠加语义（B2b 后另派，见 §8.3）；改 `content/packs` 语义；
+  作者手册补写 `conditions`／`unavailable`／叠加语义（归 B2c，§19）；改 `content/packs` 语义；
   `get_view` 字段、`ui/`、提交管线。
+
+## 19. B2c 派工要点（文档收尾：把 B2 的能力写进作者手册）
+
+- **定位**：B2 已让 `conditions`／选项级 `unavailable`／`mode`／叠加求值生效，但四份作者文档仍停在
+  B1b 版本（只写了"B2 起生效"与兼容拼写）。B2c 把这些能力写成可用能力，**并删掉过期标注**。
+  这是裁定 A6 文档缺口的正式收口，不改产品代码、不改内容包。
+- **可改文件（授权清单，只这五份）**：
+  1. `spire-godot/content/README.md` §3 事件
+  2. `docs/content-templates.md`（§H／H4／H5 与测试表行）
+  3. `docs/content-generation.md`（§7 事件生成与结算）
+  4. `docs/content-extension.md`（事件流程段与内容表 events 行）
+  5. `spire-godot/tests/content_cases.gd`（仅在需要扩展文档 check 时，见下）
+  **不改**：`content/packs/*`、`content/templates/*`、`core/**`、`ui/**`、本契约与依赖规范。
+- **要写清的内容（逐项，缺一即未完成）**：
+  1. **规范拼写 `conditions`**：1–8 条数组；每条 `{kind, mode, reason, …kind 字段}`；
+     与 `availability` **互斥**（不得同时出现）；kind 只能取声明表列出的种类
+     （`no_chastity_lock`／`has_relic`），新增种类由代码侧扩展、内容包不得自造；
+  2. **选项级 `unavailable`**：`"hide"`／`"disable"`；与 `hide_when_unavailable` **互斥**；
+     作用＝该选项**未被显式 `mode` 约束**的条目的默认模式；列出 §5.3 的完整优先级
+     （条目 `mode` ＞ 选项 `unavailable` ＞ `hide_when_unavailable:true` ＞ 种类默认）；
+  3. **`mode` 与两类模式的语义**：`optional`＝显示但禁用（按钮保留、悬浮／聚焦显示 `reason`）、
+     `hidden`＝不生成（选项与候选都不出现）；
+  4. **叠加求值**：全部条目满足才通过；**任一 `hidden` 命中即隐藏（优先级高于 optional）**；
+     只有 `optional` 命中时**列出全部命中**，`reason` 按**声明顺序**用换行连接——
+     **"声明顺序决定 `reason` 拼接顺序"必须明写**；不命中者不进列表；
+  5. **兼容拼写的定位**：`availability`／`hide_when_unavailable` 继续可用、语义同上，
+     新内容优先用规范拼写；两者同时出现会被拒收；
+  6. **删除过期标注**：把 B1b 写的"B2 起生效／待 B2"等标注改为现行描述（B2 已落地）。
+- **判据命令（一次；A17 时限固化）**：
+  ```powershell
+  & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
+  & tools/check-content.ps1
+  & tools/check.ps1 -Suite content,architecture -Impact -TimeoutSeconds 600
+  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 900
+  # 旧标注/旧形态残留扫描（人工判读：命中项须逐条给理由）
+  rg -n "B2 起生效|待 B2|B2 前|start_stage|\"stages\"" spire-godot/content/README.md docs/content-templates.md docs/content-generation.md docs/content-extension.md
+  ```
+- **文档 check 是否需扩展：需要（按 A18 最小改动、不得弱化）**：
+  `event_author_manual_lists_current_fields`（`tests/content_cases.gd`）现判"README 字段表里的反引号
+  标识符 ⊆ 校验器白名单 ∪ 已知非字段词表，且不出现 `start_stage`／顶层 `choices`"。B2c 要：
+  ①把 `mode`／`optional`／`hidden`／`conditions`／`unavailable` 等新词纳入（`conditions`／`unavailable`
+  已在白名单，`mode` 等属值词表）；②反向断言：README **不得**再把 `conditions`／`unavailable`
+  描述为"B2 起生效／尚不可用"，并**必须**同时出现 `conditions` 与两类模式的关键词。
+  扩展只允许"加断言／加词表"，**禁止**放宽既有断言。
+- **DoD**：E0 退出码 0、摘要逐字相同；`check-content.ps1` PASS；`content`／`architecture` 全 PASS；
+  `events,localization` UI PASS；残留扫描命中项为零或逐条有理由；文档示例仍**指向**两份模板
+  （不复制第二份完整 JSON）；`docs/verification.md` 记录域＝文档收尾。
+- **非目标**：改产品代码或内容包语义、跨事件 `next`（B4）、trace 文档（B3）、打包。
+
+## 20. B3 派工要点（gate 命名全覆盖 + debug trace）
+
+- **定位**：B2 已把可分离的可行性失败记成 `probe_failed`／`encounter_invalid`，但
+  `validate_failed`（`probe()` 内部 `g.validate()`）与 `node_empty`（`enter_node` 的 issue 文案）
+  仍未单独命名，trace 也尚未落地。B3 收口这两件，**不改玩家可见行为**（文案一字不改）。
+- **可改文件（授权清单）**：`spire-godot/core/room_events.gd`（主）、必要时
+  `spire-godot/core/snapshot.gd`（若 trace 相关形状需要，**不得新增存档键**）、
+  `spire-godot/tests/{event_cases,event_flow_cases,architecture_cases,persistence_cases}.gd`。
+  **不改**：`content/**`、`ui/**`、`core/game.gd`、`core/game_view.gd`、`docs/**`。
+- **拆分方案（`probe` 与 `enter_node` 的具名化）**：
+  1. `probe()` 内部按阶段产出**结构化结果**（新增 `probe_result(g,effects,option,cleanup) -> {"gate","reason"}`
+     作为唯一实现，`probe()` 保留原签名＝返回 `.reason`，**不新增第二套探测逻辑**）。阶段与 gate：
+     `effects`→`probe_failed`（现状）、`next_node`→取自节点入口的 gate（见下）、
+     `validate`→**`validate_failed`**（新）、`held_pending`→现状"事件仍有尚未归还的装备。"（cleanup 专用，B3 起具名）。
+  2. `enter_node` 增加结果形态（新增 `enter_node_result(g,id) -> {"issue","gate","detail"}` 作为唯一实现，
+     `enter_node` 保留原签名＝返回 `.issue`）：空节点 → gate `node_empty`、`detail`＝节点 id、
+     `issue`＝**原文案"这一阶段没有能够执行的选项。"**（B2b 已按此断言，不得改字）；
+     节点不存在 → gate `stage_missing`（现状文案"下一阶段不存在。"）。
+  3. `evaluate_option` 的可行性条目改从 `probe_result` 取 gate（`validate_failed`／`probe_failed`／
+     `encounter_invalid`），叠加命中仍走状态条件条目（不变）；`chain_loop` 留给 B4。
+- **debug 开关形态（§4.5 已定，按此实现）**：`g.event_trace_enabled`（默认 `false`）＋
+  `g.event_trace`（数组）；条目 `{"event","node","source_choice","option_id","decision","gate","kind","mode","index","reason","purpose"}`；
+  每次 `start` 在启用时清空；**不进 `state`／不进 View／不进存档／不渲染／不做成计数器**；
+  release 默认关闭、运行不产出。同 `g.copy_router_failures` 的模式。
+- **判据命令（一次；含开／关两遍 E0，A17 时限固化）**：
+  ```powershell
+  # 开关关闭（默认）
+  & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
+  # 开关打开（临时把 g.event_trace_enabled 默认置 true 或用测试夹具开关后重跑，判据：摘要逐字相同）
+  & tools/check-content.ps1
+  & tools/check.ps1 -Suite event_flow,events,content,architecture,persistence -Impact -KeepGoing -TimeoutSeconds 900
+  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 900
+  ```
+- **具名 check 清单（§10 已定义，B3 落地）**：03 `event_gate_names_are_total`（每次构建的每个作者选项
+  至少一条 trace；decision∈四种；每条丢弃／隐藏带具名 gate，**含 `validate_failed`／`node_empty`**）、
+  04 `event_hidden_relic_option_traced`（漂浮皮带群持有扣环：trace 记录 `source_choice=fight` 与具名 gate；
+  候选集合与 E0 基线一致）、10 `event_trace_never_reaches_state_or_save`（snapshot／存档／View／`rng`
+  不含 trace；开／关摘要相同）、19 `event_stacked_condition_trace_and_release`（叠加下每条命中条件各一条
+  trace，`index` 与声明序一致；关开关后 `g.event_trace` 为空）。
+- **DoD**：E0 开／关两遍退出码 0 且摘要**逐字相同**；`-KeepGoing` 红集只允许 `card_power`；
+  四条具名 check 通过；`validate_failed`／`node_empty` 在 trace 与 `gates` 里可区分；
+  玩家可见文案与候选 `reason` 逐字不变；`docs/verification.md` 记录域＝events／persistence。
+- **非目标**：跨事件 `next` 与 `chain`（B4）；把 trace 暴露给 UI／译文；改任何文案。
+
+## 21. B4 派工要点（事件链：`next` 指向另一事件的节点）
+
+- **定位**：人裁第 5 条的最后一块——"分流要能指向事件"。`next` 目前只接受 `"result"` 与同定义节点 id
+  （`content_catalog._flow_next` 硬要求 `next is String`）。B4 打开跨事件形态并给出链的运行时表示。
+- **可改文件（授权清单）**：`spire-godot/core/room_events.gd`、`spire-godot/core/content_catalog.gd`、
+  `spire-godot/core/snapshot.gd`、`spire-godot/tests/{event_flow_cases,content_cases,persistence_cases,architecture_cases}.gd`。
+  **不改**：`content/packs/*`（链不得写进 12 份内容）、`content/templates/*`（模板可另批加示例）、
+  `ui/**`、`core/game.gd`、`core/game_view.gd`。
+- **交付物（§3.2／§3.3 的落地）**：
+  1. `next` 接受 `{"event":"<id>","node":"<node_id>"}`（对象形态），与 `"result"`／同定义节点 id 并列；
+     校验：目标事件已登记、目标节点存在、**不得引用自身事件**（静态拒绝）；同定义节点仍只能向后；
+  2. 跳转实现：重写 `room_event.id` 与 `room_event.stage`；`values`／`held` 延续；`cleanup_effects` 取
+     链上并集（按 `key` 去重，离开时各执行一次）；`event_seen` 加入目标事件；`flow` 镜像按新定义重算；
+  3. **`chain` 条件键**：只在真的发生跨事件跳转时写入 `chain:[event_id,…]`（抵达时不含该键）；
+  4. **环守卫**：目标事件已在当前实例 `chain` 中 → 该选项在候选阶段 `disabled`、gate `chain_loop`；
+  5. `snapshot`：接受 `chain`（数组、元素为已登记事件 id、不含重复），其余键集合不变；
+  6. 依赖规范 `event_pipeline_writes_only_declared_keys` 的**链半**断言落地。
+- **判据命令（一次；A17 时限固化）**：
+  ```powershell
+  & <Godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
+  & tools/check-content.ps1
+  & tools/check.ps1 -Suite event_flow,events,content,architecture,persistence -Impact -KeepGoing -TimeoutSeconds 900
+  & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 900
+  ```
+- **具名 check 清单（§10 已定义，B4 落地）**：11 `event_chain_jumps_to_another_event_node`
+  （`room_event.id`／`stage` 切换、`chain` 含来源、`values`／`held` 延续、离开时并集 cleanup 各一次、
+  `event_seen` 含目标）、12 `event_chain_loop_refused`（再次跳向链上事件 → invalid、gate `chain_loop`、
+  `state`／`rng`／存档不变）；另加**静态**反例：`next` 引用自身事件／未登记事件／不存在的节点 → 整包拒绝。
+- **DoD**：E0 退出码 0、摘要逐字相同（12 份内容不含链，摘要必须不变）；`-KeepGoing` 红集只允许
+  `card_power`；场景 11／12 与静态反例通过；`chain` 不出现在 12 份内容与 E0 夹具里；
+  依赖规范链半断言通过；`docs/verification.md` 记录域＝events／persistence。
+- **非目标**：把链写进任何 `content/packs` 内容；UI 的链式展示（投影不动，`view.room_event` 字段不变）；
+  B2c 的文档（链的文档化在 B4 之后另派，属同一 A6 收口链）。
