@@ -281,4 +281,35 @@ RNG 推进都不同。以下为逐行核对结果（行号对应提交 `bf206d8`
 
 归一的价值集中在第 2、3 类；第 1 类应保持各自语义，是否收敛属 E6 的产品决策。
 
+### 7.2 丢弃点与扩展点普查（协调者补注，2026-09-16）
+
+运行期"选项为什么不在"的丢弃点共 9 处，跨 3 个函数：
+
+| 位置 | 原因 | 表现形式 |
+| --- | --- | --- |
+| `room_events.gd:45` | 遗物池为空（普通） | 静默 `continue` |
+| `room_events.gd:52` | 配方编译为空（普通） | 静默 `continue` |
+| `room_events.gd:59` | 随机效果冻结失败（普通） | 静默 `continue` |
+| `room_events.gd:64` | `hide_when_unavailable` 探测失败（普通） | 静默 `continue` |
+| `room_events.gd:261` | 配方编译为空（flow，`freeze_choice` 内） | 静默返回 `{}` |
+| `room_events.gd:264` | 冻结失败（flow） | 静默返回 `{}` |
+| `room_events.gd:302` | `when` 条件不满足（flow） | 静默 `continue` |
+| `room_events.gd:307`／`:311` | 奖励遗物已被领走（flow） | 静默丢弃 |
+| `room_events.gd:314` | 阶段没有任何可执行选项 | 唯一会返回原因的一处 |
+
+6 处静默、1 处报错、2 处 helper 内静默。§3 列出的 6 个 gate 名不足以覆盖，
+E3 至少还需 `selector_empty`、`recipe_empty`、`random_freeze_failed`、
+`stage_options_empty` 等具名原因。
+
+新增一种状态条件当前要改 3 处，缺一处就会产生跨层不一致：
+
+1. `room_events.gd:581` `availability_issue` 的运行时 `match`；
+2. `content_catalog.gd:397` `_availability` 的校验白名单与 `type` 引用检查；
+3. `core/snapshot.gd:389-397` 存档校验的键集。
+
+`has_relic` 加入时第 3 处漏改，导致持有该遗物时的存档无法读取（缺陷与修复记录见
+`docs/verification.md` 2026-09-16 条目）。E2 应把这三处收敛到同一份声明，
+并以"新增条件种类只改一处"作为验收点。
+
+
 
