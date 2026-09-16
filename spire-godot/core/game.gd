@@ -193,6 +193,10 @@ const Prison = preload("res://core/prison.gd")
 const Snapshot=preload("res://core/snapshot.gd")
 const ActionCopy=preload("res://core/action_copy.gd")
 var _copy_context: Dictionary={}
+# docs/transition-pipeline.md §2.2：迁移日志（进程内、只读诊断）。元素＝已声明的 Transition kind。
+# 不进 state、不进存档、不进 View；只为后续（固定点存档）留出挂点，本片不消费。
+var _transition_log: Array[String]=[]
+var _transition_written: Dictionary={}
 var _energy_pressure_pending=false
 var _card_energy_pressure_pending=0.0
 var _capture_energy_pending={}
@@ -240,7 +244,8 @@ func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String
  if practice: _start_practice()
  elif room_data(state.room).kind=="entry":
   _gain_tool("return_seal")
-  state.phase="map";state.energy=0;state.wall="normal";state.wall_distance=1;state.draw=state.deck.duplicate(true)
+  _apply_transition("setup_init")
+  state.energy=0;state.wall="normal";state.wall_distance=1;state.draw=state.deck.duplicate(true)
   Departure.start(self,cursed_plate_start and state.chastity_locks_enabled)
  else: _start_battle()
  _scene_start=export_snapshot()
@@ -275,7 +280,7 @@ func _restart_tower(from_exit: bool=false) -> void:
  state.prepare_left=0;state.rest_left=0;state.rest_cards=[];state.hook_uses=0
  state.reward_options=[];state.battle_item_drop=""
  state.battle_relic_drop="";state.boss_relic_options=[];state.battle_flask_drop=0;state.reward_claimed={}
- state.enemies=[]; state.phase="map"; state.energy=0
+ state.enemies=[]; _apply_transition("tower_restart"); state.energy=0
  if not from_exit:
   _emit("event","已离开监狱。请选择新塔路第10—11层的任一非休息、非宝箱区域作为起点；保留当前装备、卡组、遗物与资源。新地图的普通战斗全部使用强怪池。",{"new_tower":{"previous_seed":previous_seed,"seed":next_seed}})
 
@@ -467,7 +472,7 @@ func _start_battle() -> void:
  state.wall_distance=_initial_wall_distance(true)
  RelicEffects.begin_combat(self)
  state.encounter += 1
- state.phase = "battle"
+ _apply_transition("battle_start")
  state.weakness_turns=0
  state.round = 0
  state.kick_last = -10
@@ -618,7 +623,7 @@ func preparation_turns() -> int:
  return B.PREPARATION_TURNS+int(Relics.value(state.relics,"preparation_turns"))
 
 func _start_preparation() -> void:
- state.phase = "prepare"
+ _apply_transition("prepare_start")
  if not state.combat.active: RelicEffects.begin_combat(self)
  # A fresh player turn, using the same session and live card piles.
  _discard_end()
@@ -661,7 +666,7 @@ func _prepare_round() -> void:
  _emit("event","整备还有%d回合。" % state.prepare_left)
 
 func _start_rest() -> void:
- state.phase="rest_choice"
+ _apply_transition("rest_start",{"phase":"rest_choice"})
  state.wall=room_data(state.room).wall
  state.wall_distance=0
  state.enemies=[]
@@ -671,7 +676,7 @@ func _start_rest() -> void:
  if state.practice: _begin_rest()
 
 func _begin_rest() -> void:
- state.phase="rest"
+ _apply_transition("rest_start",{"phase":"rest"})
  RelicEffects.begin_combat(self)
  _rest_round()
 
@@ -680,15 +685,77 @@ func _rest_round() -> void:
  _begin_player_turn()
  _emit("event","休息还有%d回合；悬挂挂钩剩余%d次。" % [state.rest_left,state.hook_uses])
 
+# docs/transition-pipeline.md §3：迁移声明表。每个 kind 声明它允许进入的阶段（空＝不写阶段）、
+# 是否允许改当前房间（写值由调用点的 args.room 提供）、是否在已提交事务内（tx 列本片只登记事实，
+# 供存档切片消费），以及谁负责触发它。
+const TRANSITIONS={
+ "setup_init":{"phases":["map"],"room":false,"tx":false,"owners":["_init"]},
+ "tower_restart":{"phases":["map"],"room":true,"tx":true,"owners":["_restart_tower"]},
+ "practice_init":{"phases":[],"room":true,"tx":false,"owners":["_start_practice"]},
+ "prison_cell_init":{"phases":[],"room":true,"tx":false,"owners":["Prison.start_practice"]},
+ "prison_gate_init":{"phases":[],"room":true,"tx":false,"owners":["Prison.exit_practice"]},
+ "battle_start":{"phases":["battle"],"room":false,"tx":true,"owners":["_start_battle"]},
+ "battle_end_victory":{"phases":["reward","event"],"room":false,"tx":true,"owners":["_finish_battle"]},
+ "battle_end_saturated":{"phases":["reward","event"],"room":false,"tx":true,"owners":["_finish_battle"]},
+ "battle_end_captured":{"phases":["captured"],"room":true,"tx":true,"owners":["Guard.capture"]},
+ "prepare_start":{"phases":["prepare"],"room":false,"tx":true,"owners":["_start_preparation"]},
+ "prepare_end":{"phases":["pack","map","cleared"],"room":false,"tx":true,"owners":["_finish_preparation"]},
+ "rest_start":{"phases":["rest_choice","rest"],"room":false,"tx":true,"owners":["_start_rest","_begin_rest"]},
+ "room_enter":{"phases":["map","cleared"],"room":true,"tx":true,"owners":["_arrive_room"]},
+ "floor_enter":{"phases":[],"room":true,"tx":true,"owners":["_depart","_advance_travel"]},
+ "travel_start":{"phases":["travel"],"room":false,"tx":true,"owners":["_depart"]},
+ "prison_high_security":{"phases":["prison_end"],"room":false,"tx":true,"owners":["Prison.enter"]},
+ "prison_cell_enter":{"phases":["prison"],"room":false,"tx":true,"owners":["Prison.begin_turn"]},
+ "inspection_start":{"phases":["inspection"],"room":false,"tx":true,"owners":["Prison.end_turn"]},
+ "prison_exit_battle_start":{"phases":["battle"],"room":false,"tx":true,"owners":["Prison.execute"]},
+ "prison_escape":{"phases":["map"],"room":true,"tx":true,"owners":["Prison.escape"]},
+ "event_enter":{"phases":["event"],"room":false,"tx":true,"owners":["Events.start"]},
+ "event_leave_empty":{"phases":["map"],"room":false,"tx":false,"owners":["Events.start"]},
+ "event_item_rewards":{"phases":["reward"],"room":false,"tx":true,"owners":["Events.begin_item_rewards"]},
+ "shop_enter":{"phases":["shop","treasure"],"room":false,"tx":true,"owners":["Services.start"]},
+ "departure_start":{"phases":["departure"],"room":false,"tx":false,"owners":["Departure.start"]},
+ "departure_end":{"phases":["map"],"room":false,"tx":true,"owners":["Departure.execute"]},
+ "demo_end":{"phases":[],"room":false,"tx":true,"owners":["_execute"]},
+}
+
+# 全仓唯一写 state.phase／state.room 的地方（docs/transition-pipeline.md §2.2）。
+# 立即写入、单一写入者、不做事务末统一执行：位置与顺序由各调用点保持原样。
+# 返回 ""＝成功，否则 issue（与既有失败字符串风格一致）。
+func _apply_transition(kind: String, args: Dictionary = {}) -> String:
+ var spec=TRANSITIONS.get(kind,{})
+ if spec.is_empty():
+  push_error("未声明的状态迁移："+kind)
+  return "未声明的状态迁移："+kind
+ var wrote=[]
+ var phases=spec.get("phases",[])
+ if not phases.is_empty():
+  var target=String(args.get("phase",phases[0]))
+  if not phases.has(target):
+   push_error("迁移"+kind+"不接受阶段："+target)
+   return "迁移"+kind+"不接受阶段："+target
+  state.phase=target
+  wrote.append("phase")
+ if bool(spec.get("room",false)) and args.has("room"):
+  state.room=String(args.room)
+  wrote.append("room")
+ # 迁移日志：一次迁移记一条。同一 kind 的 phase／room 由调用点分两次写入（写入位置不变），
+ # 第二条若只写未写过的字段则不再记；重复写同一字段仍是新的一次迁移（例如牢房每回合）。
+ var continuation=_transition_written.get("kind","")==kind and not wrote.is_empty() and wrote.all(func(field):return field not in _transition_written.get("fields",[]))
+ if not continuation: _transition_log.append(kind)
+ _transition_written={"kind":kind,"fields":wrote}
+ return ""
+
 func _finish_battle(end_kind: String="victory") -> void:
  if state.phase != "battle":
   return
  var saturated=end_kind=="saturated"
+ # 事件战与普通战共用同一个已声明 kind，只是目标阶段不同（§3 表：事件战＝event）。
+ var end_transition="battle_end_saturated" if saturated else "battle_end_victory"
  var event_battle=Events.active_battle(self)
  CaptureBind.clear_bind(self)
  Pressure.cleanup(self)
  if event_battle:
-  state.phase="event"
+  _apply_transition(end_transition,{"phase":"event"})
   state.reward_count+=1
   var event_issue=Events.finish_battle(self,saturated)
   if event_issue!="": state.room_event.battle_issue=event_issue
@@ -696,7 +763,7 @@ func _finish_battle(end_kind: String="victory") -> void:
  ItemRewards.roll(self)
  RelicEffects.boss_key(self,saturated)
  RelicRewards.battle_drop(self)
- state.phase = "reward"
+ _apply_transition(end_transition,{"phase":"reward"})
  state.reward_claimed={}
  state.battle_flask_drop=B.BOSS_FLASK_MANA if not saturated and _all_gone() and room_data(state.room).get("boss",false) and not Prison.is_exit_battle(self) and state.enemies.any(func(enemy):return enemy.get("defeated",false)) else 0
  var reward_source="boss" if room_data(state.room).get("boss",false) else ("elite" if Enemies.ENCOUNTERS.get(state.room_encounters.get(state.room,""),{}).get("rank","")=="elite" else "normal")
@@ -2570,6 +2637,7 @@ func _execute(c: Dictionary) -> void:
   "status_toggle": state.charge_all=p.enabled
   "demo_continue": DemoExit.continue_run(self)
   "demo_end":
+   _apply_transition("demo_end")
    state.demo_finished=true
    _emit("event","感谢游玩这次demo。本次游玩已结束。")
   "attack":
@@ -2848,17 +2916,17 @@ func _finish_preparation() -> void:
  Pressure.clear_penalties(self)
  state.weakness_turns=0
  if carried_items()>item_capacity():
-  state.phase="pack"
+  _apply_transition("prepare_end",{"phase":"pack"})
   state.energy=0
   _emit("event","随身道具超出容量，请使用或放下多出的道具后离开。")
   return
  if Prison.after_preparation(self): return
- state.phase="map"
+ _apply_transition("prepare_end",{"phase":"map"})
  state.energy=0
  state.prepare_left=0
  state.rest_left=0
  if state.practice:
-  state.phase="cleared"
+  _apply_transition("prepare_end",{"phase":"cleared"})
   _emit("event","本次装备练习结束。")
   return
  if not state.completed_rooms.has(state.room): state.completed_rooms.append(state.room)
@@ -2981,7 +3049,7 @@ func _depart(c: Dictionary) -> String:
   return ""
  var profile=movement_profile()
  state.journey={"from":state.room,"target":c.payload.room,"total":profile.turns,"remaining":profile.turns,"speed":profile.speed,"mode":profile.mode}
- state.phase="travel";state.wall="none";state.wall_distance=0
+ _apply_transition("travel_start");state.wall="none";state.wall_distance=0
  _emit("event","你离开"+room_data(state.room).name+"，以"+profile.mode+"前往"+room_data(c.payload.room).name+"，需要%d回合。" % profile.turns)
  return ""
 
@@ -3004,11 +3072,11 @@ func _advance_travel() -> void:
 func _arrive_room() -> void:
  var room=room_data(state.room)
  if room.kind=="exit":
-  state.phase="cleared"
+  _apply_transition("room_enter",{"phase":"cleared"})
   state.completed_rooms.append(state.room)
   _emit("event","感谢游玩这次demo。"+("你可以返回菜单，或保留当前成长继续攀塔。" if state.demo_cycle<2 else "三个阶段全部完成。"))
  elif room.kind=="entry":
-  state.phase="map";state.energy=0;state.wall=room.wall
+  _apply_transition("room_enter",{"phase":"map"});state.energy=0;state.wall=room.wall
   state.wall_distance=1
   _emit("event","抵达塔底，选择第一层入口继续攀塔。")
  elif room.kind=="rest": _start_rest()

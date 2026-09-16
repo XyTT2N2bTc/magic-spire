@@ -187,7 +187,7 @@ static func enter(g) -> String:
  if g.state.security>=5:
   var issue=high_security(g)
   if issue!="": return issue
-  g.state.phase="prison_end"
+  g._apply_transition("prison_high_security")
   g.state.enemies=[]
   g.room_data("prison").name="高安全监室"
   g._emit("event","警戒度达到5，移入高安全监室。原装备结构与链接保留，普通与复合装备补齐至高级三档，可上锁处全部上锁；限制项圈继续保留。本次逃脱结束，可以检查最终装备或重新开始。")
@@ -204,7 +204,7 @@ static func enter(g) -> String:
  return ""
 
 static func begin_turn(g) -> void:
- g.state.phase="prison"
+ g._apply_transition("prison_cell_enter")
  g.state.prison.turn+=1
  g.state.heavy_used=false
  g._begin_player_turn()
@@ -218,7 +218,7 @@ static func end_turn(g) -> void:
  if g.state.prison.left>0:
   begin_turn(g)
   return
- g.state.phase="inspection"; g.state.prison.stage="arrival"
+ g._apply_transition("inspection_start"); g.state.prison.stage="arrival"
  # Keep the next-turn penalty while the non-turn inspection is on screen.
  g.state.overloaded=false; g.state.overload_count=0; g.state.energy=0
  g._emit("event","紫发狱警打开牢门，例行巡视开始。可以接受检查，或立即反抗。")
@@ -378,7 +378,7 @@ static func execute(g, c: Dictionary) -> String:
    p.resisting=true
    p.reinforcements=0
    g.state.wall_distance=g._initial_wall_distance(true)
-   g.state.phase="battle"; g.state.round=0; g.state.encounter+=1
+   g._apply_transition("prison_exit_battle_start"); g.state.round=0; g.state.encounter+=1
    g.state.kick_last=-10; g.state.heavy_used=false
    g.RelicEffects.clear_temporary(g)
    g.Pressure.clear_penalties(g)
@@ -443,7 +443,7 @@ static func escape(g, route: String) -> void:
  g.state.room_encounters={"prison_gate":"guard_solo"}
  g.state.room="prison_start";g.state.wall="normal";g.state.wall_distance=1
  g.state.room_event={};g.state.completed_rooms=[];g.state.traversed_edges=[];g.state.journey={}
- g.state.enemies=[];g.state.phase="map";g.state.energy=0
+ g.state.enemies=[];g._apply_transition("prison_escape");g.state.energy=0
  g._emit("event",("传送符将你带离牢房。" if route=="return_seal" else ("你爬出通风口，离开牢房。" if route=="vent_exit" else "你穿过牢门，离开牢房。"))+"来到监狱出发点。前方是休息点和出口精英战，出口由%d名魅魔警卫把守。" % g.state.security)
 
 static func is_exit_battle(g) -> bool:

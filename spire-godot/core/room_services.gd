@@ -4,7 +4,7 @@ const ShopCopy=preload("res://data/shop_copy.gd")
 
 static func start(g) -> void:
  var room=g.room_data(g.state.room)
- g.state.phase=room.kind;g.state.wall=room.wall;g.state.energy=0;g.state.enemies=[]
+ g._apply_transition("shop_enter",{"phase":room.kind});g.state.wall=room.wall;g.state.energy=0;g.state.enemies=[]
  if not room.has("stock"):
   room.stock=[];room.remove_used=false
   if room.kind=="shop": g.RelicEffects._mana_hook(g,"shop_flask_mana","进入商店","flask_mana")
