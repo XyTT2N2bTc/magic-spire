@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'find-godot.ps1')
 $gameDirectory = Split-Path -Parent $PSScriptRoot
 $docsDirectory = Join-Path (Split-Path -Parent $gameDirectory) 'docs'
+$releaseDirectory = Join-Path (Split-Path -Parent $gameDirectory) 'release'
 $projectText = Get-Content -LiteralPath (Join-Path $gameDirectory 'project.godot') -Raw
 $versionMatch = [regex]::Match($projectText, '(?m)^config/version="([0-9]+\.[0-9]+(?:\.[0-9]+)?)"')
 if (-not $versionMatch.Success) { throw 'Project version is missing or invalid.' }
@@ -40,7 +41,7 @@ if (Test-Path -LiteralPath $versionNotes) {
 } else {
     Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $gameDirectory) '版本更新内容.txt') -Destination $destination
 }
-Copy-Item -LiteralPath (Join-Path $gameDirectory '基础操作教学.txt') -Destination $destination
+Copy-Item -LiteralPath (Join-Path $releaseDirectory '基础操作教学.txt') -Destination $destination
 $licenseDirectory = Join-Path $destination 'licenses'
 [IO.Directory]::CreateDirectory($licenseDirectory) | Out-Null
 Copy-Item -LiteralPath (Join-Path $gameDirectory 'assets/vendor/CREDITS.md') -Destination $licenseDirectory
