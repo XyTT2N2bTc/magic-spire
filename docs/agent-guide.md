@@ -1,14 +1,14 @@
 # Agent 指引与历史入口
 
-根 AGENTS.md 仅说明项目、命令、长期规则、禁区和验证。
-网页与 Godot 的实现约束分别由各自目录的 AGENTS.md 索引；
-数值调整、版本过程和详细背景应维护在模块 docs 或网页 work 文档中。
+根 AGENTS.md 只写长期规范（规则、禁区、验证）与索引；
+命令与操作流程见 `.zcode/skills/repo-ops/SKILL.md`，仓库现状见 [project-map.md](project-map.md)。
+模块实现约束由 `spire-godot/AGENTS.md` 索引；数值调整、版本过程与详细背景维护在模块 docs。
 
 ## 按任务读取
 
 - Godot：先读 [模块指引](../spire-godot/AGENTS.md)，再读其中对应专题。
-- 网页：先读 [模块指引](../game-demo/AGENTS.md)，再读规则书与对应契约。
-- 追溯网页规则和旧根指令：搜索 [根指令原文归档](history/root-agent-contract-2026-09-14.md)。
+- 网页模块已不在本工作区；其历史约束只在归档中追溯，不作为当前要求。
+- 追溯旧根指令：搜索 [根指令原文归档](history/root-agent-contract-2026-09-14.md)。
 - 追溯 Godot 功能与修订：搜索 [Godot 原文归档](../spire-godot/docs/history/agent-contract-2026-09-14.md)。
 
 这两份归档是精简前的完整文件副本，保留相互覆盖的历史记录。

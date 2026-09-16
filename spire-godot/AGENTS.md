@@ -1,7 +1,7 @@
 # 《紧缚尖塔》Godot 模块
 
 本目录是独立游戏，规则以本模块 docs 为准，不继承网页的数值或流程。
-新任务先看 README 的当前工作，再按下表读取相关文档。
+任务相关文档按下表按需读取；命令与操作流程见 `.zcode/skills/repo-ops/SKILL.md`。
 
 ## 文档入口
 
@@ -30,23 +30,7 @@
 
 ## 常用命令
 
-工作目录为本目录：
-
-```powershell
-& tools/check.ps1 -Suite architecture
-& tools/check.ps1 -Suite casting,pressure -Impact
-& tools/check.ps1 -UIOnly -UISuite equipment_art,hero_art
-& tools/check.ps1 -Import -Suite architecture -UI -UISuite home
-& tools/check.ps1 -Suite installation_priority -Impact -Exhaustive
-& tools/check.ps1 -Suite runner -VerifyRunner
-```
-
-分类注册在 tests/test_game.gd 与 tests/ui_smoke.gd。
-纯显示用 UIOnly；规则及界面同时修改则明确指定 Suite 和 UISuite。
-共享规则用 Impact 一次合并交叉分类；随机生成改动加 Exhaustive。
-ListOnly 仅预览范围，不能当作测试通过。
-all 只用于明确完整回归，检查通过后不无故重复运行。
-打包先读 docs/packaging.md，不能以旧发布说明代替当前脚本。
+本模块检查、内容包校验、启动与打包的命令与语义见 `.zcode/skills/repo-ops/SKILL.md`。
 
 ## 必须遵守的架构
 

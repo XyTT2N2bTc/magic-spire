@@ -10,3 +10,4 @@
 !/docs/
 !/tools/
 **/__pycache__/
+!/.zcode/

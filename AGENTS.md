@@ -2,17 +2,11 @@
 
 ## 项目是什么
 
-- 本仓库维护两个独立游戏模块。
-  先确定任务所属模块，再读取其指引。
+- 本仓当前只维护 `spire-godot/`（《紧缚尖塔》，Godot 塔路与卡牌游戏）。
+  模块边界与目录职责见 `docs/project-map.md`。
 
-- `spire-godot/` 是《紧缚尖塔》。
-  Godot 塔路与卡牌游戏，当前主要开发对象。
-
-- `game-demo/` 是网页文字 RPG。
-  《魔法少女又白给了》的规则沙盒实现。
-
-- 两者共用项目背景，不共用规则内核。
-  不把网页的数值或流程直接套给 Godot。
+- 网页模块的数值与流程不适用于 Godot。
+  不据旧界面反向修改规则定义。
 
 - 游戏面向成人；所有登场角色均为成年人。
   素材与文案按任务授权及资源许可处理。
@@ -20,14 +14,8 @@
 - 当前工作区以实际仓库位置为准。
   不使用历史文档中的旧绝对路径定位源码。
 
-- Godot 入口见 `spire-godot/AGENTS.md`。
-  模块规则与运行命令由该文件索引。
-
-- 网页入口见 `game-demo/AGENTS.md`。
-  网页专属契约只在该模块生效。
-
-- `work/` 保存网页规则、契约和验证索引。
-  `outputs/` 保存用户要求的交付物。
+- 模块入口见 `spire-godot/AGENTS.md`；命令与操作流程见
+  `.zcode/skills/repo-ops/SKILL.md`；打包与发布先读模块 `docs/packaging.md`。
 
 - `docs/agent-guide.md` 索引背景与历史。
   只读取当前任务相关的文档和章节。
@@ -40,55 +28,8 @@
 
 ## 常用命令
 
-命令均从标明的目录执行。
-占位分类须替换为本次实际影响的分类。
-
-在仓库根目录检查修改：
-
-```powershell
-git status --short
-git diff --stat
-git diff --check
-git diff --name-only
-```
-
-在 `spire-godot/` 检查规则：
-
-```powershell
-& tools/check.ps1 -Suite architecture
-& tools/check.ps1 -Suite casting,pressure -Impact
-```
-
-在 `spire-godot/` 检查界面：
-
-```powershell
-& tools/check.ps1 -UIOnly -UISuite equipment_art,hero_art
-& tools/check.ps1 -Import -Suite architecture -UI -UISuite home
-```
-
-在 `game-demo/` 启动与检查：
-
-```powershell
-npm.cmd run dev
-npm.cmd run lint
-npm.cmd test -- core ui
-npm.cmd run build
-```
-
-网页完整回归：
-
-```powershell
-npm.cmd run test:all
-```
-
-Godot 完整回归：
-
-```powershell
-& tools/check.ps1 -Suite all -UI -UISuite all
-```
-
-完整回归仅用于用户要求、发布或全局改造。
-日常使用受影响分类；具体门禁见子模块。
+命令与操作流程不在本文件：见 `.zcode/skills/repo-ops/SKILL.md`
+（根级 git 检查、`spire-godot` 分类门禁与语义、内容包校验、引擎定位、打包发布）。
 
 ## 必须遵守的规则
 
@@ -191,9 +132,6 @@ Godot 完整回归：
 
 - 格式与导入约束交给已有检查工具。
   代码风格保持现状，不做无关批量格式化。
-
-- 网页使用 ESLint、分类测试和构建。
-  Godot 使用引擎导入与分类检查入口。
 
 - 新规则覆盖正例、最近反例与边界。
   有支付、版本或随机变化时检查回滚。
