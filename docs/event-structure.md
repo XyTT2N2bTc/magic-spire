@@ -208,3 +208,45 @@ UI 只调用 `get_view` 和 `dispatch`；core 不依赖 UI。
 7. 第二可能爆掉的是新模块授权与依赖方向：物理拆分会新增 core 文件，不能只凭规划者判断。
 
 **结论：本提案标记为 `needs-human-review`。** 协调者需要转人确认新文件/新只读入口授权、重复遗物的玩家语义、是否允许修改内容包 schema，以及是否接受事件战斗从 `room_encounters` 中进一步解耦。
+
+## 7. 两套构建器的实测差异（协调者补注，2026-09-16）
+
+§2 缺陷 4 说的"两套构建器"不是同一份逻辑抄了两遍。两条路共享
+`freeze_choice`／`freeze_effects`／`selector_*`／`conditional_copy`，但语义、允许字段与
+RNG 推进都不同。以下为逐行核对结果（行号对应提交 `bf206d8` 时的源码）。
+
+字段白名单已经不同（`shape()` 拒绝未知字段，`content_catalog.gd:64-71`）：
+
+| 维度 | 普通选项 `content_catalog.gd:220` | 阶段选项 `content_catalog.gd:303` |
+| --- | --- | --- |
+| 独有 | `hide_when_unavailable`、`encounter`、`item_rewards` | `when`、`outcomes`、`next` |
+| recipe／effects | 必须且只能一个 | 只有两者同时出现才冲突；可以只有 `outcomes` |
+| effects 上限 | 8 | 12（`outcome.effects` 另计 12） |
+| 暂存装备 | 直接禁止 `hold_special`／`restore_held` | 允许，要求 key 唯一且 cleanup 配平 |
+| 拒绝选项默认 | `allow_refuse` 默认 true | 每阶段 `allow_refuse` 默认 false，起始阶段须可离开 |
+
+生成期的判据不同，且 flow 的可见性依赖效果执行结果：
+
+1. `freeze_effects`（`room_events.gd:109-183`）对每个效果都在模拟 state 上真跑一次，
+   失败即返回 `issue`；`freeze_choice` 据此返回 `{}`，该选项整条消失且不留记录。
+2. flow 的 `enter_stage` 无条件经过 `freeze_choice`，所以"效果不可行"在 flow 里是
+   一条**隐式可见性判据**（缺陷 1／2 的机制）。
+3. 普通路径只在效果含 `install_random/tighten_random/special_install_random/random_amount`
+   时才冻结（`room_events.gd:57`），其余直接挂原始 effects、不预跑；显式判据只有
+   遗物池闸门与 `hide_when_unavailable`。
+4. RNG 因此分叉：`freeze_effects` 结束时保留 `state.rng.event` 计数
+   （`room_events.gd:180-182`），冻结期间的抽取不回滚；flow 的每个 `outcomes` 还需
+   额外一次 `weighted()` 抽取。
+5. 同一条 selector 选项在 flow 里先抽一次 outcome 再复制给每个 selection
+   （`room_events.gd:304-308`），普通路径无 outcome 概念。
+
+另有一处死代码：普通路径存在 `choice_definition.get("pressure",0)>0` 分支
+（`room_events.gd:53`），但普通选项白名单不含 `pressure`，通过校验的内容包无法触发它。
+
+对本片的影响：
+
+- E1（定义归一）只统一容器与字段访问，不动各自算法，因此仍然安全。
+- E2 不得合并两套算法。要满足"行为逐字节不变"，只能把上述差异变成**显式声明**
+  （把隐式判据写到数据上），让统一的 `Evaluation` 记账两套语义。
+- 真正合并成一套（例如普通事件也预跑效果）会改变玩家可见行为，属 E6，须人裁。
+
