@@ -2,17 +2,12 @@
 
 ## 项目是什么
 
-- 本仓库维护两个独立游戏模块。
-  先确定任务所属模块，再读取其指引。
+- 本仓当前只维护 `spire-godot/`（《紧缚尖塔》，Godot 塔路与卡牌游戏）。
+  模块边界与目录职责见 `docs/spec/project-map.md`。
 
-- `spire-godot/` 是《紧缚尖塔》。
-  Godot 塔路与卡牌游戏，当前主要开发对象。
-
-- `game-demo/` 是网页文字 RPG。
-  《魔法少女又白给了》的规则沙盒实现。
-
-- 两者共用项目背景，不共用规则内核。
-  不把网页的数值或流程直接套给 Godot。
+- 网页项目《魔法少女又白给了》是同级另一仓库 `mahou-shoujo-escape`，不在本仓。
+  本仓不引用其源码或构建流程；其数值与流程不适用于 Godot，
+  不据其界面反向修改本仓规则定义。
 
 - 游戏面向成人；所有登场角色均为成年人。
   素材与文案按任务授权及资源许可处理。
@@ -20,82 +15,20 @@
 - 当前工作区以实际仓库位置为准。
   不使用历史文档中的旧绝对路径定位源码。
 
-- Godot 入口见 `spire-godot/AGENTS.md`。
-  模块规则与运行命令由该文件索引。
+- 命令与操作流程见 `.zcode/skills/repo-ops/SKILL.md`；打包与发布先读 `docs/spec/packaging.md`。
 
-- 网页入口见 `game-demo/AGENTS.md`。
-  网页专属契约只在该模块生效。
-
-- `work/` 保存网页规则、契约和验证索引。
-  `outputs/` 保存用户要求的交付物。
-
-- `docs/agent-guide.md` 索引背景与历史。
+- 历史决策与归档见 `docs/history/`（只读，含作者侧的 PR 集成评审）。
   只读取当前任务相关的文档和章节。
 
 - 历史记录用于追溯，不是新的待办。
   不把归档中的旧约束恢复成当前要求。
 
-- 子模块局部要求放在自己的 AGENTS.md。
-  根文件只保留跨模块的长期工作约束。
+- 规则集中在根 AGENTS.md；将来加入第二个模块时再按模块拆分。
 
 ## 常用命令
 
-命令均从标明的目录执行。
-占位分类须替换为本次实际影响的分类。
-
-在仓库根目录检查指引：
-
-```powershell
-python tools/check_agents.py
-python -m unittest discover -s tools -p "test_check_agents.py"
-```
-
-在仓库根目录检查修改：
-
-```powershell
-git status --short
-git diff --stat
-git diff --check
-git diff --name-only
-```
-
-在 `spire-godot/` 检查规则：
-
-```powershell
-& tools/check.ps1 -Suite architecture
-& tools/check.ps1 -Suite casting,pressure -Impact
-```
-
-在 `spire-godot/` 检查界面：
-
-```powershell
-& tools/check.ps1 -UIOnly -UISuite equipment_art,hero_art
-& tools/check.ps1 -Import -Suite architecture -UI -UISuite home
-```
-
-在 `game-demo/` 启动与检查：
-
-```powershell
-npm.cmd run dev
-npm.cmd run lint
-npm.cmd test -- core ui
-npm.cmd run build
-```
-
-网页完整回归：
-
-```powershell
-npm.cmd run test:all
-```
-
-Godot 完整回归：
-
-```powershell
-& tools/check.ps1 -Suite all -UI -UISuite all
-```
-
-完整回归仅用于用户要求、发布或全局改造。
-日常使用受影响分类；具体门禁见子模块。
+命令与操作流程不在本文件：见 `.zcode/skills/repo-ops/SKILL.md`
+（根级 git 检查、`spire-godot` 分类门禁与语义、内容包校验、引擎定位、打包发布）。
 
 ## 必须遵守的规则
 
@@ -111,53 +44,35 @@ Godot 完整回归：
 - 先读相关规则、实现及现有测试。
   修改范围以当前任务及其必要依赖为限。
 
-- 状态变化统一进入正式行动管线。
-  界面只消费只读投影并派发正式命令。
-
-- 提交必须复核候选身份与状态版本。
-  失败不得留下部分付款或部分装备变化。
-
-- 规则使用稳定 ID 和显式数据。
-  显示名称、译文和图片不能参与判定。
-
-- 派生状态从真实实例计算。
-  不维护多份可能失去同步的规则副本。
-
-- 随机由种子与独立随机域驱动。
-  查看、预览、翻面与翻译不得推进随机。
-
-- 先复用现有模板、工厂和通用效果。
-  新的职责边界须有具体需求与依据。
-
-- 内容不得反向开放尚未实现的能力。
-  菜单入口必须对应真实可执行流程。
-
-- 规则变化同步相关玩家可见文字。
-  数值、费用、原因与实际行为必须一致。
-
-- 文案按界面职责展示。
-  旁白不复述规则，日志不重复整段说明。
-
-- 中文与英文沿现有本地化入口维护。
-  缺译及旧源文使用已定义的安全回退。
-
-- 装备与场景资源必须有明确来源。
-  保留授权记录和可复现的处理说明。
-
-- 调试夹具与玩家存档隔离。
-  夹具注入后的行动仍走正式规则。
-
 - 验证结论必须对应实际运行的源码。
   报告测试范围、失败和未验证部分。
 
 - 长背景、数值修订和执行结果写入 docs。
   AGENTS.md 不追加聊天流水或版本日志。
 
-- 根指引保持 200～500 行。
-  每份 AGENTS.md 小于 10,000 字节。
+- 指引只写长期规范与索引；细节、操作与历史拆到 docs/ 与项目 skill。
 
-- CI 检查所有受版本管理的指引。
-  超过 500 行直接失败，具体实现见检查脚本。
+## 实现规约（改动前必读）
+
+- 完成需要有检查证据；返工使受影响域的既有结论作废，必须在该域重新取证。
+  只消费接口：接口契约成立时内部视为可信，接口结果变红或任务点名时才打开内部。
+  结构服从四件事：行为可验证、结构可理解、依赖受控、失败可确定性识别。
+
+- **先查重，再新增**：动手前先搜索是否已有相同实现（函数、判定、候选、写入点、查询入口）。
+  有相同语义的实现就在原接口上扩展，不新增第二套接口。
+
+- **先规划结构再写代码**：实现前把结构写清楚并作图（数据流、调用通道、写入点），
+  保证同类方法走同一条通道，到具体运作层再路由；写入、判定、执行各自只允许一个入口，
+  多入口要么合并、要么由一份声明表派生；同一语义有且仅有一条路径。
+
+- **不做无意义的 validation**：只保留能抓真实缺陷的检查，每条检查要有
+  "关掉它会让既有测试变红"的敏感性证明，否则删除。这类检查走 debug 通路
+  （构建类型判定），发行包不开启；缺失的早拦由提交后的聚合校验兜底并回滚。
+
+- **引用代码不写行号**，用函数名与符号锚点（行号随每次改动漂移）。
+
+- 实现完成后派**独立子代理审查**（新会话，不做自我验收）；审查以接口契约为边界，
+  报告点名域与证据，审查者不顺手改代码。
 
 ## 禁区
 
@@ -202,9 +117,6 @@ Godot 完整回归：
 - 格式与导入约束交给已有检查工具。
   代码风格保持现状，不做无关批量格式化。
 
-- 网页使用 ESLint、分类测试和构建。
-  Godot 使用引擎导入与分类检查入口。
-
 - 新规则覆盖正例、最近反例与边界。
   有支付、版本或随机变化时检查回滚。
 
@@ -214,17 +126,69 @@ Godot 完整回归：
 - 纯文档修改验证链接、编码和体积。
   不为说明文件重跑整个游戏回归。
 
-- CI 指引门禁运行同一个本地脚本。
-  同时检查 UTF-8、行数、体积及尾随空白。
-
-- 检查器自身覆盖边界与失败路径。
-  500 行允许，501 行必须拒绝。
-
-- Godot 核对退出码、错误日志与完成标记。
-  并行源码变化不能记作冻结版本通过。
-
 - 测试通过后只因新修改或新问题重跑。
   不无故扩大范围或重复已完成的检查。
 
 - 交付前复查本次差异及验证结果。
   明确是否只改源码、是否已打包或发布。
+
+## 模块规则（spire-godot/）
+
+以下是模块的文档索引、项目 skill 索引与代码规范；架构、界面文案素材、验证发布的细则在同目录技能里。
+
+### 文档入口
+
+文档按生命周期分五类，各有写入规则：
+`docs/spec/` 现行契约（**被取代即删，不留"更正"段**）；`docs/design/` 玩法与内容真源（每条事实只写一处，其它文件只链接）；
+`docs/guide/` 怎么干活；`docs/record/` 只追加（每条带日期＋域，验证册按时间分卷）；`docs/history/` 只读归档。
+
+| 任务 | 按需阅读 |
+| --- | --- |
+| 玩法、场次、奖励、资源 | docs/design/game-design.md |
+| 装备、覆盖、链接、解除 | docs/design/equipment-design.md |
+| 卡牌与内容创作 | docs/design/cards.md、docs/design/content.md |
+| 角色2 | docs/design/character-two.md |
+| 监狱及出狱 | docs/design/prison.md |
+| 平板锁 | docs/design/cursed-plate-lock.md |
+| 第一幕敌人 | docs/design/enemies-first-floor.md |
+| 键盘与触屏 | docs/design/input-controls.md |
+| 输入到落地的提交与刷新 | docs/spec/response-pipeline.md |
+| 事件管线与事件结构 | docs/spec/event-pipeline.md |
+| 状态迁移管线（单写入者） | docs/spec/transition-pipeline.md |
+| 固定点存档 | docs/spec/save-fixed-points.md |
+| 候选局部筛查契约 | docs/spec/candidate-delta.md |
+| 装备只读查询 | docs/spec/equipment-query-seam.md |
+| 玩家可见文案的收口与按需 | docs/spec/ondemand-copy.md |
+| 界面拆分与装备详情 | docs/spec/release-interface.md |
+| 项目结构 | docs/spec/project-map.md |
+| 打包与反馈服务 | docs/spec/packaging.md、docs/spec/feedback-deployment.md |
+| 文案与本地化 | docs/guide/localization.md、docs/guide/action-copy-guide.md |
+| 验证结果（现行卷） | docs/record/verification.md |
+| 版本日志与历史验证分卷 | docs/record/changelog.md、docs/record/ |
+| 性能测量 | docs/record/equipment-performance.md |
+| 未落地提案与前端问题清单 | docs/record/proposals/ |
+| 美术来源与差分 | spire-godot/assets/art/ART-NOTES.md、spire-godot/assets/vendor/CREDITS.md |
+| 历史决策追溯 | docs/history/ |
+
+历史归档包含已被推翻的记录；先搜索主题再读取相关段落，
+按用户最终要求和最新专题文档判断，不能整份视为现行指令。
+
+### 项目 skill 索引
+
+细节规范与操作按类拆到本目录技能，改动前按需读取：
+
+- `repo-ops`：命令与操作流程（检查门禁及语义、内容包校验、引擎定位、打包发布）。
+- `spire-architecture`：架构边界与数据流（提交入口、只读投影、候选与索引、随机、只读复用、装备事务、分层）。
+- `spire-ui-content`：界面、文案、本地化、立绘与素材。
+- `spire-validation-release`：验证口径、测试夹具隔离、自动推送与打包发布边界。
+
+### 代码规范
+
+以下为本模块现状约定，检查工具覆盖不到，改动时人工遵守：
+
+- GDScript 缩进是**每层一个空格**（不是四空格）；不重排函数、不批量格式化未触及的代码。
+- 命名：变量与函数 snake_case，常量与 preload 类 PascalCase；判定只用稳定 ID（template/type/id）。
+- 失败用返回原因字符串表达（空串=成功）或 `{ok,error}` 字典，不用异常；早退守卫写在前面。
+- 注释写不变量、原因与边界（英文）；玩家可见文案与 docs 用中文。
+- 新增文件须有明确职责边界与依据；大文件按职责拆，不按行数硬拆。
+- 测试断言消息用英文并写明域；优先复用 `tests/` 既有夹具与真实输入助手。

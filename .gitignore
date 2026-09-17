@@ -6,7 +6,15 @@
 !/版本更新内容.txt
 !/spire-godot/
 !/AGENTS.md
-!/.github/
 !/docs/
-!/tools/
+!/release/
+!/.zcode/
+
+# 构建产物与本地缓存（任意层级；根 AGENTS.md「禁区」不提交缓存、存档与临时日志）
+build/
+outputs/
+.godot/
+*.log
+*.tmp
+*.pyc
 **/__pycache__/
