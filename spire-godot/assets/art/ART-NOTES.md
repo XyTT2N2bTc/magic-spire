@@ -126,7 +126,7 @@ Use case: stylized-concept. Production game asset: one empty illustrated 16:9 wi
 
 map-icons-v1 与 map-parts-v2 均为本任务内置 image_gen 生成，逐图原始提示词和来源记录保存在各目录。ui/route_map.gd 直接使用独立PNG，纸面只在绘制时以0.78调暗，未生成或修改原图。入口、当前位置、可前往及完成标记均按正式投影显示；侧边建筑不拦截输入。纸面按视口等比裁取，不使用未验证的无缝平铺。此前 map-assembly-v1 仍为历史静态示意，不参与游戏。
 
-route窗口88项通过。实际截图与日志见docs/verification.md本批记录。
+route窗口88项通过。实际截图与日志见 `docs/record/verification.md` 本批记录。
 
 ## 2026-09-07：商店代码绘景
 

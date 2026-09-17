@@ -4,6 +4,7 @@
 并把同一份声明用于界面投影的脏集与提交复核的筛查。
 实现前置＝**协调者记录的人 OK 覆盖本片切线**（`needs-human-review` 理由见「假设与待决」）。
 本文件不写执行结果；通过／失败／未执行只登记在验证记录（`docs/record/verification.md`）。
+**前置状态（2026-09-18）**：本契约尚未实施——`core/candidate_deps.gd`、`ui/candidate_delta.gd`、`tools/candidate-deps.ps1` 均未落地；文中引用的 `tools/check-index.ps1`／`tests/check_index.json` 属“检查路由”片，同样未随本次提交落地（两片的方案与结论见 `docs/record/proposals/check-routing-and-per-click-checks.md`）。未落地前 C0 不得开工。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、`tools/`、`build/`）
 均相对 `spire-godot/`；`docs/` 相对仓库根。
@@ -194,7 +195,7 @@
 ```powershell
 & tools/check.ps1 -Suite architecture,core,runner,battle_saturation,rewards,guard,persistence -Impact -TimeoutSeconds 900
 & tools/check.ps1 -UIOnly -UISuite display,interface,targeting,basic_attacks,body_layout,events,persistence -TimeoutSeconds 900
-& tools/check-index.ps1                     # 零漂移；改 core/ 后必须 -Write 并与源码同批提交
+& tools/check-index.ps1                     # 随“检查路由”片提交；未落地前 C0 不得开工（见文件头注）
 & <godot console exe> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
 & <godot console exe> --headless --path . --script res://build/transition-oracle-20260916/transition_oracle.gd -- --baseline=build/transition-oracle-20260916/baseline.json
 ```
@@ -202,7 +203,7 @@
 - `tools/check-index.ps1` 与 `tests/check_index*.gd` 属检查索引契约的交付物（本片不新建、不改写）；
   本片 C0 的零漂移自检沿用其口径，未落地前 C0 不得开工。
 - 判据：两个冻结 oracle `EVENT RESULT: PASS`／`TRANSITION RESULT: PASS`，`EVENTDIGEST`／`TRANSITIONDIGEST`
-  与基线逐字相同，引擎错误日志 0 行；`check-index.ps1` 退出码 0；`summary.json` `status=passed`
+  与基线逐字相同，引擎错误日志 0 行；`check-index.ps1` 退出码 0（该工具随“检查路由”片提交）；`summary.json` `status=passed`
   且 `before==after` 指纹。
 - 红集必须 ⊆ 既有六项：`card_power` 5／`installed_tools` 1／`tower_progression` 10＋1／`hand_assist` 1／
   `home_persistence` 3／`interface` 1（28 张 `witch_*` 卡缺立绘）；新增红项视为本片未完成。
@@ -212,7 +213,7 @@
   交替执行、2 热身＋15 有效配对、逐对比值中位与两侧独立中位分开报告）；**写入差分本身的成本必须单列**，
   若与候选构建同量级必须如实上报；产物放忽略目录 `build/candidate-delta-<date>/`，摘要入验证记录后删除，
   生产源码不留计数器／计时钩子。
-- 算未完成（任一）：任一必跑套件未执行／失败／无授权跳过；oracle 摘要漂移或错误日志非 0；`check-index.ps1` 非 0；
+- 算未完成（任一）：任一必跑套件未执行／失败／无授权跳过；oracle 摘要漂移或错误日志非 0；`check-index.ps1` 非 0（随该片提交后生效）；
   有效操作路径上仍出现 `candidates()` 调用；回退实现成 `get_view()`；UI 自行推断作废集合；
   候选行／判定／文案变化；读档路径被改；依赖表外读取放行；生产留计数器；只报 0 不报伴侣指标；
   宣称帧率提升或全量回归。
