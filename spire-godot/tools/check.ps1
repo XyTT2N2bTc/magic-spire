@@ -1,6 +1,7 @@
 ﻿param(
     [switch]$UI, [switch]$UIOnly, [switch]$Import, [switch]$VerifyRunner,
     [switch]$Exhaustive, [switch]$ListOnly, [switch]$Impact, [switch]$KeepGoing,
+    [switch]$Changed, [string]$Since = '', [string]$ChangedList = '',
     [string]$RerunFailed = '', [string[]]$Screenshots = @(),
     [string[]]$Suite = @('runner', 'architecture'), [string[]]$UISuite = @('home'),
     [ValidateRange(1,3600)][int]$TimeoutSeconds = 300
@@ -39,8 +40,54 @@ if ($PSBoundParameters.ContainsKey('UISuite') -and -not ($UI -or $UIOnly)) {
 }
 if ($ListOnly -and ($Import -or $VerifyRunner)) { throw '-ListOnly cannot be combined with -Import or -VerifyRunner.' }
 if ($UIOnly -and $Impact) { throw '-Impact applies to rule suites; UI suites are selected explicitly.' }
-. (Join-Path $PSScriptRoot 'find-godot.ps1')
+# Route mode: the change set decides the scope, so an explicit scope is a conflict.
+$routeMode = [bool]($Changed -or $ChangedList)
+if ($Since -and -not $Changed) { throw '-Since requires -Changed.' }
+if ($Changed -and $ChangedList) { throw '-Changed and -ChangedList are mutually exclusive.' }
+if ($routeMode -and $RerunFailed) { throw '-RerunFailed cannot be combined with -Changed or -ChangedList.' }
+if ($routeMode) {
+    foreach ($option in @('Suite','UISuite','UI','UIOnly','Impact')) {
+        if ($PSBoundParameters.ContainsKey($option)) { throw "-Changed/-ChangedList cannot be combined with -$option." }
+    }
+}
 $gameDirectory = Split-Path -Parent $PSScriptRoot
+$repoRoot = ''
+$routeFiles = @()
+$declaredNone = @('docs/','release/','.zcode/','spire-godot/build/','spire-godot/.godot/')
+function Test-DeclaredNone {
+    param([string]$Path)
+    foreach ($prefix in $declaredNone) { if ($Path.StartsWith($prefix)) { return $true } }
+    if ($Path -match '^[^/]+\.md$') { return $true }
+    return $Path -in @('README.md','AGENTS.md','.gitignore','LICENSE','ASSET_RIGHTS.md')
+}
+if ($routeMode) {
+    $repoRoot = (& git -C $gameDirectory rev-parse --show-toplevel)
+    if ($LASTEXITCODE -ne 0 -or -not $repoRoot) { throw 'Cannot locate the repository root with git.' }
+    $repoRoot = $repoRoot.Trim().Replace('\','/')
+    if ($Changed) {
+        $base = if ($Since) { $Since } else { 'HEAD' }
+        $tracked = @(& git -C $repoRoot -c core.quotepath=false diff --name-only $base)
+        if ($LASTEXITCODE -ne 0) { throw "git diff failed for base $base." }
+        $untracked = @(& git -C $repoRoot -c core.quotepath=false ls-files --others --exclude-standard)
+        if ($LASTEXITCODE -ne 0) { throw 'git ls-files failed for the untracked change set.' }
+        $routeFiles = @($tracked + $untracked | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+    } else {
+        $routeFiles = @(Get-Content -LiteralPath $ChangedList | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' -and -not $_.StartsWith('#') })
+    }
+    # Ambiguous git lines are rejected instead of guessed (renames, quoted paths).
+    $ambiguous = @($routeFiles | Where-Object { $_ -match '"' -or $_ -match '=>' -or $_ -match "`t" })
+    if ($ambiguous.Count -gt 0) { throw "Ambiguous change-set line(s): $($ambiguous -join ', '). Use -ChangedList with explicit module paths." }
+    # Strip one leading "./" only: TrimStart('./') would also eat the dot of paths
+    # like .zcode/skills/repo-ops/SKILL.md and turn declared-none into an error.
+    $routeFiles = @($routeFiles | ForEach-Object { $_.Replace('\','/') } | ForEach-Object { if ($_.StartsWith('./')) { $_.Substring(2) } else { $_ } } | Sort-Object -Unique)
+    if ($routeFiles.Count -eq 0) { throw 'The change set is empty; committed changes need -Changed -Since <ref> (default base is HEAD).' }
+    foreach ($file in $routeFiles) {
+        if ($file.StartsWith('spire-godot/')) { continue }
+        if (Test-DeclaredNone $file) { continue }
+        throw "Path is outside spire-godot/: $file. That is not source; use -ChangedList with explicit module paths."
+    }
+}
+. (Join-Path $PSScriptRoot 'find-godot.ps1')
 $engine = Find-SpireGodot -Console
 $buildDirectory = Join-Path $gameDirectory 'build'
 [IO.Directory]::CreateDirectory($buildDirectory) | Out-Null
@@ -134,11 +181,39 @@ function Invoke-SpireCheck {
 $beforeFingerprint = Get-SourceFingerprint
 $exitCode = 0
 $failureMessage = ''
+$routeSummary = $null
+$gateResults = $null
+$planOnly = [bool]($routeMode -and $ListOnly)
 try {
-    if ($Import -or -not (Test-Path -LiteralPath (Join-Path $gameDirectory '.godot'))) {
+    if ($routeMode) {
+        # Plan host first: it prints the ROUTE lines and writes the plan JSON that
+        # decides both phases. No test host starts before the plan is accepted, and
+        # the ROUTE lines are the review surface for every default decision.
+        $routeListPath = Join-Path $checkDirectory 'changed-files.txt'
+        [IO.File]::WriteAllLines($routeListPath, $routeFiles, [Text.UTF8Encoding]::new($false))
+        $routePlanPath = Join-Path $checkDirectory 'route-plan.json'
+        $routeLogPath = Join-Path $checkDirectory 'check-route.log'
+        $routeArguments = @('--headless', '--script', 'res://tests/route_plan.gd', '--', ('--files=' + $routeListPath), ('--plan=' + $routePlanPath))
+        if ($ListOnly) { $routeArguments += '--list-only' }
+        $routeExit = Invoke-CheckEngine -Log $routeLogPath -Arguments $routeArguments
+        $routeOutput = [IO.File]::ReadAllText($routeLogPath)
+        $routeOutput -split '\r?\n' | Where-Object { $_ -match '^(ROUTE |PLAN ONLY:)' } | Write-Output
+        if ($routeExit -ne 0 -or -not (Test-Path -LiteralPath $routePlanPath)) { throw "Route plan refused the change set (exit=$routeExit). See $routeLogPath" }
+        $plan = Get-Content -LiteralPath $routePlanPath -Raw | ConvertFrom-Json
+        $Suite = @($plan.rules | Where-Object { $_ })
+        $UISuite = @($plan.ui | Where-Object { $_ })
+        $UI = $UISuite.Count -gt 0
+        $UIOnly = $Suite.Count -eq 0
+        $routeSummary = [ordered]@{ mode=$plan.mode; since=$Since; files_count=@($plan.files).Count; files_sha256=$plan.files_sha256
+            index_digest=$plan.index_digest; rules=@($plan.rules); ui=@($plan.ui); gates=@($plan.gates); unmapped=@($plan.unmapped)
+            default_files=@($plan.default_files); blind_files=@($plan.blind_files); defect_hits=@($plan.defect_hits)
+            widen=@($plan.widen); widen_candidates=@($plan.widen_candidates); milestone=@($plan.milestone); notes=@($plan.notes)
+            declared_none=@($plan.declared_none); plan=$routePlanPath; log=$routeLogPath }
+    }
+    if (-not $planOnly -and ($Import -or -not (Test-Path -LiteralPath (Join-Path $gameDirectory '.godot')))) {
         Invoke-SpireCheck -Name 'import' -EngineArguments @('--headless', '--editor', '--quit')
     }
-    if (-not $UIOnly) {
+    if (-not $planOnly -and -not $UIOnly) {
         $arguments = @('--headless', '--script', 'res://tests/test_game.gd', '--', ('--suite=' + ($Suite -join ',')))
         if ($Impact) { $arguments += '--impact' }
         if ($Exhaustive) { $arguments += '--exhaustive' }
@@ -147,13 +222,31 @@ try {
         $expected = if ($ListOnly) { '(?m)^PLAN ONLY: no rule tests executed$' } else { '(?m)^PASS: \d+ assertions\s*$' }
         Invoke-SpireCheck -Name 'rules' -EngineArguments $arguments -Expected $expected
     }
-    if ($UI -or $UIOnly) {
+    if (-not $planOnly -and ($UI -or $UIOnly)) {
         $arguments = @('--script', 'res://tests/ui_smoke.gd', '--', ('--ui-suite=' + ($UISuite -join ',')))
         if ($KeepGoing) { $arguments += '--keep-going' }
         if ($Screenshots.Count -gt 0) { $arguments += ('--screenshots=' + ($Screenshots -join ',')) }
         if ($ListOnly) { $arguments = @('--headless') + $arguments + @('--list-only') }
         $expected = if ($ListOnly) { '(?m)^PLAN ONLY: no UI tests executed$' } else { '(?m)^UI PASS: \d+ assertions\s*$' }
         Invoke-SpireCheck -Name 'ui' -EngineArguments $arguments -Expected $expected
+    }
+    if ($routeMode -and -not $planOnly -and @($plan.gates) -contains 'content') {
+        # The content gate is its own phase (contract §10-9): its exit code and log are
+        # recorded in summary.route.gate_results and are not rule/UI conclusions.
+        $gateLog = Join-Path $checkDirectory 'check-content.log'
+        $gateOutput = ''
+        $gateExit = 1
+        try {
+            $gateOutput = (& (Get-Process -Id $PID).Path -NoProfile -File (Join-Path $PSScriptRoot 'check-content.ps1') 2>&1 | Out-String)
+            $gateExit = $LASTEXITCODE
+        } catch {
+            $gateOutput = [string]$_.Exception.Message
+            $gateExit = 1
+        }
+        [IO.File]::WriteAllText($gateLog, $gateOutput)
+        $gateOutput -split '\r?\n' | Where-Object { $_ -match '^CONTENT ' } | Write-Output
+        $gateResults = [ordered]@{ content = [ordered]@{ passed = ($gateExit -eq 0); exit = $gateExit; log = $gateLog } }
+        if ($gateExit -ne 0) { $exitCode = 1; Write-Output 'ROUTE GATE FAILED: content (see the log above)' }
     }
 if ($VerifyRunner) {
     $checkShell = (Get-Process -Id $PID).Path
@@ -232,6 +325,64 @@ if ($VerifyRunner) {
     if ($uiIsolation.unrun.Count -ne 0 -or ($uiIsolation.retry -join ',') -ne 'localization') { throw 'UI isolation probe lost the later module or its retry report.' }
     if ([IO.File]::ReadAllText($uiIsolationLog) -notmatch '(?m)^SUITE RUNTIME: localization [1-9]') { throw 'UI isolation probe missed the runtime annotation.' }
     Write-Output 'CHECK negative-isolation-ui: failed module isolated, later modules completed'
+    # Route probes (§7-1): the plan is the review surface, so these pin the decisions
+    # the plan host must make for the pinned example change sets (contract §6-G3).
+    foreach ($routeProbe in @(
+        @{ Name='route-ui-only'; Files=@('spire-godot/ui/main.gd')
+           Must=@('(?m)^ROUTE ROW: spire-godot/ui/main\.gd -> rules=\(none\) ui=\S+ \[signals=symbol_ui\]\r?$', '(?m)^ROUTE RULE SCOPE: \(none\)\r?$') },
+        @{ Name='route-content'; Files=@('spire-godot/content/packs/abandoned_storeroom.json')
+           Must=@('(?m)^ROUTE DEFAULT: spire-godot/content/packs/abandoned_storeroom\.json \(blind, closure=spire-godot/content/\)\r?$', '(?m)^ROUTE UI SCOPE: \(none\)\r?$', '(?m)^ROUTE GATE: content ') },
+        @{ Name='route-save'; Files=@('spire-godot/core/save_store.gd')
+           Must=@('(?m)^ROUTE CORE APPEND: spire-godot/core/save_store\.gd \+= architecture,persistence,runner ', 'signals=preload', '(?m)^ROUTE RULE SCOPE: architecture,runner,persistence\r?$', '(?m)^ROUTE UI SCOPE: encyclopedia,home_persistence,home,persistence\r?$') },
+        @{ Name='route-snapshot-domain'; Files=@('spire-godot/core/snapshot.gd')
+           Must=@('(?m)^ROUTE ROW: spire-godot/core/snapshot\.gd .*\[signals=domain,core-append\]\r?$', '(?m)^ROUTE RULE SCOPE: architecture,runner,persistence\r?$') },
+        @{ Name='route-blind-closure'; Files=@('spire-godot/core/tool_rules.gd')
+           Must=@('(?m)^ROUTE DEFAULT: spire-godot/core/tool_rules\.gd \(blind, closure=spire-godot/core/\)\r?$', '(?m)^ROUTE BLIND: spire-godot/core/tool_rules\.gd \(BLIND_BY_DESIGN: ', '(?m)^ROUTE RULE SCOPE: (?!.*normal_play).*\r?$') },
+        @{ Name='route-unmapped-fail-closed'; Files=@('spire-godot/newdir/x.gd')
+           Must=@('(?m)^ROUTE UNMAPPED: spire-godot/newdir/x\.gd \(no index edge and no closure; fail-closed to all-dev \+ all-dev-ui\)\r?$', '(?m)^ROUTE MILESTONE: declared baseline,normal_play; deducted in this plan: ') },
+        @{ Name='route-declared-none'; Files=@('docs/check-routing.md')
+           Must=@('(?m)^ROUTE NONE: docs/check-routing\.md \(outside the source fingerprint; no suites, never a pass\)\r?$', '(?m)^ROUTE RULE SCOPE: \(none\)\r?$') }
+    )) {
+        $probeName = $routeProbe.Name
+        $probeListPath = Join-Path $checkDirectory ('probe-' + $probeName + '.txt')
+        [IO.File]::WriteAllLines($probeListPath, $routeProbe.Files, [Text.UTF8Encoding]::new($false))
+        $probeOutput = ''
+        $probeExit = 1
+        try {
+            $probeOutput = (& $checkShell -NoProfile -File $PSCommandPath -ChangedList $probeListPath -ListOnly 2>&1 | Out-String)
+            $probeExit = $LASTEXITCODE
+        } catch {
+            $probeOutput = [string]$_.Exception.Message
+            $probeExit = 1
+        }
+        [IO.File]::WriteAllText((Join-Path $checkDirectory ('check-' + $probeName + '.log')), $probeOutput)
+        if ($probeExit -ne 0) { throw "Route probe did not produce a usable plan: $probeName" }
+        foreach ($pattern in $routeProbe.Must) {
+            if ($probeOutput -notmatch $pattern) { throw "Route probe missed an expected plan line: $probeName / $pattern" }
+        }
+        Write-Output "CHECK ${probeName}: plan decisions verified"
+    }
+    # -ListOnly must equal the executed scope: compare the plan with the real run.
+    $scopeListPath = Join-Path $checkDirectory 'probe-route-scope-matches.txt'
+    [IO.File]::WriteAllLines($scopeListPath, @('spire-godot/tests/runner_cases.gd'), [Text.UTF8Encoding]::new($false))
+    $scopeOutput = ''
+    $scopeExit = 1
+    try {
+        $scopeOutput = (& $checkShell -NoProfile -File $PSCommandPath -ChangedList $scopeListPath 2>&1 | Out-String)
+        $scopeExit = $LASTEXITCODE
+    } catch {
+        $scopeOutput = [string]$_.Exception.Message
+        $scopeExit = 1
+    }
+    [IO.File]::WriteAllText((Join-Path $checkDirectory 'check-route-scope-matches.log'), $scopeOutput)
+    if ($scopeExit -ne 0) { throw 'Route scope probe: the routed runner run did not finish green.' }
+    $scopeSummaryPath = [regex]::Match($scopeOutput, '(?m)^SUMMARY: (.+)$').Groups[1].Value.Trim()
+    if (-not $scopeSummaryPath) { throw 'Route scope probe: no summary.json was reported.' }
+    $scopeSummary = Get-Content -LiteralPath $scopeSummaryPath -Raw | ConvertFrom-Json
+    if ((@($scopeSummary.route.rules) -join ',') -ne (@($scopeSummary.rules.selected) -join ',')) { throw 'Route scope probe: the planned rule scope differs from the executed rule scope.' }
+    if ((@($scopeSummary.route.ui) -join ',') -ne (@($scopeSummary.ui.selected) -join ',')) { throw 'Route scope probe: the planned UI scope differs from the executed UI scope.' }
+    if ($scopeSummary.status -ne 'passed' -or $scopeSummary.route.mode -ne 'changed') { throw "Route scope probe: unexpected status or mode ($($scopeSummary.status)/$($scopeSummary.route.mode))." }
+    Write-Output 'CHECK route-scope-matches: the planned scope equals the executed scope'
 }
 
 } catch {
@@ -249,7 +400,10 @@ if ($VerifyRunner) {
         Write-Output 'SOURCE CHANGED: results belong to a moving workspace; rerun after edits settle.'
     }
     $status = if ($ListOnly -and $exitCode -eq 0) { 'plan' } elseif ($changed -and -not $ListOnly) { 'source_changed' } elseif ($exitCode -eq 0) { 'passed' } else { 'failed' }
-    $summary = [ordered]@{ schema=1; status=$status; error=$failureMessage; impact=[bool]$Impact; exhaustive=[bool]($Exhaustive -or 'all' -in $Suite); verify_runner=[bool]$VerifyRunner; before=$beforeFingerprint; after=$afterFingerprint; rules=$rules; ui=$window }
+    if ($routeSummary) {
+        $routeSummary['gate_results'] = $gateResults
+    }
+    $summary = [ordered]@{ schema=1; status=$status; error=$failureMessage; impact=[bool]$Impact; exhaustive=[bool]($Exhaustive -or 'all' -in $Suite); verify_runner=[bool]$VerifyRunner; before=$beforeFingerprint; after=$afterFingerprint; rules=$rules; ui=$window; route=$routeSummary }
     $summaryPath = Join-Path $checkDirectory 'summary.json'
     [IO.File]::WriteAllText($summaryPath, ($summary | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
     Write-Output ('SUMMARY: ' + $summaryPath)

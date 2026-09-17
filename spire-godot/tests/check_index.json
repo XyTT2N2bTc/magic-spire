@@ -1,0 +1,3250 @@
+{
+  "blind": [
+    "spire-godot/core/item_presentation.gd",
+    "spire-godot/core/release_view.gd",
+    "spire-godot/core/tool_rules.gd",
+    "spire-godot/data/phases.gd"
+  ],
+  "case_files": {
+    "spire-godot/tests/action_copy_cases.gd": {
+      "owner": "rule:action_copy",
+      "signals": 1
+    },
+    "spire-godot/tests/action_copy_ui_cases.gd": {
+      "owner": "ui:action_copy",
+      "signals": 2
+    },
+    "spire-godot/tests/action_log_cases.gd": {
+      "owner": "rule:action_copy",
+      "signals": 2
+    },
+    "spire-godot/tests/adaptability_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/application_cases.gd": {
+      "owner": "rule:application",
+      "signals": 4
+    },
+    "spire-godot/tests/architecture_cases.gd": {
+      "owner": "rule:architecture",
+      "signals": 9
+    },
+    "spire-godot/tests/axe_amulet_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/basic_attack_cases.gd": {
+      "owner": "rule:basic_attacks",
+      "signals": 1
+    },
+    "spire-godot/tests/basic_attack_ui_cases.gd": {
+      "owner": "ui:basic_attacks",
+      "signals": 3
+    },
+    "spire-godot/tests/battle_reward_cases.gd": {
+      "owner": "rule:rewards",
+      "signals": 1
+    },
+    "spire-godot/tests/battle_saturation_cases.gd": {
+      "owner": "rule:battle_saturation",
+      "signals": 1
+    },
+    "spire-godot/tests/binding_box_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 2
+    },
+    "spire-godot/tests/binding_enthusiast_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/body_consumable_cases.gd": {
+      "owner": "rule:consumables",
+      "signals": 1
+    },
+    "spire-godot/tests/body_layout_ui_cases.gd": {
+      "owner": "ui:body_layout",
+      "signals": 4
+    },
+    "spire-godot/tests/boss_relic_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/breath_control_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/card_expansion_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 3
+    },
+    "spire-godot/tests/card_music_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/card_music_ui_cases.gd": {
+      "owner": "ui:display",
+      "signals": 3
+    },
+    "spire-godot/tests/card_power_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 3
+    },
+    "spire-godot/tests/card_power_ui_cases.gd": {
+      "owner": "ui:card_power",
+      "signals": 2
+    },
+    "spire-godot/tests/card_splash_cases.gd": {
+      "owner": "rule:card_splash",
+      "signals": 2
+    },
+    "spire-godot/tests/card_splash_ui_cases.gd": {
+      "owner": "ui:card_splash",
+      "signals": 2
+    },
+    "spire-godot/tests/card_text_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 3
+    },
+    "spire-godot/tests/casting_cases.gd": {
+      "owner": "rule:casting",
+      "signals": 2
+    },
+    "spire-godot/tests/casting_ui_cases.gd": {
+      "owner": "ui:casting",
+      "signals": 4
+    },
+    "spire-godot/tests/charge_cases.gd": {
+      "owner": "rule:status",
+      "signals": 1
+    },
+    "spire-godot/tests/combat_extension_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/composite_cases.gd": {
+      "owner": "rule:composites",
+      "signals": 1
+    },
+    "spire-godot/tests/concentration_cases.gd": {
+      "owner": "rule:card_growth",
+      "signals": 1
+    },
+    "spire-godot/tests/concentration_ui_cases.gd": {
+      "owner": "ui:card_growth",
+      "signals": 2
+    },
+    "spire-godot/tests/confluence_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/consumable_cases.gd": {
+      "owner": "rule:consumables",
+      "signals": 1
+    },
+    "spire-godot/tests/consumable_ui_cases.gd": {
+      "owner": "ui:consumables",
+      "signals": 2
+    },
+    "spire-godot/tests/content_cases.gd": {
+      "owner": "rule:content",
+      "signals": 2
+    },
+    "spire-godot/tests/crossed_legs_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/cumulative_cards_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 3
+    },
+    "spire-godot/tests/curse_cases.gd": {
+      "owner": "rule:curses",
+      "signals": 2
+    },
+    "spire-godot/tests/curse_ui_cases.gd": {
+      "owner": "ui:rewards",
+      "signals": 2
+    },
+    "spire-godot/tests/cursed_plate_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/demo_exit_cases.gd": {
+      "owner": "rule:tower_progression",
+      "signals": 1
+    },
+    "spire-godot/tests/departure_cases.gd": {
+      "owner": "rule:tower",
+      "signals": 2
+    },
+    "spire-godot/tests/departure_ui_cases.gd": {
+      "owner": "ui:home",
+      "signals": 2
+    },
+    "spire-godot/tests/display_ui_cases.gd": {
+      "owner": "ui:display",
+      "signals": 6
+    },
+    "spire-godot/tests/drone_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 2
+    },
+    "spire-godot/tests/echo_cast_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/ember_crystal_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/embers_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/encyclopedia_cases.gd": {
+      "owner": "rule:encyclopedia",
+      "signals": 2
+    },
+    "spire-godot/tests/encyclopedia_ui_cases.gd": {
+      "owner": "ui:encyclopedia",
+      "signals": 5
+    },
+    "spire-godot/tests/enemy_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 2
+    },
+    "spire-godot/tests/enemy_feedback_ui_cases.gd": {
+      "owner": "ui:enemy_feedback",
+      "signals": 3
+    },
+    "spire-godot/tests/enemy_health_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 1
+    },
+    "spire-godot/tests/enemy_heap_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 2
+    },
+    "spire-godot/tests/enemy_mixed_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 1
+    },
+    "spire-godot/tests/enemy_ritual_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 1
+    },
+    "spire-godot/tests/enemy_serpent_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 1
+    },
+    "spire-godot/tests/enemy_split_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 2
+    },
+    "spire-godot/tests/enemy_ui_cases.gd": {
+      "owner": "ui:enemies",
+      "signals": 4
+    },
+    "spire-godot/tests/enemy_versatile_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 2
+    },
+    "spire-godot/tests/environment_height_cases.gd": {
+      "owner": "rule:environment_height",
+      "signals": 1
+    },
+    "spire-godot/tests/equipment_art_ui_cases.gd": {
+      "owner": "ui:equipment_art",
+      "signals": 3
+    },
+    "spire-godot/tests/equipment_cases.gd": {
+      "owner": "rule:equipment",
+      "signals": 2
+    },
+    "spire-godot/tests/equipment_complete_cases.gd": {
+      "owner": "rule:equipment_complete",
+      "signals": 4
+    },
+    "spire-godot/tests/equipment_ui_cases.gd": {
+      "owner": "ui:equipment_complete",
+      "signals": 3
+    },
+    "spire-godot/tests/event_cases.gd": {
+      "owner": "rule:events",
+      "signals": 3
+    },
+    "spire-godot/tests/event_draw_cases.gd": {
+      "owner": "rule:events",
+      "signals": 1
+    },
+    "spire-godot/tests/event_flow_cases.gd": {
+      "owner": "rule:event_flow",
+      "signals": 2
+    },
+    "spire-godot/tests/event_ui_cases.gd": {
+      "owner": "ui:events",
+      "signals": 3
+    },
+    "spire-godot/tests/exploration_cases.gd": {
+      "owner": "rule:exploration",
+      "signals": 2
+    },
+    "spire-godot/tests/exploration_ui_cases.gd": {
+      "owner": "ui:exploration",
+      "signals": 4
+    },
+    "spire-godot/tests/fire_control_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/fire_dynamics_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/flame_flourish_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/follow_through_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/graduate_certificate_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/guard_cases.gd": {
+      "owner": "rule:guard",
+      "signals": 3
+    },
+    "spire-godot/tests/guard_ui_cases.gd": {
+      "owner": "ui:guard",
+      "signals": 2
+    },
+    "spire-godot/tests/hand_assist_cases.gd": {
+      "owner": "rule:hand_assist",
+      "signals": 2
+    },
+    "spire-godot/tests/hand_assist_ui_cases.gd": {
+      "owner": "ui:hand_assist",
+      "signals": 2
+    },
+    "spire-godot/tests/hannya_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/hannya_ui_cases.gd": {
+      "owner": "ui:card_power",
+      "signals": 2
+    },
+    "spire-godot/tests/hero_art_ui_cases.gd": {
+      "owner": "ui:hero_art",
+      "signals": 4
+    },
+    "spire-godot/tests/home_persistence_ui_cases.gd": {
+      "owner": "ui:home_persistence",
+      "signals": 3
+    },
+    "spire-godot/tests/home_ui_cases.gd": {
+      "owner": "ui:home",
+      "signals": 4
+    },
+    "spire-godot/tests/infusion_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/installation_priority_cases.gd": {
+      "owner": "rule:installation_priority",
+      "signals": 1
+    },
+    "spire-godot/tests/installed_tools_cases.gd": {
+      "owner": "rule:installed_tools",
+      "signals": 1
+    },
+    "spire-godot/tests/installed_tools_ui_cases.gd": {
+      "owner": "ui:installed_tools",
+      "signals": 3
+    },
+    "spire-godot/tests/intent_cases.gd": {
+      "owner": "rule:intent",
+      "signals": 2
+    },
+    "spire-godot/tests/intent_ui_cases.gd": {
+      "owner": "ui:intent",
+      "signals": 2
+    },
+    "spire-godot/tests/interface_ui_cases.gd": {
+      "owner": "ui:interface",
+      "signals": 7
+    },
+    "spire-godot/tests/item_discard_cases.gd": {
+      "owner": "rule:item_discard",
+      "signals": 1
+    },
+    "spire-godot/tests/item_inventory_ui_cases.gd": {
+      "owner": "ui:items",
+      "signals": 2
+    },
+    "spire-godot/tests/keyboard_ui_cases.gd": {
+      "owner": "ui:keyboard",
+      "signals": 7
+    },
+    "spire-godot/tests/letter_opener_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/leverage_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/light_as_swallow_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/link_cases.gd": {
+      "owner": "rule:links",
+      "signals": 1
+    },
+    "spire-godot/tests/localization_cases.gd": {
+      "owner": "rule:localization",
+      "signals": 1
+    },
+    "spire-godot/tests/localization_ui_cases.gd": {
+      "owner": "ui:localization",
+      "signals": 3
+    },
+    "spire-godot/tests/magic_hand_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/mana_circuit_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/mana_flask_cases.gd": {
+      "owner": "rule:consumables",
+      "signals": 1
+    },
+    "spire-godot/tests/mana_flask_ui_cases.gd": {
+      "owner": "ui:consumables",
+      "signals": 2
+    },
+    "spire-godot/tests/mana_recovery_cases.gd": {
+      "owner": "rule:consumables",
+      "signals": 1
+    },
+    "spire-godot/tests/mana_search_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/normal_play_cases.gd": {
+      "owner": "rule:normal_play",
+      "signals": 1
+    },
+    "spire-godot/tests/normal_play_ui_cases.gd": {
+      "owner": "ui:normal_play",
+      "signals": 2
+    },
+    "spire-godot/tests/olihakimi_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/oune_hand_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 2
+    },
+    "spire-godot/tests/persistence_cases.gd": {
+      "owner": "rule:persistence",
+      "signals": 5
+    },
+    "spire-godot/tests/persistence_ui_cases.gd": {
+      "owner": "ui:persistence",
+      "signals": 3
+    },
+    "spire-godot/tests/practiced_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 3
+    },
+    "spire-godot/tests/practiced_ui_cases.gd": {
+      "owner": "ui:card_power",
+      "signals": 2
+    },
+    "spire-godot/tests/pressure_cases.gd": {
+      "owner": "rule:pressure",
+      "signals": 2
+    },
+    "spire-godot/tests/pressure_relic_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 2
+    },
+    "spire-godot/tests/pressure_ui_cases.gd": {
+      "owner": "ui:pressure",
+      "signals": 2
+    },
+    "spire-godot/tests/prison_cases.gd": {
+      "owner": "rule:prison",
+      "signals": 4
+    },
+    "spire-godot/tests/prison_reinforcement_cases.gd": {
+      "owner": "rule:prison",
+      "signals": 1
+    },
+    "spire-godot/tests/prison_ui_cases.gd": {
+      "owner": "ui:prison",
+      "signals": 2
+    },
+    "spire-godot/tests/puppeteer_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 1
+    },
+    "spire-godot/tests/ready_to_strike_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 2
+    },
+    "spire-godot/tests/reinforcement_lock_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 1
+    },
+    "spire-godot/tests/rekindle_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/relic_bundle_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/relic_bundle_ui_cases.gd": {
+      "owner": "ui:rewards",
+      "signals": 1
+    },
+    "spire-godot/tests/relic_revision_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 3
+    },
+    "spire-godot/tests/replacement_cases.gd": {
+      "owner": "rule:replacement",
+      "signals": 3
+    },
+    "spire-godot/tests/resonance_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/restraint_embrace_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/restraint_embrace_ui_cases.gd": {
+      "owner": "ui:card_power",
+      "signals": 2
+    },
+    "spire-godot/tests/reward_cases.gd": {
+      "owner": "rule:rewards",
+      "signals": 1
+    },
+    "spire-godot/tests/reward_ui_cases.gd": {
+      "owner": "ui:rewards",
+      "signals": 3
+    },
+    "spire-godot/tests/rolling_log_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/route_ui_cases.gd": {
+      "owner": "ui:route",
+      "signals": 2
+    },
+    "spire-godot/tests/runner_cases.gd": {
+      "owner": "rule:runner",
+      "signals": 0
+    },
+    "spire-godot/tests/scene_restart_cases.gd": {
+      "owner": "rule:persistence",
+      "signals": 2
+    },
+    "spire-godot/tests/secret_weapon_cases.gd": {
+      "owner": "rule:relics",
+      "signals": 1
+    },
+    "spire-godot/tests/self_binding_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 1
+    },
+    "spire-godot/tests/service_cases.gd": {
+      "owner": "rule:services",
+      "signals": 4
+    },
+    "spire-godot/tests/service_ui_cases.gd": {
+      "owner": "ui:services",
+      "signals": 4
+    },
+    "spire-godot/tests/shared_fate_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/shop_release_cases.gd": {
+      "owner": "rule:shop_release",
+      "signals": 1
+    },
+    "spire-godot/tests/shoulder_cases.gd": {
+      "owner": "rule:shoulder",
+      "signals": 1
+    },
+    "spire-godot/tests/shoulder_ui_cases.gd": {
+      "owner": "ui:shoulder",
+      "signals": 2
+    },
+    "spire-godot/tests/siphon_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 1
+    },
+    "spire-godot/tests/siphon_strength_cases.gd": {
+      "owner": "rule:card_expansion",
+      "signals": 2
+    },
+    "spire-godot/tests/siphon_strength_ui_cases.gd": {
+      "owner": "ui:card_power",
+      "signals": 2
+    },
+    "spire-godot/tests/siphon_ui_cases.gd": {
+      "owner": "ui:siphon",
+      "signals": 2
+    },
+    "spire-godot/tests/six_bind_cases.gd": {
+      "owner": "rule:enemies",
+      "signals": 1
+    },
+    "spire-godot/tests/slip_motion_cases.gd": {
+      "owner": "rule:slip_motion",
+      "signals": 3
+    },
+    "spire-godot/tests/slip_motion_ui_cases.gd": {
+      "owner": "ui:slip_motion",
+      "signals": 3
+    },
+    "spire-godot/tests/special_equipment_cases.gd": {
+      "owner": "rule:special_equipment",
+      "signals": 2
+    },
+    "spire-godot/tests/special_equipment_ui_cases.gd": {
+      "owner": "ui:special_equipment",
+      "signals": 2
+    },
+    "spire-godot/tests/status_cases.gd": {
+      "owner": "rule:status",
+      "signals": 2
+    },
+    "spire-godot/tests/status_ui_cases.gd": {
+      "owner": "ui:status",
+      "signals": 4
+    },
+    "spire-godot/tests/target_sidebar_ui_cases.gd": {
+      "owner": "ui:targeting",
+      "signals": 4
+    },
+    "spire-godot/tests/temporary_mana_cases.gd": {
+      "owner": "rule:casting",
+      "signals": 1
+    },
+    "spire-godot/tests/tentacle_friend_cases.gd": {
+      "owner": "rule:consumables",
+      "signals": 1
+    },
+    "spire-godot/tests/torso_binding_cases.gd": {
+      "owner": "rule:torso_binding",
+      "signals": 2
+    },
+    "spire-godot/tests/torso_binding_ui_cases.gd": {
+      "owner": "ui:torso_binding",
+      "signals": 2
+    },
+    "spire-godot/tests/touch_ui_cases.gd": {
+      "owner": "ui:touch",
+      "signals": 5
+    },
+    "spire-godot/tests/tower_cases.gd": {
+      "owner": "rule:tower",
+      "signals": 3
+    },
+    "spire-godot/tests/tower_progression_cases.gd": {
+      "owner": "rule:tower_progression",
+      "signals": 2
+    },
+    "spire-godot/tests/tower_progression_ui_cases.gd": {
+      "owner": "ui:tower_progression",
+      "signals": 2
+    },
+    "spire-godot/tests/trader_cases.gd": {
+      "owner": "rule:trader",
+      "signals": 4
+    },
+    "spire-godot/tests/trader_ui_cases.gd": {
+      "owner": "ui:trader",
+      "signals": 2
+    },
+    "spire-godot/tests/unique_power_reward_cases.gd": {
+      "owner": "rule:rewards",
+      "signals": 1
+    },
+    "spire-godot/tests/wall_cases.gd": {
+      "owner": "rule:wall",
+      "signals": 1
+    },
+    "spire-godot/tests/wall_ui_cases.gd": {
+      "owner": "ui:wall",
+      "signals": 2
+    },
+    "spire-godot/tests/wildfire_descent_cases.gd": {
+      "owner": "rule:card_power",
+      "signals": 2
+    },
+    "spire-godot/tests/witch_character_cases.gd": {
+      "owner": "rule:witch_character",
+      "signals": 2
+    },
+    "spire-godot/tests/witch_character_ui_cases.gd": {
+      "owner": "ui:home",
+      "signals": 4
+    },
+    "spire-godot/tests/witch_expansion_cases.gd": {
+      "owner": "rule:witch_character",
+      "signals": 2
+    }
+  },
+  "digest": "db5617dd2d272df99cbcca2b6f7a28d36dd823f8cc69f4fe5c258ee169894dda",
+  "domain_words": {
+    "BIND": [
+      "rule:torso_binding",
+      "rule:wall",
+      "ui:torso_binding"
+    ],
+    "BOOK": [
+      "rule:encyclopedia",
+      "ui:encyclopedia",
+      "ui:interface"
+    ],
+    "BUNDLE": [
+      "rule:relics",
+      "ui:rewards"
+    ],
+    "CAPTURE": [
+      "rule:enemies"
+    ],
+    "CARD": [
+      "rule:card_power",
+      "rule:casting",
+      "rule:rewards",
+      "ui:casting",
+      "ui:interface",
+      "ui:rewards"
+    ],
+    "CAST": [
+      "rule:casting",
+      "ui:casting"
+    ],
+    "CATALOG": [
+      "rule:equipment_complete",
+      "ui:equipment_complete"
+    ],
+    "CHARGE": [
+      "rule:status",
+      "ui:status"
+    ],
+    "CONTACT": [
+      "rule:hand_assist",
+      "rule:links",
+      "ui:installed_tools"
+    ],
+    "CUSTOM": [
+      "rule:tower",
+      "ui:display",
+      "ui:home"
+    ],
+    "DECK": [
+      "ui:interface"
+    ],
+    "DEMO": [
+      "rule:tower_progression"
+    ],
+    "DEPART": [
+      "rule:tower"
+    ],
+    "DISPLAY": [
+      "ui:display"
+    ],
+    "DROP": [
+      "rule:consumables",
+      "ui:consumables"
+    ],
+    "ECHO": [
+      "rule:card_power",
+      "ui:card_power"
+    ],
+    "ENV": [
+      "rule:special_equipment",
+      "ui:installed_tools"
+    ],
+    "EVENT": [
+      "rule:architecture",
+      "rule:content",
+      "rule:event_flow",
+      "rule:events",
+      "ui:events"
+    ],
+    "EXIT": [
+      "ui:tower_progression"
+    ],
+    "FEEDBACK": [
+      "rule:pressure",
+      "ui:enemy_feedback",
+      "ui:interface",
+      "ui:pressure"
+    ],
+    "FLASK": [
+      "rule:consumables",
+      "ui:consumables"
+    ],
+    "GRADE": [
+      "rule:equipment_complete",
+      "ui:equipment_complete"
+    ],
+    "HANNYA": [
+      "rule:card_expansion",
+      "ui:card_power",
+      "ui:interface"
+    ],
+    "HEADER": [
+      "ui:interface"
+    ],
+    "HEIGHT": [
+      "rule:environment_height",
+      "ui:wall"
+    ],
+    "HENSHIN": [
+      "rule:card_expansion",
+      "rule:card_power",
+      "ui:card_power",
+      "ui:home"
+    ],
+    "HOME": [
+      "ui:home",
+      "ui:home_persistence"
+    ],
+    "INTENT": [
+      "rule:intent",
+      "ui:intent"
+    ],
+    "INTERACTION": [
+      "ui:enemy_feedback"
+    ],
+    "INTERFACE": [
+      "ui:interface"
+    ],
+    "ITEM": [
+      "rule:consumables",
+      "ui:consumables"
+    ],
+    "LINK": [
+      "rule:equipment_complete",
+      "rule:installation_priority",
+      "rule:links",
+      "ui:enemies"
+    ],
+    "LOCK": [
+      "rule:enemies",
+      "rule:equipment",
+      "ui:enemies",
+      "ui:equipment_complete"
+    ],
+    "LOOT": [
+      "rule:rewards",
+      "ui:rewards"
+    ],
+    "MANA": [
+      "rule:card_power",
+      "rule:pressure",
+      "ui:casting"
+    ],
+    "MOTION": [
+      "rule:slip_motion",
+      "ui:slip_motion"
+    ],
+    "MUSIC": [
+      "rule:card_power",
+      "ui:display",
+      "ui:home"
+    ],
+    "PASSIVE": [
+      "rule:installed_tools"
+    ],
+    "POOL": [
+      "rule:enemies",
+      "rule:equipment",
+      "ui:enemies"
+    ],
+    "POTION": [
+      "rule:consumables"
+    ],
+    "POWER": [
+      "rule:card_power",
+      "ui:card_power"
+    ],
+    "PRESSURE": [
+      "rule:pressure",
+      "rule:relics",
+      "ui:pressure",
+      "ui:rewards"
+    ],
+    "PRISON": [
+      "rule:prison",
+      "ui:prison"
+    ],
+    "PROGRESSION": [
+      "rule:tower_progression"
+    ],
+    "PUPPET": [
+      "rule:enemies",
+      "ui:enemies"
+    ],
+    "RARITY": [
+      "rule:card_expansion"
+    ],
+    "REINFORCE": [
+      "rule:enemies"
+    ],
+    "REINFORCEMENTS": [
+      "rule:prison",
+      "ui:guard"
+    ],
+    "RELEASE": [
+      "rule:equipment",
+      "ui:body_layout",
+      "ui:equipment_complete"
+    ],
+    "RELIC": [
+      "rule:encyclopedia",
+      "rule:relics",
+      "ui:encyclopedia",
+      "ui:rewards",
+      "ui:services"
+    ],
+    "REPEATED": [
+      "rule:card_expansion",
+      "ui:card_power"
+    ],
+    "REWARD": [
+      "rule:rewards",
+      "ui:rewards"
+    ],
+    "ROUTE": [
+      "rule:casting",
+      "rule:tower",
+      "ui:casting",
+      "ui:route"
+    ],
+    "SAVE": [
+      "rule:persistence",
+      "ui:persistence"
+    ],
+    "SELF": [
+      "rule:card_power",
+      "ui:card_power"
+    ],
+    "SHOP": [
+      "rule:services",
+      "rule:shop_release",
+      "ui:services"
+    ],
+    "SHOULDER": [
+      "rule:shoulder",
+      "ui:shoulder"
+    ],
+    "SOURCE": [
+      "rule:pressure",
+      "ui:pressure"
+    ],
+    "STATUS": [
+      "rule:status",
+      "ui:status"
+    ],
+    "TOOL": [
+      "rule:equipment",
+      "rule:installed_tools",
+      "ui:enemy_feedback",
+      "ui:installed_tools",
+      "ui:wall"
+    ],
+    "TRAVEL": [
+      "rule:tower"
+    ],
+    "WITCH": [
+      "rule:witch_character",
+      "ui:home"
+    ]
+  },
+  "domains": {
+    "spire-godot/core/action_replay.gd": {
+      "domains": [
+        "ECHO",
+        "REPEATED"
+      ],
+      "suites": [
+        "rule:card_expansion",
+        "rule:card_power",
+        "ui:card_power"
+      ]
+    },
+    "spire-godot/core/card_effects.gd": {
+      "domains": [
+        "CARD",
+        "CAST",
+        "POWER"
+      ],
+      "suites": [
+        "rule:card_power",
+        "rule:casting",
+        "rule:rewards",
+        "ui:card_power",
+        "ui:casting",
+        "ui:interface",
+        "ui:rewards"
+      ]
+    },
+    "spire-godot/core/consumables.gd": {
+      "domains": [
+        "FLASK",
+        "ITEM",
+        "POTION"
+      ],
+      "suites": [
+        "rule:consumables",
+        "ui:consumables"
+      ]
+    },
+    "spire-godot/core/contact.gd": {
+      "domains": [
+        "CONTACT",
+        "HEIGHT"
+      ],
+      "suites": [
+        "rule:environment_height",
+        "rule:hand_assist",
+        "rule:links",
+        "ui:installed_tools",
+        "ui:wall"
+      ]
+    },
+    "spire-godot/core/demo_exit.gd": {
+      "domains": [
+        "DEMO",
+        "EXIT"
+      ],
+      "suites": [
+        "rule:tower_progression",
+        "ui:tower_progression"
+      ]
+    },
+    "spire-godot/core/departure.gd": {
+      "domains": [
+        "DEPART",
+        "ROUTE",
+        "TRAVEL"
+      ],
+      "suites": [
+        "rule:casting",
+        "rule:tower",
+        "ui:casting",
+        "ui:route"
+      ]
+    },
+    "spire-godot/core/enemy_plans.gd": {
+      "domains": [
+        "INTENT",
+        "REINFORCE"
+      ],
+      "suites": [
+        "rule:enemies",
+        "rule:intent",
+        "ui:intent"
+      ]
+    },
+    "spire-godot/core/hannya.gd": {
+      "domains": [
+        "HANNYA"
+      ],
+      "suites": [
+        "rule:card_expansion",
+        "ui:card_power",
+        "ui:interface"
+      ]
+    },
+    "spire-godot/core/installed_tools.gd": {
+      "domains": [
+        "PASSIVE",
+        "TOOL"
+      ],
+      "suites": [
+        "rule:equipment",
+        "rule:installed_tools",
+        "ui:enemy_feedback",
+        "ui:installed_tools",
+        "ui:wall"
+      ]
+    },
+    "spire-godot/core/item_rewards.gd": {
+      "domains": [
+        "LOOT",
+        "REWARD",
+        "TOOL"
+      ],
+      "suites": [
+        "rule:equipment",
+        "rule:installed_tools",
+        "rule:rewards",
+        "ui:enemy_feedback",
+        "ui:installed_tools",
+        "ui:rewards",
+        "ui:wall"
+      ]
+    },
+    "spire-godot/core/mana_flask.gd": {
+      "domains": [
+        "FLASK",
+        "MANA"
+      ],
+      "suites": [
+        "rule:card_power",
+        "rule:consumables",
+        "rule:pressure",
+        "ui:casting",
+        "ui:consumables"
+      ]
+    },
+    "spire-godot/core/prison.gd": {
+      "domains": [
+        "PRISON",
+        "REINFORCEMENTS"
+      ],
+      "suites": [
+        "rule:prison",
+        "ui:guard",
+        "ui:prison"
+      ]
+    },
+    "spire-godot/core/puppet_enemy.gd": {
+      "domains": [
+        "PUPPET"
+      ],
+      "suites": [
+        "rule:enemies",
+        "ui:enemies"
+      ]
+    },
+    "spire-godot/core/relic_effects.gd": {
+      "domains": [
+        "RELIC"
+      ],
+      "suites": [
+        "rule:encyclopedia",
+        "rule:relics",
+        "ui:encyclopedia",
+        "ui:rewards",
+        "ui:services"
+      ]
+    },
+    "spire-godot/core/relic_rewards.gd": {
+      "domains": [
+        "RARITY",
+        "RELIC"
+      ],
+      "suites": [
+        "rule:card_expansion",
+        "rule:encyclopedia",
+        "rule:relics",
+        "ui:encyclopedia",
+        "ui:rewards",
+        "ui:services"
+      ]
+    },
+    "spire-godot/core/self_binding.gd": {
+      "domains": [
+        "BIND",
+        "SELF"
+      ],
+      "suites": [
+        "rule:card_power",
+        "rule:torso_binding",
+        "rule:wall",
+        "ui:card_power",
+        "ui:torso_binding"
+      ]
+    },
+    "spire-godot/core/shoulder_links.gd": {
+      "domains": [
+        "LINK",
+        "SHOULDER"
+      ],
+      "suites": [
+        "rule:equipment_complete",
+        "rule:installation_priority",
+        "rule:links",
+        "rule:shoulder",
+        "ui:enemies",
+        "ui:shoulder"
+      ]
+    },
+    "spire-godot/core/snapshot.gd": {
+      "domains": [
+        "SAVE"
+      ],
+      "suites": [
+        "rule:persistence",
+        "ui:persistence"
+      ]
+    },
+    "spire-godot/core/status_view.gd": {
+      "domains": [
+        "CHARGE",
+        "STATUS"
+      ],
+      "suites": [
+        "rule:status",
+        "ui:status"
+      ]
+    },
+    "spire-godot/core/torso_binding.gd": {
+      "domains": [
+        "BIND"
+      ],
+      "suites": [
+        "rule:torso_binding",
+        "rule:wall",
+        "ui:torso_binding"
+      ]
+    },
+    "spire-godot/core/witch_character.gd": {
+      "domains": [
+        "HENSHIN",
+        "WITCH"
+      ],
+      "suites": [
+        "rule:card_expansion",
+        "rule:card_power",
+        "rule:witch_character",
+        "ui:card_power",
+        "ui:home"
+      ]
+    },
+    "spire-godot/core/witch_expansion.gd": {
+      "domains": [
+        "HENSHIN",
+        "WITCH"
+      ],
+      "suites": [
+        "rule:card_expansion",
+        "rule:card_power",
+        "rule:witch_character",
+        "ui:card_power",
+        "ui:home"
+      ]
+    },
+    "spire-godot/data/enemy_library.gd": {
+      "domains": [
+        "CAPTURE",
+        "POOL"
+      ],
+      "suites": [
+        "rule:enemies",
+        "rule:equipment",
+        "ui:enemies"
+      ]
+    },
+    "spire-godot/data/environments.gd": {
+      "domains": [
+        "ENV",
+        "HEIGHT"
+      ],
+      "suites": [
+        "rule:environment_height",
+        "rule:special_equipment",
+        "ui:installed_tools",
+        "ui:wall"
+      ]
+    },
+    "spire-godot/data/equipment_catalog.gd": {
+      "domains": [
+        "CATALOG",
+        "GRADE",
+        "RELEASE"
+      ],
+      "suites": [
+        "rule:equipment",
+        "rule:equipment_complete",
+        "ui:body_layout",
+        "ui:equipment_complete"
+      ]
+    },
+    "spire-godot/data/first_floor_enemy_pools.gd": {
+      "domains": [
+        "POOL",
+        "PROGRESSION"
+      ],
+      "suites": [
+        "rule:enemies",
+        "rule:equipment",
+        "rule:tower_progression",
+        "ui:enemies"
+      ]
+    },
+    "spire-godot/data/glossary.gd": {
+      "domains": [
+        "BOOK"
+      ],
+      "suites": [
+        "rule:encyclopedia",
+        "ui:encyclopedia",
+        "ui:interface"
+      ]
+    },
+    "spire-godot/data/links.gd": {
+      "domains": [
+        "LINK"
+      ],
+      "suites": [
+        "rule:equipment_complete",
+        "rule:installation_priority",
+        "rule:links",
+        "ui:enemies"
+      ]
+    },
+    "spire-godot/data/pressure_sources.gd": {
+      "domains": [
+        "PRESSURE",
+        "SOURCE"
+      ],
+      "suites": [
+        "rule:pressure",
+        "rule:relics",
+        "ui:pressure",
+        "ui:rewards"
+      ]
+    },
+    "spire-godot/data/relics.gd": {
+      "domains": [
+        "RELIC"
+      ],
+      "suites": [
+        "rule:encyclopedia",
+        "rule:relics",
+        "ui:encyclopedia",
+        "ui:rewards",
+        "ui:services"
+      ]
+    },
+    "spire-godot/ui/card_motion.gd": {
+      "domains": [
+        "MOTION",
+        "REWARD"
+      ],
+      "suites": [
+        "ui:rewards",
+        "ui:slip_motion"
+      ]
+    },
+    "spire-godot/ui/card_music.gd": {
+      "domains": [
+        "MUSIC"
+      ],
+      "suites": [
+        "ui:display",
+        "ui:home"
+      ]
+    },
+    "spire-godot/ui/chinese_collation.gd": {
+      "domains": [
+        "BOOK"
+      ],
+      "suites": [
+        "ui:encyclopedia",
+        "ui:interface"
+      ]
+    },
+    "spire-godot/ui/deck_browser.gd": {
+      "domains": [
+        "BOOK",
+        "DECK"
+      ],
+      "suites": [
+        "ui:encyclopedia",
+        "ui:interface"
+      ]
+    },
+    "spire-godot/ui/departure_screen.gd": {
+      "domains": [
+        "DEPART",
+        "ROUTE"
+      ],
+      "suites": [
+        "ui:casting",
+        "ui:route"
+      ]
+    },
+    "spire-godot/ui/drop_target.gd": {
+      "domains": [
+        "DROP",
+        "INTERACTION"
+      ],
+      "suites": [
+        "ui:consumables",
+        "ui:enemy_feedback"
+      ]
+    },
+    "spire-godot/ui/dungeon_backdrop.gd": {
+      "domains": [
+        "DISPLAY"
+      ],
+      "suites": [
+        "ui:display"
+      ]
+    },
+    "spire-godot/ui/encyclopedia.gd": {
+      "domains": [
+        "BOOK",
+        "CATALOG"
+      ],
+      "suites": [
+        "ui:encyclopedia",
+        "ui:equipment_complete",
+        "ui:interface"
+      ]
+    },
+    "spire-godot/ui/enemy_feedback.gd": {
+      "domains": [
+        "FEEDBACK",
+        "INTERACTION"
+      ],
+      "suites": [
+        "ui:enemy_feedback",
+        "ui:interface",
+        "ui:pressure"
+      ]
+    },
+    "spire-godot/ui/equipment_lock.gd": {
+      "domains": [
+        "LOCK"
+      ],
+      "suites": [
+        "ui:enemies",
+        "ui:equipment_complete"
+      ]
+    },
+    "spire-godot/ui/equipment_target_face.gd": {
+      "domains": [
+        "LOCK",
+        "RELEASE"
+      ],
+      "suites": [
+        "ui:body_layout",
+        "ui:enemies",
+        "ui:equipment_complete"
+      ]
+    },
+    "spire-godot/ui/event_screen.gd": {
+      "domains": [
+        "EVENT"
+      ],
+      "suites": [
+        "ui:events"
+      ]
+    },
+    "spire-godot/ui/feedback_report.gd": {
+      "domains": [
+        "FEEDBACK"
+      ],
+      "suites": [
+        "ui:enemy_feedback",
+        "ui:interface",
+        "ui:pressure"
+      ]
+    },
+    "spire-godot/ui/home_screen.gd": {
+      "domains": [
+        "CUSTOM",
+        "HOME"
+      ],
+      "suites": [
+        "ui:display",
+        "ui:home",
+        "ui:home_persistence"
+      ]
+    },
+    "spire-godot/ui/intent_icon.gd": {
+      "domains": [
+        "INTENT"
+      ],
+      "suites": [
+        "ui:intent"
+      ]
+    },
+    "spire-godot/ui/mana_flask.gd": {
+      "domains": [
+        "FLASK",
+        "MANA"
+      ],
+      "suites": [
+        "ui:casting",
+        "ui:consumables"
+      ]
+    },
+    "spire-godot/ui/release_details.gd": {
+      "domains": [
+        "RELEASE"
+      ],
+      "suites": [
+        "ui:body_layout",
+        "ui:equipment_complete"
+      ]
+    },
+    "spire-godot/ui/relic_bundle_screen.gd": {
+      "domains": [
+        "BUNDLE",
+        "RELIC"
+      ],
+      "suites": [
+        "ui:encyclopedia",
+        "ui:rewards",
+        "ui:services"
+      ]
+    },
+    "spire-godot/ui/resource_feedback.gd": {
+      "domains": [
+        "FEEDBACK",
+        "REWARD"
+      ],
+      "suites": [
+        "ui:enemy_feedback",
+        "ui:interface",
+        "ui:pressure",
+        "ui:rewards"
+      ]
+    },
+    "spire-godot/ui/reward_backdrop.gd": {
+      "domains": [
+        "REWARD"
+      ],
+      "suites": [
+        "ui:rewards"
+      ]
+    },
+    "spire-godot/ui/reward_screen.gd": {
+      "domains": [
+        "REWARD"
+      ],
+      "suites": [
+        "ui:rewards"
+      ]
+    },
+    "spire-godot/ui/shell/game_layout.gd": {
+      "domains": [
+        "DISPLAY",
+        "INTERFACE"
+      ],
+      "suites": [
+        "ui:display",
+        "ui:interface"
+      ]
+    },
+    "spire-godot/ui/shell/header.gd": {
+      "domains": [
+        "HEADER",
+        "INTERFACE"
+      ],
+      "suites": [
+        "ui:interface"
+      ]
+    },
+    "spire-godot/ui/shop_glyph.gd": {
+      "domains": [
+        "SHOP"
+      ],
+      "suites": [
+        "ui:services"
+      ]
+    },
+    "spire-godot/ui/shop_scenery.gd": {
+      "domains": [
+        "SHOP"
+      ],
+      "suites": [
+        "ui:services"
+      ]
+    },
+    "spire-godot/ui/shop_screen.gd": {
+      "domains": [
+        "SHOP"
+      ],
+      "suites": [
+        "ui:services"
+      ]
+    },
+    "spire-godot/ui/tutorial_book.gd": {
+      "domains": [
+        "BOOK"
+      ],
+      "suites": [
+        "ui:encyclopedia",
+        "ui:interface"
+      ]
+    },
+    "spire-godot/ui/visual_theme.gd": {
+      "domains": [
+        "DISPLAY",
+        "INTERFACE"
+      ],
+      "suites": [
+        "ui:display",
+        "ui:interface"
+      ]
+    }
+  },
+  "generated_from": "2214ff1af71a0f0c32fb20bba49e15c9c1fdbaa7737e430d6adf34ab56f5b6be",
+  "registries": {
+    "rule": [
+      "witch_character",
+      "localization",
+      "card_power",
+      "card_expansion",
+      "relics",
+      "card_splash",
+      "card_growth",
+      "item_discard",
+      "consumables",
+      "basic_attacks",
+      "battle_saturation",
+      "replacement",
+      "application",
+      "architecture",
+      "installation_priority",
+      "event_flow",
+      "curses",
+      "encyclopedia",
+      "shop_release",
+      "content",
+      "installed_tools",
+      "environment_height",
+      "exploration",
+      "shoulder",
+      "slip_motion",
+      "torso_binding",
+      "runner",
+      "hand_assist",
+      "casting",
+      "wall",
+      "special_equipment",
+      "services",
+      "intent",
+      "action_copy",
+      "status",
+      "normal_play",
+      "persistence",
+      "rewards",
+      "events",
+      "core",
+      "equipment",
+      "links",
+      "composites",
+      "equipment_complete",
+      "prison",
+      "guard",
+      "pressure",
+      "enemies",
+      "trader",
+      "tower",
+      "tower_progression"
+    ],
+    "ui": [
+      "localization",
+      "card_power",
+      "encyclopedia",
+      "home_persistence",
+      "siphon",
+      "card_splash",
+      "display",
+      "basic_attacks",
+      "trader",
+      "installed_tools",
+      "exploration",
+      "hand_assist",
+      "shoulder",
+      "slip_motion",
+      "torso_binding",
+      "items",
+      "touch",
+      "keyboard",
+      "casting",
+      "card_growth",
+      "wall",
+      "special_equipment",
+      "baseline",
+      "home",
+      "enemy_feedback",
+      "route",
+      "services",
+      "equipment_art",
+      "hero_art",
+      "body_layout",
+      "targeting",
+      "intent",
+      "action_copy",
+      "status",
+      "interface",
+      "normal_play",
+      "enemies",
+      "equipment_complete",
+      "pressure",
+      "guard",
+      "prison",
+      "tower_progression",
+      "events",
+      "consumables",
+      "rewards",
+      "persistence"
+    ]
+  },
+  "schema": 1,
+  "stats": {
+    "blind": 4,
+    "blind_by_design": 4,
+    "case_files": 176,
+    "domains": 58,
+    "domains_declared": 58,
+    "excluded": 12,
+    "inputs": 300,
+    "rule_suites": 51,
+    "source_files": 120,
+    "sources_with_edges": 117,
+    "suite_edges": 436,
+    "suites_with_edges": 94,
+    "ui_suites": 46,
+    "widen": 1
+  },
+  "suite_files": {
+    "rule:action_copy": {
+      "spire-godot/core/action_copy.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ]
+    },
+    "rule:application": {
+      "spire-godot/core/equipment_application.gd": [
+        "preload"
+      ],
+      "spire-godot/core/equipment_offers.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/data/equipment.gd": [
+        "preload"
+      ]
+    },
+    "rule:architecture": {
+      "spire-godot/core/copy_router.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/guard.gd": [
+        "preload"
+      ],
+      "spire-godot/core/relic_bundle.gd": [
+        "preload"
+      ],
+      "spire-godot/core/room_events.gd": [
+        "preload"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ],
+      "spire-godot/data/equipment_images.gd": [
+        "preload"
+      ],
+      "spire-godot/data/field_tools.gd": [
+        "preload"
+      ],
+      "spire-godot/data/room_events.gd": [
+        "preload"
+      ]
+    },
+    "rule:basic_attacks": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ]
+    },
+    "rule:battle_saturation": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ]
+    },
+    "rule:card_expansion": {
+      "spire-godot/core/action_replay.gd": [
+        "domain"
+      ],
+      "spire-godot/core/card_rewards.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/hannya.gd": [
+        "domain"
+      ],
+      "spire-godot/core/relic_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/core/witch_character.gd": [
+        "domain"
+      ],
+      "spire-godot/core/witch_expansion.gd": [
+        "domain"
+      ],
+      "spire-godot/data/balance.gd": [
+        "preload"
+      ],
+      "spire-godot/data/basic_attacks.gd": [
+        "preload"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ]
+    },
+    "rule:card_growth": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ]
+    },
+    "rule:card_power": {
+      "spire-godot/core/action_replay.gd": [
+        "domain"
+      ],
+      "spire-godot/core/card_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/mana_flask.gd": [
+        "domain"
+      ],
+      "spire-godot/core/self_binding.gd": [
+        "domain"
+      ],
+      "spire-godot/core/witch_character.gd": [
+        "domain"
+      ],
+      "spire-godot/core/witch_expansion.gd": [
+        "domain"
+      ],
+      "spire-godot/data/card_rules.gd": [
+        "preload"
+      ],
+      "spire-godot/data/card_text.gd": [
+        "preload"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ]
+    },
+    "rule:card_splash": {
+      "spire-godot/core/card_splash.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ]
+    },
+    "rule:casting": {
+      "spire-godot/core/card_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/departure.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/pressure.gd": [
+        "preload"
+      ]
+    },
+    "rule:composites": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ]
+    },
+    "rule:consumables": {
+      "spire-godot/core/consumables.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/mana_flask.gd": [
+        "domain"
+      ]
+    },
+    "rule:content": {
+      "spire-godot/core/content_catalog.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ]
+    },
+    "rule:curses": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/pressure.gd": [
+        "preload"
+      ]
+    },
+    "rule:encyclopedia": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/relic_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/relic_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ],
+      "spire-godot/data/glossary.gd": [
+        "domain"
+      ],
+      "spire-godot/data/relics.gd": [
+        "domain"
+      ]
+    },
+    "rule:enemies": {
+      "spire-godot/core/capture_bind.gd": [
+        "preload"
+      ],
+      "spire-godot/core/enemy_plans.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/puppet_enemy.gd": [
+        "domain"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ],
+      "spire-godot/data/enemies.gd": [
+        "preload"
+      ],
+      "spire-godot/data/enemy_library.gd": [
+        "domain"
+      ],
+      "spire-godot/data/first_floor_enemy_pools.gd": [
+        "domain"
+      ],
+      "spire-godot/data/special_equipment.gd": [
+        "preload"
+      ]
+    },
+    "rule:environment_height": {
+      "spire-godot/core/contact.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/data/environments.gd": [
+        "domain"
+      ]
+    },
+    "rule:equipment": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/installed_tools.gd": [
+        "domain"
+      ],
+      "spire-godot/core/item_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/data/enemy_library.gd": [
+        "domain"
+      ],
+      "spire-godot/data/equipment.gd": [
+        "preload"
+      ],
+      "spire-godot/data/equipment_catalog.gd": [
+        "domain"
+      ],
+      "spire-godot/data/first_floor_enemy_pools.gd": [
+        "domain"
+      ]
+    },
+    "rule:equipment_complete": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/shoulder_links.gd": [
+        "domain"
+      ],
+      "spire-godot/data/composites.gd": [
+        "preload"
+      ],
+      "spire-godot/data/equipment.gd": [
+        "preload"
+      ],
+      "spire-godot/data/equipment_catalog.gd": [
+        "domain"
+      ],
+      "spire-godot/data/links.gd": [
+        "domain"
+      ],
+      "spire-godot/data/tower.gd": [
+        "preload"
+      ]
+    },
+    "rule:event_flow": {
+      "spire-godot/core/content_catalog.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ]
+    },
+    "rule:events": {
+      "spire-godot/core/content_catalog.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/data/room_events.gd": [
+        "preload"
+      ]
+    },
+    "rule:exploration": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/prison_space.gd": [
+        "preload"
+      ]
+    },
+    "rule:guard": {
+      "spire-godot/core/capture_bind.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/guard.gd": [
+        "preload"
+      ]
+    },
+    "rule:hand_assist": {
+      "spire-godot/core/contact.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/hand_assist.gd": [
+        "preload"
+      ]
+    },
+    "rule:installation_priority": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/shoulder_links.gd": [
+        "domain"
+      ],
+      "spire-godot/data/links.gd": [
+        "domain"
+      ]
+    },
+    "rule:installed_tools": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/installed_tools.gd": [
+        "domain"
+      ],
+      "spire-godot/core/item_rewards.gd": [
+        "domain"
+      ]
+    },
+    "rule:intent": {
+      "spire-godot/core/enemy_plans.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/intent_view.gd": [
+        "preload"
+      ]
+    },
+    "rule:item_discard": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ]
+    },
+    "rule:links": {
+      "spire-godot/core/contact.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/shoulder_links.gd": [
+        "domain"
+      ],
+      "spire-godot/data/links.gd": [
+        "domain"
+      ]
+    },
+    "rule:localization": {
+      "spire-godot/ui/localization.gd": [
+        "preload"
+      ]
+    },
+    "rule:normal_play": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ]
+    },
+    "rule:persistence": {
+      "spire-godot/core/content_catalog.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/guard.gd": [
+        "preload"
+      ],
+      "spire-godot/core/save_store.gd": [
+        "preload"
+      ],
+      "spire-godot/core/snapshot.gd": [
+        "domain"
+      ],
+      "spire-godot/data/room_events.gd": [
+        "preload"
+      ]
+    },
+    "rule:pressure": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/mana_flask.gd": [
+        "domain"
+      ],
+      "spire-godot/core/pressure.gd": [
+        "preload"
+      ],
+      "spire-godot/data/pressure_sources.gd": [
+        "domain"
+      ]
+    },
+    "rule:prison": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/guard.gd": [
+        "preload"
+      ],
+      "spire-godot/core/prison.gd": [
+        "domain"
+      ],
+      "spire-godot/data/balance.gd": [
+        "preload"
+      ],
+      "spire-godot/data/tutorial.gd": [
+        "preload"
+      ]
+    },
+    "rule:relics": {
+      "spire-godot/core/equipment_application.gd": [
+        "preload"
+      ],
+      "spire-godot/core/equipment_replacement.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/relic_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/relic_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ],
+      "spire-godot/data/pressure_sources.gd": [
+        "domain"
+      ],
+      "spire-godot/data/relics.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/relic_icon.gd": [
+        "preload"
+      ]
+    },
+    "rule:replacement": {
+      "spire-godot/core/equipment_replacement.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/resource_feedback.gd": [
+        "preload"
+      ]
+    },
+    "rule:rewards": {
+      "spire-godot/core/card_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/item_rewards.gd": [
+        "domain"
+      ]
+    },
+    "rule:services": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ],
+      "spire-godot/data/room_services.gd": [
+        "preload"
+      ],
+      "spire-godot/data/shop_copy.gd": [
+        "preload"
+      ]
+    },
+    "rule:shop_release": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ]
+    },
+    "rule:shoulder": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/shoulder_links.gd": [
+        "domain"
+      ]
+    },
+    "rule:slip_motion": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/slip_motion.gd": [
+        "preload"
+      ],
+      "spire-godot/data/tutorial.gd": [
+        "preload"
+      ]
+    },
+    "rule:special_equipment": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/data/environments.gd": [
+        "domain"
+      ],
+      "spire-godot/data/special_equipment.gd": [
+        "preload"
+      ]
+    },
+    "rule:status": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/status_view.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/status_icon.gd": [
+        "preload"
+      ]
+    },
+    "rule:torso_binding": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/self_binding.gd": [
+        "domain"
+      ],
+      "spire-godot/core/torso_binding.gd": [
+        "domain"
+      ],
+      "spire-godot/data/tutorial.gd": [
+        "preload"
+      ]
+    },
+    "rule:tower": {
+      "spire-godot/core/departure.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/data/departure.gd": [
+        "preload"
+      ],
+      "spire-godot/data/room_events.gd": [
+        "preload"
+      ],
+      "spire-godot/data/tower.gd": [
+        "preload"
+      ]
+    },
+    "rule:tower_progression": {
+      "spire-godot/core/demo_exit.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/data/first_floor_enemy_pools.gd": [
+        "domain"
+      ],
+      "spire-godot/data/tower.gd": [
+        "preload"
+      ]
+    },
+    "rule:trader": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ],
+      "spire-godot/data/enemies.gd": [
+        "preload"
+      ],
+      "spire-godot/data/equipment.gd": [
+        "preload"
+      ]
+    },
+    "rule:wall": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/self_binding.gd": [
+        "domain"
+      ],
+      "spire-godot/core/torso_binding.gd": [
+        "domain"
+      ]
+    },
+    "rule:witch_character": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/witch_character.gd": [
+        "domain"
+      ],
+      "spire-godot/core/witch_expansion.gd": [
+        "domain"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ]
+    },
+    "ui:action_copy": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:basic_attacks": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/quick_release_bar.gd": [
+        "preload"
+      ]
+    },
+    "ui:body_layout": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/data/equipment_catalog.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/drag_targets.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/equipment_target_face.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/release_details.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/shell/body_sidebar.gd": [
+        "preload"
+      ]
+    },
+    "ui:card_growth": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:card_power": {
+      "spire-godot/core/action_replay.gd": [
+        "domain"
+      ],
+      "spire-godot/core/card_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/hannya.gd": [
+        "domain"
+      ],
+      "spire-godot/core/self_binding.gd": [
+        "domain"
+      ],
+      "spire-godot/core/witch_character.gd": [
+        "domain"
+      ],
+      "spire-godot/core/witch_expansion.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:card_splash": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:casting": {
+      "spire-godot/core/card_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/departure.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/mana_flask.gd": [
+        "domain"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/departure_screen.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/mana_flask.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/relic_icon.gd": [
+        "preload"
+      ]
+    },
+    "ui:consumables": {
+      "spire-godot/core/consumables.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/mana_flask.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/drop_target.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/mana_flask.gd": [
+        "domain"
+      ]
+    },
+    "ui:display": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/card_music.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/display_settings.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/dungeon_backdrop.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/elements/arena.tscn": [
+        "preload"
+      ],
+      "spire-godot/ui/equipment_portrait.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/home_screen.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/pixel_art.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/shell/game_layout.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/visual_theme.gd": [
+        "domain"
+      ]
+    },
+    "ui:encyclopedia": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/relic_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/relic_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/core/save_store.gd": [
+        "preload"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ],
+      "spire-godot/data/glossary.gd": [
+        "domain"
+      ],
+      "spire-godot/data/relics.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/chinese_collation.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/deck_browser.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/encyclopedia.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/relic_bundle_screen.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/relic_icon.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/tutorial_book.gd": [
+        "domain"
+      ]
+    },
+    "ui:enemies": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/puppet_enemy.gd": [
+        "domain"
+      ],
+      "spire-godot/core/shoulder_links.gd": [
+        "domain"
+      ],
+      "spire-godot/data/enemy_library.gd": [
+        "domain"
+      ],
+      "spire-godot/data/first_floor_enemy_pools.gd": [
+        "domain"
+      ],
+      "spire-godot/data/links.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/arena.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/combat_feedback.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/equipment_lock.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/equipment_target_face.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:enemy_feedback": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/installed_tools.gd": [
+        "domain"
+      ],
+      "spire-godot/core/item_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/combat_feedback.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/drop_target.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/enemy_feedback.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/feedback_report.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/resource_feedback.gd": [
+        "domain"
+      ]
+    },
+    "ui:equipment_art": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/equipment_portrait.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:equipment_complete": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/data/equipment_catalog.gd": [
+        "domain"
+      ],
+      "spire-godot/data/equipment_images.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/encyclopedia.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/equipment_lock.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/equipment_target_face.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/release_details.gd": [
+        "domain"
+      ]
+    },
+    "ui:events": {
+      "spire-godot/core/content_catalog.gd": [
+        "preload"
+      ],
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/ui/event_screen.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:exploration": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/prison_space.gd": [
+        "preload"
+      ],
+      "spire-godot/data/field_tools.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:guard": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/prison.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:hand_assist": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:hero_art": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/equipment_portrait.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/pixel_art.gd": [
+        "preload"
+      ]
+    },
+    "ui:home": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/save_store.gd": [
+        "preload"
+      ],
+      "spire-godot/core/witch_character.gd": [
+        "domain"
+      ],
+      "spire-godot/core/witch_expansion.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/card_music.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/display_settings.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/equipment_portrait.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/home_screen.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/pixel_art.gd": [
+        "preload"
+      ]
+    },
+    "ui:home_persistence": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/core/save_store.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/home_screen.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:installed_tools": {
+      "spire-godot/core/contact.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/installed_tools.gd": [
+        "domain"
+      ],
+      "spire-godot/core/item_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/core/room_services.gd": [
+        "preload"
+      ],
+      "spire-godot/data/environments.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:intent": {
+      "spire-godot/core/enemy_plans.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/intent_icon.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:interface": {
+      "spire-godot/core/card_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/game_view.gd": [
+        "preload"
+      ],
+      "spire-godot/core/hannya.gd": [
+        "domain"
+      ],
+      "spire-godot/data/card_rules.gd": [
+        "preload"
+      ],
+      "spire-godot/data/encyclopedia.gd": [
+        "preload"
+      ],
+      "spire-godot/data/glossary.gd": [
+        "domain"
+      ],
+      "spire-godot/data/tutorial.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/card_face.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/chinese_collation.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/deck_browser.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/encyclopedia.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/enemy_feedback.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/feedback_report.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/resource_feedback.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/shell/game_layout.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/shell/header.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/tutorial_book.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/visual_theme.gd": [
+        "domain"
+      ]
+    },
+    "ui:items": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:keyboard": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/key_bindings.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/keyboard_input.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/quick_release_bar.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/route_map.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/touch_input.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:localization": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/display_settings.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:normal_play": {
+      "spire-godot/core/game.gd": [
+        "preload",
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:persistence": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/save_store.gd": [
+        "preload"
+      ],
+      "spire-godot/core/snapshot.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:pressure": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/data/pressure_sources.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/enemy_feedback.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/feedback_report.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/resource_feedback.gd": [
+        "domain"
+      ]
+    },
+    "ui:prison": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/prison.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:rewards": {
+      "spire-godot/core/card_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/item_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/core/relic_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/relic_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/data/pressure_sources.gd": [
+        "domain"
+      ],
+      "spire-godot/data/relics.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/card_motion.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/relic_bundle_screen.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/relic_icon.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/resource_feedback.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/reward_backdrop.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/reward_screen.gd": [
+        "domain"
+      ]
+    },
+    "ui:route": {
+      "spire-godot/core/departure.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/departure_screen.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:services": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/relic_effects.gd": [
+        "domain"
+      ],
+      "spire-godot/core/relic_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/data/relics.gd": [
+        "domain"
+      ],
+      "spire-godot/data/shop_copy.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/card_face.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/relic_bundle_screen.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/shop_glyph.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/shop_scenery.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/shop_screen.gd": [
+        "domain"
+      ]
+    },
+    "ui:shoulder": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/shoulder_links.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:siphon": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:slip_motion": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/card_motion.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/combat_feedback.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:special_equipment": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:status": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/status_view.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/relic_icon.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/status_icon.gd": [
+        "preload"
+      ]
+    },
+    "ui:targeting": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/action_index.gd": [
+        "preload"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/target_queries.gd": [
+        "preload"
+      ]
+    },
+    "ui:torso_binding": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/self_binding.gd": [
+        "domain"
+      ],
+      "spire-godot/core/torso_binding.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:touch": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/keyboard_input.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/route_map.gd": [
+        "symbol_ui"
+      ],
+      "spire-godot/ui/touch_input.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:tower_progression": {
+      "spire-godot/core/demo_exit.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:trader": {
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    },
+    "ui:wall": {
+      "spire-godot/core/contact.gd": [
+        "domain"
+      ],
+      "spire-godot/core/game.gd": [
+        "symbol"
+      ],
+      "spire-godot/core/installed_tools.gd": [
+        "domain"
+      ],
+      "spire-godot/core/item_rewards.gd": [
+        "domain"
+      ],
+      "spire-godot/data/environments.gd": [
+        "domain"
+      ],
+      "spire-godot/ui/main.gd": [
+        "symbol_ui"
+      ]
+    }
+  }
+}

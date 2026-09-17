@@ -1,8 +1,11 @@
 extends RefCounted
 const Selection=preload("res://tests/suite_selection.gd")
+const Index=preload("res://tests/check_index.gd")
+const IndexEdges=preload("res://tests/check_index_edges.gd")
 
 static func run(t) -> void:
  ownership(t)
+ index(t)
  t.check(Selection.stage("home_persistence").begins_with("deferred") and Selection.stage("normal_play").begins_with("milestone"),"RUNNER deferred saves and long playthroughs remain explicitly scheduled")
  for name in ["card_power","card_expansion","relics"]:
   t.check(Selection.resolve(t.SUITES.keys(),[name]).selected==[name],"RUNNER current feature has its own complete scope "+name)
@@ -65,3 +68,102 @@ static func visit(t,path: String,owner: String,owners: Dictionary,calls: RegEx) 
  owners[path]=owner
  for call in calls.search_all(FileAccess.get_file_as_string(path)):
   visit(t,call.get_string(1),owner,owners,calls)
+
+# Derived check index self-check (docs/check-routing.md §3.4 i-viii and §6-G3).
+# One derive() call feeds every check below, so the double coverage scan and the
+# zero-drift comparison share a single pass over the corpus.
+static func index(t) -> void:
+ var derived=Index.derive()
+ var frozen=Index.frozen()
+ var failure=Index.frozen_error()
+ t.check(failure=="","RUNNER index: frozen tests/check_index.json is readable with schema 1: "+failure)
+ var comparison=Index.compare(derived,frozen)
+ t.check(comparison.ok,"RUNNER index_matches_regeneration: frozen index equals the derivation; first difference: "+comparison.first_diff)
+ var writer=derived.generated_from==String(frozen.get("generated_from","")) and derived.digest==String(frozen.get("digest",""))
+ t.check(writer,"RUNNER index_regeneration_is_the_only_writer: digest and generated_from match the current inputs")
+ _index_case_coverage(t,derived)
+ var covered={}
+ for suite in derived.suite_files.keys():
+  for target in derived.suite_files[suite].keys():
+   t.check(_index_target_exists(String(target)),"RUNNER index_targets_exist: "+String(target))
+   covered[target]=true
+ for path in derived.domains.keys(): covered[path]=true
+ for path in derived.blind: covered[path]=true
+ t.check(covered.size()>=int(derived.stats.sources_with_edges),"RUNNER index_skips_no_source_file: %d classified source targets" % covered.size())
+ var exempt={}
+ for entry in IndexEdges.SUITE_EXEMPT: exempt[String(entry.suite)]=true
+ for kind in ["rule","ui"]:
+  for name in derived.registries.get(kind,[]):
+   var key=kind+":"+String(name)
+   var reachable=derived.suite_files.has(key) and not derived.suite_files[key].is_empty()
+   t.check(reachable or exempt.has(key),"RUNNER index_suites_are_all_reachable: "+key+" has derived edges or a documented exemption")
+ var declared={}
+ for entry in IndexEdges.BLIND_BY_DESIGN: declared[String(entry.path)]=true
+ for path in derived.blind:
+  t.check(declared.has(path),"RUNNER index_skips_no_source_file: "+path+" is blind and carries a BLIND_BY_DESIGN reason")
+ for entry in IndexEdges.DOMAINS:
+  for word in entry.domains:
+   t.check(derived.domain_words.has(word) and derived.domain_words[word].size()>0,"RUNNER index_declared_domains_exist: DOMAINS word %s (%s) is used by the corpus" % [word,entry.path])
+ for entry in IndexEdges.WIDEN:
+  var add=String(entry.add)
+  if not add.begins_with("impact:"): continue
+  var area=add.trim_prefix("impact:")
+  t.check(t.SUITES.has(area) or Selection.CROSS_AREAS.has(area) or area=="contact","RUNNER index_declared_domains_exist: WIDEN impact area is registered: "+area)
+ var closed=true
+ for entry in IndexEdges.INDEX_DEFECTS:
+  closed=closed and String(entry.get("added",""))!="" and derived.domains.has(String(entry.path))
+ t.check(closed,"RUNNER index_defects_stay_closed: every INDEX_DEFECTS entry still carries its added edge or domain")
+ _index_route_examples(t)
+
+static func _index_target_exists(target: String) -> bool:
+ return FileAccess.file_exists("res://"+target.trim_prefix("spire-godot/"))
+
+static func _index_case_coverage(t,derived: Dictionary) -> void:
+ var directory=DirAccess.open("res://tests")
+ if directory==null:
+  t.check(false,"RUNNER index_covers_every_case_file: res://tests is not readable")
+  return
+ for file in directory.get_files():
+  if not file.ends_with("_cases.gd"): continue
+  if not FileAccess.get_file_as_string("res://tests/"+file).contains("static func run("): continue
+  var key="spire-godot/tests/"+file
+  t.check(derived.case_files.has(key),"RUNNER index_covers_every_case_file: "+file+" is in the frozen index")
+  if not derived.case_files.has(key): continue
+  var owner=String(derived.case_files[key].owner)
+  var parts=owner.split(":")
+  var registered=parts.size()==2 and Array(derived.registries.get(parts[0],[])).has(parts[1])
+  t.check(registered,"RUNNER index_covers_every_case_file: %s has owner %s from the registries" % [file,owner])
+
+# §6-G3, pinned to the measured derivation; these are the routing contract's examples.
+static func _index_route_examples(t) -> void:
+ var save=Index.suites_for(["spire-godot/core/save_store.gd"])
+ t.check("persistence" in save.rules,"RUNNER route-save: an indexed save store selects persistence in the rule scope")
+ t.check(["home","home_persistence","persistence"].all(func(name):return name in save.ui),"RUNNER route-save: an indexed save store selects the home and persistence UI modules")
+ t.check(save.rows[0].signals.has("preload"),"RUNNER route-save: the preload signal is recorded for core/save_store.gd")
+ t.check("architecture" in save.rules and "runner" in save.rules,"RUNNER route-core-append: core/** adds architecture and runner on top of the index edges")
+ var ui_only=Index.suites_for(["spire-godot/ui/main.gd"])
+ t.check(ui_only.rules.is_empty() and not ui_only.ui.is_empty(),"RUNNER route-ui-only: a UI file selects UI modules and no rule suite")
+ var pack=Index.suites_for(["spire-godot/content/packs/abandoned_storeroom.json"])
+ t.check("content" in pack.rules and pack.ui.is_empty() and "content" in pack.gates,"RUNNER route-content: a content pack selects its consumers plus the content gate, and no UI module")
+ var owner=Index.suites_for(["spire-godot/tests/runner_cases.gd"])
+ t.check(owner.rules==["runner"],"RUNNER route-owner: a case file routes to its owning suite")
+ var domain=Index.suites_for(["spire-godot/core/snapshot.gd"])
+ t.check("persistence" in domain.rules,"RUNNER route-snapshot-domain: the SAVE domain resolves a blind save file to persistence")
+ var all_dev=Index.suites_for(["spire-godot/project.godot"])
+ var blind=Index.suites_for(["spire-godot/core/tool_rules.gd"])
+ t.check(blind.default_files.has("spire-godot/core/tool_rules.gd") and blind.rules==all_dev.rules,"RUNNER route-blind-closure: a BLIND_BY_DESIGN file falls to the core/** closure (all-dev) and is printed")
+ t.check(not all_dev.ui.is_empty(),"RUNNER route-blind-closure: the module root closure also selects all-dev-ui")
+ var docs=Index.suites_for(["docs/check-routing.md"])
+ t.check(docs.ok and docs.rules.is_empty() and docs.ui.is_empty() and docs.declared_none.size()==1,"RUNNER route-declared-none: documentation changes select no suite and are never a pass")
+ var unknown=Index.suites_for(["spire-godot/newdir/x.gd"])
+ t.check(unknown.unmapped.has("spire-godot/newdir/x.gd") and unknown.rules==all_dev.rules and not unknown.ui.is_empty(),"RUNNER route-unmapped-fail-closed: an unknown directory is listed as unmapped and fail-closed to all-dev plus all-dev-ui")
+ var outside=Index.suites_for(["outputs/build.zip"])
+ t.check(not outside.ok and outside.error!="","RUNNER route-scope: a path outside spire-godot/ is refused before any engine phase")
+ var empty=Index.suites_for([])
+ t.check(not empty.ok,"RUNNER route-scope: an empty change set is refused instead of running nothing")
+ t.check(not Index.suites_for(["spire-godot/core/save_store.gd"]).milestone.has("normal_play"),"RUNNER route-milestone: milestone suites never enter a routed scope")
+ var unmapped=Index.suites_for(["spire-godot/newdir/x.gd"])
+ t.check(not unmapped.rules.has("normal_play") and not unmapped.ui.has("baseline") and not unmapped.ui.has("normal_play"),"RUNNER route-milestone: all-dev and all-dev-ui are printed without milestone suites")
+ t.check(unmapped.lines.any(func(line):return String(line).begins_with("ROUTE MILESTONE: declared baseline,normal_play;")),"RUNNER route-milestone: every plan prints the declared milestone list it deducts from")
+ t.check(Index.suites_for(["spire-godot/ui/main.gd"]).milestone==["normal_play"],"RUNNER route-milestone: an index edge to a milestone suite is deducted and listed in the plan")
+ t.check(Index.suites_for(["spire-godot/core/game.gd"]).notes.size()>0,"RUNNER route-oracle-note: oracle notes are attached to the files that need them")
