@@ -1,10 +1,13 @@
 extends RefCounted
 const Game=preload("res://core/game.gd")
 
-# In-place attempts the game accepts even when nothing moves: a failed cast pays and
-# refunds mana, leaves the card in hand and only appends a log line. Movement and turn
-# actions stay out of the guard, because blind exploration legally repeats one direction
-# while the hidden position advances, and ending the turn is the fallback it must reach.
+# In-place attempts the game accepts while nothing visible advances: a cast is chance
+# gated and a failure returns only half the mana it paid by design (10 paid, 5 back
+# here), the card stays in hand and the log gains one line. That is the intended
+# mechanic, not a product bug, so the guard fixes the play policy only: it stops
+# replaying a stalled attempt. Movement and turn actions stay out of the guard, because
+# blind exploration legally repeats one direction while the hidden position advances,
+# and ending the turn is the fallback the run must reach.
 const GUARDED_ATTEMPTS=["card","manual","hook","item_use","item_discard","item_retrieve","flask","calm","status_toggle"]
 # Visible identity of a submitted action; preview numbers and assist copy stay out so a
 # retry of the same action keeps the same key after resources moved.
