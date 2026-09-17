@@ -10,7 +10,7 @@
 # 提交路径去重：单候选复核（submit-dedup）
 
 规划者契约（planner contract），2026-09-17。分支 `event-pipeline-unification`，HEAD `5b13d13`（工作区干净）。
-状态：**`needs-human-review`**——理由与需人裁的项见 §9。人审记录进协调者之前，实现者不得开工。
+状态：**`needs-human-review`**——理由与需人裁的项见 §9。人审记录进协调者之前，实现者不得开工。**（2026-09-17 归档）：本节为撰写时状态，已废止**（见本文件 :1／:3：已归档 · 方向被否 · 不实施）。
 
 本文件是本片唯一契约：切口与命令面、局部复算的接口边界、拒绝原因清单、Gherkin、
 validator procedure、DoD、依赖约束。**不写执行结果**：通过／失败／未执行只登记 `docs/verification.md`。

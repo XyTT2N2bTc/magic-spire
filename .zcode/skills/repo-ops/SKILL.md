@@ -39,7 +39,7 @@ git diff --name-only
 ```
 
 - **路由只服务开发期快速反馈**：PR、打包（`tools/package*.ps1`／`check-package.ps1`）、发版（tag／Release）、版本推进、跨域大改**一律用全量的 `-Suite all -UI -UISuite all`**（里程碑唯一入口）；`-Changed` 的结果**不得**作为交付或里程碑门禁。全量必须包含 `normal_play`／`baseline`（路由按设计扣除它们）。
-- 路由解析：索引命中用索引（可加 `WIDEN` 声明放大）；未命中走目录闭包；两者都未命中为 `unmapped`（fail-closed 到 `all-dev`＋`all-dev-ui`）。每次运行打印 `ROUTE ROW`／`ROUTE DEFAULT`／`ROUTE DOMAIN`／`ROUTE UNMAPPED`／`ROUTE WIDEN CANDIDATE`／`ROUTE MILESTONE`（扣除清单）——**默认决定必须每次可见**；`summary.route` 记录本次使用的索引摘要。
+- 路由解析：索引命中用索引（可加 `WIDEN` 声明放大）；未命中走目录闭包；两者都未命中为 `unmapped`（fail-closed 到 `all-dev`＋`all-dev-ui`）。每次运行按适用范围打印 `ROUTE ROW`／`ROUTE DEFAULT`／`ROUTE DOMAIN`／`ROUTE UNMAPPED`／`ROUTE WIDEN CANDIDATE`／`ROUTE MILESTONE`（扣除清单）——**默认决定必须每次可见**；指纹外的路径（如文档）不打印上述各行，只逐条打印 `ROUTE NONE: <path> (outside the source fingerprint; no suites, never a pass)`（2026-09-17 实跑 `-ChangedList <docs-only> -ListOnly` 的输出）；`summary.route` 记录本次使用的索引摘要。
 - `-Changed`／`-ChangedList` 与 `-Suite`／`-UISuite`／`-UI`／`-UIOnly`／`-Impact` 互斥，`-Since` 必须配 `-Changed`；空变更集与 `spire-godot/` 之外的路径在起引擎前拒绝。
 - 分类注册在 `tests/test_game.gd` 与 `tests/ui_smoke.gd`。
 - 纯显示用 `-UIOnly`；规则与界面同时修改则明确指定 `-Suite` 和 `-UISuite`。

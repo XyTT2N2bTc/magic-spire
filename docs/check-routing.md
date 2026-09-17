@@ -27,7 +27,7 @@
 | A2 | `spire-godot/tests/ui_smoke.gd:54,63-66` | 同一 break 逻辑＋setup 期错误直接 `return`（不打印 `SUITE RESULT`） | UI 阶段同样截断 |
 | A3 | `spire-godot/tests/suite_selection.gd:16-44,58-69` | 只有"分类 ↔ 语义区域"的 `CROSS_AREAS`（46 条手写，仅服务 `-Impact`）＋`resolve` | 无法按"改了哪些文件"路由；`-ListOnly` 只列计划，不校验完整性 |
 | A4 | `spire-godot/tests/test_game.gd:59-61` | 套件加载失败 → `quit(1)` 整轮结束 | 单个坏测试文件拖垮其余套件 |
-| A5 | 实测墙钟（本机 2026-09-17） | 宽集规则门 135s；19 类 `unrun` 合并补跑 265s；界面门 106s；事件 oracle 11s；迁移 oracle 9s；内容门 4s；全轮 ≈8m50s，其中 ≈400s 用于绕开中断 | 常态成本高且不可靠 |
+| A5 | 实测墙钟（本机 2026-09-17） | 宽集规则门 135s；18 类 `unrun` 合并补跑 265s（2026-09-17 更正：原写 19 类；日志 `build/checks/20260917T003417097-32852`／`…T010002039-35512` 的 `summary.json` `unrun` 均为 18）；界面门 106s；事件 oracle 11s；迁移 oracle 9s；内容门 4s；全轮 ≈8m50s，其中 ≈400s 用于绕开中断 | 常态成本高且不可靠 |
 | A6 | 现状无覆盖索引 | `CROSS_AREAS` 是"分类↔分类"；断言消息里的域前缀（`EVENT`／`PRISON`／`SAVE`／`COPY`／`WITCH`…，实测 261 个不同前缀／5452 条带前缀断言）从未用于路由；`docs/*-dependency-spec.md` 只写依赖方向 | 没有任何产物能回答"改这个文件要跑哪些套件" |
 
 ## 2. 命令面与兼容面
@@ -118,7 +118,7 @@ PLAN ONLY: no game tests executed     # 仅 -ListOnly
 | 退出码 | 0＝（计划／通过），1＝任何红／拒绝／超时／`source_changed` | 全部已登记条目 |
 | `-RerunFailed <目录\|summary.json>` | 读 `rules.retry`／`ui.retry`；`plan`／`passed` 摘要拒绝 | `docs/verification.md:627`、repo-ops |
 | 指纹 | 目录 `core,data,ui,tests,content,assets,tools` ＋扩展名集＋模块根文件（`tools/check.ps1:54-70`） | 上表同一批条目；**索引扫描面与冻结物都在指纹面内**（§3.3） |
-| `-KeepGoing` | 参数保留、可继续传；含义变为"默认行为"的兼容无操作 | repo-ops:38；`docs/event-pipeline-unification.md` §12（A29）；`docs/transition-pipeline.md` §6 |
+| `-KeepGoing` | 参数保留、可继续传；含义变为"默认行为"的兼容无操作 | repo-ops（`-KeepGoing` 选项）；`docs/event-pipeline-unification.md` §12（A29）；`docs/transition-pipeline.md` §6 |
 | 其它 flag | `-Impact`／`-Exhaustive`／`-Suite`／`-UISuite`／`-UI`／`-UIOnly`／`-Import`／`-Screenshots`／`-VerifyRunner`／`-TimeoutSeconds` 语义不变 | repo-ops；已登记命令逐条可复跑 |
 
 新增 token（不改旧 token 含义）：`SUITE RUNTIME: <name> <n>`（该套件窗口内引擎错误数，`n≥1` 才打印）；`ROUTE *` 前缀行；`PLAN ONLY: no game tests executed`。
@@ -138,9 +138,10 @@ PLAN ONLY: no game tests executed     # 仅 -ListOnly
 
 **派生结果（实测）**：97 个注册套件里 **63 个**得到 ≥1 条派生边；**306 条套件→源文件边**；冻结 JSON ≈ **11 KB**；
 `core`＋`data`＋`ui` 共 120 个 `.gd` 里 **67 个**有派生边，**53 个盲区**（`core` 25、`data` 9、`ui` 19）。
+（2026-09-17 被冻结物取代：`spire-godot/tests/check_index.json` 现状＝注册 97 个套件（规则 51＋界面 46）里 `suites_with_edges` **94**、`suite_edges` **437**、`sources_with_edges` **117/120**、体积 **71 KB**、盲区 **4**；本段 63／306／≈11 KB／67／53 为撰写时值。）
 样例（可复现）：`core/save_store.gd` → 规则 `encyclopedia,persistence`＋界面 `home,home_persistence,persistence`；
 `core/pressure.gd` → `casting,curses,pressure`；`data/tower.gd` → `equipment_complete,tower,tower_progression`；
-`core/game.gd` → 18 个套件；`core/snapshot.gd`／`core/prison.gd`／`core/installed_tools.gd`／`data/relics.gd` → **盲区**。
+`core/game.gd` → 18 个套件；`core/snapshot.gd`／`core/prison.gd`／`core/installed_tools.gd`／`data/relics.gd` 现均有派生边（`core/snapshot.gd` 由 `domain` 信号直连 `persistence`，已非盲区）；**盲区只剩 4 个**：`core/item_presentation.gd`／`core/release_view.gd`／`core/tool_rules.gd`／`data/phases.gd`。
 
 ### 3.2 派生算法（确定性，实现者按此写 `CheckIndex.derive()`）
 
@@ -199,7 +200,7 @@ PLAN ONLY: no game tests executed     # 仅 -ListOnly
 
 ### 3.6 盲区（已知，不是缺陷而是覆盖面事实）
 
-实测 53 个盲区文件里，多数能被域词＋`WIDEN` 解析（`snapshot.gd`→`SAVE`、`prison.gd`→`PRISON`、`installed_tools.gd`→`PASSIVE`…），
+实测 53 个盲区文件里（2026-09-17 被 `spire-godot/tests/check_index.json` 取代：现为 4 个盲区／117 个有边，共 120 个源文件），多数能被域词＋`WIDEN` 解析（`snapshot.gd`→`SAVE`、`prison.gd`→`PRISON`、`installed_tools.gd`→`PASSIVE`…），
 但**不是全部**：`core/tool_rules.gd`、`core/item_presentation.gd`、`core/release_view.gd`、`data/phases.gd` 这类
 "被投影／文案间接消费"的文件没有专属域词。这些进 `BLIND_BY_DESIGN`，由 §5.3 的目录闭包（`core/**`→`all-dev`）兜住——
 即**盲区默认全量，不会漏跑**（fail-closed）。DoD 要求 `BLIND_BY_DESIGN` 逐条给理由，且不得用它来掩盖"没做域解析"。
@@ -297,7 +298,7 @@ PLAN ONLY: no game tests executed     # 仅 -ListOnly
 
 | 场景 | 今天（实测） | 本片后（预期） | 归属 |
 | --- | --- | --- | --- |
-| 同一条宽集命令（44 类，含 `installed_tools` 脚本错误） | 135s（截断）＋265s（补跑）＝400s，两个进程，`unrun` 16–24 类 | **一次进程 ≈400s − 进程启动开销**，`unrun=[]` | 隔离收益（省下的是补跑编排与不确定性，**不是覆盖**） |
+| 同一条宽集命令（44 类，含 `installed_tools` 脚本错误） | 135s（截断）＋265s（补跑）＝400s，两个进程，`unrun` 16–24 类（2026-09-17 被取代：实测是 **37 类**、539.6s／37-37 套件；另一次 729s 未复现；见 `docs/verification.md` 2026-09-17） | **一次进程 ≈400s − 进程启动开销**，`unrun=[]`（2026-09-17 被取代：实测 539.6s／729s，未复现 ≈400s；收益是 `unrun=[]` 而非墙钟） | 隔离收益（省下的是补跑编排与不确定性，**不是覆盖**） |
 | 两个含脚本错误的套件（`installed_tools`＋`hand_assist`） | 每命中一个就截断一次，最坏 3 个进程 | 1 个进程，两处各打 `SUITE RUNTIME` | 隔离收益 |
 | 典型路由子集（例：只改 `core/save_store.gd`） | 需人工猜 `-Suite persistence -Impact`（展开 ≈25 类，几分钟） | 计划 8–10s＋规则 `encyclopedia,persistence`＋界面 `home,home_persistence,persistence`：**约 30–90s** | 路由收益 |
 | 只改 `ui/**`（命中派生边的文件） | 人工猜 `-UIOnly -UISuite …` | 计划 8–10s＋界面子集：**约 20–60s**，**规则套件 0 个** | 路由收益 |
@@ -330,7 +331,7 @@ Given 下列清单，When `Selection.route(files)`，Then 逐条（正例 ⊇，
 `["spire-godot/ui/main.gd"]` → `rules == []`、`ui ≠ []`；
 `["spire-godot/content/packs/abandoned_storeroom.json"]` → `content ∈ rules`、`ui == []`、`content ∈ gates`；
 `["spire-godot/tests/runner_cases.gd"]` → `runner ∈ rules`（归属套件）；
-`["spire-godot/core/snapshot.gd"]` → `persistence ∈ rules`（域解析 `SAVE`，盲区被解析的证明）；
+`["spire-godot/core/snapshot.gd"]` → `persistence ∈ rules`（结论不变；2026-09-17 复核：冻结索引 `suite_files` 里 `rule:persistence`／`ui:persistence` 均含它（`domain` 信号），它已是直接边、不在 `blind`）；
 `["spire-godot/core/tool_rules.gd"]`（`BLIND_BY_DESIGN`）→ 走 `core/**` 闭包，取到 `all-dev`，且 `default_files` 含它；
 `["docs/check-routing.md"]` → `rules == [] && ui == []` 且 `status` 只能是 `plan`；
 `["spire-godot/newdir/x.gd"]` → `unmapped` 含它且 `rules == all-dev`（fail-closed）。
@@ -390,7 +391,7 @@ Then `plan.rules == summary.rules.selected`、`plan.ui == summary.ui.selected`�
   `test_game.gd`／`ui_smoke.gd` 不改依赖；`check.ps1` → `route_plan.gd`＋既有宿主脚本。
 - 禁止：`core/`／`ui/`／`data/` 引用 `tests/`；`check_index.gd` 预载宿主脚本；`route_plan.gd` 引用 `core/`；
   第二份"文件→套件"映射；手改 `check_index.json`（只能由生成器写）。
-- 文件规模：`check_index.gd` ≤ 300 行；`check_index_edges.gd` ≤ 400 行（约 53 条 `DOMAINS`＋`WIDEN`＋`EXCLUDE`＋缺陷登记）；
+- 文件规模：`check_index.gd` ≤ 300 行（2026-09-17 已裁定接受超限，见本文件后文）；`check_index_edges.gd` ≤ 400 行（约 53 条 `DOMAINS`＋`WIDEN`＋`EXCLUDE`＋缺陷登记）；
   `route_plan.gd` ≤ 120 行；`suite_selection.gd` 只加纯函数（≤80 行），既有 API 行为不变。
 - 依赖规范文件：本 §9 即本片的依赖约束规范；若协调者按仓习惯要求单独成文件，规划者在本契约批准后补
   `docs/check-routing-dependency-spec.md`（内容＝本节）。

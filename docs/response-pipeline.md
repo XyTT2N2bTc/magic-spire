@@ -37,10 +37,11 @@
   shop_screen 2、body_sidebar 2、quick_release_bar 1、header 1。**其中 reward_screen(4)／
   event_screen(2)／shop_screen(2)／header(1) 共 9 处不在本片授权文件内**，
   它们必须继续能用（见 §5 范围问题）。
-- 选择类点击（只改本地选中态，不 dispatch／get_view／save，但每条分支都整树 `render(view)`）：
-  `_activate_card:2236`、`_use_self_card:2275`、`_card_target:1301`、`_select_enemy:649`、
-  `_player_picker:2294`、`_hand_target_picker:2317`、`body_sidebar._toggle:44`、`keyboard_input:118/257/260/262`、
-  `quick_release_bar:114`。
+- 选择类点击（只改本地选中态，不 dispatch／get_view／save）：2026-09-17 实测 `_select_enemy` 与手牌翻面
+  （`ui/card_face.gd` 的 `flip_requested` → `ui/main.gd` `_card` 内回调）为 0 次整树重建，点牌选中（`_activate_card`）1 次。
+  各分支入口如下（行号以落地时仓库为准）：`_activate_card`、`_use_self_card`、`_card_target`、`_select_enemy`、
+  `_player_picker`、`_hand_target_picker`、`body_sidebar._toggle`、`ui/keyboard_input.gd` 的 `select_card`／`cancel`、
+  `quick_release_bar.select`。
 - 提交类入口最终都进 `_submit`：`_status_control:564`、`_basic_action_tile:731`、`_posture_controls:836`、
   `_bottom_controls:1075/1088`、`_wall_controls:1118`、`_equipment_tile:1226`、`_action_row:1282/1288`、
   `_card_target:1313`、`_prison_controls:1446/1455`、`_compact_action:1532`、`_route_screen:1627`、
@@ -49,7 +50,8 @@
   `_activate_card:2239/2261/2270`、`_use_self_card:2277`、`_item_details:2466/2503`、`keyboard_input:106/197/282`。
 - **被拒／无效 → 整树重建（当前病灶命名）**：共 7 处，全部整树 `render(view)`；
   本片收敛为 §3.5 `present_rejection` 唯一入口（人已决：打回即打回、不新增动画、不重算）。
-  两层成本必须分开命名：**投影重算**（只发生在提交被拒——多付一次 `get_view()`，含 `card_texts` 固定成本）
+  两层成本必须分开命名：**投影重算**（只发生在提交被拒——多付一次 `get_view()`，含按需 `card_texts` 的少量成本：
+  2026-09-17 实测 0 件档约 0.7ms、占 `get_view` 约 1.3–7.9%；`core/game_view.gd` 的 `View.build` 按 `shown.has(type)` 只生成显示集合）
   与**界面整树重建**（7 处都有）。每处真正改变的本地态即"只允许刷新的脏集上界"：
 
   | 行 | 入口 | 触发 | 脏集上界 |
@@ -60,7 +62,7 @@
   | 2246-2247 | `_activate_card` | 自身目标牌候选存在但 invalid | 仅 `notice` |
   | 2251-2252 | `_activate_card` | 单面牌（`single_face`）不可用 | 仅 `notice` |
   | 2264-2266 | `_activate_card` | 快速解除栏与当前拘束具不匹配 | `notice` + `selected_card=uid`、`selected_candidate=""`、`show_body=false` → 另加 `hand`／`body_details` |
-  | 1875／1891 | `_submit`（提交被拒） | dispatch 返回 `ok=false` | `notice`；仅当 `view.version!=game.state.version` 时另加键差脏集（§7） |
+  | 1875／1891 | `_submit`（提交被拒） | dispatch 返回 `ok=false` | `notice`；仅当**核心回传"需要重同步"**时另加键差脏集（§7；判据不得由 UI 自行求值 `game.state`，见 §3.1 的 2026-09-17 更正） |
 - 被拒时的可见反馈（现状，只记事实）：
   - 打回路径零动画：`ui/main.gd:1895-1901` 四个反馈调用整体在 `if result.ok:` 之内，
     被拒时不触发任何反馈节点、声音或补间；该路径唯一视觉信号是 `notice` 经
@@ -88,7 +90,7 @@
   直接调 host 方法。`enemy_feedback.gd:21` 全屏 `MOUSE_FILTER_STOP` 配合 `_submit:1864` 守卫，
   播报期点击被设计性吃掉（产品决策，本片不改）。
 - 只读索引：`action_index.gd` 32 行只查找不重算资格，`old_action` 在刷新后仍可被拿去做陈旧提交（测试即如此用）；
-  `target_queries.gd` 94 行只接受 View 数据 + ActionIndex + 本次载荷，不持有 Game／控件／缓存。
+  `target_queries.gd` 94 行只接受 View 数据 + ActionIndex + 本次载荷，不持有 Game／控件。
 
 非目标（本片不做）：
 - 不改 core 规则、数值、存档语义、快照格式、随机域；`card_texts` 单次成本留在 core（见 §3.1）。
@@ -116,9 +118,9 @@
 依赖方向禁令：
 - core／data 不得 preload ui；UI（含 shell）不得读 `game.state`、不得调用 `dispatch` 之外的规则写入口
   （快照入口 `restore_snapshot`／`restart_snapshot` 只允许在 `_resume_snapshot:275`、`restart:1916`、`_quick_sl:288` 使用）。
-- M4 不得持有 Game、控件或跨刷新缓存；M5 不得读 View 之外的规则；M6 不得 dispatch／get_view／改判定。
+- M4 不得持有 Game、控件；M5 不得读 View 之外的规则；M6 不得 dispatch／get_view／改判定。
 - 任何节键不得保存旧 View、候选、装备图或节点引用，不得用 version 当键（§4.2）。
-- main.gd 已 2657 行：本片不新增文件；若 `commit`／`present` 需要独立文件，按 §5 范围问题处理，不得自行新建。
+- `ui/main.gd` 约 2700 行（2026-09-17 复核）：本片不新增文件；若 `commit`／`present` 需要独立文件，按 §5 范围问题处理，不得自行新建。
 
 ## 2. 接缝 A：既有接口的契约（固化，不改语义）
 
@@ -145,10 +147,11 @@
   全量注册牌型 `card_texts` 循环（:301-305，约 83 型，无条件）以及 room_event／shop／relics／prison 四个 view（:320-323，无条件）。
   **（预告 2026-09-15）**"无条件全量"是当前事实、不是长期不变量：`card_texts` 的收窄由
   `docs/ondemand-copy.md` §1.2（界面固有显示集合 S）持有授权，落地前不改本行。
+  **（2026-09-17 被按需化取代：实测每次 2–4 型，占 `get_view` 约 1.3–7.9%；见 docs/ondemand-copy.md 与 docs/verification.md 2026-09-17 卡顿定位条目）**
 - 成本事实：单次成本与装备件数相关（候选生成中位 6.4/41.3/146.8ms @0/12/29 件，docs/equipment-performance.md:49-51），
   空装备时仍有固定投影成本（显示生成 20.869ms，docs/equipment-performance.md:69）。
 - **UI 侧只能减少 get_view 的调用次数，不能降低单次成本。** 单次成本在 `core/game_view.gd`，
-  属本片授权范围外：记为"越界待批"接缝，不得以 UI 缓存绕过（见 §4.1）；
+  属本片授权范围外：记为"越界待批"接缝；UI 可在自己的投影上做增量刷新，但不得把投影结果当成规则判定来源（见 §4.1）；
   该越界项已由 `docs/ondemand-copy.md` 承接（见 §6.1）。
 - 允许的调用点（唯一集合，任何新增即契约违例）：
   `ui/main.gd:278`（`_resume_snapshot`）、`:367`（`render` 空快照）、`:1874`（`commit` 成功必取；被拒且展示版本落后时取）、
@@ -178,7 +181,7 @@
 
 ### 2.5 `TargetQueries`（消费方契约）
 
-- static、无状态；输入只有 View 数据、ActionIndex、本次载荷；不接收 Game／控件，不写状态，不跨刷新缓存。
+- static、无状态；输入只有 View 数据、ActionIndex、本次载荷；不接收 Game／控件，不写状态。
 - 返回原候选（不复制、不改写）；`RELEASE_MODES` 是唯一模式定义处。
 - 自动唯一目标、手牌去重、首／末不可用原因各保留原语义（见 docs/release-interface.md 目标查询共享边界）。
 
@@ -204,7 +207,10 @@
 
 ## 3. 接缝 B：新接缝契约草案
 
-### 3.1 提交路径的现状分解（实现前必须保持的语义）
+### 3.1 提交路径的现状分解与目标条件（草案）
+
+本块现状与目标混排：`dispatch` 后无条件 `game.get_view()`、`render(updated)` 整树重建、成功反馈四调用是 HEAD 现状；
+"仅当展示版本落后才重同步"与 `present(...)` 局部刷新是**目标条件**，尚未落地（2026-09-17 复核）。
 
 ```
 _submit(c, expected_version=-1)
@@ -212,8 +218,10 @@ _submit(c, expected_version=-1)
   分流:  有效卡牌且 hand_uid 且非 self_target 且未在选择手牌 -> _use_self_card
   previous = view;  previous_cards = card_motion.positions(self)   # 必须在 dispatch 前抓
   result = game.dispatch(c.id, view.version if expected_version<0 else expected_version)
-  # 成功必取新投影；被拒时仅当展示版本落后于已提交状态才重同步（相等则沿用当前 View）
-  updated = game.get_view() if result.ok or view.version != game.state.version else view
+  # 成功必取新投影（现状）；被拒时是否需要重同步由核心回传（目标条件，例如结果里带 `resync` 标志）
+  # （2026-09-17 更正：旧写法 `view.version != game.state.version` 会让 UI 求值 `game.state.version`，
+  #  违反 §1 依赖方向禁令；实测 ui/ 0 处读 `game.state`，该写法不得按字面实现）
+  updated = game.get_view() if result.ok or result.get("resync", false) else view
   notice = "" if result.ok else result.error
   成功: expand_applied(previous, updated) / _save_progress() / _reset_interface(仅 demo_continue)
         清选择态 / phase 变则 _close_drawers / pack 开道具 / overloaded 关抽屉
@@ -233,10 +241,10 @@ _submit(c, expected_version=-1)
   - `dirty` 由节键比对产生，只在本次调用内计算；元素来自 §4.2 节枚举。
   - `blocked=true`：`show_home` 或 `enemy_feedback` 有效，未 dispatch、未 get_view、`dirty=[]`，`view` 为当前 view。
 - 拒绝语义：dispatch 拒绝 → `ok=false`、`dirty>=["notice"]`；不得自动重试或改派候选。
-- 缓存：禁止跨提交保存候选、预览、旧 View、节点引用；禁止把 `dirty` 存到实例字段供下次使用。
+- 缓存：UI 可以跨操作持有投影（`view`／`actions`）与自己的显示态；作废集合由核心给出，UI 不得自行推断资格或作废范围。
 - 成功附加行为顺序（契约，不得调换）：抓 `positions` → dispatch → get_view → 设 notice →
   `expand_applied` → `_save_progress`（仅 ok）→ 选择态清理／抽屉调整 → `present` → 反馈四调用。
-  失败路径：dispatch → 仅当 `view.version!=game.state.version` 时 `get_view` 并原子替换 `view`/`actions`
+  失败路径：dispatch → 仅当**核心回传需要重同步**时 `get_view` 并原子替换 `view`/`actions`（判据不得由 UI 自行求值 `game.state`，见 §3.1 的 2026-09-17 更正）
   → 设 notice → `present(["notice", …键差])`（版本相等时只 `present(["notice"])`）；不 save、不反馈。
 - 谁能调：main.gd 内的候选按钮、拖放接收器、`keyboard_input`／`touch_input` 到达的同一入口。
   `reward_screen`／`event_screen`／`shop_screen`／`header` 不在授权内，继续用 `render(view)` 兜底（§5）。
@@ -316,9 +324,10 @@ _submit(c, expected_version=-1)
 - 节键：当次 View 投影 + 本地 UI 态的纯数据副本。
 
 禁止：
-- 跨提交缓存规则结果（候选、资格、预览、费用、装备图）；保存旧 View／候选／节点引用当键；
-- 用 `version` 当键或当缓存版本号；用译文、颜色、名称、图片识别玩法对象；
-- 借"UI 优化"把 `card_texts` 或投影结果缓存到 UI（越界，见 §3.1／§2.2）。
+- 用 `version` 当键或当缓存版本号（version 不单调，`restore_snapshot` 后可回退，进键会误命中，见 §2.2／§7）；
+  用译文、颜色、名称、图片识别玩法对象。
+
+（2026-09-17 修订）删除原"禁止跨提交缓存规则结果／禁止保存旧 View、候选、节点引用当键／禁止把投影结果缓存到 UI"三条。新的准入线是"复用必须附可证失效规则；无证明即禁止"；核心与 UI 的分工见 §3.2 与 docs/candidate-delta.md §6。删除理由：该一刀切禁令被读成"UI 不得跨操作持有数据"，与仓库现状不符（ui.view／ui.actions 本就跨提交持有），并成为"每次变化整树重建"的来源之一。
 
 ### 4.2 失效键
 
@@ -349,41 +358,43 @@ _submit(c, expected_version=-1)
 
 ### 6.1 `card_texts`（越界待批）
 
-- 每次 `get_view` 无条件为全部注册牌型（约 83）生成双面文本与 metadata（`core/game_view.gd:301-305`），
-  空装备亦 ≈18-21ms（docs/equipment-performance.md:69 的 20.869ms）。
+- 每次 `get_view` 无条件为全部注册牌型（约 83）生成双面文本与 metadata（`core/game_view.gd:301-305`）——
+  **（2026-09-17 被按需化取代：实测每次 2–4 型；见 docs/ondemand-copy.md 与 docs/verification.md 2026-09-17 卡顿定位条目）**，
+  空装备亦 ≈18-21ms（docs/equipment-performance.md:69 的 20.869ms）；该值属显示生成整段，非 card_texts 单项（2026-09-17 更正）。
 - 本片授权不含 `core/`：**UI 侧只能减少 get_view 调用次数**，不得降低其单次成本，
-  不得用 UI 缓存／懒加载／跳过投影来绕过（graph、奖励、牌堆浏览共用该投影）。
+  不得改变投影内容本身（graph、奖励、牌堆浏览共用该投影）；在本投影之上做增量刷新不算绕过。
 - core 侧接缝（把 `card_texts` 改成按需／增量）记为越界待批，需人明确授权后才能进 core。
   **（2026-09-15 更新）**该待批项已由独立契约承接：`docs/ondemand-copy.md`（先收口文案路由、后按需投影）。
-  本片与 UI 仍不得自行用缓存／懒加载／跳过投影绕过；按需化只在那一契约的分批与授权下进行。
+  本片与 UI 不得改变投影内容本身（graph、奖励、牌堆浏览共用该投影）；在本投影之上做增量刷新不算绕过；按需化只在那一契约的分批与授权下进行。
 
 ### 6.2 候选计时矛盾（P0 必须取证）
 
-- 事实：`core/game_view.gd:176` 在 `get_view` 内部调用 `g.candidates()`，因此"完整 View 耗时"已含候选生成；
+- 事实：`core/game_view.gd` 的 `View.build` 在 `get_view` 内部调用 `g.candidates()`，因此"完整 View 耗时"已含候选生成；
   交接单称"candidates 仅 0.07-0.11ms"与 docs/equipment-performance.md:49-51 的中位
   6.955/49.620/167.816ms（旧）与 6.388/41.292/146.757ms（新）@0/12/29 件矛盾。
+  **（2026-09-17 已解释清楚：该数字是每行均值，不是一次调用总成本）**0 件档 `dispatch` 内候选生成
+  8.4ms ÷ 86 行 ≈ 0.098ms/行（P0 数据 `build/stutter-trace-20260917/round-b.json`）；**不得用于收益预期**。
 - 契约要求：
   1. P0 必须在**真实调用点**分段取证（`commit` 内 dispatch、`get_view` 内、`render` 内，见 §8），
      每个数字必须带函数名 + 状态（件数）+ 仪器；
-  2. 必须明确回答 0.07-0.11ms 实际测的是什么函数、什么状态、什么机器；回答不了就**撤回该数字**，
-     本片基线以 P0 数据为准；
+  2. 0.07-0.11ms 的口径已解释清楚（每行均值而非一次调用总成本，见上）；本片基线以 P0 数据为准；
   3. 该数字不得用于本片的收益预期或完成判据。
 
 ## 7. 失败路径契约（保留断言，不许弱化）
 
-- 锁定断言（不得删、不得放松）：
-  `tests/ui_smoke.gd:508` 失败提交后状态不变且 notice 非空；
-  `:509` `ui.view.version==ui.game.state.version and ui.view.energy==ui.game.state.energy`（显示快照被刷新）；
-  `:510` 旧版本拖放被拒；
-  `:512` `ui.actions` 已按新状态重建（陈旧提交后动作索引替换）。
+- 锁定断言（不得删、不得放松）：`tests/ui_smoke.gd` `_index_boundary_tests`（陈旧提交四条；行号以落地时仓库为准）——
+  失败提交后状态不变且 notice 非空；
+  `ui.view.version==ui.game.state.version and ui.view.energy==ui.game.state.energy`（显示快照被刷新）；
+  旧版本拖放被拒；
+  `ui.actions` 已按新状态重建（陈旧提交后动作索引替换）。
 - 重算分界（人已决："不要重算"）：
   - 同版本被拒 → **零重算**：不 `get_view`、不替换 `ui.actions`、不落盘、不反馈，只刷新 `notice` 节。
   - 版本落后被拒 → **必须重同步**：执行 `get_view` + `view`/`actions` 同一批原子替换
     + 按节键比对刷新脏集（可能近乎整页）。理由（后来者不必重新论证）：
     ① 不同步会让界面停在一个不可能的状态——它显示的状态已被取代；
     ② 之后每一次点击都会以同样理由被继续拒绝，因为候选全部携带旧版本；
-    ③ 该行为被 `tests/ui_smoke.gd:509`（显示快照被刷新）、`:510`（旧版本拖放被拒）、
-    `:512`（actions 已按新状态重建）锁定，删弱即失败。
+    ③ 该行为被 `tests/ui_smoke.gd` `_index_boundary_tests` 的四条（显示快照被刷新／旧版本拖放被拒／
+    actions 已按新状态重建；行号以落地时仓库为准）锁定，删弱即失败。
   - 判据可靠的原因：version 只在成功提交时自增一次（core/game.gd:2039-2045 校验失败 `state=original`
     且不碰 version；另一处自增是 core/game.gd:2826 的 `restore_snapshot`），所以
     `view.version==state.version` 等于"展示的 View 就是当前已提交状态"，此时没有需要重算的内容。
@@ -446,7 +457,7 @@ _submit(c, expected_version=-1)
      `ui.actions` 已替换（旧版本拖放被拒）、未写存档（计数 `ui.saves` 包装）、`enemy_feedback==null`（未触发反馈）；
    - 反例：同版本失效候选提交（展示版本与已提交状态相等）→ 只刷新 `notice` 节
      （记录被重建的节名，断言无其它节重建），且未调 `get_view`、未替换 `ui.actions`。
-   - 原 `tests/ui_smoke.gd:508-512` 断言保持原样。
+   - 原 `tests/ui_smoke.gd` `_index_boundary_tests`（陈旧提交四条）断言保持原样。
 
 3. `section_key_hit_skips_rebuild`（`tests/display_ui_cases.gd`，`display`）
    - Given 稳定战斗 View + 记录各节根节点实例 id（手牌按钮、敌人按钮、动作栏、底栏、身体栏、详情面板）；
@@ -531,13 +542,13 @@ _submit(c, expected_version=-1)
 & tools/check.ps1 -Suite architecture -Impact -TimeoutSeconds 600
 & tools/check.ps1 -Suite architecture -UI -UISuite display,body_layout,targeting,keyboard,touch,interface -TimeoutSeconds 900
 ```
-必过的场景：§9 的 1–9 全部具名 check 通过；`tests/ui_smoke.gd:508-512` 原断言不变且通过。
+必过的场景：§9 的 1–9 全部具名 check 通过；`tests/ui_smoke.gd` `_index_boundary_tests`（陈旧提交四条）原断言不变且通过。
 必有的证据：两份 check 日志 + `summary.json`（status=passed，指纹稳定）；P0 摘要写入 docs/verification.md
 （含机器／件数／函数名／中位数／样本数），原始计时目录已删除。
 
 算未完成（任一）：
 - 任一必跑套件未执行、失败、未知或被跳过；`summary.json` 为 `source_changed`／`failed`／`plan`；
-- 用旧版本的通过拼接最终结论；删／弱化既有断言（尤其 ui_smoke 508-512）换绿灯；
+- 用旧版本的通过拼接最终结论；删／弱化既有断言（尤其 `tests/ui_smoke.gd` `_index_boundary_tests` 四条）换绿灯；
 - 键缺字段、兜底条件靠隐式路径、选择类点击仍整树重建、失败路径仍整树重建且无键依据；
 - §0 表 6 处选择类拒绝分支仍走整树 `render(view)`（应按该表脏集上界刷新）；
 - 生产源码留计数器／计时钩子；提交 timer 脚本或 build/ 数据；
@@ -599,7 +610,7 @@ H2 全重建兜底路径行为断言
 
 按"指令收口／分发"理解后的口径：
 1. **不新增入口**，在**既有唯一提交入口**上做；玩家有效操作都从它走。
-2. **每次有效操作只做增量（delta）**：现状是"一次成功提交 → 全表候选重建两次（提交复核 1 次＋提交后视图 1 次，实测占一次点击约 30–40%）"，这在高频操作上不可接受；应由"本次操作改变了什么"推出"哪些投影/候选需要跟着更新"。
+2. **每次有效操作只做增量（delta）**：现状是"一次成功提交 → 全表候选重建两次（提交复核 1 次＋提交后视图 1 次）"，实测占一次点击 17.8%／32.7%／41.5%（2026-09-17 P0 成功提交，0／12／26 件），这在高频操作上不可接受；应由"本次操作改变了什么"推出"哪些投影/候选需要跟着更新"。
 3. **覆盖优先**：先把"**哪些状态变化必须触发哪些更新**"枚举完整（枚举不全＝过期视图/候选，属正确性问题；省时间排在覆盖之后）。
 
 **与既有条目的关系**：本方向与上文"结算窗口与输入队列（已讨论、未排期）"同域——窗口/队列决定"什么时候接受指令"，增量更新决定"接受后更新什么"；两者都建立在**单一提交入口**之上，落地时一并规划，避免两处各自维护"什么算变化"。

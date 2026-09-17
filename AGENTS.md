@@ -127,13 +127,16 @@
 | 平板锁 | docs/cursed-plate-lock.md |
 | 界面拆分与装备详情 | docs/ui-scene-refresh.md、docs/release-interface.md |
 | 输入到落地的提交与刷新 | docs/response-pipeline.md |
+| 候选局部筛查与依赖声明 | docs/candidate-delta.md |
 | 点击路径重构方向（纲领，待裁） | docs/refactor-direction.md |
 | 装备只读查询 | docs/equipment-query-seam.md |
 | 玩家可见文案的收口与按需 | docs/ondemand-copy.md |
 | 事件系统结构 | docs/event-structure.md |
 | 事件定义形态与管线统一（现行） | docs/event-pipeline-unification.md |
 | 事件管线依赖约束 | docs/event-pipeline-dependency-spec.md |
+| 状态迁移管线（单写入者） | docs/transition-pipeline.md |
 | 每次点击的检查链（冻结与影响） | docs/per-click-checks.md |
+| 检查索引与失败隔离（路由） | docs/check-routing.md |
 | 文案与本地化 | docs/action-copy-guide.md、docs/localization.md |
 | 美术来源与差分 | spire-godot/assets/art/ART-NOTES.md、spire-godot/assets/vendor/CREDITS.md |
 | 验证结果 | docs/verification.md |

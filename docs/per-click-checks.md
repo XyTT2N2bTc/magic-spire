@@ -3,6 +3,7 @@
 协调者记录，2026-09-17。用途：人裁定"**正常流程下永不为 false 的检查 = release 里纯浪费**"之后，
 把每次点击会跑的检查逐个冻结接口，列出"若按此判据门控，会改动什么"。
 本文件只冻结现状与影响判断，不含实施方案（方案待契约）。
+行号为 2026-09-17 冻结时所记，以函数名／符号锚点为准（当前位置仅在落地时复核）。
 
 ## 0. 人给的判据（原话）
 
@@ -18,13 +19,13 @@
 
 | # | 检查 | 定义位置与签名 | 生产调用点 | 频率 | 失败语义 | 含规则语义 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 药剂记录 | `core/consumables.gd:96` `validate_buffs(g, buffs: Variant) -> String` | `dispatch`（`:2414`）；聚合 `validate()`（`:3139`）；`snapshot.gd:192`（读档字段校验） | 每次行动＋读档 | 返回原因 → 拒绝整笔 | 否（纯完整性） |
-| 2 | 躯干固缚 | `core/torso_binding.gd:67` `state_issue(g) -> String` | `dispatch`（`:2416`）；候选入口闸（`:2037`）；聚合（内部逐件 `validate`） | **每次行动＋每次候选构建** | 候选闸：返回**空表**；dispatch：拒绝 | 否 |
-| 3 | 版本相等 | `core/game.gd:2418`（内联，非函数） | `dispatch` | 每次行动 | "状态已更新，请重新选择行动。" | **是（新鲜度）** |
-| 4 | 性玩具实例 | `data/special_equipment.gd:443` `validate(items) -> String`（**纯数据，不吃 g**） | `dispatch`（`:2420`）；候选闸（`:2038`）；聚合（`:3173`）；**事件系统规则谓词**（`room_events.gd:783/903/1250`） | 每次行动＋候选＋事件求值 | 拒绝／空表／**规则判定** | **部分是**（事件处是规则） |
-| 5 | 卡牌与本回合修正 | `core/card_effects.gd:1106` `validate(g) -> String` | `dispatch`（`:2422`）；聚合（`:3163`） | 每次行动 | 拒绝 | 否（但规则代码依赖其不变量） |
-| 6 | 遗物与诅咒平板锁 | `core/relic_effects.gd:280` `validate(g) -> String` | `dispatch`（`:2424`）；聚合（`:3165`） | 每次行动 | 拒绝 | 否 |
-| 7 | **聚合校验** | `core/game.gd:3134` `func validate() -> String`（内部 14 项：角色/出发/药剂/demo/肩/固缚/服务/卡牌/遗物/事件/监狱/狱警/性玩具…） | **`write_game`（写档前）**；**`restore_snapshot`（读档后）**；**事件探针 `probe`（`room_events.gd:929`）**；测试 143 处 | 写档／读档／**每个事件选项每次求值** | 返回原因 | 混合 |
+| 1 | 药剂记录 | `core/consumables.gd` `validate_buffs(g, buffs: Variant) -> String` | `dispatch`、聚合 `validate()`、`core/snapshot.gd` `check`（读档字段校验）（位置仅在落地时复核） | 每次行动＋读档 | 返回原因 → 拒绝整笔 | 否（纯完整性） |
+| 2 | 躯干固缚 | `core/torso_binding.gd` `state_issue(g) -> String` | `dispatch`、候选入口闸（`game._build_candidates` 内）、聚合（内部逐件 `validate`）（位置仅在落地时复核） | **每次行动＋每次候选构建** | 候选闸：返回**空表**；dispatch：拒绝 | 否 |
+| 3 | 版本相等 | `core/game.gd` `dispatch` 内联版本判定（非函数；位置仅在落地时复核） | `dispatch` | 每次行动 | "状态已更新，请重新选择行动。" | **是（新鲜度）** |
+| 4 | 性玩具实例 | `data/special_equipment.gd` `validate(items) -> String`（**纯数据，不吃 g**） | `dispatch`、候选闸（`game._build_candidates` 内）、聚合 `validate()`、**事件系统规则谓词**（`core/room_events.gd` `apply_effects`／`validate`；位置仅在落地时复核） | 每次行动＋候选＋事件求值 | 拒绝／空表／**规则判定** | **部分是**（事件处是规则） |
+| 5 | 卡牌与本回合修正 | `core/card_effects.gd` `validate(g) -> String` | `dispatch`、聚合 `validate()`（位置仅在落地时复核） | 每次行动 | 拒绝 | 否（但规则代码依赖其不变量） |
+| 6 | 遗物与诅咒平板锁 | `core/relic_effects.gd` `validate(g) -> String` | `dispatch`、聚合 `validate()`（位置仅在落地时复核） | 每次行动 | 拒绝 | 否 |
+| 7 | **聚合校验** | `core/game.gd` `validate() -> String`（内部 14 项：角色/出发/药剂/demo/肩/固缚/服务/卡牌/遗物/事件/监狱/狱警/性玩具…） | **`write_game`（写档前）**；**`restore_snapshot`（读档后）**；**事件探针 `core/room_events.gd` `probe`**；测试 143 处（位置仅在落地时复核） | 写档／读档／**每个事件选项每次求值** | 返回原因 | 混合 |
 | 8 | 事件选项探针 | `core/room_events.gd`（`probe_result` 的 validate 阶段） | 事件候选求值链（`append_choice_candidate` → `evaluate_option(purpose:"candidate")` → 可行性探针） | **事件屏每次刷新 × 选项数** | gate `validate_failed` | **是**（探针语义＝"执行后状态仍合法"） |
 
 ## 2. 按判据该怎么处理（逐条）
@@ -41,6 +42,7 @@
 
 1. **机制是新的**：全仓目前**没有任何 `OS.is_debug_build()` 用法**（事件 trace 用的是元数据开关）。
    要满足"release 必然不跑"，构建判定是唯一手段（运行期开关在 release 里可被打开）。这是本片引入的第一个新惯例，应在契约里写明。
+   **（2026-09-17 被落地机制取代：`core/game.gd` `debug_checks_enabled`／`set_debug_checks_enabled` 使用 `OS.is_debug_build()`；见 `docs/verification.md` 2026-09-17「per-click 完整性检查改 debug feature」）**
 2. **测试不受影响，一行不用改**：测试以编辑器二进制运行＝debug 构建，所以被门控的调用在测试中照跑；
    且门控的是**生产调用点**，函数本身仍可用——测试里 `g.validate()` 出现 **143 处**（当断言助手用）、
    `Cards.validate` 7 处、`RelicEffects.validate`／`SpecialEquipment.validate` 各 1 处、`validate_buffs`／`state_issue` 0 处，
@@ -51,8 +53,14 @@
    而 #1／#5／#6 只是"少一次拒绝"。两者风险不同，契约要分别写明。
 5. **仍缺的证据**：每个检查在**正常流程下的实际失败次数**（需要插桩统计）。
    目前只有静态判断（"不变量由构造保证"），没有运行期数据——**这是开工前要补的最后一块**。
+   （2026-09-17 被取代：该片已实施并登记，见下节；此处原判断仅作历史保留。）
 
-## 4. 下一步（未开工）
+## 4. 已实施（2026-09-17）
+
+本节取代原"下一步（未开工）"标题与待办：门控实现已落地并登记——提交 `3f96965`（4 文件 +177/−18）＋
+`84eb12f`（2 文件 +8/−3），本地提交、未推送／未打包；验证记录见
+`docs/verification.md` 2026-09-17「per-click 完整性检查改 debug feature」。
+原"下一步"文字保留如下（历史，已被取代）：
 
 1. 插桩统计：一次全量套件 ＋ 一次正常流程游玩，记录 #1／#2／#4／#5／#6／#7／#8 各自的失败次数与调用次数；
 2. 按统计结果划出"可门控集合"（失败次数为 0 且不含规则语义者），其余保留或拆分；

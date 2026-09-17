@@ -46,7 +46,7 @@ description: >-
 
 - core/game.gd 是状态与事务唯一提交入口；core/game_view.gd 生成只读显示快照，UI 不读不写 game.state。
 - UI 提交已有候选 ID＋版本，action_index 只查找、不重算资格。
-- ui/target_queries.gd 是身体目标／拖放载荷／解除候选的唯一查询入口：只吃 View 与 ActionIndex，不持有游戏、控件或跨刷新缓存（见 docs/release-interface.md）。
+- ui/target_queries.gd 是身体目标／拖放载荷／解除候选的唯一查询入口：只吃 View 与 ActionIndex，不持有游戏、控件（见 docs/release-interface.md）。（2026-09-17：缓存限制已改为"复用须附可证失效规则"，见 docs/response-pipeline.md §4.1。）
 - core/pressure.gd 等助手沿正式初始化／行动／回合管线执行，不另立玩家命令；失败必须完整回滚。
 - balance、card_rules、relics、enemies 等注册表集中维护数值；敌人种类与实例 ID 分离，意图／生命／来源／打断按实例保存。
 - data/field_tools.gd 只维护注册表与说明，规则落在 core/tool_rules.gd；规则内只用 g.Tools，不复制第二份数值表。
