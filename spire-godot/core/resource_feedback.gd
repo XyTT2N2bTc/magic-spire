@@ -1,6 +1,6 @@
 extends RefCounted
 # Transient transaction receipt; never saved or used for rule decisions.
-const FIELDS={"mana":"魔力","flask_mana":"魔瓶魔力","charge":"蓄力","temporary_mana":"临时魔力","next_energy":"下回合能量"}
+const FIELDS={"mana":"魔力","flask_mana":"魔瓶魔力","charge":"蓄力","temporary_mana":"临时魔力","next_energy":"下回合能量","pressure":"快感"}
 var previous={}
 var events=[]
 

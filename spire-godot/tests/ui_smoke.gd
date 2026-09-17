@@ -34,6 +34,7 @@ const UI_MODULES={"localization":"res://tests/localization_ui_cases.gd","card_po
  "enemies":"res://tests/enemy_ui_cases.gd",
  "equipment_complete":"res://tests/equipment_ui_cases.gd",
  "pressure":"res://tests/pressure_ui_cases.gd",
+ "impact_feedback":"res://tests/impact_feedback_ui_cases.gd",
  "guard":"res://tests/guard_ui_cases.gd",
  "prison":"res://tests/prison_ui_cases.gd",
  "tower_progression":"res://tests/tower_progression_ui_cases.gd",
