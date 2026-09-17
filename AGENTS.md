@@ -128,7 +128,7 @@
 | 界面拆分与装备详情 | docs/ui-scene-refresh.md、docs/release-interface.md |
 | 输入到落地的提交与刷新 | docs/response-pipeline.md |
 | 候选局部筛查与依赖声明 | docs/candidate-delta.md |
-| 点击路径重构方向（纲领，待裁） | docs/refactor-direction.md |
+| 前端重构问题清单（无方案，交原作者） | docs/refactor-direction.md |
 | 装备只读查询 | docs/equipment-query-seam.md |
 | 玩家可见文案的收口与按需 | docs/ondemand-copy.md |
 | 事件系统结构 | docs/event-structure.md |
