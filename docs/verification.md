@@ -4594,3 +4594,23 @@ RuleChangePackage（行为对玩家不变，档案写入时机改变）：`core/
 **新登记的既有红项**：`home_persistence`（UI 套件，`tests/home_persistence_ui_cases.gd`）——3 条断言失败：`HOME new game creates and saves actual tower entry`／`HOME controls remain in logical 16:9 frame after resize`／`HOME restored service room remains interactive`，`UI FAIL: 45`。**分类证据**：把 `core/`＋`ui/`＋`tests/` 整体回退到**已推送的 `a673352`**（早于迁移收束与存档两片）后跑同一套件，**同样三条断言失败** → **非本片引入**；此前未登记是因为门禁一直用 `persistence,home` 两个独立套件，从未跑过 `home_persistence` 这个组合套件。**方法注**：只回退产品文件会因 HEAD 的测试引用新符号而编译失败，定类必须整体回退 `core/`＋`ui/`＋`tests/`。门禁红集口径自此为 ⊆ {`card_power` 5, `installed_tools` 1, `tower_progression` 10＋1, `hand_assist` 1, `home_persistence` 3}。
 
 未跑：`-Suite all`／`-UISuite all` 全量、Android 真机、打包发布。
+
+## 2026-09-17 检查路由与隔离（派生索引 + 单套件失败不中断）
+
+RuleChangePackage（**只改工具与测试，产品代码零改动**；`git diff a56de58 -- core ui data content assets` 为空）：
+- **隔离**（`eaa003a`）：`tests/test_game.gd` 去掉整轮 `break` 与加载失败 `quit(1)`——脚本错误只记该套件 `FAIL` ＋ `SUITE RUNTIME: <name> <n>`（n≥1 才打印），其后套件照跑；`tests/ui_smoke.gd` 同款（setup 期错误打 `SUITE RESULT FAIL` ＋ `SUITE RUNTIME` 后进入下一模块）；`--keep-going` 成为兼容无操作；新增 `tests/runtime_error_ui_probe.gd` 负例夹具。`tools/check.ps1 -VerifyRunner` 探针扩为 5 条隔离反例，**并修掉一个既有 harness 缺陷**（选择探针把子进程 stderr 经 `2>&1` 灌进父进程，`ErrorActionPreference=Stop` 下变终止错误；该缺陷在 `3afdc55` 上同样复现）。5 处旧口径加 superseded 指针（**只加指针、未改历史文本**）。
+- **索引**（`aa199f4`）：`tests/check_index.gd` 单一派生实现（信号：`preload`／门面符号／`ui.<成员>`／断言域前缀；`static func` 故意不入索引以免无精度放大），生成器 `tools/build_check_index.gd` ＋ `tools/check-index.ps1 -Write`（**判据只读**），冻结物 `tests/check_index.json`，手写层 `tests/check_index_edges.gd`（`DOMAINS` 58／`WIDEN` 1／`EXCLUDE` 12／`BLIND_BY_DESIGN` 4／`INDEX_DEFECTS` 空，逐条带理由），计划宿主 `tests/route_plan.gd`，`tools/check.ps1` 增 `-Changed`／`-Since`／`-ChangedList`（与 `-Suite`／`-UISuite`／`-UI`／`-UIOnly`／`-Impact` 互斥）。**索引规模**：覆盖 94 个注册套件（规则 50＋界面 44）、**436 条"套件→源文件"边**、176 个用例文件全部有唯一 owner、`core|data|ui` 120 个源文件中 117 有边或域解析、4 个盲区；冻结摘要 `db5617dd2d272df99cbcca2b6f7a28d36dd823f8cc69f4fe5c258ee169894dda`。
+
+验证（提交 `eaa003a`、`aa199f4`、`cfc5d9d`、`6100179`；域：检查工具与测试基础设施）：
+- **协调者独立复核**：`tools/check-index.ps1` → `CHECK INDEX PASS: frozen index equals the derivation`（摘要 `db5617dd…`）、退出码 0、**2s**；`-Suite runner` **PASS 1446 断言**、11s；造一个真实改动（`ui/event_screen.gd` ＋1 行注释）→ 计划逐行打印 `ROUTE MODE`／`ROUTE FILES (sha256＋index digest)`／`ROUTE ROW … -> rules=(none) ui=events [signals=domain]`／`ROUTE MILESTONE: declared baseline,normal_play; deducted (none)`／`ROUTE RULE SCOPE`／`ROUTE UI SCOPE`／`ROUTE PLAN`；**干净工作区下 `-Changed` 显式报错**（"The change set is empty; committed changes need -Changed -Since <ref>"），不静默。
+- **隔离判据（实现者实测）**：同一宽集命令改动前 **278.6s 截断 ＋ 补跑 261s ＝ 539.6s／2 进程／`unrun`=18** → 改动后 **729s／1 进程／37/37 有结果／`unrun`=[]**；红集不变；**逐套件断言数与改动前逐条相等，合计 16903 条**（"不靠减少覆盖换速度"成立）。
+- **三处敏感性证明**（全部还原、工作区干净）：①冻结物改一字节 → `CHECK INDEX FAIL` ＋ 默认门禁 `runner` 同红；②删一条索引边 → `first difference at root.suite_files.…(missing on right)` ＋ `runner` 同红；③源码漂移不 `-Write` → `root.generated_from` ＋ `index_regeneration_is_the_only_writer`、`FAIL 2/1446`；④隔离四反例（assertion／assertion-keepgoing／runtime／load）经 `-VerifyRunner` 得 `SUITE RESULT: runner FAIL` ＋ 后续套件 PASS ＋ `unrun=[]`。
+- **`-Changed` 正反例（实现者实测）**：改动内容包 → 7 个消费者＋内容门、退出码 0（43s）；`ui/event_screen.gd` → `RULE SCOPE (none)` ＋ UI `events` PASS 180（44s）；真实工作区计划 ≈7s。
+
+**诚实的反发现（重要，纠正协调者早先的预期）**：契约 §5.6 预期的"隔离后一次进程 ≈400s"**未复现**——单进程 729s 比改动前两段之和 539.6s **慢约 190s**，全部落在 `prison`（92→283s）与 `persistence`（24→169s）；单独跑这两套件回到 91s／23s（125s）。即**长驻进程内的累积开销**，断言数不变。所以隔离的**可复现收益是"`unrun=[]`、免除人工补跑编排、运行时错误有具名标注"，不是墙钟时间**；"拿回五分钟"这一说法**作废**。待裁：是否改为**分批跑**（每 N 个套件重启一次进程，保留隔离语义）。
+
+**与契约的偏差（均加性、已带理由，交规划者确认）**：①`check_index.gd` **551 行**（§9 目标 ≤300；其余文件达标）——为把抽取规则写进文件头与四个接口同文件；②冻结物 **71 KB／3250 行**（§11-6 引用的估算 ≈11 KB；键序稳定已证：两次 `-Write` 逐字节相同）；③`tests/**` 非用例文件走目录闭包（契约 §2.2 的示例早于协调者裁定⑤，属文面滞后）；④新增 3 个数据键（`CLOSURE`／`ORACLE_NOTES`／`SUITE_EXEMPT`）与路由对象内加性键 `gate_results`。
+
+**新登记的既有红项**：界面模块 `interface`（`tests/interface_ui_cases.gd:156`）——`CARD ART every registered card has an illustration` 列出 **28 张 `witch_*` 卡缺立绘**，`UI FAIL: 355`。**分类证据**：`git diff a56de58` 对 `ui/`／`assets/`／`content/`／该用例文件均为空、断言与夹具未变 → 既有内容缺口（角色二卡缺立绘），此前未登记只因门禁从未单独跑过该模块。协调者在 HEAD 复现。**门禁红集口径自此为 ⊆ {`card_power` 5, `installed_tools` 1, `tower_progression` 10＋1, `hand_assist` 1, `home_persistence` 3, `interface` 1(28 张卡)}**。
+
+未跑：全量 `-Suite all -UI -UISuite all`（契约定为里程碑唯一入口）、Android 真机、打包／发版。
