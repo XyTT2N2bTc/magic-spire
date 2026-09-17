@@ -2,6 +2,7 @@ param([string]$OutputRoot = '', [string]$BuildId = '')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'find-godot.ps1')
 $gameDirectory = Split-Path -Parent $PSScriptRoot
+$docsDirectory = Join-Path (Split-Path -Parent $gameDirectory) 'docs'
 $projectText = Get-Content -LiteralPath (Join-Path $gameDirectory 'project.godot') -Raw
 $versionMatch = [regex]::Match($projectText, '(?m)^config/version="([0-9]+\.[0-9]+(?:\.[0-9]+)?)"')
 if (-not $versionMatch.Success) { throw 'Project version is missing or invalid.' }
@@ -33,7 +34,7 @@ if ($exportExit -ne 0 -or -not (Test-Path -LiteralPath $executable) -or (Get-Con
 $contentDirectory = Join-Path $destination 'content'
 [IO.Directory]::CreateDirectory($contentDirectory) | Out-Null
 Copy-Item -LiteralPath (Join-Path $gameDirectory 'content/packs') -Destination $contentDirectory -Recurse
-$versionNotes = Join-Path $gameDirectory ('docs/release-v' + $packageVersion + '.txt')
+$versionNotes = Join-Path $docsDirectory ('record/release-notes/release-v' + $packageVersion + '.txt')
 if (Test-Path -LiteralPath $versionNotes) {
     Copy-Item -LiteralPath $versionNotes -Destination (Join-Path $destination '版本更新内容.txt')
 } else {
@@ -48,7 +49,7 @@ foreach ($name in @('LICENSE','ASSET_RIGHTS.md')) {
     Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $gameDirectory) $name) -Destination $destination
 }
 foreach ($name in @('GODOT-LICENSE.txt', 'GODOT-COPYRIGHT.txt')) {
-    Copy-Item -LiteralPath (Join-Path $gameDirectory ('docs/licenses/' + $name)) -Destination $licenseDirectory
+    Copy-Item -LiteralPath (Join-Path $gameDirectory ('packaging/licenses/' + $name)) -Destination $licenseDirectory
 }
 $sourceAfter = Get-RuntimeFingerprint | ConvertTo-Json -Depth 4 -Compress
 if ($sourceBefore -cne $sourceAfter) { throw 'Runtime sources changed during export. Keep this staging folder unpublished and export a fresh build.' }
