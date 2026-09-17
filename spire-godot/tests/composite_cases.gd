@@ -1,9 +1,46 @@
 extends RefCounted
 
 const Game=preload("res://tests/game_fixture.gd")
+# Living index-off reference for the B4 parity checks (single definition in the architecture suite).
+const Arch=preload("res://tests/architecture_cases.gd")
 
 static func part(g, key: String) -> Dictionary:
  return g.state.composites[0].components.filter(func(e):return e.part==key)[0]
+
+static func cover_ids(values: Array) -> Array:
+ return values.map(func(e):return e.id)
+
+# Batch B4 (§8.3): the materialized root edge resolves roots by id, keeps root order for the
+# composite part of targets_at and never hands out a copy of a root or its components.
+static func index_root_edge_parity(t) -> void:
+ for kind in ["glove","jacket","leg_layers","component_links","plain"]:
+  var g=Game.new(42,true,kind) if kind!="plain" else Game.new(42)
+  if kind=="plain": g.add_fixture("thigh",7,10)
+  var reference=Arch.UncachedGame.new(42);reference.state=g.state.duplicate(true)
+  var before=g.export_snapshot()
+  var previous=g._begin_equipment_read()
+  var parity=g._composite_roots().map(func(root):return root.id)==reference.state.composites.map(func(root):return root.id)
+  for root in reference.state.composites:
+   parity=parity and is_same(g._composite(root.id),g.state.composites.filter(func(e):return e.id==root.id)[0])
+  parity=parity and g._composite("missing_root").is_empty()
+  for slot in g.B.SLOTS:
+   parity=parity and g.targets_at(slot)==reference.targets_at(slot) and cover_ids(g.targets_at(slot))==cover_ids(reference.targets_at(slot))
+  g._equipment_read=previous
+  t.check(parity and g.export_snapshot()==before and g._equipment_read.is_empty(),"INDEX root edge parity with the live path "+kind)
+ # A disabled root stays addressable by id while its components leave the target lists.
+ var leg=Game.new(42,true,"leg_layers")
+ var outer=leg.state.composites[-1]
+ var body=leg._composite(outer.id).components.filter(func(e):return e.part=="body")[0]
+ body.durability=0
+ var live=Arch.UncachedGame.new(42);live.state=leg.state.duplicate(true)
+ var leg_before=leg.export_snapshot()
+ var scope=leg._begin_equipment_read()
+ var parity=is_same(leg._composite(outer.id),leg.state.composites[-1]) and not leg.Composites.active(leg._composite(outer.id))
+ parity=parity and leg._composite(outer.id).components.size()==outer.components.size()
+ for slot in leg.B.SLOTS: parity=parity and cover_ids(leg.targets_at(slot))==cover_ids(live.targets_at(slot))
+ parity=parity and leg.get_view()==live.get_view()
+ leg._equipment_read=scope
+ t.check(parity and leg.export_snapshot()==leg_before,"INDEX disabled root keeps its components addressable and leaves the target lists")
 
 static func play(t, g, type: String, target: String, slot: String="upper_arm") -> Dictionary:
  if not g._equipment(target).is_empty() and g.Equipment.is_shoulder(g._equipment(target)): slot="shoulder"
@@ -11,6 +48,7 @@ static func play(t, g, type: String, target: String, slot: String="upper_arm") -
  return t.action(g,"card",{"uid":card.uid,"target":target,"slot":slot})
 
 static func run(t) -> void:
+ index_root_edge_parity(t)
  for variant in ["short","long"]:
   for straps in ["straight","cross"]:
    var g=Game.new(42)

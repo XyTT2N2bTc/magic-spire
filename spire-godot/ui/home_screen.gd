@@ -47,6 +47,7 @@ func _ready() -> void:
  var saved=ui._button(ui._text("ui.home.saves","存档与继续"),ui._open_saves,ui.MUTED);saved.name="HomeSaves"
  ui._place(saved,Rect2(1260,95,165,42),self)
  var save_notice=ui._label(ui.display_settings.save_error,13,ui.RED)
+ save_notice.name="HomeSettingsSaveNotice"
  var fixed=ui._button("扶她出去",func():pass,ui.CYAN)
  fixed.name="HomeFixedPortrait";fixed.toggle_mode=true
  fixed.button_pressed=ui.display_settings.fixed_hero_portrait
@@ -105,7 +106,7 @@ func _ready() -> void:
  ui._place(chastity,Rect2(1030,751,235,48),self)
  ui._place(down,Rect2(1271,751,58,48),self)
  ui._place(up,Rect2(1337,751,58,48),self)
- ui._place(save_notice,Rect2(1030,887,365,13),self)
+ ui._place(save_notice,Rect2(100,790,850,28),self)
  # Fixed homepage captions should not retain a tall wrap minimum from initial layout.
  for child in get_children():
   if child is Label:

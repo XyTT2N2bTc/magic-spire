@@ -1,16 +1,22 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "event",
   "id": "binding_cleric",
   "name": "缚疗修女",
   "intro": "塔壁凹处藏着一间小礼拜室。金发修女坐在铺着白布的长椅边，正慢条斯理地把绳索和皮带收进藤箱。\n\n看见你，她抬手拍了拍身旁的位置。\n\n“一路爬上来，身体也该好好照料一下了吧？”\n\n修女把淡蓝药瓶与银杯摆到桌上，笑着朝你招了招手。\n\n“需要祈福，还是净化？不想做也没关系，坐下歇会儿再走吧。”",
-  "start_stage": "service",
-  "stages": [
+  "start_node": "service",
+  "nodes": [
     {
       "id": "service",
       "title": "选择服务",
       "intro": "修女拔开药瓶的软木塞，淡淡蓝光随之漫开。银杯被她放在另一侧，脚边的藤箱也敞开着。\n\n“选吧。我会照顾好你的。”",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "restore",
@@ -59,7 +65,10 @@
               "source": "修女让你在长椅边坐好，手掌裹住勃起的肉棒，从根部缓缓套向龟头。湿润的指缝反复擦过冠沟，直到精液被她接进银杯",
               "source_variants": [
                 {
-                  "when": {"kind": "equipped_special_family", "value": "chastity_lock"},
+                  "when": {
+                    "kind": "equipped_special_family",
+                    "value": "chastity_lock"
+                  },
                   "text": "修女发现平板锁把肉棒压得一点也硬不起来，便改为揉捏乳头、摩擦小穴与阴蒂，直到高潮将精液从锁具下流进银杯"
                 }
               ]
@@ -68,7 +77,10 @@
           "report": "修女让你在长椅边坐好，将银杯贴在龟头下方。湿润的手掌裹紧肉棒，从根部一路套向发红的龟头。\n\n“忍什么呀？乖乖射出来就好了。”\n\n她的五指连续挤过冠沟，快感很快逼得肉棒在掌心里跳动。你在她手中射出精液，含在其中的魔力一股股落进银杯。\n\n修女轻轻晃动杯中的精液，看着蓝白微光逐渐亮起。\n\n“嗯，够用了。让我看看该从哪里下手。”",
           "report_variants": [
             {
-              "when": {"kind": "equipped_special_family", "value": "chastity_lock"},
+              "when": {
+                "kind": "equipped_special_family",
+                "value": "chastity_lock"
+              },
               "text": "修女掀开遮在胯间的布料，看见紧贴身体扣死的平板锁，不由得愣了一下。\n\n“咦……连这里也锁住了吗？”\n\n她用指尖碰了碰冰冷的锁面，很快便若无其事地把银杯放到你的腿间。\n\n“没关系。这样也可以。”\n\n修女从身后托住你的乳房，掌心缓缓揉开柔软乳肉，指尖夹住乳头来回搓弄。另一只手探入双腿之间，指腹贴着湿润的小穴反复摩擦，时不时压住阴蒂轻轻打转。\n\n“唔……那里明明被锁住了……为什么……❤”\n\n她没有碰平板锁下的肉棒，只是继续揉捏乳头，手指也沿着小穴越磨越快。快感从胸口与下腹一阵阵涌上来，你的腰腹猛地收紧，精液随即从平板锁下一股股流出，落进银杯。\n\n修女轻轻晃了晃杯中泛着蓝白微光的精液。\n\n“嗯，确实射出来了。这样就够了。”"
             }
           ]
@@ -89,6 +101,12 @@
       "title": "选择净化对象",
       "intro": "修女用指尖蘸过银杯，在你的小腹上画下一圈圣印。蓝白微光沿着肌肤游走，几道纠缠在身体里的旧痕随之浮现。\n\n“想去掉哪个？指给我看就好。”",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "remove",

@@ -24,7 +24,7 @@ static func siblings(ui, source: Dictionary) -> Array:
 static func equipment_choices(ui, data: Dictionary, body: Dictionary) -> Array:
  return Queries.equipment_choices(ui.actions,data,ui.view.version,body)
 
-static func clear(ui) -> void:
+static func clear(ui, refresh_quick: bool=true) -> void:
  for entry in ui.drag_hints:
   if is_instance_valid(entry): entry.hide();entry.queue_free()
  ui.drag_hints.clear()
@@ -42,7 +42,8 @@ static func clear(ui) -> void:
    actor.remove_meta("idle_modulate")
    actor.remove_meta("idle_normal");actor.remove_meta("idle_hover")
  ui.active_drag={}
- preload("res://ui/quick_release_bar.gd").refresh(ui,preload("res://ui/quick_release_bar.gd").selected_data(ui))
+ if refresh_quick:
+  preload("res://ui/quick_release_bar.gd").refresh(ui,preload("res://ui/quick_release_bar.gd").selected_data(ui))
 
 static func begin(ui, data: Dictionary) -> void:
  clear(ui);ui._clear_drop_targets();ui._hide_term()
@@ -71,7 +72,8 @@ static func begin(ui, data: Dictionary) -> void:
   var title="希凛" if id=="hero" else "捕缚" if id=="guard_bind" else ""
   for enemy in ui.view.enemies:
    if enemy.id==id: title=enemy.name
-  var detail=c.get("brief",c.detail)
+  var detail=c.get("brief","")
+  if not c.has("brief"): detail=ui.detail_of(c)
   if id=="guard_bind" and c.payload.has("preview"): detail=ui.game.number(c.payload.preview.damage)+"点伤害"
   if id=="guard_bind":
    var sidebar=ui.find_child("SidebarGuardBindTarget",true,false)

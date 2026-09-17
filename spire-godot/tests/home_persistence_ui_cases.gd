@@ -10,7 +10,7 @@ static func run(t) -> void:
  var ui=t.ui
  var initial=ui.game.export_snapshot()
  await Click.press(t,"HomeNewGame")
- t.check(not ui.show_home and ui.view.phase=="map" and store.read_slot("tower").ok,"HOME new game creates and saves actual tower entry")
+ t.check(not ui.show_home and ui.view.phase=="departure" and store.read_slot("tower").ok and store.read_slot("tower").snapshot.phase=="departure","HOME new game saves the actual opening-reward phase before entering the map")
  var saved=ui.game.export_snapshot()
  await t.open_menu();await Click.press(t,"ReturnHome")
  t.check(ui.show_home and ui.game.export_snapshot()==saved and not ui.map_auto_travel,"HOME returning pauses navigation without changing game")
@@ -28,6 +28,15 @@ static func run(t) -> void:
  t.root.size=Vector2i(1280,720);await t.frames()
  var home=ui.find_child("GameHome",true,false)
  t.check(home.get_children().all(func(n):return not n is Control or home.get_global_rect().encloses(n.get_global_rect())),"HOME controls remain in logical 16:9 frame after resize")
+ var unchanged=ui.game.export_snapshot()
+ ui.display_settings.save_error="显示设置保存失败：测试写入错误。"
+ ui.render();await t.frames()
+ home=ui.find_child("GameHome",true,false)
+ var notice=ui.find_child("HomeSettingsSaveNotice",true,false)
+ var disclaimer=ui.find_child("HomeDisclaimer",true,false)
+ t.check(notice!=null and notice.is_visible_in_tree() and notice.text==ui.display_settings.save_error and home.get_global_rect().encloses(notice.get_global_rect()) and notice.get_global_rect().end.y<=disclaimer.get_global_rect().position.y,"HOME nonempty settings save error stays inside the frame above the disclaimer")
+ t.check(ui.game.export_snapshot()==unchanged,"HOME displaying a settings-save failure does not change gameplay")
+ ui.display_settings.save_error="";ui.render();await t.frames()
  await t.capture("ui-103-home-continue.png")
  t.root.size=Vector2i(1600,900);await t.frames()
  ui.persistence_enabled=false;ui.feedback_duration=0.04
@@ -55,7 +64,15 @@ static func service_resume(t) -> void:
   if kind=="shop": await t.capture("ui-home-shop-save-fixed.png")
   await Click.press(t,"HomeContinue")
   t.check(not ui.show_home and ui.view.phase==kind and preload("res://tests/persistence_cases.gd").same(before,ui.game.state),"HOME native continue restores exact room, mana and sold stock")
-  t.check(ui.find_child("RoomServicePanel",true,false)!=null,"HOME restored service room remains interactive")
+  if kind=="shop":
+   var leave=ui.find_child("ShopLeave",true,false)
+   t.check(ui.find_child("RoomServicePanel",true,false)!=null and leave!=null and not leave.disabled,"HOME restored shop keeps its actual service controls")
+   await Click.press(t,"ShopLeave")
+  else:
+   var next=ui.find_child("RewardContinue",true,false)
+   t.check(ui.view.reward_panel.active and ui.find_child("BattleRewards",true,false)!=null and next!=null and not next.disabled,"HOME restored treasure keeps its actual reward controls")
+   await Click.press(t,"RewardContinue")
+  t.check(ui.view.phase!=kind and ui.game.state.completed_rooms.has(before.room),"HOME restored room can be completed through a real UI command: "+kind)
  t.ui.persistence_enabled=false;t.ui.feedback_duration=0.04
  var finished=preload("res://core/game.gd").new(42)
  preload("res://tests/demo_exit_cases.gd").exit_fixture(finished)

@@ -168,7 +168,7 @@ func draw_targets() -> void:
  var row=HBoxContainer.new();target_panel.add_child(row)
  var prev=host._button("‹",func():cycle(-1));prev.name="KeyboardPrevious";row.add_child(prev)
  var button=host._button(target_name(c)+"  ·  "+settings.caption("confirm"),confirm,host.CYAN);button.name="KeyboardConfirm";button.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(button)
- button.mouse_entered.connect(func():host._show_term(button,{"label":c.label,"detail":c.detail}))
+ button.mouse_entered.connect(func():host._show_term(button,{"label":c.label,"detail":host.detail_of(c)}))
  var next=host._button("›",func():cycle(1));next.name="KeyboardNext";row.add_child(next)
  row.add_child(host._label("%d/%d" % [choice_index+1,choices.size()],13,host.MUTED))
  for id in host.actor_targets:

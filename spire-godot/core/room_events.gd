@@ -2,6 +2,8 @@ extends RefCounted
 const Data=preload("res://data/room_events.gd")
 const Relics=preload("res://data/relics.gd")
 const RESULT_STATUSES=["neutral","success","failure"]
+# §3.3: the player-visible reason of the chain-loop gate, declared once.
+const CHAIN_LOOP_REASON="这段事件已经走过，不能再回头。"
 
 # Internal phase helper, called only through Game.dispatch. Choices contain frozen
 # effects, not functions or localized identifiers. Probes always restore state.
@@ -17,63 +19,465 @@ static func start(g, id: String="") -> void:
   room.name="%02d · %s" % [room.floor+1,Data.TYPES[id].name if id!="" else "空房间"]
   if id!="" and id not in g.state.event_seen: g.state.event_seen.append(id)
  if id=="":
-  g.state.phase="map";g.state.wall=room.wall;g.state.energy=0
+  g._apply_transition("event_leave_empty",{"phase":"map"});g.state.wall=room.wall;g.state.energy=0
   g.state.enemies=[];g.state.room_event={}
   if g.state.room not in g.state.completed_rooms: g.state.completed_rooms.append(g.state.room)
   g._emit("event","房间里没有新的发现，可以继续前进。")
   return
- g.state.phase="event"
+ clear_trace(g)
+ g._apply_transition("event_enter",{"phase":"event"})
  g.state.wall=g.room_data(g.state.room).wall
  g.state.enemies=[]
  g.state.energy=0
- var available=g.RelicRewards.available(g)
- var definition=Data.TYPES[id]
- var flow=definition.has("stages")
- var choices=definition.get("choices",[]).duplicate()
- for stage in definition.get("stages",[]): choices.append_array(stage.choices)
- var offers_relic=choices.any(func(choice):return choice.get("reward","")=="relic" or choice.get("outcomes",[]).any(func(outcome):return outcome.get("reward","")=="relic"))
- var event={"id":id,"stage":"choice","options":[],"refs":{},"values":{},"report":"","reward":[],"winner":-1,"relic":g.RelicRewards.offer(g) if offers_relic and not available.is_empty() else "","flow":flow,"held":{},"cleanup_effects":definition.get("cleanup_effects",[]).duplicate(true),"next_stage":""}
+ var spec=definition(id)
+ # One definition form: a single node keeps the in-place layout, several nodes keep the
+ # staged layout. B2 replaces this node-count branch with the declared node policies.
+ var flow=node_ids(spec).size()>1
+ var event={"id":id,"stage":"choice","options":[],"refs":{},"values":{},"report":"","reward":[],"winner":-1,"relic":offer_relic(g,spec),"flow":flow,"held":{},"cleanup_effects":spec.get("cleanup_effects",[]).duplicate(true),"next_stage":""}
  g.state.room_event=event
  event.result_status="neutral"
- if flow:
-  var issue=enter_stage(g,definition.start_stage)
-  if issue!="":
-   event.stage="result";event.report="事件无法开始："+issue
-   event.result_status="failure"
- else:
-  for choice_definition in definition.choices:
-    if choice_definition.reward=="relic" and available.is_empty(): continue
-    if choice_definition.has("selector"):
-     for selected in selector_selections(g,choice_definition.selector):
-      var selected_choice=freeze_choice(g,choice_definition,selected)
-      if not selected_choice.is_empty(): event.options.append(selected_choice)
-     continue
-    var effects=choice_definition.effects.duplicate(true) if choice_definition.has("effects") else compile(g,choice_definition.recipe)
-    if effects.is_empty() and not choice_definition.has("effects"): continue
-    if choice_definition.get("pressure",0)>0: effects.append({"op":"pressure","amount":choice_definition.pressure,"source":choice_definition.get("pressure_source","事件中的身体刺激")})
-    var choice=choice_definition.duplicate(true)
-    effects=effects.map(func(effect):return resolve_effect_copy(g,effect))
-    choice.report=conditional_copy(g,choice.get("report",choice.label),choice.get("report_variants",[]))
-    if effects.any(func(effect):return effect.op in ["install_random","tighten_random","special_install_random","random_amount"]):
-     var frozen=freeze_effects(g,effects)
-     if frozen.issue!="": continue
-     choice.effects=frozen.effects
-    else: choice.effects=effects
-    if choice_definition.has("item_rewards"): choice.item_rewards=freeze_item_rewards(g,choice_definition.item_rewards)
-    choice.detail=choice_definition.get("detail",(describe(g,effects)+"\n"+reward_text(choice.reward,g)).strip_edges())
-    if choice.get("hide_when_unavailable",false) and probe_choice(g,choice)!="": continue
-    event.options.append(choice)
-  if definition.get("allow_refuse",true): event.options.append(refusal(g))
+ var issue=enter_node(g,spec.get("start_node",""))
+ if issue!="":
+  event.stage="result";event.report="事件无法开始："+issue
+  event.result_status="failure"
  g._emit("event","进入"+Data.TYPES[id].name+"。")
+
+# §3.3 (A32): the relic an instance may grant belongs to the definition that owns the instance,
+# so an arrival and a chain jump compute it the same way: a definition whose options offer a
+# relic reward with a non-empty pool spends exactly one draw, every other definition stays
+# empty. Recomputing after a jump is what keeps the target from naming the source's relic.
+static func offer_relic(g, spec: Dictionary) -> String:
+ var choices=[]
+ for author_node in spec.get("nodes",[]): choices.append_array(author_node.get("choices",[]))
+ var offers_relic=choices.any(func(choice):return choice.get("reward","")=="relic" or choice.get("outcomes",[]).any(func(outcome):return outcome.get("reward","")=="relic"))
+ if not offers_relic or g.RelicRewards.available(g).is_empty(): return ""
+ return g.RelicRewards.offer(g)
 
 static func refusal(g) -> Dictionary:
  return {"id":"refuse","label":"支付费用，离开","reward":"none","effects":[{"op":"mana_loss","amount":minf(g.state.mana,Data.REFUSAL_MANA)}],"detail":"支付%s魔力。" % g.number(minf(g.state.mana,Data.REFUSAL_MANA)),"next":"result","report":"你转身离开。"}
 
-static func flow_stage(g, id: String) -> Dictionary:
- var definition=Data.TYPES[g.state.room_event.id]
- if not definition.has("stages"): return {}
- var matches=definition.stages.filter(func(stage):return stage.id==id)
- return {} if matches.is_empty() else matches[0]
+# The compiled registry entry is the author form, so these three accessors are the only
+# way to reach nodes and their options; a missing id yields an empty result, not an error.
+static func definition(id: String) -> Dictionary:
+ return Data.TYPES.get(id,{})
+
+static func node(spec: Dictionary, node_id: String) -> Dictionary:
+ for entry in spec.get("nodes",[]):
+  if entry.get("id","")==node_id: return entry
+ return {}
+
+static func node_ids(spec: Dictionary) -> Array:
+ var ids=[]
+ for entry in spec.get("nodes",[]): ids.append(entry.get("id",""))
+ return ids
+
+# §3.2: the single interpreter of a declared next target: the "result" sentinel that ends the
+# event (also the missing value), another node of this definition, or {"event","node"} — a
+# jump to another registered event. Callers never read the authored shape themselves.
+static func next_target(next) -> Dictionary:
+ if next is Dictionary: return {"kind":"event","event":str(next.get("event","")),"node":str(next.get("node",""))}
+ if next is String and next!="result": return {"kind":"node","node":next,"event":""}
+ return {"kind":"result","node":"","event":""}
+
+# §3.3: the chain cleanup is the union of every cleanup step of the chain, one entry per key,
+# source definition first. Leaving runs each step once, so a key must never repeat.
+static func chain_cleanup(current: Array, target: Array) -> Array:
+ var result=current.duplicate(true)
+ for entry in target:
+  if result.any(func(other):return str(other.get("key",""))==str(entry.get("key",""))): continue
+  result.append(entry.duplicate(true))
+ return result
+
+# §3.2／§3.3: the single advance entry for a resolved target; a node target reuses the node
+# pipeline, an event target rewrites this instance into the chain first. "arrival" is the
+# real advance, "next_probe" is the caller-owned look-ahead of probe_result (A31).
+static func enter_target(g, target: Dictionary, purpose: String="arrival") -> Dictionary:
+ if target.get("kind","")=="event": return _enter_chain(g,target,purpose)
+ # A "result" target ends the event and owns no node: the caller sets the result stage.
+ if target.get("kind","")=="result": return {"issue":"","gate":"","detail":""}
+ return enter_node_result(g,str(target.get("node","")),purpose)
+
+# A real cross-event jump keeps one instance (§3.3): the target becomes the current
+# definition, counters and holds continue, cleanup becomes the chain union, the relic is
+# recomputed from the target definition (A32), event_seen gains the target, the flow mirror
+# follows the new definition, and chain records the events already left behind — the key
+# appears only here, never on arrival.
+static func _enter_chain(g, target: Dictionary, purpose: String) -> Dictionary:
+ var event=g.state.room_event
+ var spec=definition(target.event)
+ if not target.event in g.state.event_seen: g.state.event_seen.append(target.event)
+ var chain=event.get("chain",[])
+ if not chain is Array: chain=[]
+ var left=chain.duplicate()
+ left.append(str(event.get("id","")))
+ event.chain=left
+ event.id=target.event
+ event.relic=offer_relic(g,spec)
+ event.cleanup_effects=chain_cleanup(event.get("cleanup_effects",[]),spec.get("cleanup_effects",[]))
+ event.flow=node_ids(spec).size()>1
+ return enter_node_result(g,target.node,purpose)
+
+# One declaration for every state condition. Adding a condition means adding one row here:
+# content validation, runtime evaluation, the save key set and the trace naming all derive
+# from it, so the three consumers can never drift apart again.
+# required/optional list the author fields; check(g, entry, data) validates one entry;
+# probe(g, entry) reports whether the entry is HIT (unsatisfied) for the current game.
+static var CONDITIONS={
+ "no_chastity_lock":{
+  "required":[],
+  "optional":[],
+  "check":func(_g,_entry,_data):return "",
+  "probe":func(g,_entry):return g.state.special_equipment.any(func(item):return item.get("durability",0)>0 and g.SpecialEquipment.is_chastity(item))},
+ "has_relic":{
+  "required":["type"],
+  "optional":[],
+  "check":func(_g,entry,data):
+   if not entry.get("type") is String or not data.relic.has(entry.type): return "has_relic 需要已注册的遗物 id。"
+   return "",
+  "probe":func(g,entry):return not g.state.relics.has(String(entry.get("type","")))},
+}
+
+static func condition_kinds() -> Array:
+ return CONDITIONS.keys()
+
+# The save key set of an entry: the kind, its reason and every declared kind field.
+static func condition_saved_fields(kind: String) -> Array:
+ var spec=CONDITIONS.get(kind,{})
+ return ["kind","reason"]+Array(spec.get("required",[]))
+
+# Author spelling plus node policy become canonical entries in declaration order.
+# Only state conditions live here; instance conditions (when), the relic gate and the
+# feasibility probe stay at their fixed evaluation steps (§4.3).
+static func condition_entries(node: Dictionary, choice: Dictionary) -> Array:
+ var entries=[]
+ var declared=choice.get("conditions",[])
+ if declared is Array and not declared.is_empty():
+  for entry in declared:
+   if not entry is Dictionary: continue
+   var canonical={"kind":entry.get("kind",""),"mode":entry.get("mode","")}
+   canonical.reason=entry.get("reason","")
+   for field in Array(CONDITIONS.get(entry.get("kind",""),{}).get("required",[])):
+    if entry.has(field): canonical[field]=entry[field]
+   if canonical.mode=="": canonical.mode="optional"
+   entries.append(canonical)
+  return entries
+ if choice.has("availability"):
+  var availability=choice.availability
+  var canonical={"kind":"","mode":"","reason":""}
+  if availability is Dictionary:
+   canonical.kind=availability.get("kind","")
+   canonical.reason=availability.get("reason","")
+   for field in Array(CONDITIONS.get(canonical.kind,{}).get("required",[])):
+    if availability.has(field): canonical[field]=availability[field]
+  canonical.mode=_state_mode(node,choice)
+  entries.append(canonical)
+ return entries
+
+# Mode resolution for a compatibility state condition (§5.3 priority 2 and 3).
+static func _state_mode(node: Dictionary, choice: Dictionary) -> String:
+ if choice.get("unavailable","")=="hide": return "hidden"
+ if choice.get("unavailable","")=="disable": return "optional"
+ if choice.get("hide_when_unavailable",false): return "hidden"
+ return "optional"
+
+# One entry, validated against its own declared kind. Messages stay those the author
+# already sees for the compatibility spelling.
+static func condition_issue(g, entry: Dictionary, data: Dictionary) -> String:
+ if not entry is Dictionary: return "需要条件对象。"
+ var spec=CONDITIONS.get(entry.get("kind",""),{})
+ if spec.is_empty(): return "尚未支持这种状态条件。"
+ var allowed=Array(spec.get("required",[]))+Array(spec.get("optional",[]))
+ for key in entry:
+  if key in ["kind","reason","mode"]: continue
+  if key not in allowed: return "不支持字段 "+str(key)+"。"
+ for key in Array(spec.get("required",[])):
+  if not entry.has(key): return "缺少字段 "+key+"。"
+ var mode=entry.get("mode","optional")
+ if mode not in ["optional","hidden"]: return "条件模式只支持 optional 或 hidden。"
+ if not words_like_reason(entry.get("reason","")): return "reason 需要1—240字的普通说明。"
+ return spec.check.call(g,entry,data)
+
+# The author-facing reason text keeps the same length and format rules as before.
+static func words_like_reason(value) -> bool:
+ return value is String and not value.strip_edges().is_empty() and value.length()<=240 and not "[" in value and not "]" in value
+
+static func condition_probe(g, entry: Dictionary) -> bool:
+ var spec=CONDITIONS.get(entry.get("kind",""),{})
+ if spec.is_empty(): return false
+ return spec.probe.call(g,entry)
+
+# The single evaluation entry: every "what can this option do right now" question goes
+# through here, and every hit is recorded as its own gate entry in evaluation order.
+# request={"definition","node","choice","selected","purpose","outcome"?,"frozen"?}
+#   selected=<empty|Dictionary|Array>, purpose=arrival|candidate|probe|execute
+#   outcome=<pre-drawn weighted result>; only the caller that owns one draw per choice
+#   passes it, so outcome_draw=="option" stays one draw for the whole choice.
+#   frozen=<the already frozen option> for candidate／probe／execute, which never re-freeze
+#   and never consume random.
+# Returns {"decision","gates","gate","reason","option"}; read-only for every purpose except
+# arrival, which returns the option the node pipeline writes into the state.
+static func evaluate_option(g, request: Dictionary) -> Dictionary:
+ var node_entry=request.get("node",{})
+ var choice=request.get("choice",{})
+ var purpose=request.get("purpose","candidate")
+ var selected=request.get("selected",{})
+ var outcome=request.get("outcome",{})
+ var gates=[]
+ # 0) instance conditions (when) — declared mode is hidden
+ if choice.has("when") and not condition_met(g,choice.when):
+  var detail=str(choice.when.get("counter","")) if choice.when.has("counter") else str(choice.when.get("selector",{}).get("kind",""))
+  gates.append({"gate":"condition_unmet","kind":"selector_count" if choice.when.has("selector") else "counter","mode":"hidden","index":0,"detail":detail,"reason":""})
+ # 1) relic pool gate, before freezing (the node declares relic_gate="pool")
+ if not _structural(gates) and node_entry.get("relic_gate","")=="pool" and choice.get("reward","")=="relic" and g.RelicRewards.available(g).is_empty():
+  gates.append({"gate":"relic_pool_empty","kind":"relic_pool","mode":"hidden","index":0,"detail":"","reason":""})
+ var options=[]
+ if not _structural(gates):
+  if purpose=="arrival":
+   var selections=selections_for(g,choice,selected)
+   if selections.is_empty():
+    gates.append({"gate":"selector_empty","kind":"selector","mode":"hidden","index":0,"detail":str(choice.get("selector",{}).get("kind","")),"reason":""})
+   else:
+    for selection in selections:
+     var frozen=freeze_one(g,node_entry,choice,selection,outcome)
+     if not frozen.ok:
+      gates.append({"gate":frozen.gate,"kind":"feasibility","mode":"hidden","index":0,"detail":str(choice.get("id","")),"reason":frozen.reason})
+     elif node_entry.get("relic_gate","")=="claimed" and frozen.option.reward=="relic" and g.state.room_event.get("relic","")=="":
+      gates.append({"gate":"relic_already_offered","kind":"relic_offered","mode":"hidden","index":0,"detail":"","reason":""})
+     else: options.append(frozen.option)
+  else:
+   var given=request.get("frozen",{})
+   if not given.is_empty(): options.append(given)
+ # 4) state conditions, then the feasibility probe
+ if not _structural(gates) and options.size()==1:
+  var entries=condition_entries(node_entry,choice)
+  var index=0
+  for entry in entries:
+   var mode=entry.get("mode","optional")
+   if condition_probe(g,entry) and (purpose!="execute" or mode=="optional"):
+    gates.append({"gate":"availability_unmet","kind":entry.get("kind",""),"mode":mode,"index":index,"detail":"","reason":str(entry.get("reason",""))})
+   index+=1
+  # §3.3: the chain may not return to an event it already left. The option stays visible but
+  # disabled, so the loop is refused at the candidate stage instead of silently disappearing.
+  var chain_target=next_target(options[0].get("next","result"))
+  if purpose!="execute" and chain_target.kind=="event" and chain_target.event in Array(g.state.room_event.get("chain",[])):
+   gates.append({"gate":"chain_loop","kind":"chain","mode":"optional","index":index,"detail":chain_target.event,"reason":CHAIN_LOOP_REASON})
+  if purpose!="execute" and (purpose!="arrival" or choice.get("hide_when_unavailable",false)):
+   var feasibility=feasibility_gate(g,options[0])
+   if not feasibility.is_empty():
+    feasibility.mode=_feasibility_mode(node_entry,choice)
+    feasibility.index=index
+    gates.append(feasibility)
+ var decision=_decision(gates)
+ var authored_id=str(choice.get("id",""))
+ var frozen_id="" if options.is_empty() else str(options[0].get("id",""))
+ if frozen_id=="": frozen_id=authored_id
+ for hit in gates:
+  trace_entry(g,{"source_choice":authored_id,"option_id":frozen_id,"decision":decision,"gate":hit.gate,"kind":hit.get("kind",""),"mode":hit.get("mode",""),"index":hit.get("index",0),"reason":hit.get("reason",""),"purpose":purpose})
+ if gates.is_empty():
+  trace_entry(g,{"source_choice":authored_id,"option_id":frozen_id,"decision":decision,"purpose":purpose})
+ return {"decision":decision,"gates":gates,"gate":"" if gates.is_empty() else str(gates[0].gate),"reason":_joined_reason(gates),"option":{} if options.is_empty() else options[0]}
+
+static func _structural(gates: Array) -> bool:
+ return gates.any(func(hit):return hit.gate in ["condition_unmet","relic_pool_empty","selector_empty","recipe_empty","freeze_failed"])
+
+static func _decision(gates: Array) -> String:
+ if _structural(gates): return "dropped"
+ if gates.any(func(hit):return hit.mode=="hidden"): return "hidden"
+ if not gates.is_empty(): return "disabled"
+ return "generated"
+
+# One hit keeps its authored wording; several optional hits are joined in declaration
+# order with newlines (§5.3). A feasibility hit keeps its probe wording as before.
+static func _joined_reason(gates: Array) -> String:
+ var reasons=gates.map(func(hit):return str(hit.get("reason",""))).filter(func(text):return text!="")
+ return "\n".join(reasons)
+
+static func _feasibility_mode(node_entry: Dictionary, choice: Dictionary) -> String:
+ if choice.get("unavailable","")=="hide": return "hidden"
+ if choice.get("unavailable","")=="disable": return "optional"
+ if choice.get("hide_when_unavailable",false): return "hidden"
+ return "optional" if node_entry.get("unavailable","disable")=="disable" else "hidden"
+
+# The feasibility probe: the same checks and wording as before, reported as a named gate.
+static func feasibility_gate(g, option: Dictionary) -> Dictionary:
+ var probe_state=probe_result(g,option.effects,option)
+ if probe_state.reason!="": return {"gate":probe_state.gate,"kind":"feasibility","detail":str(option.get("id","")),"reason":probe_state.reason}
+ if option.has("encounter"):
+  var issue=battle_spec_issue(g,option.encounter)
+  if issue=="": issue=probe_result(g,option.encounter.victory_effects,{}).reason
+  if issue!="": return {"gate":"encounter_invalid","kind":"feasibility","detail":str(option.get("id","")),"reason":issue}
+ return {}
+
+# Evaluations of one authored choice: the frozen selection when re-checking a frozen
+# option, one selection per selector value when arriving.
+static func selections_for(g, choice: Dictionary, selected={}) -> Array:
+ if not selection_rows(selected).is_empty(): return [selected]
+ if not choice.has("selector"): return [{}]
+ return selector_selections(g,choice.selector)
+
+# The authored choice behind a frozen option; in-place options are the author object itself.
+static func authored_choice(g, option: Dictionary) -> Dictionary:
+ var spec=definition(g.state.room_event.get("id",""))
+ var node_entry=node(spec,g.state.room_event.get("stage",""))
+ var wanted=str(option.get("source_choice",option.get("id","")))
+ for choice in node_entry.get("choices",[]):
+  if choice.get("id","")==wanted: return choice
+ return option
+
+# Request for an already frozen option (candidate support, probe, execute).
+static func request_for(g, option: Dictionary, purpose: String) -> Dictionary:
+ var spec=definition(g.state.room_event.get("id",""))
+ return {"definition":spec,"node":node(spec,g.state.room_event.get("stage","")),"choice":authored_choice(g,option),"selected":option.get("selected",{}),"purpose":purpose,"frozen":option}
+
+# Freeze one authored choice (or one selection of it) into a concrete option.
+static func freeze_one(g, node_entry: Dictionary, choice: Dictionary, selected={}, outcome: Dictionary={}) -> Dictionary:
+ # A selector option has always been frozen through the shared staged builder (§1.1 P2),
+ # so the layout follows the selector as well as the declared form.
+ if node_entry.get("frozen_form","in_place")=="in_place" and not choice.has("selector"): return _freeze_in_place(g,node_entry,choice,selected,outcome)
+ return _freeze_staged(g,node_entry,choice,selected,outcome)
+
+# The in-place layout: the author object is the frozen option, updated in place, so its key
+# set and key order stay exactly what the author wrote (§0.2 digest constraint).
+static func _freeze_in_place(g, node_entry: Dictionary, choice: Dictionary, selected={}, outcome: Dictionary={}) -> Dictionary:
+ var drawn=outcome
+ if drawn.is_empty() and choice.has("outcomes"): drawn=weighted(g,choice.outcomes)
+ var declared=choice.get("effects",[]).duplicate(true) if choice.has("effects") else compile(g,choice.get("recipe",""))
+ if declared.is_empty() and not choice.has("effects") and not drawn.is_empty(): declared=drawn.get("effects",[]).duplicate(true)
+ if not chosen_effects(choice,declared): return {"ok":false,"gate":"recipe_empty","reason":""}
+ if not selection_rows(selected).is_empty(): declared=selected_value(declared,selected)
+ # remove_restraints is the shared atomic removal effect. Keep its frozen target shape
+ # consistently array-based even when an authored selector asks for one.
+ for effect in declared:
+  if effect.get("op","")=="remove_restraints" and effect.get("targets") is String: effect.targets=[effect.targets]
+ var effects=declared.map(func(effect):return resolve_effect_copy(g,effect))
+ var option=choice.duplicate(true)
+ if not drawn.is_empty():
+  option.reward=drawn.get("reward",option.get("reward","none"))
+  option.next=drawn.get("next",option.get("next","result"))
+  option.result_status=drawn.get("result_status",option.get("result_status","neutral"))
+  if drawn.has("report"): option.report=drawn.report
+  if drawn.has("report_variants"): option.report_variants=drawn.report_variants
+ option.report=conditional_copy(g,option.get("report",option.label),option.get("report_variants",[]))
+ if effects.any(func(effect):return effect.op in ["install_random","tighten_random","special_install_random","random_amount"]):
+  var frozen=freeze_effects(g,effects)
+  if frozen.issue!="": return {"ok":false,"gate":"freeze_failed","reason":frozen.issue}
+  option.effects=frozen.effects
+ else: option.effects=effects
+ if choice.has("item_rewards"): option.item_rewards=freeze_item_rewards(g,choice.item_rewards)
+ option.detail=choice.get("detail",(describe(g,effects)+"\n"+reward_text(option.reward,g)).strip_edges())
+ if not selection_rows(selected).is_empty(): option.selected=selected.duplicate(true)
+ return {"ok":true,"option":option}
+
+# A declared empty effect list is an authored choice; without one the choice needs a recipe
+# or a drawn result that carries effects.
+static func chosen_effects(choice: Dictionary, declared: Array) -> bool:
+ return choice.has("effects") or not declared.is_empty()
+
+# The staged layout: a fixed field order that never echoes the author object.
+static func _freeze_staged(g, node_entry: Dictionary, choice: Dictionary, selected={}, outcome: Dictionary={}) -> Dictionary:
+ var drawn=outcome
+ if drawn.is_empty() and choice.has("outcomes"): drawn=weighted(g,choice.outcomes)
+ var declared=choice.get("effects",[]).duplicate(true)+drawn.get("effects",[]).duplicate(true)
+ var selected_rows=selection_rows(selected)
+ if not selected_rows.is_empty(): declared=selected_value(declared,selected)
+ for effect in declared:
+  if effect.get("op","")=="remove_restraints" and effect.get("targets") is String: effect.targets=[effect.targets]
+ if choice.has("recipe"):
+  var compiled=compile(g,choice.recipe)
+  if compiled.is_empty(): return {"ok":false,"gate":"recipe_empty","reason":""}
+  declared=compiled+declared
+ var frozen=freeze_effects(g,declared)
+ if frozen.issue!="": return {"ok":false,"gate":"freeze_failed","reason":frozen.issue}
+ var selected_suffix=""
+ if not selected_rows.is_empty(): selected_suffix="__"+"__".join(selected_rows.map(func(row):return row.id))
+ var report=drawn.get("report",choice.get("report",choice.label))
+ var report_variants=drawn.get("report_variants",choice.get("report_variants",[]))
+ report=conditional_copy(g,report,report_variants)
+ var option={"id":choice.id+selected_suffix,"source_choice":choice.id,"label":selected_text(choice.label,selected),"reward":drawn.get("reward",choice.get("reward","none")),"effects":frozen.effects,"next":drawn.get("next",choice.get("next","result")),"report":selected_text(report,selected)}
+ if choice.get("show_pressure_sources",false): option.show_pressure_sources=true
+ if choice.has("availability"): option.availability=choice.availability.duplicate(true)
+ if choice.has("conditions"): option.conditions=choice.conditions.duplicate(true)
+ if choice.has("item_rewards"): option.item_rewards=freeze_item_rewards(g,choice.item_rewards)
+ option.detail=selected_text(choice.get("detail",(describe(g,option.get("effects",[]))+"\n"+reward_text(option.reward,g)).strip_edges()),selected)
+ option.result_status=drawn.get("result_status",choice.get("result_status","neutral"))
+ if not selected_rows.is_empty(): option.selected=selected.duplicate(true)
+ return {"ok":true,"option":option}
+
+# Kept entry point for callers that freeze an authored choice without a node (§7.1).
+static func freeze_choice(g, definition: Dictionary, selected={}, fixed_outcome: Dictionary={}) -> Dictionary:
+ var frozen=_freeze_staged(g,{"outcome_draw":"option","frozen_form":"staged"},definition,selected,fixed_outcome)
+ return {} if not frozen.ok else frozen.option
+
+# One node pipeline for both definition shapes. Every declared policy is read here:
+# allow_refuse, unavailable, relic_gate, random_freeze, outcome_draw, frozen_form, empty_node.
+# The node count no longer decides anything.
+static func enter_node(g, id: String) -> String:
+ return str(enter_node_result(g,id,"arrival").get("issue",""))
+
+# One implementation of the node pipeline; the string form above is its issue projection.
+# The purpose is the caller's declaration: a real advance uses "arrival", the next-node
+# look-ahead of probe_result passes "next_probe" (§4.5 A31).
+static func enter_node_result(g, id: String, purpose: String="arrival") -> Dictionary:
+ var spec=definition(g.state.room_event.get("id",""))
+ var node_entry=node(spec,id)
+ if node_entry.is_empty():
+  # A30: a missing node writes the same node-entry failure row as an empty one.
+  trace_entry(g,{"node":id,"decision":"dropped","gate":"stage_missing","detail":id,"purpose":purpose})
+  return {"issue":"下一阶段不存在。","gate":"stage_missing","detail":id}
+ var options=[]
+ for choice in node_entry.get("choices",[]):
+  var selections=selections_for(g,choice)
+  if selections.is_empty():
+   # A selector that expands to nothing still goes through the entry, so the
+   # selector_empty gate and its trace row exist (§4.2／§10 scenario 03).
+   evaluate_option(g,{"definition":spec,"node":node_entry,"choice":choice,"selected":{},"purpose":"arrival","outcome":{}})
+   continue
+  # outcome_draw=="option" spends exactly one draw for the whole choice, then copies it.
+  var shared={}
+  if choice.has("outcomes") and node_entry.get("outcome_draw","option")=="option": shared=weighted(g,choice.outcomes)
+  for selection in selections:
+   var result=evaluate_option(g,{"definition":spec,"node":node_entry,"choice":choice,"selected":selection,"purpose":"arrival","outcome":shared})
+   if result.decision in ["generated","disabled"]: options.append(result.option)
+
+ if node_entry.get("allow_refuse",false): options.append(refusal(g))
+ if options.is_empty() and node_entry.get("empty_node","fail")=="fail":
+  trace_entry(g,{"node":id,"decision":"dropped","gate":"node_empty","detail":id,"purpose":purpose})
+  return {"issue":"这一阶段没有能够执行的选项。","gate":"node_empty","detail":id}
+ g.state.room_event.stage=id
+ g.state.room_event.options=options
+ return {"issue":"","gate":"","detail":""}
+
+
+# Debug-only trace (§4.5): a switch plus an array on the game instance, never in state,
+# never in a View, never saved, never rendered. They live in object metadata because
+# core/game.gd is outside this batch; the names are the contract's.
+static func trace_enabled(g) -> bool:
+ return g.get_meta("event_trace_enabled",false)==true
+
+static func clear_trace(g) -> void:
+ if not trace_enabled(g): return
+ g.set_meta("event_trace",[])
+
+static func event_trace(g) -> Array:
+ var rows=g.get_meta("event_trace",[])
+ if not rows is Array:
+  rows=[]
+  g.set_meta("event_trace",rows)
+ return rows
+
+static func trace_entry(g, fields: Dictionary) -> void:
+ if not trace_enabled(g): return
+ var room_event=g.state.room_event
+ var option_id=str(fields.get("option_id",""))
+ var row={"event":str(room_event.get("id","")),"node":str(room_event.get("stage","")),"source_choice":str(fields.get("source_choice",option_id)),"option_id":option_id,"decision":str(fields.get("decision","")),"gate":str(fields.get("gate","")),"kind":str(fields.get("kind","")),"mode":str(fields.get("mode","")),"index":int(fields.get("index",0)),"reason":str(fields.get("reason","")),"purpose":str(fields.get("purpose",""))}
+ if str(fields.get("node",""))!="": row.node=str(fields.node)
+ if option_id=="":
+  # A31: node-level rows (node_empty／stage_missing) keep one row per (event, purpose, node,
+  # gate) inside this instance — the first writer wins, so frozen instances never repeat the
+  # same target row and a probe row stays distinguishable from the arrival row.
+  for other in event_trace(g):
+   if str(other.get("option_id",""))=="" and str(other.get("event",""))==row.event and str(other.get("purpose",""))==row.purpose and str(other.get("node",""))==row.node and str(other.get("gate",""))==row.gate: return
+ event_trace(g).append(row)
 
 static func weighted(g, outcomes: Array) -> Dictionary:
  var total=0
@@ -212,6 +616,8 @@ static func selector_values(g, selector: Dictionary) -> Array:
     if selector.get("exclude_curses",false) and g.B.CARD_TRAITS.get(card.type,{}).get("curse",false): continue
     result.append({"id":card.uid,"name":g.B.CARD_NAMES[card.type],"type":card.type,"kind":"card","slot":"卡组"})
   "restraint":
+   # §3.1 item 6: only this display branch reads equipment; the card branch reads the deck.
+   var previous=g._begin_equipment_read()
    for item in g.physical_pieces():
     if item.durability<=0: continue
     result.append({"id":item.id,"name":g._equipment_name(item),"type":item.template,"kind":"restraint","slot":g.B.SLOT_NAMES[item.slot]})
@@ -219,6 +625,7 @@ static func selector_values(g, selector: Dictionary) -> Array:
      if not selector.get("include_special",true): continue
      if item.durability<=0 or not g.SpecialEquipment.allows(item,"lower"): continue
      result.append({"id":item.id,"name":g._equipment_name(item),"type":item.type,"kind":"restraint","slot":g.SpecialEquipment.slot_name(item.slot)})
+   g._equipment_read=previous
  return result
 
 static func selector_combinations(values: Array, count: int, start: int=0, prefix: Array=[]) -> Array:
@@ -242,37 +649,6 @@ static func condition_met(g, condition: Dictionary) -> bool:
  if condition.has("equals"): return value==int(condition.equals)
  return value>=int(condition.get("minimum",0)) and value<=int(condition.get("maximum",2147483647))
 
-static func freeze_choice(g, definition: Dictionary, selected={}, fixed_outcome: Dictionary={}) -> Dictionary:
- var outcome=fixed_outcome
- if outcome.is_empty() and definition.has("outcomes"): outcome=weighted(g,definition.outcomes)
- var declared=definition.get("effects",[]).duplicate(true)+outcome.get("effects",[]).duplicate(true)
- var selected_rows=selection_rows(selected)
- if not selected_rows.is_empty(): declared=selected_value(declared,selected)
- # remove_restraints is the shared atomic removal effect. Keep its frozen target
- # shape consistently array-based even when an authored selector asks for one.
- for effect in declared:
-  if effect.get("op","")=="remove_restraints" and effect.get("targets") is String:
-   effect.targets=[effect.targets]
- if definition.has("recipe"):
-  var compiled=compile(g,definition.recipe)
-  if compiled.is_empty(): return {}
-  declared=compiled+declared
- var frozen=freeze_effects(g,declared)
- if frozen.issue!="": return {}
- var selected_suffix=""
- if not selected_rows.is_empty(): selected_suffix="__"+"__".join(selected_rows.map(func(row):return row.id))
- var report=outcome.get("report",definition.get("report",definition.label))
- var report_variants=outcome.get("report_variants",definition.get("report_variants",[]))
- report=conditional_copy(g,report,report_variants)
- var choice={"id":definition.id+selected_suffix,"source_choice":definition.id,"label":selected_text(definition.label,selected),"reward":outcome.get("reward",definition.get("reward","none")),"effects":frozen.effects,"next":outcome.get("next",definition.get("next","result")),"report":selected_text(report,selected)}
- if definition.get("show_pressure_sources",false): choice.show_pressure_sources=true
- if definition.has("availability"): choice.availability=definition.availability.duplicate(true)
- if definition.has("item_rewards"): choice.item_rewards=freeze_item_rewards(g,definition.item_rewards)
- choice.detail=selected_text(definition.get("detail",(describe(g,choice.effects)+"\n"+reward_text(choice.reward,g)).strip_edges()),selected)
- choice.result_status=outcome.get("result_status",definition.get("result_status","neutral"))
- if not selected_rows.is_empty(): choice.selected=selected.duplicate(true)
- return choice
-
 static func freeze_item_rewards(g, groups: Array) -> Array:
  var result=[]
  for group in groups:
@@ -289,28 +665,6 @@ static func item_rewards_issue(g, rows, allow_claimed: bool=false) -> String:
    if not row.get("claimed") is bool: return "事件道具领取记录不完整。"
   elif row.has("claimed"): return "尚未领取的冻结奖励带有错误状态。"
   ids.append(row.id)
- return ""
-
-static func enter_stage(g, id: String) -> String:
- var stage=flow_stage(g,id)
- if stage.is_empty(): return "下一阶段不存在。"
- var options=[]
- for definition in stage.choices:
-  if not condition_met(g,definition.get("when",{})): continue
-  if definition.has("selector"):
-   var outcome=weighted(g,definition.outcomes) if definition.has("outcomes") else {}
-   for selected in selector_selections(g,definition.selector):
-    var choice=freeze_choice(g,definition,selected,outcome)
-    if not choice.is_empty() and choice.reward=="relic" and g.state.room_event.relic=="": choice={}
-    if not choice.is_empty(): options.append(choice)
-  else:
-   var choice=freeze_choice(g,definition)
-   if not choice.is_empty() and choice.reward=="relic" and g.state.room_event.relic=="": choice={}
-   if not choice.is_empty(): options.append(choice)
- if stage.get("allow_refuse",false): options.append(refusal(g))
- if options.is_empty(): return "这一阶段没有能够执行的选项。"
- g.state.room_event.stage=id
- g.state.room_event.options=options
  return ""
 
 static func pick(g, options: Array) -> Dictionary:
@@ -334,7 +688,11 @@ static func compile(g, recipe: String) -> Array:
    var effect=pick(g,ordinary(g,1,true,["rope","belt"]))
    return [] if effect.is_empty() else [effect]
   "tighten_or_medium":
+   # §3.1 item 7: only this filter expression is a read scope; the locked_assembly branch
+   # below swaps state, so the function itself must not be wrapped.
+   var previous=g._begin_equipment_read()
    var targets=g.physical_pieces().filter(func(e):return g._can_tighten(e))
+   g._equipment_read=previous
    if not targets.is_empty():
     var target=targets[g._random_index("event",targets.size())]
     return [{"op":"tighten","target":target.id}]
@@ -550,41 +908,68 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
    _: return "事件包含尚未支持的效果。"
  return ""
 
-static func probe(g, effects: Array, option: Dictionary={}, cleanup: bool=false) -> String:
+# Structured form of the effects probe: one implementation, and probe() stays the
+# string-shaped entry point used by the rest of the pipeline.
+static func probe_result(g, effects: Array, option: Dictionary={}, cleanup: bool=false) -> Dictionary:
  var original=g.state
  var feedback=g._resource_feedback
  g._resource_feedback=null
  g.state=original.duplicate(true)
  var issue=apply_effects(g,effects,g.state.room_event.refs,option.is_empty() and not cleanup)
- if issue=="" and not option.is_empty() and g.state.room_event.get("flow",false) and option.get("next","result")!="result" and option.reward=="none": issue=enter_stage(g,option.next)
- if issue=="" and cleanup and not g.state.room_event.held.is_empty(): issue="事件仍有尚未归还的装备。"
- if issue=="": issue=g.validate()
+ var gate="probe_failed"
+ var next=next_target(option.get("next","result")) if option.has("next") else {"kind":"result"}
+ if issue=="" and not option.is_empty() and next.kind!="result" and option.reward=="none":
+  var next_result=enter_target(g,next,"next_probe")
+  issue=next_result.issue
+  gate=str(next_result.get("gate","probe_failed"))
+ if issue=="" and cleanup and not g.state.room_event.held.is_empty():
+  issue="事件仍有尚未归还的装备。"
+  gate="held_pending"
+ if issue=="" and gate!="held_pending":
+  issue=g.validate()
+  if issue!="": gate="validate_failed"
  g.state=original
  g._resource_feedback=feedback
- return issue
+ return {"gate":"" if issue=="" else gate,"reason":issue}
+
+static func probe(g, effects: Array, option: Dictionary={}, cleanup: bool=false) -> String:
+ return str(probe_result(g,effects,option,cleanup).get("reason",""))
 
 static func probe_choice(g, option: Dictionary) -> String:
  var issue=availability_issue(g,option)
- if issue=="": issue=probe(g,option.effects,option)
- if issue=="" and option.has("encounter"):
-  issue=battle_spec_issue(g,option.encounter)
-  if issue=="": issue=probe(g,option.encounter.victory_effects)
+ if issue=="": issue=str(feasibility_gate(g,option).get("reason",""))
  return issue
 
+# The state-condition part of the entry, keeping the authored reason text unchanged.
 static func availability_issue(g, option: Dictionary) -> String:
- if not option.has("availability"): return ""
- var availability=option.availability
- if not availability is Dictionary or not availability.get("reason") is String: return "事件选项的状态条件不完整。"
- match availability.get("kind",""):
-  "no_chastity_lock":
-   if g.state.special_equipment.any(func(item):return item.get("durability",0)>0 and g.SpecialEquipment.is_chastity(item)): return availability.reason
-  _: return "事件选项的状态条件无法识别。"
+ if option.has("availability"):
+  var availability=option.availability
+  if not availability is Dictionary or not availability.get("reason") is String: return "事件选项的状态条件不完整。"
+ var request=request_for(g,option,"candidate")
+ for entry in condition_entries(request.node,request.choice):
+  if CONDITIONS.get(entry.get("kind",""),{}).is_empty(): return "事件选项的状态条件无法识别。"
+  if condition_probe(g,entry): return str(entry.get("reason",""))
  return ""
 
 static func append_choice_candidate(g, out: Array, option: Dictionary) -> void:
- var reason=probe_choice(g,option)
- g._candidate(out,{"kind":"event","action":"choose","choice":option.id},option.label,option.detail,0,0,reason,"","event")
- if reason!="" and reason==availability_issue(g,option): out[-1].reason_surface="secondary"
+ var result=evaluate_option(g,request_for(g,option,"candidate"))
+ var reason=result.reason
+ var choice_args={"option_id":option.id}
+ g._candidate(out,{"kind":"event","action":"choose","choice":option.id},option.label,{"kind":"event.choice","args":choice_args,"fallback":choice_detail(g,choice_args)},0,0,reason,"","event")
+ if result.decision=="disabled" and not result.gates.is_empty() and result.gates.all(func(hit):return CONDITIONS.has(hit.kind)): out[-1].reason_surface="secondary"
+
+# R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+static func choice_detail(g, args: Dictionary) -> String:
+ var option_id=String(args.get("option_id",""))
+ for option in g.state.room_event.get("options",[]):
+  if option.get("id","")==option_id: return String(option.get("detail",""))
+ return ""
+
+static func reward_skip_detail(_g, _args: Dictionary) -> String:
+ return ""
+
+static func prepare_detail(g, args: Dictionary) -> String:
+ return "进行%d回合整备。" % g.preparation_turns() if bool(args.get("prepare",false)) else ""
 
 static func probe_cleanup(g) -> String:
  return probe(g,g.state.room_event.get("cleanup_effects",[]),{},true)
@@ -597,14 +982,14 @@ static func candidates(g, out: Array) -> void:
     append_choice_candidate(g,out,option)
   "reward":
    for type in event.reward:
-    g._candidate(out,{"kind":"event","action":"reward","type":type},"领取「"+g.B.CARD_NAMES[type]+"」",g.Cards.face_text(g,type,false)+"\n"+g.Cards.face_text(g,type,true),0,0,"","","event")
-   g._candidate(out,{"kind":"event","action":"reward","type":"skip"},"跳过选牌","",0,0,"","","event")
+    g._candidate(out,{"kind":"event","action":"reward","type":type},"领取「"+g.B.CARD_NAMES[type]+"」",g.CopyRouter.two_face(g,type),0,0,"","","event")
+   g._candidate(out,{"kind":"event","action":"reward","type":"skip"},"跳过选牌",{"kind":"event.reward_skip","args":{},"fallback":reward_skip_detail(g,{})},0,0,"","","event")
   "result":
    var prepare=event.get("prepare_pending",false)
-   var detail="进行%d回合整备。" % g.preparation_turns() if prepare else ""
-   g._candidate(out,{"kind":"event","action":"leave"},"开始整备" if prepare else "离开",detail,0,0,probe_cleanup(g),"","event")
+   var prepare_args={"prepare":prepare}
+   g._candidate(out,{"kind":"event","action":"leave"},"开始整备" if prepare else "离开",{"kind":"event.prepare","args":prepare_args,"fallback":prepare_detail(g,prepare_args)},0,0,probe_cleanup(g),"","event")
   _:
-   if event.get("flow",false):
+   if not node(definition(event.id),event.stage).is_empty():
     for option in event.options:
      append_choice_candidate(g,out,option)
 
@@ -615,7 +1000,7 @@ static func execute(g, c: Dictionary) -> String:
  match p.action:
   "choose":
    var option=event.options.filter(func(o):return o.id==p.choice)[0]
-   issue=availability_issue(g,option)
+   issue=evaluate_option(g,request_for(g,option,"execute")).reason
    if issue=="": issue=apply_effects(g,option.effects,event.refs)
    if issue!="": return issue
    var result_text=describe_result(g,option.effects)
@@ -639,14 +1024,15 @@ static func execute(g, c: Dictionary) -> String:
     if option.reward=="relic":
      issue=apply_effects(g,[{"op":"relic","type":event.relic}],event.refs)
      event.report+="\n获得"+Relics.TYPES[event.relic].name+"。"
-    if event.get("flow",false) and option.get("next","result")!="result": issue=enter_stage(g,option.next)
-    else: event.stage="result"
+    var target=next_target(option.get("next","result"))
+    if target.kind=="result": event.stage="result"
+    else: issue=enter_target(g,target).issue
    g._emit("event",event.report)
   "reward":
    if p.type!="skip": issue=apply_effects(g,[{"op":"card","type":p.type}],event.refs)
    event.result_status="neutral"
    event.report="你放弃了这份报酬。" if p.type=="skip" else "获得「"+g.B.CARD_NAMES[p.type]+"」。"
-   if event.get("flow",false) and event.next_stage!="": issue=enter_stage(g,event.next_stage)
+   if event.next_stage!="": issue=enter_node(g,event.next_stage)
    else: event.stage="result"
   "leave":
    issue=apply_effects(g,event.get("cleanup_effects",[]),event.refs)
@@ -671,7 +1057,7 @@ static func begin_item_rewards(g, rows: Array) -> String:
  g.state.battle_relic_drop=""
  g.state.boss_relic_options=[]
  g.state.reward_claimed={}
- g.state.phase="reward"
+ g._apply_transition("event_item_rewards",{"phase":"reward"})
  return ""
 
 static func active_item_rewards(g) -> bool:
@@ -787,14 +1173,15 @@ static func pressure_source_report(effects: Array) -> String:
 static func view(g) -> Dictionary:
  var e=g.state.room_event
  if e.is_empty() or g.state.phase!="event": return {}
- var stage=flow_stage(g,e.stage) if e.get("flow",false) and e.stage!="result" else {}
- var name=Data.TYPES[e.id].name+(" · "+stage.title if not stage.is_empty() else "")
- var intro=stage.intro if not stage.is_empty() else Data.TYPES[e.id].intro
- if not stage.is_empty() and e.stage==Data.TYPES[e.id].start_stage: intro=Data.TYPES[e.id].intro+"\n\n"+stage.intro
+ var spec=definition(e.id)
+ var stage=node(spec,e.stage) if e.stage!="result" and node(spec,e.stage).has("title") else {}
+ var name=spec.name+(" · "+stage.title if not stage.is_empty() else "")
+ var intro=stage.intro if not stage.is_empty() else spec.intro
+ if not stage.is_empty() and e.stage==spec.get("start_node",""): intro=spec.intro+"\n\n"+stage.intro
  # Expose selection identity, never frozen outcomes/effects. UI groups by authored
  # source choice, while every physical card/equipment keeps its original command.
  var selections=[]
- var definitions=stage.choices if not stage.is_empty() else (Data.TYPES[e.id].get("choices",[]) if e.stage=="choice" else [])
+ var definitions=stage.choices if not stage.is_empty() else (node(spec,e.stage).get("choices",[]) if e.stage=="choice" else [])
  if not definitions.is_empty():
   for definition in definitions:
    if not definition.has("selector"): continue
@@ -851,9 +1238,8 @@ static func validate(g) -> String:
  var e=g.state.room_event
  if e.is_empty() or not Data.TYPES.has(e.get("id","")): return "事件阶段不合法。"
  if e.get("result_status","neutral") not in RESULT_STATUSES or e.options.any(func(option):return option.get("result_status","neutral") not in RESULT_STATUSES): return "事件结果标记不合法。"
- var definition=Data.TYPES[e.id]
- var stages=definition.get("stages",[]).map(func(stage):return stage.id)
- if e.get("stage","") not in (["reward","result"]+stages if e.get("flow",false) else ["choice","reward","result"]): return "事件阶段不合法。"
+ var stages=node_ids(definition(e.id))
+ if e.get("stage","") not in (["reward","result"]+stages): return "事件阶段不合法。"
  if e.winner!=-1 or (e.relic!="" and not Relics.is_reward(e.relic)): return "事件结果未正确冻结。"
  if not e.get("held",{}) is Dictionary or not e.get("values",{}) is Dictionary or not e.get("cleanup_effects",[]) is Array: return "事件的暂存装备、计数或收尾效果记录不完整。"
  if e.values.keys().any(func(key):return not key is String or not e.values[key] is int or e.values[key]<0): return "事件计数记录不正确。"

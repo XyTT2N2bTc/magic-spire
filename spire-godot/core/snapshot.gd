@@ -380,15 +380,39 @@ static func check(s: Dictionary, g) -> String:
   var event=s.room_event
   if not fields(event,"id:s stage:s options:a refs:d report:s reward:z winner:i relic:s") or event.id not in g.Events.Data.TYPES: return "事件进度不完整。"
   if event.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "事件结果标记损坏。"
+  # §3.3／§6.2: chain exists only after a real cross-event jump and lists the events already
+  # left, each one registered and named once. No other key is added or dropped by the jump.
+  if event.has("chain"):
+   var chain=event.chain
+   if not chain is Array or chain.is_empty(): return "事件链记录不完整。"
+   var passed=[]
+   for id in chain:
+    if not id is String or not g.Events.Data.TYPES.has(id) or id in passed: return "事件链记录不完整。"
+    passed.append(id)
   if event.has("prepare_pending") and not event.prepare_pending is bool: return "事件战后的整备进度损坏。"
   if event.refs.values().any(func(id):return not id is String) or event.reward.any(func(id):return not g.Character.reward_member(g,id,s.get("character_id","original"))): return "事件结果类型不存在。"
   for option in event.options:
    if not option is Dictionary or option.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "事件选项结果标记损坏。"
    # "advanced" is accepted only for an in-progress save created before rewards were split by rarity.
    if not fields(option,"id:s label:s detail:s reward:s effects:a") or option.reward not in ["common","uncommon","rare","advanced","relic","none"] or not option.effects.all(func(e):return effect(e,g)): return "事件选项或代价记录损坏。"
+   # Canonical spelling: exact key set from the single declaration, plus its mode.
+   if option.has("conditions"):
+    if option.has("availability"): return "事件选项同时携带两种状态条件。"
+    if not option.conditions is Array or option.conditions.is_empty() or option.conditions.size()>8: return "事件选项的状态条件损坏。"
+    for entry in option.conditions:
+     if not entry is Dictionary or not entry.get("kind") is String: return "事件选项的状态条件损坏。"
+     var entry_fields=g.Events.condition_saved_fields(entry.kind)+["mode"]
+     if entry.size()!=entry_fields.size() or not entry_fields.all(func(key):return entry.has(key)): return "事件选项的状态条件损坏。"
+     if entry.mode not in ["optional","hidden"] or not entry.reason is String or entry.reason.strip_edges().is_empty(): return "事件选项的状态条件损坏。"
    if option.has("availability"):
     var availability=option.availability
-    if not fields(availability,"kind:s reason:s") or availability.size()!=2 or availability.kind!="no_chastity_lock" or availability.reason.strip_edges().is_empty(): return "事件选项的状态条件损坏。"
+    if not fields(availability,"kind:s reason:s") or availability.reason.strip_edges().is_empty(): return "事件选项的状态条件损坏。"
+    # Each kind owns its key set; a new condition must extend this check with its shape.
+    if availability.kind=="no_chastity_lock":
+     if availability.size()!=2: return "事件选项的状态条件损坏。"
+    elif availability.kind=="has_relic":
+     if availability.size()!=3 or not availability.get("type") is String or not g.Relics.TYPES.has(availability.type): return "事件选项的状态条件损坏。"
+    else: return "事件选项的状态条件损坏。"
    if option.has("encounter") and g.Events.battle_spec_issue(g,option.encounter)!="": return "事件选项的战斗记录损坏。"
    if option.has("item_rewards") and g.Events.item_rewards_issue(g,option.item_rewards)!="": return "事件选项的道具奖励记录损坏。"
    if option.has("selected"):
@@ -403,15 +427,21 @@ static func check(s: Dictionary, g) -> String:
   if event.get("flow",false):
    if not fields(event,"flow:b held:d values:d cleanup_effects:a next_stage:s") or not event.cleanup_effects.all(func(e):return effect(e,g)) or event.values.keys().any(func(key):return not key is String or not event.values[key] is int or event.values[key]<0): return "多阶段事件记录不完整。"
    var definition=g.Events.Data.TYPES[event.id]
-   if not definition.has("stages"): return "多阶段事件定义不存在。"
-   var stage_ids=definition.stages.map(func(stage):return stage.id)
+   var stage_ids=g.Events.node_ids(definition)
+   if stage_ids.size()<=1: return "多阶段事件定义不存在。"
    if event.stage not in ["reward","result"]:
     var current=stage_ids.find(event.stage)
     if current<0: return "多阶段事件当前阶段不存在。"
-    var declared=definition.stages[current].choices.map(func(choice):return choice.id)+(["refuse"] if definition.stages[current].allow_refuse else [])
+    var current_node=g.Events.node(definition,event.stage)
+    var declared=current_node.choices.map(func(choice):return choice.id)+(["refuse"] if current_node.allow_refuse else [])
     for option in event.options:
      var source_choice=option.get("source_choice",option.id)
-     if not fields(option,"next:s report:s") or source_choice not in declared or (option.next!="result" and (option.next not in stage_ids or stage_ids.find(option.next)<=current)): return "多阶段事件冻结选项损坏。"
+     if not fields(option,"report:s") or not option.has("next") or source_choice not in declared: return "多阶段事件冻结选项损坏。"
+     if option.next is Dictionary:
+      # §3.2 cross-event form: the frozen target stays a registered event node, never this event.
+      if not fields(option.next,"event:s node:s") or not g.Events.Data.TYPES.has(option.next.event) or option.next.event==event.id: return "多阶段事件冻结选项损坏。"
+      if option.next.node not in g.Events.node_ids(g.Events.Data.TYPES[option.next.event]): return "多阶段事件冻结选项损坏。"
+     elif not option.next is String or (option.next!="result" and (option.next not in stage_ids or stage_ids.find(option.next)<=current)): return "多阶段事件冻结选项损坏。"
    var held=[]
    for key in event.held:
     if not key is String or not event.held[key] is Array: return "事件暂存装备记录损坏。"

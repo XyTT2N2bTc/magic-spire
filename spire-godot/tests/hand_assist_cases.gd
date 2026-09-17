@@ -35,7 +35,7 @@ static func run(t) -> void:
  var before=g.export_snapshot();g.get_view();g.candidates()
  t.check(g.state==before,"ASSIST preview never mutates state or RNG")
  var card=t.hand_card(g,"strain");var c=t.find_action(g,"card",{"uid":card.uid,"target":target.id})
- t.check(c.detail.contains("右手辅助＋1") and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"ASSIST candidate explains side and rejects stale version atomically")
+ t.check(g.candidate_detail(c).contains("右手辅助＋1") and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"ASSIST candidate explains side and rejects stale version atomically")
  t.check(g.dispatch(c.id,g.state.version).ok and g._equipment(target.id).is_empty() and g.state.energy==before.energy-1,"ASSIST actual card applies damage once without extra energy")
  t.check(g.state.logs.any(func(e):return e.data.has("assist") and e.data.assist.hands==["right"] and e.text.contains("手部辅助")),"ASSIST mechanical log preserves actual helper and formula")
  g=Game.new(42);g.state.wall_distance=1
@@ -69,7 +69,7 @@ static func run(t) -> void:
  var result=Assist.preview(g,target)
  t.check(result.bonus==0 and result.reasons.size()==2 and result.reasons.all(func(x):return x.code=="wrist_blocked") and result.detail.contains("手腕受限"),"CONTACT no assist explains both blocked wrists")
  card=t.hand_card(g,"strain")
- t.check(t.find_action(g,"card",{"uid":card.uid,"target":target.id}).detail.contains("手腕受限"),"CONTACT target choice carries the actual no-assist reason")
+ t.check(g.candidate_detail(t.find_action(g,"card",{"uid":card.uid,"target":target.id})).contains("手腕受限"),"CONTACT target choice carries the actual no-assist reason")
  g.state.equipment.erase(blocked);g.add_fixture("fingers",4);g._gain_tool("shard")
  var tool=g.state.items.back()
  t.check(Assist.preview(g,target).bonus==0 and not t.find_action(g,"manual",{"target":target.id}).valid and not t.find_action(g,"item_use",{"target":target.id,"item":tool.id}).valid,"CONTACT blocked fingers disable assistance and fine operations")
@@ -113,6 +113,6 @@ static func run(t) -> void:
  before=g.export_snapshot();g.get_view();g.candidates()
  t.check(g.state==before,"ASSIST fractional preview remains read-only")
  card=t.hand_card(g,"strain");c=t.find_action(g,"card",{"uid":card.uid,"target":target.id})
- t.check(c.detail.contains("＋0.5") and c.payload.preview.assist.bonus==0.5,"ASSIST candidate exposes exact half contribution")
+ t.check(g.candidate_detail(c).contains("＋0.5") and c.payload.preview.assist.bonus==0.5,"ASSIST candidate exposes exact half contribution")
  var energy=g.state.energy
  t.check(g.dispatch(c.id,g.state.version).ok and g.state.energy==energy-1 and g.state.logs.any(func(e):return e.data.has("assist") and e.data.assist.bonus==0.5),"ASSIST real action pays once and logs half contribution")

@@ -76,7 +76,7 @@ static func ties(t, seed_value: int) -> void:
  var card=Give.give(g,"slip")
  var c=t.find_action(g,"card",{"uid":card.uid,"target":main.id},true)
  var before=g.export_snapshot()
- t.check(c.detail.contains("随机1件") and g.state==before,"SPLASH tied preview lists possibilities without advancing RNG")
+ t.check(g.candidate_detail(c).contains("随机1件") and g.state==before,"SPLASH tied preview lists possibilities without advancing RNG")
  var twin=F.fresh();t.check(twin.restore_snapshot(before).ok,"SPLASH current snapshot restores before random recipient choice")
  t.check(g.dispatch(c.id,g.state.version).ok and twin.dispatch(c.id,twin.state.version).ok,"SPLASH tie resolves inside formal commit")
  t.check(events(g).size()==1 and events(g)[0].target in [a.id,b.id] and events(g)==events(twin) and g.state.rng==twin.state.rng,"SPLASH tied choice is reproducible and never hits both alternatives")

@@ -50,7 +50,7 @@ static func preview(ui, parent: Node, candidate: Dictionary) -> void:
  if p.note!="": box.add_child(ui._label(p.note,13,ui.CYAN))
  if not p.modifiers.is_empty(): box.add_child(ui._label(" · ".join(p.modifiers),12,ui.RED))
  # Original effect text remains reachable, including secondary effects and chains.
- var detail=ui._label(candidate.detail,12,ui.MUTED);detail.visible=false
+ var detail=ui._label(ui.detail_of(candidate),12,ui.MUTED);detail.visible=false
  var toggle=ui._button("效果详情 ＋",func():detail.visible=not detail.visible,ui.MUTED)
  toggle.name="ReleaseEffectDetails";toggle.custom_minimum_size.y=22;toggle.add_theme_font_size_override("font_size",11)
  parent.add_child(toggle);parent.add_child(detail)

@@ -5,6 +5,8 @@ const C=preload("res://data/composites.gd")
 
 # Offers and installation share the same read-only assembly preparation.
 static func ordinary(g, grade: int=2, free: bool=false, templates: Array=[], locked: bool=false, legal_only: bool=true) -> Array:
+ # §3.1 item 4: each offer generator reads through one scope of its own.
+ var previous=g._begin_equipment_read()
  var offers=[]
  for template in (E.TEMPLATES.keys() if templates.is_empty() else templates):
   if not E.TEMPLATES.has(template) or not E.TEMPLATES[template].get("generated",true): continue
@@ -14,9 +16,12 @@ static func ordinary(g, grade: int=2, free: bool=false, templates: Array=[], loc
    for point in (E.points(slot) if E.SEGMENTS.has(slot) else [""]):
     if not legal_only or g._installation_reason(template,slot,grade,locked,point)=="":
      offers.append({"kind":"install","template":template,"slot":slot,"point":point,"rank":g._priority(slot),"name":E.name_for(template,slot)})
+ g._equipment_read=previous
  return offers
 
 static func preferred(g, options: Array) -> Array:
+ # §3.1 item 3: a pure ordering pass; its ranking reads one scope of equipment.
+ var previous=g._begin_equipment_read()
  var rank=-1
  for option in options: rank=maxi(rank,option.get("rank",0))
  var band=options.filter(func(option):return option.get("rank",0)==rank)
@@ -29,7 +34,9 @@ static func preferred(g, options: Array) -> Array:
  for piece in g.state.special_equipment:
   for point in g.SpecialEquipment.occupied_slots(piece): occupied[point]=true
  var empty=band.filter(func(option):return _fills_empty(g,option,occupied))
- return band if empty.is_empty() else empty
+ var result=band if empty.is_empty() else empty
+ g._equipment_read=previous
+ return result
 
 static func _fills_empty(g, request: Dictionary, occupied: Dictionary) -> bool:
  var points=[]
@@ -46,6 +53,8 @@ static func _fills_empty(g, request: Dictionary, occupied: Dictionary) -> bool:
  return points.any(func(point):return not occupied.has(point))
 
 static func links(g, grade: int) -> Array:
+ # §3.1 item 4: the rope generator reads through one scope as well.
+ var previous=g._begin_equipment_read()
  var offers=[]
  var anchors=g.link_anchors()
  var contacts={}
@@ -64,15 +73,18 @@ static func links(g, grade: int) -> Array:
        if not g.Links.adjacent(pa,pb): continue
        var link=g._prepare_link(a.id,b.id,E.maximum(grade)*0.8,"probe",grade,[],[sa,sb],[pa,pb])
        if not link.is_empty(): offers.append({"kind":"link","template":"link_rope","ends":link.ends,"slots":link.slots,"contact_points":link.contact_points,"name":link.name,"rank":1})
+ g._equipment_read=previous
  return offers
 
 # Source whitelist first, then the same priority order for every installer.
 static func for_pool(g, grade: int, templates: Array, locked: bool=false, legal_only: bool=true, allow_links: bool=true) -> Array:
  if templates.is_empty(): return []
+ var previous=g._begin_equipment_read()
  var offers=ordinary(g,grade,false,templates,locked,legal_only)
  # Rope and belt families grant their shared link structure, including imported
  # derivatives. Gags, composite components and special equipment are not belts.
  if allow_links and not locked and templates.any(func(id):return E.base_template(id) in ["rope","cord","belt","fine_belt","eye_leather","link_rope"]): offers.append_array(links(g,grade))
+ g._equipment_read=previous
  return offers
 
 static func options(g) -> Array:

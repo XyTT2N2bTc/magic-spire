@@ -19,7 +19,7 @@ static func event_mana_cost(t) -> void:
     Events.arrive(g,offer[0])
     var expected_count=int(offer[2])
     if offer[0]=="succubus_three_games":
-     t.check(g.Events.enter_stage(g,"wager_semen")=="","EVENT MANA enters the authored third-round stage")
+     t.check(g.Events.enter_node(g,"wager_semen")=="","EVENT MANA enters the authored third-round stage")
      var frozen=g.state.room_event.options.filter(func(option):return option.source_choice=="begin")[0]
      expected_count=1 if frozen.result_status=="success" else 2
     g.state.mana=remaining_mana;g.state.temporary_mana=30;g.state.flask_mana=40
@@ -50,7 +50,8 @@ static func link_installation(t) -> void:
  var effect=frozen.effects[0]
  var detail=g.Events.describe(g,frozen.effects)
  t.check(detail.contains("链接绳") and effect.contact_points.all(func(point):return detail.contains(g.Equipment.point_name(point))),"EVENT link preview names both real body locations")
- g.state.room_event.flow=false;g.state.room_event.stage="choice"
+ # The injected option belongs to a real node: the legal stage set follows the definition.
+ g.state.room_event.flow=false;g.state.room_event.stage="service"
  g.state.room_event.options=[{"id":"link_test","label":"接受连接","detail":detail,"reward":"none","effects":[{"op":"mana_loss","amount":3},effect]}]
  var pending=g.export_snapshot()
  var twin=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"event frozen link offer")
@@ -75,7 +76,7 @@ static func plate_lock_copy(t) -> void:
  for seed_value in range(72):
   var gamble=Game.new(seed_value,true,"succubus_three_games")
   if gamble._install_special("negative_plate_lock_medium","special_2_a").is_empty(): continue
-  t.check(gamble.Events.enter_stage(gamble,"wager_semen")=="","EVENT COPY opens the real semen-wager stage with a flat lock")
+  t.check(gamble.Events.enter_node(gamble,"wager_semen")=="","EVENT COPY opens the real semen-wager stage with a flat lock")
   var option=gamble.state.room_event.options.filter(func(row):return row.source_choice=="begin")[0]
   var sources=option.effects.filter(func(effect):return effect.op=="pressure").map(func(effect):return effect.source)
   t.check(sources.all(func(source):return source.contains("平板锁") or source.contains("锁具下")) and sources.all(func(source):return not source.contains("握住勃起") and not source.contains("足心贴住柱身") and not source.contains("夹进丰满的乳沟")),"EVENT COPY flat-lock gamble removes every incompatible penis-stimulation source")
@@ -93,23 +94,26 @@ static func plate_lock_copy(t) -> void:
 
 static func document() -> Dictionary:
  return {"file":"memory://event_flow.json","data":{
-  "schema_version":1,"kind":"event","id":"flow_test","name":"多阶段事件夹具",
-  "intro":"一个只用于验证通用事件接口的多阶段夹具。","start_stage":"entry",
+  "schema_version":2,"kind":"event","id":"flow_test","name":"多阶段事件夹具",
+  "intro":"一个只用于验证通用事件接口的多阶段夹具。","start_node":"entry",
   "cleanup_effects":[{"op":"restore_held","key":"selected_gear"}],
-  "stages":[
-   {"id":"entry","title":"第一阶段","intro":"进入事件并冻结本阶段的随机结果。","allow_refuse":true,"choices":[
+  "nodes":[
+   {"id":"entry","title":"第一阶段","intro":"进入事件并冻结本阶段的随机结果。","allow_refuse":true,
+    "unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
     {"id":"accept","label":"继续","reward":"none","next":"penalty","detail":"暂存指定部位的现有装备，并从公开结果池中确定一项结果。",
      "effects":[{"op":"hold_special","key":"selected_gear","slots":["special_2_a","special_2_b","special_2_c","special_2_d"]}],
      "outcomes":[
       {"weight":1,"effects":[{"op":"card","type":"panic"}],"report":"结果一"},
       {"weight":1,"effects":[{"op":"card","type":"sensitive"}],"report":"结果二"}]}
    ]},
-   {"id":"penalty","title":"第二阶段","intro":"从三种公开代价中选择一种。","allow_refuse":false,"choices":[
+   {"id":"penalty","title":"第二阶段","intro":"从三种公开代价中选择一种。","allow_refuse":false,
+    "unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
     {"id":"two_ropes","label":"随机安装两件初级绳索","reward":"none","next":"finale","effects":[{"op":"install_random","templates":["rope"],"count":2,"grade":1,"tier":2,"locked":false}]},
     {"id":"locked_belt","label":"随机安装一件上锁皮带","reward":"none","next":"finale","effects":[{"op":"install_random","templates":["belt"],"count":1,"grade":2,"tier":2,"locked":true}]},
     {"id":"tighten_two","label":"随机收紧两件拘束具","reward":"none","next":"finale","effects":[{"op":"tighten_random","count":2,"to_tier":3}]}
    ]},
-   {"id":"finale","title":"第三阶段","intro":"最后一项效果沿用正式快感接口。","allow_refuse":false,"choices":[
+   {"id":"finale","title":"第三阶段","intro":"最后一项效果沿用正式快感接口。","allow_refuse":false,
+    "unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
     {"id":"finish","label":"完成","reward":"none","next":"result","effects":[{"op":"pressure","amount":100,"source":"事件夹具"}]}
    ]}
   ]
@@ -120,6 +124,32 @@ static func flow(t, seed_value: int=17):
  Events.arrive(g,"flow_test")
  t.check(g.state.room_event.flow and g.state.room_event.stage=="entry","EVENT FLOW starts declared stage")
  return g
+
+# docs/event-pipeline-unification.md §3.2／§3.3 chain fixtures (never shipped content): the
+# source holds one key and counts once before jumping to the target's entry node; that node
+# holds a second key, offers a loop back to the source, and ends at its own finale node.
+static func chain_documents() -> Array:
+ return [
+  {"file":"memory://chain_source.json","data":{
+   "schema_version":2,"kind":"event","id":"chain_source_fixture","name":"事件链起点夹具",
+   "intro":"只用于验证事件链的起点夹具。","start_node":"choice",
+   "cleanup_effects":[{"op":"restore_held","key":"chain_source_gear"}],
+   "nodes":[{"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[
+    {"id":"depart","label":"动身前往下一段事件","reward":"none","next":{"event":"chain_target_fixture","node":"entry"},"detail":"暂时取下指定位置的性玩具，记下一次计数，然后进入另一段事件。",
+     "effects":[{"op":"hold_special","key":"chain_source_gear","slots":["special_2_a"]},{"op":"counter","key":"chain_seen","amount":1}]},
+    {"id":"stay","label":"留在这里","reward":"none","next":"result","detail":"不进入另一段事件。","effects":[{"op":"mana_gain","amount":1}]}]}]}},
+  {"file":"memory://chain_target.json","data":{
+   "schema_version":2,"kind":"event","id":"chain_target_fixture","name":"事件链目标夹具",
+   "intro":"只用于验证事件链的目标夹具。","start_node":"entry",
+   "cleanup_effects":[{"op":"restore_held","key":"chain_target_gear"}],
+   "nodes":[
+    {"id":"entry","title":"链上第一段","intro":"链上换成了另一份定义。","allow_refuse":false,"unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
+     {"id":"proceed","label":"继续链上流程","reward":"none","next":"finale","detail":"暂时取下另一件装备，然后进入链上最后一段。","effects":[{"op":"hold_special","key":"chain_target_gear","slots":["special_2_c"]}]},
+     {"id":"proceed_alt","label":"换一种方式继续","reward":"none","next":"finale","detail":"不取下装备，直接进入链上最后一段。","effects":[{"op":"mana_gain","amount":1}]},
+     {"id":"loop_back","label":"回到起点事件","reward":"none","next":{"event":"chain_source_fixture","node":"choice"},"detail":"事件链不能回到已经走过的事件。","effects":[{"op":"mana_gain","amount":1}]},
+     {"id":"step_out","label":"直接结束这段事件","reward":"none","next":"result","detail":"不继续链上流程。","effects":[]}]},
+    {"id":"finale","title":"链上最后一段","intro":"链上事件的收尾。","allow_refuse":false,"unavailable":"hide","relic_gate":"claimed","random_freeze":"always","outcome_draw":"option","frozen_form":"staged","empty_node":"fail","choices":[
+     {"id":"settle","label":"结束链上事件","reward":"none","next":"result","detail":"结束这段链上事件。","effects":[{"op":"pressure","amount":2,"source":"事件链夹具"}]}]}]}}]
 
 static func empty_studio(t) -> void:
  var g=Game.new(90,true,"enchanters_empty_studio")
@@ -390,8 +420,424 @@ static func maze_survey_team(t) -> void:
  t.check(result.ok and g.state.flask_mana==flask_before+30 and g.state.flask_deposits==deposits_before and g.state.equipment.size()==equipment_before,"SURVEY TEAM together branch grants thirty flask mana without adding restraints")
  t.check(g.state.room_event.stage=="result" and g.state.room_event.report.contains("合作愉快") and g.state.room_event.result_status=="success","SURVEY TEAM together branch reaches a clear successful result")
 
+# docs/event-pipeline-unification.md §10 scenario 02: every authored node declares the
+# policy that reproduces today's behaviour, and options keep the compatibility spelling.
+static func event_option_policies_match_current_behaviour(t) -> void:
+ var g=Game.new(42)
+ var single=["disable","pool","generators","option","in_place","allow"]
+ var multi=["hide","claimed","always","option","staged","fail"]
+ var single_count=0
+ var multi_count=0
+ for id in g.Events.Data.TYPES.keys():
+  var spec=g.Events.Data.TYPES[id]
+  for entry in spec.nodes:
+   var expected=multi if spec.nodes.size()>1 else single
+   var declared=[entry.unavailable,entry.relic_gate,entry.random_freeze,entry.outcome_draw,entry.frozen_form,entry.empty_node]
+   t.check(declared==expected,"EVENT POLICY node declares today's behaviour "+id+"/"+str(entry.id))
+   if spec.nodes.size()==1:
+    single_count+=1
+    t.check(entry.allow_refuse==false,"EVENT POLICY single node keeps its authored refusal "+id)
+    t.check(entry.id=="choice" and spec.start_node=="choice","EVENT POLICY single node keeps the sentinel start "+id)
+   else:
+    multi_count+=1
+    var expected_refusal=id=="succubus_three_games" and entry.id=="wager_card"
+    t.check(entry.allow_refuse==expected_refusal,"EVENT POLICY staged node keeps its authored refusal "+id+"/"+str(entry.id))
+   for choice in entry.choices:
+    t.check(not choice.has("conditions") and not choice.has("unavailable"),"EVENT POLICY authored option keeps the compatibility spelling "+id+"/"+str(entry.id)+"/"+str(choice.id))
+ t.check(single_count==8 and multi_count==21,"EVENT POLICY all twelve definitions declare their nodes")
+ var staged=g.Events.Data.TYPES.succubus_three_games
+ t.check(staged.start_node=="wager_card" and staged.nodes.size()==8 and g.Events.node_ids(staged)[7]=="remove_reward","EVENT POLICY staged definition keeps its authored order")
+ t.check(g.Events.node(g.Events.Data.TYPES.binding_cleric,"service").choices.size()==3 and g.Events.node(staged,"missing").is_empty(),"EVENT POLICY node lookup resolves real ids and returns empty for unknown ones")
+
+# docs/event-pipeline-unification.md §10 scenario 08: a single node reads the declared
+# next／when／outcomes, and a selector plus outcomes spends exactly one draw per choice.
+static func event_single_node_declarations(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var nodes=[{"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[
+  {"id":"gated","label":"计数达标","reward":"none","next":"result","detail":"计数未达标时不生成。","when":{"counter":"seen","equals":1},"effects":[{"op":"mana_gain","amount":1}]},
+  {"id":"rolled","label":"随机结果","reward":"none","next":"result","detail":"从两种公开结果中随机确定一种。","outcomes":[{"weight":1,"effects":[{"op":"mana_gain","amount":3}],"report":"结果甲","result_status":"success"},{"weight":1,"effects":[{"op":"mana_gain","amount":5}],"report":"结果乙","result_status":"failure"}]}]}]
+ var document={"file":"memory://single_node.json","data":{"schema_version":2,"kind":"event","id":"single_node_fixture","name":"单节点声明夹具","intro":"只用于验证单节点声明的夹具。","start_node":"choice","nodes":nodes}}
+ var compiled=Catalog.compile(g,[document])
+ t.check(compiled.ok,"EVENT SINGLE NODE fixture compiles: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42);Events.arrive(walk,"single_node_fixture")
+ t.check(not walk.state.room_event.options.any(func(o):return o.id=="gated"),"EVENT SINGLE NODE unmet when leaves the option out")
+ var rolled=walk.state.room_event.options.filter(func(o):return o.id=="rolled")
+ t.check(rolled.size()==1 and rolled[0].effects.size()==1 and rolled[0].reward=="none" and rolled[0].next=="result" and rolled[0].report in ["结果甲","结果乙"] and rolled[0].result_status in ["success","failure"],"EVENT SINGLE NODE outcomes freeze into a concrete option")
+ walk.state.room_event.values.seen=1
+ walk.Events.enter_node(walk,"choice")
+ t.check(walk.state.room_event.options.any(func(o):return o.id=="gated"),"EVENT SINGLE NODE met when keeps the option")
+ var select_document=document.duplicate(true)
+ select_document.data.id="single_node_selector_fixture"
+ select_document.data.nodes[0].choices=[{"id":"pair","label":"解除2件","reward":"none","detail":"从公开结果中随机确定一种。","selector":{"kind":"restraint","count":2},"effects":[{"op":"remove_restraints","targets":"$selected"}],"outcomes":[{"weight":1,"effects":[{"op":"mana_gain","amount":4}],"report":"结果一"},{"weight":1,"effects":[{"op":"mana_gain","amount":6}],"report":"结果二"}]}]
+ t.check(Catalog.compile(walk,[select_document]).ok,"EVENT SINGLE NODE selector fixture compiles")
+ Catalog.commit(walk,Catalog.compile(walk,[select_document]).tables)
+ var pair=Game.new(43);pair.add_fixture("wrist",8);pair.add_fixture("ankle",8)
+ var rng_before=pair.state.rng.event
+ Events.arrive(pair,"single_node_selector_fixture")
+ var pair_options=pair.state.room_event.options
+ t.check(pair_options.size()==1 and pair_options[0].selected is Array and pair_options[0].selected.size()==2,"EVENT SINGLE NODE selector expands one atomic pair")
+ t.check(pair.state.rng.event-rng_before==1,"EVENT SINGLE NODE outcome_draw option spends exactly one draw for the whole choice")
+ Catalog.commit(g,baseline)
+ var restore=Game.new(42)
+ t.check(Catalog.tables(restore)==baseline,"EVENT SINGLE NODE fixture registries restored")
+
+# docs/event-pipeline-unification.md §10 scenario 09: empty nodes keep their declared policy.
+static func event_node_empty_policy_kept(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var empty_node={"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[
+  {"id":"waiting","label":"尚未开放","reward":"none","next":"result","detail":"计数未达标时不生成。","when":{"counter":"seen","equals":1},"effects":[{"op":"mana_gain","amount":1}]}]}
+ var document={"file":"memory://empty_node.json","data":{"schema_version":2,"kind":"event","id":"empty_node_fixture","name":"空节点夹具","intro":"只用于验证空节点策略的夹具。","start_node":"choice","nodes":[empty_node]}}
+ t.check(Catalog.compile(g,[document]).ok,"EVENT EMPTY NODE single-node empty fixture compiles")
+ Catalog.commit(g,Catalog.compile(g,[document]).tables)
+ var walk=Game.new(42);Events.arrive(walk,"empty_node_fixture")
+ t.check(walk.state.room_event.options.is_empty() and walk.state.room_event.stage=="choice" and walk.state.room_event.result_status=="neutral","EVENT EMPTY NODE single node keeps zero candidates instead of failing")
+ t.check(walk.candidates().filter(func(c):return c.payload.get("kind","")=="event").is_empty(),"EVENT EMPTY NODE zero candidates stay consistent")
+ t.check(walk.validate()=="","EVENT EMPTY NODE zero candidates stay valid")
+ var staged=document();staged.data.id="empty_stage_fixture"
+ for choice in staged.data.nodes[2].choices: choice.when={"counter":"seen","equals":1}
+ var staged_compile=Catalog.compile(g,[staged])
+ t.check(staged_compile.ok,"EVENT EMPTY NODE staged empty fixture compiles: "+str(staged_compile.errors))
+ if not staged_compile.ok: Catalog.commit(g,baseline); return
+ Catalog.commit(g,staged_compile.tables)
+ var flow=Game.new(44);Events.arrive(flow,"empty_stage_fixture")
+ t.check(flow.Events.enter_node(flow,"finale")=="这一阶段没有能够执行的选项。","EVENT EMPTY NODE staged node reports its named issue")
+ var empty_issue=flow.Events.enter_node(flow,"penalty")
+ if empty_issue!="": t.check(false,"EVENT EMPTY NODE penalty node stays enterable: "+empty_issue)
+ var blocked=flow.candidates().filter(func(c):return c.payload.get("choice","")=="two_ropes")
+ t.check(blocked.size()==1 and not blocked[0].valid and str(blocked[0].get("reason",""))!="","EVENT EMPTY NODE an option whose next node is empty turns invalid: "+str(blocked[0].get("reason","")) if not blocked.is_empty() else "EVENT EMPTY NODE an option whose next node is empty turns invalid")
+ var hollow_probe=flow.Events.probe(flow,[],{"id":"two_ropes","label":"安装","reward":"none","next":"finale","effects":[]})
+ t.check(hollow_probe=="这一阶段没有能够执行的选项。","EVENT EMPTY NODE the probe path reports the empty next node: "+hollow_probe)
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §10 scenario 11: a committed cross-event jump keeps one
+# instance — the target's id and node, the source in chain, continuing counters and holds, the
+# chain union cleanup (one step per key, run once on leaving) and the target in event_seen.
+static func event_chain_jumps_to_another_event_node(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_documents())
+ t.check(compiled.ok,"EVENT CHAIN fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ t.check(g.Events.chain_cleanup([{"op":"restore_held","key":"first"}],[{"op":"restore_held","key":"first"},{"op":"restore_held","key":"second"}]).map(func(entry):return entry.key)==["first","second"],"EVENT CHAIN the cleanup union keeps one step per key, source first")
+ var walk=Game.new(42)
+ t.check(not walk._install_special("shaft_ring_low","special_2_a").is_empty() and not walk._install_special("corona_ring_low","special_2_c").is_empty(),"EVENT CHAIN the fixture wears two real special items")
+ Events.arrive(walk,"chain_source_fixture")
+ t.check(walk.state.room_event.options.map(func(option):return option.id)==["depart","stay"] and not walk.state.room_event.has("chain"),"EVENT CHAIN the source node freezes its authored options without a chain key")
+ var jump=t.action(walk,"event",{"action":"choose","choice":"depart"})
+ t.check(jump.ok,"EVENT CHAIN the source option commits through the formal command: "+str(jump.get("error","")))
+ var event=walk.state.room_event
+ t.check(event.id=="chain_target_fixture" and event.stage=="entry","EVENT CHAIN the commit rewrites the instance to the target event and its node: "+str(event.id)+"/"+str(event.stage))
+ t.check(event.chain==["chain_source_fixture"],"EVENT CHAIN the chain records the events already left behind: "+str(event.chain))
+ t.check(event.values.get("chain_seen",0)==1,"EVENT CHAIN counters continue across the chain")
+ t.check(event.held.has("chain_source_gear") and event.held.chain_source_gear.size()==1,"EVENT CHAIN holds continue across the chain")
+ t.check(event.flow and walk.Events.definition(event.id).nodes.size()==2,"EVENT CHAIN the flow mirror follows the target definition")
+ t.check(walk.state.event_seen.count("chain_target_fixture")==1 and walk.state.event_seen.count("chain_source_fixture")==1,"EVENT CHAIN the target joins event_seen exactly once")
+ t.check(event.cleanup_effects.map(func(entry):return entry.key)==["chain_source_gear","chain_target_gear"],"EVENT CHAIN cleanup is the chain union with one step per key: "+str(event.cleanup_effects.map(func(entry):return entry.key)))
+ t.check(walk.validate()=="","EVENT CHAIN the rewritten instance still validates: "+walk.validate())
+ t.check(t.action(walk,"event",{"action":"choose","choice":"proceed"}).ok and walk.state.room_event.stage=="finale","EVENT CHAIN the target event advances through its own nodes")
+ t.check(walk.state.room_event.held.keys().size()==2,"EVENT CHAIN both chain holds coexist in one instance")
+ t.check(t.action(walk,"event",{"action":"choose","choice":"settle"}).ok and walk.state.room_event.stage=="result","EVENT CHAIN the target event reaches its result")
+ var logs_before=walk.state.logs.size()
+ t.check(t.action(walk,"event",{"action":"leave"}).ok,"EVENT CHAIN the chain leaves through the formal command")
+ var restored=walk.state.logs.slice(logs_before).filter(func(log):return str(log.text).contains("原样装回"))
+ t.check(restored.size()==2,"EVENT CHAIN every chain cleanup step runs exactly once: "+str(restored.size()))
+ t.check(walk.state.special_equipment.size()==2 and walk.state.room_event.held.is_empty(),"EVENT CHAIN the union restores every held instance")
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §10 scenario 12: the chain may not return to an event it
+# already left — the option stays visible but invalid with gate chain_loop, and evaluating or
+# submitting it changes neither the state, the random domains nor the save.
+static func event_chain_loop_refused(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_documents())
+ t.check(compiled.ok,"EVENT CHAIN LOOP fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ Events.arrive(walk,"chain_source_fixture")
+ t.check(t.action(walk,"event",{"action":"choose","choice":"depart"}).ok and walk.state.room_event.chain==["chain_source_fixture"],"EVENT CHAIN LOOP the fixture arrives at the target with the source already left")
+ var settled=walk.export_snapshot()
+ var domain=walk.state.rng.duplicate(true)
+ var loop_option=walk.state.room_event.options.filter(func(option):return option.id=="loop_back")
+ t.check(loop_option.size()==1,"EVENT CHAIN LOOP the looping option stays among the frozen options")
+ var loop=walk.candidates().filter(func(candidate):return candidate.payload.get("choice","")=="loop_back")
+ t.check(loop.size()==1 and not loop[0].valid,"EVENT CHAIN LOOP the looping option stays visible but invalid: "+str(loop[0].get("reason","")) if not loop.is_empty() else "EVENT CHAIN LOOP the looping option stays visible but invalid")
+ var result=walk.Events.evaluate_option(walk,walk.Events.request_for(walk,loop_option[0],"candidate"))
+ t.check(result.decision=="disabled" and result.gates.size()==1 and str(result.gates[0].gate)=="chain_loop" and str(result.gates[0].kind)=="chain" and str(result.gates[0].detail)=="chain_source_fixture","EVENT CHAIN LOOP the looping option reports the chain_loop gate: "+JSON.stringify(result.gates))
+ t.check(result.reason==walk.Events.CHAIN_LOOP_REASON and result.reason!="","EVENT CHAIN LOOP the disabled option carries its own reason")
+ t.check(walk.export_snapshot()==settled and walk.state.rng==domain,"EVENT CHAIN LOOP evaluating the loop leaves the state, the save and the random domains untouched")
+ var before_submit=walk.export_snapshot()
+ t.check(not t.action(walk,"event",{"action":"choose","choice":"loop_back"}).ok and walk.export_snapshot()==before_submit,"EVENT CHAIN LOOP a looping option cannot commit")
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §4.5 rulings A30／A31: both node-entry failures write one
+# node-level row with the target node and no option, the next-node look-ahead uses its own
+# purpose, and repeated look-aheads of one target never repeat the row.
+static func event_chain_trace_rows(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_documents())
+ t.check(compiled.ok,"EVENT CHAIN TRACE fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ walk.set_meta("event_trace_enabled",true)
+ Events.arrive(walk,"chain_source_fixture")
+ walk.Events.enter_node_result(walk,"missing_node")
+ walk.Events.enter_node_result(walk,"missing_node")
+ walk.Events.enter_node(walk,"other_missing_node")
+ var missing=walk.Events.event_trace(walk).filter(func(row):return row.gate=="stage_missing")
+ t.check(missing.size()==2 and missing[0].node=="missing_node" and missing[1].node=="other_missing_node","EVENT CHAIN TRACE a missing node writes one node-level row per target: "+JSON.stringify(missing))
+ t.check(missing.all(func(row):return str(row.option_id)=="" and str(row.source_choice)=="" and str(row.purpose)=="arrival" and str(row.event)=="chain_source_fixture"),"EVENT CHAIN TRACE the missing-node row carries the target node, no option and the arrival purpose: "+JSON.stringify(missing))
+ # A31: the emptied target node is looked ahead by two frozen options, and the identical
+ # node-level rows collapse into one carrying purpose next_probe. The registries are restored
+ # first, because the compiled event table is shared by every game in this process.
+ var blocked=chain_documents()
+ blocked[1].data.nodes[1].choices[0].when={"counter":"never_seen","equals":1}
+ Catalog.commit(g,baseline)
+ var blocked_compile=Catalog.compile(g,blocked)
+ t.check(blocked_compile.ok,"EVENT CHAIN TRACE the emptied-target fixtures compile: "+str(blocked_compile.errors))
+ if blocked_compile.ok:
+  Catalog.commit(g,blocked_compile.tables)
+  var probe=Game.new(42)
+  probe.set_meta("event_trace_enabled",true)
+  Events.arrive(probe,"chain_source_fixture")
+  t.check(t.action(probe,"event",{"action":"choose","choice":"depart"}).ok,"EVENT CHAIN TRACE the emptied-target chain still jumps")
+  probe.candidates()
+  # Gate node_empty also names the per-option feasibility hit (kind feasibility); the A31 row
+  # is the node-level one, identified by its empty option_id.
+  var empty=probe.Events.event_trace(probe).filter(func(row):return row.gate=="node_empty" and str(row.option_id)=="")
+  t.check(empty.size()==1 and str(empty[0].purpose)=="next_probe" and str(empty[0].node)=="finale","EVENT CHAIN TRACE the look-ahead uses its own purpose and writes one row per target: "+JSON.stringify(empty))
+  t.check(empty.all(func(row):return str(row.event)=="chain_target_fixture" and str(row.option_id)=="" and str(row.source_choice)==""),"EVENT CHAIN TRACE the look-ahead row names the probed node and no option")
+  t.check(probe.Events.event_trace(probe).filter(func(row):return row.purpose=="next_probe").size()==1,"EVENT CHAIN TRACE frozen instances never repeat the look-ahead row")
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §3.3 ruling A32 chain fixtures (never shipped content):
+# the source optionally offers a relic reward of its own, the target decides whether it offers
+# one, and neither end holds special equipment — so the only domains under test are the relic
+# draw and the target's own node entry.
+static func chain_relic_node(choices: Array) -> Dictionary:
+ return {"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":choices}
+
+static func chain_relic_documents(target_id: String, target_offers_relic: bool, source_offers_relic: bool=false) -> Array:
+ var source_choices=[{"id":"depart","label":"动身前往下一段事件","reward":"none","next":{"event":target_id,"node":"choice"},"detail":"带上一项计数进入另一段事件。","effects":[{"op":"counter","key":"chain_seen","amount":1}]}]
+ if source_offers_relic: source_choices.append({"id":"carry_relic","label":"先领走本事件冻结的遗物","reward":"relic","next":"result","detail":"领走一件随机遗物。","effects":[]})
+ var target_choices=[{"id":"stay","label":"留在本事件","reward":"none","next":"result","detail":"不领取遗物。","effects":[{"op":"mana_gain","amount":1}]}]
+ if target_offers_relic: target_choices.append({"id":"grab","label":"领走本事件冻结的遗物","reward":"relic","next":"result","detail":"领走一件随机遗物。","effects":[]})
+ return [
+  {"file":"memory://chain_relic_source.json","data":{"schema_version":2,"kind":"event","id":"chain_relic_source","name":"遗物重抽起点夹具","intro":"只用于验证跨事件跳转的遗物重抽。","start_node":"choice","nodes":[chain_relic_node(source_choices)]}},
+  {"file":"memory://"+target_id+".json","data":{"schema_version":2,"kind":"event","id":target_id,"name":"遗物重抽目标夹具","intro":"只用于验证跨事件跳转的遗物重抽。","start_node":"choice","nodes":[chain_relic_node(target_choices)]}}]
+
+# Per-domain random counters between two readings: a jump that recomputes the relic has to
+# spend exactly what the same definition spends on its own arrival.
+static func rng_delta(before: Dictionary, after: Dictionary) -> Dictionary:
+ var delta={}
+ for domain in after: delta[domain]=int(after[domain])-int(before.get(domain,0))
+ return delta
+
+# docs/event-pipeline-unification.md §3.3 ruling A32, class 1: a target that declares a relic
+# reward draws once on the jump, the drawn relic belongs to the pool that definition may grant,
+# and the event and relic domains spend exactly the single-definition arrival draws.
+static func event_chain_relic_drawn_from_target(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_relic_documents("chain_relic_gift",true))
+ t.check(compiled.ok,"EVENT CHAIN RELIC gift fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ Events.arrive(walk,"chain_relic_source")
+ t.check(walk.state.room_event.relic=="","EVENT CHAIN RELIC the source definition offers no relic reward, so it freezes none")
+ var chain_before=walk.state.rng.duplicate()
+ t.check(t.action(walk,"event",{"action":"choose","choice":"depart"}).ok,"EVENT CHAIN RELIC the source option commits through the formal command")
+ var event=walk.state.room_event
+ var chain_delta=rng_delta(chain_before,walk.state.rng)
+ t.check(event.id=="chain_relic_gift" and event.relic!="","EVENT CHAIN RELIC the jump draws a relic for the target definition: "+str(event.relic))
+ t.check(event.relic in walk.RelicRewards.available(walk) and event.relic not in walk.state.relics,"EVENT CHAIN RELIC the drawn relic belongs to the pool the target may grant: "+str(event.relic))
+ var direct=Game.new(42)
+ var direct_before=direct.state.rng.duplicate()
+ Events.arrive(direct,"chain_relic_gift")
+ var direct_delta=rng_delta(direct_before,direct.state.rng)
+ t.check(direct.state.room_event.relic==event.relic,"EVENT CHAIN RELIC the jump draws the same relic as a single-definition arrival: "+str(event.relic)+" vs "+str(direct.state.room_event.relic))
+ t.check(JSON.stringify(chain_delta)==JSON.stringify(direct_delta) and chain_delta.relic==direct_delta.relic and chain_delta.event==direct_delta.event,"EVENT CHAIN RELIC the jump spends exactly the single-definition draws in the event and relic domains: "+JSON.stringify({"chain":chain_delta,"direct":direct_delta}))
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §3.3 ruling A32, class 2: a target that declares no relic
+# reward clears the source relic instead of carrying it over, and spends no extra draw.
+static func event_chain_relic_cleared_without_target_offer(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_relic_documents("chain_relic_plain",false,true))
+ t.check(compiled.ok,"EVENT CHAIN RELIC plain fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ Events.arrive(walk,"chain_relic_source")
+ t.check(walk.state.room_event.relic!="","EVENT CHAIN RELIC the source definition freezes its own relic: "+str(walk.state.room_event.relic))
+ var chain_before=walk.state.rng.duplicate()
+ t.check(t.action(walk,"event",{"action":"choose","choice":"depart"}).ok,"EVENT CHAIN RELIC the source option commits through the formal command")
+ var event=walk.state.room_event
+ var chain_delta=rng_delta(chain_before,walk.state.rng)
+ t.check(event.id=="chain_relic_plain" and event.relic=="","EVENT CHAIN RELIC a target without a relic reward clears the source relic: "+str(event.relic))
+ t.check(not event.options.any(func(option):return option.reward=="relic"),"EVENT CHAIN RELIC the cleared target exposes no relic reward option")
+ var direct=Game.new(42)
+ var direct_before=direct.state.rng.duplicate()
+ Events.arrive(direct,"chain_relic_plain")
+ var direct_delta=rng_delta(direct_before,direct.state.rng)
+ t.check(direct.state.room_event.relic=="" and JSON.stringify(chain_delta)==JSON.stringify(direct_delta),"EVENT CHAIN RELIC clearing the source relic spends no extra draw: "+JSON.stringify({"chain":chain_delta,"direct":direct_delta}))
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §3.3 ruling A32, class 3: a target that declares the relic
+# reward still keeps the instance empty while the pool is empty, again without spending a draw.
+static func event_chain_relic_cleared_when_pool_empty(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var compiled=Catalog.compile(g,chain_relic_documents("chain_relic_exhausted",true))
+ t.check(compiled.ok,"EVENT CHAIN RELIC exhausted fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ walk.state.relics.append_array(walk.Relics.REWARDS)
+ t.check(walk.RelicRewards.available(walk).is_empty(),"EVENT CHAIN RELIC the fixture owns the whole relic pool")
+ Events.arrive(walk,"chain_relic_source")
+ var chain_before=walk.state.rng.duplicate()
+ t.check(t.action(walk,"event",{"action":"choose","choice":"depart"}).ok,"EVENT CHAIN RELIC the source option commits through the formal command")
+ var event=walk.state.room_event
+ var chain_delta=rng_delta(chain_before,walk.state.rng)
+ t.check(event.id=="chain_relic_exhausted" and event.relic=="","EVENT CHAIN RELIC an empty relic pool leaves the target instance without a relic: "+str(event.relic))
+ t.check(not event.options.any(func(option):return option.reward=="relic"),"EVENT CHAIN RELIC the empty pool drops the target relic option before freezing")
+ var direct=Game.new(42)
+ direct.state.relics.append_array(direct.Relics.REWARDS)
+ var direct_before=direct.state.rng.duplicate()
+ Events.arrive(direct,"chain_relic_exhausted")
+ var direct_delta=rng_delta(direct_before,direct.state.rng)
+ t.check(direct.state.room_event.relic=="" and JSON.stringify(chain_delta)==JSON.stringify(direct_delta),"EVENT CHAIN RELIC an empty pool spends no draw on either path: "+JSON.stringify({"chain":chain_delta,"direct":direct_delta}))
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §10 scenarios 15-18: stacked condition modes.
+static func event_stacked_conditions(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var entries=[[{"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。","mode":"optional"}],
+              [{"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。","mode":"hidden"}],
+              [{"kind":"has_relic","type":"softened_buckle","reason":"你还没有拿到那件扣环。","mode":"optional"},{"kind":"no_chastity_lock","reason":"平板锁封住了这里。","mode":"hidden"}],
+              [{"kind":"has_relic","type":"softened_buckle","reason":"条件甲。","mode":"optional"},{"kind":"has_relic","type":"unregistered_probe","reason":"条件乙。","mode":"optional"}]]
+ var documents=[]
+ for index in range(entries.size()):
+  var conditions=entries[index]
+  if index==3:
+   conditions=[{"kind":"has_relic","type":"softened_buckle","reason":"条件甲。","mode":"optional"},{"kind":"has_relic","type":"small_gem","reason":"条件乙。","mode":"optional"}]
+  var node={"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[{"id":"stacked","label":"叠加条件","reward":"none","next":"result","detail":"条件决定是否可选。","effects":[{"op":"mana_gain","amount":2}],"conditions":conditions}]}
+  documents.append({"file":"memory://stacked_%d.json" % index,"data":{"schema_version":2,"kind":"event","id":"stacked_fixture_%d" % index,"name":"叠加条件夹具","intro":"只用于验证叠加条件的夹具。","start_node":"choice","nodes":[node]}})
+ var compiled=Catalog.compile(g,documents)
+ t.check(compiled.ok,"EVENT STACKED fixtures compile: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var single=Game.new(42);Events.arrive(single,"stacked_fixture_0")
+ var option=single.state.room_event.options.filter(func(row):return row.id=="stacked")
+ t.check(option.size()==1 and single.candidates()[0].valid==false and single.candidates()[0].get("reason","")=="你还没有拿到那件扣环。","EVENT STACKED optional condition keeps the option visible but disabled")
+ t.check(single.candidates()[0].get("reason_surface","")=="secondary","EVENT STACKED disabled option keeps the secondary reason surface")
+ var single_result=single.Events.evaluate_option(single,single.Events.request_for(single,option[0],"candidate"))
+ t.check(single_result.decision=="disabled" and single_result.gates.size()==1 and single_result.gates[0].mode=="optional" and single_result.reason=="你还没有拿到那件扣环。","EVENT STACKED one optional hit reports one gate with its authored reason")
+ var hidden=Game.new(42);Events.arrive(hidden,"stacked_fixture_1")
+ t.check(not hidden.state.room_event.options.any(func(row):return row.id=="stacked"),"EVENT STACKED hidden condition keeps the option out of the frozen options")
+ t.check(not hidden.candidates().any(func(c):return c.payload.get("choice","")=="stacked"),"EVENT STACKED hidden condition keeps the option out of the candidates")
+ var both=Game.new(42)
+ both._install_special("negative_plate_lock_medium","special_2_a")
+ Events.arrive(both,"stacked_fixture_2")
+ t.check(not both.state.room_event.options.any(func(row):return row.id=="stacked"),"EVENT STACKED a hidden hit hides the option even when another mode is declared")
+ t.check(not both.candidates().any(func(c):return c.payload.get("choice","")=="stacked"),"EVENT STACKED a hidden hit keeps the option out of the candidates")
+ var mixed=Game.new(43);Events.arrive(mixed,"stacked_fixture_2")
+ var mixed_option=mixed.state.room_event.options.filter(func(row):return row.id=="stacked")
+ t.check(mixed_option.size()==1 and not mixed.candidates()[0].valid,"EVENT STACKED an unhit hidden entry leaves the option disabled by the optional entry")
+ var mixed_result=mixed.Events.evaluate_option(mixed,mixed.Events.request_for(mixed,mixed_option[0],"candidate"))
+ t.check(mixed_result.decision=="disabled" and mixed_result.gates.size()==1 and mixed_result.gates[0].mode=="optional","EVENT STACKED only the hitting optional entry reaches the gate list")
+ mixed.state.relics.append("softened_buckle")
+ mixed.Events.enter_node(mixed,"choice")
+ t.check(mixed.state.room_event.options.any(func(row):return row.id=="stacked") and mixed.candidates()[0].valid,"EVENT STACKED clearing every hit restores the option")
+ var many=Game.new(42);Events.arrive(many,"stacked_fixture_3")
+ var result=many.Events.evaluate_option(many,many.Events.request_for(many,many.state.room_event.options[0],"candidate"))
+ t.check(result.decision=="disabled" and result.gates.size()==2 and result.gates[0].reason=="条件甲。" and result.gates[1].reason=="条件乙。" and result.reason=="条件甲。\n条件乙。","EVENT STACKED every optional hit is listed in declaration order and joined with newlines")
+ t.check(result.gates[0].index==0 and result.gates[1].index==1 and result.gates[0].mode=="optional","EVENT STACKED gate entries keep index and mode")
+ many.state.relics.append("small_gem")
+ result=many.Events.evaluate_option(many,many.Events.request_for(many,many.state.room_event.options[0],"candidate"))
+ t.check(result.decision=="disabled" and result.gates.size()==1 and result.gates[0].reason=="条件甲。","EVENT STACKED a passing entry stays out of the gate list")
+ Catalog.commit(g,baseline)
+
+# docs/event-pipeline-unification.md §10 scenario 04: the option hidden by a held relic is
+# traced with its own source choice and gate, and the candidate set stays as the baseline.
+static func event_hidden_relic_option_traced(t) -> void:
+ var g=Game.new(42)
+ g.state.relics.append("softened_buckle")
+ g.set_meta("event_trace_enabled",true)
+ Events.arrive(g,"floating_belt_cluster")
+ var rows=g.Events.event_trace(g)
+ t.check(rows.any(func(row):return row.source_choice=="fight" and str(row.gate)!="" and row.decision in ["dropped","hidden"]),"EVENT TRACE the hidden fight option is traced with a named gate")
+ var choices=g.candidates().filter(func(c):return c.payload.get("kind","")=="event" and c.payload.get("action","")=="choose")
+ t.check(choices.map(func(c):return c.payload.choice)==["infusion","leave"],"EVENT TRACE the held-relic candidate set matches the baseline")
+ g.set_meta("event_trace_enabled",false)
+ var silent=Game.new(42)
+ silent.state.relics.append("softened_buckle")
+ Events.arrive(silent,"floating_belt_cluster")
+ t.check(JSON.stringify(silent.state.room_event.options)==JSON.stringify(g.state.room_event.options) and JSON.stringify(silent.candidates())==JSON.stringify(g.candidates()),"EVENT TRACE the candidate set is identical with the switch off")
+
+# docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
+# declaration order, and release leaves the trace empty.
+# docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
+# declaration order, the switch off leaves the trace empty, and a new event never keeps the
+# previous event's rows.
+# Not landed: the trace rows it asserts still differ from what the suite produces,
+# while the standalone repro matches the contract wording. Reported for the coordinator.
+# docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
+# declaration order, the switch off leaves the trace empty, and a new event never keeps the
+# previous event's rows.
+static func event_stacked_condition_trace_and_release(t) -> void:
+ var g=Game.new(42)
+ var baseline=Catalog.tables(g)
+ var node={"id":"choice","allow_refuse":false,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[{"id":"stacked","label":"叠加条件","reward":"none","next":"result","detail":"条件决定是否可选。","effects":[{"op":"mana_gain","amount":2}],"conditions":[{"kind":"has_relic","type":"softened_buckle","reason":"条件甲。","mode":"optional"},{"kind":"has_relic","type":"small_gem","reason":"条件乙。","mode":"optional"}]}]}
+ var document={"file":"memory://trace_stacked.json","data":{"schema_version":2,"kind":"event","id":"trace_stacked_fixture","name":"trace 叠加夹具","intro":"只用于验证 trace 的夹具。","start_node":"choice","nodes":[node]}}
+ var compiled=Catalog.compile(g,[document])
+ t.check(compiled.ok,"EVENT TRACE stacked fixture compiles: "+str(compiled.errors))
+ if not compiled.ok: return
+ Catalog.commit(g,compiled.tables)
+ var walk=Game.new(42)
+ walk.set_meta("event_trace_enabled",true)
+ Events.arrive(walk,"trace_stacked_fixture")
+ var arrival=walk.Events.event_trace(walk)
+ t.check(arrival.size()==2 and arrival[0].index==0 and arrival[1].index==1,"EVENT TRACE one row per hitting entry, in declaration order: "+JSON.stringify(arrival.map(func(row):return [row.index,row.mode])))
+ t.check(arrival[0].reason=="条件甲。" and arrival[1].reason=="条件乙。" and arrival[0].mode=="optional","EVENT TRACE every row keeps its own reason and mode")
+ t.check(arrival.all(func(row):return row.gate=="availability_unmet" and row.decision=="disabled" and row.purpose=="arrival"),"EVENT TRACE stacked rows keep the named gate and decision")
+ Events.arrive(walk,"trace_stacked_fixture")
+ var second=walk.Events.event_trace(walk)
+ t.check(second.size()==2 and second[0].index==0 and second[0].purpose=="arrival","EVENT TRACE a new event keeps no stale rows: "+str(second.size()))
+ walk.set_meta("event_trace_enabled",false)
+ var silent=Game.new(42)
+ Events.arrive(silent,"trace_stacked_fixture")
+ silent.candidates()
+ t.check(silent.Events.event_trace(silent).is_empty(),"EVENT TRACE release leaves the trace empty")
+ t.check(not JSON.stringify(silent.export_snapshot()).contains("event_trace") and not JSON.stringify(silent.get_view()).contains("event_trace"),"EVENT TRACE neither the save nor the view carries trace data")
+ Catalog.commit(g,baseline)
+
 static func run(t) -> void:
+ event_stacked_condition_trace_and_release(t)
+ event_hidden_relic_option_traced(t)
+ event_single_node_declarations(t)
+ event_node_empty_policy_kept(t)
+ event_chain_jumps_to_another_event_node(t)
+ event_chain_loop_refused(t)
+ event_chain_trace_rows(t)
+ event_chain_relic_drawn_from_target(t)
+ event_chain_relic_cleared_without_target_offer(t)
+ event_chain_relic_cleared_when_pool_empty(t)
+ event_stacked_conditions(t)
  event_mana_cost(t)
+ event_option_policies_match_current_behaviour(t)
  link_installation(t)
  plate_lock_copy(t)
  empty_studio(t)
@@ -413,10 +859,10 @@ static func run(t) -> void:
  var compiled=Catalog.compile(g,[document()])
  t.check(compiled.ok,"EVENT FLOW generic staged document compiles: "+str(compiled.errors))
  if not compiled.ok: return
- var concise=document();concise.data.stages[1].choices[0].detail=""
+ var concise=document();concise.data.nodes[1].choices[0].detail=""
  var concise_result=Catalog.compile(g,[concise])
- t.check(concise_result.ok and concise_result.tables.event.flow_test.stages[1].choices[0].detail=="","EVENT FLOW deterministic stages support explicit empty notes")
- concise.data.stages[0].choices[0].detail=""
+ t.check(concise_result.ok and concise_result.tables.event.flow_test.nodes[1].choices[0].detail=="","EVENT FLOW deterministic stages support explicit empty notes")
+ concise.data.nodes[0].choices[0].detail=""
  t.check(not Catalog.compile(g,[concise]).ok,"EVENT FLOW random outcomes still require an authored public preview")
  Catalog.commit(g,compiled.tables)
 
@@ -461,29 +907,29 @@ static func run(t) -> void:
  t.check(t.action(g,"event",{"action":"choose","choice":"tighten_two"}).ok,"EVENT FLOW batch tighten option is executable")
  t.check(g.state.equipment.size()==2 and g.state.equipment.all(func(e):return g.tier(e.durability,e.maximum)==3),"EVENT FLOW batch tighten freezes distinct eligible targets")
 
- var bad=document();bad.data.id="flow_cycle";bad.data.stages[1].choices[0].next="entry"
+ var bad=document();bad.data.id="flow_cycle";bad.data.nodes[1].choices[0].next="entry"
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW backward stage references fail closed")
  bad=document();bad.data.id="flow_missing_cleanup";bad.data.cleanup_effects=[]
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW held equipment requires declared cleanup")
- bad=document();bad.data.id="flow_no_exit";bad.data.stages[0].allow_refuse=false
+ bad=document();bad.data.id="flow_no_exit";bad.data.nodes[0].allow_refuse=false
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW initial stage requires a safe refusal")
- bad=document();bad.data.id="flow_script";bad.data.stages[0].choices[0].effects=[{"op":"run_three_round_gamble"}]
+ bad=document();bad.data.id="flow_script";bad.data.nodes[0].choices[0].effects=[{"op":"run_three_round_gamble"}]
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW event-specific operation names are rejected")
- bad=document();bad.data.id="flow_bad_effects";bad.data.stages[0].choices[0].effects="not-an-array"
+ bad=document();bad.data.id="flow_bad_effects";bad.data.nodes[0].choices[0].effects="not-an-array"
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW malformed nested effects fail closed without a runtime error")
- bad=document();bad.data.id="flow_bad_result";bad.data.stages[0].choices[0].outcomes[0].result_status="maybe"
+ bad=document();bad.data.id="flow_bad_result";bad.data.nodes[0].choices[0].outcomes[0].result_status="maybe"
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW unknown authored result status is rejected")
- bad=document();bad.data.id="flow_bad_choice_result";bad.data.stages[0].choices[0].result_status=123
+ bad=document();bad.data.id="flow_bad_choice_result";bad.data.nodes[0].choices[0].result_status=123
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW non-string result status is rejected")
- bad=document();bad.data.id="flow_bad_pressure_copy";bad.data.stages[2].choices[0].show_pressure_sources=true;bad.data.stages[2].choices[0].effects[0].erase("source")
+ bad=document();bad.data.id="flow_bad_pressure_copy";bad.data.nodes[2].choices[0].show_pressure_sources=true;bad.data.nodes[2].choices[0].effects[0].erase("source")
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW visible pressure-source copy requires an authored source")
- bad=document();bad.data.id="flow_bad_copy_family";bad.data.stages[2].choices[0].report_variants=[{"when":{"kind":"equipped_special_family","value":"missing_family"},"text":"条件正文"}]
+ bad=document();bad.data.id="flow_bad_copy_family";bad.data.nodes[2].choices[0].report_variants=[{"when":{"kind":"equipped_special_family","value":"missing_family"},"text":"条件正文"}]
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW conditional copy rejects an unknown special-equipment family")
- bad=document();bad.data.id="flow_bad_source_variant";bad.data.stages[2].choices[0].effects[0].source_variants=[{"when":{"kind":"equipped_special_family","value":"chastity_lock"},"text":"x".repeat(121)}]
+ bad=document();bad.data.id="flow_bad_source_variant";bad.data.nodes[2].choices[0].effects[0].source_variants=[{"when":{"kind":"equipped_special_family","value":"chastity_lock"},"text":"x".repeat(121)}]
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW conditional pressure copy preserves the source length boundary")
- bad=document();bad.data.id="flow_bad_when_sources";bad.data.stages[1].choices[0].when={"counter":"wins","selector":{"kind":"restraint"},"equals":0}
+ bad=document();bad.data.id="flow_bad_when_sources";bad.data.nodes[1].choices[0].when={"counter":"wins","selector":{"kind":"restraint"},"equals":0}
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW condition cannot mix counter and selector sources")
- bad=document();bad.data.id="flow_bad_when_selector";bad.data.stages[1].choices[0].when={"selector":{"kind":"enemy"},"equals":0}
+ bad=document();bad.data.id="flow_bad_when_selector";bad.data.nodes[1].choices[0].when={"selector":{"kind":"enemy"},"equals":0}
  t.check(not Catalog.compile(g,[bad]).ok,"EVENT FLOW selector-count condition rejects unsupported sources")
 
  # Shipped three-round event and its practice entry use the same authored flow.
@@ -563,7 +1009,7 @@ static func run(t) -> void:
 
  # Stage fixture uses the authored payout and its normal selector/transaction.
  var removal=Game.new(27,true,"succubus_three_games")
- t.check(removal.Events.enter_stage(removal,"remove_reward")=="","EVENT removal fixture opens the authored card payout")
+ t.check(removal.Events.enter_node(removal,"remove_reward")=="","EVENT removal fixture opens the authored card payout")
  var selected_uid=removal.state.deck[0].uid
  var removal_choice=t.find_action(removal,"event",{"action":"choose","choice":"remove__"+selected_uid})
  var before_removal=removal.export_snapshot()
@@ -665,10 +1111,10 @@ static func run(t) -> void:
  # or failure; the captive's equipment is not represented as a transferable pool.
  var trapped=Game.new(81,true,"bound_adventurer_relic")
  var trapped_definition=trapped.Events.Data.TYPES.bound_adventurer_relic
- t.check(trapped_definition.stages.size()==9 and trapped_definition.start_stage=="attempt_1","BOUND ADVENTURER declares the complete nine-attempt ladder")
+ t.check(trapped_definition.nodes.size()==9 and trapped_definition.start_node=="attempt_1","BOUND ADVENTURER declares the complete nine-attempt ladder")
  var expected_chances=[25,35,45,55,65,75,85,95]
  for index in range(9):
-  var stage=trapped_definition.stages[index]
+  var stage=trapped_definition.nodes[index]
   var stage_reach=stage.choices.filter(func(choice):return choice.id=="reach")[0]
   var leave=stage.choices.filter(func(choice):return choice.id=="leave")[0]
   var generators=stage_reach.effects.filter(func(effect):return effect.op=="install_random")
@@ -715,7 +1161,7 @@ static func run(t) -> void:
  t.check(trapped.state.equipment==leave_before.equipment and trapped.state.relics==leave_before.relics and trapped.state.mana==leave_before.mana,"BOUND ADVENTURER leaving before a reach changes no equipment, relic or resource")
 
  var full=Game.new(83)
- var fill_templates=trapped_definition.stages[0].choices[0].effects[0].templates
+ var fill_templates=trapped_definition.nodes[0].choices[0].effects[0].templates
  var fill_spec={"pool":"ordinary","templates":fill_templates,"count":1,"grade":1,"tier":2,"locked":false,"replace":false,"allow_links":false,"variants":{}}
  for fill_template in fill_templates: fill_spec.variants[fill_template]=0
  for _index in range(80):

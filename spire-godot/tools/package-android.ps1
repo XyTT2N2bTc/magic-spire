@@ -81,7 +81,10 @@ try {
 $manifest = [ordered]@{ version = $packageVersion; platform = 'Android ARM64 + ARMv7'; package = 'org.magic.spire'; build = $BuildId; file = [IO.Path]::GetFileName($apk); bytes = (Get-Item -LiteralPath $apk).Length; sha256 = (Get-FileHash -LiteralPath $apk).Hash.ToLowerInvariant() }
 $manifest | ConvertTo-Json | Set-Content (Join-Path $destination 'manifest.json') -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $gameDirectory ('docs/release-android-v' + $packageVersion + '.txt')) -Destination $destination
-Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $gameDirectory) '版本更新内容.txt') -Destination $destination
+$versionNotes = Join-Path $gameDirectory ('docs/release-v' + $packageVersion + '.txt')
+if (-not (Test-Path -LiteralPath $versionNotes)) { throw 'Version-specific release notes are missing.' }
+Copy-Item -LiteralPath $versionNotes -Destination (Join-Path $destination '版本更新内容.txt')
+Copy-Item -LiteralPath (Join-Path $gameDirectory '基础操作教学.txt') -Destination $destination
 foreach ($name in @('LICENSE','ASSET_RIGHTS.md')) {
     Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $gameDirectory) $name) -Destination $destination
 }

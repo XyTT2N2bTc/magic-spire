@@ -1,6 +1,6 @@
 # 可直接接入的内容模板
 
-适用项目：本目录所属的 Godot《紧缚尖塔》，2026-09-07，内容格式版本 **1**。这五类文件已经由游戏读取；按以下字段填写即可接入已有机制，不需要修改注册表或复制规则代码。
+适用项目：本目录所属的 Godot《紧缚尖塔》，2026-09-07，内容格式版本 **1**（`event` 自 2026-09-16 起为 **2**，见 §3）。这五类文件已经由游戏读取；按以下字段填写即可接入已有机制，不需要修改注册表或复制规则代码。
 
 ## 放在哪里、怎样启用
 
@@ -31,7 +31,7 @@
 
 | 字段 | 要求 |
 |---|---|
-| `schema_version` | 固定为数字 `1` |
+| `schema_version` | 数字：`event` 为 `2`，其余四类为 `1` |
 | `kind` | 上表之一 |
 | `id` | 3—64位小写英文、数字、下划线，首位必须是字母；建议 `作者名_内容名`。不得与同类内置内容或其他包重复 |
 | `name` | 1—60字的日常名称；不是状态或行为判断条件 |
@@ -96,30 +96,67 @@
 
 ## 3. 事件
 
-事件有两种互斥结构。普通事件填写`intro`与`choices`；多阶段事件填写`intro/start_stage/stages`，可另填`cleanup_effects`。完整多阶段样例见`templates/event_multistage.json.disabled`；`.disabled`不会被加载。
+事件只有**一种结构**：定义填写`start_node`与`nodes`，数组顺序即作者顺序。完整可复制文件见[templates/event.json](templates/event.json)（单节点）与[templates/event_multistage.json.disabled](templates/event_multistage.json.disabled)（多节点；`.disabled`不会被加载）。本节只列字段与写法，不再复制第二份完整 JSON。
 
-普通事件有1—6个选项，每个必填`id/label/reward`，并且只填`recipe`或`effects`中的一个。顶层`allow_refuse`默认为`true`，此时自动增加支付至多10魔力离开的`refuse`选项；明确填`false`则进入后必须完成一个合法选项。不得重用`refuse`作为作者选项 id。无奖励离开或声明了`encounter`的战斗选项可以填写空`effects`；其他奖励不能使用空效果。
+| 定义字段 | 要求 |
+|---|---|
+| `schema_version` | 事件固定为数字`2`（其他四类仍为`1`） |
+| `start_node` | 起始节点`id`，必须引用`nodes`中的某一项 |
+| `nodes` | 1—12个节点的数组，顺序即作者顺序 |
+| `cleanup_effects` | 可选，最多8项；只接受`restore_held`，且每个`key`都必须在某个节点的选项里建立过。跨事件链上按`key`取并集，同一个`key`不得在链上重复 |
+| `kind`／`id`／`name`／`intro`／`pool` | 见共用字段；`intro`为事件开场正文 |
 
-普通选项可填写`detail`作为选择前说明、`report`作为提交后的事件正文，并可设置`hide_when_unavailable: true`：完整效果序列当前无法原子成立时，直接不生成该选项；未设置时仍显示具体不可用原因。普通与多阶段选项均可填写`availability: {"kind":"no_chastity_lock","reason":"……"}`；角色佩戴任一平板锁时，选项保持显示但不可选择，`reason`只在按钮悬浮／聚焦的二级说明窗中显示，正式提交前会再次复核。该条件不检查上锁状态，平板锁仍佩戴时便生效。以上开关与条件不能靠正文或事件 id 猜测资格。
+单节点定义（今天内容里的普通事件）的节点`id`必须是`choice`，并且不写`title`／`intro`。多节点定义的节点`id`不得使用运行时保留字`choice`／`reward`／`result`／`battle`／`loot`／`keys`，并且必须写`title`（最多60字）与`intro`。多节点定义的起始节点必须能离开：`allow_refuse`为真，或包含一个无条件、无效果、直达结果页的免费离开选项。单节点定义没有这条限制——交换类事件可以只提供必须完成的选项。
 
-选项及随机结果的`report`可另配`report_variants`，快感效果的`source`可另配`source_variants`。每项格式为`{"when":{"kind":"equipped_special_family","value":"已登记family"},"text":"条件正文"}`；进入事件／阶段时按当时仍在佩戴的特殊装备族选中第一项匹配正文，并冻结为普通`report/source`，存档、查看与提交都不会重选。该接口只替换文案，不修改效果、次数、奖励或资格，也不能按事件 id 或中文装备名判断。
+### 节点声明
 
-按钮已写清的动作、收益和代价不再重复到注语中。普通选项和确定结果的阶段选项可填`"detail": ""`明确省略注语；省略字段仍使用精简的效果／奖励预告。随机`outcomes`继续要求非空公开预告，保留概率、奖惩和必要的后备代价，不展示已冻结结果。离开选项通常无需注语，不写空位隐藏规则、读档随机机制或状态不变等说明；这些由实际资格和各自信息窗口承担。结果正文写发生了什么，公共收尾按钮使用“离开”。
+每个节点都必须写全下列声明，取值只有表中这些：
 
-删牌、换牌和解除所选拘束具的结果由`report`代入`{name}`写清，公共模板不再追加同义结果句。仍会补充随机取得的具体奖励、最终资源数值和动态档位等正文未涵盖的实际信息。
+| 字段 | 取值 | 含义 |
+|---|---|---|
+| `allow_refuse` | `true`／`false`，**无默认** | 为真时该节点自动追加支付至多10魔力离开的`refuse`选项；为假则进入后必须完成一个合法选项。不得重用`refuse`作为作者选项 id |
+| `unavailable` | `hide`／`disable` | 该节点选项无法执行时的默认处理。单节点现状值`disable`（保留选项并给具体原因），多节点现状值`hide`（不生成） |
+| `relic_gate` | `pool`／`claimed` | 遗物闸门的位置。单节点现状值`pool`（冻结前查未持有遗物池），多节点现状值`claimed`（冻结后查本事件是否已冻结到遗物） |
+| `random_freeze` | `generators`／`always` | 生成器的冻结时机。单节点现状值`generators`（只有含生成器才冻结），多节点现状值`always` |
+| `outcome_draw` | `option`／`selection` | 加权结果的抽取粒度；两种现状值都是`option`（选择器外抽一次，再把同一结果复制给每个所选实例） |
+| `frozen_form` | `in_place`／`staged` | 冻结选项的字段布局。单节点现状值`in_place`（作者对象就地更新），多节点现状值`staged`（固定字段序）。必须按形态填写；B2 起运行时按声明执行，现状由节点数决定 |
+| `empty_node` | `allow`／`fail` | 节点没有任何能够执行的选项时。单节点现状值`allow`（保持零候选），多节点现状值`fail`（返回具名原因） |
+| `choices` | 1—6个选项 | 选项字段见下 |
+| `title`／`intro` | 仅多节点 | 节点标题（最多60字）与节点开场正文 |
 
-`reward` 支持 `none` 无额外奖励、`common` 普通牌三选一、`uncommon` 罕见牌三选一、`rare` 稀有牌三选一、`relic` 随机未持有遗物、`keys` 钥匙赌局。显式 `effects` 不支持 `keys`。卡牌奖励名称与卡面稀有度完全一致，不再使用“入门牌”或“进阶牌”等来源分组称呼。
+### 选项字段
+
+每个选项必填`id`／`label`／`reward`：`id`是该节点内唯一的小写英文 id，`label`是按钮文案（最多80字），`reward`只接受`none`（无额外奖励）、`common`（普通牌三选一）、`uncommon`（罕见牌三选一）、`rare`（稀有牌三选一）、`relic`（随机未持有遗物）。其余字段可选：
+
+| 字段 | 取值与适用形态 |
+|---|---|
+| `recipe` | 见下表的三选一配方；与`effects`不能同时出现 |
+| `effects` | 最多12项效果，按顺序在同一事务内执行；允许空数组，带奖励的选项也可以用空效果 |
+| `outcomes` | 2—8个加权结果；单节点与多节点都可写 |
+| `next` | 指向后续节点、`result`，或跨事件跳转对象（见下）；单节点定义只能写`result`。多节点内只能向后，不能倒退或循环；带奖励的选项必须写`result`（领奖后结束事件） |
+| `when` | 按事件`counter`或`selector`可选数量显示分支；单节点与多节点都可写 |
+| `result_status` | `success`／`failure`／`neutral`，缺省`neutral` |
+| `report` | 提交后的事件正文；省略时使用`label` |
+| `report_variants`／`detail` | 条件正文／选择前说明；`"detail": ""`明确省略注语 |
+| `selector` | 在当前卡组或实际佩戴的拘束具上展开（见下） |
+| `availability` | 兼容拼写的状态条件；单节点与多节点都生效（见下）。与`conditions`不能同时出现 |
+| `conditions` | 规范拼写的状态条件数组，1—8条；每条自带`mode`（见下）。与`availability`不能同时出现 |
+| `unavailable` | `hide`／`disable`；该选项**未被显式模式约束**的条目的默认模式。与兼容拼写 hide_when_unavailable 不能同时出现 |
+| `hide_when_unavailable` | 布尔值；完整效果序列当前无法原子成立时不生成该选项。兼容拼写，与`conditions`／`unavailable`的规范写法等价 |
+| `encounter`／`item_rewards` | 战斗／道具奖励选项（见下） |
+| `show_pressure_sources` | 布尔值；按效果顺序把已冻结的`pressure.source`作为结果正文显示 |
+
+`recipe`与`effects`至少要有一个，或者只写`outcomes`；`recipe`与`effects`不能同时出现。配方若在当前状态下没有完整合法方案，该选项不会出现。显式效果选项会保留，但当前不能完成时显示具体原因。奖励池为空时，随机遗物选项不出现。
 
 | `recipe` | 已实现行为 |
 |---|---|
 | `free_basic` | 给空闲部位安装初级普通装备 |
 | `tighten_or_medium` | 优先加固现有目标，否则安装中级普通装备 |
 | `locked_assembly` | 安装合法的现有复合装备并锁住指定组件 |
-| `wager` | 安装赌局装备并进入三选一钥匙流程；必须搭配 `reward: "keys"` |
 
-配方若在当前状态下没有完整合法方案，该选项不会出现。显式效果选项会保留，但当前不能完成时显示具体原因。奖励池为空时，随机遗物／钥匙选项不出现。
+早期设计记录里的`wager`配方与`reward: "keys"`**当前校验不接受**，不要写进内容包。
 
-`effects` 最多8个效果，按顺序执行；全部在同一事务内，要么全部完成，要么全部撤回。支持：
+`effects`支持：
 
 | `op` | 其他必填字段 |
 |---|---|
@@ -140,38 +177,54 @@
 | `ease_restraint` | `target: "$selected"`；解开所选拘束具的锁并松一档，一档时解除 |
 | `counter` | `key`、非零整数`amount`；只记录本次事件内的计数，不直接改角色资源 |
 
-普通事件选项可另填通用`encounter`对象，把本房事件临时切换为一场正式战斗。必填字段为：`id`引用已登记遭遇，`requires_defeat`决定能否以装备空间耗尽结束，`victory_effects`填写1—8个胜利后效果，`victory_report`填写胜利正文，`result_status`填写`success/failure/neutral`。这种选项的普通`reward`必须为`none`；战斗胜利后直接回到事件结果页，不生成普通战后卡牌、道具、遗物奖励，也不进入整备。选择时及胜利时都会复核效果，不能用事件ID专用逻辑补发奖励。
+多节点节点还可使用生成器效果，它们在进入事件或节点时冻结为普通具体效果，查看、存档与提交都不重抽：
 
-普通事件选项还可声明`item_rewards`，包含1—6个`{id,pool}`分组；每个分组从所列现有道具ID中冻结一件。选择后进入共用战利品界面，每件单独领取或放弃；领取时若随身容量已满，该行直接显示具体原因并禁止领取。继续后直接完成事件，不进入战后整备或整理道具。该字段要求`reward:none`，不能与`encounter`或`selector`叠加。
-
-多阶段事件包含2—12个按数组顺序前进的阶段。每个阶段填写唯一`id/title/intro/allow_refuse/choices`；`start_stage`引用其中一个阶段。起始阶段必须允许默认拒绝，或提供一个无条件、无效果、直接进入结果页的免费离开选项。选项可使用上述普通效果或配方，并用`next`指向后续阶段或`result`。流程不能倒退或循环；当前带卡牌三选一／遗物奖励的选项必须直接结束事件。
-
-多阶段选项还支持以下通用能力：
-
-| 字段／效果 | 用途 |
+| `op` | 用途 |
 |---|---|
-| `outcomes` | 2—8个加权结果；每项填写`weight/effects`，可覆盖`next/reward/report/result_status`。选项必须另写不泄露已抽结果的`detail` |
-| `result_status` | 普通／多阶段选项和每个加权结果可声明`success/failure/neutral`，结果覆盖选项默认值；缺省为`neutral`。随结果冻结，仅提交后显示醒目成功／失败横条；领取、离开等非输赢结果用`neutral`显示“已完成”。不能让界面从正文、效果或奖励推断输赢 |
-| `show_pressure_sources` | 可选布尔值；为真时，按效果顺序把本次已冻结的`pressure.source`作为动作正文显示在结果页，再接作者结果文案和数值。至少需要一个带`source`的快感效果 |
-| `report_variants/source_variants` | 仅替换结果正文或快感来源正文；当前条件`equipped_special_family`读取真实佩戴的特殊装备族，冻结后不携带条件对象进入运行时结果 |
-| `install_random` | `templates/count/grade/tier/locked`；普通或多阶段事件均可使用，进入事件／阶段时按现有装备工厂依次冻结1—4个不同的合法安装结果；可选`allow_links:false`将本次生成严格限定为普通单件；由人物亲手佩戴时默认使用`wear_style:"assisted"`，附魔拘束具自行缠上时明确填写`wear_style:"animated"` |
-| `tighten_random` | `count/to_tier`，可用`templates`过滤；依次选取1—4个尚未达到目标档位的真实拘束具 |
-| `hold_special` | `key/slots`；暂时保管与指定特殊部位相交、且没有连接的现有性玩具 |
-| `restore_held` | `key`；把对应暂存实例原样装回，只允许出现在`cleanup_effects` |
-| `selector` | 普通／多阶段选项均可在当前卡组或实际佩戴的拘束具上展开；正文中的`{name}/{slot}/{type}`和效果中的`$selected`会冻结为所选实例。可选`count:1—4`指定同时选择数量；拘束具可用`include_special:false`排除性玩具，卡牌可用`exclude_curses:true`排除诅咒 |
-| `when` | 按事件`counter`或`selector`当前可选数量的`equals/minimum/maximum`显示分支；二者必须且只能填写一个。可用`{"selector":{"kind":"restraint"},"equals":0}`在无可选拘束具时提供后备选项，不读取中文正文 |
+| `install_random` | `templates`／`count`／`grade`／`tier`／`locked`；依次冻结1—4个不同的合法安装结果。可选`allow_links: false`把本次生成严格限制为普通单件；由人物亲手佩戴时默认`wear_style`为`assisted`，附魔拘束具自行缠上时明确写`animated` |
+| `tighten_random` | `count`／`to_tier`，可用`templates`过滤；依次选取1—4个尚未达到目标档位的真实拘束具 |
 | `special_install_random` | 从`types`列出的性玩具中冻结一个当前合法实例；可选`fallback`。不写后备效果且没有合法空位时，该选项不生成 |
-| `random_amount` | 作者层随机数值生成器：填写`effect/minimum/maximum`，目前可包装`mana_loss/mana_gain/flask_mana_gain/pressure`；进入事件或阶段时冻结成一个普通定值效果，整数范围0—100且包含上下限。仅包装`pressure`时可附`source` |
+| `random_amount` | `effect`／`minimum`／`maximum`，目前可包装`mana_loss`／`mana_gain`／`flask_mana_gain`／`pressure`；冻结成一个普通定值效果，整数范围0—100且包含上下限。仅包装`pressure`时可附`source` |
 
-每次进入一个阶段，全部加权结果、随机数值、随机安装位置和随机收紧目标都会沿独立`event`随机域冻结成普通具体效果。查看、打开地图、存档与读档均不重抽；正式提交仍按候选版本原子复核。某个选项无法完整成立时只隐藏该选项；若下一阶段会没有任何合法选项，上一阶段也不能提交。
+`hold_special`（`key`／`slots`）暂存与指定特殊部位相交、且没有连接的现有性玩具；`restore_held`（`key`）把对应暂存实例原样装回，只允许出现在定义级`cleanup_effects`。同一`key`只能建立一次，并且必须在`cleanup_effects`里恰好归还一次。
+
+`selector`既可写在选项上，也可用于`when`的条件来源。选项级选择器在当前卡组或实际佩戴的拘束具上展开；正文中的`{name}`／`{slot}`／`{type}`和效果中的`$selected`会冻结为所选实例。可选`count: 1—4`指定同时选择数量；拘束具可用`include_special: false`排除性玩具，卡牌可用`exclude_curses: true`排除诅咒。
+
+状态条件写两类拼写，**只能选一种**：规范拼写`conditions`是1—8条数组，每条为`{"kind": "种类id", "mode": "optional"／"hidden", "reason": "……", …该种类的必填字段}`；兼容拼写`availability`是单个条件对象（`{"kind": "no_chastity_lock", "reason": "……"}`／`{"kind": "has_relic", "type": "已登记遗物id", "reason": "……"}`），与`hide_when_unavailable: true`配套使用。两种拼写同时出现在同一选项会被拒收；新内容优先用`conditions`。
+
+条件种类只能取现有两种：`no_chastity_lock`（佩戴任一平板锁时命中，不检查上锁状态）与`has_relic`（尚未持有该`type`遗物时命中）。新增种类需要代码侧扩展声明，内容包不得自造`kind`。
+
+`mode`决定命中后怎么处理，两种模式可混用并叠加：
+- `optional`＝**显示但禁用**：按钮保留，悬浮／聚焦时在二级说明窗显示该条`reason`，正式提交前再次复核；
+- `hidden`＝**不生成**：选项不出现在`room_event.options`，也不产生候选。
+
+模式解析优先级由高到低：条目自带的`mode` ＞ 选项`unavailable`（`"hide"`→`hidden`／`"disable"`→`optional`）＞ 选项`hide_when_unavailable: true`（→`hidden`）＞ 种类默认（状态条件为`optional`）。兼容拼写`availability`按这条链解析，因此它既有"显示但禁用"也有"不生成"两种用法。
+
+**叠加求值（同一选项的全部条目按 AND 判断）**：所有条目都满足才通过；**任一`hidden`条目命中即隐藏，优先级高于`optional`**；只有`optional`命中时选项保留为禁用，并把**全部**命中条目都列进判定结果。`reason`的拼接规则：单条命中＝该条原文；多条`optional`命中＝**按声明顺序**用换行连接——**声明顺序决定`reason`的拼接顺序**；未命中的条目不出现在结果里。
+
+选项及随机结果的`report`可另配`report_variants`，快感效果的`source`可另配`source_variants`。每项格式为`{"when": {"kind": "equipped_special_family", "value": "已登记family"}, "text": "条件正文"}`；进入事件／节点时按当时仍在佩戴的特殊装备族选中第一项匹配正文，并冻结为普通`report`／`source`，存档、查看与提交都不会重选。该接口只替换文案，不修改效果、次数、奖励或资格，也不能按事件 id 或中文装备名判断。
+
+选项可声明通用`encounter`对象，把本房事件临时切换为一场正式战斗。必填字段为：`id`引用已登记遭遇，`requires_defeat`决定能否以装备空间耗尽结束，`victory_effects`填写1—8个胜利后效果，`victory_report`填写胜利正文，`result_status`填写`success`／`failure`／`neutral`。这种选项的`reward`必须为`none`；战斗胜利后直接回到事件结果页，不生成普通战后卡牌、道具、遗物奖励，也不进入整备。选择时及胜利时都会复核效果，不能用事件ID专用逻辑补发奖励。
+
+选项还可声明`item_rewards`，包含1—6个`{id, pool}`分组；每个分组从所列现有道具ID中冻结一件。选择后进入共用战利品界面，每件单独领取或放弃；领取时若随身容量已满，该行直接显示具体原因并禁止领取。继续后直接完成事件，不进入战后整备或整理道具。该字段要求`reward: "none"`，不能与`encounter`或`selector`叠加。
+
+按钮已写清的动作、收益和代价不再重复到注语中。确定结果的选项可填`"detail": ""`明确省略注语；省略字段仍使用精简的效果／奖励预告。随机`outcomes`继续要求非空公开预告，保留概率、奖惩和必要的后备代价，不展示已冻结结果。离开选项通常无需注语，不写空位隐藏规则、读档随机机制或状态不变等说明；这些由实际资格和各自信息窗口承担。结果正文写发生了什么，公共收尾按钮使用“离开”。
+
+删牌、换牌和解除所选拘束具的结果由`report`代入`{name}`写清，公共模板不再追加同义结果句。仍会补充随机取得的具体奖励、最终资源数值和动态档位等正文未涵盖的实际信息。
+
+多节点定义按`nodes`顺序推进：进入一个节点时冻结该节点全部选项，提交后按`next`前进或结束事件，最后执行`cleanup_effects`。每个加权结果、随机数值、随机安装位置和随机收紧目标都沿独立`event`随机域冻结成普通具体效果；查看、打开地图、存档与读档均不重抽，正式提交仍按候选版本原子复核。某个选项无法完整成立时只隐藏该选项；若下一节点会没有任何合法选项，上一节点的该选项在候选阶段就不可用。每个结果页只属于本次提交的选择，前一次结果留在日志里，不会在下一页重复播放。
+
+`when`只能读取本事件由`counter`写入的非负整数，或读取现有`card`／`restraint`选择器的可选数量；它不能按事件名、正文或任意状态执行脚本。未知操作名整包拒绝；不要为某个故事创建专用`op`。
+
+跨事件跳转把`next`写成**对象形态**`{"event": "已登记事件id", "node": "该事件的节点id"}`，提交后同一个`room_event`实例改写为目标事件的`id`与`stage`（不新建实例，也不经过地图），形成事件链。链语义（现行能力，可用，但当前 12 份迁移内容都没有使用）：计数`values`与暂存`held`在整条链上继续累加和共享，暂存`key`必须整条链唯一——跨定义重复会让整包拒绝（`cleanup_effects`也不能引用别的定义建立的`key`）；`cleanup_effects`取整条链的并集并按`key`去重，离开时逐条各执行一次；`chain`键只在真的发生跨事件跳转时写入，记录已经走过的事件id（抵达时不含该键，也没有`chain`键），链上经过的目标事件都会加入`event_seen`；环被拒绝——目标事件已在本次实例的`chain`里时，该选项保留但不可用，原因文案是“这段事件已经走过，不能再回头。”；事件携带的遗物按**目标事件的定义**重算，目标没有遗物奖励选项或遗物池为空时置空，不会发出来源事件的遗物。跳转目标必须已登记，事件也不能引用自身；跳转不改变普通事件的候选、随机消耗与存档形状。
 
 普通单件拘束具的事件结果按`wear_style`读取`data/equipment.gd`中的人物协助／活化拘束具两套正文，并按真实安装部位代入具体装备名。不得把带“她”的人物协助正文用于床具、陷阱或附魔拘束具自行施加的场景；新增可安装部位时必须同时补齐两套正文。作者正文只负责事件人物和场景，不重复拼接“装在某部位”的通用句。复合、链接与性玩具继续使用各自结构文案。
 
-封闭演出中若只是为了描写接触过程而暂时取下、结束后立即装回原有性玩具，且中间不开放玩家行动、也不改变占位或判定，只在正文中写出准确装备名，不修改装备状态。只有暂时空出的部位会真实影响后续安装或其他规则时，才使用`hold_special/restore_held`。
+封闭演出中若只是为了描写接触过程而暂时取下、结束后立即装回原有性玩具，且中间不开放玩家行动、也不改变占位或判定，只在正文中写出准确装备名，不修改装备状态。只有暂时空出的部位会真实影响后续安装或其他规则时，才使用`hold_special`／`restore_held`。
 
 可引用同批其他文件，文件名不决定引用先后。基础卡牌 id 可查 `data/balance.gd:CARD_NAMES`；现有道具为 `shard`、`saw`、`picks`、`return_seal`。引用成功不豁免原物品的使用条件。
 
-当前仍未开放事件出现权重、仅出现一次、任意脚本条件、任意状态写入或自定义离开费用；普通事件只能在默认付费离开与完全不提供离开之间选择。`when`只能读取本事件由`counter`写入的非负整数，或读取现有`card/restraint`选择器的可选数量；它不能按事件名、正文或任意状态执行脚本。未知操作名整包拒绝；不要为某个故事创建专用`op`。
+当前仍未开放事件出现权重、仅出现一次、任意脚本条件、任意状态写入或自定义离开费用；单节点定义是否提供付费离开只由节点`allow_refuse`决定，多节点定义的起始节点必须能够离开。未知操作名整包拒绝；不要为某个故事创建专用`op`。
 
 ## 4. 遗物
 

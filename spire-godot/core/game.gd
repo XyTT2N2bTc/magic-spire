@@ -2,16 +2,149 @@ extends RefCounted
 var _resource_feedback
 var _card_feedback: Array=[]
 var _equipment_read: Dictionary={}
+# Build-time self check records (§6): one entry per voided read batch, on this instance only.
+var _equipment_index_issues: Array=[]
+# 文案路由失败记录（docs/ondemand-copy.md §11.2）：未知 kind／无效 builder／结果类型不符时追加一条。
+# 只读诊断：不进 state、不进 View、不进存档、不渲染、不做成计数器。
+var copy_router_failures: Array=[]
 
 # A read batch owns its indexes; commands and subsequent views never reuse them.
 # Speculative installation replaces state, so it must use live queries instead.
+# Entry materializes the piece set and every edge derived from it once; a failed self check
+# voids the batch instead of rebuilding it, and every later query in it answers from the
+# live path.
 func _begin_equipment_read() -> Dictionary:
  var previous=_equipment_read
- if not _equipment_read_active(): _equipment_read={"state":state,"slots":{},"stacks":{},"escapes":{},"casts":[]}
+ if not _equipment_read_active() and (previous.is_empty() or not is_same(previous.get("state",null),state)):
+  _equipment_read={"state":state,"slots":{},"stacks":{},"escapes":{},"casts":[]}
+  _build_equipment_read_index()
  return previous
 
 func _equipment_read_active() -> bool:
- return not _equipment_read.is_empty() and is_same(_equipment_read.state,state)
+ return not _equipment_read.is_empty() and not _equipment_read.get("invalid",false) and is_same(_equipment_read.state,state)
+
+# Edges follow the verified build direction only: authoritative containers project forward into
+# piece order. An inconsistent graph is neither repaired nor partly trusted (§6).
+func _build_equipment_read_index() -> void:
+ var pieces=_materialize_physical_pieces()
+ var issue=_equipment_index_issue(pieces)
+ if not issue.is_empty():
+  _equipment_read.invalid=true
+  _equipment_index_issues.append(issue)
+  return
+ _equipment_read.pieces=pieces
+ _equipment_read.slots=_materialize_slot_edge(pieces)
+ _equipment_read.roots=_materialize_root_edge()
+ _equipment_read.links=_materialize_link_edge()
+ _equipment_read.anchors=_materialize_anchor_list()
+ _equipment_read.targets=_materialize_equipment_targets()
+ _equipment_read.connections=_materialize_connection_edge()
+ _equipment_read.actions=_materialize_action_targets()
+ _equipment_read.ids=_materialize_id_edge()
+ _equipment_read.capacity_points=_materialize_capacity_points(pieces)
+ _equipment_read.physical_points=_materialize_physical_points(pieces)
+
+# Slot to rope with the §1 durability filter. The list edges below keep the §1 concatenation
+# order; the connection edge is the projection the action list and targets_at share.
+func _materialize_link_edge() -> Dictionary:
+ var links={}
+ for link in state.links:
+  if link.durability<=0: continue
+  for slot in link.slots:
+   if not links.has(slot): links[slot]=[]
+   links[slot].append(link)
+ return links
+
+func _materialize_anchor_list() -> Array:
+ return _equipment_read.pieces.duplicate()+state.special_equipment.filter(Links.is_crotch_anchor)
+
+func _materialize_equipment_targets() -> Array:
+ return _equipment_read.pieces.duplicate()+state.links
+
+# The helper's own scan over state.equipment runs once per scope instead of once per list query.
+func _materialize_connection_edge() -> Array:
+ return Binding.connections(self)
+
+func _materialize_action_targets() -> Array:
+ return _equipment_read.targets.duplicate()+state.special_equipment+_equipment_read.connections.duplicate()
+
+# Root id to root, in root order, so every component lookup reads one projection of
+# state.composites instead of rescanning it; components stay reachable as root.components.
+func _materialize_root_edge() -> Dictionary:
+ var roots={}
+ for root in state.composites:
+  if not roots.has(root.id): roots[root.id]=root
+ return roots
+
+func _composite_roots() -> Array:
+ if _equipment_read_active(): return _equipment_read.roots.values()
+ return state.composites
+
+# Built from the assembled action target list, so a later batch never re-runs its scans.
+func _materialize_id_edge() -> Dictionary:
+ var ids={}
+ for target in action_targets():
+  if not ids.has(target.id): ids[target.id]=target
+ return ids
+
+# Both point edges project the whole piece set, so neither carries a durability filter of its own:
+# a caller that needs one iterates the durability-filtered slot edge (equipment_at) and uses the
+# point edge only as a membership test.
+func _materialize_capacity_points(pieces: Array) -> Dictionary:
+ return _materialize_point_edge(pieces,Equipment.capacity_points)
+
+func _materialize_physical_points(pieces: Array) -> Dictionary:
+ return _materialize_point_edge(pieces,Equipment.physical_points)
+
+func _materialize_point_edge(pieces: Array, points_of: Callable) -> Dictionary:
+ var points={}
+ for piece in pieces:
+  for point in points_of.call(piece):
+   if not points.has(point): points[point]=[]
+   points[point].append(piece)
+ return points
+
+func _capacity_point_count(point: String) -> int:
+ if _equipment_read_active(): return _equipment_read.capacity_points.get(point,[]).size()
+ return physical_pieces().filter(func(e):return point in Equipment.capacity_points(e)).size()
+
+func _piece_covers_point(point: String, e: Dictionary) -> bool:
+ if _equipment_read_active(): return _equipment_read.physical_points.get(point,[]).has(e)
+ return point in Equipment.physical_points(e)
+
+func _materialize_physical_pieces() -> Array:
+ var pieces=state.equipment.duplicate()
+ for root in state.composites: pieces.append_array(root.components)
+ for host in state.equipment:
+  if host.has("shoulders"): pieces.append_array(host.shoulders.pieces)
+ return pieces
+
+func _materialize_slot_edge(pieces: Array) -> Dictionary:
+ var slots={"shoulder":[]}
+ for slot in SpecialEquipment.slots(): slots[slot]=[]
+ for piece in pieces:
+  if piece.durability<=0: continue
+  for slot in Equipment.coverage(piece):
+   if not slots.has(slot): slots[slot]=[]
+   slots[slot].append(piece)
+ return slots
+
+func _equipment_index_issue(pieces: Array) -> Dictionary:
+ var by_id={}
+ for piece in pieces:
+  var id=piece.get("id","")
+  if by_id.has(id): return {"check":3,"edge":"pieces","id":id}
+  by_id[id]=piece
+ for root in state.composites:
+  for component in root.components:
+   if component.get("root_id","")!=root.id: return {"check":1,"edge":"components","id":component.get("id","")}
+   if not is_same(by_id.get(component.get("id",""),null),component): return {"check":1,"edge":"components","id":component.get("id","")}
+ for piece in pieces:
+  if not piece.has("shoulder_host"): continue
+  if not by_id.has(piece.shoulder_host): return {"check":2,"edge":"shoulders","id":piece.get("id","")}
+  var host=by_id[piece.shoulder_host]
+  if not host.get("shoulders",{}).get("pieces",[]).any(func(entry):return is_same(entry,piece)): return {"check":2,"edge":"shoulders","id":piece.get("id","")}
+ return {}
 
 func _card_motion(kind: String, card: Dictionary={}) -> void:
  if _resource_feedback!=null:
@@ -52,6 +185,7 @@ const EquipmentOffers=preload("res://core/equipment_offers.gd")
 const Services=preload("res://core/room_services.gd")
 const Events=preload("res://core/room_events.gd")
 const Cards=preload("res://core/card_effects.gd")
+const CopyRouter=preload("res://core/copy_router.gd")
 const Character=preload("res://core/witch_character.gd")
 const RelicEffects=preload("res://core/relic_effects.gd")
 const Relics=preload("res://data/relics.gd")
@@ -59,6 +193,10 @@ const Prison = preload("res://core/prison.gd")
 const Snapshot=preload("res://core/snapshot.gd")
 const ActionCopy=preload("res://core/action_copy.gd")
 var _copy_context: Dictionary={}
+# docs/transition-pipeline.md §2.2：迁移日志（进程内、只读诊断）。元素＝已声明的 Transition kind。
+# 不进 state、不进存档、不进 View；只为后续（固定点存档）留出挂点，本片不消费。
+var _transition_log: Array[String]=[]
+var _transition_written: Dictionary={}
 var _energy_pressure_pending=false
 var _card_energy_pressure_pending=0.0
 var _capture_energy_pending={}
@@ -106,7 +244,8 @@ func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String
  if practice: _start_practice()
  elif room_data(state.room).kind=="entry":
   _gain_tool("return_seal")
-  state.phase="map";state.energy=0;state.wall="normal";state.wall_distance=1;state.draw=state.deck.duplicate(true)
+  _apply_transition("setup_init",{"phase":"map"})
+  state.energy=0;state.wall="normal";state.wall_distance=1;state.draw=state.deck.duplicate(true)
   Departure.start(self,cursed_plate_start and state.chastity_locks_enabled)
  else: _start_battle()
  _scene_start=export_snapshot()
@@ -135,13 +274,13 @@ func _restart_tower(from_exit: bool=false) -> void:
  if entry.kind=="entry": entry.id="tower_bottom"
  else: state.rooms.append({"id":"tower_bottom","name":"塔底入口","kind":"entry","wall":"normal","next":["entrance"],"floor":entry.floor-1,"lane":0.5})
  state.tower_start_pending=not from_exit
- state.room="tower_bottom"; state.wall="normal"; state.wall_distance=1
+ _apply_transition("tower_restart",{"room":"tower_bottom"}); state.wall="normal"; state.wall_distance=1
  state.completed_rooms=[]; state.traversed_edges=[]; state.journey={}
  state.travel_turns=0;state.room_event={};state.prison={};state.capture={}
  state.prepare_left=0;state.rest_left=0;state.rest_cards=[];state.hook_uses=0
  state.reward_options=[];state.battle_item_drop=""
  state.battle_relic_drop="";state.boss_relic_options=[];state.battle_flask_drop=0;state.reward_claimed={}
- state.enemies=[]; state.phase="map"; state.energy=0
+ state.enemies=[]; _apply_transition("tower_restart",{"phase":"map"}); state.energy=0
  if not from_exit:
   _emit("event","已离开监狱。请选择新塔路第10—11层的任一非休息、非宝箱区域作为起点；保留当前装备、卡组、遗物与资源。新地图的普通战斗全部使用强怪池。",{"new_tower":{"previous_seed":previous_seed,"seed":next_seed}})
 
@@ -194,7 +333,7 @@ func _gain_tool(type: String) -> void:
  state.next_item+=1
 
 func _start_practice() -> void:
- state.room="rest"
+ _apply_transition("practice_init",{"room":"rest"})
  state.draw=state.deck.duplicate(true)
  _shuffle(state.draw)
  var spec=Tower.practice_spec(state.practice_kind)
@@ -219,7 +358,7 @@ func _start_practice() -> void:
   s.erase("equipment_index")
   state.pressure_sources.append(s)
  if spec.get("start","")=="shop":
-  state.room=state.rooms.filter(func(room):return room.kind=="shop")[0].id
+  _apply_transition("practice_init",{"room":state.rooms.filter(func(room):return room.kind=="shop")[0].id})
   Services.start(self)
  elif spec.get("start","") in ["prison_release","prison_release_violation","prison_gate_exit"]:
   Prison.exit_practice(self,spec.start)
@@ -228,7 +367,7 @@ func _start_practice() -> void:
  elif spec.get("start","")=="event":
   Events.start(self,spec.event)
  elif spec.has("encounter"):
-  state.room="entrance"
+  _apply_transition("practice_init",{"room":"entrance"})
   state.room_encounters.entrance=spec.encounter
   _start_battle()
  else: _start_rest()
@@ -333,7 +472,7 @@ func _start_battle() -> void:
  state.wall_distance=_initial_wall_distance(true)
  RelicEffects.begin_combat(self)
  state.encounter += 1
- state.phase = "battle"
+ _apply_transition("battle_start",{"phase":"battle"})
  state.weakness_turns=0
  state.round = 0
  state.kick_last = -10
@@ -484,7 +623,7 @@ func preparation_turns() -> int:
  return B.PREPARATION_TURNS+int(Relics.value(state.relics,"preparation_turns"))
 
 func _start_preparation() -> void:
- state.phase = "prepare"
+ _apply_transition("prepare_start",{"phase":"prepare"})
  if not state.combat.active: RelicEffects.begin_combat(self)
  # A fresh player turn, using the same session and live card piles.
  _discard_end()
@@ -527,7 +666,7 @@ func _prepare_round() -> void:
  _emit("event","整备还有%d回合。" % state.prepare_left)
 
 func _start_rest() -> void:
- state.phase="rest_choice"
+ _apply_transition("rest_start",{"phase":"rest_choice"})
  state.wall=room_data(state.room).wall
  state.wall_distance=0
  state.enemies=[]
@@ -537,7 +676,7 @@ func _start_rest() -> void:
  if state.practice: _begin_rest()
 
 func _begin_rest() -> void:
- state.phase="rest"
+ _apply_transition("rest_start",{"phase":"rest"})
  RelicEffects.begin_combat(self)
  _rest_round()
 
@@ -546,14 +685,94 @@ func _rest_round() -> void:
  _begin_player_turn()
  _emit("event","休息还有%d回合；悬挂挂钩剩余%d次。" % [state.rest_left,state.hook_uses])
 
-func _finish_battle(saturated: bool=false) -> void:
+# docs/transition-pipeline.md §3：迁移声明表。每个 kind 声明它允许进入的阶段（空＝不写阶段）、
+# 是否允许改当前房间（写值由调用点的 args.room 提供）、是否在已提交事务内（tx 列本片只登记事实，
+# 供存档切片消费）、是否是一个进度固定点（checkpoint 列，缺省＝不是；见 docs/save-fixed-points.md §2），
+# 以及谁负责触发它。
+const TRANSITIONS={
+ "setup_init":{"phases":["map"],"room":false,"tx":false,"owners":["_init"]},
+ "tower_restart":{"phases":["map"],"room":true,"tx":true,"owners":["_restart_tower"]},
+ "practice_init":{"phases":[],"room":true,"tx":false,"owners":["_start_practice"]},
+ "prison_cell_init":{"phases":[],"room":true,"tx":false,"owners":["Prison.start_practice"]},
+ "prison_gate_init":{"phases":[],"room":true,"tx":false,"owners":["Prison.exit_practice"]},
+ "battle_start":{"phases":["battle"],"room":false,"tx":true,"owners":["_start_battle"]},
+ "battle_end_victory":{"phases":["reward","event"],"room":false,"tx":true,"checkpoint":"battle_end","owners":["_finish_battle"]},
+ "battle_end_saturated":{"phases":["reward","event"],"room":false,"tx":true,"checkpoint":"battle_end","owners":["_finish_battle"]},
+ "battle_end_captured":{"phases":["captured"],"room":true,"tx":true,"checkpoint":"battle_end","owners":["Guard.capture"]},
+ "prepare_start":{"phases":["prepare"],"room":false,"tx":true,"owners":["_start_preparation"]},
+ "prepare_end":{"phases":["pack","map","cleared"],"room":false,"tx":true,"checkpoint":"prepare_end","owners":["_finish_preparation"]},
+ "rest_start":{"phases":["rest_choice","rest"],"room":false,"tx":true,"owners":["_start_rest","_begin_rest"]},
+ "room_enter":{"phases":["map","cleared"],"room":true,"tx":true,"owners":["_arrive_room"]},
+ "floor_enter":{"phases":[],"room":true,"tx":true,"checkpoint":"floor","owners":["_depart","_advance_travel"]},
+ "travel_start":{"phases":["travel"],"room":false,"tx":true,"owners":["_depart"]},
+ "prison_high_security":{"phases":["prison_end"],"room":false,"tx":true,"owners":["Prison.enter"]},
+ "prison_cell_enter":{"phases":["prison"],"room":false,"tx":true,"owners":["Prison.begin_turn"]},
+ "inspection_start":{"phases":["inspection"],"room":false,"tx":true,"owners":["Prison.end_turn"]},
+ "prison_exit_battle_start":{"phases":["battle"],"room":false,"tx":true,"owners":["Prison.execute"]},
+ "prison_escape":{"phases":["map"],"room":true,"tx":true,"owners":["Prison.escape"]},
+ "event_enter":{"phases":["event"],"room":false,"tx":true,"owners":["Events.start"]},
+ "event_leave_empty":{"phases":["map"],"room":false,"tx":false,"owners":["Events.start"]},
+ "event_item_rewards":{"phases":["reward"],"room":false,"tx":true,"owners":["Events.begin_item_rewards"]},
+ "shop_enter":{"phases":["shop","treasure"],"room":false,"tx":true,"owners":["Services.start"]},
+ "departure_start":{"phases":["departure"],"room":false,"tx":false,"owners":["Departure.start"]},
+ "departure_end":{"phases":["map"],"room":false,"tx":true,"owners":["Departure.execute"]},
+ "demo_end":{"phases":[],"room":false,"tx":true,"owners":["_execute"]},
+}
+
+# 全仓唯一写 state.phase／state.room 的地方（docs/transition-pipeline.md §2.2）。
+# 立即写入、单一写入者、不做事务末统一执行：位置与顺序由各调用点保持原样。
+# 返回 ""＝成功，否则 issue（与既有失败字符串风格一致）。
+func _apply_transition(kind: String, args: Dictionary = {}) -> String:
+ var spec=TRANSITIONS.get(kind,{})
+ if spec.is_empty():
+  push_error("未声明的状态迁移："+kind)
+  return "未声明的状态迁移："+kind
+ var wrote=[]
+ var phases=spec.get("phases",[])
+ # 阶段只在调用点显式给出时写入，且必须落在声明表允许的集合内；只带 room 的续写调用不写阶段。
+ if args.has("phase"):
+  var target=String(args.phase)
+  if not phases.has(target):
+   push_error("迁移"+kind+"不接受阶段："+target)
+   return "迁移"+kind+"不接受阶段："+target
+  state.phase=target
+  wrote.append("phase")
+ if bool(spec.get("room",false)) and args.has("room"):
+  state.room=String(args.room)
+  wrote.append("room")
+ # 迁移日志：一次迁移记一条。同一 kind 的 phase／room 由调用点分两次写入（写入位置不变），
+ # 第二条若只写未写过的字段则不再记；重复写同一字段仍是新的一次迁移（例如牢房每回合）。
+ var continuation=_transition_written.get("kind","")==kind and not wrote.is_empty() and wrote.all(func(field):return field not in _transition_written.get("fields",[]))
+ if not continuation: _transition_log.append(kind)
+ _transition_written={"kind":kind,"fields":wrote}
+ return ""
+
+# 进入某房间时使用的 kind（docs/transition-pipeline.md §3）：目标层高于当前层＝floor_enter，
+# 否则＝room_enter。只用于真实移动与换塔的落点；构造期写入由各自的构造 kind 承担。
+func _room_transition_kind(target: String) -> String:
+ return "floor_enter" if int(room_data(target).get("floor",0))>int(room_data(state.room).get("floor",0)) else "room_enter"
+
+# docs/save-fixed-points.md §2／§5.1：进度固定点只由本次提交实际产生的迁移条目命名——不看上下文差异。
+# 同一次提交同时命中多类时按 battle_end ＞ prepare_end ＞ floor 取一个；没有命中返回 ""（UI 只在非空时写盘）。
+const CHECKPOINT_PRIORITY=["battle_end","prepare_end","floor"]
+
+func _checkpoint_kind(log_start: int) -> String:
+ for point in CHECKPOINT_PRIORITY:
+  for index in range(maxi(log_start,0),_transition_log.size()):
+   if String(TRANSITIONS.get(_transition_log[index],{}).get("checkpoint",""))==point: return point
+ return ""
+
+func _finish_battle(end_kind: String="victory") -> void:
  if state.phase != "battle":
   return
+ var saturated=end_kind=="saturated"
+ # 事件战与普通战共用同一个已声明 kind，只是目标阶段不同（§3 表：事件战＝event）。
+ var end_transition="battle_end_saturated" if saturated else "battle_end_victory"
  var event_battle=Events.active_battle(self)
  CaptureBind.clear_bind(self)
  Pressure.cleanup(self)
  if event_battle:
-  state.phase="event"
+  _apply_transition(end_transition,{"phase":"event"})
   state.reward_count+=1
   var event_issue=Events.finish_battle(self,saturated)
   if event_issue!="": state.room_event.battle_issue=event_issue
@@ -561,7 +780,7 @@ func _finish_battle(saturated: bool=false) -> void:
  ItemRewards.roll(self)
  RelicEffects.boss_key(self,saturated)
  RelicRewards.battle_drop(self)
- state.phase = "reward"
+ _apply_transition(end_transition,{"phase":"reward"})
  state.reward_claimed={}
  state.battle_flask_drop=B.BOSS_FLASK_MANA if not saturated and _all_gone() and room_data(state.room).get("boss",false) and not Prison.is_exit_battle(self) and state.enemies.any(func(enemy):return enemy.get("defeated",false)) else 0
  var reward_source="boss" if room_data(state.room).get("boss",false) else ("elite" if Enemies.ENCOUNTERS.get(state.room_encounters.get(state.room,""),{}).get("rank","")=="elite" else "normal")
@@ -572,24 +791,38 @@ func _finish_battle(saturated: bool=false) -> void:
  var ending="监狱出口的警卫已全部被击败。收取战利品后，选择新塔路第10—11层的非休息、非宝箱区域开始。" if Prison.is_exit_battle(self) else (("敌人已无法继续添加或加固装备，遭遇结束。" if saturated else ("六缚已被击败，整备后可以前往出口。" if room_data(state.room).get("boss",false) else "遭遇结束。"))+"收取战利品后，点击继续进行整备。")
  _emit("event",ending,{"battle_end":"saturated" if saturated else "cleared"})
 
-func _finish_if_saturated() -> bool:
- if state.phase!="battle" or not state.card_chain.is_empty(): return false
- if _all_gone():
-  _finish_battle()
-  return true
- if room_data(state.room).get("requires_defeat",false) or Events.battle_requires_defeat(self): return false
+# docs/transition-pipeline.md §2.2: the single battle-end judgement every call site shares
+# (the 13 reference points keep their own position in the control flow and only ask this).
+# "" = the battle continues, "victory" = every enemy is gone, "captured" = a living enemy
+# announces arrest through its next normal intent, "saturated" = no living enemy can add or
+# reinforce equipment any more.
+func _battle_end_reason() -> String:
+ if state.phase!="battle": return ""
+ if _all_gone(): return "victory"
+ if room_data(state.room).get("requires_defeat",false) or Events.battle_requires_defeat(self): return ""
  # Human/mechanical enemies announce arrest through the next normal intent;
  # exhausting equipment options is never a victory against these sources.
- if state.enemies.any(func(enemy):return EnemyPlans.can_arrest(self,enemy)): return false
+ if state.enemies.any(func(enemy):return EnemyPlans.can_arrest(self,enemy)): return "captured"
  # Even a blocked departure attachment gets its normal action before leaving.
- if state.enemies.any(func(enemy):return EnemyPlans.lock_departure_pending(self,enemy)): return false
- if EnemyPlans.has_equipment_space(self): return false
+ if state.enemies.any(func(enemy):return EnemyPlans.lock_departure_pending(self,enemy)): return ""
+ if EnemyPlans.has_equipment_space(self): return ""
+ return "saturated"
+
+# The original saturation entry, now a thin wrapper over the single judgement and the single
+# executor; callers and their order are unchanged.
+func _finish_if_saturated() -> bool:
+ if state.phase!="battle" or not state.card_chain.is_empty(): return false
+ var end_kind=_battle_end_reason()
+ if end_kind=="victory":
+  _finish_battle("victory")
+  return true
+ if end_kind!="saturated": return false
  for enemy in state.enemies:
   if enemy.gone: continue
   enemy.gone=true
   enemy.intent={}
   enemy.erase("turn_install_layers")
- _finish_battle(true)
+ _finish_battle("saturated")
  return true
 
 func _all_gone() -> bool:
@@ -605,13 +838,7 @@ func _enemy(id: String) -> Dictionary:
  return {}
 
 func _equipment(id: String) -> Dictionary:
- if _equipment_read_active():
-  if not _equipment_read.has("ids"):
-   var ids={}
-   for target in action_targets():
-    if not ids.has(target.id): ids[target.id]=target
-   _equipment_read.ids=ids
-  return _equipment_read.ids.get(id,{})
+ if _equipment_read_active(): return _equipment_read.ids.get(id,{})
  for e in action_targets():
   if e.id == id:
    return e
@@ -634,9 +861,8 @@ func _equipment_name(target: Dictionary) -> String:
 
 func equipment_at(slot: String) -> Array:
  if _equipment_read_active():
-  if not _equipment_read.slots.has(slot):
-   _equipment_read.slots[slot]=physical_pieces().filter(func(e):return slot in Equipment.coverage(e) and e.durability>0)
-  return _equipment_read.slots[slot].duplicate()
+  if _equipment_read.slots.has(slot): return _equipment_read.slots[slot].duplicate()
+  return []
  return physical_pieces().filter(func(e): return slot in Equipment.coverage(e) and e.durability>0)
 
 # One physical list powers targeting, contact, enemies and validation; roots carry no extra durability.
@@ -645,31 +871,35 @@ func physical_pieces() -> Array:
  var pieces=state.equipment.duplicate()
  for root in state.composites: pieces.append_array(root.components)
  pieces.append_array(Shoulders.pieces(self))
- if _equipment_read_active(): _equipment_read.pieces=pieces.duplicate()
  return pieces
 
 # Link eligibility is separate from ordinary coverage/capacity and special removal routes.
 func link_anchors() -> Array:
+ if _equipment_read_active(): return _equipment_read.anchors.duplicate()
  return physical_pieces()+state.special_equipment.filter(Links.is_crotch_anchor)
 
 func equipment_targets() -> Array:
+ if _equipment_read_active(): return _equipment_read.targets.duplicate()
  return physical_pieces()+state.links
 
 # Player removal queries include the independent family, enemy application does not.
 func action_targets() -> Array:
+ if _equipment_read_active(): return _equipment_read.actions.duplicate()
  return equipment_targets()+state.special_equipment+Binding.connections(self)
 
 func targets_at(slot: String) -> Array:
  if slot=="shoulder": return physical_pieces().filter(func(e):return Equipment.is_shoulder(e) and e.durability>0)
  if slot in SpecialEquipment.slots(): return state.special_equipment.filter(func(e):return SpecialEquipment.occupies(e,slot))+links_at(slot)
  var targets=equipment_at(slot)
- for root in state.composites:
+ for root in _composite_roots():
   if slot in Composites.definition(root).coverage and Composites.active(root):
    for e in root.components:
     if not Equipment.is_shoulder(e) and not targets.has(e): targets.append(e)
- return targets+links_at(slot)+Binding.connections(self).filter(func(e):return e.slot==slot)
+ var connections=_equipment_read.connections.duplicate() if _equipment_read_active() else Binding.connections(self)
+ return targets+links_at(slot)+connections.filter(func(e):return e.slot==slot)
 
 func _composite(id: String) -> Dictionary:
+ if _equipment_read_active(): return _equipment_read.roots.get(id,{})
  for root in state.composites:
   if root.id==id: return root
  return {}
@@ -703,6 +933,9 @@ func _assembly_reason(layout: Dictionary, attached_to: String="") -> String:
  return ""
 
 func _capacity_issue(pieces: Array) -> String:
+ # The input is not guaranteed to be the authoritative piece set (validation and the replacement
+ # tail pass their own arrays), so it always counts live; array values cannot declare authority,
+ # so the batch capacity edge is never used here.
  var counts={}
  for e in pieces:
   for point in Equipment.capacity_points(e): counts[point]=counts.get(point,0)+1
@@ -714,10 +947,18 @@ func _capacity_issue(pieces: Array) -> String:
 func capacity_used(slot: String) -> int:
  var amount=0
  for point in Equipment.points(slot):
-  amount=maxi(amount,physical_pieces().filter(func(e):return point in Equipment.capacity_points(e)).size())
+  amount=maxi(amount,_capacity_point_count(point))
  return amount
 
+# §3.1 item 10: the planning half reads through one scope; the write side stays in
+# _install_assembly, which runs after the scope is released.
 func _prepare_assembly(kind: String, variant: String, source: String, grade: int=2, tightness: int=2, overrides: Dictionary={}, straps: String="straight", attached_to: String="") -> Dictionary:
+ var previous=_begin_equipment_read()
+ var root=_plan_assembly(kind,variant,source,grade,tightness,overrides,straps,attached_to)
+ _equipment_read=previous
+ return root
+
+func _plan_assembly(kind: String, variant: String, source: String, grade: int=2, tightness: int=2, overrides: Dictionary={}, straps: String="straight", attached_to: String="") -> Dictionary:
  var layout=Composites.spec(kind,variant,straps)
  if layout.is_empty() or not Equipment.GRADES.has(grade) or grade<layout.minimum or tightness not in [1,2,3]: return {}
  if _assembly_reason(layout,attached_to)!="": return {}
@@ -870,6 +1111,7 @@ func _reinforce_equipment(target: Dictionary, to_tier: int=0) -> String:
  return "收紧到%d档" % tier(target.durability,target.maximum)
 
 func links_at(slot: String) -> Array:
+ if _equipment_read_active(): return _equipment_read.links.get(slot,[]).duplicate()
  return state.links.filter(func(link):return link.durability>0 and slot in link.slots)
 
 func _prepare_link(a: String, b: String, durability: float, source: String, grade: int=1, blocked_slip: Array=[], connection_slots: Array=[], connection_points: Array=[]) -> Dictionary:
@@ -907,11 +1149,15 @@ func _slip_block_reason(target: Dictionary) -> String:
    return link.name+"牵住了这件装备，须先解除链接或它连接的另一件装备。"
  return ""
 
+# §5: presence and side questions read the slot edge directly; the hand special case stays
+# side-based and never degrades into a plain non-empty test.
 func occupied(slot: String) -> bool:
  if slot in ["palm","fingers"]: return hand_blocked(slot,"left") and hand_blocked(slot,"right")
+ if _equipment_read_active(): return not _equipment_read.slots.get(slot,[]).is_empty()
  return not equipment_at(slot).is_empty()
 
 func hand_blocked(slot: String, side: String) -> bool:
+ if _equipment_read_active(): return _equipment_read.slots.get(slot,[]).any(func(e):return e.get("side","") in ["",side])
  return equipment_at(slot).any(func(e):return e.get("side","") in ["",side])
 
 func hands_can_hold() -> bool:
@@ -1017,7 +1263,7 @@ func _enemy_phase() -> void:
   CaptureBind.observe(self)
   _copy_context={}
   if _finish_if_saturated(): break
- if state.phase=="battle" and _all_gone(): _finish_battle()
+ if _battle_end_reason()=="victory": _finish_battle("victory")
 
 func _enemy_operation(e: Dictionary, intent: Dictionary) -> void:
  var previous=_copy_context
@@ -1198,7 +1444,7 @@ func _installation_points(slot: String, point: String="") -> Array:
  return [options[0]]
 
 func _point_count(point: String) -> int:
- return physical_pieces().filter(func(e):return point in Equipment.capacity_points(e)).size()
+ return _capacity_point_count(point)
 
 func _installation_reason(template: String, slot: String, grade: int, locked: bool=false, point: String="", layer: int=-1) -> String:
  return _prepare_installation(template,slot,grade,locked,point,layer).reason
@@ -1214,7 +1460,7 @@ func _prepare_installation(template: String, slot: String, grade: int, locked: b
  if reason!="": return {"reason":reason}
  var locations=_installation_points(slot,point)
  if locations.is_empty(): return {"reason":"该具体位置不属于所选身体部位。"}
- var overlaps=equipment_at(slot).filter(func(e):return Equipment.physical_points(e).any(func(p):return p in locations))
+ var overlaps=equipment_at(slot).filter(func(e):return locations.any(func(p):return _piece_covers_point(p,e)))
  var proposed=layer
  if proposed<0:
   proposed=0
@@ -1300,7 +1546,7 @@ func _outer_at(target: Dictionary, slot: String, point: String="") -> bool:
 func _outer_cover_at(target: Dictionary, slot: String, point: String="") -> Dictionary:
  if Equipment.is_shoulder(target): return {}
  for e in equipment_at(slot):
-  if point!="" and point not in Equipment.physical_points(e): continue
+  if point!="" and not _piece_covers_point(point,e): continue
   if target.get("side","")!="" and e.get("side","") not in ["",target.side]: continue
   if target.has("points") and not Equipment.overlaps(target,e): continue
   if e.get("root_id",e.id)!=target.get("root_id",target.id) and e.layer>target.layer: return e
@@ -1539,19 +1785,21 @@ func _mana_payment(payload: Dictionary, mana: float) -> Dictionary:
  var temporary=minf(state.temporary_mana,mana) if eligible else 0.0
  return {"mana":mana-temporary,"temporary_mana":temporary,"flask_mana":0.0}
 
-func _candidate(out: Array, payload: Dictionary, label: String, detail: String, cost: int = 0, mana: float = 0.0, reason: String = "", risk: String = "", group: String = "action") -> void:
+func _candidate(out: Array, payload: Dictionary, label: String, copy, cost: int = 0, mana: float = 0.0, reason: String = "", risk: String = "", group: String = "action") -> void:
+ # B3（docs/ondemand-copy.md §1.5）：card 目标候选组不再预生成 detail，显示时经 candidate_detail 现算。
+ var on_demand=String(payload.get("kind",""))=="card"
+ var detail="" if on_demand else CopyRouter.text(self,copy)
  if payload.kind=="end" and Character.Expansion.end_reason(self)!="": reason=Character.Expansion.end_reason(self)
  var lock_target=_equipment(payload.get("target",""))
  if Equipment.lock_only(lock_target):
   var unlock=payload.get("mode","")=="unlock" or (payload.kind=="item_use" and Tools.operation(_item(payload.item).get("type",""))=="unlock")
-  if payload.kind!="manual" and not unlock: reason=Equipment.LOCK_ONLY_REASON;detail=reason
+  if payload.kind!="manual" and not unlock: reason=Equipment.LOCK_ONLY_REASON
  if cursed_plate(lock_target): reason=SpecialEquipment.CURSED_PLATE_REASON
  if cursed_eyes(lock_target) or cursed_eyes({"slot":payload.get("slot","")}): reason="诅咒眼罩封闭了眼部装备操作。"
  var uses_magic=(payload.kind in ["card","prison"] and payload.has("uid") and Cards.uses_magic(payload)) or (payload.kind=="attack" and Cards.Rules.FIXED_MAGIC.has(payload.type))
  if reason=="" and uses_magic and cast_view(Cards.cast_profile(self,payload.type,mana>0)).chance<=0.0: reason="当前施法成功率为0%。"
  var pressure_risk=Pressure.action_risk(self,payload)
  var extra_traction=Cards.magic_card_traction(self,payload)
- if extra_traction>0: detail+="\n熟练而已：无论成败，额外牵扯%d次（每次按1能量，不扣能量）。" % extra_traction
  if cost>0 or extra_traction>0:
   var toe_gain=RelicEffects.toe_traction(self).gain*(int(cost>0)+extra_traction)
   if toe_gain>0: pressure_risk+=("\n" if pressure_risk!="" else "")+"秘密武器：脚趾牵扯增加%s快感值。" % number(toe_gain)
@@ -1565,15 +1813,215 @@ func _candidate(out: Array, payload: Dictionary, label: String, detail: String, 
  var flask=payload.get("payment","")=="flask"
  var balance=state.flask_mana if flask else state.mana
  var required=payment.flask_mana if flask else payment.mana
- if payment.temporary_mana>0: detail+="\n临时魔力抵扣%s点，自身魔力支付%s点。" % [number(payment.temporary_mana),number(payment.mana)]
  if reason == "" and balance < required: reason = "需要%s%s，当前只有%s。" % [number(required),"魔瓶魔力" if flask else "魔力",number(balance)]
- out.append({"id":JSON.stringify(payload).sha256_text().substr(0,24),"payload":payload,"label":label,"detail":detail,"cost":cost,"mana":mana,"mana_payment":payment,"valid":reason=="","reason":reason,"risk":risk,"group":group})
+ var detail_text="" if on_demand else _candidate_detail(detail,payload,extra_traction,payment)
+ var row={}
+ row.id=JSON.stringify(payload).sha256_text().substr(0,24)
+ row.payload=payload
+ row.label=label
+ if not on_demand: row.detail=detail_text
+ row.cost=cost
+ row.mana=mana
+ row.mana_payment=payment
+ row.valid=reason==""
+ row.reason=reason
+ row.risk=risk
+ row.group=group
+ out.append(row)
+
+# 候选 detail 的唯一组装点（docs/ondemand-copy.md §1.5／§11.2）：eager 路径与候选只读入口共用，
+# 追加顺序与原实现一致（锁定项圈改写 → 熟练牵扯 → 临时魔力抵扣）。
+func _candidate_detail(base: String, payload: Dictionary, extra_traction: int, payment: Dictionary) -> String:
+ var detail=base
+ var lock_target=_equipment(payload.get("target",""))
+ if Equipment.lock_only(lock_target):
+  var unlock=payload.get("mode","")=="unlock" or (payload.kind=="item_use" and Tools.operation(_item(payload.item).get("type",""))=="unlock")
+  if payload.kind!="manual" and not unlock: detail=Equipment.LOCK_ONLY_REASON
+ if extra_traction>0: detail+="\n熟练而已：无论成败，额外牵扯%d次（每次按1能量，不扣能量）。" % extra_traction
+ if payment.temporary_mana>0: detail+="\n临时魔力抵扣%s点，自身魔力支付%s点。" % [number(payment.temporary_mana),number(payment.mana)]
+ return detail
+
+# card 目标候选的基础文案（core/card_effects.gd 的 target_candidate／candidates 原表达式），
+# 供候选只读入口在 detail 缺失时按 payload 现算；其余组始终保持预生成 detail。
+func _candidate_base_detail(payload: Dictionary) -> String:
+ return Cards.target_detail(self,{"payload":payload})
+
+# R5（docs/ondemand-copy.md §11.5）：本模块直呼点的文案 builder，正文留在本模块，路由只做分派。
+static func copy_surrender(_g, _args: Dictionary) -> String:
+ return "放弃战斗，被逮捕并进入收押处理。"
+
+static func copy_item_discard(_g, _args: Dictionary) -> String:
+ return "丢弃后无法取回。不消耗能量、魔力或回合。"
+
+static func copy_status_toggle(_g, args: Dictionary) -> String:
+ return "每次触发消耗1层。" if bool(args.get("charge_all",false)) else "下一次触发使用全部蓄力。"
+
+static func copy_rest_rare(_g, _args: Dictionary) -> String:
+ return "剩余%d回合休息。" % (B.REST_TURNS-B.REST_CARD_TURNS.rare)
+
+static func copy_rest_card(_g, args: Dictionary) -> String:
+ return "从%d张%s卡中选一张，剩余%d回合休息。" % [int(args.get("count",0)),Cards.Rules.RARITIES[String(args.get("rarity","common"))],B.REST_TURNS-int(args.get("turns",0))]
+
+static func copy_rest_flask(_g, _args: Dictionary) -> String:
+ return "剩余%d回合用于休息，不改变自身魔力。" % (B.REST_TURNS-B.REST_FLASK_TURNS)
+
+static func copy_rest_begin(_g, args: Dictionary) -> String:
+ return "保留%d回合休息时间。" % int(args.get("left",0))
+
+static func copy_end_climax(_g, args: Dictionary) -> String:
+ return "身体暂时使不上力，剩余行动已跳过。"+("敌人仍按原定行动执行。" if bool(args.get("battle",false)) and bool(args.get("first",false)) else "")+"下一玩家回合按累计乏力恢复能量。"+("若持续无法行动，也可以投降进入牢房。" if bool(args.get("battle",false)) else "")
+
+static func copy_retain(_g, _args: Dictionary) -> String:
+ return "保留到下一玩家回合结束。"
+
+static func copy_retain_skip(_g, args: Dictionary) -> String:
+ return "保留已选手牌，不再选择。"+("随后抽1张。" if int(args.get("draw_after",0))>0 else "继续行动。")
+
+static func copy_reward_item(_g, _args: Dictionary) -> String:
+ return "收入道具栏；本事件不会进入整理道具。"
+
+static func copy_reward_item_skip(_g, _args: Dictionary) -> String:
+ return "未领取的道具将被放弃；直接返回塔路，不进入整备或整理道具。"
+
+static func copy_reward_flask(_g, _args: Dictionary) -> String:
+ return "全部存入贴身魔瓶，不占用存入次数。"
+
+static func copy_reward_other(_g, args: Dictionary) -> String:
+ return "收入道具栏。" if String(args.get("category",""))=="item" else Relics.TYPES[String(args.get("type",""))].detail
+
+static func copy_reward_relic(_g, args: Dictionary) -> String:
+ return Relics.TYPES[String(args.get("type",""))].detail
+
+static func copy_reward_skip_category(_g, args: Dictionary) -> String:
+ return "放弃本次"+("卡牌" if String(args.get("category",""))=="card" else "遗物")+"奖励，其他奖励仍可领取。"
+
+static func copy_reward_skip(_g, _args: Dictionary) -> String:
+ return "未领取的奖励将被放弃。"
+
+static func copy_travel_step(_g, args: Dictionary) -> String:
+ return "沿已选路线前进，不抽牌、不恢复资源；本段剩余%d回合。" % int(args.get("remaining",0))
+
+static func copy_finish_pack(_g, _args: Dictionary) -> String:
+ return "只携带容量允许的随身道具。"
+
+static func copy_calm(g, args: Dictionary) -> String:
+ return "快感－%s，下回合能量＋%d。本回合剩余%d／%d次。" % [g.number(float(args.get("reduction",0.0))),B.CALM_NEXT_ENERGY,int(args.get("remaining",0)),B.CALM_USES_PER_TURN]
+
+static func copy_end_turn(g, args: Dictionary) -> String:
+ return ("保留手牌。" if bool(args.get("keep_hand",false)) else "弃置未保留手牌。")+("敌人按原定行动执行。" if bool(args.get("battle",false)) and bool(args.get("first",false)) else "")
+
+static func copy_finish_prepare(_g, _args: Dictionary) -> String:
+ return "放弃剩余整备回合，不获得额外资源。"
+
+static func copy_finish_rest(_g, _args: Dictionary) -> String:
+ return "放弃剩余休息回合，固定工具留在房间。"
+
+static func copy_wall_move(_g, args: Dictionary) -> String:
+ return "移动%d格；%s。" % [int(args.get("distance",0)),String(args.get("result",""))]
+
+static func copy_posture(g, args: Dictionary) -> String:
+ return ("眼罩使站起额外消耗1能量。" if bool(args.get("blind_cost",false)) else "")+RelicEffects.posture_detail(g,String(args.get("dest","")))+String(args.get("bind_detail",""))
+
+static func copy_posture_wall(g, args: Dictionary) -> String:
+ return String(args.get("support",""))+"，额外减1能量；本回合仍可继续行动。"+("眼罩使站起额外消耗1能量。" if bool(args.get("blind_cost",false)) else "")+String(args.get("bind_detail",""))
+
+# 攻击候选的正文：参数带完整 payload 与展示伤害，其余按当前 state 只读现算。
+static func copy_attack(g, args: Dictionary) -> String:
+ var payload=args.get("payload",{})
+ var type=String(payload.get("type",""))
+ var spec=BasicAttacks.TYPES[type][int(payload.get("form",0))]
+ var e=g._enemy(String(payload.get("enemy","")))
+ var all_targets=bool(payload.get("all",false))
+ var damage=float(payload.get("damage",0.0))
+ var shown_damage=float(args.get("shown_damage",0.0))
+ var damage_type=String(payload.get("damage_type",""))
+ var interrupt=bool(payload.get("interrupt",false))
+ var cooldown_turns=int(payload.get("cooldown_turns",0))
+ var usage=BasicAttacks.usage(g,type)
+ var detail="对%s造成%s点伤害%s。" % ["全部敌人" if all_targets else e.name,g.number(damage if all_targets else shown_damage),"，共%d次" % spec.hits if spec.hits>1 else ""]
+ detail+=BasicAttacks.cost_description(type)
+ if Cards.attack_ignores_restraints(g,type): detail+="本次体术按自由态发动，忽略拘束限制与减益。"
+ if damage_type!="magic" and (Enemies.damage_multiplier(e.type,damage_type)<1.0 or all_targets): detail+="坚硬：机械敌人受到的非魔法伤害减半。"
+ if interrupt: detail+="将尚未执行的意图延后一回合。"
+ if cooldown_turns>0: detail+="与坐姿踢击、并腿踢击共用%d回合冷却。" % (cooldown_turns+1)
+ if usage.limit>0: detail+="本回合剩余%d／%d次。" % [usage.remaining,usage.limit]
+ if type=="fireball": detail+=("火焰精通：无视身体施法限制，不获得手势加成。" if Cards.spell_power(g,type).get("disable_gesture",false) else (("秘密武器：脚趾代替手部，获得手势加成。" if g.physical_hand_cast_reason()!="" else "满足手部条件，获得手势加成。") if g.hand_cast_reason()=="" else g.hand_cast_reason()+"目前只使用咏唱威力。"))
+ return detail
+
+static func copy_attack_release(g, args: Dictionary) -> String:
+ var usage=BasicAttacks.usage(g,"fireball")
+ return "对%s造成%s点魔法伤害。本回合剩余%d／%d次。" % [String(args.get("target_name","")),g.number(float(args.get("damage",0.0))),usage.remaining,usage.limit]+BasicAttacks.cost_description("fireball")
+
+static func copy_manual_collar(_g, _args: Dictionary) -> String:
+ return "取下已开锁的限制项圈，花费1能量。"
+
+static func copy_manual_release(g, args: Dictionary) -> String:
+ return "%s：耐久 %s → %s。" % [String(args.get("name","")),g.number(float(args.get("durability",0.0))),g.number(float(args.get("after",0.0)))]
+
+static func copy_manual_retrieve(_g, args: Dictionary) -> String:
+ return "取出"+String(args.get("name",""))+"；花费1能量，不使用挣扎或滑脱牌。"
+
+static func copy_hook(g, args: Dictionary) -> String:
+ return "耐久%s → %s；%s消耗1次挂钩，不耗能量。" % [g.number(float(args.get("durability",0.0))),g.number(float(args.get("after",0.0))),"仅削减连接耐久，原装备紧度不变；" if bool(args.get("parent",false)) else "降低一档；"]
+
+static func copy_item_escape(_g, args: Dictionary) -> String:
+ var grip="由触手朋友协助撕开。" if bool(args.get("assisted",false)) else "任意姿态可用，需要手指或脚趾任一部位自由。"
+ return "消耗此符，不耗能量或魔力；"+grip+"进入监狱出发点，仍需通过出口警卫战；使用后剩余道具须符合容量。"
+
+static func copy_item_unlock(_g, _args: Dictionary) -> String:
+ return "解除一把锁，不改变耐久或紧度；消耗1次开锁针，不耗能量。"
+
+static func copy_item_door_lock(_g, _args: Dictionary) -> String:
+ return "消耗1次开锁针，不耗能量；离开牢房仍须满足行动速度。"
+
+static func copy_item_cut(g, args: Dictionary) -> String:
+ return "固定减少%s耐久，不受紧度和锁减伤影响；消耗1次工具。" % g.number(float(args.get("damage",0.0))*float(args.get("multiplier",1.0)))
+
+static func copy_item_install(g, args: Dictionary) -> String:
+ var operators=args.get("operators",[])
+ return Tools.contact_text(g,String(args.get("mount","")))+("" if operators.is_empty() else "；可用部位："+"／".join(operators.map(func(op):return Tools.OPERATOR_NAMES[op])))
+
+static func copy_item_retrieve(_g, args: Dictionary) -> String:
+ var operators=args.get("operators",[])
+ return "取回后保留剩余次数"+("" if operators.is_empty() else "；可用部位："+"／".join(operators.map(func(op):return Tools.OPERATOR_NAMES[op])))
+
+static func copy_depart(g, args: Dictionary) -> String:
+ var room=g.room_data(String(args.get("room_id","")))
+ var detail="%s · 路程需要%d回合。\n%s" % [String(args.get("mode","")),int(args.get("turns",0)),g.room_description(room)]
+ if String(args.get("phase","")) in ["prepare","rest"]: detail+="\n离开时结束剩余整备回合。" if String(args.get("phase",""))=="prepare" else "\n离开时结束剩余休息回合。"
+ if bool(args.get("tower_start",false)): detail="选择此区域作为出狱起点，不消耗回合。\n"+g.room_description(room)
+ return detail
+
+# 候选 detail 的只读入口（docs/ondemand-copy.md §1.5／§2）：当前 View 的候选逐字节等于投影值。
+# 陈旧候选允许按当前 state 重算（§2）；不写 state、不推进随机、不改 version、不产生日志与事件。
+func candidate_detail(candidate: Dictionary) -> String:
+ if candidate.has("detail"): return String(candidate.detail)
+ var payload=candidate.get("payload",{})
+ if payload.get("kind","")!="card": return ""
+ return _candidate_detail(_candidate_base_detail(payload),payload,Cards.magic_card_traction(self,payload),_mana_payment(payload,float(candidate.get("mana",0.0))))
 
 func candidates() -> Array:
  var previous=_begin_equipment_read()
  var result=_build_candidates()
  _equipment_read=previous
  return result
+
+# 全量卡面文案的只读入口（docs/ondemand-copy.md §1.3）：输入 [{type,uid}]，逐项按 §1.1 现算，容器全部新建。
+func live_card_text_set(cards: Array) -> Dictionary:
+ var texts={}
+ var instances={}
+ for row in cards:
+  var type=String(row.get("type",""))
+  if not Cards.Rules.SPECS.has(type): continue
+  var uid=String(row.get("uid",""))
+  if not texts.has(type): texts[type]=Cards.text_entry(self,type)
+  if uid!="" and not instances.has(uid): instances[uid]=Cards.text_entry(self,type,uid)
+ return {"texts":texts,"instances":instances}
+
+# 单条卡面文案的只读入口（docs/ondemand-copy.md §1.4）：任意注册牌型现算一条，返回全新容器。
+# 不写 state、不推进随机、不改 version、不产生日志与事件（§2 共同语义）。
+func live_card_text(type: String, uid: String = "") -> Dictionary:
+ return Cards.text_entry(self,type,uid)
 
 func _build_candidates() -> Array:
  if not state.relic_bundle.is_empty():
@@ -1592,24 +2040,27 @@ func _build_candidates() -> Array:
  Consumables.noncombat_candidates(self,out)
  _route_candidates(out)
  if state.phase=="battle" and state.enemies.any(func(enemy):return not enemy.gone):
-  _candidate(out,{"kind":"surrender"},"投降","放弃战斗，被逮捕并进入收押处理。",0,0,"","","surrender")
+  _candidate(out,{"kind":"surrender"},"投降",{"kind":"game.surrender","args":{},"fallback":copy_surrender(self,{})},0,0,"","","surrender")
  for item in state.items:
-  _candidate(out,{"kind":"item_discard","item":item.id},"丢弃"+Tools.TYPES[item.type].name,"丢弃后无法取回。不消耗能量、魔力或回合。",0,0,"","","item")
+  _candidate(out,{"kind":"item_discard","item":item.id},"丢弃"+Tools.TYPES[item.type].name,{"kind":"game.item_discard","args":{},"fallback":copy_item_discard(self,{})},0,0,"","","item")
  ManaFlask.candidates(self,out)
  if state.charge>0 and not state.overloaded and state.phase not in ["cleared","prison_end"]:
-  _candidate(out,{"kind":"status_toggle","status":"charge","enabled":not state.charge_all},"切换为普通蓄力" if state.charge_all else "切换为全量蓄力","每次触发消耗1层。" if state.charge_all else "下一次触发使用全部蓄力。",0,0,"","","status_toggle")
+  var toggle_args={"charge_all":state.charge_all}
+  _candidate(out,{"kind":"status_toggle","status":"charge","enabled":not state.charge_all},"切换为普通蓄力" if state.charge_all else "切换为全量蓄力",{"kind":"game.status_toggle","args":toggle_args,"fallback":copy_status_toggle(self,toggle_args)},0,0,"","","status_toggle")
  return out
 
 func _phase_candidates() -> Array:
  var out: Array = []
  if state.phase=="rest_choice":
-  _candidate(out,{"kind":"rest_rare"},"随机获得1张稀有卡 · 扣除%d回合" % B.REST_CARD_TURNS.rare,"剩余%d回合休息。" % (B.REST_TURNS-B.REST_CARD_TURNS.rare),0,0,"休息回合不足。" if state.rest_left<B.REST_CARD_TURNS.rare else "","","rest_service")
+  _candidate(out,{"kind":"rest_rare"},"随机获得1张稀有卡 · 扣除%d回合" % B.REST_CARD_TURNS.rare,{"kind":"game.rest_rare","args":{},"fallback":copy_rest_rare(self,{})},0,0,"休息回合不足。" if state.rest_left<B.REST_CARD_TURNS.rare else "","","rest_service")
   for type in state.rest_cards:
    var rarity=Cards.Rules.SPECS[type].rarity
    var turns=B.REST_CARD_TURNS[rarity]
-   _candidate(out,{"kind":"rest_card","type":type},"领取「"+B.CARD_NAMES[type]+"」 · 扣除%d回合" % turns,"从%d张%s卡中选一张，剩余%d回合休息。" % [state.rest_cards.size(),Cards.Rules.RARITIES[rarity],B.REST_TURNS-turns],0,0,"休息回合不足。" if state.rest_left<turns else "","","rest_service")
-  _candidate(out,{"kind":"rest_flask"},"魔瓶补充%d魔力 · 扣除%d回合" % [B.REST_FLASK_MANA,B.REST_FLASK_TURNS],"剩余%d回合用于休息，不改变自身魔力。" % (B.REST_TURNS-B.REST_FLASK_TURNS),0,0,"休息回合不足。" if state.rest_left<B.REST_FLASK_TURNS else "","","rest_service")
-  _candidate(out,{"kind":"rest_begin"},"跳过奖励，直接休息","保留%d回合休息时间。" % state.rest_left,0,0,"","","rest_service")
+   var rest_args={"count":state.rest_cards.size(),"rarity":rarity,"turns":turns}
+   _candidate(out,{"kind":"rest_card","type":type},"领取「"+B.CARD_NAMES[type]+"」 · 扣除%d回合" % turns,{"kind":"game.rest_card","args":rest_args,"fallback":copy_rest_card(self,rest_args)},0,0,"休息回合不足。" if state.rest_left<turns else "","","rest_service")
+  _candidate(out,{"kind":"rest_flask"},"魔瓶补充%d魔力 · 扣除%d回合" % [B.REST_FLASK_MANA,B.REST_FLASK_TURNS],{"kind":"game.rest_flask","args":{},"fallback":copy_rest_flask(self,{})},0,0,"休息回合不足。" if state.rest_left<B.REST_FLASK_TURNS else "","","rest_service")
+  var begin_args={"left":state.rest_left}
+  _candidate(out,{"kind":"rest_begin"},"跳过奖励，直接休息",{"kind":"game.rest_begin","args":begin_args,"fallback":copy_rest_begin(self,begin_args)},0,0,"","","rest_service")
   return out
  if state.phase in ["shop","treasure"]:
   Services.candidates(self,out)
@@ -1622,7 +2073,8 @@ func _phase_candidates() -> Array:
   return out
  if state.phase=="prison_end": return out
  if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES:
-  _candidate(out,{"kind":"end"},"继续 · 高潮后缓一缓","身体暂时使不上力，剩余行动已跳过。"+("敌人仍按原定行动执行。" if state.phase=="battle" and state.order=="first" else "")+"下一玩家回合按累计乏力恢复能量。"+("若持续无法行动，也可以投降进入牢房。" if state.phase=="battle" else ""),0,0,"","","flow")
+  var climax_args={"battle":state.phase=="battle","first":state.order=="first"}
+  _candidate(out,{"kind":"end"},"继续 · 高潮后缓一缓",{"kind":"game.end_climax","args":climax_args,"fallback":copy_end_climax(self,climax_args)},0,0,"","","flow")
   return out
  if not state.card_chain.is_empty():
   Cards.continuation(self,out)
@@ -1630,46 +2082,49 @@ func _phase_candidates() -> Array:
  if state.pending_retain:
   for card in state.hand:
    if not Cards.can_select_retain(self,card): continue
-   _candidate(out,{"kind":"retain","uid":card.uid},"保留「"+B.CARD_NAMES[card.type]+"」","保留到下一玩家回合结束。",0,0,"","","retain")
-  _candidate(out,{"kind":"retain_skip"},"跳过剩余选牌","保留已选手牌，不再选择。"+("随后抽1张。" if state.retain_draw_after>0 else "继续行动。"),0,0,"","","retain")
+   _candidate(out,{"kind":"retain","uid":card.uid},"保留「"+B.CARD_NAMES[card.type]+"」",{"kind":"game.retain","args":{},"fallback":copy_retain(self,{})},0,0,"","","retain")
+  var retain_args={"draw_after":state.retain_draw_after}
+  _candidate(out,{"kind":"retain_skip"},"跳过剩余选牌",{"kind":"game.retain_skip","args":retain_args,"fallback":copy_retain_skip(self,retain_args)},0,0,"","","retain")
   return out
  if state.phase == "reward":
   if Events.active_item_rewards(self):
    for row in Events.item_reward_rows(self):
     if row.claimed: continue
     var full_reason="随身道具栏已满，无法拾取这件道具。" if carried_items()>=item_capacity() else ""
-    _candidate(out,{"kind":"reward","category":"item","type":row.type,"reward_id":row.id},"领取「"+Tools.TYPES[row.type].name+"」","收入道具栏；本事件不会进入整理道具。",0,0,full_reason,"","reward")
-   _candidate(out,{"kind":"reward","type":"skip"},"继续","未领取的道具将被放弃；直接返回塔路，不进入整备或整理道具。",0,0,"","","reward")
+    _candidate(out,{"kind":"reward","category":"item","type":row.type,"reward_id":row.id},"领取「"+Tools.TYPES[row.type].name+"」",{"kind":"game.reward_item","args":{},"fallback":copy_reward_item(self,{})},0,0,full_reason,"","reward")
+   _candidate(out,{"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_item_skip","args":{},"fallback":copy_reward_item_skip(self,{})},0,0,"","","reward")
    return out
   if not state.reward_claimed.has("card"):
    for type in state.reward_options:
-    _candidate(out,{"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",Cards.face_text(self,type,false)+"\n"+Cards.face_text(self,type,true),0,0,"","","reward")
+    _candidate(out,{"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",{"kind":"card.two_face","args":{"type":type},"fallback":CopyRouter.two_face(self,type)},0,0,"","","reward")
   if state.battle_flask_drop>0 and not state.reward_claimed.has("flask"):
-   _candidate(out,{"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,"全部存入贴身魔瓶，不占用存入次数。",0,0,"","","reward")
+   _candidate(out,{"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,{"kind":"game.reward_flask","args":{},"fallback":copy_reward_flask(self,{})},0,0,"","","reward")
   for category in ["item","relic"]:
    var type=state.battle_item_drop if category=="item" else state.battle_relic_drop
    if type=="" or state.reward_claimed.has(category): continue
    var title=Tools.TYPES[type].name if category=="item" else Relics.TYPES[type].name
-   _candidate(out,{"kind":"reward","category":category,"type":type},"领取「"+title+"」","收入道具栏。" if category=="item" else Relics.TYPES[type].detail,0,0,"","","reward")
+   var other_args={"category":category,"type":type}
+   _candidate(out,{"kind":"reward","category":category,"type":type},"领取「"+title+"」",{"kind":"game.reward_other","args":other_args,"fallback":copy_reward_other(self,other_args)},0,0,"","","reward")
   if not state.reward_claimed.has("relic"):
    for type in state.boss_relic_options:
-    _candidate(out,{"kind":"reward","category":"relic","type":type},"选择「"+Relics.TYPES[type].name+"」",Relics.TYPES[type].detail,0,0,RelicEffects.gain_reason(self,type),"","reward")
+    _candidate(out,{"kind":"reward","category":"relic","type":type},"选择「"+Relics.TYPES[type].name+"」",{"kind":"game.reward_relic","args":{"type":type},"fallback":copy_reward_relic(self,{"type":type})},0,0,RelicEffects.gain_reason(self,type),"","reward")
   for category in ["card","relic"]:
    var offered=not state.reward_options.is_empty() if category=="card" else (state.battle_relic_drop!="" or not state.boss_relic_options.is_empty())
    if offered and not state.reward_claimed.has(category):
-    _candidate(out,{"kind":"reward_skip","category":category},"跳过","放弃本次"+("卡牌" if category=="card" else "遗物")+"奖励，其他奖励仍可领取。",0,0,"","","reward")
-  _candidate(out,{"kind":"reward","type":"skip"},"继续","未领取的奖励将被放弃。",0,0,"","","reward")
+    _candidate(out,{"kind":"reward_skip","category":category},"跳过",{"kind":"game.reward_skip_category","args":{"category":category},"fallback":copy_reward_skip_category(self,{"category":category})},0,0,"","","reward")
+  _candidate(out,{"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_skip","args":{},"fallback":copy_reward_skip(self,{})},0,0,"","","reward")
   return out
  if state.phase == "map": return out
  if state.phase == "travel":
-  _candidate(out,{"kind":"travel_step"},"继续前进 · 1回合","沿已选路线前进，不抽牌、不恢复资源；本段剩余%d回合。" % state.journey.remaining,0,0,travel_route_reason(),SlipMotion.hint(),"route")
+  var step_args={"remaining":state.journey.remaining}
+  _candidate(out,{"kind":"travel_step"},"继续前进 · 1回合",{"kind":"game.travel_step","args":step_args,"fallback":copy_travel_step(self,step_args)},0,0,travel_route_reason(),SlipMotion.hint(),"route")
   return out
  if state.phase == "cleared":
   DemoExit.candidates(self,out)
   return out
  if state.phase == "pack":
   _item_candidates(out)
-  _candidate(out,{"kind":"finish_pack"},"整理完成，离开房间","只携带容量允许的随身道具。",0,0,"请使用或放下超出容量的道具。" if carried_items()>item_capacity() else "","","flow")
+  _candidate(out,{"kind":"finish_pack"},"整理完成，离开房间",{"kind":"game.finish_pack","args":{},"fallback":copy_finish_pack(self,{})},0,0,"请使用或放下超出容量的道具。" if carried_items()>item_capacity() else "","","flow")
   return out
  _wall_move_candidates(out)
  _posture_candidates(out)
@@ -1681,11 +2136,13 @@ func _phase_candidates() -> Array:
  if state.phase=="rest": _rest_candidates(out)
  if state.phase=="prison": Prison.candidates(self,out)
  var calm=Pressure.calm(self)
- _candidate(out,{"kind":"calm"},"深呼吸","快感－%s，下回合能量＋%d。本回合剩余%d／%d次。" % [number(calm.reduction),B.CALM_NEXT_ENERGY,calm.remaining,B.CALM_USES_PER_TURN],B.CALM_COST,0,calm.reason if calm.reason!="" else ("当前快感已经降到最低。" if state.pressure<=0 else ""),"","pressure")
- _candidate(out,{"kind":"end"},"结束回合",("保留手牌。" if Relics.value(state.relics,"keep_hand")>0 else "弃置未保留手牌。")+("敌人按原定行动执行。" if state.phase=="battle" and state.order=="first" else ""),0,0,"","","flow")
+ var calm_args={"reduction":calm.reduction,"remaining":calm.remaining}
+ _candidate(out,{"kind":"calm"},"深呼吸",{"kind":"game.calm","args":calm_args,"fallback":copy_calm(self,calm_args)},B.CALM_COST,0,calm.reason if calm.reason!="" else ("当前快感已经降到最低。" if state.pressure<=0 else ""),"","pressure")
+ var turn_args={"keep_hand":Relics.value(state.relics,"keep_hand")>0,"battle":state.phase=="battle","first":state.order=="first"}
+ _candidate(out,{"kind":"end"},"结束回合",{"kind":"game.end_turn","args":turn_args,"fallback":copy_end_turn(self,turn_args)},0,0,"","","flow")
  if state.phase == "prepare":
-  _candidate(out,{"kind":"finish_prepare"},"提前结束整备","放弃剩余整备回合，不获得额外资源。",0,0,"","","flow")
- if state.phase=="rest": _candidate(out,{"kind":"finish_rest"},"提前离开休息房","放弃剩余休息回合，固定工具留在房间。",0,0,"","","flow")
+  _candidate(out,{"kind":"finish_prepare"},"提前结束整备",{"kind":"game.finish_prepare","args":{},"fallback":copy_finish_prepare(self,{})},0,0,"","","flow")
+ if state.phase=="rest": _candidate(out,{"kind":"finish_rest"},"提前离开休息房",{"kind":"game.finish_rest","args":{},"fallback":copy_finish_rest(self,{})},0,0,"","","flow")
  return out
 
 # Position is saved once per encounter; previews only read it.
@@ -1735,7 +2192,8 @@ func _wall_move_candidates(out: Array) -> void:
   var label="靠近墙面" if direction=="toward" else "离开墙面"
   var result="到达墙边，获得贴墙" if after==0 else "距墙%d格，不能借用墙面" % after
   if after>0 and Relics.value(state.relics,"always_wall")>0: result="距墙%d格，遗物仍提供贴墙效果" % after
-  _candidate(out,{"kind":"wall_move","direction":direction,"distance":distance,"after":after},label,"移动%d格；%s。" % [distance,result],profile.cost,0,reason,SlipMotion.hint(),"wall_move")
+  var move_args={"distance":distance,"result":result}
+  _candidate(out,{"kind":"wall_move","direction":direction,"distance":distance,"after":after},label,{"kind":"game.wall_move","args":move_args,"fallback":copy_wall_move(self,move_args)},profile.cost,0,reason,SlipMotion.hint(),"wall_move")
 
 func _posture_candidates(out: Array) -> void:
  for dest in ["stand","sit","lie"]:
@@ -1751,10 +2209,12 @@ func _posture_candidates(out: Array) -> void:
   var blind_cost=1 if key=="sit>stand" and occupied("eyes") else 0
   cost+=blind_cost
   var bind_detail="捕缚进度＋10。" if reason=="" and CaptureBind.has_bind(self,"guard") else ""
-  _candidate(out,{"kind":"posture","dest":dest,"wall":false,"adjacent":reason==""},"转为"+B.POSE_NAMES[dest],("眼罩使站起额外消耗1能量。" if blind_cost else "")+RelicEffects.posture_detail(self,dest)+bind_detail,cost,0,reason,"","posture")
+  var posture_args={"dest":dest,"blind_cost":blind_cost,"bind_detail":bind_detail}
+  _candidate(out,{"kind":"posture","dest":dest,"wall":false,"adjacent":reason==""},"转为"+B.POSE_NAMES[dest],{"kind":"game.posture","args":posture_args,"fallback":copy_posture(self,posture_args)},cost,0,reason,"","posture")
   if reason=="" and key in ["sit>stand","lie>sit"] and state.phase in ["battle","prepare","rest","prison"] and at_wall():
    var support="借墙起身" if wall_contact() else "借助遗物支撑起身"
-   _candidate(out,{"kind":"posture","dest":dest,"wall":true,"adjacent":true},"贴墙站起" if dest=="stand" else "贴墙坐起",support+"，额外减1能量；本回合仍可继续行动。"+("眼罩使站起额外消耗1能量。" if blind_cost else "")+bind_detail,maxi(0,cost-blind_cost-1)+blind_cost,0,"","","posture")
+   var wall_posture_args={"support":support,"blind_cost":blind_cost,"bind_detail":bind_detail}
+   _candidate(out,{"kind":"posture","dest":dest,"wall":true,"adjacent":true},"贴墙站起" if dest=="stand" else "贴墙坐起",{"kind":"game.posture_wall","args":wall_posture_args,"fallback":copy_posture_wall(self,wall_posture_args)},maxi(0,cost-blind_cost-1)+blind_cost,0,"","","posture")
 
 func kick_profile() -> Dictionary:
  var bound=_bound_feet()
@@ -1834,15 +2294,9 @@ func _attack_offer(out: Array, e: Dictionary, type: String, form: int) -> void:
  var damage_type="magic" if type=="fireball" else "physical"
  if reason=="": reason=Puppets.taunt_reason(self,e,all_targets)
  var shown_damage=damage*Enemies.damage_multiplier(e.type,damage_type)
- var detail="对%s造成%s点伤害%s。" % ["全部敌人" if all_targets else e.name,number(damage if all_targets else shown_damage),"，共%d次" % spec.hits if spec.hits>1 else ""]
- detail+=BasicAttacks.cost_description(type)
- if Cards.attack_ignores_restraints(self,type): detail+="本次体术按自由态发动，忽略拘束限制与减益。"
- if damage_type!="magic" and (Enemies.damage_multiplier(e.type,damage_type)<1.0 or all_targets): detail+="坚硬：机械敌人受到的非魔法伤害减半。"
- if interrupt: detail+="将尚未执行的意图延后一回合。"
- if cooldown_turns>0: detail+="与坐姿踢击、并腿踢击共用%d回合冷却。" % (cooldown_turns+1)
- if usage.limit>0: detail+="本回合剩余%d／%d次。" % [usage.remaining,usage.limit]
- if type=="fireball": detail+=("火焰精通：无视身体施法限制，不获得手势加成。" if Cards.spell_power(self,type).get("disable_gesture",false) else (("秘密武器：脚趾代替手部，获得手势加成。" if physical_hand_cast_reason()!="" else "满足手部条件，获得手势加成。") if hand_cast_reason()=="" else hand_cast_reason()+"目前只使用咏唱威力。"))
- _candidate(out,{"kind":"attack","type":type,"form":form,"hits":spec.hits,"all":all_targets,"enemy":e.id,"damage":damage,"damage_type":damage_type,"interrupt":interrupt,"fall":fall,"cooldown_turns":cooldown_turns},label,detail,Cards.attack_cost(self,type,cost),mana,reason,risk,"attack")
+ var attack_payload={"kind":"attack","type":type,"form":form,"hits":spec.hits,"all":all_targets,"enemy":e.id,"damage":damage,"damage_type":damage_type,"interrupt":interrupt,"fall":fall,"cooldown_turns":cooldown_turns}
+ var attack_args={"payload":attack_payload,"shown_damage":shown_damage}
+ _candidate(out,attack_payload,label,{"kind":"game.attack","args":attack_args,"fallback":copy_attack(self,attack_args)},Cards.attack_cost(self,type,cost),mana,reason,risk,"attack")
  # Compact display uses the same target-adjusted damage as the detailed preview.
  var brief_damage=number(damage if all_targets else shown_damage)
  if brief_damage.contains("."): brief_damage=brief_damage.rstrip("0").rstrip(".")
@@ -1864,8 +2318,8 @@ func _equipment_spell_candidates(out: Array) -> void:
   elif definition.get("damage_factor",1.0)==0.0: reason=target.name+"无法受到伤害。"
   elif usage.remaining<=0: reason="本回合火球术次数已用完。"
   var damage=BasicAttacks.fireball_damage(self)*factor
-  var detail="对%s造成%s点魔法伤害。本回合剩余%d／%d次。" % [target.name,number(damage),usage.remaining,usage.limit]+BasicAttacks.cost_description("fireball")
-  _candidate(out,{"kind":"attack","type":"fireball","form":0,"hits":1,"all":false,"enemy":"","target":target.id,"damage":damage,"damage_type":"magic","interrupt":false,"fall":false},"火球术 · 自解",detail,Cards.attack_cost(self,"fireball",BasicAttacks.energy_cost(self,"fireball")),_mana_cost(B.SPELL_COST),reason,"","attack")
+  var release_args={"target_name":target.name,"damage":damage}
+  _candidate(out,{"kind":"attack","type":"fireball","form":0,"hits":1,"all":false,"enemy":"","target":target.id,"damage":damage,"damage_type":"magic","interrupt":false,"fall":false},"火球术 · 自解",{"kind":"game.attack_release","args":release_args,"fallback":copy_attack_release(self,release_args)},Cards.attack_cost(self,"fireball",BasicAttacks.energy_cost(self,"fireball")),_mana_cost(B.SPELL_COST),reason,"","attack")
   out.back().brief=number(damage)+" 伤害"
   out.back().brief_tags="%d/%d次" % [usage.remaining,usage.limit]
 
@@ -1878,7 +2332,7 @@ func _manual_candidates(out: Array) -> void:
   var full=level("arms")==0
   if Equipment.lock_only(target):
    reason="先用开锁术或开锁工具打开限制项圈的锁。" if target.locked else ("双臂需要完全自由才能取下限制项圈。" if not full else "")
-   _candidate(out,{"kind":"manual","target":target.id,"after":0.0},"取下限制项圈","取下已开锁的限制项圈，花费1能量。",1,0,reason,"","manual")
+   _candidate(out,{"kind":"manual","target":target.id,"after":0.0},"取下限制项圈",{"kind":"game.manual_collar","args":{},"fallback":copy_manual_collar(self,{})},1,0,reason,"","manual")
    continue
   if not Equipment.allows(target,"manual"): reason=Equipment.TEMPLATES[target.template].name+"不能徒手快速解开。"
   elif occupied("wrist") or occupied("fingers"): reason="手腕需要自由，并且手指能精细操作。"
@@ -1886,11 +2340,12 @@ func _manual_candidates(out: Array) -> void:
   else:
    reason=Tools.Contact.reason(self,target,"manual")
   var after=0.0 if full else lower_durability(target.durability,target.maximum)
-  _candidate(out,{"kind":"manual","target":target.id,"after":after},"快速解开" if full else "手动松解","%s：耐久 %s → %s。" % [target.name,number(target.durability),number(after)],1,0,reason,"","manual")
+  var release_args={"name":target.name,"durability":target.durability,"after":after}
+  _candidate(out,{"kind":"manual","target":target.id,"after":after},"快速解开" if full else "手动松解",{"kind":"game.manual_release","args":release_args,"fallback":copy_manual_release(self,release_args)},1,0,reason,"","manual")
  for target in state.special_equipment:
   if not SpecialEquipment.allows(target,"manual"): continue
   var reason=SpecialEquipment.manual_reason(self,target)
-  _candidate(out,{"kind":"manual","target":target.id,"after":0.0},"直接取出","取出"+target.name+"；花费1能量，不使用挣扎或滑脱牌。",1,0,reason,"","manual")
+  _candidate(out,{"kind":"manual","target":target.id,"after":0.0},"直接取出",{"kind":"game.manual_retrieve","args":{"name":target.name},"fallback":copy_manual_retrieve(self,{"name":target.name})},1,0,reason,"","manual")
 
 func _rest_candidates(out: Array) -> void:
  for target in action_targets():
@@ -1903,7 +2358,8 @@ func _rest_candidates(out: Array) -> void:
    reason="当前姿势下，"+Tools.target_parts(self,target)+"碰不到挂钩。" if contact.code=="out_of_reach" else contact.reason
   if reason=="": reason=_slip_reason(target,"hook")
   var after=lower_durability(target.durability,target.maximum)
-  _candidate(out,{"kind":"hook","target":target.id,"after":after},"挂钩 · "+_equipment_name(target),"耐久%s → %s；%s消耗1次挂钩，不耗能量。" % [number(target.durability),number(after),"仅削减连接耐久，原装备紧度不变；" if target.has("parent_id") else "降低一档；"],0,0,reason,"","hook")
+  var hook_args={"name":_equipment_name(target),"durability":target.durability,"after":after,"parent":target.has("parent_id")}
+  _candidate(out,{"kind":"hook","target":target.id,"after":after},"挂钩 · "+_equipment_name(target),{"kind":"game.hook","args":hook_args,"fallback":copy_hook(self,hook_args)},0,0,reason,"","hook")
 
 func item_capacity() -> int:
  return 3+int(state.departure.get("capacity_bonus",0))+int(Relics.value(state.relics,"capacity"))-(1 if level("arms")>=3 or occupied("fingers") else 0)-(1 if level("legs")>=3 else 0)
@@ -1924,14 +2380,15 @@ func _item_candidates(out: Array) -> void:
    continue
   if Tools.operation(item.type)=="escape":
    var grip="由触手朋友协助撕开。" if Tools.assisted(self) else "任意姿态可用，需要手指或脚趾任一部位自由。"
-   _candidate(out,{"kind":"item_use","item":item.id,"target":"hero"},"撕开传送符，离开牢房","消耗此符，不耗能量或魔力；"+grip+"进入监狱出发点，仍需通过出口警卫战；使用后剩余道具须符合容量。",0,0,Tools.escape_reason(self),"","item")
+   var escape_args={"assisted":Tools.assisted(self)}
+   _candidate(out,{"kind":"item_use","item":item.id,"target":"hero"},"撕开传送符，离开牢房",{"kind":"game.item_escape","args":escape_args,"fallback":copy_item_escape(self,escape_args)},0,0,Tools.escape_reason(self),"","item")
    continue
   if Tools.operation(item.type)=="unlock":
    for target in action_targets():
-    _candidate(out,{"kind":"item_use","item":item.id,"target":target.id},"开锁 · "+_equipment_name(target),"解除一把锁，不改变耐久或紧度；消耗1次开锁针，不耗能量。",0,0,Tools.unlock_reason(self,target),"","item")
+    _candidate(out,{"kind":"item_use","item":item.id,"target":target.id},"开锁 · "+_equipment_name(target),{"kind":"game.item_unlock","args":{},"fallback":copy_item_unlock(self,{})},0,0,Tools.unlock_reason(self,target),"","item")
    if state.phase=="prison":
     var reason="牢门已经打开。" if state.prison.door_open else ("需要先到牢门前。" if not Tools.assisted(self) and not Prison.Space.at(self,"door") else Tools.unlock_reason(self))
-    _candidate(out,{"kind":"item_use","item":item.id,"target":"prison_door"},"打开牢门锁","消耗1次开锁针，不耗能量；离开牢房仍须满足行动速度。",0,0,reason,"","item")
+    _candidate(out,{"kind":"item_use","item":item.id,"target":"prison_door"},"打开牢门锁",{"kind":"game.item_door_lock","args":{},"fallback":copy_item_door_lock(self,{})},0,0,reason,"","item")
    continue
   if item.mount=="carry" and Tools.is_fixed(self,item):
    continue
@@ -1941,16 +2398,17 @@ func _item_candidates(out: Array) -> void:
     var reason="手指被拘束，不能握持工具直接切割。" if not Tools.assisted(self) and occupied("fingers") else ""
     if reason=="": reason=Tools.contact_reason(self,target,item)
     if reason=="" and not spec.materials.has(target.material): reason=spec.name+"不能切割"+Equipment.MATERIAL_NAMES[target.material]+"；请换用兼容的工具。"
-    _candidate(out,{"kind":"item_use","item":item.id,"target":target.id},"切割 · "+_equipment_name(target),"固定减少%s耐久，不受紧度和锁减伤影响；消耗1次工具。" % number(spec.damage*Cards.damage_multiplier(self,"equipment")),0,0,reason,"","item")
+    var cut_args={"damage":spec.damage,"multiplier":Cards.damage_multiplier(self,"equipment")}
+    _candidate(out,{"kind":"item_use","item":item.id,"target":target.id},"切割 · "+_equipment_name(target),{"kind":"game.item_cut","args":cut_args,"fallback":copy_item_cut(self,cut_args)},0,0,reason,"","item")
   if item.mount=="carry":
    for mount in Tools.HEIGHTS:
     var operators=Tools.install_operators(self,mount,item.type)
-    var detail=Tools.contact_text(self,mount)+("" if operators.is_empty() else "；可用部位："+"／".join(operators.map(func(op):return Tools.OPERATOR_NAMES[op])))
-    _candidate(out,{"kind":"item_install","item":item.id,"mount":mount,"operator":operators[0] if not operators.is_empty() else ""},"安装到"+Tools.mount_label(mount),detail,1,0,Tools.install_reason(self,mount,item.type),"","item")
+    var install_args={"mount":mount,"operators":operators}
+    _candidate(out,{"kind":"item_install","item":item.id,"mount":mount,"operator":operators[0] if not operators.is_empty() else ""},"安装到"+Tools.mount_label(mount),{"kind":"game.item_install","args":install_args,"fallback":copy_item_install(self,install_args)},1,0,Tools.install_reason(self,mount,item.type),"","item")
   else:
    var operators=Tools.install_operators(self,item.mount,item.type)
-   var detail="取回后保留剩余次数"+("" if operators.is_empty() else "；可用部位："+"／".join(operators.map(func(op):return Tools.OPERATOR_NAMES[op])))
-   _candidate(out,{"kind":"item_retrieve","item":item.id,"mount":"carry","operator":operators[0] if not operators.is_empty() else ""},"取回工具",detail,0,0,Tools.retrieve_reason(self,item),"","item")
+   var retrieve_args={"operators":operators}
+   _candidate(out,{"kind":"item_retrieve","item":item.id,"mount":"carry","operator":operators[0] if not operators.is_empty() else ""},"取回工具",{"kind":"game.item_retrieve","args":retrieve_args,"fallback":copy_item_retrieve(self,retrieve_args)},0,0,Tools.retrieve_reason(self,item),"","item")
 
 func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
  var buff_issue=Consumables.validate_buffs(self,state.get("body_buffs"))
@@ -1973,6 +2431,8 @@ func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
  var extra_traction=Cards.magic_card_traction(self,chosen.payload)
  var traction_mark=Cards.hand_modifier(self,"energy_pressure")
  var traction_guard=CaptureBind.has_bind(self,"guard")
+ # docs/save-fixed-points.md §5.1：本批提交新增的迁移日志条目决定 checkpoint 取值。
+ var log_start=_transition_log.size()
  var original=state
  var hero_copy_context={
   "cost":chosen.cost,
@@ -2030,7 +2490,7 @@ func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
  Cards.normalize(self)
  if state.card_chain.is_empty() and Cards.flush_powers(self):
   _cleanup()
-  if state.phase=="battle" and _all_gone(): _finish_battle()
+  if _battle_end_reason()=="victory": _finish_battle("victory")
  if state.card_chain.is_empty(): RelicEffects.flush(self)
  # Only the completed action contributes; phase transitions own their start/end pulses.
  if state.card_chain.is_empty() and not _magic_failed: Pressure.tick(self,Pressure.escape_timing(chosen.payload))
@@ -2080,11 +2540,12 @@ func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
  var card_events=_card_feedback
  _card_feedback=[]
  _commit_scene_start(original)
+ var checkpoint=_checkpoint_kind(log_start)
  var music_events=[]
  if chosen.payload.kind=="card" and not _magic_failed and original.phase in ["battle","prison"]:
   var track=Cards.Rules.SPECS[chosen.payload.type].get("play_music","")
   if track!="": music_events.append({"track":track,"phase":original.phase,"loop":original.phase=="battle"})
- return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events}
+ return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"checkpoint":checkpoint}
 
 func cast_view(profile: Dictionary={"parts":["mouth"],"multiplier":1.0}) -> Dictionary:
  if not _equipment_read_active(): return _build_cast_view(profile)
@@ -2196,6 +2657,7 @@ func _execute(c: Dictionary) -> void:
   "status_toggle": state.charge_all=p.enabled
   "demo_continue": DemoExit.continue_run(self)
   "demo_end":
+   _apply_transition("demo_end")
    state.demo_finished=true
    _emit("event","感谢游玩这次demo。本次游玩已结束。")
   "attack":
@@ -2203,7 +2665,7 @@ func _execute(c: Dictionary) -> void:
    var targets=state.enemies.filter(func(enemy):return not enemy.gone).map(func(enemy):return enemy.id) if p.all else [p.enemy]
    _execute_attack(c,targets)
    if replay: Replay.spell(self,c,targets,replay)
-   if state.phase=="battle" and _all_gone(): _finish_battle()
+   if _battle_end_reason()=="victory": _finish_battle("victory")
   "wall_move":
    if state.phase=="prison":
     Prison.Space.move(self,Prison.Space.wall_path(self,p.direction=="toward"),"wall_move")
@@ -2447,8 +2909,8 @@ func _end_turn() -> void:
  Cards.expire_turn_buffs(self)
  Pressure.relax(self)
  if Prison.completed_turn(self): return
- if state.phase=="battle" and _all_gone():
-  _finish_battle()
+ if _battle_end_reason()=="victory":
+  _finish_battle("victory")
   return
  if state.phase=="prison":
   Prison.end_turn(self)
@@ -2474,17 +2936,17 @@ func _finish_preparation() -> void:
  Pressure.clear_penalties(self)
  state.weakness_turns=0
  if carried_items()>item_capacity():
-  state.phase="pack"
+  _apply_transition("prepare_end",{"phase":"pack"})
   state.energy=0
   _emit("event","随身道具超出容量，请使用或放下多出的道具后离开。")
   return
  if Prison.after_preparation(self): return
- state.phase="map"
+ _apply_transition("prepare_end",{"phase":"map"})
  state.energy=0
  state.prepare_left=0
  state.rest_left=0
  if state.practice:
-  state.phase="cleared"
+  _apply_transition("prepare_end",{"phase":"cleared"})
   _emit("event","本次装备练习结束。")
   return
  if not state.completed_rooms.has(state.room): state.completed_rooms.append(state.room)
@@ -2561,10 +3023,8 @@ func _route_candidates(out: Array) -> void:
  for id in destinations:
   if state.completed_rooms.has(id): continue
   var room=room_data(id)
-  var detail="%s · 路程需要%d回合。\n%s" % [profile.mode,profile.turns,room_description(room)]
-  if state.phase in ["prepare","rest"]: detail+="\n离开时结束剩余整备回合。" if state.phase=="prepare" else "\n离开时结束剩余休息回合。"
-  if state.tower_start_pending: detail="选择此区域作为出狱起点，不消耗回合。\n"+room_description(room)
-  _candidate(out,{"kind":"depart","room":id},("从这里开始 · " if state.tower_start_pending else "前往")+room.name,detail,0,0,room_entry_reason(room,exit_action),SlipMotion.hint(),"route")
+  var depart_args={"mode":profile.mode,"turns":profile.turns,"room_id":id,"phase":state.phase,"tower_start":state.tower_start_pending}
+  _candidate(out,{"kind":"depart","room":id},("从这里开始 · " if state.tower_start_pending else "前往")+room.name,{"kind":"game.depart","args":depart_args,"fallback":copy_depart(self,depart_args)},0,0,room_entry_reason(room,exit_action),SlipMotion.hint(),"route")
 
 func room_entry_reason(room: Dictionary, exit_action: Variant=null) -> String:
  if state.tower_start_pending:
@@ -2603,13 +3063,13 @@ func _depart(c: Dictionary) -> String:
  _leave_mounted_tools()
  if state.tower_start_pending:
   state.tower_start_pending=false
-  state.room=c.payload.room
+  _apply_transition(_room_transition_kind(c.payload.room),{"room":c.payload.room})
   _emit("event","选择"+room_data(state.room).name+"作为新塔路起点。")
   _arrive_room()
   return ""
  var profile=movement_profile()
  state.journey={"from":state.room,"target":c.payload.room,"total":profile.turns,"remaining":profile.turns,"speed":profile.speed,"mode":profile.mode}
- state.phase="travel";state.wall="none";state.wall_distance=0
+ _apply_transition("travel_start",{"phase":"travel"});state.wall="none";state.wall_distance=0
  _emit("event","你离开"+room_data(state.room).name+"，以"+profile.mode+"前往"+room_data(c.payload.room).name+"，需要%d回合。" % profile.turns)
  return ""
 
@@ -2625,18 +3085,18 @@ func _advance_travel() -> void:
   _emit("event","你继续"+state.journey.mode+"，距离"+room_data(state.journey.target).name+"还有%d回合。" % state.journey.remaining)
   return
  state.traversed_edges.append([state.room,state.journey.target])
- state.room=state.journey.target
+ _apply_transition(_room_transition_kind(state.journey.target),{"room":state.journey.target})
  state.journey={}
  _arrive_room()
 
 func _arrive_room() -> void:
  var room=room_data(state.room)
  if room.kind=="exit":
-  state.phase="cleared"
+  _apply_transition("room_enter",{"phase":"cleared"})
   state.completed_rooms.append(state.room)
   _emit("event","感谢游玩这次demo。"+("你可以返回菜单，或保留当前成长继续攀塔。" if state.demo_cycle<2 else "三个阶段全部完成。"))
  elif room.kind=="entry":
-  state.phase="map";state.energy=0;state.wall=room.wall
+  _apply_transition("room_enter",{"phase":"map"});state.energy=0;state.wall=room.wall
   state.wall_distance=1
   _emit("event","抵达塔底，选择第一层入口继续攀塔。")
  elif room.kind=="rest": _start_rest()

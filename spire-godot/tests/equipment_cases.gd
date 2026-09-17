@@ -2,6 +2,8 @@ extends RefCounted
 
 const Game=preload("res://tests/game_fixture.gd")
 const E=preload("res://data/equipment.gd")
+# Living index-off reference for the B1 parity checks (single definition in the architecture suite).
+const Arch=preload("res://tests/architecture_cases.gd")
 
 static func eye_capacity(t) -> void:
  var g=Game.new(42,true,"head_harness")
@@ -22,6 +24,8 @@ static func run(t) -> void:
  release_projection(t)
  precise_positions(t)
  eye_capacity(t)
+ index_slot_edge_parity(t)
+ index_predicate_parity(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")
  t.check(E.ANIMATED_WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.ANIMATED_WEAR_TEXTS.has(slot)),"WEAR animated restraint prose covers every approved body location")
@@ -132,6 +136,71 @@ static func run(t) -> void:
  for i in range(6): t.action(g,"end")
  t.check(g.state.phase=="cleared" and g.state.completed_rooms.is_empty() and g.candidates().all(func(c):return c.payload.kind=="item_discard"),"PRACTICE ends after six real rounds without tower progress; only universal item discard remains")
  t.check(g.validate()=="","PRACTICE final state valid")
+
+# Batch B8 (§8.3 sampling): presence and count predicates over ordinary equipment in precise
+# positions answer exactly like the live path, and agree with the slot and point edges.
+static func index_predicate_parity(t) -> void:
+ var g=Game.new(42)
+ g.state.equipment.clear()
+ for slot in ["thigh","calf","ankle","foot","wrist","palm","eyes","fingers"]: g.add_fixture(slot,7,10)
+ g._install_template("belt","calf",4,10,false,"fixture",1,0,0,"below_knee")
+ g._install_template("rope","thigh",4,10,false,"fixture",1,0,0,"mid_thigh")
+ var reference=Arch.UncachedGame.new(42);reference.state=g.state.duplicate(true)
+ var before=g.export_snapshot()
+ var previous=g._begin_equipment_read()
+ var parity=true
+ for slot in g.B.SLOTS:
+  parity=parity and g.occupied(slot)==reference.occupied(slot) and g.capacity_used(slot)==reference.capacity_used(slot)
+  for side in ["left","right"]: parity=parity and g.hand_blocked(slot,side)==reference.hand_blocked(slot,side)
+ for point in g.Equipment.ANATOMY+["missing_point"]: parity=parity and g._point_count(point)==reference._point_count(point)
+ parity=parity and g._capacity_issue(g.physical_pieces())==reference._capacity_issue(reference.physical_pieces())
+ parity=parity and g._capacity_issue(g.physical_pieces()+g.state.equipment.duplicate())==reference._capacity_issue(reference.physical_pieces()+reference.state.equipment.duplicate())
+ parity=parity and g.occupied("calf")==(not g.equipment_at("calf").is_empty()) and g.hand_blocked("palm","left")==g.equipment_at("palm").any(func(e):return e.get("side","") in ["","left"])
+ parity=parity and g._point_count("below_knee")==g.physical_pieces().filter(func(e):return "below_knee" in g.Equipment.capacity_points(e)).size() and g._point_count("missing_point")==0
+ g._equipment_read=previous
+ t.check(parity and g.export_snapshot()==before and g._equipment_read.is_empty(),"INDEX predicate parity with the live path over precise positions")
+ t.check(g.occupied("calf")==reference.occupied("calf") and g.capacity_used("calf")==reference.capacity_used("calf") and g._point_count("below_knee")==reference._point_count("below_knee"),"INDEX predicates outside a scope stay live")
+
+static func index_fixture(kind: String):
+ if kind=="component": return Game.new(42,true,"component_links")
+ if kind=="shoulder": return Game.new(42,true,"shoulder_links")
+ var g=Game.new(42)
+ g.state.equipment.clear()
+ g.add_fixture("thigh",7,10,false,0,"rope")
+ g.add_fixture("thigh",7,10,false,0,"rope")
+ g.add_fixture("calf",7,10,true)
+ g._install_template("rope","upper_arm",10,10,false,"fixture",2)
+ return g
+
+# §8.3 batch B1 sampling: the materialized slot edge and piece set answer exactly like the live
+# path, in piece order, including the order that powers the "第 N 条" names.
+static func index_slot_edge_parity(t) -> void:
+ for kind in ["plain","component","shoulder"]:
+  var g=index_fixture(kind)
+  var reference=Arch.UncachedGame.new(42);reference.state=g.state.duplicate(true)
+  var before=g.export_snapshot()
+  var previous=g._begin_equipment_read()
+  var pieces=g.physical_pieces()
+  var live=reference.physical_pieces()
+  var parity=pieces==live and pieces.map(func(e):return e.id)==live.map(func(e):return e.id)
+  for slot in g.B.SLOTS+["shoulder","special_2_d"]:
+   var here=g.equipment_at(slot)
+   var expected=reference.equipment_at(slot)
+   parity=parity and here==expected and here.map(func(e):return e.id)==expected.map(func(e):return e.id)
+  for e in pieces:
+   parity=parity and is_same(e,g._equipment(e.id)) and g._equipment_name(e)==reference._equipment_name(reference._equipment(e.id))
+  t.check(parity,"INDEX slot edge parity with the live path "+kind)
+  t.check(g._equipment_index_issues.is_empty() and g.export_snapshot()==before,"INDEX slot edge read records no self-check issue and changes no state "+kind)
+  g._equipment_read=previous
+  t.check(g._equipment_read.is_empty(),"INDEX slot edge read releases its materialized index "+kind)
+ var plain=index_fixture("plain")
+ var plain_scope=plain._begin_equipment_read()
+ var thigh=plain.equipment_at("thigh")
+ var labels=thigh.map(func(e):return plain._equipment_name(e))
+ t.check(thigh.size()==2 and labels[0]!=labels[1] and labels.all(func(label):return label.begins_with("第")),"INDEX slot edge keeps 第 N 条 order for repeated templates "+str(labels))
+ var hosts=plain.state.equipment.filter(func(e):return e.has("shoulders"))
+ t.check(hosts.size()==1 and plain.physical_pieces().size()==plain.state.equipment.size()+hosts[0].shoulders.pieces.size(),"INDEX piece set is equipment plus host shoulder pieces")
+ plain._equipment_read=plain_scope
 
 static func release_projection(t) -> void:
  var g=Game.new(42);g.state.equipment.clear();g._discard_end();g.state.wall="normal"

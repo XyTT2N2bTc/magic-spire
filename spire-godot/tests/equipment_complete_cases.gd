@@ -3,12 +3,51 @@ const Game=preload("res://tests/game_fixture.gd")
 const C=preload("res://data/composites.gd")
 const E=preload("res://data/equipment.gd")
 const Tower=preload("res://data/tower.gd")
+# Living index-off reference for the B3 parity checks (single definition in the architecture suite).
+const Arch=preload("res://tests/architecture_cases.gd")
 
 static func piece(g, root_id: String, key: String) -> Dictionary:
  return g._composite(root_id).components.filter(func(e):return e.part==key)[0]
 
+static func cover_id(g, target: Dictionary, slot: String, point: String="") -> String:
+ return g._outer_cover_at(target,slot,point).get("id","")
+
+# Batch B3 (§8.3): the capacity and physical point edges, their counts and the coverage reason
+# agree with the live path, including templates whose capacity_points is empty.
+static func index_point_edge_parity(t) -> void:
+ for kind in ["leg_layers","component_links","head_harness","plain"]:
+  var g=Game.new(42,true,kind) if kind!="plain" else Game.new(42)
+  if kind=="plain":
+   g.add_fixture("thigh",7,10)
+   g._install_template("belt","calf",4,10,false,"fixture",1,0,0,"below_knee")
+   g.add_fixture("ankle",4)
+  var reference=Arch.UncachedGame.new(42);reference.state=g.state.duplicate(true)
+  var before=g.export_snapshot()
+  var previous=g._begin_equipment_read()
+  var parity=true
+  for slot in g.B.SLOTS: parity=parity and g.capacity_used(slot)==reference.capacity_used(slot)
+  for point in E.ANATOMY+["missing_point"]: parity=parity and g._point_count(point)==reference._point_count(point)
+  parity=parity and g._capacity_issue(g.physical_pieces())==reference._capacity_issue(reference.physical_pieces())
+  for target in reference.physical_pieces():
+   var here=g._equipment(target.id)
+   for slot in E.coverage(target):
+    parity=parity and cover_id(g,here,slot)==cover_id(reference,target,slot)
+    for point in E.physical_points(target): parity=parity and cover_id(g,here,slot,point)==cover_id(reference,target,slot,point)
+  for spec in [["rope","thigh",1],["belt","calf",1],["tape","ankle",2],["fine_belt","toes",1],["eye_cloth","eyes",1]]:
+   parity=parity and g._prepare_installation(spec[0],spec[1],spec[2])==reference._prepare_installation(spec[0],spec[1],spec[2])
+  g._equipment_read=previous
+  t.check(parity and g.export_snapshot()==before and g._equipment_read.is_empty(),"INDEX point edge parity with the live path "+kind)
+ var leg=Game.new(42,true,"leg_layers")
+ var body=piece(leg,leg.state.composites[0].id,"body")
+ var point=E.physical_points(body)[0]
+ var physical_members=leg.physical_pieces().filter(func(e):return point in E.physical_points(e)).size()
+ var leg_scope=leg._begin_equipment_read()
+ t.check(E.capacity_points(body).is_empty() and physical_members>leg._point_count(point),"INDEX capacity edge excludes the capacity-free body the physical edge still counts: "+point)
+ leg._equipment_read=leg_scope
+
 static func run(t) -> void:
  assembly_preparation(t)
+ index_point_edge_parity(t)
  for config in [[1,0,"普通口球",false],[2,0,"马具口球",true],[2,1,"普通假阳具口球",false],[3,0,"马具假阳具口球",true]]:
   var gag_game=Game.new(42,true,"mouth_combination_%d_%d" % [config[0],config[1]])
   var gag=gag_game.equipment_at("mouth")[0]

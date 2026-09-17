@@ -1,16 +1,22 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "event",
   "id": "bound_adventurer_relic",
   "name": "拘束具堆里的微光",
   "intro": "你在回廊角落发现了一名扶她冒险者。\n\n眼罩遮住了她的双眼，口球被头带紧紧勒住；双臂、躯干和并拢的双腿外缠满了绳索、皮带、胶带与扎带，一层压着一层，已经没有自行脱困的可能。\n\n她腰侧压着一只半开的皮包，里面透出遗物的微光。\n\n更多附魔拘束具散落在周围。随着你的靠近，它们纷纷将扣环与绳头转向你的身体。",
-  "start_stage": "attempt_1",
-  "stages": [
+  "start_node": "attempt_1",
+  "nodes": [
     {
       "id": "attempt_1",
       "title": "第一次尝试",
       "intro": "皮包压在她腰侧，里面的微光清晰可见。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "reach",
@@ -76,6 +82,12 @@
       "title": "第二次尝试",
       "intro": "皮包只被碰得晃了一下，仍压在原处。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "reach",
@@ -141,6 +153,12 @@
       "title": "第三次尝试",
       "intro": "你已经靠近了一些，包口的微光变得更加清楚。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "reach",
@@ -206,6 +224,12 @@
       "title": "第四次尝试",
       "intro": "皮包的搭扣就在前方，附近仍有大量附魔拘束具。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "reach",
@@ -271,6 +295,12 @@
       "title": "第五次尝试",
       "intro": "你继续寻找能够碰到搭扣的角度。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "reach",
@@ -336,6 +366,12 @@
       "title": "第六次尝试",
       "intro": "皮包已经离你的手不远。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "reach",
@@ -401,6 +437,12 @@
       "title": "第七次尝试",
       "intro": "你再次靠近压住皮包的那一侧。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "reach",
@@ -466,6 +508,12 @@
       "title": "第八次尝试",
       "intro": "指尖距离搭扣只剩一点。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "reach",
@@ -531,6 +579,12 @@
       "title": "第九次尝试",
       "intro": "皮包已经近在手边。",
       "allow_refuse": false,
+      "unavailable": "hide",
+      "relic_gate": "claimed",
+      "random_freeze": "always",
+      "outcome_draw": "option",
+      "frozen_form": "staged",
+      "empty_node": "fail",
       "choices": [
         {
           "id": "reach",

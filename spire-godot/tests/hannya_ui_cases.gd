@@ -26,12 +26,12 @@ static func run(t) -> void:
   var face=ui.card_buttons[card.uid]
   t.check(t.visible_text(face.get_node("CardMana/Mana_gain")).strip_edges()=="+5" and t.visible_text(face).contains("技能") and not t.visible_text(face).contains("魔法 ·"),"HANNYA UI both faces show plus five while remaining skills")
  await Click.click_card(t,card.uid);await t.frames()
- t.check(ui.game.Cards.Hannya.level(ui.game)==1 and ui.find_child("StatusIcon_power_hannya_level_1",true,false)!=null and ui.view.card_texts.hannya_2.face_costs.free=="1","HANNYA UI actual click upgrades and shows level badge")
+ t.check(ui.game.Cards.Hannya.level(ui.game)==1 and ui.find_child("StatusIcon_power_hannya_level_1",true,false)!=null and ui.game.live_card_text("hannya_2").face_costs.free=="1","HANNYA UI actual click upgrades and shows level badge")
  card=ui.game.state.discard.filter(func(c):return c.type=="hannya_2")[0]
  ui.game.state.discard.erase(card);ui.game.state.hand.append(card);ui.card_faces[card.uid]=false
  ui.render();await t.frames();await Click.click_card(t,card.uid);await t.frames()
  var gift=ui.game.state.hand.filter(func(c):return c.type=="hannya_swallow")
- t.check(gift.size()==1 and t.visible_text(ui.card_buttons[gift[0].uid]).contains("虚无") and ui.view.card_texts.hannya_swallow.face_costs.free=="0","HANNYA UI second stage visibly adds zero-cost ethereal gift")
+ t.check(gift.size()==1 and t.visible_text(ui.card_buttons[gift[0].uid]).contains("虚无") and ui.game.live_card_text("hannya_swallow").face_costs.free=="0","HANNYA UI second stage visibly adds zero-cost ethereal gift")
  var lower=Give.give(ui.game,"hannya_1");ui.render();await t.frames()
  var lower_text=t.visible_text(ui.card_buttons[lower.uid])
  t.check(lower_text.contains("仅将一张") and lower_text.contains("好汤喝够") and not lower_text.contains("力量＋1"),"HANNYA UI physical lower-stage card shows actual soup-only outcome")

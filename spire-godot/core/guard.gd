@@ -110,11 +110,11 @@ static func capture(g, captor: Dictionary) -> void:
  g.RelicEffects.clear_temporary(g)
  g.RelicEffects.end_combat(g)
  g.state.next_energy=0
- g.state.phase="captured";g.state.energy=0;g.state.weakness_turns=0
+ g._apply_transition("battle_end_captured",{"phase":"captured"});g.state.energy=0;g.state.weakness_turns=0
  g.state.prepare_left=0;g.state.rest_left=0;g.state.hook_uses=0
  if g.room_data("prison").is_empty():
   g.state.rooms.append({"id":"prison","name":"监狱接收室","kind":"prison","wall":"rough","next":[],"floor":-1,"lane":0.5})
- g.state.room="prison";g.state.wall="rough";g.state.wall_distance=0
+ g._apply_transition("battle_end_captured",{"room":"prison"});g.state.wall="rough";g.state.wall_distance=0
  g.Pressure.cleanup(g)
  var spec=g.Prison.equipment_spec(g,0)
  var intake=g.Prison.intake_equipment(g)

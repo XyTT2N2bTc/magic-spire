@@ -13,10 +13,21 @@ static func candidates(g) -> Array:
   if entry.status!="pending": continue
   var reason=g.RelicEffects.gain_reason(g,entry.type)
   if not g.Relics.can_gain(g.state.relics,entry.type): reason="已经拥有这件遗物。"
-  g._candidate(out,{"kind":"relic_bundle","op":"claim","index":i},"领取「"+g.Relics.TYPES[entry.type].name+"」",g.Relics.TYPES[entry.type].detail,0,0,reason,"","reward")
-  g._candidate(out,{"kind":"relic_bundle","op":"skip","index":i},"跳过","放弃这件遗物，其他两件仍可领取。",0,0,"","","reward")
- g._candidate(out,{"kind":"relic_bundle","op":"finish"},"返回奖励","未领取的遗物将被放弃。",0,0,"","","reward")
+  var claim_args={"relic_id":entry.type}
+  g._candidate(out,{"kind":"relic_bundle","op":"claim","index":i},"领取「"+g.Relics.TYPES[entry.type].name+"」",{"kind":"relic_bundle.claim","args":claim_args,"fallback":claim_detail(g,claim_args)},0,0,reason,"","reward")
+  g._candidate(out,{"kind":"relic_bundle","op":"skip","index":i},"跳过",{"kind":"relic_bundle.skip","args":{},"fallback":skip_detail(g,{})},0,0,"","","reward")
+ g._candidate(out,{"kind":"relic_bundle","op":"finish"},"返回奖励",{"kind":"relic_bundle.finish","args":{},"fallback":finish_detail(g,{})},0,0,"","","reward")
  return out
+
+# R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+static func claim_detail(g, args: Dictionary) -> String:
+ return g.Relics.TYPES[String(args.get("relic_id",""))].detail
+
+static func skip_detail(_g, _args: Dictionary) -> String:
+ return "放弃这件遗物，其他两件仍可领取。"
+
+static func finish_detail(_g, _args: Dictionary) -> String:
+ return "未领取的遗物将被放弃。"
 
 static func execute(g, p: Dictionary) -> void:
  if p.op=="finish":

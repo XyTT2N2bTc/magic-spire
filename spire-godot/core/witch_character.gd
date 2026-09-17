@@ -148,6 +148,24 @@ static func profile(g, part: String) -> Dictionary:
  if part=="hand" and g.state.card_buffs.has("witch_hand_freedom"): return {"parts":["hand"],"multiplier":1.0,"body_free":true}
  return {"parts":[part],"multiplier":g.B.BODY_DAMAGE[g.level("legs")] if part=="legs" else 1.0}
 
+# R4（docs/ondemand-copy.md §11.5）：法术候选文案改走路由，正文留在本模块。
+static func attack_detail(g, args: Dictionary) -> String:
+ var part=String(args.get("part",""))
+ var charge=bool(args.get("charge",false))
+ var n=int(args.get("stacks",0))
+ var damage=float(args.get("damage",0.0))
+ var hits=int(args.get("hits",1))
+ var all_targets=bool(args.get("all_targets",false))
+ var focus=int(args.get("focus",0))
+ var detail="获得1层%s施法预备。当前%d层。每回合预备次数不限。" % [NAMES[part],n] if charge else ("%s伤害%s×%d。%s" % ["全体" if all_targets else "",g.number(damage),hits,"消耗全部%d层%s施法预备。" % [n,NAMES[part]] if n>0 else "当前无施法预备。"])
+ if part=="legs" and not charge: detail="伤害1，打断。消耗全部腿部施法预备。"
+ if not charge:
+  detail+="每个部位每回合只能成功释放1次。"
+  if Expansion.protects_preparation(g): detail+="耐心耐心～：本次保留全部施法预备。"
+  if "witch_interrupt_"+part in g.state.card_buffs: detail+="本次附加一次打断。"
+ if focus>0: detail+="本次各段魔法伤害＋%d，消耗全部精神集中。" % focus
+ return detail
+
 static func attack_candidates(g, out: Array) -> void:
  for enemy in g.state.enemies:
   if enemy.gone: continue
@@ -174,15 +192,9 @@ static func attack_candidates(g, out: Array) -> void:
     var focus=0 if charge or part=="legs" else g.state.witch_focus
     var damage=0.0 if charge else (base+focus)*g.Cards.damage_multiplier(g,"witch_"+part)
     var discount=2 if g.state.card_buffs.has("witch_ready_to_strike_free") else 0
-    var detail="获得1层%s施法预备。当前%d层。每回合预备次数不限。" % [NAMES[part],n] if charge else ("%s伤害%s×%d。%s" % ["全体" if all_targets else "",g.number(damage),hits,"消耗全部%d层%s施法预备。" % [n,NAMES[part]] if n>0 else "当前无施法预备。"])
-    if part=="legs" and not charge: detail="伤害1，打断。消耗全部腿部施法预备。"
-    if not charge:
-     detail+="每个部位每回合只能成功释放1次。"
-     if Expansion.protects_preparation(g): detail+="耐心耐心～：本次保留全部施法预备。"
-     if "witch_interrupt_"+part in g.state.card_buffs: detail+="本次附加一次打断。"
-    if focus>0: detail+="本次各段魔法伤害＋%d，消耗全部精神集中。" % focus
     var p={"kind":"attack","type":"witch_"+part,"part":part,"form":form,"charge_action":charge,"enemy":enemy.id,"all":all_targets,"hits":hits,"damage":damage,"damage_type":"physical" if part=="legs" else "magic","interrupt":part=="legs" and not charge,"fall":false,"witch_action":true}
-    g._candidate(out,p,label,detail,maxi(0,cost-discount),mana,reason,"","attack")
+    var copy_args={"part":part,"charge":charge,"stacks":n,"damage":damage,"hits":hits,"all_targets":all_targets,"focus":focus}
+    g._candidate(out,p,label,{"kind":"witch.attack","args":copy_args,"fallback":attack_detail(g,copy_args)},maxi(0,cost-discount),mana,reason,"","attack")
     out.back().casting=casting
     var own_after=maxf(0,g.state.mana-out.back().mana_payment.mana)
     var target_multiplier=1.0 if all_targets else g.Enemies.damage_multiplier(enemy.type,p.damage_type)

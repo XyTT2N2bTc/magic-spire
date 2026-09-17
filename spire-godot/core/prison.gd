@@ -145,7 +145,7 @@ static func discoverable(p: Dictionary) -> Array:
 
 # Scenario initialization only; all subsequent actions use the ordinary prison pipeline.
 static func start_practice(g) -> void:
- g.state.security=1;g.state.room="prison";g.state.wall="rough";g.state.wall_distance=0
+ g.state.security=1;g._apply_transition("prison_cell_init",{"room":"prison"});g.state.wall="rough";g.state.wall_distance=0
  g.state.posture="lie"
  g.state.rooms.append({"id":"prison","name":"牢房","kind":"prison","wall":"rough","next":[],"floor":-1,"lane":0.5})
  var baseline=g.equipment_targets().map(func(e):return e.id)
@@ -173,15 +173,21 @@ static func high_security(g) -> String:
  # Three-tier upgrades may create shoulder pieces after the original target list.
  # Their factory supplies the upgraded grade/durability; finalize their locks too.
  for e in g.Shoulders.pieces(g): e.locked=g.Equipment.allows(e,"lock")
- if not g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty()): return "高安全监室仍有未被覆盖的部位。"
- g.state.capture.terminal_equipment=g.equipment_targets().map(func(e):return e.id)
+ # §3.1 item 8: only this tail is read-only; the upgrade half above writes equipment and the
+ # shoulder line stays a fresh read, so both remain outside the scope.
+ var previous=g._begin_equipment_read()
+ var covered=g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty())
+ var terminal=[] if not covered else g.equipment_targets().map(func(e):return e.id)
+ g._equipment_read=previous
+ if not covered: return "高安全监室仍有未被覆盖的部位。"
+ g.state.capture.terminal_equipment=terminal
  return ""
 
 static func enter(g) -> String:
  if g.state.security>=5:
   var issue=high_security(g)
   if issue!="": return issue
-  g.state.phase="prison_end"
+  g._apply_transition("prison_high_security",{"phase":"prison_end"})
   g.state.enemies=[]
   g.room_data("prison").name="高安全监室"
   g._emit("event","警戒度达到5，移入高安全监室。原装备结构与链接保留，普通与复合装备补齐至高级三档，可上锁处全部上锁；限制项圈继续保留。本次逃脱结束，可以检查最终装备或重新开始。")
@@ -198,7 +204,7 @@ static func enter(g) -> String:
  return ""
 
 static func begin_turn(g) -> void:
- g.state.phase="prison"
+ g._apply_transition("prison_cell_enter",{"phase":"prison"})
  g.state.prison.turn+=1
  g.state.heavy_used=false
  g._begin_player_turn()
@@ -212,25 +218,49 @@ static func end_turn(g) -> void:
  if g.state.prison.left>0:
   begin_turn(g)
   return
- g.state.phase="inspection"; g.state.prison.stage="arrival"
+ g._apply_transition("inspection_start",{"phase":"inspection"}); g.state.prison.stage="arrival"
  # Keep the next-turn penalty while the non-turn inspection is on screen.
  g.state.overloaded=false; g.state.overload_count=0; g.state.energy=0
  g._emit("event","紫发狱警打开牢门，例行巡视开始。可以接受检查，或立即反抗。")
 
-static func add(out: Array, g, action: String, label: String, detail: String, cost: int=0, reason: String="", extra: Dictionary={}) -> void:
+static func add(out: Array, g, action: String, label: String, copy, cost: int=0, reason: String="", extra: Dictionary={}) -> void:
  var payload={"kind":"prison","action":action}
  payload.merge(extra)
- g._candidate(out,payload,label,detail,cost,0,reason,"","prison")
+ g._candidate(out,payload,label,copy,cost,0,reason,"","prison")
+
+# R3（docs/ondemand-copy.md §11.5）：Prison.add 各站点文案的 builder，正文留在本模块，路由只做分派。
+static func enter_detail(g, args: Dictionary) -> String:
+ return "牢门会在你身后锁上。" if int(args.get("security",g.state.security))<5 else "进入高安全监室。"
+
+static func inspection_detail(_g, args: Dictionary) -> String:
+ return {"arrival":"让她核对你身上的装备。","result":"处理这次检查的结果。","done":"继续服刑。"}.get(String(args.get("stage","")),"")
+
+static func resist_detail(_g, _args: Dictionary) -> String:
+ return "与她战斗。胜利可取得牢门钥匙。"
+
+static func vent_kick_detail(_g, _args: Dictionary) -> String:
+ return "合法坐姿踢击一次推进1次，共需%d次；每回合一次。" % B.PRISON_VENT_HITS
+
+static func vent_exit_detail(_g, _args: Dictionary) -> String:
+ return "格栅开启后即可离开；不检查站姿移动速度。"
+
+static func key_detail(_g, _args: Dictionary) -> String:
+ return "钥匙不占道具容量；开门后可直接逃离，不检查行动速度。"
+
+static func door_exit_detail(_g, _args: Dictionary) -> String:
+ return "自行开锁后速度须至少1；狱警钥匙路线不检查速度。点击离开时重新判定。"
 
 static func candidates(g, out: Array) -> void:
  if g.state.phase=="captured":
-  add(out,g,"enter","进入牢房" if g.state.security<5 else "查看终局","牢门会在你身后锁上。" if g.state.security<5 else "进入高安全监室。")
+  var enter_args={"security":g.state.security}
+  add(out,g,"enter","进入牢房" if g.state.security<5 else "查看终局",{"kind":"prison.enter","args":enter_args,"fallback":enter_detail(g,enter_args)})
   return
  if g.state.phase=="inspection":
   var stage=g.state.prison.stage
-  var text={"arrival":["inspect","接受检查","让她核对你身上的装备。"],"result":["accept","让她继续","处理这次检查的结果。"],"done":["resume","返回牢房","继续服刑。"]}[stage]
-  add(out,g,text[0],text[1],text[2])
-  add(out,g,"resist","反抗狱警","与她战斗。胜利可取得牢门钥匙。")
+  var text={"arrival":["inspect","接受检查"],"result":["accept","让她继续"],"done":["resume","返回牢房"]}[stage]
+  var stage_args={"stage":stage}
+  add(out,g,text[0],text[1],{"kind":"prison.inspection","args":stage_args,"fallback":inspection_detail(g,stage_args)})
+  add(out,g,"resist","反抗狱警",{"kind":"prison.resist","args":{},"fallback":resist_detail(g,{})})
   return
  if g.state.phase!="prison": return
  var p=g.state.prison
@@ -243,22 +273,28 @@ static func candidates(g, out: Array) -> void:
  elif g.state.posture!="sit": reason="需要坐姿才能踢到墙脚的格栅。"
  elif kick.reason!="": reason=kick.reason
  elif p.vent_tick==g.state.tick: reason="本回合已经踢过格栅。"
- add(out,g,"vent_kick","踢击通风口","合法坐姿踢击一次推进1次，共需%d次；每回合一次。" % B.PRISON_VENT_HITS,1,reason)
- add(out,g,"vent_exit","从通风口逃离","格栅开启后即可离开；不检查站姿移动速度。",0,"先发现并踢开通风口格栅。" if p.vent_hits<B.PRISON_VENT_HITS else ("需要先到通风口前。" if not Space.at(g,"vent") else capacity_reason(g)))
- add(out,g,"key","使用牢门钥匙","钥匙不占道具容量；开门后可直接逃离，不检查行动速度。",0,"需要先击败巡视狱警，取得专用钥匙。" if not p.key else ("需要先到牢门前。" if not Space.at(g,"door") else ("牢门已经打开。" if p.door_open else "")))
+ add(out,g,"vent_kick","踢击通风口",{"kind":"prison.vent_kick","args":{},"fallback":vent_kick_detail(g,{})},1,reason)
+ add(out,g,"vent_exit","从通风口逃离",{"kind":"prison.vent_exit","args":{},"fallback":vent_exit_detail(g,{})},0,"先发现并踢开通风口格栅。" if p.vent_hits<B.PRISON_VENT_HITS else ("需要先到通风口前。" if not Space.at(g,"vent") else capacity_reason(g)))
+ add(out,g,"key","使用牢门钥匙",{"kind":"prison.key","args":{},"fallback":key_detail(g,{})},0,"需要先击败巡视狱警，取得专用钥匙。" if not p.key else ("需要先到牢门前。" if not Space.at(g,"door") else ("牢门已经打开。" if p.door_open else "")))
  reason="牢门仍然上锁；可用手中的术式解锁牌，或击败狱警取得钥匙。" if not p.door_open else ""
  if reason=="" and not Space.at(g,"door"): reason="需要先到牢门前。"
  if reason=="" and not p.key and g.movement_profile().speed<1: reason="自行开锁逃离需要行动速度至少1；请先站起。"
  if reason=="": reason=capacity_reason(g)
- add(out,g,"door_exit","离开牢门","自行开锁后速度须至少1；狱警钥匙路线不检查速度。点击离开时重新判定。",0,reason)
+ add(out,g,"door_exit","离开牢门",{"kind":"prison.door_exit","args":{},"fallback":door_exit_detail(g,{})},0,reason)
  for card in g.state.hand:
   if g.Cards.Rules.SPECS[card.type].mode!="unlock": continue
   reason="牢门已经打开。" if p.door_open else ("需要先到牢门前。" if not Space.at(g,"door") else g.Cards.body_reason(g,card.type))
   var payload={"kind":"prison","action":"unlock","uid":card.uid,"type":card.type,"target":"prison_door","slot":"wrist","mode":"unlock","free":false}
-  g._candidate(out,payload,g.B.CARD_NAMES[card.type]+" · 牢门","打出这张牌打开牢门；临时魔力优先抵扣耗魔。"+("随后可选择另一把外露锁。" if g.Cards.Rules.SPECS[card.type].get("hits",1)>1 else ""),g.Cards.Rules.energy_cost(card.type),g._mana_cost(B.SPELL_COST),reason,"","prison")
+  var door_args={"type":card.type}
+  g._candidate(out,payload,g.B.CARD_NAMES[card.type]+" · 牢门",{"kind":"prison.unlock_door","args":door_args,"fallback":unlock_door_detail(g,door_args)},g.Cards.Rules.energy_cost(card.type),g._mana_cost(B.SPELL_COST),reason,"","prison")
 
 static func capacity_reason(g) -> String:
  return "随身道具超出容量，请在道具栏使用或放弃多出的工具。" if g.carried_items()>g.item_capacity() else ""
+
+# R4（docs/ondemand-copy.md §11.5）：牢门解锁牌候选文案改走路由，正文留在本模块。
+static func unlock_door_detail(g, args: Dictionary) -> String:
+ var type=String(args.get("type",""))
+ return "打出这张牌打开牢门；临时魔力优先抵扣耗魔。"+("随后可选择另一把外露锁。" if g.Cards.Rules.SPECS[type].get("hits",1)>1 else "")
 
 static func execute(g, c: Dictionary) -> String:
  var action=c.payload.action
@@ -342,7 +378,7 @@ static func execute(g, c: Dictionary) -> String:
    p.resisting=true
    p.reinforcements=0
    g.state.wall_distance=g._initial_wall_distance(true)
-   g.state.phase="battle"; g.state.round=0; g.state.encounter+=1
+   g._apply_transition("prison_exit_battle_start",{"phase":"battle"}); g.state.round=0; g.state.encounter+=1
    g.state.kick_last=-10; g.state.heavy_used=false
    g.RelicEffects.clear_temporary(g)
    g.Pressure.clear_penalties(g)
@@ -405,9 +441,9 @@ static func escape(g, route: String) -> void:
  g.state.pressure_sources=g.state.pressure_sources.filter(func(s):return s.room=="")
  g.state.rooms=g.Tower.prison_route(g.state.security)
  g.state.room_encounters={"prison_gate":"guard_solo"}
- g.state.room="prison_start";g.state.wall="normal";g.state.wall_distance=1
+ g._apply_transition("prison_escape",{"room":"prison_start"});g.state.wall="normal";g.state.wall_distance=1
  g.state.room_event={};g.state.completed_rooms=[];g.state.traversed_edges=[];g.state.journey={}
- g.state.enemies=[];g.state.phase="map";g.state.energy=0
+ g.state.enemies=[];g._apply_transition("prison_escape",{"phase":"map"});g.state.energy=0
  g._emit("event",("传送符将你带离牢房。" if route=="return_seal" else ("你爬出通风口，离开牢房。" if route=="vent_exit" else "你穿过牢门，离开牢房。"))+"来到监狱出发点。前方是休息点和出口精英战，出口由%d名魅魔警卫把守。" % g.state.security)
 
 static func is_exit_battle(g) -> bool:
@@ -416,17 +452,28 @@ static func is_exit_battle(g) -> bool:
 static func return_to_tower(g) -> void:
  g._restart_tower()
 
+# §3.1 item 9: the terminal equipment read block keeps one scope and one exit; a nested call
+# under Game.validate is a no-op because the outer scope is reused.
+static func _terminal_equipment_issue(g) -> String:
+ var previous=g._begin_equipment_read()
+ var issue=""
+ if g.state.phase!="prison_end" or g.state.security!=5 or g.state.capture.terminal_equipment!=g.equipment_targets().map(func(e):return e.id): issue="高安全终局装备清单不完整。"
+ elif not g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty()): issue="高安全终局存在未覆盖部位。"
+ else:
+  for e in g.equipment_targets():
+   if g.Equipment.lock_only(e):
+    if not e.locked: issue="高安全监室的限制项圈必须上锁。"; break
+    continue
+   if e.grade!=3 or e.maximum!=g.Equipment.maximum(3) or e.durability!=e.maximum or e.locked!=g.Equipment.allows(e,"lock"): issue="高安全终局装备必须为高级三档，并锁住所有可上锁处。"; break
+ g._equipment_read=previous
+ return issue
+
 static func validate(g) -> String:
  var reinforcement_error=reinforcement_issue(g.state)
  if reinforcement_error!="": return reinforcement_error
  if g.state.capture.has("terminal_equipment"):
-  if g.state.phase!="prison_end" or g.state.security!=5 or g.state.capture.terminal_equipment!=g.equipment_targets().map(func(e):return e.id): return "高安全终局装备清单不完整。"
-  if not g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty()): return "高安全终局存在未覆盖部位。"
-  for e in g.equipment_targets():
-   if g.Equipment.lock_only(e):
-    if not e.locked: return "高安全监室的限制项圈必须上锁。"
-    continue
-   if e.grade!=3 or e.maximum!=g.Equipment.maximum(3) or e.durability!=e.maximum or e.locked!=g.Equipment.allows(e,"lock"): return "高安全终局装备必须为高级三档，并锁住所有可上锁处。"
+  var terminal_issue=_terminal_equipment_issue(g)
+  if terminal_issue!="": return terminal_issue
  if g.state.phase=="prison_end" and not g.state.capture.has("terminal_equipment"): return "高安全终局缺少装备清单。"
  var p=g.state.prison
  if g.state.phase in ["prison","inspection"] and not p.get("active",false): return "牢房流程缺少入狱记录。"
@@ -534,6 +581,6 @@ static func exit_practice(g, kind: String) -> void:
  if kind in ["prison_release","prison_release_violation"]: return
  enter(g)
  escape(g,"door_exit")
- g.state.room="prison_gate"
+ g._apply_transition("prison_gate_init",{"room":"prison_gate"})
  g.state.completed_rooms=["prison_start","prison_rest"]
  g._start_battle()

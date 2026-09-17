@@ -80,7 +80,7 @@ static func run(t) -> void:
  var uid=ui.view.hand.filter(func(card):return card.type=="strain")[0].uid
  if ui.card_faces.get(uid,false): await t.flip(uid)
  c=ui.actions.find("card",{"uid":uid,"target":target.id,"free":false})
- t.check(c.detail.contains("固定切割") and c.payload.tool_bonus.damage==5,"TOOL UI card preview identifies selected fixed bonus")
+ t.check(ui.detail_of(c).contains("固定切割") and c.payload.tool_bonus.damage==5,"TOOL UI card preview identifies selected fixed bonus")
  var old=target.durability;var damage=c.payload.preview.damage
  await t.start_drag(uid,"wrist")
  await t.reveal_drop_target(c.id)
@@ -89,6 +89,8 @@ static func run(t) -> void:
  await t.capture("ui-120-card-tool-bonus.png")
  await t.release_target(await t.reveal_drop_target(c.id))
  t.check(is_equal_approx(ui.game._equipment(target.id).durability,old-damage-5) and ui.game._item(tool).uses==2 and ui.view.energy==1,"TOOL UI real drag pays card and triggers fixed bonus exactly once")
+ ui.restart(42);await t.frames()
+ t.check(ui.active_drag.is_empty() and ui.view.candidates.map(func(entry):return entry.id)==ui.game.candidates().map(func(entry):return entry.id),"TOOL UI restarting after a target drag rebuilds candidates without reading removed equipment")
 
 static func read_only_details(t) -> void:
  var ui=t.ui

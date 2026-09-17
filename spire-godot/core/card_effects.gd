@@ -411,6 +411,15 @@ static func metadata(g, type: String, uid: String="") -> Dictionary:
    for side in ["bound","free"]: result.face_mana[side]=result.face_mana[side].filter(func(entry):return entry.kind!="gain")
  return result
 
+# 界面固有卡面文案的唯一生成函数（docs/ondemand-copy.md §1.1）：实时路径的四个步骤在此一处。
+# 输入按牌型与实例 uid，输出全新 Dictionary，只读且不影响判定、随机与存档。
+static func text_entry(g, type: String, uid: String="") -> Dictionary:
+ var entry=face_texts(g,type,uid)
+ entry.face_costs={"bound":"—" if g.B.CARD_TRAITS.get(type,{}).get("unplayable",false) else g.Cards.energy_label(g,type,false),"free":"—" if g.B.CARD_TRAITS.get(type,{}).get("unplayable",false) else g.Cards.energy_label(g,type,true)}
+ entry.merge(metadata(g,type,uid))
+ if not Rules.cast_profile(type).is_empty(): entry.casting=g.cast_view(cast_profile(g,type))
+ return entry
+
 static func base_damage(g, type: String, uid: String="") -> float:
  var spec=Rules.SPECS[type]
  var scaling=spec.get("worn_damage",{})
@@ -603,7 +612,8 @@ static func reason(g, p: Dictionary) -> String:
 static func detail(g, p: Dictionary) -> String:
  if p.get("self_target",false):
   if Rules.SPECS[p.type].has("hannya_stage"): return Hannya.detail(g,Rules.SPECS[p.type].hannya_stage,p.free)+Rules.SPECS[p.type].get("play_music_text","")
-  var text=face_text(g,p.type,p.free)
+  var face_args={"type":p.type,"free":p.free,"uid":""}
+  var text=g.CopyRouter.text(g,{"kind":"card.face_text","args":face_args,"fallback":face_text_detail(g,face_args)})
   if Rules.SPECS[p.type].has("self_binding"): text+="\n"+SelfBinding.detail(g,p)
   if p.get("hand_uid","")!="":
    var chosen=g._card(p.hand_uid)
@@ -660,9 +670,19 @@ static func target_candidate(g, out: Array, p: Dictionary, label: String, cost: 
   if choices.is_empty():
    p.hand_uid="";choices.append(p)
  for choice in choices:
-  var text=detail(g,choice)
-  if choice.get("hand_uid","")!="": text+="\n本次消耗「%s」。" % g.B.CARD_NAMES[g._card(choice.hand_uid).type]
-  g._candidate(out,choice,label,text,cost,mana,reason(g,choice),risk,"card")
+  # B3（docs/ondemand-copy.md §1.5）：descriptor 只留类别与参数，detail 由 Game.candidate_detail 现算。
+  g._candidate(out,choice,label,{"kind":"card.target","args":{"payload":choice}},cost,mana,reason(g,choice),risk,"card")
+
+# R3（docs/ondemand-copy.md §11.5）：转发包装的文案参数改走路由，签名与产出保持不变。
+# R6（docs/ondemand-copy.md §11.5）：单面卡面正文的 builder，正文留在本模块。
+static func face_text_detail(g, args: Dictionary) -> String:
+ return face_text(g,String(args.get("type","")),bool(args.get("free",false)),String(args.get("uid","")))
+
+static func target_detail(g, args: Dictionary) -> String:
+ var payload=args.get("payload",{})
+ var text=detail(g,payload)
+ if payload.get("hand_uid","")!="": text+="\n本次消耗「%s」。" % g.B.CARD_NAMES[g._card(payload.hand_uid).type]
+ return text
 
 static func candidates(g, out: Array, card: Dictionary) -> void:
  if g.B.CARD_TRAITS.get(card.type,{}).get("unplayable",false): return
@@ -683,11 +703,11 @@ static func candidates(g, out: Array, card: Dictionary) -> void:
     if choices.is_empty():
      p.hand_uid="";choices.append(p)
    for choice in choices:
-    g._candidate(out,choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+("自由面" if choice.free else "挣脱面"),detail(g,choice),energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),reason(g,choice),"","card")
+    g._candidate(out,choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+("自由面" if choice.free else "挣脱面"),{"kind":"card.target","args":{"payload":choice}},energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),reason(g,choice),"","card")
   return
  if Rules.single_face(card.type):
   var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":false,"mode":spec.mode,"self_target":true}
-  g._candidate(out,p,"打出「"+g.B.CARD_NAMES[card.type]+"」",detail(g,p),energy_cost(g,card.type),0,reason(g,p),"","card")
+  g._candidate(out,p,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":p}},energy_cost(g,card.type),0,reason(g,p),"","card")
   return
  if Rules.damage(card.type) and (not spec.has("target_slots") or spec.has("witch_training_stage")) and g.CaptureBind.has_bind(g):
   for second in ([false,true] if spec.has("bound_modes") else [false]):

@@ -239,7 +239,7 @@
 
 ### 7.2 数据与配方
 
-普通事件条目需要`name/intro/choices`；每个选择需唯一`id/label/reward`，配`recipe`或`effects`。顶层`allow_refuse`默认为真，设为假时不会生成默认付费离开；作者仍可用无奖励空`effects`提供免费离开。选项可用`hide_when_unavailable`要求完整效果当前无法成立时直接隐藏，也可使用与多阶段事件相同的`selector`。普通选项还可声明通用`encounter{id,requires_defeat,victory_effects,victory_report,result_status}`，进入已登记遭遇并在胜利后直接回到事件结果页；它不产生普通战利品或整备，普通`reward`必须为`none`。`item_rewards:[{id,pool}]`可从1—6个道具池各冻结一件，通过共用战利品界面逐件领取或放弃；容量已满时就地禁止，不进入整理或整备。多阶段事件改用`name/intro/start_stage/stages`，可加`cleanup_effects`，不能同时再填顶层`choices`。完整字段见内容包说明及`event_multistage.json.disabled`。
+事件条目需要`name/intro/start_node/nodes`；每个节点声明`allow_refuse/unavailable/relic_gate/random_freeze/outcome_draw/frozen_form/empty_node`并填写`choices`，每个选择需唯一`id/label/reward`，配`recipe`、`effects`或`outcomes`。节点`allow_refuse`无默认：为真时自动追加支付至多10魔力的付费离开选项，为假时不会生成默认离开；作者仍可用无奖励空`effects`提供免费离开。选项可用`hide_when_unavailable`要求完整效果当前无法成立时直接隐藏，也可使用通用`selector`。选项还可声明通用`encounter{id,requires_defeat,victory_effects,victory_report,result_status}`，进入已登记遭遇并在胜利后直接回到事件结果页；它不产生普通战利品或整备，`reward`必须为`none`。`item_rewards:[{id,pool}]`可从1—6个道具池各冻结一件，通过共用战利品界面逐件领取或放弃；容量已满时就地禁止，不进入整理或整备。定义级`cleanup_effects`可声明`restore_held`收尾；单节点定义的节点`id`固定为`choice`，多节点定义按`start_node`进入第一个节点。完整字段见内容包说明及两个`event`模板。
 
 | recipe | 当前固定行为 |
 |---|---|
@@ -274,6 +274,7 @@
 
 普通与多阶段选项的`selector`都可用`count:1—4`冻结多个不同实例；拘束具选择器可用`include_special:false`排除性玩具，卡牌选择器可用`exclude_curses:true`排除诅咒。多阶段作者效果另支持`install_random{templates,count,grade,tier,locked,allow_links?}`和`tighten_random{count,to_tier,templates?}`。两者会在进入阶段时沿`event`随机域依次选取合法结果，立即展开成上述运行效果；数量范围1—4，同一批收紧不会重复选择已经达到目标档位的对象。`allow_links`默认开启；明确写成`false`时只保留普通单件，不会因绳索／皮带来源自动加入链接绳。选项的`outcomes`支持2—8个加权结果，每项含`weight/effects`并可覆盖`next/reward/report`；选项必须提供不泄露已冻结结果的`detail`。
 
+状态条件写在选项上：规范拼写`conditions`（1—8条，每条`{kind, mode, reason, …}`）或兼容拼写`availability`，两者互斥；`kind`只取声明表里的种类。`mode`的`optional`使选项显示但禁用并给出`reason`，`hidden`使选项不生成（不进冻结选项与候选）。全部条目按 AND 判断，任一`hidden`命中即隐藏，只有`optional`命中时列出全部命中项，`reason`按声明顺序换行连接；选项级`unavailable`（`hide`／`disable`）是未被显式`mode`约束条目的默认模式，与`hide_when_unavailable`互斥。
 普通单件安装结果按真实部位读取`Equipment.WEAR_TEXTS`并代入具体装备名；这组正文属于跨事件共用内容。新增普通单件可安装部位时必须同步提供正文，不能退回“已装在某处”的机械占位句。事件定量恢复角色当前魔力使用`mana_gain`，完整恢复至当前上限使用`mana_restore_full`；直接补充贴身魔瓶使用`flask_mana_gain`，不冒充手动存入，也不改变角色当前魔力。
 
 普通与多阶段事件都可使用`install_random`；普通事件在进房时、多阶段事件在进入对应阶段时将生成器展开为具体安装效果，查看与提交不重抽。`special_install_random{types,replace?,fallback?}`同样只会冻结当前有合法位置的性玩具。省略`fallback`时，没有任何空余位置就不生成该选项；不能暗中改成另一种奖励，也不能挤掉原装备。实际安装结果统一读取具体类型的`wear_text`，不会显示“某件性玩具”或等级泛称。
@@ -282,7 +283,7 @@
 
 仅用于封闭剧情演出的“先取下原性玩具、结束后装回”不改变状态：正文按真实装备名单独描写即可。只有取下期间会开放选择、影响空位或参与规则判定时，才使用`hold_special/restore_held`并接受存档与原子复核。
 
-阶段数组只允许向后引用或进入`result`，不能循环。起始阶段必须允许默认拒绝，或明确提供一个无条件、无效果且直达`result`的免费离开选项；后续阶段若全部选项在当前状态下都无法成立，则进入它的上一步候选也会被拒绝。当前带卡牌三选一或遗物奖励的选择必须直接结束事件。
+阶段数组只允许向后引用或进入`result`，不能循环。`next`还可以写成跨事件对象`{"event":"已登记事件id","node":"该事件的节点id"}`：提交后同一个`room_event`实例改写为目标事件的`id`与`stage`，形成事件链，`values`计数与`held`暂存在整条链上继续共享，暂存`key`必须整条链唯一（跨定义重复由加载期的整包校验拒绝，`cleanup_effects`也不能引用别的定义建立的`key`），`cleanup_effects`取整条链的并集并按`key`去重、离开时各执行一次，`chain`键只在真的发生跨事件跳转时写入并记录已经走过的事件id（抵达时不含该键），链上经过的目标事件都会加入`event_seen`，事件携带的遗物按目标事件的定义重算（目标没有遗物奖励选项或遗物池为空时置空，不会发出来源事件的遗物）。跳转目标必须已登记，事件不能引用自身；回到链上已经走过的事件会被拒绝，该选项保留但不可用并显示“这段事件已经走过，不能再回头。”。链能力可用，但当前 12 份迁移内容都不使用链。起始阶段必须允许默认拒绝，或明确提供一个无条件、无效果且直达`result`的免费离开选项；后续阶段若全部选项在当前状态下都无法成立，则进入它的上一步候选也会被拒绝。当前带卡牌三选一或遗物奖励的选择必须直接结束事件。
 
 所有普通与多阶段效果都由同一`apply_effects/describe/describe_result/Snapshot.effect`处理。新增能力先检查能否组合阶段、生成器、现有效果和收尾；确有缺口时增加可跨事件复用的字段，不得增加按事件ID、人物名或剧情名判断的分支，也禁止执行任意字符串脚本。
 
@@ -292,15 +293,15 @@
 
 ### 7.4 离开与钥匙限制
 
-`allow_refuse:true`的事件自动追加保留 ID `refuse`：损失至多10魔力离开，无奖励，魔力不足扣剩余全部。不要手工再增加同名选择。`allow_refuse:false`可完全禁止默认离开；若需要免费离开，作者新增一个无奖励、空`effects`并直达结果的普通选项。其他离开惩罚仍须由已登记效果组合表达，不能只写 `exit_mode`。
+节点`allow_refuse:true`时自动追加保留 ID `refuse`：损失至多10魔力离开，无奖励，魔力不足扣剩余全部。不要手工再增加同名选择。`allow_refuse:false`可完全禁止默认离开；若需要免费离开，作者新增一个无奖励、空`effects`并直达结果的选项。多节点定义的起始节点必须能离开。其他离开惩罚仍须由已登记效果组合表达，不能只写 `exit_mode`。
 
-wager 复用全局三钥匙定义，不能在一个事件里直接改成独立概率：进房固定一枚有效钥匙，各选项成功率1/3，选择一次后直接结算。接受赌局后不能使用卡牌／道具穿插改变装备。
+早期设计记录（**当前校验不接受**`wager`配方与`reward: "keys"`，不要写进内容包）：wager 复用全局三钥匙定义，不能在一个事件里直接改成独立概率：进房固定一枚有效钥匙，各选项成功率1/3，选择一次后直接结算。接受赌局后不能使用卡牌／道具穿插改变装备。
 
 - 左：成功解除至多两把现有锁，优先新皮带；失败加入卡组的虚无诅咒「慌乱」。
 - 中：成功获得2次开锁针；失败将本次眼罩加固一档。
 - 右：成功获得固定的未拥有遗物；失败将本次皮带加固一档并增加既定压力。
 
-成败都保留本次眼罩与皮带；有效钥匙不能出现在玩家 ViewModel、提示或隐藏意图日志中。其他赌局优先使用通用`stages/outcomes`；只有确实需要现有接口无法表达的新规则时才扩充共享能力。
+成败都保留本次眼罩与皮带；有效钥匙不能出现在玩家 ViewModel、提示或隐藏意图日志中。其他赌局优先使用通用`nodes/outcomes`；只有确实需要现有接口无法表达的新规则时才扩充共享能力。
 
 ## 8. 塔路分布约束
 

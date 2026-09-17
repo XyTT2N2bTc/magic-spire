@@ -93,8 +93,10 @@ static func compile(g, documents: Array) -> Dictionary:
  var data=tables(g);var errors=[];var records=[]
  for document in documents:
   var entry=document.data
-  if not entry is Dictionary or not entry.get("kind") in KINDS or not identifier(entry.get("id")) or not number(entry.get("schema_version"),1,1,true):
-   errors.append(document.file+": 需要 schema_version: 1、受支持的 kind 和英文小写 id。");continue
+  # Events carry the unified node form, so only they use schema 2.
+  var expected_version=2 if entry is Dictionary and entry.get("kind") is String and entry.get("kind")=="event" else 1
+  if not entry is Dictionary or not entry.get("kind") in KINDS or not identifier(entry.get("id")) or not number(entry.get("schema_version"),expected_version,expected_version,true):
+   errors.append(document.file+": 需要 schema_version: %d、受支持的 kind 和英文小写 id。" % expected_version);continue
   if data[entry.kind].has(entry.id):
    errors.append(document.file+": id 与已有内容重复："+entry.id);continue
   var issue=_definition(g,entry,data)
@@ -113,8 +115,8 @@ static func _definition(g, e: Dictionary, data: Dictionary) -> String:
  var required=common+" "+fields[e.kind]
  var optional="design" if e.kind=="special_equipment" else ("trigger card_base_bonuses collectible shop_only shop_payment pickup_cards" if e.kind=="relic" else "")
  if e.kind=="event":
-  required=common+" intro"
-  optional="choices start_stage stages cleanup_effects allow_refuse pool"
+  required=common+" intro start_node nodes"
+  optional="cleanup_effects pool"
  var issue=shape(e,required,optional)
  if issue!="": return issue
  if not words(e.name,60): return "name 需要1—60字的普通文本，不能包含富文本标签。"
@@ -147,7 +149,9 @@ static func _definition(g, e: Dictionary, data: Dictionary) -> String:
    type_spec.name=e.name;type_spec.energy_gain=float(e.energy_gain);type_spec.turn_gain=float(e.turn_gain);type_spec.duration=int(e.duration);type_spec.wear_text=e.wear_text.replace("{name}",e.name)
    data.special_equipment[e.id]=type_spec
    data.designs[e.id]=spec
-   data.event[event_id]={"name":e.acquisition.name,"intro":e.acquisition.intro,"choices":[{"id":"equip","label":e.acquisition.label,"reward":"none","effects":[{"op":"special_install","type":e.id,"slot":e.acquisition.slot}]}]}
+   # Generated arrival event uses the same single-node form as authored content; the paid
+   # refusal is declared explicitly because a node carries no allow_refuse default.
+   data.event[event_id]={"name":e.acquisition.name,"intro":e.acquisition.intro,"start_node":"choice","nodes":[{"id":"choice","allow_refuse":true,"unavailable":"disable","relic_gate":"pool","random_freeze":"generators","outcome_draw":"option","frozen_form":"in_place","empty_node":"allow","choices":[{"id":"equip","label":e.acquisition.label,"reward":"none","effects":[{"op":"special_install","type":e.id,"slot":e.acquisition.slot}]}]}]}
   "relic":
    if e.rarity not in ["common","uncommon","rare","special"]: return "rarity 必须为 common、uncommon、rare 或 special。"
    issue=shape(e.modifiers,""," ".join(g.Relics.MODIFIER_LIMITS.keys()))
@@ -195,16 +199,15 @@ static func _definition(g, e: Dictionary, data: Dictionary) -> String:
    data.encounters[encounter_id]={"group":"弱怪" if e.encounter.rank=="weak" else "强怪","rank":e.encounter.rank,"members":[{"type":e.id,"grade":int(e.encounter.grade)}]}
    data.pools[e.encounter.rank].append(encounter_id)
   "event":
-   if not words(e.intro) or e.has("choices")==e.has("stages"): return "事件必须在普通 choices 与多阶段 stages 中选择一种结构。"
+   if not words(e.intro): return "事件介绍不能为空或过长。"
    if not e.get("pool",true) is bool: return "事件 pool 必须为布尔值。"
-   if e.has("choices"):
-    if not e.get("allow_refuse",true) is bool or not e.choices is Array or e.choices.size()<1 or e.choices.size()>6: return "普通事件需要1—6个选项，allow_refuse 必须为布尔值。"
-    data.event[e.id]={"name":e.name,"intro":e.intro,"choices":e.choices.duplicate(true),"allow_refuse":e.get("allow_refuse",true),"pool":e.get("pool",true)}
-   else:
-    if e.has("allow_refuse"): return "多阶段事件分别在每个阶段填写 allow_refuse。"
-    if not identifier(e.get("start_stage")) or not e.stages is Array or e.stages.size()<2 or e.stages.size()>12: return "多阶段事件需要 start_stage 和2—12个阶段。"
-    if not e.get("cleanup_effects",[]) is Array or e.get("cleanup_effects",[]).size()>8: return "cleanup_effects 最多8项。"
-    data.event[e.id]={"name":e.name,"intro":e.intro,"start_stage":e.start_stage,"stages":e.stages.duplicate(true),"cleanup_effects":e.get("cleanup_effects",[]).duplicate(true),"pool":e.get("pool",true)}
+   if not identifier(e.get("start_node")): return "事件必须填写 start_node。"
+   if not e.nodes is Array or e.nodes.is_empty() or e.nodes.size()>12: return "事件需要1—12个节点。"
+   var compiled={"name":e.name,"intro":e.intro,"start_node":e.start_node,"nodes":e.nodes.duplicate(true),"pool":e.get("pool",true)}
+   if e.has("cleanup_effects"):
+    if not e.cleanup_effects is Array or e.cleanup_effects.size()>8: return "cleanup_effects 最多8项。"
+    compiled.cleanup_effects=e.cleanup_effects.duplicate(true)
+   data.event[e.id]=compiled
  return ""
 
 static func _references(g, e: Dictionary, data: Dictionary) -> String:
@@ -214,50 +217,7 @@ static func _references(g, e: Dictionary, data: Dictionary) -> String:
    for pool in ["install_pool","final_pool"]:
     if e.id not in data.enemy[id][pool]: data.enemy[id][pool].append(e.id)
  if e.kind!="event": return ""
- if data.event[e.id].has("stages"): return _flow_references(g,e,data)
- var ids=["refuse"]
- for choice in data.event[e.id].choices:
-  var issue=shape(choice,"id label reward","recipe effects result_status report report_variants detail hide_when_unavailable selector encounter item_rewards show_pressure_sources availability")
-  if issue!="": return "choices: "+issue
-  if choice.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "选项 result_status 必须为 neutral、success 或 failure。"
-  if not identifier(choice.id) or choice.id in ids or not words(choice.label,80): return "选项 id 重复／无效，或 label 文案为空。"
-  if choice.has("report") and not words(choice.report): return "选项结果文案不正确。"
-  if choice.has("report_variants"):
-   issue=_copy_variants(choice.report_variants,data,1200)
-   if issue!="": return "choices."+choice.id+".report_variants: "+issue
-  if choice.has("detail") and not (choice.detail is String and (choice.detail=="" or words(choice.detail))): return "选项预告文案不正确。"
-  if choice.has("hide_when_unavailable") and not choice.hide_when_unavailable is bool: return "hide_when_unavailable 必须为布尔值。"
-  if choice.has("show_pressure_sources") and not choice.show_pressure_sources is bool: return "show_pressure_sources 必须为布尔值。"
-  if choice.has("availability"):
-   issue=_availability(choice.availability)
-   if issue!="": return "choices."+choice.id+".availability: "+issue
-  if choice.has("selector"):
-   issue=_selector(choice.selector,true)
-   if issue!="": return "choices."+choice.id+".selector: "+issue
-  ids.append(choice.id)
-  if choice.reward not in ["none","common","uncommon","rare","relic"]: return "不支持的 reward。"
-  if choice.has("recipe")==choice.has("effects"): return "选项必须且只能填写 recipe 或 effects 之一。"
-  if choice.has("recipe"):
-   if choice.recipe not in ["free_basic","tighten_or_medium","locked_assembly"]: return "未知 recipe。"
-  else:
-   if not choice.effects is Array or choice.effects.size()>8: return "effects 最多8个效果。"
-   if choice.effects.is_empty() and choice.reward!="none": return "空 effects 只能用于无奖励离开或战斗选项。"
-   for effect in choice.effects:
-    issue=_effect(g,effect,data,true)
-    if issue!="": return "choices."+choice.id+".effects: "+issue
-    if effect.op in ["hold_special","restore_held"]: return "临时保管只允许用于声明了收尾步骤的多阶段事件。"
-   if choice.get("show_pressure_sources",false):
-    var pressure_effects=choice.effects.filter(func(effect):return effect.op=="pressure")
-    if pressure_effects.is_empty() or pressure_effects.any(func(effect):return not effect.has("source")): return "show_pressure_sources 需要至少一个带 source 的快感效果。"
-  if choice.has("encounter"):
-   if choice.reward!="none": return "事件战斗使用胜利效果发放奖励，不能再叠加普通 reward。"
-   issue=_encounter(choice.encounter,g,data)
-   if issue!="": return "choices."+choice.id+".encounter: "+issue
-  if choice.has("item_rewards"):
-   if choice.reward!="none" or choice.has("encounter") or choice.has("selector"): return "道具奖励不能叠加卡牌／遗物奖励、战斗或目标选择器。"
-   issue=_item_rewards(choice.item_rewards,g)
-   if issue!="": return "choices."+choice.id+".item_rewards: "+issue
- return ""
+ return _event_references(g,e,data)
 
 static func _item_rewards(groups, g) -> String:
  if not groups is Array or groups.is_empty() or groups.size()>6: return "item_rewards 需要1—6个奖励分组。"
@@ -282,62 +242,91 @@ static func _encounter(spec, g, data: Dictionary) -> String:
   if issue!="": return "victory_effects: "+issue
  return ""
 
-static func _flow_references(g, e: Dictionary, data: Dictionary) -> String:
+static func _event_references(g, e: Dictionary, data: Dictionary) -> String:
  var event=data.event[e.id]
- var stage_ids=[]
- for stage in event.stages:
-  var issue=shape(stage,"id title intro choices allow_refuse")
-  if issue!="": return "stages: "+issue
-  if not identifier(stage.id) or stage.id in stage_ids or stage.id in ["choice","keys","reward","result"] or not words(stage.title,60) or not words(stage.intro) or not stage.allow_refuse is bool or not stage.choices is Array or stage.choices.is_empty() or stage.choices.size()>6: return "阶段 id、标题、介绍、离开设置或选项不正确。"
-  stage_ids.append(stage.id)
- if event.start_stage not in stage_ids: return "start_stage 必须引用已有阶段。"
- var start=event.stages[stage_ids.find(event.start_stage)]
- if not start.allow_refuse and not _has_free_exit(start): return "起始阶段必须允许拒绝，或提供一个无条件、无代价的离开选项。"
- for cleanup in event.cleanup_effects:
+ var stage_ids=g.Events.node_ids(event)
+ var single=stage_ids.size()==1
+ var seen_ids=[]
+ for node_index in range(stage_ids.size()):
+  var stage=g.Events.node(event,stage_ids[node_index])
+  var issue=shape(stage,"id allow_refuse unavailable relic_gate random_freeze outcome_draw frozen_form empty_node choices","title intro")
+  if issue!="": return "nodes: "+issue
+  if not identifier(stage.id) or stage.id in seen_ids: return "节点 id 无效或重复。"
+  seen_ids.append(stage.id)
+  if single and stage.id!="choice": return "单节点事件的节点 id 必须为 choice。"
+  if single and (stage.has("title") or stage.has("intro")): return "单节点事件不得填写 title 或 intro。"
+  if not single and stage.id in ["choice","reward","result","battle","loot","keys"]: return "节点 id 使用了保留字："+stage.id
+  if not single and (not words(stage.title,60) or not words(stage.intro)): return "节点标题或介绍不正确。"
+  if not stage.allow_refuse is bool: return "节点必须填写 allow_refuse 布尔值。"
+  if stage.unavailable not in ["hide","disable"] or stage.relic_gate not in ["pool","claimed"] or stage.random_freeze not in ["generators","always"] or stage.outcome_draw not in ["option","selection"] or stage.frozen_form not in ["in_place","staged"] or stage.empty_node not in ["allow","fail"]: return "节点的声明取值不正确。"
+  if not stage.choices is Array or stage.choices.is_empty() or stage.choices.size()>6: return "节点需要1—6个选项。"
+ if event.start_node not in stage_ids: return "start_node 必须引用已有节点。"
+ var start=g.Events.node(event,event.start_node)
+ # Union of the pre-merge rules: the free-exit requirement belongs to the staged form
+ # only, because authored single-node events may be mandatory (no refusal present).
+ if not single and not start.allow_refuse and not _has_free_exit(start): return "起始阶段必须允许拒绝，或提供一个无条件、无代价的离开选项。"
+ for cleanup in event.get("cleanup_effects",[]):
   var issue=_effect(g,cleanup,data,false)
   if issue!="" or cleanup.op!="restore_held": return "cleanup_effects 目前只接受 restore_held："+issue
  var held_keys=[]
- for stage_index in range(event.stages.size()):
-  var stage=event.stages[stage_index];var choice_ids=["refuse"]
+ for stage_index in range(stage_ids.size()):
+  var stage=g.Events.node(event,stage_ids[stage_index]);var choice_ids=["refuse"]
   for choice in stage.choices:
-   var issue=shape(choice,"id label reward","recipe effects outcomes next report report_variants detail selector when result_status show_pressure_sources availability")
-   if issue!="": return "stages."+stage.id+".choices: "+issue
-   if choice.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "阶段选项 result_status 必须为 neutral、success 或 failure。"
+   var issue=shape(choice,"id label reward","recipe effects outcomes next report report_variants detail selector when result_status show_pressure_sources availability conditions unavailable hide_when_unavailable encounter item_rewards")
+   if issue!="": return "nodes."+stage.id+".choices: "+issue
+   if choice.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "选项 result_status 必须为 neutral、success 或 failure。"
    if choice.has("show_pressure_sources") and not choice.show_pressure_sources is bool: return "show_pressure_sources 必须为布尔值。"
+   if choice.has("hide_when_unavailable") and not choice.hide_when_unavailable is bool: return "hide_when_unavailable 必须为布尔值。"
+   if choice.has("availability") and choice.has("conditions"): return "选项不能同时填写 availability 与 conditions。"
    if choice.has("availability"):
-    issue=_availability(choice.availability)
-    if issue!="": return "stages."+stage.id+"."+choice.get("id","")+".availability: "+issue
-   if not identifier(choice.id) or choice.id in choice_ids or not words(choice.label,80) or choice.reward not in ["none","common","uncommon","rare","relic"]: return "阶段选项 id、文案或奖励不正确。"
+    issue=_availability(g,choice.availability,data)
+    if issue!="": return "nodes."+stage.id+"."+choice.get("id","")+".availability: "+issue
+   if choice.has("conditions"):
+    if not choice.conditions is Array or choice.conditions.is_empty() or choice.conditions.size()>8: return "conditions 需要1—8条条件。"
+    for entry in choice.conditions:
+     issue=g.Events.condition_issue(g,entry,data)
+     if issue!="": return "nodes."+stage.id+"."+choice.get("id","")+".conditions: "+issue
+   if choice.has("unavailable") and choice.unavailable not in ["hide","disable"]: return "选项 unavailable 只支持 hide 或 disable。"
+   if choice.has("unavailable") and choice.has("hide_when_unavailable"): return "选项不能同时填写 unavailable 与 hide_when_unavailable。"
+   if not identifier(choice.id) or choice.id in choice_ids or not words(choice.label,80) or choice.reward not in ["none","common","uncommon","rare","relic"]: return "选项 id、文案或奖励不正确。"
    choice_ids.append(choice.id)
-   if choice.has("recipe") and choice.has("effects"): return "阶段选项不能同时填写 recipe 与 effects。"
-   if not choice.has("recipe") and not choice.has("effects") and not choice.has("outcomes"): return "阶段选项至少需要 effects、recipe 或 outcomes。"
-   if choice.has("recipe") and (not choice.recipe is String or choice.recipe not in ["free_basic","tighten_or_medium","locked_assembly"]): return "阶段选项使用了未知 recipe。"
-   if choice.has("effects") and (not choice.effects is Array or choice.effects.size()>12): return "阶段选项 effects 最多12项。"
-   if choice.get("reward","none")!="none" and choice.get("next","result")!="result": return "带奖励的阶段选项目前必须结束事件，不能在领奖后继续下一阶段。"
-   issue=_flow_next(choice.get("next","result"),stage_index,stage_ids)
-   if issue!="": return "stages."+stage.id+"."+choice.id+": "+issue
-   if choice.has("report") and not words(choice.report): return "阶段结果文案不正确。"
+   if choice.has("recipe") and choice.has("effects"): return "选项不能同时填写 recipe 与 effects。"
+   if not choice.has("recipe") and not choice.has("effects") and not choice.has("outcomes"): return "选项至少需要 effects、recipe 或 outcomes。"
+   if choice.has("recipe") and (not choice.recipe is String or choice.recipe not in ["free_basic","tighten_or_medium","locked_assembly"]): return "选项使用了未知 recipe。"
+   if choice.has("effects") and (not choice.effects is Array or choice.effects.size()>12): return "选项 effects 最多12项。"
+   if choice.get("reward","none")!="none" and not _next_ends_event(choice.get("next","result")): return "带奖励的选项必须结束事件，不能在领奖后继续下一阶段。"
+   issue=_flow_next(choice.get("next","result"),stage_index,stage_ids,e.id,data)
+   if issue!="": return "nodes."+stage.id+"."+choice.id+": "+issue
+   if choice.has("report") and not words(choice.report): return "选项结果文案不正确。"
    if choice.has("report_variants"):
     issue=_copy_variants(choice.report_variants,data,1200)
-    if issue!="": return "stages."+stage.id+"."+choice.id+".report_variants: "+issue
-   if choice.has("detail") and not (choice.detail is String and (choice.detail=="" or words(choice.detail))): return "阶段预告文案不正确。"
+    if issue!="": return "nodes."+stage.id+"."+choice.id+".report_variants: "+issue
+   if choice.has("detail") and not (choice.detail is String and (choice.detail=="" or words(choice.detail))): return "选项预告文案不正确。"
    if choice.has("selector"):
     issue=_selector(choice.selector,true)
-    if issue!="": return "阶段选择器："+issue
+    if issue!="": return "选项选择器："+issue
    if choice.has("when"):
     issue=shape(choice.when,"","counter selector equals minimum maximum")
     var sources=int(choice.when.has("counter"))+int(choice.when.has("selector"))
-    if issue!="" or sources!=1 or not ["equals","minimum","maximum"].any(func(key):return choice.when.has(key)): return "阶段条件需要恰好一个事件计数或选择来源，以及 equals/minimum/maximum。"
-    if choice.when.has("counter") and not identifier(choice.when.counter): return "阶段条件的事件计数名无效。"
+    if issue!="" or sources!=1 or not ["equals","minimum","maximum"].any(func(key):return choice.when.has(key)): return "选项条件需要恰好一个事件计数或选择来源，以及 equals/minimum/maximum。"
+    if choice.when.has("counter") and not identifier(choice.when.counter): return "选项条件的事件计数名无效。"
     if choice.when.has("selector"):
      issue=_selector(choice.when.selector,false)
-     if issue!="": return "阶段条件的选择来源："+issue
+     if issue!="": return "选项条件的选择来源："+issue
     for key in ["equals","minimum","maximum"]:
-     if choice.when.has(key) and not number(choice.when[key],0,100,true): return "阶段条件计数必须是0—100整数。"
+     if choice.when.has(key) and not number(choice.when[key],0,100,true): return "选项条件计数必须是0—100整数。"
+   if choice.has("encounter"):
+    if choice.reward!="none": return "事件战斗使用胜利效果发放奖励，不能再叠加普通 reward。"
+    issue=_encounter(choice.encounter,g,data)
+    if issue!="": return "nodes."+stage.id+"."+choice.id+".encounter: "+issue
+   if choice.has("item_rewards"):
+    if choice.reward!="none" or choice.has("encounter") or choice.has("selector"): return "道具奖励不能叠加卡牌／遗物奖励、战斗或目标选择器。"
+    issue=_item_rewards(choice.item_rewards,g)
+    if issue!="": return "nodes."+stage.id+"."+choice.id+".item_rewards: "+issue
    var shown_pressure_effects=[]
    for effect in choice.get("effects",[]):
     issue=_effect(g,effect,data,true)
-    if issue!="": return "stages."+stage.id+"."+choice.id+".effects: "+issue
+    if issue!="": return "nodes."+stage.id+"."+choice.id+".effects: "+issue
     if effect.op=="pressure": shown_pressure_effects.append(effect)
     if effect.op=="hold_special":
      if effect.key in held_keys: return "同一个暂存 key 只能建立一次。"
@@ -350,9 +339,9 @@ static func _flow_references(g, e: Dictionary, data: Dictionary) -> String:
      if outcome.get("result_status","neutral") not in g.Events.RESULT_STATUSES: return "随机结果 result_status 必须为 neutral、success 或 failure。"
      if outcome.get("reward",choice.reward) not in ["none","common","uncommon","rare","relic"]: return "随机结果奖励不受支持。"
      var next=outcome.get("next",choice.get("next","result"))
-     issue=_flow_next(next,stage_index,stage_ids)
+     issue=_flow_next(next,stage_index,stage_ids,e.id,data)
      if issue!="": return "随机结果："+issue
-     if outcome.get("reward",choice.reward)!="none" and next!="result": return "带奖励的随机结果目前必须结束事件。"
+     if outcome.get("reward",choice.reward)!="none" and not _next_ends_event(next): return "带奖励的随机结果目前必须结束事件。"
      if outcome.has("report") and not words(outcome.report): return "随机结果文案不正确。"
      if outcome.has("report_variants"):
       issue=_copy_variants(outcome.report_variants,data,1200)
@@ -365,13 +354,78 @@ static func _flow_references(g, e: Dictionary, data: Dictionary) -> String:
        if effect.key in held_keys: return "同一个暂存 key 只能建立一次。"
        held_keys.append(effect.key)
    if choice.get("show_pressure_sources",false) and (shown_pressure_effects.is_empty() or shown_pressure_effects.any(func(effect):return not effect.has("source"))): return "show_pressure_sources 需要至少一个带 source 的快感效果。"
- for cleanup in event.cleanup_effects:
+ for cleanup in event.get("cleanup_effects",[]):
   if cleanup.key not in held_keys: return "cleanup_effects 引用了从未建立的暂存 key。"
  for key in held_keys:
-  if not event.cleanup_effects.any(func(effect):return effect.key==key): return "暂存装备必须在 cleanup_effects 中原样归还。"
+  if not event.get("cleanup_effects",[]).any(func(effect):return effect.key==key): return "暂存装备必须在 cleanup_effects 中原样归还。"
+ # §3.3 (A33): a jump keeps the source holds, so a hold key has to stay unique along the whole
+ # chain, not only inside one definition. The path walk below covers every jump path of this
+ # definition; cleanup_effects staying inside its own key set is already enforced above.
+ return _chain_hold_key_issue(g,data,e.id)
+
+# The jump graph is walked once per definition with the keys already in use on the current
+# path. Cycles cannot run (the runtime refuses them), but a crafted package still terminates:
+# a definition repeated on the same path is left to the runtime's chain guard.
+static func _chain_hold_key_issue(g, data: Dictionary, event_id: String, used: Array=[], path: Array=[]) -> String:
+ var event=data.get("event",{}).get(event_id,{})
+ if event.is_empty() or event_id in path: return ""
+ var keys=_hold_keys(event)
+ for key in keys:
+  if key in used: return "事件链上重复使用了暂存 key："+str(key)+"（"+event_id+"）。"
+ var accumulated=used.duplicate()+keys
+ var closed=path.duplicate()
+ closed.append(event_id)
+ for target in _jump_targets(g,event):
+  if target in closed: continue
+  var issue=_chain_hold_key_issue(g,data,target,accumulated,closed)
+  if issue!="": return issue
  return ""
 
-static func _flow_next(next, current: int, stage_ids: Array) -> String:
+static func _hold_keys(event: Dictionary) -> Array:
+ var keys=[]
+ for node_entry in event.get("nodes",[]):
+  for choice in node_entry.get("choices",[]):
+   for effects in _choice_effect_lists(choice):
+    for effect in effects:
+     if effect.get("op","")!="hold_special": continue
+     if effect.get("key","") not in keys: keys.append(effect.get("key",""))
+ return keys
+
+static func _choice_effect_lists(choice: Dictionary) -> Array:
+ var lists=[choice.get("effects",[])]
+ for outcome in choice.get("outcomes",[]): lists.append(outcome.get("effects",[]))
+ return lists
+
+static func _jump_targets(g, event: Dictionary) -> Array:
+ var targets=[]
+ for node_entry in event.get("nodes",[]):
+  for choice in node_entry.get("choices",[]):
+   var nexts=[choice.get("next","result")]
+   for outcome in choice.get("outcomes",[]): nexts.append(outcome.get("next",choice.get("next","result")))
+   for next in nexts:
+    # The authored shape is interpreted by its single interpreter, never re-read here.
+    var target=g.Events.next_target(next)
+    if target.kind=="event" and target.event!="" and target.event not in targets: targets.append(target.event)
+ return targets
+
+# A declared next ends the event only as the "result" sentinel; the cross-event object form
+# never does, and comparing that object with a String would raise at runtime.
+static func _next_ends_event(next) -> bool:
+ return not next is String or next=="result"
+
+# §3.2: next is "result", a later node of this definition, or {"event","node"} — a jump to
+# another registered event's node. The in-definition form keeps the forward-only rule; the
+# cross-event form resolves against the compiled batch and refuses a self-reference.
+static func _flow_next(next, current: int, stage_ids: Array, event_id: String, data: Dictionary) -> String:
+ if next is Dictionary:
+  var issue=shape(next,"event node")
+  if issue!="": return "跨事件跳转需要 event 与 node。"
+  if not next.event is String or not next.node is String: return "跨事件跳转需要 event 与 node。"
+  if next.event==event_id: return "跨事件跳转不能引用事件自身。"
+  if not data.get("event",{}).has(next.event): return "跨事件跳转引用了尚未登记的事件。"
+  var targets=data.event[next.event].get("nodes",[]).map(func(entry):return str(entry.get("id","")))
+  if next.node not in targets: return "跨事件跳转引用了不存在的节点。"
+  return ""
  if not next is String or (next!="result" and next not in stage_ids): return "next 必须引用后续阶段或 result。"
  if next!="result" and stage_ids.find(next)<=current: return "多阶段事件不能倒退或形成循环。"
  return ""
@@ -379,7 +433,7 @@ static func _flow_next(next, current: int, stage_ids: Array) -> String:
 static func _has_free_exit(stage: Dictionary) -> bool:
  for choice in stage.get("choices",[]):
   var effects=choice.get("effects",null)
-  if choice.get("reward","")!="none" or choice.get("next","result")!="result": continue
+  if choice.get("reward","")!="none" or not _next_ends_event(choice.get("next","result")): continue
   if choice.has("selector") or choice.has("when") or choice.has("recipe") or choice.has("outcomes"): continue
   if effects is Array and effects.is_empty(): return true
  return false
@@ -394,13 +448,12 @@ static func _selector(selector, allow_count: bool) -> String:
  if selector.has("count") and not number(selector.count,1,4,true): return "count 必须是1—4的整数。"
  return ""
 
-static func _availability(availability) -> String:
+static func _availability(g, availability, data: Dictionary={}) -> String:
  if not availability is Dictionary: return "需要条件对象。"
- var issue=shape(availability,"kind reason")
+ var issue=shape(availability,"kind reason","type")
  if issue!="": return issue
- if availability.kind!="no_chastity_lock": return "尚未支持这种状态条件。"
- if not words(availability.reason,240): return "reason 需要1—240字的普通说明。"
- return ""
+ # Kinds and their required fields live in Events.CONDITIONS, never in a second list here.
+ return g.Events.condition_issue(g,availability,data)
 
 static func _copy_variants(variants, data: Dictionary, maximum: int) -> String:
  if not variants is Array or variants.is_empty() or variants.size()>8: return "需要1—8项条件文案。"

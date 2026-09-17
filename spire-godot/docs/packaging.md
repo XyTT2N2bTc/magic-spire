@@ -1,5 +1,11 @@
 # Windows / Android 打包
 
+## v0.17.1 修复版
+
+当前project.godot及两平台预设统一为0.17.1；Windows文件版本0.17.1.0，Android安装版本10并保留原签名。两平台随包版本说明均读取docs/release-v0.17.1.txt，Android附专用说明及基础操作教学。历史v0.17记录保留，不覆盖旧标签或旧包。
+
+本次交付普通Windows ZIP、Android APK及含说明与许可的Android ZIP；另将两平台完整目录一起压入加密7z，再将该内层压缩包压入加密7z。内外两层均使用用户指定密码并加密文件名。两层实际解压后核对文件SHA256，不把只检测外层当作完整验证；密码仅用于本次交付，不写入游戏或签名配置。
+
 ## v0.17 发布
 
 Windows和Android脚本均从project.godot读取版本0.17，并选择同名导出预设；Android安装版本为9，沿用已有签名。成品默认分别写入outputs/spire-v0.17-windows-x64-<编号>和outputs/spire-v0.17-android-<编号>。版本说明见release-v0.17.txt和release-android-v0.17.txt。

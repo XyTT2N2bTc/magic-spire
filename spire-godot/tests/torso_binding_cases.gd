@@ -1,5 +1,7 @@
 extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
+# Living index-off reference for the B7 parity checks (single definition in the architecture suite).
+const Arch=preload("res://tests/architecture_cases.gd")
 
 static func sample(kind: String):
  for seed in range(1,100):
@@ -7,9 +9,38 @@ static func sample(kind: String):
   if g.state.equipment[0].binding.kind==kind: return g
  return null
 
+# Batch B7 (§8.3): the connection edge carries only connected forms, and both list consumers read
+# the same projection as the live helper.
+static func index_connection_edge_parity(t) -> void:
+ for kind in ["linked","integrated"]:
+  var g=sample(kind)
+  t.check(g!=null,"INDEX seeded generation produces "+kind)
+  if g==null: continue
+  var host=g.state.equipment[0]
+  var reference=Arch.UncachedGame.new(42);reference.state=g.state.duplicate(true)
+  var before=g.export_snapshot()
+  var previous=g._begin_equipment_read()
+  var connections=g._equipment_read.connections.duplicate()
+  var parity=connections.size()==g.Binding.connections(g).size()
+  parity=parity and connections.is_empty()==(kind=="integrated")
+  parity=parity and g.action_targets().map(func(e):return e.id)==reference.action_targets().map(func(e):return e.id)
+  for slot in g.B.SLOTS:
+   parity=parity and g.targets_at(slot)==reference.targets_at(slot) and g.targets_at(slot).map(func(e):return e.id)==reference.targets_at(slot).map(func(e):return e.id)
+  var listed=g.targets_at(host.slot).filter(func(e):return e.get("kind","")!="")
+  if kind=="linked":
+   parity=parity and connections.size()==g.state.equipment.filter(func(e):return e.binding.kind=="linked").size() and not connections.is_empty()
+   parity=parity and connections.all(func(entry):return entry.id=="binding_"+entry.parent_id)
+   parity=parity and g.action_targets().any(func(e):return e.id=="binding_"+host.id)
+   parity=parity and listed.any(func(e):return e.id=="binding_"+host.id)
+  else:
+   parity=parity and not g.action_targets().any(func(e):return e.get("kind","")=="integrated") and listed.is_empty()
+  g._equipment_read=previous
+  t.check(parity and g.export_snapshot()==before and g._equipment_read.is_empty(),"INDEX connection edge parity with the live path "+kind)
+
 static func run(t) -> void:
  var handbook=preload("res://data/tutorial.gd").entries()
  t.check(handbook.any(func(row):return row.title=="躯干固缚：连接式与一体式" and "二档加固回三档" in row.text),"BIND handbook explains forms and reinforcement refresh")
+ index_connection_edge_parity(t)
  for kind in ["linked","integrated"]:
   var g=sample(kind)
   t.check(g!=null,"BIND seeded generation produces "+kind)

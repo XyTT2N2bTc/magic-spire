@@ -110,5 +110,14 @@ static func run(t) -> void:
   t.action(g,"reward",{"type":"skip"})
   t.finish_packing(g)
   t.check(g.state.security==1 and g.state.completed_rooms.is_empty() and old_route!=JSON.stringify(g.state.rooms) and not g.room_entry_reason(g.room_data("exit")).is_empty(),"PROGRESSION rebuilt tower includes fresh locked summit and preserves security")
+  before=JSON.stringify(g.state)
+  t.check(g.state.tower_start_pending and not t.action(g,"depart",{"room":"summit"}).ok and JSON.stringify(g.state)==before,"PROGRESSION prison return cannot select summit before a legal floor-ten-or-eleven start")
+  var starts=g.state.rooms.filter(func(room):return room.floor in [9,10] and room.kind in ["battle","event","shop"])
+  t.check(not starts.is_empty(),"PROGRESSION rebuilt tower offers a legal prison-return start")
+  if starts.is_empty(): return
+  var battles=starts.filter(func(room):return room.kind=="battle")
+  var start=starts[0] if battles.is_empty() else battles[0]
+  t.check(t.action(g,"depart",{"room":start.id}).ok and not g.state.tower_start_pending and g.state.room==start.id and g.state.security==1,"PROGRESSION formal start selection clears the pending choice and preserves security")
+  # The start choice is now committed; isolate the summit boundary as above.
   before_room(g,"summit");t.action(g,"finish_rest");travel(t,g,"summit")
   t.check(g.state.enemies.size()==1 and g.state.enemies[0].id not in old_ids and g.state.enemies[0].hp==220 and g.state.security==1,"PROGRESSION rebuilt summit creates a new boss instance without clearing safety history")

@@ -39,20 +39,24 @@ static func run(t) -> void:
    t.check(t.action(g,"demo_continue").ok and g.state.shop_removals==3,"DEMO second continuation opens final cycle without clearing removal count")
    t.check(g.state.security==2,"DEMO second continuation also retains cumulative security")
   var scale=1.5 if cycle==1 else 2.0
+  # This fixture retains security 2 and generates enemies at the ordinary tower entry:
+  # the current rule adds 10 HP after cycle scaling, including custom HP and summons.
+  var security_bonus=10.0
+  t.check(g.state.security==2 and g.state.map_region=="tower" and g.state.room=="tower_bottom","DEMO health fixture retains security two at the new tower entry")
   g.state.enemies=[]
   var boss=g._append_enemies([{"type":"six_bind","grade":2}])[0]
-  t.check(boss.hp==220*scale and boss.max_hp==220*scale,"DEMO boss health uses normal base, not compounded previous health")
+  t.check(boss.hp==220*scale+security_bonus and boss.max_hp==220*scale+security_bonus,"DEMO boss health scales its base before adding retained security health")
   var heap=g._append_enemies([{"type":"rope_heap","grade":2}])[0]
   var basis=heap.hp/2
   g._split_enemy(heap,basis)
   var children=g.state.enemies.filter(func(e):return e.get("spawned_from","")==heap.id)
   t.check(children.size()==3 and children[0].max_hp==basis and children[1].max_hp==ceilf(basis/2),"DEMO split inheritance is not scaled twice")
   var custom=g._append_enemies([{"type":"rope","grade":1,"hp":10}])[0]
-  t.check(custom.max_hp==10*scale,"DEMO custom encounter health also scales")
+  t.check(custom.max_hp==10*scale+security_bonus,"DEMO custom encounter health scales before adding retained security health")
   var master=g._append_enemies([{"type":"puppeteer","grade":2}])[0]
   var doll=g.Puppets.owned(g,master)
   g.Puppets.execute(g,master,{"kind":"puppet_mend"})
-  t.check(doll.max_hp==10*scale+5 and g.Puppets.validate(g,g.state.enemies,scale)=="","DEMO summon base scales while fixed healing remains five")
+  t.check(doll.max_hp==10*scale+security_bonus+5 and g.Puppets.validate(g,g.state.enemies,scale)=="","DEMO summon base scales, security applies once and fixed healing remains five")
  exit_fixture(g)
  t.check(g.candidates().filter(func(c):return c.payload.kind!="item_discard").size()==1 and g.candidates()[0].payload.kind=="demo_end","DEMO third exit offers only end")
  t.check(not t.action(g,"demo_continue").ok and t.action(g,"demo_end").ok and g.state.demo_finished and g.candidates().is_empty(),"DEMO final end closes run without a fourth cycle")

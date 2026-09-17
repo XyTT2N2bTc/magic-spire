@@ -176,8 +176,37 @@ static func treasure_with_plate(t) -> void:
  var after=g.export_snapshot()
  t.check(not t.action(g,"service",{"op":"take","index":0}).ok and g.state==after,"TREASURE collected reward cannot be claimed twice")
 
+# docs/transition-pipeline.md §5 场景 05：代表性非迁移提交不写状态（迁移日志为空、阶段／房间不变）。
+static func non_transitions_do_not_write(t) -> void:
+ var arch=preload("res://tests/architecture_cases.gd")
+ var cases=[]
+ var battle=preload("res://tests/game_fixture.gd").new(42)
+ battle.add_fixture("thigh",4,10)
+ cases.append({"name":"card","game":battle,"command":func(g): return _play_first_card(t,g)})
+ var turn=preload("res://tests/game_fixture.gd").new(42)
+ cases.append({"name":"end_turn","game":turn,"command":func(g): return t.action(g,"end")})
+ var shop=Game.new(42,true,"shop")
+ cases.append({"name":"shop_trade","game":shop,"command":func(g): return t.action(g,"service",{"op":"take","index":0,"payment":"self"})})
+ var event=Game.new(42,true,"succubus_magic_pawnshop")
+ cases.append({"name":"event_choice","game":event,"command":func(g): return t.action(g,"event",{"action":"choose","choice":"small_trade"})})
+ var prison=Game.new(42,true,"prison_test")
+ cases.append({"name":"prison_action","game":prison,"command":func(g): return t.action(g,"wall_move",{"direction":"away"})})
+ for entry in cases:
+  var g=entry.game
+  var before=arch.transition_log(g)
+  var phase=String(g.state.phase);var room=String(g.state.room)
+  var outcome=entry.command.call(g)
+  t.check(outcome.ok,"TRANSITION IDLE the representative command commits "+entry.name+": "+str(outcome.get("error","")))
+  t.check(arch.transition_delta(g,before).is_empty(),"TRANSITION IDLE no transition is logged "+entry.name+": "+str(arch.transition_delta(g,before)))
+  t.check(String(g.state.phase)==phase and String(g.state.room)==room,"TRANSITION IDLE phase and room stay put "+entry.name+": "+String(g.state.phase)+"/"+String(g.state.room))
+
+static func _play_first_card(t, g) -> Dictionary:
+ var card=t.hand_card(g,"strain")
+ return t.action(g,"card",{"uid":card.uid,"target":g.equipment_at("thigh")[0].id})
 static func run(t) -> void:
+ non_transitions_do_not_write(t)
  preload("res://tests/unique_power_reward_cases.gd").shop(t)
+
  treasure_with_plate(t)
  removal_prices(t)
  m_donalds(t)

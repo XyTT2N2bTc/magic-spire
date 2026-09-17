@@ -55,6 +55,9 @@ var localization=preload("res://ui/localization.gd").new()
 var game_factory=Game
 var game=Game.new()
 var view: Dictionary
+# Read-only display diagnostics (docs/ondemand-copy.md §3): one entry per (point, key, view version),
+# cleared when ui.view is replaced. Never rendered, logged, saved or counted.
+var projection_misses: Array=[]
 var layout: Control
 var drawer_layer: Control
 var drawer_base_candidates={}
@@ -268,7 +271,7 @@ func _continue_save(slot: String) -> void:
  if not result.ok:
   _save_unavailable(result.error);return
  show_saves=false;save_failed=false;save_suspended=false
- save_notice="已恢复场景起点备份。" if result.backup else "已回到当前场景开始。"
+ save_notice="已恢复场景起点备份。" if result.backup else "已回到最近保存的起点。"
  _resume_snapshot(result.snapshot,result.map_drawings)
 
 func _resume_snapshot(snapshot: Dictionary, drawings: Dictionary={}) -> bool:
@@ -285,7 +288,8 @@ func _resume_snapshot(snapshot: Dictionary, drawings: Dictionary={}) -> bool:
 
 func _quick_sl() -> void:
  if view.demo_finished: return
- if _resume_snapshot(game.restart_snapshot(),map_drawings): _save_progress()
+ # docs/save-fixed-points.md §1：恢复不是进度固定点；磁盘仍持有上一次固定点内容。
+ _resume_snapshot(game.restart_snapshot(),map_drawings)
 
 func _save_unavailable(message: String) -> void:
  save_notice=message;save_failed=true;save_suspended=true
@@ -362,9 +366,12 @@ func _bar(value: float, maximum: float, color: Color) -> ProgressBar:
  return b
 
 func render(snapshot: Dictionary={}) -> void:
- DragTargets.clear(self)
+ # The old controls still reference the previous View here. Rebuild the quick bar
+ # after replacing View/ActionIndex instead of querying old targets against a new game.
+ DragTargets.clear(self,false)
  _hide_term()
  view=game.get_view() if snapshot.is_empty() else snapshot
+ projection_misses=[]
  if is_instance_valid(card_music): card_music.sync_phase(view.phase,show_home)
  if not view.reward_panel.active or view.battle_rewards.any(func(entry):return entry.category=="card" and entry.claimed): show_reward_cards=false
  if not view.reward_panel.active or view.battle_rewards.any(func(entry):return entry.category=="relic" and entry.claimed): show_reward_relics=false
@@ -706,7 +713,8 @@ func _build_action_rail() -> void:
    var c=offers[i]
    var attack=c.payload.kind=="attack"
    var alternatives=actions.select("attack",{"enemy":selected_enemy,"type":c.payload.type}) if attack else []
-   var summary=c.get("brief",c.detail.trim_suffix("。"))
+   var summary=c.get("brief","")
+   if not c.has("brief"): summary=detail_of(c).trim_suffix("。")
    var tags=c.get("brief_tags","")
    if c.has("casting"): tags+=(" · " if tags!="" else "")+c.casting.percent
    var btn=_basic_action_tile(c,Rect2(394+(i if view.phase=="battle" else 3 if attack else 4)*(width+8),556,width,60),container,summary,tags,alternatives.size()>1)
@@ -732,7 +740,7 @@ func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: St
  btn.disabled=not c.valid;btn.clip_contents=true
  _place(btn,rect,parent);candidate_buttons[c.id]=btn
  _attack_tile_labels(btn,c,rect.size,summary,tags,accent)
- var tooltip="部位："+c.body_part+"\n消耗%d能量。\n" % c.cost+("当前施法成功率："+c.casting.percent+"\n" if c.has("casting") else "")+c.detail
+ var tooltip="部位："+c.body_part+"\n消耗%d能量。\n" % c.cost+("当前施法成功率："+c.casting.percent+"\n" if c.has("casting") else "")+detail_of(c)
  if c.has("casting"): tooltip+="\n失败返还本次耗魔的50%，能量照扣。"+("蓄力保留，精神集中失去1层。" if c.payload.get("witch_action",false) else "火球术次数不消耗。")
  if not c.valid: tooltip+="\n"+c.reason
  if c.risk!="": tooltip+="\n"+c.risk
@@ -844,9 +852,43 @@ func _posture_controls() -> void:
    var style=btn.get_theme_stylebox(state_name).duplicate()
    style.content_margin_top=2;style.content_margin_bottom=2
    btn.add_theme_stylebox_override(state_name,style)
-  btn.disabled=not c.valid;btn.tooltip_text=c.detail if c.valid else c.reason
+  btn.disabled=not c.valid;btn.tooltip_text=detail_of(c) if c.valid else c.reason
   _place(btn,Rect2(128 if c.payload.wall else 0,index*placement.stride,121 if has_wall else 249,placement.stride-4),container)
   candidate_buttons[c.id]=btn
+
+# 显示边界的唯一卡面取用点（docs/ondemand-copy.md §3）：命中投影即用，未命中经 §1.4 单条入口补算并记录。
+func card_entry(type: String, uid: String="") -> Dictionary:
+ var texts=view.get("card_texts",{})
+ var instances=view.get("card_instances",{})
+ if texts.has(type) or (uid!="" and instances.has(uid)):
+  var entry=(texts[type] if texts.has(type) else {}).duplicate()
+  if uid!="" and instances.has(uid): entry.merge(instances[uid],true)
+  return entry
+ _record_projection_miss("card_entry",type if uid=="" else type+"#"+uid)
+ return game.live_card_text(type,uid) if game.Cards.Rules.SPECS.has(type) else {}
+
+# 卡面名称的安全取用：缺条目时补算并记录，仍取不到时返回空串，由调用方保留原文案。
+func card_face_name(type: String, uid: String, free: bool) -> String:
+ var side="free" if free else "bound"
+ var names=card_entry(type,uid).get("face_names",{})
+ if names.has(side): return names[side]
+ _record_projection_miss("card_face_name",type+"#"+side)
+ return ""
+
+# 候选详情的唯一取用点（docs/ondemand-copy.md §3）：命中即用，缺失时经 §2 只读入口按 payload 补算并记录。
+func detail_of(candidate: Dictionary) -> String:
+ if candidate.has("detail"): return candidate.detail
+ # B3（docs/ondemand-copy.md §1.5）：card 目标候选组本来就不带 detail，现算是正常路径，不记缺失；
+ # 其余组缺 detail 才是意外，留具名记录而不是静默空白。
+ if String(candidate.payload.get("kind",""))!="card":
+  _record_projection_miss("detail_of",String(candidate.get("id","")))
+ return game.candidate_detail(candidate)
+
+func _record_projection_miss(point: String, key: String) -> void:
+ var version=int(view.get("version",-1))
+ for entry in projection_misses:
+  if entry.point==point and entry.key==key and entry.view_version==version: return
+ projection_misses.append({"point":point,"key":key,"view_version":version})
 
 func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0, parent: Node=null, hand_interaction: bool=true, lift: bool=true, live_state: bool=true) -> Button:
  card=card.duplicate()
@@ -909,11 +951,16 @@ func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0,
  return button
 
 # Catalog, shop and deck use the hand face with no gameplay drag or hover displacement.
-func _display_card(type: String, parent: Node, fn: Callable=Callable(), key: String="", dimensions: Vector2=Vector2(226,290), physical_uid: String="", live_state: bool=true) -> Button:
+func _display_card(type: String, parent: Node, fn: Callable=Callable(), key: String="", dimensions: Vector2=Vector2(226,290), physical_uid: String="", live_state: bool=true, source: Dictionary={}) -> Button:
  var data=preload("res://data/encyclopedia.gd").card(type)
+ # 全量入口的条目（docs/ondemand-copy.md §1.3）：非显示集合来源的卡面在这里合并，视图不再带它们的文案。
+ # 身份键在合并之后写入，避免被来源行的 uid／physical_uid 覆盖（卡面翻转共用同一个键）。
+ if not source.is_empty(): data.merge(source,true)
  data.uid="display_"+key+"_"+type
  data.physical_uid=physical_uid
- var button=_card(data,Rect2(Vector2.ZERO,dimensions),fn if fn.is_valid() else func():pass,0,parent,false,false,live_state)
+ # An explicit source already includes physical-instance text. Reapplying the hand's
+ # type-only projection would erase growth on a same-type card in another pile.
+ var button=_card(data,Rect2(Vector2.ZERO,dimensions),fn if fn.is_valid() else func():pass,0,parent,false,false,live_state and source.is_empty())
  button.custom_minimum_size=dimensions
  button.size_flags_horizontal=Control.SIZE_SHRINK_BEGIN
  button.size_flags_vertical=Control.SIZE_SHRINK_BEGIN
@@ -1119,7 +1166,7 @@ func _wall_controls() -> void:
  btn.name="WallMove_toward";btn.disabled=not c.valid
  btn.add_theme_font_size_override("font_size",11 if placement.with_move and placement.stride<48 else 13)
  btn.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
- btn.tooltip_text=c.detail if c.valid else c.reason
+ btn.tooltip_text=detail_of(c) if c.valid else c.reason
  if placement.with_move:
   btn.custom_minimum_size.y=placement.stride-4
   for state_name in ["normal","hover","pressed","focus","disabled"]:
@@ -1176,7 +1223,9 @@ func _body_details() -> void:
   if not single.is_empty(): selected_candidate=single.id
   for c in choices:
    if c.payload.free==card_faces.get(selected_card,false): _card_target(content,c,not single.is_empty(),v)
-   elif not choices.any(func(other):return other.payload.free==card_faces.get(selected_card,false)): content.add_child(_label("请右键切换到"+card.face_names["free" if c.payload.free else "bound"]+"。",14,RED))
+   elif not choices.any(func(other):return other.payload.free==card_faces.get(selected_card,false)):
+    var face_name=card_face_name(card.type,card.uid,c.payload.free)
+    if face_name!="": content.add_child(_label("请右键切换到"+face_name+"。",14,RED))
  else:
   var body=_body_at(selected_slot)
   var members=body.get("members",[body])
@@ -1291,7 +1340,7 @@ func _action_row(parent: Node,c: Dictionary,label: String="") -> void:
  b.disabled=not c.valid
  parent.add_child(b); candidate_buttons[c.id]=b
  if c.has("release_preview") and c.valid: preload("res://ui/release_details.gd").preview(self,parent,c)
- else: parent.add_child(_label(c.detail if c.valid else c.reason,14,MUTED if c.valid else RED))
+ else: parent.add_child(_label(detail_of(c) if c.valid else c.reason,14,MUTED if c.valid else RED))
  if c.risk!="" and c.valid: parent.add_child(_label(c.risk,13,RED))
 
 func _card_target(parent: Node,c: Dictionary, automatic: bool=false, footer: Node=null) -> void:
@@ -1308,7 +1357,7 @@ func _card_target(parent: Node,c: Dictionary, automatic: bool=false, footer: Nod
  elif c.risk!="": parent.add_child(_label(c.risk,14,RED))
  if selected_candidate==c.id and c.valid:
   if c.has("release_preview"): preload("res://ui/release_details.gd").preview(self,parent,c)
-  else: parent.add_child(_label(c.detail,15,TEXT))
+  else: parent.add_child(_label(detail_of(c),15,TEXT))
   var fee=str(c.cost)+"能量"+(" / "+game.number(c.mana)+"魔力" if c.mana>0 else "")
   var commit=_button("打出 · "+fee,func(): _submit(c),CYAN)
   commit.name="PlaySelectedCard"
@@ -1531,11 +1580,11 @@ func _compact_action(parent: Node,c: Dictionary,caption: String="",show_free_cos
  var targeted=DragTargets.targeted(c)
  var button=_button(label,func():_submit(c),CYAN,targeted)
  if targeted: DragTargets.source(self,button,c)
- button.disabled=not c.valid;button.tooltip_text=c.detail if c.valid else c.reason
+ button.disabled=not c.valid;button.tooltip_text=detail_of(c) if c.valid else c.reason
  parent.add_child(button);candidate_buttons[c.id]=button
  if not c.valid: parent.add_child(_label(c.reason,13,RED))
  elif c.risk!="": parent.add_child(_label(c.risk,13,RED))
- elif c.payload.kind in ["item_install","item_retrieve"]: parent.add_child(_label(c.detail,13,CYAN))
+ elif c.payload.kind in ["item_install","item_retrieve"]: parent.add_child(_label(detail_of(c),13,CYAN))
 
 func _tool_target_card(parent: Node,c: Dictionary) -> void:
  var equipment={}
@@ -1550,7 +1599,7 @@ func _tool_target_card(parent: Node,c: Dictionary) -> void:
  var box=VBoxContainer.new();panel.add_child(box)
  _compact_action(box,c,"使用工具 · 1次")
  _equipment_card_face(box,equipment,equipment.get("position_text",""),CYAN if c.valid else MUTED,true)
- if c.valid: box.add_child(_label(c.detail,13,CYAN))
+ if c.valid: box.add_child(_label(detail_of(c),13,CYAN))
 
 func _door_candidate(data: Dictionary) -> Dictionary:
  if data.get("version",-1)!=view.version or data.get("free",true): return {}
@@ -1876,7 +1925,9 @@ func _submit(c: Dictionary, expected_version: int=-1) -> void:
  if result.ok:
   preload("res://ui/shell/body_sidebar.gd").expand_applied(self,previous,updated)
   if c.payload.get("witch_action",false) and not c.payload.charge_action: attack_forms[c.payload.type]=0
-  _save_progress()
+  # docs/save-fixed-points.md §2／§5.1：只有提交结果带非空 checkpoint 才写盘；
+  # 不比较内容、不读快照，其余提交一律不写。
+  if String(result.get("checkpoint",""))!="": _save_progress()
   if c.payload.kind=="demo_continue": _reset_interface(updated)
   player_pick=false
   selected_card=""; selected_candidate=""; show_body=false
@@ -2048,7 +2099,8 @@ func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false
   var reason=c.reason
   if data.has("card_uid") and c.payload.free!=data.free:
    if choices.any(func(other):return other.payload.free==data.free): continue
-   reason="请右键切换到"+view.card_texts[c.payload.type].face_names["free" if c.payload.free else "bound"]+"。"
+   var face_name=card_face_name(c.payload.type,c.payload.get("uid",""),c.payload.free)
+   if face_name!="": reason="请右键切换到"+face_name+"。"
   if data.version!=view.version: reason="状态已变化，请重新拖牌。"
   var effect=reason
   if reason=="":
@@ -2056,9 +2108,9 @@ func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false
     var damage_type=preload("res://data/card_rules.gd").damage_type(c.payload.type,c.payload.free) if c.payload.kind=="card" else c.payload.get("damage_type",c.payload.get("mode",""))
     effect="%s点%s伤害" % [game.number(c.payload.preview.damage),{"strain":"挣扎","slip":"滑脱","cut":"切割"}.get(damage_type,"")]
    elif c.payload.has("after"): effect="耐久降至%s" % game.number(c.payload.after)
-   elif c.payload.get("free",false): effect=c.detail
+   elif c.payload.get("free",false): effect=detail_of(c)
    elif c.payload.get("mode","")=="unlock": effect="开锁"
-   else: effect=c.detail
+   else: effect=detail_of(c)
    if not c.payload.get("tool_bonus",{}).is_empty(): effect+="\n另加%s点切割伤害" % game.number(c.payload.tool_bonus.damage)
    if c.payload.get("preview",{}).get("release",false): effect+="\n整件脱下"
   var tone=RED if reason!="" or c.risk!="" else CYAN
@@ -2625,7 +2677,7 @@ func _save_drawer() -> void:
  var panel=_panel(Rect2(485,150,660,590));panel.z_index=311
  var content=VBoxContainer.new();panel.add_child(content)
  content.add_child(_label("存档与继续游戏",26,GOLD))
- content.add_child(_label(save_notice if save_notice!="" else "自动保存场景起点，继续游戏时从此处重来。",16,RED if save_failed else CYAN))
+ content.add_child(_label(save_notice if save_notice!="" else preload("res://data/tutorial.gd").SAVE_HELP,16,RED if save_failed else CYAN))
  content.add_child(_label("塔路与练习分别保存进度。",16))
  for slot in Game.Snapshot.SLOTS:
   var entry=save_summaries.get(slot,{"available":false,"text":"尚无存档。"})

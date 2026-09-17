@@ -30,7 +30,7 @@ static func run(t) -> void:
   t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==after,"CONCENTRATION stale replay cannot grow or pay twice")
   redraw(g,card)
  var view=g.get_view()
- t.check(view.card_instances[card.uid].bound.contains("挣扎12") and view.card_instances[card.uid].free.contains("滑脱12") and view.card_texts.concentration.bound.contains("挣扎6"),"CONCENTRATION live instance text differs from base catalog without changing its twin")
+ t.check(view.card_instances[card.uid].bound.contains("挣扎12") and view.card_instances[card.uid].free.contains("滑脱12") and g.live_card_text("concentration").bound.contains("挣扎6"),"CONCENTRATION live instance text differs from base catalog without changing its twin")
  var restored=Game.new(5)
  t.check(restored.restore_snapshot(g.export_snapshot()).ok and restored.Cards.base_damage(restored,card.type,card.uid)==12,"CONCENTRATION current-run restore preserves physical growth")
  var broken=g.export_snapshot();broken.hand.filter(func(c):return c.uid==card.uid)[0].damage_bonus=-4

@@ -91,7 +91,13 @@ static func resolve(g, p: Dictionary) -> void:
     g._cleanup()
    g.state.pressure=0.0
    g.Cards.grant_buff(g,"witch_authority_lock")
- if action!="" and action!="flask": g._emit("event",g.B.CARD_NAMES[p.type]+"："+g.Cards.face_text(g,p.type,p.free),{"witch_card":action})
+ if action!="" and action!="flask":
+  var log_args={"type":p.type,"free":p.free}
+  g._emit("event",g.CopyRouter.text(g,{"kind":"witch.card_log","args":log_args,"fallback":card_log_detail(g,log_args)}),{"witch_card":action})
+
+# R6（docs/ondemand-copy.md §11.5）：巫女卡牌事件日志文案的 builder，正文留在本模块。
+static func card_log_detail(g, args: Dictionary) -> String:
+ return g.B.CARD_NAMES[String(args.get("type",""))]+"："+g.Cards.face_text(g,String(args.get("type","")),bool(args.get("free",false)))
 
 static func evolve(g, card: Dictionary) -> void:
  if not g.Cards.Rules.SPECS[card.type].has("witch_training_stage"): return

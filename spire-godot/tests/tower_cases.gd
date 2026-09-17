@@ -4,8 +4,62 @@ const Tower=preload("res://data/tower.gd")
 const Game=preload("res://core/game.gd")
 const EventData=preload("res://data/room_events.gd")
 
+# docs/transition-pipeline.md §5 场景 03：同层不产生 `floor_enter`、跨层产生恰一条 `floor_enter`，
+# 且 room 变化只出现在该迁移内（迁移日志由主路径唯一写入者记录）。
+static func floor_enter_is_one_family(t) -> void:
+ var arch=preload("res://tests/architecture_cases.gd")
+ var g=Game.new(42)
+ t.check(t.action(g,"departure",{"op":"skip"}).ok and g.state.phase=="map","TRANSITION FLOOR tower route starts on the map: "+String(g.state.phase))
+ var source=g.state.room
+ var source_floor=int(g.room_data(source).get("floor",0))
+ var target=g.room_data(source).next[0]
+ var before=arch.transition_log(g)
+ t.check(t.action(g,"depart",{"room":target}).ok and g.state.phase=="travel","TRANSITION FLOOR route departure commits")
+ t.check(arch.transition_kinds(arch.transition_delta(g,before),"floor_enter").is_empty(),"TRANSITION FLOOR picking a route is not a floor entry: "+str(arch.transition_delta(g,before)))
+ while g.state.phase=="travel":
+  before=arch.transition_log(g)
+  t.check(t.action(g,"travel_step").ok,"TRANSITION FLOOR travel step commits")
+ var arrival=arch.transition_delta(g,before)
+ t.check(String(g.state.room)==String(target) and int(g.room_data(g.state.room).get("floor",0))>source_floor,"TRANSITION FLOOR the fixture really crosses one floor: "+String(g.state.room))
+ t.check(arch.transition_kinds(arrival,"floor_enter").size()==1,"TRANSITION FLOOR crossing a floor logs exactly one floor_enter: "+str(arrival))
+ t.check(arch.transition_kinds(arrival,"floor_enter").size()==arrival.filter(func(kind):return String(kind).contains("enter")).size(),"TRANSITION FLOOR the room change is recorded by that one entry: "+str(arrival))
+ # 同层：牢房（-1）→ 塔底（-1）经由真实的一回合结算，不产生 floor_enter。
+ var cell=Game.new(42,true,"prison_release")
+ t.check(t.action(cell,"prison",{"action":"enter"}).ok and cell.state.phase=="prison","TRANSITION FLOOR the release practice really enters the cell: "+String(cell.state.phase))
+ cell.state.equipment=[];cell.state.composites=[];cell.state.links=[]
+ cell.state.special_equipment=[];cell.state.prison.baseline=[];cell.state.prison.special_baseline=[]
+ cell.state.prison.served_turns=cell.Prison.sentence_limit(cell)-1
+ var cell_floor=int(cell.room_data("prison").get("floor",-99))
+ before=arch.transition_log(cell)
+ t.check(t.action(cell,"end").ok and cell.state.room=="tower_bottom","TRANSITION FLOOR same-floor restart commits through the real turn: "+String(cell.state.room))
+ var same=arch.transition_delta(cell,before)
+ t.check(cell_floor==int(cell.room_data("tower_bottom").get("floor",-98)),"TRANSITION FLOOR the same-floor fixture really shares one floor: %d/%d" % [cell_floor,int(cell.room_data("tower_bottom").get("floor",-98))])
+ t.check(arch.transition_kinds(same,"floor_enter").is_empty(),"TRANSITION FLOOR same-floor restart logs no floor_enter: "+str(same))
+ t.check(arch.transition_kinds(same,"tower_restart").size()>0,"TRANSITION FLOOR same-floor restart still declares its kind: "+str(same))
+
+# docs/transition-pipeline.md §5 场景 08：demo 结束与返塔继续都记已声明 kind，目标阶段与今天相同。
+static func demo_end_and_tower_restart_use_declared_kinds(t) -> void:
+ var arch=preload("res://tests/architecture_cases.gd")
+ var exits=preload("res://tests/demo_exit_cases.gd")
+ var g=Game.new(42)
+ exits.exit_fixture(g)
+ var before=arch.transition_log(g)
+ t.check(t.action(g,"demo_end").ok,"TRANSITION DEMO demo end commits")
+ var delta=arch.transition_delta(g,before)
+ t.check(delta==["demo_end"],"TRANSITION DEMO demo end logs its declared kind: "+str(delta))
+ t.check(String(g.state.phase)=="cleared" and String(g.state.room)=="exit","TRANSITION DEMO demo end leaves the cleared exit untouched: %s/%s" % [String(g.state.phase),String(g.state.room)])
+ g=Game.new(42)
+ exits.exit_fixture(g)
+ before=arch.transition_log(g)
+ t.check(t.action(g,"demo_continue").ok,"TRANSITION DEMO continuation commits")
+ delta=arch.transition_delta(g,before)
+ t.check(not delta.is_empty() and arch.transition_kinds(delta,"tower_restart").size()==delta.size(),"TRANSITION DEMO continuation is a declared tower restart: "+str(delta))
+ t.check(String(g.state.phase)=="map" and String(g.state.room)=="tower_bottom","TRANSITION DEMO restart target phase and room unchanged: %s/%s" % [String(g.state.phase),String(g.state.room)])
+
 static func run(t) -> void:
  preload("res://tests/departure_cases.gd").run(t)
+ floor_enter_is_one_family(t)
+ demo_end_and_tower_restart_use_declared_kinds(t)
  var current=Game.new(42)
  var unopened=current.state.rooms.filter(func(room):return room.get("pool","")=="ordinary")[0]
  var description_state=current.state.duplicate(true)

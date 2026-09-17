@@ -52,12 +52,75 @@ static func press(t, control: Control) -> void:
  await t.mouse_button(point,MOUSE_BUTTON_LEFT,true)
  await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
 
+# Real pointer drag onto a body region: returns every drop strip entry, every drag hint text and
+# the hint ids, so a missing projection can be compared against the complete one.
+static func copy_drag_text(t, uid: String, slot: String) -> Dictionary:
+ var ui=t.ui
+ var point=t.card_point(uid)
+ await t.move_mouse(point)
+ await t.mouse_button(point,MOUSE_BUTTON_LEFT,true)
+ await t.move_mouse(point+Vector2(0,-42),true)
+ await t.move_mouse(ui.body_buttons[slot].get_global_rect().get_center(),true)
+ var strip=""
+ for target in ui.drop_targets.values(): strip+=str(target.get_meta("preview_detail",""))+"\n"
+ var hints=""
+ for hint in ui.drag_hints: hints+=t.visible_text(hint)
+ var ids=ui.drag_hints.map(func(hint):return hint.get_meta("target_id",""))
+ await t.move_mouse(Vector2(1550,70),true)
+ await t.mouse_button(Vector2(1550,70),MOUSE_BUTTON_LEFT,false)
+ return {"strip":strip,"hints":hints,"ids":ids}
+
+# docs/ondemand-copy.md §4.1/§6 scenario 0: a test-side copy of the View with a deleted
+# card_texts key or without the card group's detail must render the drag sections without an
+# engine error, keep the recomputed text and leave a named record instead of a silent blank.
+static func copy_missing_key_never_crashes(t) -> void:
+ var ui=t.ui
+ ui.restart(42);ui.game.state.equipment.clear();ui.game.state.wall="normal"
+ ui.game.add_fixture("wrist",4,10,false);ui.game.add_fixture("wrist",4,10,false)
+ var card=preload("res://tests/curse_cases.gd").give(ui.game,"strain")
+ ui.render();await t.frames()
+ var free_detail=ui.game.candidate_detail(ui.actions.find("card",{"uid":card.uid,"free":true}))
+ var before=ui.game.export_snapshot()
+ var baseline={}
+ for free_face in [false,true]:
+  ui.card_faces[card.uid]=free_face
+  ui.render();await t.frames()
+  baseline[free_face]=await copy_drag_text(t,card.uid,"thigh")
+ t.check(baseline[false].strip.contains("请右键切换到"),"COPY bound-face drag renders the drop strip face hint")
+ t.check(baseline[true].ids.has("hero") and baseline[true].hints.contains(free_detail),"COPY free-face drag renders the hover hint with the candidate detail")
+ t.check(ui.game.export_snapshot()==before and ui.projection_misses.is_empty(),"COPY complete projection renders no miss record and pays nothing")
+ var copy=ui.game.get_view().duplicate(true)
+ copy.card_texts.erase(card.type)
+ var erased_misses=[]
+ for free_face in [false,true]:
+  ui.card_faces[card.uid]=free_face
+  ui.render(copy);await t.frames()
+  var erased=await copy_drag_text(t,card.uid,"thigh")
+  erased_misses.append_array(ui.projection_misses)
+  t.check(erased==baseline[free_face],"COPY deleted card_texts key keeps the drop strip and hint text identical for face "+str(free_face))
+ t.check(erased_misses.any(func(entry):return entry.point=="card_entry" and entry.key.begins_with(card.type)),"COPY deleted card key is recomputed through the single entry and recorded: "+str(erased_misses))
+ var detail_copy=ui.game.get_view().duplicate(true)
+ var removed=0
+ for candidate in detail_copy.candidates:
+  if candidate.payload.get("kind","")=="card": candidate.erase("detail");removed+=1
+ t.check(removed>0,"COPY fixture removes detail from the card candidate group")
+ for free_face in [false,true]:
+  ui.card_faces[card.uid]=free_face
+  ui.render(detail_copy);await t.frames()
+  var recomputed=await copy_drag_text(t,card.uid,"thigh")
+  t.check(recomputed==baseline[free_face],"COPY removed candidate detail is recomputed byte-identically for face "+str(free_face))
+ # B3：card 目标候选组本就不带 detail，现算是正常路径；此处断言它不再被当作缺失记录。
+ t.check(ui.projection_misses.all(func(entry):return entry.point!="detail_of"),"COPY on-demand card details are no longer recorded as misses: "+str(ui.projection_misses))
+ t.check(ui.projection_misses.all(func(entry):return entry.view_version==ui.view.version),"COPY miss records name the render they belong to")
+ t.check(ui.game.export_snapshot()==before,"COPY missing-key rendering never changes state or random cursors")
+
 static func run(t) -> void:
  query_contract(t)
  await unavailable_body_hint(t)
  await bound_face_hint(t)
  await automatic_targets(t)
  await hand_targets(t)
+ await copy_missing_key_never_crashes(t)
  var ui=t.ui
  ui.restart(42);await t.frames()
  t.check(not ui.action_log_open and not ui.action_log_panel.visible and ui.action_log_toggle.visible,"SIDEBAR new session starts collapsed with a visible manual entry")

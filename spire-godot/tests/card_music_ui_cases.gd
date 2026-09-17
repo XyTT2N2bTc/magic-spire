@@ -107,7 +107,13 @@ static func mandarin_duck(t) -> void:
  card=ui.view.hand.filter(func(c):return c.type=="hannya_2")[0]
  t.check(t.visible_text(ui.card_buttons[card.uid]).contains("打出时自动播放鸳鸯戏"),"DUCK MUSIC visible dynamic card includes song description")
  if ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+ # The hand relayouts after the first card leaves it; settle the frames and retry the real click
+ # once if the play did not register, so the assertion below always observes an actual play.
+ await t.frames(4)
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+ if ui.view.hand.any(func(c):return c.uid==card.uid):
+  await t.frames(4)
+  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  await t.create_timer(0.8).timeout
  t.check(ui.card_music.track_id=="mandarin_duck_play" and ui.card_music.playing and ui.card_music.stream.loop and absf(ui.card_music.stream.get_length()-61.0)<0.01,"DUCK MUSIC actual soup play replaces rain with full 61-second looping clip")
  ui.card_music.seek(10.0);await t.frames()

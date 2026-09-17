@@ -82,7 +82,10 @@ static func run(t) -> void:
   var spec=g.Cards.Rules.SPECS[type]
   var face=preload("res://data/encyclopedia.gd").card(type)
   t.check(face.card_type==spec.card_type and face.rarity==spec.rarity and face.single_face==g.Cards.Rules.single_face(type),"CARD classification and single face projection "+type)
-  t.check((type in g.Cards.Rules.REWARDS)==(spec.rarity in ["common","uncommon","rare"] and not spec.get("reward_excluded",false)),"CARD reward membership follows rarity and explicit gift exclusion "+type)
+  var common_pool=spec.get("character_id","original")=="original" and spec.rarity in ["common","uncommon","rare"] and not spec.get("reward_excluded",false)
+  t.check((type in g.Cards.Rules.REWARDS)==common_pool,"CARD common reward membership follows character, rarity and explicit gift exclusion "+type)
+ for type in ["witch_mana_transfer","witch_patience","witch_endurance","witch_small_fry","witch_authority"]:
+  t.check(g.Character.reward_member(g,type,"witch") and not g.Character.reward_member(g,type,"original") and type in g.Character.pool(g,g.Cards.Rules.REWARDS,"witch") and type not in g.Character.pool(g,g.Cards.Rules.REWARDS,"original"),"CARD witch-exclusive reward is offered only to its character "+type)
 
 static func stacking(t) -> void:
  var helper=preload("res://tests/curse_cases.gd")

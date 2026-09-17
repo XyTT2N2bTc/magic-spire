@@ -59,7 +59,7 @@ func run() -> void:
  ui.restart(42,true,"equipment")
  await process_frame
  check(ui.view.practice and ui.game.validate()=="","Exported practice loads equipment and real action rules")
- if expected_version=="0.17":
+ if expected_version=="0.17" or expected_version.begins_with("0.17."):
   check(ui.find_child("CharacterSelect",true,false)!=null or ui.selected_character=="original","Character selection controller is included")
   ui.selected_character="witch";ui.restart(42)
   await process_frame

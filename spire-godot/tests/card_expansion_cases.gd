@@ -59,7 +59,7 @@ static func run(t) -> void:
  t.check(passive.damage_buff_multiplier==2 and g.dispatch(c.id,g.state.version).ok and is_equal_approx(g._equipment(target.id).durability,old-passive.damage),"BUFF formal movement applies doubled passive damage once")
  target=g._equipment(target.id);g._gain_tool("shard")
  c=t.find_action(g,"item_use",{"item":g.state.items.back().id,"target":target.id})
- t.check(c.detail.contains("10") and g.dispatch(c.id,g.state.version).ok and g._equipment(target.id).is_empty(),"BUFF fixed tool preview and actual cutting both double")
+ t.check(g.candidate_detail(c).contains("10") and g.dispatch(c.id,g.state.version).ok and g._equipment(target.id).is_empty(),"BUFF fixed tool preview and actual cutting both double")
 
  g=Game.new(42);g.state.energy=10
  t.check(cast(t,g,"strong_elbow",true).ok and cast(t,g,"henshin",true).ok,"BUFF arm preparation combines with battle damage")
