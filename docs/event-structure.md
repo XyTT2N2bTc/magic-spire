@@ -193,7 +193,7 @@ UI 只调用 `get_view` 和 `dispatch`；core 不依赖 UI。
 
 ## 5. 与既有三片的关系
 
-- **响应管线片**：保持 `game.dispatch(candidate_id, expected_version)`、`game.get_view()`、候选 ID＋版本提交和 UI 只读边界不变。不得把事件 trace 偷塞进 UI 缓存。
+- **响应管线片**：保持 `game.dispatch(candidate_id, expected_version)`、`game.get_view()`、候选 ID＋版本提交和 UI 只读边界不变。事件 trace 是核心数据，不得只存在于 UI 侧（2026-09-17 修订：UI 可以缓存自己的投影与显示态，判据是"复用须附可证失效规则"；此处约束的是 trace 的权威位置，不是 UI 缓存本身）。
 - **装备查询片**：继续复用 `RoomEvents.selector_values` 的只读作用域；不改装备索引生命周期，不实现 `escape_preview` 按需化。
 - **文案路由/按需片**：事件候选 detail 已经走 `event.choice` 路由入口（`core/room_events.gd:593-604`）。本片不改文案、不改 `copy_router`、不改 `get_view.card_texts`。
 - **越界待批**：
