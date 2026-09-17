@@ -4614,3 +4614,20 @@ RuleChangePackage（**只改工具与测试，产品代码零改动**；`git dif
 **新登记的既有红项**：界面模块 `interface`（`tests/interface_ui_cases.gd:156`）——`CARD ART every registered card has an illustration` 列出 **28 张 `witch_*` 卡缺立绘**，`UI FAIL: 355`。**分类证据**：`git diff a56de58` 对 `ui/`／`assets/`／`content/`／该用例文件均为空、断言与夹具未变 → 既有内容缺口（角色二卡缺立绘），此前未登记只因门禁从未单独跑过该模块。协调者在 HEAD 复现。**门禁红集口径自此为 ⊆ {`card_power` 5, `installed_tools` 1, `tower_progression` 10＋1, `hand_assist` 1, `home_persistence` 3, `interface` 1(28 张卡)}**。
 
 未跑：全量 `-Suite all -UI -UISuite all`（契约定为里程碑唯一入口）、Android 真机、打包／发版。
+
+## 2026-09-17 卡顿定位：一次点击的成本分布（P0 分段计时，测量非改动）
+
+方法：真实窗口 1600×900、zh；夹具 battle＝`tests/game_fixture.gd`(42)／departure＝`core/game.gd`(42)；0/12/26 件 × 三类点击（成功提交／选择类／被拒或无效）；`ui/main.gd render()` 与 `dispatch`／`get_view` 调用点**临时插桩**（标签用 `docs/response-pipeline.md` §8 节名），跑完 `git checkout --` 还原（**协调者复核：工作区干净、`build/` 外无插桩残留**）。产物与原始数据：`spire-godot/build/stutter-trace-20260917/`（`round-a.json`／`round-b.json`／`analysis.md`／`noise.md`）。
+
+**结论（占比，% of 该次点击同步总耗时）**：
+- **最大单项是候选生成，且被付了两遍**：battle:26 成功提交（总计 **260.3ms**）＝ `dispatch` 39.4% ＋ `get_view` 29.1% ＋ `render` 20.4% ＋ feedback 10.3%；其中 `dispatch` 内 `candidates()+pick` 占 40–52%、`get_view` 内 `g.candidates()` 占 49–66%。结构佐证：`core/game.gd:2427`（dispatch 复核重算）与 `core/game_view.gd:196`（投影）各算一次。
+- **整树重建 `render` 不是提交类点击的最大项**（battle 43–53ms，与件数几乎无关：0→26 件 51.4→53.0ms；占提交 20–37%），但**是"点牌选中"点击的 94–95%**（该次点击仅 45.4ms）与**被拒点击的 36–62%**。render 内部最大三节：`body_bar.configure` 约 11ms（仅在相位／身体内容变化时付；同相位刷新命中 `_presentation_key` 仅 0.3ms）、`hand` 9.6–12ms、`actions+rail` 6.5–8.6ms；departure 页面的 render 由 `header+relics` 占约 70%。
+- **`save` 24 个单元格全部 0 次 `write_game`**（固定点存档已把磁盘移出点击路径；计数器经 `restart()` 固定点验证＝每次 1 次）。
+- **被拒点击的 `dispatch` 只占 0.1–0.2%**（131–182µs，版本判定在候选生成之前返回）；其成本在 `get_view`（36–62%）与 `render`（36–62%）。
+- **`get_view` 的 `card_texts` 只占 1.6–7.9%**——"每次无条件生成约 83 型"已是过期事实（`core/game_view.gd:4 _card_display_set` 按需，实测每次 2–4 型、departure 为 0）。
+
+**两条与契约文面不符（协调者已核代码事实，待规划者改文本）**：①`docs/response-pipeline.md` 关于 `card_texts` 无条件全量的成本事实（§2.2／§6.1）已被按需化取代；②同文件"选择类点击每条分支都整树 `render(view)`"不成立——翻面与选敌现在 0 次重建（局部刷新），只有点牌选中会 1 次重建。
+
+**可靠性边界（必须遵守）**：①占比可靠（两轮首位一致 23/24；占比比值无一处超 0.5–2.0）；②**绝对微秒不可跨进程使用**——两轮整体差约 ×0.6（98 处），与 2026-09-17 早先的跨会话方差发现一致；③battle:0 的 cardsel 样本混入了提交（不可用）；`body_bar.configure` 的"仅换相位时贵"为机制推断；④未覆盖 map／shop／event／reward／prison／practice 相位、触屏路径、英文 locale；⑤首次 B 轮在 `build_scene battle/12` 出现约 700s 引擎停滞（环境级，已重跑，本轮数据作废）。
+
+**两条修复方向（均指向既有契约，非新设计）**：①**候选不要算两遍**——dispatch 复核重算候选，而 UI 手上已有同版本候选（`ActionIndex`），正是 `docs/response-pipeline.md` 里"候选 ID＋版本提交、索引只查找不重算"的本意，约可省一次 30% 量级的开销；②**`present(dirty)`**——整树重建只在"点牌选中"这类高频低改动点击上成为主项（45ms 中约 43ms），正是该契约的适用范围。
