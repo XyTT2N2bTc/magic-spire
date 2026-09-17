@@ -1,17 +1,80 @@
 extends RefCounted
 const Game=preload("res://core/game.gd")
 
+# In-place attempts the game accepts even when nothing moves: a failed cast pays and
+# refunds mana, leaves the card in hand and only appends a log line. Movement and turn
+# actions stay out of the guard, because blind exploration legally repeats one direction
+# while the hidden position advances, and ending the turn is the fallback it must reach.
+const GUARDED_ATTEMPTS=["card","manual","hook","item_use","item_discard","item_retrieve","flask","calm","status_toggle"]
+# Visible identity of a submitted action; preview numbers and assist copy stay out so a
+# retry of the same action keeps the same key after resources moved.
+const ATTEMPT_FIELDS=["kind","action","type","uid","hand_uid","target","slot","free","direction","site","steps","dest","item","enemy","choice","category","status","op","after","x","wall"]
+
 # Play policy only sees the same projection as the player. No state edits, hidden
 # plans, draw order, future RNG, injected equipment or shortened enemy health.
 static func choose(v: Dictionary, route_style: String="cautious", navigation: Dictionary={}) -> Dictionary:
+ var best=best_candidate(v,route_style,navigation,true)
+ # The guard is a preference, never a lock: one legal action always remains.
+ return best if not best.is_empty() else best_candidate(v,route_style,navigation,false)
+
+static func best_candidate(v: Dictionary, route_style: String, navigation: Dictionary, skip_stalled: bool) -> Dictionary:
+ var stalled=String(navigation.get("stalled_attempt",""))
  var best={}
  var best_score=-INF
  for c in v.candidates:
   if not c.valid: continue
+  if skip_stalled and stalled!="" and attempt_key(c)==stalled: continue
   var value=score(v,c,route_style,navigation)
   if value>best_score:
    best=c;best_score=value
  return best
+
+static func attempt_key(c: Dictionary) -> String:
+ var identity={}
+ for field in ATTEMPT_FIELDS:
+  if c.payload.has(field): identity[field]=c.payload[field]
+ return JSON.stringify(identity)
+
+# Visible-progress fingerprint: one submission counts as progress only when one of these
+# player-visible fields moves. Paid and refunded mana does not count (the failed-cast
+# lottery), nor do version, logs, on-demand copy or derived display fields.
+static func progress_key(v: Dictionary) -> String:
+ var prison=v.get("prison",{})
+ var space=prison.get("space",{})
+ var targets=[]
+ for body in v.get("bodies",[]):
+  for id in body.get("targets",{}):
+   var target=body.targets[id]
+   targets.append([id,target.get("durability",0.0),target.get("locked",false)])
+ var sites=[]
+ for site in space.get("sites",[]):
+  sites.append([site.get("id",""),site.get("here",false),site.get("near",false),site.get("visited",false)])
+ var enemies=[]
+ for enemy in v.get("enemies",[]):
+  enemies.append([enemy.get("id",""),enemy.get("hp",0),enemy.get("gone",false)])
+ return JSON.stringify({
+  "phase":v.get("phase",""),"room":v.get("room_name",""),"region":v.get("map_region",""),"security":v.get("security",0),
+  "encounter":v.get("encounter",0),"round":v.get("round",0),"posture":v.get("posture",""),"wall":v.get("wall",""),
+  "arms":v.get("arms",0),"legs":v.get("legs",0),"carried":v.get("carried_items",0),"rewards":v.get("reward_count",0),
+  "pressure":v.get("pressure",{}).get("value",0.0),
+  "hand":v.get("hand",[]).map(func(card):return card.get("uid","")),
+  "piles":[v.get("deck_count",0),v.get("draw_count",0),v.get("discard_count",0)],
+  "statuses":v.get("statuses",[]),"equipment":targets,"enemies":enemies,
+  "prison":[prison.get("turn",0),prison.get("left",0),prison.get("vent_hits",0),prison.get("door_open",false),prison.get("key",false),
+    prison.get("checks",0),prison.get("stage",""),prison.get("found",[]),sites],
+ })
+
+# Records what the submission actually moved. The driver owns this call because only it
+# sees the projection after the action; choose() itself stays read-only. An in-place
+# attempt that leaves the fingerprint in place is allowed one retry, then blocked until
+# some other visible field moves.
+static func note_progress(v: Dictionary, c: Dictionary, navigation: Dictionary) -> void:
+ var key=attempt_key(c)
+ var progress=progress_key(v)
+ var repeat=GUARDED_ATTEMPTS.has(String(c.payload.get("kind",""))) and key==String(navigation.get("last_attempt","")) and progress==String(navigation.get("last_progress",""))
+ navigation.stalled_attempt=key if repeat else ""
+ navigation.last_attempt=key
+ navigation.last_progress=progress
 
 # Remember only a successfully submitted visible direction, never hidden cells.
 static func remember(v: Dictionary, c: Dictionary, navigation: Dictionary) -> void:
@@ -147,11 +210,34 @@ static func run(t) -> void:
  t.check(choose(blind,"cautious",navigation)==end,"NORMAL waits at the discovered vent instead of walking away between required kicks")
  blind.candidates.append(escape)
  t.check(choose(blind,"cautious",navigation)==escape,"NORMAL real escape takes priority over further exploration")
+ # A zero-cost attempt that only paid and refunded mana did not move the run: retry it
+ # once, then prefer another legal action until the projection actually changes.
+ var miss={"valid":true,"payload":{"kind":"card","type":"magic_slip","uid":"card_10","slot":"toes","free":true}}
+ var wait={"valid":true,"payload":{"kind":"end"}}
+ var cell={"phase":"prison","room_name":"牢房","pressure":{"value":93.0},"hand":[],"candidates":[miss,wait],"bodies":[],"enemies":[],"statuses":[],"prison":{"turn":3,"space":{"sites":[]}}}
+ var guard={}
+ t.check(choose(cell,"cautious",guard)==miss and guard.is_empty(),"NORMAL a failed-cast candidate stays playable while its outcome is still unknown")
+ var paid=cell.duplicate(true);paid.mana=6.0
+ t.check(progress_key(paid)==progress_key(cell),"NORMAL progress fingerprint ignores mana paid and refunded by a failed attempt")
+ note_progress(paid,miss,guard)
+ t.check(guard.get("stalled_attempt","")=="" and choose(paid,"cautious",guard)==miss,"NORMAL a no-progress attempt still gets its one retry")
+ note_progress(paid.duplicate(true),miss,guard)
+ t.check(guard.get("stalled_attempt","")==attempt_key(miss) and choose(paid,"cautious",guard)==wait,"NORMAL policy stops replaying an in-place attempt whose visible result did not move")
+ var moved=paid.duplicate(true);moved.prison.turn=4
+ note_progress(moved,miss,guard)
+ t.check(guard.get("stalled_attempt","")=="" and choose(moved,"cautious",guard)==miss,"NORMAL repeat guard resets once the visible projection moves")
+ var lonely={"phase":"prison","candidates":[miss],"bodies":[],"enemies":[],"prison":{}}
+ t.check(choose(lonely,"cautious",{"stalled_attempt":attempt_key(miss)})==miss,"NORMAL repeat guard never leaves the run without a legal action")
+ var step={"valid":true,"payload":{"kind":"prison","action":"explore","direction":"north","steps":1}}
+ var corridor={"phase":"prison","security":1,"prison":{"space":{"sites":[]},"vent_hits":0,"vent_total":3},"candidates":[step],"bodies":[],"enemies":[],"statuses":[]}
+ var walk={}
+ note_progress(corridor,step,walk);note_progress(corridor,step,walk)
+ t.check(walk.get("stalled_attempt","")=="" and choose(corridor,"cautious",walk)==step,"NORMAL repeated blind movement stays outside the repeat guard while the hidden position advances")
  var reports=[]
  for setup in [[42,"cautious"],[20260906,"elite"],[7,"trade"]]:
   var g=Game.new(setup[0])
   navigation={}
-  var report={"seed":setup[0],"style":setup[1],"initial":g.get_view().enemies,"steps":[],"rooms":[],"result":"action_limit"}
+  var report={"seed":setup[0],"style":setup[1],"initial":g.get_view().enemies,"steps":[],"rooms":[],"result":"action_limit","guarded_steps":0}
   var last_room=""
   var start_ticks=Time.get_ticks_msec()
   for i in range(1800):
@@ -168,6 +254,7 @@ static func run(t) -> void:
     report.result="prison_route" if v.phase=="map" and v.map_region=="prison" else ("escaped" if v.phase=="map" else v.phase)
     break
    var c=choose(v,setup[1],navigation)
+   if not String(navigation.get("stalled_attempt","")).is_empty(): report.guarded_steps+=1
    if i%25==0: print("NORMAL PROGRESS seed=%d step=%d phase=%s room=%s security=%d action=%s ms=%d" % [setup[0],i,v.phase,v.room_name,v.security,c.get("label","none"),Time.get_ticks_msec()-start_ticks])
    if c.is_empty():
     report.result="no_candidate";break
@@ -177,13 +264,16 @@ static func run(t) -> void:
    if not result.ok:
     report.result=result.error;break
    remember(v,c,navigation)
+   # Only the driver sees the projection after the submission, so it owns the
+   # no-progress record the guard reads on the next choice.
+   note_progress(g.get_view(),c,navigation)
   var final=g.get_view()
   report.final={"phase":final.phase,"room":final.room_name,"mana":final.mana,"pressure":final.pressure.value,"security":final.security,"encounters":final.encounter,"rewards":final.reward_count,"equipment":g.equipment_targets().size(),"statuses":final.statuses.map(func(status):return {"id":status.id,"value":status.value})}
   report.elapsed_ms=Time.get_ticks_msec()-start_ticks
   t.check(g.validate()=="","NORMAL final real state validates")
   t.check(report.result in ["cleared","escaped","prison_route","prison_end"],"NORMAL bounded run reaches a real completion or prison-route checkpoint")
   reports.append(report)
-  print("NORMAL "+JSON.stringify({"seed":report.seed,"style":report.style,"result":report.result,"actions":report.steps.size(),"final":report.final,"ms":report.elapsed_ms}))
+  print("NORMAL "+JSON.stringify({"seed":report.seed,"style":report.style,"result":report.result,"actions":report.steps.size(),"guarded_steps":report.guarded_steps,"final":report.final,"ms":report.elapsed_ms}))
  DirAccess.make_dir_recursive_absolute("res://build")
  var file=FileAccess.open("res://build/normal-play.json",FileAccess.WRITE)
  file.store_string(JSON.stringify(reports,"  "))

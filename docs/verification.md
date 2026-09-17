@@ -1,4 +1,36 @@
-## 2026-09-17 检查路由与失败隔离：两段实现与判据（实现者）
+## 2026-09-17 normal_play 长流程打转：诊断、分类与策略修复（实现者）
+
+域：`spire-godot/tests/normal_play_cases.gd`（长流程试玩策略）——**:184 断言未改、三条种子未删、1800 步上限未动**；
+**产品代码零改动**（`git diff c356c64` 不含 `spire-godot/core|data|ui|content|assets`）。索引随 `tests/**` 改动 `check-index.ps1 -Write` 重冻结同批提交。
+
+**复现与原始数据（分类依据，非断言失败推断）**
+- 复现：`& tools/check.ps1 -Suite normal_play -TimeoutSeconds 900 -KeepGoing` → 退出码 1、`SUITE RESULT: normal_play FAIL`、
+  `FAIL: 1/2779 assertions`、`SUITE RUNTIME: normal_play 1`、**660716 ms**；红项只有 :184；`seed=20260906 style=elite` → `result=action_limit`、**1800 步**（550216 ms），
+  step≈226 起每 25 步采样恒为 `自由 · 手腕`。日志 `build/checks/20260917T060154346-39608/`。
+- 打转步抓取（`build/diag-normal-20260917/`，复刻同一循环逐步 dump 候选／dispatch 结果／前后状态差）：
+  - `seed 42/cautious step 331`：`valid=3`＝{`自由 · 脚趾`（`magic_slip` 自由面，0 能量 0 魔力，`slot=toes` 空位）、`结束回合`、`取出`}；提交 `ok=true`、**`CHANGED=["version"]`**（手牌、四堆计数、魔力、快感、牢房字段全不动），事件 `「魔力松缚」施法失败（成功率0.92%）。卡牌留在手中。`
+  - `seed 20260906/elite step 226`：`valid=52`；提交 `解除 · 普通假阳具口球`（`magic_slip` 束缚面，10 魔力、失败返还 5、成功率 **0.03%**）→ `CHANGED=["version","mana"]`（每次净耗 5 魔力），事件 `「魔力松缚」施法失败（成功率0.03%）。返还5魔力。卡牌留在手中。`
+  - 结论性事实：**每次提交都被受理（`ok=true`、`version+1`），但装备耐久、牢房进度（turn/vent/door/key/position）、阶段与牌堆都不动**；
+    动作是零／低成本的施法抽奖，而 `结束回合`（唯一能恢复能量、推进牢房回合的动作）被策略分数永久排在后面（`end`=−50 ＜ 自由面 0 ＜ 束缚面伤害分）。RNG 每步推进，因此不是状态完全冻结，而是**策略永不改选**。
+
+**分类：(b) 测试策略缺陷**（非 (a) 产品缺陷、非 (c) 环境噪声）。依据：该候选由 `_candidate` 按真实施法成功率（0.03%／0.92% > 0）判为 valid，失败留手与按 `failure_outcome` 返还魔力是既有规则（`core/game.gd:2609 _cast_magic`）且有玩家可见文案；同一投影里本就有 `结束回合`／`item_discard` 等可推进候选，产品侧不存在"反复成功却不改状态"的动作，也没有无法脱出的状态机死路（修复后同种子 317 步到达检查点）。
+
+**修复（`tests/normal_play_cases.gd`，+94 行）**：新增"零进展重试护栏"——提交后由驱动侧记录**可见投影指纹** `progress_key`（阶段／房间／回合／姿态／墙／手臂腿／快感／手牌 uid／四堆计数／状态／装备耐久与锁／敌人 hp／牢房 turn-left-vent-door-key-checks-found-sites），**已付与已返还的魔力不计入进展**；同一 `attempt_key`（载荷可见身份，不含 preview 数字）在指纹未变时只允许**重试一次**，其后 `choose` 先跳过它改选其它合法动作，指纹一移动即解除。
+护栏只覆盖"原地尝试类"（`card`／`manual`／`hook`／`item_*`／`flask`／`calm`／`status_toggle`）；移动与回合动作不进入（盲走合法性允许重复同一方向，`结束回合` 正是要到达的兜底）。护栏是**偏好不是锁**：若它是唯一合法候选则照常选择（`choose` 两遍），不会产生 `no_candidate`。
+新增 6 条具名 check：失败候选在结果未知时可打、指纹忽略已付/返还魔力、允许一次重试、零进展后改选、指纹移动后复位、绝不抽空合法动作、盲走不进入护栏。
+
+**判据（本机墙钟）**
+1. `& tools/check.ps1 -Suite normal_play -TimeoutSeconds 900 -KeepGoing`：**退出码 0**〔**274.2s**，其中 `CHECK rules` 271.46s〕、`SUITE RESULT: normal_play PASS`、**959 assertions**；
+   三条种子全部 `result=prison_route`：42/cautious **334 步**（38.7s，护栏命中 6 步）、20260906/elite **317 步**（130.8s，护栏 16 步；原为 1800 步 action_limit）、7/trade **285 步**（99.6s，护栏 2 步）。274s ＜ 打转时 660s。
+2. `& tools/check.ps1 -Suite prison,guard,persistence,architecture,runner -Impact -KeepGoing -TimeoutSeconds 900`：退出码 1〔**209.6s**〕、38 套件全有 `SUITE RESULT`、`unrun=[]`、`before==after`；
+   `FAIL: 15/17673 assertions; 16 engine errors`，**红集＝{`card_power` 5, `installed_tools` 1, `tower_progression` 10(+1)} ⊆ 既有登记六项集**，无新增红项；`runner`（含索引零漂移自检）PASS。
+3. 冻结 oracle：event `EVENT RESULT: PASS (94 scenarios, 0 failures)`、`EVENTDIGEST 1f11bea560288ae922fc31ce7f46fb77d5cab22916798e3c1c81a00a131053da` 逐字等于冻结基线、退出码 0、`SCRIPT ERROR|ERROR:|Invalid access` **0 行**〔5.7s〕；
+   transition `TRANSITION RESULT: PASS (31 scenarios, 0 failures)`、`TRANSITIONDIGEST 14eb8cf9c3c8b5d4347b2b9d118b8c504596e04d296d091884995bc359b522b6`（＝收束后记录值）、退出码 0、错误行 0〔4.4s〕。
+
+**未验证／未做**：全量 `-Suite all -UI -UISuite all`（里程碑重跑由协调者决定；本片只修长流程策略）；Android 真机；打包／发版／推送。
+残余风险：`attempt_key`／`progress_key` 是测试侧启发式，若将来出现"合法重复且指纹不动"的动作类别需按新证据重分类。
+
+
 
 域：`spire-godot` 检查入口（`tools/check.ps1` ＋ `tests/`）——**套件失败隔离**与**派生检查索引＋路由**。
 契约 `docs/check-routing.md`（§11 七条裁定随施工生效）。**产品代码零改动**：`git diff 3afdc55 -- spire-godot/core spire-godot/ui spire-godot/data spire-godot/content spire-godot/assets` 为空；
