@@ -445,6 +445,7 @@ Windows 双击 **开始游戏.vbs**，直接打开游戏，不显示命令行窗
 - `-Exhaustive`：所选分类使用完整16／24／201随机样本；修改生成器、怪池、随机域或新增随机分支时必须使用。日常仍用已登记代表种子，定向行为、边界、回滚与真实交互不采样。
 - `-Suite all -UI -UISuite all`：完整规则与窗口回归，仅在明确要求时运行；规则all自动启用完整随机样本，包含normal_play长流程和存档专项。当前存档工作延期，不自动安排该专项；排除任何分类的运行不能称为完整all。
 - `-Suite runner -VerifyRunner`：测试器自身检查，包含范围参数误用、故意脚本错误、超时、失败停止与继续执行反例。`-UIOnly`只能用`-UISuite`选窗口，单独传`-UISuite`还必须启用`-UI`或`-UIOnly`；不能静默忽略指定范围。
+  > **本条已取代（superseded，2026-09-17；新口径见 `docs/check-routing.md` §4.3 与 §7-1）**：`-VerifyRunner` 里的"失败停止／继续执行"反例改为**隔离反例**——`negative-isolation-assertion`／`-runtime`／`-load`／`-ui` 要求首个套件失败（含真实脚本错误与加载失败）后其余套件照常跑完、`unrun=[]`、`rules.retry` 只含失败套件。历史日志原文保留不动。
 - `-Import`：本批新增素材需要导入时使用；首次没有`.godot`时自动导入。
 - `-Screenshots <已有截图名>`：只在布局、美术修改或视觉排错时使用，默认不截图。
 - `-TimeoutSeconds 600`：按已选分类耗时调整，默认每个引擎进程300秒。明确执行`normal_play`或大范围窗口回归时使用`-TimeoutSeconds 3600`；超时仍是失败，不缩减种子、行动上限或终点断言。

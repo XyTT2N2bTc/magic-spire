@@ -162,8 +162,16 @@ if ($VerifyRunner) {
         @{ Name='inactive-ui-scope'; Arguments=@('-UISuite','home','-ListOnly'); Message='-UISuite requires -UI or -UIOnly' }
     )) {
         $probeArguments = $selectionProbe.Arguments
-        $probeOutput = (& $checkShell -NoProfile -File $PSCommandPath @probeArguments 2>&1 | Out-String)
-        $probeExit = $LASTEXITCODE
+        # A rejected invocation writes its reason to stderr and exits 1. Capture both
+        # explicitly: with ErrorActionPreference=Stop a native command's stderr would
+        # otherwise surface here as a terminating error instead of probe evidence.
+        try {
+            $probeOutput = (& $checkShell -NoProfile -File $PSCommandPath @probeArguments 2>&1 | Out-String)
+            $probeExit = $LASTEXITCODE
+        } catch {
+            $probeOutput = [string]$_.Exception.Message
+            $probeExit = 1
+        }
         [IO.File]::WriteAllText((Join-Path $checkDirectory ('check-negative-' + $selectionProbe.Name + '.log')), $probeOutput)
         if ($probeExit -eq 0 -or -not $probeOutput.Contains($selectionProbe.Message) -or $probeOutput.Contains('CHECK LOGS:')) {
             throw "Inactive test selection was not rejected before engine startup: $($selectionProbe.Name)"
@@ -190,21 +198,40 @@ if ($VerifyRunner) {
         }
         Write-Output "CHECK negative-${probeName}: correctly rejected intentional runtime error, no false PASS"
     }
-    foreach ($continueSuites in @($false, $true)) {
-        $probeName = if ($continueSuites) { 'negative-continue' } else { 'negative-stop' }
+    # Isolation probes: the first selected suite fails by assertion, by a real
+    # script error, or by a failed load; the later suite must still run and report.
+    foreach ($isolation in @(
+        @{ Name='negative-isolation-assertion'; Probe='--probe-suite-failure'; Runtime=$false; KeepGoing=$false },
+        @{ Name='negative-isolation-assertion-keepgoing'; Probe='--probe-suite-failure'; Runtime=$false; KeepGoing=$true },
+        @{ Name='negative-isolation-runtime'; Probe='--probe-suite-runtime-error'; Runtime=$true; KeepGoing=$false },
+        @{ Name='negative-isolation-load'; Probe='--probe-suite-load-failure'; Runtime=$true; KeepGoing=$false }
+    )) {
+        $probeName = $isolation.Name
         $probeLog = Join-Path $checkDirectory ('check-' + $probeName + '.log')
-        $probeArguments = @('--headless', '--script', 'res://tests/test_game.gd', '--', '--suite=runner,tower', '--probe-suite-failure')
-        if ($continueSuites) { $probeArguments += '--keep-going' }
+        $probeArguments = @('--headless', '--script', 'res://tests/test_game.gd', '--', '--suite=runner,tower', $isolation.Probe)
+        if ($isolation.KeepGoing) { $probeArguments += '--keep-going' }
         $probeExit = Invoke-CheckEngine -Log $probeLog -Arguments $probeArguments
         $probe = Get-PhaseSummary -Name $probeName -Requested @('runner','tower') -Enabled $true
-        if ($probeExit -eq 0 -or $probe.failed -notcontains 'runner' -or $probe.complete) { throw "Suite failure probe was not rejected: $probeName" }
-        if ($continueSuites) {
-            if ($probe.passed -notcontains 'tower' -or ($probe.retry -join ',') -ne 'runner') { throw 'KeepGoing probe lost the successful suite or retried it unnecessarily.' }
-        } else {
-            if (($probe.unrun -join ',') -ne 'tower' -or ($probe.retry -join ',') -ne 'runner,tower') { throw 'Stop probe did not preserve the unfinished suite for retry.' }
+        if ($probeExit -eq 0 -or $probe.failed -notcontains 'runner' -or $probe.complete) { throw "Isolation probe was not rejected: $probeName" }
+        if ($probe.passed -notcontains 'tower' -or $probe.unrun.Count -ne 0 -or ($probe.retry -join ',') -ne 'runner') {
+            throw "Isolation probe did not run the later suite or lost its retry report: $probeName"
         }
-        Write-Output "CHECK ${probeName}: failure, unfinished scope and retry report verified"
+        $probeText = [IO.File]::ReadAllText($probeLog)
+        if ($isolation.Runtime -and $probeText -notmatch '(?m)^SUITE RUNTIME: runner [1-9]') { throw "Isolation probe missed the runtime annotation: $probeName" }
+        if ($probeName -eq 'negative-isolation-load' -and $probeText -notmatch '(?m)^SUITE LOAD FAILED: runner$') { throw 'Load-failure probe missed SUITE LOAD FAILED.' }
+        Write-Output "CHECK ${probeName}: failed suite isolated, later suites completed"
     }
+    # UI-side isolation: the fixture errors after an await inside the module coroutine,
+    # so the probe also proves the await returns control instead of hanging.
+    $uiIsolationLog = Join-Path $checkDirectory 'check-negative-isolation-ui.log'
+    $uiIsolationExit = Invoke-CheckEngine -Log $uiIsolationLog -Arguments @('--script', 'res://tests/ui_smoke.gd', '--', '--ui-suite=localization,home', '--probe-module-runtime-error')
+    $uiIsolation = Get-PhaseSummary -Name 'negative-isolation-ui' -Requested @('localization','home') -Enabled $true
+    if ($uiIsolationExit -eq 0 -or $uiIsolation.failed -notcontains 'localization' -or $uiIsolation.passed -notcontains 'home' -or $uiIsolation.complete) {
+        throw 'UI isolation probe did not isolate the failing module.'
+    }
+    if ($uiIsolation.unrun.Count -ne 0 -or ($uiIsolation.retry -join ',') -ne 'localization') { throw 'UI isolation probe lost the later module or its retry report.' }
+    if ([IO.File]::ReadAllText($uiIsolationLog) -notmatch '(?m)^SUITE RUNTIME: localization [1-9]') { throw 'UI isolation probe missed the runtime annotation.' }
+    Write-Output 'CHECK negative-isolation-ui: failed module isolated, later modules completed'
 }
 
 } catch {

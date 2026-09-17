@@ -623,6 +623,7 @@ RuleChangePackage：仅修改IntentView的已行动和新登场说明，复用�
 
 - tools/check.ps1仍为唯一入口，默认从全量改为architecture、runner；-Suite仅执行指定完整分类，-Impact显式恢复从初始请求的一次性交叉扩展。UI默认home，完整all与正常试玩长流程仍保留，-ListOnly改为可选预览。没有删除行为断言、抽减新的随机样本、修改游戏规则或开展旧档兼容。
 - 规则／窗口运行器输出分类开始和结果；首个失败分类结束后停止，-KeepGoing仅继续当前阶段的断言失败，运行时错误仍停止。初始化与UI重启出错及时返回，避免继续级联。每轮summary.json记录选择、通过、失败、未执行、续跑范围和源码指纹；-RerunFailed不复用历史PASS冒充当前完整通过。运行中代码变化使整轮失效并要求重跑原选范围。README和AGENTS旧默认／隐式扩展说明已替换。
+  > **本条已取代（superseded，2026-09-17；新口径见 `docs/check-routing.md` §4.1／§4.3）**："首个失败分类结束后停止／`-KeepGoing` 仅继续断言失败／运行时错误仍停止"**全部作废**。现行：断言失败与脚本错误都只记该套件 `FAIL`（脚本错误另标 `SUITE RUNTIME: <name> <n>`），其余套件一律跑完，`unrun=[]`；`-KeepGoing` 为兼容无操作。历史文本原样保留。
 - 默认规则architecture、runner共92断言通过。最终从source_changed报告续跑相同完整范围，92断言通过、10.95秒、退出0，前后指纹一致；日志build/checks/20260911T075557529-5876/。故意源码变化的独立探针正确退出1并标记全部原分类待重跑，日志build/checks/20260911T075534315-29272/；临时探针JSON已经清除。
 - runner自身23断言通过；VerifyRunner验证故意脚本错误（规则／UI）、1秒超时、首分类失败停止、KeepGoing继续以及失败／未执行报告。日志build/checks/20260911T075415322-43052/。根据其中真实negative-stop日志构造恢复报告，经公开-RerunFailed入口执行runner、tower，165断言通过，日志build/checks/20260911T075507550-13640/。
 - 范围计划核对：casting直接选1分类、Impact选16分类且不引入normal_play；显式all仍含46规则分类、42窗口模块及完整随机样本。未知分类退出1、报告failed；计划不计测试通过。未运行全项目回归。

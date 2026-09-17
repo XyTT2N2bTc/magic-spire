@@ -43,6 +43,10 @@ const UI_MODULES={"localization":"res://tests/localization_ui_cases.gd","card_po
  "persistence":"res://tests/persistence_ui_cases.gd"}
 
 func module_checks(selected: Array) -> void:
+ # Same isolation as the rule host: every selected module runs to the end, and a
+ # module that errors in setup or in its awaited run is reported FAIL plus
+ # SUITE RUNTIME instead of stopping the round. --keep-going is a compatibility
+ # no-op here.
  for name in UI_MODULES:
   if not "all" in selected and not name in selected: continue
   print("SUITE START: "+name)
@@ -51,19 +55,27 @@ func module_checks(selected: Array) -> void:
   # Ordinary scenarios use a returning player; home tests exercise first launch explicitly.
   ui.display_settings.first_battle_tutorial_seen=true
   ui.restart(20260906 if name=="baseline" else 42);await frames()
-  if engine_errors.count()>previous_errors: return
+  if engine_errors.count()>previous_errors:
+   # Setup errors used to return without a verdict; they now fail this module only.
+   print("SUITE RESULT: %s FAIL" % name)
+   print("SUITE RUNTIME: %s %d" % [name,engine_errors.count()-previous_errors])
+   continue
   var started=Time.get_ticks_msec();var before=assertions
   if name=="baseline": await _baseline_tests()
   else:
-   var suite=load(UI_MODULES[name])
+   # Probes point the first selected module at a deliberate negative fixture.
+   var path=UI_MODULES[name]
+   if "--probe-module-runtime-error" in OS.get_cmdline_user_args() and name==selected[0]: path="res://tests/runtime_error_ui_probe.gd"
+   var suite=load(path)
    if suite==null or not suite.can_instantiate():
-    check(false,"Cannot load selected UI suite: "+name);return
-   await suite.run(self)
+    print("SUITE LOAD FAILED: "+name)
+    check(false,"Cannot load selected UI suite: "+name)
+   else: await suite.run(self)
   print("UI SUITE %s: %d assertions, %d ms" % [name,assertions-before,Time.get_ticks_msec()-started])
-  var failed=failures.size()>previous_failures or engine_errors.count()>previous_errors
+  var errors=engine_errors.count()-previous_errors
+  var failed=failures.size()>previous_failures or errors>0
   print("SUITE RESULT: %s %s" % [name,"FAIL" if failed else "PASS"])
-  var runtime_error=engine_errors.count()-previous_errors>failures.size()-previous_failures
-  if failed and (runtime_error or "--keep-going" not in OS.get_cmdline_user_args()): return
+  if errors>0: print("SUITE RUNTIME: %s %d" % [name,errors])
 
 func finish_checks() -> void:
  print("UI TIME: %d ms" % (Time.get_ticks_msec()-started_at))

@@ -35,7 +35,7 @@ git diff --name-only
 - 分类注册在 `tests/test_game.gd` 与 `tests/ui_smoke.gd`。
 - 纯显示用 `-UIOnly`；规则与界面同时修改则明确指定 `-Suite` 和 `-UISuite`。
 - 共享规则用 `-Impact` 合并交叉分类一次跑完；随机生成改动加 `-Exhaustive`。
-- `-ListOnly` 只预览范围、不算通过；`-KeepGoing` 跑完全部分类；`-RerunFailed <日志目录>` 只重跑失败与未完成的分类。
+- `-ListOnly` 只预览范围、不算通过；**所有已选套件默认跑完**（断言失败与脚本错误只记该套件 `FAIL`，脚本错误另打印 `SUITE RUNTIME: <name> <n>`），`-KeepGoing` 仅兼容保留；`-RerunFailed <日志目录>` 只重跑失败与未完成的分类。
 - `all` 只用于明确完整回归；检查通过后不无故重复运行。
 - 内容包校验：`& tools/check-content.ps1`（改动 `spire-godot/content/packs/` 后必跑）。
 - 引擎与启动：`tools/find-godot.ps1` 定位引擎（`GODOT_BIN` 或项目内探测），`tools/launch.ps1` 启动游戏。

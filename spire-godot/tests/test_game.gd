@@ -48,6 +48,10 @@ func _initialize() -> void:
   for name in selected: print("  %s [%s; %s]" % [name,selection.reasons[name],Selection.stage(name)])
   print("PLAN ONLY: no rule tests executed")
   quit(0);return
+ # Every selected suite runs to the end: assertion failures and script errors are
+ # reported per suite (SUITE RUNTIME) and never stop the later suites, so one bad
+ # suite cannot leave the rest of the round unrun. --keep-going is an accepted
+ # compatibility no-op; there is no break path here.
  for name in SUITES:
   if name not in selected: continue
   print("SUITE START: "+name)
@@ -56,16 +60,22 @@ func _initialize() -> void:
   var previous_failures=failures.size();var previous_errors=engine_errors.count()
   if name=="core": _core_cases()
   else:
-   var suite=load(SUITES[name])
+   # Probes point the first selected suite at a deliberate negative fixture.
+   var path=SUITES[name]
+   if "--probe-suite-load-failure" in OS.get_cmdline_user_args() and name==selected[0]: path="res://tests/missing_probe_suite.gd"
+   var suite=load(path)
    if suite==null or not suite.can_instantiate():
-    push_error("Cannot load selected rule suite: "+name);quit(1);return
-   suite.run(self)
+    # A broken case file fails its own suite only; the rest of the round continues.
+    print("SUITE LOAD FAILED: "+name)
+    check(false,"Cannot load selected rule suite: "+name)
+   else: suite.run(self)
   if "--probe-suite-failure" in OS.get_cmdline_user_args() and name==selected[0]: check(false,"deliberate_suite_failure")
+  if "--probe-suite-runtime-error" in OS.get_cmdline_user_args() and name==selected[0]: preload("res://tests/runtime_error_probe.gd").run()
   print("SUITE %s: %d assertions, %d ms" % [name,count-previous,Time.get_ticks_msec()-started])
-  var failed=failures.size()>previous_failures or engine_errors.count()>previous_errors
+  var errors=engine_errors.count()-previous_errors
+  var failed=failures.size()>previous_failures or errors>0
   print("SUITE RESULT: %s %s" % [name,"FAIL" if failed else "PASS"])
-  var runtime_error=engine_errors.count()-previous_errors>failures.size()-previous_failures
-  if failed and (runtime_error or "--keep-going" not in OS.get_cmdline_user_args()): break
+  if errors>0: print("SUITE RUNTIME: %s %d" % [name,errors])
  if failures.is_empty() and engine_errors.count()==0:
   print("PASS: %d assertions" % count)
   quit(0)

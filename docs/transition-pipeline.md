@@ -220,6 +220,8 @@ oracle 单列 `skip_validate` 场景把它冻结。**保留理由**：它今天�
 2. `-KeepGoing` 下若出现 `unrun` 分类，**合并为一次调用补跑**（不逐分类各起一次进程）；
 3. 报告**必须带墙钟**（每段耗时），便于判断"慢在门禁还是慢在实现"。
 
+> **已取代（superseded，2026-09-17；新口径见 `docs/check-routing.md` §4.1／§4.3）**：上述第 2 条（`-KeepGoing` 下出现 `unrun` 分类时合并为一次调用补跑）**已作废**。现行：脚本错误只记该套件 `FAIL` 并标 `SUITE RUNTIME`，同轮跑完其余套件，不再需要补跑；`-KeepGoing` 为兼容无操作。上文历史文本与当时的实测数字保留不动。
+
 **(b) 迁移 oracle（新增，参照 E0 的摘要式判据；本片的核心证据）**
 
 - 脚本：`build/transition-oracle-<date>/transition_oracle.gd`（已忽略目录，用完删原始目录、摘要入 `docs/verification.md`）。
