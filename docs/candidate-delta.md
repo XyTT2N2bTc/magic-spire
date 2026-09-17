@@ -1,7 +1,9 @@
 # 候选局部筛查与视图增量（candidate-delta）
 
 规划者契约（planner contract），2026-09-17。分支 `event-pipeline-unification`，HEAD `eb85733`（起稿时工作区干净）。
-状态：**`needs-human-review`**——理由见 §10；人审记录进协调者之前，实现者不得开工。
+状态：**`needs-human-review`（计划层的三条争议已由协调者 2026-09-17 裁定，见 §9.6）**。
+实现者开工前置＝**协调者记录的人 OK，覆盖本片切线**（`core/game.gd` 候选构建分段化 ＋ `dispatch` 复核改局部筛查）；
+若协调者判定 §9.6 的裁定已代替"计划摘要人审"，请在派单里写明，否则等协调者记录的人 OK。
 **工作区提示（2026-09-17 本片收尾时）**：起稿时工作区干净；收尾时 `spire-godot/tests/check_index.json` 与
 `spire-godot/tests/normal_play_cases.gd` 出现**他人未提交改动**。本契约未触碰这两处；实现者开工前先 `git status`，
 不得把在途改动混入本片提交，且 `check-index.ps1 -Write` 需与索引改动方协调同批。
@@ -30,7 +32,7 @@
 | F7 | 事件域天然不重算：事件候选读 `state.room_event.options`（进入事件时冻结）与 `stage`（`Events.candidates`），产物全在 `event` 组 | `core/room_events.gd:candidates`／`:447` |
 | F8 | 通用读取面（每个候选行都要过）：`_candidate` 按 `state.energy`／魔力余额写 `valid`/`reason`；按 `Pressure.action_risk`（读 `state.pressure_sources`＋装备/遗物）与 `Cards.magic_card_traction`（读手牌修正）写 `risk`；按目标装备的 `lock_only`／诅咒写 `reason`；`CopyRouter.text(copy)` 的正文由各站点 builder 自定（可读任意 state）。**这条决定了"哪些组必然被作废"无法按 kind 粗粒度证明**（§9） | `core/game.gd:_candidate`；`core/pressure.gd:action_risk` |
 | F9 | 两个冻结 oracle 都按**候选数组整体**取摘要：`EVENTDIGEST` 对应的 `candidates:"sha256(JSON.stringify(g.candidates()))"`；迁移 oracle 记录所选候选的具名字段。结论：**候选行的字段、取值、顺序一个字都不能动** | `build/event-oracle-20260916/event_oracle.gd`；`build/transition-oracle-20260916/transition_oracle.gd`；两份 `baseline.json` |
-| F10 | 已归档否决方向（**不得重提**）：UI 把候选行连同版本一起提交给 `dispatch`（协议面扩张）。本契约不新增入参、不改 `dispatch` 判定与文案，见 §9.2 的边界论证 | `docs/history/submit-dedup-2026-09-17.md` |
+| F10 | 已归档否决方向（**不得重提**）：UI 把候选行连同版本一起提交给 `dispatch`（协议面扩张）。本契约不新增入参、不改 `dispatch` 判定与文案；三条区别见 §2.2 与 §9.3 | `docs/history/submit-dedup-2026-09-17.md` |
 
 非目标（本片不做，逐条对应派单禁区）：
 - 不改 `dispatch(candidate_id, expected_version)` 的**入参、返回值形状与接受/拒绝语义**（F10）。
@@ -52,7 +54,7 @@
 | --- | --- | --- | --- |
 | M1 候选构建 | `core/game.gd`（`_build_candidates` 及其调用方、`_candidate`） | `candidate_runs(groups) -> Array`（§2.1）；内部 `_candidate_steps(scope, stop_id)` | 段边界、作用域过滤、各 builder 的早退守卫、顺序 |
 | M2 提交复核 | `core/game.gd:dispatch` | 入参/返回**不变**；内部改用 `_candidate_by_id(id)`（§2.2） | 逐段构建、命中即止、未命中回落全量 |
-| M3（Part II，不在本片） | `core/game_view.gd` + 执行端声明 + `ui/candidate_delta.gd` | 见 §9.4 | — |
+| M3（Part II／下一片，不在本片） | `core/game_view.gd` + 执行端声明 + `ui/candidate_delta.gd` | 见 §9.4–§9.5 | — |
 
 允许依赖方向（本片不变）：`core` 不 preload `ui`；`ui/candidate_delta.gd` 不在本片；
 唯一允许 `preload` core 的 UI 文件仍是 `ui/main.gd`。M1/M2 均为 `core` 内改动，无新依赖边。
@@ -71,7 +73,7 @@
 - 只读性：不写 `state`、不推进随机、不改 `version`、不产生日志与事件、不跨调用保留（沿用 `candidates()` 现有语义）。
 - 成本口径：**不得**比"全量构建后过滤"更差地影响行内容；性能上只要求"被请求组之外的昂贵循环可被早退守卫跳过"（§3.3），
   本片不以该入口的耗时作通过判据。
-- 谁能调：测试；`core/game.gd` 内部；Part II 的增量路径。UI 其它文件不得调（`ui/main.gd` 只能经 §9.4 的合并入口，本片不开放）。
+- 谁能调：测试；`core/game.gd` 内部；Part II 的增量路径。UI 其它文件不得调（`ui/main.gd` 只能经 §9.5 的合并入口，本片不开放）。
 - 信任依据：本契约 + §5 场景 1（`runs(all) ≡ candidates()` 逐字段逐顺序）＋ 场景 3（fail-closed 反例）。
 
 ### 2.2 `dispatch` 的提交复核：局部筛查（core，内部改动，接口不变）
@@ -87,6 +89,19 @@
     （守卫写错、段序列不全、缓存差异都不会造成"误拒"，最坏只是白花一次全量构建。）
   - 副作用：候选构建只读（不推进随机、不写 state、不产日志）；`_begin_equipment_read()` 的包裹与还原与现状一致。
 - 接口面：`dispatch(candidate_id, expected_version)` 的入参、返回字典的键与取值、接受/拒绝语义、`version` 语义、文案**全部不变**。
+- **等价性论证（必须逐条成立，靠 §5 场景 2 判）**：
+  1. **构建器只读**：候选构建不写 `state`、不推进任何随机域、不产生日志/事件、不改 `version`
+     （沿用 `candidates()` 现有语义）；`_begin_equipment_read()` 的包裹与还原与现状一致。
+  2. **顺序确定**：段的先后＝源文本里的调用序，段内行的先后＝追加序；`_build_candidates` 的相位早退分支原样保留。
+  3. **无非命中副作用**：命中后不再构建后续段，只影响"建了多少"，不影响任何可观察量
+     （state／日志／随机域计数／`export_snapshot()`／`view`）。
+  4. **同一行**：命中的那一行就是**全量构建中按追加顺序的第一条 id 匹配行**，逐字段相同
+     （`id`／`payload`／`label`／`detail`／`cost`／`mana`／`mana_payment`／`valid`／`reason`／`risk`／`group`）；
+     未命中时的拒绝文案与现状逐字相同。
+- **与已归档"提交去重"的区别（必须保留这段，避免后人误以为重提被否方向）**：
+  本片**不改提交入参**、**不加核心跨提交缓存**、**不需要外部提交行**——候选仍由核心从当前状态自建，
+  UI 仍只传 `candidate_id` 与版本。（被否方向＝UI 把候选行作为外部数据连同版本交给唯一提交入口，
+  见 `docs/history/submit-dedup-2026-09-17.md`；本片与之无交集，详见 §9.3。）
 - 谁能调：`dispatch` 内部唯一；不得把该入口暴露给 UI 或测试作为"提交"路径。
 - 信任依据：本契约 + §5 场景 2（同状态双实例：局部筛查实例 ≡ 全量实例的返回与终态）＋ 两个冻结 oracle。
 
@@ -259,10 +274,13 @@
   `EVENTDIGEST`／`TRANSITIONDIGEST` 与基线**逐字相同**，引擎错误日志 **0 行**（oracle 显式 `quit(0)`，退出码不反映脚本错误）。
 - 场景：§5 的 1–7 全部具名 check 通过。**场景 1、2、4 是主判据**；5、6、7 锁接口面与既有不变量。
 - 测量（**参考，不承诺绝对毫秒**）：沿用 `docs/equipment-performance.md:45` 的配对协议——
-  同一夹具交替执行、2 次热身 + 15 次有效配对、报逐对比值中位与两侧独立中位；样本轴 0／12／26 件 × battle／departure；
-  主要记录**结构计数**：每次成功提交的"全表构建次数"（现状 2 → 本片 1）、
-  提交复核实际构建的**段数**（按 kind 记录：`attack`／`card` 应显著少于全表）。
-  计时脚本与 JSON 只放已忽略的 `build/candidate-delta-<date>/`，摘要（机器、件数、kind、段数、中位数、样本数）
+  同一夹具交替执行、2 次热身 + 15 次有效配对、报逐对比值中位与两侧独立中位；样本轴 0／12／26 件 × battle／departure。
+  **结构计数（主）**：每次成功提交的"全表构建次数"（现状 2 → 本片 1）；
+  **命中位置分布（主）**：按 kind 记录提交复核在**第几段**命中、实际构建的段数与行数，以及相对全表**省下的段数/行数**
+  （式样：`kind=attack, hit_segment=3/12, built_rows=…, full_rows=…`，逐 kind、逐件数报告；
+  `attack`／`card` 应显著早于全表，`manual`／`item`／`end` 可能接近全表，**这不算退化**）。
+  计时只作参考列，不与结构计数互相代替；读档／新局／快速 SL 路径不参与该测量（它们照旧全量）。
+  计时脚本与 JSON 只放已忽略的 `build/candidate-delta-<date>/`，摘要（机器、件数、kind、命中段位、段数/行数、中位数、样本数）
   登记 `docs/verification.md` 后删除原始目录；生产源码不得留计数器、开关或计时钩子。
 - 红集必须 ⊆ 既有六项：`card_power` 5／`installed_tools` 1／`tower_progression` 10＋1／`hand_assist` 1／
   `home_persistence` 3／`interface` 1（28 张 `witch_*` 卡缺立绘）；新增红项一律视为本片未完成。
@@ -274,7 +292,7 @@
 
 ## 8. 依赖约束（cleaner 可核对）
 
-- `core` 不得 preload `ui`；本片不新增文件（Part II 才需要 `ui/candidate_delta.gd`，见 §9.4）。
+- `core` 不得 preload `ui`；本片不新增文件（Part II 才需要 `ui/candidate_delta.gd`，见 §9.5）。
 - `candidate_runs`：只读、无状态、无跨调用保留；容器新建；输入域为空/未知即 `[]`。
 - `dispatch`：入参与返回**形状不变**；不得新增返回键；不得改判定顺序（六个 `validate` → 版本 → 复核 → `valid`）；
   不得把 `chosen` 的来源改成外部输入（F10）。
@@ -284,7 +302,7 @@
 - 只读复用：仍限单次调用内；不得引入跨提交缓存、不得缓存候选/资格/预览/费用。
 - 文案与数值：一个字不动；不新增拒绝文案（F10 的教训）。
 
-## 9. 与协调者派单的差异（需协调者／人确认）
+## 9. 与派单的差异、裁定与后续片（§9.6＝协调者 2026-09-17 裁定记录）
 
 ### 9.1 本片实现提交侧局部筛查，视图侧增量整片后移
 
@@ -312,7 +330,26 @@
 只是**构建到什么程度才停**——"核心只是不必把整表建出来才能找到那一行"。
 若要更保守，可把本片缩到只留 `candidate_runs` 只读入口、不动 `dispatch`（收益归零，但仍为后续片铺路）。
 
-### 9.4 后续片（Part II）的最小形态（本片只写契约）
+### 9.4 下一片（紧接、已点名）：候选读取字段依赖表 —— Part II 的前置
+
+**目标不丢**：局部筛查/增量的终点仍是"每次有效操作只做增量"（人给的判据）；本片只是先落地其中**无需声明**的一半。
+下一片做的是让另一半**可证明**：
+
+- 内容：**"候选行／组 → 它读取的 state 字段"**，必须含**间接读取**：
+  ① `_candidate` 的通用面（`energy`／`mana`／`temporary_mana`／`flask_mana` → `valid`/`reason`；
+  `pressure_sources`＋装备/遗物 → `risk`；目标装备的 `lock_only`／诅咒 → `reason`；`cast_view` 概率）；
+  ② 站点 `copy` builder（`CopyRouter` 注册表里每个 builder 实际读的 state）；
+  ③ 各组生产者自身的读取（`_manual_candidates`／`_item_candidates`／`_posture_candidates`／`_wall_move_candidates`／
+  `Cards.candidates`／`Cards.continuation`／`Services.candidates`／`Prison.candidates`／`Events.candidates`／`ManaFlask.candidates` …）。
+- **闭环检查（二选一或并用，派单要求"表外即红"）**：
+  ① 正查：源码里出现的 `state.<字段>`（含 `g.state.<字段>`、经 `_equipment`/`Relics`/`Cards` 的间接读取）必须在表内，
+  否则该读取所属的组/行视为"读取域未知"，该组**不得**参与增量（fail-closed 到全量）；
+  ② 反查：每个**执行分支**声明的写入字段集合，必须能从表推出该分支的作废组集合（推不出来即红）。
+- 完成判据（下一片自己的 DoD）：表覆盖到"任一 kind × 任一组的作废判定可机械导出"，
+  并且"未知读取 → 该组退回全量"的 fail-closed 路径有具名断言。
+- 与本片的关系：本片的段结构（§3.2）与 `candidate_runs`（§2.1）就是这一片的度量与落地入口，不得重做一套。
+
+### 9.5 再下一片：Part II 视图侧增量（最小形态，本片只写契约）
 
 - `core/game_view.gd:build` 增加"候选作用域"（只构建被作废组并只对这批行做逐 action 投影）；
 - 执行端在既有 `dispatch`／`_execute` 分支上声明 `candidate_groups`（默认 `"*"`＝全量；未声明即全量）；
@@ -328,6 +365,17 @@
   `_execute` 执行分支都必须声明作废组或显式声明"不作废任何组"，表外即红（源文本扫描 ＋ 声明锐化项必须有等价场景）；
   ④**事件域不受影响**（冻结选项不参与增量，事件分支一律全量）；⑤读档／新局／快速 SL 的首次候选必须是全量产物（§4.1）。
 
+### 9.6 协调者裁定记录（2026-09-17）
+
+1. **接受本片收窄**：视图侧增量（按组补丁 UI 的候选列表）**本片不做**，推迟到"字段依赖表"到位之后；
+   依据＝§9.2 的通用读取面证据（`status_toggle`／`charge_all`／`charge_bonus()` 例证）。
+   口径："没有字段依赖表，'kind → 作废组'无法安全锐化——按覆盖优先，宁可不做，不做错的。"
+2. **"字段依赖表"立为紧接的下一片并点名**（见 §9.4），不得把"局部筛查/增量"这个目标在文档里弄丢。
+3. **本片收益点写法要求**：等价性论证 ①只读 ②顺序确定 ③无非命中副作用 ④命中行与全量同一行逐字段相同（§2.2）；
+   度量给"命中位置分布／省下的构建量"作参考、不作承诺（§7）；并且**必须写明与 `submit-dedup` 被否方向的三条区别**
+   （不改提交入参／不加核心跨提交缓存／不需要外部提交行），见 §2.2 与 §9.3。
+4. 其余不变：路由器不动（F6）、存读档／新局强制全量（§4.1）、事件域不参与增量、禁区零触碰（§0）。
+
 ## 10. 假设与最可能爆的点（含 needs-human-review 理由）
 
 - **A1（最可能爆）**：§9.2 的通用读取面意味着"高频 kind 只作废少数组"很难成立；若后续片仍想拿到 0 次全表构建，
@@ -341,13 +389,16 @@
   对 `item` 单列场景；本片只在场景 1 里把它作为段结构与全量比对的一部分。
 - **A6**：套件覆盖有限：`core/game.gd` 在冻结索引里被 93 个套件引用，本片 DoD 只列 7 个规则套件（+ 7 个界面套件）
   并以 `-Impact` 合并交叉分类；未跑到的分类按域登记为"未验证"，**不得**声称全量回归。
-- **A7（flag 理由）**：本片偏离派单：视图侧增量与"执行端声明"整片后移到 Part II（§9.1–9.2，证据在手），
-  而把收益点放在提交复核的局部筛查上（§9.3，需人明确背书它不在归档否决范围内）。判 `needs-human-review`。
+- **A7（flag 现状）**：原先的 flag 理由是"偏离派单：视图侧增量与执行端声明整片后移"＋"提交侧改动与归档方向相邻"；
+  两条已由协调者 2026-09-17 裁定处理（§9.6）。剩余唯一的未决项＝**人 OK 的形式**（见文件头状态）。
 - **A8**：`docs/response-pipeline.md` §4.1 的"禁止跨提交缓存候选"与 Part II 的"UI 沿用上一版候选行"字面冲突 →
   后续片必须先在 `response-pipeline.md` 加注（UI 侧按组沿用＝授权；核心侧仍禁止），否则后来者会按旧禁令判红。本片不触碰该条。
 
-## 11. 后续片清单（不在本片）
+## 11. 后续片清单（顺序已定，均不在本片）
 
-1. Part II（视图侧增量 + 执行端声明 + 声明覆盖闭环 + 强制全量失效），前置：字段依赖分析。
-2. 字段依赖表（状态字段→组/行；含 `copy` builder 读取集）与声明锐化。
+1. **紧接下一片（已点名）：候选读取字段依赖表**（§9.4）——"候选行／组 → 读取的 state 字段"，
+   含 `_candidate` 通用面与站点 `copy` builder 的间接读取，配"表外读取即红"或"写入字段 → 作废集合"的闭环检查。
+   它是视图侧增量的前置；**不得**把它当成可选优化跳过，否则"增量"目标无法安全落地。
+2. **再下一片：Part II 视图侧增量**（§9.5）——`get_view` 候选作用域 ＋ 执行端声明 ＋ UI 按段替换 ＋ 强制全量失效。
 3. 窗口与输入队列（`docs/response-pipeline.md` 末尾，未排期）。
+4. （机会项，未排期）派生视图的字段依赖同款处理：`render` 的节键与 `present(dirty)` 局部刷新（`docs/response-pipeline.md` §3.3–§3.4）。
