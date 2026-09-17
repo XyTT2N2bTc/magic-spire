@@ -1,4 +1,20 @@
-## 2026-09-17 normal_play 长流程打转：诊断、分类与策略修复（实现者）
+## 2026-09-17 per-click 完整性检查改 debug feature（实现者；协调者转写）
+
+域：`spire-godot/core/game.gd`（提交入口／候选）、`core/room_events.gd`（事件探针）、`tests/architecture_cases.gd`＋`tests/check_index.json`。
+契约 `docs/per-click-checks.md`。提交 `3f96965`（4 文件 +177/−18）＋`84eb12f`（2 文件 +8/−3），本地提交，未推送／未打包。
+
+**实现**：`debug_checks_enabled()` 为单一判据（`OS.is_debug_build()` 为假恒 false；真时可由 `set_debug_checks_enabled(bool)` 覆盖，字段 `_debug_checks_override`；release 里 setter 直接 return）。门控点位：`game.dispatch` 五道早拦（`Consumables.validate_buffs`／`Binding.state_issue`／`SpecialEquipment.validate`／`Cards.validate`／`RelicEffects.validate`，顺序与版本判定位置不变）、`game._build_candidates` 两道候选闸、`room_events.probe_result` 只门控 `g.validate()` 一半（effects／可行性与 `held_pending` 不动）。**保持不门控**：版本相等、`write_game` 写档前聚合校验、`restore_snapshot` 读档聚合校验、`Snapshot.check`、`SpecialEquipment.validate` 的规则用途（`room_events.gd:783/903/1250`）、`equipment_replacement` 自检。
+诊断落 `debug_check_failures`（`{check,reason,location}`）＋`push_warning`；**不进 state／存档／View／玩家日志／`{ok,error}`**，由新 check 逐条断言。
+
+**判据（最终提交内容上复跑）**：①冻结 oracle 各两遍全绿且逐字等于基线（`EVENTDIGEST 1f11bea5…`、`TRANSITIONDIGEST 14eb8cf9…`）；②`-Suite architecture,core,runner,persistence,rewards,guard,battle_saturation -Impact -KeepGoing`：退出码 1、218.8s、`FAIL 15/20157`、**红集＝{card_power 5, installed_tools 1, tower_progression 10} ⊆ 既有六项**、`unrun=[]`、`runner` 索引零漂移 PASS；③新具名 check `tests/architecture_cases.gd:per_click_checks_are_debug_only`（消息前缀 `PERCLICK`）；④敏感性证明（临时把覆盖默认值改 false）：`events` 红 1 条（`tests/event_cases.gd:179` 确有既有用例依赖被门控的探针 validate 半）、`event_flow`／`core` PASS（＝五道检查与两道候选闸在既有语料里从不失败）、`architecture` 红 17 条（证明新 check 非空转），随后按 sha256 还原（`core/game.gd=71484d1e…`）。
+
+**release 行为差异（登记要点）**：release 下五道 dispatch 检查与两道候选闸**不跑**——早拦消失；候选闸跳过**等于带坏状态继续建候选**；`dispatch` 内"执行后、提交前"的聚合 `validate()` 不在冻结清单、未动，仍是 release 的安全网（坏提交被"行动未提交：…"拒绝并回滚）。写档／读档／规则用途不受影响。
+
+**未验证**：真 release 二进制行为（需打包，超出本片边界）、UI 套件与全量 `-Suite all -UI -UISuite all`、Android 真机。**观察交回**：执行后的聚合 `validate()` 是否纳入后续片待裁。
+
+**追记（协调者，同日）**：人已裁定本 debug feature 属**过渡形态**，将在点击路径根治的提交中一并替换（`docs/refactor-direction.md`），届时本条的 release 门控结论随之失效，须重跑受影响的域。
+
+
 
 域：`spire-godot/tests/normal_play_cases.gd`（长流程试玩策略）——**:184 断言未改、三条种子未删、1800 步上限未动**；
 **产品代码零改动**（`git diff c356c64` 不含 `spire-godot/core|data|ui|content|assets`）。索引随 `tests/**` 改动 `check-index.ps1 -Write` 重冻结同批提交。
