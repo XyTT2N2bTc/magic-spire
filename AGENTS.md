@@ -132,6 +132,7 @@
 | 事件系统结构 | docs/event-structure.md |
 | 事件定义形态与管线统一（现行） | docs/event-pipeline-unification.md |
 | 事件管线依赖约束 | docs/event-pipeline-dependency-spec.md |
+| 每次点击的检查链（冻结与影响） | docs/per-click-checks.md |
 | 文案与本地化 | docs/action-copy-guide.md、docs/localization.md |
 | 美术来源与差分 | spire-godot/assets/art/ART-NOTES.md、spire-godot/assets/vendor/CREDITS.md |
 | 验证结果 | docs/verification.md |
