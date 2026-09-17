@@ -8,6 +8,31 @@ var _equipment_index_issues: Array=[]
 # 只读诊断：不进 state、不进 View、不进存档、不渲染、不做成计数器。
 var copy_router_failures: Array=[]
 
+# docs/per-click-checks.md §0/§3.1（人裁定：正常流程下永不为 false 的检查＝release 里纯浪费）：
+# 每次点击都会跑、且不变量由构造保证的完整性检查是 debug feature——release 下**连算都不算**，
+# 不是"算了再丢"。默认值只有构建类型：OS.is_debug_build()；覆盖入口在 release 里直接拒绝，
+# 因此发布的二进制没有任何运行期途径能把它打开。测试用覆盖值在 debug 二进制上量 release 侧行为。
+var _debug_checks_override: Variant=null
+# 检查失败的诊断落点：检查名、原因、位置。只读诊断——不进 state、不进 View、不进存档、
+# 不进玩家可见日志（_emit）、不渲染、不做成计数器。
+var debug_check_failures: Array=[]
+
+func debug_checks_enabled() -> bool:
+ if not OS.is_debug_build(): return false
+ if typeof(_debug_checks_override)==TYPE_BOOL: return _debug_checks_override
+ return true
+
+func set_debug_checks_enabled(value: bool) -> void:
+ if not OS.is_debug_build(): return
+ _debug_checks_override=value
+
+# Release 下不可达：调用点先过 debug_checks_enabled()；这里再返回原因串，交给调用点早退。
+func _debug_check(name: String, location: String, reason: String) -> String:
+ if reason!="":
+  debug_check_failures.append({"check":name,"reason":reason,"location":location})
+  push_warning("DEBUG CHECK "+name+" @"+location+": "+reason)
+ return reason
+
 # A read batch owns its indexes; commands and subsequent views never reuse them.
 # Speculative installation replaces state, so it must use live queries instead.
 # Entry materializes the piece set and every edge derived from it once; a failed self check
@@ -2034,8 +2059,11 @@ func _build_candidates() -> Array:
   Consumables.noncombat_candidates(self,starting)
   ManaFlask.candidates(self,starting,true)
   return starting
- if Binding.state_issue(self)!="": return []
- if SpecialEquipment.validate(state.get("special_equipment"))!="": return []
+ # Debug feature（docs/per-click-checks.md §3.4／§2 #2/#4）：这两道候选闸失败时返回**空表**。
+ # release 跳过＝带着坏状态继续构建候选（已登记的取舍，不是缺陷）；#1／#5／#6 只是少一次拒绝。
+ if debug_checks_enabled():
+  if _debug_check("Binding.state_issue","game._build_candidates",Binding.state_issue(self))!="": return []
+  if _debug_check("SpecialEquipment.validate","game._build_candidates",SpecialEquipment.validate(state.get("special_equipment")))!="": return []
  var out=_phase_candidates()
  Consumables.noncombat_candidates(self,out)
  _route_candidates(out)
@@ -2411,18 +2439,23 @@ func _item_candidates(out: Array) -> void:
    _candidate(out,{"kind":"item_retrieve","item":item.id,"mount":"carry","operator":operators[0] if not operators.is_empty() else ""},"取回工具",{"kind":"game.item_retrieve","args":retrieve_args,"fallback":copy_item_retrieve(self,retrieve_args)},0,0,Tools.retrieve_reason(self,item),"","item")
 
 func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
- var buff_issue=Consumables.validate_buffs(self,state.get("body_buffs"))
- if buff_issue!="": return {"ok":false,"error":buff_issue}
- var binding_issue=Binding.state_issue(self)
- if binding_issue!="": return {"ok":false,"error":binding_issue}
+ # Debug feature（docs/per-click-checks.md §2）：药剂记录／躯干固缚／性玩具实例／卡牌／遗物五道
+ # 完整性检查只在 debug 构建里跑；release 下连这五次调用都不发生（不是算了再丢）。
+ # 版本相等检查是新鲜度（正常流程**会**失败），不属本判据，release 也跑。
+ if debug_checks_enabled():
+  var buff_issue=_debug_check("Consumables.validate_buffs","game.dispatch",Consumables.validate_buffs(self,state.get("body_buffs")))
+  if buff_issue!="": return {"ok":false,"error":buff_issue}
+  var binding_issue=_debug_check("Binding.state_issue","game.dispatch",Binding.state_issue(self))
+  if binding_issue!="": return {"ok":false,"error":binding_issue}
  if expected_version!=state.version:
   return {"ok":false,"error":"状态已更新，请重新选择行动。"}
- var special_issue=SpecialEquipment.validate(state.get("special_equipment"))
- if special_issue!="": return {"ok":false,"error":special_issue}
- var pending_issue=Cards.validate(self)
- if pending_issue!="": return {"ok":false,"error":pending_issue}
- var relic_issue=RelicEffects.validate(self)
- if relic_issue!="": return {"ok":false,"error":relic_issue}
+ if debug_checks_enabled():
+  var special_issue=_debug_check("SpecialEquipment.validate","game.dispatch",SpecialEquipment.validate(state.get("special_equipment")))
+  if special_issue!="": return {"ok":false,"error":special_issue}
+  var pending_issue=_debug_check("Cards.validate","game.dispatch",Cards.validate(self))
+  if pending_issue!="": return {"ok":false,"error":pending_issue}
+  var relic_issue=_debug_check("RelicEffects.validate","game.dispatch",RelicEffects.validate(self))
+  if relic_issue!="": return {"ok":false,"error":relic_issue}
  var chosen: Dictionary={}
  for c in candidates():
   if c.id==candidate_id: chosen=c; break

@@ -925,8 +925,10 @@ static func probe_result(g, effects: Array, option: Dictionary={}, cleanup: bool
  if issue=="" and cleanup and not g.state.room_event.held.is_empty():
   issue="事件仍有尚未归还的装备。"
   gate="held_pending"
- if issue=="" and gate!="held_pending":
-  issue=g.validate()
+ if issue=="" and gate!="held_pending" and g.debug_checks_enabled():
+  # Debug feature（docs/per-click-checks.md §2 #8）：整份状态校验这一半只在 debug 构建里跑；
+  # 上面的 effects／可行性那一半是规则判定（"执行后状态仍合法"之外的可执行性），每种构建都保留。
+  issue=g._debug_check("Game.validate","room_events.probe_result",g.validate())
   if issue!="": gate="validate_failed"
  g.state=original
  g._resource_feedback=feedback

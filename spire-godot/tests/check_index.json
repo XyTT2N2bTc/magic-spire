@@ -28,7 +28,7 @@
     },
     "spire-godot/tests/architecture_cases.gd": {
       "owner": "rule:architecture",
-      "signals": 9
+      "signals": 10
     },
     "spire-godot/tests/axe_amulet_cases.gd": {
       "owner": "rule:relics",
@@ -711,7 +711,7 @@
       "signals": 2
     }
   },
-  "digest": "db5617dd2d272df99cbcca2b6f7a28d36dd823f8cc69f4fe5c258ee169894dda",
+  "digest": "e2f17665c985b737228f1ca0c83ec71209b3a0d00852e6c348768ca5452e65e1",
   "domain_words": {
     "BIND": [
       "rule:torso_binding",
@@ -1607,7 +1607,7 @@
       ]
     }
   },
-  "generated_from": "b55db56e5830683b7476d55efc1fb76ad6efccf30df3f7ef79787c786105913f",
+  "generated_from": "b136e75838701474b76e0e9211eb172a5bc03aefb6cf40a5377e92b60d0d3a7a",
   "registries": {
     "rule": [
       "witch_character",
@@ -1723,7 +1723,7 @@
     "rule_suites": 51,
     "source_files": 120,
     "sources_with_edges": 117,
-    "suite_edges": 436,
+    "suite_edges": 437,
     "suites_with_edges": 94,
     "ui_suites": 46,
     "widen": 1
@@ -1766,6 +1766,9 @@
         "preload"
       ],
       "spire-godot/core/room_events.gd": [
+        "preload"
+      ],
+      "spire-godot/core/save_store.gd": [
         "preload"
       ],
       "spire-godot/data/encyclopedia.gd": [

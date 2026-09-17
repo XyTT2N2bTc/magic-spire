@@ -3,6 +3,8 @@ const Game=preload("res://tests/game_fixture.gd")
 const GameCore=preload("res://core/game.gd")
 const Rewards=preload("res://tests/reward_cases.gd")
 const Guard=preload("res://core/guard.gd")
+const Store=preload("res://core/save_store.gd")
+const EventCases=preload("res://tests/event_cases.gd")
 
 # docs/ondemand-copy.md §5.1: frozen docs/equipment-query-seam.md §8.2 hashes recomputed with
 # unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for the §5.5 fixtures.
@@ -317,10 +319,129 @@ static func event_single_evaluation_entry(t) -> void:
    var result=g.Events.evaluate_option(g,g.Events.request_for(g,option[0],"candidate"))
    t.check(candidate.valid==(result.decision=="generated") and (result.reason=="" or candidate.get("reason","")!=""),"EVENT ENTRY candidate support matches the single entry: "+id+"/"+str(candidate.payload.get("choice","")))
 
+# docs/per-click-checks.md §2 #1/#2/#4/#5/#6：五道被门控的 per-click 完整性检查各一份坏状态夹具。
+# 坏值都保持"记录结构完整"（越界耐久／重复家族／负数回合加值／孤儿累计进度／坏作用位置），
+# 这样 release 侧跳过检查后候选构建本身不会崩——它正是"带着坏状态继续"的登记取舍。
+static func per_click_damaged_fixtures() -> Array:
+ var buffs=Game.new(42)
+ buffs.state.body_buffs=[{"type":"lubricant_potion","group":"nope"}]
+ var special=Game.new(42)
+ special._install_special("shaft_ring_low","special_2_a")
+ var twin=special.state.special_equipment[0].duplicate(true)
+ twin.id="special_9_z"
+ special.state.special_equipment.append(twin)
+ var cards=Game.new(42)
+ cards.state.turn_strength=-1
+ var relics=Game.new(42)
+ relics.state.relic_counters={"nonexistent_relic":1}
+ var rows=[
+  {"check":"Consumables.validate_buffs","reason":"部位药剂的作用位置不正确。","game":buffs},
+  {"check":"SpecialEquipment.validate","reason":"同一种性玩具不能重复佩戴。","game":special},
+  {"check":"Cards.validate","reason":"本回合力量加值不正确。","game":cards},
+  {"check":"RelicEffects.validate","reason":"累计进度对应的遗物未持有。","game":relics},
+ ]
+ var binding=linked_binding_game()
+ if not binding.is_empty(): rows.append({"check":"Binding.state_issue","reason":"连接式固缚耐久不正确。","game":binding.game})
+ return rows
+
+# 候选闸需要一个真实的连接式躯干固缚；把耐久改到越界（记录仍完整，候选构建自身安全）。
+static func linked_binding_game() -> Dictionary:
+ for seed in range(1,100):
+  var g=Game.new(seed,true,"torso_binding")
+  if g.state.equipment.is_empty(): continue
+  var e=g.state.equipment[0]
+  if not e.has("binding") or str(e.binding.get("kind",""))!="linked": continue
+  e.binding.durability=e.binding.maximum+1.0
+  return {"game":g}
+ return {}
+
+# docs/per-click-checks.md §0／§2／§3（人裁定）：正常流程下永不为 false 的 per-click 完整性检查是
+# debug feature——release 下**连算都不算**（不是算了再丢），失败时 debug 侧写诊断（检查名＋原因＋位置）。
+# 本函数用同一批坏状态钉住两侧：开关开＝与今天逐字节相同（含拒绝文案）；开关关＝该检查不跑。
+# 不动的部分同时钉住：版本相等（新鲜度）、读档／写档前的聚合校验、事件系统的规则用途、
+# 事件探针的"效果可行性"一半。
+static func per_click_checks_are_debug_only(t) -> void:
+ var damaged=per_click_damaged_fixtures()
+ t.check(damaged.size()==5,"PERCLICK all five gated per-click checks have a damaged fixture: "+str(damaged.size()))
+ for row in damaged:
+  var g=row.game
+  t.check(g.debug_checks_enabled(),"PERCLICK the switch defaults to the debug build on a debug binary "+row.check)
+  var rejected=g.dispatch("not-real",g.state.version)
+  t.check(not rejected.ok and String(rejected.error)==str(row.reason),"PERCLICK switch on: the gated check rejects with its own wording "+row.check+": "+str(rejected))
+  var logged=g.debug_check_failures.back() if not g.debug_check_failures.is_empty() else {}
+  t.check(str(logged.get("check",""))==row.check and str(logged.get("reason",""))==str(row.reason) and str(logged.get("location",""))=="game.dispatch","PERCLICK switch on: a failure writes check, reason and location to the debug diagnostics "+row.check+": "+str(g.debug_check_failures))
+ for row in per_click_damaged_fixtures():
+  var g=row.game
+  g.set_debug_checks_enabled(false)
+  t.check(not g.debug_checks_enabled(),"PERCLICK the override turns the switch off for the release-side measurement "+row.check)
+  var result=g.dispatch("not-real",g.state.version)
+  t.check(not result.ok and String(result.error)=="该行动已经失效，请重新选择。","PERCLICK switch off: the gated check does not reject, the missing candidate does "+row.check+": "+str(result))
+  t.check(g.debug_check_failures.is_empty(),"PERCLICK switch off: a skipped check writes no diagnostics "+row.check+": "+str(g.debug_check_failures))
+ var gate_checks=["Binding.state_issue","SpecialEquipment.validate"]
+ for row in per_click_damaged_fixtures():
+  if not row.check in gate_checks: continue
+  t.check(row.game.candidates().is_empty(),"PERCLICK switch on: the gated candidate gate clears the list "+row.check)
+ for row in per_click_damaged_fixtures():
+  if not row.check in gate_checks: continue
+  row.game.set_debug_checks_enabled(false)
+  t.check(not row.game.candidates().is_empty(),"PERCLICK switch off: candidates are built from the same damaged state "+row.check)
+ for mode in [true,false]:
+  var label="on" if mode else "off"
+  var stale=Game.new(42)
+  stale.set_debug_checks_enabled(mode)
+  var refused=stale.dispatch("not-real",stale.state.version-1)
+  t.check(not refused.ok and String(refused.error)=="状态已更新，请重新选择行动。","PERCLICK switch "+label+": staleness stays checked in every build: "+str(refused))
+  var save_game=Game.new(42)
+  save_game.state.turn_strength=-1
+  save_game.set_debug_checks_enabled(mode)
+  t.check(save_game.Snapshot.check(save_game.export_snapshot(),save_game)=="","PERCLICK switch "+label+": the load fixture passes the snapshot field check so only the aggregate can refuse it")
+  var store=Store.new("res://build/per-click-checks-"+label+"-"+str(Time.get_ticks_usec()))
+  var written=store.write_game(save_game)
+  t.check(not written.ok and String(written.error)=="保存失败：本回合力量加值不正确。","PERCLICK switch "+label+": writing keeps the aggregate validation: "+str(written))
+  t.check(not FileAccess.file_exists(store.path(save_game.state.save_slot)),"PERCLICK switch "+label+": a refused write leaves no file behind")
+  var loaded=Game.new(42)
+  loaded.set_debug_checks_enabled(mode)
+  var restored=loaded.restore_snapshot(save_game.export_snapshot())
+  t.check(not restored.ok and String(restored.error)=="无法继续这份存档：本回合力量加值不正确。","PERCLICK switch "+label+": loading keeps the aggregate validation: "+str(restored))
+  var clean=Game.new(42)
+  clean.set_debug_checks_enabled(mode)
+  t.check(clean.restore_snapshot(Game.new(42).export_snapshot()).ok,"PERCLICK switch "+label+": a valid snapshot still loads")
+ for mode in [true,false]:
+  var label="on" if mode else "off"
+  var g=Game.new(42)
+  g.set_debug_checks_enabled(mode)
+  g._install_special("shaft_ring_low","special_2_a")
+  EventCases.arrive(g,"binding_cleric")
+  var held=g.Events.apply_effects(g,[{"op":"hold_special","key":"pending","slots":["special_2_a"]}],g.state.room_event.refs,false)
+  t.check(held=="","PERCLICK switch "+label+": the rule fixture holds the special item: "+held)
+  if held!="": continue
+  var twin=g.state.room_event.held["pending"][0].duplicate(true)
+  twin.id="special_9_z"
+  g.state.special_equipment.append(twin)
+  var put_back=g.Events.apply_effects(g,[{"op":"restore_held","key":"pending"}],g.state.room_event.refs,false)
+  t.check(put_back=="无法原样装回暂存装备：同一种性玩具不能重复佩戴。","PERCLICK switch "+label+": the event rule use of SpecialEquipment.validate is not gated: "+put_back)
+  t.check(g.validate()=="事件暂存装备不合法：同一种性玩具不能重复佩戴。","PERCLICK switch "+label+": the aggregate event validation keeps running: "+g.validate())
+  var values=Game.new(42)
+  values.set_debug_checks_enabled(mode)
+  EventCases.arrive(values,"binding_cleric")
+  values.state.room_event.values={"seen":-1}
+  var state_half=values.Events.probe_result(values,[],{})
+  t.check(String(state_half.gate)==("validate_failed" if mode else ""),"PERCLICK switch "+label+": the probe's whole-state half follows the switch: "+str(state_half))
+  if mode:
+   t.check(values.debug_check_failures.any(func(row):return str(row.check)=="Game.validate" and str(row.location)=="room_events.probe_result"),"PERCLICK switch on: the probe's failing whole-state half writes a diagnostic: "+str(values.debug_check_failures))
+  else:
+   t.check(values.debug_check_failures.is_empty(),"PERCLICK switch off: the skipped probe half writes no diagnostics: "+str(values.debug_check_failures))
+  var effects=Game.new(42)
+  effects.set_debug_checks_enabled(mode)
+  EventCases.arrive(effects,"binding_cleric")
+  var effects_half=effects.Events.probe_result(effects,[{"op":"mana_loss","amount":99999}],{})
+  t.check(String(effects_half.gate)=="probe_failed" and str(effects_half.reason)=="剩余魔力不足以支付已公开的费用。","PERCLICK switch "+label+": the probe's effects half stays a rule judgement: "+str(effects_half))
+
 static func run(t) -> void:
  event_dependency_edges_pinned(t)
  transition_write_sites_are_pinned(t)
  save_checkpoint_kinds_are_pinned(t)
+ per_click_checks_are_debug_only(t)
  event_condition_kinds_share_one_declaration(t)
  event_probe_and_projection_readonly(t)
  event_single_evaluation_entry(t)
