@@ -324,7 +324,7 @@ static func event_single_evaluation_entry(t) -> void:
 # 这样 release 侧跳过检查后候选构建本身不会崩——它正是"带着坏状态继续"的登记取舍。
 static func per_click_damaged_fixtures() -> Array:
  var buffs=Game.new(42)
- buffs.state.body_buffs=[{"type":"lubricant_potion","group":"nope"}]
+ buffs.state.body_buffs=[{"type":"lubricant_potion","group":"thigh"},{"type":"lubricant_potion","group":"thigh"}]
  var special=Game.new(42)
  special._install_special("shaft_ring_low","special_2_a")
  var twin=special.state.special_equipment[0].duplicate(true)
@@ -335,7 +335,7 @@ static func per_click_damaged_fixtures() -> Array:
  var relics=Game.new(42)
  relics.state.relic_counters={"nonexistent_relic":1}
  var rows=[
-  {"check":"Consumables.validate_buffs","reason":"部位药剂的作用位置不正确。","game":buffs},
+  {"check":"Consumables.validate_buffs","reason":"同一部位的药剂效果重复。","game":buffs},
   {"check":"SpecialEquipment.validate","reason":"同一种性玩具不能重复佩戴。","game":special},
   {"check":"Cards.validate","reason":"本回合力量加值不正确。","game":cards},
   {"check":"RelicEffects.validate","reason":"累计进度对应的遗物未持有。","game":relics},
@@ -370,6 +370,11 @@ static func per_click_checks_are_debug_only(t) -> void:
   t.check(not rejected.ok and String(rejected.error)==str(row.reason),"PERCLICK switch on: the gated check rejects with its own wording "+row.check+": "+str(rejected))
   var logged=g.debug_check_failures.back() if not g.debug_check_failures.is_empty() else {}
   t.check(str(logged.get("check",""))==row.check and str(logged.get("reason",""))==str(row.reason) and str(logged.get("location",""))=="game.dispatch","PERCLICK switch on: a failure writes check, reason and location to the debug diagnostics "+row.check+": "+str(g.debug_check_failures))
+  # 落点边界：诊断只活在实例上——不进 state（存档）、不进 View、不进拒绝结果、不进玩家可见日志。
+  var snapshot=JSON.stringify(g.export_snapshot())
+  t.check(not snapshot.contains("DEBUG CHECK") and not snapshot.contains("debug_check_failures"),"PERCLICK the diagnostics never enter state, its player-visible logs or the save "+row.check)
+  t.check(not JSON.stringify(g.get_view()).contains("debug_check_failures"),"PERCLICK the diagnostics never enter the View "+row.check)
+  t.check(rejected.keys().all(func(key):return key in ["ok","error"]),"PERCLICK a failed gate keeps the two-key rejection shape "+row.check)
  for row in per_click_damaged_fixtures():
   var g=row.game
   g.set_debug_checks_enabled(false)
