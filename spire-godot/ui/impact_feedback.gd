@@ -8,17 +8,21 @@ extends Control
 # writes game state, candidates, saves or randomness, and it owns no rule decision.
 # Invariants: no _process (one-shot tweens only, hidden when idle) and mouse_filter
 # stays IGNORE on every node here, so ordinary clicks keep reaching the layout below.
+# The shake displaces main.gd's GameLayout (the container that carries every committed
+# control) and restores its recorded origin exactly; the overlay bands never move.
 
 # ---------------------------------------------------------------------------
 # FEEDBACK_* parameter table: the single source of every effect value.
 # ---------------------------------------------------------------------------
-# Pleasure filter: a soft full-screen vignette. Peak follows the current pressure
-# ratio, with a floor relative to this rise so a large gain at low pressure is
-# still visible; the fade grows a little for large rises but stays short.
-const FEEDBACK_FILTER_ALPHA_BASE=0.06
-const FEEDBACK_FILTER_ALPHA_PER_RATIO=0.24
-const FEEDBACK_FILTER_ALPHA_MIN=0.06
-const FEEDBACK_FILTER_ALPHA_MAX=0.30
+# Pleasure filter: a soft vignette on the four screen edges. Peak follows the
+# current pressure ratio, with a floor relative to this rise so a large gain at low
+# pressure is still visible; the fade grows a little for large rises but stays short.
+# The floor and cap are set so the lowest intended intensity (small rise at low
+# pressure) is measurable against the screenshot baseline, not a faint trace.
+const FEEDBACK_FILTER_ALPHA_BASE=0.14
+const FEEDBACK_FILTER_ALPHA_PER_RATIO=0.25
+const FEEDBACK_FILTER_ALPHA_MIN=0.14
+const FEEDBACK_FILTER_ALPHA_MAX=0.38
 const FEEDBACK_FILTER_RISE_ALPHA_FLOOR=0.5
 const FEEDBACK_FILTER_FADE_BASE=0.12
 const FEEDBACK_FILTER_FADE_PER_RATIO=0.6
@@ -32,10 +36,14 @@ const FEEDBACK_BORDER_CHARGE_ALPHA=0.50
 const FEEDBACK_BORDER_CHARGE_FADE=0.22
 const FEEDBACK_BORDER_CALM_ALPHA=0.30
 const FEEDBACK_BORDER_CALM_FADE=0.60
-# Border extent: the same 1-(d/dmax)^2 weight as the filter, but dmax is this
-# fraction of the half short side, so the light stays on the four screen edges.
-const FEEDBACK_BORDER_EXTENT=0.18
-# Impact shake: amplitude and pulse count encode force; never color, never layout.
+# Edge band extent shared by the filter and the border: the same 1-(d/dmax)^2 weight
+# and dmax is this fraction of the half short side, so both lights stay on the four
+# screen edges. 0.30 replaced the old per-effect values (1.0 spread the filter too
+# thin to read at the alpha floor, 0.18 drew the border as a hairline) and is the
+# band the pixel checks measure.
+const FEEDBACK_EDGE_EXTENT=0.30
+# Impact shake: amplitude and pulse count encode force, never color, never a layout
+# change: the content container is displaced for the pulse and restored exactly.
 const FEEDBACK_SHAKE_BASE_PX=1.2
 const FEEDBACK_SHAKE_PER_DAMAGE_PX=0.45
 const FEEDBACK_SHAKE_MIN_PX=1.2
@@ -61,7 +69,12 @@ const FEEDBACK_Z_INDEX=218
 var host
 var filter_bands: Control
 var border_bands: Control
-var shake_host: Control
+var bands_host: Control
+# The shake displaces this container and restores `shake_origin` exactly afterwards.
+# The layer resolves it from `host.layout` (main.gd's GameLayout carries every
+# committed control) so the visible game content moves; the overlay bands never do.
+var shake_target: Control
+var shake_origin=Vector2.ZERO
 var filter: Fade
 var border: Fade
 var border_kind=""
@@ -135,19 +148,23 @@ func _ready() -> void:
  z_index=FEEDBACK_Z_INDEX
  set_process(false)
  var tint=FEEDBACK_FALLBACK_COLOR if host==null else host.OVERLOAD_COLOR
- shake_host=Control.new()
- shake_host.name="ImpactShakeHost"
- shake_host.mouse_filter=Control.MOUSE_FILTER_IGNORE
- add_child(shake_host)
- shake_host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
- filter_bands=Bands.new(1.0,tint,FEEDBACK_VIGNETTE_BANDS,FEEDBACK_BAND_WEIGHT_CUTOFF)
- border_bands=Bands.new(FEEDBACK_BORDER_EXTENT,tint,FEEDBACK_VIGNETTE_BANDS,FEEDBACK_BAND_WEIGHT_CUTOFF)
- shake_host.add_child(filter_bands)
- shake_host.add_child(border_bands)
+ bands_host=Control.new()
+ bands_host.name="ImpactBandsHost"
+ bands_host.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ add_child(bands_host)
+ bands_host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+ filter_bands=Bands.new(FEEDBACK_EDGE_EXTENT,tint,FEEDBACK_VIGNETTE_BANDS,FEEDBACK_BAND_WEIGHT_CUTOFF)
+ border_bands=Bands.new(FEEDBACK_EDGE_EXTENT,tint,FEEDBACK_VIGNETTE_BANDS,FEEDBACK_BAND_WEIGHT_CUTOFF)
+ bands_host.add_child(filter_bands)
+ bands_host.add_child(border_bands)
  filter=Fade.new(filter_bands)
  border=Fade.new(border_bands)
  filter.finished=_effect_finished
  border.finished=_effect_finished
+ shake_target=host.get("layout") if host!=null else null
+ # Fallback keeps the layer usable standalone (host without a layout property);
+ # the shipped path always resolves main.gd's GameLayout.
+ if not is_instance_valid(shake_target): shake_target=bands_host
  hide()
 
 ## One committed submission enters here; a submission with nothing to show is a no-op.
@@ -183,25 +200,36 @@ func _play_border(kind: String) -> void:
  else: border.start(peak,FEEDBACK_BORDER_CHARGE_FADE if kind=="charge" else FEEDBACK_BORDER_CALM_FADE)
 
 func _play_shake(spec: Dictionary) -> void:
+ # A shake arriving inside a running one merges: keep the recorded origin so the
+ # restore below stays the pre-effect position, and drop the old pulse timeline.
+ var continuing=shake_pulses>0
  shake_amplitude=shake_amplitude_for(float(spec.get("damage",0.0)))
  shake_pulses=int(spec.get("pulses",1))
  shake_step=float(spec.get("step",FEEDBACK_SHAKE_ATTACK_STEP))
- if shake_tween!=null and shake_tween.is_valid(): shake_tween.kill()
- shake_host.position=Vector2.ZERO
- # Only this container moves; the layout and every committed control stay in place.
+ if continuing:
+  if shake_tween!=null and shake_tween.is_valid(): shake_tween.kill()
+ else: shake_origin=shake_target.position
+ shake_target.position=shake_origin
  shake_tween=create_tween()
  for index in range(shake_pulses):
   var amplitude=shake_amplitude*(1.0-FEEDBACK_SHAKE_PULSE_DECAY*float(index))
-  shake_tween.tween_property(shake_host,"position:x",amplitude,shake_step).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-  shake_tween.tween_property(shake_host,"position:x",-amplitude,shake_step).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
- shake_tween.tween_property(shake_host,"position:x",0.0,shake_step).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+  shake_tween.tween_property(shake_target,"position:x",shake_origin.x+amplitude,shake_step).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+  shake_tween.tween_property(shake_target,"position:x",shake_origin.x-amplitude,shake_step).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+ shake_tween.tween_property(shake_target,"position:x",shake_origin.x,shake_step).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
  shake_tween.tween_callback(_shake_finished)
 
 func _shake_finished() -> void:
- shake_host.position=Vector2.ZERO
+ # Exact restore: "the layout must not change" means the post-effect frame equals
+ # the pre-effect one, not that the content may never move during the pulse.
+ shake_target.position=shake_origin
  shake_pulses=0
  shake_amplitude=0.0
  _hide_when_idle()
+
+func _exit_tree() -> void:
+ # A teardown mid-shake (restart, demo exit) must not leave the content container
+ # displaced: the tween dies with this node, so restore here.
+ if shake_pulses>0 and is_instance_valid(shake_target): shake_target.position=shake_origin
 
 func _effect_finished() -> void:
  _hide_when_idle()

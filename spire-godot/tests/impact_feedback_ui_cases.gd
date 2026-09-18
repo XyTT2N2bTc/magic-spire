@@ -5,6 +5,15 @@ const Impact=preload("res://ui/impact_feedback.gd")
 # filter, the charge/deep-breath border and the impact shake. Trigger derivation,
 # merge, the fade clock, real pointer clicks through the running effect and the idle
 # state are all covered here; rule-level receipt evidence lives in pressure_cases.gd.
+# The `*_pixels` checks measure the effects on real window frames (root texture) so a
+# parameter change that stops being visible at the lowest intensity turns them red.
+
+# Pixel acceptance thresholds for the real-window frames. "Differing" counts a pixel
+# whose strongest channel changed by 1/255 or more, so anti-aliased edges count once.
+const PIXEL_SHAKE_MAX_DELTA=24
+const PIXEL_SHAKE_SHARE=0.02
+const PIXEL_FILTER_MEAN_DELTA=3.0
+const PIXEL_FILTER_MAX_DELTA=12
 
 static func run(t) -> void:
  await committed_triggers(t)
@@ -15,6 +24,7 @@ static func run(t) -> void:
  await real_border(t)
  await passthrough(t)
  await idle(t)
+ await pixel_checks(t)
 
 static func committed_triggers(t) -> void:
  var rising=[{"field":"pressure","label":"快感","before":70.0,"after":90.0,"source":""}]
@@ -26,9 +36,10 @@ static func committed_triggers(t) -> void:
  t.check(Impact.pressure_rise(merged)==7.0,"IMPACT FILTER one submission merges every rise into a single trigger")
  var mixed=[{"field":"pressure","before":10.0,"after":13.0},{"field":"pressure","before":13.0,"after":5.0},{"field":"mana","before":100.0,"after":90.0}]
  t.check(Impact.pressure_rise(mixed)==0.0,"IMPACT FILTER a submission whose net pressure falls drives no filter")
- t.check(is_equal_approx(Impact.filter_peak(0.5,0.0),0.18),"IMPACT FILTER peak follows the committed pressure ratio")
+ t.check(is_equal_approx(Impact.filter_peak(0.5,0.0),0.265),"IMPACT FILTER peak follows the committed pressure ratio")
  t.check(is_equal_approx(Impact.filter_peak(0.0,0.4),0.2),"IMPACT FILTER a large rise at low pressure keeps the rise floor")
- t.check(is_equal_approx(Impact.filter_peak(1.0,0.0),Impact.FEEDBACK_FILTER_ALPHA_MAX),"IMPACT FILTER peak is capped at 0.30")
+ t.check(is_equal_approx(Impact.filter_peak(1.0,0.0),Impact.FEEDBACK_FILTER_ALPHA_MAX) and is_equal_approx(Impact.FEEDBACK_FILTER_ALPHA_MAX,0.38),"IMPACT FILTER peak is capped at 0.38")
+ t.check(is_equal_approx(Impact.filter_peak(0.0,0.0),Impact.FEEDBACK_FILTER_ALPHA_MIN) and is_equal_approx(Impact.FEEDBACK_FILTER_ALPHA_MIN,0.14),"IMPACT FILTER the lowest intensity sits on the 0.14 alpha floor")
  t.check(is_equal_approx(Impact.filter_peak(1.0,1.0),0.5),"IMPACT FILTER the rise floor may exceed the ratio cap on a full maximum rise")
  t.check(is_equal_approx(Impact.filter_fade(0.0),Impact.FEEDBACK_FILTER_FADE_MIN) and is_equal_approx(Impact.filter_fade(1.0),Impact.FEEDBACK_FILTER_FADE_MAX) and is_equal_approx(Impact.filter_fade(0.2),0.24),"IMPACT FILTER fade stays inside 0.12-0.40s")
  t.check(Impact.border_kind_of([{"field":"charge","before":0,"after":2}],{"kind":"end"})=="charge","IMPACT BORDER a charge rise lights the border")
@@ -68,7 +79,7 @@ static func layer_contract(t) -> void:
  layer.play([{"field":"pressure","before":0.0,"after":10.0}],{"kind":"end"},snapshot)
  var first_ends=layer.filter.ends
  t.check(layer.visible and layer.filter.active() and is_equal_approx(layer.filter_bands.modulate.a,layer.filter.peak),"IMPACT FILTER a committed rise draws the vignette at its peak")
- t.check(is_equal_approx(layer.filter.peak,0.072) and is_equal_approx(layer.filter.fade,Impact.filter_fade(10.0/130.0)),"IMPACT FILTER low pressure follows the ratio formula and its own fade length")
+ t.check(is_equal_approx(layer.filter.peak,0.1525) and is_equal_approx(layer.filter.fade,Impact.filter_fade(10.0/130.0)),"IMPACT FILTER low pressure follows the ratio formula and its own fade length")
  t.check(layer.filter_bands.color==ui.OVERLOAD_COLOR and layer.border_bands.color==ui.OVERLOAD_COLOR,"IMPACT FILTER both effects reuse the climax color and never a new palette entry")
  t.check(layer.border_kind=="" and not layer.border.active() and layer.shake_pulses==0,"IMPACT NO-OP a pressure-only submission starts nothing else")
  layer.play([{"field":"pressure","before":0.0,"after":60.0}],{"kind":"end"},snapshot)
@@ -85,7 +96,7 @@ static func layer_contract(t) -> void:
  t.check(layer.shake_pulses==2 and is_equal_approx(layer.shake_step,Impact.FEEDBACK_SHAKE_STRAIN_STEP) and layer.shake_amplitude>0.0,"IMPACT SHAKE a strain payload double-pulses inside the same layer")
  t.check(layer.border.active() and layer.visible,"IMPACT SHAKE the shake joins the running effects instead of cancelling them")
  await t.frames(60)
- t.check(layer.shake_pulses==0 and layer.shake_host.position==Vector2.ZERO,"IMPACT SHAKE the pulse settles the container back to its origin")
+ t.check(layer.shake_pulses==0 and layer.shake_target==ui.layout and ui.layout.position==layer.shake_origin,"IMPACT SHAKE the pulse settles the content container back to its recorded origin")
  layer.queue_free()
  await t.frames()
 
@@ -114,12 +125,18 @@ static func real_attack(t) -> void:
  if strike.is_empty() or not strike.valid: return
  var energy=ui.view.energy
  var layout_origin=ui.layout.position
- await press_candidate(t,strike)
+ await commit_click(t,strike)
  var layer=ui.impact_feedback
  t.check(ui.view.energy<energy and is_instance_valid(layer),"IMPACT SHAKE a real strike click commits")
  if not is_instance_valid(layer): return
  t.check(int(layer.last_impact.get("shake_pulses",0))==1 and is_equal_approx(float(layer.last_impact.get("shake_step",0.0)),Impact.FEEDBACK_SHAKE_ATTACK_STEP),"IMPACT SHAKE the committed strike plays exactly one pulse")
- t.check(float(layer.last_impact.get("shake_amplitude",0.0))>=Impact.FEEDBACK_SHAKE_MIN_PX and float(layer.last_impact.get("shake_amplitude",0.0))<=Impact.FEEDBACK_SHAKE_MAX_PX and ui.layout.position==layout_origin,"IMPACT SHAKE the pulse stays inside the pixel bound and never moves the layout")
+ t.check(float(layer.last_impact.get("shake_amplitude",0.0))>=Impact.FEEDBACK_SHAKE_MIN_PX and float(layer.last_impact.get("shake_amplitude",0.0))<=Impact.FEEDBACK_SHAKE_MAX_PX,"IMPACT SHAKE the pulse stays inside the pixel bound")
+ # "The layout must not change" means the container returns to its recorded origin
+ # exactly; the pulse itself has to move the visible content, so both directions are
+ # asserted: displaced while running, byte-identical position after it settles.
+ var observed=await watch_shake(t,layer,layout_origin)
+ t.check(observed.moved and observed.peak_offset>0.0,"IMPACT SHAKE the committed strike displaces the content container during the pulse")
+ t.check(observed.restored and ui.layout.position==layout_origin,"IMPACT SHAKE the content container is restored to its recorded origin exactly after the pulse")
  t.check(layer.last_impact.get("border_kind","")=="" and float(layer.last_impact.get("filter_peak",0.0))==0.0,"IMPACT NO-OP an attack with no pressure or charge change starts nothing else")
  t.check(not layer.is_processing(),"IMPACT IDLE the running effect is tween driven and owns no per-frame process")
 
@@ -207,7 +224,7 @@ static func passthrough(t) -> void:
  var layer=ui.impact_feedback
  t.check(is_instance_valid(layer) and layer.visible and layer.last_impact.get("border_kind","")=="calm" and layer.border.active(),"IMPACT INPUT a real deep breath starts the running border")
  if not is_instance_valid(layer): return
- t.check(layer.get_global_rect().has_point(point) and layer.mouse_filter==Control.MOUSE_FILTER_IGNORE and layer.shake_host.mouse_filter==Control.MOUSE_FILTER_IGNORE,"IMPACT INPUT the full-screen layer covers the clicked control and ignores the mouse")
+ t.check(layer.get_global_rect().has_point(point) and layer.mouse_filter==Control.MOUSE_FILTER_IGNORE and layer.bands_host.mouse_filter==Control.MOUSE_FILTER_IGNORE,"IMPACT INPUT the full-screen layer covers the clicked control and ignores the mouse")
  var round_before=ui.view.round
  var press_at=Time.get_ticks_msec()
  await t.mouse_button(point,MOUSE_BUTTON_LEFT,true)
@@ -223,6 +240,202 @@ static func idle(t) -> void:
  t.check(not layer.visible,"IMPACT IDLE the layer hides itself once every effect is done")
  t.check(not layer.is_processing() and not layer.filter.active() and not layer.border.active() and layer.shake_pulses==0,"IMPACT IDLE no resident process, no running fade and no pending pulse")
  t.check(layer.filter.tween==null or not layer.filter.tween.is_valid(),"IMPACT IDLE the finished fade keeps no live tween")
+
+# ---------------------------------------------------------------------------
+# Pixel visibility checks. Every probe captures real window frames with
+# root.get_texture().get_image() and asserts measured deltas; the numbers are
+# printed so the check log carries them even when the probe passes.
+# ---------------------------------------------------------------------------
+
+static func pixel_checks(t) -> void:
+ await filter_pixels(t)
+ await border_pixels(t)
+ await shake_pixels(t)
+ await restore_pixels(t)
+
+static func filter_pixels(t) -> void:
+ # Lowest intended intensity: a small rise at low pressure sits on the alpha floor.
+ var layer=await settled_layer(t)
+ var baseline=await grab(t)
+ layer.play([{"field":"pressure","label":"快感","before":0.0,"after":2.0}],{"kind":"end"},{"pressure":{"value":2.0,"maximum":130.0}})
+ var peak=await grab(t)
+ var expected=Impact.filter_peak(2.0/130.0,2.0/130.0)
+ var stats=edge_band_stats(baseline,peak,band_pixels(baseline))
+ report_pixels("FILTER floor",stats)
+ t.check(is_equal_approx(float(layer.last_impact.get("filter_peak",0.0)),expected) and expected<=Impact.FEEDBACK_FILTER_ALPHA_MIN+0.01,"IMPACT FILTER PIXELS the probe is the lowest intended intensity (alpha floor %.3f)" % expected)
+ t.check(stats.max>=PIXEL_FILTER_MAX_DELTA and stats.mean>=PIXEL_FILTER_MEAN_DELTA,"IMPACT FILTER PIXELS the floor filter is visible inside the edge band: mean=%.2f max=%d share=%.4f" % [stats.mean,stats.max,stats.share])
+ layer.queue_free()
+ await t.frames()
+
+static func border_pixels(t) -> void:
+ var layer=await settled_layer(t)
+ var baseline=await grab(t)
+ layer.play([],{"kind":"calm"},{"pressure":{"value":40.0,"maximum":130.0}})
+ var peak=await grab(t)
+ var stats=edge_band_stats(baseline,peak,band_pixels(baseline))
+ report_pixels("BORDER calm",stats)
+ t.check(layer.last_impact.get("border_kind","")=="calm" and is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),Impact.FEEDBACK_BORDER_CALM_ALPHA),"IMPACT BORDER PIXELS the probe lights the calm border at its only strength")
+ t.check(stats.max>=PIXEL_FILTER_MAX_DELTA and stats.mean>=PIXEL_FILTER_MEAN_DELTA,"IMPACT BORDER PIXELS the calm border is visible inside the edge band: mean=%.2f max=%d share=%.4f" % [stats.mean,stats.max,stats.share])
+ layer.queue_free()
+ await t.frames()
+
+static func shake_pixels(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames()
+ freeze_decoration(t)
+ var enemy=ui.view.enemies.filter(func(e):return not e.gone)[0]
+ var strike=ui.actions.find("attack",{"type":"strike","form":0,"enemy":enemy.id})
+ t.check(not strike.is_empty() and strike.valid,"IMPACT SHAKE PIXELS the battle fixture exposes a real strike candidate")
+ var button=ui.candidate_buttons.get(strike.get("id","")) if not strike.is_empty() else null
+ t.check(button!=null,"IMPACT SHAKE PIXELS the strike candidate has a real button")
+ if button==null: return
+ var origin=ui.layout.position
+ var point=button.get_global_rect().get_center()
+ await t.move_mouse(point)
+ var baseline=await grab(t)
+ t.root.push_input(pointer_event(point,true),true)
+ await t.frames(1,false)
+ t.root.push_input(pointer_event(point,false),true)
+ var observed=await watch_shake(t,ui.impact_feedback,origin)
+ t.check(observed.moved and observed.peak_offset>0.0,"IMPACT SHAKE PIXELS the committed strike displaces the content container: peak=%.1fpx" % observed.peak_offset)
+ if observed.peak_image==null: return
+ var band=band_pixels(baseline)
+ var content=Rect2i(band,band,baseline.get_width()-2*band,baseline.get_height()-2*band)
+ var stats=region_stats(baseline,observed.peak_image,content)
+ report_pixels("SHAKE content",stats)
+ t.check(stats.max>=PIXEL_SHAKE_MAX_DELTA and stats.share>=PIXEL_SHAKE_SHARE,"IMPACT SHAKE PIXELS the content area moves during the pulse: mean=%.2f max=%d share=%.4f (need max>=%d share>=%.2f)" % [stats.mean,stats.max,stats.share,PIXEL_SHAKE_MAX_DELTA,PIXEL_SHAKE_SHARE])
+ t.check(observed.restored,"IMPACT SHAKE PIXELS the content container is restored to the recorded origin exactly")
+
+static func restore_pixels(t) -> void:
+ # A real commit also changes energy, HP and the candidate row, so the pre-effect
+ # frame is only directly comparable while the shake is the only change. This probe
+ # runs the real play() entry on a settled state; the shipped commit path is covered
+ # by real_attack and shake_pixels above.
+ var layer=await settled_layer(t)
+ var origin=t.ui.layout.position
+ var baseline=await grab(t)
+ layer.play([],{"kind":"card","type":"strain","mode":"strain","preview":{"damage":6.0}},{"pressure":{"value":0.0,"maximum":130.0}})
+ var observed=await watch_shake(t,layer,origin)
+ t.check(observed.moved and observed.peak_offset>0.0,"IMPACT SHAKE PIXELS the direct pulse displaces the content container: peak=%.1fpx" % observed.peak_offset)
+ t.check(observed.restored and t.ui.layout.position==origin,"IMPACT SHAKE PIXELS the direct pulse restores the recorded origin exactly")
+ var after=await grab(t)
+ var stats=region_stats(baseline,after,Rect2i(Vector2i.ZERO,baseline.get_size()))
+ report_pixels("SHAKE restore",stats)
+ t.check(stats.max==0 and stats.share==0.0,"IMPACT SHAKE PIXELS the post-effect frame is pixel-identical to the pre-effect frame: max=%d share=%.4f" % [stats.max,stats.share])
+ layer.queue_free()
+ await t.frames()
+
+## A fresh committed state with every animation settled and one inert layer wired to
+## it: two frames that differ only by the effect under test are the clean baseline.
+static func settled_layer(t):
+ var ui=t.ui
+ ui.restart(42)
+ await t.frames(4)
+ freeze_decoration(t)
+ await t.frames(2)
+ var layer=Impact.new()
+ layer.host=ui
+ ui.add_child(layer)
+ await t.frames()
+ return layer
+
+static func freeze_decoration(t) -> void:
+ # The gallery dust animates at 30 fps; pixel probes need frames that differ only by
+ # the effect under test. Decoration only, no rule meaning.
+ var dust=t.ui.layout.find_child("AmbientDust",true,false)
+ if dust!=null: dust.hide()
+
+static func grab(t) -> Image:
+ await RenderingServer.frame_post_draw
+ return t.root.get_texture().get_image()
+
+## Edge band thickness the overlay draws into, in window pixels: the same fraction of
+## the half short side the layer uses for FEEDBACK_EDGE_EXTENT.
+static func band_pixels(image: Image) -> int:
+ return maxi(4,int(minf(float(image.get_width()),float(image.get_height()))*0.5*Impact.FEEDBACK_EDGE_EXTENT))
+
+static func report_pixels(label: String, stats: Dictionary) -> void:
+ print("PIXEL %s: mean=%.3f max=%d share=%.4f pixels=%d" % [label,stats.mean,stats.max,stats.share,stats.pixels])
+
+static func pointer_event(point: Vector2, pressed: bool) -> InputEventMouseButton:
+ var event=InputEventMouseButton.new()
+ event.position=point
+ event.global_position=point
+ event.button_index=MOUSE_BUTTON_LEFT
+ event.pressed=pressed
+ event.button_mask=MOUSE_BUTTON_MASK_LEFT if pressed else 0
+ return event
+
+## Real pointer click that returns in the commit frame: press_candidate waits two
+## frames and can return after a short pulse already settled.
+static func commit_click(t, candidate: Dictionary) -> void:
+ var button=t.ui.candidate_buttons.get(candidate.id)
+ if button==null: return
+ var point=button.get_global_rect().get_center()
+ await t.move_mouse(point)
+ t.root.push_input(pointer_event(point,true),true)
+ await t.frames(1,false)
+ t.root.push_input(pointer_event(point,false),true)
+
+## Observe the displaced content container until the pulse settles: whether it left the
+## origin, the peak offset and the frame drawn at that offset, and whether the final
+## position equals the recorded origin exactly.
+static func watch_shake(t, layer, origin: Vector2, max_frames: int=120) -> Dictionary:
+ var moved=false
+ var peak_offset=0.0
+ var peak_image=null
+ for i in range(max_frames):
+  await RenderingServer.frame_post_draw
+  var offset=(t.ui.layout.position-origin).length()
+  if offset>0.0: moved=true
+  if peak_image==null or offset>peak_offset:
+   peak_offset=offset
+   peak_image=t.root.get_texture().get_image()
+  if not is_instance_valid(layer) or layer.shake_pulses==0: break
+ return {"moved":moved,"restored":t.ui.layout.position==origin,"peak_offset":peak_offset,"peak_image":peak_image}
+
+## Per-pixel statistics of two window frames inside `rect`: mean and max per-channel
+## delta on the 0-255 scale plus the share of pixels with any changed channel.
+static func region_stats(a: Image, b: Image, rect: Rect2i) -> Dictionary:
+ var clipped=rect.intersection(Rect2i(Vector2i.ZERO,a.get_size()))
+ if clipped.size.x<=0 or clipped.size.y<=0: return {"mean":0.0,"max":0,"share":0.0,"pixels":0}
+ var left=a.get_region(clipped)
+ var right=b.get_region(clipped)
+ if left.get_format()!=Image.FORMAT_RGBA8: left.convert(Image.FORMAT_RGBA8)
+ if right.get_format()!=Image.FORMAT_RGBA8: right.convert(Image.FORMAT_RGBA8)
+ var pa=left.get_data()
+ var pb=right.get_data()
+ var pixels=clipped.size.x*clipped.size.y
+ var sum=0
+ var maximum=0
+ var changed=0
+ var index=0
+ while index<pa.size():
+  var dr=absi(int(pa[index])-int(pb[index]))
+  var dg=absi(int(pa[index+1])-int(pb[index+1]))
+  var db=absi(int(pa[index+2])-int(pb[index+2]))
+  var delta=maxi(dr,maxi(dg,db))
+  if delta>0: changed+=1
+  if delta>maximum: maximum=delta
+  sum+=dr+dg+db
+  index+=4
+ return {"mean":float(sum)/(3.0*float(pixels)),"max":maximum,"share":float(changed)/float(pixels),"pixels":pixels}
+
+## The four edge strips the overlay band covers, without double counting the corners.
+static func edge_band_stats(a: Image, b: Image, band: int) -> Dictionary:
+ var size=a.get_size()
+ var strips=[Rect2i(0,0,size.x,band),Rect2i(0,size.y-band,size.x,band),Rect2i(0,band,band,size.y-2*band),Rect2i(size.x-band,band,band,size.y-2*band)]
+ var pixels=0
+ var sum=0.0
+ var maximum=0
+ var changed=0.0
+ for strip in strips:
+  var stats=region_stats(a,b,strip)
+  pixels+=int(stats.pixels)
+  sum+=float(stats.mean)*3.0*float(stats.pixels)
+  maximum=maxi(maximum,int(stats.max))
+  changed+=float(stats.share)*float(stats.pixels)
+ return {"mean":sum/(3.0*float(pixels)),"max":maximum,"share":changed/float(pixels),"pixels":pixels}
 
 static func press_candidate(t, candidate: Dictionary) -> void:
  # Real pointer click on the committed candidate button: the effect layer must never
