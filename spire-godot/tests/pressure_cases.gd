@@ -150,9 +150,11 @@ static func committed_receipt(t) -> void:
  var paid=g.dispatch(spell.id,g.state.version)
  var paid_delta=Impact.deltas(paid.get("resource_feedback",[]))
  t.check(paid.ok and paid_delta.has("mana") and not paid_delta.has("pressure") and Impact.pressure_rise(paid.get("resource_feedback",[]))==0.0,"FEEDBACK mana payment receipt changes mana only and cannot drive the filter")
+ t.check(Impact.border_kind_of(paid.get("resource_feedback",[]),spell.payload)=="mana" and Impact.border_spec("mana",paid_delta,{}).variant=="loss","FEEDBACK a real mana payment asks for the blue loss border")
  # witch_focus rides the same additive receipt channel as pressure, so a real witch
  # grant is visible to the layer without any payload detection. 魔法预备 grants reserve
- # mana and focus in one submission; a released focus stack must light nothing.
+ # mana and focus in one submission; a released focus stack is a blue loss like any
+ # other mana-family fall.
  var Witch=preload("res://tests/witch_character_cases.gd")
  var witch=Witch.fresh()
  var preparation=t.hand_card(witch,"witch_preparation")
@@ -168,7 +170,8 @@ static func committed_receipt(t) -> void:
  release_witch.state.enemies[0].max_hp=1000.0
  var release=t.find_action(release_witch,"attack",{"type":"witch_hand","form":1})
  var spent=release_witch.dispatch(release.id,release_witch.state.version)
- t.check(spent.ok and release_witch.state.witch_focus==0 and Impact.border_kind_of(spent.get("resource_feedback",[]),release.payload)=="","FEEDBACK a focus-consuming release lights no border")
+ var spent_delta=Impact.deltas(spent.get("resource_feedback",[]))
+ t.check(spent.ok and release_witch.state.witch_focus==0 and Impact.border_kind_of(spent.get("resource_feedback",[]),release.payload)=="mana" and Impact.border_spec("mana",spent_delta,{}).variant=="loss","FEEDBACK a focus-consuming release asks for the blue loss border")
 
 static func run(t) -> void:
  forced_loop_exit(t)

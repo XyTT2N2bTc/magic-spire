@@ -55,7 +55,7 @@
 
 | 接口 | 输入／返回 | 谁能调 | 信任依据 |
 | --- | --- | --- | --- |
-| `game.dispatch(candidate_id, expected_version) -> Dictionary` | `candidate_id` 必须来自当前 View 的 `candidates`；`expected_version` 为 UI 当前 `view.version`（`_submit` 允许调用方传 `-1`，此时 UI 补 `view.version`）。成功 `{ok:true, …反馈事件…}`；失败 `{ok:false, error:String}` | 只有 M2 `commit`（测试可直调，UI 其它文件禁止） | 只有 `ok=true` 才写状态：`state=state.duplicate(true)` 后执行事务，失败回滚，不留部分付款／部分装备；core 侧拒绝语义与 `tests/test_game.gd` 的 TC-CORE-0002／0003 锁定 |
+| `game.dispatch(candidate_id, expected_version) -> Dictionary` | `candidate_id` 必须来自当前 View 的 `candidates`；`expected_version` 为 UI 当前 `view.version`（`_submit` 允许调用方传 `-1`，此时 UI 补 `view.version`）。成功 `{ok:true, version, resource_feedback, card_feedback, music_feedback, checkpoint}`：前三个是本次提交的展示事件，`checkpoint` 为固定点键；失败 `{ok:false, error:String}`（不带以上任何键） | 只有 M2 `commit`（测试可直调，UI 其它文件禁止） | 只有 `ok=true` 才写状态：`state=state.duplicate(true)` 后执行事务，失败回滚，不留部分付款／部分装备；core 侧拒绝语义与 `tests/test_game.gd` 的 TC-CORE-0002／0003 锁定 |
 | `game.get_view() -> Dictionary` | 无输入；纯只读投影（`View.build` 内调 `Game.candidates()`、每 action 的 `ReleaseView.preview`、显示集合 `card_texts`、room_event／shop／relics／prison 四个 view） | 唯一允许的调用点集合：`_resume_snapshot`（显示初始投影）、`render`（空快照）、`commit`（成功必取；被拒且展示版本落后时取）、`restart`。新增调用点即契约违例 | `view.version` 等于投影来源的已提交 `state.version`；UI 只能减少 `get_view` 的调用次数，不能降低单次成本；投影结果不得当规则判定来源 |
 | `restore_snapshot(saved)`／`restart_snapshot()` | 返回 `{ok,error}`／快照字典；UI 只判断 `ok`，不解析结构、不迁移字段 | 快照入口只允许 `_resume_snapshot`、`restart`、`_quick_sl` 三处 | 见 `docs/spec/save-fixed-points.md` 与 `docs/spec/transition-pipeline.md` 的冻结时机约定 |
 | `game.number(n) -> String`、`game.Prison.*` 常量 | 显示格式化与立绘选择 | M3／M5 节函数 | 只读显示调用，不参与判定 |
@@ -83,7 +83,7 @@
 | `card_motion.enqueue(events, before)` | core 的 `card_feedback` 事件＋提交前快照 | `commit` ok 分支，且 `present` 之后 | 幽灵卡不持有牌、不挡输入；`pending_draws` 隐藏新抽牌按钮的规则必须被 `present` 的手牌节尊重 |
 | `resource_feedback.enqueue(events, point, instant_fields)` | core 的 `resource_feedback` 事件＋锚点 | `commit` ok 分支 | 只消费已提交差值；`show_home` 时自毁 |
 | `combat_feedback.play(ui, before, payload)` | 提交前 View＋已提交 payload | `commit` ok 分支 | 只用可见前后差分（HP／日志／装备耐久）；不预测、不改伤害／意图／资源／时机 |
-| `impact_feedback.play(events, payload, snapshot) -> void` | `events` 为 `dispatch` 返回的 `resource_feedback` 事件（可为空数组）；`payload` 为本次已提交候选的载荷；`snapshot` 为提交后 View（只读 `snapshot.pressure.value`／`.maximum`）。同一次提交一次调用：层内部按字段求和合并，不逐事件重播。效果族由已提交事实唯一决定：`pressure` 净涨出滤镜、`charge`／`next_energy` 净涨出黄边框、`mana`／`temporary_mana`／`witch_focus` 净涨出蓝边框、载荷 `kind=="calm"` 出白边框（同提交多族命中按白＞黄＞蓝取一），攻击／挣扎／滑脱载荷出震动 | `commit` ok 分支（经 `ui/main.gd` 的节内助手按 `will_play` 预判后才创建节点） | 只消费已提交数据：不读 `state`／`state.logs`，不预测、不改数值／候选／存档／随机；无效果可播时 `play` 是空操作；层内所有节点 `MOUSE_FILTER_IGNORE`，无 `_process`，一次性 Tween 结束后 `hide()` 并 `set_process(false)`；震动位移的是承载内容的 `main.gd` GameLayout，结束时按记录原点精确复位 |
+| `impact_feedback.play(events, payload, snapshot) -> void` | `events` 为 `dispatch` 返回的 `resource_feedback` 事件（可为空数组）；`payload` 为本次已提交候选的载荷；`snapshot` 为提交后 View（只读 `snapshot.pressure.value`／`.maximum` 与 `snapshot.mana_max`）。同一次提交一次调用：层内部按字段求和合并，不逐事件重播。效果族由已提交事实唯一决定：`pressure` 净涨出滤镜、`charge`／`next_energy` 净涨出黄边框、`mana`／`temporary_mana`／`witch_focus` 任一净变化（Δ≠0）出蓝边框、载荷 `kind=="calm"` 出白边框（同提交多族命中按白＞黄＞蓝取一，仍只出一条边框）、攻击／挣扎／滑脱载荷出震动。蓝边框分加减两变体：Δ>0 走 gain（短促上冲后淡出、边带更宽），Δ<0 走 loss（即刻峰值、退得更慢、边带更窄），两变体同一色 token 且峰值按该字段自身参考尺度的归一化 |Δ| 缩放（mana 用提交后 View 的 `mana_max`，临时魔力／精神集中用各自保留上限），不设最小增量门槛；施法失败因净损失自动落在 loss 变体，无需额外标志 | `commit` ok 分支（经 `ui/main.gd` 的节内助手按 `will_play` 预判后才创建节点） | 只消费已提交数据：不读 `state`／`state.logs`，不预测、不改数值／候选／存档／随机；无效果可播时 `play` 是空操作；层内所有节点 `MOUSE_FILTER_IGNORE`，无 `_process`，一次性 Tween 结束后 `hide()` 并 `set_process(false)`；震动位移的是承载内容的 `main.gd` GameLayout，结束时按记录原点精确复位 |
 | `enemy_feedback.finish()` | 清 `ui.enemy_feedback` 并释放 | `_return_home`、`_reset_interface`、播报结束 | 节点存在即"播报期"：提交入口守卫与 `blocked()` 都据此吃输入（产品决策）；全屏 `MOUSE_FILTER_STOP` 不得被 `present` 提前回收 |
 
 ### 接缝 B：`commit`／`present`／`present_rejection`
@@ -172,6 +172,8 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
   `core/resource_feedback.gd` 的 `FIELDS`：`pressure` 与 `witch_focus` 为加性字段）；`payload` 只接受本次已提交候选的载荷
   （普攻读扁平 `damage`，伤害卡读 `preview.damage` 与 `mode`）；`snapshot` 只接受提交后 View。三条输入都不是
   资格判定来源：载荷／事件与当前 View 不一致时按"照实表现已提交结果"处理，不做规则推演、不重算、不拒绝。
+  蓝族只消费**合并后的净增量**：失败提交的 receipt 是"先扣后返还"，逐事件重播会把返还事件当成上涨；
+  变体只由该净增量的符号决定（Δ>0 gain／Δ<0 loss），强度只由按字段参考尺度归一化的 |Δ| 决定，没有阈值分支。
 - `present`：`dirty` 元素必须来自节键表节名或 `["*"]`；未知／缺项按全量兜底处理。
 - `present_rejection`：`dirty` 必须等于下表列出的脏集上界，不得扩大：
 

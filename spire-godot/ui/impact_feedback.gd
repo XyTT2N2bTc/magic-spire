@@ -5,8 +5,8 @@ const Palette=preload("res://ui/visual_theme.gd")
 # Transient post-commit impacts: one full-screen pass-through layer for the three
 # committed-feedback effects (pleasure filter, coloured border, impact shake).
 #
-# Contract: inputs are the committed dispatch receipt (`resource_feedback`) and the
-# committed payload plus the post-commit View. The layer never reads state.logs, never
+# Contract: inputs are the committed dispatch receipt (`resource_feedback`), the
+# committed payload and the post-commit View. The layer never reads state.logs, never
 # writes game state, candidates, saves or randomness, and it owns no rule decision.
 # Invariants: no _process (one-shot tweens only, hidden when idle) and mouse_filter
 # stays IGNORE on every node here, so ordinary clicks keep reaching the layout below.
@@ -14,10 +14,13 @@ const Palette=preload("res://ui/visual_theme.gd")
 # control) and restores its recorded origin exactly; the overlay bands never move.
 #
 # Trigger table, all derived from the committed receipt (net delta of plain top-level
-# state fields, see core/resource_feedback.gd) plus the committed payload: pressure
-# rise -> pink filter; charge/next_energy rise -> yellow border; mana / temporary_mana
-# / witch_focus rise -> blue border; payload kind=="calm" -> white border; attack /
-# strain / slip payload -> shake.
+# state fields, see core/resource_feedback.gd) plus the committed payload: pressure rise
+# -> pink filter; charge / next_energy rise -> yellow border; mana / temporary_mana /
+# witch_focus change (gain or loss) -> blue border, with the gain and loss envelopes and
+# bands drawn differently and the peak scaled by the size of the change; payload
+# kind=="calm" -> white border; attack / strain / slip payload -> shake. A failed cast
+# needs no flag: it nets its mana (and, on the witch, one focus layer) down, so the same
+# delta rule selects the blue loss variant.
 
 # ---------------------------------------------------------------------------
 # FEEDBACK_* parameter table: the single source of every effect value.
@@ -40,22 +43,45 @@ const FEEDBACK_FILTER_FADE_MAX=0.40
 # Colour carries the family (white deep breath, yellow charge/next energy, blue mana
 # family); the timing keeps the old force reading: charge is a resource already loaded
 # for the next strike and reads short and firm, a deep breath is a slow deliberate act
-# and reads longer and softer, and a mana gain sits between them. Rows are read-only:
-# callers read values out, never mutate the table.
+# and reads longer and softer. The blue family declares its token only and takes peak,
+# fade and band from the signed variant row below. Rows are read-only: callers read
+# values out, never mutate the table.
 const FEEDBACK_BORDERS={
  "calm":{"color":Palette.BORDER_CALM,"alpha":0.30,"fade":0.60},
  "charge":{"color":Palette.BORDER_CHARGE,"alpha":0.50,"fade":0.22},
- "mana":{"color":Palette.BORDER_MANA,"alpha":0.40,"fade":0.35},
+ "mana":{"color":Palette.BORDER_MANA},
 }
+# Blue-family envelope variants, one row per sign of the committed family change. `alpha`
+# is the peak at a full reference-scale change; the drawn peak is `alpha*|ratio|` (see
+# mana_ratio), so a small movement is nearly invisible and there is no minimum-delta
+# gate. Gain: a quick ramp then a short fade over a slightly wider band. Loss: immediate
+# peak then a slower retreat over a narrower band. The token is shared; envelope, band
+# and peak coefficient are what tell the two apart.
+const FEEDBACK_MANA_VARIANTS={
+ "gain":{"alpha":0.34,"attack":0.10,"fade":0.30,"extent":0.34},
+ "loss":{"alpha":0.46,"attack":0.0,"fade":0.55,"extent":0.26},
+}
+# Reference scale per blue-family field, used only to weight how large a committed change
+# reads: mana by the committed mana maximum (View `mana_max`, fallback below), temporary
+# mana by its retention cap and witch focus by its 4-layer ceiling (data/balance.gd
+# TEMPORARY_MANA_RETENTION and the 2 + retention-bonus cap). Display weights only: they
+# never gate, reorder or change a rule.
+const FEEDBACK_MANA_REFERENCE=100.0
+const FEEDBACK_RESERVE_REFERENCE=20.0
+const FEEDBACK_FOCUS_REFERENCE=4.0
 # Which receipt fields light which field-driven family, in fixed priority order (the
-# first net rise wins, so one submission still shows one border). The deep breath
+# first triggered family wins, so one submission still shows one border). The deep breath
 # family is payload-driven, checked first, and is not listed here.
 const FEEDBACK_BORDER_FIELDS={"charge":["charge","next_energy"],"mana":["mana","temporary_mana","witch_focus"]}
-# Edge band extent shared by the filter and the border: the same 1-(d/dmax)^2 weight
-# and dmax is this fraction of the half short side, so both lights stay on the four
-# screen edges. 0.30 replaced the old per-effect values (1.0 spread the filter too
-# thin to read at the alpha floor, 0.18 drew the border as a hairline) and is the
-# band the pixel checks measure.
+# Families that only read a rise, keeping their committed meaning. The blue family is
+# absent on purpose: any nonzero mana-family change is its event, and a net fall is the
+# loss variant rather than silence. `FEEDBACK_BORDER_RISE_ONLY` never mutates the fields.
+const FEEDBACK_BORDER_RISE_ONLY={"charge":true}
+# Edge band extent shared by the filter and the fixed-family borders: the same
+# 1-(d/dmax)^2 weight and dmax is this fraction of the half short side, so the lights
+# stay on the four screen edges. 0.30 replaced the old per-effect values (1.0 spread the
+# filter too thin to read at the alpha floor, 0.18 drew the border as a hairline) and is
+# the band the pixel checks measure. The blue family overrides it per variant.
 const FEEDBACK_EDGE_EXTENT=0.30
 # Impact shake: amplitude and pulse count encode force, never colour, never a layout
 # change: the content container is displaced for the pulse and restored exactly. The
@@ -144,7 +170,9 @@ static func shake_spec(payload: Dictionary) -> Dictionary:
 
 ## Border family per committed submission: "calm", "charge", "mana" or "". Fixed
 ## priority calm(white) > charge/next_energy(yellow) > mana family(blue), so one
-## submission that raises several families still shows exactly one border.
+## submission that touches several families still shows exactly one border. The blue
+## family triggers on any nonzero net change, so a failed cast (mana paid, half refunded,
+## one focus layer burnt) selects it without any extra committed flag.
 static func border_kind_of(events: Array, payload: Dictionary) -> String:
  var kind=String(payload.get("kind",""))
  if kind=="calm": return "calm"
@@ -153,9 +181,46 @@ static func border_kind_of(events: Array, payload: Dictionary) -> String:
  if kind=="status_toggle" and String(payload.get("status","")) in ["charge","charge_all"]: return "charge"
  var totals=deltas(events)
  for family in FEEDBACK_BORDER_FIELDS:
+  var rise_only=bool(FEEDBACK_BORDER_RISE_ONLY.get(family,false))
   for field in FEEDBACK_BORDER_FIELDS[family]:
-   if float(totals.get(field,0.0))>0.0: return family
+   var delta=float(totals.get(field,0.0))
+   if rise_only:
+    if delta>0.0: return family
+   elif delta!=0.0: return family
  return ""
+
+## Reference scale of one blue-family field: mana uses the committed maximum when the
+## View carries one, every other field its own retention scale (table above).
+static func mana_reference(snapshot: Dictionary) -> float:
+ var maximum=float(snapshot.get("mana_max",0.0))
+ return maximum if maximum>0.0 else FEEDBACK_MANA_REFERENCE
+
+## Normalised size of a committed blue-family change: every field's net delta divided by
+## its own reference scale, then summed, so several pools paying one submission are one
+## amount and the same physical movement reads smaller out of a bigger pool. The sign is
+## the variant. No threshold and no minimum: a tiny movement keeps a tiny ratio.
+static func mana_ratio(totals: Dictionary, snapshot: Dictionary) -> float:
+ var ratio=float(totals.get("mana",0.0))/mana_reference(snapshot)
+ ratio+=float(totals.get("temporary_mana",0.0))/FEEDBACK_RESERVE_REFERENCE
+ ratio+=float(totals.get("witch_focus",0.0))/FEEDBACK_FOCUS_REFERENCE
+ return ratio
+
+## Peak of one blue-family variant at the given normalised change. Scaling is linear up to
+## the reference scale and capped there, so the strongest read of a variant stays the
+## table value and no movement is ever amplified past its own proportion.
+static func mana_peak(variant: String, ratio: float) -> float:
+ var row=FEEDBACK_MANA_VARIANTS.get(variant,FEEDBACK_MANA_VARIANTS["gain"])
+ return float(row.alpha)*minf(absf(ratio),1.0)
+
+## Resolved border for one committed submission: fixed families take their table row, the
+## blue family takes the signed variant and its amount-scaled peak, fade, ramp and band.
+static func border_spec(kind: String, totals: Dictionary, snapshot: Dictionary) -> Dictionary:
+ var row=border_row(kind)
+ if kind!="mana": return {"kind":kind,"variant":"","ratio":0.0,"peak":float(row.alpha),"fade":float(row.fade),"attack":0.0,"extent":FEEDBACK_EDGE_EXTENT,"color":row.color}
+ var ratio=mana_ratio(totals,snapshot)
+ var variant="loss" if ratio<0.0 else "gain"
+ var spec=FEEDBACK_MANA_VARIANTS[variant]
+ return {"kind":kind,"variant":variant,"ratio":ratio,"peak":mana_peak(variant,ratio),"fade":float(spec.fade),"attack":float(spec.attack),"extent":float(spec.extent),"color":row.color}
 
 ## Read-only row of a border family (see FEEDBACK_BORDERS). An unknown kind falls back
 ## to the mana row; the only caller passes a kind produced by border_kind_of.
@@ -204,11 +269,17 @@ func play(events: Array, payload: Dictionary, snapshot: Dictionary) -> void:
  var rise=pressure_rise(events)
  if rise>0.0: _play_filter(rise,snapshot)
  var kind=border_kind_of(events,payload)
- if kind!="": _play_border(kind)
+ var spec={} if kind=="" else border_spec(kind,deltas(events),snapshot)
+ if kind!="": _play_border(spec)
  var shake=shake_spec(payload)
  if not shake.is_empty(): _play_shake(shake)
+ # `border_variant` / `border_ratio` / `border_extent` are the resolved blue-family
+ # reading of this submission; fixed families report the empty variant and the shared
+ # band. Kept after the fade so checks can read what one submission showed.
  last_impact={"rise":rise,"filter_peak":0.0 if rise<=0.0 else filter.peak,"filter_fade":0.0 if rise<=0.0 else filter.fade,
-  "border_kind":kind,"border_peak":0.0 if kind=="" else border.peak,"border_fade":0.0 if kind=="" else border.fade,
+  "border_kind":kind,"border_variant":String(spec.get("variant","")),"border_ratio":float(spec.get("ratio",0.0)),
+  "border_peak":0.0 if kind=="" else border.peak,"border_fade":0.0 if kind=="" else border.fade,
+  "border_attack":0.0 if kind=="" else border.attack,"border_extent":float(spec.get("extent",FEEDBACK_EDGE_EXTENT)),
   "shake_pulses":shake_pulses,"shake_step":shake_step,"shake_amplitude":shake_amplitude}
 
 func _play_filter(rise: float, snapshot: Dictionary) -> void:
@@ -222,14 +293,14 @@ func _play_filter(rise: float, snapshot: Dictionary) -> void:
  if filter.active(): filter.refresh(filter_peak(ratio_now,ratio_rise))
  else: filter.start(filter_peak(ratio_now,ratio_rise),filter_fade(ratio_rise))
 
-func _play_border(kind: String) -> void:
- border_kind=kind
- var row=border_row(kind)
- # The band redraws with its family token even when the running fade keeps its clock:
- # the newest committed trigger is what the border is labelled as.
- border_bands.set_tint(row.color)
- if border.active(): border.refresh(float(row.alpha))
- else: border.start(float(row.alpha),float(row.fade))
+func _play_border(spec: Dictionary) -> void:
+ border_kind=String(spec.get("kind",""))
+ # The band redraws with its committed family token and extent even when the running
+ # fade keeps its clock: the newest committed trigger is what the border is labelled as.
+ border_bands.set_tint(spec.color)
+ border_bands.set_extent(float(spec.get("extent",FEEDBACK_EDGE_EXTENT)))
+ if border.active(): border.refresh(float(spec.get("peak",0.0)))
+ else: border.start(float(spec.get("peak",0.0)),float(spec.get("fade",0.0)),float(spec.get("attack",0.0)))
 
 func _play_shake(spec: Dictionary) -> void:
  # A shake arriving inside a running one merges: keep the recorded origin so the
@@ -294,6 +365,13 @@ class Bands extends Control:
   color=value
   queue_redraw()
 
+ ## Redraw a live band at another edge extent (the blue gain/loss bands differ); the
+ ## weight profile and the modulate fade are untouched.
+ func set_extent(value: float) -> void:
+  if is_equal_approx(reach_ratio,value): return
+  reach_ratio=value
+  queue_redraw()
+
  func _ready() -> void:
   mouse_filter=Control.MOUSE_FILTER_IGNORE
   set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -314,13 +392,16 @@ class Bands extends Control:
 
 # ---------------------------------------------------------------------------
 # Fade: peak-then-quadratic-decay envelope (alpha(t) = peak * (1-(t/fade)^2)) over one
-# one-shot tween. `ends` is the wall clock of the running fade: a refresh raises the
-# peak without moving it, which is what keeps a repeated trigger from restarting.
+# one-shot tween. `ends` is the wall clock of the running fade (ramp plus decay): a
+# refresh raises the peak without moving it, which keeps a repeated trigger from
+# restarting. `attack` is the optional ramp from zero to the peak; zero means the
+# envelope starts at its peak.
 # ---------------------------------------------------------------------------
 class Fade:
  var node: Control
  var peak=0.0
  var fade=0.0
+ var attack=0.0
  var ends=0.0
  var tween
  var finished=Callable()
@@ -334,24 +415,29 @@ class Fade:
  func active() -> bool:
   return ends>0.0 and Time.get_ticks_msec()<int(ends)
 
- func start(new_peak: float, new_fade: float) -> void:
+ func start(new_peak: float, new_fade: float, new_attack: float=0.0) -> void:
   peak=new_peak
   fade=new_fade
-  ends=float(Time.get_ticks_msec())+new_fade*1000.0
+  attack=new_attack
+  ends=float(Time.get_ticks_msec())+(new_fade+new_attack)*1000.0
   run(new_fade)
 
  func refresh(new_peak: float) -> void:
   if new_peak<=peak: return
   peak=new_peak
-  run(maxf((ends-float(Time.get_ticks_msec()))/1000.0,0.01))
+  run(maxf((ends-float(Time.get_ticks_msec()))/1000.0-attack,0.01))
 
  func run(duration: float) -> void:
   if tween!=null and tween.is_valid(): tween.kill()
   starts+=1
   node.show()
-  node.modulate.a=peak
   node.queue_redraw()
   tween=node.create_tween()
+  if attack>0.0:
+   node.modulate.a=0.0
+   tween.tween_property(node,"modulate:a",peak,attack).from(0.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+  else:
+   node.modulate.a=peak
   tween.tween_property(node,"modulate:a",0.0,duration).from(peak).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
   tween.tween_callback(finish)
 

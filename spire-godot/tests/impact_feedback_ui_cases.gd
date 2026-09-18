@@ -6,6 +6,10 @@ const Impact=preload("res://ui/impact_feedback.gd")
 # mana family) and the impact shake. Trigger derivation, the fixed family priority,
 # merge, the fade clock, real pointer clicks through the running effect and the idle
 # state are all covered here; rule-level receipt evidence lives in pressure_cases.gd.
+# The blue family is delta-driven: any nonzero mana / temporary-mana / focus change
+# lights it, the sign picks the gain or loss variant (different envelope and band, one
+# shared token) and the drawn peak is the committed change normalised by that field's
+# own reference scale, so there is no minimum-delta gate to test around.
 # The `*_pixels` checks measure the effects on real window frames (root texture) so a
 # parameter change that stops being visible at the lowest intensity turns them red.
 # The shake probe displaces the content and compares the displaced peak against the
@@ -27,6 +31,10 @@ static func run(t) -> void:
  await real_attack(t)
  await real_pressure(t)
  await real_border(t)
+ await failed_cast(t)
+ await successful_spend(t)
+ await mana_gain(t)
+ await no_change(t)
  await passthrough(t)
  await idle(t)
  await pixel_checks(t)
@@ -52,8 +60,24 @@ static func committed_triggers(t) -> void:
  t.check(Impact.border_kind_of([],{"kind":"status_toggle","status":"charge","enabled":true})=="charge","IMPACT BORDER the charge-all toggle lights the border from the committed payload alone")
  t.check(Impact.border_kind_of([{"field":"pressure","before":90.0,"after":70.0}],{"kind":"calm"})=="calm","IMPACT BORDER a deep breath lights the white border")
  t.check(Impact.border_kind_of([{"field":"mana","before":10,"after":14}],{"kind":"end"})=="mana" and Impact.border_kind_of([{"field":"temporary_mana","before":0,"after":4}],{"kind":"end"})=="mana" and Impact.border_kind_of([{"field":"witch_focus","before":0,"after":2}],{"kind":"end"})=="mana","IMPACT BORDER the mana / reserve-mana / focus family lights the blue border")
- t.check(Impact.border_kind_of([{"field":"mana","before":10,"after":4}],{"kind":"end"})=="" and Impact.border_kind_of([{"field":"witch_focus","before":3,"after":0}],{"kind":"end"})=="" and Impact.border_kind_of([{"field":"next_energy","before":1,"after":0}],{"kind":"end"})=="","IMPACT BORDER a net fall of any family lights nothing")
- t.check(Impact.border_kind_of([],{"kind":"end"})=="" and Impact.border_kind_of([],{"kind":"posture","dest":"sit"})=="","IMPACT BORDER ordinary actions and selection clicks light nothing")
+ # Any nonzero mana-family change lights the blue family; a net fall is the loss variant
+ # rather than silence, which is what lets a failed cast (payment minus half refund)
+ # select blue without any extra committed flag.
+ t.check(Impact.border_kind_of([{"field":"mana","before":10,"after":4}],{"kind":"end"})=="mana" and Impact.border_kind_of([{"field":"witch_focus","before":3,"after":0}],{"kind":"end"})=="mana" and Impact.border_kind_of([{"field":"next_energy","before":1,"after":0}],{"kind":"end"})=="","IMPACT BORDER a mana-family fall lights the blue border while the yellow family stays rise-only")
+ t.check(Impact.border_kind_of([{"field":"mana","before":100.0,"after":90.0},{"field":"mana","before":90.0,"after":95.0}],{"kind":"attack"})=="mana" and Impact.border_kind_of([{"field":"mana","before":100.0,"after":90.0},{"field":"mana","before":90.0,"after":100.0}],{"kind":"attack"})=="","IMPACT BORDER the refund rise does not hide the payment while a net-zero receipt lights nothing")
+ t.check(Impact.border_kind_of([],{"kind":"end"})=="" and Impact.border_kind_of([],{"kind":"posture","dest":"sit"})=="" and not Impact.will_play([],{"kind":"posture","dest":"sit"}),"IMPACT BORDER ordinary actions and selection clicks light nothing")
+ # The two blue variants: same token, different envelope and band, and the loss
+ # coefficient reads stronger than the gain at the same normalised change (rule 2).
+ var loss_spec=Impact.border_spec("mana",{"mana":-10.0},{"mana_max":100.0})
+ var gain_spec=Impact.border_spec("mana",{"temporary_mana":10.0},{})
+ t.check(loss_spec.variant=="loss" and gain_spec.variant=="gain" and loss_spec.color==gain_spec.color and loss_spec.color==preload("res://ui/visual_theme.gd").BORDER_MANA,"IMPACT BORDER the blue gain and loss variants share the one mana palette token")
+ t.check(float(loss_spec.attack)==0.0 and float(gain_spec.attack)>0.0 and float(gain_spec.fade)>0.0 and float(loss_spec.fade)>float(gain_spec.fade) and float(gain_spec.extent)>float(loss_spec.extent),"IMPACT BORDER gain ramps up and covers a wider band while loss peaks at once and retreats longer over a narrower band")
+ t.check(is_equal_approx(float(loss_spec.peak),0.046) and is_equal_approx(float(gain_spec.peak),0.17),"IMPACT BORDER each peak is the variant coefficient times the normalised change (loss 0.46x(10/100), gain 0.34x(10/20))")
+ t.check(Impact.mana_peak("loss",0.25)>Impact.mana_peak("gain",0.25) and is_equal_approx(Impact.mana_peak("loss",0.25),0.115) and is_equal_approx(Impact.mana_peak("gain",0.25),0.085),"IMPACT BORDER the loss variant outranks the gain variant at the same committed change")
+ t.check(Impact.mana_peak("loss",-0.0005)<0.001 and Impact.mana_peak("gain",0.0005)<0.001,"IMPACT BORDER a tiny movement keeps a nearly invisible peak, so no minimum-delta gate exists")
+ t.check(is_equal_approx(Impact.mana_peak("loss",-3.0),0.46) and is_equal_approx(Impact.mana_peak("gain",3.0),0.34) and is_equal_approx(Impact.mana_peak("gain",-0.5),0.17),"IMPACT BORDER the peak saturates at the variant coefficient one reference scale out and scales by the absolute change")
+ t.check(is_equal_approx(Impact.mana_ratio({"mana":-20.0},{"mana_max":75.0}),-20.0/75.0) and is_equal_approx(Impact.mana_ratio({"temporary_mana":10.0},{}),0.5) and is_equal_approx(Impact.mana_ratio({"witch_focus":-1.0},{}),-0.25),"IMPACT BORDER each blue field is normalised by its own reference scale (mana maximum, reserve cap, focus ceiling)")
+ t.check(Impact.mana_ratio({"mana":-10.0,"temporary_mana":20.0,"witch_focus":2.0},{"mana_max":75.0})>0.0 and is_equal_approx(Impact.mana_ratio({"mana":-10.0},{"mana_max":0.0}),-0.1),"IMPACT BORDER one submission sums its normalised fields and falls back to the 100-point pool when the View carries no mana_max")
  # One border per submission: several families rising together resolve by the fixed
  # priority calm(white) > charge/next_energy(yellow) > mana family(blue).
  t.check(Impact.border_kind_of([{"field":"next_energy","before":0,"after":1},{"field":"mana","before":0,"after":5},{"field":"witch_focus","before":0,"after":1}],{"kind":"end"})=="charge","IMPACT BORDER one submission shows a single border and yellow outranks the blue family")
@@ -109,7 +133,9 @@ static func layer_contract(t) -> void:
  t.check(layer.border_kind=="charge" and is_equal_approx(layer.border.peak,float(Impact.border_row("charge").alpha)) and layer.border_bands.color==Impact.border_row("charge").color,"IMPACT BORDER the charge toggle raises the border to the firm yellow peak")
  t.check(absf(layer.border.ends-calm_ends)<=20.0 and is_equal_approx(layer.border.fade,float(Impact.border_row("calm").fade)),"IMPACT BORDER a new border trigger keeps the running fade clock instead of restarting")
  layer.play([{"field":"witch_focus","before":0,"after":1}],{"kind":"end"},snapshot)
- t.check(layer.border_kind=="mana" and layer.border_bands.color==Impact.border_row("mana").color,"IMPACT BORDER a focus rise retints the running border blue")
+ t.check(layer.border_kind=="mana" and layer.last_impact.get("border_variant","")=="gain" and layer.border_bands.color==Impact.border_row("mana").color and is_equal_approx(layer.border_bands.reach_ratio,float(Impact.FEEDBACK_MANA_VARIANTS.gain.extent)),"IMPACT BORDER a focus gain retints the running border blue as the gain variant and adopts its wider band")
+ layer.play([{"field":"mana","before":100.0,"after":25.0}],{"kind":"end"},{"pressure":{"value":40.0,"maximum":130.0},"mana_max":100.0})
+ t.check(layer.border_kind=="mana" and layer.last_impact.get("border_variant","")=="loss" and is_equal_approx(layer.border_bands.reach_ratio,float(Impact.FEEDBACK_MANA_VARIANTS.loss.extent)) and is_equal_approx(layer.border.peak,float(Impact.border_row("charge").alpha)),"IMPACT BORDER a mana fall relabels the running border as the loss variant over the narrower band while the stronger running envelope keeps its peak")
  layer.play([],{"kind":"card","type":"strain","mode":"strain","preview":{"damage":6.0}},snapshot)
  t.check(layer.shake_pulses==2 and is_equal_approx(layer.shake_step,Impact.FEEDBACK_SHAKE_STRAIN_STEP) and layer.shake_amplitude>0.0,"IMPACT SHAKE a strain payload double-pulses inside the same layer")
  t.check(layer.border.active() and layer.visible,"IMPACT SHAKE the shake joins the running effects instead of cancelling them")
@@ -219,7 +245,10 @@ static func real_pressure(t) -> void:
  await press_candidate(t,spell)
  layer=ui.impact_feedback
  t.check(ui.view.mana<mana and is_instance_valid(layer) and int(layer.last_impact.get("shake_pulses",0))==1,"IMPACT FILTER a mana-paying spell shakes like any attack")
- t.check(is_instance_valid(layer) and float(layer.last_impact.get("filter_peak",0.0))==0.0 and layer.last_impact.get("border_kind","")=="","IMPACT FILTER a mana receipt without a pressure rise never draws the filter")
+ # The mana payment now draws the blue loss border: its delta is normalised by the
+ # committed pool size, so the same 10-point payment is a small fraction of 100.
+ var ratio=(ui.view.mana-mana)/float(ui.view.mana_max)
+ t.check(is_instance_valid(layer) and float(layer.last_impact.get("filter_peak",0.0))==0.0 and layer.last_impact.get("border_kind","")=="mana" and layer.last_impact.get("border_variant","")=="loss" and is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),Impact.mana_peak("loss",ratio)),"IMPACT BORDER a mana receipt without a pressure rise draws the scaled blue loss border and never the filter")
 
 static func real_border(t) -> void:
  var ui=t.ui
@@ -255,6 +284,130 @@ static func real_border(t) -> void:
  if not is_instance_valid(layer): return
  t.check(is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),float(Impact.border_row("charge").alpha)) and is_equal_approx(float(layer.last_impact.get("border_fade",0.0)),float(Impact.border_row("charge").fade)) and layer.border_bands.color==Impact.border_row("charge").color,"IMPACT BORDER the charge toggle uses the short firm yellow parameters")
  t.check(float(layer.last_impact.get("filter_peak",0.0))==0.0 and int(layer.last_impact.get("shake_pulses",0))==0,"IMPACT NO-OP the payload-only toggle starts no filter and no shake")
+
+static func failed_cast(t) -> void:
+ # Real failed cast of 变身 (40 mana): the receipt holds the payment and the half refund,
+ # whose net is a 20-point loss, and the card stays in hand so the frame pair carries the
+ # border alone. No failure flag is read: the merged delta selects the blue loss variant
+ # and one envelope is armed for it.
+ var ui=t.ui
+ ui.restart(42)
+ await t.frames(4)
+ ui.game._discard_end()
+ ui.game.state.pressure=99
+ var card=preload("res://tests/curse_cases.gd").give(ui.game,"henshin")
+ var profile=ui.game.cast_view(ui.game.Cards.cast_profile(ui.game,"henshin"))
+ var rng=ui.game.state.rng.magic
+ while ui.game._random_index("magic",ui.game.B.CAST_ROLL_STEPS)<profile.winning_rolls: rng=ui.game.state.rng.magic
+ ui.game.state.rng.magic=rng
+ ui.render()
+ await t.frames(4)
+ freeze_decoration(t)
+ await t.frames(2)
+ await t.close_information()
+ var mana_before=ui.view.mana
+ var point=t.card_point(card.uid)
+ await t.move_mouse(point)
+ # Direct pointer pair: the border probe must grab its peak frame before the fade.
+ t.root.push_input(pointer_event(point,true),true)
+ await t.frames(1,false)
+ t.root.push_input(pointer_event(point,false),true)
+ await t.frames(1,false)
+ t.check(ui.game._magic_failed and ui.view.mana<mana_before and ui.view.hand.any(func(c):return c.uid==card.uid),"IMPACT BORDER PIXELS a real paid cast fails on the forced roll, pays and keeps the card")
+ var layer=ui.impact_feedback
+ t.check(is_instance_valid(layer) and layer.last_impact.get("border_kind","")=="mana" and layer.last_impact.get("border_variant","")=="loss","IMPACT BORDER a real failed cast lights the blue loss border from the receipt alone")
+ if not is_instance_valid(layer): return
+ var ratio=(ui.view.mana-mana_before)/float(ui.view.mana_max)
+ t.check(ratio<0.0 and is_equal_approx(float(layer.last_impact.get("border_ratio",0.0)),ratio) and is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),Impact.mana_peak("loss",ratio)),"IMPACT BORDER the failed-cast loss peak is the committed mana loss over the mana pool at the loss coefficient: ratio=%.4f peak=%.4f" % [ratio,float(layer.last_impact.get("border_peak",0.0))])
+ t.check(layer.border.starts==1 and layer.border.active() and layer.border_bands.color==Impact.border_row("mana").color,"IMPACT BORDER the failed cast arms exactly one blue envelope with the mana palette token")
+ var peak=await grab_peak(t,layer)
+ await t.frames(60)
+ var settled=await grab(t)
+ var stats=edge_band_stats(settled,peak,band_pixels(settled))
+ report_pixels("BORDER failed cast loss",stats)
+ t.check(stats.max>=PIXEL_FILTER_MAX_DELTA and stats.mean>=PIXEL_FILTER_MEAN_DELTA,"IMPACT BORDER PIXELS the failed-cast blue loss border is visible inside the edge band: mean=%.2f max=%d share=%.4f" % [stats.mean,stats.max,stats.share])
+
+static func successful_spend(t) -> void:
+ # The other half of the same question: an ordinary successful mana-paying action
+ # (预备咏唱 pays 10 mana) must now draw the blue loss border too, scaled down by its
+ # own delta and therefore fainter than the failed cast's 20-point loss on the same
+ # pool. The card leaves the hand on success, so the isolated frame pair for the pixel
+ # criterion comes from border_pixels at this exact ratio; here the receipt is asserted.
+ var ui=t.ui
+ ui.restart(42)
+ await t.frames(4)
+ ui.game._discard_end()
+ var card=preload("res://tests/curse_cases.gd").give(ui.game,"prepared_chant")
+ ui.render()
+ await t.frames(4)
+ freeze_decoration(t)
+ await t.frames(2)
+ await t.close_information()
+ var mana_before=ui.view.mana
+ var point=t.card_point(card.uid)
+ await t.move_mouse(point)
+ t.root.push_input(pointer_event(point,true),true)
+ await t.frames(1,false)
+ t.root.push_input(pointer_event(point,false),true)
+ await t.frames(1,false)
+ t.check(not ui.game._magic_failed and ui.view.mana<mana_before and ui.game.state.exhaust.any(func(c):return c.uid==card.uid),"IMPACT BORDER a real chance-100% cast succeeds, pays its mana and exhausts")
+ var layer=ui.impact_feedback
+ t.check(is_instance_valid(layer) and layer.last_impact.get("border_kind","")=="mana" and layer.last_impact.get("border_variant","")=="loss","IMPACT BORDER the successful mana-paying action draws the blue loss border instead of staying dark")
+ if not is_instance_valid(layer): return
+ var ratio=(ui.view.mana-mana_before)/float(ui.view.mana_max)
+ var peak=float(layer.last_impact.get("border_peak",0.0))
+ var failed_peak=Impact.mana_peak("loss",-20.0/float(ui.view.mana_max))
+ t.check(ratio<0.0 and is_equal_approx(float(layer.last_impact.get("border_ratio",0.0)),ratio) and is_equal_approx(peak,Impact.mana_peak("loss",ratio)),"IMPACT BORDER the successful payment peak is its own normalised loss at the loss coefficient: ratio=%.4f peak=%.4f" % [ratio,peak])
+ t.check(peak<failed_peak and peak<0.1 and Impact.mana_peak("gain",absf(ratio))<failed_peak,"IMPACT BORDER the successful spend stays fainter than the failed cast's loss on the same pool (%.4f < %.4f) and both variants stay below it" % [peak,failed_peak])
+ t.check(float(layer.last_impact.get("filter_peak",0.0))==0.0 and int(layer.last_impact.get("shake_pulses",0))==0,"IMPACT NO-OP the mana-paying card starts no filter and no shake")
+
+static func mana_gain(t) -> void:
+ # A real mana gain: 魔力涌流's free face grants 10 temporary mana (2 层魔力预备) in one
+ # successful commit, so the receipt nets the blue family up. The gain variant must be
+ # selected with its own envelope and wider band while the token stays the mana one.
+ var ui=t.ui
+ ui.restart(42)
+ await t.frames(4)
+ ui.game._discard_end()
+ var card=preload("res://tests/curse_cases.gd").give(ui.game,"mana_surge")
+ ui.render()
+ await t.frames()
+ # Flip to the free face the way the player does: right-click on the visible card.
+ if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
+ t.check(ui.card_faces.get(card.uid,false),"IMPACT BORDER the free-face probe shows the flipped card before clicking")
+ await t.frames(2)
+ freeze_decoration(t)
+ await t.frames(2)
+ await t.close_information()
+ var mana_before=ui.view.mana
+ var temporary_before=ui.view.temporary_mana
+ var point=t.card_point(card.uid)
+ await t.move_mouse(point)
+ t.root.push_input(pointer_event(point,true),true)
+ await t.frames(1,false)
+ t.root.push_input(pointer_event(point,false),true)
+ await t.frames(1,false)
+ t.check(ui.view.temporary_mana==temporary_before+10 and is_equal_approx(ui.view.mana,mana_before),"IMPACT BORDER a real free-face cast grants ten temporary mana without paying mana")
+ var layer=ui.impact_feedback
+ t.check(is_instance_valid(layer) and layer.last_impact.get("border_kind","")=="mana" and layer.last_impact.get("border_variant","")=="gain","IMPACT BORDER the real reserve-mana grant lights the blue gain border")
+ if not is_instance_valid(layer): return
+ var ratio=10.0/Impact.FEEDBACK_RESERVE_REFERENCE
+ t.check(is_equal_approx(float(layer.last_impact.get("border_ratio",0.0)),ratio) and is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),Impact.mana_peak("gain",ratio)) and is_equal_approx(layer.border.attack,float(Impact.FEEDBACK_MANA_VARIANTS.gain.attack)) and layer.border_bands.reach_ratio>float(Impact.FEEDBACK_MANA_VARIANTS.loss.extent),"IMPACT BORDER the grant uses the reserve cap as its scale and the quick-ramp wider-band gain envelope")
+ t.check(layer.border_bands.color==Impact.border_row("mana").color,"IMPACT BORDER gain and loss share the mana palette token, never a second colour")
+ t.check(float(layer.last_impact.get("filter_peak",0.0))==0.0 and int(layer.last_impact.get("shake_pulses",0))==0,"IMPACT NO-OP the reserve-mana grant starts no filter and no shake")
+
+static func no_change(t) -> void:
+ # Nothing in the receipt and nothing in the payload: the layer must not even be
+ # created (main.gd asks will_play before instantiating it).
+ var ui=t.ui
+ ui.restart(42)
+ await t.frames(4)
+ var sit=ui.actions.find("posture",{"dest":"sit","wall":false})
+ t.check(not sit.is_empty() and sit.valid,"IMPACT NO-OP the battle fixture exposes a real posture action")
+ if sit.is_empty() or not sit.valid: return
+ t.check(Impact.border_kind_of([],sit.payload)=="" and not Impact.will_play([],sit.payload),"IMPACT NO-OP a committed action with no receipt change and no impact payload asks for no effect")
+ await t.click("posture",{"dest":"sit","wall":false})
+ t.check(ui.view.posture=="sit" and not is_instance_valid(ui.impact_feedback),"IMPACT NO-OP the real no-change submission creates no border and no filter layer at all")
 
 static func passthrough(t) -> void:
  var ui=t.ui
@@ -316,28 +469,32 @@ static func filter_pixels(t) -> void:
  await t.frames()
 
 static func border_pixels(t) -> void:
- # One probe per border family at its only strength: the family is what the trigger
- # selects, so the weakest trigger of that family is the lowest intended intensity. The
- # calm probe carries the real deep-breath receipt shape (a next_energy rise) to prove
- # in the render path that calm outranks the yellow family. The blue family is probed
- # twice because both named sources must reach the blue token: the reserve mana of
- # 魔法预备 (temporary_mana) and the 精神集中 stack gain (witch_focus).
+ # One probe per committed trigger at the weakest intensity it can arrive with. The calm
+ # probe carries the real deep-breath receipt shape (a next_energy rise) to prove in the
+ # render path that calm outranks the yellow family. The blue family is probed three
+ # times: the reserve-mana gain of 魔力预备 (temporary_mana), the 精神集中 stack gain
+ # (witch_focus) and the ordinary mana payment (mana), which is the same ratio the real
+ # successful spend in `successful_spend` commits and therefore carries its pixel
+ # criterion (an exhausted card's departure animation shares the real commit's window).
  await border_probe(t,"BORDER calm",[{"field":"next_energy","before":0,"after":1}],{"kind":"calm"},"calm")
  await border_probe(t,"BORDER charge",[{"field":"charge","before":0,"after":1}],{"kind":"end"},"charge")
- await border_probe(t,"BORDER mana reserve",[{"field":"temporary_mana","before":0,"after":4}],{"kind":"end"},"mana")
+ await border_probe(t,"BORDER mana gain",[{"field":"temporary_mana","before":0,"after":10}],{"kind":"end"},"mana")
  await border_probe(t,"BORDER mana focus",[{"field":"witch_focus","before":0,"after":2}],{"kind":"end"},"mana")
+ await border_probe(t,"BORDER mana loss",[{"field":"mana","before":100.0,"after":90.0}],{"kind":"end"},"mana")
 
-## One border family on a settled frame: the effect must fire its family, wear the
-## family palette token and be visible inside the edge band of the real window frame.
+## One committed border on a settled frame: the effect must resolve its family, variant,
+## scaled peak and band, wear the family palette token and be visible inside the edge
+## band of the real window frame.
 static func border_probe(t, label: String, events: Array, payload: Dictionary, kind: String) -> void:
  var layer=await settled_layer(t)
  var baseline=await grab(t)
- layer.play(events,payload,{"pressure":{"value":40.0,"maximum":130.0}})
- var peak=await grab(t)
+ var snapshot={"pressure":{"value":40.0,"maximum":130.0},"mana_max":100.0}
+ layer.play(events,payload,snapshot)
+ var peak=await grab_peak(t,layer)
  var stats=edge_band_stats(baseline,peak,band_pixels(baseline))
  report_pixels(label,stats)
- var row=Impact.border_row(kind)
- t.check(layer.last_impact.get("border_kind","")==kind and layer.border_bands.color==row.color and is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),float(row.alpha)),"IMPACT BORDER PIXELS %s fires its family and wears its palette token" % label)
+ var spec=Impact.border_spec(kind,Impact.deltas(events),snapshot)
+ t.check(layer.last_impact.get("border_kind","")==kind and layer.last_impact.get("border_variant","")==String(spec.variant) and layer.border_bands.color==spec.color and is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),float(spec.peak)) and is_equal_approx(layer.border_bands.reach_ratio,float(spec.extent)),"IMPACT BORDER PIXELS %s fires its family, variant, scaled peak and band with the family palette token (peak=%.4f)" % [label,float(spec.peak)])
  t.check(stats.max>=PIXEL_FILTER_MAX_DELTA and stats.mean>=PIXEL_FILTER_MEAN_DELTA,"IMPACT BORDER PIXELS %s is visible inside the edge band: mean=%.2f max=%d share=%.4f" % [label,stats.mean,stats.max,stats.share])
  layer.queue_free()
  await t.frames()
@@ -425,6 +582,14 @@ static func freeze_decoration(t) -> void:
 
 static func grab(t) -> Image:
  await RenderingServer.frame_post_draw
+ return t.root.get_texture().get_image()
+
+## Frame that carries the committed border's peak: the blue gain variant ramps up before
+## it decays, so the probe waits out that ramp instead of sampling the rising edge; the
+## loss variant and the fixed families peak immediately.
+static func grab_peak(t, layer) -> Image:
+ var deadline=Time.get_ticks_msec()+int(maxf(float(layer.border.attack),0.0)*1000.0)+16
+ while Time.get_ticks_msec()<deadline: await RenderingServer.frame_post_draw
  return t.root.get_texture().get_image()
 
 ## Edge band thickness the overlay draws into, in window pixels: the same fraction of

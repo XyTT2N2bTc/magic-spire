@@ -1417,3 +1417,29 @@ RuleChangePackage（加性、零规则改动：不动候选、数值、存档、
 - 环境注记：本次会话默认 `GODOT_BIN` 指向 `Godot_v4.7-stable_win64.exe`（`4.7.stable.official.5b4e0cb0f`，非登记引擎）；上述门禁、像素与 oracle 结果均在显式改用 `v4.7.2-stable` 的 `*_console.exe` 后取得，4.7-stable 下的中间结果（`20260918T015807820-17784` 等）不使用。
 
 **未验证（本轮追加）**：新增的续振／拆卸证据是层内直接 `play()`＋`queue_free()` 路径，未覆盖重启或退场菜单触发 `_demo_exit_screen` 的拆卸；上述其余未验证项与前文相同。
+
+**第五次返工·蓝族按 delta 触发、加减两变与强度（2026-09-18，实现者）**：
+
+域：`ui/impact_feedback.gd`、`tests/impact_feedback_ui_cases.gd`、`tests/pressure_cases.gd`；契约 `docs/spec/response-pipeline.md`（`play` 接口行、输入域、dispatch 成功键）。`ui/main.gd` 与 `core/` **无净改动**：本轮开工时工作区里有一版把施法失败经 `core/game.gd` 的 `dispatch` 新键 `magic_failed` 透传给 UI 的未提交改动；按本轮明确口径（直接 trace delta、不得新增 `magic_failed` 键、不动 core）整段回退，两文件回到 `1378cd0` 原文，施法失败改由 receipt 净值自动落入蓝族 loss。无规则／候选／存档／随机改动，无玩家文案。
+
+**判定与参数**（`FEEDBACK_*` 表仍是唯一参数源）：
+- 触发：`charge`／`next_energy` 仍只认净涨（黄）、`pressure` 仍只认净涨（粉滤镜）；`mana`／`temporary_mana`／`witch_focus` 改为任一净变化（Δ≠0）出蓝，施法失败（付款后只返还一半的净下降）因此无需标志即出蓝；`flask_mana` 不进蓝族。优先级仍白＞黄＞蓝、一次提交仍只出一条边框。
+- 变体：gain（Δ>0）＝`attack 0.10s` 上冲后 `fade 0.30s` 淡出、边带 `extent 0.34`（更宽）；loss（Δ<0）＝即刻峰值（`attack 0`）后 `fade 0.55s` 慢退、`extent 0.26`（更窄）；同一 `BORDER_MANA` token，只有包络／边带／峰值系数区分。边带经新增 `Bands.set_extent` 随变体重画，`Fade` 新增 `attack` 上升段（`ends=现在+(attack+fade)`）。
+- 强度（替代阈值，无最小增量门槛）：`ratio=Σ(字段净Δ/该字段参考尺度)`（mana 用提交后 View 的 `mana_max`，临时魔力用 20 点保留上限、精神集中用 4 层上限），`peak=变体系数×min(|ratio|,1)`，loss 0.46／gain 0.34。例：−10/100 支付 peak=0.0460、+10 临时魔力 peak=0.17、−20/100 失败 peak=0.0920、`|ratio|=0.0005` 时 peak<0.001（近乎不可见）。
+
+**新增证据（`tests/impact_feedback_ui_cases.gd`，146 断言，原 115；`tests/pressure_cases.gd` 净增 1 条）**：
+- 真实失败施法（变身 40 魔力、强制低成功率、卡留手）→`border_kind=mana`、`variant=loss`、`border_ratio` 等于实际状态差的归一化值、`peak=0.46×ratio`、`border.starts==1`（只装填一次包络），边带像素 mean=**9.273**／max=**29**（判据 ≥3／≥12）。
+- 真实成功支付（预备咏唱 10 魔力）→蓝 loss、peak=**0.0460**，并断言小于同池失败值 0.0920（成功支付更淡）。
+- 真实魔力 gain（魔力涌流自由面 +10 临时魔力）→`variant=gain`、peak=**0.17**、`attack>0`、extent 0.34＞loss 0.26、token 不变。
+- 两变体同比例断言 `mana_peak("loss",0.25)=0.115 > mana_peak("gain",0.25)=0.085`；无变化提交（真实 posture 变更）→`will_play=false` 且层根本未被创建。
+- 定格像素探针：gain +10 预备 mean=**20.177**／max=**53**（focus +2 同值），loss −10/100 mean=**4.572**／max=**15**（即成功支付在自身强度上的判据）。
+
+**敏感性（必须红）**：把 `border_kind_of` 的蓝族分支改成 rise-only（`elif delta>0.0`）→`-UIOnly -UISuite impact_feedback` 恰好 8 条红，含 `IMPACT BORDER a real failed cast lights the blue loss border from the receipt alone`、`IMPACT BORDER the successful mana-paying action draws the blue loss border instead of staying dark` 与 `BORDER mana loss` 两条像素断言（mean=0／max=0）；146→140 断言（层未创建使后续检查早退）；`build/checks/20260918T033102300-33700`。随后还原，并以 `-Suite runner`（`20260918T033202821-38336`，435 断言 PASS）复核树指纹未变。
+
+**门禁（同一冻结树；`GODOT_BIN` 指向 `v4.7.2-stable` 的 `*_console.exe`，4.7.2.stable.official.ed1daf0bf）**：
+- 规则门 `-Suite runner,architecture,core,persistence,pressure,rewards,event_flow,casting -TimeoutSeconds 1800` → 退出码 0、8/8 PASS、`PASS: 5966 assertions`、82.22s（`build/checks/20260918T024932533-9072`）。
+- 窗口门 `-UIOnly -UISuite impact_feedback,display,home,interface,route,pressure,rewards,persistence -KeepGoing -TimeoutSeconds 1800` → 退出码 1、8 套件全部跑完、`UI FAIL: 1385 assertions`；逐套件 display 141／home 113／route 134／interface 355／pressure 79／impact_feedback **146**／rewards 313／persistence 104（`build/checks/20260918T025101998-27088`）。红项与登记集合完全一致、无新增红：`interface` 的 `CARD ART`（28 张 `witch_*` 缺立绘 1 条）＋`pressure` 2 条 `CALM UI` ＋`rewards` 1 条 `REWARD UI`（`UI ENGINE ERRORS: 4`）。环境注记：home 套件期间 Godot 窗口处于最小化、渲染降频使该套件耗时 1683.8s（其余 10–290s），窗口恢复后立刻回到常规速度；整套仍完整跑完、指纹未漂移，结果有效。
+- 冻结 oracle 复跑：`TRANSITIONDIGEST 14eb8cf9c3c8b5d4347b2b9d118b8c504596e04d296d091884995bc359b522b6`（31 场景 0 失败）、`EVENTDIGEST 1f11bea560288ae922fc31ce7f46fb77d5cab22916798e3c1c81a00a131053da`（94 场景 0 失败），与登记逐字节一致；脚本／基线 sha256 未动（transition `59d41c68…`／`ba979d18…`、event `cf48529a…`／`bdf08765…`）。
+- **交付树指纹**：规则门与窗口门的 before／after 同为 **`2D2AAD80AA0AF5A3C30D64905D3E88031588F8E706A02B42C9FB0469D758F5A0`**（运行期间 `spire-godot` 源码未变，交付提交沿用该树）。
+
+**未验证（本轮追加）**：全量回归、Android 真机、打包与发布与前文相同；蓝族 loss 的真实像素证据取「变身失败」一条（失败卡留手、帧对干净），成功支付与 gain 的像素判据来自同比例的定格直接 `play()` 探针（成功施法会消耗卡牌、离手动画与效果窗口重叠，未做真实提交的像素对）；多字段混合符号的观感未人工确认（数值上按归一化求和并入单一边框）。
