@@ -705,7 +705,6 @@ const TRANSITIONS={
  "room_enter":{"phases":["map","cleared"],"room":true,"tx":true,"owners":["_arrive_room"]},
  "floor_enter":{"phases":[],"room":true,"tx":true,"checkpoint":"floor","owners":["_depart","_advance_travel"]},
  "travel_start":{"phases":["travel"],"room":false,"tx":true,"owners":["_depart"]},
- "prison_high_security":{"phases":["prison_end"],"room":false,"tx":true,"owners":["Prison.enter"]},
  "prison_cell_enter":{"phases":["prison"],"room":false,"tx":true,"owners":["Prison.begin_turn"]},
  "inspection_start":{"phases":["inspection"],"room":false,"tx":true,"owners":["Prison.end_turn"]},
  "prison_exit_battle_start":{"phases":["battle"],"room":false,"tx":true,"owners":["Prison.execute"]},
@@ -3277,6 +3276,10 @@ func restore_snapshot(saved: Dictionary) -> Dictionary:
  if issue!="": return {"ok":false,"error":"无法继续这份存档："+issue}
  var previous=state
  state=saved.duplicate(true)
+ # Saves written before security five became an ordinary cell carry the removed
+ # high-security manifest; drop the key so no second terminal path survives a load.
+ var loaded_capture: Dictionary=state.get("capture",{})
+ loaded_capture.erase("terminal_equipment")
  issue=validate()
  if issue=="" and not state.card_chain.is_empty() and Cards.chain_candidates(self).is_empty(): issue="连续卡牌已没有可继续的目标。"
  if issue=="" and state.pending_retain and (state.overloaded or not state.hand.any(func(card):return Cards.can_select_retain(self,card))): issue="保留手牌选择已没有合法目标。"

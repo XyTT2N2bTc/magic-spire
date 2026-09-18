@@ -43,5 +43,5 @@ static func prison(t) -> void:
  t.check(g.state.phase=="battle" and triggers(g).size()==1,"AXE resisting inside prison is not a new room entry")
  t.check(t.action(g,"surrender").ok and triggers(g).size()==2,"AXE actual recapture grants a new recovery")
  g=setup();g.state.security=4
- t.check(t.action(g,"surrender").ok and g.state.phase=="captured" and g.state.mana==40 and triggers(g).size()==1,"AXE final high-security intake also drains and heals exactly once")
- t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison_end","AXE final intake confirmation reaches high security")
+ t.check(t.action(g,"surrender").ok and g.state.phase=="captured" and g.state.mana==40 and triggers(g).size()==1,"AXE security-five intake also drains and heals exactly once")
+ t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison" and g.state.prison.left==g.B.PRISON_INTERVALS[4],"AXE security-five intake confirmation enters the ordinary top-spec cell")

@@ -56,8 +56,8 @@ static func run(t) -> void:
  g=Game.new(42,true,"guard")
  g.state.security=4
  g.Guard.capture(g,g.state.enemies[0])
- t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison_end","STATUS enters real high security ending")
- t.check(not find(g,"terminal").is_empty() and find(g,"inspection").is_empty(),"STATUS terminal shows ending without stale inspection timer")
+ t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison" and g.state.prison.left==g.B.PRISON_INTERVALS[4],"STATUS security five enters the ordinary top-spec cell")
+ t.check(find(g,"terminal").is_empty() and find(g,"inspection").value=="剩余8回合","STATUS five shows the shortest patrol timer instead of a terminal row")
  consolidation(t)
 
 static func consolidation(t) -> void:

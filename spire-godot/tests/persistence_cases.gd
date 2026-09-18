@@ -649,7 +649,7 @@ static func run(t) -> void:
  h=roundtrip(t,g,"inspection complete");step_both(t,g,h,"prison",{"action":"resist"})
  h=roundtrip(t,g,"resistance battle");step_both(t,g,h,"end")
  g=Game.new(42,true,"guard");g.state.security=4;g.Guard.capture(g,g.state.enemies[0]);t.action(g,"prison",{"action":"enter"})
- roundtrip(t,g,"security five ending")
+ roundtrip(t,g,"security five cell")
  g=preload("res://tests/prison_cases.gd").intake(t)
  preload("res://tests/prison_cases.gd").clear_fixture(g)
  for i in range(3): t.action(g,"prison",{"action":"explore"})

@@ -752,3 +752,6 @@ RuleChangePackage与测试边界见docs/prison-release.md。到期出狱和巡�
 
 
 2026-09-19 练习说明维护：敌人生命描述改读正式注册表，消除练习中的旧数值副本；玩偶师开场说明与实际行为一致。更新英文动态模板、清理退休源文并补充缺译。新增正式开局／只读／注册表调整／英文参数回归，同步记录内容检查和后续 Wiki 取数的边界；仅本地维护，验证详见本日 verification 记录。
+
+
+2026-09-19五级监狱最小基线：把正常牢房方案同样应用到警戒度5，不再进入终局。`Prison.enter` 删除 `security>=5` 特殊分支，五级与一至四级共用同一入场路径（`begin_combat`→按 `PRISON_SECURITY[5]` 的收押清单→`Prison.initial`（巡视8回合）→`Space.initial`→躺姿靠墙→重建牌堆→牢房第1回合）；5级仍是本级最高规格（高级3档、普通＋定制复合、`PRISON_SENTENCE[4]=0` 不自动出狱），但只能靠开门／通风口／狱警钥匙逃脱（传送符仍限1–4级）。随之删除 `Prison.high_security()`、迁移行 `prison_high_security`、`capture.terminal_equipment` 的写入与快照校验、候选“查看终局”分支与高安全监室入场 `_emit`；旧档携带 `capture.terminal_equipment` 时在读档丢弃、不再校验，`prison_end` 相位声明与只读投影仅服务旧档。文案（`data/tutorial.gd`）与设计文档（`prison.md` §5、`equipment-design.md` §12、`content.md`、`equipment-query-seam.md`、`transition-pipeline.md`）同步。验证：规则门9套件5513断言、窗口门prison 217断言，均退出码0、指纹未漂移；未跑 oracle／像素／性能（按人指示留到定稿轮），未打包、未推送。详见 docs/record/verification.md。

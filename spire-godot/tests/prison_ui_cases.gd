@@ -13,7 +13,7 @@ static func enter(t, security: int=1) -> void:
  var scene=t.ui.view.capture.intake_scene
  t.check(t.visible_text(t.ui.layout).contains("警戒度 %d" % security) and not t.visible_text(t.ui.layout).contains("拘束具保底") and not scene.is_empty(),"PRISON UI intake keeps current security and exposes its one-time authored scene")
  t.check(scene.restraints.size()>=t.ui.view.capture.added.size() and scene.links.size()==t.ui.view.capture.links.size() and scene.toys.size()==t.ui.view.capture.special_added.size(),"PRISON UI intake receives concrete reusable prose for every installed equipment category")
- t.check(await t.click("prison",{"action":"enter"}) and t.ui.view.phase==("prison_end" if security==5 else "prison"),"PRISON UI real intake button starts configured cell or ending")
+ t.check(await t.click("prison",{"action":"enter"}) and t.ui.view.phase=="prison" and t.ui.view.prison.left==t.ui.game.B.PRISON_INTERVALS[t.ui.game.state.security-1],"PRISON UI real intake button starts the configured cell at every security")
  if security<5:
   var speech=t.ui.find_child("NpcSpeech",true,false)
   t.check(speech==null or not speech.visible or not t.visible_text(speech).contains("欢迎入住"),"PRISON UI cell entry does not replay a persistent intake dialogue")
@@ -126,8 +126,8 @@ static func run(t) -> void:
  t.check(await t.click("item_use",{"item":seal.id,"target":"hero"}) and ui.view.phase=="map" and ui.view.room_name=="出发点" and ui.view.mana==expected_seal_mana,"SEAL UI actual item button leaves the cell and preserves the established low-mana prison-end relic hook")
  t.check(not ui.view.items.any(func(i):return i.id==seal.id),"SEAL UI consumed card disappears")
  await enter(t,5)
- t.check(ui.view.arms==4 and ui.view.legs==4 and ui.view.candidates.is_empty() and t.visible_text(ui.layout).contains("24/24"),"TERMINAL UI displays real fixed values and no continuing actions")
- t.check(ui.view.bodies.all(func(b):return not b.equipment.is_empty()) and not t.visible_text(ui.layout).contains("监牢固定架"),"TERMINAL all actual fixed body regions remain inspectable")
+ t.check(ui.view.phase=="prison" and ui.view.prison.left==8 and not ui.view.candidates.is_empty(),"TERMINAL UI five opens the ordinary cell with the shortest patrol and live actions")
+ t.check(t.visible_text(ui.layout).contains("巡视剩余 8 回合") and not t.visible_text(ui.layout).contains("本次逃脱失败") and not t.visible_text(ui.layout).contains("高安全监室"),"TERMINAL UI five shows the cell screen without the removed ending")
  await t.capture("ui-65-security-five.png")
  await t.inspect_body("neck")
  var collar=ui._body_at("neck").equipment.filter(func(e):return e.lock_only)[0]
