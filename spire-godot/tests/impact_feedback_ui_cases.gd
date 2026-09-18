@@ -7,9 +7,10 @@ const Impact=preload("res://ui/impact_feedback.gd")
 # merge, the fade clock, real pointer clicks through the running effect and the idle
 # state are all covered here; rule-level receipt evidence lives in pressure_cases.gd.
 # The `*_pixels` checks measure the effects on real window frames (root texture) so a
-# parameter change that stops being visible at the lowest intensity turns them red,
-# and the shake probe proves both that the content container moves at its peak and
-# that the settled frame is pixel-identical to the pre-effect one.
+# parameter change that stops being visible at the lowest intensity turns them red.
+# The shake probe displaces the content and compares the displaced peak against the
+# settled frame (never the pre-commit frame, which carries the submission's own frame
+# changes) and asserts the settled frame is pixel-identical to the pre-effect one.
 
 # Pixel acceptance thresholds for the real-window frames. "Differing" counts a pixel
 # whose strongest channel changed by 1/255 or more, so anti-aliased edges count once.
@@ -21,6 +22,7 @@ const PIXEL_FILTER_MAX_DELTA=12
 static func run(t) -> void:
  await committed_triggers(t)
  await layer_contract(t)
+ await teardown(t)
  await merged_receipt(t)
  await real_attack(t)
  await real_pressure(t)
@@ -111,10 +113,40 @@ static func layer_contract(t) -> void:
  layer.play([],{"kind":"card","type":"strain","mode":"strain","preview":{"damage":6.0}},snapshot)
  t.check(layer.shake_pulses==2 and is_equal_approx(layer.shake_step,Impact.FEEDBACK_SHAKE_STRAIN_STEP) and layer.shake_amplitude>0.0,"IMPACT SHAKE a strain payload double-pulses inside the same layer")
  t.check(layer.border.active() and layer.visible,"IMPACT SHAKE the shake joins the running effects instead of cancelling them")
+ # A second shake while the first pulse is still running merges into it: the recorded
+ # origin must stay the first, pre-effect position and the swing must restart from that
+ # origin, so two overlapping shakes never add their amplitudes together.
+ await t.frames(1,false)
+ var shake_origin=layer.shake_origin
+ layer.play([],{"kind":"attack","type":"strike","form":0,"damage":8.0},snapshot)
+ var merged_amplitude=Impact.shake_amplitude_for(8.0)
+ t.check(layer.shake_origin==shake_origin and ui.layout.position==shake_origin,"IMPACT SHAKE a second shake keeps the first recorded origin and restarts from it")
+ var merged_peak=0.0
+ for i in range(90):
+  await t.frames(1,false)
+  merged_peak=maxf(merged_peak,absf(ui.layout.position.x-shake_origin.x))
+  if layer.shake_pulses==0: break
+ t.check(merged_peak>=merged_amplitude-0.5 and merged_peak<=merged_amplitude+0.5,"IMPACT SHAKE the merged shake reaches its own amplitude and never accumulates displacement: peak=%.2f amplitude=%.2f" % [merged_peak,merged_amplitude])
  await t.frames(60)
  t.check(layer.shake_pulses==0 and layer.shake_target==ui.layout and ui.layout.position==layer.shake_origin,"IMPACT SHAKE the pulse settles the content container back to its recorded origin")
  layer.queue_free()
  await t.frames()
+
+static func teardown(t) -> void:
+ # Freeing the layer mid-effect must not leave the content container displaced: the
+ # tween dies with the node, so _exit_tree restores the recorded origin exactly.
+ var ui=t.ui
+ var layer=Impact.new()
+ layer.host=ui
+ ui.add_child(layer)
+ await t.frames()
+ var origin=ui.layout.position
+ layer.play([],{"kind":"card","type":"strain","mode":"strain","preview":{"damage":6.0}},{"pressure":{"value":0.0,"maximum":130.0}})
+ await t.frames(2,false)
+ t.check(layer.shake_pulses>0 and ui.layout.position!=origin,"IMPACT SHAKE a running pulse displaces the container before teardown")
+ layer.queue_free()
+ await t.frames()
+ t.check(ui.layout.position==origin,"IMPACT SHAKE tearing the layer down mid-effect restores the content container exactly")
 
 static func merged_receipt(t) -> void:
  # The UI layer must merge a multi-event receipt itself: one submission, one envelope
@@ -323,26 +355,33 @@ static func shake_pixels(t) -> void:
  var origin=ui.layout.position
  var point=button.get_global_rect().get_center()
  await t.move_mouse(point)
- var baseline=await grab(t)
  t.root.push_input(pointer_event(point,true),true)
  await t.frames(1,false)
  t.root.push_input(pointer_event(point,false),true)
  var observed=await watch_shake(t,ui.impact_feedback,origin)
  report_offset("SHAKE content",observed.peak_offset)
  t.check(observed.moved and observed.peak_offset>0.0,"IMPACT SHAKE PIXELS the committed strike displaces the content container: peak=%.1fpx" % observed.peak_offset)
- if observed.peak_image==null: return
- var band=band_pixels(baseline)
- var content=Rect2i(band,band,baseline.get_width()-2*band,baseline.get_height()-2*band)
- var stats=region_stats(baseline,observed.peak_image,content)
- report_pixels("SHAKE content",stats)
- t.check(stats.max>=PIXEL_SHAKE_MAX_DELTA and stats.share>=PIXEL_SHAKE_SHARE,"IMPACT SHAKE PIXELS the content area moves during the pulse: mean=%.2f max=%d share=%.4f (need max>=%d share>=%.2f)" % [stats.mean,stats.max,stats.share,PIXEL_SHAKE_MAX_DELTA,PIXEL_SHAKE_SHARE])
  t.check(observed.restored,"IMPACT SHAKE PIXELS the content container is restored to the recorded origin exactly")
+ if observed.peak_image==null: return
+ # Isolated pair: the displaced peak frame and the settled frame below share the same
+ # committed state (energy, HP and candidate rows are already updated in both), so the
+ # submission's own frame changes cancel out and the remaining difference is the
+ # content displacement. Authoritative evidence stays `peak_offset` plus this exact
+ # restore; the share below is auxiliary magnitude, never proof of displacement.
+ var restored=await grab(t)
+ var band=band_pixels(restored)
+ var content=Rect2i(band,band,restored.get_width()-2*band,restored.get_height()-2*band)
+ var stats=region_stats(observed.peak_image,restored,content)
+ report_pixels("SHAKE displaced vs restored",stats)
+ t.check(stats.max>=PIXEL_SHAKE_MAX_DELTA,"IMPACT SHAKE PIXELS the content area visibly moves between the displaced and the settled frame: mean=%.2f max=%d share=%.4f" % [stats.mean,stats.max,stats.share])
 
 static func restore_pixels(t) -> void:
  # A real commit also changes energy, HP and the candidate row, so the pre-effect
  # frame is only directly comparable while the shake is the only change. This probe
- # runs the real play() entry on a settled state; the shipped commit path is covered
- # by real_attack and shake_pixels above.
+ # runs the real play() entry on a settled state, so the settled frame is asserted
+ # pixel-identical to the pre-effect frame; the displaced-peak vs settled comparison
+ # below is therefore the isolated displacement criterion (the real-click probe above
+ # reports the same pair while the submission's own frame changes have cancelled out).
  var layer=await settled_layer(t)
  var origin=t.ui.layout.position
  var baseline=await grab(t)
@@ -352,9 +391,15 @@ static func restore_pixels(t) -> void:
  t.check(observed.moved and observed.peak_offset>0.0,"IMPACT SHAKE PIXELS the direct pulse displaces the content container: peak=%.1fpx" % observed.peak_offset)
  t.check(observed.restored and t.ui.layout.position==origin,"IMPACT SHAKE PIXELS the direct pulse restores the recorded origin exactly")
  var after=await grab(t)
- var stats=region_stats(baseline,after,Rect2i(Vector2i.ZERO,baseline.get_size()))
- report_pixels("SHAKE restore",stats)
- t.check(stats.max==0 and stats.share==0.0,"IMPACT SHAKE PIXELS the post-effect frame is pixel-identical to the pre-effect frame: max=%d share=%.4f" % [stats.max,stats.share])
+ var restored_stats=region_stats(baseline,after,Rect2i(Vector2i.ZERO,baseline.get_size()))
+ report_pixels("SHAKE restore",restored_stats)
+ t.check(restored_stats.max==0 and restored_stats.share==0.0,"IMPACT SHAKE PIXELS the post-effect frame is pixel-identical to the pre-effect frame: max=%d share=%.4f" % [restored_stats.max,restored_stats.share])
+ if observed.peak_image!=null:
+  var band=band_pixels(baseline)
+  var content=Rect2i(band,band,baseline.get_width()-2*band,baseline.get_height()-2*band)
+  var displaced=region_stats(observed.peak_image,after,content)
+  report_pixels("SHAKE displaced vs restored isolated",displaced)
+  t.check(displaced.max>=PIXEL_SHAKE_MAX_DELTA and displaced.share>=PIXEL_SHAKE_SHARE,"IMPACT SHAKE PIXELS the isolated displaced frame differs from the pixel-identical settled frame: mean=%.2f max=%d share=%.4f (need max>=%d share>=%.2f)" % [displaced.mean,displaced.max,displaced.share,PIXEL_SHAKE_MAX_DELTA,PIXEL_SHAKE_SHARE])
  layer.queue_free()
  await t.frames()
 

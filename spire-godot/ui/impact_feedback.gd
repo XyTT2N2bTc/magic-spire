@@ -76,7 +76,7 @@ const FEEDBACK_SHAKE_PULSE_DECAY=0.35
 # Geometry: band count and the weight below which a band is transparent enough to skip.
 const FEEDBACK_VIGNETTE_BANDS=18
 const FEEDBACK_BAND_WEIGHT_CUTOFF=0.04
-const FEEDBACK_FALLBACK_COLOR=Color("ed82b9")
+const FEEDBACK_FALLBACK_COLOR=Palette.FEEDBACK_FALLBACK
 # Layering: above the keyboard hint layer (216) and below every popout, panel and
 # float (220 and up), so drawers, drop hints, card motion, feedback and floats stay
 # untinted. The only committed layer it covers is `KeyboardTargets`, a read-only hint
@@ -279,7 +279,7 @@ func _hide_when_idle() -> void:
 class Bands extends Control:
  var reach_ratio=1.0
  var bands=1
- var color=Color("ed82b9")
+ var color=Palette.FEEDBACK_FALLBACK
  var weight_cutoff=0.04
 
  func _init(extent: float, tint: Color, count: int, cutoff: float) -> void:
