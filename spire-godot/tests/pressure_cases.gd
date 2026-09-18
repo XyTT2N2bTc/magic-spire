@@ -123,9 +123,60 @@ static func free_cooling(t) -> void:
  for enemy in g.state.enemies: enemy.intent.delayed=true
  t.check(t.action(g,"end").ok and g.state.pressure==0,"FREE COOLING fractional remainder stops at zero")
 
+static func committed_receipt(t) -> void:
+ # Committed-feedback inputs (ui/impact_feedback.gd): the pleasure filter and the three
+ # border families read the dispatch receipt and never state.logs, so the receipt must
+ # merge every rise of one submission and telescope to the net committed change.
+ var Impact=preload("res://ui/impact_feedback.gd")
+ var g=Game.new(42)
+ for target in g.action_targets(): target.locked=false;g._apply_manual_release(target,0.0)
+ g._cleanup()
+ g.state.relics=[];g.state.pressure=10
+ g.state.pressure_sources=[source("receipt_a","turn_end",3),source("receipt_b","turn_end",4)]
+ for enemy in g.state.enemies: enemy.intent.delayed=true
+ var pressure_before=g.state.pressure
+ var turn=t.action(g,"end")
+ var rises=turn.get("resource_feedback",[]).filter(func(row):return row.field=="pressure")
+ var delta=float(Impact.deltas(rises).get("pressure",0.0))
+ t.check(turn.ok and rises.size()>=2 and is_equal_approx(delta,g.state.pressure-pressure_before),"FEEDBACK pressure receipt merges every rise of one submission and telescopes to the net committed change")
+ t.check(delta>0.0 and Impact.pressure_rise(rises)>0.0 and Impact.will_play(rises,{"kind":"end"}),"FEEDBACK net rising receipt is the trigger the pleasure filter consumes")
+ g.state.pressure_sources=[]
+ var calm=t.find_action(g,"calm")
+ var relief=g.dispatch(calm.id,g.state.version)
+ t.check(relief.ok and Impact.pressure_rise(relief.get("resource_feedback",[]))==0.0 and Impact.border_kind_of(relief.get("resource_feedback",[]),calm.payload)=="calm","FEEDBACK relief receipt asks for the border and never for the filter")
+ var spell=t.find_action(g,"attack",{"type":"fireball","form":0,"enemy":g.state.enemies[0].id})
+ t.check(spell.valid,"FEEDBACK mana payment is measured on a real fireball candidate")
+ if not spell.valid: return
+ var paid=g.dispatch(spell.id,g.state.version)
+ var paid_delta=Impact.deltas(paid.get("resource_feedback",[]))
+ t.check(paid.ok and paid_delta.has("mana") and not paid_delta.has("pressure") and Impact.pressure_rise(paid.get("resource_feedback",[]))==0.0,"FEEDBACK mana payment receipt changes mana only and cannot drive the filter")
+ t.check(Impact.border_kind_of(paid.get("resource_feedback",[]),spell.payload)=="mana" and Impact.border_spec("mana",paid_delta,{}).variant=="loss","FEEDBACK a real mana payment asks for the blue loss border")
+ # witch_focus rides the same additive receipt channel as pressure, so a real witch
+ # grant is visible to the layer without any payload detection. 魔法预备 grants reserve
+ # mana and focus in one submission; a released focus stack is a blue loss like any
+ # other mana-family fall.
+ var Witch=preload("res://tests/witch_character_cases.gd")
+ var witch=Witch.fresh()
+ var preparation=t.hand_card(witch,"witch_preparation")
+ var grant=t.find_action(witch,"card",{"uid":preparation.uid,"free":false})
+ var cast=witch.dispatch(grant.id,witch.state.version)
+ var focus_delta=Impact.deltas(cast.get("resource_feedback",[]))
+ t.check(cast.ok and witch.state.witch_focus==2 and focus_delta.get("witch_focus",0.0)==2.0 and float(focus_delta.get("temporary_mana",0.0))>0.0,"FEEDBACK the receipt carries the witch focus grant like any other field")
+ t.check(Impact.border_kind_of(cast.get("resource_feedback",[]),grant.payload)=="mana","FEEDBACK a focus grant asks for the blue border family")
+ var release_witch=Witch.fresh()
+ release_witch.state.witch_charges.hand=2
+ release_witch.state.witch_focus=3
+ release_witch.state.enemies[0].hp=1000.0
+ release_witch.state.enemies[0].max_hp=1000.0
+ var release=t.find_action(release_witch,"attack",{"type":"witch_hand","form":1})
+ var spent=release_witch.dispatch(release.id,release_witch.state.version)
+ var spent_delta=Impact.deltas(spent.get("resource_feedback",[]))
+ t.check(spent.ok and release_witch.state.witch_focus==0 and Impact.border_kind_of(spent.get("resource_feedback",[]),release.payload)=="mana" and Impact.border_spec("mana",spent_delta,{}).variant=="loss","FEEDBACK a focus-consuming release asks for the blue loss border")
+
 static func run(t) -> void:
  forced_loop_exit(t)
  free_cooling(t)
+ committed_receipt(t)
  flat_mana_cost(t)
  climax_card_practice(t)
  calm_mouth(t)

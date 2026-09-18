@@ -7,6 +7,17 @@ const TEXT=Color("eee8d9")
 const MUTED=Color("a5b3bd")
 const RED=Color("ed9393")
 const INK=Color("111d29")
+# Committed-feedback border tokens (ui/impact_feedback.gd): one per trigger family,
+# so a colour is never written inline at the effect site.
+const BORDER_CALM=Color("f2ede0")
+const BORDER_CHARGE=Color("e8c47b")
+const BORDER_MANA=Color("8fd3ee")
+# Overload/climax pink: the pressure meter, the climax panel and the pleasure-filter
+# overlay all read this one token. FEEDBACK_FALLBACK is the filter's standalone tint
+# (host without OVERLOAD_COLOR); it is named here too so the effect layer carries no
+# colour literal of its own.
+const OVERLOAD=Color("ed82b9")
+const FEEDBACK_FALLBACK=OVERLOAD
 const UI_FONT=preload("res://assets/fonts/NotoSansCJKsc-Regular.otf")
 
 static func surface(bg: Color=INK, border: Color=GOLD.darkened(0.5), radius: int=8) -> StyleBoxFlat:

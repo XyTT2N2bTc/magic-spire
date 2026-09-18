@@ -7,7 +7,7 @@
 第三方代码与素材保留原有版权及许可证，本项目不对其重新授权。现有声明包括：
 
 - [第三方素材来源与授权](spire-godot/assets/vendor/CREDITS.md)
-- [Godot License](spire-godot/docs/licenses/GODOT-LICENSE.txt)
-- [Godot Copyright](spire-godot/docs/licenses/GODOT-COPYRIGHT.txt)
+- [Godot License](spire-godot/packaging/licenses/GODOT-LICENSE.txt)
+- [Godot Copyright](spire-godot/packaging/licenses/GODOT-COPYRIGHT.txt)
 
 各素材目录内的额外版权及许可文件继续有效。

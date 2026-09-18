@@ -4,7 +4,6 @@ const Game=preload("res://core/game.gd")
 const ShopScreen=preload("res://ui/shop_screen.gd")
 const Arena=preload("res://ui/arena.gd")
 const EquipmentPortrait=preload("res://ui/equipment_portrait.gd")
-const OVERLOAD_COLOR=Color("ed82b9")
 const CardFace=preload("res://ui/card_face.gd")
 const StatusIcon=preload("res://ui/status_icon.gd")
 const RouteMap=preload("res://ui/route_map.gd")
@@ -14,7 +13,9 @@ const ActionIndex=preload("res://ui/action_index.gd")
 const TargetQueries=preload("res://ui/target_queries.gd")
 const Backdrop=preload("res://ui/dungeon_backdrop.gd")
 const Palette=preload("res://ui/visual_theme.gd")
+const OVERLOAD_COLOR=Palette.OVERLOAD
 const CombatFeedback=preload("res://ui/combat_feedback.gd")
+const ImpactFeedback=preload("res://ui/impact_feedback.gd")
 const SaveStore=preload("res://core/save_store.gd")
 var saves=SaveStore.new()
 var persistence_enabled=true
@@ -45,6 +46,7 @@ const HERO_STATUS_RECT=Rect2(386,196,52,306)
 
 var enemy_feedback: Control
 var resource_feedback: Control
+var impact_feedback: Control
 var card_motion: Control
 var attack_forms: Dictionary={}
 var selected_character="original"
@@ -191,6 +193,7 @@ func _restore_startup() -> void:
 func _return_home() -> void:
  map_auto_travel=false
  if is_instance_valid(enemy_feedback): enemy_feedback.finish()
+ _clear_impact_feedback()
  _close_drawers();_clear_drop_targets();_clear_player_picker();_hide_term()
  show_home=true;notice=""
  if persistence_enabled: _refresh_save_summaries()
@@ -1946,7 +1949,11 @@ func _submit(c: Dictionary, expected_version: int=-1) -> void:
  if result.ok:
   if not is_instance_valid(resource_feedback):
    resource_feedback=preload("res://ui/resource_feedback.gd").new();resource_feedback.host=self;add_child(resource_feedback)
-  resource_feedback.enqueue(result.get("resource_feedback",[]),feedback_anchor,["mana","flask_mana"] if c.payload.kind=="flask" else [])
+  # 快感与精神集中由瞬时层呈现（粉滤镜／蓝边框），不再另出浮字：只有这两处在同一提交里各自展示一次。
+  var instant_fields=["pressure","witch_focus"]
+  if c.payload.kind=="flask": instant_fields=["mana","flask_mana","pressure","witch_focus"]
+  resource_feedback.enqueue(result.get("resource_feedback",[]),feedback_anchor,instant_fields)
+  _impact_feedback(result.get("resource_feedback",[]),c.payload,updated)
   _animate_cards(result.get("card_feedback",[]),previous_cards)
   card_music.consume(result.get("music_feedback",[]),updated.phase,show_home)
   CombatFeedback.play(self,previous,c.payload)
@@ -1955,6 +1962,7 @@ func _demo_exit_screen() -> void:
  if is_instance_valid(card_motion): card_motion.clear()
  if is_instance_valid(resource_feedback):
   remove_child(resource_feedback);resource_feedback.queue_free();resource_feedback=null
+ _clear_impact_feedback()
  var panel=_panel(Rect2(460,220,680,430));panel.name="DemoExitPanel"
  var column=VBoxContainer.new();column.add_theme_constant_override("separation",24);panel.add_child(column)
  var title=_label("感谢游玩这次demo",36,GOLD);title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;column.add_child(title)
@@ -1979,6 +1987,18 @@ func _animate_cards(events: Array, before: Dictionary) -> void:
   card_motion=preload("res://ui/card_motion.gd").new();card_motion.host=self;add_child(card_motion)
  card_motion.enqueue(events,before)
 
+func _impact_feedback(events: Array, payload: Dictionary, snapshot: Dictionary) -> void:
+ if not ImpactFeedback.will_play(events,payload): return
+ if not is_instance_valid(impact_feedback):
+  impact_feedback=ImpactFeedback.new();impact_feedback.host=self;add_child(impact_feedback)
+ impact_feedback.play(events,payload,snapshot)
+
+func _clear_impact_feedback() -> void:
+ if not is_instance_valid(impact_feedback): return
+ remove_child(impact_feedback)
+ impact_feedback.queue_free()
+ impact_feedback=null
+
 func _reset_interface(initial: Dictionary) -> void:
  if is_instance_valid(card_music): card_music.stop_music()
  if is_instance_valid(keyboard_input): keyboard_input.clear()
@@ -1994,6 +2014,7 @@ func _reset_interface(initial: Dictionary) -> void:
   card_motion.clear();remove_child(card_motion);card_motion.queue_free();card_motion=null
  if is_instance_valid(resource_feedback):
   remove_child(resource_feedback);resource_feedback.queue_free();resource_feedback=null
+ _clear_impact_feedback()
  event_read_page=""
  show_home=false;session_started=true
  if is_instance_valid(enemy_feedback): enemy_feedback.finish()
