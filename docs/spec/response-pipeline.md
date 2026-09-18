@@ -15,13 +15,16 @@
 - 文件域：`ui/main.gd`（唯一允许 `preload` core 的 UI 文件；唯一提交入口与全部节重建函数）、
   `ui/keyboard_input.gd`、`ui/touch_input.gd`、`ui/action_index.gd`、`ui/target_queries.gd`、
   `ui/shell/game_layout.gd`、`ui/shell/body_sidebar.gd`、`ui/shell/header.gd`、
-  反馈模块 `card_motion.gd`／`resource_feedback.gd`／`combat_feedback.gd`／`enemy_feedback.gd`；
+  反馈模块 `card_motion.gd`／`resource_feedback.gd`／`combat_feedback.gd`／`enemy_feedback.gd`／
+  `impact_feedback.gd`；
   core 侧被消费的只有 `core/game.gd` 的 `dispatch`／`get_view`／`number`／`restore_snapshot`／
   `restart_snapshot`／`Prison.*` 与 `core/game_view.gd` 的 `View.build`。
 - 非目标：不改 core 规则、数值、存档语义、快照格式与随机域；不改 arena 立绘重画与分帧动画；
   不改文案与本地化文本；不改输入语义与键位；不改"播报期吃点击"；不新增第三方依赖与常驻钩子；
   不新建流程文件或看板；不宣称帧率提升或全量回归。
-- 授权边界：本管线不新增 UI 文件（若 `commit`／`present` 需要独立文件，先向协调者提案）；
+- 授权边界：本管线默认不新增 UI 文件（若 `commit`／`present` 需要独立文件，先向协调者提案）。
+  唯一例外是本片经任务授权落地的 `ui/impact_feedback.gd`：纯显示、只读消费 `dispatch` 返回值与提交后
+  View，不写规则、不新增规则接口；同类新增此后仍须先提案；
   `ui/reward_screen.gd`／`ui/event_screen.gd`／`ui/shop_screen.gd`／`ui/shell/header.gd`
   继续用整树 `render(view)` 兜底，本契约不改这些文件。
 - 依赖方向（不得新增反向边）：
@@ -33,7 +36,7 @@
 | M3 展示调度 | `ui/main.gd` 的 `present` ＋ 节键 | `present(dirty, snapshot={})`；`render(snapshot)` 兼容整树 | 各节重建函数、键比对、兜底 |
 | M4 只读查询 | `ui/action_index.gd`、`ui/target_queries.gd` | `_init(actions)`／`select`／`find`／`first_usable`；static 查询 | 去重、排序、首／末拒绝原因选择 |
 | M5 静态场景与实例 | `ui/shell/game_layout.gd`、`ui/shell/body_sidebar.gd` | `begin_frame`／`hero_portrait`／`enemy_group`／`body_sidebar`／`end_frame`；`configure`／`_presentation_key`／`expand_applied` | 场景节点、按外观比对、展开预算、滚动 |
-| M6 提交后反馈 | `card_motion.gd`、`resource_feedback.gd`、`combat_feedback.gd`、`enemy_feedback.gd` | `positions`／`enqueue`／`play`／`consume`／`finish` | 补间、队列、播报分页与高亮 |
+| M6 提交后反馈 | `card_motion.gd`、`resource_feedback.gd`、`combat_feedback.gd`、`enemy_feedback.gd`、`impact_feedback.gd` | `positions`／`enqueue`／`play`／`consume`／`finish` | 补间、队列、播报分页与高亮；瞬时层单帧合并与淡出包络 |
 
 `M1 → M2/M3`（经 host）→ `M4/M5` →（`main.gd` 的 `preload`）`core.Game`／`core.SaveStore`；
 `M6 ← M3` 传入的 `view`／`payload`／锚点节点。仅 `ui/main.gd` 允许 `preload` core。
@@ -80,6 +83,7 @@
 | `card_motion.enqueue(events, before)` | core 的 `card_feedback` 事件＋提交前快照 | `commit` ok 分支，且 `present` 之后 | 幽灵卡不持有牌、不挡输入；`pending_draws` 隐藏新抽牌按钮的规则必须被 `present` 的手牌节尊重 |
 | `resource_feedback.enqueue(events, point, instant_fields)` | core 的 `resource_feedback` 事件＋锚点 | `commit` ok 分支 | 只消费已提交差值；`show_home` 时自毁 |
 | `combat_feedback.play(ui, before, payload)` | 提交前 View＋已提交 payload | `commit` ok 分支 | 只用可见前后差分（HP／日志／装备耐久）；不预测、不改伤害／意图／资源／时机 |
+| `impact_feedback.play(events, payload, snapshot) -> void` | `events` 为 `dispatch` 返回的 `resource_feedback` 事件（可为空数组）；`payload` 为本次已提交候选的载荷；`snapshot` 为提交后 View（只读 `snapshot.pressure.value`／`.maximum`）。同一次提交一次调用：层内部按字段求和合并，不逐事件重播 | `commit` ok 分支（经 `ui/main.gd` 的节内助手按 `will_play` 预判后才创建节点） | 只消费已提交数据：不读 `state`／`state.logs`，不预测、不改数值／候选／存档／随机；无效果可播时 `play` 是空操作；层内所有节点 `MOUSE_FILTER_IGNORE`，无 `_process`，一次性 Tween 结束后 `hide()` 并 `set_process(false)` |
 | `enemy_feedback.finish()` | 清 `ui.enemy_feedback` 并释放 | `_return_home`、`_reset_interface`、播报结束 | 节点存在即"播报期"：提交入口守卫与 `blocked()` 都据此吃输入（产品决策）；全屏 `MOUSE_FILTER_STOP` 不得被 `present` 提前回收 |
 
 ### 接缝 B：`commit`／`present`／`present_rejection`
@@ -164,6 +168,10 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
   不得由 UI 预判）；`expected_version` 为 UI 当前 `view.version`，调用方传 `-1` 时由 UI 补。
 - `get_view`：无输入；调用点必须落在唯一集合内（`_resume_snapshot`／`render` 空快照／`commit`／`restart`）。
 - `commit`：`c` 为当前 View 的候选字典（不要求同一引用）；`expected_version < 0` 时取 `view.version`。
+- `impact_feedback.play`：`events` 只接受 `dispatch` 返回值的 `resource_feedback` 数组（字段名与增量口径见
+  `core/resource_feedback.gd` 的 `FIELDS`：`pressure` 为加性字段）；`payload` 只接受本次已提交候选的载荷
+  （普攻读扁平 `damage`，伤害卡读 `preview.damage` 与 `mode`）；`snapshot` 只接受提交后 View。三条输入都不是
+  资格判定来源：载荷／事件与当前 View 不一致时按"照实表现已提交结果"处理，不做规则推演、不重算、不拒绝。
 - `present`：`dirty` 元素必须来自节键表节名或 `["*"]`；未知／缺项按全量兜底处理。
 - `present_rejection`：`dirty` 必须等于下表列出的脏集上界，不得扩大：
 

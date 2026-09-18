@@ -46,11 +46,16 @@ const FEEDBACK_SHAKE_SLIP_PULSES=1
 const FEEDBACK_SHAKE_ATTACK_STEP=0.055
 const FEEDBACK_SHAKE_STRAIN_STEP=0.06
 const FEEDBACK_SHAKE_SLIP_STEP=0.12
+# Each later pulse of one shake swings this much weaker than the first.
+const FEEDBACK_SHAKE_PULSE_DECAY=0.35
 # Geometry: band count and the weight below which a band is transparent enough to skip.
 const FEEDBACK_VIGNETTE_BANDS=18
 const FEEDBACK_BAND_WEIGHT_CUTOFF=0.04
 const FEEDBACK_FALLBACK_COLOR=Color("ed82b9")
-# Layering stays under every drawer, panel and float so nothing readable is tinted.
+# Layering: above the keyboard hint layer (216) and below every popout, panel and
+# float (220 and up), so drawers, drop hints, card motion, feedback and floats stay
+# untinted. The only committed layer it covers is `KeyboardTargets`, a read-only hint
+# panel whose clicks this layer still lets through.
 const FEEDBACK_Z_INDEX=218
 
 var host
@@ -186,7 +191,7 @@ func _play_shake(spec: Dictionary) -> void:
  # Only this container moves; the layout and every committed control stay in place.
  shake_tween=create_tween()
  for index in range(shake_pulses):
-  var amplitude=shake_amplitude*(1.0-0.35*float(index))
+  var amplitude=shake_amplitude*(1.0-FEEDBACK_SHAKE_PULSE_DECAY*float(index))
   shake_tween.tween_property(shake_host,"position:x",amplitude,shake_step).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
   shake_tween.tween_property(shake_host,"position:x",-amplitude,shake_step).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
  shake_tween.tween_property(shake_host,"position:x",0.0,shake_step).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
@@ -253,6 +258,9 @@ class Fade:
  var ends=0.0
  var tween
  var finished=Callable()
+ # Envelope arms since creation. One committed submission must arm a fresh envelope
+ # once; a refresh re-arms it without moving `ends`, which is what the checks read.
+ var starts=0
 
  func _init(target: Control) -> void:
   node=target
@@ -273,6 +281,7 @@ class Fade:
 
  func run(duration: float) -> void:
   if tween!=null and tween.is_valid(): tween.kill()
+  starts+=1
   node.show()
   node.modulate.a=peak
   node.queue_redraw()

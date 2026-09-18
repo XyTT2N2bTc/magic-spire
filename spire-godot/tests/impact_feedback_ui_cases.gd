@@ -9,6 +9,7 @@ const Impact=preload("res://ui/impact_feedback.gd")
 static func run(t) -> void:
  await committed_triggers(t)
  await layer_contract(t)
+ await merged_receipt(t)
  await real_attack(t)
  await real_pressure(t)
  await real_border(t)
@@ -35,14 +36,26 @@ static func committed_triggers(t) -> void:
  t.check(Impact.border_kind_of([{"field":"pressure","before":90.0,"after":70.0}],{"kind":"calm"})=="calm","IMPACT BORDER a deep breath lights the border")
  t.check(Impact.border_kind_of([],{"kind":"end"})=="" and Impact.border_kind_of([],{"kind":"posture","dest":"sit"})=="","IMPACT BORDER ordinary actions and selection clicks light nothing")
  t.check(Impact.FEEDBACK_BORDER_CHARGE_FADE<Impact.FEEDBACK_BORDER_CALM_FADE and Impact.FEEDBACK_BORDER_CHARGE_ALPHA>Impact.FEEDBACK_BORDER_CALM_ALPHA,"IMPACT BORDER charge is shorter and firmer than the deep breath")
- var strain={"kind":"card","type":"strain","mode":"strain","preview":{"damage":6.0}}
- var slip={"kind":"card","type":"slip","mode":"slip","preview":{"damage":6.0}}
+ # Real payload shapes: card payloads carry `mode` and only damage cards carry
+ # `preview.damage`, while basic attacks carry a flat `damage`. The modes below come
+ # from the registered specs, so a synthetic payload cannot drift from card data.
+ var Rules=preload("res://data/card_rules.gd")
+ t.check(Rules.face_mode("strain",false)=="strain" and Rules.face_mode("slip",false)=="slip" and Rules.face_mode("magic_slip",false)=="magic_slip" and Rules.damage_type("magic_hand",false)=="","IMPACT SHAKE the modes under test come from the registered card specs")
+ var g=preload("res://tests/game_fixture.gd").new(42)
+ g.add_fixture("wrist",4,10)
+ var real=g.candidates().filter(func(row):return String(row.payload.get("kind",""))=="card" and row.payload.has("preview") and float(row.payload.preview.get("damage",0.0))>0.0)
+ t.check(not real.is_empty(),"IMPACT SHAKE the fixture exposes a real damage-card candidate with preview damage")
+ if not real.is_empty():
+  t.check(real[0].payload.has("mode") and Impact.damage_of(real[0].payload)==float(real[0].payload.preview.damage) and int(Impact.shake_spec(real[0].payload).get("pulses",0))>0,"IMPACT SHAKE the committed candidate payload shape is what the layer reads")
+ var strain={"kind":"card","type":"strain","slot":"wrist","target":"fixture","free":false,"mode":Rules.face_mode("strain",false),"preview":{"damage":6.0}}
+ var slip={"kind":"card","type":"slip","slot":"wrist","target":"fixture","free":false,"mode":Rules.face_mode("slip",false),"preview":{"damage":6.0}}
+ var magic_slip={"kind":"card","type":"magic_slip","slot":"wrist","target":"fixture","free":false,"mode":Rules.face_mode("magic_slip",false),"preview":{"damage":5.0}}
  var attack={"kind":"attack","type":"strike","form":0,"damage":8.0}
  t.check(int(Impact.shake_spec(attack).get("pulses",0))==1 and int(Impact.shake_spec(strain).get("pulses",0))==2 and int(Impact.shake_spec(slip).get("pulses",0))==1,"IMPACT SHAKE a basic attack is one pulse, strain two, slip one")
  t.check(float(Impact.shake_spec(slip).get("step",0.0))>float(Impact.shake_spec(strain).get("step",0.0)),"IMPACT SHAKE the single slip pulse is longer than a strain pulse")
- t.check(int(Impact.shake_spec({"kind":"card","type":"magic_hand","mode":"magic_slip","preview":{"damage":3.0}}).get("pulses",0))==1,"IMPACT SHAKE magic slip shares the single slip pulse")
- t.check(Impact.shake_spec({"kind":"card","type":"casting","mode":"lower","after":3.0}).is_empty() and Impact.shake_spec({"kind":"card","type":"strain","mode":"strain","preview":{"damage":0.0}}).is_empty(),"IMPACT NO-OP a durability-only card or a zero-damage hit shakes nothing")
- t.check(Impact.damage_of({"preview":{"damage":4.0}})==4.0 and Impact.damage_of({"damage":9.0})==9.0,"IMPACT SHAKE damage is read from the committed card preview and the flat attack amount")
+ t.check(int(Impact.shake_spec(magic_slip).get("pulses",0))==1 and is_equal_approx(float(Impact.shake_spec(magic_slip).get("step",0.0)),float(Impact.shake_spec(slip).get("step",0.0))),"IMPACT SHAKE the real magic slip card shares the single longer slip pulse")
+ t.check(Impact.shake_spec({"kind":"card","type":"magic_hand","slot":"wrist","target":"fixture","free":false,"mode":Rules.face_mode("magic_hand",false),"after":3.0}).is_empty() and Impact.shake_spec({"kind":"card","type":"strain","mode":Rules.face_mode("strain",false),"preview":{"damage":0.0}}).is_empty(),"IMPACT NO-OP the lower-mode card and a zero-damage hit shake nothing")
+ t.check(Impact.damage_of({"preview":{"damage":4.0}})==4.0 and Impact.damage_of(attack)==8.0,"IMPACT SHAKE damage is read from the committed card preview and the flat attack amount")
  t.check(is_equal_approx(Impact.shake_amplitude_for(0.0),Impact.FEEDBACK_SHAKE_MIN_PX) and is_equal_approx(Impact.shake_amplitude_for(999.0),Impact.FEEDBACK_SHAKE_MAX_PX),"IMPACT SHAKE amplitude stays between the pixel bounds for every damage")
 
 static func layer_contract(t) -> void:
@@ -60,7 +73,7 @@ static func layer_contract(t) -> void:
  t.check(layer.border_kind=="" and not layer.border.active() and layer.shake_pulses==0,"IMPACT NO-OP a pressure-only submission starts nothing else")
  layer.play([{"field":"pressure","before":0.0,"after":60.0}],{"kind":"end"},snapshot)
  t.check(is_equal_approx(layer.filter.peak,Impact.filter_peak(0.05,60.0/130.0)),"IMPACT FILTER a rise during the fade refreshes the intensity")
- t.check(absf(layer.filter.ends-first_ends)<=20.0 and is_equal_approx(layer.filter.fade,Impact.filter_fade(10.0/130.0)),"IMPACT FILTER the refreshed rise keeps the running fade clock and length")
+ t.check(absf(layer.filter.ends-first_ends)<=20.0 and is_equal_approx(layer.filter.fade,Impact.filter_fade(10.0/130.0)) and layer.filter.starts==2,"IMPACT FILTER the refreshed rise re-arms the envelope but keeps its clock and length")
  layer.play([],{"kind":"calm"},snapshot)
  t.check(layer.filter.active() and layer.border.active() and layer.border_kind=="calm","IMPACT BORDER the border and the filter coexist in one frame without cancelling each other")
  t.check(is_equal_approx(layer.border.peak,Impact.FEEDBACK_BORDER_CALM_ALPHA) and is_equal_approx(layer.border.fade,Impact.FEEDBACK_BORDER_CALM_FADE),"IMPACT BORDER a deep breath uses the long soft parameters")
@@ -73,6 +86,22 @@ static func layer_contract(t) -> void:
  t.check(layer.border.active() and layer.visible,"IMPACT SHAKE the shake joins the running effects instead of cancelling them")
  await t.frames(60)
  t.check(layer.shake_pulses==0 and layer.shake_host.position==Vector2.ZERO,"IMPACT SHAKE the pulse settles the container back to its origin")
+ layer.queue_free()
+ await t.frames()
+
+static func merged_receipt(t) -> void:
+ # The UI layer must merge a multi-event receipt itself: one submission, one envelope
+ # arm, one fade clock, peak and fade taken from the summed rise.
+ var ui=t.ui
+ var layer=Impact.new()
+ layer.host=ui
+ ui.add_child(layer)
+ await t.frames()
+ var events=[{"field":"pressure","before":0.0,"after":25.0},{"field":"pressure","before":25.0,"after":65.0},{"field":"mana","before":100.0,"after":90.0}]
+ layer.play(events,{"kind":"end"},{"pressure":{"value":0.0,"maximum":130.0}})
+ t.check(float(layer.last_impact.get("rise",0.0))==65.0 and layer.filter.starts==1,"IMPACT FILTER one multi-event receipt arms the filter exactly once")
+ t.check(is_equal_approx(layer.filter.peak,Impact.filter_peak(0.0,65.0/130.0)),"IMPACT FILTER the merged peak uses the summed rise of every receipt event")
+ t.check(is_equal_approx(layer.filter.fade,Impact.filter_fade(65.0/130.0)) and absf(layer.filter.ends-float(Time.get_ticks_msec())-Impact.filter_fade(65.0/130.0)*1000.0)<=20.0,"IMPACT FILTER the merged submission starts one full fade and never restarts it")
  layer.queue_free()
  await t.frames()
 
