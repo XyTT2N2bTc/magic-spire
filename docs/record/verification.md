@@ -1398,3 +1398,22 @@ RuleChangePackage（加性、零规则改动：不动候选、数值、存档、
 **可触发场景（人工口径，写入记录）**：挣扎与滑脱只在压力练习房可触发（菜单 `Practice_pressure`，UI 用例走 `t.start_practice("Practice_pressure")`）；密集装备的战斗夹具里打击被拘束手臂拦住、深呼吸被口部拘束具拦住，两者都到不了提交，所以真实点击用例必须落在练习房，战斗夹具只能覆盖普攻与法力支付。
 
 **未验证**：全量回归（`-Suite all`／`-UISuite all`）、Android 真机、打包与发布；蓝边框的 `witch_focus` 只在规则侧 receipt＋直接 `play()` 的真实帧像素探针上验证过，未经女巫存档的真实点击提交；真实拖拽只覆盖挣扎卡（滑脱／magic_slip 的幅度与步长由 `shake_spec` 单元用例＋同一像素通道覆盖）；两次提交重叠窗口内的族色切换观感未人工确认。
+
+**第四次返工·审查五项收口（2026-09-18，实现者）**：
+
+域：`ui/visual_theme.gd`（新增令牌）、`ui/main.gd`（`OVERLOAD_COLOR` 改读令牌）、`ui/impact_feedback.gd`（两处回退色改读令牌）、`tests/impact_feedback_ui_cases.gd`（两条新证据＋像素判据改写）；契约 `docs/spec/response-pipeline.md` 不变，无规则／候选／存档／随机改动，无玩家文案。
+
+- ① **门禁溯源更正**：第三次返工登记的 **`A6CB801C…`** 两轮（`build/checks/20260918T011931131-4724`、`20260918T012810867-34568`）是**提交前工作区**的指纹（交付提交 `5ef9173` 的树指纹为 `30D93BEC…`），不构成交付版本证据。本次已在交付提交 **`07795c6`** 复跑（其后仅有 docs 提交，不改源码指纹）：**原登记为提交前工作区，已在 `07795c6` 复跑，指纹 `C8D361BC9F49C8F70018C5C18EB0E3E873A7A0B111AE1459141383C45FDE056C`**。
+- ② **令牌收口**：`ui/impact_feedback.gd` 的 `Color("ed82b9")` 两处（`FEEDBACK_FALLBACK_COLOR` 常量与 `Bands.color` 初值）删除，改读 `ui/visual_theme.gd` 新增令牌 `OVERLOAD` 与 `FEEDBACK_FALLBACK`；`ui/main.gd` 的 `OVERLOAD_COLOR` 同步改读 `Palette.OVERLOAD`，全仓 `ed82b9` 只剩令牌定义一处。「效果层无内联 hex」自本轮起为事实。
+- ③ **变更日志指针**：`docs/record/changelog.md` 追加 2026-09-18 行，点名 2026-09-17 条目中「用时长与强度区分来源，不用颜色」与「只位移反馈层、布局不动」两句已被取代，并写明新行为（边框按触发族一族一色；震动位移承载全部已提交控件的 `GameLayout` 且效果后逐像素复位）。
+- ④ **新增两条测试证据**（`tests/impact_feedback_ui_cases.gd`）：`layer_contract` 在脉冲中途再触发一次震动，断言沿用首次记录原点并从该原点重新起摆，再逐帧采样断言合并后的位移峰值落在该次幅度 ±0.5px 内（不叠加）；新函数 `teardown` 在脉冲中途 `queue_free()`，断言 `ui.layout.position` 与效果前逐位相等。敏感性（`build/checks/20260918T021254362-30836`，4.7.2）：把 `_play_shake` 续振分支改成重锚原点且不做复位、并移除 `_exit_tree` 复位后，恰好这 3 条红（合并峰值 6.54px＞幅度 6.00px），其余 112 条不动。
+- ⑤ **像素判据改写（隔离位移）**：`shake_pixels` 不再对照提交前帧（那会混入本次提交自身的 energy／HP／候选行变化），改为**位移峰值帧 vs 复位后帧**——两帧同处已提交状态，提交自身的变化在两侧相同而相消；`restore_pixels`（settled 状态直接 `play()`，复位帧先断言与效果前帧逐像素相同 max=0／share=0）给出完全隔离的位移判据（内容区 max≥24 且 share≥2%）。**真实含义（登记）**：位移证据＝`peak_offset`＋复位帧与效果前帧逐像素相同；share 只是辅助量级，不单独作为位移证明。
+
+**本轮门禁（同一冻结树；引擎 4.7.2.stable.official.ed1daf0bf，`GODOT_BIN` 指向 `*_console.exe`）**：
+- 规则门 `-Suite runner,architecture,core,persistence,pressure,rewards,event_flow,casting -TimeoutSeconds 1800` → 退出码 0、8/8 PASS、`PASS: 5965 assertions`、86.6s（`build/checks/20260918T020049240-17784`）。
+- 窗口门 `-UIOnly -UISuite impact_feedback,display,home,interface,route,pressure,rewards,persistence -KeepGoing -TimeoutSeconds 1800` → 退出码 1、8 套件全部跑完、`UI FAIL: 1354 assertions`（第三次返工 1349＋新增 5）：display 141／home 113／route 134／interface 355／pressure 79／impact_feedback **115**／rewards 313／persistence 104（`build/checks/20260918T020228172-37196`）。红项仍为登记集合、无新增红：`interface` 的 `CARD ART`（28 张 `witch_*` 缺立绘 1 条）＋`pressure` 2 条 `CALM UI` ＋`rewards` 1 条 `REWARD UI`（`UI ENGINE ERRORS: 4`＝这 4 条）。
+- 本轮像素（4.7.2 实测）：滤镜 floor mean=14.301／max=47；边框白 mean=40.245／max=95、黄 mean=49.087／max=139、蓝·预备 mean=43.403／max=116、蓝·集中 mean=43.396／max=116；震动 `peak_offset=5.8px`、位移帧 vs 复位帧内容区 mean=12.580／max=242／share=0.6160（辅助量级）、复位帧 vs 效果前帧整帧 max=0／share=0、直接脉冲隔离探针 max=243／share=0.6128（复位帧已证同于效果前帧）。
+- 冻结 oracle 复跑（脚本与基线 sha256 未动，与上文登记一致：transition 脚本 `59d41c68…`／基线 `ba979d18…`、event 脚本 `cf48529a…`／基线 `bdf08765…`）：`TRANSITIONDIGEST 14eb8cf9c3c8b5d4347b2b9d118b8c504596e04d296d091884995bc359b522b6`（31 场景 0 失败）、`EVENTDIGEST 1f11bea560288ae922fc31ce7f46fb77d5cab22916798e3c1c81a00a131053da`（94 场景 0 失败），逐字节与登记一致；两个 `summary.json` 的 before／after 同为 `C8D361BC…`（运行期间源码未变）。
+- 环境注记：本次会话默认 `GODOT_BIN` 指向 `Godot_v4.7-stable_win64.exe`（`4.7.stable.official.5b4e0cb0f`，非登记引擎）；上述门禁、像素与 oracle 结果均在显式改用 `v4.7.2-stable` 的 `*_console.exe` 后取得，4.7-stable 下的中间结果（`20260918T015807820-17784` 等）不使用。
+
+**未验证（本轮追加）**：新增的续振／拆卸证据是层内直接 `play()`＋`queue_free()` 路径，未覆盖重启或退场菜单触发 `_demo_exit_screen` 的拆卸；上述其余未验证项与前文相同。
