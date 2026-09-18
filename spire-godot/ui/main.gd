@@ -1948,9 +1948,9 @@ func _submit(c: Dictionary, expected_version: int=-1) -> void:
  if result.ok:
   if not is_instance_valid(resource_feedback):
    resource_feedback=preload("res://ui/resource_feedback.gd").new();resource_feedback.host=self;add_child(resource_feedback)
-  # 快感由瞬时滤镜呈现，不再另出浮字：只有这两处在同一提交里各自展示一次。
-  var instant_fields=["pressure"]
-  if c.payload.kind=="flask": instant_fields=["mana","flask_mana","pressure"]
+  # 快感与精神集中由瞬时层呈现（粉滤镜／蓝边框），不再另出浮字：只有这两处在同一提交里各自展示一次。
+  var instant_fields=["pressure","witch_focus"]
+  if c.payload.kind=="flask": instant_fields=["mana","flask_mana","pressure","witch_focus"]
   resource_feedback.enqueue(result.get("resource_feedback",[]),feedback_anchor,instant_fields)
   _impact_feedback(result.get("resource_feedback",[]),c.payload,updated)
   _animate_cards(result.get("card_feedback",[]),previous_cards)

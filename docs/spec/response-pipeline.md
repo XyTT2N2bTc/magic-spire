@@ -83,7 +83,7 @@
 | `card_motion.enqueue(events, before)` | core 的 `card_feedback` 事件＋提交前快照 | `commit` ok 分支，且 `present` 之后 | 幽灵卡不持有牌、不挡输入；`pending_draws` 隐藏新抽牌按钮的规则必须被 `present` 的手牌节尊重 |
 | `resource_feedback.enqueue(events, point, instant_fields)` | core 的 `resource_feedback` 事件＋锚点 | `commit` ok 分支 | 只消费已提交差值；`show_home` 时自毁 |
 | `combat_feedback.play(ui, before, payload)` | 提交前 View＋已提交 payload | `commit` ok 分支 | 只用可见前后差分（HP／日志／装备耐久）；不预测、不改伤害／意图／资源／时机 |
-| `impact_feedback.play(events, payload, snapshot) -> void` | `events` 为 `dispatch` 返回的 `resource_feedback` 事件（可为空数组）；`payload` 为本次已提交候选的载荷；`snapshot` 为提交后 View（只读 `snapshot.pressure.value`／`.maximum`）。同一次提交一次调用：层内部按字段求和合并，不逐事件重播 | `commit` ok 分支（经 `ui/main.gd` 的节内助手按 `will_play` 预判后才创建节点） | 只消费已提交数据：不读 `state`／`state.logs`，不预测、不改数值／候选／存档／随机；无效果可播时 `play` 是空操作；层内所有节点 `MOUSE_FILTER_IGNORE`，无 `_process`，一次性 Tween 结束后 `hide()` 并 `set_process(false)` |
+| `impact_feedback.play(events, payload, snapshot) -> void` | `events` 为 `dispatch` 返回的 `resource_feedback` 事件（可为空数组）；`payload` 为本次已提交候选的载荷；`snapshot` 为提交后 View（只读 `snapshot.pressure.value`／`.maximum`）。同一次提交一次调用：层内部按字段求和合并，不逐事件重播。效果族由已提交事实唯一决定：`pressure` 净涨出滤镜、`charge`／`next_energy` 净涨出黄边框、`mana`／`temporary_mana`／`witch_focus` 净涨出蓝边框、载荷 `kind=="calm"` 出白边框（同提交多族命中按白＞黄＞蓝取一），攻击／挣扎／滑脱载荷出震动 | `commit` ok 分支（经 `ui/main.gd` 的节内助手按 `will_play` 预判后才创建节点） | 只消费已提交数据：不读 `state`／`state.logs`，不预测、不改数值／候选／存档／随机；无效果可播时 `play` 是空操作；层内所有节点 `MOUSE_FILTER_IGNORE`，无 `_process`，一次性 Tween 结束后 `hide()` 并 `set_process(false)`；震动位移的是承载内容的 `main.gd` GameLayout，结束时按记录原点精确复位 |
 | `enemy_feedback.finish()` | 清 `ui.enemy_feedback` 并释放 | `_return_home`、`_reset_interface`、播报结束 | 节点存在即"播报期"：提交入口守卫与 `blocked()` 都据此吃输入（产品决策）；全屏 `MOUSE_FILTER_STOP` 不得被 `present` 提前回收 |
 
 ### 接缝 B：`commit`／`present`／`present_rejection`
@@ -169,7 +169,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 - `get_view`：无输入；调用点必须落在唯一集合内（`_resume_snapshot`／`render` 空快照／`commit`／`restart`）。
 - `commit`：`c` 为当前 View 的候选字典（不要求同一引用）；`expected_version < 0` 时取 `view.version`。
 - `impact_feedback.play`：`events` 只接受 `dispatch` 返回值的 `resource_feedback` 数组（字段名与增量口径见
-  `core/resource_feedback.gd` 的 `FIELDS`：`pressure` 为加性字段）；`payload` 只接受本次已提交候选的载荷
+  `core/resource_feedback.gd` 的 `FIELDS`：`pressure` 与 `witch_focus` 为加性字段）；`payload` 只接受本次已提交候选的载荷
   （普攻读扁平 `damage`，伤害卡读 `preview.damage` 与 `mode`）；`snapshot` 只接受提交后 View。三条输入都不是
   资格判定来源：载荷／事件与当前 View 不一致时按"照实表现已提交结果"处理，不做规则推演、不重算、不拒绝。
 - `present`：`dirty` 元素必须来自节键表节名或 `["*"]`；未知／缺项按全量兜底处理。

@@ -1374,3 +1374,27 @@ RuleChangePackage（加性、零规则改动：不动候选、数值、存档、
 **如实标注（审查要求，不改代码）**：①两个冻结 oracle 的 digest **不覆盖** `resource_feedback` 这条路径（摘要的是 candidates／view／options／snapshot／rng，不含 `dispatch` 返回的 receipt），故本片的**规则侧实际覆盖**就是上文 `tests/pressure_cases.gd` 的 3 条（含"Σ增量＝净变化"与"一次提交 ≥2 个上涨事件"），oracle 只证明事件／迁移结构未被本片改动。②`not is_processing()` 的断言在当前实现下**不可能变红**（脚本未定义 `_process`、无 `set_process(true)`），属结构性守卫，只作"不会退化成常驻逐帧"的静态标注，**不计作行为判据**。
 
 **返工后实测（工作区，分支 `feedback-effects` 第二次提交前；`-KeepGoing`、`-TimeoutSeconds 1800`）**：规则门 `-Suite runner,architecture,core,persistence,pressure,rewards,event_flow,casting` → 退出码 0、8/8 PASS、`PASS: 5962 assertions`（`build/checks/20260918T000926231-16336`）；窗口门 `-UIOnly -UISuite impact_feedback,display,home,interface,route,pressure,rewards,persistence` → 退出码 1、8 套件全部跑完、`UI FAIL: 1320 assertions`，逐套件 display 141／home 113／route 134／interface 355／pressure 79／impact_feedback **81**（原 75 ＋ 规格锚点 1 ＋ 真实载荷 2 ＋ 合并 3）／rewards 313／persistence 104（`build/checks/20260918T001450395-11052`）；两个 oracle digest 逐字不变、脚本与基线 sha256 未动。未验证项不变（全量回归、Android 真机、打包发布、像素级截图比对）。
+
+**第三次返工（2026-09-18，实现者；两项人工试玩缺陷＋触发／配色映射定稿）**：
+
+域：`ui/impact_feedback.gd`、`ui/main.gd`（`_submit` 反馈节）、`ui/visual_theme.gd`（三个边框色 token）、`core/resource_feedback.gd` 的 `FIELDS`、`tests/impact_feedback_ui_cases.gd`、`tests/pressure_cases.gd`；契约 `docs/spec/response-pipeline.md`（`play` 接口行与输入域）。本条**取代**本案例上文两处已被推翻的措辞：①「只位移 `ImpactShakeHost`、布局不动」——正是这句排布导致震动只平移了近乎透明的边缘叠加层、游戏画面从未移动（缺陷 A 的直接原因）；②「颜色语义作废／两种边框只用时长与强度区分」——改为按触发族一族一色（白／黄／蓝，映射见下）。`docs/record/changelog.md` 的 2026-09-17 瞬时反馈批次条目中「不用颜色」「只位移反馈层、布局不动」两句同样以本条为准。
+
+**缺陷 A（震动不可见，结构性）**：`filter_bands`／`border_bands` 原先是 `ImpactShakeHost` 的子节点，震动只把边缘带平移 1.2–6px。现改为位移承载全部已提交控件的 `main.gd` GameLayout（`shake_target=host.layout`；层自身与两条叠加带不动）：`_play_shake` 在效果开始前记录 `shake_origin`，淡出中来的第二次震动沿用同一原点，脉冲结束 `_shake_finished` 按该原点**精确复位**，`_exit_tree` 中途拆卸同样复位。「不得改变布局」的验收口径改为「效果结束后整帧与效果前逐像素相同」：`real_attack` 与两条像素探针都同时断言运行期间确实位移、结束后 `ui.layout.position` 与记录原点逐位相等。幅度 `1.2/0.45/1.2/6.0` → `FEEDBACK_SHAKE_BASE_PX=4.0`／`PER_DAMAGE=0.25`／`MIN=4.0`／`MAX=9.0`（真实伤害 6–8 的挣扎卡／普攻：3.9–4.8px → 5.5–6.0px）。
+
+**缺陷 B（低快感滤镜不可见）**：实测 pressure 6/130、rise 6 时峰值 0.0744，存档帧边缘无可辨变化。参数改为 `FEEDBACK_FILTER_ALPHA_BASE=0.14`／`PER_RATIO=0.25`／`MIN=0.14`／`MAX=0.38`，滤镜与边框共用 `FEEDBACK_EDGE_EXTENT=0.30`（dmax=0.30×半短边；滤镜原 1.0、边框原 0.18），最低强度峰值 0.1438。（工作区里曾残留一次把四个 alpha 常量改回 0.06 的未提交试验，与已提交断言矛盾，本轮已按已提交值恢复。）
+
+**映射定稿（C）**：触发全部来自已提交 receipt 的顶层状态字段净增量＋载荷：`pressure` 净涨→粉滤镜；`charge`／`next_energy` 净涨→黄边框；`mana`／`temporary_mana`／`witch_focus` 净涨→蓝边框；载荷 `kind=="calm"`→白边框；攻击／挣扎／滑脱→震动。`core/resource_feedback.gd` 的 `FIELDS` 加 `witch_focus`（加性、同一通道；该键只在女巫角色 state 上存在，`capture` 用 `state.has` 跳过缺失键，其他角色不受影响）；`ui/main.gd` 的 `instant_fields` 同时抑制它与 `pressure` 的浮字（含 flask 分支）。每族一行声明表 `FEEDBACK_BORDERS`（色 token＋峰值＋淡出），触发字段声明表 `FEEDBACK_BORDER_FIELDS` 的键序即优先级；`border_kind_of` 先判 calm 载荷、再按表返回首个净涨族，故**一次提交只出一条边框**：白＞黄＞蓝。色 token 落 `ui/visual_theme.gd`：`BORDER_CALM`(f2ede0)／`BORDER_CHARGE`(e8c47b)／`BORDER_MANA`(8fd3ee)，效果层无内联 hex。淡出中来的新触发换族色与标签、保留原包络时钟（不重启）。
+
+**三条像素判据实测**（真实窗口 `root.get_texture().get_image()`；判据：震动内容区 max≥24/255 且差异像素占比≥2%，滤镜／边框边带内 mean≥3/255 且 max≥12/255；`build/checks/20260918T011931131-4724`）：
+- 震动：峰值帧 vs 提交前帧的**内容区**（去掉 0.30×半短边边带）max=**243**、share=**0.6645**、mean=14.492，观测峰值位移 5.9px；效果结束后整帧 max=0、share=0（逐像素相同），直接脉冲探针观测位移 5.4px。
+- 滤镜：最低强度（pressure 2/130、rise 2，峰值 0.1438）边带内 mean=**14.240**、max=**47**、share=0.9751。
+- 边框每色一档：白（calm 载荷＋真实深呼吸的 `next_energy` 净涨，像素路径证明优先级）mean=**40.290**、max=**95**；黄（`charge` 净涨 +1）mean=**49.149**、max=**140**；蓝·魔法预备（`temporary_mana` +4）mean=**43.429**、max=**117**；蓝·精神集中（`witch_focus` +2）mean=**43.429**、max=**117**。
+
+**门禁（同一冻结树；两轮 `summary.json` 的 before／after 都是 `A6CB801C3FB9D9B7CF68B63E4E2AC2560376F6D21EAC9074695BBB7BF7BC2926`，即运行期间 `spire-godot` 源码未变）**：
+- 规则门 `-Suite runner,architecture,core,persistence,pressure,rewards,event_flow,casting -TimeoutSeconds 1800` → 退出码 0、8/8 PASS、`PASS: 5965 assertions`、98.5s（`build/checks/20260918T012810867-34568`）；新增 3 条 `tests/pressure_cases.gd` check（女巫 魔法预备 提交的 receipt 携带 `witch_focus`＋`temporary_mana` 增量、该 receipt 判为蓝族、精神集中被消耗的释放不触发任何边框）。
+- 窗口门 `-UIOnly -UISuite impact_feedback,display,home,interface,route,pressure,rewards,persistence -KeepGoing -TimeoutSeconds 1800` → 退出码 1、8 套件全部跑完、`UI FAIL: 1349 assertions`；逐套件 display 141／home 113／route 134／interface 355／pressure 79／impact_feedback **110**（原 95：＋触发／优先级／色 token 8、＋蓝族重染 1、＋边框像素探针 6——原单条 calm 探针 2 条断言改为白／黄／蓝预备／蓝集中四条共 8 条）／rewards 313／persistence 104（`build/checks/20260918T011931131-4724`，465.6s，`-TimeoutSeconds 1800` 下 rewards 未被杀）。红项与登记集合完全一致、无新增红：`interface` 的 `CARD ART`（28 张 `witch_*` 缺立绘 1 条）＋`pressure` 2 条 `CALM UI` ＋`rewards` 1 条 `REWARD UI`（`UI ENGINE ERRORS: 4`＝这 4 条）。
+- 冻结 oracle：两个 `summary.json` 的 before／after 逐字节相同（上表 digest）；内容 oracle 逐字不变——`TRANSITIONDIGEST 14eb8cf9c3c8b5d4347b2b9d118b8c504596e04d296d091884995bc359b522b6`（31 场景 0 失败）、`EVENTDIGEST 1f11bea560288ae922fc31ce7f46fb77d5cab22916798e3c1c81a00a131053da`（94 场景 0 失败）；脚本与基线 sha256 与上文登记值一致（transition 脚本 `59d41c68…`、基线 `ba979d18…`；event 脚本 `cf48529a…`、基线 `bdf08765…`）。
+
+**可触发场景（人工口径，写入记录）**：挣扎与滑脱只在压力练习房可触发（菜单 `Practice_pressure`，UI 用例走 `t.start_practice("Practice_pressure")`）；密集装备的战斗夹具里打击被拘束手臂拦住、深呼吸被口部拘束具拦住，两者都到不了提交，所以真实点击用例必须落在练习房，战斗夹具只能覆盖普攻与法力支付。
+
+**未验证**：全量回归（`-Suite all`／`-UISuite all`）、Android 真机、打包与发布；蓝边框的 `witch_focus` 只在规则侧 receipt＋直接 `play()` 的真实帧像素探针上验证过，未经女巫存档的真实点击提交；真实拖拽只覆盖挣扎卡（滑脱／magic_slip 的幅度与步长由 `shake_spec` 单元用例＋同一像素通道覆盖）；两次提交重叠窗口内的族色切换观感未人工确认。

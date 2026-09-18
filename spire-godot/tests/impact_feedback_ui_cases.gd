@@ -2,11 +2,14 @@ extends RefCounted
 const Impact=preload("res://ui/impact_feedback.gd")
 
 # Named checks for the committed-feedback layer (ui/impact_feedback.gd): the pleasure
-# filter, the charge/deep-breath border and the impact shake. Trigger derivation,
+# filter, the three-family border (white deep breath / yellow charge-next energy / blue
+# mana family) and the impact shake. Trigger derivation, the fixed family priority,
 # merge, the fade clock, real pointer clicks through the running effect and the idle
 # state are all covered here; rule-level receipt evidence lives in pressure_cases.gd.
 # The `*_pixels` checks measure the effects on real window frames (root texture) so a
-# parameter change that stops being visible at the lowest intensity turns them red.
+# parameter change that stops being visible at the lowest intensity turns them red,
+# and the shake probe proves both that the content container moves at its peak and
+# that the settled frame is pixel-identical to the pre-effect one.
 
 # Pixel acceptance thresholds for the real-window frames. "Differing" counts a pixel
 # whose strongest channel changed by 1/255 or more, so anti-aliased edges count once.
@@ -42,11 +45,22 @@ static func committed_triggers(t) -> void:
  t.check(is_equal_approx(Impact.filter_peak(0.0,0.0),Impact.FEEDBACK_FILTER_ALPHA_MIN) and is_equal_approx(Impact.FEEDBACK_FILTER_ALPHA_MIN,0.14),"IMPACT FILTER the lowest intensity sits on the 0.14 alpha floor")
  t.check(is_equal_approx(Impact.filter_peak(1.0,1.0),0.5),"IMPACT FILTER the rise floor may exceed the ratio cap on a full maximum rise")
  t.check(is_equal_approx(Impact.filter_fade(0.0),Impact.FEEDBACK_FILTER_FADE_MIN) and is_equal_approx(Impact.filter_fade(1.0),Impact.FEEDBACK_FILTER_FADE_MAX) and is_equal_approx(Impact.filter_fade(0.2),0.24),"IMPACT FILTER fade stays inside 0.12-0.40s")
- t.check(Impact.border_kind_of([{"field":"charge","before":0,"after":2}],{"kind":"end"})=="charge","IMPACT BORDER a charge rise lights the border")
+ t.check(Impact.border_kind_of([{"field":"charge","before":0,"after":2}],{"kind":"end"})=="charge","IMPACT BORDER a charge rise lights the yellow border")
+ t.check(Impact.border_kind_of([{"field":"next_energy","before":0,"after":1}],{"kind":"end"})=="charge","IMPACT BORDER a deferred-energy rise lights the same yellow border")
  t.check(Impact.border_kind_of([],{"kind":"status_toggle","status":"charge","enabled":true})=="charge","IMPACT BORDER the charge-all toggle lights the border from the committed payload alone")
- t.check(Impact.border_kind_of([{"field":"pressure","before":90.0,"after":70.0}],{"kind":"calm"})=="calm","IMPACT BORDER a deep breath lights the border")
+ t.check(Impact.border_kind_of([{"field":"pressure","before":90.0,"after":70.0}],{"kind":"calm"})=="calm","IMPACT BORDER a deep breath lights the white border")
+ t.check(Impact.border_kind_of([{"field":"mana","before":10,"after":14}],{"kind":"end"})=="mana" and Impact.border_kind_of([{"field":"temporary_mana","before":0,"after":4}],{"kind":"end"})=="mana" and Impact.border_kind_of([{"field":"witch_focus","before":0,"after":2}],{"kind":"end"})=="mana","IMPACT BORDER the mana / reserve-mana / focus family lights the blue border")
+ t.check(Impact.border_kind_of([{"field":"mana","before":10,"after":4}],{"kind":"end"})=="" and Impact.border_kind_of([{"field":"witch_focus","before":3,"after":0}],{"kind":"end"})=="" and Impact.border_kind_of([{"field":"next_energy","before":1,"after":0}],{"kind":"end"})=="","IMPACT BORDER a net fall of any family lights nothing")
  t.check(Impact.border_kind_of([],{"kind":"end"})=="" and Impact.border_kind_of([],{"kind":"posture","dest":"sit"})=="","IMPACT BORDER ordinary actions and selection clicks light nothing")
- t.check(Impact.FEEDBACK_BORDER_CHARGE_FADE<Impact.FEEDBACK_BORDER_CALM_FADE and Impact.FEEDBACK_BORDER_CHARGE_ALPHA>Impact.FEEDBACK_BORDER_CALM_ALPHA,"IMPACT BORDER charge is shorter and firmer than the deep breath")
+ # One border per submission: several families rising together resolve by the fixed
+ # priority calm(white) > charge/next_energy(yellow) > mana family(blue).
+ t.check(Impact.border_kind_of([{"field":"next_energy","before":0,"after":1},{"field":"mana","before":0,"after":5},{"field":"witch_focus","before":0,"after":1}],{"kind":"end"})=="charge","IMPACT BORDER one submission shows a single border and yellow outranks the blue family")
+ t.check(Impact.border_kind_of([{"field":"mana","before":0,"after":5},{"field":"temporary_mana","before":0,"after":2}],{"kind":"calm"})=="calm","IMPACT BORDER the deep-breath payload outranks every field family in the same submission")
+ t.check(Impact.will_play([{"field":"witch_focus","before":0,"after":1}],{"kind":"end"}),"IMPACT BORDER a lone focus rise still asks for the layer")
+ var Palette=preload("res://ui/visual_theme.gd")
+ t.check(Impact.border_row("calm").color==Palette.BORDER_CALM and Impact.border_row("charge").color==Palette.BORDER_CHARGE and Impact.border_row("mana").color==Palette.BORDER_MANA,"IMPACT BORDER each family reads its colour from the palette token, never an inline hex")
+ t.check(Palette.BORDER_CALM!=Palette.BORDER_CHARGE and Palette.BORDER_CHARGE!=Palette.BORDER_MANA and Palette.BORDER_MANA!=Palette.BORDER_CALM,"IMPACT BORDER the three family tokens are distinct colours")
+ t.check(float(Impact.border_row("charge").fade)<float(Impact.border_row("calm").fade) and float(Impact.border_row("charge").alpha)>float(Impact.border_row("calm").alpha),"IMPACT BORDER charge is shorter and firmer than the deep breath")
  # Real payload shapes: card payloads carry `mode` and only damage cards carry
  # `preview.damage`, while basic attacks carry a flat `damage`. The modes below come
  # from the registered specs, so a synthetic payload cannot drift from card data.
@@ -67,7 +81,7 @@ static func committed_triggers(t) -> void:
  t.check(int(Impact.shake_spec(magic_slip).get("pulses",0))==1 and is_equal_approx(float(Impact.shake_spec(magic_slip).get("step",0.0)),float(Impact.shake_spec(slip).get("step",0.0))),"IMPACT SHAKE the real magic slip card shares the single longer slip pulse")
  t.check(Impact.shake_spec({"kind":"card","type":"magic_hand","slot":"wrist","target":"fixture","free":false,"mode":Rules.face_mode("magic_hand",false),"after":3.0}).is_empty() and Impact.shake_spec({"kind":"card","type":"strain","mode":Rules.face_mode("strain",false),"preview":{"damage":0.0}}).is_empty(),"IMPACT NO-OP the lower-mode card and a zero-damage hit shake nothing")
  t.check(Impact.damage_of({"preview":{"damage":4.0}})==4.0 and Impact.damage_of(attack)==8.0,"IMPACT SHAKE damage is read from the committed card preview and the flat attack amount")
- t.check(is_equal_approx(Impact.shake_amplitude_for(0.0),Impact.FEEDBACK_SHAKE_MIN_PX) and is_equal_approx(Impact.shake_amplitude_for(999.0),Impact.FEEDBACK_SHAKE_MAX_PX),"IMPACT SHAKE amplitude stays between the pixel bounds for every damage")
+ t.check(is_equal_approx(Impact.shake_amplitude_for(0.0),Impact.FEEDBACK_SHAKE_MIN_PX) and is_equal_approx(Impact.shake_amplitude_for(999.0),Impact.FEEDBACK_SHAKE_MAX_PX) and Impact.FEEDBACK_SHAKE_MIN_PX>=4.0,"IMPACT SHAKE amplitude stays in the 4-9px perceptibility band for every damage")
 
 static func layer_contract(t) -> void:
  var ui=t.ui
@@ -80,18 +94,20 @@ static func layer_contract(t) -> void:
  var first_ends=layer.filter.ends
  t.check(layer.visible and layer.filter.active() and is_equal_approx(layer.filter_bands.modulate.a,layer.filter.peak),"IMPACT FILTER a committed rise draws the vignette at its peak")
  t.check(is_equal_approx(layer.filter.peak,0.1525) and is_equal_approx(layer.filter.fade,Impact.filter_fade(10.0/130.0)),"IMPACT FILTER low pressure follows the ratio formula and its own fade length")
- t.check(layer.filter_bands.color==ui.OVERLOAD_COLOR and layer.border_bands.color==ui.OVERLOAD_COLOR,"IMPACT FILTER both effects reuse the climax color and never a new palette entry")
+ t.check(layer.filter_bands.color==ui.OVERLOAD_COLOR and layer.border_bands.color==Impact.border_row("calm").color,"IMPACT FILTER the filter keeps the climax tint while the border wears its family token")
  t.check(layer.border_kind=="" and not layer.border.active() and layer.shake_pulses==0,"IMPACT NO-OP a pressure-only submission starts nothing else")
  layer.play([{"field":"pressure","before":0.0,"after":60.0}],{"kind":"end"},snapshot)
  t.check(is_equal_approx(layer.filter.peak,Impact.filter_peak(0.05,60.0/130.0)),"IMPACT FILTER a rise during the fade refreshes the intensity")
  t.check(absf(layer.filter.ends-first_ends)<=20.0 and is_equal_approx(layer.filter.fade,Impact.filter_fade(10.0/130.0)) and layer.filter.starts==2,"IMPACT FILTER the refreshed rise re-arms the envelope but keeps its clock and length")
  layer.play([],{"kind":"calm"},snapshot)
  t.check(layer.filter.active() and layer.border.active() and layer.border_kind=="calm","IMPACT BORDER the border and the filter coexist in one frame without cancelling each other")
- t.check(is_equal_approx(layer.border.peak,Impact.FEEDBACK_BORDER_CALM_ALPHA) and is_equal_approx(layer.border.fade,Impact.FEEDBACK_BORDER_CALM_FADE),"IMPACT BORDER a deep breath uses the long soft parameters")
+ t.check(is_equal_approx(layer.border.peak,float(Impact.border_row("calm").alpha)) and is_equal_approx(layer.border.fade,float(Impact.border_row("calm").fade)) and layer.border_bands.color==Impact.border_row("calm").color,"IMPACT BORDER a deep breath uses the long soft white parameters")
  var calm_ends=layer.border.ends
  layer.play([],{"kind":"status_toggle","status":"charge","enabled":true},snapshot)
- t.check(layer.border_kind=="charge" and is_equal_approx(layer.border.peak,Impact.FEEDBACK_BORDER_CHARGE_ALPHA),"IMPACT BORDER the charge toggle raises the border to the firm peak")
- t.check(absf(layer.border.ends-calm_ends)<=20.0 and is_equal_approx(layer.border.fade,Impact.FEEDBACK_BORDER_CALM_FADE),"IMPACT BORDER a new border trigger keeps the running fade clock instead of restarting")
+ t.check(layer.border_kind=="charge" and is_equal_approx(layer.border.peak,float(Impact.border_row("charge").alpha)) and layer.border_bands.color==Impact.border_row("charge").color,"IMPACT BORDER the charge toggle raises the border to the firm yellow peak")
+ t.check(absf(layer.border.ends-calm_ends)<=20.0 and is_equal_approx(layer.border.fade,float(Impact.border_row("calm").fade)),"IMPACT BORDER a new border trigger keeps the running fade clock instead of restarting")
+ layer.play([{"field":"witch_focus","before":0,"after":1}],{"kind":"end"},snapshot)
+ t.check(layer.border_kind=="mana" and layer.border_bands.color==Impact.border_row("mana").color,"IMPACT BORDER a focus rise retints the running border blue")
  layer.play([],{"kind":"card","type":"strain","mode":"strain","preview":{"damage":6.0}},snapshot)
  t.check(layer.shake_pulses==2 and is_equal_approx(layer.shake_step,Impact.FEEDBACK_SHAKE_STRAIN_STEP) and layer.shake_amplitude>0.0,"IMPACT SHAKE a strain payload double-pulses inside the same layer")
  t.check(layer.border.active() and layer.visible,"IMPACT SHAKE the shake joins the running effects instead of cancelling them")
@@ -192,7 +208,7 @@ static func real_border(t) -> void:
  layer=ui.impact_feedback
  t.check(is_instance_valid(layer) and ui.view.pressure.value<before and layer.last_impact.get("border_kind","")=="calm","IMPACT BORDER a real deep breath lights the border")
  if not is_instance_valid(layer): return
- t.check(is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),Impact.FEEDBACK_BORDER_CALM_ALPHA) and is_equal_approx(float(layer.last_impact.get("border_fade",0.0)),Impact.FEEDBACK_BORDER_CALM_FADE),"IMPACT BORDER the deep breath border uses the long soft parameters")
+ t.check(is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),float(Impact.border_row("calm").alpha)) and is_equal_approx(float(layer.last_impact.get("border_fade",0.0)),float(Impact.border_row("calm").fade)) and layer.border_bands.color==Impact.border_row("calm").color,"IMPACT BORDER the deep breath border uses the long soft white parameters")
  t.check(float(layer.last_impact.get("filter_peak",0.0))==0.0,"IMPACT FILTER a deep breath lowers pressure and never draws the filter")
  await t.frames(60)
  ui.game.state.charge=1
@@ -205,7 +221,7 @@ static func real_border(t) -> void:
  layer=ui.impact_feedback
  t.check(is_instance_valid(layer) and ui.game.state.charge==charge_before and layer.last_impact.get("border_kind","")=="charge","IMPACT BORDER the committed toggle changes no amount and still lights the border")
  if not is_instance_valid(layer): return
- t.check(is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),Impact.FEEDBACK_BORDER_CHARGE_ALPHA) and is_equal_approx(float(layer.last_impact.get("border_fade",0.0)),Impact.FEEDBACK_BORDER_CHARGE_FADE),"IMPACT BORDER the charge toggle uses the short firm parameters")
+ t.check(is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),float(Impact.border_row("charge").alpha)) and is_equal_approx(float(layer.last_impact.get("border_fade",0.0)),float(Impact.border_row("charge").fade)) and layer.border_bands.color==Impact.border_row("charge").color,"IMPACT BORDER the charge toggle uses the short firm yellow parameters")
  t.check(float(layer.last_impact.get("filter_peak",0.0))==0.0 and int(layer.last_impact.get("shake_pulses",0))==0,"IMPACT NO-OP the payload-only toggle starts no filter and no shake")
 
 static func passthrough(t) -> void:
@@ -268,14 +284,29 @@ static func filter_pixels(t) -> void:
  await t.frames()
 
 static func border_pixels(t) -> void:
+ # One probe per border family at its only strength: the family is what the trigger
+ # selects, so the weakest trigger of that family is the lowest intended intensity. The
+ # calm probe carries the real deep-breath receipt shape (a next_energy rise) to prove
+ # in the render path that calm outranks the yellow family. The blue family is probed
+ # twice because both named sources must reach the blue token: the reserve mana of
+ # 魔法预备 (temporary_mana) and the 精神集中 stack gain (witch_focus).
+ await border_probe(t,"BORDER calm",[{"field":"next_energy","before":0,"after":1}],{"kind":"calm"},"calm")
+ await border_probe(t,"BORDER charge",[{"field":"charge","before":0,"after":1}],{"kind":"end"},"charge")
+ await border_probe(t,"BORDER mana reserve",[{"field":"temporary_mana","before":0,"after":4}],{"kind":"end"},"mana")
+ await border_probe(t,"BORDER mana focus",[{"field":"witch_focus","before":0,"after":2}],{"kind":"end"},"mana")
+
+## One border family on a settled frame: the effect must fire its family, wear the
+## family palette token and be visible inside the edge band of the real window frame.
+static func border_probe(t, label: String, events: Array, payload: Dictionary, kind: String) -> void:
  var layer=await settled_layer(t)
  var baseline=await grab(t)
- layer.play([],{"kind":"calm"},{"pressure":{"value":40.0,"maximum":130.0}})
+ layer.play(events,payload,{"pressure":{"value":40.0,"maximum":130.0}})
  var peak=await grab(t)
  var stats=edge_band_stats(baseline,peak,band_pixels(baseline))
- report_pixels("BORDER calm",stats)
- t.check(layer.last_impact.get("border_kind","")=="calm" and is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),Impact.FEEDBACK_BORDER_CALM_ALPHA),"IMPACT BORDER PIXELS the probe lights the calm border at its only strength")
- t.check(stats.max>=PIXEL_FILTER_MAX_DELTA and stats.mean>=PIXEL_FILTER_MEAN_DELTA,"IMPACT BORDER PIXELS the calm border is visible inside the edge band: mean=%.2f max=%d share=%.4f" % [stats.mean,stats.max,stats.share])
+ report_pixels(label,stats)
+ var row=Impact.border_row(kind)
+ t.check(layer.last_impact.get("border_kind","")==kind and layer.border_bands.color==row.color and is_equal_approx(float(layer.last_impact.get("border_peak",0.0)),float(row.alpha)),"IMPACT BORDER PIXELS %s fires its family and wears its palette token" % label)
+ t.check(stats.max>=PIXEL_FILTER_MAX_DELTA and stats.mean>=PIXEL_FILTER_MEAN_DELTA,"IMPACT BORDER PIXELS %s is visible inside the edge band: mean=%.2f max=%d share=%.4f" % [label,stats.mean,stats.max,stats.share])
  layer.queue_free()
  await t.frames()
 
@@ -297,6 +328,7 @@ static func shake_pixels(t) -> void:
  await t.frames(1,false)
  t.root.push_input(pointer_event(point,false),true)
  var observed=await watch_shake(t,ui.impact_feedback,origin)
+ report_offset("SHAKE content",observed.peak_offset)
  t.check(observed.moved and observed.peak_offset>0.0,"IMPACT SHAKE PIXELS the committed strike displaces the content container: peak=%.1fpx" % observed.peak_offset)
  if observed.peak_image==null: return
  var band=band_pixels(baseline)
@@ -316,6 +348,7 @@ static func restore_pixels(t) -> void:
  var baseline=await grab(t)
  layer.play([],{"kind":"card","type":"strain","mode":"strain","preview":{"damage":6.0}},{"pressure":{"value":0.0,"maximum":130.0}})
  var observed=await watch_shake(t,layer,origin)
+ report_offset("SHAKE restore",observed.peak_offset)
  t.check(observed.moved and observed.peak_offset>0.0,"IMPACT SHAKE PIXELS the direct pulse displaces the content container: peak=%.1fpx" % observed.peak_offset)
  t.check(observed.restored and t.ui.layout.position==origin,"IMPACT SHAKE PIXELS the direct pulse restores the recorded origin exactly")
  var after=await grab(t)
@@ -356,6 +389,11 @@ static func band_pixels(image: Image) -> int:
 
 static func report_pixels(label: String, stats: Dictionary) -> void:
  print("PIXEL %s: mean=%.3f max=%d share=%.4f pixels=%d" % [label,stats.mean,stats.max,stats.share,stats.pixels])
+
+## Observed displacement of the content container, in window pixels, so the shake
+## amplitude is part of the check log even when the probe passes.
+static func report_offset(label: String, offset: float) -> void:
+ print("PIXEL %s: peak_offset=%.1fpx" % [label,offset])
 
 static func pointer_event(point: Vector2, pressed: bool) -> InputEventMouseButton:
  var event=InputEventMouseButton.new()

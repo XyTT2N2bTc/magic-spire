@@ -1,7 +1,9 @@
 extends Control
 
+const Palette=preload("res://ui/visual_theme.gd")
+
 # Transient post-commit impacts: one full-screen pass-through layer for the three
-# committed-feedback effects (pleasure filter, charge/deep-breath border, impact shake).
+# committed-feedback effects (pleasure filter, coloured border, impact shake).
 #
 # Contract: inputs are the committed dispatch receipt (`resource_feedback`) and the
 # committed payload plus the post-commit View. The layer never reads state.logs, never
@@ -10,6 +12,12 @@ extends Control
 # stays IGNORE on every node here, so ordinary clicks keep reaching the layout below.
 # The shake displaces main.gd's GameLayout (the container that carries every committed
 # control) and restores its recorded origin exactly; the overlay bands never move.
+#
+# Trigger table, all derived from the committed receipt (net delta of plain top-level
+# state fields, see core/resource_feedback.gd) plus the committed payload: pressure
+# rise -> pink filter; charge/next_energy rise -> yellow border; mana / temporary_mana
+# / witch_focus rise -> blue border; payload kind=="calm" -> white border; attack /
+# strain / slip payload -> shake.
 
 # ---------------------------------------------------------------------------
 # FEEDBACK_* parameter table: the single source of every effect value.
@@ -28,26 +36,35 @@ const FEEDBACK_FILTER_FADE_BASE=0.12
 const FEEDBACK_FILTER_FADE_PER_RATIO=0.6
 const FEEDBACK_FILTER_FADE_MIN=0.12
 const FEEDBACK_FILTER_FADE_MAX=0.40
-# Charge / deep-breath border. Color carries no meaning here, so the two sources are
-# told apart by duration and strength: charge is a resource already loaded for the
-# next strike and reads short and firm; a deep breath is a slow deliberate act and
-# reads longer and softer.
-const FEEDBACK_BORDER_CHARGE_ALPHA=0.50
-const FEEDBACK_BORDER_CHARGE_FADE=0.22
-const FEEDBACK_BORDER_CALM_ALPHA=0.30
-const FEEDBACK_BORDER_CALM_FADE=0.60
+# Border families: one row per family, holding the palette token and the timing.
+# Colour carries the family (white deep breath, yellow charge/next energy, blue mana
+# family); the timing keeps the old force reading: charge is a resource already loaded
+# for the next strike and reads short and firm, a deep breath is a slow deliberate act
+# and reads longer and softer, and a mana gain sits between them. Rows are read-only:
+# callers read values out, never mutate the table.
+const FEEDBACK_BORDERS={
+ "calm":{"color":Palette.BORDER_CALM,"alpha":0.30,"fade":0.60},
+ "charge":{"color":Palette.BORDER_CHARGE,"alpha":0.50,"fade":0.22},
+ "mana":{"color":Palette.BORDER_MANA,"alpha":0.40,"fade":0.35},
+}
+# Which receipt fields light which field-driven family, in fixed priority order (the
+# first net rise wins, so one submission still shows one border). The deep breath
+# family is payload-driven, checked first, and is not listed here.
+const FEEDBACK_BORDER_FIELDS={"charge":["charge","next_energy"],"mana":["mana","temporary_mana","witch_focus"]}
 # Edge band extent shared by the filter and the border: the same 1-(d/dmax)^2 weight
 # and dmax is this fraction of the half short side, so both lights stay on the four
 # screen edges. 0.30 replaced the old per-effect values (1.0 spread the filter too
 # thin to read at the alpha floor, 0.18 drew the border as a hairline) and is the
 # band the pixel checks measure.
 const FEEDBACK_EDGE_EXTENT=0.30
-# Impact shake: amplitude and pulse count encode force, never color, never a layout
-# change: the content container is displaced for the pulse and restored exactly.
-const FEEDBACK_SHAKE_BASE_PX=1.2
-const FEEDBACK_SHAKE_PER_DAMAGE_PX=0.45
-const FEEDBACK_SHAKE_MIN_PX=1.2
-const FEEDBACK_SHAKE_MAX_PX=6.0
+# Impact shake: amplitude and pulse count encode force, never colour, never a layout
+# change: the content container is displaced for the pulse and restored exactly. The
+# floor is 4px because the earlier 1.2-6px band displaced the content too little to
+# read; the peak frame is measured against the pre-effect frame over the content area.
+const FEEDBACK_SHAKE_BASE_PX=4.0
+const FEEDBACK_SHAKE_PER_DAMAGE_PX=0.25
+const FEEDBACK_SHAKE_MIN_PX=4.0
+const FEEDBACK_SHAKE_MAX_PX=9.0
 const FEEDBACK_SHAKE_ATTACK_PULSES=1
 const FEEDBACK_SHAKE_STRAIN_PULSES=2
 const FEEDBACK_SHAKE_SLIP_PULSES=1
@@ -125,15 +142,25 @@ static func shake_spec(payload: Dictionary) -> Dictionary:
  if mode in ["slip","magic_slip"]: return {"pulses":FEEDBACK_SHAKE_SLIP_PULSES,"step":FEEDBACK_SHAKE_SLIP_STEP,"damage":damage}
  return {}
 
-## Border source per committed submission: "charge", "calm" or "".
+## Border family per committed submission: "calm", "charge", "mana" or "". Fixed
+## priority calm(white) > charge/next_energy(yellow) > mana family(blue), so one
+## submission that raises several families still shows exactly one border.
 static func border_kind_of(events: Array, payload: Dictionary) -> String:
- if float(deltas(events).get("charge",0.0))>0.0: return "charge"
  var kind=String(payload.get("kind",""))
+ if kind=="calm": return "calm"
  # The right-click charge toggle only flips charge_all and changes no receipt field,
  # so the committed payload is the only evidence that charge was loaded.
  if kind=="status_toggle" and String(payload.get("status","")) in ["charge","charge_all"]: return "charge"
- if kind=="calm": return "calm"
+ var totals=deltas(events)
+ for family in FEEDBACK_BORDER_FIELDS:
+  for field in FEEDBACK_BORDER_FIELDS[family]:
+   if float(totals.get(field,0.0))>0.0: return family
  return ""
+
+## Read-only row of a border family (see FEEDBACK_BORDERS). An unknown kind falls back
+## to the mana row; the only caller passes a kind produced by border_kind_of.
+static func border_row(kind: String) -> Dictionary:
+ return FEEDBACK_BORDERS.get(kind,FEEDBACK_BORDERS["mana"])
 
 static func will_play(events: Array, payload: Dictionary) -> bool:
  return pressure_rise(events)>0.0 or border_kind_of(events,payload)!="" or not shake_spec(payload).is_empty()
@@ -147,6 +174,8 @@ func _ready() -> void:
  set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  z_index=FEEDBACK_Z_INDEX
  set_process(false)
+ # The filter keeps the climax tint from the host; the border takes its family token
+ # (calm until a committed trigger says otherwise) and is retinted by _play_border.
  var tint=FEEDBACK_FALLBACK_COLOR if host==null else host.OVERLOAD_COLOR
  bands_host=Control.new()
  bands_host.name="ImpactBandsHost"
@@ -154,7 +183,7 @@ func _ready() -> void:
  add_child(bands_host)
  bands_host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  filter_bands=Bands.new(FEEDBACK_EDGE_EXTENT,tint,FEEDBACK_VIGNETTE_BANDS,FEEDBACK_BAND_WEIGHT_CUTOFF)
- border_bands=Bands.new(FEEDBACK_EDGE_EXTENT,tint,FEEDBACK_VIGNETTE_BANDS,FEEDBACK_BAND_WEIGHT_CUTOFF)
+ border_bands=Bands.new(FEEDBACK_EDGE_EXTENT,border_row("calm").color,FEEDBACK_VIGNETTE_BANDS,FEEDBACK_BAND_WEIGHT_CUTOFF)
  bands_host.add_child(filter_bands)
  bands_host.add_child(border_bands)
  filter=Fade.new(filter_bands)
@@ -195,9 +224,12 @@ func _play_filter(rise: float, snapshot: Dictionary) -> void:
 
 func _play_border(kind: String) -> void:
  border_kind=kind
- var peak=FEEDBACK_BORDER_CHARGE_ALPHA if kind=="charge" else FEEDBACK_BORDER_CALM_ALPHA
- if border.active(): border.refresh(peak)
- else: border.start(peak,FEEDBACK_BORDER_CHARGE_FADE if kind=="charge" else FEEDBACK_BORDER_CALM_FADE)
+ var row=border_row(kind)
+ # The band redraws with its family token even when the running fade keeps its clock:
+ # the newest committed trigger is what the border is labelled as.
+ border_bands.set_tint(row.color)
+ if border.active(): border.refresh(float(row.alpha))
+ else: border.start(float(row.alpha),float(row.fade))
 
 func _play_shake(spec: Dictionary) -> void:
  # A shake arriving inside a running one merges: keep the recorded origin so the
@@ -255,6 +287,12 @@ class Bands extends Control:
   color=tint
   bands=maxi(1,count)
   weight_cutoff=cutoff
+
+ ## Retint a live band; the weight profile and the modulate fade are untouched.
+ func set_tint(value: Color) -> void:
+  if color==value: return
+  color=value
+  queue_redraw()
 
  func _ready() -> void:
   mouse_filter=Control.MOUSE_FILTER_IGNORE

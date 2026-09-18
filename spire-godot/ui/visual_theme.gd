@@ -7,6 +7,11 @@ const TEXT=Color("eee8d9")
 const MUTED=Color("a5b3bd")
 const RED=Color("ed9393")
 const INK=Color("111d29")
+# Committed-feedback border tokens (ui/impact_feedback.gd): one per trigger family,
+# so a colour is never written inline at the effect site.
+const BORDER_CALM=Color("f2ede0")
+const BORDER_CHARGE=Color("e8c47b")
+const BORDER_MANA=Color("8fd3ee")
 const UI_FONT=preload("res://assets/fonts/NotoSansCJKsc-Regular.otf")
 
 static func surface(bg: Color=INK, border: Color=GOLD.darkened(0.5), radius: int=8) -> StyleBoxFlat:
