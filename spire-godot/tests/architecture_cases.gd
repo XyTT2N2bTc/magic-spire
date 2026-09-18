@@ -625,7 +625,7 @@ static func index_entry_parity(t) -> void:
  var opened_prison=captured._equipment_read
  var entered=captured.Prison.enter(captured)
  var entered_reference=prison_reference.Prison.enter(prison_reference)
- t.check(entered==entered_reference and captured.export_snapshot()==prison_reference.export_snapshot() and captured._equipment_read.is_empty() and is_same(opened_prison,captured._equipment_read), "INDEX high security entry matches the live reference and releases its tail scope")
+ t.check(entered==entered_reference and captured.export_snapshot()==prison_reference.export_snapshot() and captured._equipment_read.is_empty() and is_same(opened_prison,captured._equipment_read), "INDEX security-five prison entry matches the live reference without opening a tail scope")
  var prison_validate=captured.validate()
  var prison_validate_reference=prison_reference.validate()
  t.check(prison_validate==prison_validate_reference and captured.Prison.validate(captured)==prison_reference.Prison.validate(prison_reference) and captured._equipment_read.is_empty(),"INDEX nested prison validation agrees with the live reference")

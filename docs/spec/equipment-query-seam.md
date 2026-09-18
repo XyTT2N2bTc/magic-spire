@@ -50,7 +50,7 @@
 | `equipment_entry(g,e,slot)` | 索引 `equipment_views` | 仅当 `is_same(e, _equipment(e.id))`（非权威实例绕开复用） | 深拷贝 + 覆盖 `slot` | 显示行 |
 
 - **「无耐久过滤」的四处必须原样保留**（`targets_at` 特殊件分支、`equipment_targets`／`action_targets` 的链接、
-  `link_anchors` 的股绳锚、`equipment_targets` 整体）：它们决定徒手解除与监狱终局清单的范围，收紧或放松都会改候选。
+  `link_anchors` 的股绳锚、`equipment_targets` 整体）：它们决定徒手解除与监狱巡视基准清单的范围，收紧或放松都会改候选。
 - **返回值政策**：索引内部只读共享；只在真正需要的边界复制一次（`equipment_at`／`physical_pieces`／
   `_stack_items`／`escape_preview`／`cast_view`／`equipment_entry` 在返回处 `.duplicate()`／`.duplicate(true)`）。
   新增的边（点→件、根→组件、宿主→肩、连接、绳、锚、`targets`／`actions` 清单）沿用同一政策：
@@ -103,8 +103,7 @@
 | `SelfBinding.tighten_targets`（含 `capacity()`） | `core/self_binding.gd` | 全函数（叶）；推演期换 state 时由身份判定自动绕开 |
 | `RoomEvents.selector_values` | `core/room_events.gd` | `"restraint"` 分支的只读块 |
 | `RoomEvents.compile` | `core/room_events.gd` | **只包** `targets=` 过滤表达式；`locked_assembly` 分支会换 state，不得包全函数 |
-| `Prison.high_security` | `core/prison.gd` | 尾部只读块；前半段在写装备，不得包全身 |
-| `Prison.validate` | `core/prison.gd` | 该只读块；若已在 `Game.validate` 之下的嵌套调用，则为空操作 |
+| `Prison.validate` | `core/prison.gd` | 无自带只读块；若已在 `Game.validate` 之下的嵌套调用，则为空操作 |
 | `Game._prepare_assembly` | `core/game.gd` | 规划段（`_assembly_reason`、层序循环、`_capacity_issue`）；真正写入在其后的 `_install_assembly` |
 
 - 作用域**不得加在叶查询上**（`equipment_at`／`physical_pieces`／`_equipment`／`capacity_used`／
@@ -247,7 +246,7 @@ departure: core/game.gd.new(42)               # 出货开局，departure 相位
      → 每个调用后 `_equipment_read` 为空、`state` 未变、返回值与索引关闭时一致。
   6. `equipment_index_entry_parity`：索引开／关运行 `EnemyPlans.targets`、`Contact.workspace`、
      `EquipmentOffers.preferred`／`for_pool`、`SelfBinding.tighten_targets`／`capacity`、
-     `RoomEvents.selector_values`／`compile`、`Prison.high_security`／`validate`、`Game._prepare_assembly`
+     `RoomEvents.selector_values`／`compile`、`Prison.enter`／`validate`、`Game._prepare_assembly`
      → 返回的 id 序列／槽位表／顺序／原因文本逐项相等。
   7. 边上取样（每批一条，落在对应套件）：部位→件与「第 N 条」名称、点→件与容量、根→组件与 `targets_at`
      拼接顺序、绳／锚／目标清单的耐久过滤差异、宿主→肩部件与 `0.000001` 过滤、连接清单只含连接式。

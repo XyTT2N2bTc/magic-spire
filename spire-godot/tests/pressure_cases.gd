@@ -384,5 +384,5 @@ static func forced_loop_exit(t) -> void:
 
  g=forced_loop_fixture();g.state.security=4
  var exit=t.find_action(g,"surrender")
- t.check(exit.valid and g.dispatch(exit.id,g.state.version).ok and g.state.phase=="captured" and g.state.security==5,"FEEDBACK security-four surrender reaches final intake before the terminal state")
- t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison_end","FEEDBACK final intake proceeds to the existing terminal state")
+ t.check(exit.valid and g.dispatch(exit.id,g.state.version).ok and g.state.phase=="captured" and g.state.security==5,"FEEDBACK security-four surrender reaches the security-five intake page")
+ t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison" and g.state.prison.left==g.B.PRISON_INTERVALS[4],"FEEDBACK security-five intake proceeds into the ordinary cell")

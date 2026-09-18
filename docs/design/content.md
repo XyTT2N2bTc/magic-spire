@@ -53,7 +53,7 @@
 - 普通装备的等级、紧度、容量、精准位置、三档添加优先级与“先补空小部位”的排序见 `./game-design.md` §6.5；`EquipmentOffers.preferred` 在同优先级内优先选择能覆盖空小部位的方案。
 - 链接候选统一读 `EquipmentOffers.links`：区域内纵向子部位可任意相连，跨区域只取相邻边界，股绳仅接手腕／大腿根；每对物理装备最多一条；复合按真实组件共享额度；`contact_points` 随两端保存并复核。
 - 新增普通单件可安装部位时必须同步提供 `Equipment.WEAR_TEXTS` 正文，不能退回“已装在某处”的占位句。
-- 五级终局只用已登记的高安全组合与合法填充流程，不得引用旧 `security/terminal` 固定架的1000耐久或零伤害倍率作为普通模板。
+- 五级只是规格最高的普通牢房：追加与替换只用已登记的高安全组合（`PRISON_SECURITY[5]`）与合法填充流程，不新增专用组合或终局配置；不得引用旧 `security/terminal` 固定架的1000耐久或零伤害倍率作为普通模板。
 - 道具逐一选择来源：商店 `data/room_services.gd::TOOLS+PRICES`、事件效果／奖励、休息服务、`core/prison.gd` 活动发现池或练习配置。传送符（折返符）有定义与使用逻辑但不进入任何随机生成池——正式新局抵达塔底时获得1张，见 `./game-design.md` §14。
 - 遗物新增 hook 必须先有真实读取／触发代码（当前已消费的数值 hook：`battle_mana`、`capacity`、`preparation_turns`、`opening_draw`、`turn_draw`、`turn_energy_step`、`combat_retention_layers`、`pickup_cards` 等）；事件钩子为挣扎归零、卡牌滑脱降档、飞踢落地与实际魔力支付。断缚护腕等带额外条件的遗物由 `RelicEffects` 处理，不能只写一个看似合理的 `modifiers` 键。
 - 随机遗物来自 `REWARDS` 并排除已持有；初始余烬护符与指定事件遗物只登记 `TYPES`。当前没有每个敌人的独立掉落表，不要凭敌人模板的 `loot` 字段发物品。
