@@ -1443,3 +1443,12 @@ RuleChangePackage（加性、零规则改动：不动候选、数值、存档、
 - **交付树指纹**：规则门与窗口门的 before／after 同为 **`2D2AAD80AA0AF5A3C30D64905D3E88031588F8E706A02B42C9FB0469D758F5A0`**（运行期间 `spire-godot` 源码未变，交付提交沿用该树）。
 
 **未验证（本轮追加）**：全量回归、Android 真机、打包与发布与前文相同；蓝族 loss 的真实像素证据取「变身失败」一条（失败卡留手、帧对干净），成功支付与 gain 的像素判据来自同比例的定格直接 `play()` 探针（成功施法会消耗卡牌、离手动画与效果窗口重叠，未做真实提交的像素对）；多字段混合符号的观感未人工确认（数值上按归一化求和并入单一边框）。
+
+**独立复核（2026-09-18，独立会话子代理，轻量迭代口径）**：
+
+域：`ui/impact_feedback.gd` 与 `tests/impact_feedback_ui_cases.gd`（提交 `51bfcfb`，交付树指纹 `2D2AAD80…`）；本会话不改产品代码，只读核对差异，敏感性改动用完即还原。
+
+- 差异核对（只读）：`border_kind_of` 的非 rise-only 分支为 `elif delta!=0.0`；`FEEDBACK_BORDER_RISE_ONLY={"charge":true}`；蓝族字段表为 `mana`／`temporary_mana`／`witch_focus`（`flask_mana` 不在）；`border_spec` 的 gain／loss 行与 `mana_peak` 的 `min(|ratio|,1)` 均取自 `FEEDBACK_*` 表；`core/` 与 `ui/main.gd` 相对 `1378cd0` 无净改动。
+- 独立窗口门：`tools/check.ps1 -UIOnly -UISuite impact_feedback -TimeoutSeconds 1800`（`GODOT_BIN` 指向 `v4.7.2-stable` 的 `*_console.exe`，4.7.2.stable.official.ed1daf0bf）→ 退出码 **0**、`SUITE RESULT: impact_feedback PASS`、**146 断言**、46.9s（`build/checks/20260918T033423088-27392`；before／after 同为 `2D2AAD80…`）。像素实测：失败施法 loss 边带 mean=9.244／max=38，蓝 gain 探针 mean=20.132／max=54，蓝 loss 探针 mean=4.514／max=16，滤镜 floor mean=14.302／max=47，震动 peak_offset=6.0px、隔离位移 max=243／share=0.6145、复位帧整帧 max=0／share=0。
+- 敏感性（独立复现，与实现者报告一致）：把蓝族分支改成 rise-only（`elif delta>0.0`）→ 同一套件 **8 条红**、`SUITE RESULT: impact_feedback FAIL`、退出码 1、146→140 断言；红项含 `IMPACT BORDER a real failed cast lights the blue loss border from the receipt alone`、`IMPACT BORDER the successful mana-paying action draws the blue loss border instead of staying dark`、`BORDER mana loss` 两条像素（mean=0／max=0）；`build/checks/20260918T033536000-37300`，修改树指纹 `5FD8B57A…`（与实现者敏感性运行逐字相同）。随后 `git checkout` 还原：`git status` 干净、`border_kind_of` 回到 `elif delta!=0.0`、交付树指纹不变。
+- **本轮未跑：规则门／oracle／性能测量**（按人指示"不必每次都测效率"，留到定稿轮）；像素判据未另跑独立脚本或截图，只随 `impact_feedback` 套件执行。实现者会话同轮另行跑过规则门与冻结 oracle（数字见上一段），不在本复核范围内。
