@@ -64,7 +64,7 @@ static func rest_restriction(t) -> void:
  for type in g.Cards.Rules.SPECS:
   if not g.Cards.Rules.SPECS[type].has("self_faces"): continue
   var p={"kind":"card","type":type,"uid":"probe","free":true,"self_target":true}
-  t.check(g.Cards.reason(g,p)=="休息房禁止卡牌自由效果。","REST all self-targeted free effects use the shared rest restriction: "+type)
+  t.check((g.Cards.reason(g,p)=="休息房禁止卡牌自由效果。")==g.Cards.Rules.free_effect(type,true),"REST self-targeted faces follow their declared bound or free classification: "+type)
  g=fresh();g._start_rest();g._begin_rest();g._discard_end()
  var target=g.add_fixture("wrist",4)
  card=Give.give(g,"concentration")

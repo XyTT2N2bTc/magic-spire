@@ -44,7 +44,19 @@ static func run(t) -> void:
  await t.finish_ui_room()
  t.check(ui.view.phase=="map" and ui.game.state.completed_rooms.has(elite),"SUMMIT UI elite victory returns to actual connected tower routes")
 
+ ui.restart(43);await t.frames()
+ ui.game.state.room_encounters.summit="iron_man_solo";ui.game.room_data("summit").encounter="iron_man_solo";ui.game.room_data("summit").name="塔顶 · 铁男"
+ await enter_room(t,"summit")
+ var iron_members={}
+ for member in ui.view.enemies: iron_members[member.template]=member.maximum
+ t.check(iron_members=={"iron_man":150.0,"binding_box":50.0,"iron_drone":50.0} and ui.view.room_name=="塔顶 · 铁男","SUMMIT UI Iron Man boss room displays the boss and both approved supports")
+ var iron_id=ui.view.enemies.filter(func(e):return e.template=="iron_man")[0].id
+ var iron_art=ui.find_child("EnemyArt_"+iron_id,true,false)
+ t.check(iron_art.mode=="iron_man" and is_instance_valid(iron_art.enemy_sprite) and iron_art.enemy_sprite.texture.resource_path.ends_with("/iron_man.svg") and iron_art.enemy_sprite.texture.get_image().detect_alpha()!=Image.ALPHA_NONE,"SUMMIT ART actual Iron Man boss resolves its own transparent mechanical portrait")
+ await t.capture("ui-iron-man-battle.png")
+
  ui.restart(42);await t.frames()
+ ui.game.state.room_encounters.summit="six_bind_solo";ui.game.room_data("summit").encounter="six_bind_solo";ui.game.room_data("summit").name="塔顶 · 六缚"
  await enter_room(t,"summit")
  t.check(not ui.view.practice and ui.view.enemies.size()==1 and ui.view.enemies[0].template=="six_bind" and ui.view.enemies[0].maximum==220 and ui.view.room_name=="塔顶 · 六缚","SUMMIT UI final room starts the real boss battle")
  await t.capture("ui-43-summit-battle.png")
@@ -55,11 +67,12 @@ static func run(t) -> void:
   e.intent={"kind":"capture","text":"执行收押","delayed":false}
  ui.render();await t.frames()
  t.check(await t.click("end") and ui.view.phase=="captured" and ui.view.security==1 and ui.view.reward_count==0,"SUMMIT UI capture exits final battle once without winning")
- t.check(t.visible_text(ui.layout).contains("重新开始塔路") and not t.visible_text(ui.layout).contains("再次挑战同一组魅魔警卫"),"SUMMIT UI run loss offers correct restart instead of equipment practice")
+ t.check(t.visible_text(ui.layout).contains("重新开始") and not t.visible_text(ui.layout).contains("再次挑战"),"SUMMIT UI run loss offers the current new-run action instead of equipment practice")
  await t.capture("ui-44-summit-capture.png")
  t.check(await t.click("prison",{"action":"enter"}) and ui.view.phase=="prison" and not ui.view.practice,"SUMMIT UI loss continues through shared real prison mode")
 
  ui.restart(42);await t.frames()
+ ui.game.state.room_encounters.summit="six_bind_solo";ui.game.room_data("summit").encounter="six_bind_solo";ui.game.room_data("summit").name="塔顶 · 六缚"
  await enter_room(t,"summit")
  await t.finish_ui_room()
  t.check(ui.view.phase=="map" and ui.game.state.completed_rooms.has("summit") and ui.actions.find("route",{"room":"exit"}).valid,"SUMMIT UI actual victory/reward/preparation opens exit")
@@ -73,6 +86,7 @@ static func run(t) -> void:
  t.check(t.visible_text(ui.layout).contains("快感降低40") and t.visible_text(ui.layout).contains("姿势变为站立"),"EXIT UI continuation explains its recovery before clicking")
  t.check(await t.click("demo_continue") and ui.view.demo_cycle==1 and ui.view.phase=="map" and ui.view.mana==ui.game.state.mana_max and ui.game.action_targets().is_empty(),"EXIT UI continue rebuilds tower and clears equipment")
  t.check(ui.view.pressure.value==35.0 and ui.view.posture=="stand" and ui.game.state.logs.any(func(log):return log.text.contains("快感降低40，姿势变为站立")),"EXIT UI real continuation shows reduced pressure, standing and matching log")
+ ui.game.state.room_encounters.summit="six_bind_solo";ui.game.room_data("summit").encounter="six_bind_solo";ui.game.room_data("summit").name="塔顶 · 六缚"
  await enter_room(t,"summit")
  t.check(ui.view.enemies[0].maximum==330,"EXIT UI next tower displays scaled boss health")
  # Final-cycle boundary only; skip replaying the already-covered full battle path.

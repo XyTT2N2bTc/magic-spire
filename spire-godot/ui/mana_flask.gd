@@ -10,11 +10,16 @@ static func build(ui) -> void:
  var value=ui._label(ui.game.number(ui.view.mana_flask.mana),25,ui.CYAN);value.name="FlaskManaValue"
  value.autowrap_mode=TextServer.AUTOWRAP_OFF;value.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
  value.tooltip_text=ui.game.number(ui.view.mana_flask.mana);value.mouse_filter=Control.MOUSE_FILTER_STOP
- ui._place(value,Rect2(123,22,91,36),panel)
- var uses=ui._label("●".repeat(ui.view.mana_flask.remaining)+"○".repeat(2-ui.view.mana_flask.remaining),12,ui.GOLD)
- uses.name="FlaskDepositUses";uses.tooltip_text="本回合可存入%d次" % ui.view.mana_flask.remaining;uses.mouse_filter=Control.MOUSE_FILTER_STOP
- ui._place(uses,Rect2(125,54,64,18),panel)
+ ui._place(value,Rect2(123,14,91,36),panel)
  for op in ["deposit","withdraw"]:
+  if ui.view.mana_flask.limited:
+   var left=ui.view.mana_flask.remaining if op=="deposit" else ui.view.mana_flask.withdraw_remaining
+   var dots="●".repeat(left)+"○".repeat(ui.view.mana_flask.limit-left)
+   var caption=ui.localization.text("ui.flask."+op+"_uses","存 {dots}" if op=="deposit" else "取 {dots}",{"dots":dots})
+   var uses=ui._label(caption,11,ui.GOLD)
+   uses.name="FlaskDepositUses" if op=="deposit" else "FlaskWithdrawUses"
+   uses.tooltip_text=("本回合可存入%d次" if op=="deposit" else "本回合可取出%d次") % left;uses.mouse_filter=Control.MOUSE_FILTER_STOP
+   ui._place(uses,Rect2(123,50 if op=="deposit" else 66,91,18),panel)
   var choice=ui.actions.find("flask",{"op":op})
   if choice.is_empty(): continue
   var label="存入" if op=="deposit" else "取出"

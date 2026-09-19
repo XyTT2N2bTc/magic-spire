@@ -74,6 +74,8 @@ static func intake_equipment(g) -> Dictionary:
  var enough=not rule.is_empty() and count>=rule.floor
  var quota=0 if enough else (rule.floor-count+rule.extra if not rule.is_empty() else B.CAPTURE_EXTRA_BASE+g.state.security)
  var spec=equipment_spec(g,quota)
+ # Intake links have their own quota and must not consume ordinary/root slots.
+ spec.allow_links=false
  if not rule.is_empty(): spec.tier=2
  var installed=g.Application.execute(g,spec,"prison","prison").installed
  if not rule.is_empty():
@@ -157,7 +159,7 @@ static func start_practice(g) -> void:
 # Security five is only the strongest ordinary cell: capture already applied PRISON_SECURITY[5],
 # and entry follows the same path as one to four instead of a separate terminal scene.
 static func enter(g) -> String:
- g.RelicEffects.begin_combat(g)
+ g.RelicEffects.begin_combat(g,"prison")
  g.state.prison=initial(g)
  g.state.prison.space=Space.initial(g)
  g.state.posture="lie";g.state.wall_distance=0
@@ -251,7 +253,7 @@ static func candidates(g, out: Array) -> void:
   reason="牢门已经打开。" if p.door_open else ("需要先到牢门前。" if not Space.at(g,"door") else g.Cards.body_reason(g,card.type))
   var payload={"kind":"prison","action":"unlock","uid":card.uid,"type":card.type,"target":"prison_door","slot":"wrist","mode":"unlock","free":false}
   var door_args={"type":card.type}
-  g._candidate(out,payload,g.B.CARD_NAMES[card.type]+" · 牢门",{"kind":"prison.unlock_door","args":door_args,"fallback":unlock_door_detail(g,door_args)},g.Cards.Rules.energy_cost(card.type),g._mana_cost(B.SPELL_COST),reason,"","prison")
+  g._candidate(out,payload,g.B.CARD_NAMES[card.type]+" · 牢门",{"kind":"prison.unlock_door","args":door_args,"fallback":unlock_door_detail(g,door_args)},g.Cards.energy_cost(g,card.type,false),g.Cards.face_mana(g,card.type,false),reason,"","prison")
 
 static func capacity_reason(g) -> String:
  return "随身道具超出容量，请在道具栏使用或放弃多出的工具。" if g.carried_items()>g.item_capacity() else ""
@@ -339,7 +341,7 @@ static func execute(g, c: Dictionary) -> String:
    begin_turn(g)
   "resist":
    g.RelicEffects.end_combat(g)
-   g.RelicEffects.begin_combat(g)
+   g.RelicEffects.begin_combat(g,"battle")
    p.resisting=true
    p.reinforcements=0
    # The battle keeps the cell position: state.wall_distance stays as the exploration
@@ -390,7 +392,7 @@ static func after_preparation(g) -> bool:
   return_to_tower(g)
   return true
  if not g.state.prison.get("active",false) or not g.state.prison.get("key",false): return false
- g.RelicEffects.begin_combat(g)
+ g.RelicEffects.begin_combat(g,"prison")
  g.state.prepare_left=0; g.state.rest_left=0
  g.state.enemies=[]
  g.state.wall_distance=Space.wall_distance(g.state.prison.space.position)

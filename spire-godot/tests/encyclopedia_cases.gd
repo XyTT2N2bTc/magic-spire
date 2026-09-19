@@ -74,6 +74,8 @@ static func run(t) -> void:
   t.check(entries.filter(func(e):return e.category=="special" and e.id==type)[0].text.contains("每次高潮：受到6－当前紧度档位－装备等级的固定滑脱伤害"),"BOOK urethral rod explains climax slip formula: "+type)
  t.check(not entries.filter(func(e):return e.category=="special" and e.id=="urethral_full_cup_high")[0].text.contains("固定滑脱伤害"),"BOOK integrated urethral cup does not inherit the separate rod-family rule")
  t.check(entries.filter(func(e):return e.category=="enemies").size()==Book.N.TYPES.size(),"BOOK all registered enemies included, not pending designs")
+ var iron_box=entries.filter(func(e):return e.category=="enemies" and e.id=="binding_box")[0]
+ t.check(iron_box.text.contains("生命：64") and iron_box.text.contains("铁男战中的随行实例为50") and iron_box.text.contains("小魔女铁男战为65"),"BOOK binding box distinguishes its ordinary and Iron Man encounter health")
  var relics=entries.filter(func(e):return e.category=="relics")
  t.check(relics.size()==g.Relics.TYPES.values().filter(func(spec):return spec.get("character_id","")!="witch").size() and relics.all(func(e):return e.rarity==g.Relics.TYPES[e.id].rarity and e.rarity_name==g.Relics.RARITIES[e.rarity]),"RELIC every registered relic has its authoritative rarity in encyclopedia")
  t.check(relics.any(func(e):return e.id=="ember" and e.group=="初始遗物") and "ember" not in g.Relics.REWARDS,"RELIC starter classification does not add it to reward sources")

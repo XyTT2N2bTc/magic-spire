@@ -24,7 +24,7 @@ static func start(g) -> void:
    var excluded=room.stock.filter(func(row):return row.kind=="relic").map(func(row):return row.type)
    var relic=g.RelicRewards.offer(g,"shop" if room.kind=="shop" else room.chest_size,rng,excluded)
    _add(room,"relic",relic,Data.RELIC_PRICES[g.Relics.TYPES[relic].rarity] if room.kind=="shop" else 0.0)
- g._emit("event","来到魔力商店。商品已摆好，价格以魔力结算。" if room.kind=="shop" else "发现遗物宝箱，可以打开领取，也可以直接离开。")
+ g._emit("event","来到魔力商店。商品已摆好，价格以魔力结算。" if room.kind=="shop" else "发现遗物宝箱，可以打开领取，也可以直接离开。",{"shop_entry":{"room":room.id}} if room.kind=="shop" else {})
 
 static func _add(room: Dictionary, kind: String, type: String, price: float) -> void:
  room.stock.append({"kind":kind,"type":type,"price":price,"taken":false})
@@ -43,6 +43,13 @@ static func detail(g, offer: Dictionary) -> String:
    return "共%d次使用。\n" % g.Tools.TYPES[offer.type].uses+g.Tools.description(g,offer.type)
   "relic": return g.Relics.RARITIES[g.Relics.TYPES[offer.type].rarity]+"遗物 · "+g.Relics.TYPES[offer.type].detail
  return ""
+
+static func discounted_price(g, base: float) -> float:
+ # Stored stock prices stay undiscounted; every quote derives from current relics.
+ var price=base
+ if g.state.phase=="shop":
+  for id in g.state.relics: price*=maxf(0.0,1.0-g.RelicEffects.definition(g,id).modifiers.get("shop_discount_percent",0.0)/100.0)
+ return price
 
 static func payment_notice(g, source: String) -> String:
  if source=="self" and g.state.special_equipment.any(func(item):return item.get("durability",0)>0 and g.SpecialEquipment.is_chastity(item)):
@@ -92,14 +99,14 @@ static func candidates(g, out: Array) -> void:
   else:
    var required_payment=g.Relics.TYPES[offer.type].get("shop_payment","") if offer.kind=="relic" else ""
    var offer_args={"offer":offer}
-   paid_candidate(g,out,payload,"购买 · "+name(g,offer),{"kind":"service.offer","args":offer_args,"fallback":offer_detail(g,offer_args)},offer.price,reason,"service",required_payment)
+   paid_candidate(g,out,payload,"购买 · "+name(g,offer),{"kind":"service.offer","args":offer_args,"fallback":offer_detail(g,offer_args)},discounted_price(g,offer.price),reason,"service",required_payment)
  if room.kind=="shop":
   for job in release_jobs(g):
    var job_args={"job":job}
    paid_candidate(g,out,{"kind":"service","op":"release","target":job.id},"解除「"+job.name+"」",{"kind":"service.release_job","args":job_args,"fallback":release_job_detail(g,job_args)},job.price,job.reason,"service_release")
  if room.kind=="shop" and not room.remove_used:
   for card in g.state.deck:
-   paid_candidate(g,out,{"kind":"service","op":"remove","uid":card.uid},"移除「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"service.remove_card","args":{},"fallback":remove_card_detail(g,{})},Data.removal_price(g.state.shop_removals),"","service_remove")
+   paid_candidate(g,out,{"kind":"service","op":"remove","uid":card.uid},"移除「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"service.remove_card","args":{},"fallback":remove_card_detail(g,{})},discounted_price(g,Data.removal_price(g.state.shop_removals)),"","service_remove")
  g._candidate(out,{"kind":"service","op":"leave"},"离开房间",{"kind":"service.leave","args":{},"fallback":leave_detail(g,{})},0,0,"","","service_flow")
 
 static func execute(g, p: Dictionary) -> String:
@@ -131,7 +138,7 @@ static func execute(g, p: Dictionary) -> String:
   var removed_type=g.Cards.remove_permanent(g,p.uid)
   if removed_type=="": return "所选卡牌已经不在卡组中。"
   var title=g.B.CARD_NAMES[removed_type]
-  var price=Data.removal_price(g.state.shop_removals)
+  var price=discounted_price(g,Data.removal_price(g.state.shop_removals))
   room.remove_used=true
   g.state.shop_removals+=1
   g._emit("event","在商店移除了「"+title+"」，支付%s魔力。" % g.number(price),{"shop_trade":trade,"shop_card_removal":{"count":g.state.shop_removals,"price":price}})
@@ -208,7 +215,8 @@ static func release_jobs(g) -> Array:
 
 static func _job(g, id: String, title: String, pieces: Array, composite: bool) -> Dictionary:
  var locked=pieces.any(func(p):return p.locked)
- var price=Data.RELEASE.base+(Data.RELEASE.composite if composite else 0.0)+(Data.RELEASE.locked if locked else 0.0)
+ var base_price=Data.RELEASE.base+(Data.RELEASE.composite if composite else 0.0)+(Data.RELEASE.locked if locked else 0.0)
+ var price=discounted_price(g,base_price)
  var reason="";var locations=[];var ids=[]
  for piece in pieces:
   ids.append(piece.id)
@@ -223,6 +231,7 @@ static func _job(g, id: String, title: String, pieces: Array, composite: bool) -
  var price_detail="基础%s魔力" % g.number(Data.RELEASE.base)
  if composite: price_detail+="＋复合处理%s" % g.number(Data.RELEASE.composite)
  if locked: price_detail+="＋开锁%s" % g.number(Data.RELEASE.locked)
+ if price!=base_price: price_detail+="；折后%s魔力" % g.number(price)
  return {"id":id,"name":title,"pieces":ids,"composite":composite,"locked":locked,"price":price,"price_detail":price_detail,"location":"、".join(locations),"reason":reason,"detail":"店主用双手完整卸下这一件"+("及其全部组件" if composite else "及附带固定")+"。"+("费用包含开锁。" if locked else "")+"不消耗你的能量，不推进回合。"}
 
 static func view(g) -> Dictionary:
@@ -231,7 +240,7 @@ static func view(g) -> Dictionary:
  for index in range(room.stock.size()):
   var offer=room.stock[index]
   if offer.kind=="card" and not offer.taken and not g.can_offer_card(offer.type): continue
-  stock.append({"index":index,"kind":offer.kind,"type":offer.type,"name":name(g,offer),"detail":detail(g,offer),"price":offer.price,"taken":offer.taken})
+  stock.append({"index":index,"kind":offer.kind,"type":offer.type,"name":name(g,offer),"detail":detail(g,offer),"price":discounted_price(g,offer.price),"taken":offer.taken})
   if offer.kind=="relic":
    stock.back().required_payment=g.Relics.TYPES[offer.type].get("shop_payment","")
    stock.back().rarity=g.Relics.TYPES[offer.type].rarity
@@ -240,7 +249,11 @@ static func view(g) -> Dictionary:
  var greeting_id="shop:%s:entry" % g.state.room
  var performance={}
  for index in range(g.state.logs.size()-1,-1,-1):
-  var data=g.state.logs[index].data
+  var log=g.state.logs[index]
+  var data=log.data
+  # Room ids repeat across towers. Only this visit can supply a payment scene.
+  # The phase boundary also scopes older saves without an explicit entry marker.
+  if log.get("phase","")!="shop" or data.has("shop_entry"): break
   if data.has("shop_trade") and data.shop_trade.get("room","")==g.state.room:
    var trade=data.shop_trade
    if trade.get("source","")=="flask":
@@ -253,4 +266,4 @@ static func view(g) -> Dictionary:
      performance.id="shop:%s:%d:%s" % [g.state.room,index,trade.method]
      performance.method=trade.method
    break
- return {"chest_name":g.RelicRewards.CHESTS.get(room.get("chest_size",""),"遗物宝箱"),"stock":stock,"release_jobs":release_jobs(g),"remove_used":room.remove_used,"remove_price":Data.removal_price(g.state.shop_removals),"greeting":greeting,"greeting_id":greeting_id,"performance":performance,"payment_notices":{"self":payment_notice(g,"self"),"flask":payment_notice(g,"flask")}}
+ return {"chest_name":g.RelicRewards.CHESTS.get(room.get("chest_size",""),"遗物宝箱"),"stock":stock,"release_jobs":release_jobs(g),"remove_used":room.remove_used,"remove_price":discounted_price(g,Data.removal_price(g.state.shop_removals)),"greeting":greeting,"greeting_id":greeting_id,"performance":performance,"payment_notices":{"self":payment_notice(g,"self"),"flask":payment_notice(g,"flask")}}

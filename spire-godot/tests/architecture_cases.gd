@@ -372,7 +372,7 @@ static func run(t) -> void:
  card_identity(t)
  current_effect_boundaries(t)
  instance_effect_boundaries(t)
- for kind in ["equipment","component_links","prison_test","succubus_three_games","trader_solo","drone_solo","binding_box_solo"]:
+ for kind in ["equipment","component_links","prison_test","succubus_three_games","trader_solo","drone_solo","binding_box_solo","doubao"]:
   var g=Game.new(42,true,kind)
   if kind in ["drone_solo","binding_box_solo"]:
    t.check(t.action(g,"end").ok and g.CaptureBind.has_bind(g),"ARCH formal enemy turn establishes source-bound capture "+kind)
@@ -750,6 +750,14 @@ static func current_effect_boundaries(t) -> void:
  projection_contract(t,g,"new rest session")
 
 static func instance_effect_boundaries(t) -> void:
+ var control=preload("res://tests/first_turn_control_cases.gd").enter(t,"battle",1)
+ projection_contract(t,control,"manual zero-energy first turn")
+ var attachment=preload("res://tests/mana_attachment_cases.gd")
+ var powered=attachment.setup()
+ attachment.activate(t,powered,false);attachment.activate(t,powered,true)
+ projection_contract(t,powered,"independent active power faces")
+ t.check(attachment.toggle(t,powered,true).ok,"ARCH power switch uses the common status command")
+ projection_contract(t,powered,"one disabled power face")
  var f=preload("res://tests/concentration_cases.gd").setup()
  var g=f.g
  t.check(t.action(g,"card",{"uid":f.card.uid,"target":f.target.id,"free":true}).ok,"ARCH second bound face grows through the formal action")
@@ -889,7 +897,7 @@ static func copy_single_entry_matches_projection(t) -> void:
 static func copy_route_bytes_unchanged(t) -> void:
  var router=preload("res://core/copy_router.gd")
  var catalog=preload("res://data/encyclopedia.gd")
- t.check(router.categories()==["card.catalog","card.face","card.face_text","card.target","card.two_face","consumables.description","demo_exit.continue","demo_exit.end","departure.description","departure.finish","departure.skip","event.choice","event.prepare","event.reward_skip","game.attack","game.attack_release","game.calm","game.depart","game.end_climax","game.end_turn","game.finish_pack","game.finish_prepare","game.finish_rest","game.hook","game.item_cut","game.item_discard","game.item_door_lock","game.item_escape","game.item_install","game.item_retrieve","game.item_unlock","game.manual_collar","game.manual_release","game.manual_retrieve","game.posture","game.posture_wall","game.rest_begin","game.rest_card","game.rest_flask","game.rest_rare","game.retain","game.retain_skip","game.reward_flask","game.reward_item","game.reward_item_skip","game.reward_other","game.reward_relic","game.reward_skip","game.reward_skip_category","game.status_toggle","game.surrender","game.travel_step","game.wall_move","mana_flask.deposit","mana_flask.withdraw","prison.door_exit","prison.enter","prison.inspection","prison.key","prison.resist","prison.unlock_door","prison.vent_exit","prison.vent_kick","prison_space.explore_blind","prison_space.explore_site","relic_bundle.claim","relic_bundle.finish","relic_bundle.skip","service.leave","service.offer","service.release_job","service.remove_card","witch.attack","witch.card_log"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
+ t.check(router.categories()==["card.catalog","card.face","card.face_text","card.target","card.two_face","consumables.description","demo_exit.continue","demo_exit.end","departure.description","departure.finish","departure.skip","event.choice","event.prepare","event.reward_skip","game.attack","game.attack_release","game.calm","game.depart","game.end_climax","game.end_turn","game.finish_pack","game.finish_prepare","game.finish_rest","game.hook","game.item_cut","game.item_discard","game.item_door_lock","game.item_escape","game.item_install","game.item_retrieve","game.item_unlock","game.manual_collar","game.manual_release","game.manual_retrieve","game.posture","game.posture_wall","game.rest_begin","game.rest_card","game.rest_flask","game.rest_rare","game.retain","game.retain_skip","game.reward_flask","game.reward_item","game.reward_item_skip","game.reward_other","game.reward_relic","game.reward_skip","game.reward_skip_category","game.status_toggle","game.surrender","game.travel_step","game.wall_move","mana_flask.deposit","mana_flask.withdraw","prison.door_exit","prison.enter","prison.inspection","prison.key","prison.resist","prison.unlock_door","prison.vent_exit","prison.vent_kick","prison_space.explore_blind","prison_space.explore_site","relic.control_done","relic.control_toggle","relic.discharge","relic_bundle.claim","relic_bundle.finish","relic_bundle.skip","service.leave","service.offer","service.release_job","service.remove_card","witch.attack","witch.card_log"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
  for phase in ["battle","departure"]:
   for count in [0,12,26]:
    var key="%s:%d" % [phase,count]
@@ -945,8 +953,8 @@ static func copy_migrated_kinds(t,router) -> void:
  var sentinel="COPY-SENTINEL"
  var flask=copy_baseline_fixture("battle",0)
  flask.state.mana=50.0;flask.state.flask_mana=8.0;flask.state.flask_deposits=1
- t.check(router.text(flask,{"kind":"mana_flask.deposit","args":{"amount":10.0,"remaining":1},"fallback":sentinel})==copy_candidate(flask,"flask","deposit").get("detail",""),"COPY R1 mana_flask.deposit renders like the deposit candidate")
- t.check(router.text(flask,{"kind":"mana_flask.withdraw","args":{"drawn":8.0,"restored":8.0},"fallback":sentinel})==copy_candidate(flask,"flask","withdraw").get("detail",""),"COPY R1 mana_flask.withdraw renders like the withdraw candidate")
+ t.check(router.text(flask,{"kind":"mana_flask.deposit","args":{"amount":10.0,"remaining":2,"limited":true},"fallback":sentinel})==copy_candidate(flask,"flask","deposit").get("detail",""),"COPY R1 mana_flask.deposit renders like the deposit candidate")
+ t.check(router.text(flask,{"kind":"mana_flask.withdraw","args":{"drawn":8.0,"restored":8.0,"remaining":3,"limited":true},"fallback":sentinel})==copy_candidate(flask,"flask","withdraw").get("detail",""),"COPY R1 mana_flask.withdraw renders like the withdraw candidate")
  var exit_game=copy_baseline_fixture("battle",0)
  preload("res://tests/demo_exit_cases.gd").exit_fixture(exit_game)
  t.check(router.text(exit_game,{"kind":"demo_exit.end","args":{},"fallback":sentinel})==copy_candidate(exit_game,"demo_end","").get("detail",""),"COPY R1 demo_exit.end renders like the exit candidate")

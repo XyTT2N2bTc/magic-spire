@@ -26,7 +26,7 @@
 - 脚本 ID：`1-syp_ASOKIj4Qv1xv2O78RBr5E4cYMJW1rG_uiMAMmTAjbHi_u0aPiMf`；部署 ID：`AKfycbw9SHt60mspbgTUvGsDpmV1ylFKXBJ76zupmjXben_3Sh_2yDA3G0eHmDdhdFlRUoeLMA`，版本 3。
 - 收件邮箱**只在转发服务内固定**为 `towerlover7787@gmail.com`：玩家界面的编辑页与确认页都不展示地址，客户端也不保存该收件地址；服务端不接受客户端提供的收件人。
 - 服务维护账号（部署账号）为 `h13942080472@gmail.com`；维护账号与固定收件人**不必相同**。
-- 入口位置：行动日志上方的「问题与建议」。窗口布局：左侧填写／预览、右侧截图管理、底部网络提示与提交按钮。
+- 入口位置：场景右上角的「问题与建议」（商店位于左侧上方）。窗口布局：左侧填写／预览、右侧截图管理、底部网络提示与提交按钮。
 
 ## 输入域
 

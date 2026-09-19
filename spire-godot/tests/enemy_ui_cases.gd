@@ -66,7 +66,10 @@ static func run(t) -> void:
  await t.capture("ui-puppet-formation.png")
  ui.display_settings.art_choices=old_choices;ui.display_settings.persistence_enabled=old_persist
  t.check(ui.find_child("StatusIcon_puppet_"+doll,true,false)!=null and ui.actor_targets.has(doll),"PUPPET UI innate protection visible immediately with an actual hit target")
+ t.check(ui.find_child("StatusIcon_damage_barrier_"+master,true,false).find_child("StatusCount",true,false).text=="30" and ui.find_child("StatusIcon_puppet_stock_"+doll,true,false).find_child("StatusCount",true,false).text=="3","PUPPET UI initial barrier allowance and reaction stock are visible on enemy icons")
+ t.check(await t.click("attack",{"type":"strike","form":0,"enemy":master}) and ui.find_child("StatusIcon_damage_barrier_"+master,true,false).find_child("StatusCount",true,false).text=="22","PUPPET UI direct attack immediately reduces barrier badge by actual damage")
  t.check(await t.click("end") and ui.view.statuses.any(func(s):return s.id=="puppet_"+doll and s.detail.contains("单体攻击必须选择玩偶")),"PUPPET UI awakening updates the shared puppet status")
+ t.check(ui.find_child("StatusIcon_damage_barrier_"+master,true,false).find_child("StatusCount",true,false).text=="30","PUPPET UI next turn resets barrier badge to thirty")
  t.check(not ui.actions.find("attack",{"type":"strike","enemy":master}).valid and ui.actions.find("attack",{"type":"strike","enemy":master}).reason.contains("嘲讽"),"PUPPET UI master target gives the actual taunt reason")
  var target_point=ui.find_child("EnemySelect_"+doll,true,false).get_global_rect().get_center()
  await t.mouse_button(target_point,MOUSE_BUTTON_LEFT,true)
@@ -74,8 +77,16 @@ static func run(t) -> void:
  var attack_point=ui.find_child("BasicAttack_strike",true,false).get_global_rect().get_center()
  await t.mouse_button(attack_point,MOUSE_BUTTON_RIGHT,true)
  await t.mouse_button(attack_point,MOUSE_BUTTON_RIGHT,false)
+ ui.game.state.turn_strength=50;ui.render();await t.frames()
  t.check(await t.click("attack",{"type":"strike","form":1,"enemy":doll}) and ui.game.physical_pieces().size()==2,"PUPPET UI two-hit attack performs two real reactions")
- t.check(await t.click("end") and ui.game._enemy(doll).hp==15 and ui.game._enemy(doll).max_hp==15,"PUPPET UI third turn updates the real maximum and current HP")
+ var barrier=ui.view.statuses.filter(func(s):return s.id=="damage_barrier_"+master)[0]
+ t.check(ui.find_child("StatusIcon_damage_barrier_"+master,true,false).find_child("StatusCount",true,false).text=="0" and not barrier.detail.contains("层") and barrier.value.contains("0点伤害"),"PUPPET UI exhausted barrier displays zero remaining damage with no stack count")
+ ui.localization.set_locale("en_US")
+ t.check(ui.localization.display(barrier.detail).contains("per turn"),"PUPPET UI barrier has an English turn-limit explanation")
+ ui.localization.set_locale("zh_CN")
+ t.check(ui.find_child("StatusIcon_puppet_stock_"+doll,true,false).find_child("StatusCount",true,false).text=="1","PUPPET UI real multihit updates ordinary stock icon")
+ t.check(await t.click("end") and ui.game._enemy(doll).puppet_prepared.has("composite") and ui.game._enemy(doll).max_hp==15,"PUPPET UI next action prepares composite before mending")
+ t.check(await t.click("end") and await t.click("end") and ui.game._enemy(doll).hp==20 and ui.game._enemy(doll).max_hp==20 and ui.find_child("StatusIcon_puppet_stock_"+doll,true,false).find_child("StatusCount",true,false).text=="4","PUPPET UI final cycle action restores increased health and reaction capacity")
  await t.start_practice("Practice_binding_box_solo")
  var box_id=ui.view.enemies[0].id
  t.check(ui.find_child("EnemyArt_"+box_id,true,false).mode=="binding_box" and ui.view.statuses.any(func(s):return s.id=="carried_"+box_id and s.value=="3件"),"BOX UI practice renders mechanical box and actual carried stock")

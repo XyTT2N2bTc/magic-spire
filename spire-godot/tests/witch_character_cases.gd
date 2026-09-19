@@ -7,6 +7,7 @@ static func fresh(seed_value: int=42):
  return g
 
 static func run(t) -> void:
+ preload("res://tests/witch_revision_cases.gd").run(t)
  preload("res://tests/witch_expansion_cases.gd").run(t)
  _revision(t)
  _cards_and_flows(t)
@@ -53,6 +54,11 @@ static func run(t) -> void:
  t.check(not view.body_groups.any(func(body):return body.id=="special_2"),"WITCH body view omits removed region")
  var pool=g.Character.pool(g,g.Cards.Rules.REWARDS)
  t.check(pool.has("witch_magic_hand") and pool.has("witch_mana_conversion") and not pool.has("breath_control") and not pool.has("fire_mastery") and not pool.has("ready_to_strike"),"WITCH pool substitutes modified cards and excludes either-face incompatibility")
+ var catalog=preload("res://data/encyclopedia.gd").entries(g).filter(func(row):return row.category=="cards")
+ for type in ["confluence","supple_flesh","binding_enthusiast","binding_power","kip_up"]:
+  t.check(not g.Character.allowed_card(g,type) and not g.Character.reward_member(g,type) and type not in pool and not catalog.any(func(row):return row.card==type),"WITCH strength effects or conditions on either face exclude the whole card from rewards and catalog "+type)
+  t.check(original.Character.allowed_card(original,type) and original.Character.reward_member(original,type) and type in original.Character.pool(original,original.Cards.Rules.REWARDS),"WITCH strength filtering preserves original character pool "+type)
+ t.check(g.Character.allowed_card(g,"self_binding") and g.Character.allowed_card(g,"shared_fate") and g.Character.allowed_card(g,"witch_mana_conversion") and not g.Character.incompatible(g,g.Cards.Rules.BUFFS.supple_flesh_bound),"WITCH compatible mana and dexterity effects remain allowed")
  for type in pool:
   t.check(g.Character.allowed_card(g,type),"WITCH every reward supports both faces "+type)
  var saved=g.export_snapshot()
@@ -178,6 +184,13 @@ static func _revision(t) -> void:
   t.check(not pool.any(func(id):return id in ["olihakimi","mana_earring","break_bracer"]),"WITCH excluded relics absent from "+source)
   t.check("witch_noodles" not in original.RelicRewards.available(original,source),"WITCH exclusive noodles absent from original "+source)
  t.check(g.RelicEffects.gain_reason(g,"shining_lamp")!="" and original.RelicEffects.gain_reason(original,"witch_noodles")!="","WITCH direct relic gain respects role eligibility")
+ var relic_catalog=preload("res://data/encyclopedia.gd").entries(g).filter(func(row):return row.category=="relics")
+ for id in ["martial_book","magic_blood","wrist_bracer"]:
+  t.check(not g.Character.relic_allowed(g,id) and g.RelicEffects.gain_reason(g,id)!="" and id not in g.RelicEffects.transform_pool(g) and not relic_catalog.any(func(row):return row.id==id),"WITCH strength relic excluded from gain, transformation and catalog "+id)
+  for source in ["normal","shop","boss"]:
+   t.check(id not in g.RelicRewards.available(g,source),"WITCH strength relic excluded from source "+source+" "+id)
+  t.check(original.Character.relic_allowed(original,id) and id in original.RelicRewards.available(original,"normal"),"WITCH strength relic remains in original character rewards "+id)
+ t.check(g.Character.relic_allowed(g,"witch_noodles") and g.Character.relic_allowed(g,"turtle_shell"),"WITCH compatible focus relics remain allowed")
  t.check(not g.Character.allowed_card(g,"ease") and original.Character.allowed_card(original,"ease"),"WITCH ease excluded only for role two")
  g=fresh();g.state.witch_charges.hand=1
  var applied=g.Application.execute(g,{"pool":"ordinary","templates":["rope"],"slot":"wrist","grade":1,"tier":1,"count":1},"fixture")

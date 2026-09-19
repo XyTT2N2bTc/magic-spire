@@ -57,6 +57,9 @@ static func _builders() -> Dictionary:
   _table["event.reward_skip"]=Callable(RoomEvents,"reward_skip_detail")
   _table["event.prepare"]=Callable(RoomEvents,"prepare_detail")
   _table["relic_bundle.claim"]=Callable(RelicBundle,"claim_detail")
+  _table["relic.discharge"]=func(g,args): return g.RelicEffects.definition(g,args.id).detail
+  _table["relic.control_toggle"]=func(g,_args): return g.FirstTurnControl.mode(g).detail
+  _table["relic.control_done"]=func(_g,_args): return "当前无法结束回合，接管结束后由你处理；不会绕过卡牌的结束回合限制。"
   _table["relic_bundle.skip"]=Callable(RelicBundle,"skip_detail")
   _table["relic_bundle.finish"]=Callable(RelicBundle,"finish_detail")
   _table["service.leave"]=Callable(RoomServices,"leave_detail")

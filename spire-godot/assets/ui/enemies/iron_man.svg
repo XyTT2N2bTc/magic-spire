@@ -1,0 +1,178 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="720" height="780" viewBox="0 0 720 780">
+ <defs>
+  <linearGradient id="plate" x1="0" y1="0" x2="0.82" y2="1">
+   <stop stop-color="#728893"/><stop offset=".3" stop-color="#3d5362"/><stop offset="1" stop-color="#1b2937"/>
+  </linearGradient>
+  <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+   <stop stop-color="#d2d8c7"/><stop offset=".48" stop-color="#78929a"/><stop offset="1" stop-color="#3b505e"/>
+  </linearGradient>
+  <linearGradient id="brass" x1="0" y1="0" x2=".65" y2="1">
+   <stop stop-color="#ebd3a0"/><stop offset=".5" stop-color="#b28d55"/><stop offset="1" stop-color="#675340"/>
+  </linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="1" y2=".8">
+   <stop stop-color="#243645"/><stop offset="1" stop-color="#101c29"/>
+  </linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2=".8" y2="1">
+   <stop stop-color="#30616b"/><stop offset=".5" stop-color="#162f3d"/><stop offset="1" stop-color="#0c1f2c"/>
+  </linearGradient>
+  <linearGradient id="light" x1="0" y1="0" x2="0" y2="1">
+   <stop stop-color="#d7fff0"/><stop offset=".4" stop-color="#83e7d5"/><stop offset="1" stop-color="#2b8d91"/>
+  </linearGradient>
+  <g id="bolt">
+   <circle r="5" fill="#101b27" stroke="#91a6a6" stroke-width="2"/>
+   <path d="m-2 2 4-4" stroke="#acb9b1" stroke-width="1.5"/>
+  </g>
+  <g id="pivot" stroke="#0e1b28" stroke-width="4">
+   <circle r="22" fill="url(#edge)"/>
+   <circle r="15" fill="#1b2b39" stroke="#82999e" stroke-width="2"/>
+   <circle r="6" fill="#bba273" stroke-width="2"/>
+   <path d="M-12-12-8-8M12-12 8-8M-12 12-8 8M12 12 8 8" stroke="#a9beb8" stroke-width="2"/>
+  </g>
+  <g id="cuff" stroke-linejoin="round">
+   <path d="M-20-37-41-22-42 17-25 37-13 28-26 12-25-14-12-25Z" fill="url(#edge)" stroke="#101d2b" stroke-width="4"/>
+   <path d="M20-37 41-22 42 17 25 37 13 28 26 12 25-14 12-25Z" fill="url(#edge)" stroke="#101d2b" stroke-width="4"/>
+   <path d="M-13-27-22-16-23 12-13 25M13-27 22-16 23 12 13 25" fill="none" stroke="#91d8cd" stroke-width="4"/>
+   <path d="M-23 35-17 27M23 35 17 27" stroke="#dbbd7d" stroke-width="6"/>
+   <rect x="-16" y="-49" width="32" height="22" rx="5" fill="url(#brass)" stroke="#101d2b" stroke-width="4"/>
+   <circle cy="-39" r="4" fill="#253849"/>
+  </g>
+ </defs>
+ <g stroke-linejoin="round" stroke-linecap="round">
+  <!-- Rear capture gantry: articulated arms form a separate silhouette. -->
+  <path d="M261 335 216 241 203 154 247 81 286 75M431 326 492 253 504 156 550 106 583 119" fill="none" stroke="#0e1926" stroke-width="28"/>
+  <path d="M261 335 216 241 203 154 247 81 286 75M431 326 492 253 504 156 550 106 583 119" fill="none" stroke="#59737e" stroke-width="17"/>
+  <path d="M218 219 211 155 250 91M494 232 499 161 545 113" fill="none" stroke="#bdd1c9" stroke-width="4"/>
+  <path d="M247 301 228 226 224 158 257 105M452 300 475 253 480 166 524 120" fill="none" stroke="#162532" stroke-width="8"/>
+  <path d="M247 301 228 226 224 158 257 105M452 300 475 253 480 166 524 120" fill="none" stroke="#bb955d" stroke-width="3"/>
+  <use xlink:href="#pivot" transform="translate(203 154) scale(.7)"/>
+  <use xlink:href="#pivot" transform="translate(247 81) scale(.6)"/>
+  <use xlink:href="#pivot" transform="translate(504 156) scale(.7)"/>
+  <use xlink:href="#pivot" transform="translate(550 106) scale(.6)"/>
+  <use xlink:href="#cuff" transform="translate(296 114) rotate(-22) scale(.83)"/>
+  <use xlink:href="#cuff" transform="translate(587 162) rotate(24) scale(.84)"/>
+
+  <!-- Rear reservoirs and braided supply lines. -->
+  <path d="M217 245 210 206Q225 181 246 200L265 299M460 274 464 209Q480 189 492 214L488 333" fill="url(#dark)" stroke="#111e2b" stroke-width="6"/>
+  <path d="M222 213 238 207M221 226 242 218M470 219 485 223M468 233 486 237" stroke="#819997" stroke-width="5"/>
+  <path d="M236 300C147 333 173 425 140 452M468 291C550 300 569 364 548 412" fill="none" stroke="#0e1b28" stroke-width="20"/>
+  <path d="M236 300C147 333 173 425 140 452M468 291C550 300 569 364 548 412" fill="none" stroke="#728780" stroke-width="10" stroke-dasharray="3 7"/>
+
+  <!-- Braced legs and broad, planted feet. -->
+  <path d="M278 483 331 492 319 590 258 597 246 542ZM371 491 426 481 451 545 446 602 383 594Z" fill="url(#dark)" stroke="#111b28" stroke-width="7"/>
+  <path d="M272 531 263 577M305 537 294 580M394 539 407 582M421 530 437 574" stroke="#a9b6ad" stroke-width="9"/>
+  <path d="M272 531 266 566M394 539 405 574" stroke="#d5dacc" stroke-width="3"/>
+  <path d="M272 485 325 500 318 544 286 556 257 531ZM375 499 421 485 444 533 414 554 384 543Z" fill="url(#plate)" stroke="#111d2b" stroke-width="6"/>
+  <path d="m273 495 39 13-2 22M388 509l28-11 13 31" fill="none" stroke="#91a6a5" stroke-width="3"/>
+  <path d="M256 569 316 568 330 593 315 618 255 624 239 598ZM392 568 445 577 461 604 447 626 386 616 374 590Z" fill="url(#edge)" stroke="#101c28" stroke-width="6"/>
+  <path d="m259 584 46-2 7 15-10 10-42 4-9-13ZM394 583l41 6 12 14-9 9-44-5-8-14Z" fill="#223442" stroke="#718b94" stroke-width="3"/>
+  <path d="m265 593 28-2m107 3 26 4" stroke="#8fdfd0" stroke-width="5"/>
+  <path d="M254 617 314 610 305 690 275 721 229 697ZM385 611 444 620 473 697 426 722 398 692Z" fill="url(#plate)" stroke="#111c29" stroke-width="7"/>
+  <path d="M259 628 244 684 265 695 282 681 292 621M407 624 416 682 436 696 456 687 437 633" fill="none" stroke="#83989b" stroke-width="3"/>
+  <path d="m281 624-10 54m139-54 17 56" stroke="#192937" stroke-width="10"/>
+  <path d="M238 682 288 695 306 730 298 745 205 745 193 731 210 704ZM413 696 462 683 492 708 508 734 496 746 403 746 392 730Z" fill="url(#edge)" stroke="#101a27" stroke-width="7"/>
+  <path d="m210 705 59 5 19 20-83 1ZM430 710l49-1 17 23-88-2Z" fill="#334956"/>
+  <path d="M205 732h89m113 1 89 1M222 718l-2 10m16-9-1 10m226-10 3 10m15-10 4 10" stroke="#0f1f2c" stroke-width="4"/>
+  <path d="m211 743 84-1m111 1h87" stroke="#526772" stroke-width="3"/>
+
+  <!-- Pelvis, armour skirt and exposed hydraulic waist. -->
+  <path d="M267 432 432 432 444 483 412 517 284 517 255 483Z" fill="url(#dark)" stroke="#101c28" stroke-width="7"/>
+  <path d="M277 452h140m-132 16h126m-115 17h103" stroke="#657b83" stroke-width="5"/>
+  <path d="m246 461 51 6 21 68-57-12-29-30ZM398 467l53-9 20 33-31 33-57 10Z" fill="url(#plate)" stroke="#111d2a" stroke-width="6"/>
+  <path d="m246 474 22 34 31 6m116-40 32-4 10 21-23 20-32 4" fill="none" stroke="#92a2a0" stroke-width="3"/>
+  <path d="m314 475 33-9 37 9-8 54-27 20-29-21Z" fill="url(#edge)" stroke="#111e2b" stroke-width="6"/>
+  <path d="M333 488h29l-4 27-10 8-12-8Z" fill="#213440"/>
+  <path d="M338 490h18" stroke="#c6af77" stroke-width="5"/>
+
+  <!-- Upper arms: heavy joints with steel pistons. -->
+  <path d="M221 286 235 365 203 423 144 406 159 344 170 287ZM466 284l56 2 31 106-53 38-29-58Z" fill="url(#dark)" stroke="#111c29" stroke-width="7"/>
+  <path d="m178 330-13 54m37-51-18 60m324-63 20 64m-43-54 20 65" stroke="#98abaa" stroke-width="10"/>
+  <path d="m180 332-10 42m334-37 16 45" stroke="#dce2ce" stroke-width="3"/>
+  <use xlink:href="#pivot" transform="translate(180 401) scale(1.25)"/>
+  <use xlink:href="#pivot" transform="translate(519 404) scale(1.25)"/>
+
+  <!-- Main hull is an armoured containment door, not a human breastplate. -->
+  <path d="M249 237 292 217 400 217 449 240 468 312 448 429 421 458 274 455 241 426 224 310Z" fill="url(#plate)" stroke="#0e1b28" stroke-width="8"/>
+  <path d="M260 247 293 230 397 230 435 249 448 306 432 416 413 436 282 434 258 413 244 306Z" fill="url(#dark)" stroke="#8b9b9a" stroke-width="4"/>
+  <path d="M296 249h99l26 44-10 123-22 15h-81l-26-18-8-117Z" fill="url(#glass)" stroke="#0b1723" stroke-width="6"/>
+  <path d="m299 259 15-5h69l-85 134-8-88Z" fill="#64c0b5" opacity=".09"/>
+  <path d="M323 267v43m47-43v43M315 370v30m61-30v29" stroke="#436069" stroke-width="7"/>
+  <path d="M291 252 278 287l10 127 19 13m87-175 22 41-9 118-18 16" fill="none" stroke="#a7bcb2" stroke-width="3"/>
+  <path d="M287 269h119M283 400h126" stroke="#3a4d56" stroke-width="9"/>
+  <path d="M277 303 421 303 424 325 277 325Z" fill="#694f40" stroke="#111d28" stroke-width="5"/>
+  <path d="M280 309h140M280 319h140" stroke="#a28259" stroke-width="2"/>
+  <path d="M282 363h134v25H284Z" fill="#594335" stroke="#111d28" stroke-width="5"/>
+  <path d="M285 369h127m-125 13h124" stroke="#a28259" stroke-width="2"/>
+  <path d="M316 290h39v45h-39Z" fill="url(#brass)" stroke="#131f28" stroke-width="4"/>
+  <path d="M325 299h20v26h-20Zm7 13h23" fill="#372f2e" stroke="#d4b77c" stroke-width="3"/>
+  <path d="M354 352h39v44h-39Z" fill="url(#brass)" stroke="#131f28" stroke-width="4"/>
+  <path d="M363 361h20v26h-20Zm7 13h23" fill="#372f2e" stroke="#d4b77c" stroke-width="3"/>
+  <path d="M354 342v10m-4-18h8v8h-8Z" fill="#8be8d5" stroke="#8be8d5" stroke-width="2"/>
+  <path d="M248 279v59m7 18 6 41m179-120v57m-7 22-6 41" stroke="#6faaa9" stroke-width="4"/>
+  <path d="M247 280v31m194-34v26" stroke="url(#light)" stroke-width="5"/>
+  <path d="M315 438h71l-12 12h-47Z" fill="#0f222e"/>
+  <path d="M332 443h33" stroke="#68d4c6" stroke-width="3"/>
+  <use xlink:href="#bolt" x="275" y="244"/><use xlink:href="#bolt" x="415" y="244"/>
+  <use xlink:href="#bolt" x="271" y="419"/><use xlink:href="#bolt" x="422" y="419"/>
+
+  <!-- Asymmetric pauldrons and hazard bands. -->
+  <path d="M165 238 195 218 251 234 268 268 248 311 182 322 141 290Z" fill="url(#plate)" stroke="#101c29" stroke-width="7"/>
+  <path d="m166 243 31-13 49 13 10 23-67 18-35-4Z" fill="#617b85" stroke="#91a6a5" stroke-width="3"/>
+  <path d="m145 285 33 22 63-10-5 13-59 12-36-27Z" fill="url(#brass)" stroke="#182432" stroke-width="3"/>
+  <path d="m160 296 14 20m4-11 13 11m10-13 12 8m11-14 10 10" stroke="#243440" stroke-width="7"/>
+  <path d="m204 247-20 14 22 5 20-14Z" fill="#273d4b" stroke="#b7c9bd" stroke-width="2"/>
+  <path d="M445 234 491 220 539 238 558 286 531 316 472 311 435 272Z" fill="url(#plate)" stroke="#101c29" stroke-width="7"/>
+  <path d="m449 243 40-13 40 14 14 32-33 4-49-18Z" fill="#587280" stroke="#8ea4a6" stroke-width="3"/>
+  <path d="m470 289 58 5 24-16-1 15-20 22-58-7Z" fill="url(#brass)" stroke="#172430" stroke-width="3"/>
+  <path d="m483 294 5 14m11-13 6 15m11-14 7 15m11-20 7 12" stroke="#293946" stroke-width="7"/>
+  <rect x="480" y="246" width="38" height="15" rx="4" fill="#142b38" stroke="#789195" stroke-width="2"/>
+  <path d="M488 253h22" stroke="#82ead6" stroke-width="4"/>
+  <use xlink:href="#bolt" x="167" y="264"/><use xlink:href="#bolt" x="242" y="275"/>
+  <use xlink:href="#bolt" x="453" y="267"/><use xlink:href="#bolt" x="536" y="272"/>
+
+  <!-- Enclosed helm with a single scanning slit and radiator jaw. -->
+  <path d="M304 212h86v30l-41 18-45-18Z" fill="#182936" stroke="#101b27" stroke-width="5"/>
+  <path d="M310 221h72m-62 10h51m-42 10h34" stroke="#74898d" stroke-width="4"/>
+  <path d="M304 136 346 117 388 136 408 174 393 222 350 243 306 221 288 173Z" fill="url(#plate)" stroke="#101a27" stroke-width="7"/>
+  <path d="m307 142 39-14 37 14 12 27-93-1Z" fill="#6b8390"/>
+  <path d="M346 130v30M308 143l-8 21m82-21 10 21" stroke="#aabbb5" stroke-width="3"/>
+  <path d="m297 169 48 10 54-12-5 26-46 12-46-13Z" fill="#0c1b28" stroke="#839997" stroke-width="3"/>
+  <path d="m309 177 35 7 42-8-4 9-36 9-33-8Z" fill="#3d8d90"/>
+  <path d="m316 181 28 5 34-7" fill="none" stroke="#b6ffdf" stroke-width="4"/>
+  <path d="m311 201 35 10 34-10-7 17-25 11-27-12Z" fill="#182c38" stroke="#6a8491" stroke-width="2"/>
+  <path d="M327 211v6m10-3v8m11-6v9m11-11v8m10-11v6" stroke="#99aba8" stroke-width="3"/>
+  <path d="M287 172h12v32h-11l-7-13ZM396 170h11l7 16-9 20h-12Z" fill="url(#brass)" stroke="#162330" stroke-width="4"/>
+  <path d="M343 120v-15l7-9 7 10v18" fill="#56727c" stroke="#152532" stroke-width="4"/>
+  <circle cx="350" cy="107" r="3" fill="#edae64"/>
+
+  <!-- Left gauntlet: an open capture pincer. -->
+  <path d="M148 401 198 413 198 459 177 493 122 475 119 437Z" fill="url(#plate)" stroke="#111c29" stroke-width="7"/>
+  <path d="m147 414 38 11-1 25-17 29-33-10-2-26Z" fill="#344e5d" stroke="#7f989e" stroke-width="3"/>
+  <path d="m139 422-7 34m46-23-3 17" stroke="#9fbab5" stroke-width="4"/>
+  <path d="m122 473 54 20-5 23-17 12-45-15Z" fill="url(#edge)" stroke="#111e2a" stroke-width="5"/>
+  <circle cx="144" cy="499" r="13" fill="#213947" stroke="#728f94" stroke-width="3"/>
+  <circle cx="144" cy="499" r="5" fill="#8de5d5"/>
+  <path d="m110 505-23 8-18 32 8 32 19 18 15-5-5-16-15-10 1-20 23-16M161 522l21 12 5 33-17 22-20 11-13-8 8-16 17-8 5-15-17-16" fill="url(#edge)" stroke="#111c29" stroke-width="6"/>
+  <path d="m100 530-14 15 2 22 13 10m56-37 15 11-2 22-16 8" fill="none" stroke="#72cfca" stroke-width="3"/>
+  <path d="m107 590-9 3-8-8m49 6 10 6 12-6" fill="none" stroke="#d6bd87" stroke-width="5"/>
+
+  <!-- Right gauntlet carries a much larger locking shackle. -->
+  <path d="M495 421 539 400 575 427 589 469 542 499 510 468Z" fill="url(#plate)" stroke="#111c29" stroke-width="7"/>
+  <path d="m508 425 28-12 24 23 12 27-30 20-20-24Z" fill="#354f5e" stroke="#8aa1a4" stroke-width="3"/>
+  <path d="m550 433 12 26m-46-29 14 26" stroke="#acbcb4" stroke-width="4"/>
+  <path d="m542 493 38-25 21 26-41 30Z" fill="url(#brass)" stroke="#111c29" stroke-width="6"/>
+  <path d="m554 504 30-21" stroke="#e4cc94" stroke-width="3"/>
+  <use xlink:href="#cuff" transform="translate(608 552) rotate(-33) scale(1.35)"/>
+  <path d="M575 578c-15 29-2 52 17 56" fill="none" stroke="#10202b" stroke-width="12"/>
+  <path d="M575 578c-15 29-2 52 17 56" fill="none" stroke="#a99570" stroke-width="5" stroke-dasharray="10 6"/>
+  <rect x="586" y="625" width="21" height="27" rx="5" transform="rotate(-20 596 638)" fill="url(#brass)" stroke="#172630" stroke-width="4"/>
+  <path d="m597 635 2 7" stroke="#253945" stroke-width="4"/>
+
+  <!-- Sparse service marks and edge wear remain legible when scaled down. -->
+  <path d="m150 445 17 5m-20 1 13 4m355-13 14-6m-11 12 14-6" stroke="#caac73" stroke-width="3"/>
+  <path d="m269 355 2 14m161-28-2 13m-149 61 8 7m-44 237-3 12m216-2 4 11" stroke="#c3ccc0" stroke-width="2"/>
+  <circle cx="263" cy="334" r="4" fill="#e2b567"/>
+  <circle cx="434" cy="334" r="4" fill="#e2b567"/>
+  <use xlink:href="#bolt" x="265" y="504"/><use xlink:href="#bolt" x="438" y="503"/>
+  <use xlink:href="#bolt" x="247" y="693"/><use xlink:href="#bolt" x="456" y="697"/>
+ </g>
+</svg>

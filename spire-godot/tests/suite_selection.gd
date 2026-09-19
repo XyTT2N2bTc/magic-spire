@@ -25,6 +25,7 @@ const CROSS_AREAS={
  "curses":["rewards","pressure","events","status","persistence","casting","special_equipment"],
  "core":["contact","casting"],
  "enemies":["persistence","rewards","status","tower","guard","basic_attacks"],
+ "iron_man":["enemies","persistence","rewards","status","tower","application","replacement","special_equipment","pressure"],
  "trader":["enemies","application","replacement","guard","casting","status","persistence","content"],
  "hand_assist":["contact","equipment","links","composites"],
  "equipment":["contact"],

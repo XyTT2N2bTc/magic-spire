@@ -17,11 +17,18 @@ static func calm(g) -> Dictionary:
 static func free_relief(g) -> float:
  return B.FREE_PRESSURE_RELIEF if g.action_targets().is_empty() and not g.CaptureBind.has_bind(g) else 0.0
 
+static func lose(g, amount: float) -> float:
+ var loss=minf(g.state.pressure,maxf(0.0,amount))
+ if loss<=0: return 0.0
+ g.state.pressure-=loss
+ g.RelicEffects.trigger(g,"pressure_lost")
+ return loss
+
 static func relax(g) -> void:
  var loss=minf(g.state.pressure,free_relief(g))
  if loss<=0: return
  var before=g.state.pressure
- g.state.pressure-=loss
+ lose(g,loss)
  g._emit("event","身体完全自由，快感降低%s点。" % g.number(loss),{"free_pressure_relief":true,"pressure_before":before,"pressure_after":g.state.pressure,"loss":loss})
 
 static func maximum(g) -> float:
@@ -40,7 +47,11 @@ static func magic_multiplier(value: float, limit: float=B.PRESSURE_MAX, enabled:
  var x=clampf((value/limit-0.4)/0.6,0.0,1.0)
  return 1.0+B.PRESSURE_MAGIC_SURCHARGE*x*x*(3.0-2.0*x)
 
-static func cast_chance(value: float, limit: float=B.PRESSURE_MAX) -> float:
+static func cast_chance(value: float, limit: float=B.PRESSURE_MAX, desire_curve: bool=false) -> float:
+ if desire_curve:
+  var p=clampf(value/limit,0.0,1.0)
+  # Symmetric, with exact anchors at (0.25, 0.5), (0.5, 1), (0.75, 0.5).
+  return pow(4.0*p*(1.0-p),log(0.5)/log(0.75))
  var x=clampf((value/limit-B.CAST_SAFE_PRESSURE)/(1.0-B.CAST_SAFE_PRESSURE),0.0,1.0)
  return pow(1.0-x,B.CAST_FALLOFF_POWER)
 
@@ -86,7 +97,7 @@ static func describe(g, s: Dictionary) -> String:
  if s.equipment!="":
   var equipment=g._equipment(s.equipment)
   if not equipment.is_empty(): slots=g.SpecialEquipment.occupied_slots(equipment)
- return TIMINGS[s.timing]+"：快感＋"+g.number(s.amount*source_multiplier(g,slots))+ending
+ return TIMINGS[s.timing]+"：快感＋"+g.number(gain_amount(g,s.amount,slots))+ending
 
 static func escape_timing(payload: Dictionary) -> String:
  if payload.kind=="hook": return "slip"
@@ -99,7 +110,8 @@ static func escape_timing(payload: Dictionary) -> String:
 static func action_risk(g, payload: Dictionary) -> String:
  if g.state.pressure_sources.is_empty(): return ""
  var timings=[escape_timing(payload)]
- if payload.kind=="posture":
+ var card_pose=g.Cards.Rules.SPECS[payload.type].get("self_faces",{}).get("free" if payload.free else "bound",{}).get("posture","") if payload.kind=="card" else ""
+ if payload.kind=="posture" or card_pose!="":
   timings.append("posture")
  elif payload.kind=="end": timings.append("turn_end")
  var amount=0.0
@@ -109,14 +121,14 @@ static func action_risk(g, payload: Dictionary) -> String:
   if s.equipment!="":
    var equipment=g._equipment(s.equipment)
    if not equipment.is_empty(): slots=g.SpecialEquipment.occupied_slots(equipment)
-  amount+=s.amount*source_multiplier(g,slots)
+  amount+=gain_amount(g,s.amount,slots)
  return "本次行动后，仍存在的刺激最多增加%s快感。" % g.number(amount) if amount>0 else ""
 
 static func gain_multiplier(g, fixed: bool=false) -> float:
  var multiplier=1.0 if fixed else g.Cards.hand_multiplier(g,"pleasure_multiplier")
  multiplier*=g.Character.Expansion.pressure_multiplier(g)
  for id in g.state.relics:
-  multiplier*=1.0-g.Relics.TYPES[id].modifiers.get("pressure_reduction_percent",0.0)/100.0
+  multiplier*=1.0-g.RelicEffects.definition(g,id).modifiers.get("pressure_reduction_percent",0.0)/100.0
  return multiplier
 
 static func source_multiplier(g, source_slots: Array=[], fixed: bool=false) -> float:
@@ -127,28 +139,38 @@ static func source_multiplier(g, source_slots: Array=[], fixed: bool=false) -> f
   multiplier*=1.0+0.05*(int(lock.grade)+g.tier(lock.durability,lock.maximum))
  return multiplier
 
+static func gain_amount(g, amount: float, slots: Array=[], fixed: bool=false) -> float:
+ return amount*source_multiplier(g,slots,fixed)+g.relic_value("pressure_gain_flat") if amount>0 else 0.0
+
+static func overloads_at(g, value: float) -> int:
+ # Numeric guards and settlement must agree even at floating-point boundaries.
+ return int(floor((value+0.0000001)/maximum(g)))
+
 static func gain(g, amount: float, source: String, fixed: bool=false, source_slots: Array=[]) -> void:
  if amount<=0: return
  var base=amount
  var multiplier=source_multiplier(g,source_slots,fixed)
- amount*=multiplier
+ amount=gain_amount(g,amount,source_slots,fixed)
  var old=g.state.pressure
- var total=g.RelicEffects.cap_pressure(g,old+amount)
- var actual=total-old
+ var settlement={}
+ var total=g.RelicEffects.cap_pressure(g,old+amount,settlement)
+ var actual=total-old+settlement.reduction
  var limit=maximum(g)
- var count=int(floor((total+0.0000001)/limit))
+ var count=overloads_at(g,total)
  g.state.pressure=maxf(0.0,total-count*limit)
  g._emit("event",source+"使快感增加%s。" % g.number(actual),{"pressure_before":old,"base_gain":base,"gain_multiplier":multiplier,"gain":actual,"source":source,"fixed_gain":fixed})
  _apply_overloads(g,count)
+ g.Cards.pressure_gained(g,actual)
 
 static func balance_mana(g) -> void:
  var before={"mana":g.state.mana,"pressure":g.state.pressure}
  var average=(before.mana+before.pressure)/2.0
  # Redistribution sets current values; it is neither a gain multiplier nor a spell payment.
  g.state.mana=minf(g.state.mana_max,average)
+ if average<before.pressure: lose(g,before.pressure-average)
  var total=g.RelicEffects.cap_pressure(g,average)
  var limit=maximum(g)
- var count=int(floor((total+0.0000001)/limit))
+ var count=overloads_at(g,total)
  g.state.pressure=maxf(0.0,total-count*limit)
  g._emit("event","均分后：快感%s，魔力%s。" % [g.number(total),g.number(g.state.mana)],{"resource_balance":{"before":before,"average":average,"mana":g.state.mana,"pressure":total}})
  if g.state.mana<average:
@@ -168,19 +190,28 @@ static func scripted_climax(g, source: String) -> Dictionary:
   g.state.logs[-1].data.scripted_climax={"source":source,"count":1}
  return {"count":int(g.state.overload_total)-total_before,"mana_before":mana_before,"mana_lost":mana_before-float(g.state.mana),"mana_after":float(g.state.mana)}
 
-static func _apply_overloads(g, count: int, scripted: bool=false) -> void:
+static func forced_climax(g, source: String) -> void:
+ _apply_overloads(g,1,false,true)
+ if g.relic_value("climax_comfort")<=0: g._emit("event",source+"：本次高潮不改变快感值。",{"forced_climax":true})
+
+static func _apply_overloads(g, count: int, scripted: bool=false, preserve_pressure: bool=false) -> void:
  if count==0: return
- g.Character.clear(g,false)
- g.Character.lose_focus(g,count,"高潮")
+ var charge_before=g.state.charge
+ var comfort=g.relic_value("climax_comfort")>0
+ if not comfort:
+  for occurrence in range(count): g.state.charge=floori(g.state.charge*B.OVERLOAD_CHARGE_RETENTION)
+  if g.state.charge==0: g._clear_charge()
+  g.Character.clear(g,false)
+  g.Character.lose_focus(g,count,"高潮")
  var slip_ejaculation=g.state.special_equipment.any(func(item):return g.SpecialEquipment.is_chastity(item) and item.durability>0) and g.state.special_equipment.any(func(item):return item.durability>0 and (g.SpecialEquipment.catheter(item) or (not g.SpecialEquipment.is_reinforcement(item) and "special_2_d" in g.SpecialEquipment.occupied_slots(item))))
- g.CaptureBind.overload(g,count)
+ if not comfort: g.CaptureBind.overload(g,count)
  var climax_equipment_released=g._climax_special_slip(count)
  var mana_before=g.state.mana
  var deferred_mana=not scripted and g.state.phase!="event" and (g.state.slip_ejaculation_turns>0 or (slip_ejaculation and g.state.phase in ["battle","prepare","rest","prison"]))
- var lost=0.0 if deferred_mana else minf(mana_before,count*B.OVERLOAD_MANA)
+ var lost=0.0 if comfort or deferred_mana else minf(mana_before,count*B.OVERLOAD_MANA)
  g.state.mana-=lost
  g.state.overload_total+=count
- if not scripted and g.state.phase in ["battle","prepare","rest","prison"]:
+ if not comfort and not scripted and g.state.phase in ["battle","prepare","rest","prison"]:
   if slip_ejaculation:
    g.state.slip_ejaculation_turns=maxi(g.state.slip_ejaculation_turns,2)
    g.state.slip_ejaculation_force_last=true
@@ -193,24 +224,27 @@ static func _apply_overloads(g, count: int, scripted: bool=false) -> void:
    g._emit("event","高潮打断了剩余卡牌效果。")
   g._discard_end()
  var locks=g.state.special_equipment.filter(func(item):return g.SpecialEquipment.is_chastity(item) and item.durability>0)
- if not locks.is_empty():
+ if comfort: g.state.pressure=maximum(g)*0.5
+ elif not locks.is_empty():
   var lock=locks[0]
   var sum=int(lock.grade)+g.tier(lock.durability,lock.maximum)
   var masochist=bool(g.state.get("cursed_plate_masochist_mode",false))
   var used_factor=g.state.chastity_climax_factor+count-1
   if not masochist: used_factor=mini(used_factor,g.SpecialEquipment.CHASTITY_CLIMAX_FACTOR_LIMIT)
-  g.state.pressure=minf(maximum(g)-0.000001,float(sum*used_factor))
+  if not preserve_pressure: g.state.pressure=minf(maximum(g)-0.000001,float(sum*used_factor))
   g.state.chastity_climax_factor+=count
   if not masochist: g.state.chastity_climax_factor=mini(g.state.chastity_climax_factor,g.SpecialEquipment.CHASTITY_CLIMAX_FACTOR_LIMIT)
  if climax_equipment_released: g._cleanup()
- g._emit("event",("滑精" if slip_ejaculation else "高潮")+"%d次，损失%s魔力，快感回落至%s。" % [count,g.number(lost),g.number(g.state.pressure)],{"overloads":count,"mana_before":mana_before,"mana_lost":lost,"mana_after":g.state.mana,"remainder":g.state.pressure,"energy_penalty":g.state.overload_energy,"slip_ejaculation":slip_ejaculation,"scripted":scripted})
+ g.RelicEffects.climax(g,count)
+ var charge_text="蓄力%d → %d。" % [charge_before,g.state.charge] if charge_before>0 else ""
+ g._emit("event",("滑精" if slip_ejaculation else "高潮")+"%d次，损失%s魔力，快感回落至%s。" % [count,g.number(lost),g.number(g.state.pressure)]+charge_text,{"overloads":count,"mana_before":mana_before,"mana_lost":lost,"mana_after":g.state.mana,"charge_before":charge_before,"charge_after":g.state.charge,"remainder":g.state.pressure,"energy_penalty":g.state.overload_energy,"slip_ejaculation":slip_ejaculation,"scripted":scripted,"comfort":comfort})
 
 static func settle_maximum(g, source: String) -> void:
  g.state.pressure=g.RelicEffects.cap_pressure(g,g.state.pressure)
  var limit=maximum(g)
- if g.state.pressure<limit: return
  var total=g.state.pressure
- var count=int(floor((total+0.0000001)/limit))
+ var count=overloads_at(g,total)
+ if count==0: return
  g.state.pressure=maxf(0.0,total-count*limit)
  g._emit("event",source+"使快感超过新的上限。",{"pressure_limit":limit,"overloads":count})
  _apply_overloads(g,count)
@@ -252,7 +286,7 @@ static func validate(g) -> String:
 static func view(g, special_regions: Array) -> Dictionary:
  var sources=[]
  var guard=g.RelicEffects.pressure_guard(g)
- if guard!="": sources.append({"name":g.Relics.TYPES[guard].name,"text":"本回合快感值最多为%s。" % g.number(maximum(g)-1.0)})
+ if guard!="": sources.append({"name":g.RelicEffects.definition(g,guard).name,"text":"本回合快感值最多为%s。" % g.number(maximum(g)-1.0)})
  var multiplier=gain_multiplier(g)
  var limit=maximum(g)
  for s in g.state.pressure_sources:
@@ -267,4 +301,4 @@ static func view(g, special_regions: Array) -> Dictionary:
     sources.append({"name":equipment.name+" · "+g.SpecialEquipment.location_name(g._equipment(equipment.id)),"text":equipment.text})
  return {"value":g.state.pressure,"maximum":limit,"stage":stage(g.state.pressure,limit),"magic_multiplier":magic_multiplier(g.state.pressure,limit),"gain_multiplier":multiplier,"overloaded":g.state.overloaded and g.state.phase in g.RelicEffects.COMBAT_PHASES,"count":g.state.overload_count,"energy_penalty":g.state.overload_energy,"sources":sources,
   "text":"快感 %s / %s · %s" % [g.number(g.state.pressure),g.number(limit),["平静","微热","兴奋","临界"][stage(g.state.pressure,limit)]],
-  "detail":"快感增长倍率：×%s。快感达到%s立即高潮，通常损失%s魔力。滑精时免除这笔损失，后续两回合开始时各损失%s魔力。\n未佩戴任何拘束具、链接或特殊装备且未被捕缚时，每回合结束快感降低%s点，最低为0。" % [g.number(multiplier),g.number(limit),g.number(B.OVERLOAD_MANA),g.number(B.SLIP_EJACULATION_MANA),g.number(B.FREE_PRESSURE_RELIEF)]}
+  "detail":"快感增长倍率：×%s。快感达到%s立即高潮，通常损失%s魔力。滑精时免除这笔损失，后续两回合开始时各损失%s魔力。\n未佩戴任何拘束具、链接或特殊装备且未被捕缚时，每回合结束快感降低%s点，最低为0。每次高潮后蓄力减半，剩余层数向下取整。" % [g.number(multiplier),g.number(limit),g.number(B.OVERLOAD_MANA),g.number(B.SLIP_EJACULATION_MANA),g.number(B.FREE_PRESSURE_RELIEF)]}

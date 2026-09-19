@@ -36,6 +36,7 @@ const GLOVE_LONG_PRACTICE={
  "equipment":[],"items":["shard","saw"],
  "composites":[{"variant":"long","straps":"cross","grade":3,"tier":3,"parts":{}}]}
 const PRACTICES={
+ "doubao":{"label":"豆包练习 · 首回合接管","node":"StartDoubaoPractice","focus":"wrist","spec":{"name":"豆包练习","description":"携带豆包进入漂浮玩具箱战斗，体验首回合接管、模拟鼠标与对白。","hint":"接管结束后可自行操作，战后整备不接管。离开战斗、战后整备、休息及监狱后，右键遗物可切换为DeepSeek。","equipment":[],"items":[],"relics":["doubao"],"encounter":"toybox_solo"}},
  "equipment":{"label":"装备练习 · 四种材质与切割工具","node":"StartEquipmentPractice","focus":"wrist","spec":PRACTICE},
  "links":{"label":"链接练习 · 连接、挣扎与切割","node":"StartLinkPractice","focus":"calf","spec":LINK_PRACTICE},
  "glove_short":{"label":"短型单手套 · 直肩带与挣扎解除","node":"StartShortGlovePractice","focus":"upper_arm","spec":GLOVE_SHORT_PRACTICE},
@@ -143,7 +144,8 @@ static func generate(run_seed: int) -> Array:
    "treasure": r.name="遗物宝箱";r.wall="normal"
   r.name="%02d · %s" % [r.floor+1,r.name]
  rooms.push_front({"id":"entrance","name":"塔底入口","floor":-1,"lane":0.5,"wall":"normal","next":rooms.filter(func(r):return r.floor==0).map(func(r):return r.id),"kind":"entry","map_version":MAP_VERSION})
- var summit={"id":"summit","name":"塔顶 · 六缚","floor":LAST_FLOOR,"lane":0.5,"wall":"rough","next":["exit"],"kind":"battle","encounter":FirstFloor.SUMMIT_ENCOUNTER,"boss":true,"requires_defeat":true}
+ var summit_encounter=FirstFloor.SUMMIT_ENCOUNTERS[random.randi_range(0,FirstFloor.SUMMIT_ENCOUNTERS.size()-1)]
+ var summit={"id":"summit","name":"塔顶 · "+FirstFloor.summit_name(summit_encounter),"floor":LAST_FLOOR,"lane":0.5,"wall":"rough","next":["exit"],"kind":"battle","encounter":summit_encounter,"boss":true,"requires_defeat":true}
  for r in rooms:
   if r.floor==14: r.next=["summit"]
  rooms.append(summit)

@@ -80,7 +80,7 @@ try {
         try { $actual = [Convert]::ToHexString($hash.ComputeHash($stream)) } finally { $stream.Dispose(); $hash.Dispose() }
         if ($actual -ne (Get-FileHash -LiteralPath $file.FullName).Hash) { throw "Embedded content mismatch: $entryName" }
     }
-    if ($names | Where-Object { $_ -match '^assets/(tests|tools|build)/|(^|/)(saves|signing\.json|release\.keystore)(/|$)' }) { throw 'APK contains development or saved user data.' }
+    if ($names | Where-Object { $_ -match '^assets/(tests|tools|build|content/templates)/|(^|/)(saves|signing\.json|release\.keystore)(/|$)' }) { throw 'APK contains development files, content templates or saved user data.' }
     $names | Set-Content (Join-Path $logDirectory 'apk-files.txt') -Encoding utf8
 } finally { $archive.Dispose() }
 $manifest = [ordered]@{ version = $packageVersion; platform = 'Android ARM64 + ARMv7'; package = 'org.magic.spire'; build = $BuildId; file = [IO.Path]::GetFileName($apk); bytes = (Get-Item -LiteralPath $apk).Length; sha256 = (Get-FileHash -LiteralPath $apk).Hash.ToLowerInvariant() }

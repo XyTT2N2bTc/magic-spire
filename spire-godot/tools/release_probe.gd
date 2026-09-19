@@ -59,26 +59,25 @@ func run() -> void:
  ui.restart(42,true,"equipment")
  await process_frame
  check(ui.view.practice and ui.game.validate()=="","Exported practice loads equipment and real action rules")
- if expected_version=="0.17" or expected_version.begins_with("0.17."):
-  check(ui.find_child("CharacterSelect",true,false)!=null or ui.selected_character=="original","Character selection controller is included")
-  ui.selected_character="witch";ui.restart(42)
-  await process_frame
-  await process_frame
-  check(ui.game.Character.active(ui.game) and ui.game.state.deck.size()==11 and ui.game.validate()=="","Exported role two has its eleven-card starter and valid state")
-  var spec=ui.game.Cards.Rules.SPECS.witch_magic_hand
-  if OS.get_environment("SPIRE_PROBE_WITCH_BALANCE")=="1":
-   var g=ui.game
-   check(g.state.mana_max==75 and g.state.mana==75 and g.Pressure.maximum(g)==75 and g.state.flask_mana==50 and g.state.relics==["witch_amulet"],"Balanced release includes revised role-two starting resources")
-   check(spec.free_effects==[{"op":"evasion","amount":2}] and spec.mana_cost==30 and spec.hits==4,"Balanced release includes revised magic hand faces")
-   check(load("res://assets/ui/relics/witch_amulet.svg")!=null and load("res://assets/ui/relics/witch_noodles.svg")!=null,"Balanced release includes both new relic icons")
-   check(g.Relics.TYPES.witch_noodles.rarity=="common" and not g.Character.allowed_card(g,"ease"),"Balanced release includes exclusive relic and card restrictions")
-  check(spec.free_effects[0].get("buff","")=="witch_hand_freedom" or (spec.free_effects==[{"op":"evasion","amount":2}] and spec.mana_cost==30.0),"Exported magic hand has role-two free effect")
-  var packed=store.pack(ui.game.export_snapshot())
-  var decoded=store.unpack(packed)
-  check(decoded.ok,"Exported role-two snapshot serializes")
-  if decoded.ok:
-   var resumed=game_class.new(7)
-   check(resumed.restore_snapshot(decoded.snapshot).ok and resumed.Character.active(resumed),"Exported role-two save restores its character")
+ check(ui.find_child("CharacterSelect",true,false)!=null or ui.selected_character=="original","Character selection controller is included")
+ ui.selected_character="witch";ui.restart(42)
+ await process_frame
+ await process_frame
+ check(ui.game.Character.active(ui.game) and ui.game.state.deck.size()==11 and ui.game.validate()=="","Exported role two has its eleven-card starter and valid state")
+ var spec=ui.game.Cards.Rules.SPECS.witch_magic_hand
+ if OS.get_environment("SPIRE_PROBE_WITCH_BALANCE")=="1":
+  var g=ui.game
+  check(g.state.mana_max==75 and g.state.mana==75 and g.Pressure.maximum(g)==75 and g.state.flask_mana==50 and g.state.relics==["witch_amulet"],"Balanced release includes revised role-two starting resources")
+  check(spec.free_effects==[{"op":"evasion","amount":2}] and spec.mana_cost==30 and spec.hits==4,"Balanced release includes revised magic hand faces")
+  check(load("res://assets/ui/relics/witch_amulet.svg")!=null and load("res://assets/ui/relics/witch_noodles.svg")!=null,"Balanced release includes both new relic icons")
+  check(g.Relics.TYPES.witch_noodles.rarity=="common" and not g.Character.allowed_card(g,"ease"),"Balanced release includes exclusive relic and card restrictions")
+ check(spec.free_effects[0].get("buff","")=="witch_hand_freedom" or (spec.free_effects==[{"op":"evasion","amount":2}] and spec.mana_cost==30.0),"Exported magic hand has role-two free effect")
+ var packed=store.pack(ui.game.export_snapshot())
+ var decoded=store.unpack(packed)
+ check(decoded.ok,"Exported role-two snapshot serializes")
+ if decoded.ok:
+  var resumed=game_class.new(7)
+  check(resumed.restore_snapshot(decoded.snapshot).ok and resumed.Character.active(resumed),"Exported role-two save restores its character")
  if OS.get_environment("SPIRE_PROBE_CHARGE_ALL")=="1":
   probe_charge_all(game_class)
  print("RELEASE CONTENT PACKS: ",catalog.report.files)

@@ -122,6 +122,14 @@ func show_entry(entry: Dictionary) -> void:
   description.name="EncyclopediaDescription"
   if entry.category=="equipment": description.add_theme_constant_override("line_spacing",6)
   detail.add_child(description)
+  for form in entry.get("related_relics",[]):
+   detail.add_child(HSeparator.new())
+   detail.add_child(host._label(form.name,24,host.GOLD))
+   var icon=RelicIcon.new();icon.relic={"id":entry.id,"icon":form.icon}
+   icon.name="EncyclopediaRelicIcon_"+form.icon;icon.custom_minimum_size=Vector2(112,112)
+   icon.size_flags_horizontal=Control.SIZE_SHRINK_BEGIN;detail.add_child(icon)
+   var text=host._label(form.detail,17,host.TEXT);text.name="EncyclopediaRelicDescription_"+form.icon
+   detail.add_child(text)
  detail.get_parent().scroll_vertical=0
 
 func _card_family(entry: Dictionary) -> void:

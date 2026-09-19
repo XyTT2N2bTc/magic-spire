@@ -22,19 +22,8 @@ static func run(t) -> void:
  hand_limit(t)
  configured_effects(t)
  draw_faces(t)
+ reward_sampling(t)
  var g=setup()
- var observed={}
- for seed_value in range(maxi(32,g.Cards.Rules.REWARDS.size()*8)):
-  g=Game.new(seed_value)
-  var before=g.state.rng.duplicate()
-  var offer=g.reward_offer(g.Cards.Rules.REWARDS)
-  t.check(offer.size()==3 and offer.all(func(id):return offer.count(id)==1 and id in g.Cards.Rules.REWARDS),"REWARD unique real three-card sample")
-  t.check(g.state.rng.deck==before.deck and g.state.rng.enemy==before.enemy and g.state.rng.event==before.event,"REWARD independent random domain")
-  var twin=Game.new(seed_value)
-  t.check(offer==twin.reward_offer(twin.Cards.Rules.REWARDS),"REWARD seed reproduces sample")
-  for id in offer: observed[id]=true
-  if seed_value>=31 and g.Cards.Rules.REWARDS.all(func(type):return observed.has(type)): break
- t.check(g.Cards.Rules.REWARDS.all(func(type):return observed.has(type)),"REWARD every configured card reachable in actual sampling")
 
  for type in ["focus","tear","chain","peel","double_unlock"]:
   g=setup();var card=give(t,g,type)
@@ -181,6 +170,29 @@ static func run(t) -> void:
  g=setup();g.state.card_chain={"type":"chain","slot":"wrist","remaining":99,"mode":"strain"}
  before=JSON.stringify(g.state)
  t.check(not g.dispatch("anything",g.state.version).ok and JSON.stringify(g.state)==before,"REWARD malformed multihit rejected atomically")
+
+static func reward_sampling(t) -> void:
+ var rules=Game.Cards.Rules
+ for unlocked in [false,true]:
+  # Reachability covers the declared pool, independently of eligible().
+  var expected=rules.REWARDS.filter(func(id):return unlocked or rules.SPECS[id].get("reward_pool","")=="")
+  var context="unlocked" if unlocked else "locked"
+  var observed={}
+  for seed_value in range(maxi(32,rules.REWARDS.size()*8)):
+   var g=Game.new(seed_value);var twin=Game.new(seed_value)
+   if unlocked:
+    for id in rules.REWARD_POOL_RELICS.values():
+     g.RelicEffects.gain(g,id);twin.RelicEffects.gain(twin,id)
+   var before=g.state.rng.duplicate()
+   var offer=g.reward_offer(rules.REWARDS)
+   t.check(offer.size()==3 and offer.all(func(id):return offer.count(id)==1 and id in expected),"REWARD unique sample obeys declared pool gates: "+context)
+   var unrelated=g.state.rng.duplicate();unrelated.reward=before.reward
+   t.check(unrelated==before and g.state.rng.reward>before.reward,"REWARD sampling advances only its own random domain: "+context)
+   t.check(offer==twin.reward_offer(rules.REWARDS),"REWARD seed reproduces sample: "+context)
+   for id in offer: observed[id]=true
+   if seed_value>=31 and expected.all(func(id):return observed.has(id)): break
+  for id in expected:
+   t.check(observed.has(id),"REWARD configured card reachable in actual sampling: "+context+" / "+id)
 
 static func draw_faces(t) -> void:
  var g=Game.new(42)

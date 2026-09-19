@@ -8,7 +8,7 @@ static func run(t) -> void:
   opening.state.mana=40;opening.state.flask_mana=20;opening.add_fixture("fingers",8)
   opening._gain_tool("mana_potion");var item_id=opening.state.items.back().id
   var frozen=opening.export_snapshot()
-  t.check(opening.get_view().reward_panel.entries.size()==(3 if bundle else 5),"RECOVERY item and flask actions are not displayed as opening reward choices")
+  t.check(opening.get_view().reward_panel.entries.size()==(3 if bundle else frozen.departure.options.size()+1),"RECOVERY item and flask actions are not displayed as opening reward choices")
   t.check(t.action(opening,"item_use",{"item":item_id}).ok and t.action(opening,"flask",{"op":"withdraw"}).ok and opening.state.mana==70,"RECOVERY works during opening or nested relic choices")
   t.check(["phase","departure","relic_bundle","rng","tick"].all(func(key):return opening.state[key]==frozen[key]),"RECOVERY cannot skip or reroll pending opening rewards")
  for phase in ["battle","reward","prepare","rest_choice","rest","map","shop","prison"]:

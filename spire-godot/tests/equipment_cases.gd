@@ -21,6 +21,7 @@ static func eye_capacity(t) -> void:
  t.check(result.ok and result.removed.size()==1 and g.equipment_at("eyes").size()==2 and g.equipment_at("eyes").any(func(e):return e.id not in old_ids) and g.validate()=="","EYES authorized replacement swaps one at the two-slot limit without creating a third")
 
 static func run(t) -> void:
+ mouth_stacking(t)
  release_projection(t)
  precise_positions(t)
  eye_capacity(t)
@@ -238,3 +239,45 @@ static func precise_positions(t) -> void:
  g=Game.new(42,true,"glove_long")
  body=g.get_view().bodies.filter(func(b):return b.id=="forearm")[0]
  t.check(body.targets.size()==1 and g.get_view().body_groups.filter(func(b):return b.id=="neck")[0].targets.values().all(func(e):return e.position_text in ["左肩","右肩"]),"POSITION shoulders have own neck location instead of forearm targets")
+
+static func mouth_stacking(t) -> void:
+ var g=Game.new(42);g.state.energy=30
+ var gag=g.add_fixture("mouth",8,10,false,1,"mouth_band")
+ var before=g.export_snapshot()
+ t.check(g._capacity("mouth")==2 and g._install_template("mouth_band","mouth",4,10,false,"fixture").is_empty() and g.state==before,"MOUTH STACK two positions do not allow a second non-tape restraint")
+ var options=g.EquipmentOffers.ordinary(g,1,false,["mouth_band","mouth_tape"])
+ t.check(options.size()==1 and options[0].template=="mouth_tape" and g.state==before,"MOUTH STACK real offer generator only allows tape over an occupied mouth without writes")
+ var result=g.Application.execute(g,{"pool":"ordinary","templates":["mouth_tape"],"count":1,"grade":1,"tier":1},"event:mouth_stack")
+ var tape=g.equipment_at("mouth").filter(func(e):return e.material=="tape")[0]
+ t.check(result.ok and tape.layer>gag.layer and not g._outer(gag) and g._outer(tape) and g.validate()=="","MOUTH STACK real application installs mixed-material tape in the outer layer")
+ var mouth=g.get_view().body_groups.filter(func(b):return b.id=="mouth")[0]
+ t.check(mouth.capacity==2 and mouth.capacity_used==2 and mouth.sections[0].equipment[0].id==tape.id,"MOUTH STACK projection shows two positions and outer tape first")
+ t.check(g.escape_preview(gag,"slip",5).reason!="" and not t.find_action(g,"manual",{"target":gag.id}).valid,"MOUTH STACK inner gag cannot be slipped or manually removed through tape")
+ before=g.export_snapshot()
+ t.check(g._install_template("mouth_tape","mouth",4,10,false,"fixture").is_empty() and g.state==before,"MOUTH STACK third item is rejected without consuming IDs or resources")
+ var restored=Game.new(42)
+ t.check(restored.restore_snapshot(before).ok and not restored._outer(restored._equipment(gag.id)),"MOUTH STACK two-piece save restores the real cover relationship")
+ var broken=before.duplicate(true);var third=tape.duplicate(true)
+ third.id="equipment_"+str(broken.next_equipment);broken.next_equipment+=1;broken.equipment.append(third)
+ t.check(not g.restore_snapshot(broken).ok and g.state==before,"MOUTH STACK existing capacity validator rejects three saved pieces atomically")
+ for layer in [gag.layer,maxi(0,gag.layer-1)]:
+  broken=before.duplicate(true)
+  broken.equipment.filter(func(e):return e.id==tape.id)[0].layer=layer
+  t.check(not g.restore_snapshot(broken).ok and g.state==before,"MOUTH STACK aggregate validation rejects mixed tape at or below the gag layer atomically")
+ broken=before.duplicate(true)
+ var duplicate=gag.duplicate(true);duplicate.id=tape.id
+ broken.equipment[broken.equipment.find(broken.equipment.filter(func(e):return e.id==tape.id)[0])]=duplicate
+ t.check(not g.restore_snapshot(broken).ok and g.state==before,"MOUTH STACK aggregate validation rejects two non-tape mouth pieces atomically")
+ var slip=t.hand_card(g,"slip")
+ t.check(t.action(g,"card",{"uid":slip.uid,"target":tape.id}).ok and g._equipment(tape.id).is_empty() and g._outer(gag),"MOUTH STACK real card removes outer tape and exposes the original gag")
+ t.check(t.action(g,"manual",{"target":gag.id}).ok and g.equipment_at("mouth").is_empty(),"MOUTH STACK exposed gag becomes removable through the existing action")
+ g=Game.new(42)
+ tape=g.add_fixture("mouth",4,10,false,0,"mouth_tape");before=g.export_snapshot()
+ t.check(g._install_template("mouth_band","mouth",4,10,false,"fixture").is_empty() and g.state==before,"MOUTH STACK gag cannot be inserted under existing tape")
+ var second=g.add_fixture("mouth",4,10,false,0,"mouth_tape")
+ t.check(not second.is_empty() and second.layer==tape.layer and g.validate()=="","MOUTH STACK two tape pieces preserve normal same-material stacking")
+ before=g.export_snapshot()
+ t.check(g._install_template("mouth_tape","mouth",4,10,false,"fixture").is_empty() and g.state==before,"MOUTH STACK same-material stack also stops at two")
+ g=Game.new(42);gag=g.add_fixture("mouth",4,10,false,5,"mouth_band")
+ tape=g.add_fixture("mouth",4,10,false,0,"mouth_tape")
+ t.check(tape.layer>gag.layer and g.validate()=="","MOUTH STACK explicit fixture layer cannot place mixed tape inside the gag")

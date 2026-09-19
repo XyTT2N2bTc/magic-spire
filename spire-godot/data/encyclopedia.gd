@@ -28,7 +28,7 @@ static func related_cards(type: String) -> Array:
     var child=str(reward.get(destination,""))
     if child!="" and child!=type and child not in result: result.append(child)
  return result
-const BEHAVIORS={"lock":"行动：预告上锁→上锁，循环。开启平板锁池时，无上锁目标后固定尝试附加中级3档负数平板锁及其加固带再离场，不受概率设置影响；无法佩戴仍离场。关闭时沿用原上锁与无目标结束规则。","restraint":"行动：初级2档拘束具→加固→准备→中级3档拘束具，随后离场。","attachment":"行动：准备2回合→施加中级3档口球，随后离场。口部已被占用时不生效。","dispenser":"行动：准备→施加1件已选定的特殊装备→停顿，循环。","guard":"行动：施加拘束具与捕缚。","six_bind":"行动：六处束缚，随后反复施加和加固拘束具。"}
+const BEHAVIORS={"lock":"行动：预告上锁→上锁，循环。开启平板锁池时，无上锁目标后固定尝试附加中级3档负数平板锁及其加固带再离场，不受概率设置影响；无法佩戴仍离场。关闭时沿用原上锁与无目标结束规则。","restraint":"行动：初级2档拘束具→加固→准备→中级3档拘束具，随后离场。","attachment":"行动：准备2回合→施加中级3档口球，随后离场。口部已被占用时不生效。","dispenser":"行动：准备→施加1件已选定的特殊装备→停顿，循环。","guard":"行动：施加拘束具与捕缚。","six_bind":"行动：六处束缚，随后反复施加和加固拘束具。","iron_man":"行动：以捕缚为核心的五回合机械循环。","iron_drone":"行动：自身待机，在铁男捕缚触发时提供追加效果。"}
 const TIGHTEN_TIMING="加固：没有目标时改为施加；已预告的加固失去目标后不生效。"
 const CAPTURE_RULES="解除捕缚：挣扎／滑脱牌可削减进度，不含环境加成；仅有眼罩、口球或没有拘束具时伤害×2。归零后解除，敌人会准备1回合再施加。\n捕缚规则：被捕缚时无法移动，先解除捕缚。同种不叠加；异种共用进度，新种只增加其初始值的一半。达到100后，施加捕缚的敌人在下次行动收押。击败来源解除对应效果，全部来源离场则清空进度。"
 const GUARD_DESCRIPTION="开场：手腕、口部、脚踝各施加1件中级2档拘束具；准备1回合后施加捕缚50/100。无法新增或合法替换时，改为加固该处1次；紧度3且可上锁时，上锁并恢复满耐久。\n行动：中级2档普通拘束具×2→捕缚＋10→中级2档复合拘束具×1，循环。复合无法施加时，改为加固至多2件至3档。\n捕缚效果：上身束缚等级至少1；姿态只能躺姿→坐姿→站姿，每次切换捕缚＋10。每次花费能量，使一个随机特殊部位增加10点基础快感（受敏感度影响）；每次高潮捕缚＋10。"
@@ -123,8 +123,11 @@ static func entries(g=null, character: String="") -> Array:
   out.append(entry)
  for relic in Relics.view(Relics.TYPES.keys()):
   if g!=null and not g.Character.relic_allowed(g,relic.id,role): continue
-  if g==null and Relics.TYPES[relic.id].get("character_id","")=="witch": continue
+  if g==null and Relics.TYPES[relic.id].get("character_id","") not in ["",role]: continue
   var entry=row(relic.id,"relics","商店限定" if Relics.TYPES[relic.id].get("shop_only",false) else ("Boss遗物" if relic.id in Relics.BOSS_POOL else ("奖励遗物" if relic.id in Relics.REWARDS else "初始遗物")),relic.name,relic.detail)
+  if relic.id=="doubao":
+   entry.related_relics=[Relics.FIRST_TURN_MODES[1].duplicate(true)]
+   entry.search_text=Relics.FIRST_TURN_MODES[1].name+Relics.FIRST_TURN_MODES[1].detail
   entry.rarity=relic.rarity;entry.rarity_name=relic.rarity_name;out.append(entry)
  for type in S.TYPES:
   var spec=S.DESIGNS[type];var definition=S.TYPES[type]
@@ -141,7 +144,7 @@ static func entries(g=null, character: String="") -> Array:
   out[-1].image=Images.path({"template":"special","type":type})
  for type in N.TYPES:
   var spec=N.TYPES[type];var group="未分类"
-  if spec.behavior=="puppet": group="召唤物"
+  if spec.behavior in ["puppet","iron_drone"]: group="随行单位" if spec.behavior=="iron_drone" else "召唤物"
   for rank in N.Library.CLASSIFICATIONS:
    if type in N.Library.CLASSIFICATIONS[rank]: group={"weak":"弱怪","strong":"强怪","elite":"精英","boss":"首领"}[rank]
   var sources=[]
@@ -151,7 +154,7 @@ static func entries(g=null, character: String="") -> Array:
      var label="第一幕弱怪战斗" if rank=="weak" else "第一幕强怪战斗"
      if label not in sources: sources.append(label)
   if N.FirstFloor.ELITE_ENCOUNTERS.any(func(id):return N.ENCOUNTERS[id].get("variants",[id]).any(func(v):return N.ENCOUNTERS[v].members.any(func(m):return m.type==type))): sources.append("精英房")
-  if N.ENCOUNTERS[N.FirstFloor.SUMMIT_ENCOUNTER].members.any(func(m):return m.type==type): sources.append("塔顶")
+  if N.FirstFloor.SUMMIT_ENCOUNTERS.any(func(id):return encounter_contains(id,type)): sources.append("塔顶")
   var text="生命：%s\n" % spec.hp+BEHAVIORS.get(spec.behavior,"")
   if type=="puppeteer": text="生命：%s\n开场：自带10生命玩偶。首回合赋予玩偶嘲讽与受伤反击。\n行动：玩偶生命上限＋5并回满→准备中级2档复合拘束具→准备中级3档特殊装备，循环。两类装备各保留1件，同类新准备替换旧准备。\n牵线保护：玩偶生命最低为1，溢出伤害全额转给玩偶师。击败玩偶师，玩偶同时消失。" % spec.hp
   if type=="puppet": text="生命：%s\n行动：不主动行动，由玩偶师召唤。\n牵线保护：生命最低为1，溢出伤害全额转给玩偶师。\n引敌缚咒：获得嘲讽；每段正数伤害使你被施加1件中级2档普通拘束具，遗物伤害也会触发。群攻不受嘲讽限制。\n备装：下一次攻击命中时，额外施加已准备的复合／特殊装备，各1件；多段只触发1次，遗物伤害不触发。位置不足时可替换。" % spec.hp
@@ -163,10 +166,12 @@ static func entries(g=null, character: String="") -> Array:
   if spec.behavior in ["restraint","guard"]: text+="\n"+TIGHTEN_TIMING
   if type=="trader": text="生命：%s\n" % spec.hp+TRADER_DESCRIPTION
   if type=="guard": text="生命：%s\n" % spec.hp+GUARD_DESCRIPTION
-  if type=="binding_box": text="生命：%s\n特性：非魔法伤害减半。\n开场：捕缚40/100，固定坐姿，上身束缚等级至少1。捕缚期间，每个玩家回合开始施加1件中级2档皮革拘束具，捕缚＋10；无位置仍增加进度。\n行动：随机施加2件中级2档皮革拘束具／口球，或加固皮革共4档→准备→施加1件备用复合拘束具，循环。没有加固目标时只选施加。\n备装：中级2档短上段单腿套、短下段单腿套、露手直肩带单手套各1件。成功施加才消耗，满位可替换，用尽后改为捕缚＋10；捕缚解除不会补充备装。" % spec.hp
+  if type=="binding_box": text="生命：%s；铁男战中的随行实例为50，小魔女铁男战为65。\n特性：非魔法伤害减半。\n开场：捕缚40/100，固定坐姿，上身束缚等级至少1。捕缚期间，每个玩家回合开始施加1件中级2档皮革拘束具，捕缚＋10；无位置仍增加进度。\n行动：随机施加2件中级2档皮革拘束具／口球，或加固皮革共4档→准备→施加1件备用复合拘束具，循环。没有加固目标时只选施加。\n备装：中级2档短上段单腿套、短下段单腿套、露手直肩带单手套各1件。成功施加才消耗，满位可替换，用尽后改为捕缚＋10；捕缚解除不会补充备装。" % spec.hp
   if type=="versatile": text="生命：%s\n行动：首次行动停顿，此后循环“施加1件初级2档性玩具→随机上锁1件或加固至多2件至3档”。\n选择：上锁与加固各50%%；只有一项能用时选该项，都不能用时改为施加性玩具。已预告的行动失去目标后不生效。\n范围：性玩具满位时可替换；不施加飞机杯或外置震动棒。" % spec.hp
   if type=="drone": text="生命：%s\n特性：非魔法伤害减半。\n开场：捕缚30/100，固定站姿，上身束缚等级至少1。\n行动：随机施加2件初级1档胶带或加固胶带共2档→捕缚＋10→停顿，循环。没有加固目标时只选施加。\n捕缚效果：每累计消耗2能量，施加1件初级2档胶带，捕缚＋10。余数跨回合保留，无位置仍增加进度。胶带包括眼罩和嘴部胶带。" % spec.hp
   if type=="six_bind": text="生命：%s\n开场：展开六缚阵→眼部、口部、双臂、手腕与手部、大腿、小腿与足部六区各施加1件初级2档拘束具，并施加1件初级性玩具。\n行动：戏弄封缚→双重束缚→调教升温→戏弄封缚→复合束装→调教升温→六缚齐收→空闲，循环。\n戏弄封缚：中级2档拘束具×1，加入「玩弄」×1。双重束缚：中级2档拘束具×2，无法新增的次数改为加固。\n复合束装：中级2档复合拘束具×1，无法施加时改为加固共3档。六缚齐收：再次束缚六区，加入「玩弄+」×3。空闲：本回合不行动。\n调教升温：施加、加固性玩具各1＋收束层数次，然后收束＋1。首轮初级，此后中级；满位可替换，不施加飞机杯。\n状态牌：「玩弄」／「玩弄+」不可打出，回合结束留在手中时快感分别＋5／＋8。\n高潮逮捕：本场战斗累计第%d次高潮时准备逮捕，此后每次高潮都会再次准备。被打断时取消本次逮捕，下一回合恢复原行动。\n收押：普通、复合拘束具均无新增位置且无法加固时，预告收押；性玩具空位或可替换装备不会阻止收押。" % [spec.hp,spec.climax_capture_threshold]
+  if type=="iron_man": text="生命：%s；小魔女遭遇时为195。\n特性：机械减伤。捕缚被挣开后，机械减伤失效2回合并发呆1回合；铁男被击败时随行无人机与拘束盒同时停机。\n开场：施加30/100捕缚，限制为坐姿或躺姿；替换普通平板锁并佩戴中级3档马眼全包榨精杯。诅咒平板锁或小魔女改为4件中级2档其他性玩具。\n捕缚：每累计消耗3能量，全部主动刺激型特殊装备触发1次。无人机存活时，额外施加初级2档胶带、捕缚＋5、随机遥控1件主动装备并耗电1，再随机上锁1件拘束具。\n循环：捕缚＋15或重新捕缚→施加普通皮革拘束具并加固→施加复合皮革拘束具及强化附加项→补满特殊装备电量→强化。\n强化：每次使以后施加捕缚的数值＋5，并按紧度与普通数量／等级与普通数量／高级特殊装备与2把锁／普通与特殊数量及1把锁四组循环累计；第1、2、4组同时使加固量＋2档。" % spec.hp
+  if type=="iron_drone": text="生命：%s；小魔女遭遇时为65。\n行动：自身待机。\n铁男捕缚追加：每累计消耗3能量，施加1件初级2档胶带并使捕缚＋5；随机遥控1件主动刺激型特殊装备额外结算并消耗1电量；随机为1件拘束具上锁。\n铁男被击败时立即停机。" % spec.hp
   if type=="mixed_bundle": text="生命：%s\n开场：散缚，施加2件初级2档拘束具。\n行动：之后随机选招。散缚同开场；翻卷收紧先施加1件初级2档，再加固1件至3档；躁动膨胀获得1层狂躁。\n狂躁：每层使后续施加数量＋1，不增加加固次数。\n限制：散缚、躁动膨胀不连用，翻卷收紧最多连用2次。可施加各类初级普通拘束具（含口球、链接绳），不会替换。" % spec.hp
   if type=="rope_serpent": text="生命：%s\n行动：缠身→随机收紧或甩缚，循环；两种招式各50%%。\n缠身：紧缠＋1层。每个玩家回合结束，每层施加1件初级2档绳索类拘束具。\n收紧：加固1件绳索类拘束具至3档。甩缚：施加2件初级2档绳索类拘束具，含链接绳。\n特殊：预告收紧时没有目标则改为甩缚；预告后失去目标则不生效。打断不停止紧缠，击败该绳蛇才停止。" % spec.hp
   if type in ["ominous_circle","small_circle"]: text="生命：%s\n开场：获得%d点仪式，此后每个自身回合结束，施加数量＋%d。\n行动：从第2次行动起持续施加拘束具，数量通常为%d、%d、%d……；每件随机为初级2档或中级1档，含链接绳。\n无位置时：剩余每次施加改为加固1次；也无法加固则结束，不累计到下回合。\n特殊：仪式启动后，打断施加不会阻止数量增长；击败后停止。" % [spec.hp,spec.ritual_gain,spec.ritual_gain,1+spec.ritual_gain,1+2*spec.ritual_gain,1+3*spec.ritual_gain]
@@ -195,6 +200,7 @@ static func special_notes(type: String) -> String:
  if S.is_chastity_type(type):
   lines.append(spec.detail)
   lines.append("快感上限＋5×（品质＋紧度）；锁外来源快感×［1＋0.05×（品质＋紧度）］。每次高潮后按（品质＋紧度）×保留系数保留快感，系数初始3、每次永久＋1，普通模式最高10。")
+ if spec.family in S.CUP_REINFORCEMENT_FAMILIES: lines.append("紧度达到3档时自动附加同品质固定带；固定带存在时不能滑脱杯体，只能先切断固定带或通过挣扎破坏杯体。")
  if spec.get("component_only",false): lines.append(spec.detail)
  if spec.family=="crotch_rope": lines.append("可连接手腕或大腿根装备；对手腕算下端，对大腿根算上端。")
  return "\n".join(lines)

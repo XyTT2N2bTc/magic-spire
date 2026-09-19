@@ -56,7 +56,7 @@ static func run(t) -> void:
   var master=g._append_enemies([{"type":"puppeteer","grade":2}])[0]
   var doll=g.Puppets.owned(g,master)
   g.Puppets.execute(g,master,{"kind":"puppet_mend"})
-  t.check(doll.max_hp==10*scale+security_bonus+5 and g.Puppets.validate(g,g.state.enemies,scale)=="","DEMO summon base scales, security applies once and fixed healing remains five")
+  t.check(doll.max_hp==15*scale+security_bonus+5 and g.Puppets.validate(g,g.state.enemies,scale)=="","DEMO summon base scales, security applies once and fixed healing remains five")
  exit_fixture(g)
  t.check(g.candidates().filter(func(c):return c.payload.kind!="item_discard").size()==1 and g.candidates()[0].payload.kind=="demo_end","DEMO third exit offers only end")
  t.check(not t.action(g,"demo_continue").ok and t.action(g,"demo_end").ok and g.state.demo_finished and g.candidates().is_empty(),"DEMO final end closes run without a fourth cycle")

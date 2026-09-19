@@ -27,11 +27,12 @@ static func run(t) -> void:
   var elite_rooms=rooms.filter(func(r):return r.get("encounter","")=="guard_solo")
   t.check(elite_rooms.all(func(r):return r.floor>=5 and not r.has("pool")),"PROGRESSION elites appear after opening floors outside ordinary pools")
   var summit=g.room_data("summit")
-  t.check(summit.boss and summit.kind=="battle" and summit.requires_defeat and g.state.room_encounters.summit=="six_bind_solo" and summit.floor==15,"PROGRESSION summit uses the registered 六缚 boss encounter")
+  t.check(summit.boss and summit.kind=="battle" and summit.requires_defeat and g.state.room_encounters.summit in g.Enemies.FirstFloor.SUMMIT_ENCOUNTERS and summit.floor==15,"PROGRESSION summit uses one registered first-floor boss encounter")
   t.check(rooms.filter(func(r):return "exit" in r.next).map(func(r):return r.id)==["summit"] and g.room_data("exit").requires_clear=="summit","PROGRESSION every graph route to exit passes summit")
   t.check(g.route_view().filter(func(r):return r.id=="summit")[0].icon=="boss" and elite_rooms.all(func(e):return g.route_view().filter(func(r):return r.id==e.id)[0].icon=="elite"),"PROGRESSION map distinguishes elites from summit using actual room role")
 
  var g=Game.new(42)
+ g.state.room_encounters.summit="six_bind_solo";g.room_data("summit").encounter="six_bind_solo";g.room_data("summit").name="塔顶 · 六缚"
  before_room(g,"summit")
  var marker=g._install_template("rope","ankle",4,10,false,"fixture")
  g.state.mana=42;g.state.pressure=17
@@ -40,7 +41,7 @@ static func run(t) -> void:
  var rest_id=g.state.room
  var before=JSON.stringify(g.state)
  t.check(not t.action(g,"depart",{"room":"exit"}).ok and JSON.stringify(g.state)==before,"PROGRESSION cannot skip summit from final rest")
- t.check(g.room_entry_reason(g.room_data("exit")).contains("六缚"),"PROGRESSION unavailable exit explains actual boss prerequisite")
+ t.check(g.room_entry_reason(g.room_data("exit")).contains("塔顶首领"),"PROGRESSION unavailable exit explains actual boss prerequisite")
  travel(t,g,"summit")
  t.check(g.state.phase=="battle" and g.state.enemies.size()==1 and g.state.enemies[0].hp==220 and g.state.enemies[0].type=="six_bind" and not g.state.practice,"PROGRESSION final room starts one full-health 六缚 in real run")
  t.check(JSON.stringify(g.state.equipment)==equipment and g.state.mana==42 and g.state.pressure==17 and g.state.traversed_edges.has([rest_id,"summit"]),"PROGRESSION rest departure and summit travel preserve gear/resources without battle-ending rewards")
@@ -79,6 +80,7 @@ static func run(t) -> void:
 
  for target in [g.state.rooms.filter(func(r):return r.get("encounter","")=="guard_solo")[0].id,"summit"]:
   g=Game.new(42)
+  if target=="summit": g.state.room_encounters.summit="six_bind_solo";g.room_data("summit").encounter="six_bind_solo"
   before_room(g,target);t.action(g,"finish_rest");travel(t,g,target)
   var old_route=JSON.stringify(g.state.rooms)
   var old_ids=g.state.enemies.map(func(e):return e.id)

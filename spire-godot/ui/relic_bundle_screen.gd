@@ -9,6 +9,18 @@ static func build(ui) -> void:
  ui._place(title,Rect2(420,83,760,58),root)
  var subtitle=ui._label(panel.destination,18,ui.MUTED);subtitle.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
  ui._place(subtitle,Rect2(420,144,760,35),root)
+ if panel.get("selection","")=="card_copy":
+  var choices={}
+  for id in panel.action_ids:
+   var choice=ui.actions.by_id[id]
+   choices[choice.payload.uid]=choice
+  var browser=preload("res://ui/deck_browser.gd").new()
+  ui._place(browser,Rect2(54,190,1492,510),root)
+  browser.setup(ui,panel.cards,false,"没有可复制的卡牌。",choices)
+  var finish=ui.actions.by_id[panel.continue_id]
+  var skip=ui._button(panel.continue_label,func():ui._submit(finish),ui.MUTED)
+  skip.name="BundleContinue";ui._place(skip,Rect2(625,720,350,48),root);ui.candidate_buttons[finish.id]=skip
+  return
  var width=280.0;var gap=28.0
  var left=(1600-panel.entries.size()*width-(panel.entries.size()-1)*gap)/2
  for entry in panel.entries:

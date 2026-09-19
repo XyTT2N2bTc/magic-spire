@@ -99,10 +99,15 @@ static func prepared_chant(t) -> void:
   if ui.card_faces.get(card.uid,false)!=free: await t.flip(card.uid)
   var face=ui.card_buttons[card.uid];var text=t.visible_text(face)
   t.check(face.rarity=="common" and face.get_node("CardCost").text=="1" and text.contains("100%") and text.contains("保留") and text.contains("消耗") and face.ILLUSTRATIONS.has("prepared_chant"),"CHANT UI both faces display common rarity, cost, full effect, retention, exhaust and illustration")
+  t.check(text.contains("下回合" if free else "本回合"),"CHANT UI flipping distinguishes current and next-turn effects")
  var before=ui.game.export_snapshot()
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  ui.game.state.pressure=99;ui.render();await t.frames()
- t.check(ui.game.state.energy==before.energy-1 and ui.game.state.mana==before.mana-10 and ui.game.state.exhaust.any(func(c):return c.uid==card.uid) and ui.find_child("HeroCastingChance",true,false).text.contains("100%") and ui.view.statuses.any(func(s):return s.name=="预备咏唱"),"CHANT UI real card click exhausts and updates certainty status and chance display")
+ t.check(ui.game.state.energy==before.energy-1 and ui.game.state.mana==before.mana-10 and ui.game.state.exhaust.any(func(c):return c.uid==card.uid) and not ui.find_child("HeroCastingChance",true,false).text.contains("100%") and ui.view.statuses.any(func(s):return s.id=="power_prepared_chant_next" and s.value=="下回合生效"),"CHANT UI free play exhausts and shows pending status without current certainty")
+ for enemy in ui.game.state.enemies: enemy.intent.delayed=true
+ ui.render();await t.frames()
+ t.check(await t.click("end"),"CHANT UI native end-turn action advances the queued effect")
+ t.check(ui.find_child("HeroCastingChance",true,false).text.contains("100%") and ui.view.statuses.any(func(s):return s.id=="power_prepared_chant") and not ui.view.statuses.any(func(s):return s.id=="power_prepared_chant_next"),"CHANT UI next turn replaces pending status and displays active certainty")
 
 static func unlock_preparation(t) -> void:
  var ui=t.ui

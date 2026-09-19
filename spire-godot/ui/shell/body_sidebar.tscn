@@ -5,33 +5,52 @@
 
 [node name="BodyEquipmentPanel" type="PanelContainer"]
 z_index = 20
-offset_left = 24.0
-offset_top = 82.0
-offset_right = 334.0
-offset_bottom = 594.0
+offset_top = 64.0
+offset_right = 375.0
+offset_bottom = 595.0
 script = ExtResource("1")
+expanded_height = 836.0
 
 [node name="Canvas" type="Control" parent="."]
 layout_mode = 2
 mouse_filter = 2
 
+[node name="PortraitBackdrop" type="ColorRect" parent="Canvas"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.043, 0.086, 0.122, 1)
+
 [node name="Title" type="Label" parent="Canvas"]
-offset_right = 286.0
+offset_right = 351.0
 offset_bottom = 30.0
 theme_override_font_sizes/font_size = 21
 text = "身体与拘束具"
 
 [node name="EquipmentPortrait" parent="Canvas" instance=ExtResource("2")]
 offset_top = 34.0
-offset_right = 178.0
-offset_bottom = 488.0
+offset_right = 215.0
+offset_bottom = 507.0
 
 [node name="Divider" type="ColorRect" parent="Canvas"]
-offset_left = 178.0
+offset_left = 215.0
 offset_top = 36.0
-offset_right = 179.0
-offset_bottom = 478.0
+offset_right = 216.0
+offset_bottom = 497.0
 mouse_filter = 2
 
 [node name="Slots" type="Control" parent="Canvas"]
 mouse_filter = 2
+
+[node name="ExpandPortrait" type="Button" parent="Canvas"]
+offset_left = 173.0
+offset_top = 465.0
+offset_right = 207.0
+offset_bottom = 499.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 20
+text = "↗"

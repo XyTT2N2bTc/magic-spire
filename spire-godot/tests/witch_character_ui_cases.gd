@@ -33,7 +33,8 @@ static func run(t) -> void:
  t.check(ui.attack_forms.witch_hand==1 and t.visible_text(ui.find_child("BasicAttack_witch_hand",true,false)).contains("烈焰箭"),"WITCH UI right-click selects charged release without charge mutation")
  await t.capture("ui-witch-battle.png")
  t.check(await t.click("attack",{"type":"witch_hand","form":1}) and ui.game.state.witch_charges.hand==0,"WITCH UI release consumes all accumulated hand layers")
- t.check(ui.attack_forms.witch_hand==0 and t.visible_text(ui.find_child("BasicAttack_witch_hand",true,false)).contains("施法预备"),"WITCH UI release resets the selected body action to preparation")
+ t.check(ui.attack_forms.witch_hand==0 and t.visible_text(ui.find_child("BasicAttack_witch_hand",true,false)).contains("手部施法"),"WITCH UI release resets the selected body action to preparation")
+ await preload("res://tests/witch_revision_ui_cases.gd").run(t)
  ui.game_factory=factory
  ui._return_home();await t.frames()
  select=ui.find_child("CharacterSelect",true,false);select.select(0);select.item_selected.emit(0)

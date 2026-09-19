@@ -67,7 +67,8 @@ static func run(t) -> void:
  t.check(t.action(g,"prison",{"action":"enter"}).ok and g.at_wall(),"WALL prison starts adjacent")
  g.state.phase="inspection";g.state.prison.stage="arrival"
  var rolls=g.state.rng.position
- t.check(t.action(g,"prison",{"action":"resist"}).ok and g.state.wall_distance in [1,2,3,4] and g.state.rng.position==rolls+1,"WALL prison resistance starts a fresh combat position")
+ var cell_position=g.state.prison.space.position.duplicate();var distance=g.state.wall_distance
+ t.check(t.action(g,"prison",{"action":"resist"}).ok and g.state.prison.space.position==cell_position and g.state.wall_distance==distance and g.state.rng.position==rolls,"WALL prison resistance preserves the cell position and does not reroll wall distance")
  g=Game.new(42,true,"special_equipment")
  g.state.wall_distance=1;g.state.posture="lie"
  var pressure=g.state.pressure;var energy=g.state.energy;var remaining=g.state.special_equipment[1].remaining

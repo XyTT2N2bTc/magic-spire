@@ -10,6 +10,8 @@ static func fire(t,g) -> Dictionary:
  return t.find_action(g,"attack",{"type":"fireball","enemy":g.state.enemies[0].id})
 
 static func run(t) -> void:
+ preload("res://tests/formation_cases.gd").run(t)
+ preload("res://tests/sympathetic_form_cases.gd").run(t)
  preload("res://tests/self_binding_cases.gd").run(t)
  reuse(t)
  preload("res://tests/resonance_cases.gd").run(t)
@@ -148,6 +150,7 @@ static func reuse_setup(t, free: bool, role: String="original"):
  var g=Game.new(42,false,"equipment",true,false,25,false,false,role)
  g._discard_end();g.state.equipment.clear();g.state.relics=[];g.state.energy=30
  g.add_fixture("wrist",8);g.add_fixture("ankle",8)
+ if not free: g.add_fixture("palm",8);g.add_fixture("foot",8)
  t.check(Cards.play(t,g,"reuse",free).ok,"MASTERY activates selected face "+role)
  return g
 
@@ -206,26 +209,48 @@ static func reuse(t) -> void:
   t.check(not copy.restore_snapshot(bad).ok and copy.state==before,"MASTERY invalid quota restores atomically")
   g._begin_player_turn()
   t.check(g.state.powers[0].power_failure_count==0,"MASTERY next turn restores two opportunities")
- # Dynamic 2/2 -> 3/2 -> 3/3 -> 2/3 -> missing requirement.
+ # Basic requirements gate activation and ongoing conversion independently of quota.
+ for missing in ["palm","foot"]:
+  var blocked=reuse_setup(t,false)
+  blocked.Cards.end_powers(blocked)
+  var item=blocked.state.equipment.filter(func(e):return e.slot==missing)[0]
+  item.durability=0;blocked._cleanup()
+  var card=Cards.give(blocked,"reuse");var before=blocked.export_snapshot()
+  var action=t.find_action(blocked,"card",{"uid":card.uid,"free":false})
+  t.check(not action.valid and not blocked.dispatch(action.id,blocked.state.version).ok and blocked.state==before,"MASTERY level two in either region rejects activation atomically")
  var g=reuse_setup(t,false);g.state.powers[0].power_failure_count=2
- var palm=g.add_fixture("palm",8)
+ for slot in ["eyes","fingers","upper_arm","forearm","thigh"]: g.add_fixture(slot,8)
  g.state.mana=50;g.state.temporary_mana=30
  var result=reuse_fail(t,g,"mana_surge")
- t.check(g.level("arms")==3 and g.level("legs")==2 and result.spell.energy_refund==0,"MASTERY one level-three region does not remove cap")
- g.add_fixture("foot",8)
+ t.check(g.level("arms")>=3 and g.level("legs")>=3 and g.Cards.worn_count(g,false,2)==9 and result.spell.energy_refund==0,"MASTERY both qualifying regions with nine tight items retain cap")
+ var special=g._install_special("vaginal_egg_low","special_3_a")
+ g.state.temporary_mana=30;result=reuse_fail(t,g,"mana_surge")
+ t.check(not special.is_empty() and g.Cards.worn_count(g)==10 and result.spell.energy_refund==0,"MASTERY special equipment cannot supply the tenth item")
+ var tenth=g.add_fixture("calf",4)
+ g.state.temporary_mana=30;result=reuse_fail(t,g,"mana_surge")
+ t.check(g.tier(tenth.durability,tenth.maximum)==1 and result.spell.energy_refund==0,"MASTERY forty percent durability is still below tightness two")
+ g._equipment(tenth.id).durability=4.0001
  for n in range(3):
   g.state.mana=50;g.state.temporary_mana=30
   result=reuse_fail(t,g,"mana_surge")
-  t.check(g.level("arms")==3 and g.level("legs")==3 and result.spell.energy_refund==1 and result.spell.mana_refund.temporary_mana==result.candidate.mana,"MASTERY both regions level three permit repeated full refunds")
- g._equipment(palm.id).durability=0;g._cleanup();g.state.temporary_mana=30
+  t.check(g.Cards.worn_count(g,false,2)==10 and result.spell.energy_refund==1 and result.spell.mana_refund.temporary_mana==result.candidate.mana,"MASTERY ten tight ordinary items permit repeated full refunds")
+ g._equipment(tenth.id).durability=4;g.state.temporary_mana=30
  result=reuse_fail(t,g,"mana_surge")
- t.check(result.spell.energy_refund==0 and g.state.powers[0].power_failure_count==2,"MASTERY lowering a region restores cap without refreshing it")
+ t.check(result.spell.energy_refund==0 and g.state.powers[0].power_failure_count==2,"MASTERY lowering item tightness restores cap without refreshing it")
+ g._equipment(tenth.id).durability=8
+ var copy=Game.new(0)
+ t.check(copy.restore_snapshot(g.export_snapshot()).ok and copy.Cards.failure_unlimited(copy,Rules.BUFFS.reuse_bound) and copy.state.powers[0].power_failure_count==2,"MASTERY restore recomputes worn upgrade and preserves quota")
  g.state.equipment.clear();g.state.temporary_mana=30
  result=reuse_fail(t,g)
  t.check(result.spell.energy_refund==0 and g.get_view().statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("未生效")),"MASTERY lost requirement immediately pauses conversion")
- g.add_fixture("wrist",8);g.add_fixture("ankle",8);g.state.temporary_mana=30
+ for slot in ["wrist","ankle","palm","foot"]: g.add_fixture(slot,8)
+ g.state.temporary_mana=30
  result=reuse_fail(t,g)
  t.check(result.spell.energy_refund==1,"MASTERY re-equipping reactivates without replaying power")
+ var composite=g._install_assembly("glove","short","fixture",2,2)
+ t.check(not composite.is_empty() and composite.components.size()>1 and g.Cards.worn_count(g,false,2)==5,"MASTERY tight composite body counts once regardless of straps")
+ var body=g._composite_body(composite);body.durability=body.maximum*0.4
+ t.check(g.Cards.worn_count(g,false,2)==4 and g.Cards.worn_count(g,false)==5,"MASTERY loose composite body excludes its tighter straps only from tier-filtered count")
  # Success, replay, zero-mana and lifecycle boundaries.
  g=reuse_setup(t,true);g.state.pressure=0;g.state.temporary_mana=30
  var c=fire(t,g);var before=g.export_snapshot()

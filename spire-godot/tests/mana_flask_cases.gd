@@ -20,12 +20,26 @@ static func run(t) -> void:
  var committed=g.export_snapshot()
  t.check(not g.dispatch(pick.id,before.version).ok and g.state==committed,"FLASK stale deposit rejects atomically")
  t.check(t.action(g,"flask",{"op":"deposit"}).ok and g.state.mana==80 and g.state.flask_mana==20,"FLASK second deposit succeeds")
+ t.check(t.action(g,"flask",{"op":"deposit"}).ok and g.state.mana==70 and g.state.flask_mana==30,"FLASK third deposit succeeds")
  committed=g.export_snapshot()
- t.check(not t.action(g,"flask",{"op":"deposit"}).ok and g.state==committed,"FLASK third deposit refuses without resource changes")
+ t.check(not t.action(g,"flask",{"op":"deposit"}).ok and g.state==committed,"FLASK fourth deposit refuses without resource changes")
  t.check(["tick","round","energy","rng","charge","temporary_mana","combat"].all(func(key):return g.state[key]==before[key]),"FLASK storage costs no turn or energy and cannot trigger mana-spend relics")
- t.check(t.action(g,"flask",{"op":"withdraw"}).ok and t.action(g,"flask",{"op":"withdraw"}).ok and g.state.mana==100 and g.state.flask_mana==0 and g.state.flask_deposits==2,"FLASK repeated withdrawals restore full mana without refunding deposits")
+ for i in range(3): t.check(t.action(g,"flask",{"op":"withdraw"}).ok,"FLASK withdrawal allowance is independent of deposits")
+ t.check(g.state.mana==100 and g.state.flask_mana==0 and g.state.flask_deposits==3 and g.state.combat.flask_withdrawals==3,"FLASK transfers use separate three-use allowances")
+ g.state.mana=70;g.state.flask_mana=30;committed=g.export_snapshot()
+ var denied=t.find_action(g,"flask",{"op":"withdraw"},false)
+ t.check(not denied.valid and not g.dispatch(denied.id,g.state.version).ok and g.state==committed,"FLASK fourth withdrawal rejects despite available mana and capacity")
+ var twin=Game.new(42)
+ t.check(twin.restore_snapshot(committed).ok and not t.find_action(twin,"flask",{"op":"withdraw"},false).valid,"FLASK snapshot preserves exhausted withdrawal allowance")
+ var restored=twin.export_snapshot()
+ for invalid in [-1,4,"3"]:
+  var broken=committed.duplicate(true);broken.combat.flask_withdrawals=invalid
+  t.check(not twin.restore_snapshot(broken).ok and twin.state==restored,"FLASK corrupt withdrawal counter rejects atomically")
+ var old=committed.duplicate(true);old.combat.erase("flask_withdrawals")
+ t.check(twin.restore_snapshot(old).ok and t.find_action(twin,"flask",{"op":"withdraw"}).valid,"FLASK older snapshot without new counter defaults to unused")
  t.action(g,"end")
- t.check(g.state.flask_deposits==0 and t.action(g,"flask",{"op":"deposit"}).ok,"FLASK actual next turn restores deposit allowance")
+ g.state.posture="sit"
+ t.check(g.state.flask_deposits==0 and g.state.combat.flask_withdrawals==0 and t.action(g,"flask",{"op":"deposit"}).ok and t.action(g,"flask",{"op":"withdraw"}).ok,"FLASK actual next turn restores both allowances")
  g=Game.new(42);g.state.mana=3.5;g.state.flask_mana=1000000.0
  t.check(t.action(g,"flask",{"op":"deposit"}).ok and g.state.mana==0 and g.state.flask_mana==1000003.5,"FLASK partial deposit preserves fractional mana and has no capacity limit")
  g.state.mana=98.5
@@ -43,7 +57,7 @@ static func run(t) -> void:
  t.check(not t.action(g,"flask",{"op":"withdraw"}).ok and g.state==committed,"FLASK standing follows potion arm and grip restrictions")
  t.check(t.action(g,"flask",{"op":"deposit"}).ok,"FLASK deposit is still possible with bound hands")
  g.state.posture="sit"
- for i in range(3):t.check(t.action(g,"flask",{"op":"withdraw"}).ok,"FLASK seated withdrawal bypasses grip with no per-turn count limit")
+ for i in range(3):t.check(t.action(g,"flask",{"op":"withdraw"}).ok,"FLASK seated withdrawal bypasses grip within its three-use allowance")
  g=Game.new(42);g._finish_battle();g.state.mana=70
  t.check(t.action(g,"flask",{"op":"deposit"}).ok and g.state.phase=="reward","FLASK remains usable on reward page")
  g=Game.new(42);g.Pressure.gain(g,100,"fixture")
@@ -68,3 +82,33 @@ static func run(t) -> void:
  g.state.flask_mana=0
  var item=t.find_action(g,"service",{"op":"take","payment":"flask"});committed=g.export_snapshot()
  t.check(not item.valid and not g.dispatch(item.id,g.state.version).ok and g.state==committed,"FLASK insufficient payment rolls back item and all resources")
+ outside_battle(t)
+ var loc=preload("res://ui/localization.gd").new();loc.set_locale("en_US")
+ t.check(loc.display("本回合已存入3次。")=="Already deposited 3 times this turn." and loc.display("本回合已取出3次。")=="Already withdrawn 3 times this turn.","FLASK English rejection reasons use current shared limit")
+ t.check(loc.display("存入10魔力，战斗外不限次数。")=="Store 10 mana. Unlimited uses outside battle." and loc.display("本回合可取出2次")=="2 withdrawals remaining this turn","FLASK English detail distinguishes unlimited use and remaining withdrawals")
+ t.check(loc.display(g.ManaFlask.withdraw_detail(g,{"drawn":10,"restored":10,"remaining":3,"limited":true}))=="Draw 10 mana to restore 10 mana. 3 withdrawals remaining this turn." and loc.display(g.ManaFlask.withdraw_detail(g,{"drawn":10,"restored":5,"limited":false}))=="Draw 10 mana to restore 5 mana. Unlimited uses outside battle.","FLASK complete English withdrawal tooltips preserve amounts and phase limits")
+
+static func outside_battle(t) -> void:
+ var g=Game.new(42)
+ for i in range(3):
+  t.action(g,"flask",{"op":"deposit"});t.action(g,"flask",{"op":"withdraw"})
+ g._finish_battle()
+ t.check(g.state.phase=="reward" and not g.ManaFlask.view(g).limited,"FLASK victory immediately lifts both limits before combat cleanup")
+ for i in range(5):
+  t.check(t.action(g,"flask",{"op":"deposit"}).ok and t.action(g,"flask",{"op":"withdraw"}).ok,"FLASK rewards allow repeated transfers with exhausted battle counters")
+ t.check(g.state.flask_deposits==3 and g.state.combat.flask_withdrawals==3,"FLASK outside transfers do not change battle counters")
+ t.action(g,"reward",{"type":"skip"})
+ t.check(g.state.phase=="prepare" and not g.ManaFlask.view(g).limited,"FLASK preparation is outside battle despite retaining combat state")
+ for i in range(5): t.check(t.action(g,"flask",{"op":"deposit"}).ok and t.action(g,"flask",{"op":"withdraw"}).ok,"FLASK preparation permits more than three transfers")
+ t.check(shop(g),"FLASK outside-limit fixture reaches shop through travel")
+ for i in range(5): t.check(t.action(g,"flask",{"op":"deposit"}).ok and t.action(g,"flask",{"op":"withdraw"}).ok,"FLASK shop permits more than three transfers")
+ g._apply_transition("room_enter",{"room":"entrance"})
+ g._start_battle()
+ t.check(g.state.phase=="battle" and g.ManaFlask.view(g).limited and g.ManaFlask.remaining(g,"deposit")==3 and g.ManaFlask.remaining(g,"withdraw")==3,"FLASK new battle starts with fresh independent allowances")
+ for phase in ["rest","prison"]:
+  g=preload("res://tests/prison_cases.gd").intake(t) if phase=="prison" else Game.new(42)
+  if phase=="rest": g._start_rest();t.action(g,"rest_begin")
+  g.state.mana=50;g.state.flask_mana=100
+  var before=g.export_snapshot()
+  for i in range(5): t.check(t.action(g,"flask",{"op":"deposit"}).ok and t.action(g,"flask",{"op":"withdraw"}).ok,"FLASK repeated transfers outside combat: "+phase)
+  t.check(g.state.tick==before.tick and g.state.flask_deposits==before.flask_deposits and g.state.combat==before.combat,"FLASK outside transfers preserve turn and combat counters: "+phase)

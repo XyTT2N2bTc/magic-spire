@@ -2,11 +2,27 @@ extends Button
 
 const Palette=preload("res://ui/visual_theme.gd")
 const ILLUSTRATIONS={
+ "witch_binding_lure":preload("res://assets/ui/cards/witch_binding_lure.svg"),
+ "itching_heart":preload("res://assets/ui/cards/desire_magic.svg"),
+ "self_satisfaction":preload("res://assets/ui/cards/desire_magic.svg"),
+ "psychological_suggestion":preload("res://assets/ui/cards/desire_magic.svg"),
+ "rally_spirit":preload("res://assets/ui/cards/desire_magic.svg"),
+ "desire_rune":preload("res://assets/ui/cards/desire_magic.svg"),
+ "forced_edging":preload("res://assets/ui/cards/desire_magic.svg"),
+ "forced_climax":preload("res://assets/ui/cards/desire_magic.svg"),
+ "supple_flesh":preload("res://assets/ui/cards/supple_flesh.svg"),
+ "binding_power":preload("res://assets/ui/cards/binding_power.svg"),
+ "mana_attachment":preload("res://assets/ui/cards/mana_attachment.svg"),
+ "binding_search":preload("res://assets/ui/cards/binding_search.svg"),
+ "kip_up":preload("res://assets/ui/cards/kip_up.svg"),
+ "sympathetic_form":preload("res://assets/ui/cards/sympathetic_form.svg"),
+ "endless_war_goddess":preload("res://assets/ui/cards/endless_war_goddess.svg"),
  "self_binding":preload("res://assets/ui/cards/self_binding.svg"),
  "prepared_chant":preload("res://assets/ui/cards/prepared_chant.svg"),
  "confluence":preload("res://assets/ui/cards/confluence.svg"),
  "reuse":preload("res://assets/ui/cards/reuse.svg"),
  "resonance":preload("res://assets/ui/cards/resonance.svg"),
+ "formation":preload("res://assets/ui/cards/formation.svg"),
  "practiced":preload("res://assets/ui/cards/practiced.svg"),
  "hannya_1":preload("res://assets/ui/cards/hannya_1.svg"),
  "hannya_2":preload("res://assets/ui/cards/hannya_2.svg"),
@@ -110,6 +126,19 @@ func set_mana(entries: Array) -> void:
  for child in group.get_children(): group.remove_child(child);child.queue_free()
  group.visible=not entries.is_empty()
  for entry in entries:
+  if entry.kind=="pressure":
+   var heart=Control.new();heart.name="Mana_pressure"
+   heart.custom_minimum_size=Vector2(42,36);heart.mouse_filter=Control.MOUSE_FILTER_IGNORE
+   heart.tooltip_text=_display(entry.detail)
+   var art=TextureRect.new();art.texture=preload("res://assets/ui/cards/pressure_heart.svg")
+   art.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;art.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+   art.mouse_filter=Control.MOUSE_FILTER_IGNORE;heart.add_child(art);art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+   var amount=Label.new();amount.text=entry.text
+   amount.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;amount.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+   amount.add_theme_font_size_override("font_size",16);amount.add_theme_color_override("font_color",Color("fff3fa"))
+   amount.mouse_filter=Control.MOUSE_FILTER_IGNORE;heart.add_child(amount);amount.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+   group.add_child(heart)
+   continue
   var badge=PanelContainer.new();badge.name="Mana_"+entry.kind
   badge.mouse_filter=Control.MOUSE_FILTER_IGNORE
   badge.tooltip_text=_display(entry.detail)

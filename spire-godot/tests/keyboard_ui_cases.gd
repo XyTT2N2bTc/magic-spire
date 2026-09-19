@@ -69,9 +69,9 @@ static func run(t) -> void:
  await tap(t,KEY_ESCAPE)
  await tap(t,KEY_B);t.check(ui.show_body,"KEYS B opens body details")
  await tap(t,KEY_B);t.check(not ui.show_body,"KEYS B closes body details")
- var log_open=ui.action_log_open
- await tap(t,KEY_L);t.check(ui.action_log_open!=log_open,"KEYS L toggles action log")
- await tap(t,KEY_L);t.check(ui.action_log_open==log_open,"KEYS L restores prior action log visibility")
+ var log_open=ui.show_log
+ await tap(t,KEY_L);t.check(ui.show_log!=log_open,"KEYS L toggles action log")
+ await tap(t,KEY_L);t.check(ui.show_log==log_open,"KEYS L restores prior action log visibility")
  await tap(t,KEY_F)
  t.check(input.selection.get("type","")=="fireball" and not input.choices.is_empty() and ui.game.state==before,"KEYS fireball selects formal targets without firing")
  var c=input.choices[input.choice_index]

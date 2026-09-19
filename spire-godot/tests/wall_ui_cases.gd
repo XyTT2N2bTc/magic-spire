@@ -10,7 +10,7 @@ static func run(t) -> void:
  var rail=ui.find_child("BasicActionRail",true,false)
  var sit=ui.find_child("Posture_sit",true,false)
  t.check(button.text.contains("2格 / 1能量") and is_equal_approx(button.get_global_rect().position.x,sit.get_global_rect().position.x) and is_equal_approx(button.size.x,sit.size.x) and is_equal_approx(button.get_global_rect().end.y+4,sit.get_global_rect().position.y) and button.get_global_rect().position.y>rail.get_global_rect().end.y,"WALL UI movement aligns immediately above sitting, below the basic action rail")
- t.check(ui.find_child("ActionSidebar",true,false).get_global_rect().end.y<button.get_global_rect().position.y,"WALL UI expanded log never covers movement control")
+ t.check(ui.find_child("ActionSidebar",true,false)==null and not ui.show_log,"WALL UI movement is clear of log panels by default")
  var before=ui.view.round
  await Pointer.press(t,button)
  t.check(ui.view.wall_position.at_wall and ui.view.energy==2 and ui.view.round==before,"WALL UI real click reaches wall without ending turn")
@@ -67,10 +67,11 @@ static func run(t) -> void:
  t.check(ui.view.energy==2 and ui.game._item(item.id).uses==3 and ui.find_child("PrisonSite_tool_"+item.id,true,false)!=null,"MOUTH UI install spends one energy and creates real mounted location")
  var tool_panel=ui.find_child("InstalledTools",true,false)
  t.check(tool_panel!=null and not tool_panel.get_global_rect().intersects(ui.find_child("ManaFlask",true,false).get_global_rect()) and ui.card_buttons.values().all(func(card):return tool_panel.get_global_rect().end.y<=card.get_global_rect().position.y),"TOOL noncombat installed shortcut stays above the hand and clear of the flask")
- if not ui.action_log_open: await Pointer.press(t,ui.find_child("OpenActionLog",true,false))
- t.check(t.visible_text(ui.find_child("ActionSidebar",true,false)).contains("用嘴部"),"MOUTH UI action log names the operation")
+ await t.open_menu();await preload("res://tests/interface_ui_cases.gd").press(t,"OpenLog")
+ t.check(t.visible_text(ui.find_child("InformationDrawer",true,false)).contains("用嘴部"),"MOUTH UI action log names the operation")
  await t.capture("ui-121-mouth-installation.png")
 
+ await t.close_information()
  await height_interaction(t)
  await little_pig(t)
 

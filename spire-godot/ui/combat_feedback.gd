@@ -25,7 +25,7 @@ static func play_damage(ui, before: Dictionary) -> void:
   tween.tween_property(label,"modulate:a",0.0,0.35).set_delay(0.25)
   tween.chain().tween_callback(label.queue_free)
 
-const ACTION_NAMES={"carried_apply":"施加备用装备","apply":"施加装备","turn_install":"持续施加","equipment_batch":"连续施加","split_burst":"全身施加","split":"分裂","special_install":"佩戴装备","pause":"停顿","install":"施加装备","assembly":"施加整套装备","tighten_budget":"加固","tighten":"加固","lock":"上锁","charge":"蓄力","bind_prepare":"准备捕缚","bind_apply":"施加捕缚","bind_gain":"推进捕缚","capture":"执行收押","six_prepare":"展开六缚阵","six_opening":"六重束装","six_tease":"戏弄封缚","six_tune":"调教升温","six_composite":"复合束装","six_finale":"六缚齐收","delayed":"行动被打断","leave":"离场","idle":"停顿","unseen":"动作未看清","guard_sequence":"连续施加"}
+const ACTION_NAMES={"carried_apply":"施加备用装备","apply":"施加装备","turn_install":"持续施加","equipment_batch":"连续施加","split_burst":"全身施加","split":"分裂","special_install":"佩戴装备","pause":"停顿","install":"施加装备","assembly":"施加整套装备","tighten_budget":"加固","tighten":"加固","lock":"上锁","charge":"蓄力","bind_prepare":"准备捕缚","bind_apply":"施加捕缚","bind_gain":"推进捕缚","capture":"执行收押","six_prepare":"展开六缚阵","six_opening":"六重束装","six_tease":"戏弄封缚","six_tune":"调教升温","six_composite":"复合束装","six_finale":"六缚齐收","iron_stunned":"系统失灵","iron_bind_gain":"推进捕缚","iron_restraints":"皮革束缚","iron_composite":"复合束装","iron_recharge":"补充电量","iron_upgrade":"强化系统","delayed":"行动被打断","leave":"离场","idle":"停顿","unseen":"动作未看清","guard_sequence":"连续施加"}
 
 # Group committed events by exact enemy instance and operation; never parse names.
 static func steps(before: Dictionary, after: Dictionary) -> Array:

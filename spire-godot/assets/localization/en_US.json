@@ -2,6 +2,9 @@
   "schema_version": 1,
   "locale": "en_US",
   "messages": {
+    "ui.portrait.expand": {"source": "放大立绘", "text": "Enlarge portrait"},
+    "ui.flask.deposit_uses": {"source": "存 {dots}", "text": "In {dots}"},
+    "ui.flask.withdraw_uses": {"source": "取 {dots}", "text": "Out {dots}"},
     "ui.quick_release.previous": {"source": "上一个拘束具（←）", "text": "Previous restraint (Left)"},
     "ui.quick_release.next": {"source": "下一个拘束具（→）", "text": "Next restraint (Right)"},
     "ui.quick_release.fire_locked": {"source": "尚未获得用火球术解除拘束具的能力。", "text": "Requires the ability to cast Fireball on restraints."},
@@ -53,6 +56,8 @@
     "ui.settings.speed.normal": {"source": "标准", "text": "Standard"},
     "ui.settings.speed.slow": {"source": "舒缓", "text": "Relaxed"},
     "ui.settings.music_enabled": {"source": "打出卡牌时播放音乐", "text": "Play music when playing cards"},
-    "ui.settings.music_volume": {"source": "音乐音量 · {percent}%", "text": "Music Volume · {percent}%"}
+    "ui.settings.music_volume": {"source": "音乐音量 · {percent}%", "text": "Music Volume · {percent}%"},
+    "ui.settings.doubao_voice_enabled": {"source": "播放豆包语音", "text": "Play Doubao voice"},
+    "ui.settings.doubao_voice_volume": {"source": "豆包语音音量 · {percent}%", "text": "Doubao Voice Volume · {percent}%"}
   }
 }

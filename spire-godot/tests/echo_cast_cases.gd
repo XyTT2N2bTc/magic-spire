@@ -12,7 +12,7 @@ static func fire(t,g) -> Dictionary:
 
 static func run(t) -> void:
  var g=game();g.state.enemies[0].hp=200;g.state.enemies[0].max_hp=200
- t.check(g.Cards.Rules.SPECS.echo_cast.rarity=="uncommon" and "echo_cast" in g.Cards.Rules.UNCOMMON and g.Cards.Rules.SPECS.fire_control.rarity=="common" and not g.B.CARD_TRAITS.has("echo_cast"),"ECHO new uncommon skill preserves old control and does not exhaust")
+ t.check(g.Cards.Rules.SPECS.echo_cast.rarity=="uncommon" and "echo_cast" in g.Cards.Rules.UNCOMMON and g.Cards.Rules.SPECS.fire_control.rarity=="uncommon" and not g.B.CARD_TRAITS.has("echo_cast"),"ECHO replay and control are uncommon with replay not exhausting")
  var card=Cards.give(g,"echo_cast");var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
  var before=g.export_snapshot();g.get_view();g.candidates()
  t.check(c.valid and c.cost==1 and c.mana==0 and before==g.state,"ECHO one energy no casting preview is read only")
@@ -43,7 +43,7 @@ static func run(t) -> void:
  t.check(Cards.play(t,g,"mana_invocation",false).ok and g.state.charge==0 and "echo_cast_bound" in g.state.card_buffs,"ECHO same-face spell neither repeats nor consumes")
  t.check(Cards.play(t,g,"strain",true).ok and "echo_cast_bound" in g.state.card_buffs,"ECHO free face does not consume bound replay")
  g.state.temporary_mana=0
- t.check(Cards.play(t,g,"fire_control",false).ok and g.state.temporary_mana==20 and "echo_cast_bound" not in g.state.card_buffs and g.state.exhaust.filter(func(v):return v.type=="fire_control").size()==1,"ECHO original control grants twice but exhausts physical card once")
+ t.check(Cards.play(t,g,"fire_control",false).ok and g.state.temporary_mana==20 and "echo_cast_bound" not in g.state.card_buffs and g.state.discard.filter(func(v):return v.type=="fire_control").size()==1 and not g.state.exhaust.any(func(v):return v.type=="fire_control"),"ECHO bound control grants twice and discards physical card once")
  # Single-target damage and re-evaluated integer tightness; original UID only.
  g=game();var target=g.add_fixture("ankle",30,30);Cards.play(t,g,"echo_cast",false)
  var uid=target.id;before=g.export_snapshot()

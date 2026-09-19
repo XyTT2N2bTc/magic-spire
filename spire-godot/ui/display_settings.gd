@@ -15,6 +15,8 @@ var cursed_plate_masochist_mode=false
 var first_battle_tutorial_seen=false
 var card_music_enabled=true
 var card_music_volume=0.2
+var doubao_voice_enabled=true
+var doubao_voice_volume=0.32
 
 const MODES=["窗口","无边框窗口","全屏"]
 const FRAME_LIMITS=[60,120,240,0]
@@ -48,6 +50,7 @@ func initialize(target: Window, persist: bool=true) -> void:
  cursed_plate_masochist_mode=false
  first_battle_tutorial_seen=false
  card_music_enabled=true;card_music_volume=0.2
+ doubao_voice_enabled=true;doubao_voice_volume=0.32
  frame_limit=60;vsync_enabled=true
  _apply_frame_settings()
  mode=2 if window.mode in [Window.MODE_FULLSCREEN,Window.MODE_EXCLUSIVE_FULLSCREEN] else (1 if window.borderless else 0)
@@ -62,6 +65,11 @@ func initialize(target: Window, persist: bool=true) -> void:
  if saved_music is bool: card_music_enabled=saved_music
  if (saved_volume is float or saved_volume is int) and is_finite(float(saved_volume)):
   card_music_volume=clampf(float(saved_volume),0.0,1.0)
+ var saved_voice=config.get_value("audio","doubao_voice_enabled",true)
+ var saved_voice_volume=config.get_value("audio","doubao_voice_volume",0.32)
+ if saved_voice is bool: doubao_voice_enabled=saved_voice
+ if (saved_voice_volume is float or saved_voice_volume is int) and is_finite(float(saved_voice_volume)):
+  doubao_voice_volume=clampf(float(saved_voice_volume),0.0,1.0)
  var saved_fixed=config.get_value("art","fixed_hero_portrait",false)
  if saved_fixed is bool: fixed_hero_portrait=saved_fixed
  var saved_chastity=config.get_value("gameplay","chastity_locks_enabled",false)
@@ -149,6 +157,8 @@ func save() -> void:
  config.set_value("onboarding","first_battle_tutorial_seen",first_battle_tutorial_seen)
  config.set_value("audio","card_music_enabled",card_music_enabled)
  config.set_value("audio","card_music_volume",card_music_volume)
+ config.set_value("audio","doubao_voice_enabled",doubao_voice_enabled)
+ config.set_value("audio","doubao_voice_volume",doubao_voice_volume)
  if config.save(path)!=OK: save_error="设置未能保存，下次启动时需要重新选择。"
 
 func set_locale(value: String) -> bool:
@@ -166,6 +176,10 @@ func set_fixed_hero_portrait(enabled: bool) -> void:
  if not chastity_locks_enabled:
   cursed_plate_start=false
   cursed_plate_masochist_mode=false
+ save()
+
+func set_doubao_voice(enabled: bool, volume: float) -> void:
+ doubao_voice_enabled=enabled;doubao_voice_volume=clampf(volume,0.0,1.0)
  save()
 
 func set_chastity_locks(enabled: bool) -> void:

@@ -119,3 +119,28 @@ static func run(t) -> void:
  var lock_icon=lock_card.find_child("EquipmentLock_"+lock.id,true,false)
  t.check(lock.locked and lock_icon!=null and lock_icon.locked and lock_icon.lockable and text.contains("状态：已上锁") and text.contains("开锁"),"CHASTITY UI shows the auto-locked root with the normal closed-lock icon, explicit state and unlock method")
  await t.capture("ui-118-chastity-lock.png")
+ # Unlocked owner with a tighter attached band: selection and damage use real candidates.
+ ui.game.state.equipment.clear();ui.game.state.composites.clear();ui.game.state.links.clear()
+ lock.locked=false;lock.durability=lock.maximum*0.8
+ var strap=ui.game.state.special_equipment.filter(func(e):return e.owner_id==lock.id)[0]
+ var strain_card=preload("res://tests/curse_cases.gd").give(ui.game,"strain")
+ ui.render();await t.frames()
+ await t.start_drag(strain_card.uid,"special_2")
+ var strain_action=ui.actions.find("card",{"uid":strain_card.uid,"target":lock.id,"free":false})
+ t.check(strain_action.valid and strain_action.release_preview.after==0,"PLATE STRAIN UI previews whole removal with attached band")
+ await t.release_target(await t.reveal_drop_target(strain_action.id))
+ t.check(ui.game._equipment(lock.id).is_empty() and ui.game._equipment(strap.id).is_empty(),"PLATE STRAIN UI real drag removes owner and its band together")
+
+ # Full-cup fixing bands share the component projection without borrowing lock state.
+ await t.close_information()
+ ui.game=Game.new(42)
+ var cup=ui.game._install_special("urethral_full_cup_medium","special_2_a",3)
+ ui.render();await t.frames()
+ t.check(ui.body_buttons.special_2.text.contains("2") and not ui.game.SpecialEquipment.portrait_layers(ui.game.state.special_equipment).has("flat_lock_reinforcement"),"CUP BAND UI counts cup and component without showing plate-lock art")
+ await t.inspect_body("special_2")
+ details=ui.find_child("EquipmentDetails",true,false)
+ var cup_card=details.find_child("EquipmentCard_"+cup.id,true,false)
+ await Pointer.press(t,cup_card.find_child("EquipmentCardDetailsToggle",true,false))
+ await expand_description(t,cup_card)
+ text=t.visible_text(details)
+ t.check(text.contains("中级马眼全包榨精杯") and text.contains("中级榨精杯固定带") and text.contains("不能滑脱杯体") and not text.contains("状态：已上锁"),"CUP BAND UI shows the real owner, component and removal rule without lock controls")

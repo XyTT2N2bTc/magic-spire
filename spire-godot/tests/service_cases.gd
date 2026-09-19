@@ -3,6 +3,29 @@ const Game=preload("res://core/game.gd")
 const Save=preload("res://tests/persistence_cases.gd")
 const ShopCopy=preload("res://data/shop_copy.gd")
 
+static func previous_tower_shop(t):
+ var g=Game.new(37)
+ g.state.room="floor_10_4";g.Services.start(g)
+ var buy=g.candidates().filter(func(c):return c.valid and c.payload.kind=="service" and c.payload.op=="take" and c.payload.payment=="self")[0]
+ t.check(g.dispatch(buy.id,g.state.version).ok and not g.get_view().shop.performance.is_empty(),"SHOP reentry fixture commits real payment in the old tower")
+ return g
+
+static func shop_entry_scope(t) -> void:
+ var g=previous_tower_shop(t)
+ g._restart_tower()
+ var mana=g.state.mana;var flask=g.state.flask_mana
+ t.check(t.action(g,"depart",{"room":"floor_10_4"}).ok and g.state.phase=="shop","SHOP new tower allows formal arrival at the repeated room id")
+ t.check(g.state.mana==mana and g.state.flask_mana==flask and g.room_data(g.state.room).stock.all(func(row):return not row.taken),"SHOP entry does not pay or purchase any new stock")
+ t.check(g.get_view().shop.performance.is_empty() and g.get_view().shop.greeting==ShopCopy.ENTRY,"SHOP new visit never inherits old tower payment presentation")
+ var old=g.export_snapshot()
+ for log in old.logs: log.data.erase("shop_entry")
+ var restored=Game.new(1)
+ t.check(restored.restore_snapshot(old).ok and restored.get_view().shop.performance.is_empty(),"SHOP legacy entry without a marker still stops at the previous phase")
+ var buy=t.find_action(g,"service",{"op":"take","payment":"self"})
+ t.check(g.dispatch(buy.id,g.state.version).ok and not g.get_view().shop.performance.is_empty(),"SHOP new visit actual payment still opens its own performance")
+ g.Services.start(g)
+ t.check(g.get_view().shop.performance.is_empty(),"SHOP explicit reentry does not replay the preceding visit even without an intervening phase log")
+
 static func merchant_speech(t) -> void:
  var g=Game.new(42,true,"shop")
  var shop_text=ShopCopy.ENTRY+ShopCopy.FLASK_PAYMENT+JSON.stringify(ShopCopy.BROWSE)+JSON.stringify(ShopCopy.INSUFFICIENT_FLASK)+JSON.stringify(ShopCopy.INSUFFICIENT_SELF_FREE)+JSON.stringify(ShopCopy.INSUFFICIENT_SELF_BOUND)+JSON.stringify(ShopCopy.PERFORMANCES)+JSON.stringify(ShopCopy.PLATE_SELF_BROWSE)+JSON.stringify(ShopCopy.PLATE_RELEASE_PERFORMANCES)
@@ -204,6 +227,8 @@ static func _play_first_card(t, g) -> Dictionary:
  var card=t.hand_card(g,"strain")
  return t.action(g,"card",{"uid":card.uid,"target":g.equipment_at("thigh")[0].id})
 static func run(t) -> void:
+ preload("res://tests/universal_scanner_cases.gd").run(t)
+ preload("res://tests/membership_card_cases.gd").run(t)
  non_transitions_do_not_write(t)
  preload("res://tests/unique_power_reward_cases.gd").shop(t)
 
@@ -218,6 +243,7 @@ static func run(t) -> void:
  stock_layout(t)
  rarity_prices(t)
  merchant_speech(t)
+ shop_entry_scope(t)
  for kind in ["shop","treasure"]:
   var g=Game.new(42)
   arrive(g,kind)
@@ -308,8 +334,8 @@ static func stock_layout(t) -> void:
   g.state.room=g.state.rooms.filter(func(r):return r.kind=="shop")[0].id;g.Services.start(g)
   var stock=g.room_data(g.state.room).stock
   var relics=stock.filter(func(o):return o.kind=="relic")
-  var ordinary=relics.filter(func(o):return o.type!=g.Relics.FALLBACK)
-  t.check(relics.size()==3 and stock.size()==12 and ordinary.size()<=left and ordinary.all(func(o):return ordinary.filter(func(other):return other.type==o.type).size()==1),"SHOP exhausted tiers fill relic slots with repeatable logs, ordinary relics remain unique")
+  var ordinary=relics.filter(func(o):return o.type not in [g.Relics.FALLBACK,g.Relics.COMMON_FALLBACK])
+  t.check(relics.size()==3 and stock.size()==12 and ordinary.size()<=left and ordinary.all(func(o):return ordinary.filter(func(other):return other.type==o.type).size()==1),"SHOP exhausted tiers use common cloak or other-tier logs; ordinary relics remain unique")
 
 static func rarity_prices(t) -> void:
  var seen=[]
@@ -348,8 +374,9 @@ static func m_donalds(t) -> void:
  var type="m_donalds"
  var excluded=g.Relics.REWARDS+g.Relics.BOSS_POOL
  for source in ["normal","small","medium","large","common","uncommon","rare","boss"]:
-  t.check(g.RelicRewards.offer(g,source,null,excluded)==g.Relics.FALLBACK,"M SHOP exclusive relic is absent from non-shop source "+source)
+  t.check(g.RelicRewards.offer(g,source,null,excluded) in [g.Relics.FALLBACK,g.Relics.COMMON_FALLBACK] and type not in g.RelicRewards.available(g,source),"M SHOP exclusive relic is absent from non-shop source "+source)
  var rng=preload("res://tests/rolling_log_cases.gd").TierRandom.new("uncommon")
+ excluded.append_array(g.Relics.shop_pool().filter(func(id):return id!=type and id not in excluded))
  t.check(g.RelicRewards.offer(g,"shop",rng,excluded)==type and g.Relics.TYPES[type].rarity=="uncommon","M SHOP joins the existing uncommon probability band")
  var index=g.room_data(g.state.room).stock.find(g.room_data(g.state.room).stock.filter(func(row):return row.type==type)[0])
  var row=g.get_view().shop.stock[index]

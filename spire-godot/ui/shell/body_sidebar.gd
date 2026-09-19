@@ -5,9 +5,14 @@ const TOP=34.0
 const BOTTOM=12.0
 const GAP=7.0
 const CHILD_GAP=4.0
-const COLUMN_X=186.0
-const COLUMN_WIDTH=100.0
+const COLUMN_X=223.0
+const COLUMN_WIDTH=128.0
 const REGION_ORDER={"region_head":0,"region_upper":1,"region_intimate":2,"region_lower":3}
+@export var expanded_height=836.0
+var portrait_expanded=false
+var _compact_rect: Rect2
+var _compact_portrait_rect: Rect2
+var _compact_z=20
 var _ui
 var _last_height=-1.0
 var _last_focus=""
@@ -29,10 +34,52 @@ static func expand_applied(ui, before: Dictionary, after: Dictionary) -> void:
 
 func _ready() -> void:
  add_theme_stylebox_override("panel",Palette.window_frame())
+ for state in ["normal","hover","pressed","focus","disabled"]:
+  var style=Palette.button_style(state,Palette.CYAN)
+  for side in [SIDE_LEFT,SIDE_TOP,SIDE_RIGHT,SIDE_BOTTOM]: style.set_content_margin(side,4)
+  $Canvas/ExpandPortrait.add_theme_stylebox_override(state,style)
+ $Canvas/ExpandPortrait.pressed.connect(_expand_portrait)
  resized.connect(func():call_deferred("_resize_regions"))
 
 func _resize_regions() -> void:
+ if portrait_expanded: return
  if is_instance_valid(_ui) and not is_equal_approx(size.y,_last_height): configure(_ui)
+
+func _expand_portrait() -> void:
+ set_portrait_expanded(true)
+ _ui.show_body=false
+ _ui._hide_term()
+ _ui.render(_ui.view)
+
+func set_portrait_expanded(expanded: bool) -> void:
+ if portrait_expanded==expanded: return
+ portrait_expanded=expanded
+ $Canvas/PortraitBackdrop.visible=expanded
+ var portrait=$Canvas/EquipmentPortrait
+ if expanded:
+  _ui.keyboard_input.clear(true)
+  _compact_z=z_index;z_index=225
+  _compact_rect=Rect2(position,size)
+  _compact_portrait_rect=Rect2(portrait.position,portrait.size)
+  size.y=expanded_height
+  portrait.position=Vector2.ZERO
+  portrait.size=size-get_theme_stylebox("panel").get_minimum_size()
+ else:
+  z_index=_compact_z
+  position=_compact_rect.position;size=_compact_rect.size
+  portrait.position=_compact_portrait_rect.position;portrait.size=_compact_portrait_rect.size
+ for node in [$Canvas/Title,$Canvas/Divider,$Canvas/Slots,$Canvas/ExpandPortrait]: node.visible=not expanded
+
+func handle_portrait_input(event: InputEvent) -> bool:
+ if not portrait_expanded: return false
+ if event.is_action_pressed("ui_cancel"):
+  set_portrait_expanded(false)
+ elif event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_LEFT,MOUSE_BUTTON_RIGHT,MOUSE_BUTTON_MIDDLE]:
+  if not get_global_rect().has_point(event.position): set_portrait_expanded(false)
+ elif event is InputEventScreenTouch and event.pressed:
+  if not get_global_rect().has_point(event.position): set_portrait_expanded(false)
+ # Inspection consumes input before shortcuts or underlying action controls.
+ return true
 
 func _toggle(ui, id: String) -> void:
  if id in ui.expanded_body_regions:
@@ -75,6 +122,10 @@ func configure(ui) -> void:
  $Canvas/Title.add_theme_color_override("font_color",ui.GOLD)
  $Canvas/Divider.color=ui.GOLD.darkened(0.65)
  $Canvas/EquipmentPortrait.configure(ui.view,ui.EquipmentPortrait.uses_fixed_portrait(ui.view,ui.display_settings.fixed_hero_portrait))
+ $Canvas/ExpandPortrait.tooltip_text=ui.localization.text("ui.portrait.expand","放大立绘")
+ if portrait_expanded:
+  ui.body_buttons.merge(_button_index,true)
+  return
  var focus=_region_for(ui,ui.selected_slot)
  # Only an explicit change of inspection opens a region. A routine refresh
  # must not reopen a region previously evicted by the height budget.

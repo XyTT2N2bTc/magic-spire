@@ -14,6 +14,51 @@ class DenseProbe extends Game:
   assembly_calls+=1
   return super._install_assembly(kind,variant,source,grade,tightness,overrides,straps,attached_to)
 
+# Fail after the real factory has changed equipment, IDs and its random stream.
+class SpecialFailureProbe extends Game:
+ var reject_special=false
+ func _install_special(type: String, slot: String, tightness: int=0) -> Dictionary:
+  var item=super._install_special(type,slot,tightness)
+  if reject_special:
+   _random_index("equipment",2)
+   return {}
+  return item
+
+static func forced_special_boundaries(t) -> void:
+ var g=Game.new(42)
+ var plate=g._install_special("negative_plate_lock_medium","special_2_a",3)
+ var old_ids=g.state.special_equipment.map(func(item):return item.id)
+ t.check(not plate.is_empty() and old_ids.size()==2,"REPLACEMENT forced fixture has a real root and attached reinforcement")
+ var original=g.state;var enemies=g.state.enemies;var enemy=g.state.enemies[0];var rng=g.state.rng;var hand=g.state.hand
+ var before=g.export_snapshot()
+ var result=Replacement.force_special(g,"urethral_full_cup_medium",3,"fixture")
+ t.check(result.ok and result.removed.size()==old_ids.size() and old_ids.all(func(id):return id in result.removed) and old_ids.all(func(id):return g._equipment(id).is_empty()),"REPLACEMENT forced result reports every removed physical root and attached component")
+ t.check(result.installed.size()==1 and result.installed[0].type=="urethral_full_cup_medium" and g.validate()=="","REPLACEMENT forced commit uses the normal factory and valid dependent structure")
+ t.check(is_same(g.state,original) and is_same(g.state.enemies,enemies) and is_same(g.state.enemies[0],enemy) and is_same(g.state.rng,rng) and is_same(g.state.hand,hand),"REPLACEMENT forced commit preserves unchanged enclosing references")
+ t.check(g.state.version==before.version and g.state.energy==before.energy and g.state.mana==before.mana and g.state.tick==before.tick,"REPLACEMENT forced commit does not own enclosing payment version or turn")
+ var settled=g.export_snapshot()
+ result.installed[0].durability=999;result.removed.clear()
+ t.check(g.state==settled,"REPLACEMENT forced result contains no authoritative mutable equipment")
+ g=Game.new(42);g.RelicEffects.gain(g,"cursed_plate_lock");before=g.export_snapshot()
+ result=Replacement.force_special(g,"urethral_full_cup_medium",3,"fixture")
+ t.check(not result.ok and result.reason==g.SpecialEquipment.CURSED_PLATE_REASON and g.state==before,"REPLACEMENT forced permission cannot remove a cursed plate")
+ g=Game.new(42)
+ var rope=g._install_special("crotch_rope_low","special_3_a")
+ var wrist=g.add_fixture("wrist",8)
+ var link=g._install_link(rope.id,wrist.id,8,"fixture")
+ t.check(not link.is_empty() and g.validate()=="","REPLACEMENT forced loss fixture has a legal special-to-wrist link")
+ result=Replacement.force_special(g,"vaginal_egg_low",2,"fixture")
+ t.check(result.ok and result.removed==[rope.id] and result.lost_links==[link.id] and g.state.links.is_empty(),"REPLACEMENT forced result separates removed special roots from detached links")
+ t.check(g._equipment(wrist.id)==wrist and g.validate()=="","REPLACEMENT forced link cleanup preserves its unrelated live endpoint")
+ g=SpecialFailureProbe.new(42)
+ g._install_special("negative_plate_lock_medium","special_2_a",3)
+ g._resource_feedback=preload("res://core/resource_feedback.gd").new();g._resource_feedback.capture(g.state)
+ var recorder=g._resource_feedback;var events=recorder.events.duplicate(true)
+ original=g.state;before=g.export_snapshot();g.reject_special=true
+ result=Replacement.force_special(g,"urethral_full_cup_medium",3,"fixture")
+ t.check(not result.ok and is_same(g.state,original) and g.state==before,"REPLACEMENT forced late factory failure restores equipment IDs random state and logs atomically")
+ t.check(is_same(g._resource_feedback,recorder) and recorder.events==events,"REPLACEMENT forced failure restores the enclosing feedback collector without preview pulses")
+
 static func impossible_dense_replacement(t) -> void:
  var g=DenseProbe.new(42)
  for slot in ["upper_arm","forearm","wrist","palm","fingers"]:
@@ -86,7 +131,10 @@ static func install(g, spec: Dictionary) -> Dictionary:
 static func fill(g, point: String, grade: int=1, tier: int=1) -> Array:
  var result=[]
  var slot=g.Links.point_slot(point)
- for i in range(g._capacity(slot)): result.append(install(g,request(slot,grade,tier,point)))
+ for i in range(g._capacity(slot)):
+  var spec=request(slot,grade,tier,point)
+  if slot=="mouth" and i>0: spec.template="mouth_tape"
+  result.append(install(g,spec))
  return result
 
 static func glove() -> Dictionary:
@@ -115,6 +163,7 @@ static func unchanged(t, g, specs: Array, label: String) -> Dictionary:
  return p
 
 static func run(t) -> void:
+ forced_special_boundaries(t)
  var unchanged_glove=full_glove()
  var same_glove=glove();same_glove.tier=1
  var same_plan=unchanged(t,unchanged_glove,[same_glove],"identical composite replacement")

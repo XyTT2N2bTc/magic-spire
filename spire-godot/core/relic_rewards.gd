@@ -17,15 +17,18 @@ static func chest(g, rng=null) -> String:
  return "small" if roll<50 else ("medium" if roll<83 else "large")
 
 static func available(g, source: String="normal") -> Array:
- var pool=g.Relics.shop_pool() if source=="shop" else g.Relics.REWARDS
- return pool.filter(func(id):return id not in g.state.relics and g.Character.relic_allowed(g,id) and (not g.Character.active(g) or g.RelicEffects.gain_reason(g,id)==""))
+ var pool=g.Relics.BOSS_POOL if source=="boss" else (g.Relics.shop_pool() if source=="shop" else g.Relics.REWARDS)
+ return pool.filter(func(id):
+  if id in g.state.relics: return false
+  if source=="boss": return g.RelicEffects.gain_reason(g,id)==""
+  return g.Relics.TYPES[id].get("required_relic","") in [""]+g.state.relics and g.Character.relic_allowed(g,id) and (not g.Character.active(g) or g.RelicEffects.gain_reason(g,id)==""))
 
 static func offer(g, source: String="normal", rng=null, excluded: Array=[]) -> String:
  var pool=available(g,source).filter(func(id):return id not in excluded)
  var tier=source if source in TIERS or source=="boss" else rarity(source,random(g,100,rng))
- if source=="boss": pool=g.Relics.BOSS_POOL.filter(func(id):return id not in g.state.relics and id not in excluded and g.RelicEffects.gain_reason(g,id)=="")
  var choices=pool.filter(func(id):return g.Relics.TYPES[id].rarity==tier)
- var id=g.Relics.FALLBACK if choices.is_empty() else choices[random(g,choices.size(),rng)]
+ var fallback=g.Relics.COMMON_FALLBACK if tier=="common" else g.Relics.FALLBACK
+ var id=fallback if choices.is_empty() else choices[random(g,choices.size(),rng)]
  # Keep offer history for frozen reward validation, not eligibility.
  if id not in g.state.relic_seen: g.state.relic_seen.append(id)
  return id
@@ -35,7 +38,7 @@ static func battle_drop(g) -> void:
  g.state.boss_relic_options=[]
  var room=g.room_data(g.state.room)
  if room.get("boss",false):
-  var pool=g.Relics.BOSS_POOL.filter(func(id):return id not in g.state.relics and g.RelicEffects.gain_reason(g,id)=="")
+  var pool=available(g,"boss")
   for i in range(mini(3,pool.size())):
    var id=pool[random(g,pool.size())]
    pool.erase(id)

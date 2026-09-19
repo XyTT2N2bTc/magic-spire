@@ -2,6 +2,41 @@ extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 const P=preload("res://core/pressure.gd")
 
+static func overload_charge(t) -> void:
+ var projection_game=Game.new(42);projection_game.state.charge=5;projection_game.state.temporary_mana=5
+ var statuses=projection_game.get_view().statuses
+ t.check(statuses.any(func(row):return row.id=="charge" and row.duration.contains("蓄力减半")) and statuses.any(func(row):return row.id=="temporary_mana" and not row.duration.contains("蓄力减半")),"CLIMAX CHARGE loss explanation belongs to charge, not temporary mana")
+ for pair in [[0,0],[1,0],[2,1],[3,1],[5,2],[8,4]]:
+  for all_charge in [false,true]:
+   var g=Game.new(42);g.state.charge=pair[0];g.state.charge_all=all_charge and pair[0]>0
+   var before=g.export_snapshot();g.get_view();g.candidates()
+   t.check(g.state==before,"CLIMAX CHARGE queries cannot consume stacks")
+   P.gain(g,99,"fixture",true)
+   t.check(g.state.charge==pair[0],"CLIMAX CHARGE below threshold leaves stacks unchanged")
+   P.gain(g,1,"fixture",true)
+   t.check(g.state.charge==pair[1] and g.state.charge_all==(all_charge and pair[1]>0),"CLIMAX CHARGE halves integer stacks and resets all mode only at zero: "+str(pair))
+ var g=Game.new(42);g.state.charge=19
+ P.gain(g,300,"fixture",true)
+ t.check(g.state.charge==2 and g.state.overload_total==3,"CLIMAX CHARGE batched overloads halve per occurrence")
+ P.gain(g,100,"fixture",true)
+ t.check(g.state.charge==1,"CLIMAX CHARGE further overload in the same turn halves again")
+ var restored=Game.new(42)
+ t.check(restored.restore_snapshot(g.export_snapshot()).ok and restored.state.charge==1,"CLIMAX CHARGE snapshot preserves reduced charge without reapplying loss")
+ for phase in ["prepare","rest","prison","event"]:
+  g=Game.new(42,true,"prison_test") if phase=="prison" else Game.new(42)
+  if phase=="prepare": g._start_preparation()
+  elif phase=="rest": g._start_rest();g._begin_rest()
+  elif phase=="event": g.state.phase="event"
+  g.state.pressure=0;g.state.charge=7
+  P.gain(g,P.maximum(g),"fixture",true)
+  t.check(g.state.charge==3,"CLIMAX CHARGE phase shares overload settlement: "+phase)
+  P.scripted_climax(g,"fixture")
+  t.check(g.state.charge==1,"CLIMAX CHARGE scripted overload uses the same loss: "+phase)
+ g=Game.new(42);g.state.charge=9
+ g._install_special("negative_plate_lock_catheter_medium","special_2_a")
+ P.gain(g,P.maximum(g),"fixture",true)
+ t.check(g.state.slip_ejaculation_turns==2 and g.state.charge==4,"CLIMAX CHARGE deferred mana variant still halves stacks")
+
 static func flat_mana_cost(t) -> void:
  var g=Game.new(42)
  for limit in [100.0,130.0]:
@@ -13,7 +48,8 @@ static func flat_mana_cost(t) -> void:
   var before=g.export_snapshot()
   for type in g.Cards.Rules.SPECS:
    for free in [false,true]:
-    t.check(g.Cards.face_mana(g,type,free)==g.Cards.Rules.face_mana_base(type,free,g.B.SPELL_COST),"MANA every card face uses its own base cost at pressure "+str(value)+" "+type)
+    var expected=g.state.mana+g.state.temporary_mana if g.Cards.Rules.SPECS[type].has("all_mana_minimum") else g.Cards.Rules.face_mana_base(type,free,g.B.SPELL_COST)
+    t.check(g.Cards.face_mana(g,type,free)==expected,"MANA each face keeps its fixed or all-mana cost without pressure surcharge: "+str(value)+" "+type)
   t.check(g._mana_cost(10)==10 and g.get_view().pressure.magic_multiplier==1 and not g.get_view().pressure.detail.contains("施法魔力消耗"),"MANA shared spell cost and status projection disable surcharge")
   t.check(g.export_snapshot()==before,"MANA cost and card previews leave all state unchanged")
  g.state.pressure=75;g.state.temporary_mana=4;g.state.mana=6
@@ -174,6 +210,7 @@ static func committed_receipt(t) -> void:
  t.check(spent.ok and release_witch.state.witch_focus==0 and Impact.border_kind_of(spent.get("resource_feedback",[]),release.payload)=="mana" and Impact.border_spec("mana",spent_delta,{}).variant=="loss","FEEDBACK a focus-consuming release asks for the blue loss border")
 
 static func run(t) -> void:
+ overload_charge(t)
  forced_loop_exit(t)
  free_cooling(t)
  committed_receipt(t)
@@ -323,6 +360,7 @@ static func formal_sources(t) -> void:
 
 static func climax_card_practice(t) -> void:
  var g=Game.new(42,true,"climax_card")
+ g.state.charge=7;g.state.charge_all=true
  t.check(g.validate()=="" and g.state.phase=="battle" and g.state.pressure==99 and g.state.enemies.size()==1,"CLIMAX PRACTICE starts a valid ordinary battle at 99 pressure")
  t.check(g.state.special_equipment.size()==1 and g.state.special_equipment[0].type=="urethral_rod_low","CLIMAX PRACTICE wears one existing energy-triggered special equipment")
  var cards=g.state.hand.filter(func(card):return card.type=="strain")
@@ -333,6 +371,7 @@ static func climax_card_practice(t) -> void:
  var stale=g.dispatch(choice.id,g.state.version-1)
  t.check(not stale.ok and g.state==before,"CLIMAX PRACTICE stale submission cannot trigger special equipment or climax")
  var result=g.dispatch(choice.id,g.state.version)
+ t.check(g.state.charge==4 and g.state.charge_all,"CLIMAX CHARGE real card grants one charge before halving eight to four")
  t.check(result.ok and g.state.overloaded and g.state.overload_total==1 and g.state.overload_count==1 and g.state.pressure==5,"CLIMAX PRACTICE paid card triggers the existing special equipment and one formal climax")
  t.check(g.state.energy==0 and g.state.mana==before.mana-g.B.OVERLOAD_MANA and g.state.overload_energy==g.B.OVERLOAD_ENERGY and g.state.special_equipment[0].type=="urethral_rod_low","CLIMAX PRACTICE uses normal interruption, mana loss, weakness and keeps the real equipment")
  var actions=g.candidates().filter(func(candidate):return candidate.payload.kind not in ["flask","item_discard"])

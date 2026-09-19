@@ -12,8 +12,8 @@ static func run(t) -> void:
  custom_start(t)
  var g=Game.new(42);var before=g.export_snapshot()
  t.check(g.state.deck.size()==10 and g.state.deck.filter(func(card):return card.type=="strain").size()==4 and g.state.deck.filter(func(card):return card.type=="slip").size()==4 and g.state.deck.filter(func(card):return card.type=="ease").size()==1 and g.state.deck.filter(func(card):return card.type=="magic_slip").size()==1 and g.state.deck.all(func(card):return g.Cards.Rules.SPECS[card.type].rarity=="basic"),"OPENING ten basic cards contain one magic slip instead of unlock")
- t.check(g.state.phase=="departure" and g.state.round==0 and not g.state.combat.active and g.state.departure.options.size()==4,"OPENING actual run starts at zero with four choices and no combat effects")
- t.check(g.get_view().reward_panel.entries.size()==5 and g.candidates().all(func(c):return c.payload.kind=="departure" or (c.payload.kind=="flask" and c.payload.op=="withdraw")) and not g.room_entry_reason(g.room_data(g.room_data(g.state.room).next[0])).is_empty(),"OPENING choices and resource recovery do not let route bypass opening")
+ t.check(g.state.phase=="departure" and g.state.round==0 and not g.state.combat.active and g.state.departure.options.size()==5,"OPENING actual run starts at zero with five choices and no combat effects")
+ t.check(g.get_view().reward_panel.entries.size()==6 and g.candidates().all(func(c):return c.payload.kind=="departure" or (c.payload.kind=="flask" and c.payload.op=="withdraw")) and not g.room_entry_reason(g.room_data(g.room_data(g.state.room).next[0])).is_empty(),"OPENING choices and resource recovery do not let route bypass opening")
  for i in range(3): g.get_view();g.route_view();g.candidates()
  t.check(g.export_snapshot()==before and Game.new(42).state.departure==g.state.departure,"OPENING previews and same seed preserve offers, hidden outcomes and resources")
  var restored=Game.new(99)
@@ -74,7 +74,7 @@ static func run(t) -> void:
   for id in ids: found[id]=true
   signatures[str(ids)]=true
   t.check(g.validate()=="" and ids[3]=="boss" and g.state.rare_offset==g.Cards.Rules.RARE_OFFSET_INITIAL,"OPENING generated options are valid with fixed boss swap and unchanged card rarity offset")
- t.check(found.size()==Data.OPTIONS.size() and signatures.size()>10,"OPENING seeded generation reaches all thirteen choices and varied category combinations")
+ t.check(found.size()==Data.OPTIONS.size() and signatures.size()>10,"OPENING seeded generation reaches all opening choices and varied category combinations")
 
 static func custom_start(t) -> void:
  var g=Game.new(42,false,"equipment",true,true,25,true)
@@ -94,8 +94,8 @@ static func custom_start(t) -> void:
  t.check(t.action(g,"depart",{"room":next}).ok and t.action(g,"travel_step").ok and g.state.energy==4,"CUSTOM START first battle receives relic energy bonus")
  for enabled in [false,true]:
   var regular=Game.new(42,false,"equipment",true,enabled,25,false)
-  t.check(regular.state.relics==["ember"] and regular.state.departure.options.size()==4,"CUSTOM START unchecked retains default opening with pool "+str(enabled))
+  t.check(regular.state.relics==["ember"] and regular.state.departure.options.size()==5,"CUSTOM START unchecked retains default opening with pool "+str(enabled))
  var blocked=Game.new(42,false,"equipment",true,false,25,true)
- t.check(blocked.state.relics==["ember"] and blocked.state.departure.options.size()==4,"CUSTOM START core ignores custom flag without enabled pool")
+ t.check(blocked.state.relics==["ember"] and blocked.state.departure.options.size()==5,"CUSTOM START core ignores custom flag without enabled pool")
  var practice=Game.new(42,true,"equipment",true,true,25,true)
  t.check("cursed_plate_lock" not in practice.state.relics and practice.state.departure.is_empty(),"CUSTOM START never overrides practice equipment or relics")

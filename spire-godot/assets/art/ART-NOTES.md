@@ -1,5 +1,19 @@
 # 本批美术提示词与来源
 
+## 2026-09-19 魅魔警卫恢复原版战斗立绘
+
+按用户最新要求，魅魔警卫恢复为2026-09-09提供并在项目v0.15验收的两张原版制服魅魔透明图。成品从仓库历史对象逐字节取回到`enemy-succubus-guards-v1/`，没有重新抠图、生成或重绘；源图、处理参数、尺寸与SHA256见该目录`README.md`。
+
+`guard.visual_pool`、`enemy_visual`随机域及`guard_purple`／`guard_brown`稳定变体ID保持不变。战场`guard`只在最终美术映射处读取`SUCCUBUS_GUARD_PORTRAITS`；监狱巡视、收押和出狱对白继续读取`GUARD_PORTRAITS`中的现有紫发／棕发狱警。旧存档不重抽，双魅魔仍允许有放回重复，监狱固定分工与随机游标不变。
+
+## 2026-09-19 大魔棒遗物图标
+
+`assets/ui/relics/great_wand.svg` 为本次原生 SVG 绘制的晶体魔杖图标，沿用青色晶体与金色轮廓；无外部素材或生成模型。动态点数仍由既有 RelicCounter 叠在图标上，不写入图片。
+
+## 2026-09-19 布阵卡面图标
+
+`assets/ui/cards/formation.svg` 为本次用原生 SVG 绘制的魔法阵图标：三处阵位与中央晶体，沿用现有卡面金色／青色线条。无外部素材、无生成模型调用，卡面与能力状态共用该资源。
+
 ## 2026-09-15 单手套拘束具差分
 
 本批只使用用户提供的两张1536×2304同姿势PNG进行本地像素差分和白底抠图，没有调用生成工具，也没有修改原文件。单手套源图为`C:/Users/16563/Downloads/00105-3376505697.png`（SHA256 `075487EA317622794B8B956B8E7BC16F5BE26007A47B4952B027532CFDDCACD2`）；红绳参照图为`C:/Users/16563/Downloads/00077-1312644243.png`（`23E76BA8FA2E76B3F55B39B2010936C66A25F4CACC9369CC4A6AE2AAE5E1DEA5`）。
@@ -217,3 +231,92 @@ ui/shop_scenery.gd 和 ui/shop_glyph.gd 使用 Godot 原生几何绘制棚檐、
 - 左侧身体栏从站姿源按`(460,0,1380,2304)`裁成920×2304的`witch-sidebar-cutout-v1.png`，SHA-256 `2A39CA5647C8370507B60B49243C63ECA6BE700FA745659DA6CCC66E4DC78725`。相对首版裁框向右取景320像素，使人物身体在现有178×454画框内向左移动并居中，保持同一宽高比。
 
 战场根据只读View中的`character_id`和真实姿势选择三张图；身体栏使用独立窄裁图。小魔女暂无拘束差分，因此拘束状态不叠加角色1的嘴、眼、腿、平板锁或复合拘束图层。该显示映射不改变装备、姿势、资源、卡牌、随机或存档。
+
+## 2026-09-19：无尽魔法少女战神卡图
+
+assets/ui/cards/endless_war_goddess.svg 为本次绘制的项目原生矢量插图，沿用既有卡图尺寸，以星形、羽翼与无限符号表现能力；不使用外部素材。
+
+
+## 2026-09-19 交感形态卡图
+
+`assets/ui/cards/sympathetic_form.svg`为本次原创矢量图：深色底、金色法环、冷青晶体与暗红心形，延续测试版简洁图标风格。由代码绘制，未调用imagegen、未使用外部素材。随卡面注册共用于手牌与图鉴。
+
+2026-09-19 护腕与怨灵系带：assets/ui/relics/wrist_bracer.svg、wraith_ribbon.svg 为本次原创矢量图标，沿用金色描边与冷青配色，分别绘制护腕和幽灵结饰，无外部素材。图标通过 RelicIcon.ART 供正式遗物界面复用。
+
+2026-09-19 空灵挂件与智力斗篷：assets/ui/relics/ethereal_pendant.svg、intellect_cloak.svg 为本次原创矢量图标，分别采用悬挂晶体和星纹斗篷造型，沿用现有64×64金色描边／冷青配色，无外部素材。
+
+2026-09-19 日晷：assets/ui/relics/sundial.svg 为本次原创64×64矢量图标，金色晷针、青灰椭圆盘与刻度，沿用项目原生图标风格；未复用《杀戮尖塔》图像或外部素材。
+
+## 2026-09-19：会员卡遗物图标
+
+assets/ui/relics/membership_card.svg 为本次绘制的项目原生64×64矢量图标，使用金色卡框、青色横纹与星形，不使用外部素材。
+
+
+## 2026-09-19｜扫描全能王
+
+`assets/ui/relics/universal_scanner.svg` 为本项目手工编写矢量图，使用既有金边／青色物品图标风格，扫描仪与复制卡片图形，无外部图片来源。
+
+- 2026-09-19：`assets/ui/relics/ditto.svg` 为本项目原创矢量百变怪图标；变形后显示目标遗物已有图标，保持独立百变怪来源。
+
+## 2026-09-19｜抖M印记、豆包与DeepSeek
+
+assets/ui/relics/masochist_mark.svg、doubao.svg、deepseek.svg 为本次手工编写的64×64项目原生矢量图标，分别采用心形印章、豆包和蓝色小鲸鱼造型。无外部图片素材。豆包与蓝鲸是同一遗物的两种显示模式。
+## 2026-09-19 鲤鱼打挺卡图
+
+`assets/ui/cards/kip_up.svg` 为原生SVG绘制的翻身跃起人形与方向弧线，使用既有青金卡图配色，无外部素材。
+
+## 2026-09-19｜紧缚检索卡图
+
+`assets/ui/cards/binding_search.svg` 为本项目原创SVG：以皮带束起的卡牌和检索放大镜为主体，沿用青金配色，无外部图片素材。
+
+## 2026-09-19 破铜烂铁机器人遗物图标
+
+`assets/ui/relics/scrap_robot.svg` 为原生SVG绘制的拼补金属机器人头像，使用现有遗物的青金配色与铜色补丁；没有外部素材。
+
+## 2026-09-19｜豆包像素头像
+
+- `assets/ui/relics/doubao.png`：使用用户上传的 `codex-clipboard-e486ad19-8428-4075-9f92-d619228ca6df.png` 作为形象参考，由内置 `image_gen.imagegen` 生成像素风成年女性头像；按本次用户要求接入豆包遗物。DeepSeek 沿用原创蓝鲸 SVG。运行时头像采用 nearest 过滤；原始输出保留在工作区外 generated_images，项目引用已复制的 PNG。
+- 提示词：Create one square game relic icon using the supplied portrait as reference. Transform into deliberate hand-crafted retro pixel art: adult cartoon woman, short side-part dark brown bob haircut, large dark brown eyes, warm subtle smile, black shirt, shoulders and head centered, pale sky blue flat background. Recognizable likeness to reference. Compact readable 64x64 pixel-grid design upscaled with crisp nearest-neighbor square edges. Restrained palette, clean chunky outlines, no blur, no text, no extra objects, no UI frame. Single square icon fills canvas.
+- 实际输出为透明背景像素头像，保留此结果以适配现有遗物栏；没有额外移除或重绘人物部分。游戏文案的两套台词是原创戏仿，不作为真实产品引语。
+## 2026-09-19：魔力附着
+
+新增 `assets/ui/cards/mana_attachment.svg`：项目原生矢量图标，手部轮廓、魔力闪电与环绕箭头表示附着与群体攻击，用于卡面及能力状态；未引入外部素材。
+
+## 2026-09-20 拘束就是力量！卡图
+
+`assets/ui/cards/binding_power.svg` 为原生SVG绘制的握拳、链节与蓄力闪电符号，沿现有卡图的青金配色；没有使用外部素材。
+
+## 2026-09-20 活动媚肉卡图
+
+`assets/ui/cards/supple_flesh.svg` 为原生SVG绘制的柔韧弧带、动作箭头与光芒符号，使用现有青金配色；没有外部素材。
+
+## 2026-09-20｜DeepSeek铁盆帽像素形象
+
+- 用户提供 `00B46E7B5012EBFBD6B4950671BDAA28.jpg` 作为本次替换形象参考；内置 `image_gen.imagegen` 生成透明像素图，保留蓝发、蓝眼、女仆装和倒扣铁盆。项目文件为 `assets/ui/relics/deepseek.png`，遗物栏与豆包图鉴内的DeepSeek通过 `RelicIcon.ART.deepseek` 共用同一纹理，nearest采样。旧SVG不再被该映射使用。
+- 生成原文件：`G:/CodexData/generated_images/01a07a1d-4055-7863-9860-8f938ba62711/exec-e598ce2d-b5b0-483d-a151-a9f17d4f71d7.png`；原样复制生成PNG，保留透明通道。
+# 2026-09-20 欲望魔方 Pro Max
+
+`assets/ui/relics/desire_cube_pro_max.svg` 为本次代码绘制的原生矢量图标，沿用既有遗物的金色描边与紫色魔方元素，增加心形与星光；无外部图片或生成模型素材。侧栏与图鉴统一通过 `RelicIcon.ART` 引用。
+
+- 2026-09-20：`assets/ui/relics/pleasure_extractor.svg` 为本项目手绘 SVG 图标，沿用金色描边与青色魔瓶，以心形和向内箭头表示汲取；无需第三方素材。
+
+- 2026-09-20：`assets/ui/relics/edging_seal.svg` 为本项目原创矢量图标，以钢印、限位刻线和三道青色印痕表达寸止钢印；无外部素材。
+
+## 2026-09-20｜铁男独立SVG立绘
+
+- `assets/ui/enemies/iron_man.svg` 为本次手工编写的原创透明矢量立绘，720×780画布；深铁灰装甲、双锁扣胸舱、液压钳爪、肩背捕缚机械臂、青色扫描灯与琥珀警示条。没有使用外部图片或ImageGen。
+- 作为铁男的测试版画风，通过 `Enemies.TYPES.iron_man.visual → Arena.ILLUSTRATIONS → Arena._refresh_enemy_art` 统一供战斗与图鉴读取；复用原有等比缩放、停机变暗与鼠标穿透。正式版立绘仍沿独立美术偏好选择。
+
+## 2026-09-20｜淫魔法卡池图标
+
+- `assets/ui/cards/pressure_heart.svg` 与 `desire_magic.svg` 为本次原创矢量图形，无外部素材；前者是快感费用角标，后者以爱心和法阵作为本批七张牌共用插图。
+- 卡面与图鉴沿 `CardFace.ILLUSTRATIONS` 和 `CardText.mana_entries` 共用映射；同时存在魔力费用时保留蓝色魔力角标。
+
+- 2026-09-20：`assets/ui/relics/lucidity_necklace.svg` 为本项目手绘 SVG 图标，以金色项链、浅青晶石与白色光芒表现清醒；无需第三方素材。
+
+- 2026-09-20：原创矢量 `assets/ui/end-turn-locked.svg`（结束回合锁链／锁头纹样）与 `assets/ui/cards/witch_binding_lure.svg`（护弧与转向拘束环），无外部素材。
+
+
+## 2026-09-20｜四件专用遗物图标
+
+`assets/ui/relics/brainwash_earrings.svg`、`hypnosis_hairpin.svg`、`lewd_silk_bodysuit.svg`、`lewd_silk_gloves.svg` 为本次手写的原生 SVG，以耳环、发卡、连体衣及手套轮廓配合旋纹、金色描边与青紫色点缀。统一通过 `RelicIcon.ART` 显示；无第三方图片或生成模型素材。

@@ -292,6 +292,13 @@ static func prepared_chant(t) -> void:
   t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"CHANT stale play cannot grant certainty or spend resources")
   t.check(g.dispatch(c.id,g.state.version).ok and not g._magic_failed and g.state.energy==before.energy-1 and g.state.mana==before.mana-10 and g.state.exhaust.any(func(x):return x.uid==card.uid),"CHANT successful play pays and exhausts")
   g.state.pressure=99
+  if free:
+   t.check(g.cast_view().chance<1 and "prepared_chant_next" in g.state.card_buffs and "prepared_chant" not in g.state.card_buffs,"CHANT free face waits without improving current-turn casting")
+   t.check(g.get_view().statuses.any(func(row):return row.id=="power_prepared_chant_next" and row.value=="下回合生效"),"CHANT queued status clearly reports next-turn activation")
+   for enemy in g.state.enemies: enemy.intent.delayed=true
+   var saved=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"next turn prepared chant")
+   t.check(t.action(g,"end").ok and "prepared_chant_next" not in g.state.card_buffs and "prepared_chant" in g.state.card_buffs and g.cast_view().chance==1,"CHANT real next turn activates certainty without double expiration")
+   if saved!=null: t.check(t.action(saved,"end").ok and saved.state.card_buffs==g.state.card_buffs and saved.cast_view().chance==1,"CHANT queued save resumes the same next-turn effect")
   g._install_template("mouth_band","mouth",24.0,24.0,false,"fixture",3,0)
   var rng=g.state.rng.magic
   for part in ["mouth","hand","none"]:
@@ -320,6 +327,17 @@ static func prepared_chant(t) -> void:
  before=g.export_snapshot()
  t.check(not t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.state==before,"CHANT insufficient mana rejects atomically")
  t.check("prepared_chant" in g.Cards.Rules.COMMON and g.Cards.Rules.definition_reason(g.Cards.Rules.SPECS.prepared_chant)=="","CHANT enters the common pool with a valid definition")
+ g=Game.new(42);g._discard_end();g.state.energy=10
+ for free in [true,false]:
+  card=cards.give(g,"prepared_chant")
+  t.check(t.action(g,"card",{"uid":card.uid,"free":free}).ok,"CHANT current and next-turn effects can coexist")
+ card=cards.give(g,"prepared_chant");before=g.export_snapshot()
+ t.check(not t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.export_snapshot()==before,"CHANT duplicate queued effect cannot spend or stack")
+ for enemy in g.state.enemies: enemy.intent.delayed=true
+ t.check(t.action(g,"end").ok and "prepared_chant" in g.state.card_buffs and "prepared_chant_next" not in g.state.card_buffs,"CHANT expiring current effect does not remove the newly activated next-turn effect")
+ g=Game.new(42);g._discard_end();card=cards.give(g,"prepared_chant")
+ t.action(g,"card",{"uid":card.uid,"free":true});g.Cards.end_powers(g)
+ t.check("prepared_chant_next" not in g.state.card_buffs,"CHANT session cleanup discards pending next-turn certainty")
 
 static func magic_slip_free(t) -> void:
  var seen={}

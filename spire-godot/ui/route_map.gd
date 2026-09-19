@@ -221,7 +221,7 @@ func _draw() -> void:
    var extent=16.0 if compact else 26.0
    draw_texture_rect(COMPLETED_CHECK,Rect2(point+Vector2(9,5) if compact else point+Vector2(20,13),Vector2.ONE*extent),false)
   if compact: continue
-  var title={"battle":"战斗","weak":"战斗","strong":"战斗 · 强敌","elite":"精英","boss":"塔顶 · 六缚","event":"事件","rest":"休息","shop":"商店","treasure":"宝箱","entry":"塔底入口","exit":"出口"}[room.icon]
+  var title={"battle":"战斗","weak":"战斗","strong":"战斗 · 强敌","elite":"精英","boss":"塔顶 · 首领","event":"事件","rest":"休息","shop":"商店","treasure":"宝箱","entry":"塔底入口","exit":"出口"}[room.icon]
   if region_name=="监狱": title=room.name
   var width=font.get_string_size(title,HORIZONTAL_ALIGNMENT_LEFT,-1,14).x
   draw_string(font,point+Vector2(-width/2,53),title,HORIZONTAL_ALIGNMENT_LEFT,-1,14,color)

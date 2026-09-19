@@ -19,8 +19,10 @@ static func definitions() -> Dictionary:
  var versatile_special={"kind":"apply","text":"安装一件初级2档性玩具","delayed":false,"final":false,"replace":true,"count":1,"grade":1,"tier":2,"pool":"special","templates":Special.RANDOM_POOLS[1].duplicate()}
  var versatile_control={"kind":"versatile_control","text":"寻找可以上锁或加固的拘束具","delayed":false}
  var result={
- "puppeteer":{"behavior":"puppeteer","humanoid":true,"visual":"puppeteer","name":"玩偶师","hp":96,"order":51,"special_pool":Special.RANDOM_POOLS[2].duplicate()},
- "puppet":{"behavior":"puppet","humanoid":true,"visual":"puppet","name":"玩偶","hp":10,"order":52,"install_pool":ordinary_medium.duplicate()},
+ "iron_man":{"behavior":"iron_man","humanoid":true,"mechanical":true,"visual":"iron_man","name":"铁男","hp":150,"strength":6,"order":40,"capture_kind":"iron_man","capture_start":30.0,"capture_poses":["sit","lie"],"install_pool":["belt","fine_belt","eye_leather","mouth_band"]},
+ "iron_drone":{"behavior":"iron_drone","mechanical":true,"can_arrest":false,"visual":"drone","name":"捕缚无人机","hp":50,"order":44},
+ "puppeteer":{"behavior":"puppeteer","humanoid":true,"visual":"puppeteer","name":"玩偶师","hp":96,"order":51,"damage_cap":30.0,"special_pool":Special.RANDOM_POOLS[2].duplicate()},
+ "puppet":{"behavior":"puppet","humanoid":true,"visual":"puppet","name":"玩偶","hp":15,"order":52,"reaction_capacity":3,"capacity_per_mend":1,"health_per_mend":5,"install_pool":ordinary_medium.duplicate()},
  "six_bind":{"behavior":"six_bind","humanoid":true,"visual":"six_bind","name":"六缚","hp":220,"strength":6,"order":60,"climax_capture_threshold":4,"climax_capture_repeat":1,
   "install_pool":ordinary_medium.duplicate(),"opening_pool":ordinary_initial+['mouth_band'],"special_pools":{1:Special.RANDOM_POOLS[1].duplicate(),2:Special.RANDOM_POOLS[2].duplicate()}},
  "versatile":{"behavior":"humanoid","humanoid":true,"visual":"versatile","name":"多面手","hp":60,"strength":2,"order":49,
@@ -56,8 +58,8 @@ static func definitions() -> Dictionary:
  "belt":{"install_pool":["belt","fine_belt","eye_leather"],"final_pool":["belt","fine_belt","eye_leather"],"behavior":"restraint","visual":"belt","name":"漂浮皮带","hp":B.BELT_HP,"strength":1,"order":20},
  "tape":{"install_pool":["tape","eye_tape","mouth_tape"],"final_pool":["tape","eye_tape","mouth_tape"],"behavior":"restraint","visual":"tape","name":"漂浮胶带","hp":30,"strength":1,"order":30},
  "cable_tie":{"install_pool":["cable_tie"],"final_pool":["cable_tie"],"behavior":"restraint","visual":"cable_tie","name":"漂浮扎带","hp":30,"strength":1,"order":35},
- "gag":{"attachment_pool":["mouth_band"],"attachment_slot":"mouth","behavior":"attachment","visual":"silencer","name":"漂浮口球","hp":B.SILENCER_HP,"strength":1,"order":40},
- "lock":{"behavior":"lock","visual":"lock","name":"漂浮锁","hp":B.LOCK_HP,"strength":1,"order":36,
+ "gag":{"unique_in_group":true,"attachment_pool":["mouth_band"],"attachment_slot":"mouth","behavior":"attachment","visual":"silencer","name":"漂浮口球","hp":B.SILENCER_HP,"strength":1,"order":40},
+ "lock":{"unique_in_group":true,"behavior":"lock","visual":"lock","name":"漂浮锁","hp":B.LOCK_HP,"strength":1,"order":36,
   "chastity_departure":{"kind":"apply","pool":"special","templates":["negative_plate_lock_medium"],"grade":B.ENEMY_DEPARTURE_GRADE,"tier":B.ENEMY_DEPARTURE_TIER,"count":1,"locked":false,"final":true,"replace":false,"text":"附加中级3档平板锁，随后离场","delayed":false}},
  "toybox":{"behavior":"dispenser","visual":"toybox","name":"漂浮玩具箱","hp":30,"strength":1,"order":45,
   "special_pool":Special.RANDOM_POOLS[1].duplicate()}}
@@ -81,6 +83,7 @@ static func definitions() -> Dictionary:
  return result
 
 static var ENCOUNTERS={
+ "iron_man_solo":{"group":"铁男","rank":"boss","members":[{"type":"iron_man","grade":3},{"type":"binding_box","grade":2,"hp":50},{"type":"iron_drone","grade":2}]},
  "puppeteer_solo":{"group":"玩偶师","rank":"elite","members":[{"type":"puppeteer","grade":2}]},
  "event_belt_trio":{"group":"漂浮皮带群","rank":"event","members":[{"type":"belt","grade":1},{"type":"belt","grade":1},{"type":"belt","grade":1}]},
  "drone_pair":{"group":"双魔导无人机","rank":"strong","members":[],"fixed_members":[{"type":"drone","grade":1},{"type":"drone","grade":1}],"weak_strength":0},
@@ -137,6 +140,14 @@ static func description(id: String) -> String:
 static func behavior(type: String) -> String:
  return TYPES.get(type,{}).get("behavior","")
 
-static func damage_multiplier(type: String, damage_type: String) -> float:
- if damage_type=="fixed": return 1.0
- return 0.5 if TYPES[type].get("mechanical",false) and damage_type!="magic" else 1.0
+static func damage_multiplier(g, type: String, damage_type: String) -> float:
+ if damage_type in ["fixed","magic"] or not TYPES[type].get("mechanical",false): return 1.0
+ if g.IronMan.armor_disabled(g,type): return 1.0
+ var reduction=50.0
+ for id in g.state.relics:
+  var override=g.RelicEffects.definition(g,id).modifiers.get("mechanical_damage_reduction_percent",-1)
+  if override>=0: reduction=minf(reduction,override)
+ return 1.0-reduction/100.0
+
+static func barrier_remaining(enemy: Dictionary) -> float:
+ return maxf(0.0,TYPES[enemy.type].damage_cap-enemy.barrier_damage)

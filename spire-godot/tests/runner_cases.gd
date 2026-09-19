@@ -46,10 +46,12 @@ static func run(t) -> void:
 # Follow actual run calls, not helper imports. A case must have exactly one owner.
 static func ownership(t) -> void:
  var paths=t.SUITES.values().filter(func(path):return path is String)
+ # Inline core/UI cases also own run(self) calls; shared runner probes are not cases.
+ paths.append_array(["res://tests/test_game.gd","res://tests/ui_smoke.gd"])
  var ui=FileAccess.get_file_as_string("res://tests/ui_smoke.gd").split("func module_checks")[0]
  var registry=RegEx.new();registry.compile('"[^"\\n]+":\\s*"(res://tests/[^"\\n]+)"')
  for entry in registry.search_all(ui): paths.append(entry.get_string(1))
- var calls=RegEx.new();calls.compile(r'preload\("(res://tests/[^"]+)"\)\.run\(t(?:,|\))')
+ var calls=RegEx.new();calls.compile(r'preload\("(res://tests/[^"]+_cases\.gd)"\)\.run\((?:t|self)(?:,|\))')
  var owners={}
  for path in paths: visit(t,path,path,owners,calls)
  var directory=DirAccess.open("res://tests")

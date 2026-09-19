@@ -3,7 +3,29 @@ const Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
 const Cases=preload("res://tests/service_cases.gd")
 const ShopCopy=preload("res://data/shop_copy.gd")
 
+static func repeated_shop_entry(t) -> void:
+ var ui=t.ui
+ ui.restart(37);await t.frames()
+ ui.game=Cases.previous_tower_shop(t)
+ ui.game._restart_tower();ui.render();await t.frames()
+ var mana=ui.view.mana
+ t.check(await t.click("depart",{"room":"floor_10_4"}),"SHOP UI actual map choice enters the new tower shop with a reused id")
+ t.check(ui.view.phase=="shop" and ui.view.mana==mana and ui.view.shop.stock.all(func(row):return not row.taken) and ui.find_child("ShopPaymentPerformance",true,false)==null,"SHOP UI entering untouched stock never opens the previous tower CG")
+ await t.capture("ui-shop-entry-no-stale-cg.png")
+ var before=ui.game.export_snapshot()
+ await Pointer.press(t,ui.find_child("ShopPayment_flask",true,false))
+ await Pointer.press(t,ui.find_child("ShopPayment_self",true,false))
+ t.check(ui.game.state==before and ui.find_child("ShopPaymentPerformance",true,false)==null,"SHOP UI browsing payment sources neither trades nor revives stale CG")
+ var buy=ui.actions.select("service").filter(func(c):return c.valid and c.payload.op=="take" and c.payload.payment=="self")[0]
+ await Pointer.press(t,ui.candidate_buttons[buy.id])
+ t.check(ui.view.mana<mana and ui.find_child("ShopPaymentPerformance",true,false)!=null,"SHOP UI current purchase still opens the payment CG")
+ ui.restart(42);await t.frames()
+
 static func run(t) -> void:
+ await repeated_shop_entry(t)
+ await preload("res://tests/ditto_ui_cases.gd").run(t)
+ await preload("res://tests/universal_scanner_ui_cases.gd").run(t)
+ await preload("res://tests/membership_card_ui_cases.gd").run(t)
  await m_donalds(t)
  await t.start_practice("Practice_shop")
  var shop_view=t.ui.view
@@ -46,7 +68,7 @@ static func run(t) -> void:
   if kind=="shop":
    check_stock_layout(t)
    var before_log=ui.game.export_snapshot()
-   await Pointer.press(t,ui.find_child("OpenActionLog",true,false));await t.frames()
+   await t.open_menu();await preload("res://tests/interface_ui_cases.gd").press(t,"OpenLog")
    t.check(ui.show_log and ui.game.state==before_log,"SHOP UI log uses read-only drawer without covering stock by default")
    await t.close_information()
    var card_offer=ui.view.shop.stock.filter(func(o):return o.kind=="card")[0]

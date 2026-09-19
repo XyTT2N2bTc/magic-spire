@@ -3,6 +3,15 @@ const Cards=preload("res://tests/curse_cases.gd")
 const Click=preload("res://tests/target_sidebar_ui_cases.gd")
 
 static func run(t) -> void:
+ await preload("res://tests/lewd_magic_ui_cases.gd").run(t)
+ await preload("res://tests/supple_flesh_ui_cases.gd").run(t)
+ await preload("res://tests/binding_power_ui_cases.gd").run(t)
+ await preload("res://tests/mana_attachment_ui_cases.gd").run(t)
+ await preload("res://tests/binding_search_ui_cases.gd").run(t)
+ await preload("res://tests/kip_up_ui_cases.gd").run(t)
+ await preload("res://tests/formation_ui_cases.gd").run(t)
+ await preload("res://tests/sympathetic_form_ui_cases.gd").run(t)
+ await preload("res://tests/endless_war_goddess_ui_cases.gd").run(t)
  await self_binding(t)
  await reuse(t)
  await confluence(t)
@@ -226,14 +235,15 @@ static func follow_through(t) -> void:
  var target=ui.game._install_template("rope","thigh",0.1,1.0,false,"fixture",1,0,0,"thigh_root")
  var next=ui.game._install_template("rope","thigh",0.1,1.0,false,"fixture",1,0,0,"mid_thigh")
  var last=ui.game.add_fixture("toes",0.1,1.0)
+ var remote=ui.game.add_fixture("wrist",0.1,1.0)
  var card=Cards.give(ui.game,"boar_emperor_blaze")
  ui.render();await t.frames()
  if ui.card_faces.get(card.uid,false): await t.flip(card.uid)
  var face=ui.card_buttons[card.uid]
- t.check(face.rarity=="rare" and t.visible_text(face).contains("6×5") and t.visible_text(face).contains("顺延") and not t.visible_text(face).contains("同一大片区域"),"FOLLOW UI concise rare card face contains only damage and keyword")
+ t.check(face.rarity=="rare" and t.visible_text(face).contains("6×5") and t.visible_text(face).contains("超级顺延") and not t.visible_text(face).contains("同一大片区域"),"FOLLOW UI concise rare card face contains only damage and keyword")
  await t.move_mouse(Vector2(1100,90));await t.move_mouse(t.card_point(card.uid));await t.frames()
  var tip=ui.find_child("TermExplanation",true,false)
- t.check(tip!=null and t.visible_text(tip).contains("目标解除后") and t.visible_text(tip).contains("同部位→同大部位→同区域"),"FOLLOW UI hover explains three-tier continuation")
+ t.check(tip!=null and t.visible_text(tip).contains("区域内无合法目标后") and t.visible_text(tip).contains("全身合法目标"),"FOLLOW UI hover explains full-body fallback continuation")
  for side in range(2):
   face=ui.card_buttons[card.uid]
   var body=face.get_node("CardText")
@@ -242,13 +252,13 @@ static func follow_through(t) -> void:
  await t.start_drag(card.uid,"thigh")
  var choice=ui.actions.find("card",{"uid":card.uid,"target":target.id,"free":false})
  await t.release_target(await t.reveal_drop_target(choice.id));await t.frames()
- t.check(ui.game._equipment(target.id).is_empty() and ui.game._equipment(next.id).is_empty() and ui.game._equipment(last.id).is_empty() and ui.game.state.energy==0 and ui.game.state.card_chain.is_empty(),"FOLLOW UI actual targeted drop automatically resolves points then whole region for one payment")
+ t.check(ui.game._equipment(target.id).is_empty() and ui.game._equipment(next.id).is_empty() and ui.game._equipment(last.id).is_empty() and ui.game._equipment(remote.id).is_empty() and ui.game.state.energy==0 and ui.game.state.card_chain.is_empty(),"FOLLOW UI actual targeted drop automatically resolves points then region and full-body fallback for one payment")
  ui.restart(42);await t.frames();ui.game._discard_end()
  card=Cards.give(ui.game,"boar_emperor_blaze");ui.render();await t.frames()
  if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
- t.check(t.visible_text(ui.card_buttons[card.uid]).contains("蓄力5"),"FOLLOW UI free face is concise")
+ t.check(t.visible_text(ui.card_buttons[card.uid]).contains("蓄力6"),"FOLLOW UI free face is concise")
  await t.start_drag(card.uid,"wrist");await t.release_target();await t.frames()
- t.check(ui.game.state.charge==5 and ui.game.state.energy==0 and not ui.card_buttons.has(card.uid),"FOLLOW UI free drop adds five charge and discards once")
+ t.check(ui.game.state.charge==6 and ui.game.state.energy==0 and not ui.card_buttons.has(card.uid),"FOLLOW UI free drop adds six charge and discards once")
 
 static func flame_flourish(t) -> void:
  var ui=t.ui
@@ -388,12 +398,12 @@ static func fire_control(t) -> void:
  var card=Cards.give(ui.game,"fire_control")
  ui.render();await t.frames()
  if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
- t.check(ui.card_buttons[card.uid].rarity=="common" and t.visible_text(ui.card_buttons[card.uid]).contains("永久＋2"),"CONTROL UI ordinary skill shows permanent free effect")
+ t.check(ui.card_buttons[card.uid].rarity=="uncommon" and t.visible_text(ui.card_buttons[card.uid]).contains("永久＋1"),"CONTROL UI uncommon skill shows permanent free effect")
  t.check(t.visible_text(ui.card_buttons[card.uid]).contains("手部自由") and t.visible_text(ui.card_buttons[card.uid]).contains("上身束缚等级≤1") and not t.visible_text(ui.card_buttons[card.uid]).contains("各部位紧度＝0"),"CONTROL UI shows new combined requirements without the old per-slot restriction")
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  var attack=ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy})
- t.check(ui.game.state.energy==2 and attack.payload.damage==ui.game.B.FIREBALL_ASSISTED+2 and not ui.card_buttons.has(card.uid),"CONTROL UI click exhausts card and updates actual fireball damage")
- t.check(ui.view.statuses.any(func(row):return row.id=="permanent_spell_fireball" and row.value=="＋2"),"CONTROL UI permanent bonus visible in status")
+ t.check(ui.game.state.energy==2 and attack.payload.damage==ui.game.B.FIREBALL_ASSISTED+1 and not ui.card_buttons.has(card.uid),"CONTROL UI click exhausts card and updates actual fireball damage")
+ t.check(ui.view.statuses.any(func(row):return row.id=="permanent_spell_fireball" and row.value=="＋1"),"CONTROL UI permanent bonus visible in status")
  ui.game.add_fixture("wrist",2.0);card=Cards.give(ui.game,"fire_control")
  ui.render();await t.frames()
  if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
@@ -402,7 +412,7 @@ static func fire_control(t) -> void:
  t.check(ui.game.state==before and not ui.view.hand.filter(func(row):return row.uid==card.uid)[0].availability.free.usable,"CONTROL UI upper restraint blocks free-side click without payment")
  await t.flip(card.uid)
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
- t.check(ui.game.state.temporary_mana==10 and ui.game.state.spell_base_bonuses.fireball==2,"CONTROL UI bound click grants two reserves instead")
+ t.check(ui.game.state.temporary_mana==10 and ui.game.state.spell_base_bonuses.fireball==1 and ui.game.state.discard.any(func(c):return c.uid==card.uid) and not ui.game.state.exhaust.any(func(c):return c.uid==card.uid),"CONTROL UI bound click grants two reserves and discards the card")
 
 static func letter_opener(t) -> void:
  var ui=t.ui
@@ -698,8 +708,10 @@ static func resonance(t) -> void:
  for n in range(2):
   card=Cards.give(ui.game,"resonance");ui.render();await t.frames()
   if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
-  t.check(not t.visible_text(ui.card_buttons[card.uid]).contains("唯一") and t.visible_text(ui.card_buttons[card.uid]).contains("闪避1"),"RESONANCE UI free face remains stackable")
+  t.check(ui.card_buttons[card.uid].get_node("CardCost").text=="2" and not t.visible_text(ui.card_buttons[card.uid]).contains("唯一") and t.visible_text(ui.card_buttons[card.uid]).contains("闪避1"),"RESONANCE UI free face costs two energy and grants one evasion per turn")
+  var energy_before=ui.game.state.energy
   await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
+  t.check(ui.game.state.energy==energy_before-2,"RESONANCE UI native free play spends two energy")
  for enemy in ui.game.state.enemies: enemy.intent.delayed=true
  ui.render();await t.frames()
  t.check(await t.click("end") and ui.game.state.evasion==2,"RESONANCE UI next turn gives two evasion from two actual plays")
@@ -737,14 +749,17 @@ static func reuse(t) -> void:
  await t.flip(card.uid)
  face=ui.card_buttons[card.uid]
  var blocked=ui.actions.find("card",{"uid":card.uid,"free":false})
- t.check(face.get_node("CardCost").text=="2" and t.visible_text(face).contains("上身束缚等级≥2") and t.visible_text(face).contains("腿部束缚等级≥2") and not blocked.valid,"REUSE UI bound face shows two energy and both live requirements")
- var wrist=ui.game.add_fixture("wrist",8);ui.game.add_fixture("ankle",8);ui.render();await t.frames()
+ t.check(face.get_node("CardCost").text=="2" and t.visible_text(face).contains("上身束缚等级≥3") and t.visible_text(face).contains("腿部束缚等级≥3") and t.visible_text(face).contains("紧度≥2") and t.visible_text(face).contains("≥10件") and t.visible_text(face).contains("不计特殊装备") and not blocked.valid,"REUSE UI bound face shows two energy, tier/count upgrade and both live requirements")
+ ui.game.add_fixture("wrist",8);ui.game.add_fixture("ankle",8);ui.render();await t.frames()
+ t.check(not ui.actions.find("card",{"uid":card.uid,"free":false}).valid,"REUSE UI level-two regions still block activation")
+ ui.game.add_fixture("palm",8);ui.game.add_fixture("foot",8);ui.render();await t.frames()
  t.check(ui.actions.find("card",{"uid":card.uid,"free":false}).valid,"REUSE UI condition changes enable the original card")
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("100%") and row.value.contains("剩余2次")),"REUSE UI actual play creates the full refund and energy power status")
- ui.game.add_fixture("palm",8);ui.game.add_fixture("foot",8);ui.render();await t.frames()
- t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("不限次数")),"REUSE UI both level-three regions immediately display full refund")
- ui.game._equipment(wrist.id).durability=0;ui.game._cleanup();ui.render();await t.frames()
+ for slot in ["eyes","fingers","upper_arm","forearm","thigh","calf"]: ui.game.add_fixture(slot,8)
+ ui.render();await t.frames()
+ t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("不限次数")),"REUSE UI ten tight ordinary items immediately display unlimited conversion")
+ ui.game.state.equipment.clear();ui.render();await t.frames()
  t.check(ui.view.statuses.any(func(row):return row.id=="power_reuse_bound" and row.value.contains("未生效") and row.value.contains("上身")),"REUSE UI status explicitly reports the lost ongoing requirement")
 
 

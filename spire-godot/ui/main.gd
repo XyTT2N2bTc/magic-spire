@@ -72,10 +72,6 @@ var quick_release_inspected=""
 var selected_card=""
 var selected_slot="wrist"
 var selected_enemy=""
-var action_log_open=false
-var action_log_pinned=false
-var action_log_panel: PanelContainer
-var action_log_toggle: Button
 var selected_candidate=""
 var notice=""
 var show_route=false
@@ -143,18 +139,36 @@ var map_scroll_value=-1
 var map_overview=false
 var map_auto_travel=false
 var map_step_pending=false
+var takeover_presenter: Control
 var travel_log_scroll=-1
 var travel_log_count=0
 var speech_id=""
+var suppressed_hero_speech_id=""
 var speech_deadline=0
 var speech_group: Control
 
 func _process(_delta: float) -> void:
  if speech_deadline>0 and Time.get_ticks_msec()>=speech_deadline: _dismiss_speech()
+ _queue_takeover_step()
+
+func _takeover_locked() -> bool:
+ return not show_home and view.get("first_turn_control",{}).get("locked",false)
+
+func _takeover_banner() -> void:
+ if is_instance_valid(takeover_presenter): takeover_presenter.sync()
+
+func _queue_takeover_step() -> void:
+ if is_instance_valid(takeover_presenter): takeover_presenter.advance()
 
 func _dismiss_speech() -> void:
  speech_deadline=0
  if is_instance_valid(speech_group): speech_group.hide()
+
+func _skip_hero_speech(entry: Dictionary) -> void:
+ if entry.is_empty(): return
+ suppressed_hero_speech_id="hero:"+str(entry.id)
+ speech_id=suppressed_hero_speech_id
+ _dismiss_speech()
 
 func _speech_visible(id: String) -> bool:
  if speech_id!=id:
@@ -167,6 +181,7 @@ func _ready() -> void:
  touch_input=preload("res://ui/touch_input.gd").new();touch_input.host=self;add_child(touch_input)
  keyboard_input=preload("res://ui/keyboard_input.gd").new();keyboard_input.host=self;add_child(keyboard_input)
  feedback_report=preload("res://ui/feedback_report.gd").new();feedback_report.host=self;add_child(feedback_report)
+ takeover_presenter=preload("res://ui/first_turn_presenter.gd").new();takeover_presenter.host=self;add_child(takeover_presenter)
  get_window().title=ProjectSettings.get_setting("application/config/name")
  shop_chatter_rng.randomize()
  display_settings.initialize(get_window(),persistence_enabled)
@@ -250,7 +265,7 @@ func _menu_drawer() -> void:
  var quick=_button("快速SL" if not view.demo_finished else "快速SL · 本局已结束",_quick_sl,CYAN)
  quick.name="QuickSL";quick.disabled=view.demo_finished
  quick.tooltip_text="回到当前场景开始，恢复初始手牌与资源。";content.add_child(quick)
- var log_button=_button("行动记录",func():_open_drawer("show_log"));log_button.name="OpenLog";content.add_child(log_button)
+ var log_button=_button("行动日志",func():_open_drawer("show_log"));log_button.name="OpenLog";content.add_child(log_button)
  var restart_button=_button("重开 / 练习",func():_open_drawer("show_settings"));restart_button.name="OpenRestart";content.add_child(restart_button)
  var options=_button(_text("ui.settings.title","设置"),func():_open_drawer("show_options"));options.name="OpenOptions";content.add_child(options)
  var home=_button("返回主页",_return_home,CYAN);home.name="ReturnHome";content.add_child(home)
@@ -400,7 +415,7 @@ func render(snapshot: Dictionary={}) -> void:
   _localize_controls(layout)
   layout.end_frame()
   return
- if view.phase=="battle" and not show_route and not display_settings.first_battle_tutorial_seen:
+ if view.phase=="battle" and not _takeover_locked() and not show_route and not display_settings.first_battle_tutorial_seen:
   _close_drawers()
   tutorial_category="basics"
   show_tutorial=true
@@ -445,7 +460,7 @@ func render(snapshot: Dictionary={}) -> void:
  elif view.phase!="departure":
   _bottom_controls()
   _body_drawer()
- if not show_route and view.phase in ["battle","prepare","rest","prison","event","shop","treasure"]: _action_sidebar()
+ if not show_route and view.phase in ["battle","prepare","rest","prison","event","shop","treasure"]: _feedback_entry()
  _npc_speech_bubble()
  if player_pick: _player_picker()
  if selected_card!="" and not _selecting_hand(): DragTargets.focus_bodies(self,{"card_uid":selected_card,"free":card_faces.get(selected_card,false),"version":view.version})
@@ -453,6 +468,7 @@ func render(snapshot: Dictionary={}) -> void:
  if view.phase=="shop" and not show_route: ShopScreen.payment_overlay(self)
  if notice!="" and actor_targets.has("hero"):
   _show_term(actor_targets.hero,{"label":"","detail":notice})
+ _takeover_banner()
  layout.end_frame()
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
  _localize_controls(layout)
@@ -539,6 +555,12 @@ func _relic_row() -> void:
   shortcut.mouse_entered.connect(func():icon.modulate=Color("ffe6ad");_show_term(shortcut,entry))
   shortcut.mouse_exited.connect(func():icon.modulate=Color.WHITE;_hide_term())
   shortcut.focus_entered.connect(func():_show_term(shortcut,entry));shortcut.focus_exited.connect(_hide_term)
+  var choice=actions.find("relic",{"kind":"relic_discharge","relic":relic.id})
+  if choice.is_empty(): choice=actions.find("relic",{"kind":"relic_toggle","relic":relic.id})
+  if not choice.is_empty():
+   shortcut.gui_input.connect(func(event):
+    if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
+     shortcut.accept_event();_hide_term();_submit(choice))
 
 func _status_tooltip(status: Dictionary) -> Dictionary:
  return {"label":status.name+" · "+status.value,"detail":status.detail+"\n\n来源："+status.source+"\n持续："+status.duration}
@@ -626,7 +648,7 @@ func _battle_scene() -> void:
   group.position=Vector2(screen_x,497.0*(1.0-enemy_scale))
   group.scale=Vector2.ONE*enemy_scale
   var x=(ENEMY_GROUP_WIDTH-226.0)/2.0
-  var guard=e.type in ["guard","six_bind","puppeteer"]
+  var guard=e.type in ["guard","six_bind","puppeteer","iron_man"]
   for n in range(e.intent_icons.size()):
    var entry=e.intent_icons[n]
    var icon=preload("res://ui/intent_icon.gd").new()
@@ -690,7 +712,11 @@ func _build_action_rail() -> void:
   if quick_release_open:
    preload("res://ui/quick_release_bar.gd").build(self,container,218.6)
    return
-  var offers=actions.select("attack",{"enemy":selected_enemy}).filter(func(c):return c.payload.form==attack_forms.get(c.payload.type,0))
+  var attack_choices=actions.select("attack",{"enemy":selected_enemy})
+  for type in attack_forms.keys():
+   var forms=attack_choices.filter(func(c):return c.payload.type==type).map(func(c):return c.payload.form)
+   if not forms.is_empty() and attack_forms[type] not in forms: attack_forms[type]=forms[0]
+  var offers=attack_choices.filter(func(c):return c.payload.form==attack_forms.get(c.payload.type,0))
   if view.phase!="battle":
    var spells=actions.select("attack",{"type":"fireball","enemy":""})
    var spell=preload("res://ui/quick_release_bar.gd").first(spells)
@@ -706,12 +732,21 @@ func _build_action_rail() -> void:
   var width=218.6
   if view.phase!="battle":
    _place(_label(preload("res://ui/quick_release_bar.gd").message(self,"exploration","切换至快捷挣脱栏，可对选中的拘束具使用解除牌，也可使用已安装道具。"),15,MUTED),Rect2(402,565,650,38),container)
-  if view.phase!="battle" and not offers.any(func(c):return c.payload.kind=="attack"):
+  if view.phase!="battle" and view.character_id!="witch" and not offers.any(func(c):return c.payload.kind=="attack"):
    var reason=preload("res://ui/quick_release_bar.gd").message(self,"fire_locked","尚未获得用火球术解除拘束具的能力。") if not view.equipment_fireball_unlocked else preload("res://ui/quick_release_bar.gd").message(self,"fire_empty","没有拘束具可供火球术选为目标。")
-   var empty_fire=_button(localization.display("火球术")+"\n"+reason,func():pass,CYAN)
+   var empty_fire=_button("",func():pass,CYAN)
    empty_fire.name="BasicAttack_fireball";empty_fire.disabled=true;empty_fire.tooltip_text=reason
-   empty_fire.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;empty_fire.add_theme_font_size_override("font_size",12)
-   _place(empty_fire,Rect2(1073.8,556,218.6,60),container)
+   empty_fire.clip_contents=true
+   _place(empty_fire,Rect2(394+3*(width+8),556,width,60),container)
+   var title=_label("火球术",16,MUTED)
+   title.name="BasicAttackTitle";title.autowrap_mode=TextServer.AUTOWRAP_OFF;title.clip_text=true
+   title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;title.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+   _place(title,Rect2(8,2,width-16,24),empty_fire)
+   var explanation=_label(reason,11,MUTED)
+   explanation.name="BasicAttackDetail_fireball";explanation.max_lines_visible=2
+   explanation.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
+   explanation.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;explanation.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+   _place(explanation,Rect2(8,26,width-16,30),empty_fire)
   for i in range(offers.size()):
    var c=offers[i]
    var attack=c.payload.kind=="attack"
@@ -789,7 +824,7 @@ func _attack_tile_labels(btn: Button, c: Dictionary, bounds: Vector2, summary: S
  value.position.x=start+title_width+gap;value.size.x=value_width
  title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;value.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
  title.vertical_alignment=VERTICAL_ALIGNMENT_CENTER;value.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
- var metadata=[c.body_part]
+ var metadata=["%d能量" % c.cost] if c.payload.get("witch_action",false) else [c.body_part]
  if c.mana>0: metadata.append("%s魔力" % game.number(c.mana))
  if tags!="": metadata.append(tags)
  var secondary=_label("  ".join(metadata).replace(" · ","  "),14 if c.valid else 11,accent if c.valid else MUTED)
@@ -1077,16 +1112,16 @@ func _bottom_controls(include_tools: bool=true) -> void:
  resource_back.name="MainResourcePanel"
  var resource_style=_style(Color("0e1923"),Color("293e47"),10);resource_style.shadow_size=0;resource_style.set_border_width_all(1)
  resource_back.add_theme_stylebox_override("panel",resource_style)
- _place(resource_back,Rect2(24,599,330,96))
+ _place(resource_back,Rect2(0,599,375,96))
  if include_tools:
   var tool_back=Panel.new();tool_back.mouse_filter=Control.MOUSE_FILTER_IGNORE
   var tool_style=_style(Color("101c27"),Color("615439"),14);tool_style.set_border_width_all(1);tool_style.shadow_size=3
   tool_back.add_theme_stylebox_override("panel",tool_style)
   tool_back.name="ResourceToolsPanel"
-  _place(tool_back,Rect2(24,700,330,188 if has_turn_controls else 88))
+  _place(tool_back,Rect2(0,699,375,201))
  if has_turn_controls:
   var divider=ColorRect.new();divider.color=Color("35464b");divider.mouse_filter=Control.MOUSE_FILTER_IGNORE
-  _place(divider,Rect2(160,781,178,1))
+  _place(divider,Rect2(160,781,199,1))
  var meters=[
   {"id":"MainOverload","label":"快感","value":view.pressure.value,"maximum":view.pressure.maximum,"color":OVERLOAD_COLOR},
   {"id":"MainMana","label":"魔力","value":view.mana,"maximum":view.mana_max,"color":CYAN}]
@@ -1100,9 +1135,9 @@ func _bottom_controls(include_tools: bool=true) -> void:
   var caption=_label(meter.label,13,meter.color);caption.name=meter.id+"Caption"
   caption.autowrap_mode=TextServer.AUTOWRAP_OFF
   caption.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
-  _place(caption,Rect2(38,center-12,64,24))
-  _resource_meter(meter.id,Rect2(104,center-bar_height/2,234,bar_height),meter.value,meter.maximum,meter.color)
-  if meter.id=="MainGuardBind": _guard_bind_drop_target(Rect2(32,center-14,310,28),"SidebarGuardBindTarget")
+  _place(caption,Rect2(18,center-12,64,24))
+  _resource_meter(meter.id,Rect2(90,center-bar_height/2,269,bar_height),meter.value,meter.maximum,meter.color)
+  if meter.id=="MainGuardBind": _guard_bind_drop_target(Rect2(12,center-14,351,28),"SidebarGuardBindTarget")
  var mana_bar=find_child("MainMana",true,false)
  mana_bar.mouse_filter=Control.MOUSE_FILTER_STOP;mana_bar.tooltip_text="嘴部施法成功率 · "+view.casting.percent+"\n临时魔力优先抵扣法术和卡牌耗魔，不受上限限制；不能存瓶或购物，本场结束清空。"
  if include_tools: preload("res://ui/mana_flask.gd").build(self)
@@ -1115,10 +1150,10 @@ func _bottom_controls(include_tools: bool=true) -> void:
  _place(energy,Rect2(5,17,92,64),orb)
  if view.phase=="battle":
   var powers=_button("能力区 · %d" % view.powers.size(),func():_open_drawer("show_deck","powers"),GOLD)
-  powers.name="OpenPowers";powers.add_theme_font_size_override("font_size",15);_place(powers,Rect2(161,790,177,36))
+  powers.name="OpenPowers";powers.add_theme_font_size_override("font_size",15);_place(powers,Rect2(161,790,198,36))
  var draw_button=_button("抽牌堆  %d" % view.draw_count,func():_open_drawer("show_deck","draw"));draw_button.name="DrawPileButton"
  draw_button.icon=preload("res://assets/ui/draw-pile.svg");draw_button.add_theme_font_size_override("font_size",16);draw_button.add_theme_constant_override("h_separation",12)
- _place(draw_button,Rect2(161,835,177,42))
+ _place(draw_button,Rect2(161,835,198,42))
  var discard_button=_button("弃牌堆\n%d" % view.discard_count,func():_open_drawer("show_deck","discard"));discard_button.name="DiscardPileButton"
  _place(discard_button,Rect2(1327,786,82,70))
  for c in actions.select("flow"):
@@ -1127,6 +1162,13 @@ func _bottom_controls(include_tools: bool=true) -> void:
   candidate_buttons[c.id]=b
   if c.payload.kind=="end":
    end_button=b;b.name="EndTurnButton";b.add_theme_font_size_override("font_size",24)
+   b.disabled=not c.valid;b.tooltip_text=c.reason
+   if view.end_turn_locked:
+    var seal=TextureRect.new();seal.name="EndTurnLockPattern"
+    seal.texture=preload("res://assets/ui/end-turn-locked.svg")
+    seal.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;seal.stretch_mode=TextureRect.STRETCH_SCALE
+    seal.mouse_filter=Control.MOUSE_FILTER_IGNORE
+    _place(seal,Rect2(0,0,155,90),b)
  var surrender=actions.find("surrender")
  if not surrender.is_empty():
   var button=_button("确定要投降吗" if surrender_version==view.version else "投降",func():pass,RED)
@@ -1746,11 +1788,21 @@ func _restore_map_scroll(scroll: ScrollContainer, graph: Control, offset: int) -
  scroll.get_v_scroll_bar().value_changed.connect(func(value):map_scroll_value=int(value))
 
 func _log_drawer() -> void:
- var v=_drawer_shell("行动记录",Rect2(650,150,870,560))
+ var v=_drawer_shell("行动日志",Rect2(650,150,870,560))
+ var back=_button("返回菜单",func():_open_drawer("show_menu"),MUTED);back.name="LogBackToMenu";v.add_child(back)
  var scroll=_scroll(v)
+ if view.action_log.is_empty(): scroll.add_child(_label("尚无行动记录。",14,MUTED))
+ for i in range(view.action_log.size()-1,-1,-1):
+  var note=view.action_log[i]
+  scroll.add_child(_label(note.actor+" · 第%d回合" % note.round,13,CYAN))
+  scroll.add_child(_label(note.text,14,TEXT))
+  scroll.add_child(HSeparator.new())
+ var toggle=_button("详细记录",func():pass,MUTED);toggle.name="LogDetails";toggle.toggle_mode=true;scroll.add_child(toggle)
+ var details=VBoxContainer.new();details.name="LogDetailRows";details.visible=false;scroll.add_child(details)
+ toggle.toggled.connect(func(visible: bool):details.visible=visible)
  for i in range(view.logs.size()-1,maxi(-1,view.logs.size()-45),-1):
   var e=view.logs[i]
-  scroll.add_child(_label(("计算 · " if e.kind=="mechanical" else "")+e.text,14,MUTED))
+  details.add_child(_label(("计算 · " if e.kind=="mechanical" else "")+e.text,14,MUTED))
 
 func _hide_term() -> void:
  if is_instance_valid(term_popup):
@@ -1792,6 +1844,9 @@ func _position_term(anchor: Rect2) -> void:
 
 func _speech_bubble(point_to_hero: bool=true) -> void:
  if view.speech.is_empty(): return
+ if _takeover_locked():
+  _skip_hero_speech(view.speech);return
+ if suppressed_hero_speech_id=="hero:"+str(view.speech.id): return
  if not _speech_visible("hero:"+str(view.speech.id)): return
  speech_group=Control.new();speech_group.name="HeroSpeechGroup";speech_group.mouse_filter=Control.MOUSE_FILTER_IGNORE
  speech_group.z_index=20;_place(speech_group,Rect2(0,0,0,0))
@@ -1808,6 +1863,7 @@ func _speech_bubble(point_to_hero: bool=true) -> void:
  if point_to_hero:
   var center=HERO_STAGE_RECT.get_center().x
   var tail=Polygon2D.new();tail.polygon=PackedVector2Array([Vector2(center-8,177),Vector2(center+8,177),Vector2(center,192)]);tail.color=Color(0.055,0.09,0.135,0.97);speech_group.add_child(tail)
+ _ignore_mouse(speech_group)
 
 func _guard_portrait(visual: String, minimum: Vector2) -> TextureRect:
  var portrait=TextureRect.new();portrait.name="PrisonGuardPortrait";portrait.custom_minimum_size=minimum
@@ -1830,48 +1886,20 @@ func _npc_speech_bubble() -> void:
  var body=_label(entry.text,15,TEXT);body.name="NpcSpeechText"
  body.size_flags_horizontal=Control.SIZE_EXPAND_FILL;body.size_flags_vertical=Control.SIZE_EXPAND_FILL
  body.vertical_alignment=VERTICAL_ALIGNMENT_CENTER;row.add_child(body)
+ _ignore_mouse(speech_group)
 
-func _action_sidebar() -> void:
+func _feedback_entry() -> void:
  var report_button=_button("问题与建议",feedback_report.open,CYAN);report_button.name="OpenFeedback"
  _place(report_button,Rect2(570,66,138,32) if view.phase=="shop" else Rect2(1438,82,138,34))
- if view.phase=="shop":
-  action_log_panel=null
-  action_log_toggle=_button("行动日志 ≡",func():_open_drawer("show_log"),GOLD)
-  action_log_toggle.name="OpenActionLog";_place(action_log_toggle,Rect2(570,104,138,38) if view.phase=="shop" else Rect2(1438,82,138,38))
-  return
- var panel=_panel(Rect2(1324,154,252,328 if view.phase!="battle" and not actions.select("wall_move").is_empty() else 382));panel.name="ActionSidebar"
- action_log_panel=panel
- var column=VBoxContainer.new();column.add_theme_constant_override("separation",12);panel.add_child(column)
- var heading=HBoxContainer.new();heading.add_theme_constant_override("separation",6);column.add_child(heading)
- var title=_label("行动日志",18,GOLD);title.size_flags_horizontal=Control.SIZE_EXPAND_FILL;heading.add_child(title)
- var pin=_button("已固定" if action_log_pinned else "固定",_toggle_action_pin,CYAN if action_log_pinned else MUTED)
- pin.name="PinActionLog";pin.add_theme_font_size_override("font_size",12);pin.tooltip_text="固定后，点击其他位置不会收起日志。";heading.add_child(pin)
- var close=_button("收起",func():action_log_open=false;_sync_action_sidebar(),MUTED)
- close.name="CloseActionLog";close.add_theme_font_size_override("font_size",12);heading.add_child(close)
- var content=_scroll(column)
- if view.action_log.is_empty(): content.add_child(_label("尚无行动记录。",14,MUTED))
- for i in range(view.action_log.size()-1,-1,-1):
-  var note=view.action_log[i]
-  content.add_child(_label(note.actor+" · 第%d回合" % note.round,13,CYAN))
-  content.add_child(_label(note.text,14,TEXT))
-  content.add_child(HSeparator.new())
- action_log_toggle=_button("行动日志 ≡",func():action_log_open=true;_sync_action_sidebar(),GOLD)
- action_log_toggle.name="OpenActionLog";_place(action_log_toggle,Rect2(570,104,138,38) if view.phase=="shop" else Rect2(1438,122,138,32))
- _sync_action_sidebar()
 
-func _toggle_action_pin() -> void:
- action_log_pinned=not action_log_pinned
- var button=action_log_panel.find_child("PinActionLog",true,false)
- button.text="已固定" if action_log_pinned else "固定"
- var color=CYAN if action_log_pinned else MUTED
- button.add_theme_stylebox_override("normal",_style(Color("1b2b39"),color.darkened(0.25)))
- button.add_theme_stylebox_override("hover",_style(Color("2b4553"),color))
-
-func _sync_action_sidebar() -> void:
- if is_instance_valid(action_log_panel): action_log_panel.visible=action_log_open
- if is_instance_valid(action_log_toggle): action_log_toggle.visible=not action_log_open
+func handle_portrait_input(event: InputEvent) -> bool:
+ return is_instance_valid(layout) and is_instance_valid(layout.body) and layout.body.handle_portrait_input(event)
 
 func _input(event: InputEvent) -> void:
+ if _takeover_locked():
+  get_viewport().set_input_as_handled();return
+ if handle_portrait_input(event):
+  get_viewport().set_input_as_handled();return
  if is_instance_valid(keyboard_input) and keyboard_input.handle(event):
   get_viewport().set_input_as_handled();return
  if player_pick and event.is_action_pressed("ui_cancel"):
@@ -1881,12 +1909,6 @@ func _input(event: InputEvent) -> void:
  if (show_tutorial or show_encyclopedia or show_deck or show_event_selection) and event.is_action_pressed("ui_cancel"):
   get_viewport().set_input_as_handled()
   _close_drawers();_refresh_drawers();return
- if not event is InputEventMouseButton or not event.pressed or event.button_index not in [MOUSE_BUTTON_LEFT,MOUSE_BUTTON_RIGHT]: return
- if not action_log_open or action_log_pinned or not is_instance_valid(action_log_panel) or not action_log_panel.is_visible_in_tree(): return
- if action_log_panel.get_global_rect().has_point(event.position): return
- # Hide only this panel: rebuilding controls on mouse-down would cancel clicks/drags.
- action_log_open=false
- _sync_action_sidebar()
 
 func _deck_drawer() -> void:
  var powers_only=deck_zone=="powers"
@@ -1911,10 +1933,11 @@ func _shop_chatter(pool: Array) -> void:
  body.text=line;bubble.show();speech_group=bubble
  speech_deadline=Time.get_ticks_msec()+5000
 
-func _submit(c: Dictionary, expected_version: int=-1) -> void:
+func _submit(c: Dictionary, expected_version: int=-1, takeover: bool=false) -> void:
+ if _takeover_locked() and not takeover: return
  surrender_version=-1
  if show_home or is_instance_valid(enemy_feedback): return
- if c.valid and c.payload.kind=="card" and c.payload.has("hand_uid") and not c.payload.get("self_target",false) and not _selecting_hand():
+ if c.valid and not c.get("automated",false) and c.payload.kind=="card" and c.payload.has("hand_uid") and not c.payload.get("self_target",false) and not _selecting_hand():
   _use_self_card(c,view.version if expected_version<0 else expected_version);return
  var previous=view
  var previous_cards=preload("res://ui/card_motion.gd").positions(self)
@@ -1924,6 +1947,8 @@ func _submit(c: Dictionary, expected_version: int=-1) -> void:
   feedback_anchor=Vector2(bounds.get_center().x,bounds.position.y)
  var result=game.dispatch(c.id,view.version if expected_version<0 else expected_version)
  var updated=game.get_view()
+ # Consume automated speech even when the last command has already ended takeover.
+ if takeover: _skip_hero_speech(updated.speech)
  notice="" if result.ok else result.error
  if result.ok:
   preload("res://ui/shell/body_sidebar.gd").expand_applied(self,previous,updated)
@@ -1943,6 +1968,7 @@ func _submit(c: Dictionary, expected_version: int=-1) -> void:
    # general-purpose character-status drawer, even if that drawer was open.
    _close_drawers()
  render(updated)
+ if takeover and is_instance_valid(takeover_presenter): takeover_presenter.outcome(result,previous,updated,c)
  if result.ok and c.payload.kind=="demo_end":
   _return_home()
   return
@@ -2000,10 +2026,11 @@ func _clear_impact_feedback() -> void:
  impact_feedback=null
 
 func _reset_interface(initial: Dictionary) -> void:
+ if is_instance_valid(layout) and is_instance_valid(layout.body): layout.body.set_portrait_expanded(false)
  if is_instance_valid(card_music): card_music.stop_music()
  if is_instance_valid(keyboard_input): keyboard_input.clear()
  surrender_version=-1
- speech_id="";speech_deadline=0
+ speech_id="";suppressed_hero_speech_id="";speech_deadline=0
  shop_payment="self"
  shop_sidebar_open=false
  shop_performance_seen=""
@@ -2022,7 +2049,6 @@ func _reset_interface(initial: Dictionary) -> void:
  _clear_drop_targets()
  _close_drawers()
  seed_text=str(initial.seed)
- action_log_open=false;action_log_pinned=false
  status_filter="all"
  selected_card=""; selected_candidate=""; selected_slot=initial.practice_focus if initial.practice else "wrist"; selected_enemy=""
  quick_release_open=false;quick_release_region="";quick_release_parts.clear();quick_release_targets.clear();quick_release_inspected=""
@@ -2036,6 +2062,8 @@ func _reset_interface(initial: Dictionary) -> void:
  player_pick_data={}
 
 func _unhandled_key_input(event: InputEvent) -> void:
+ if _takeover_locked():
+  get_viewport().set_input_as_handled();return
  if event.is_action_pressed("ui_cancel"):
   if DRAWERS.any(func(field):return bool(get(field))):
    _close_drawers();_refresh_drawers();return
@@ -2060,6 +2088,7 @@ func modal_region() -> Control:
  return panel if panel!=null and panel.is_visible_in_tree() and not panel.is_queued_for_deletion() else null
 
 func _notification(what: int) -> void:
+ if what==NOTIFICATION_WM_GO_BACK_REQUEST and _takeover_locked(): return
  if what==NOTIFICATION_DRAG_BEGIN: _begin_target_drag.call_deferred()
  if what==NOTIFICATION_WM_GO_BACK_REQUEST:
   touch_input.cancel();_hide_term()
@@ -2640,23 +2669,26 @@ func _options_drawer() -> void:
  content.add_child(speed)
 
 func _audio_options(content: Control) -> void:
- var toggle=CheckButton.new();toggle.name="CardMusicEnabled"
- toggle.text=_text("ui.settings.music_enabled","打出卡牌时播放音乐");toggle.button_pressed=display_settings.card_music_enabled
- toggle.toggled.connect(func(enabled):
-  display_settings.set_card_music(enabled,display_settings.card_music_volume)
-  card_music.configure(enabled,display_settings.card_music_volume))
- content.add_child(toggle)
- var caption=_label(_text("ui.settings.music_volume","音乐音量 · {percent}%",{"percent":roundi(display_settings.card_music_volume*100)}),19,GOLD)
- caption.name="CardMusicVolumeLabel";content.add_child(caption)
- var volume=HSlider.new();volume.name="CardMusicVolume"
- volume.min_value=0;volume.max_value=100;volume.step=1;volume.value=display_settings.card_music_volume*100
- volume.custom_minimum_size=Vector2(0,44)
- volume.value_changed.connect(func(value):
-  display_settings.set_card_music(display_settings.card_music_enabled,value/100.0)
-  card_music.configure(display_settings.card_music_enabled,value/100.0)
-  caption.text=_text("ui.settings.music_volume","音乐音量 · {percent}%",{"percent":roundi(value)}))
- content.add_child(volume)
+ _audio_option(content,{"name":"CardMusic","key":"music","enabled_text":"打出卡牌时播放音乐","volume_text":"音乐音量 · {percent}%","enabled":display_settings.card_music_enabled,"volume":display_settings.card_music_volume},func(enabled,value):
+  display_settings.set_card_music(enabled,value);card_music.configure(enabled,value))
+ _audio_option(content,{"name":"DoubaoVoice","key":"doubao_voice","enabled_text":"播放豆包语音","volume_text":"豆包语音音量 · {percent}%","enabled":display_settings.doubao_voice_enabled,"volume":display_settings.doubao_voice_volume},func(enabled,value):
+  display_settings.set_doubao_voice(enabled,value);takeover_presenter.configure_voice())
  if display_settings.save_error!="": content.add_child(_label(display_settings.save_error,14,RED))
+
+func _audio_option(content: Control, spec: Dictionary, update: Callable) -> void:
+ var toggle=CheckButton.new();toggle.name=spec.name+"Enabled"
+ toggle.text=_text("ui.settings."+spec.key+"_enabled",spec.enabled_text);toggle.button_pressed=spec.enabled
+ content.add_child(toggle)
+ var caption=_label(_text("ui.settings."+spec.key+"_volume",spec.volume_text,{"percent":roundi(spec.volume*100)}),19,GOLD)
+ caption.name=spec.name+"VolumeLabel";content.add_child(caption)
+ var volume=HSlider.new();volume.name=spec.name+"Volume"
+ volume.min_value=0;volume.max_value=100;volume.step=1;volume.value=spec.volume*100
+ volume.custom_minimum_size=Vector2(0,44)
+ toggle.toggled.connect(func(enabled):update.call(enabled,volume.value/100.0))
+ volume.value_changed.connect(func(value):
+  update.call(toggle.button_pressed,value/100.0)
+  caption.text=_text("ui.settings."+spec.key+"_volume",spec.volume_text,{"percent":roundi(value)}))
+ content.add_child(volume)
 
 func _settings_drawer() -> void:
  var shade=ColorRect.new(); shade.color=Color(0.02,0.03,0.04,0.85); shade.z_index=300
@@ -2721,7 +2753,7 @@ func _event_screen() -> void:
 func _chain_screen() -> void:
  var panel=_panel(Rect2(450,420,1060,325))
  var content=_scroll(panel)
- content.add_child(_label(view.card_chain.name+" · 选择下一段目标",24,GOLD))
+ content.add_child(_label(view.card_chain.name+(" · 选择要消耗的牌" if view.card_chain.get("selection",false) else " · 选择下一段目标"),24,GOLD))
  content.add_child(_label("费用已支付，选择下一段目标。",16,CYAN))
  for c in actions.select("chain"): _action_row(content,c)
 

@@ -8,7 +8,7 @@ static func owned(g, master: Dictionary) -> Dictionary:
  return {}
 
 static func plan(e: Dictionary) -> Dictionary:
- var kind="puppet_awaken" if e.stage==1 else ["puppet_mend","puppet_composite","puppet_special"][(e.stage-2)%3]
+ var kind="puppet_awaken" if e.stage==1 else ["puppet_composite","puppet_special","puppet_mend"][(e.stage-2)%3]
  return {"kind":kind,"text":{"puppet_awaken":"引敌缚咒","puppet_mend":"缝补玩偶","puppet_composite":"复合装束","puppet_special":"暗藏机关"}[kind],"delayed":false}
 
 static func summon(g, master: Dictionary) -> void:
@@ -16,6 +16,7 @@ static func summon(g, master: Dictionary) -> void:
  var doll=g._append_enemies([{"type":"puppet","grade":2}])[0]
  doll.puppet_security_bonus=g.Prison.health_bonus(g,g.state)
  doll.puppet_owner=master.id;doll.puppet_awakened=false;doll.puppet_prepared={};doll.puppet_mends=0
+ doll.puppet_stock=capacity(g,doll)
  doll.acted_round=g.state.round;doll.intent=g._plan(doll)
  g._emit("event",master.name+"带着一个%s点生命的玩偶登场。" % g.number(doll.hp),{"summoned":{"enemy":doll.id,"owner":master.id}})
 
@@ -30,8 +31,9 @@ static func execute(g, master: Dictionary, intent: Dictionary) -> void:
    g._emit("event",master.name+"赋予玩偶「引敌缚咒」。",{"puppet_awakened":doll.id})
   "puppet_mend":
    var previous=doll.max_hp
-   doll.puppet_mends+=1;doll.max_hp+=5;doll.hp=doll.max_hp
-   g._emit("event",master.name+"缝补玩偶，生命上限%s→%s，并恢复至满血。" % [g.number(previous),g.number(doll.max_hp)],{"puppet_mend":{"enemy":doll.id,"before":previous,"maximum":doll.max_hp}})
+   doll.puppet_mends+=1;doll.max_hp+=g.Enemies.TYPES[doll.type].health_per_mend;doll.hp=doll.max_hp
+   doll.puppet_stock=capacity(g,doll)
+   g._emit("event",master.name+"缝补玩偶，生命上限%s→%s，并恢复至满血；普通反击容量上限增至%d，补充至满。" % [g.number(previous),g.number(doll.max_hp),doll.puppet_stock],{"puppet_mend":{"enemy":doll.id,"before":previous,"maximum":doll.max_hp,"stock":doll.puppet_stock}})
   "puppet_special","puppet_composite":
    var special=intent.kind=="puppet_special"
    var selected
@@ -53,6 +55,10 @@ static func prepared_name(g, prepared: Dictionary) -> String:
  var selected=prepared.templates[0]
  var name=g.SpecialEquipment.TYPES[selected].name if prepared.pool=="special" else g.Composites.spec(selected.family,selected.variant,selected.straps).name
  return "中级%d档%s" % [prepared.tier,name]
+
+static func capacity(g, doll: Dictionary) -> int:
+ var spec=g.Enemies.TYPES[doll.type]
+ return spec.reaction_capacity+spec.capacity_per_mend*doll.puppet_mends
 
 static func ordinary(g, doll: Dictionary) -> Dictionary:
  var request=g.EnemyPlans.application(g.Enemies.TYPES[doll.type].install_pool,2,2)
@@ -76,7 +82,10 @@ static func damage(g, doll: Dictionary, dealt: float, damage_type: String, label
  var record={"damage":dealt,"damage_type":damage_type,"enemy":doll.id,"puppet_damage":{"absorbed":absorbed,"transferred":transfer,"owner":master.id}}
  record.merge(details)
  g._emit("mechanical","%s命中%s，承受%s伤害，剩余%s；%s点溢出伤害转给%s。" % [label,doll.name,g.number(dealt),g.number(doll.hp),g.number(transfer),master.name],record)
- if doll.puppet_awakened: g._enemy_operation(doll,ordinary(g,doll))
+ if doll.puppet_awakened and doll.puppet_stock>0:
+  doll.puppet_stock-=1
+  g._enemy_operation(doll,ordinary(g,doll))
+  g._emit("event","玩偶发动普通反击，剩余%d/%d次。" % [doll.puppet_stock,capacity(g,doll)],{"puppet_stock":{"enemy":doll.id,"remaining":doll.puppet_stock,"maximum":capacity(g,doll)}})
  if details.get("attack",false):
   var prepared=doll.puppet_prepared.values().duplicate(true)
   doll.puppet_prepared.clear()
@@ -94,26 +103,31 @@ static func dismiss(g, master: Dictionary) -> void:
   g._emit("event",master.name+"倒下，失去操纵的玩偶也随之散落。",{"puppet_dismissed":doll.id})
 
 static func description(g, doll: Dictionary) -> String:
- var text="生命不会低于1，溢出伤害全额转给玩偶师。"
- if doll.get("puppet_awakened",false): text+="单体攻击必须选择玩偶；每次受伤施加一件中级2档拘束具，多段逐段触发。"
+ var text="生命不会低于1，溢出伤害转给玩偶师，再受其护身屏障限制。"
+ if doll.get("puppet_awakened",false): text+="单体攻击必须选择玩偶；每次受到正数伤害消耗1次普通反击，尝试施加一件中级2档拘束具，多段逐段触发。"
+ text+="普通反击剩余%d/%d次，用尽后停止；发动即消耗，未能佩戴也不返还。每次缝补容量上限增加%d并补满；额外装束不消耗此容量。" % [doll.puppet_stock,capacity(g,doll),g.Enemies.TYPES[doll.type].capacity_per_mend]
  for prepared in doll.get("puppet_prepared",{}).values(): text+="下一次攻击额外施加"+prepared_name(g,prepared)+"。"
  return text
 
 static func validate(g, enemies: Array, health_scale: float=1.0) -> String:
  var owners=[]
  for doll in enemies:
+  if g.Enemies.TYPES[doll.type].has("damage_cap"):
+   if not g.Snapshot.fields(doll,"barrier_damage:n") or doll.barrier_damage<0 or doll.barrier_damage>g.Enemies.TYPES[doll.type].damage_cap: return "护身屏障的本回合伤害记录不正确。"
   var is_doll=g.Enemies.TYPES[doll.type].behavior=="puppet"
   if not is_doll:
-   for key in ["puppet_owner","puppet_awakened","puppet_prepared","puppet_mends"]:
+   for key in ["puppet_owner","puppet_awakened","puppet_prepared","puppet_mends","puppet_stock"]:
     if doll.has(key): return "该敌人不应保存玩偶记录。"
    continue
-  if not g.Snapshot.fields(doll,"puppet_owner:s puppet_awakened:b puppet_prepared:d puppet_mends:i"): return "玩偶记录不完整。"
+  if not g.Snapshot.fields(doll,"puppet_owner:s puppet_awakened:b puppet_prepared:d puppet_mends:i puppet_stock:i"): return "玩偶记录不完整。"
   var masters=enemies.filter(func(e):return e.id==doll.puppet_owner and g.Enemies.TYPES[e.type].behavior=="puppeteer")
   if masters.size()!=1 or doll.puppet_owner in owners: return "玩偶的操纵者或召唤数量不正确。"
   owners.append(doll.puppet_owner)
   var bonus=doll.get("puppet_security_bonus",0.0)
   if not (bonus is float or bonus is int) or not is_finite(float(bonus)) or bonus<0 or bonus>120: return "玩偶的安全等级生命加成不正确。"
-  if doll.puppet_mends<0 or doll.max_hp!=10*health_scale+bonus+5*doll.puppet_mends: return "玩偶的缝补生命上限不正确。"
+  var spec=g.Enemies.TYPES[doll.type]
+  if doll.puppet_mends<0 or doll.max_hp!=spec.hp*health_scale+bonus+spec.health_per_mend*doll.puppet_mends: return "玩偶的缝补生命上限不正确。"
+  if doll.puppet_stock<0 or doll.puppet_stock>capacity(g,doll): return "玩偶的普通反击余量不正确。"
   if not doll.gone and (masters[0].gone or doll.hp<1): return "玩偶的保护或操纵者状态不正确。"
   if doll.gone and (doll.puppet_awakened or not doll.puppet_prepared.is_empty()): return "离场玩偶不能保留生效装束。"
   for pool in doll.puppet_prepared:

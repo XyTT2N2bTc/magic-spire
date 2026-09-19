@@ -1,6 +1,42 @@
 extends RefCounted
 const Navigation=preload("res://tests/interface_ui_cases.gd")
 
+static func pleasure_extractor(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames()
+ ui.game.state.relics=[];ui.game.state.flask_mana=0;ui.game.state.pressure=99
+ ui.game.RelicEffects.gain(ui.game,"pleasure_extractor")
+ ui.game.state.pressure_sources=[preload("res://tests/pressure_cases.gd").source("extractor_ui","turn_end",5)]
+ for enemy in ui.game.state.enemies: enemy.intent.delayed=true
+ ui.render();await t.frames()
+ var icon=ui.find_child("RelicShortcut_pleasure_extractor",true,false)
+ t.check(icon!=null and preload("res://ui/relic_icon.gd").ART.has("pleasure_extractor"),"EXTRACTOR UI acquired relic has its dedicated icon")
+ await t.move_mouse(icon.get_global_rect().get_center());await t.frames()
+ t.check(ui.term_popup!=null and t.visible_text(ui.term_popup).contains("高潮后，魔瓶魔力＋10。"),"EXTRACTOR UI hover shows the concise effect")
+ t.check(await t.click("end") and ui.game.state.flask_mana==10,"EXTRACTOR UI real end-turn input triggers automatic flask gain")
+ ui.localization.set_locale("en_US")
+ t.check(ui.localization.display("快感汲取器")=="Pleasure Extractor" and ui.localization.display("高潮后，魔瓶魔力＋10。")=="After each climax, add 10 mana to the flask.","EXTRACTOR UI localized name and description are available")
+ ui.localization.set_locale("zh_CN")
+
+static func lucidity_necklace(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames()
+ ui.game.state.relics=[];ui.game.RelicEffects.gain(ui.game,"lucidity_necklace")
+ ui.game.state.pressure_sources=[preload("res://tests/pressure_cases.gd").source("necklace_ui","posture",100)]
+ for enemy in ui.game.state.enemies: enemy.intent.delayed=true
+ ui.render();await t.frames()
+ var icon=ui.find_child("RelicShortcut_lucidity_necklace",true,false)
+ t.check(icon!=null and preload("res://ui/relic_icon.gd").ART.has("lucidity_necklace") and icon.find_child("RelicCounter",true,false).text=="0","NECKLACE UI acquired relic shows its dedicated icon and empty counter")
+ t.check(await t.click("posture",{"dest":"sit","wall":false}) and ui.game.state.hand.is_empty(),"NECKLACE UI real climax does not draw immediately")
+ icon=ui.find_child("RelicShortcut_lucidity_necklace",true,false)
+ t.check(icon.find_child("RelicCounter",true,false).text=="1","NECKLACE UI pending counter updates after formal climax")
+ await t.move_mouse(icon.get_global_rect().get_center());await t.frames()
+ t.check(ui.term_popup!=null and t.visible_text(ui.term_popup).contains("高潮时，下回合多抽1张牌。") and t.visible_text(ui.term_popup).contains("下回合额外抽牌：1张。"),"NECKLACE UI tooltip explains effect and current pending reward")
+ t.check(await t.click("end") and ui.view.hand.size()==ui.game.B.DRAW+1 and ui.find_child("RelicShortcut_lucidity_necklace",true,false).find_child("RelicCounter",true,false).text=="0","NECKLACE UI next-turn input deals the extra card and clears its badge")
+ ui.localization.set_locale("en_US")
+ t.check(ui.localization.display("清醒项链")=="Lucidity Necklace" and ui.localization.display("下回合额外抽牌：2张。")=="Additional cards next turn: 2.","NECKLACE UI localized name and pending value are available")
+ ui.localization.set_locale("zh_CN")
+
 static func inspect(t, id: String) -> String:
  var button=t.ui.find_child("Status_"+id.validate_node_name(),true,false)
  if button==null: t.check(false,"STATUS inspect target exists: "+id);return ""
@@ -11,6 +47,14 @@ static func inspect(t, id: String) -> String:
  return t.visible_text(t.ui.find_child("StatusDetail",true,false))
 
 static func run(t) -> void:
+ await preload("res://tests/lewd_relic_ui_cases.gd").run(t)
+ await lucidity_necklace(t)
+ await preload("res://tests/edging_seal_ui_cases.gd").run(t)
+ await pleasure_extractor(t)
+ await preload("res://tests/scrap_robot_ui_cases.gd").run(t)
+ await preload("res://tests/first_turn_control_ui_cases.gd").run(t)
+ await preload("res://tests/sundial_ui_cases.gd").run(t)
+ await preload("res://tests/great_wand_ui_cases.gd").run(t)
  var ui=t.ui
  ui.restart(42);await t.frames()
  var before=JSON.stringify(ui.game.state)
@@ -102,6 +146,7 @@ static func icons(t) -> void:
  ui.game.state.charge=3;ui.game.state.temporary_mana=15
  ui.game.state.card_buffs=["embers_free"];ui.game.Cards.grant_buff(ui.game,"echo_cast_free")
  ui.game.state.relics.append("break_bracer")
+ for id in ["wrist_bracer","wraith_ribbon","ethereal_pendant","intellect_cloak"]: ui.game.RelicEffects.gain(ui.game,id)
  ui.game.state.relic_used["break_bracer:turn"]=ui.game.state.tick
  var enemy=ui.game.state.enemies[0];enemy.ready_layers=2
  ui.render();await t.frames()
@@ -126,3 +171,9 @@ static func icons(t) -> void:
  t.check(ui.term_popup!=null and t.visible_text(ui.term_popup).contains("本次机会已使用"),"STATUS relic hover includes its own spent trigger")
  await t.move_mouse(Vector2(1550,60));await t.frames()
  await t.capture("ui-status-icons-battle.png")
+ for pair in [["wrist_bracer","手腕被拘束时，力量＋2。"],["wraith_ribbon","灵巧＋1。"],["ethereal_pendant","每个整备回合结束时，恢复1魔力。"],["intellect_cloak","魔法牌耗魔－1，最低为0。可叠加。"]]:
+  relic=ui.find_child("RelicShortcut_"+pair[0],true,false)
+  t.check(relic!=null and preload("res://ui/relic_icon.gd").ART.has(pair[0]),"WRIST/RIBBON UI shows a dedicated relic icon: "+pair[0])
+  if relic==null: continue
+  await t.move_mouse(relic.get_global_rect().get_center());await t.frames()
+  t.check(ui.term_popup!=null and t.visible_text(ui.term_popup).contains(pair[1]),"WRIST/RIBBON UI hover shows the final rule: "+pair[0])
