@@ -19,7 +19,10 @@
 - 覆盖 Windows x86_64 与 Android；不含游戏规则、源码内容与反馈服务（见 `docs/spec/feedback-deployment.md`）。
 - 操作细节与已知环境陷阱（打包脚本须用 PowerShell 7；`GODOT_BIN` 必须指向 `*_console.exe`；
   导出模板须装在引擎版本目录下）见 `.zcode/skills/repo-ops/SKILL.md`，不在本文件重复。
-- 程序与 PCK 必须一起分发；正式 `content/packs` 复制在 EXE 旁，遵循已有发布版加载入口。
+- 程序与 PCK 必须一起分发；正式 `content/packs` 复制在 EXE 旁。内容包根只由
+  `core/content_catalog.gd` 的 `packs_root()` 一个开关决定，探针顺序固定：
+  显式 `--packs-root=<路径>` > EXE 旁 `content/packs`（存在时）> `res://content/packs`
+  （编辑器、测试与包内资源）；启动脚本与测试传显式开关，不按构建类型分支。
 
 ## 接口
 
@@ -90,7 +93,8 @@
 ## Android 流水线
 
 `tools/package-android.ps1 -BuildId <唯一编号>` 按上表输入域生成签名 APK；ETC2/ASTC 导入与兼容渲染器开启，
-横屏保持 16:9，原有桌面发布配置保留。Android 通过 `res://` 读取内置 `content/packs`，运行资源、
+横屏保持 16:9，原有桌面发布配置保留。Android 无 EXE 旁目录，内容包按同一个 `packs_root()` 开关
+回退到内置 `res://content/packs`；运行资源、
 动态装备 JSON 及授权文件均进入包；包中不带存档、测试代码、密钥或构建工具。
 `tools/check-android-package.ps1 -Apk <APK路径>` 直接取 APK 的 assets，用主机 Godot ZIP 资源加载器启动包内游戏，
 验证主页、内容、动态资源、新游戏、练习和隔离存档；触屏行为通过真实 `ScreenTouch`／`ScreenDrag` 输入进入正式 UI，

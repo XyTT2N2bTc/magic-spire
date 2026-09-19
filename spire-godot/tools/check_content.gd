@@ -6,7 +6,7 @@ func _initialize() -> void:
  # Check against built-ins without first installing the files being checked.
  Catalog.loaded=true
  var game=Game.new(1,false,"equipment",false)
- var path=Catalog.directory()
+ var path=Catalog.packs_root()
  for arg in OS.get_cmdline_user_args():
   if arg.begins_with("--content-dir="): path=arg.trim_prefix("--content-dir=")
  if not DirAccess.dir_exists_absolute(path):

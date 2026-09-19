@@ -1466,3 +1466,24 @@ RuleChangePackage（加性、零规则改动：不动候选、数值、存档、
 - 关键正反例（`tests/prison_cases.gd::remaining_routes`）：security 5 入场后 `phase=="prison"`、`left==8`、`turn==1`、追加 6 件高级三档普通／复合 + 2 件高级三档特殊 + 1 个上锁限制项圈、原有复合结构与口部带保留、`validate()==""`、有巡视计时与逃脱候选；反例为 `not capture.has("terminal_equipment")`、无 `prison_end`、无终局清单；另加 8 个种子跨档复核。
 
 **未验证（本轮未跑）**：oracle（迁移／事件）、像素判据、性能测量——按人指示留到定稿轮；全量回归、`normal_play` 长跑、Android 真机、打包与发布与前文口径相同。`build/transition-oracle-20260916/transition_oracle.gd` 仍引用已删的 `prison_high_security` 场景，本轮未运行也未更新（属未入库产物）。
+
+**2026-09-19 内容包根改为全局开关**（分支 `feedback-effects`；成果提交见 `changelog.md` 同日条）：
+
+域：`core/content_catalog.gd`（`packs_root()`／`resolve_packs_root()`／`packs_root_switch()` 取代原 `directory()`）、`tools/check_content.gd`、`tools/launch.ps1`；测试域 `content`（`packs_root_single_switch`）与 `architecture`（`content_pack_root_has_no_build_feature_branch`）。契约：`docs/spec/packaging.md`（单一开关与探针顺序的唯一正文）、`docs/spec/project-map.md`（目录表指针）。无规则／候选／随机／存档改动，无玩家可见文案，不新增第二套内容包加载。
+
+改动与判据：
+
+- 原判定行 `OS.has_feature("editor") or OS.has_feature("android") ? "res://content/packs" : EXE旁` 整行删除。顺序固定为 **显式 `--packs-root=<路径>` > EXE 旁 `content/packs`（存在时）> `res://content/packs`**；Android 与桌面同一决策（没有相邻目录即回退 `res://`）。答案只算一次并缓存（`packs_root_cache`），`ensure()` 与 `tools/check_content.gd` 是仅有的消费者，`Catalog.report.directory` 仍记录实际目录。
+- 开关读取点唯一（`packs_root_switch()`）：同一次调用内读引擎参数（启动脚本写法）与 `--` 之后的用户参数（工具／测试写法）。实测（`4.7.2.stable.official.ed1daf0bf`）未知 `--packs-root=` 引擎参数不报错且出现在 `OS.get_cmdline_args()`，`--` 之后的只出现在 `OS.get_cmdline_user_args()`，故两处都读。
+- 启动脚本显式传参：`tools/launch.ps1` 与未入库的 `build/play.ps1` 追加 `--packs-root=<游戏目录>/content/packs`；仓库根 `release/` 启动器回退调用 `launch.ps1`，同样带上。
+- 四条检查（消息英文、带 `PACK ROOT`／`ARCH` 域）：`tests/content_cases.gd::packs_root_single_switch` ① `PACK ROOT the explicit switch wins over an existing exe-adjacent directory and the fallback` ② `PACK ROOT an existing exe-adjacent directory is used when the switch is absent` ③ `PACK ROOT a missing exe-adjacent directory falls back to res://content/packs`（同函数另两条：缓存值不重算、单一入口按固定顺序）；`tests/architecture_cases.gd::content_pack_root_has_no_build_feature_branch` ④ 静态断言该文件不含 `has_feature("editor")`／`has_feature("android")` 且仍含 `static func packs_root()`／`packs_root_switch()`。四条在本轮门禁中真实执行。
+- **敏感性（实测，改完即还原）**：把 `resolve_packs_root` 改成无条件 `return fallback` → `content` 套件正好 2 条红，即 ① 与 ②（`build/checks/20260919T045556103-48828`）；改成 `return override if override!="" else adjacent`（去掉回退分支）→ ③ 红，并因内容包整体加载失败连带 2 条既有 `EVENT CONDITION` 断言红、断言数 579→484（`build/checks/20260919T045616644-37376`）。④ 的反例即改动前源码（`directory()` 内含两处 `has_feature`），该断言对本条改动前的文件必红。还原后 `-Suite runner` PASS，`before` 指纹回到门禁指纹 `EE3EEA17…`（`build/checks/20260919T045631188-34292`）。
+
+**端到端开关探针（一次性，跑完已删除）**：`build/packs-switch-probe.ps1` 用 `launch.ps1` 同款参数拼装启动 `--script res://tools/check_content.gd`，开关 token 为 `--packs-root="C:\1\tmp packs"`（路径含空格、引号在 token 内）：命中开关 → `CONTENT PASS: 12 file(s)`、退出码 0；改指向不存在的路径 → `CONTENT FAIL: directory does not exist: C:\1\tmp packs-missing`、退出码 1（证明是开关而非默认值决定）。探针脚本与临时目录 `C:\1\tmp packs` 已删除。
+
+**门禁（冻结树；`GODOT_BIN` 指向 `v4.7.2-stable` 的 `*_console.exe`，`Godot Engine v4.7.2.stable.official.ed1daf0bf`）**：
+
+- 规则门 `tools/check.ps1 -Suite content,application,runner,architecture -TimeoutSeconds 1800` → 退出码 **0**、4/4 PASS、`PASS: 1560 assertions`、26.09s（`build/checks/20260919T045428074-19272`；before==after==`EE3EEA17FD3FAA5297BF83B3EC51DA3860E57F1D83D02EBBD0F50E33DB1B88B4`，无 `SOURCE CHANGED`）。**红集为空**，无既有登记外的红项。
+- 同一命令在本机默认 `GODOT_BIN`（`v4.7-stable` 的 GUI exe，`4.7.stable.official.5b4e0cb0f`）先跑过一次，同样 4/4 PASS、1560 断言（`build/checks/20260919T045348213-37060`）；登记以 4.7.2 一轮为准。
+
+**未验证（本轮未跑）**：oracle（迁移／事件）、像素判据、性能测量、打包与成品探针（`check-package.ps1`／`release_probe.gd`）与 Android 真机——按人指示留到定稿轮；`content/packs` 内容未改动，故未跑 `tools/check-content.ps1` 的默认目录校验（读取路径改由上面的开关探针覆盖）；`tools/launch.ps1`／`build/play.ps1` 本身未实跑启动游戏（探针只复制其参数拼装）；未打包、未推送。

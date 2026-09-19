@@ -188,6 +188,17 @@ static func event_dependency_edges_pinned(t) -> void:
   if file==null: continue
   t.check(ui_pattern.search(file.get_as_text())==null,"ARCH core event module never names ui/ "+path)
 
+# The pack root is one global switch: its decision must not regain a build-type branch, and the
+# switch itself stays the single packs_root entry.
+static func content_pack_root_has_no_build_feature_branch(t) -> void:
+ var file=FileAccess.open("res://core/content_catalog.gd",FileAccess.READ)
+ t.check(file!=null,"ARCH content catalog is readable for the pack-root scan")
+ if file==null: return
+ var source=file.get_as_text()
+ for feature in ["has_feature(\"editor\")","has_feature(\"android\")"]:
+  t.check(not source.contains(feature),"ARCH the pack root carries no build-feature branch: "+feature)
+ t.check(source.contains("static func packs_root()") and source.contains("packs_root_switch()"),"ARCH the pack root is decided by the single packs_root entry")
+
 # docs/event-pipeline-dependency-spec.md §4.2: nodes and options are reachable only through
 # definition／node／node_ids; legacy keys return empty instead of raising.
 static func event_definition_accessors_only(t) -> void:
@@ -319,6 +330,7 @@ static func event_single_evaluation_entry(t) -> void:
 
 static func run(t) -> void:
  event_dependency_edges_pinned(t)
+ content_pack_root_has_no_build_feature_branch(t)
  transition_write_sites_are_pinned(t)
  save_checkpoint_kinds_are_pinned(t)
  event_condition_kinds_share_one_declaration(t)

@@ -3,17 +3,44 @@ extends RefCounted
 # Bootstrap only. Content compiles into the existing registries, never a second rules engine.
 static var loaded=false
 static var report={"ok":true,"files":0,"errors":[],"directory":""}
+static var packs_root_cache=""
 const KINDS=["restraint","special_equipment","event","relic","enemy"]
 const BASES=["rope","cord","belt","fine_belt","tape","cable_tie"]
 const ENEMY_BASES=["rope","belt","tape","cable_tie","gag","toybox","lock"]
+const PACKS_SWITCH="--packs-root="
+const PACKS_ADJACENT="content/packs"
+const PACKS_FALLBACK="res://content/packs"
 
-static func directory() -> String:
- return "res://content/packs" if OS.has_feature("editor") or OS.has_feature("android") else OS.get_executable_path().get_base_dir().path_join("content/packs")
+# Single read point for the pack root. The order is fixed: an explicit switch, then
+# content/packs beside the executable (release shape), then the project resource path
+# (editor runs, tests, packages with built-in content). The answer is cached because it
+# must not change while the process runs; no build-type probe participates in it.
+static func packs_root() -> String:
+ if packs_root_cache=="":
+  packs_root_cache=resolve_packs_root(packs_root_switch(),OS.get_executable_path().get_base_dir().path_join(PACKS_ADJACENT),PACKS_FALLBACK)
+ return packs_root_cache
+
+# The decision alone, so every branch is testable without restarting the process with other
+# arguments. packs_root() is its only caller; nothing else may decide this path.
+static func resolve_packs_root(override: String, adjacent: String, fallback: String) -> String:
+ if override!="": return override
+ return adjacent if DirAccess.dir_exists_absolute(adjacent) else fallback
+
+# Single read point for the switch: engine arguments (launchers pass it before the project)
+# and user arguments after "--" (tools and tests). An empty value means "not requested".
+static func packs_root_switch() -> String:
+ var arguments=OS.get_cmdline_args()
+ arguments.append_array(OS.get_cmdline_user_args())
+ for argument in arguments:
+  if argument.begins_with(PACKS_SWITCH):
+   var value=argument.trim_prefix(PACKS_SWITCH).strip_edges()
+   if value!="": return value
+ return ""
 
 static func ensure(g, root: String="") -> void:
  if loaded: return
  loaded=true
- var path=directory() if root=="" else root
+ var path=packs_root() if root=="" else root
  var result=read_directory(path)
  if result.errors.is_empty():
   var compiled=compile(g,result.documents)
