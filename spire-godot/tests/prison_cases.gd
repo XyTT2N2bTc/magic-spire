@@ -110,6 +110,7 @@ static func run(t) -> void:
  preload("res://tests/prison_reinforcement_cases.gd").run(t)
  inspection_climax_cases(t)
  sentence_cases(t)
+ battle_pause_cases(t)
  security_health_cases(t)
  for security in [0,4]:
   var surrender_game=Game.new(42)
@@ -809,6 +810,37 @@ static func release_inspection_cases(t) -> void:
   var climax_before=g.state.overload_total
   t.check(t.action(g,"end").ok and g.state.tower_start_pending,"PRISON later compliant due check finally releases")
   t.check(g.state.overload_total==climax_before+1 and g.get_view().npc_speech.cue=="prison.guard.release_pass" and g.get_view().npc_speech.visual=="guard_brown","PRISON normal release follows its extra milking with the senior guard dialogue")
+
+static func battle_pause_cases(t) -> void:
+ # docs/design/prison.md §2: a running prison battle freezes the whole cell clock
+ # (patrol countdown, sentence and due check) and keeps the cell position; the cell
+ # resumes from the paused values once the player is back.
+ var g=intake(t)
+ Spatial.at_site(g,"shard") # Shard sites always sit away from the wall.
+ var cell_position=g.state.prison.space.position.duplicate()
+ var wall_before=g.state.wall_distance
+ t.check(wall_before>0,"PRISON resistance fixture starts away from the wall")
+ inspect(t,g)
+ var left_before=g.state.prison.left
+ t.check(t.action(g,"prison",{"action":"resist"}).ok and g.state.phase=="battle" and g.state.prison.resisting,"PRISON resistance starts a real battle from the cell")
+ t.check(g.state.wall_distance==wall_before and g.state.prison.space.position==cell_position,"PRISON battle start keeps the cell wall distance and never repositions the player")
+ # The due date is already overdue when the battle starts: no battle round may spend it.
+ var due_limit=g.Prison.sentence_limit(g)
+ g.state.prison.served_turns=due_limit-1
+ for round_index in range(2):
+  g.state.posture="stand";g.state.pressure=0
+  t.check(t.action(g,"end").ok and g.state.phase=="battle","PRISON battle round %d ends inside the battle" % (round_index+1))
+  t.check(g.state.prison.served_turns==due_limit-1 and g.state.prison.left==left_before and g.state.prison.checks==0 and g.state.prison.sentence_extra==0 and not g.state.tower_start_pending,"PRISON battle round %d neither advances the clock nor runs the due release check" % (round_index+1))
+ g.state.posture="stand";g.state.enemies[0].hp=0.1
+ # The guard has bound the arms by now, so the formal close combat kick ends the battle.
+ t.check(t.action(g,"attack",{"type":"kick","enemy":g.state.enemies[0].id}).ok and g.state.phase=="reward" and g.state.prison.key,"PRISON resistance victory keeps the keyed cell")
+ t.action(g,"reward",{"type":"skip"});t.action(g,"finish_prepare")
+ t.check(g.state.phase=="prison" and g.state.prison.served_turns==due_limit-1 and g.state.prison.space.position==cell_position and g.state.wall_distance==Spatial.Space.wall_distance(cell_position),"PRISON return to the cell reuses the same position, the same paused clock and recomputes its wall distance")
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ g.state.posture="stand"
+ t.check(t.action(g,"end").ok and g.state.phase=="prison" and g.state.prison.served_turns==due_limit and g.state.prison.sentence_extra==B.PRISON_SENTENCE_PENALTY and g.state.prison.checks==1 and not g.state.tower_start_pending,"PRISON first cell turn after the return runs the due check and its eight-turn delay")
+ t.check(g.state.prison.left==left_before and g.state.prison.key,"PRISON keyed patrol stays paused across the delayed due check")
+ t.check(g.validate()=="","PRISON battle-pause scenario keeps a valid state")
 
 static func security_health_cases(t) -> void:
  for pair in [["drone_solo",10],["puppeteer_solo",20],["six_bind_solo",30]]:

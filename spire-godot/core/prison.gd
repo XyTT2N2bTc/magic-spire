@@ -342,7 +342,8 @@ static func execute(g, c: Dictionary) -> String:
    g.RelicEffects.begin_combat(g)
    p.resisting=true
    p.reinforcements=0
-   g.state.wall_distance=g._initial_wall_distance(true)
+   # The battle keeps the cell position: state.wall_distance stays as the exploration
+   # step left it, and after_preparation recomputes it from prison.space.position.
    g._apply_transition("prison_exit_battle_start",{"phase":"battle"}); g.state.round=0; g.state.encounter+=1
    g.state.kick_last=-10; g.state.heavy_used=false
    g.RelicEffects.clear_temporary(g)
@@ -474,6 +475,11 @@ static func sentence_label(g) -> String:
 
 static func completed_turn(g) -> bool:
  if not g.state.prison.get("active",false): return false
+ # A running prison battle leaves the whole cell clock frozen: neither the patrol
+ # countdown nor the sentence advances, so the due release check cannot fire inside
+ # a battle. The cell resumes from the paused values once the player is back
+ # (docs/design/prison.md §2).
+ if g.state.phase=="battle": return false
  g.state.prison.served_turns+=1
  var limit=sentence_limit(g)
  if limit==0 or g.state.prison.served_turns<limit: return false
