@@ -13,6 +13,17 @@ description: >-
 
 ## 仓库根
 
+**开工前先查上游是否已吸收我们的 PR**（作者习惯选择性吸收后自己发版，被吸收的旧分支继续叠提交会立刻冲突）：
+
+```powershell
+git fetch origin main
+git log --oneline origin/main -8                 # 找 "Release … with PRn integration" 之类
+gh pr list --repo h13942080472-prog/magic-spire --state all
+git log --oneline HEAD..origin/main              # 差多少
+```
+
+已吸收时：把**尚未被吸收的增量** cherry-pick／rebase 到最新 `origin/main`（丢掉被取代的中间提交），重跑受影响门禁后再推；同时关闭已被吸收的 PR 并附去向说明。实例：2026-09-19，v0.17.2（`79c499a`）吸收 #4／#5 后，剩余的 5 个提交 rebase 成 `prison-cell-baseline`（PR #6）。
+
 ```powershell
 git status --short
 git diff --stat
