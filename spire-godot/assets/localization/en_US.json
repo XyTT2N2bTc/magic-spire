@@ -53,6 +53,8 @@
     "ui.settings.speed.normal": {"source": "标准", "text": "Standard"},
     "ui.settings.speed.slow": {"source": "舒缓", "text": "Relaxed"},
     "ui.settings.music_enabled": {"source": "打出卡牌时播放音乐", "text": "Play music when playing cards"},
-    "ui.settings.music_volume": {"source": "音乐音量 · {percent}%", "text": "Music Volume · {percent}%"}
+    "ui.settings.music_volume": {"source": "音乐音量 · {percent}%", "text": "Music Volume · {percent}%"},
+    "ui.map.seed": {"source": "初始种子 {initial} · 第 {iteration} 次塔路", "text": "Initial seed {initial} · Route {iteration}"},
+    "ui.map.seed_copied": {"source": "已复制", "text": "Copied"}
   }
 }

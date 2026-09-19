@@ -154,8 +154,9 @@ static func run(t) -> void:
  await Pointer.press(t,graph.buttons[disconnected.id])
  t.check(ui.game.export_snapshot()==before and t.visible_text(ui.layout).contains("没有地图连线"),"ROUTE native adjacent disconnected room click explains rejection without moving")
 
- ui.persistence_enabled=original_persistence;ui.saves=original_store
  await merged_departure(t)
+ await seed_chip(t)
+ ui.persistence_enabled=original_persistence;ui.saves=original_store
 
 static func merged_departure(t) -> void:
  var ui=t.ui
@@ -174,6 +175,65 @@ static func merged_departure(t) -> void:
   ui.map_auto_travel=false
   t.check(ui.view.phase=="travel" and ui.view.journey.target==target and ui.view.version==before.version+1 and ui.game.state.completed_rooms.has(before.room),"ROUTE one native node click finishes room and departs: "+phase)
   t.check(ui.view.travel_turns==before.travel_turns,"ROUTE selected departure does not invent a movement turn: "+phase)
+
+# docs/spec/seed-identity.md「证据入口」：地图角落的本局标识控件（唯一查看与复制入口）。
+static func seed_chip(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames()
+ t.check(await t.click("departure",{"op":"skip"}) and ui.view.phase=="map","ROUTE seed chip fixture enters the real map")
+ var identity=int(ui.game.state.initial_seed)
+ var chip=ui.find_child("SeedChip",true,false)
+ var panel=ui.find_child("RouteMessages",true,false)
+ t.check(chip!=null and chip.text.contains("初始种子 %d" % identity) and chip.text.contains("第 1 次塔路"),"ROUTE seed chip shows initial seed and tower iteration: "+str(chip.text if chip!=null else "missing"))
+ t.check(chip!=null and chip.get_global_rect().size.x>0 and panel.get_global_rect().encloses(chip.get_global_rect()),"ROUTE seed chip shows initial seed and tower iteration: the control sits inside RouteMessages")
+ var clear=chip!=null
+ for name in ["TowerMapScroll","TowerRoute","MapOverview","MapLocate","MapClearDrawing"]:
+  var other=ui.find_child(name,true,false)
+  if other==null or chip.get_global_rect().intersects(other.get_global_rect()): clear=false
+ t.check(clear,"ROUTE seed chip shows initial seed and tower iteration: no overlap with the map area or existing controls")
+
+ var store=ui.saves
+ var file=store.path("tower")
+ var before=ui.game.export_snapshot()
+ var file_bytes=preload("res://tests/persistence_cases.gd").text_at(file)
+ var file_time=preload("res://tests/persistence_cases.gd").modified(file)
+ var logs=ui.game.state.logs.size()
+ await Pointer.press(t,chip)
+ var copied=DisplayServer.clipboard_get() if DisplayServer.get_name()!="headless" else ""
+ t.check(DisplayServer.get_name()!="headless" and copied==ui.seed_report_text(),"ROUTE seed chip copies the labelled identity: the clipboard holds the report text")
+ var report=ui.seed_report_text()
+ t.check(report.contains("紧缚尖塔") and report.contains("初始种子 %d" % identity) and report.contains("第 1 次塔路") and report.contains("当前塔路种子 %d" % int(ui.view.seed)),"ROUTE seed chip copies the labelled identity: all four parts are present: "+report)
+ t.check(chip.text=="已复制","ROUTE seed chip copies the labelled identity: the chip shows the copy caption right after the click")
+ await t.create_timer(1.3).timeout
+ t.check(chip.text.contains("初始种子 %d" % identity) and ui.seed_copied_until==0,"ROUTE seed chip copies the labelled identity: the caption returns after 1.2 s")
+ t.check(ui.game.export_snapshot()==before and ui.game.state.logs.size()==logs and ui.view.version==before.version,"ROUTE seed chip is not part of rules, candidates or randomness: clicking changes no state, log or version")
+ t.check(preload("res://tests/persistence_cases.gd").text_at(file)==file_bytes and preload("res://tests/persistence_cases.gd").modified(file)==file_time,"ROUTE seed chip is not part of rules, candidates or randomness: the click never writes the save")
+
+ preload("res://tests/demo_exit_cases.gd").exit_fixture(ui.game)
+ ui.show_route=false
+ ui.render(ui.game.get_view());await t.frames()
+ var continuation=ui.actions.select("demo_exit").filter(func(c):return c.payload.kind=="demo_continue")
+ t.check(continuation.size()==1 and continuation[0].valid and ui.candidate_buttons.has(continuation[0].id),"ROUTE seed chip follows a rebuilt tower: the exit screen offers the real continuation")
+ if not continuation.is_empty() and ui.candidate_buttons.has(continuation[0].id):
+  await Pointer.press(t,ui.candidate_buttons[continuation[0].id])
+  await t.frames()
+  chip=ui.find_child("SeedChip",true,false)
+  t.check(ui.view.tower_generation==1 and int(ui.view.initial_seed)==identity,"ROUTE seed chip follows a rebuilt tower: the run rebuilt its tower on the same identity")
+  t.check(chip!=null and chip.text.contains("第 2 次塔路") and chip.text.contains("初始种子 %d" % identity),"ROUTE seed chip follows a rebuilt tower: the chip names the second tower and the unchanged seed: "+str(chip.text if chip!=null else "missing"))
+  t.check(ui.seed_report_text().contains("第 2 次塔路") and ui.seed_report_text().contains("当前塔路种子 %d" % int(ui.view.seed)),"ROUTE seed chip follows a rebuilt tower: the copy text follows the rebuilt tower seed")
+
+ ui.game=preload("res://tests/game_fixture.gd").new(42)
+ ui._reset_interface(ui.game.get_view());ui.render();await t.frames()
+ t.check(ui.view.phase=="battle" and ui.find_children("SeedChip","",true,false).is_empty(),"ROUTE seed chip is bound to the route screen: the ordinary battle screen carries none")
+ ui.restart(42,true,"equipment");await t.frames()
+ ui.game.state.phase="cleared";ui.render();await t.frames()
+ t.check(ui.view.practice and t.visible_text(ui.layout).contains("装备练习") and ui.find_children("SeedChip","",true,false).is_empty(),"ROUTE seed chip is bound to the route screen: the practice screen carries none")
+ for phase in ["prepare","rest","shop","treasure","event","pack"]:
+  ui.game=preload("res://tests/tower_cases.gd").departure_fixture(phase)
+  ui._reset_interface(ui.game.get_view());ui.render();await t.frames()
+  await Pointer.press(t,ui.find_child("OpenMap",true,false))
+  t.check(ui.find_child("TowerRoute",true,false).is_visible_in_tree() and ui.find_children("SeedChip","",true,false).size()==1,"ROUTE seed chip is bound to the route screen: exactly one chip in phase "+phase)
+ ui.restart(42);await t.frames()
 
 static func draw_motion(t,point: Vector2) -> void:
  var event=InputEventMouseMotion.new()

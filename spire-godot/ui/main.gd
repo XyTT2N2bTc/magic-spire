@@ -145,12 +145,18 @@ var map_auto_travel=false
 var map_step_pending=false
 var travel_log_scroll=-1
 var travel_log_count=0
+# docs/spec/seed-identity.md: the map chip only mirrors this deadline; clicking writes the
+# clipboard and this display state, never a candidate, the random stream, the save or game.state.
+var seed_chip: Button
+var seed_copied_until=0
+const SEED_COPIED_MS=1200
 var speech_id=""
 var speech_deadline=0
 var speech_group: Control
 
 func _process(_delta: float) -> void:
  if speech_deadline>0 and Time.get_ticks_msec()>=speech_deadline: _dismiss_speech()
+ _refresh_seed_chip()
 
 func _dismiss_speech() -> void:
  speech_deadline=0
@@ -1656,7 +1662,14 @@ func _route_screen() -> void:
  for c in actions.select("route",{"kind":"depart"}):
   candidate_buttons[c.id]=graph.buttons[c.payload.room]
  var right=VBoxContainer.new();right.name="RouteMessages";right.custom_minimum_size.x=220;row.add_child(right)
- right.add_child(_label("移动消息",20,GOLD))
+ var title_row=HBoxContainer.new();title_row.add_theme_constant_override("separation",8);right.add_child(title_row)
+ var title=_label("移动消息",20,GOLD);title.size_flags_horizontal=Control.SIZE_EXPAND_FILL;title_row.add_child(title)
+ # Run identity chip: the only view/copy entry, hung on the existing title row (no extra row).
+ var chip=_button(_seed_chip_text(),copy_seed,CYAN)
+ chip.name="SeedChip";chip.custom_minimum_size.x=118;chip.add_theme_font_size_override("font_size",12)
+ chip.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+ chip.tooltip_text=seed_report_text()
+ title_row.add_child(chip);seed_chip=chip
  if view.phase=="travel":
   right.add_child(_label("%s · %d / %d回合" % [view.journey.mode,view.journey.total-view.journey.remaining,view.journey.total],14,CYAN))
   right.add_child(_bar(view.journey.total-view.journey.remaining,view.journey.total,CYAN))
@@ -1697,7 +1710,7 @@ func _route_screen() -> void:
  for group in right.get_children():
   if group is HBoxContainer or group is GridContainer:
    for control in group.get_children():
-    if control is Button:
+    if control is Button and control!=chip:
      control.add_theme_font_size_override("font_size",14)
      control.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 
@@ -1728,6 +1741,31 @@ func _queue_map_step() -> void:
  var step=actions.find("route",{"kind":"travel_step"})
  if not step.is_empty() and step.valid and not view.pressure.overloaded: _submit(step)
  else: map_auto_travel=false
+
+# The four identity parts a player can quote. The identity is not a reproduction recipe:
+# the current tower seed and the random counters move with play, so an exact replay needs
+# the save that the same draft uploads (docs/spec/seed-identity.md).
+func seed_report_text() -> String:
+ return "紧缚尖塔 · 初始种子 %d · 第 %d 次塔路 · 当前塔路种子 %d（精确复现需同批上传的存档）" % [int(view.initial_seed),int(view.tower_generation)+1,int(view.seed)]
+
+func copy_seed() -> String:
+ var text=seed_report_text()
+ DisplayServer.clipboard_set(text)
+ seed_copied_until=Time.get_ticks_msec()+SEED_COPIED_MS
+ if is_instance_valid(seed_chip): seed_chip.text=_seed_chip_text()
+ return text
+
+func _seed_chip_text() -> String:
+ if seed_copied_until>Time.get_ticks_msec(): return _text("ui.map.seed_copied","已复制")
+ return _text("ui.map.seed","初始种子 {initial} · 第 {iteration} 次塔路",{"initial":int(view.initial_seed),"iteration":int(view.tower_generation)+1})
+
+# Polled like speech: the deadline expires on its own frame, and a stale deadline can never
+# rewrite a replaced run or a closed screen (no callback is kept at all, and a rebuilt control
+# re-reads the deadline when it is created).
+func _refresh_seed_chip() -> void:
+ if seed_copied_until<=0 or Time.get_ticks_msec()<seed_copied_until: return
+ seed_copied_until=0
+ if is_instance_valid(seed_chip): seed_chip.text=_seed_chip_text()
 
 func _restore_travel_messages(scroll: ScrollContainer, offset: int) -> void:
  await get_tree().process_frame

@@ -53,6 +53,8 @@
     "ui.settings.speed.normal": {"text": "标准", "context": "标准速度"},
     "ui.settings.speed.slow": {"text": "舒缓", "context": "慢速度"},
     "ui.settings.music_enabled": {"text": "打出卡牌时播放音乐", "context": "卡牌音乐开关"},
-    "ui.settings.music_volume": {"text": "音乐音量 · {percent}%", "context": "音量滑块说明；percent为显示用0—100数值"}
+    "ui.settings.music_volume": {"text": "音乐音量 · {percent}%", "context": "音量滑块说明；percent为显示用0—100数值"},
+    "ui.map.seed": {"text": "初始种子 {initial} · 第 {iteration} 次塔路", "context": "地图工作区标题行右端的本局标识；点击只复制四要素文本，不改规则"},
+    "ui.map.seed_copied": {"text": "已复制", "context": "点击本局标识后1.2秒内的显示态；到期复原"}
   }
 }

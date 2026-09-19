@@ -208,7 +208,9 @@ func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String
  Character.register(self)
  SpecialEquipment.ensure_catalog()
  Content.ensure(self)
- state = {"version":1, "seed":run_seed, "rng":{}, "phase":"battle", "encounter":0,
+ # Run identity: `initial_seed` is written once here and never rewritten by _restart_tower,
+ # which only advances `seed`; docs/spec/seed-identity.md.
+ state = {"version":1, "seed":run_seed, "initial_seed":run_seed, "rng":{}, "phase":"battle", "encounter":0,
   "round":0, "tick":0, "weakness_turns":0, "order":"first", "posture":"stand", "energy":B.ENERGY, "mana":B.MANA_MAX,
   "calm_uses":0,"shop_removals":0,
   "mana_max":B.MANA_MAX,"flask_mana":0.0,"flask_deposits":0,"combat":{"serial":0,"active":false,"first_turn":false,"turn":0,"energy":0,"mana_spent":0.0,"mana_used":false,"attack_uses":{},"attack_started":{},"successful_spells":[]},"relic_seen":[],"battle_relic_drop":"","boss_relic_options":[],
@@ -3272,10 +3274,15 @@ func export_snapshot() -> Dictionary:
 
 func restore_snapshot(saved: Dictionary) -> Dictionary:
  if not Snapshot.is_current(saved): return {"ok":false,"code":"version","error":Snapshot.INCOMPATIBLE}
- var issue=Snapshot.check(saved,self)
+ # The only backfill point for the run identity: a save written before `initial_seed`
+ # existed took its identity from the then current `seed`. Patched on the copy before the
+ # shared field check, so the caller dictionary, the file and the live state stay untouched.
+ var candidate=saved.duplicate(true)
+ if not candidate.has("initial_seed"): candidate.initial_seed=int(candidate.get("seed",0))
+ var issue=Snapshot.check(candidate,self)
  if issue!="": return {"ok":false,"error":"无法继续这份存档："+issue}
  var previous=state
- state=saved.duplicate(true)
+ state=candidate
  # Saves written before security five became an ordinary cell carry the removed
  # high-security manifest; drop the key so no second terminal path survives a load.
  var loaded_capture: Dictionary=state.get("capture",{})
