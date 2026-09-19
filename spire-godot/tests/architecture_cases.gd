@@ -39,9 +39,10 @@ const TRANSITION_PATTERNS={
  "tower_restart":"_restart_tower\\(",
 }
 
-static func transition_core_files() -> Array:
+# Every .gd file below a res:// directory, sorted; the single enumerator for source scans.
+static func script_files(root: String) -> Array:
  var result=[]
- var pending=["res://core"]
+ var pending=[root]
  while not pending.is_empty():
   var directory=String(pending.pop_back())
   var handle=DirAccess.open(directory)
@@ -51,6 +52,9 @@ static func transition_core_files() -> Array:
   for name in handle.get_directories(): pending.append(directory+"/"+name)
  result.sort()
  return result
+
+static func transition_core_files() -> Array:
+ return script_files("res://core")
 
 static func transition_scan() -> Dictionary:
  var compiled={}
@@ -188,8 +192,8 @@ static func event_dependency_edges_pinned(t) -> void:
   if file==null: continue
   t.check(ui_pattern.search(file.get_as_text())==null,"ARCH core event module never names ui/ "+path)
 
-# The pack root is one global switch: its decision must not regain a build-type branch, and the
-# switch itself stays the single packs_root entry.
+# The pack root is one constant behind one accessor: the decision must not regain a build-type
+# branch or the deleted switch／probe／cache, and no other product file computes a packs path.
 static func content_pack_root_has_no_build_feature_branch(t) -> void:
  var file=FileAccess.open("res://core/content_catalog.gd",FileAccess.READ)
  t.check(file!=null,"ARCH content catalog is readable for the pack-root scan")
@@ -197,7 +201,15 @@ static func content_pack_root_has_no_build_feature_branch(t) -> void:
  var source=file.get_as_text()
  for feature in ["has_feature(\"editor\")","has_feature(\"android\")"]:
   t.check(not source.contains(feature),"ARCH the pack root carries no build-feature branch: "+feature)
- t.check(source.contains("static func packs_root()") and source.contains("packs_root_switch()"),"ARCH the pack root is decided by the single packs_root entry")
+ t.check(source.contains("const PACKS_ROOT := \"res://content/packs\"") and source.contains("static func packs_root()"),"ARCH the pack root is one constant behind the single packs_root entry")
+ for removed in ["packs_root_switch","resolve_packs_root","packs_root_cache"]:
+  t.check(not source.contains(removed),"ARCH the pack root keeps no runtime switch, probe or cache: "+removed)
+ var strays=[]
+ for path in script_files("res://core")+script_files("res://ui")+script_files("res://data"):
+  if path=="res://core/content_catalog.gd": continue
+  var handle=FileAccess.open(path,FileAccess.READ)
+  if handle!=null and handle.get_as_text().contains("content/packs"): strays.append(path)
+ t.check(strays.is_empty(),"ARCH only core/content_catalog.gd computes a content packs path: "+str(strays))
 
 # docs/event-pipeline-dependency-spec.md §4.2: nodes and options are reachable only through
 # definition／node／node_ids; legacy keys return empty instead of raising.

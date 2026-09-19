@@ -24,7 +24,7 @@
 | `docs/history/` | 只读归档：历史契约与已被推翻记录；用于追溯，不是待办 | 需要追溯决策时 |
 | `docs/history/` | 历史决策与归档（只读，不是现行指令） | 追溯时 |
 | `spire-godot/core/`、`ui/`、`data/` | 规则内核、界面、静态数据 | 改动与运行时 |
-| `spire-godot/content/`、`assets/` | 内容包（加载源由 `core/content_catalog.gd` 的 `packs_root()` 单一开关决定，顺序见 `docs/spec/packaging.md`）、素材（来源与差分见 `spire-godot/assets/art/ART-NOTES.md`、`spire-godot/assets/vendor/CREDITS.md`） | 内容与美术任务 |
+| `spire-godot/content/`、`assets/` | 内容包（加载源与打包取值见 `docs/spec/packaging.md`）、素材（来源与差分见 `spire-godot/assets/art/ART-NOTES.md`、`spire-godot/assets/vendor/CREDITS.md`） | 内容与美术任务 |
 | `spire-godot/tests/`、`spire-godot/tools/` | 规则／界面检查与打包、探针脚本 | 验证与发布 |
 | `spire-godot/project.godot` | 版本号与导出预设的读取源（打包脚本据此选择预设） | 打包与发布 |
 | `spire-godot/build/`、`outputs/` | 已忽略目录：构建证据与交付产物，不入库 | 按验证记录中的路径取证 |

@@ -1,7 +1,11 @@
 param([string]$BuildId, [string]$SigningConfig = 'G:\CodexData\keys\spire-android\signing.json')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'find-godot.ps1')
+. (Join-Path $PSScriptRoot 'assert-packs-root.ps1')
 $gameDirectory = Split-Path -Parent $PSScriptRoot
+# The APK carries content/packs in its assets and reads them through res://, so this export needs
+# the development value; a flip to "adjacent" would leave the installed game without content.
+Assert-SpirePacksRoot -GameDirectory $gameDirectory -Expected 'res://content/packs'
 $docsDirectory = Join-Path (Split-Path -Parent $gameDirectory) 'docs'
 $projectText = Get-Content -LiteralPath (Join-Path $gameDirectory 'project.godot') -Raw
 $versionMatch = [regex]::Match($projectText, '(?m)^config/version="([0-9]+\.[0-9]+(?:\.[0-9]+)?)"')

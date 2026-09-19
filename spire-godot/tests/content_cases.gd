@@ -262,21 +262,17 @@ static func event_chain_hold_keys_fail_closed(t) -> void:
  t.check(not borrowed.ok and borrowed.tables.is_empty() and str(borrowed.errors).contains("cleanup_effects 引用了从未建立的暂存 key") and Catalog.tables(g)==baseline,"EVENT CHAIN HOLD a cleanup naming another definition's key is rejected as one batch: "+str(borrowed.errors))
  t.check(Catalog.tables(g)==baseline,"EVENT CHAIN HOLD static validation leaves the registries untouched")
 
-# The pack root has exactly one entry point with a fixed order: the explicit switch, then a
-# pack directory beside the executable, then the project path. Every branch is decided through
-# the same resolver the running process used, because a process cannot restart with other
-# arguments; the cached answer must not change while it runs.
+# The pack root is one constant behind one accessor: the development value is the project path,
+# the release value "adjacent" resolves beside the executable. The release branch cannot be
+# entered while the constant holds the development value, so its shape is pinned in the source.
 static func packs_root_single_switch(t) -> void:
- var folder="user://pack_root_case_"+str(Time.get_ticks_usec())
- DirAccess.make_dir_recursive_absolute(folder)
- var fallback="res://content/packs"
- var switched=folder+"/switched"
- t.check(Catalog.resolve_packs_root(switched,folder,fallback)==switched,"PACK ROOT the explicit switch wins over an existing exe-adjacent directory and the fallback")
- t.check(Catalog.resolve_packs_root("",folder,fallback)==folder,"PACK ROOT an existing exe-adjacent directory is used when the switch is absent")
- t.check(Catalog.resolve_packs_root("",folder+"/missing",fallback)==fallback,"PACK ROOT a missing exe-adjacent directory falls back to res://content/packs")
- t.check(Catalog.packs_root()==Catalog.packs_root() and Catalog.packs_root_cache==Catalog.packs_root(),"PACK ROOT resolves once and serves the cached answer")
- t.check(Catalog.packs_root()==Catalog.resolve_packs_root(Catalog.packs_root_switch(),OS.get_executable_path().get_base_dir().path_join("content/packs"),fallback),"PACK ROOT the single entry point follows the fixed order for this process")
- DirAccess.remove_absolute(folder)
+ t.check(Catalog.PACKS_ROOT=="res://content/packs","PACK ROOT the constant keeps the development value res://content/packs")
+ t.check(Catalog.packs_root()==Catalog.PACKS_ROOT,"PACK ROOT a value other than adjacent is used as the pack root itself: "+Catalog.packs_root())
+ var file=FileAccess.open("res://core/content_catalog.gd",FileAccess.READ)
+ t.check(file!=null,"PACK ROOT the content catalog is readable for the release-branch scan")
+ if file==null: return
+ var source=file.get_as_text()
+ t.check(source.contains("PACKS_ROOT==\"adjacent\"") and source.contains("OS.get_executable_path().get_base_dir().path_join(\"content/packs\")"),"PACK ROOT adjacent resolves to content/packs beside the executable")
 
 static func run(t) -> void:
  packs_root_single_switch(t)

@@ -5,9 +5,7 @@ $gameDirectory = Split-Path -Parent $PSScriptRoot
 try {
     $engine = Find-SpireGodot
     if ($CheckOnly) { Write-Output $engine; exit 0 }
-    # The pack root is an explicit switch, never a build-type guess; the resolver reads it and
-    # falls back on its own only when the switch is absent.
-    $launchArguments = @('--path', ('"' + $gameDirectory + '"'), ('--packs-root="' + $gameDirectory + '/content/packs"'))
+    $launchArguments = @('--path', ('"' + $gameDirectory + '"'))
     if ($Editor) { $launchArguments += '--editor' }
     # Detach standard handles from the launcher; the game's own GUI stays visible.
     $startInfo = New-Object Diagnostics.ProcessStartInfo
