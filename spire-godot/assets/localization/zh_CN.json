@@ -55,6 +55,13 @@
     "ui.settings.music_enabled": {"text": "打出卡牌时播放音乐", "context": "卡牌音乐开关"},
     "ui.settings.music_volume": {"text": "音乐音量 · {percent}%", "context": "音量滑块说明；percent为显示用0—100数值"},
     "ui.map.seed": {"text": "初始种子 {initial} · 第 {iteration} 次塔路", "context": "地图工作区标题行右端的本局标识；点击只复制四要素文本，不改规则"},
-    "ui.map.seed_copied": {"text": "已复制", "context": "点击本局标识后1.2秒内的显示态；到期复原"}
+    "ui.map.seed_copied": {"text": "已复制", "context": "点击本局标识后1.2秒内的显示态；到期复原"},
+    "ui.feedback.save.attached": {"text": "将附带当前进度存档：{name}（{size} KB）", "context": "反馈页存档附件行；name为存档文件名、size为KB数值，只显示不参与规则"},
+    "ui.feedback.save.declined": {"text": "当前反馈服务暂不支持附带存档。", "context": "反馈页存档附件行；服务端schema<2或探测失败时的降级说明"},
+    "ui.feedback.save.unchecked": {"text": "未附带存档：已取消勾选。", "context": "反馈页存档附件行；玩家取消勾选「一并附带当前进度存档」"},
+    "ui.feedback.save.none": {"text": "未附带存档：当前没有可附带的存档。", "context": "反馈页存档附件行；没有可用的存档来源"},
+    "ui.feedback.save.uncaptured": {"text": "未附带存档：本次草稿没有捕获到存档。", "context": "反馈页存档附件行；本次草稿尚未执行存档捕获"},
+    "ui.feedback.save.invalid": {"text": "未附带存档：当前进度存档校验未通过，未附带。", "context": "反馈页存档附件行；只读入口无法生成本局固定点"},
+    "ui.feedback.save.oversized": {"text": "未附带存档：存档过大（超过 2 MB），未附带。", "context": "反馈页存档附件行；附件UTF-8编码后超过2 MiB上限"}
   }
 }

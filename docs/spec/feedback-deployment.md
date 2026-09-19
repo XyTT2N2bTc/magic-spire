@@ -64,10 +64,13 @@ Android 侧已打开联网权限。
   12 MiB 字符。实测存档 26.5–27.2 KB（`build/next-perf/*` 六份），余量约 70 倍。
 - 单封最大附件量＝3 张截图（各 ≤2 MB）＋存档（≤2 MB）≤ 8 MB，低于 Gmail／MailApp 约 25 MB 的
   单封上限；`MailApp` 每日额度按收件人计、不按体积计，附件只影响单封大小，不额外消耗额度。
-- 捕获时机：与 `draft.context` 按同一草稿身份捕获一次；同一草稿的重试发送**逐字相同**的 POST body，
+- 捕获时机：按草稿身份捕获一次（`_capture_save_once()`）——新建草稿随 `draft.context` 一起捕获，
+  从磁盘恢复的草稿（`context` 已存在）在首次使用时捕获，此时游戏是本局而非启动时的默认局；
+  勾选复选框也会在未捕获时补捕一次。同一草稿的编辑与重试都不重捕，重试发送**逐字相同**的 POST body，
   失败重试沿用原编号与去重回执；`clear_draft()` 或成功提交后，下一个草稿重新捕获。
-- 未勾选／没有可附带的存档／超限：**不带附件**，并在确认页的附件行显示原因
-  （如「未附带存档：存档过大（超过 2 MB），未附带。」），提交与游戏不受影响。
+- 未勾选／没有可附带的存档／本次草稿未捕获／校验未通过／超限：**不带附件**，并在确认页的附件行
+  显示各自的原因（如「未附带存档：存档过大（超过 2 MB），未附带。」「未附带存档：当前进度存档校验未通过，未附带。」），
+  提交与游戏不受影响；文案走 `ui.feedback.save.*` 本地化 key，有存档时不得显示「没有可附带的存档」。
 
 ## 服务版本门控（上线顺序约束）
 
@@ -121,7 +124,11 @@ Android 侧已打开联网权限。
   - `FEEDBACK attaches the current save by default`（默认勾选；`payload().save.name` 与当前 slot 一致；
     base64 解码后的信封 `format==2` 且校验和成立；确认页显示附件名与大小）。
   - `FEEDBACK unchecked save is omitted but submit still works`、`FEEDBACK oversized or missing save never blocks`
-    （无 `save` 键、可见原因、提交照常走通且游戏状态不变）。
+    （无 `save` 键、可见原因、提交照常走通且游戏状态不变）、`FEEDBACK every missing save names its own reason`
+    （无来源／只读入口失败／超限各自显示自己的原因，且不得声称「没有可附带的存档」）。
+  - `FEEDBACK restored draft captures at its first use`（载入的旧草稿保留原 `context`，首次使用时捕获本局
+    固定点，且后续使用不重捕、附件字节不变）、`FEEDBACK restored draft checked later captures on the toggle`
+    （未勾选的旧草稿在勾选时补捕）。
   - `FEEDBACK retry keeps identical save bytes`（沿用既有同一 body 判据）。
   - `FEEDBACK old service schema submits without the save`（探测 GET 返回 `schema:1` → payload 无 `save`
     且界面可见「当前反馈服务暂不支持附带存档。」）、`FEEDBACK new service schema includes the save`

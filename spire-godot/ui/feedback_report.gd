@@ -5,6 +5,11 @@ const MAX_IMAGES=3
 const MAX_IMAGE_BYTES=2*1024*1024
 # docs/spec/feedback-deployment.md「存档附件」: decoded limit 2 MiB (base64 stays under 2796204 chars).
 const MAX_SAVE_BYTES=2*1024*1024
+# Stable reason codes for a missing attachment; the visible line maps them, so a failure never
+# borrows another reason's wording (docs/spec/feedback-deployment.md「存档附件」).
+const SAVE_NONE="none"
+const SAVE_INVALID="invalid"
+const SAVE_OVERSIZED="oversized"
 var host
 var draft={"id":"","kind":"bug","title":"","description":"","include_logs":false,"include_save":true,"context":{},"logs":"","images":[]}
 var message=""
@@ -18,8 +23,10 @@ var checking_receipt=false
 # The attachment and the probe answer belong to one draft identity: captured and probed once,
 # only serialized through SaveStore.fixed_point_text, never written into the draft file, so a
 # retry of the same draft sends a byte-identical body (docs/spec/feedback-deployment.md).
+# `save_reason` is the code of the failed capture; "" means this draft never ran its capture.
 var save_attachment={}
 var save_reason=""
+var save_captured=false
 var save_probed=false
 var save_declined=false
 var probing=false
@@ -67,8 +74,18 @@ func _capture_context() -> void:
   var rows=[]
   for item in v.get("action_log",[]).slice(-40): rows.append("%s · 第%s回合：%s" % [item.get("actor",""),str(item.get("round",0)),item.get("text","")])
   draft.logs="\n".join(rows).left(18000)
-  _capture_save()
   save_draft()
+ _capture_save_once()
+
+# One capture per draft identity: a draft with its context captured right away attaches the run of
+# that moment, and a draft restored from disk (context already present) attaches at its first use,
+# where the game is the playing run instead of this process's startup game. Editing stays inside
+# the same identity, so a retry never recaptures and never changes the body
+# (docs/spec/feedback-deployment.md「存档附件」).
+func _capture_save_once() -> void:
+ if save_captured or not draft.include_save: return
+ save_captured=true
+ _capture_save()
 
 func endpoint() -> String:
  return str(ProjectSettings.get_setting("feedback/endpoint","")).strip_edges()
@@ -77,23 +94,28 @@ func endpoint() -> String:
 func _capture_save() -> void:
  save_attachment={};save_reason=""
  if host.saves==null or host.game==null:
-  save_reason="未附带存档：当前没有可附带的存档。";return
+  save_reason=SAVE_NONE;return
  var result=host.saves.fixed_point_text(host.game,host.map_drawings)
  if not result.ok:
-  save_reason="未附带存档：当前没有可附带的存档。";return
+  save_reason=SAVE_INVALID;return
  var bytes=String(result.text).to_utf8_buffer()
  if bytes.size()>MAX_SAVE_BYTES:
-  save_reason="未附带存档：存档过大（超过 2 MB），未附带。";return
+  save_reason=SAVE_OVERSIZED;return
  save_attachment={"name":String(result.filename),"data":Marshalls.raw_to_base64(bytes),"bytes":bytes.size()}
 
-# The visible attachment line: the confirmation page shows the name and size, or why the
-# draft carries none; after a probe without a supported schema it explains the downgrade.
+# The visible attachment line: the confirmation page shows the name and size, or the real reason
+# this draft carries no attachment. Every variant is player copy and reads its zh_CN source key.
 func save_status_text() -> String:
  if draft.context.is_empty(): return ""
- if save_declined: return "当前反馈服务暂不支持附带存档。"
- if not draft.include_save: return "未附带存档：已取消勾选。"
- if save_attachment.is_empty(): return save_reason if save_reason!="" else "未附带存档：当前没有可附带的存档。"
- return "将附带当前进度存档：%s（%.1f KB）" % [save_attachment.name,float(save_attachment.bytes)/1024.0]
+ if save_declined: return host._text("ui.feedback.save.declined","当前反馈服务暂不支持附带存档。")
+ if not draft.include_save: return host._text("ui.feedback.save.unchecked","未附带存档：已取消勾选。")
+ if save_attachment.is_empty():
+  match save_reason:
+   SAVE_NONE: return host._text("ui.feedback.save.none","未附带存档：当前没有可附带的存档。")
+   SAVE_INVALID: return host._text("ui.feedback.save.invalid","未附带存档：当前进度存档校验未通过，未附带。")
+   SAVE_OVERSIZED: return host._text("ui.feedback.save.oversized","未附带存档：存档过大（超过 2 MB），未附带。")
+   _: return host._text("ui.feedback.save.uncaptured","未附带存档：本次草稿没有捕获到存档。")
+ return host._text("ui.feedback.save.attached","将附带当前进度存档：{name}（{size} KB）",{"name":save_attachment.name,"size":"%.1f" % (float(save_attachment.bytes)/1024.0)})
 
 func _save_included() -> bool:
  return draft.include_save and not save_declined and not save_attachment.is_empty()
@@ -173,7 +195,7 @@ func build(column: VBoxContainer) -> void:
  if not confirming:
   var include_save=CheckBox.new();include_save.name="FeedbackIncludeSave";include_save.text="一并附带当前进度存档";include_save.button_pressed=draft.include_save
   include_save.add_theme_stylebox_override("normal",StyleBoxEmpty.new());save_heading.add_child(include_save)
-  include_save.toggled.connect(func(value):draft.include_save=value;changed();save_draft();refresh())
+  include_save.toggled.connect(func(value):draft.include_save=value;changed();_capture_save_once();save_draft();refresh())
   attachments.add_child(host._label("反馈会连同当前进度存档一起发送；取消勾选则只发送上面的内容。",13,host.MUTED))
  if save_status_text()!="": attachments.add_child(host._label(save_status_text(),14,host.CYAN if _save_included() else host.MUTED))
  column.add_child(HSeparator.new())
@@ -340,5 +362,5 @@ static func _service_supports_save(result: int, status: int, body: PackedByteArr
 func clear_draft() -> void:
  if busy: return
  draft={"id":"","kind":"bug","title":"","description":"","include_logs":false,"include_save":true,"context":{},"logs":"","images":[]}
- save_attachment={};save_reason="";save_probed=false;save_declined=false
+ save_attachment={};save_reason="";save_captured=false;save_probed=false;save_declined=false
  confirming=false;message="";save_draft();refresh()

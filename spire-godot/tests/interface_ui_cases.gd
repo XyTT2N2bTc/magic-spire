@@ -71,14 +71,14 @@ static func feedback(t) -> void:
  report.transport=Callable();ProjectSettings.set_setting("feedback/endpoint",old_endpoint)
  ui._close_drawers();ui._refresh_drawers()
 
-# Isolated stand-in for the save store: proves the two attachment degradation reasons without
+# Isolated stand-in for the save store: proves every attachment degradation reason without
 # touching any real directory (docs/spec/feedback-deployment.md「存档附件」).
 class SaveStub extends RefCounted:
  var mode=""
  func _init(reason: String) -> void:
   mode=reason
  func fixed_point_text(_game, _map_drawings: Dictionary={}) -> Dictionary:
-  if mode=="missing": return {"ok":false,"error":"尚无存档。"}
+  if mode=="rejected": return {"ok":false,"error":"无法生成当前进度存档：本局状态不一致。","code":"invalid"}
   return {"ok":true,"slot":"tower","filename":"tower.json","text":"x".repeat(2*1024*1024+1)}
 
 # docs/spec/feedback-deployment.md「证据入口」：默认附带、取消勾选、超限／缺失与探测降级。
@@ -164,21 +164,53 @@ static func feedback_save(t) -> void:
   report._completed(HTTPRequest.RESULT_TIMEOUT,0,PackedStringArray(),PackedByteArray());await t.frames()
   t.check(not report.busy and ui.game.export_snapshot()==before,"FEEDBACK probe failure degrades without blocking: "+failure+" leaves the draft and the game state")
 
- for reason in ["missing","oversized"]:
-  ui.saves=SaveStub.new(reason)
+ # A draft restored with its context already present has no capture yet: the checked box must
+ # still carry the current run instead of claiming there is no save (docs/spec/feedback-deployment.md「存档附件」).
+ var restored_context={"version":"0.0.0","platform":"test","phase":"战斗","scene":"入口","floor":"塔路","round":7,"seed":-1}
+ var restored_draft=func(include_save: bool):
+  ui._close_drawers()
+  report.clear_draft()
+  report.draft={"id":"","kind":"bug","title":"旧草稿","description":"上一进程保留的草稿。","include_logs":false,"include_save":include_save,"context":restored_context.duplicate(true),"logs":"","images":[]}
+ restored_draft.call(true)
+ t.check(not report.save_captured and not report.payload().has("save") and report.save_status_text().contains("没有捕获到存档") and not report.save_status_text().contains("当前没有可附带的存档。"),"FEEDBACK restored draft before its first use names the real reason: an uncaptured draft never claims no save exists")
+ var restored_before=ui.game.restart_snapshot()
+ report.open();await t.frames()
+ t.check(report.save_captured and report.draft.context==restored_context,"FEEDBACK restored draft captures at its first use: the capture runs once and the restored context is kept")
+ var restored_body=report.payload()
+ var restored_text=Marshalls.base64_to_raw(String(restored_body.get("save",{}).get("data",""))).get_string_from_utf8()
+ var restored_decoded=Store.unpack(restored_text)
+ t.check(restored_body.has("save") and String(restored_body.save.name)=="tower.json" and restored_decoded.ok and restored_decoded.snapshot==restored_before,"FEEDBACK restored draft captures at its first use: the attachment is this run's current fixed point")
+ t.check(t.visible_text(ui.drawer_layer).contains("tower.json") and not t.visible_text(ui.drawer_layer).contains("当前没有可附带的存档。"),"FEEDBACK restored draft captures at its first use: the page shows the attachment instead of a missing save")
+ var restored_json=JSON.stringify(restored_body)
+ var drawings_before=ui.map_drawings
+ ui.map_drawings={"probe":[PackedVector2Array([Vector2(3,4)])]}
+ report._capture_context()
+ t.check(JSON.stringify(report.payload())==restored_json,"FEEDBACK restored draft captures at its first use: a later use of the same draft keeps the attachment bytes")
+ ui.map_drawings=drawings_before
+
+ restored_draft.call(false);report.open();await t.frames()
+ t.check(not report.save_captured and not report.payload().has("save"),"FEEDBACK restored draft checked later captures on the toggle: an unchecked draft stays without an attachment")
+ var include=ui.find_child("FeedbackIncludeSave",true,false)
+ if include!=null:
+  include.button_pressed=true;include.toggled.emit(true);await t.frames()
+ t.check(report.save_captured and report.payload().has("save") and t.visible_text(ui.drawer_layer).contains("tower.json"),"FEEDBACK restored draft checked later captures on the toggle: the checked box carries the current save")
+
+ for reason in ["none","rejected","oversized"]:
+  ui.saves=(null if reason=="none" else SaveStub.new(reason))
   new_draft.call()
   ui.saves=old_saves
   await t.frames()
   requests.clear()
   t.check(not report.payload().has("save") and t.visible_text(ui.drawer_layer).contains("未附带存档"),"FEEDBACK oversized or missing save never blocks: "+reason+" is visible and attaches nothing")
-  if reason=="oversized": t.check(t.visible_text(ui.drawer_layer).contains("超过 2 MB"),"FEEDBACK oversized or missing save never blocks: the oversize reason names the limit")
+  var named={"none":"当前没有可附带的存档。","rejected":"当前进度存档校验未通过","oversized":"超过 2 MB"}[reason]
+  t.check(t.visible_text(ui.drawer_layer).contains(named) and not (reason!="none" and t.visible_text(ui.drawer_layer).contains("当前没有可附带的存档。")),"FEEDBACK every missing save names its own reason: "+reason+" shows "+named+" and never claims no save exists")
   report.review();report.submit();await t.frames()
   t.check(requests.size()==1 and requests[0].method==HTTPClient.METHOD_POST and report.busy,"FEEDBACK oversized or missing save never blocks: the report submits without a probe")
   report._completed(HTTPRequest.RESULT_TIMEOUT,0,PackedStringArray(),PackedByteArray());await t.frames()
   t.check(not report.busy and ui.game.export_snapshot()==before,"FEEDBACK oversized or missing save never blocks: the attempt never changes gameplay state")
 
  new_draft.call();await t.frames()
- var include=ui.find_child("FeedbackIncludeSave",true,false)
+ include=ui.find_child("FeedbackIncludeSave",true,false)
  t.check(include!=null and include.button_pressed,"FEEDBACK unchecked save is omitted but submit still works: the real checkbox starts checked")
  if include!=null:
   include.button_pressed=false;include.toggled.emit(false);await t.frames()
