@@ -1,7 +1,11 @@
 param([string]$OutputRoot = '', [string]$BuildId = '')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'find-godot.ps1')
+. (Join-Path $PSScriptRoot 'assert-packs-root.ps1')
 $gameDirectory = Split-Path -Parent $PSScriptRoot
+# The Windows PCK excludes content/, so the shipped packs must be read from the directory next to
+# the executable; the development value would produce a package without content.
+Assert-SpirePacksRoot -GameDirectory $gameDirectory -Expected 'adjacent'
 $docsDirectory = Join-Path (Split-Path -Parent $gameDirectory) 'docs'
 $projectText = Get-Content -LiteralPath (Join-Path $gameDirectory 'project.godot') -Raw
 $versionMatch = [regex]::Match($projectText, '(?m)^config/version="([0-9]+\.[0-9]+(?:\.[0-9]+)?)"')
