@@ -14,6 +14,10 @@
 
 
 
+## PR #6：监狱流程与内容包路径整合（2026-09-19）
+
+域：监狱、内容加载、打包配置、教程与英文。按用户“以 PR 优先”合并 `prison-cell-baseline`：五级警戒进入普通牢房，使用最高规格的追加名额；反抗战暂停巡视与刑期计时并保留牢房位置；内容包根收口到 `PACKS_ROOT`／`packs_root()`，Windows 与 Android 导出前检查对应配置。整合时补齐内容校验工具的旧接口调用，纠正教程中残留的终局、全身补满上锁和战斗计刑期说法，补齐英文动态手册。保留此前测试维护和双方历史记录。专项规则 6634 条、窗口 268 条通过，范围与证据见 [验证记录](verification.md)。按用户要求并入 main 并同步 GitHub；本次不改版本号、不打包或更新 Release。
+
 ## 测试与文档维护（2026-09-19）
 
 域：测试导航与现行契约索引。按当前快捷栏、悬浮提示和效果详情更新三份 UI 测试，修正 7 条过时交互失败；保留缺图检查与原有规则断言。清理测试中的 60 处旧文档路径、旧章节号和重复注释，删除项目地图重复项，将事件契约中的历史 PR 范围改为现行维护约束。专项规则 1306 条、窗口 444 条通过；已知 28 张卡牌缺图未解决。证据与未验证范围见 [验证记录](verification.md)。按用户要求同步 GitHub，本次不更新安装包或 Release。
@@ -756,3 +760,10 @@ RuleChangePackage与测试边界见docs/prison-release.md。到期出狱和巡�
 
 
 2026-09-19 练习说明维护：敌人生命描述改读正式注册表，消除练习中的旧数值副本；玩偶师开场说明与实际行为一致。更新英文动态模板、清理退休源文并补充缺译。新增正式开局／只读／注册表调整／英文参数回归，同步记录内容检查和后续 Wiki 取数的边界；仅本地维护，验证详见本日 verification 记录。
+
+
+2026-09-19五级监狱最小基线：把正常牢房方案同样应用到警戒度5，不再进入终局。`Prison.enter` 删除 `security>=5` 特殊分支，五级与一至四级共用同一入场路径（`begin_combat`→按 `PRISON_SECURITY[5]` 的收押清单→`Prison.initial`（巡视8回合）→`Space.initial`→躺姿靠墙→重建牌堆→牢房第1回合）；5级仍是本级最高规格（高级3档、普通＋定制复合、`PRISON_SENTENCE[4]=0` 不自动出狱），但只能靠开门／通风口／狱警钥匙逃脱（传送符仍限1–4级）。随之删除 `Prison.high_security()`、迁移行 `prison_high_security`、`capture.terminal_equipment` 的写入与快照校验、候选“查看终局”分支与高安全监室入场 `_emit`；旧档携带 `capture.terminal_equipment` 时在读档丢弃、不再校验，`prison_end` 相位声明与只读投影仅服务旧档。文案（`data/tutorial.gd`）与设计文档（`prison.md` §5、`equipment-design.md` §12、`content.md`、`equipment-query-seam.md`、`transition-pipeline.md`）同步。验证：规则门9套件5513断言、窗口门prison 217断言，均退出码0、指纹未漂移；未跑 oracle／像素／性能（按人指示留到定稿轮），未打包、未推送。详见 docs/record/verification.md。
+
+2026-09-19内容包根改为单一常量：`core/content_catalog.gd` 删除按构建类型判断的 `directory()`（两处 `has_feature`），改为常量 `PACKS_ROOT := "res://content/packs"`（开发值：编辑器、测试与 Android 包内资源）＋唯一访问器 `packs_root()`（`"adjacent"` → 可执行文件旁的 `content/packs`；其它值原样使用）。发布值由打包时手工翻转：`tools/package.ps1` 导出前断言 `"adjacent"`、`tools/package-android.ps1` 断言 `"res://content/packs"`（共用 `tools/assert-packs-root.ps1`，失败消息给出文件与要改的整行，不自动改；Android 的 packs 打进 APK 经 `res://` 读取，翻成 `"adjacent"` 反而丢内容，故断言方向与 Windows 相反）。`tools/launch.ps1` 仍只拼 `--path <游戏目录>`（本分支从未传入该开关，未改）；`docs/spec/packaging.md`「域」收取值、翻转步骤与断言的唯一正文，`docs/spec/project-map.md` 只留指针。检查：`tests/content_cases.gd::packs_root_single_switch`（常量值为开发值／非 adjacent 值原样返回／adjacent 解析式）与 `tests/architecture_cases.gd::content_pack_root_has_no_build_feature_branch`（无 `has_feature`、单一常量＋访问器、开关／探针／缓存不得回归、core・ui・data 只有 content_catalog.gd 拼内容包路径）更新，镜像用例删除；规则门4套件1563断言退出码0、指纹未漂移；翻转常量敏感性实测 content 5 条红、architecture 2 条红。未跑 oracle／像素／性能与真实打包（打包断言以一次性 pwsh 探针跑四例正反例），未打包、未推送。详见 docs/record/verification.md。
+
+2026-09-19牢房计时战斗内暂停＋战斗不重置牢房位置：`core/prison.gd::completed_turn` 增加相位守卫，`state.phase=="battle"` 时直接返回，反抗战的战斗回合不再推进 `served_turns`，出狱到期检查（`release_inspection`）不会在战斗内触发；回到牢房后的第一个牢房回合才到期，并沿用原8回合延期语义。`prison.left` 仍只由 `Prison.end_turn` 递减且只在牢房相位被调用，`served_turns` 仍只有这一个递增点，未新增第二套计时或第二个到期判定点；出口战因 `escape()` 已清空 `prison` 而不受影响。反抗战开战同时删除 `Prison.execute` 的 `"resist"` 分支里 `g.state.wall_distance=g._initial_wall_distance(true)`：战斗保留牢房内位置，返回牢房由 `Prison.after_preparation` 从 `Space.wall_distance(prison.space.position)` 重算；牢房内进入战斗只有这一个入口。`docs/design/prison.md` §2 计时与反抗两条改为「反抗战期间整套牢房计时暂停……返回牢房后从暂停处继续」「战斗开始时保留当前牢房位置，不重置离墙距离」（resist 日志与 `Prison.won` 文案经核对已同口径，未改）。新增 `tests/prison_cases.gd::battle_pause_cases`：战斗回合不推进计时也不触发到期检查、开战前后离墙距离不变、返回牢房沿用同一位置与暂停值、回到牢房首回合按8回合延期、持钥匙仍受到期处罚。敏感性实测还原两处改动即5条新 check 红。规则门 `prison,persistence,tower_progression,exploration` 2671断言、窗口门 prison 217断言，均退出码0、指纹 `409D2AF2…` 未漂移。未跑 oracle／像素／性能（按人指示留到定稿轮），未打包、未推送。详见 docs/record/verification.md。

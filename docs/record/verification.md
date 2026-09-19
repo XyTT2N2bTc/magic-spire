@@ -1528,3 +1528,88 @@ RuleChangePackage（加性、零规则改动：不动候选、数值、存档、
 静态检查：测试内全部 `docs/*.md` 引用及新增标题锚点可解析；改动文档 UTF-8 无 BOM／替换字符，本次新增／改写的 Markdown 链接存在，事件契约约 41.6 KB、项目地图约 4.0 KB；`git diff --check` 通过。另有 12 处记录类旧链接沿用撰写时路径，均已存在于基线；按只追加规则保留，不计为本批新增链接通过。辅助脚本与结构图位于忽略目录 `build/test-doc-maintenance-20260919/`。独立只读子代理审查交互、断言保留、引用与事件契约，并复核最后两段文档修改，无阻塞项。
 
 **仍未解决**：`interface_ui_cases` 的 `CARD ART every registered card has an illustration` 在既有日志中报告 **28** 个 `witch_*` 牌型缺图（1 条失败）；本批未改资源或该断言，也未重跑不相关的 interface 分类。不以这轮专项通过宣称全部 UI 或全项目通过。其他规则分类、完整随机回归、Android 真机和打包均未执行。按本次用户授权提交并推送 main，v0.17.2 标签与附件仍对应原发布源码。
+
+**2026-09-19 五级＝普通牢房最小基线**（分支 `feedback-effects`；成果提交见 `changelog.md` 同日条）：
+
+域：`core/prison.gd`（`Prison.enter` 统一入场、删除 `high_security`／终局校验与文案）、`core/game.gd`（`TRANSITIONS` 去掉 `prison_high_security`、`restore_snapshot` 丢弃旧键）、`core/snapshot.gd`（去掉 `capture.terminal_equipment` 类型校验）、`data/tutorial.gd`、`docs/design/prison.md` §5／`equipment-design.md` §12／`content.md`、`docs/spec/equipment-query-seam.md`／`transition-pipeline.md`；测试域 `prison`（TERMINAL 正反例）、`relics`（`axe_amulet`）、`status`、`pressure`、`persistence`、`prison_ui`、`architecture`（索引 parity 文案）。
+
+改动与判据：
+
+- 五级入场与一至四级同一条路径（`RelicEffects.begin_combat` → `Prison.initial`（`left=8`）→ `Space.initial` → 躺姿靠墙 → `_reset_piles` → `begin_turn`），不再调用 `high_security()`、不再写 `prison_end`、不再写 `capture.terminal_equipment`；`prison_end` 相位声明、`status_view`／`main.gd` 只读投影保留，只服务旧档。追加与替换仍由 `PRISON_SECURITY[5]`（高级／三档／普通＋定制复合）与 `PRISON_INTERVALS[4]`／`PRISON_SENTENCE[4]` 表驱动；传送符仍限 1–4 级（`core/tool_rules.gd::escape_reason` 未改），五级只剩开门／通风口／钥匙三条路线（prison.md §4／§5 已写明）。
+- 旧档 `capture.terminal_equipment` 处理采用**读档时丢弃**（`Game.restore_snapshot` 在 `validate()` 前 `erase`），快照侧的独立类型校验删除；正例与旧档各验证一次：套件内 `TERMINAL legacy manifest is accepted and dropped on load without touching the cell`（注入旧字段后 `restore_snapshot().ok`、键被丢弃、`phase` 仍为 `prison`，且随后仍能正常 `end`），以及一次性探针 `build/probe/prison_probe.gd`（打印 `legacy restore ok=true has_key=false phase=prison`，登记后已删除）。
+- 规则门（冻结树；退出码 0）：`tools/check.ps1 -Suite prison,persistence,equipment,relics,pressure,status,tower_progression,exploration,architecture -TimeoutSeconds 1800` → 9/9 PASS、`PASS: 5513 assertions`、106.56s（`build/checks/20260918T170243518-9668`；`before==after==6D92FE378D8FF733EB182308DA4187DA0C1848910E0D7935F6ABAC1E576B4EFC`，无 `SOURCE CHANGED`）。**红集为空**，无既有登记外的红项；请求中的 `demo_exit`／`prison_space` 在本修订不是注册分类（`tests/test_game.gd::SUITES`），改由 `tower_progression`（内含 `demo_exit_cases.run`）与 `exploration`（牢房空间）承载，另加断言被改的 `relics`／`status`／`pressure`／`architecture`。
+- 窗口门（同一冻结树；退出码 0）：`tools/check.ps1 -UIOnly -UISuite prison -TimeoutSeconds 1800` → `UI PASS: 217 assertions`、131.99s（`build/checks/20260918T170437205-44524`；before／after 同指纹）。断言含 `TERMINAL UI five opens the ordinary cell with the shortest patrol and live actions` 与「无 `本次逃脱失败`／`高安全监室` 文案」两条新判据。
+- 关键正反例（`tests/prison_cases.gd::remaining_routes`）：security 5 入场后 `phase=="prison"`、`left==8`、`turn==1`、追加 6 件高级三档普通／复合 + 2 件高级三档特殊 + 1 个上锁限制项圈、原有复合结构与口部带保留、`validate()==""`、有巡视计时与逃脱候选；反例为 `not capture.has("terminal_equipment")`、无 `prison_end`、无终局清单；另加 8 个种子跨档复核。
+
+**未验证（本轮未跑）**：oracle（迁移／事件）、像素判据、性能测量——按人指示留到定稿轮；全量回归、`normal_play` 长跑、Android 真机、打包与发布与前文口径相同。`build/transition-oracle-20260916/transition_oracle.gd` 仍引用已删的 `prison_high_security` 场景，本轮未运行也未更新（属未入库产物）。
+
+**2026-09-19 内容包根改为单一常量 + 打包断言**（分支 `feedback-effects`；成果提交见 `changelog.md` 同日条）：
+
+域：`core/content_catalog.gd`（`PACKS_ROOT`／`packs_root()`）、`tools/assert-packs-root.ps1`、`tools/package.ps1`、`tools/package-android.ps1`、`tools/launch.ps1`；测试域 `content`（`packs_root_single_switch`）与 `architecture`（`content_pack_root_has_no_build_feature_branch`）。契约：`docs/spec/packaging.md`（取值、翻转步骤与断言的唯一正文）、`docs/spec/project-map.md`（目录表指针）。无规则／候选／随机／存档改动，无玩家可见文案，不新增第二套内容包加载。
+
+改动与判据：
+
+- 常量与访问器：`const PACKS_ROOT := "res://content/packs"`（注释英文写明：发布值为 `"adjacent"`、打包前翻转打包后改回、见 packaging.md）；`packs_root()` 是唯一读取点——`"adjacent"` → `OS.get_executable_path().get_base_dir().path_join("content/packs")`，其它值原样返回。`ensure(g,root)` 的显式 `root` 参数与 `Catalog.report.directory` 不变。
+- 删除：原 `directory()` 的构建类型判断（`OS.has_feature("editor")`／`("android")`）；`tools/launch.ps1` 仍只拼 `--path <游戏目录>`（本分支从未传入该开关，未改）。`core/`・`ui/`・`data/` 内除 `content_catalog.gd` 外无 `content/packs` 字样（扫描断言）。
+- 打包断言：新增 `tools/assert-packs-root.ps1::Assert-SpirePacksRoot -GameDirectory <模块> -Expected <值>`，正则取 `^const PACKS_ROOT` 的字符串字面量，不符即 throw，消息含文件绝对路径与要改成的整行（`... change that line to: const PACKS_ROOT := "<值>"`）。两个打包脚本在第 8 行（先于产物目录创建、先于 `--export-release`）调用：`package.ps1` 断 `"adjacent"`，`package-android.ps1` 断 `"res://content/packs"`；两处都不自动翻转。
+- Android 断言方向与派单文字不同，依据（技术事实优先）：Android 预设 `include_filter` 含 `content/packs/**/*.json`、`exclude_filter` 不排除 content，`tools/check-android-package.ps1` 也按 `SPIRE_PROBE_CONTENT='res://content/packs'` 探针，APK 旁没有可写内容目录——跟随 Windows 断 `"adjacent"` 会让装机版读不到内容。Windows 预设 `exclude_filter` 含 `content/*`（不进 PCK），故断 `"adjacent"`。文档同口径。
+- 测试：`tests/content_cases.gd::packs_root_single_switch` 三条（`PACK ROOT the constant keeps the development value res://content/packs`／`... a value other than adjacent is used as the pack root itself`／`... adjacent resolves to content/packs beside the executable`，末条为源码解析式静态断言，因常量不可在运行中改写）；`tests/architecture_cases.gd::content_pack_root_has_no_build_feature_branch` 保留无 `has_feature("editor")`／`has_feature("android")`，加常量＋访问器、删除物不得回归（`packs_root_switch`／`resolve_packs_root`／`packs_root_cache`）与「只有 `core/content_catalog.gd` 拼内容包路径」（扫 `core/`・`ui/`・`data/`；文件枚举抽成 `script_files(root)`，原 `transition_core_files()` 改为其调用，行为不变）。开关、覆盖、缓存三条镜像用例按派单删除。
+- **敏感性（实测，改完即还原）**：把 `PACKS_ROOT` 临时改成 `"adjacent"` → `-Suite content` 5/483 红，前两条即新判据 ①`PACK ROOT the constant keeps the development value res://content/packs` ②`PACK ROOT a value other than adjacent is used as the pack root itself: C:/1/Tools/Godot/v4.7.2-stable/content/packs`（②同时实测证明 `"adjacent"` 解析到当前可执行文件（Godot console exe）同级的 `content/packs`），另 3 条为内容包整体加载失败连带的既有 `EVENT CONDITION` 断言（`build/checks/20260919T050936427-45868`）；同改动跑 `-Suite content,architecture` 时 architecture 阶段红 1 条 `ARCH the pack root is one constant behind the single packs_root entry`＋1 条连带 `ARCH definition accessor resolves a shipped event` 并停止后续分类（`build/checks/20260919T050912171-29136`）。
+- **打包断言探针（一次性 pwsh，跑完已删除）**：`build/packs-root-guard-probe.ps1` 与翻转副本 `build/packs-root-guard-probe/core/content_catalog.gd`，四例四中：真实树×`"adjacent"`→FAIL、真实树×`"res://content/packs"`→PASS、翻转副本×`"adjacent"`→PASS、翻转副本×`"res://content/packs"`→FAIL；失败消息形如 `Content packs would not load: PACKS_ROOT is "res://content/packs" in C:\1\magic-spire\spire-godot\core\content_catalog.gd. This export needs "adjacent"; change that line to: const PACKS_ROOT := "adjacent"`。探针脚本与副本已删除（断言未实跑导出）。
+- 文档：`docs/spec/packaging.md`「域」收「常量决定＋二值语义＋翻转步骤＋两脚本断言」，Windows／Android 流水线段各留本平台一句；`docs/spec/project-map.md` 目录表只留指针；`spire-godot/content/README.md` 未改（其「导出后用可执行文件旁目录」仍与发布值一致）。
+
+**门禁（冻结树；`GODOT_BIN` 指向 `v4.7.2-stable` 的 `*_console.exe`，`Godot Engine v4.7.2.stable.official.ed1daf0bf`）**：
+
+- 规则门 `tools/check.ps1 -Suite content,application,runner,architecture -TimeoutSeconds 1800` → 退出码 **0**、4/4 PASS、`PASS: 1563 assertions`、21.99s（`build/checks/20260919T050954359-15932`；before==after==`FD814F2C5065EEB9475BE0B0F5F35303E6340D8BD2C29096BBC7C838A2E244D5`，无 `SOURCE CHANGED`）。**红集为空**，无既有登记外的红项。断言数 1560→1563（content 5→4、architecture 4→8）。
+- 同一命令在敏感性翻转前跑过一次，同样 4/4 PASS、1563 断言、同一指纹（`build/checks/20260919T050758181-3328`）；翻转还原后指纹回到该值，说明还原是精确的。
+
+**未验证（本轮未跑）**：oracle（迁移／事件）、像素判据、性能测量、真实打包与成品探针（`check-package.ps1`／`release_probe.gd`）与 Android 真机——按人指示留到定稿轮；打包脚本只跑了断言探针，**未执行 `package.ps1`／`package-android.ps1` 全流程**、未向 `outputs/` 写产物（断言位置与顺序为静态核对：第 8 行，先于产物目录与 `--export-release`）；`tools/launch.ps1` 未实跑启动游戏；`content/packs` 未改动，未跑 `tools/check-content.ps1`；未入库的 `tools/play_release.ps1`（协调者所有）仍在传已删除的 `--packs-root` 开关（第 115 行与第 10 行注释），本轮未改，需其同步；未打包、未推送。
+
+**2026-09-19 牢房计时在战斗内暂停＋战斗不重置牢房位置**（分支 `feedback-effects`，成果提交 `8cb7db5`）：
+
+域：`core/prison.gd::completed_turn`（战斗相位守卫）、`core/prison.gd::execute` 的 `"resist"` 分支（删除 `wall_distance` 复位）；测试域 `prison`（`tests/prison_cases.gd::battle_pause_cases`）。契约：`docs/design/prison.md` §2（计时与开战位置的唯一正文）。不改候选、随机域、存档结构与 UI 只读投影；`prison.left` 仍只有 `Prison.end_turn` 一个递减点，`served_turns` 仍只有 `completed_turn` 一个递增点，到期判定仍只有 `release_inspection` 一处。
+
+改动与判据：
+
+- `completed_turn` 在 `state.phase=="battle"` 时直接返回 false：不推进 `served_turns`、不做 `release_inspection`。出口战不受影响（`Prison.escape` 已清空 `state.prison`，首行 `active` 守卫即返回）；`is_exit_battle` 的练习入口同路。
+- 计时路径核实（结论，战斗内没有第二条推进牢房计时的路径）：`prison.left` 仅 `Prison.end_turn` 写，而它只在 `game._end_turn` 的 `state.phase=="prison"` 分支被调用；`Prison.begin_turn` 只写 `prison.turn`，其四个调用点（`Prison.enter`／`end_turn`／`execute "resume"`／`after_preparation`）都不在战斗内；`tick_reinforcements` 只写 `reinforcements`；`release_inspection` 仅由 `completed_turn` 调用。
+- 位置：删除 `"resist"` 行的 `g.state.wall_distance=g._initial_wall_distance(true)`；`prison.space.position` 原本就未被改写，返回牢房由 `Prison.after_preparation` 从 `Space.wall_distance(prison.space.position)` 重算。牢房内进入战斗的入口只有 `execute "resist"` 一处（`Prison.exit_practice` 先 `escape` 再打 `prison_gate` 出口战，`prison` 已清空；塔路 `_start_battle` 与牢房无关）。
+- 文案：`execute "resist"` 的日志「巡视暂停」与 `Prison.won` 的「巡视继续暂停」经核对与新口径一致（战后持钥匙返回牢房，巡视倒计时仍暂停），`data/tutorial.gd`「战斗期间暂停巡视」同样一致，均未改。
+- 文档：`docs/design/prison.md` §2 计时条改写为「牢房与返回牢房前的整备共用正式结束回合计数（刑期按完整回合累计，巡视倒计时只在牢房相位递减）；反抗战期间整套牢房计时暂停：巡视倒计时与刑期都不推进，出狱到期检查也不会在战斗内触发，返回牢房后从暂停处继续」；§2 反抗条补「战斗开始时保留当前牢房位置，不重置离墙距离」。
+- 新具名 check（英文、点名域，全部在本轮门禁中真实执行）：`PRISON resistance starts a real battle from the cell`、`PRISON battle start keeps the cell wall distance and never repositions the player`、`PRISON battle round 1／2 neither advances the clock nor runs the due release check`（到期日在战前已越过）、`PRISON resistance victory keeps the keyed cell`、`PRISON return to the cell reuses the same position, the same paused clock and recomputes its wall distance`、`PRISON first cell turn after the return runs the due check and its eight-turn delay`、`PRISON keyed patrol stays paused across the delayed due check`、`PRISON battle-pause scenario keeps a valid state`。
+- **敏感性（实测，改完即还原）**：把相位守卫改回 `and false` 并恢复 `wall_distance` 复位后跑 `-Suite prison`，正好红 5 条新 check（开战离墙距离、战斗第 1／2 回合计时、返回牢房、回到牢房首回合到期），`build/checks/20260919T044534482-46904`；还原后同套件 PASS。
+- 既有钉住行为未动：`release_inspection_cases` 的 `PRISON repeated due violation adds eight while keyed patrol remains paused` 与 `PRISON temporary inspection preserves normal patrol schedule` 在本轮通过。
+
+**门禁（冻结树；本机 `GODOT_BIN` 为 `Godot Engine v4.7.stable.official.5b4e0cb0f`）**：
+
+- 规则门 `tools/check.ps1 -Suite prison,persistence,tower_progression,exploration -TimeoutSeconds 1800` → 退出码 **0**、4/4 PASS、`PASS: 2671 assertions`、142.23s（`build/checks/20260919T052015476-11832`；before==after==`409D2AF2…`，无 `SOURCE CHANGED`）。**红集为空**，未超出既有登记项（本文件既有登记集 `card_power` 5／`installed_tools` 1／`tower_progression` 10＋1／`hand_assist` 1／`home_persistence` 3，本轮所属四套件全 PASS）。
+- 窗口门 `tools/check.ps1 -UIOnly -UISuite prison -TimeoutSeconds 1800` → 退出码 **0**、`UI PASS: 217 assertions`、130.76s（`build/checks/20260919T051549108-48752`；与规则门同一指纹 `409D2AF2…`，无 `SOURCE CHANGED`）。
+- 工作区说明：本轮有另一任务在同一工作区在途改动（`core/content_catalog.gd`、`tools/*.ps1`），窗口门另有三次同样 `UI PASS: 217` 但被 `source_changed` 标记的轮次（`build/checks/20260919T045244562-24840`／`20260919T050521650-28376`／`20260919T051120012-40596`）与一次在 `209dd5e` 干净基线（`git stash`）上的 PASS 217（`20260919T045003779-46524`，同样被 `source_changed` 标记），均未计作证据。
+
+**未验证（本轮未跑，按人指示留到定稿轮）**：oracle、像素判据、性能测量；未打包、未推送。范围外行为照旧未改：战斗结束后的奖励与整备相位仍按完成回合累计刑期（只有战斗相位暂停），`state.phase=="prison"` 之外的 `end` 行为未加断言。
+
+### 2026-09-19 重跑复核：rebase 到 `origin/main`（71d2b28，含作者 v0.17.2 整合）之后（协调者）
+
+域：本分支四提交——五级＝普通牢房（`3ad81d3`）、战斗内暂停牢房计时并保留位置（`433df58`）、内容包根常量（`29eec43`）、记录（`d3b0592`）。上面那组门禁跑在 rebase 前的旧快照上（指纹 `409D2AF2…`）；rebase 后树里含作者 v0.17.2 的内容，重新取证如下。
+
+- 规则门 `tools/check.ps1 -Suite prison,persistence,tower_progression,exploration,content,application,runner,architecture -TimeoutSeconds 1800` → 退出码 **0**、8/8 PASS、`PASS: 4234 assertions`（`build/checks/20260919T055237178-5988`；before==after==`907FE409…`，无 `SOURCE CHANGED`，`unrun=[]`）。逐套件：application 71／architecture 479／content 578／exploration 198／runner 435／persistence 955／prison 1293／tower_progression 225。
+- 窗口门 `tools/check.ps1 -UIOnly -UISuite prison -TimeoutSeconds 1800` → 退出码 **0**、`UI PASS: 217 assertions`（`build/checks/20260919T055540091-16808`；与规则门同一指纹）。
+- 覆盖未缩水的旁证：prison＋persistence＋tower_progression＋exploration＝2671 断言、content＋application＋runner＋architecture＝1563 断言，与 rebase 前**逐数相等**。
+- **登记集漂移（按实际报告为准）**：本文件既有登记的 `tower_progression` 10＋1 在本轮未复现（225 断言 PASS）——作者 v0.17.2 之后该项已过期。`card_power`／`installed_tools`／`hand_assist`／`home_persistence`／`interface`／`pressure`／`rewards`／`enemy_feedback` 这些宿主套件本轮未跑，不能据此宣称它们通过。
+- 未跑：oracle、像素判据、性能测量、打包（按人指示留到定稿轮）。
+
+## 2026-09-19｜PR #6 合并到当前 main：监狱与内容包根
+
+用户要求检查新 PR 并入项目，以 PR 为优先。本轮新增开放 PR 为 [#6](https://github.com/h13942080472-prog/magic-spire/pull/6)，head `683feefe5353ee8d79b7acd18d18c50206241130`，整合前 main `02ea62262a1a89d8abc0e7b7364ba2885f37c934`。采用正常三方合并并保留 PR 的六个提交；验证册追加冲突保留双方记录，架构测试冲突保留 PR 新检查和 main 的现行文档引用。此前三份 UI 测试修复与事件契约维护未回退。
+
+**采用的规则与接口**：五级沿正式收押→入牢→巡视／探索路径，最高规格由 `PRISON_SECURITY[5]` 决定；普通／复合追加名额为6件，不是补到总数6件，也不把原装备全部升满上锁。五级不自动出狱，传送符仍只允许一至四级。`Prison.completed_turn` 仅对 battle 暂停刑期，原巡视暂停条件保留；战后整备仍累计刑期。反抗不重置离墙距离，回牢房由原空间位置恢复。内容根由 `ContentCatalog.PACKS_ROOT` 单常量与 `packs_root()` 决定：开发／Android 为 `res://content/packs`，Windows 导出前显式设为 `adjacent`，导出后改回；两个打包入口调用共用断言，不自动修改源码。
+
+**整合补修**：PR 删除 `directory()` 后，`tools/check_content.gd` 仍调用旧入口。实际执行内容 CLI 先复现解析失败、退出1；改为 `packs_root()` 后正式12份内容校验通过、退出0。没有恢复旧接口别名。教程同步战斗暂停、整备计刑期、五级追加规则及无限刑期；补9条人工模板、移除6条失效人工源文，英文目录4959→4949条（新增8、退役18，另校订1个已有检查规格行模板）。新动态手册模板逐行捕获四条收押规格和五条检查规格，沿既有 Localizer 递归模板入口翻译，不改运行时翻译通道。
+
+**测试修订与失败处理**：保留 PR 的五级正反例、正式交互、存档、计时与位置检查；增加战后整备边界2条，以及完整监狱英文与变更保底数值的8条检查。首轮 `20260919T070140846-6184` 在6633条规则中仅新增的完整英文手册断言失败，其他11分类通过，窗口阶段未执行；最小只读探针确认旧碎片回退不能完整翻译拼接正文。补完整模板与规格行译文后，重跑全部本次选择范围，首轮结果不作为最终通过证据。
+
+**最终分类门** `20260919T070539163-26888`：`-Suite prison,persistence,tower_progression,exploration,content,application,runner,architecture,status,pressure,relics,localization -UI -UISuite prison,localization -KeepGoing -TimeoutSeconds 1800`，退出0。规则 localization164、relics850、application71、architecture479、content578、exploration198、runner435、status299、persistence955、prison1295、pressure1085、tower_progression225，合计 **6634**；窗口 localization51、prison217，合计 **268**。所有选中分类均 PASS，无失败／未运行项。`summary.json.status=passed`，before／after 都是 `DECF6AB380B94BB97C819BAA7E55AAAA5DC90A4BE4975B67D8E9F9C79F3B4AB1`；日常随机采样，不是完整种子矩阵，未请求默认截图。
+
+**补充检查**：`build/pr6-integration-20260919/` 保存结构图和临时探针。路径探针执行原内容目录访问器及仅替换常量的内存脚本变体：开发目录实际读取12份定义、adjacent 指向进程可执行文件旁、其他显式路径原样返回；生产文件未改动。打包断言5个正反例通过（两平台正确值、两种相反值、缺声明），当前 Android 配置通过，三个 PowerShell 脚本解析通过。以上仅验证路径和导出前置条件，未导出或启动新安装包。静态核对本轮核心与打包实现同 PR 逐字相同、旧接口调用无残留、测试文档引用有效、无冲突标记／编码损坏、现行文档链接有效，`git diff --check` 通过。
+
+独立只读子代理审查监狱单入口与回滚、战斗／整备计时、位置恢复、路径与平台配置、教程和英文模板，无阻塞项；按审查意见澄清“追加名额6件”。保留 PR 自带的旧 `prison_end` 只读投影及旧清单键丢弃逻辑，不额外扩展旧档迁移。未跑全项目回归、全部随机种子、像素或性能测量、打包、Android真机。既有 interface 的28张卡牌缺图及有效失败检查未改。本次仅合并同步源码、测试、翻译、工具与文档，不修改 v0.17.2 标签、Release 或本地成品。

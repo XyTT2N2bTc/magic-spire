@@ -369,7 +369,6 @@ static func check(s: Dictionary, g) -> String:
  if not s.prison.is_empty() and not fields(s.prison,"served_turns:i sentence_extra:i active:b left:i turn:i stage:s missing:z baseline:z special_missing:z special_baseline:z discovery_pool:z discoveries:z found:z vent_hits:i vent_tick:i door_open:b key:b resisting:b checks:i report:s"): return "牢房进度不完整。"
  var reinforcement_issue=g.Prison.reinforcement_issue(s)
  if reinforcement_issue!="": return reinforcement_issue
- if s.capture.has("terminal_equipment") and not fields(s.capture,"terminal_equipment:z"): return "高安全终局清单记录不完整。"
  if s.phase in ["captured","prison_end"] and s.capture.is_empty(): return "缺少收押记录。"
  if not s.capture.is_empty() and not fields(s.capture,"by:s security:i retained:z added:z links:z retained_special:z special_added:z special_baseline:z confiscated:i baseline:z"): return "收押记录不完整。"
  if s.capture.has("intake_scene"):

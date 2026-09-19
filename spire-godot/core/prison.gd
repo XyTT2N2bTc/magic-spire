@@ -3,7 +3,6 @@ extends RefCounted
 const B=preload("res://data/balance.gd")
 const Space=preload("res://core/prison_space.gd")
 const ACTIVE_DISCOVERIES=["shard","saw","vent"]
-const HIGH_SECURITY_ASSEMBLIES=[["glove","long","cross"],["leg","toes","straight"]]
 const PATROL_GUARD="guard_purple"
 const SENIOR_GUARD="guard_brown"
 
@@ -103,7 +102,8 @@ static func intake_equipment(g) -> Dictionary:
 
 static func intake_label(g) -> String:
  var rule=B.PRISON_INTAKE.get(g.state.security,{})
- if rule.is_empty(): return "五级进入高安全监室。"
+ # Security five has no intake row: PRISON_SECURITY[5] alone drives the highest-grade quota.
+ if rule.is_empty(): return "五级进入规格最高的普通牢房：追加高级3档普通／复合拘束具与特殊装备，巡视间隔最短、不自动出狱。"
  return "拘束具保底%d件，不足时补齐并额外增加%d件、全部至少2档；已达保底则不补装，全部收紧1档，最多3档。另加%d件2档特殊装备，空位不足不替换。" % [rule.floor,rule.extra,rule.special]
 
 # Intake and inspection share this source declaration; Application owns selection,
@@ -154,44 +154,9 @@ static func start_practice(g) -> void:
  g.RelicEffects._mana_hook(g,"prison_entry_mana","进入监狱")
  g._emit("event","你躺在墙边，手腕与大腿各有一件装备。先检查身上的装备，也可以开始探索牢房。")
 
-static func high_security(g) -> String:
- # Same existing equipment, highest grade/tightness; no capacity or closure exception.
- for setup in HIGH_SECURITY_ASSEMBLIES:
-  g._install_assembly(setup[0],setup[1],"prison_high_security",3,3,{},setup[2])
- for slot in g.B.SLOTS:
-  var template=g.Equipment.default_template(slot)
-  for i in range(g.Equipment.capacity(slot)*g.Equipment.points(slot).size()):
-   if g._installation_reason(template,slot,3)!="": break
-   if g._install_template(template,slot,g.Equipment.maximum(3),g.Equipment.maximum(3),false,"prison_high_security",3).is_empty(): return "高安全监室的追加装备未能完整安装。"
- for e in g.equipment_targets():
-  if g.Equipment.lock_only(e): continue
-  if e.has("shoulders"):
-   e.shoulders.grade=3;e.shoulders.variant=0
-  e.grade=3;e.variant=0;e.maximum=g.Equipment.maximum(3);e.durability=e.maximum
-  e.locked=g.Equipment.allows(e,"lock")
-  g._refresh_equipment(e)
- # Three-tier upgrades may create shoulder pieces after the original target list.
- # Their factory supplies the upgraded grade/durability; finalize their locks too.
- for e in g.Shoulders.pieces(g): e.locked=g.Equipment.allows(e,"lock")
- # §3.1 item 8: only this tail is read-only; the upgrade half above writes equipment and the
- # shoulder line stays a fresh read, so both remain outside the scope.
- var previous=g._begin_equipment_read()
- var covered=g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty())
- var terminal=[] if not covered else g.equipment_targets().map(func(e):return e.id)
- g._equipment_read=previous
- if not covered: return "高安全监室仍有未被覆盖的部位。"
- g.state.capture.terminal_equipment=terminal
- return ""
-
+# Security five is only the strongest ordinary cell: capture already applied PRISON_SECURITY[5],
+# and entry follows the same path as one to four instead of a separate terminal scene.
 static func enter(g) -> String:
- if g.state.security>=5:
-  var issue=high_security(g)
-  if issue!="": return issue
-  g._apply_transition("prison_high_security",{"phase":"prison_end"})
-  g.state.enemies=[]
-  g.room_data("prison").name="高安全监室"
-  g._emit("event","警戒度达到5，移入高安全监室。原装备结构与链接保留，普通与复合装备补齐至高级三档，可上锁处全部上锁；限制项圈继续保留。本次逃脱结束，可以检查最终装备或重新开始。")
-  return ""
  g.RelicEffects.begin_combat(g)
  g.state.prison=initial(g)
  g.state.prison.space=Space.initial(g)
@@ -229,8 +194,8 @@ static func add(out: Array, g, action: String, label: String, copy, cost: int=0,
  g._candidate(out,payload,label,copy,cost,0,reason,"","prison")
 
 # R3（docs/ondemand-copy.md §11.5）：Prison.add 各站点文案的 builder，正文留在本模块，路由只做分派。
-static func enter_detail(g, args: Dictionary) -> String:
- return "牢门会在你身后锁上。" if int(args.get("security",g.state.security))<5 else "进入高安全监室。"
+static func enter_detail(_g, _args: Dictionary) -> String:
+ return "牢门会在你身后锁上。"
 
 static func inspection_detail(_g, args: Dictionary) -> String:
  return {"arrival":"让她核对你身上的装备。","result":"处理这次检查的结果。","done":"继续服刑。"}.get(String(args.get("stage","")),"")
@@ -253,7 +218,7 @@ static func door_exit_detail(_g, _args: Dictionary) -> String:
 static func candidates(g, out: Array) -> void:
  if g.state.phase=="captured":
   var enter_args={"security":g.state.security}
-  add(out,g,"enter","进入牢房" if g.state.security<5 else "查看终局",{"kind":"prison.enter","args":enter_args,"fallback":enter_detail(g,enter_args)})
+  add(out,g,"enter","进入牢房",{"kind":"prison.enter","args":enter_args,"fallback":enter_detail(g,enter_args)})
   return
  if g.state.phase=="inspection":
   var stage=g.state.prison.stage
@@ -377,7 +342,8 @@ static func execute(g, c: Dictionary) -> String:
    g.RelicEffects.begin_combat(g)
    p.resisting=true
    p.reinforcements=0
-   g.state.wall_distance=g._initial_wall_distance(true)
+   # The battle keeps the cell position: state.wall_distance stays as the exploration
+   # step left it, and after_preparation recomputes it from prison.space.position.
    g._apply_transition("prison_exit_battle_start",{"phase":"battle"}); g.state.round=0; g.state.encounter+=1
    g.state.kick_last=-10; g.state.heavy_used=false
    g.RelicEffects.clear_temporary(g)
@@ -452,29 +418,9 @@ static func is_exit_battle(g) -> bool:
 static func return_to_tower(g) -> void:
  g._restart_tower()
 
-# §3.1 item 9: the terminal equipment read block keeps one scope and one exit; a nested call
-# under Game.validate is a no-op because the outer scope is reused.
-static func _terminal_equipment_issue(g) -> String:
- var previous=g._begin_equipment_read()
- var issue=""
- if g.state.phase!="prison_end" or g.state.security!=5 or g.state.capture.terminal_equipment!=g.equipment_targets().map(func(e):return e.id): issue="高安全终局装备清单不完整。"
- elif not g.B.SLOTS.all(func(slot):return not g.equipment_at(slot).is_empty()): issue="高安全终局存在未覆盖部位。"
- else:
-  for e in g.equipment_targets():
-   if g.Equipment.lock_only(e):
-    if not e.locked: issue="高安全监室的限制项圈必须上锁。"; break
-    continue
-   if e.grade!=3 or e.maximum!=g.Equipment.maximum(3) or e.durability!=e.maximum or e.locked!=g.Equipment.allows(e,"lock"): issue="高安全终局装备必须为高级三档，并锁住所有可上锁处。"; break
- g._equipment_read=previous
- return issue
-
 static func validate(g) -> String:
  var reinforcement_error=reinforcement_issue(g.state)
  if reinforcement_error!="": return reinforcement_error
- if g.state.capture.has("terminal_equipment"):
-  var terminal_issue=_terminal_equipment_issue(g)
-  if terminal_issue!="": return terminal_issue
- if g.state.phase=="prison_end" and not g.state.capture.has("terminal_equipment"): return "高安全终局缺少装备清单。"
  var p=g.state.prison
  if g.state.phase in ["prison","inspection"] and not p.get("active",false): return "牢房流程缺少入狱记录。"
  if p.is_empty(): return ""
@@ -492,10 +438,8 @@ static func validate(g) -> String:
  return ""
 
 static func view(g) -> Dictionary:
- if g.state.phase=="prison_end":
-  if g.state.capture.has("terminal_equipment"):
-   return {"terminal_text":"高安全监室：共%d件普通装备、组件与链接，全部高级三档（%s/%s耐久），可上锁处全部上锁。另佩戴无耐久的限制项圈。本局已经结束，可在左侧逐件检查。" % [g.equipment_targets().filter(func(e):return not g.Equipment.lock_only(e)).size(),g.number(g.Equipment.maximum(3)),g.number(g.Equipment.maximum(3))]}
-  return {"terminal_text":"本局已经结束，可以查看最终装备或重新开始。"}
+ # prison_end survives only for saves written before security five became an ordinary cell.
+ if g.state.phase=="prison_end": return {"terminal_text":"本局已经结束，可以查看最终装备或重新开始。"}
  var p=g.state.prison
  if p.is_empty(): return {"intake_rule":intake_label(g),"equipment_rule":equipment_label(g),"toy_rule":toy_label(g)} if g.state.phase=="captured" else {}
  var narrative=""
@@ -531,6 +475,11 @@ static func sentence_label(g) -> String:
 
 static func completed_turn(g) -> bool:
  if not g.state.prison.get("active",false): return false
+ # A running prison battle leaves the whole cell clock frozen: neither the patrol
+ # countdown nor the sentence advances, so the due release check cannot fire inside
+ # a battle. The cell resumes from the paused values once the player is back
+ # (docs/design/prison.md §2).
+ if g.state.phase=="battle": return false
  g.state.prison.served_turns+=1
  var limit=sentence_limit(g)
  if limit==0 or g.state.prison.served_turns<limit: return false

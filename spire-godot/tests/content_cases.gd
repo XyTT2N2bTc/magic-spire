@@ -262,7 +262,20 @@ static func event_chain_hold_keys_fail_closed(t) -> void:
  t.check(not borrowed.ok and borrowed.tables.is_empty() and str(borrowed.errors).contains("cleanup_effects 引用了从未建立的暂存 key") and Catalog.tables(g)==baseline,"EVENT CHAIN HOLD a cleanup naming another definition's key is rejected as one batch: "+str(borrowed.errors))
  t.check(Catalog.tables(g)==baseline,"EVENT CHAIN HOLD static validation leaves the registries untouched")
 
+# The pack root is one constant behind one accessor: the development value is the project path,
+# the release value "adjacent" resolves beside the executable. The release branch cannot be
+# entered while the constant holds the development value, so its shape is pinned in the source.
+static func packs_root_single_switch(t) -> void:
+ t.check(Catalog.PACKS_ROOT=="res://content/packs","PACK ROOT the constant keeps the development value res://content/packs")
+ t.check(Catalog.packs_root()==Catalog.PACKS_ROOT,"PACK ROOT a value other than adjacent is used as the pack root itself: "+Catalog.packs_root())
+ var file=FileAccess.open("res://core/content_catalog.gd",FileAccess.READ)
+ t.check(file!=null,"PACK ROOT the content catalog is readable for the release-branch scan")
+ if file==null: return
+ var source=file.get_as_text()
+ t.check(source.contains("PACKS_ROOT==\"adjacent\"") and source.contains("OS.get_executable_path().get_base_dir().path_join(\"content/packs\")"),"PACK ROOT adjacent resolves to content/packs beside the executable")
+
 static func run(t) -> void:
+ packs_root_single_switch(t)
  event_author_manual_lists_current_fields(t)
  event_chain_references_fail_closed(t)
  event_chain_hold_keys_fail_closed(t)

@@ -6,14 +6,22 @@ static var report={"ok":true,"files":0,"errors":[],"directory":""}
 const KINDS=["restraint","special_equipment","event","relic","enemy"]
 const BASES=["rope","cord","belt","fine_belt","tape","cable_tie"]
 const ENEMY_BASES=["rope","belt","tape","cable_tie","gag","toybox","lock"]
+# Development value: editor runs, headless tests and the Android package read the project copy.
+# The release value is "adjacent" (content packs sit next to the executable, outside the PCK);
+# packaging must flip this constant to "adjacent" and flip it back afterwards. See
+# docs/spec/packaging.md.
+const PACKS_ROOT := "res://content/packs"
 
-static func directory() -> String:
- return "res://content/packs" if OS.has_feature("editor") or OS.has_feature("android") else OS.get_executable_path().get_base_dir().path_join("content/packs")
+# Single read point for the pack root: consumers import this and no other file computes a packs
+# path. "adjacent" is the packaging value; every other value is the path itself.
+static func packs_root() -> String:
+ if PACKS_ROOT=="adjacent": return OS.get_executable_path().get_base_dir().path_join("content/packs")
+ return PACKS_ROOT
 
 static func ensure(g, root: String="") -> void:
  if loaded: return
  loaded=true
- var path=directory() if root=="" else root
+ var path=packs_root() if root=="" else root
  var result=read_directory(path)
  if result.errors.is_empty():
   var compiled=compile(g,result.documents)

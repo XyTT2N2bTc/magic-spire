@@ -1,6 +1,6 @@
 # 装备模板与结构真源
 
-本文件是装备模板、材料分档、复合结构、链接、肩部、躯干固缚、性玩具、高安全配置与施加／替换的唯一真源。共用数值（耐久、紧度、降档、伤害、手部辅助、堆叠、锁）见 `./game-design.md` §6；敌人可用的装备池见 `./enemies-first-floor.md`；监狱补装规格见 `./prison.md`；诅咒平板锁分支见 `./cursed-plate-lock.md`；内容包字段与模板填写表见 `./content.md`。
+本文件是装备模板、材料分档、复合结构、链接、肩部、躯干固缚、性玩具、五级监狱规格与施加／替换的唯一真源。共用数值（耐久、紧度、降档、伤害、手部辅助、堆叠、锁）见 `./game-design.md` §6；敌人可用的装备池见 `./enemies-first-floor.md`；监狱补装规格见 `./prison.md`；诅咒平板锁分支见 `./cursed-plate-lock.md`；内容包字段与模板填写表见 `./content.md`。
 
 代码真源：`data/equipment.gd`、`data/composites.gd`、`data/links.gd`、`data/special_equipment.gd`、`data/environments.gd`、`core/equipment_application.gd`、`core/equipment_offers.gd`、`core/equipment_replacement.gd`、`core/shoulder_links.gd`、`core/torso_binding.gd`。
 
@@ -217,11 +217,11 @@
 - 滑精：锁与任意马眼装备同时存在时，高潮改为滑精（保持当前高潮、不能行动，下两个玩家回合各少1能量并损失10魔力、下一玩家回合固定后手），免除高潮即时魔力损失；重复触发刷新为两回合。
 - 主页“贞操锁池”默认关闭且仅在“扶她出去”关闭时可选；开启后随机施加性玩具时按默认25%选择平板锁分支（可按5%调整），只在存在合法新锁或单向升级时掷概率，否则把概率完整归还普通性玩具。诅咒平板锁分支见 `./cursed-plate-lock.md`。
 
-## 12. 高安全监室装备配置
+## 12. 五级监狱规格（由 `PRISON_SECURITY[5]` 驱动）
 
-五级收押后点击“查看终局”移入高安全监室：沿用现有普通、复合与链接拘束具，保留原物理编号、结构与链接，全部提升至高级、三档、满耐久，可上锁处全部上锁（高级最大耐久24）。按新结构适配：合法时补长型单手套与包脚趾单腿套，按既有部位容量补齐普通件，已有皮革口部固定带时补合法头部马具；已有结构阻止追加时保留该结构，不覆盖、不挤入封闭内部。双臂、双腿全部计数部位及眼口都有真实装备覆盖。此处结束本局，只可检查最终装备、恢复记录或重新开始，不开放后续挣脱回合。
+五级只是规格最高的普通牢房，不是终局：收押仍按 `Prison.equipment_spec`／`intake_equipment` 施加追加与替换，规格完全由 `data/balance.gd::PRISON_SECURITY[5]` 决定——高级、三档、普通＋定制复合；普通／复合件追加名额为 `CAPTURE_EXTRA_BASE＋警戒度`＝6件，特殊装备取默认2件并保持三档，无收紧步骤。3级起固定佩戴上锁的限制项圈。随后经统一入口进入牢房和巡视，可走开门、通风口或钥匙路线，传送符仍仅限一至四级，不进入高安全监室、不做全身覆盖校验（流程与刑期见 `./prison.md` §5）。
 
-旧监牢固定架 `security/terminal` 及其材料定义只为读取旧存档保留，不能通过正式工厂新增；终局只保存并校验实际装备的编号清单、覆盖、等级、满耐久与合法锁定状态。
+`Prison.high_security()`、迁移行 `prison_high_security`、`capture.terminal_equipment` 与旧 `security/terminal` 材料定义均已删除；旧档携带 `capture.terminal_equipment` 时在读档时丢弃（`Game.restore_snapshot`），`prison_end` 相位声明与只读投影仅用于旧档。
 
 ## 13. 身体查看、手部辅助与易滑脱位置
 

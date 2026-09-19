@@ -102,6 +102,17 @@ static func run(t) -> void:
  t.check(l.set_locale("en_US") and l.text("ui.home.title","紧缚尖塔")=="Bound Spire","LOCALE registered English copy resolves through its semantic ID")
  var practice_health=RegEx.new();practice_health.compile("(\\d+)生命")
  var chinese=RegEx.new();chinese.compile("[\\x{3400}-\\x{9fff}]")
+ var prison_entries=preload("res://data/tutorial.gd").entries()
+ for id in ["prison0","prison3","prison4","prison6","prison_security"]:
+  var entry=prison_entries.filter(func(row):return row.id==id)[0]
+  var translated=l.display(entry.title)+"\n"+l.display(entry.text)
+  t.check(chinese.search(translated)==null,"LOCALE current prison handbook translates its full title and rules: "+id)
+  if id=="prison0": t.check(translated.contains("20/30/50") and translated.contains("battle pauses the clock") and translated.contains("Levels 4/5 have no automatic release"),"LOCALE sentence rules retain the combat pause and unlimited upper levels")
+  if id=="prison6": t.check(translated.contains("Existing equipment is retained") and translated.contains("up to the quota") and translated.contains("levels 1-4"),"LOCALE security-five rules preserve the quota and seal restriction")
+  if id=="prison_security":
+   var floor_count=int(preload("res://data/balance.gd").PRISON_INTAKE[1].floor)
+   var updated=l.display(entry.text.replace("保底%d件" % floor_count,"保底%d件" % (floor_count+1)))
+   t.check(updated.contains("minimum %d restraints" % (floor_count+1)) and chinese.search(updated)==null,"LOCALE complete prison handbook keeps changing intake values through nested row templates")
  for kind in ["puppeteer_solo","binding_box_solo","drone_solo","mixed_bundle_solo","mixed_pair","rope_serpent_solo","small_circle_solo","versatile_solo"]:
   var source=preload("res://data/tower.gd").practice_spec(kind).description
   var hp=practice_health.search(source)

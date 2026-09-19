@@ -85,7 +85,6 @@ _room_transition_kind(target: String) -> String
 | `room_enter` | `map`／`cleared` | 是 | 是 | — | `_arrive_room` |
 | `floor_enter` | （不写） | 是 | 是 | `floor` | `_depart`／`_advance_travel` |
 | `travel_start` | `travel` | 否 | 是 | — | `_depart` |
-| `prison_high_security` | `prison_end` | 否 | 是 | — | `Prison.enter` |
 | `prison_cell_enter` | `prison` | 否 | 是 | — | `Prison.begin_turn` |
 | `inspection_start` | `inspection` | 否 | 是 | — | `Prison.end_turn` |
 | `prison_exit_battle_start` | `battle` | 否 | 是 | — | `Prison.execute` |

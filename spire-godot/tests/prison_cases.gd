@@ -110,6 +110,7 @@ static func run(t) -> void:
  preload("res://tests/prison_reinforcement_cases.gd").run(t)
  inspection_climax_cases(t)
  sentence_cases(t)
+ battle_pause_cases(t)
  security_health_cases(t)
  for security in [0,4]:
   var surrender_game=Game.new(42)
@@ -126,7 +127,7 @@ static func run(t) -> void:
   var retained_save=Game.new(77)
   t.check(retained_save.restore_snapshot(surrender_game.export_snapshot()).ok and retained_save.state.items==[retained_seal],"SEAL prison snapshot preserves identity and remaining uses without duplication")
   t.check(surrender_game.restart_snapshot()==surrender_game.state and not surrender_game.candidates().any(func(c):return c.payload.kind=="surrender"),"SURRENDER checkpoints intake and cannot repeat outside battle")
-  t.check(t.action(surrender_game,"prison",{"action":"enter"}).ok and surrender_game.state.phase==("prison_end" if security==4 else "prison"),"SURRENDER intake page uses the formal prison entry action")
+  t.check(t.action(surrender_game,"prison",{"action":"enter"}).ok and surrender_game.state.phase=="prison" and surrender_game.state.prison.left==B.PRISON_INTERVALS[surrender_game.state.security-1],"SURRENDER intake page uses the formal prison entry action at every security")
  var fresh=preload("res://core/game.gd").new(42)
  t.check(fresh.state.items.size()==1 and fresh.state.items[0].type=="return_seal" and fresh.state.items[0].uses==1,"SEAL normal new game carries one single-use teleport scroll")
  t.check(fresh.get_view().items[0].name=="传送符" and fresh.get_view().items[0].category=="卷轴","SEAL initial inventory uses renamed scroll presentation")
@@ -311,8 +312,8 @@ static func run(t) -> void:
  t.check(g.state.overloaded and overload_actions.size()==1 and overload_actions[0].payload.kind=="end","PRISON mid-turn overload closes exploration, ordinary tools and escapes")
 
  g=intake(t,5)
- t.check(g.state.phase=="prison_end" and g.candidates().is_empty() and g.validate()=="","PRISON safety five stops at explicit terminal, no endless impossible inspection cycle")
- for safety in [3,4]:
+ t.check(g.state.phase=="prison" and g.state.prison.left==B.PRISON_INTERVALS[4] and g.state.posture=="lie" and g.candidates().any(func(c):return c.payload.kind=="prison" and c.payload.action in ["vent_kick","door_exit","key"]) and g.validate()=="","PRISON safety five enters an ordinary cell with patrol and escape candidates instead of a terminal")
+ for safety in [3,4,5]:
   g=intake(t,safety)
   t.check(g.state.prison.left==B.PRISON_INTERVALS[safety-1],"PRISON higher security retains its shorter inspection interval")
  g=intake(t);clear_fixture(g)
@@ -346,24 +347,31 @@ static func remaining_routes(t) -> void:
  var preserved=g.physical_pieces().duplicate(true)
  Guard.capture(g,g.state.enemies[0])
  t.check(g.state.phase=="captured" and not g.state.composites.any(func(r):return r.kind=="security"),"TERMINAL intake first shows retained equipment without premature fixture")
+ t.check(g.state.security==5 and t.find_action(g,"prison",{"action":"enter"}).label=="进入牢房" and not g.state.capture.has("terminal_equipment"),"TERMINAL five keeps the ordinary intake label and writes no removed terminal manifest")
  var entered=t.action(g,"prison",{"action":"enter"})
- t.check(entered.ok and g.state.phase=="prison_end","TERMINAL formal entry installs fixed configuration: "+entered.get("error",""))
- t.check(g.state.capture.has("terminal_equipment"),"TERMINAL records high-security physical equipment")
- t.check(preserved.all(func(e):return g._equipment(e.id).template==e.template) and g.level("arms")==4 and g.level("legs")==4 and g.occupied("mouth") and g.occupied("eyes"),"TERMINAL prior closed structures retained with actual complete coverage")
- t.check(g.equipment_targets().all(func(e):return e.locked if g.Equipment.lock_only(e) else e.grade==3 and e.maximum==24 and e.durability==24 and e.locked==g.Equipment.allows(e,"lock")),"TERMINAL highest grade/tightness and locked durability-free collar")
- t.check(g.B.SLOTS.all(func(slot):return g._installation_reason(g.Equipment.default_template(slot),slot,3)!=""),"TERMINAL every legal ordinary slot filled or structurally closed")
+ t.check(entered.ok and g.state.phase=="prison" and g.state.prison.left==B.PRISON_INTERVALS[4] and g.state.prison.turn==1,"TERMINAL formal entry starts the ordinary top-spec cell: "+entered.get("error",""))
+ t.check(preserved.all(func(e):return g._equipment(e.id).template==e.template) and g.occupied("mouth"),"TERMINAL prior closed structures retained instead of being rebuilt")
+ var added=(g.state.equipment+g.state.composites).filter(func(e):return e.id in g.state.capture.added)
+ t.check(added.size()==B.CAPTURE_EXTRA_BASE+5 and added.all(func(e):return (e.grade==3 if not e.has("components") else e.components.all(func(c):return c.grade==3))),"TERMINAL five fills the ordinary quota at the PRISON_SECURITY[5] grade")
+ t.check(added.all(func(e):return (g.tier(e.durability,e.maximum)==3 if not e.has("components") else e.components.all(func(c):return g.tier(c.durability,c.maximum)==3))),"TERMINAL five installs its quota at the top tightness instead of tightening old gear")
+ t.check(g.state.special_equipment.size()==2 and g.state.special_equipment.all(func(e):return e.grade==3 and g.tier(e.durability,e.maximum)==3),"TERMINAL five adds two high-grade three-tier toys")
+ t.check(g.state.equipment.filter(func(e):return g.Equipment.lock_only(e)).size()==1,"TERMINAL five keeps exactly the locked restriction collar")
  t.check(g.validate()=="","TERMINAL ordinary capacity and closure rules still valid")
- var before=g.state.duplicate(true)
- t.check(g.candidates().is_empty() and not t.action(g,"end").ok and not t.action(g,"prison",{"action":"enter"}).ok and g.state==before,"TERMINAL no repeated intake or hidden turn loop")
+ t.check(t.action(g,"end").ok and g.state.phase in ["prison","inspection"] and g.validate()=="","TERMINAL ordinary completed turns stay inside the cell loop")
+ # A clean fixture isolates the entry path from the composite fixture's intake overload.
+ var clean=intake(t,5);clear_fixture(clean)
+ var lower=intake(t,4);clear_fixture(lower)
+ t.check(clean.state.phase=="prison" and clean.state.prison.left==B.PRISON_INTERVALS[4] and clean.state.posture=="lie" and lower.state.posture=="lie" and clean.state.room==lower.state.room and clean.room_data("prison").name==lower.room_data("prison").name,"TERMINAL five enters the same cell scene and entry path as one to four")
+ t.check(clean.candidates().any(func(c):return c.payload.kind=="prison" and c.payload.action=="vent_kick") and clean.candidates().any(func(c):return c.payload.kind=="prison" and c.payload.action=="door_exit"),"TERMINAL five exposes the shared patrol and escape candidates instead of a terminal list")
+ var legacy=g.export_snapshot()
+ legacy.capture.terminal_equipment=g.equipment_targets().map(func(e):return e.id)
  var restored=Game.new(1)
- t.check(restored.restore_snapshot(g.export_snapshot()).ok and restored.state.capture.terminal_equipment==g.state.capture.terminal_equipment,"TERMINAL snapshot retains full physical manifest")
- var bad=g.export_snapshot();bad.capture.terminal_equipment.pop_back()
- before=restored.state.duplicate(true)
- t.check(not restored.restore_snapshot(bad).ok and restored.state==before,"TERMINAL incomplete manifest rejects atomically")
+ t.check(restored.restore_snapshot(legacy).ok and not restored.state.capture.has("terminal_equipment") and restored.state.phase=="prison","TERMINAL legacy manifest is accepted and dropped on load without touching the cell")
+ t.check(t.action(restored,"end").ok and restored.state.phase in ["prison","inspection"] and restored.validate()=="","TERMINAL loaded legacy save still runs the ordinary prison pipeline")
  for seed_value in range(8):
   g=Game.new(seed_value,true,"guard");g.state.security=4
   Guard.capture(g,g.state.enemies[0])
-  t.check(t.action(g,"prison",{"action":"enter"}).ok and g.validate()=="" and g.level("arms")==4 and g.level("legs")==4,"TERMINAL lawful full configuration across intake seeds")
+  t.check(t.action(g,"prison",{"action":"enter"}).ok and g.state.phase=="prison" and g.validate()=="" and g.state.prison.left==B.PRISON_INTERVALS[4] and not g.state.capture.has("terminal_equipment"),"TERMINAL five enters the ordinary cell across intake seeds")
 
  for pose in ["stand","sit","lie"]:
   g=intake(t);clear_fixture(g)
@@ -378,7 +386,7 @@ static func remaining_routes(t) -> void:
   var version=g.state.version
   t.check(g.dispatch(candidate.id,version).ok and g.state.room=="prison_start" and g.state.phase=="map","SEAL formal use leaves cell but still requires the prison route")
   t.check(g.state.mana==47 and g.state.pressure==41 and g.state.equipment==equipment and g.state.items.size()==2 and g._item(seal.id).is_empty() and g.state.save_slot=="practice","SEAL consumes itself, triggers special-battle end healing and preserves other resources/items/save origin")
-  before=g.state.duplicate(true)
+  var before=g.state.duplicate(true)
   t.check(not g.dispatch(candidate.id,version).ok and g.state==before,"SEAL stale repeated use cannot repeat escape or tower generation")
  g=intake(t);clear_fixture(g)
  g._gain_tool("return_seal")
@@ -388,7 +396,7 @@ static func remaining_routes(t) -> void:
  g._install_assembly("wrap","right","fixture",1,1)
  t.check(t.find_action(g,"item_use",{"item":seal.id}).valid,"SEAL scroll allows free toes with both hands blocked")
  g.add_fixture("toes",8)
- before=g.state.duplicate(true)
+ var before=g.state.duplicate(true)
  t.check(not t.action(g,"item_use",{"item":seal.id}).ok and g.state==before,"SEAL blocked fingers and toes spend no item or resources")
  clear_fixture(g)
  for i in range(4): g._gain_tool("shard")
@@ -802,6 +810,42 @@ static func release_inspection_cases(t) -> void:
   var climax_before=g.state.overload_total
   t.check(t.action(g,"end").ok and g.state.tower_start_pending,"PRISON later compliant due check finally releases")
   t.check(g.state.overload_total==climax_before+1 and g.get_view().npc_speech.cue=="prison.guard.release_pass" and g.get_view().npc_speech.visual=="guard_brown","PRISON normal release follows its extra milking with the senior guard dialogue")
+
+static func battle_pause_cases(t) -> void:
+ # docs/design/prison.md §2: a running prison battle freezes the whole cell clock
+ # (patrol countdown, sentence and due check) and keeps the cell position; the cell
+ # resumes from the paused values once the player is back.
+ var g=intake(t)
+ Spatial.at_site(g,"shard") # Shard sites always sit away from the wall.
+ var cell_position=g.state.prison.space.position.duplicate()
+ var wall_before=g.state.wall_distance
+ t.check(wall_before>0,"PRISON resistance fixture starts away from the wall")
+ inspect(t,g)
+ var left_before=g.state.prison.left
+ t.check(t.action(g,"prison",{"action":"resist"}).ok and g.state.phase=="battle" and g.state.prison.resisting,"PRISON resistance starts a real battle from the cell")
+ t.check(g.state.wall_distance==wall_before and g.state.prison.space.position==cell_position,"PRISON battle start keeps the cell wall distance and never repositions the player")
+ # The due date is already overdue when the battle starts: no battle round may spend it.
+ var due_limit=g.Prison.sentence_limit(g)
+ g.state.prison.served_turns=due_limit-1
+ for round_index in range(2):
+  g.state.posture="stand";g.state.pressure=0
+  t.check(t.action(g,"end").ok and g.state.phase=="battle","PRISON battle round %d ends inside the battle" % (round_index+1))
+  t.check(g.state.prison.served_turns==due_limit-1 and g.state.prison.left==left_before and g.state.prison.checks==0 and g.state.prison.sentence_extra==0 and not g.state.tower_start_pending,"PRISON battle round %d neither advances the clock nor runs the due release check" % (round_index+1))
+ g.state.posture="stand";g.state.enemies[0].hp=0.1
+ # The guard has bound the arms by now, so the formal close combat kick ends the battle.
+ t.check(t.action(g,"attack",{"type":"kick","enemy":g.state.enemies[0].id}).ok and g.state.phase=="reward" and g.state.prison.key,"PRISON resistance victory keeps the keyed cell")
+ t.action(g,"reward",{"type":"skip"})
+ var preparation=Game.new(42)
+ t.check(preparation.restore_snapshot(g.export_snapshot()).ok and preparation.state.phase=="prepare","PRISON battle-pause boundary restores the real post-battle preparation")
+ preparation.state.prison.served_turns=0
+ t.check(t.action(preparation,"end").ok and preparation.state.prison.served_turns==1 and preparation.state.prison.left==left_before and preparation.validate()=="","PRISON preparation advances the sentence while the patrol stays paused")
+ t.action(g,"finish_prepare")
+ t.check(g.state.phase=="prison" and g.state.prison.served_turns==due_limit-1 and g.state.prison.space.position==cell_position and g.state.wall_distance==Spatial.Space.wall_distance(cell_position),"PRISON return to the cell reuses the same position, the same paused clock and recomputes its wall distance")
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ g.state.posture="stand"
+ t.check(t.action(g,"end").ok and g.state.phase=="prison" and g.state.prison.served_turns==due_limit and g.state.prison.sentence_extra==B.PRISON_SENTENCE_PENALTY and g.state.prison.checks==1 and not g.state.tower_start_pending,"PRISON first cell turn after the return runs the due check and its eight-turn delay")
+ t.check(g.state.prison.left==left_before and g.state.prison.key,"PRISON keyed patrol stays paused across the delayed due check")
+ t.check(g.validate()=="","PRISON battle-pause scenario keeps a valid state")
 
 static func security_health_cases(t) -> void:
  for pair in [["drone_solo",10],["puppeteer_solo",20],["six_bind_solo",30]]:

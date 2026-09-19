@@ -18,9 +18,9 @@
       "text": " {p0}:{p1} x{p2}I don't think so. Tightness {p3} Tranche x{p4}"
     },
     {
-      "id": "legacy.hca19c362154f641a5ff69f50",
-      "source": "\n3级起可出现复合装备，每套占1个名额。5级进入高安全监室。",
-      "text": "\nComposite restraints become available from level 3; each whole set counts once. Level 5 leads to the high-security cell."
+      "id": "legacy.h0bd239bf9cc60574ec679e55",
+      "source": "\n3级起可出现复合装备，每套占1个名额。5级进入规格最高的普通牢房，追加高级3档装备，不进入终局。",
+      "text": "\nComposite restraints become available from level 3; each whole set counts once. Level 5 uses the most restrictive ordinary cell and adds advanced tier-3 equipment. It does not end the run."
     },
     {
       "id": "legacy.hf4c7d4cdeec4bc1b64a77e99",
@@ -700,7 +700,7 @@
     {
       "id": "legacy.h9e576d1cf1d43caa61895ffe",
       "source": "%d级：%s，%d档，%s。",
-      "text": "{p0}: {p1}, {p2}, {p3}."
+      "text": "Level {p0}: {p1}, tier {p2}, {p3}."
     },
     {
       "id": "legacy.h06109e8c340243d4cf4d74c4",
@@ -3328,9 +3328,9 @@
       "text": "Level five alert."
     },
     {
-      "id": "legacy.hfb52705fa61dc7a5f619c30c",
-      "source": "五级进入高安全监室。",
-      "text": "Level 5 leads to the high-security ending."
+      "id": "legacy.h68329210c26a824786dba188",
+      "source": "五级进入规格最高的普通牢房：追加高级3档普通／复合拘束具与特殊装备，巡视间隔最短、不自动出狱。",
+      "text": "Level 5 uses the most restrictive ordinary cell: advanced tier-3 ordinary/composite restraints and special equipment are added, patrol intervals are shortest, and there is no automatic release."
     },
     {
       "id": "legacy.hb1ec5a787fce4194babf1c99",
@@ -6203,11 +6203,6 @@
       "text": "One item is offset by one layer of consumption when it is about to be imposed on Restraint. Clear at the end of the field."
     },
     {
-      "id": "legacy.h50144cd75398e8bb7adc9558",
-      "source": "即将转入高安全监室。",
-      "text": "Transfer to the high-security cell follows."
-    },
-    {
       "id": "legacy.h5e7784ee7a0fde9ff63daaa1",
       "source": "卷轴",
       "text": "Scroll"
@@ -9071,6 +9066,11 @@
       "id": "legacy.h66e01b1094db0c0c06fe2f2c",
       "source": "守卫胜利后进入新地图起点选择；休息点和宝箱房不可选。",
       "text": "Defeating the guard opens starting-room selection for the new map. Rest and treasure rooms cannot be selected."
+    },
+    {
+      "id": "legacy.h92577b38311247c243539ff0",
+      "source": "安全等级1／2／3的刑期为20／30／50回合，4／5级不自动出狱。牢房与战后整备累计刑期，战斗暂停计时；检查确认不计回合。每次检查发现缺装或没收工具，最多延长8回合；正常充电、恢复消耗牌不延长。到期立即执行一次临时巡视检查，不重置正常巡视周期。检查不通过则处罚并延长8回合，下次到期重新检查；通过后按当前安全等级施加出狱装备，再选择新塔路起点。",
+      "text": "Sentences at security levels 1/2/3 last 20/30/50 turns. Levels 4/5 have no automatic release. Cell turns and post-battle preparation count toward the sentence; battle pauses the clock. Confirming an inspection does not consume a turn. Missing equipment or confiscated tools add at most 8 turns per inspection; normal recharging and restoring exhausted cards do not extend the sentence. When the sentence expires, an extra inspection runs immediately without resetting the normal patrol cycle. Failure brings punishment and 8 extra turns, with another check at the new deadline. Passing applies release equipment for the current security level before you choose a new tower starting point."
     },
     {
       "id": "legacy.h3df6bf88f15fd9d3822ed21b",
@@ -12183,9 +12183,9 @@
       "text": "The microlight in the Restraint stack of event practice"
     },
     {
-      "id": "legacy.h82d014ca51e19a1a4b5979c2",
-      "source": "拘束具少N件，补N＋2；特殊装备少N件，补N＋1。只降低耐久不算缺件，保留拘束具收紧至3档。\n任一清单缺件即没收全部道具；已安装工具每次都没收。检查完成后充电、更新清单并恢复消耗牌。\n可在狱警到达、宣布结果或完成检查时反抗，战斗期间暂停巡视。",
-      "text": "(a) Restraint, less N, supplementing N+2; Less special equipment N, plus N+1. Only lower Durability is not missing, keeping Restraint tight to level 3.  (a) The confiscation of all props in the absence of a copy of any list; The installed tools were confiscated each time. Recharge, update the list and restore consumption cards after the check has been completed.  They may resist upon arrival, announcement of the results or completion of the inspection by the prison guards and be suspended during the fighting."
+      "id": "legacy.hca7eda4e345312ff7ae7dd56",
+      "source": "拘束具少N件，补N＋2；特殊装备少N件，补N＋1。只降低耐久不算缺件，保留拘束具收紧至3档。\n任一清单缺件即没收全部道具；已安装工具每次都没收。检查完成后充电、更新清单并恢复消耗牌。\n可在狱警到达、宣布结果或完成检查时反抗，战斗期间巡视与刑期计时都暂停；战后整备只累计刑期。",
+      "text": "If N restraints are missing, add N+2; if N special items are missing, add N+1. Reduced durability alone does not count as missing equipment. Retained restraints tighten to tier 3.\nAny missing item on either list causes all items to be confiscated; installed tools are always confiscated. Completing an inspection recharges equipment, updates the lists, and restores exhausted cards.\nYou can resist when the guard arrives, announces the results, or finishes the inspection. Both patrol and sentence clocks pause during battle. Post-battle preparation advances only the sentence clock."
     },
     {
       "id": "legacy.he3b90e6b3150a21ff9b66df3",
@@ -14878,11 +14878,6 @@
       "text": "View ⁇"
     },
     {
-      "id": "legacy.h0fbb10997079e415b427fe61",
-      "source": "查看终局",
-      "text": "View Final"
-    },
-    {
       "id": "legacy.hde3be6c2c900e7be715fc058",
       "source": "查看详情 ＋",
       "text": "View Details +"
@@ -15278,9 +15273,9 @@
       "text": "Each turn of Energy returns to the upper limit (initial {p0}). Add a new sentence to the sentence of Energy. Draw the {p1} card.The attack, break-out and change of posture of Energy, Devices are used free of charge. Hand upper limit {p2}. End of turn discards; Draw Pile washes abandoned cards when you are free."
     },
     {
-      "id": "legacy.haa0a6f112e968151ecbe38a7",
-      "source": "每回合补能、抽牌。安全等级1—4的巡视周期为16／14／12／10回合，只在结束回合时倒计时；检查后重置。5级仍进入高安全监室。\n未蒙眼可直接选择目的地；蒙眼按前后左右探索，到达后发现地点。移动费用与向墙移动相同。",
-      "text": "The security phase 1-4 patrol cycle is 16/14/12/10 turns, counting down only at the end of the turn; reset after inspection. Level 5 is still in the high-security cell."
+      "id": "legacy.he754c6a36bda3329f18c6c36",
+      "source": "每回合补能、抽牌。安全等级1—5的巡视周期为16／14／12／10／8回合，只在结束回合时倒计时；检查后重置。\n未蒙眼可直接选择目的地；蒙眼按前后左右探索，到达后发现地点。移动费用与向墙移动相同。",
+      "text": "Energy refills and cards are drawn each turn. Patrol intervals at security levels 1-5 are 16/14/12/10/8 turns. The countdown advances only when a turn ends and resets after inspection.\nWithout a blindfold, select a destination directly. While blindfolded, explore forward, backward, left, or right and discover locations on arrival. Movement costs the same as moving toward a wall."
     },
     {
       "id": "legacy.h2478a811f8f4c4c03b1663be",
@@ -15396,6 +15391,11 @@
       "id": "legacy.h7247dc34c7d0fa7e82e6566a",
       "source": "每次入狱，警戒度＋1；携带卡组和遗物继续游玩也会保留，只有新开游戏归零。\n",
       "text": "Each imprisonment raises Security by 1. Continuing with your deck and relics preserves it; only a new game resets it.\n"
+    },
+    {
+      "id": "legacy.h1328bb4a18e4f135aa88293e",
+      "source": "每次入狱，警戒度＋1；携带卡组和遗物继续游玩也会保留，只有新开游戏归零。\n%s\n%s\n%s\n%s\n普通和复合拘束具按整件计数。不足保底时补齐并额外增加，全部至少2档；已达保底则不补装，全部收紧1档，最多3档。特殊装备以2档添加，空位不足不替换。\n3级起固定佩戴限制项圈，不占件数；须先开锁，再在双臂自由时取下。佩戴时禁止普通 henshin，品相完美版可以使用并直接解除项圈。\n检查补装的等级与紧度：\n%s\n%s\n%s\n%s\n%s\n3级起可出现复合装备，每套占1个名额。5级进入规格最高的普通牢房，追加高级3档装备，不进入终局。",
+      "text": "Each imprisonment raises Security by 1. Continuing with your deck and relics preserves it; only a new game resets it.\n{p0}\n{p1}\n{p2}\n{p3}\nCount each ordinary restraint or active composite root once. Below the minimum, fill to it and add the extra amount; all pieces become at least tier 2. At or above the minimum, add none and tighten each by 1 tier, capped at 3. Add tier-2 special equipment only to available slots, without replacement.\nFrom level 3, a separate Restriction Collar is equipped and excluded from the count. Unlock it, then remove it with both arms free. It blocks normal henshin, but Perfect henshin can remove it directly.\nInspection replacement grades and tiers:\n{p4}\n{p5}\n{p6}\n{p7}\n{p8}\nComposite restraints become available from level 3; each whole set counts once. Level 5 uses the most restrictive ordinary cell and adds advanced tier-3 equipment. It does not end the run."
     },
     {
       "id": "legacy.h7eb260520fb15fb4e8d2c669",
@@ -20343,11 +20343,6 @@
       "text": "Security and Imprisonment"
     },
     {
-      "id": "legacy.haa51185f89de188a1eaec3bf",
-      "source": "警戒度达到5，移入高安全监室。原装备结构与链接保留，普通与复合装备补齐至高级三档，可上锁处全部上锁；限制项圈继续保留。本次逃脱结束，可以检查最终装备或重新开始。",
-      "text": "Security reaches level 5. Transfer to the high-security cell preserves existing structures and links, fills ordinary and composite restraints to advanced tier 3, and locks every lockable piece. The Restriction Collar remains equipped. This escape attempt has ended; inspect your equipment or start a new game."
-    },
-    {
       "id": "legacy.h6b5a2db2cf29e9ca76d59e48",
       "source": "计算 · ",
       "text": "Calculate."
@@ -21728,14 +21723,14 @@
       "text": "Exit Game"
     },
     {
-      "id": "legacy.h7e41e4a332485a65fcca76e5",
-      "source": "逃出后依次经过休息点、出口精英战。出口警卫数量等于警戒度，胜利后领取1份奖励，保留现有状态回到新塔路。\n警戒度5入狱时进入高安全监室，装备补至高级3档并上锁，本局结束。",
-      "text": "The number of exit guards is equal to the level of alert. After the victory, they receive an incentive to return to the new tower."
+      "id": "legacy.hac3146bdd99af84f984b8880",
+      "source": "逃出后依次经过休息点、出口精英战。出口警卫数量等于警戒度，胜利后领取1份奖励，保留现有状态回到新塔路。\n警戒度5入狱进入规格最高的普通牢房：保留原装备，按名额追加高级3档装备，巡视间隔最短、刑期不自动结束，仍需自行逃脱；传送符仅限一至四级使用。",
+      "text": "After escaping, pass through a rest stop and an elite exit battle. The number of exit guards equals the security level. Win to claim one reward and return to a new tower route while retaining your current state.\nAt security level 5, intake leads to the most restrictive ordinary cell. Existing equipment is retained and advanced tier-3 equipment is added up to the quota. Patrol intervals are shortest and the sentence never ends automatically, so you must escape yourself. The Return Seal can only be used at levels 1-4."
     },
     {
-      "id": "legacy.ha012c36d55f2d9de9116a348",
-      "source": "逃离与高安全监室",
-      "text": "Escape and High Security Unit"
+      "id": "legacy.h7d217a0ee7f12417fbef6a1c",
+      "source": "逃离与五级牢房",
+      "text": "Escape and the Level-5 Cell"
     },
     {
       "id": "legacy.had703d42aa8abac8abe8cb3f",
@@ -23431,51 +23426,6 @@
       "id": "legacy.hb56d385b7607096a2fab4beb",
       "source": "高安全监室",
       "text": "High-Security Cell"
-    },
-    {
-      "id": "legacy.hd51f87be47ca41d5fa4a4bd6",
-      "source": "高安全监室仍有未被覆盖的部位。",
-      "text": "The high-security cells remain uncovered."
-    },
-    {
-      "id": "legacy.h53c694aaac8a72064950cafc",
-      "source": "高安全监室的追加装备未能完整安装。",
-      "text": "Additional equipment for the high security cell was not fully installed."
-    },
-    {
-      "id": "legacy.hecc5b4cf243f74b8d829637f",
-      "source": "高安全监室的限制项圈必须上锁。",
-      "text": "The Restriction Collar must be locked in the high-security cell."
-    },
-    {
-      "id": "legacy.h7478228fda6d60372239def1",
-      "source": "高安全监室：共%d件普通装备、组件与链接，全部高级三档（%s/%s耐久），可上锁处全部上锁。另佩戴无耐久的限制项圈。本局已经结束，可在左侧逐件检查。",
-      "text": "High-security cell: {p0} ordinary pieces, components and links, all advanced tier 3 ({p1}/{p2} durability), with every lockable piece locked. A durability-free Restriction Collar is equipped separately. This run has ended; inspect individual pieces on the left."
-    },
-    {
-      "id": "legacy.he4e299f647f30194f56b04c6",
-      "source": "高安全终局存在未覆盖部位。",
-      "text": "High security finals exist without coverage."
-    },
-    {
-      "id": "legacy.hae413f6bdbcbaf83023c2d22",
-      "source": "高安全终局清单记录不完整。",
-      "text": "The High Security Final List is incomplete."
-    },
-    {
-      "id": "legacy.hdf8415e6fe9e8517537a0188",
-      "source": "高安全终局缺少装备清单。",
-      "text": "A list of equipment is lacking at the end of the high security situation."
-    },
-    {
-      "id": "legacy.h3a3c20c422ce72e86ce625eb",
-      "source": "高安全终局装备必须为高级三档，并锁住所有可上锁处。",
-      "text": "The high-security final equipment must be in the advanced 3rd class and lock all locks."
-    },
-    {
-      "id": "legacy.h04794081b9b28cde65480a74",
-      "source": "高安全终局装备清单不完整。",
-      "text": "The list of high-security final equipment is incomplete."
     },
     {
       "id": "legacy.h24d894eab18fc851ca892b1f",
