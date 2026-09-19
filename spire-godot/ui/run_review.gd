@@ -2,7 +2,7 @@ extends RefCounted
 
 # docs/spec/run-review.md：本局回顾面板的唯一组装入口（与 ui/event_screen.gd::drawer 同形）。
 # Read-only display: it reads ui.view and ui.seed_report_text() and its only write is the copy
-# button calling ui.copy_seed(). No candidate, dispatch, save or clipboard call lives here.
+# button calling ui.copy_seed(). Nothing here submits a candidate, dispatches, or writes to disk.
 const TITLE_KEY="ui.run_review.title"
 const TITLE_FALLBACK="本局回顾"
 const RouteMap=preload("res://ui/route_map.gd")
