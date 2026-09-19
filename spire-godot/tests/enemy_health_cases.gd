@@ -1,7 +1,9 @@
 extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
+const LiveGame=preload("res://core/game.gd")
 
 static func run(t) -> void:
+ practice_descriptions(t)
  var health={"gag":24,"rope":30,"tape":30,"cable_tie":30,"lock":28,"mixed_bundle":56,"rope_serpent":60,"trader":56,"versatile":60,"guard":90,"puppeteer":96,"belt":30,"toybox":30,"small_circle":30,"ominous_circle":40,"drone":32,"binding_box":64,"rope_mass":48,"belt_mass":48,"rope_heap":96,"belt_heap":96,"puppet":10,"six_bind":220}
  for cycle in range(3):
   var g=Game.new(42);g.state.demo_cycle=cycle;g.state.enemies=[]
@@ -15,3 +17,21 @@ static func run(t) -> void:
  g=Game.new(42,true,"rope_serpent_solo");id=g.state.enemies[0].id
  for type in ["fireball","fireball","heavy"]: t.check(t.action(g,"attack",{"type":type,"enemy":id}).ok,"HEALTH ideal opening uses formal attack: "+type)
  t.check(g._enemy(id).hp==18 and g.state.energy==0,"HEALTH sixty-HP serpent survives the forty-two-damage three-energy opening")
+
+static func practice_descriptions(t) -> void:
+ var health_text=RegEx.new();health_text.compile("(\\d+)生命")
+ for kind in ["puppeteer_solo","binding_box_solo","drone_solo","mixed_bundle_solo","mixed_pair","rope_serpent_solo","small_circle_solo","versatile_solo"]:
+  var game=LiveGame.new(42,true,kind)
+  var before=game.export_snapshot()
+  var spec=game.Tower.practice_spec(kind)
+  var match=health_text.search(spec.description)
+  t.check(match!=null and int(match.get_string(1))==game.state.enemies[0].max_hp,"PRACTICE COPY health matches the real initialized encounter: "+kind)
+  t.check(game.export_snapshot()==before,"PRACTICE COPY reading the description preserves state and randomness: "+kind)
+  var type=game.state.enemies[0].type
+  var original=game.Enemies.TYPES[type].hp
+  # A temporary registry change proves descriptions follow balancing, not a copied literal.
+  game.Enemies.TYPES[type].hp=original+7
+  var changed=LiveGame.new(42,true,kind)
+  var updated=health_text.search(changed.Tower.practice_spec(kind).description)
+  t.check(updated!=null and int(updated.get_string(1))==changed.state.enemies[0].max_hp and changed.state.enemies[0].max_hp==original+7,"PRACTICE COPY registry edits update both spawned health and freshly read text: "+kind)
+  game.Enemies.TYPES[type].hp=original

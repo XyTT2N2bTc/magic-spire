@@ -52,6 +52,31 @@ GLOSSARY = {
 }
 
 MANUAL = {
+    # Keep current content/bootstrap diagnostics and authored event copy covered.
+    ': 需要 schema_version: %d、受支持的 kind 和英文小写 id。': ': Requires schema_version: {p0}, a supported kind, and a lowercase English id.',
+    '【离开】带着扣环绕过皮带群': '[Leave] Carry the buckle past the belts',
+    '不再理会皮带群，直接通过；没有额外效果。': 'Walk past the belts without further interaction; no additional effects.',
+    '不接受阶段：': 'Rejected phase: ',
+    '事件链上重复使用了暂存 key：': 'The event chain reuses a temporary-storage key: ',
+    '事件链记录不完整。': 'The event chain record is incomplete.',
+    '你捏了捏口袋里的软化扣环。带群似乎认得它，扣环依次松开，让出半条通道。你贴着墙走过去，没有回头。': 'You squeeze the Softened Buckle in your pocket. The belts seem to recognize it; their buckles loosen one by one, opening a narrow passage. You walk along the wall without looking back.',
+    '未声明的状态迁移：': 'Undeclared state transition: ',
+    '皮带群不认得你，硬挤过去只会被缠住。': 'The belts do not recognize you. Forcing your way through would only get you entangled.',
+    '紧缚尖塔demo v0.17.2': 'Bound Spire demo v0.17.2',
+    '节点 id 使用了保留字：': 'The node id uses a reserved word: ',
+    '跨事件跳转不能引用事件自身。': 'A cross-event jump cannot reference the current event.',
+    '跨事件跳转引用了不存在的节点。': 'A cross-event jump references a missing node.',
+    '跨事件跳转引用了尚未登记的事件。': 'A cross-event jump references an unregistered event.',
+    '跨事件跳转需要 event 与 node。': 'A cross-event jump requires event and node.',
+    '迁移': 'Transition',
+    # Practice health templates read the enemy registry; preserve all mechanics in English.
+    '%d生命人形精英。开场携带受保护的玩偶；首次行动激活玩偶反击与嘲讽，随后循环缝补、复合装束和特殊装束。玩偶溢出伤害全额转给玩偶师。': "{p0} HP humanoid elite. Starts with a protected Puppet; its first action enables the Puppet's counterattack and Taunt, then cycles through mending, composite restraints, and special restraints. All excess damage to the Puppet is transferred to the Puppeteer.",
+    '%d生命。首次施加40/100捕缚，固定为坐姿；每个玩家回合开始追加中级2档皮革拘束具并推进10点。盒内有三件中级2档复合装备。': '{p0} HP. Initially applies 40/100 Capture and forces a seated posture. At the start of each player turn, applies a Medium, Tightness 2 leather restraint and adds 10 Capture. Holds three Medium, Tightness 2 composite restraints.',
+    '%d生命。首回合建立30/100捕缚；之后施加或加固胶带、捕缚＋10、发呆，三步循环。': '{p0} HP. Establishes 30/100 Capture on its first turn, then repeats three actions: apply or reinforce tape, add 10 Capture, and idle.',
+    '%d生命。首招散缚，之后随机散缚、翻卷收紧或躁动膨胀；狂躁永久增加施加数量。': '{p0} HP. Opens by scattering restraints, then randomly scatters restraints, rolls and tightens them, or swells. Frenzy permanently increases the number of restraints applied.',
+    '与%d生命的游动的绳蛇战斗。缠身增加1层紧缠，之后等概率收紧或甩缚，再返回缠身。': 'Fight a Rope Serpent with {p0} HP. Coiling adds 1 stack of Entanglement, followed by an equal chance to tighten or lash out, then coiling again.',
+    '与%d生命的小型魔法阵战斗。首回合获得3点仪式，之后正常每次施加4、7、10……件。': 'Fight a Small Magic Circle with {p0} HP. Gains 3 Ritual on its first turn, then normally applies 4, 7, 10, and so on restraints per action.',
+    '与%d生命的多面手战斗。它会施加特殊装备、上锁或加固拘束具。': 'Fight a Versatile with {p0} HP. It applies special equipment, locks restraints, or reinforces them.',
     # Retain the reviewed PR #2 event/schema translations when rebuilding the catalog.
     'conditions 需要1—8条条件。': 'conditions needs 1-8 entries.',
     'has_relic 需要已注册的遗物 id。': 'has_relic needs a registered relic id.',
@@ -1126,6 +1151,7 @@ def main():
         digest = sha256(source.encode("utf-8")).hexdigest()[:24]
         text = MANUAL[source] if source in MANUAL else cache[source]
         messages.append({"id": "legacy.h" + digest, "source": source, "text": text})
+    messages.sort(key=lambda entry: entry["source"])
     document = {"schema_version": 1, "locale": "en_US", "messages": messages}
     OUTPUT.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"output": str(OUTPUT), "messages": len(messages)}, ensure_ascii=False))

@@ -100,6 +100,17 @@ static func run(t) -> void:
  t.check(l.diagnostics().is_empty() and l.locale=="zh_CN","LOCALE shipped resources load locally and default to Chinese: "+str(l.diagnostics()))
  t.check(l.coverage("zh_CN").total>0 and l.coverage("en_US").missing==0 and l.coverage("ja_JP").translated==0,"LOCALE English is complete for registered IDs while Japanese remains an empty scaffold")
  t.check(l.set_locale("en_US") and l.text("ui.home.title","紧缚尖塔")=="Bound Spire","LOCALE registered English copy resolves through its semantic ID")
+ var practice_health=RegEx.new();practice_health.compile("(\\d+)生命")
+ var chinese=RegEx.new();chinese.compile("[\\x{3400}-\\x{9fff}]")
+ for kind in ["puppeteer_solo","binding_box_solo","drone_solo","mixed_bundle_solo","mixed_pair","rope_serpent_solo","small_circle_solo","versatile_solo"]:
+  var source=preload("res://data/tower.gd").practice_spec(kind).description
+  var hp=practice_health.search(source)
+  var translated=l.display(source)
+  t.check(hp!=null and translated.contains(hp.get_string(1)+" HP") and chinese.search(translated)==null,"LOCALE practice description translates full mechanics and current health: "+kind)
+  if hp!=null:
+   var next_hp=int(hp.get_string(1))+7
+   var updated=practice_health.sub(source,"%d生命" % next_hp)
+   t.check(l.display(updated).contains(str(next_hp)+" HP") and chinese.search(l.display(updated))==null,"LOCALE practice template preserves health after later balancing: "+kind)
  var save_help=l.display(preload("res://data/tutorial.gd").SAVE_HELP)
  t.check(save_help=="Autosaves occur on entering a higher floor, after battle, or after preparation. Continue restores the last saved start; Quick SL restores the current scene start.","LOCALE save help distinguishes automatic disk checkpoints from current-scene Quick SL")
  t.check(l.display("离地0.2米的墙缝")=="Wall crack 0.2 m above the floor" and l.display("离地1.4米的墙缝")=="Wall crack 1.4 m above the floor","LOCALE installed tool labels preserve the actual numeric height")

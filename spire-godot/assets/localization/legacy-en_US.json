@@ -673,6 +673,26 @@
       "text": "{p0} point. Number + {p1}"
     },
     {
+      "id": "legacy.h86d80b677316c98a904ceae8",
+      "source": "%d生命。首回合建立30/100捕缚；之后施加或加固胶带、捕缚＋10、发呆，三步循环。",
+      "text": "{p0} HP. Establishes 30/100 Capture on its first turn, then repeats three actions: apply or reinforce tape, add 10 Capture, and idle."
+    },
+    {
+      "id": "legacy.h4997e655302651d42fb1717d",
+      "source": "%d生命。首招散缚，之后随机散缚、翻卷收紧或躁动膨胀；狂躁永久增加施加数量。",
+      "text": "{p0} HP. Opens by scattering restraints, then randomly scatters restraints, rolls and tightens them, or swells. Frenzy permanently increases the number of restraints applied."
+    },
+    {
+      "id": "legacy.h956b5f27370848bf50885a4c",
+      "source": "%d生命。首次施加40/100捕缚，固定为坐姿；每个玩家回合开始追加中级2档皮革拘束具并推进10点。盒内有三件中级2档复合装备。",
+      "text": "{p0} HP. Initially applies 40/100 Capture and forces a seated posture. At the start of each player turn, applies a Medium, Tightness 2 leather restraint and adds 10 Capture. Holds three Medium, Tightness 2 composite restraints."
+    },
+    {
+      "id": "legacy.h71eee5e447c005d7ade15dd9",
+      "source": "%d生命人形精英。开场携带受保护的玩偶；首次行动激活玩偶反击与嘲讽，随后循环缝补、复合装束和特殊装束。玩偶溢出伤害全额转给玩偶师。",
+      "text": "{p0} HP humanoid elite. Starts with a protected Puppet; its first action enables the Puppet's counterattack and Taunt, then cycles through mending, composite restraints, and special restraints. All excess damage to the Puppet is transferred to the Puppeteer."
+    },
+    {
       "id": "legacy.he0cda514ecc22d1490f8facf",
       "source": "%d级",
       "text": "{p0}"
@@ -973,11 +993,6 @@
       "text": "2 Energy"
     },
     {
-      "id": "legacy.h83241975929c21db8e2233dd",
-      "source": "32生命。首回合建立30/100捕缚；之后施加或加固胶带、捕缚＋10、发呆，三步循环。",
-      "text": "32 Lives. The first turn establishes 30/100 traps; subsequent imposition or reinforcement of tape, catch + 10, depression, three-step cycle."
-    },
-    {
       "id": "legacy.h45ba611afa3a305986ba7046",
       "source": "3枚筹码 · 移除一张牌并获得开锁针",
       "text": "Three chips. Remove a card and get a locket."
@@ -1003,11 +1018,6 @@
       "text": "3 Energy and above"
     },
     {
-      "id": "legacy.ha3cc932ddd47e546fe3aec29",
-      "source": "42生命。首招散缚，之后随机散缚、翻卷收紧或躁动膨胀；狂躁永久增加施加数量。",
-      "text": "42 Lives. First wave spreads, then randomly spreads, rolls tight, or manoeuvring swells; mangy increases the number of impositions permanently."
-    },
-    {
       "id": "legacy.hb915217b087b4140f8996161",
       "source": "4枚筹码 · 领取随机遗物",
       "text": "Four chips. Pick up random pieces."
@@ -1018,11 +1028,6 @@
       "text": "5 mm x 10 cm Silicon glucose eye bar"
     },
     {
-      "id": "legacy.h2f7ebbaf97d630f945124f15",
-      "source": "64生命。首次施加40/100捕缚，固定为坐姿；每个玩家回合开始追加中级2档皮革拘束具并推进10点。盒内有三件中级2档复合装备。",
-      "text": "64 Lives. For the first time, 40/100 caps are applied to sit-in positions; each player starts an additional 2-stage leather Restraint and pushes 10 points."
-    },
-    {
       "id": "legacy.h90bf6f03b9b26eab4ecb97ee",
       "source": "6回合平板锁专项练习。开场装备会提高快感上限、持续产生刺激，并按真实上锁与加固带规则限制解除。提供小石片、锯条和额外一张术式解锁。",
       "text": "Six turns of the Plate Lock special exercise. The opening equipment increases the ceiling for Arousal, creates continuous stimulus and is released according to the real locking and strengthening rules. Provide small pieces of rock, saws, and an additional Spell Unlock."
@@ -1031,11 +1036,6 @@
       "id": "legacy.h6b5575af5c6bf13e9cdb9c8f",
       "source": "6回合，3次挂钩，两件切割工具。自由卡面禁用；操作仍需满足身体、姿态与目标条件。",
       "text": "Six turns, three connections, two cutting tools. Free card face is disabled; the operation still needs to meet physical, attitude and target conditions."
-    },
-    {
-      "id": "legacy.hb5eee62918d6081f22b2bb64",
-      "source": "72生命人形精英。召唤玩偶、赋予嘲讽后，循环缝补、复合装束和特殊装束；玩偶溢出伤害全额转给玩偶师。",
-      "text": "72 Lifeful human elites. Call on dolls, give them a sense of humor, recycle stitches, composites and special outfits; dolls spill out of Damage and transfer them in full to dolls."
     },
     {
       "id": "legacy.hab7eddd968f060af87eff587",
@@ -1078,9 +1078,9 @@
       "text": ": Line: {p0}: {p1}"
     },
     {
-      "id": "legacy.h0aaf444d4ee74e262fb29ca8",
-      "source": ": 需要 schema_version: 1、受支持的 kind 和英文小写 id。",
-      "text": ": Need schema_version: 1, supported kind and English lowercase id."
+      "id": "legacy.hb194707336d89e6c6d3e5ad6",
+      "source": ": 需要 schema_version: %d、受支持的 kind 和英文小写 id。",
+      "text": ": Requires schema_version: {p0}, a supported kind, and a lowercase English id."
     },
     {
       "id": "legacy.hf733619b9c8ded175a65d640",
@@ -2008,6 +2008,11 @@
       "text": "Recovery of 20 Mana with two randomly worn primary 2 Restraint"
     },
     {
+      "id": "legacy.hc4328c1b69a75f181035aa16",
+      "source": "【离开】带着扣环绕过皮带群",
+      "text": "[Leave] Carry the buckle past the belts"
+    },
+    {
       "id": "legacy.h1ad76c640f85e330cd69e1ed",
       "source": "【离开】放下薄纱",
       "text": "[Leave] Put down the veil."
@@ -2623,6 +2628,11 @@
       "text": "Do not fold with a break on your belt. Removes the field at the end of the setup."
     },
     {
+      "id": "legacy.h8eb706dde8805a8faf405bd1",
+      "source": "不再理会皮带群，直接通过；没有额外效果。",
+      "text": "Walk past the belts without further interaction; no additional effects."
+    },
+    {
       "id": "legacy.h08e242477bbdc717807bb745",
       "source": "不受口部减效影响。",
       "text": "Not affected by oral impairments."
@@ -2651,6 +2661,11 @@
       "id": "legacy.he8819e722a0d58e40cf7068f",
       "source": "不同来源的伤害倍率相乘。同一来源能否叠加见效果说明。",
       "text": "A multiplication of the Damage from different sources. Whether or not the same source is able to supersume the effect statement."
+    },
+    {
+      "id": "legacy.h4db8ed77d3654a9a994f5d2f",
+      "source": "不接受阶段：",
+      "text": "Rejected phase: "
     },
     {
       "id": "legacy.h70c4ccca38a04a598cfd7d61",
@@ -2728,24 +2743,24 @@
       "text": "and"
     },
     {
-      "id": "legacy.h78bb96de01148be05a9b4dc3",
-      "source": "与30生命的小型魔法阵战斗。首回合获得3点仪式，之后正常每次施加4、7、10……件。",
-      "text": "Fight with the 30-life mini-magic array. The first turn received a three-point ritual, followed by a normal pass of 4, 7, 10..."
+      "id": "legacy.hc03d77fd45d90e9d09568f46",
+      "source": "与%d生命的多面手战斗。它会施加特殊装备、上锁或加固拘束具。",
+      "text": "Fight a Versatile with {p0} HP. It applies special equipment, locks restraints, or reinforces them."
+    },
+    {
+      "id": "legacy.h7436896d02d955134747c59f",
+      "source": "与%d生命的小型魔法阵战斗。首回合获得3点仪式，之后正常每次施加4、7、10……件。",
+      "text": "Fight a Small Magic Circle with {p0} HP. Gains 3 Ritual on its first turn, then normally applies 4, 7, 10, and so on restraints per action."
+    },
+    {
+      "id": "legacy.h2018d7fcb96af244b1155a38",
+      "source": "与%d生命的游动的绳蛇战斗。缠身增加1层紧缠，之后等概率收紧或甩缚，再返回缠身。",
+      "text": "Fight a Rope Serpent with {p0} HP. Coiling adds 1 stack of Entanglement, followed by an equal chance to tighten or lash out, then coiling again."
     },
     {
       "id": "legacy.h76c5d488cbad3bf6ae3dc01d",
       "source": "与3只初级漂浮皮带战斗；胜利后获得稀有遗物「软化扣环」。",
       "text": "Fight three lesser Floating Belts; victory grants the rare relic “Softened Buckle.”"
-    },
-    {
-      "id": "legacy.he525a425d0ffb27085bbcaae",
-      "source": "与40生命的游动的绳蛇战斗。缠身增加1层紧缠，之后等概率收紧或甩缚，再返回缠身。",
-      "text": "Fights with a 40-life moving snake."
-    },
-    {
-      "id": "legacy.h1a0f1866d48edb0a54f14356",
-      "source": "与44生命的多面手战斗。它会施加特殊装备、上锁或加固拘束具。",
-      "text": "Fights with 44-faced men. It imposes special equipment, locks or reinforcements on Restraint."
     },
     {
       "id": "legacy.h52480c1f70317e3f471950ca",
@@ -3033,11 +3048,6 @@
       "text": "The eventpol must have a boolean value."
     },
     {
-      "id": "legacy.haf37e1bef28fa1830ede314b",
-      "source": "事件中的身体刺激",
-      "text": "Physical irritation in the event."
-    },
-    {
       "id": "legacy.hc73317cf1a1bc5d216afb68c",
       "source": "事件介绍不能为空或过长。",
       "text": "The event introduction is empty or too long."
@@ -3276,6 +3286,16 @@
       "id": "legacy.haf130c187ff67aa1260df852",
       "source": "事件道具领取进度损坏。",
       "text": "Incident props received damage to progress."
+    },
+    {
+      "id": "legacy.h5f937526742abc0597167020",
+      "source": "事件链上重复使用了暂存 key：",
+      "text": "The event chain reuses a temporary-storage key: "
+    },
+    {
+      "id": "legacy.h461c11a559e52c219884543a",
+      "source": "事件链记录不完整。",
+      "text": "The event chain record is incomplete."
     },
     {
       "id": "legacy.h491a2c2e82343763a53cdbc9",
@@ -3911,6 +3931,11 @@
       "id": "legacy.h8c0b2fc2fd2412c5fd1a9fff",
       "source": "你拿着抄下来的路线独自走进迷宫，在深处找到了一整箱魔力结晶。蓝光不断涌入魔瓶，直到最后一块结晶彻底暗下去。\n\n返回时，两件藏在暗处的附魔拘束具突然扑了上来，紧紧缠住你的身体。等你带着装满魔力的瓶子走出迷宫，身上也已经多了两件甩不掉的新装备。",
       "text": "You walk into the labyrinth alone with the trajectories that you copied. Found a whole box of Mana crystals in deep.The blue light is pouring into the bottle. Until the last piece of crystal goes completely dark. On return, Two of the demons hidden in the dark, Restraint, came up suddenly,Tighten up your body. When you get out of the maze with a bottle full of Mana, Two new pieces of equipment that can't be dropped have been added to them."
+    },
+    {
+      "id": "legacy.h92e6d2009b763e84ffb46fde",
+      "source": "你捏了捏口袋里的软化扣环。带群似乎认得它，扣环依次松开，让出半条通道。你贴着墙走过去，没有回头。",
+      "text": "You squeeze the Softened Buckle in your pocket. The belts seem to recognize it; their buckles loosen one by one, opening a narrow passage. You walk along the wall without looking back."
     },
     {
       "id": "legacy.hc786af82ab10f4f2c1578ba6",
@@ -8128,6 +8153,11 @@
       "text": "Taru saves progress with exercise."
     },
     {
+      "id": "legacy.hdee14d14259eb8157e075f45",
+      "source": "塔路与练习分别保存，重开覆盖对应进度。练习不提供塔路奖励。",
+      "text": "Tower runs and practice save separately. Restarting replaces that mode's progress. Practice grants no tower rewards."
+    },
+    {
       "id": "legacy.h95e6474feac7cda091a75ac2",
       "source": "塔路场景起点已保存。",
       "text": "The starting point of the tower scene has been saved."
@@ -9688,9 +9718,9 @@
       "text": "Exploited"
     },
     {
-      "id": "legacy.h526e1d239e781587a53b51c5",
-      "source": "已回到当前场景开始。",
-      "text": "It's back to the current scene."
+      "id": "legacy.hc329652fdf36b5ed1a8e2926",
+      "source": "已回到最近保存的起点。",
+      "text": "Returned to the last saved start."
     },
     {
       "id": "legacy.h317c1a85ec1cb55f863f1bb6",
@@ -14163,6 +14193,11 @@
       "text": "Not Arrival"
     },
     {
+      "id": "legacy.h781235f4e8cfbfbd5cd32c12",
+      "source": "未声明的状态迁移：",
+      "text": "Undeclared state transition: "
+    },
+    {
       "id": "legacy.h728462ef1be31c3396660613",
       "source": "未生效：",
       "text": "Not in force:"
@@ -17168,6 +17203,11 @@
       "text": "Belt rises."
     },
     {
+      "id": "legacy.h00aeae2f3dcebd98ecadb548",
+      "source": "皮带群不认得你，硬挤过去只会被缠住。",
+      "text": "The belts do not recognize you. Forcing your way through would only get you entangled."
+    },
+    {
       "id": "legacy.h578a853e50569a9ae966ca27",
       "source": "皮革",
       "text": "Leather"
@@ -18103,9 +18143,9 @@
       "text": "Bound Spire"
     },
     {
-      "id": "legacy.hdad2c1502920ee18a89f85eb",
-      "source": "紧缚尖塔demo v0.17",
-      "text": "Bound Spire demo v0.17"
+      "id": "legacy.ha681ad4b5624c8cd8d29f62e",
+      "source": "紧缚尖塔demo v0.17.2",
+      "text": "Bound Spire demo v0.17.2"
     },
     {
       "id": "legacy.h1b6e413044be1b46ad3aeb0a",
@@ -19108,16 +19148,6 @@
       "text": "(b) Automatically locked complex toys; When the lock is unlocked, any positive number of Slip Damage is removed."
     },
     {
-      "id": "legacy.h23c9f857a025809227c0e217",
-      "source": "自动保存场景起点，继续游戏时从此处重来。",
-      "text": "Automatically saves the scene starting point from here when you continue the game."
-    },
-    {
-      "id": "legacy.h656e7c1051f398c476f7b2dc",
-      "source": "自动保存当前场景的起点，从菜单恢复。塔路与练习分别保存，重开覆盖对应进度。练习不提供塔路奖励。",
-      "text": "Automatically saves the starting point of the current scene and restores it from the menu. The towers are saved separately from the exercise, and overwhelming the progress. The exercise does not provide a road reward."
-    },
-    {
       "id": "legacy.h844c739d160758170902a0dc",
       "source": "自动前进",
       "text": "Automatically advance"
@@ -19396,6 +19426,11 @@
       "id": "legacy.h15f4fdee9aedc604ecf7afc2",
       "source": "般若汤阶段或饮用配置不正确。",
       "text": "The Hannya Brew phase or drinking configuration is not correct."
+    },
+    {
+      "id": "legacy.hb30057233115d70ee6f2db7e",
+      "source": "节点 id 使用了保留字：",
+      "text": "The node id uses a reserved word: "
     },
     {
       "id": "legacy.h7a52f0dd4547b57512f2d835",
@@ -20798,6 +20833,26 @@
       "text": "Damage to wall distance."
     },
     {
+      "id": "legacy.hf7ef215c3347e8be86de2ee7",
+      "source": "跨事件跳转不能引用事件自身。",
+      "text": "A cross-event jump cannot reference the current event."
+    },
+    {
+      "id": "legacy.h441a97102eba9beb659eb35c",
+      "source": "跨事件跳转引用了不存在的节点。",
+      "text": "A cross-event jump references a missing node."
+    },
+    {
+      "id": "legacy.hf4f80061ebc3a1cef0b1007e",
+      "source": "跨事件跳转引用了尚未登记的事件。",
+      "text": "A cross-event jump references an unregistered event."
+    },
+    {
+      "id": "legacy.hd53f4a219472b08361cbf1d2",
+      "source": "跨事件跳转需要 event 与 node。",
+      "text": "A cross-event jump requires event and node."
+    },
+    {
       "id": "legacy.h72fa3014d5d44f22367a6c72",
       "source": "跨战能量",
       "text": "Crossfire Energy"
@@ -21038,6 +21093,11 @@
       "text": "It's reached the 3rd Tightness and it's automatically buttoned."
     },
     {
+      "id": "legacy.hc175e224c89a493eefa5a8d7",
+      "source": "迁移",
+      "text": "Transition"
+    },
+    {
       "id": "legacy.h78d0fefa0c6496a21bbd87b4",
       "source": "运气",
       "text": "Breath Control"
@@ -21161,11 +21221,6 @@
       "id": "legacy.hb75a0741321569436ab8441c",
       "source": "这一阶段没有能够执行的选项。",
       "text": "There are no options that can be implemented at this stage."
-    },
-    {
-      "id": "legacy.hbe6fbb665a810824ce3c074b",
-      "source": "这段事件已经走过，不能再回头。",
-      "text": "This event has already happened. You cannot go back."
     },
     {
       "id": "legacy.h38d2d5d43fdc6532f5792529",
@@ -21358,6 +21413,11 @@
       "text": "This time, Struggle just took it off."
     },
     {
+      "id": "legacy.hbe6fbb665a810824ce3c074b",
+      "source": "这段事件已经走过，不能再回头。",
+      "text": "This event has already happened. You cannot go back."
+    },
+    {
       "id": "legacy.he8674b598af24104f69f5fd1",
       "source": "这种特殊装备不支持上锁。",
       "text": "This special equipment does not support locking."
@@ -21431,6 +21491,11 @@
       "id": "legacy.h89607e125d970c85a12b57c0",
       "source": "进入战斗后计数，第%d个玩家回合结束时触发。",
       "text": "After the battle, count.{p0} Trigger at the end of a player's turn."
+    },
+    {
+      "id": "legacy.hdccc5829eb5252bdd6c817a8",
+      "source": "进入新楼层、战斗结束或休整结束时自动保存。继续游戏会回到最近保存的起点；快速SL回到当前场景起点。",
+      "text": "Autosaves occur on entering a higher floor, after battle, or after preparation. Continue restores the last saved start; Quick SL restores the current scene start."
     },
     {
       "id": "legacy.hf8008aa6eb1b278ca9d6fdf1",
@@ -21871,11 +21936,6 @@
       "id": "legacy.h29c70a4e994343151ec7fc2b",
       "source": "选项 effects 最多12项。",
       "text": "An option takes at most 12 effects."
-    },
-    {
-      "id": "legacy.hde6b7d643ce05c0ac34aff5e",
-      "source": "选项 id 重复／无效，或 label 文案为空。",
-      "text": "option id repeats/is invalid, or label text is empty."
     },
     {
       "id": "legacy.hc3279a999ef3623fe29bb554",
@@ -22516,11 +22576,6 @@
       "id": "legacy.he1a444097e30f3c0560d5985",
       "source": "阶段完成",
       "text": "Phase completed"
-    },
-    {
-      "id": "legacy.hb2592c71cd25b0f9a00f9917",
-      "source": "阶段选项 result_status 必须为 neutral、success 或 failure。",
-      "text": "Stage options are required to be nonutral, access or fair."
     },
     {
       "id": "legacy.h2ab7458f48b1006d1a8f2b18",
@@ -24741,21 +24796,6 @@
       "id": "legacy.hc11671463eb6f442371f7d41",
       "source": "；降档后仍保留。",
       "text": ";retain after downgrade."
-    },
-    {
-      "id": "legacy.hdccc5829eb5252bdd6c817a8",
-      "source": "进入新楼层、战斗结束或休整结束时自动保存。继续游戏会回到最近保存的起点；快速SL回到当前场景起点。",
-      "text": "Autosaves occur on entering a higher floor, after battle, or after preparation. Continue restores the last saved start; Quick SL restores the current scene start."
-    },
-    {
-      "id": "legacy.hc329652fdf36b5ed1a8e2926",
-      "source": "已回到最近保存的起点。",
-      "text": "Returned to the last saved start."
-    },
-    {
-      "id": "legacy.hdee14d14259eb8157e075f45",
-      "source": "塔路与练习分别保存，重开覆盖对应进度。练习不提供塔路奖励。",
-      "text": "Tower runs and practice save separately. Restarting replaces that mode's progress. Practice grants no tower rewards."
     }
   ]
 }

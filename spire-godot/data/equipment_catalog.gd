@@ -3,6 +3,7 @@ extends RefCounted
 const B=preload("res://data/balance.gd")
 const C=preload("res://data/composites.gd")
 const E=preload("res://data/equipment.gd")
+const Enemies=preload("res://data/enemies.gd")
 
 # Playable fixtures use the same factories as all equipment sources, never a second rules engine.
 static func scenario(name: String, hint: String, equipment: Array=[], assemblies: Array=[]) -> Dictionary:
@@ -30,25 +31,25 @@ static func entries() -> Dictionary:
  shop.start="shop";shop.items=[];shop.description="直接进入正式商店，使用当前商店库存与价格。"
  result.shop=entry("shop","",shop)
  var puppet=scenario("玩偶师练习","保护从玩偶出生起生效；嘲讽出现前可以直接攻击玩偶师。")
- puppet.description="72生命人形精英。召唤玩偶、赋予嘲讽后，循环缝补、复合装束和特殊装束；玩偶溢出伤害全额转给玩偶师。"
+ puppet.description="%d生命人形精英。开场携带受保护的玩偶；首次行动激活玩偶反击与嘲讽，随后循环缝补、复合装束和特殊装束。玩偶溢出伤害全额转给玩偶师。" % Enemies.TYPES.puppeteer.hp
  puppet.encounter="puppeteer_solo";puppet.items=[]
  result.puppeteer_solo=entry("puppeteer_solo","wrist",puppet)
  var box=scenario("魔导拘束盒练习","用魔法突破坚硬，及时削减捕缚进度。")
- box.description="64生命。首次施加40/100捕缚，固定为坐姿；每个玩家回合开始追加中级2档皮革拘束具并推进10点。盒内有三件中级2档复合装备。"
+ box.description="%d生命。首次施加40/100捕缚，固定为坐姿；每个玩家回合开始追加中级2档皮革拘束具并推进10点。盒内有三件中级2档复合装备。" % Enemies.TYPES.binding_box.hp
  box.encounter="binding_box_solo";box.items=[]
  result.binding_box_solo=entry("binding_box_solo","thigh",box)
  var drone=scenario("魔导无人机练习","用魔法突破坚硬；注意消耗能量时的捕缚增长。")
- drone.description="32生命。首回合建立30/100捕缚；之后施加或加固胶带、捕缚＋10、发呆，三步循环。"
+ drone.description="%d生命。首回合建立30/100捕缚；之后施加或加固胶带、捕缚＋10、发呆，三步循环。" % Enemies.TYPES.drone.hp
  drone.encounter="drone_solo";drone.items=[]
  result.drone_solo=entry("drone_solo","wrist",drone)
  var mixed=scenario("杂乱拘束具练习","抓住躁动膨胀的空当，尽快击散这一团拘束具。")
- mixed.description="42生命。首招散缚，之后随机散缚、翻卷收紧或躁动膨胀；狂躁永久增加施加数量。"
+ mixed.description="%d生命。首招散缚，之后随机散缚、翻卷收紧或躁动膨胀；狂躁永久增加施加数量。" % Enemies.TYPES.mixed_bundle.hp
  mixed.encounter="mixed_bundle_solo";mixed.items=[]
  result.mixed_bundle_solo=entry("mixed_bundle_solo","wrist",mixed)
  var pair=mixed.duplicate(true);pair.name="两团杂乱拘束具练习";pair.encounter="mixed_pair"
  result.mixed_pair=entry("mixed_pair","wrist",pair)
  var serpent=scenario("绳蛇练习","紧缠会在你的回合结束时施加装备；击败绳蛇可以停止它。")
- serpent.description="与40生命的游动的绳蛇战斗。缠身增加1层紧缠，之后等概率收紧或甩缚，再返回缠身。"
+ serpent.description="与%d生命的游动的绳蛇战斗。缠身增加1层紧缠，之后等概率收紧或甩缚，再返回缠身。" % Enemies.TYPES.rope_serpent.hp
  serpent.encounter="rope_serpent_solo";serpent.items=[]
  result.rope_serpent_solo=entry("rope_serpent_solo","wrist",serpent)
  var circle=scenario("魔法阵练习","首回合启动仪式，之后每回合施加数量持续增长，尽快击破法阵。")
@@ -57,14 +58,14 @@ static func entries() -> Dictionary:
  result.ominous_circle_solo=entry("ominous_circle_solo","wrist",circle)
  var small_circle=circle.duplicate(true)
  small_circle.name="小型魔法阵练习";small_circle.encounter="small_circle_solo"
- small_circle.description="与30生命的小型魔法阵战斗。首回合获得3点仪式，之后正常每次施加4、7、10……件。"
+ small_circle.description="与%d生命的小型魔法阵战斗。首回合获得3点仪式，之后正常每次施加4、7、10……件。" % Enemies.TYPES.small_circle.hp
  result.small_circle_solo=entry("small_circle_solo","wrist",small_circle)
  var trader=scenario("奴隶贩子练习","先施加两件初级拘束具，再让你无力化1个玩家回合，随后施加中级拘束具并获得准备就绪，最后优先施加马具口球或眼罩。后两轮跳过无力化，第11次行动收押。")
  trader.description="与被魔法控制的奴隶贩子进行独立战斗。无力化会禁用三种基础攻击，火球和卡牌魔法不受它影响；准备就绪可叠层，每成功施加一件消耗一层，使该件紧度为3档，失败保留。"
  trader.encounter="trader_solo";trader.items=[]
  result.trader_solo=entry("trader_solo","wrist",trader)
  var versatile=scenario("多面手练习","第1回合发呆；之后安装性玩具，并在随机上锁或加固两件之间行动。",[ordinary("belt","wrist",1,false,0.4),ordinary("belt","forearm",1,false,0.4)])
- versatile.description="与44生命的多面手战斗。它会施加特殊装备、上锁或加固拘束具。"
+ versatile.description="与%d生命的多面手战斗。它会施加特殊装备、上锁或加固拘束具。" % Enemies.TYPES.versatile.hp
  versatile.encounter="versatile_solo";versatile.items=[]
  result.versatile_solo=entry("versatile_solo","special_3",versatile)
  var shoulders=scenario("肩部链接练习","左右肩独立处理；两条都在时原件不可滑脱，剩一条效果减半。肩带不能挣扎，交叉型须松到一档才能滑脱。",[ordinary("rope","upper_arm",1,false,0.8)])

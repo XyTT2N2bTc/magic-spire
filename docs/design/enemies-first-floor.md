@@ -55,6 +55,7 @@
 | 六缚 | `six_bind` | 220 | 6 | 开场六区＋八步循环 |
 
 - 数值出处：`data/enemies.gd::TYPES`；漂浮绳索／皮带／口球／锁／警卫的生命读 `data/balance.gd::ROPE_HP/BELT_HP/SILENCER_HP/LOCK_HP/GUARD_HP`。
+- 练习目录中显示的敌人生命由 `data/equipment_catalog.gd::entries` 读取 `Enemies.TYPES` 生成，经 `Tower.practice_spec` 与 `Tower.all_practices` 提供；不另写一份生命常量。中文、英文与正式练习初始化的一致性由 `enemy_health_cases.gd::practice_descriptions` 和 `localization_cases.gd::run` 覆盖。Wiki 等导出应读取注册表；练习描述只作说明来源，不能反向解析成规则数据。
 - 生命在出生点按周目倍率（1／1.5／2）与入狱加成计算，见 §9；强度仅是组队预算，精英强度尚未指定，不临时赋值。
 
 ## 4. 弱怪行动
