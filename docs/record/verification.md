@@ -1571,3 +1571,13 @@ RuleChangePackage（加性、零规则改动：不动候选、数值、存档、
 - 工作区说明：本轮有另一任务在同一工作区在途改动（`core/content_catalog.gd`、`tools/*.ps1`），窗口门另有三次同样 `UI PASS: 217` 但被 `source_changed` 标记的轮次（`build/checks/20260919T045244562-24840`／`20260919T050521650-28376`／`20260919T051120012-40596`）与一次在 `209dd5e` 干净基线（`git stash`）上的 PASS 217（`20260919T045003779-46524`，同样被 `source_changed` 标记），均未计作证据。
 
 **未验证（本轮未跑，按人指示留到定稿轮）**：oracle、像素判据、性能测量；未打包、未推送。范围外行为照旧未改：战斗结束后的奖励与整备相位仍按完成回合累计刑期（只有战斗相位暂停），`state.phase=="prison"` 之外的 `end` 行为未加断言。
+
+### 2026-09-19 重跑复核：rebase 到 `origin/main`（71d2b28，含作者 v0.17.2 整合）之后（协调者）
+
+域：本分支四提交——五级＝普通牢房（`3ad81d3`）、战斗内暂停牢房计时并保留位置（`433df58`）、内容包根常量（`29eec43`）、记录（`d3b0592`）。上面那组门禁跑在 rebase 前的旧快照上（指纹 `409D2AF2…`）；rebase 后树里含作者 v0.17.2 的内容，重新取证如下。
+
+- 规则门 `tools/check.ps1 -Suite prison,persistence,tower_progression,exploration,content,application,runner,architecture -TimeoutSeconds 1800` → 退出码 **0**、8/8 PASS、`PASS: 4234 assertions`（`build/checks/20260919T055237178-5988`；before==after==`907FE409…`，无 `SOURCE CHANGED`，`unrun=[]`）。逐套件：application 71／architecture 479／content 578／exploration 198／runner 435／persistence 955／prison 1293／tower_progression 225。
+- 窗口门 `tools/check.ps1 -UIOnly -UISuite prison -TimeoutSeconds 1800` → 退出码 **0**、`UI PASS: 217 assertions`（`build/checks/20260919T055540091-16808`；与规则门同一指纹）。
+- 覆盖未缩水的旁证：prison＋persistence＋tower_progression＋exploration＝2671 断言、content＋application＋runner＋architecture＝1563 断言，与 rebase 前**逐数相等**。
+- **登记集漂移（按实际报告为准）**：本文件既有登记的 `tower_progression` 10＋1 在本轮未复现（225 断言 PASS）——作者 v0.17.2 之后该项已过期。`card_power`／`installed_tools`／`hand_assist`／`home_persistence`／`interface`／`pressure`／`rewards`／`enemy_feedback` 这些宿主套件本轮未跑，不能据此宣称它们通过。
+- 未跑：oracle、像素判据、性能测量、打包（按人指示留到定稿轮）。
