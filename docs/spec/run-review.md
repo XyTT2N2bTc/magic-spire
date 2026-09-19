@@ -30,13 +30,23 @@ const TITLE_FALLBACK="本局回顾"
 static func title_text(ui) -> String        # = ui._text(TITLE_KEY,TITLE_FALLBACK)；面板标题与两个入口按钮共用
 static func can_open(route: Array) -> bool  # = not route.is_empty()：入口可见性的唯一判据
 static func drawer(ui) -> void              # 建 ui._drawer_shell(...) 面板并追加三块
+#   复制按钮 name="RunReviewCopy"：初始文本读 ui._run_review_copy_text()，pressed → ui.copy_seed()，
+#   建好后把 ui.run_review_copy 指向它（面板自己唯一的 ui 字段写入）。
 
 # ui/main.gd 侧唯一接线点
 const RunReview=preload("res://ui/run_review.gd")
 var show_run_review=false                   # 并加入 const DRAWERS
+var run_review_copy: Button                 # 回顾面板复制按钮的视图指针（第二个视图，不持有计时）
+func _run_review_copy_text() -> String      # 未复制=_text("ui.run_review.copy","复制本局标识")；窗口内=_text("ui.map.seed_copied","已复制")
 # _refresh_drawers() 非主页分支：if show_run_review: RunReview.drawer(self)
 # _drawer_shell() 的全窗遮罩条件增 show_run_review（面板宽 1480 与 show_deck 相同，取同一种整窗遮罩面）
 ```
+
+复制显示态的属主仍是 `ui/main.gd::seed_copied_until` 与唯一刷新入口
+`ui/main.gd::_refresh_seed_chip()`（由 `_process` 每帧驱动，只在到期那一帧改写文本；函数名不改）：
+`copy_seed()` 写剪贴板与截止时间后立即经同一刷新入口改写两处视图（路线屏角标 + 回顾面板按钮），
+不另开计时器、不保留回调；面板隐藏或被重建后，旧指针由 `is_instance_valid` 守卫，不写入已释放控件；
+面板按钮被重建时按同一文本规则重读截止时间（与角标建控件时的写法一致）。
 
 Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道。
 
@@ -44,7 +54,7 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 
 | 块 | 取源（唯一） | 口径 |
 | --- | --- | --- |
-| 本局标识 | `ui.seed_report_text()` | 标签文本与 `seed_report_text()` **逐字节相等**；不得出现第二份种子文案 |
+| 本局标识 | `ui.seed_report_text()`（文本）＋ `ui.copy_seed()`（复制按钮 `RunReviewCopy` 的唯一回调） | 标签文本与 `seed_report_text()` **逐字节相等**；不得出现第二份种子文案，也不得自写剪贴板或第二份计时；按钮「已复制」态复用 `ui.map.seed_copied` 与同一 `seed_copied_until` 窗口（判据见场景 J） |
 | 节点概况·进度 | `view.route` | `{floor}` = `status in ["completed","current"]` 的房间的最大 `floor` ＋1（`floor=-1` 的塔底 → 0，与 `core/game_view.gd::run_header` 的「第0层」同口径）；`{nodes}` = `status=="completed"` 的房间数 |
 | 节点概况·地图 | `ui/route_map.gd` 的同一渲染器：`rooms=ui.view.route`、`compact=true`、`read_only=true` | 不裁剪 `rooms`、不重算 `status`、不新增第二份绘制 |
 | 卡组 | `ui/deck_browser.gd::setup(ui, ui.view.deck_cards, false, ui._text("ui.run_review.deck_empty","卡组为空。"))` | 全量入口：只吃 `view.deck_cards`；默认筛选下条目数＝`view.deck_cards.size()` |
@@ -55,15 +65,17 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 
 ### 只读保证（实现必须同时满足）
 
-1. 不调用 `ui._submit`、`ui.actions`、`ui.game.dispatch`、`ui._save_progress`、`ui.copy_seed`；
-   不读写 `ui.game.state`（测试与夹具除外）。
+1. 不调用 `ui._submit`、`ui.actions`、`ui.game.dispatch`、`ui._save_progress`；
+   不读写 `ui.game.state`（测试与夹具除外）。唯一的写动作是复制按钮 → `ui.copy_seed()`：
+   它只写剪贴板与 `seed_copied_until`，不得自写 `DisplayServer.clipboard_set`、不得自建截止时间或回调。
 2. 回顾地图实例只读：`room_selected` 不接 `ui._select_route_room`，`drawings_changed` 不接
    `ui._save_progress`（这两条连接只属于 `_route_screen()`）。
 3. `route_map.read_only=true`：`_ready()` 不建房间按钮、`_input()` 首行早退（见下节）。
 4. 回顾地图实例的 `buttons` 为空，`strokes` 保持空；不写 `ui.map_drawings`、不进 `ui.candidate_buttons`。
-5. 除 `_open_drawer`／`_close_drawers` 的抽屉显示态外，本面板不改任何 `ui` 字段。
+5. 除 `_open_drawer`／`_close_drawers` 的抽屉显示态与 `ui.run_review_copy`（面板自己的视图指针）外，
+   本面板不改任何 `ui` 字段。
 
-判据：打开、滚动、筛选、点击面板内任意位置后，`view.version`、`ui.view.candidates`、
+判据：打开、滚动、筛选、点击面板内任意位置（含点复制按钮）后，`view.version`、`ui.view.candidates`、
 `ui.game.export_snapshot()`（含 `state.rng` 计数）与存档主档＋`.bak` 的字节与 mtime 全部不变。
 
 ### 入口可见性
@@ -90,7 +102,9 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
   两栏「左地图右卡组」在 1600 宽视口内放不下，本片取单列 + 整宽卡组。
 - 内容列放进 `ui._scroll()` 返回的滚动列；总高超出面板时纵向滚动（接受「卡组首行在折叠线以下」），
   控件不得溢出面板矩形。
-- 节点名（检查定位用，唯一）：`RunReviewIdentity`／`RunReviewProgress`／`RunReviewMap`／`RunReviewDeck`。
+- 节点名（检查定位用，唯一）：`RunReviewIdentity`／`RunReviewCopy`／`RunReviewProgress`／`RunReviewMap`／`RunReviewDeck`。
+- 标识块布局：小标题「本局标识」下先排 `RunReviewIdentity`（四要素文本，Label 可选中），
+  其右侧同一行放 `RunReviewCopy`（未复制时文本为「复制本局标识」）。
 
 ### 只读地图的实现口径（`ui/route_map.gd`）
 
@@ -116,11 +130,15 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 | `ui.run_review.progress` | 已到达第 {floor} 层 · 已走过 {nodes} 个节点 | 节点概况的进度行；{floor}／{nodes} 由 `view.route` 现算的整数 | Reached floor {floor} · {nodes} nodes travelled |
 | `ui.run_review.no_route` | 没有可回顾的路线数据。 | `view.route` 为空而面板已开时的失败态，替代地图位置 | No route data to review. |
 | `ui.run_review.deck_empty` | 卡组为空。 | 卡组块空数据文案，交给 `deck_browser.setup` 的 `empty_message` | The deck is empty. |
+| `ui.run_review.copy` | 复制本局标识 | 标识块的复制按钮；点击调用 `ui.copy_seed()`，「已复制」分支复用 `ui.map.seed_copied` | Copy run identity |
 
 - 所有玩家可见文本只经 `ui._text(key, 与 zh_CN 逐字相同的 fallback)`；两个入口按钮与面板标题共用
   `RunReview.title_text(ui)`，不复制字面量（复制会触发 `stale_callsite` 诊断）。
-- 标识文本 `ui.seed_report_text()` 是四要素引用文本，本身不随语言切换（见 `docs/spec/seed-identity.md`）；
-  面板内**不**再造一份翻译副本，也不新增复制控件（复制仍由路线屏角标 `copy_seed()` 承担）。
+- 标识块同时提供复制：按钮 `RunReviewCopy` 是同一复制入口 `ui/main.gd::copy_seed()` 的**第二个视图**，
+  「已复制」显示态仍由 `seed_copied_until` 与唯一刷新入口 `_refresh_seed_chip()` 驱动，
+  文本复用既有 key `ui.map.seed_copied`，**不新增同义 key、不自写剪贴板、不自持计时**；
+  标识文本 `ui.seed_report_text()` 是四要素引用文本，本身不随语言切换（见 `docs/spec/seed-identity.md`），
+  面板内不另造翻译副本。
 
 ### 失败语义
 
@@ -140,16 +158,16 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 ### 场景 A｜打开回顾屏不动规则、候选、随机与存档
 
 - Given 路线屏已渲染（真实开局：`ui.restart(42)` → `t.click("departure",{"op":"skip"})`）、
-  存档隔离目录内已有主档；
-- When 打开回顾屏并在面板内滚动、切换卡组筛选、点击地图区域；
+  存档隔离目录内已有主档，且已用 `persistence_cases.stamp(ui.saves,"tower")` 取样；
+- When 打开回顾屏并在面板内滚动、切换卡组筛选、点击地图区域、**点击复制按钮 `RunReviewCopy`**；
 - Then `ui.view.version` 不变、`ui.view.candidates` 与打开前深比较相等（无候选被消费）、
   `ui.game.export_snapshot()` 逐字节相同（含 `state.rng`）、
-  `persistence_cases.stamp(ui.saves,"tower")` 前后主档与 `.bak` 的字节与 mtime 都不变，
-  且 `preload("res://tests/persistence_cases.gd").unchanged(...)` 通过；
+  `persistence_cases.unchanged(t,before,after,…)` 通过（主档与 `.bak` 的字节与 mtime 都不变）；
   `RunReviewMap` 的 `strokes` 在面板内右键拖拽后仍为空。
 - 具名 check：`ROUTE run review is not part of rules, candidates or randomness`
 - 敏感性：把面板内任一交互接到 `ui._submit(...)`／`ui._save_progress()`（例如把回顾地图的
-  `drawings_changed` 接上 `_save_progress`）→ 快照或 mtime 断言变红。
+  `drawings_changed` 接上 `_save_progress`，或让复制按钮顺手调用 `_save_progress()`）→
+  快照或 mtime 断言变红。
 
 ### 场景 B（本片最重要的反例）｜在回顾屏里点地图节点不出发
 
@@ -203,10 +221,13 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 ### 场景 F｜种子文本与 `seed_report_text()` 同源
 
 - Given 回顾屏打开；Then `RunReviewIdentity.text == ui.seed_report_text()`（逐字节）；
+- Then 标识块同时存在 `RunReviewCopy`，其「未复制」文本＝`ui._text("ui.run_review.copy","复制本局标识")`
+  （复制入口与显示态判据见场景 J）；
 - When 走真实通关屏的「继续游玩」重建塔路（`demo_exit_cases.exit_fixture` + 真实 `demo_continue` 候选）
   后重开回顾屏；Then 标识文本随新的 `tower_generation` 与 `seed` 变化，仍等于 `ui.seed_report_text()`。
 - 具名 check：`ROUTE run review identity reuses the run report text`
-- 敏感性：把标识写成面板自己的硬编码或第二份拼装 → 逐字节相等或「随重建变化」断言变红。
+- 敏感性：把标识写成面板自己的硬编码或第二份拼装 → 逐字节相等或「随重建变化」断言变红；
+  给复制按钮另写一份标签 key → 「未复制」文本断言变红。
 
 ### 场景 G｜入口可见性跟随路线数据
 
@@ -246,6 +267,25 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
   把 `_text` 换成硬编码中文 → 面板中文残留扫描变红；
   改用 `ui.card_entry` 取卡面（显示集合 helper）→ `projection_misses` 出现 `card_entry` 记录，变红。
 
+### 场景 J｜面板复制与路线屏角标共用同一个复制入口与显示态
+
+- Given 从路线屏打开回顾屏（此时角标 `SeedChip` 与面板 `RunReviewCopy` 同时在场）；
+- When 真实点击 `RunReviewCopy`；
+- Then `DisplayServer.clipboard_get()==ui.seed_report_text()`（非 headless 下成立，
+  `DisplayServer.get_name()=="headless"` 时不断言剪贴板）、`ui.seed_copied_until>Time.get_ticks_msec()`、
+  角标与面板按钮**在同一窗口内都显示** `ui._text("ui.map.seed_copied","已复制")`；
+- When 等待 1.3 s（`t.create_timer(1.3).timeout`）；
+- Then 两处文本一起复原（角标回到 `ui._seed_chip_text()`、按钮回到
+  `ui._text("ui.run_review.copy","复制本局标识")`）且 `ui.seed_copied_until==0`；
+- When 复制后先关闭面板再等待到期；Then 不产生引擎错误（旧指针不写入已释放控件），角标照常复原；
+- Then 复制点击并入场景 A 的只读断言：`view.version`、`view.candidates`、`export_snapshot()`、
+  存档主档与 `.bak` 的字节与 mtime 全部不变。
+- 具名 check：`ROUTE run review copy shares the chip display state`
+- 敏感性：①面板按钮自持计时或自写「已复制」文本 → 「角标与面板同一窗口都显示已复制」变红；
+  ②`_refresh_seed_chip()` 只刷新角标（漏掉第二个视图）→ 「到期一起复原」变红；
+  ③面板自写 `DisplayServer.clipboard_set` 或另拼一份文本 → 剪贴板等值断言变红；
+  ④去掉 `is_instance_valid` 守卫 → 关面板后到期写入已释放控件产生引擎错误，UI 门按引擎错误变红。
+
 ## 验收程序（validator 按此操作真实界面）
 
 在 `spire-godot/` 下，用带窗口的真实运行（`tools/launch.ps1` 启动，或窗口化 `tools/check.ps1`），
@@ -257,10 +297,13 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
    1.2 在地图上任一「可前往」节点的位置单击 → 仍停在地图屏（无移动消息、无出发、无回合消耗）。
    1.3 在地图上按住右键拖拽 → 地图上不出现铅笔线（画笔只属于路线屏）。
    1.4 在面板内滚动到卡组块，输入搜索／切换费用筛选 → 计数分母不变；关闭后重新打开，游戏状态与界面一致。
+   1.5 点面板内的复制按钮 → 面板按钮与路线屏角标同时变成「已复制」，约 1.2 秒后同时复原；
+   粘贴出的文本与角标复制内容一致（四要素齐）；复制前后存档文件与游戏状态不变。
 2. **行进后的回顾**：关闭面板，真实点击节点出发并走完这段路；再开回顾 →
    地图出现金色已走路径（恰一行进方向）、进度行数字增加（节点数 = 已走过节点数）；层号与顶栏所在层一致。
 3. **通关屏入口**：走到塔顶出口（或用既有 `exit_fixture` 夹具）→ 通关屏出现「本局回顾」入口，
    打开后三块齐；面板 rect 容纳所有可见按钮（含「结束并返回菜单」／「继续游玩」）。
+   通关屏没有角标，复制按钮点击后只面板按钮显示「已复制」，到期复原（这是角标不在场时该显示态的唯一视图）。
 4. **无数据时不摆空壳**：主页 → 练习与自定义进入练习局（`view.route` 为空）→ 无「本局回顾」入口；
    进监狱（既有 `tests/prison_ui_cases.gd::enter(t)` 的真实收押路径或真实被俘入牢）→ 同样无入口。
 5. **语言**：设置 → 语言 → English → 重建回顾屏：标题、小标题、进度行、空数据文案为英文，
@@ -283,14 +326,16 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 
 - 判据：退出码 0；每个分类 `SUITE RESULT: <name> PASS`；`summary.json` 的 `status=passed` 且
   `before==after`（同一源码指纹，无 `SOURCE CHANGED`）；`unrun=[]`。
-- `route` 分类的具名 check 全绿即上表场景 A–I；新增断言数作为范围证据登记，不作为唯一判据。
+- `route` 分类的具名 check 全绿即上表场景 A–J；新增断言数作为范围证据登记，不作为唯一判据。
 - 不需要跑 `-Suite all`、oracle、像素、性能、打包；未跑项必须写进验证记录。
 
 ## 完成定义（DoD）
 
 - 契约：本文件与 `docs/spec/run-review-dependencies.md` 已落盘；根 `AGENTS.md` 文档入口表已登记两行。
-- 实现：`ui/run_review.gd`（新建）、`ui/route_map.gd`（`read_only`）、`ui/main.gd`（入口与抽屉接线）、
-  两份本地化、`tests/route_ui_cases.gd`（含 `run_review(t)`）均已按上表落地；
+- 实现：`ui/run_review.gd`（新建）、`ui/route_map.gd`（`read_only`）、
+  `ui/main.gd`（两个入口、抽屉接线、复制按钮的第二视图：`run_review_copy`／`_run_review_copy_text()`，
+  并由 `copy_seed()` 与 `_refresh_seed_chip()` 这一对唯一入口驱动两处文本）、
+  两份本地化（新增 8 条）、`tests/route_ui_cases.gd`（含 `run_review(t)`）均已按上表落地；
   `core/`、`data/`、`Snapshot.REVISION`、`ui/feedback_report.gd`、未跟踪的
   `spire-godot/tools/play_release.ps1` 零改动。
 - 证据：上面两条命令退出码 0 且指纹未漂移；每条判据的敏感性证明实测（还原后复跑）。
