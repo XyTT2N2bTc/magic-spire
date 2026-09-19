@@ -156,6 +156,8 @@
 | 事件管线与事件结构 | docs/spec/event-pipeline.md |
 | 状态迁移管线（单写入者） | docs/spec/transition-pipeline.md |
 | 固定点存档 | docs/spec/save-fixed-points.md |
+| 本局种子标识与查看复制 | docs/spec/seed-identity.md |
+| 本片依赖约束（cleaner 核对） | docs/spec/seed-feedback-dependencies.md |
 | 候选局部筛查契约 | docs/spec/candidate-delta.md |
 | 装备只读查询 | docs/spec/equipment-query-seam.md |
 | 玩家可见文案的收口与按需 | docs/spec/ondemand-copy.md |
