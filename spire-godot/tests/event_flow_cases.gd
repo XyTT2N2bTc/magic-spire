@@ -125,7 +125,7 @@ static func flow(t, seed_value: int=17):
  t.check(g.state.room_event.flow and g.state.room_event.stage=="entry","EVENT FLOW starts declared stage")
  return g
 
-# docs/event-pipeline-unification.md §3.2／§3.3 chain fixtures (never shipped content): the
+# docs/spec/event-pipeline.md「证据入口」: the
 # source holds one key and counts once before jumping to the target's entry node; that node
 # holds a second key, offers a loop back to the source, and ends at its own finale node.
 static func chain_documents() -> Array:
@@ -420,7 +420,7 @@ static func maze_survey_team(t) -> void:
  t.check(result.ok and g.state.flask_mana==flask_before+30 and g.state.flask_deposits==deposits_before and g.state.equipment.size()==equipment_before,"SURVEY TEAM together branch grants thirty flask mana without adding restraints")
  t.check(g.state.room_event.stage=="result" and g.state.room_event.report.contains("合作愉快") and g.state.room_event.result_status=="success","SURVEY TEAM together branch reaches a clear successful result")
 
-# docs/event-pipeline-unification.md §10 scenario 02: every authored node declares the
+# docs/spec/event-pipeline.md「证据入口」: every authored node declares the
 # policy that reproduces today's behaviour, and options keep the compatibility spelling.
 static func event_option_policies_match_current_behaviour(t) -> void:
  var g=Game.new(42)
@@ -449,7 +449,7 @@ static func event_option_policies_match_current_behaviour(t) -> void:
  t.check(staged.start_node=="wager_card" and staged.nodes.size()==8 and g.Events.node_ids(staged)[7]=="remove_reward","EVENT POLICY staged definition keeps its authored order")
  t.check(g.Events.node(g.Events.Data.TYPES.binding_cleric,"service").choices.size()==3 and g.Events.node(staged,"missing").is_empty(),"EVENT POLICY node lookup resolves real ids and returns empty for unknown ones")
 
-# docs/event-pipeline-unification.md §10 scenario 08: a single node reads the declared
+# docs/spec/event-pipeline.md「证据入口」: a single node reads the declared
 # next／when／outcomes, and a selector plus outcomes spends exactly one draw per choice.
 static func event_single_node_declarations(t) -> void:
  var g=Game.new(42)
@@ -484,7 +484,7 @@ static func event_single_node_declarations(t) -> void:
  var restore=Game.new(42)
  t.check(Catalog.tables(restore)==baseline,"EVENT SINGLE NODE fixture registries restored")
 
-# docs/event-pipeline-unification.md §10 scenario 09: empty nodes keep their declared policy.
+# docs/spec/event-pipeline.md「证据入口」: empty nodes keep their declared policy.
 static func event_node_empty_policy_kept(t) -> void:
  var g=Game.new(42)
  var baseline=Catalog.tables(g)
@@ -513,7 +513,7 @@ static func event_node_empty_policy_kept(t) -> void:
  t.check(hollow_probe=="这一阶段没有能够执行的选项。","EVENT EMPTY NODE the probe path reports the empty next node: "+hollow_probe)
  Catalog.commit(g,baseline)
 
-# docs/event-pipeline-unification.md §10 scenario 11: a committed cross-event jump keeps one
+# docs/spec/event-pipeline.md「证据入口」: a committed cross-event jump keeps one
 # instance — the target's id and node, the source in chain, continuing counters and holds, the
 # chain union cleanup (one step per key, run once on leaving) and the target in event_seen.
 static func event_chain_jumps_to_another_event_node(t) -> void:
@@ -549,7 +549,7 @@ static func event_chain_jumps_to_another_event_node(t) -> void:
  t.check(walk.state.special_equipment.size()==2 and walk.state.room_event.held.is_empty(),"EVENT CHAIN the union restores every held instance")
  Catalog.commit(g,baseline)
 
-# docs/event-pipeline-unification.md §10 scenario 12: the chain may not return to an event it
+# docs/spec/event-pipeline.md「证据入口」: the chain may not return to an event it
 # already left — the option stays visible but invalid with gate chain_loop, and evaluating or
 # submitting it changes neither the state, the random domains nor the save.
 static func event_chain_loop_refused(t) -> void:
@@ -576,7 +576,7 @@ static func event_chain_loop_refused(t) -> void:
  t.check(not t.action(walk,"event",{"action":"choose","choice":"loop_back"}).ok and walk.export_snapshot()==before_submit,"EVENT CHAIN LOOP a looping option cannot commit")
  Catalog.commit(g,baseline)
 
-# docs/event-pipeline-unification.md §4.5 rulings A30／A31: both node-entry failures write one
+# docs/spec/event-pipeline.md「证据入口」: both node-entry failures write one
 # node-level row with the target node and no option, the next-node look-ahead uses its own
 # purpose, and repeated look-aheads of one target never repeat the row.
 static func event_chain_trace_rows(t) -> void:
@@ -618,7 +618,7 @@ static func event_chain_trace_rows(t) -> void:
   t.check(probe.Events.event_trace(probe).filter(func(row):return row.purpose=="next_probe").size()==1,"EVENT CHAIN TRACE frozen instances never repeat the look-ahead row")
  Catalog.commit(g,baseline)
 
-# docs/event-pipeline-unification.md §3.3 ruling A32 chain fixtures (never shipped content):
+# docs/spec/event-pipeline.md「证据入口」:
 # the source optionally offers a relic reward of its own, the target decides whether it offers
 # one, and neither end holds special equipment — so the only domains under test are the relic
 # draw and the target's own node entry.
@@ -641,7 +641,7 @@ static func rng_delta(before: Dictionary, after: Dictionary) -> Dictionary:
  for domain in after: delta[domain]=int(after[domain])-int(before.get(domain,0))
  return delta
 
-# docs/event-pipeline-unification.md §3.3 ruling A32, class 1: a target that declares a relic
+# docs/spec/event-pipeline.md「证据入口」: a target that declares a relic
 # reward draws once on the jump, the drawn relic belongs to the pool that definition may grant,
 # and the event and relic domains spend exactly the single-definition arrival draws.
 static func event_chain_relic_drawn_from_target(t) -> void:
@@ -668,7 +668,7 @@ static func event_chain_relic_drawn_from_target(t) -> void:
  t.check(JSON.stringify(chain_delta)==JSON.stringify(direct_delta) and chain_delta.relic==direct_delta.relic and chain_delta.event==direct_delta.event,"EVENT CHAIN RELIC the jump spends exactly the single-definition draws in the event and relic domains: "+JSON.stringify({"chain":chain_delta,"direct":direct_delta}))
  Catalog.commit(g,baseline)
 
-# docs/event-pipeline-unification.md §3.3 ruling A32, class 2: a target that declares no relic
+# docs/spec/event-pipeline.md「证据入口」: a target that declares no relic
 # reward clears the source relic instead of carrying it over, and spends no extra draw.
 static func event_chain_relic_cleared_without_target_offer(t) -> void:
  var g=Game.new(42)
@@ -693,7 +693,7 @@ static func event_chain_relic_cleared_without_target_offer(t) -> void:
  t.check(direct.state.room_event.relic=="" and JSON.stringify(chain_delta)==JSON.stringify(direct_delta),"EVENT CHAIN RELIC clearing the source relic spends no extra draw: "+JSON.stringify({"chain":chain_delta,"direct":direct_delta}))
  Catalog.commit(g,baseline)
 
-# docs/event-pipeline-unification.md §3.3 ruling A32, class 3: a target that declares the relic
+# docs/spec/event-pipeline.md「证据入口」: a target that declares the relic
 # reward still keeps the instance empty while the pool is empty, again without spending a draw.
 static func event_chain_relic_cleared_when_pool_empty(t) -> void:
  var g=Game.new(42)
@@ -720,7 +720,7 @@ static func event_chain_relic_cleared_when_pool_empty(t) -> void:
  t.check(direct.state.room_event.relic=="" and JSON.stringify(chain_delta)==JSON.stringify(direct_delta),"EVENT CHAIN RELIC an empty pool spends no draw on either path: "+JSON.stringify({"chain":chain_delta,"direct":direct_delta}))
  Catalog.commit(g,baseline)
 
-# docs/event-pipeline-unification.md §10 scenarios 15-18: stacked condition modes.
+# docs/spec/event-pipeline.md「证据入口」: stacked condition modes.
 static func event_stacked_conditions(t) -> void:
  var g=Game.new(42)
  var baseline=Catalog.tables(g)
@@ -770,7 +770,7 @@ static func event_stacked_conditions(t) -> void:
  t.check(result.decision=="disabled" and result.gates.size()==1 and result.gates[0].reason=="条件甲。","EVENT STACKED a passing entry stays out of the gate list")
  Catalog.commit(g,baseline)
 
-# docs/event-pipeline-unification.md §10 scenario 04: the option hidden by a held relic is
+# docs/spec/event-pipeline.md「证据入口」: the option hidden by a held relic is
 # traced with its own source choice and gate, and the candidate set stays as the baseline.
 static func event_hidden_relic_option_traced(t) -> void:
  var g=Game.new(42)
@@ -787,16 +787,8 @@ static func event_hidden_relic_option_traced(t) -> void:
  Events.arrive(silent,"floating_belt_cluster")
  t.check(JSON.stringify(silent.state.room_event.options)==JSON.stringify(g.state.room_event.options) and JSON.stringify(silent.candidates())==JSON.stringify(g.candidates()),"EVENT TRACE the candidate set is identical with the switch off")
 
-# docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
-# declaration order, and release leaves the trace empty.
-# docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
-# declaration order, the switch off leaves the trace empty, and a new event never keeps the
-# previous event's rows.
-# Not landed: the trace rows it asserts still differ from what the suite produces,
-# while the standalone repro matches the contract wording. Reported for the coordinator.
-# docs/event-pipeline-unification.md §10 scenario 19: stacked hits are traced one by one in
-# declaration order, the switch off leaves the trace empty, and a new event never keeps the
-# previous event's rows.
+# docs/spec/event-pipeline.md「trace（debug 开关）」: stacked hits follow declaration
+# order; switching trace off clears rows, and entering an event clears previous rows.
 static func event_stacked_condition_trace_and_release(t) -> void:
  var g=Game.new(42)
  var baseline=Catalog.tables(g)

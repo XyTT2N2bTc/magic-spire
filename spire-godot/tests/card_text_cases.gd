@@ -36,7 +36,7 @@ static func run(t) -> void:
  g.Cards.Rules.SPECS.mana_search=spec
  mana_badges(t)
 
-# docs/ondemand-copy.md §6 场景 1（copy_fixed_set_matches_full_entry）：三个入口对全部注册牌型逐字段
+# docs/spec/ondemand-copy.md「证据入口」：三个入口对全部注册牌型逐字段
 # 相等；S 内的键在视图里、S 外的键不在；读取不改状态、随机与版本。
 static func copy_fixed_set_matches_full_entry(t) -> void:
  var g=Game.new(42)
@@ -54,7 +54,7 @@ static func copy_fixed_set_matches_full_entry(t) -> void:
  t.check(mismatch.is_empty(),"COPY scenario 1 three entries agree for every registered type: "+str(mismatch.slice(0,5)))
  t.check(g.export_snapshot()==before and g.state.version==view.version,"COPY scenario 1 reads leave state, random domains and version unchanged")
 
-# S 按 §1.2 的显示入口独立重算（与 game_view 的实现分开写）。
+# S 按 契约声明的显示入口独立重算（与 game_view 的实现分开写）。
 static func battle_display_set(g, candidates: Array) -> Dictionary:
  var shown={}
  for card in g.state.hand: shown[card.type]=true

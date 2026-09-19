@@ -135,6 +135,9 @@ static func run(t) -> void:
  choice=ui.actions.select("card",{"uid":uid,"slot":"thigh","target":a.id})[0]
  await t.start_drag(uid,"thigh");await t.release_target(await t.reveal_drop_target(choice.id))
  t.check(not ui.game._equipment(a.id).locked and ui.view.mana==90 and not ui.view.card_chain.is_empty(),"REWARD UI spell drag opens first real lock and pays mana once")
+ var chain_before=ui.game.export_snapshot()
+ await preload("res://tests/interface_ui_cases.gd").press(t,"ReleaseEffectDetails")
+ t.check(ui.game.state==chain_before,"REWARD UI expanding final unlock detail does not commit or pay")
  t.check(t.visible_text(ui.layout).contains("这是最后一把锁") and not t.visible_text(ui.layout).contains("至多还可处理"),"REWARD UI final unlock segment does not promise a third lock")
  await t.capture("ui-53-double-unlock.png")
  t.check(await t.click("chain",{"target":b.id}) and not ui.game._equipment(b.id).locked and ui.view.mana==90,"REWARD UI second lock opens without another magic payment")

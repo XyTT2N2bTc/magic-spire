@@ -106,6 +106,7 @@ static func player_interactions(t) -> void:
  t.check(await t.click("item_install",{"item":item,"mount":"hand_wall"}),"TOOL installs through actual candidate")
  await t.close_information()
  t.check(await t.click("posture",{"dest":"sit","wall":false}) and await t.click("posture",{"dest":"lie","wall":false}),"TOOL close drawer and change posture through formal actions")
+ if not ui.quick_release_open: await press(t,"ActionRailToggle")
  await press(t,"InstalledTool_"+item)
  t.check(ui.show_items and ui.selected_item==item and ui.game.InstalledTools.reason(ui.game,ui.game._item(item),target)!="" and ui.actions.select("item",{"item":item,"target":target.id}).is_empty(),"TOOL installed entry reopens even with currently unreachable target")
  await t.close_information()

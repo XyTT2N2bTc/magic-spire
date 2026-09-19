@@ -7,7 +7,7 @@ const Arch=preload("res://tests/architecture_cases.gd")
 static func ids(values: Array) -> Array:
  return values.map(func(e):return e.id)
 
-# Batch B5 (§8.3): the rope, anchor and target-list edges keep the §1 order and the durability
+# docs/spec/equipment-query-seam.md「证据入口」: the rope, anchor and target-list edges keep the declared order and the durability
 # differences between them: a dead rope leaves links_at, yet links stay unfiltered in the lists.
 static func index_link_edge_parity(t) -> void:
  for kind in ["component_links","crotch","plain"]:

@@ -6,6 +6,18 @@ static func open_pressure(t) -> void:
  if t.ui.show_pressure:
   await Navigation.press(t,"StatusFilter_pressure")
 
+static func calm_detail(t) -> String:
+ await t.close_information()
+ var before=t.ui.game.export_snapshot()
+ var button=t.ui.find_child("DeepBreath",true,false)
+ t.check(button!=null and button.is_visible_in_tree(),"CALM UI hover action is visible")
+ if button==null: return ""
+ await t.move_mouse(Vector2(650,60));await t.frames()
+ await t.move_mouse(button.get_global_rect().get_center());await t.frames()
+ var popup=t.ui.term_popup
+ t.check(is_instance_valid(popup) and popup.is_visible_in_tree() and t.ui.game.state==before,"CALM UI real hover opens read-only action detail")
+ return t.visible_text(popup) if is_instance_valid(popup) else ""
+
 static func run(t) -> void:
  await forced_loop_surrender(t)
  await climax_card_practice(t)
@@ -20,7 +32,8 @@ static func run(t) -> void:
  ui.restart(42);ui.game.state.pressure=90
  var mouth=ui.game._install_template("mouth_band","mouth",12.8,16,false,"fixture",2)
  ui.render();await t.frames()
- t.check(ui.find_child("DeepBreathDetail",true,false).text.contains("快感－8") and ui.find_child("DeepBreathDetail",true,false).text.contains("下回合能量＋1"),"CALM UI shows attenuated relief with unchanged deferred energy")
+ var calm_text=await calm_detail(t)
+ t.check(ui.find_child("DeepBreathDetail",true,false).text.contains("快感－8") and calm_text.contains("快感－8") and calm_text.contains("下回合能量＋1"),"CALM UI shows attenuated relief with unchanged deferred energy")
  t.check(await t.click("calm") and ui.game.state.pressure==82 and ui.game.state.next_energy==1 and ui.view.energy==2,"CALM UI actual click matches the mouth-attenuated preview")
  ui.game._apply_manual_release(ui.game._equipment(mouth.id),0.0)
  ui.game._cleanup()
@@ -46,8 +59,10 @@ static func run(t) -> void:
  for row in ui.view.statuses.filter(func(entry):return entry.id.begins_with("pressure_")):
   pressure_text+="\n"+await preload("res://tests/status_ui_cases.gd").inspect(t,row.id)
  t.check(pressure_text.contains("身体与训练垫的摩擦") and pressure_text.contains("回合结束") and pressure_text.contains("损失20魔力"),"PRESSURE drawer explains both source timings and resource effect: "+pressure_text)
- t.check(ui.find_child("DeepBreathDetail",true,false).text.contains("下回合能量＋1"),"CALM UI action description exposes the deferred reward")
+ calm_text=await calm_detail(t)
+ t.check(calm_text.contains("下回合能量＋1"),"CALM UI action description exposes the deferred reward")
  t.check(await t.click("calm") and ui.view.pressure.value==50 and ui.view.energy==2 and ui.game.state.next_energy==1 and ui.view.mana==100,"PRESSURE visible calm button pays current energy and reserves next-turn energy")
+ await open_pressure(t)
  await Navigation.press(t,"StatusFilter_benefit")
  var reserve_text=await preload("res://tests/status_ui_cases.gd").inspect(t,"next_energy")
  t.check(reserve_text.contains("深呼吸") and reserve_text.contains("下一玩家回合"),"CALM UI shared reserve status explains its source and timing")

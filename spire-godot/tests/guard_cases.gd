@@ -13,7 +13,7 @@ static func ready(g) -> void:
  enemy.stage=4
  enemy.intent=Guard.build(g,enemy)
 
-# docs/transition-pipeline.md §5 场景 04：收押经主路径——迁移日志含 `battle_end_captured`，阶段／房间
+# docs/spec/transition-pipeline.md「证据入口」：收押经主路径——迁移日志含 `battle_end_captured`，阶段／房间
 # 与今天逐字节相同（oracle 冻结），收押副作用（能量归零、无力化、牢房初始化）顺序不变。
 static func capture_routes_through_the_main_path(t) -> void:
  var arch=preload("res://tests/architecture_cases.gd")

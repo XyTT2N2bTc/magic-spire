@@ -12,7 +12,7 @@ static func piece(g, root_id: String, key: String) -> Dictionary:
 static func cover_id(g, target: Dictionary, slot: String, point: String="") -> String:
  return g._outer_cover_at(target,slot,point).get("id","")
 
-# Batch B3 (§8.3): the capacity and physical point edges, their counts and the coverage reason
+# docs/spec/equipment-query-seam.md「证据入口」: the capacity and physical point edges, their counts and the coverage reason
 # agree with the live path, including templates whose capacity_points is empty.
 static func index_point_edge_parity(t) -> void:
  for kind in ["leg_layers","component_links","head_harness","plain"]:

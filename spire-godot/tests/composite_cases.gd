@@ -10,7 +10,7 @@ static func part(g, key: String) -> Dictionary:
 static func cover_ids(values: Array) -> Array:
  return values.map(func(e):return e.id)
 
-# Batch B4 (§8.3): the materialized root edge resolves roots by id, keeps root order for the
+# docs/spec/equipment-query-seam.md「证据入口」: the materialized root edge resolves roots by id, keeps root order for the
 # composite part of targets_at and never hands out a copy of a root or its components.
 static func index_root_edge_parity(t) -> void:
  for kind in ["glove","jacket","leg_layers","component_links","plain"]:

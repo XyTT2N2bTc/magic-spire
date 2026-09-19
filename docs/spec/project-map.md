@@ -22,7 +22,6 @@
 | `docs/guide/` | 怎么干活：操作、文案与本地化的改法 | 动手前 |
 | `docs/record/` | 只追加记录：验证卷（按时间分卷）、版本日志、性能测量、未落地提案 | 取证与追溯 |
 | `docs/history/` | 只读归档：历史契约与已被推翻记录；用于追溯，不是待办 | 需要追溯决策时 |
-| `docs/history/` | 历史决策与归档（只读，不是现行指令） | 追溯时 |
 | `spire-godot/core/`、`ui/`、`data/` | 规则内核、界面、静态数据 | 改动与运行时 |
 | `spire-godot/content/`、`assets/` | 内容包、素材（来源与差分见 `spire-godot/assets/art/ART-NOTES.md`、`spire-godot/assets/vendor/CREDITS.md`） | 内容与美术任务 |
 | `spire-godot/tests/`、`spire-godot/tools/` | 规则／界面检查与打包、探针脚本 | 验证与发布 |

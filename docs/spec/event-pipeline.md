@@ -4,7 +4,7 @@
 内部实现以代码为准，接口语义以本文件为准；函数名与稳定 ID（`kind`／`type`／`id`）是锚点，
 本文件不写行号。本文件不写执行结果：通过／失败／未执行与红集登记 `docs/record/verification.md`。
 
-本文件合并三份来源：事件管线统一契约（契约部分）、事件管线依赖规范、事件系统结构（现行事实）。
+本文件维护事件管线、依赖规范与现行结构；PR 集成过程及当时的任务范围见 `docs/history/`。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、
 `tools/`、`build/`、`content/`）均相对 `spire-godot/`；`docs/` 相对仓库根。
@@ -19,16 +19,14 @@
 | 外部内容 | `content/packs/*.json`、`content/templates/event*.json*` |
 | 判据宿主 | `tests/{event_cases,event_flow_cases,event_ui_cases,event_draw_cases,content_cases,persistence_cases,architecture_cases,localization_cases}.gd` |
 
-- **合并的是格式与管线，不是语义**：12 份内容的玩家可见行为保持不变——哪些选项出现、哪些显示但禁用、
-  冻结后的效果、报告与结果文案，以及同一 seed 下 `event` 域随机抽取序列与计数。
-- 投影不动：`Events.view`／`game_view`／`get_view().room_event` 的可见字段与语义不变；
-  不新增 `get_view` 只读字段；不新增 `game.event_diagnostics()`。
-- 文件与行数：本仓**没有源码行数门禁**，模块规范只有"新增文件须有明确职责边界；大文件按职责拆，
-  不按行数硬拆"；因此**不新增 core 文件**（物理拆分属 E5，未授权）。
-- 非目标：`core/game.gd` 提交管线、`ui/`（含 `ui/event_screen.gd`）、文案路由、装备查询索引、
-  E4 战斗桥行为（`begin_battle`／`finish_battle`／`room_encounters` 借用）、
-  E6 玩家可见政策（漂浮皮带群持有扣环时的隐藏行为维持现状）、全量回归与打包。
-- 不做启动期迁移脚本、不改启动链：存档形态按"冻结产物逐字节不变"保持，旧档由新代码直接读取。
+- 结构维护须验证选项出现／禁用、冻结效果、报告与结果文案，以及同一 seed 下 `event` 域的随机序列与计数；
+  玩法变化按已确认设计同步实现与判据，不从重构推导新规则。
+- 事件投影经 `Events.view` → `GameView.build` → `get_view().room_event`；诊断 trace 不进入玩家投影。
+- 文件按职责拆分，不按行数拆分；模块边界见 `docs/spec/project-map.md`，新增依赖须同步本文件的依赖契约与检查。
+- 状态提交与迁移分别遵循 `docs/spec/response-pipeline.md`、`docs/spec/transition-pipeline.md`；
+  验证与发布范围按本次实际改动和用户要求确定，不沿用历史 PR 的阶段授权。
+- 存档兼容范围由 `Snapshot.REVISION` 与 `docs/spec/save-fixed-points.md` 决定；本文件的冻结形态要求
+  不构成对任意旧版存档的迁移承诺。
 
 ## 事件系统结构
 
@@ -52,17 +50,15 @@
 
 现行结构事实（据此写契约，不据叙事猜）：
 
-- `core/room_events.gd` 仍是超大职责模块（定义、生成、随机冻结、探测、效果、候选、投影、战斗桥、
-  校验集中在一文件）；减少职责集中属 E5，未授权。
+- `core/room_events.gd` 集中定义访问、生成、随机冻结、探测、效果、候选、投影、战斗桥与校验；
+  各消费者必须经本文件声明的入口访问事件能力。
 - 事件战斗**借用**普通战斗的 `room_encounters` 与奖励状态：这是事实，不代表可以直接改存档字段。
 - UI 只消费过滤后的候选：`event_screen` 无法区分"未生成／被隐藏／生成但不可用"，
   具名原因只存在于 core 的 trace。
-- 能力分布分三类：①各自独有的能力（单节点＝单步＋战斗＋道具＋按探测隐藏；多节点＝多阶段＋条件＋
-  跳转＋权重随机）；②重叠能力的语义微差（`selector` 与 outcome 的抽取次数、`recipe` 与 `effects`
-  的组合方式、效果是否预跑）；③两边都实现但**无人使用**的能力：`recipe`、
-  `hold_special`／`restore_held`。归一的价值集中在②③；①是否收敛属产品决策，不在本契约内。
-- 兼容层可拆：`frozen_form` 与兼容拼写（`availability`／`when`／`hide_when_unavailable`）只为
-  冻结产物的逐字节判据而保留；移除它们不触及求值入口、声明表与条目解析。
+- 单节点与多节点共用节点声明、求值与执行管线；`selector`、outcome、`recipe` 与 `effects` 的区别
+  由声明决定。`recipe`、`hold_special`／`restore_held` 有测试夹具覆盖，当前正式内容包未使用。
+- `frozen_form` 与兼容拼写（`availability`／`when`／`hide_when_unavailable`）仍参与冻结形态；
+  它们通过同一声明表与解析入口处理，不构成第二套事件引擎。
 
 ## 接口
 
@@ -108,8 +104,8 @@ Events.request_for(g, option, purpose) -> Dictionary
   `execute`（`purpose:"execute"`）都从同一入口取"决定＋具名原因"，不再各自重算资格。
 - 入口**只读**（与 `probe` 同款：状态副本＋恢复）；唯一写状态的分支是到达（`purpose=="arrival"`）
   时把冻结选项写入 `state.room_event`。
-- 重命名只允许一处：`enter_stage` → `enter_node`（外部调用点只有测试，同批更新；不得保留同名别名）。
-- 保持不变的既有接口：`start`／`view`／`candidates`／`execute`／`validate`／`history_issue`／
+- 节点推进入口为 `enter_node`，不保留 `enter_stage` 别名。
+- 事件模块的其他接口：`start`／`view`／`candidates`／`execute`／`validate`／`history_issue`／
   `probe`／`probe_choice`／`availability_issue`／`selector_values`／`freeze_effects`／`apply_effects`／
   `describe`／`describe_result`／战斗桥与道具奖励入口。
 
@@ -178,7 +174,7 @@ freeze_one()：按节点声明选布局——
 
 ### 状态条件的单一声明与四处派生
 
-单一声明落在 `core/room_events.gd`（不新增文件、不新增依赖边）：
+单一声明落在 `core/room_events.gd`：
 
 ```gdscript
 static var CONDITIONS = {
@@ -242,8 +238,8 @@ kind 集合必须相等。
 
 安全规则：同一定义内的 `next` 保持现状校验（不倒退、不循环、必须已声明）；跨事件跳转的目标必须
 已登记且目标定义合法；**静态只拒自引用**，跨定义环（A→B→A）由运行期 `chain_loop` 守卫拒绝——
-静态不拒绝跨定义环是**有意的**（不引入跨事件图上的静态环检测）；事件链不得出现在 12 份迁移内容里
-（只在夹具与专门场景使用）。
+静态不拒绝跨定义环是**有意的**（不引入跨事件图上的静态环检测）。当前 12 份正式内容没有事件链，
+链语义由夹具与专门场景验证；新增链内容须同步作者定义与对应测试。
 
 ## 输入域
 
@@ -305,12 +301,12 @@ kind 集合必须相等。
 `Data.TYPES[id]` **就是**作者形态（同一份定义，不做第二套内部结构）；节点与选项只能经
 `definition`／`node`／`node_ids` 访问。
 
-### 校验规则取值（并集，只放宽不收紧）
+### 校验规则取值
 
-现有 12 份内容在新旧两套取值下都合法。每条放宽项必须同时登记既有反例断言／夹具的期望更新；
-**不得删除任何反例，只允许改写路径或新增**。
+下表是现行作者形态的接受范围。变更取值时须同步正式内容与正例、最近反例和边界；
+过期或重复测试按覆盖关系处理，不删除有效失败案例换取通过。
 
-| # | 放宽项 | 合并后取值 |
+| # | 校验项 | 当前取值 |
 | --- | --- | --- |
 | 1 | `effects` 上限 | 12（`outcome.effects` 另计 12） |
 | 2 | 空 `effects` | 允许（含带 reward） |
@@ -381,9 +377,8 @@ kind 集合必须相等。
   重取基线让红变绿；冻结产物被"顺手统一"（`options`／`snapshot` 变红）；声明表以外出现状态条件
   kind 字面量或三处消费者枚举不一致；叠加求值未按上面的规则（只留一条原因、只给笼统 gate、
   `gates` 顺序与声明序不一致）；`conditions` 与 `availability` 同时出现而未被拒收；出现静默丢弃；
-  trace 进入 `state`／存档／View／日志或 release 运行产出 trace；新增 `get_view` 只读字段、
-  `game.event_diagnostics()`，或改 `ui/`、`core/game.gd` 提交管线；把缺译写成通过；
-  12 份内容之外的内容包被写入链形态；落地迁移脚本或改启动链；宣称完整回归或提速。
+  trace 进入 `state`／存档／View／日志或 release 运行产出 trace；绕过既有提交与只读接口；
+  把缺译写成通过；把测试夹具当作正式内容；无对应证据却宣称完整回归或提速。
 
 ## 依赖规范
 
@@ -416,7 +411,7 @@ data/* → core/* → ui/*
 7. 事件模块不得新增对战斗／奖励子系统的调用：现有允许的调用只有 `_start_battle()`（事件战斗开始）、
    `_finish_preparation()`／`_start_preparation()`、`reward_offer(...)`、
    `_gain_card/_gain_tool/_cleanup/_emit/_candidate/validate/export_snapshot`；
-   `begin_battle`／`finish_battle`／`room_encounters` 的借用行为（E4）不得改动。
+   `begin_battle`／`finish_battle` 管理事件战斗桥，借用 `room_encounters` 的状态须沿正式迁移管线处理。
 8. 资格求值只允许一个入口：`probe_choice`／`availability_issue`／`condition_met`／`freeze_choice`
    不得被 `evaluate_option` 之外的 core 函数调用（冻结与投影走 `evaluate_option`）；
    兼容拼写（`availability`／`when`／`hide_when_unavailable`）只允许出现在 `condition_entries` 与
@@ -425,7 +420,7 @@ data/* → core/* → ui/*
 10. 存档写入：`room_event.chain` 只允许在跨事件跳转时写入；`room_event.options[*].conditions`
     只允许由冻结投影写入；其他模块不得改写这两个键。
 11. debug trace 只允许挂在游戏对象上的调试字段（实现落在 `core/room_events.gd`）；
-    **不得**为此改 `core/game.gd`；不得进 `state`／View／存档／日志，也不得做成计数器；
+    不得进 `state`／View／存档／日志，也不得做成计数器；
     清空与读取必须走同一存储。
 
 文件与职责边界：
@@ -439,19 +434,19 @@ data/* → core/* → ui/*
 | `content/packs/*.json`、`content/templates/*` | 作者声明 | 运行时状态、脚本、按事件 id 的分支 |
 | `tests/*_cases.gd` | 具名 check 与夹具 | 被生产代码引用 |
 
-可执行检查点（cleaner 手工命令，只读；发现违规先归因再报协调者）：
+只读定位命令（命中须按调用所在函数和本节契约归因，不能把全目录文本命中直接视为违规）：
 
 ```bash
-rg -n "ui/" core/                                   # 1) 命中即违规
+rg -n "ui/" core/
 rg -n "^const .*=preload" core/room_events.gd core/content_catalog.gd core/snapshot.gd
-rg -n "\.stages|start_stage|\.choices" core/        # 3) 只允许出现在定义访问函数内部
+rg -n "\.stages|start_stage|\.choices" core/
 rg -n "probe_choice\(|availability_issue\(|condition_met\(|freeze_choice\(" core/
 rg -n "\"(no_chastity_lock|has_relic)\"" core/      # 5) 只允许在声明表内
-rg -n "\"chain\"|\"conditions\"|\"mode\"" core/     # 6) 只允许在管线与冻结投影内
+rg -n "\"chain\"|\"conditions\"|\"mode\"" core/
 rg -n "res://tests/" core/ data/ ui/   # 7) 命中即违规
 ```
 
-架构分类的具名 check（cleaner 之后由 validator 复跑，与本节同批判据、不得择一执行）：
+架构分类的具名 check（运行范围按实际影响选择，结果登记验证册）：
 
 | check | 分类 | 判据 |
 | --- | --- | --- |
@@ -466,20 +461,16 @@ rg -n "res://tests/" core/ data/ ui/   # 7) 命中即违规
 命令（在 `spire-godot/` 下执行；结果与域写 `docs/record/verification.md`，本文件不宣称通过）：
 
 ```powershell
-# 冻结判据：每批必跑，基线只读，禁止 --write= 重取基线
-& <Godot console 可执行文件> --headless --path . --script res://build/event-oracle-20260916/event_oracle.gd -- --baseline=build/event-oracle-20260916/baseline.json
+# 按影响选择规则、内容或窗口分类；操作口径见 repo-ops。
 & tools/check-content.ps1
 & tools/check.ps1 -Suite event_flow,events,content,architecture -Impact -TimeoutSeconds 900
 & tools/check.ps1 -UIOnly -UISuite events,localization -TimeoutSeconds 900
 ```
 
-- **E0 冻结判据口径**：逐场景比较 `candidates`／`view`／`options`／`snapshot`／`rng`（外加
-  `stage`／`phase`／`validate`／`dispatch`／`error` 的明文值），判据＝退出码 0 且最后一行
-  `EVENT RESULT: PASS (94 scenarios, 0 failures)`，**且引擎错误日志命中 0 行**；trace 打开与关闭
-  两种设置各跑一次，两次输出摘要必须相同。基线摘要：`1f11bea5…`（单次约 10 秒）。
-  脚本与基线位于被忽略的 `build/event-oracle-20260916/`（**不入库**），摘要登记
-  `docs/record/verification.md`；**任何红项都是需要解决或显式人裁的差异，不得默认为"合并的正常结果"**。
-- 具名场景（判据＝测试侧布尔断言；不新建流程文件、不新建看板，复用 `tests/game_fixture.gd` 与
+- 结构重构的冻结比对应覆盖 `candidates`／`view`／`options`／`snapshot`／`rng` 及阶段、提交与错误结果，
+  并验证 trace 开关不改变行为。基线不可用重写来掩盖差异；历史 PR 的一次性脚本和数字见
+  `docs/record/verification.md` 及历史分卷，不把被忽略的本地 build 文件作为新工作区的必备命令。
+- 具名场景（判据＝测试侧布尔断言；复用 `tests/game_fixture.gd` 与
   `tests/event_cases.gd` 的到达助手）：
 
 | # | 具名 check | 落点（分类） |
@@ -502,7 +493,7 @@ rg -n "res://tests/" core/ data/ ui/   # 7) 命中即违规
 | 19 | `event_stacked_condition_trace_and_release` | `tests/event_flow_cases.gd` |
 | 20 | `event_stacked_conditions_keep_current_content` | `tests/content_cases.gd` |
 
-  同批另有：`event_author_manual_lists_current_fields`（作者手册与当前字段一致，`content`）、
+  另有：`event_author_manual_lists_current_fields`（作者手册与当前字段一致，`content`）、
   `event_union_validation_rules`（并集校验取值，`content`）、`event_chain_references_fail_closed`、
   `event_chain_hold_keys_fail_closed`（`content`）、`event_chain_trace_rows`、
   `event_chain_relic_drawn_from_target`、`event_chain_relic_cleared_without_target_offer`、
@@ -510,8 +501,8 @@ rg -n "res://tests/" core/ data/ ui/   # 7) 命中即违规
 - 内容门：`check-content.ps1` 通过（`CONTENT PASS: N file(s)`）；改 `content/packs`、`content/templates`
   或站点文档示例后必跑（文档示例可复制为临时 `.json` 后用 `-Path` 指向该目录校验）。
 - 规则门／界面门判据：退出码 0；每个 `SUITE RESULT: PASS <name>`；`summary.json` 的
-  `status=passed` 且 `before==after` 指纹（`source_changed` 不算通过）；界面门必须
-  `-TimeoutSeconds 900`，输出含 `UI PASS: N assertions`。
+  `status=passed` 且 `before==after` 指纹（`source_changed` 不算通过）；界面输出含
+  `UI PASS: N assertions`，超时预算按所选分类设定。
 - 人的路径证明（判据是套件的布尔 check）：练习「漂浮皮带群」首次进入的候选恰为
   【硬闯】【接受灌注】；注入已持有 `softened_buckle` 的状态后【硬闯】仍缺席、【离开】出现；
   选【硬闯】完成战斗只进事件结果页并只发遗物、战后整备语义不变；**正式离开路径**（含无可离开选项、

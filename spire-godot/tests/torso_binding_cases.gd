@@ -9,7 +9,7 @@ static func sample(kind: String):
   if g.state.equipment[0].binding.kind==kind: return g
  return null
 
-# Batch B7 (§8.3): the connection edge carries only connected forms, and both list consumers read
+# docs/spec/equipment-query-seam.md「证据入口」: the connection edge carries only connected forms, and both list consumers read
 # the same projection as the live helper.
 static func index_connection_edge_parity(t) -> void:
  for kind in ["linked","integrated"]:

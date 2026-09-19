@@ -1512,3 +1512,19 @@ RuleChangePackage（加性、零规则改动：不动候选、数值、存档、
 **窗口复验**：`20260919T050947917-22676`，`-UIOnly -UISuite localization`，51 条断言通过、退出码 0，指纹与上述规则门相同。覆盖真实语言选择、英文主页／设置及商店、事件、战斗显示；未请求或生成默认截图。
 
 **后续同步授权（2026-09-19）**：用户要求更新 GitHub，本批以维护提交同步 main；提交前复算源码指纹，与上述 3018 条规则及 51 条窗口断言通过的版本完全一致，复用已有证据，不重复运行。此次仅同步源码、翻译、测试与文档，v0.17.2 标签、Release 附件及本地安装包保持原发布内容。
+
+## 2026-09-19｜过时 UI 测试与现行文档引用维护
+
+基线 `71d2b28`。用户要求修改检查发现的旧测试／旧文档并更新 GitHub。生产代码、存档规则与资源未改；本批不新增旧档迁移，不打包或更新 Release。
+
+此前 `20260918T050041299-48564` 的 8 条 UI 失败中，7 条来自过时交互前提：`enemy_feedback_ui_cases.player_interactions` 未展开快捷栏就查找已安装工具（4 条）；`pressure_ui_cases.run` 把完整深呼吸说明当成紧凑摘要（2 条）；`reward_ui_cases.run` 未展开效果详情就检查最终解锁说明（1 条）。按现行 `main._basic_action_tile`、快捷栏与 `release_details.preview` 的显示契约修订测试：真实点击展开快捷栏、真实 hover 获取完整说明、真实点击展开效果详情。保留原有不可用目标、快感衰减、延后能量、次数与只支付一次等断言，并补充查看详情不改快照的检查。
+
+测试注释中的 60 处旧文档路径改为现行分类路径与语义标题；清除旧章节号、失效批次描述，合并 `event_stacked_condition_trace_and_release` 的三段重复注释并移除其过期的未落地备注。本轮该场景随 `event_flow` 实际通过。除上述三份 UI 测试外，另外 19 份测试只改注释或一条断言提示文字；静态比对去除注释并归一该提示后，可执行内容与基线一致，未改冻结哈希、布尔断言或删除用例。
+
+`project-map` 删除重复归档目录行；`event-pipeline` 清除历史 PR 的 E4／E5／E6 授权、只允许重命名一处等阶段限制，将单一入口、依赖边界、内容事实与 trace 隔离写为现行契约。历史本地 oracle 脚本不再作为新工作区的必备命令，仍保留结构重构的冻结比对要求与禁止重写基线掩盖差异的约束。历史记录和发布说明不改写。
+
+分类门 `20260919T062123711-6408`：`-Suite architecture,event_flow -UI -UISuite enemy_feedback,pressure,rewards -KeepGoing -TimeoutSeconds 1200`。规则 architecture **471**、event_flow **835**，合计 **1306**；窗口 enemy_feedback **43**、pressure **86**、rewards **315**，合计 **444**，全部通过。`summary.json` 为 `passed`，无失败／未运行分类；before／after 指纹均为 `FE1E3C23D36BD74541CACC9766CD6799FEB81AE0B9DDBD5C1F09251220CBF7C0`。未生成默认截图。
+
+静态检查：测试内全部 `docs/*.md` 引用及新增标题锚点可解析；改动文档 UTF-8 无 BOM／替换字符，本次新增／改写的 Markdown 链接存在，事件契约约 41.6 KB、项目地图约 4.0 KB；`git diff --check` 通过。另有 12 处记录类旧链接沿用撰写时路径，均已存在于基线；按只追加规则保留，不计为本批新增链接通过。辅助脚本与结构图位于忽略目录 `build/test-doc-maintenance-20260919/`。独立只读子代理审查交互、断言保留、引用与事件契约，并复核最后两段文档修改，无阻塞项。
+
+**仍未解决**：`interface_ui_cases` 的 `CARD ART every registered card has an illustration` 在既有日志中报告 **28** 个 `witch_*` 牌型缺图（1 条失败）；本批未改资源或该断言，也未重跑不相关的 interface 分类。不以这轮专项通过宣称全部 UI 或全项目通过。其他规则分类、完整随机回归、Android 真机和打包均未执行。按本次用户授权提交并推送 main，v0.17.2 标签与附件仍对应原发布源码。

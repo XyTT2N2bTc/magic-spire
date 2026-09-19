@@ -148,7 +148,7 @@ static func sidebar_refresh(t) -> void:
  panel.size.y=512;await t.frames(5)
  t.check(panel.find_child("BodyRegionContent_region_upper",true,false).size.y>scroll_height,"DISPLAY resized body panel recalculates its visible region")
 
-# docs/ondemand-copy.md §4.1/§6 scenario 0: the body detail section resolves the card face through
+# docs/spec/ondemand-copy.md「证据入口」: the body detail section resolves the card face through
 # the single display entry, so a deleted card_texts key must recompute the same text and leave a
 # named record instead of raising or silently blanking.
 static func copy_missing_key_never_crashes(t) -> void:

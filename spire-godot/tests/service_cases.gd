@@ -176,7 +176,7 @@ static func treasure_with_plate(t) -> void:
  var after=g.export_snapshot()
  t.check(not t.action(g,"service",{"op":"take","index":0}).ok and g.state==after,"TREASURE collected reward cannot be claimed twice")
 
-# docs/transition-pipeline.md §5 场景 05：代表性非迁移提交不写状态（迁移日志为空、阶段／房间不变）。
+# docs/spec/transition-pipeline.md「证据入口」：代表性非迁移提交不写状态（迁移日志为空、阶段／房间不变）。
 static func non_transitions_do_not_write(t) -> void:
  var arch=preload("res://tests/architecture_cases.gd")
  var cases=[]

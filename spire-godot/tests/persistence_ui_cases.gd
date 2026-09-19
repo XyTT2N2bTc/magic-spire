@@ -33,7 +33,7 @@ static func close_saves(t) -> void:
  t.ui._refresh_drawers()
  await t.frames()
 
-# docs/save-fixed-points.md §6 场景 05：三条非进度写盘保留（本函数覆盖 T3 新局替换与 T4 手动按钮，
+# docs/spec/save-fixed-points.md「证据入口」：三条非进度写盘保留（本函数覆盖 T3 新局替换与 T4 手动按钮，
 # T2 线稿的真手势覆盖在 route_ui_cases），固定点提交才写盘，非固定点一律不写。
 static func explicit_and_checkpoint_writes(t) -> void:
  var ui=t.ui

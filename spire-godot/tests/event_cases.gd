@@ -13,7 +13,7 @@ static func arrive(g, id: String) -> void:
 static func choose(t,g,id: String) -> Dictionary:
  return t.action(g,"event",{"action":"choose","choice":id})
 
-# docs/event-pipeline-unification.md §10 scenario 01: the compiled registry entry is the
+# docs/spec/event-pipeline.md「证据入口」: the compiled registry entry is the
 # single author form, and the projection keeps the same visible fields as the baseline.
 static func event_definition_single_form(t) -> void:
  var g=Game.new(42)
@@ -46,7 +46,7 @@ static func event_definition_single_form(t) -> void:
   t.check(view.intro==spec.intro or walk.state.room_event.get("flow",false),"EVENT DEFINITION single-node introduction stays byte-identical "+id)
  t.check(single_count==8 and multi_count==4,"EVENT DEFINITION eight single-node and four multi-node events registered")
 
-# docs/event-pipeline-unification.md §10 scenario 03 (A25 wording): every authored option of
+# docs/spec/event-pipeline.md「证据入口」: every authored option of
 # the entered node leaves a trace row, decisions stay inside the four values, every dropped or
 # hidden row carries one of the named gates, a selector keeps the authored source choice apart
 # from the frozen instance id, an empty selector still reports selector_empty without entering

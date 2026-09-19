@@ -137,7 +137,7 @@ static func run(t) -> void:
  t.check(g.state.phase=="cleared" and g.state.completed_rooms.is_empty() and g.candidates().all(func(c):return c.payload.kind=="item_discard"),"PRACTICE ends after six real rounds without tower progress; only universal item discard remains")
  t.check(g.validate()=="","PRACTICE final state valid")
 
-# Batch B8 (§8.3 sampling): presence and count predicates over ordinary equipment in precise
+# docs/spec/equipment-query-seam.md「证据入口」: presence and count predicates over ordinary equipment in precise
 # positions answer exactly like the live path, and agree with the slot and point edges.
 static func index_predicate_parity(t) -> void:
  var g=Game.new(42)
@@ -172,7 +172,7 @@ static func index_fixture(kind: String):
  g._install_template("rope","upper_arm",10,10,false,"fixture",2)
  return g
 
-# §8.3 batch B1 sampling: the materialized slot edge and piece set answer exactly like the live
+# docs/spec/equipment-query-seam.md「证据入口」: the materialized slot edge and piece set answer exactly like the live
 # path, in piece order, including the order that powers the "第 N 条" names.
 static func index_slot_edge_parity(t) -> void:
  for kind in ["plain","component","shoulder"]:

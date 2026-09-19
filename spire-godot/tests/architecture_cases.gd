@@ -4,8 +4,8 @@ const GameCore=preload("res://core/game.gd")
 const Rewards=preload("res://tests/reward_cases.gd")
 const Guard=preload("res://core/guard.gd")
 
-# docs/ondemand-copy.md §5.1: frozen docs/equipment-query-seam.md §8.2 hashes recomputed with
-# unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for the §5.5 fixtures.
+# docs/spec/ondemand-copy.md「oracle 三条（必须换判据）」: frozen hashes recomputed with
+# unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for copy_baseline_fixture.
 const COPY_BASELINE={
  "battle:0":["bf8d97d58f3be03b42cb65ee5b36afebca335f25e496fbb3301db3285fcc46fe","e2b375c5019c2ccae9d088a5050b9ee445d199f74c0e524e9e63cd2bc6ccfb4a"],
  "battle:12":["c07e59259326f1ec2e380bcc1d7f2ed8e9b05e8442f16b3bb288133ff2b9a6df","81f7796e55826b580131762445db711651815b83b7bb0a9ab89560971ccb2f32"],
@@ -18,7 +18,7 @@ const COPY_BASELINE={
 static func ids_for(values: Array) -> Array:
  return values.map(func(e):return e.get("id",""))
 
-# docs/transition-pipeline.md §5 的测试侧只读助手：读进程内迁移日志（生产代码不带计数器）。
+# docs/spec/transition-pipeline.md「证据入口」：读进程内迁移日志（生产代码不带计数器）。
 static func transition_log(g) -> Array:
  var log=g.get("_transition_log")
  return log.duplicate() if log is Array else []
@@ -30,7 +30,7 @@ static func transition_delta(g, before: Array) -> Array:
 static func transition_kinds(delta: Array, prefix: String) -> Array:
  return delta.filter(func(kind):return String(kind).begins_with(prefix))
 
-# docs/transition-pipeline.md §4：闭环 check 的扫描面。四组模式各自的正则；注释按 `#` 之后截断，
+# docs/spec/transition-pipeline.md「证据入口」：闭环 check 的扫描面。四组模式各自的正则；注释按 `#` 之后截断，
 # `==` 以 `[^=]` 排除。返回 {counts: {"文件|函数|组": 次数}, sites: {key: ["文件:行:函数", ...]}}。
 const TRANSITION_PATTERNS={
  "room":"(?:g\\.)?state\\.room\\s*=[^=]",
@@ -79,9 +79,9 @@ static func transition_scan() -> Dictionary:
      sites[key].append(path+":"+str(index+1)+":"+current)
  return {"counts":counts,"sites":sites}
 
-# docs/transition-pipeline.md §4／§5 场景 07：写入点双向比对——扫描集 ⊆ 声明表 且 表内每一点都被
+# docs/spec/transition-pipeline.md「证据入口」：写入点双向比对——扫描集 ⊆ 声明表 且 表内每一点都被
 # 扫到；表外或未命中都打印 `文件:行:函数`。表内每项＝(文件, 函数, 组, 行数)。
-# ③ 的 8 个函数＝契约 §1 的"8 个语义入口"（13 个引用点保留为同一批函数；收束后一个位点由
+# ③ 的 8 个函数＝迁移声明表中的"8 个语义入口"（13 个引用点保留为同一批函数；收束后一个位点由
 # "判定一行＋执行一行"两行承载，故行数大于 13，函数集不变）。
 const TRANSITION_SITES=[
  {"file":"res://core/game.gd","func":"_apply_transition","group":"room","count":1},
@@ -128,7 +128,7 @@ static func transition_write_sites_are_pinned(t) -> void:
  t.check(owners==TRANSITION_BATTLE_END_FUNCTIONS,"ARCH every battle-end decision lives in the eight declared entries: "+str(owners))
  t.check(int(counts.get("res://core/game.gd|_apply_transition|room",0))==1 and int(counts.get("res://core/game.gd|_apply_transition|phase",0))==1,"ARCH state.phase and state.room have exactly one write site each: "+str([counts.get("res://core/game.gd|_apply_transition|room",0),counts.get("res://core/game.gd|_apply_transition|phase",0)]))
 
-# docs/save-fixed-points.md §2：进度固定点集合＝声明表里标了 checkpoint 列的 kind（固定清单，
+# docs/spec/save-fixed-points.md「证据入口」：进度固定点集合＝声明表里标了 checkpoint 列的 kind（固定清单，
 # 多标一个或少标一个都红），且每个 checkpoint 名字都必须出现在 CHECKPOINT_PRIORITY 里。
 const SAVE_CHECKPOINT_KINDS={
  "battle_end_captured":"battle_end",
@@ -164,7 +164,7 @@ static func save_checkpoint_kinds_are_pinned(t) -> void:
  priority.sort()
  t.check(names==priority,"ARCH the simultaneous-hit priority resolves exactly the declared checkpoint names: "+str(names)+"/"+str(priority))
 
-# docs/event-pipeline-dependency-spec.md §1／§4.2: the event modules preload exactly the
+# docs/spec/event-pipeline.md「依赖规范」: the event modules preload exactly the
 # declared registry edges; one edge more or less fails, and no core file may reach ui/.
 static func event_dependency_edges_pinned(t) -> void:
  var expected={"res://core/room_events.gd":["res://data/room_events.gd","res://data/relics.gd"],"res://core/content_catalog.gd":[],"res://core/snapshot.gd":["res://data/phases.gd"]}
@@ -188,7 +188,7 @@ static func event_dependency_edges_pinned(t) -> void:
   if file==null: continue
   t.check(ui_pattern.search(file.get_as_text())==null,"ARCH core event module never names ui/ "+path)
 
-# docs/event-pipeline-dependency-spec.md §4.2: nodes and options are reachable only through
+# docs/spec/event-pipeline.md「依赖规范」: nodes and options are reachable only through
 # definition／node／node_ids; legacy keys return empty instead of raising.
 static func event_definition_accessors_only(t) -> void:
  var g=Game.new(42)
@@ -263,7 +263,7 @@ static func shared(view: Dictionary, authority: Dictionary) -> String:
    if is_same(entry.value,source.value): return entry.path+" -> "+source.path
  return ""
 
-# docs/event-pipeline-unification.md §10 scenario 05 / dependency spec §4.2: the state
+# docs/spec/event-pipeline.md「证据入口」: the state
 # condition kinds come from one declaration, and the three consumers agree on them.
 static func event_condition_kinds_share_one_declaration(t) -> void:
  var g=Game.new(42)
@@ -284,7 +284,7 @@ static func event_condition_kinds_share_one_declaration(t) -> void:
  t.check(g.validate()!="" or g.Snapshot.check(g.export_snapshot(),g)!="","EVENT KINDS save validation rejects an unknown kind")
  g.state.room_event=saved
 
-# docs/event-pipeline-unification.md §10 scenario 13: every read path is read-only.
+# docs/spec/event-pipeline.md「证据入口」: every read path is read-only.
 static func event_probe_and_projection_readonly(t) -> void:
  for id in ["floating_belt_cluster","binding_cleric","succubus_three_games"]:
   var g=Game.new(42)
@@ -301,7 +301,7 @@ static func event_probe_and_projection_readonly(t) -> void:
   g.Events.selector_values(g,{"kind":"card"})
   t.check(g.export_snapshot()==before and g.state.rng==rng and g.state.logs.size()==logs and g.state.version==version,"EVENT READONLY projection and evaluation do not mutate: "+id)
 
-# docs/event-pipeline-dependency-spec.md §4.2: one evaluation entry owns the decisions, so
+# docs/spec/event-pipeline.md「依赖规范」: one evaluation entry owns the decisions, so
 # re-reading candidates never re-freezes and matches a direct entry call.
 static func event_single_evaluation_entry(t) -> void:
  for id in ["floating_belt_cluster","binding_cleric","succubus_three_games","mysterious_woman_statue","enchanters_empty_studio"]:
@@ -436,7 +436,7 @@ static func equipment_read_batches(t) -> void:
  preload("res://tests/curse_cases.gd").give(g,"self_binding")
  projection_contract(t,g,"self-binding speculative installation")
 
-# Batch B1 (§11 scenario 2): each edge materializes at most once per scope and never outside one.
+# docs/spec/equipment-query-seam.md「证据入口」: each edge materializes at most once per scope and never outside one.
 static func index_materializes_once_per_scope(t) -> void:
  var g=IndexCountingGame.new(42)
  g.state.equipment.clear()
@@ -468,7 +468,7 @@ static func index_materializes_once_per_scope(t) -> void:
  t.check(g.piece_builds==built and g.slot_builds==slot_builds and g.id_builds==id_builds and g.capacity_builds==capacity_builds and g.physical_builds==physical_builds,"INDEX queries without a scope never build an edge table")
  t.check(g.export_snapshot()==before,"INDEX materialization leaves state, logs and random cursors unchanged")
 
-# Batch B1 (§11 scenario 3): an inconsistent graph voids the whole scope, records one named issue
+# docs/spec/equipment-query-seam.md「证据入口」: an inconsistent graph voids the whole scope, records one named issue
 # and answers every later query in that scope from the live path.
 static func index_self_check_falls_back(t) -> void:
  var root=Game.new(42,true,"component_links")
@@ -502,8 +502,8 @@ static func index_self_check_falls_back(t) -> void:
  dangling._equipment_read=dangling_scope
  t.check(dangling._equipment_read.is_empty() and dangling.export_snapshot()==dangling_before,"INDEX dangling host fallback leaves no scope or state change")
 
-# Batch B2 (§8.3): the materialized id edge answers like the live lookup over every target
-# family and keeps the authoritative instance reference (§2 exception one).
+# docs/spec/equipment-query-seam.md「证据入口」: the materialized id edge answers like the live lookup over every target
+# family and keeps the authoritative instance reference.
 static func index_id_edge_parity(t) -> void:
  for kind in ["plain","component_links","shoulder_links","torso_binding","special_equipment"]:
   var g=Game.new(42,true,kind) if kind!="plain" else Game.new(42)
@@ -530,7 +530,7 @@ static func index_id_edge_parity(t) -> void:
  plain._equipment_read=scope
  t.check(plain.state.equipment.filter(func(e):return e.id==piece.id)[0].durability==3,"INDEX id edge writes through to the authoritative instance, never to a copy")
 
-# Batch B8 (§11 scenario 4): presence and count predicates keep their §5 values on the indexed
+# docs/spec/equipment-query-seam.md「证据入口」: presence and count predicates keep their live-query values on the indexed
 # read path, including the hand truth table and the non-authoritative capacity argument.
 static func index_predicate_parity(t) -> void:
  var cases=[]
@@ -577,7 +577,7 @@ static func index_predicate_parity(t) -> void:
  t.check(dense.capacity_used("wrist")==dense_reference.capacity_used("wrist") and dense.occupied("wrist") and dense.hand_blocked("wrist","left"),"INDEX dense counts and presence match the live path")
  dense._equipment_read=dense_scope
 
-# Batch B9 (§11 scenario 5): every §3.1 outer entry opens and releases its own scope and answers
+# docs/spec/equipment-query-seam.md「证据入口」: every declared outer entry opens and releases its own scope and answers
 # exactly like the index-off reference; entries that swap state still leave no scope behind.
 static func index_entry_parity(t) -> void:
  var g=IndexCountingGame.new(42)
@@ -745,7 +745,7 @@ static func instance_effect_boundaries(t) -> void:
  t.check(t.action(g,"service",{"op":"take","index":0,"payment":"self"}).ok,"ARCH shop transaction freezes its actual payment source")
  projection_contract(t,g,"shop result and presentation registry")
 
-# docs/ondemand-copy.md §5.5: the six fixture sequence, constructed by name in this file.
+# docs/spec/ondemand-copy.md「证据入口」: the six fixture sequence, constructed by name in this file.
 static func copy_baseline_fixture(phase: String, count: int):
  var g=Game.new(42) if phase=="battle" else GameCore.new(42)
  if count>=12:
@@ -755,7 +755,7 @@ static func copy_baseline_fixture(phase: String, count: int):
   for slot in ["upper_arm","wrist","thigh"]: g.add_fixture(slot,7,10)
  return g
 
-# §5.4 mask: delete only the declared keys, and report what was actually removed so the caller
+# Projection mask: delete only the declared keys, and report what was actually removed so the caller
 # can demand "exactly the declared set, no more and no fewer".
 static func copy_masked_projection(view: Dictionary, candidates: Array, declared: Dictionary) -> Dictionary:
  var removed={"card_texts":[],"card_instances":[],"candidate_detail":[]}
@@ -768,8 +768,8 @@ static func copy_masked_projection(view: Dictionary, candidates: Array, declared
    candidate.erase("detail");removed.candidate_detail.append(candidate.id)
  return removed
 
-# §5.4 mask protocol in its on-demand form: the declared display set is recomputed here from the
-# display entrances §1.2 lists (independent of View.build), and the narrowed projection must contain
+# Projection mask protocol in its on-demand form: the declared display set is recomputed here from the
+# declared display entrances (independent of View.build), and the narrowed projection must contain
 # exactly that set, in registry order, with unchanged entries. The byte-for-byte comparison against the
 # frozen baseline JSON stays in the build-directory oracle, which is the only place that has it.
 static func copy_projection_masked_baseline(t) -> void:
@@ -779,7 +779,7 @@ static func copy_projection_masked_baseline(t) -> void:
    var key="%s:%d" % [phase,count]
    var g=copy_baseline_fixture(phase,count)
    var pieces=g.physical_pieces().size()
-   t.check(pieces==count and g.state.equipment.size()==count and g.state.links.is_empty() and g.state.composites.is_empty() and g.state.special_equipment.is_empty() and g.validate()=="","COPY §5.5 fixture sequence holds for "+key)
+   t.check(pieces==count and g.state.equipment.size()==count and g.state.links.is_empty() and g.state.composites.is_empty() and g.state.special_equipment.is_empty() and g.validate()=="","COPY baseline fixture sequence holds for "+key)
    var candidates=g.candidates()
    var view=g.get_view()
    var shown=copy_display_set(g,candidates)
@@ -799,7 +799,7 @@ static func copy_projection_masked_baseline(t) -> void:
    t.check(foreign.is_empty(),"COPY card_instances only carries hand uids "+key+": "+str(foreign.slice(0,3)))
    t.check(not view.has("deck_list"),"COPY deck_list left the View "+key)
 
-# 独立重算 S（§1.2 的显示入口），供 mask 声明与 View 断言比对。
+# 独立重算 S（契约声明的显示入口），供 mask 声明与 View 断言比对。
 static func copy_display_set(g, candidates: Array) -> Dictionary:
  var shown={}
  for card in g.state.hand: shown[card.type]=true
@@ -818,7 +818,7 @@ static func copy_display_set(g, candidates: Array) -> Dictionary:
    if g.Cards.Rules.SPECS.has(type): shown[type]=true
  return shown
 
-# §5.2 card half while the set is not narrowed yet: every registered type is still projected, the
+# The display set projects only visible types; for every projected type, the
 # single entry equals that projection field by field, the hand instance rows answer the same way and
 # each call hands back an isolated container without touching state or the turn version.
 static func copy_single_entry_matches_projection(t) -> void:
@@ -830,7 +830,7 @@ static func copy_single_entry_matches_projection(t) -> void:
  for type in g.Cards.Rules.SPECS:
   if view.card_texts.has(type) and g.live_card_text(type)!=view.card_texts[type]: mismatched.append(type)
  t.check(mismatched.is_empty() and not view.card_texts.is_empty(),"COPY single entry equals the projected card text for every displayed type: "+str(mismatched.slice(0,5)))
- # §5.2 按需 == 全量：全部注册牌型在三个入口上逐字段相等；S 内的键必须在视图里，S 外的键不得出现。
+ # 按需 == 全量：全部注册牌型在三个入口上逐字段相等；S 内的键必须在视图里，S 外的键不得出现。
  var full_mismatch=[]
  var shown=copy_display_set(g,g.candidates())
  for type in g.Cards.Rules.SPECS:
@@ -850,7 +850,7 @@ static func copy_single_entry_matches_projection(t) -> void:
   added.sort()
   extra[card.uid]=added
   # The projected instance row carries the two-step pair; the single entry is the four-step entry
-  # (§1.1), so its only additions may be the face costs and, for casting cards, the cast block.
+  # so its only additions may be the face costs and, for casting cards, the cast block.
   if not ("face_costs" in added) or not added.all(func(key):return key in ["casting","face_costs"]): instances.append(card.uid+"#extra"+str(added))
  t.check(instances.is_empty() and not view.card_instances.is_empty(),"COPY single entry keeps every projected instance field and adds only the face costs and casting of its own four-step entry: "+str(instances.slice(0,3))+" "+str(extra))
  var fresh=g.live_card_text("strain")
@@ -858,7 +858,7 @@ static func copy_single_entry_matches_projection(t) -> void:
  t.check(g.live_card_text("strain").face_effects.bound!="changed","COPY single entry returns a fresh container on every call")
  t.check(g.state==before and g.state.version==view.version,"COPY single entry leaves state, random domains and turn version unchanged")
 
-# §6 scenario 7 in its R0 form and §11.5 R0: no producer is migrated in this batch, so the direct
+# docs/spec/ondemand-copy.md「文案路由（收口阶段）」: the direct
 # string channel must return every producer string byte for byte, the candidate entry must equal the
 # projected detail, the registered kinds must render exactly like their own builders, and the router
 # must record nothing until something really is unknown.
@@ -914,7 +914,7 @@ static func copy_route_bytes_unchanged(t) -> void:
  t.check(router.failures(g2).size()==failures+3 and g2.state==g2_before,"COPY ROUTER diagnostics stay on the instance and never touch state")
  copy_migrated_kinds(t,router)
 
-# §11.5 R1/R2/R3: every migrated kind must render exactly like the producer expression it replaced.
+# docs/spec/ondemand-copy.md「文案路由（收口阶段）」: every migrated kind must render exactly like the producer expression it replaced.
 # The descriptor carries a sentinel fallback, so a fallback return (unknown kind, invalid builder or a
 # wrong result type) shows up as a mismatch instead of hiding behind identical text.
 static func copy_migrated_kinds(t,router) -> void:
@@ -1010,7 +1010,7 @@ static func copy_migrated_kinds(t,router) -> void:
  copy_r6_sites(t,router,sentinel)
  copy_candidate_detail_on_demand(t)
 
-# §11.5 R4: the direct call sites of the remaining modules render through the router as well.
+# docs/spec/ondemand-copy.md「文案路由（收口阶段）」: the direct call sites of the remaining modules render through the router as well.
 static func copy_r4_sites(t,router,sentinel: String) -> void:
  var r4_mismatch=[];var r4_seen=0
  var choose=GameCore.new(42)
@@ -1075,7 +1075,7 @@ static func copy_r4_sites(t,router,sentinel: String) -> void:
  if door_candidate.is_empty() or router.text(door_game,{"kind":"prison.unlock_door","args":{"type":String(door_candidate.payload.get("type",""))},"fallback":sentinel})!=door_candidate.get("detail",""): r4_mismatch.append("prison.unlock_door")
  t.check(r4_seen==13 and r4_mismatch.is_empty(),"COPY R4 the remaining direct call sites render like their candidates: "+str(r4_mismatch.slice(0,4)))
 
-# §11.5 R6: the two producers outside the View route their text through the router as well.
+# docs/spec/ondemand-copy.md「文案路由（收口阶段）」: the two producers outside the View route their text through the router as well.
 static func copy_r6_sites(t,router,sentinel: String) -> void:
  var cards=copy_baseline_fixture("battle",0)
  var face_mismatch=[];var face_seen=0
@@ -1101,7 +1101,7 @@ static func copy_r6_sites(t,router,sentinel: String) -> void:
    if router.text(witch,{"kind":"witch.card_log","args":log_args,"fallback":sentinel})==logged and logged!="": log_matched=true
  t.check(log_matched,"COPY R6 witch.card_log renders like the emitted card log: "+logged)
 
-# docs/ondemand-copy.md §6 场景 5（copy_candidate_detail_on_demand）：card 组不带 detail、按需入口
+# docs/spec/ondemand-copy.md「证据入口」：card 组不带 detail、按需入口
 # 逐字节等于包装产出的值，其余组保持预生成；候选 ID 仍由 payload 决定，写路径不受影响。
 static func copy_candidate_detail_on_demand(t) -> void:
  var g=copy_baseline_fixture("battle",12)

@@ -6,7 +6,7 @@ const Guard=preload("res://core/guard.gd")
 const EventCases=preload("res://tests/event_cases.gd")
 const ExitCases=preload("res://tests/demo_exit_cases.gd")
 
-# docs/save-fixed-points.md §2／§5.1：进度固定点只由本次提交产生的迁移条目命名，生产侧的写盘规则只有
+# docs/spec/save-fixed-points.md「证据入口」：进度固定点只由本次提交产生的迁移条目命名，生产侧的写盘规则只有
 # 一条（`ui/main.gd` 的 `_submit`：`result.checkpoint` 非空才写盘）。测试侧用同一个 SaveStore 子类计数，
 # 并按同一条规则驱动写盘；生产代码不带计数器，也不比较内容或读快照。
 class WatchStore extends "res://core/save_store.gd":
@@ -80,7 +80,7 @@ static func last_blow(t, g, store) -> Dictionary:
   if not outcome.ok or String(g.state.phase)!="battle": break
  return outcome
 
-# docs/save-fixed-points.md §6 场景 01：进入新的一层是固定点；写盘内容＝写入时刻的场景起点，
+# docs/spec/save-fixed-points.md「证据入口」：进入新的一层是固定点；写盘内容＝写入时刻的场景起点，
 # 恢复点＝该层入口（房间与阶段与写入时一致）。
 static func save_writes_on_new_floor(t) -> void:
  var store=store_for("floor")
@@ -109,7 +109,7 @@ static func save_writes_on_new_floor(t) -> void:
  t.check(resumed.restore_snapshot(saved.snapshot).ok,"SAVE the floor checkpoint resumes through the formal entry")
  t.check(resumed.state.room==g.state.room and resumed.state.phase==saved.snapshot.phase,"SAVE the resumed floor entry keeps its own room and phase")
 
-# docs/save-fixed-points.md §6 场景 02：三个 battle_end_* 各一次真提交都写盘，恢复点＝战斗结束后的阶段起点。
+# docs/spec/save-fixed-points.md「证据入口」：三个 battle_end_* 各一次真提交都写盘，恢复点＝战斗结束后的阶段起点。
 static func save_writes_when_battle_finishes(t) -> void:
  var store=store_for("battle-end")
  var g=Game.new(42)
@@ -141,7 +141,7 @@ static func save_writes_when_battle_finishes(t) -> void:
  t.check(store_captured.writes==1 and String(g.state.phase)=="captured","SAVE the capture writes once and enters the captured phase: "+String(g.state.phase))
  t.check(store_captured.read_slot("tower").snapshot==g.restart_snapshot() and store_captured.read_slot("tower").snapshot.room=="prison","SAVE the capture recovery point is the capture scene start in prison")
 
-# docs/save-fixed-points.md §6 场景 03：完成整备（含回合用尽与休息房用尽两条真实分支）写盘，
+# docs/spec/save-fixed-points.md「证据入口」：完成整备（含回合用尽与休息房用尽两条真实分支）写盘，
 # 恢复点＝整备结束后的场景起点。
 static func save_writes_when_prepare_finishes(t) -> void:
  var store=store_for("prepare-end")
@@ -173,7 +173,7 @@ static func save_writes_when_prepare_finishes(t) -> void:
  t.check(String(last.get("checkpoint",""))=="prepare_end","SAVE the last rest turn leaves preparation through the same declared checkpoint: "+str(last.get("checkpoint","")))
  t.check(store_rest.writes==1 and store_rest.read_slot("tower").snapshot==g.restart_snapshot(),"SAVE the last rest turn writes the scene start it leaves behind")
 
-# docs/save-fixed-points.md §6 场景 04：抽样非固定点提交一律不写盘。
+# docs/spec/save-fixed-points.md「证据入口」：抽样非固定点提交一律不写盘。
 static func save_skips_representative_non_points(t) -> void:
  var store=store_for("non-points")
  var seed_game=Game.new(42)
@@ -239,7 +239,7 @@ static func save_skips_representative_non_points(t) -> void:
  t.check(resumed.restore_snapshot(saved.snapshot).ok,"SAVE reading a save in the sample never writes")
  t.check(store.writes==0,"SAVE a successful resume never calls the write entry")
 
-# docs/save-fixed-points.md §6 场景 06：.bak 持有上一个固定点（A），场景内活动与破坏主档后回退到 A。
+# docs/spec/save-fixed-points.md「证据入口」：.bak 持有上一个固定点（A），场景内活动与破坏主档后回退到 A。
 static func save_backup_holds_previous_fixed_point(t) -> void:
  var store=store_for("backup")
  var g=Game.new(42)
@@ -288,7 +288,7 @@ static func save_backup_holds_previous_fixed_point(t) -> void:
  var next=resumed.candidates().filter(func(c):return c.valid)[0]
  t.check(resumed.dispatch(next.id,resumed.state.version).ok,"SAVE the recovered fixed point A continues through a real command")
 
-# docs/save-fixed-points.md §5.4：固定点写盘不得改变失败文案、格式校验、read_slot 回退与 summary 语义。
+# docs/spec/save-fixed-points.md「证据入口」：固定点写盘不得改变失败文案、格式校验、read_slot 回退与 summary 语义。
 static func save_fixed_point_preserves_failure_and_format_contract(t) -> void:
  var store=store_for("failure")
  var g=Game.new(42)
@@ -414,7 +414,7 @@ static func event_conditions(t) -> void:
   saved.room_event.options[index].availability=broken.duplicate(true)
   t.check(not g.restore_snapshot(saved).ok and g.export_snapshot()==before,"SAVE malformed option condition rejected atomically "+JSON.stringify(broken))
 
-# docs/event-pipeline-dependency-spec.md §4.2: the pipeline writes only the declared
+# docs/spec/event-pipeline.md「依赖规范」: the pipeline writes only the declared
 # new keys, so the twelve shipped events carry neither conditions nor chain — while a real
 # cross-event jump adds exactly chain and the save accepts only its declared shape.
 static func event_pipeline_writes_only_declared_keys(t) -> void:
@@ -456,10 +456,10 @@ static func event_pipeline_writes_only_declared_keys(t) -> void:
   t.check(not chain.restore_snapshot(saved).ok and chain.export_snapshot()==jumped,"SAVE malformed chain rejected atomically: "+JSON.stringify(broken))
  catalog.commit(g,baseline)
 
-# docs/event-pipeline-unification.md §10 scenario 14: every shipped event's frozen options and
+# docs/spec/event-pipeline.md「证据入口」: every shipped event's frozen options and
 # its room_event survive a real SaveStore pack/unpack plus the formal restore entry byte for
 # byte (eight single-node and four multi-node instances). `next` is written only for options
-# frozen through the staged layout (§6.3 with the A12 judge: the node's frozen_form, or any
+# frozen through the staged layout (the node's frozen_form, or any
 # option carrying a selector), and all six malformed `next` shapes reject the whole save with
 # the existing wording while the live state stays untouched.
 static func event_frozen_options_roundtrip(t) -> void:
@@ -494,7 +494,7 @@ static func event_frozen_options_roundtrip(t) -> void:
   t.check(restored.validate()=="","SAVE the restored frozen event stays valid: "+id+": "+restored.validate())
  t.check(single==8 and staged==4,"SAVE the shipped sample covers eight single-node and four multi-node events: "+str(single)+"/"+str(staged))
  # A single-node in_place event still freezes its selector options through the shared staged
- # builder (§1.1 P2), so those instances carry `next` while their plain siblings do not.
+ # builder, so those instances carry `next` while their plain siblings do not.
  for id in ["alchemist_tasting_stall","enchanters_empty_studio"]:
   var g=Game.new(42)
   for slot in ["thigh","ankle"]: g.add_fixture(slot,6)
@@ -555,9 +555,9 @@ static func event_trace_never_reaches_state_or_save(t) -> void:
  t.check(resumed.restore_snapshot(saved).ok and not resumed.state.room_event.has("event_trace") and not resumed.state.has("event_trace"),"SAVE the restored state carries no trace key")
  t.check(not JSON.stringify(saved).contains("event_trace_enabled") and not JSON.stringify(saved).contains("availability_unmet"),"SAVE the save payload carries neither the switch nor a trace row")
 
-# docs/event-pipeline-unification.md §10 scenario 10: the trace never reaches the state,
+# docs/spec/event-pipeline.md「证据入口」: the trace never reaches the state,
 # the save or the view, and the switch does not change any digest.
-# docs/transition-pipeline.md §5 场景 06：迁移日志只在进程内——不进 state、不进 View、不进存档。
+# docs/spec/transition-pipeline.md「证据入口」：迁移日志只在进程内——不进 state、不进 View、不进存档。
 static func transition_log_never_reaches_state_or_view(t) -> void:
  var arch=preload("res://tests/architecture_cases.gd")
  var g=Game.new(42)

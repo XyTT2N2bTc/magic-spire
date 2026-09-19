@@ -10,7 +10,7 @@ class BattleEndCountingGame extends "res://tests/game_fixture.gd":
   finish_calls+=1
   super._finish_battle(end_kind)
 
-# docs/transition-pipeline.md §5 场景 01：八类战斗结束入口（＋警卫宣告收押）逐个走真实公开命令，
+# docs/spec/transition-pipeline.md「证据入口」：八类战斗结束入口（＋警卫宣告收押）逐个走真实公开命令，
 # 每次迁移日志恰有一条 `battle_end_*`、目标阶段与今天相同、`_finish_battle` 只被调用一次；
 # 收押也走同一路径（迁移日志同为 `battle_end_captured`，执行体不经过 `_finish_battle`）。
 static func battle_end_single_path_for_all_entry_points(t) -> void:
@@ -115,7 +115,7 @@ static func battle_end_command(t, g, name: String) -> void:
   "capture_guard_intent":
    t.check(t.action(g,"end").ok,"TRANSITION ENTRY announced capture commits "+name)
 
-# docs/transition-pipeline.md §5 场景 02：整备结束三条分支都记 `prepare_end`（同一 kind），
+# docs/spec/transition-pipeline.md「证据入口」：整备结束三条分支都记 `prepare_end`（同一 kind），
 # 目标阶段分别 pack／map／cleared。
 static func prepare_end_three_branches_one_kind(t) -> void:
  var cases=[

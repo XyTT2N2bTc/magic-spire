@@ -15,7 +15,7 @@ static func template_document(id: String) -> Dictionary:
   if data is Dictionary and data.get("id","")==id: return {"file":path,"data":data}
  return {}
 
-# docs/event-pipeline-unification.md §10 scenario 06: a staged node option may declare a
+# docs/spec/event-pipeline.md「证据入口」: a staged node option may declare a
 # registered-relic availability condition; malformed conditions stay rejected.
 static func event_stage_available_condition_validates(t) -> void:
  var g=Game.new(42)
@@ -31,7 +31,7 @@ static func event_stage_available_condition_validates(t) -> void:
   t.check(not Catalog.compile(g,[bad]).ok,"EVENT CONDITION staged option rejects a malformed condition "+str(invalid))
  t.check(Catalog.tables(g)==baseline,"EVENT CONDITION validation leaves the registries untouched")
 
-# docs/event-pipeline-unification.md §10 scenario 07: the legacy shape and incomplete node
+# docs/spec/event-pipeline.md「证据入口」: the legacy shape and incomplete node
 # declarations are rejected as one batch without registering anything.
 static func event_definition_form_rejects_legacy_shape(t) -> void:
  var g=Game.new(42)
@@ -64,7 +64,7 @@ static func event_definition_form_rejects_legacy_shape(t) -> void:
   var failed=Catalog.compile(g,[entry[1]])
   t.check(not failed.ok and failed.tables.is_empty() and Catalog.tables(g)==baseline,"EVENT FORM rejected without registering: "+entry[0])
 
-# docs/event-pipeline-unification.md §10 scenario 20: the shipped content declares at most
+# docs/spec/event-pipeline.md「证据入口」: the shipped content declares at most
 # one state condition per option and keeps the authored compatibility spelling verbatim.
 static func event_stacked_conditions_keep_current_content(t) -> void:
  var g=Game.new(42)
@@ -96,7 +96,7 @@ static func event_stacked_conditions_keep_current_content(t) -> void:
    t.check(authored.size()==1 and option.availability==authored[0].availability,"EVENT CONDITION frozen option keeps the authored condition "+id+"/"+source)
  t.check(frozen_conditions==1,"EVENT CONDITION the held-relic event freezes its authored condition")
 
-# docs/event-pipeline-unification.md §16: the author manual must list the fields the
+# docs/spec/event-pipeline.md「证据入口」: the author manual must list the fields the
 # validator actually accepts, keep pointing at the shipped templates, and never teach the
 # retired definition shape.
 static func event_author_manual_lists_current_fields(t) -> void:
@@ -152,7 +152,7 @@ static func event_author_manual_lists_current_fields(t) -> void:
   t.check(not Catalog.compile(g,[rejected]).ok,"EVENT MANUAL undocumented value is rejected by the validator: "+key)
  t.check(Catalog.tables(g)==baseline,"EVENT MANUAL manual review leaves the registries untouched")
 
-# docs/event-pipeline-unification.md §2.5 registrations: each merged allowance keeps what
+# docs/spec/event-pipeline.md「证据入口」: each merged allowance keeps what
 # both structures previously accepted, and nothing that used to be rejected is accepted.
 static func event_union_validation_rules(t) -> void:
  var g=Game.new(42)
@@ -190,7 +190,7 @@ static func event_union_validation_rules(t) -> void:
  t.check(not Catalog.compile(g,[rewarded_next]).ok,"EVENT UNION a rewarded option must end the event")
  t.check(Catalog.tables(g)==baseline,"EVENT UNION validation leaves the registries untouched")
 
-# docs/event-pipeline-unification.md §21 static counterexamples: a cross-event next has to name
+# docs/spec/event-pipeline.md「证据入口」: a cross-event next has to name
 # a registered event and one of its real nodes, and may never reference its own event.
 static func event_chain_references_fail_closed(t) -> void:
  var g=Game.new(42)
@@ -231,7 +231,7 @@ static func event_chain_references_fail_closed(t) -> void:
   t.check(not failed.ok and failed.tables.is_empty() and Catalog.tables(g)==baseline,"EVENT CHAIN rejected without registering: "+entry[0])
  t.check(Catalog.tables(g)==baseline,"EVENT CHAIN static validation leaves the registries untouched")
 
-# docs/event-pipeline-unification.md §3.3 ruling A33: a hold key has to stay unique along the
+# docs/spec/event-pipeline.md「证据入口」: a hold key has to stay unique along the
 # whole chain, so a package whose jump path reuses a key — or whose cleanup names another
 # definition's key — is rejected as one batch before anything is registered. The runtime guard
 # ("同一保管位置不能重复使用。") stays untouched as the second line of defence.

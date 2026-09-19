@@ -4,7 +4,7 @@ const Tower=preload("res://data/tower.gd")
 const Game=preload("res://core/game.gd")
 const EventData=preload("res://data/room_events.gd")
 
-# docs/transition-pipeline.md §5 场景 03：同层不产生 `floor_enter`、跨层产生恰一条 `floor_enter`，
+# docs/spec/transition-pipeline.md「证据入口」：同层不产生 `floor_enter`、跨层产生恰一条 `floor_enter`，
 # 且 room 变化只出现在该迁移内（迁移日志由主路径唯一写入者记录）。
 static func floor_enter_is_one_family(t) -> void:
  var arch=preload("res://tests/architecture_cases.gd")
@@ -37,7 +37,7 @@ static func floor_enter_is_one_family(t) -> void:
  t.check(arch.transition_kinds(same,"floor_enter").is_empty(),"TRANSITION FLOOR same-floor restart logs no floor_enter: "+str(same))
  t.check(arch.transition_kinds(same,"tower_restart").size()>0,"TRANSITION FLOOR same-floor restart still declares its kind: "+str(same))
 
-# docs/transition-pipeline.md §5 场景 08：demo 结束与返塔继续都记已声明 kind，目标阶段与今天相同。
+# docs/spec/transition-pipeline.md「证据入口」：demo 结束与返塔继续都记已声明 kind，目标阶段与今天相同。
 static func demo_end_and_tower_restart_use_declared_kinds(t) -> void:
  var arch=preload("res://tests/architecture_cases.gd")
  var exits=preload("res://tests/demo_exit_cases.gd")

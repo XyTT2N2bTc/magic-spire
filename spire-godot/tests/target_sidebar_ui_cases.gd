@@ -70,7 +70,7 @@ static func copy_drag_text(t, uid: String, slot: String) -> Dictionary:
  await t.mouse_button(Vector2(1550,70),MOUSE_BUTTON_LEFT,false)
  return {"strip":strip,"hints":hints,"ids":ids}
 
-# docs/ondemand-copy.md §4.1/§6 scenario 0: a test-side copy of the View with a deleted
+# docs/spec/ondemand-copy.md「证据入口」: a test-side copy of the View with a deleted
 # card_texts key or without the card group's detail must render the drag sections without an
 # engine error, keep the recomputed text and leave a named record instead of a silent blank.
 static func copy_missing_key_never_crashes(t) -> void:

@@ -11,7 +11,7 @@ static func source() -> Dictionary:
 static func translation(messages: Dictionary) -> Dictionary:
  return {"schema_version":1,"locale":"ja_JP","messages":messages}
 
-# docs/event-pipeline-unification.md §17 (ruling A9): the legacy English catalog has to
+# docs/spec/event-pipeline.md「证据入口」: the legacy English catalog has to
 # match the validator wording this slice rewrote — retired sources deleted, rewritten
 # sources translated.
 const REMOVED_SOURCES=[
