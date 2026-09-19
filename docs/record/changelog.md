@@ -14,6 +14,10 @@
 
 
 
+## 本局回顾：战报面板（只读紧凑地图＋进度行＋卡组）（2026-09-19）
+
+域：`ui/run_review.gd`（新建，面板唯一组装入口）、`ui/route_map.gd`（`read_only` 复用同一渲染器与坐标）、`ui/main.gd`（路线屏与通关屏两个入口、`show_run_review` 抽屉接线、复制按钮作为角标的第二视图）、`assets/localization/{zh_CN,en_US}.json`（新增 `ui.run_review.*` 8 条）、`tests/route_ui_cases.gd`（新增 `run_review(t)`，场景 A–J）；契约 `docs/spec/run-review.md`、依赖约束 `docs/spec/run-review-dependencies.md`。按协调者记录的人类裁定取「杀戮尖塔式」回顾：只读紧凑地图＋进度行，不做类型计数表与节点清单；入口给路线屏与通关屏，`view.route` 为空（练习局／牢房）时不建控件。面板是纯只读显示入口：三块取源为 `ui.seed_report_text()`、`view.route`、`ui.view.deck_cards`，唯一写动作是复制按钮经既有 `ui.copy_seed()`；回顾地图不接 `room_selected`／`drawings_changed`，`core/`、`data/`、快照版本与反馈域零改动。规则门 643 条、窗口门 304 条通过，逐条敏感性实测与未跑项见[验证记录](verification.md)。本片只改源码、测试与文案资源，未打包、未推送。
+
 ## PR #6：监狱流程与内容包路径整合（2026-09-19）
 
 域：监狱、内容加载、打包配置、教程与英文。按用户“以 PR 优先”合并 `prison-cell-baseline`：五级警戒进入普通牢房，使用最高规格的追加名额；反抗战暂停巡视与刑期计时并保留牢房位置；内容包根收口到 `PACKS_ROOT`／`packs_root()`，Windows 与 Android 导出前检查对应配置。整合时补齐内容校验工具的旧接口调用，纠正教程中残留的终局、全身补满上锁和战斗计刑期说法，补齐英文动态手册。保留此前测试维护和双方历史记录。专项规则 6634 条、窗口 268 条通过，范围与证据见 [验证记录](verification.md)。按用户要求并入 main 并同步 GitHub；本次不改版本号、不打包或更新 Release。
