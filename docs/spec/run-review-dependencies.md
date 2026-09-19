@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | `ui/run_review.gd`（新建） | 新建 `extends RefCounted` 的静态组装入口：`TITLE_KEY`／`TITLE_FALLBACK`／`title_text(ui)`／`can_open(route)`／`drawer(ui)` 与三块内容（标识／节点概况／卡组）；标识块复制按钮 `RunReviewCopy`（初始文本读 `ui._run_review_copy_text()`，`pressed → ui.copy_seed()`） | 只读 `ui.view`、`ui._text`、`ui._label`、`ui._scroll`、`ui._drawer_shell`；自身不调用任何 `ui.game.*`；不派发候选、不进 `_submit`、不写盘；不新增计时器／回调，不写剪贴板 |
 | `ui/route_map.gd` | 新增 `var read_only=false`；`_ready()` 在该标志下不建房间按钮、不连 `room_selected`；`_input()` 在该标志下首行早退 | `read_only=false` 的既有行为逐项不变（`buttons`、`room_selected`、右键绘画、按住左键平移）；`_draw()`／`point_for()`／`_layout_nodes()`／`ink_position()` 的渲染与坐标语义不变 |
-| `ui/main.gd` | `DRAWERS` 增 `show_run_review`；`var show_run_review=false`；`var run_review_copy: Button`；`const RunReview=preload("res://ui/run_review.gd")`；`func _run_review_copy_text()`；`_refresh_drawers()` 非主页分支增一行分派；`_drawer_shell()` 的整窗遮罩条件增 `show_run_review`；`_route_screen()` 的 `navigation` 增 `OpenRunReview`；`_demo_exit_screen()` 增 `OpenRunReview`（其面板 rect 高度可按内容调整）；`copy_seed()` 与 `_refresh_seed_chip()` 改为经同一刷新入口同时改写角标与面板按钮两处文本（守卫沿用 `is_instance_valid`） | `SeedChip` 的可见性判据、文本、位置与 1.2 s 窗口不变；`seed_report_text()`／`copy_seed()` 的签名、剪贴板内容与四要素结构不变；`MapOverview`／`MapLocate`／`MapClearDrawing`／`TowerRoute`／`TowerMapScroll` 的文本、位置、行为与相互判据不动（本片只**追加**一个按钮）；`_select_route_room`、`_open_drawer`／`_close_drawers`、Esc 与安卓返回键清单语义不变 |
+| `ui/main.gd` | `DRAWERS` 增 `show_run_review`；`var show_run_review=false`；`var run_review_copy: Button`；`const RunReview=preload("res://ui/run_review.gd")`；`func _run_review_copy_text()`；`_refresh_drawers()` 非主页分支增一行分派；`_drawer_shell()` 的整窗遮罩条件增 `show_run_review`；`_route_screen()` 的 `navigation` 增 `OpenRunReview`；`_demo_exit_screen()` 增 `OpenRunReview`（其面板 rect 高度可按内容调整）；`copy_seed()` 与 `_refresh_seed_chip()` 改为经同一刷新入口同时改写角标与面板按钮两处文本（守卫沿用 `is_instance_valid`） | `SeedChip` 的可见性判据、文本、位置与 1.2 s 窗口不变；`seed_report_text()`／`copy_seed()` 的签名、剪贴板内容与四要素结构不变；`MapOverview`／`MapLocate`／`MapClearDrawing`／`TowerRoute`／`TowerMapScroll` 的**文本、行为与相互判据不动**（本片只**追加**一个按钮；追加使 `navigation` 整格上移一行、`TravelMessageScroll` 变矮，属追加的必然布局后果）；`_select_route_room`、`_open_drawer`／`_close_drawers`、Esc 与安卓返回键清单语义不变 |
 | `assets/localization/zh_CN.json` | 新增「本地化 key 表」的 8 条（`text`＋`context`） | 既有条目不改不删；`schema_version`／`locale` 不变 |
 | `assets/localization/en_US.json` | 新增同 8 条（`source` 与 zh_CN 的 `text` 逐字相同，`text` 非空） | 既有条目的 `source`／`text` 不改；`coverage("en_US").missing==0` 继续成立 |
 | `tests/route_ui_cases.gd` | 新增 `run_review(t)` 与场景 A–J 的具名 check（在既有 `run(t)` 恢复 `ui.saves`／`persistence_enabled` 之前调用） | 既有断言与既有 `merged_departure`／`seed_chip` 不删不改；不新增镜像测试；分类注册（`tests/ui_smoke.gd` 的 `UI_MODULES`）不动 |
@@ -52,7 +52,8 @@
 ## 与 `seed-feedback-dependencies.md` 的交叉说明
 
 - 那一片的 `ui/main.gd` 行「既有地图控件与布局不动」指 `SeedChip` 与路线屏既有三件控件本身不受影响；
-  本片在 `navigation` 里**追加**一个新按钮，不改动它们的文本、位置与判据，两约束不冲突。
+  本片在 `navigation` 里**追加**一个新按钮，不改动它们的文本、行为与相互判据；
+  追加使整格上移一行、`TravelMessageScroll` 变矮，是追加的必然布局后果，两约束不冲突。
 - 本片对种子域的改动是**结构性**的、可观察语义不变：`copy_seed()` 不再内联只改角标文本，而是与
   `_refresh_seed_chip()` 共用同一刷新入口同时改写角标与面板按钮两处视图。剪贴板内容、
   1.2 s 窗口、`seed_copied_until` 的属主地位、「已复制」文案 key（`ui.map.seed_copied`）

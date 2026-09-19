@@ -82,10 +82,12 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 
 - 唯一判据 `RunReview.can_open(view.route)`：`view.route` 为空（`core/game_view.gd::build` 里
   `state.practice` 或 `state.room=="prison"` 的练习局与牢房）时**不创建**入口控件——不是
-  `visible=false` 的空壳，`ui.find_children("OpenRunReview","",true,false)` 必须为空。
+  `visible=false` 的空壳，`ui.find_children("OpenRunReview","",true,false)` 必须为空
+  （该判据在现有套件里的可证伪性限制见场景 G）。
 - 两个入口，同一个 `name="OpenRunReview"`（两屏在 `render()` 里互斥，任意时刻至多一个）：
-  - 路线屏 `ui/main.gd::_route_screen()`：追加在右栏 `navigation`（`MapOverview`／`MapLocate` 之后），
-    既有地图控件与布局不动。
+  - 路线屏 `ui/main.gd::_route_screen()`：追加在右栏 `navigation`（`MapOverview`／`MapLocate` 之后）：
+    既有控件的**文本、行为与相互判据不动**；追加使该格多出一行、既有格随之上移，
+    `TravelMessageScroll` 相应变矮——这是追加的必然布局后果，不算改动既有控件。
   - 通关屏 `ui/main.gd::_demo_exit_screen()`：追加在 `DemoExitPanel` 的按钮列
     （`view.demo_exit` 成立时 `view.route` 仍非空）；面板 rect 高度可按内容调整，
     判据是每个可见子控件都在面板矩形内（含 `view.demo_finished` 多出「返回菜单」的两态）。
@@ -237,8 +239,14 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 - Given 路线屏与通关屏（`view.route` 非空）；Then 恰好一个 `OpenRunReview`，
   且其 rect 落在 `RouteWorkspace`／`DemoExitPanel` 矩形内、不与既有控件相交。
 - 具名 check：`ROUTE run review entries follow the route data`
-- 敏感性：把可见性判据写成 `view.practice`／相位判断而漏掉监狱，或改成
-  `visible=false`（控件仍存在）→ `find_children` 计数断言变红。
+- 敏感性（观测＝**入口控件是否存在**）：把入口改成**无条件创建**（去掉 `can_open(view.route)` 守卫）→
+  练习局与牢房场景出现 `OpenRunReview`，`find_children` 为空断言变红（实测 5 条红，运行号
+  `20260919T100708396-34440`）；改成 `visible=false`（控件仍存在）→ 同一条计数断言变红。
+- **可证伪性限制（如实记录）**：把 `RunReview.can_open` 改成恒真，当前 `route` 套件实测 **0 条变红**——
+  练习局走 `_practice_screen()`、牢房相位压根不渲染 `_route_screen()`／`_demo_exit_screen()`，
+  两处"无入口"场景与 `can_open` 的取值无关。因此本片对空壳入口的证伪来自"无条件创建入口"这一变异，
+  **不得**把 `can_open` 判据写成"已证伪"；要单独证伪 `can_open`，需另加一条能渲染路线屏／通关屏
+  而 `view.route` 为空的夹具（不在本片范围内）。
 
 ### 场景 H｜抽屉机制与既有面板一致，点击不穿透
 
