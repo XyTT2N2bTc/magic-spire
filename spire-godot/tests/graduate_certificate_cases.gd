@@ -24,7 +24,8 @@ static func run(t) -> void:
   var ordinary=g.escape_preview(target,type,5)
   g.RelicEffects.gain(g,"graduate_certificate")
   var enhanced=g.Cards.target_payload(g,type,"wrist",target).preview
-  t.check(enhanced==g.escape_preview(target,type,10) and enhanced.damage>old.damage,"DIPLOMA card base increases before all existing escape factors: "+type)
+  var expected_preview=g.escape_preview(target,type,10);expected_preview.face_value=10.0
+  t.check(enhanced==expected_preview and enhanced.damage>old.damage,"DIPLOMA card base increases before all existing escape factors: "+type)
   t.check(g.escape_preview(target,type,5)==ordinary and g.Cards.face_text(g,type,true)==free_text,"DIPLOMA leaves passive/raw escape and free face unchanged: "+type)
   g.state.card_buffs.append("henshin_free")
   t.check(is_equal_approx(g.Cards.target_payload(g,type,"wrist",target).preview.damage,enhanced.damage*2),"DIPLOMA card bonus participates in existing damage multiplier: "+type)
@@ -65,4 +66,5 @@ static func run(t) -> void:
  t.check(immune.immune and immune.scaled_damage==0 and immune.damage==immune.environment_true,"DIPLOMA cannot bypass tier-three slip immunity; only existing environment true damage remains")
  tight.durability=6;tight.locked=true
  g.add_fixture("wrist",6)
- t.check(g.Cards.target_payload(g,"strain","wrist",tight).preview==g.escape_preview(tight,"strain",10),"DIPLOMA lock and stacking still use the normal multipliers")
+ var expected_preview=g.escape_preview(tight,"strain",10);expected_preview.face_value=10.0
+ t.check(g.Cards.target_payload(g,"strain","wrist",tight).preview==expected_preview,"DIPLOMA lock and stacking still use the normal multipliers")

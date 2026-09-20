@@ -2,7 +2,8 @@ extends RefCounted
 
 # Shape checks precede existing rule validators, so damaged nested data never reaches UI.
 const Phases=preload("res://data/phases.gd")
-const REVISION=54
+const REVISION=55
+const IRON_DRONE_REVISION=54
 const REINFORCEMENT_STATE_REVISION=52
 const CUP_STACK_REVISION=53
 const INCOMPATIBLE="这份存档与当前版本不兼容，请从主界面开始新游戏。"
@@ -11,6 +12,12 @@ const PIECE="id:s name:s template:s material:s variant:i grade:i locked:b slot:s
 
 static func is_current(s: Dictionary) -> bool:
  return s.get("save_revision") is int and s.save_revision==REVISION
+
+static func migrate_iron_drone(s: Dictionary, g) -> void:
+ if not s.get("enemies") is Array: return
+ for enemy in s.enemies:
+  if enemy is Dictionary and enemy.get("type")=="iron_drone" and not enemy.has("guard"):
+   enemy.guard=g.Guard.initial()
 
 static func migrate_cup_stacks(s: Dictionary, g) -> String:
  if not s.get("special_equipment") is Array: return "性玩具列表不完整。"
@@ -215,8 +222,10 @@ static func check(s: Dictionary, g) -> String:
  if not s.guard_bind.is_empty():
   if not fields(s.guard_bind,"progress:n sources:d") or s.guard_bind.progress<=0 or s.guard_bind.progress>g.CaptureBind.BIND_MAXIMUM or s.phase!="battle": return "捕缚进度记录损坏。"
   if s.guard_bind.sources.is_empty(): return "捕缚缺少来源。"
-  for source in s.guard_bind.sources.values():
-   if not fields(source,"enemy:s energy:i") or source.energy<0 or source.energy>=2: return "捕缚来源或能量计数损坏。"
+  for source_kind in s.guard_bind.sources:
+   var source=s.guard_bind.sources[source_kind]
+   if not fields(source,"enemy:s energy:i") or source.energy<0 or source.energy>=g.CaptureBind.energy_threshold(g,source_kind): return "捕缚来源或能量计数损坏。"
+   if source.has("skip_turn_start") and not source.skip_turn_start is bool: return "捕缚回合开始记录损坏。"
  if not fields(s,"completed_rooms:z relics:z reward_options:z rest_cards:z"): return "奖励或房间记录不完整。"
  var form_issue=g.Relics.form_issue(s)
  if form_issue!="": return form_issue

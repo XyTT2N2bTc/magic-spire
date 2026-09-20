@@ -9,7 +9,7 @@ static func fresh(seed_value: int=42):
 static func run(t) -> void:
  rest_restriction(t)
  var g=fresh();var spec=g.Cards.Rules.SPECS.siphon
- t.check(spec.rarity=="common" and "siphon" in g.Cards.Rules.COMMON and g.Cards.Rules.definition_reason(spec)=="" and not g.B.CARD_TRAITS.get("siphon",{}).get("exhaust",false),"SIPHON common reusable spell joins the existing reward and shop pool")
+ t.check(spec.rarity=="uncommon" and "siphon" in g.Cards.Rules.UNCOMMON and "siphon" not in g.Cards.Rules.COMMON and g.Cards.Rules.definition_reason(spec)=="" and not g.B.CARD_TRAITS.get("siphon",{}).get("exhaust",false),"SIPHON uncommon reusable spell joins the existing reward and shop pool")
  for mana in [40,98,100]:
   g=fresh();g.state.mana=mana;g.state.energy=0;g.state.pressure=99
   g.add_fixture("ankle",4);g.add_fixture("mouth",10)

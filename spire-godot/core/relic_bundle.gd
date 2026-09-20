@@ -30,7 +30,7 @@ static func candidates(g) -> Array:
 
 # R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
 static func copy_cards(g) -> Array:
- return g.state.deck.filter(func(card):return g.can_offer_card(card.type))
+ return g.state.deck.filter(func(card):return g.Cards.Rules.SPECS[card.type].rarity!="basic" and g.can_offer_card(card.type))
 
 static func claim_detail(g, args: Dictionary) -> String:
  if args.has("card_type"): return "复制这张牌，加入你的卡组。"
@@ -67,7 +67,7 @@ static func panel(g, actions: Array) -> Dictionary:
   var cards=copy_cards(g)
   var copies=actions.filter(func(c):return c.payload.get("kind","")=="relic_bundle" and c.payload.op=="copy")
   var exits=actions.filter(func(c):return c.payload.get("kind","")=="relic_bundle" and c.payload.op=="finish")
-  return {"active":true,"layout":"relic_bundle","selection":"card_copy","title":g.Relics.TYPES.universal_scanner.name,"destination":"选择一张牌复制。双面唯一能力牌除外。" if not cards.is_empty() else "没有可复制的卡牌。","continue_id":exits[0].id,"continue_label":"跳过","extra_ids":[],"rows":[],"entries":[],"cards":cards.duplicate(true),"action_ids":copies.map(func(c):return c.id)}
+  return {"active":true,"layout":"relic_bundle","selection":"card_copy","title":g.Relics.TYPES.universal_scanner.name,"destination":"选择一张牌复制。基础牌、双面唯一能力牌除外。" if not cards.is_empty() else "没有可复制的卡牌。","continue_id":exits[0].id,"continue_label":"跳过","extra_ids":[],"rows":[],"entries":[],"cards":cards.duplicate(true),"action_ids":copies.map(func(c):return c.id)}
  var entries=[]
  for i in range(g.state.relic_bundle.entries.size()):
   var saved=g.state.relic_bundle.entries[i]

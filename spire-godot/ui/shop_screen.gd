@@ -20,6 +20,13 @@ func _ready() -> void:
  var canopy=Scenery.new();canopy.foreground=true;canopy.name="ShopCanopy"
  ui._place(canopy,Rect2(Vector2.ZERO,size),self)
  _text("月灯杂货铺",Rect2(25,23,210,36),23,ui.TEXT)
+ var refresh=ui.actions.find("service_refresh",{"payment":ui.shop_payment})
+ var refresh_button=ui._button(ui.localization.text("ui.shop.refresh","刷新 · {price}魔力",{"price":ui.game.number(refresh.mana)}),func():ui._submit(refresh),ui.GOLD)
+ refresh_button.name="ShopRefresh";refresh_button.disabled=not refresh.valid
+ refresh_button.tooltip_text=ui.detail_of(refresh) if refresh.valid else refresh.reason
+ refresh_button.add_theme_font_size_override("font_size",15)
+ ui.candidate_buttons[refresh.id]=refresh_button
+ ui._place(refresh_button,Rect2(180,86,168,38),self)
  for source in ["self","flask"]:
   var balance=ui.view.mana if source=="self" else ui.view.mana_flask.mana
   var label=("自身魔力 " if source=="self" else "魔瓶魔力 ")+ui.game.number(balance)

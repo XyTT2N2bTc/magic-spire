@@ -18,7 +18,7 @@ static func run(t) -> void:
  var room=g.room_data(g.state.room)
  var index=room.stock.find(room.stock.filter(func(row):return row.type==TYPE)[0])
  var original_stock=room.stock.duplicate(true)
- g.state.mana=89;g.state.flask_mana=500;g.state.temporary_mana=500
+ g.state.mana=99;g.state.flask_mana=500;g.state.temporary_mana=500
  var before=g.export_snapshot()
  t.check(not t.action(g,"service",{"op":"take","index":index,"payment":"self"}).ok and g.state==before,"MEMBERSHIP cannot supplement personal balance with bottle or temporary mana")
  g.state.mana=100
@@ -26,8 +26,8 @@ static func run(t) -> void:
  var bottle=t.find_action(g,"service",{"op":"take","index":index,"payment":"flask"},false)
  t.check(not bottle.valid and bottle.reason=="仅可使用自身魔力购买。" and not g.dispatch(bottle.id,g.state.version).ok and g.state==before,"MEMBERSHIP purchase rejects bottle payment atomically")
  var purchase=t.find_action(g,"service",{"op":"take","index":index,"payment":"self"})
- t.check(purchase.mana==90 and not g.dispatch(purchase.id,g.state.version-1).ok and g.state==before,"MEMBERSHIP own purchase stays full price and rejects stale version")
- t.check(g.dispatch(purchase.id,g.state.version).ok and g.state.mana==10 and g.state.flask_mana==500 and g.state.temporary_mana==500,"MEMBERSHIP activates only after paying full personal price")
+ t.check(purchase.mana==100 and not g.dispatch(purchase.id,g.state.version-1).ok and g.state==before,"MEMBERSHIP own purchase stays full price and rejects stale version")
+ t.check(g.dispatch(purchase.id,g.state.version).ok and g.state.mana==0 and g.state.flask_mana==500 and g.state.temporary_mana==500,"MEMBERSHIP activates only after paying full personal price")
  room=g.room_data(g.state.room)
  t.check(TYPE in g.state.relics and TYPE not in g.RelicRewards.available(g,"shop"),"MEMBERSHIP owned nonstacking relic leaves the shop pool")
  var view=g.get_view().shop

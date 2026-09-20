@@ -240,7 +240,7 @@ static func follow_through(t) -> void:
  ui.render();await t.frames()
  if ui.card_faces.get(card.uid,false): await t.flip(card.uid)
  var face=ui.card_buttons[card.uid]
- t.check(face.rarity=="rare" and t.visible_text(face).contains("6×5") and t.visible_text(face).contains("超级顺延") and not t.visible_text(face).contains("同一大片区域"),"FOLLOW UI concise rare card face contains only damage and keyword")
+ t.check(face.rarity=="rare" and t.visible_text(face).contains("6×5") and t.visible_text(face).contains("超级顺延") and t.visible_text(face).contains("无视紧度减伤") and not t.visible_text(face).contains("同一大片区域"),"FOLLOW UI concise rare card face contains only damage and keyword")
  await t.move_mouse(Vector2(1100,90));await t.move_mouse(t.card_point(card.uid));await t.frames()
  var tip=ui.find_child("TermExplanation",true,false)
  t.check(tip!=null and t.visible_text(tip).contains("区域内无合法目标后") and t.visible_text(tip).contains("全身合法目标"),"FOLLOW UI hover explains full-body fallback continuation")

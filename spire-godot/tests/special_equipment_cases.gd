@@ -215,7 +215,7 @@ static func pleasure_and_battery(t) -> void:
  var glans=g._install_special("glans_cup_medium","special_2_b")
  t.check(is_equal_approx(D.gain(shaft,"turn_start"),2.4),"SPECIAL shaft gain applies the 0.6 sensitivity multiplier")
  t.check(is_equal_approx(D.gain(rod,"energy"),6.0),"SPECIAL urethral gain applies the 1.5 sensitivity multiplier")
- t.check(is_equal_approx(D.gain(glans,"turn_start"),36.0),"SPECIAL multi-position cup combines the sensitivity of stimulated positions")
+ t.check(is_equal_approx(D.gain(glans,"turn_start"),24.0),"SPECIAL multi-position cup combines the sensitivity of stimulated positions")
 
  g=Game.new(42)
  var clamp=g._install_special("nipple_clamp_low","special_1_a")
@@ -298,7 +298,7 @@ static func escape_routes(t) -> void:
 static func cup_reinforcements(t) -> void:
  var medium=D.TYPES.urethral_full_cup_medium
  var design=D.DESIGNS.urethral_full_cup_medium
- t.check(medium.name=="中级马眼全包榨精杯" and medium.energy_gain==8.0 and medium.turn_gain==18.0 and medium.duration==9 and design.grade==2 and design.maximum==16 and design.slots==["special_2_a","special_2_b","special_2_c","special_2_d"],"CUP BAND medium urethral full cup owns the authored grade, coverage, battery and stimulation")
+ t.check(medium.name=="中级马眼全包榨精杯" and medium.energy_gain==6.0 and medium.turn_gain==14.0 and medium.duration==9 and design.grade==2 and design.maximum==16 and design.slots==["special_2_a","special_2_b","special_2_c","special_2_d"],"CUP BAND medium urethral full cup owns the authored grade, coverage, battery and stimulation")
  t.check("urethral_full_cup_medium" in D.prison_pool(2,true) and "urethral_full_cup_medium" not in D.prison_pool(2,false),"CUP BAND medium urethral full cup follows the existing prison cup gate")
  for type in ["full_cup_medium","full_cup_high","urethral_full_cup_medium","urethral_full_cup_high"]:
   var g=Game.new(42)

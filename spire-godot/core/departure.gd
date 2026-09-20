@@ -6,7 +6,8 @@ static func initial_relic(g) -> String:
 
 static func option_count(g, custom: bool, character: String="") -> int:
  if custom: return 3
- return 5 if g.Character.relic_allowed(g,"desire_cube_pro_max",character) else 4
+ var role=g.state.get("character_id","original") if character=="" else character
+ return 5 if role=="original" else 4
 
 static func description(g, id: String) -> String:
  if id=="boss": return "失去初始遗物「%s」，获得1件随机Boss遗物。" % g.Relics.TYPES[initial_relic(g)].name
@@ -148,7 +149,7 @@ static func execute(g, p: Dictionary) -> String:
     for card in g.state.deck.duplicate():
      if card.type=="ease": g.Cards.replace_permanent(g,card.uid,"itching_heart")
  for relic in entry.relics:
-  g.RelicEffects.gain(g,relic)
+  g.RelicEffects.gain(g,relic,"boss" if entry.id=="boss" else "")
   result+="\n获得「%s」。" % g.Relics.TYPES[relic].name
  d.stage="done";d.result=result
  g._emit("event",result)

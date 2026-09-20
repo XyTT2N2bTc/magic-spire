@@ -2,8 +2,13 @@ extends RefCounted
 const TRANSFER=10.0
 const DEPOSITS=3
 
-static func limited(g) -> bool:
- return g.state.phase=="battle"
+static func limit(g, op: String="deposit") -> int:
+ if g.state.phase=="battle" or (g.state.phase=="prepare" and op=="deposit"): return DEPOSITS
+ if g.state.phase=="prison" and op=="deposit": return 1
+ return 0
+
+static func limited(g, op: String="deposit") -> bool:
+ return limit(g,op)>0
 
 static func reset_turn(g) -> void:
  g.state.flask_deposits=0
@@ -11,7 +16,7 @@ static func reset_turn(g) -> void:
 
 static func remaining(g, op: String) -> int:
  var used=g.state.flask_deposits if op=="deposit" else int(g.state.combat.get("flask_withdrawals",0))
- return maxi(0,DEPOSITS-used)
+ return maxi(0,limit(g,op)-used)
 
 static func validate(g) -> String:
  if not g.Snapshot.fields(g.state,"flask_mana:n flask_deposits:i") or g.state.flask_mana<0 or g.state.flask_deposits<0 or g.state.flask_deposits>DEPOSITS: return "贴身魔瓶的魔力或存入次数不正确。"
@@ -40,7 +45,7 @@ static func withdrawal(g) -> Dictionary:
 static func candidates(g, out: Array, withdrawal_only: bool=false) -> void:
  if not available(g): return
  var amount=minf(TRANSFER,g.state.mana)
- var reason="本回合已存入%d次。" % DEPOSITS if limited(g) and remaining(g,"deposit")==0 else ("没有可存入的魔力。" if amount<=0 else "")
+ var reason="本回合已存入%d次。" % limit(g) if limited(g) and remaining(g,"deposit")==0 else ("没有可存入的魔力。" if amount<=0 else "")
  if not withdrawal_only and g.state.phase!="rest_choice":
   var deposit_args={"amount":amount,"remaining":remaining(g,"deposit"),"limited":limited(g)}
   g._candidate(out,{"kind":"flask","op":"deposit"},"存入",{"kind":"mana_flask.deposit","args":deposit_args,"fallback":deposit_detail(g,deposit_args)},0,0,reason,"","flask")
@@ -48,8 +53,8 @@ static func candidates(g, out: Array, withdrawal_only: bool=false) -> void:
  reason=g.Consumables.reason(g,"mana_potion")
  if g.state.flask_mana<=0: reason="魔瓶中没有魔力。"
  elif reason=="" and result.restored<=0: reason="魔瓶余量不足以在嘴部减效后恢复魔力。"
- if limited(g) and remaining(g,"withdraw")==0: reason="本回合已取出%d次。" % DEPOSITS
- var withdraw_args={"drawn":result.drawn,"restored":result.restored,"remaining":remaining(g,"withdraw"),"limited":limited(g)}
+ if limited(g,"withdraw") and remaining(g,"withdraw")==0: reason="本回合已取出%d次。" % limit(g,"withdraw")
+ var withdraw_args={"drawn":result.drawn,"restored":result.restored,"remaining":remaining(g,"withdraw"),"limited":limited(g,"withdraw")}
  g._candidate(out,{"kind":"flask","op":"withdraw"},"取出",{"kind":"mana_flask.withdraw","args":withdraw_args,"fallback":withdraw_detail(g,withdraw_args)},0,0,reason,"","flask")
 
 # R1（docs/ondemand-copy.md §11.5）：生产者提交「类别 + 参数」，正文仍留本模块，路由只做分派。
@@ -71,8 +76,8 @@ static func execute(g, p: Dictionary) -> void:
  else:
   var result=withdrawal(g)
   g.state.flask_mana-=result.drawn;g.state.mana+=result.restored
-  if limited(g): g.state.combat.flask_withdrawals=int(g.state.combat.get("flask_withdrawals",0))+1
+  if limited(g,"withdraw"): g.state.combat.flask_withdrawals=int(g.state.combat.get("flask_withdrawals",0))+1
   g._emit("event","从贴身魔瓶取出%s魔力，恢复%s魔力。" % [g.number(result.drawn),g.number(result.restored)])
 
 static func view(g) -> Dictionary:
- return {"mana":g.state.flask_mana,"remaining":remaining(g,"deposit"),"withdraw_remaining":remaining(g,"withdraw"),"limit":DEPOSITS,"limited":limited(g),"available":available(g)}
+ return {"mana":g.state.flask_mana,"remaining":remaining(g,"deposit"),"withdraw_remaining":remaining(g,"withdraw"),"limit":limit(g),"withdraw_limit":limit(g,"withdraw"),"limited":limited(g),"withdraw_limited":limited(g,"withdraw"),"available":available(g)}

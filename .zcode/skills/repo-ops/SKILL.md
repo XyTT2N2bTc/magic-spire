@@ -47,6 +47,7 @@ git diff --name-only
 - 默认（不传 `-Suite`）跑快速检查 `runner`＋`architecture`，默认窗口分类是 `home`；分类名注册在 `tests/test_game.gd`（`SUITES`）与 `tests/ui_smoke.gd`（`UI_MODULES`）。
 - `-Suite`／`-UISuite` 逗号分隔、重复项去重；纯显示用 `-UIOnly -UISuite <窗口分类>`；规则与窗口同时改则 `-Suite <规则分类> -UI -UISuite <窗口分类>`（只写 `-UI` 会拒绝：`-UISuite` 必须配 `-UI` 或 `-UIOnly`）。
 - 共享规则用 `-Impact` 合并交叉分类一次跑完；随机生成改动加 `-Exhaustive`（`-Suite all` 自动启用完整随机样本）。
+- 影响范围的唯一声明为 `tests/suite_selection.gd::CROSS_AREAS`：键是需要补跑的测试分类，值是会影响它的修改域；只从用户原始选择展开一次。新增跨系统联动时同步这份声明，并在 `runner_cases` 验证具体联动会被选中；仅把用例加入某分类的 `run`，不能保证修改其上游时会自动补跑。
 - `-ListOnly` 只预览范围（输出 `PLAN ONLY:`），不算通过；`all` 只用于明确完整回归，检查通过后不无故重复运行。失败分类默认停止后续分类：`-KeepGoing` 只继续当前规则或 UI 阶段，脚本错误始终停止。
 - `-RerunFailed <目录或 summary.json>` 只重跑失败与未完成的分类，不能与 `-Suite`／`-UISuite`／`-UI`／`-UIOnly`／`-Impact`／`-Exhaustive` 同用；`status=passed` 的上轮结果会被拒绝。
 - `-VerifyRunner` 跑测试器自身的负例探针（未启用范围的拒绝、故意脚本错误、超时、失败停止与继续执行），不能与 `-ListOnly` 同用；`-Import` 在首次没有 `.godot/` 或新增素材导入时使用。

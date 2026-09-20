@@ -40,6 +40,7 @@ static func _builders() -> Dictionary:
   _table["service.offer"]=Callable(RoomServices,"offer_detail")
   _table["service.release_job"]=Callable(RoomServices,"release_job_detail")
   _table["service.remove_card"]=Callable(RoomServices,"remove_card_detail")
+  _table["service.refresh"]=Callable(RoomServices,"refresh_detail")
   _table["prison.enter"]=Callable(Prison,"enter_detail")
   _table["prison.inspection"]=Callable(Prison,"inspection_detail")
   _table["prison.resist"]=Callable(Prison,"resist_detail")

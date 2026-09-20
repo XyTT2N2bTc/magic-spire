@@ -16,7 +16,7 @@ static func run(t) -> void:
  await Pointer.press(t,ui.find_child("ShopOffer%d" % offer.index,true,false))
  var payment=ui.find_child("ShopPaymentContinue",true,false)
  if payment!=null: await Pointer.press(t,payment)
- t.check("ditto" in ui.game.state.relics and ui.game.state.mana==35 and ui.game.state.ditto_form=="" and ui.find_child("RelicShortcut_ditto",true,false)!=null,"DITTO UI purchase pays uncommon price and waits for next session to transform")
+ t.check("ditto" in ui.game.state.relics and ui.game.state.mana==30 and ui.game.state.ditto_form=="" and ui.find_child("RelicShortcut_ditto",true,false)!=null,"DITTO UI purchase pays uncommon price and waits for next session to transform")
  ui.game=Cases.fixture("great_wand");ui.game.state.mana=40
  ui.game.state.relic_counters.ditto=4;ui.game.state.relic_counters.great_wand=2
  ui.render();await t.frames()

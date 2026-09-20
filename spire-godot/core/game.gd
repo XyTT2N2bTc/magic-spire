@@ -212,7 +212,7 @@ func _init(run_seed: int = 20260906, practice: bool=false, practice_kind: String
  Content.ensure(self)
  state = {"version":1, "seed":run_seed, "rng":{}, "phase":"battle", "encounter":0,
   "round":0, "tick":0, "weakness_turns":0, "order":"first", "posture":"stand", "energy":B.ENERGY, "mana":B.MANA_MAX,
-  "calm_uses":0,"shop_removals":0,
+  "calm_uses":0,"shop_removals":0,"shop_refreshes":0,
   "mana_max":B.MANA_MAX,"flask_mana":0.0,"flask_deposits":0,"combat":{"serial":0,"active":false,"first_turn":false,"turn":0,"energy":0,"mana_spent":0.0,"mana_used":false,"attack_uses":{},"attack_started":{},"successful_spells":[]},"relic_seen":[],"battle_relic_drop":"","boss_relic_options":[],
   "strength":0.0,"dexterity":0.0,"wall":"rough","wall_distance":0, "equipment":[], "next_equipment":1,"links":[],"next_link":1,"composites":[],"next_composite":1,"practice_kind":practice_kind,
   "special_equipment":[],"chastity_locks_enabled":chastity_locks_enabled,"chastity_lock_chance":clampi(chastity_lock_chance,0,100),"cursed_plate_masochist_mode":cursed_plate_masochist_mode and chastity_locks_enabled,"chastity_climax_factor":3,"slip_ejaculation_turns":0,"slip_ejaculation_force_last":false,"pressure":0.0,"pressure_sources":[],"overloaded":false,"overload_energy":0,"overload_count":0,"overload_total":0,
@@ -308,21 +308,33 @@ func _make_card(type: String) -> Dictionary:
  state.next_card += 1
  return card
 
-func reward_offer(pool: Array, source: String="fixed", rng=null, count: int=-1) -> Array:
+func reward_offer(pool: Array, source: String="fixed", rng=null, count: int=-1, reward_pool: String="") -> Array:
  # Explicit counts are stock samples; only newly generated reward choices expand.
  if count<0: count=3+int(relic_value("reward_card_options"))
- return preload("res://core/card_rewards.gd").offer(self,Character.pool(self,pool),source,rng,count)
+ var available=Character.pool(self,pool)
+ if reward_pool!="": available=available.filter(func(type):return Cards.Rules.SPECS[type].get("reward_pool","")==reward_pool)
+ return preload("res://core/card_rewards.gd").offer(self,available,source,rng,count)
 
 func can_offer_card(type: String) -> bool:
  return preload("res://core/card_rewards.gd").eligible(self,type)
 
-func _gain_card(type: String, original: Dictionary={}) -> void:
+func _gain_card(type: String, original: Dictionary={}, to_hand: bool=false) -> void:
  type=Character.card_id(self,type)
  if not Character.allowed_card(self,type): return
  var card=original.duplicate(true)
  card.merge(_make_card(type),true)
  state.deck.append(card.duplicate(true))
+ if to_hand and state.phase=="reward": card.retain_until=state.tick+1
+ if to_hand and _put_card_in_hand(card): return
  state.discard.append(card)
+ if to_hand: _emit("event","手牌已满，「%s」加入弃牌堆。" % B.CARD_NAMES[type])
+
+func _put_card_in_hand(card: Dictionary) -> bool:
+ if state.hand.size()>=B.HAND_LIMIT: return false
+ state.draw_serial+=1;card.draw_serial=state.draw_serial
+ card.draw_free=not Cards.has_escape_target(self,card.type)
+ state.hand.append(card);_card_motion("draw",card)
+ return true
 
 func _gain_temporary_card(type: String) -> Dictionary:
  if not B.CARD_TRAITS.get(type,{}).get("temporary",false): return {}
@@ -375,7 +387,7 @@ func _start_practice() -> void:
   state.room_encounters.entrance=spec.encounter
   _start_battle()
  else: _start_rest()
- state.energy+=int(spec.get("opening_energy",0))
+ _gain_energy(int(spec.get("opening_energy",0)))
  # Practice-only setup supplies declared cards through the regular draw path.
  for type in spec.get("opening_cards",[]):
   var resolved="witch_key" if Character.active(self) and type=="unlock" else Character.card_id(self,type)
@@ -440,11 +452,7 @@ func _draw(amount: int, filter: Dictionary={}) -> void:
   if index<0: break
   var card=state.draw[index]
   state.draw.remove_at(index)
-  state.draw_serial+=1
-  card.draw_serial=state.draw_serial
-  card.draw_free=not Cards.has_escape_target(self,card.type)
-  state.hand.append(card)
-  _card_motion("draw",card)
+  _put_card_in_hand(card)
 
 func _discard_end(end_session: bool=false) -> void:
  state.ribbon_tick=-1
@@ -550,7 +558,7 @@ func _append_enemies(members: Array, inherited_health: bool=false) -> Array:
   var character_factor=1.3 if not inherited_health and state.room_encounters.get(state.room,"")=="iron_man_solo" and Character.active(self) else 1.0
   var hp=float(member.get("hp",spec.hp))*(1.0 if inherited_health else DemoExit.health_multiplier(state)*character_factor)
   if not inherited_health: hp+=Prison.health_bonus(self,state)
-  var name=spec.name+("（%d）" % counts[type] if counts[type]>1 or members.filter(func(m):return m.type==type).size()>1 else "")
+  var name=member.get("name",spec.name)+("（%d）" % counts[type] if counts[type]>1 or members.filter(func(m):return m.type==type).size()>1 else "")
   state.enemies.append({"id":"enemy_%d" % state.next_enemy,"type":type,"name":name,"grade":member.grade,"hp":hp,"max_hp":hp,"stage":1,"ready_layers":0,"intent":{},"gone":false,"defeated":false,"pressure_gain":member.get("pressure",0.0)})
   if spec.has("visual_pool"):
    state.enemies[-1].visual_variant=spec.visual_pool[_random_index("enemy_visual",spec.visual_pool.size())]
@@ -572,17 +580,20 @@ func _append_enemies(members: Array, inherited_health: bool=false) -> Array:
   if Enemies.TYPES[enemy.type].behavior=="puppeteer": Puppets.summon(self,enemy)
  return added
 
-func _damage_enemy(e: Dictionary, amount: float, damage_type: String, label: String, details: Dictionary={}) -> void:
+func _damage_enemy(e: Dictionary, amount: float, damage_type: String, label: String, details: Dictionary={}, damage_group: Variant=null) -> void:
  if e.is_empty() or e.gone: return
+ if damage_group==null: damage_group={}
  var dealt=amount*Enemies.damage_multiplier(self,e.type,damage_type)*(1.0 if details.has("puppet_transfer") else Character.damage_multiplier(self))
- var cap=Enemies.TYPES[e.type].get("damage_cap",INF)
+ var health_scale=DemoExit.health_multiplier(state)
+ var cap=Enemies.barrier_limit(e,health_scale)
  if is_finite(cap):
-  var remaining=Enemies.barrier_remaining(e)
+  var remaining=Enemies.barrier_remaining(e,health_scale)
   if dealt>remaining:
+   Puppets.barrier_trigger(self,e,damage_group)
    _emit("mechanical","%s的护身屏障将本次伤害从%s限制为%s；每回合合计最多%s点。" % [e.name,number(dealt),number(remaining),number(cap)],{"enemy":e.id,"damage_barrier":{"before":dealt,"after":remaining,"limit":cap}})
    dealt=remaining
   e.barrier_damage+=dealt
- if Puppets.damage(self,e,dealt,damage_type,label,details): return
+ if Puppets.damage(self,e,dealt,damage_type,label,details,damage_group): return
  e.hp=maxf(0.0,e.hp-dealt)
  var record={"damage":dealt,"damage_type":damage_type,"enemy":e.id}
  record.merge(details)
@@ -1380,7 +1391,7 @@ func _execute_enemy_operation(e: Dictionary, intent: Dictionary) -> void:
    e.guard.bind_ready=true
    _enemy_preparation(e,"准备捕缚。")
   "bind_apply": CaptureBind.apply_bind(self,e)
-  "bind_gain": CaptureBind.gain_bind(self,CaptureBind.BIND_GAIN,e.name)
+  "bind_gain": CaptureBind.gain_bind(self,CaptureBind.gain_amount(self,e),e.name)
   "six_prepare": _enemy_preparation(e,"展开法阵。")
   "six_opening":
    _six_area_sweep(e,1,2)
@@ -1683,6 +1694,13 @@ func relic_value(hook: String) -> float:
 func max_energy() -> int:
  return B.ENERGY+int(relic_value("max_energy"))
 
+# Reactions still resolve during interruption, but cannot restore usable energy.
+# All energy grants use this entry; payment and turn initialization remain separate.
+func _gain_energy(amount: int) -> int:
+ if state.overloaded: return 0
+ state.energy+=amount
+ return amount
+
 func cursed_eyes(target: Dictionary) -> bool:
  return "cursed_blindfold" in state.relics and target.get("slot","")=="eyes"
 
@@ -1693,8 +1711,16 @@ func cursed_plate(target: Dictionary) -> bool:
 func _gain_charge(amount: int) -> void:
  state.charge+=amount
 
-func charge_bonus() -> float:
- return B.CHARGE_BONUS*(state.charge if state.charge_all else mini(1,state.charge))
+func charge_bonus(hit_index: int=0) -> float:
+ var count=(state.charge if hit_index==0 else 0) if state.charge_all else mini(1,maxi(0,state.charge-hit_index))
+ return B.CHARGE_BONUS*count
+
+# Shared pre-target values for live card faces and actual escape damage.
+# Future-hit queries project charge consumption without changing state.
+func escape_values(mode: String, base: float, target: Dictionary={}, passive: bool=false, hit_index: int=0) -> Dictionary:
+ var bonus=RelicEffects.attribute(self,"strength" if mode=="strain" else "dexterity",target,passive)
+ var charge=0.0 if passive else charge_bonus(hit_index)
+ return {"base":base,"bonus":bonus,"charge":charge,"raw":base+bonus+charge}
 
 func _consume_charge() -> void:
  if state.charge<=0: return
@@ -1742,21 +1768,21 @@ func _apply_equipment_damage(target: Dictionary, damage: float, kind: String, pa
   _emit("event","这次挣扎直接脱下了"+release.name+"。")
  if kind=="strain" and before>0 and target.durability<=0: RelicEffects.strain_destroyed(self)
 
-func escape_preview(target: Dictionary, mode: String, base: float, assist_profiles: Array=[], passive: bool=false, area_effect: bool=false, continuation: bool=false, splash: bool=false) -> Dictionary:
+func escape_preview(target: Dictionary, mode: String, base: float, assist_profiles: Array=[], passive: bool=false, area_effect: bool=false, continuation: bool=false, splash: bool=false, ignore_tightness_reduction: bool=false) -> Dictionary:
  if not _equipment_read_active() or not is_same(target,_equipment(target.get("id",""))):
-  return _build_escape_preview(target,mode,base,assist_profiles,passive,area_effect,continuation,splash)
+  return _build_escape_preview(target,mode,base,assist_profiles,passive,area_effect,continuation,splash,ignore_tightness_reduction)
  # Keep every argument, including full precision numbers and nested reach profiles.
  # Copies isolate callers which annotate previews or later reuse mutable profiles.
- var arguments=[mode,base,assist_profiles,passive,area_effect,continuation,splash]
+ var arguments=[mode,base,assist_profiles,passive,area_effect,continuation,splash,ignore_tightness_reduction]
  if not _equipment_read.escapes.has(target.id): _equipment_read.escapes[target.id]=[]
  var entries: Array=_equipment_read.escapes[target.id]
  for entry in entries:
   if entry.arguments==arguments: return entry.result.duplicate(true)
- var result=_build_escape_preview(target,mode,base,assist_profiles,passive,area_effect,continuation,splash)
+ var result=_build_escape_preview(target,mode,base,assist_profiles,passive,area_effect,continuation,splash,ignore_tightness_reduction)
  entries.append({"arguments":arguments.duplicate(true),"result":result.duplicate(true)})
  return result
 
-func _build_escape_preview(target: Dictionary, mode: String, base: float, assist_profiles: Array=[], passive: bool=false, area_effect: bool=false, continuation: bool=false, splash: bool=false) -> Dictionary:
+func _build_escape_preview(target: Dictionary, mode: String, base: float, assist_profiles: Array=[], passive: bool=false, area_effect: bool=false, continuation: bool=false, splash: bool=false, ignore_tightness_reduction: bool=false) -> Dictionary:
  var items = _stack_items(target)
  if mode=="strain" and SpecialEquipment.unlocked_release(target,mode):
   items=items.filter(func(item):return not (SpecialEquipment.is_reinforcement(item) and item.get("owner_id","")==target.id))
@@ -1802,8 +1828,9 @@ func _build_escape_preview(target: Dictionary, mode: String, base: float, assist
  if reason=="" and SpecialEquipment.is_special(target):
   var method_hands=HandAssist.preview(self,target,assist_profiles).hands if splash else assist.hands
   reason=SpecialEquipment.escape_reason(self,target,mode,method_hands)
- var bonus = RelicEffects.attribute(self,"strength" if is_strain else "dexterity",target,passive)
- var charge = charge_bonus() if not passive else 0.0
+ var values=escape_values(mode,base,target,passive)
+ var bonus=values.bonus
+ var charge=values.charge
  if splash: bonus=0.0;charge=0.0
  var slip_buff=1.0 if is_strain else Consumables.slip_multiplier(self,target)
  var immune = reason=="" and not is_strain and mode != "magic_slip" and ratio > 0.80000001 and slip_buff==1.0
@@ -1814,6 +1841,7 @@ func _build_escape_preview(target: Dictionary, mode: String, base: float, assist
  if cursed_plate(target): reason=SpecialEquipment.CURSED_PLATE_REASON
  if Equipment.lock_only(target): reason=Equipment.LOCK_ONLY_REASON
  var mult = _damage_multiplier(ratio)
+ if ignore_tightness_reduction: mult=maxf(1.0,mult)
  if not is_strain: penalty*=Shoulders.factor(self,target)
  var target_factor=SpecialEquipment.DESIGNS[target.type].damage_factor if SpecialEquipment.is_special(target) else Equipment.TEMPLATES[target.template].get("damage_factor",1.0)
  penalty*=target_factor
@@ -1827,7 +1855,7 @@ func _build_escape_preview(target: Dictionary, mode: String, base: float, assist
  scaled_damage*=slip_buff
  environment_true*=slip_buff
  var damage=scaled_damage+environment_true
- return {"slip_buff_multiplier":slip_buff,"damage_buff_multiplier":buff_multiplier,"environment_true":environment_true,"scaled_damage":scaled_damage,"link_factor":link_factor,"passive":passive,"position":position,"assist":assist,"damage":damage,"reason":reason,"immune":immune,"ratio":ratio,"multiplier":mult,"divisor":divisor,"lock_multiplier":lock_multiplier,"penalty":penalty,"base":base,"bonus":bonus,"charge":charge,"release":reason=="" and is_strain and not _strain_release_root(target).is_empty()}
+ return {"ignore_tightness_reduction":ignore_tightness_reduction,"slip_buff_multiplier":slip_buff,"damage_buff_multiplier":buff_multiplier,"environment_true":environment_true,"scaled_damage":scaled_damage,"link_factor":link_factor,"passive":passive,"position":position,"assist":assist,"damage":damage,"reason":reason,"immune":immune,"ratio":ratio,"multiplier":mult,"divisor":divisor,"lock_multiplier":lock_multiplier,"penalty":penalty,"base":base,"bonus":bonus,"charge":charge,"release":reason=="" and is_strain and not _strain_release_root(target).is_empty()}
 
 func _formula(p: Dictionary) -> String:
  if p.reason!="": return p.reason
@@ -2012,6 +2040,7 @@ static func copy_attack(g, args: Dictionary) -> String:
  var usage=BasicAttacks.usage(g,type)
  var detail="对%s造成%s点伤害%s。" % ["全部敌人" if all_targets else e.name,g.number(damage if all_targets else shown_damage),"，共%d次" % spec.hits if spec.hits>1 else ""]
  detail+=BasicAttacks.cost_description(type)
+ if spec.get("x_cost",false): detail+="耗尽剩余能量X，X至少为1；连续踢X＋1次，X≥3时攻击后躺下。"
  if Cards.attack_ignores_restraints(g,type): detail+="本次体术按自由态发动，忽略拘束限制与减益。"
  var hard_targets=g.state.enemies.filter(func(enemy):return not enemy.gone and (all_targets or enemy.id==e.id) and Enemies.TYPES[enemy.type].get("mechanical",false))
  if damage_type not in ["magic","fixed"] and not hard_targets.is_empty(): detail+="坚硬：机械敌人受到的非魔法伤害减少%s%%。" % g.number((1.0-Enemies.damage_multiplier(g,hard_targets[0].type,damage_type))*100)
@@ -2354,11 +2383,14 @@ func _attack_offer(out: Array, e: Dictionary, type: String, form: int) -> void:
    elif type=="heavy" and state.heavy_used: reason="本回合已使用近身短打。"
   "kick":
    if spec.has("postures"):
-    var posture_spec=spec.postures.get(posture,spec.postures.stand)
+    var posture_spec=spec.postures.get(posture,spec.postures.values()[0])
     label=posture_spec.name
     damage=(posture_spec.damage+charge_bonus)*B.BODY_DAMAGE[leg_level]
-    if not spec.postures.has(posture): reason="踢击需要站姿或坐姿。"
+    if not spec.postures.has(posture): reason="踢击需要站姿或坐姿。" if spec.postures.size()>1 else "连续踢需要坐姿。"
     elif leg_level>posture_spec.max_level: reason="站着踢需要双腿活动自由。" if posture=="stand" else "腿部严密度达到4级，无法坐着踢。"
+    if spec.get("x_cost",false):
+     fall=cost>=spec.fall_energy
+     if reason=="" and cost<1: reason="连续踢至少需要1点能量。"
    elif all_targets:
     damage=(spec.damage+charge_bonus)*B.BODY_DAMAGE[leg_level]
     if posture!="stand": reason="横扫需要站姿。"
@@ -2368,8 +2400,8 @@ func _attack_offer(out: Array, e: Dictionary, type: String, form: int) -> void:
     label=kick.label;cost=kick.cost;damage=kick.damage;fall=kick.fall;interrupt=kick.interrupt;reason=kick.reason
     cooldown_turns=kick.cooldown_turns
     if reason=="" and cooldown_turns>0 and BasicAttacks.kick_cooldown(self)>0: reason="踢击冷却中，还需%d回合。" % BasicAttacks.kick_cooldown(self)
-    if reason=="" and fall and not freedom and CaptureBind.fixed_posture(self)!="": reason="捕缚将你固定为%s，无法在踢击后躺下，先解除捕缚。" % B.POSE_NAMES[CaptureBind.fixed_posture(self)]
-    if fall and CaptureBind.fixed_posture(self)=="": risk="攻击后立即躺下。"
+   if reason=="" and fall and not freedom and CaptureBind.fixed_posture(self)!="": reason="捕缚将你固定为%s，无法在踢击后躺下，先解除捕缚。" % B.POSE_NAMES[CaptureBind.fixed_posture(self)]
+   if fall and CaptureBind.fixed_posture(self)=="": risk="攻击后立即躺下。"
   "fireball":
    damage=BasicAttacks.fireball_damage(self)
    mana=_mana_cost(B.SPELL_COST)
@@ -2389,9 +2421,10 @@ func _attack_offer(out: Array, e: Dictionary, type: String, form: int) -> void:
  if reason=="": reason=Puppets.taunt_reason(self,e,all_targets)
  var shown_damage=damage*Enemies.damage_multiplier(self,e.type,damage_type)
  var attack_payload={"kind":"attack","type":type,"form":form,"hits":spec.hits,"all":all_targets,"enemy":e.id,"damage":damage,"damage_type":damage_type,"interrupt":interrupt,"fall":fall,"cooldown_turns":cooldown_turns}
+ if spec.get("x_cost",false): attack_payload.x=cost
  if not attachment.is_empty(): attack_payload.mana_attachment=true
  var attack_args={"payload":attack_payload,"shown_damage":shown_damage}
- _candidate(out,attack_payload,label,{"kind":"game.attack","args":attack_args,"fallback":copy_attack(self,attack_args)},Cards.attack_cost(self,type,cost),mana,reason,risk,"attack")
+ _candidate(out,attack_payload,label,{"kind":"game.attack","args":attack_args,"fallback":copy_attack(self,attack_args)},cost if spec.get("x_cost",false) else Cards.attack_cost(self,type,cost),mana,reason,risk,"attack")
  # Compact display uses the same target-adjusted damage as the detailed preview.
  var brief_damage=number(damage if all_targets else shown_damage)
  if brief_damage.contains("."): brief_damage=brief_damage.rstrip("0").rstrip(".")
@@ -2732,8 +2765,8 @@ func _cast_magic(c: Dictionary) -> bool:
  if not success and not c.payload.get("replay",false):
   var outcome=Cards.failure_outcome(self,c)
   var refund_rates=outcome.rates
-  energy_refund=outcome.energy
   Cards.commit_failure(self,outcome)
+  energy_refund=outcome.energy
   for field in refund:
    refund[field]=float(c.mana_payment.get(field,0.0))*refund_rates[field]
    if field=="mana": refund[field]=minf(refund[field],maxf(0.0,state.mana_max-state.mana))
@@ -2882,7 +2915,7 @@ func _execute(c: Dictionary) -> void:
      "item":
       _gain_tool(p.type)
       _emit("event","领取"+Tools.TYPES[p.type].name+"，收入道具栏。")
-     "relic": RelicEffects.gain(self,p.type)
+     "relic": RelicEffects.gain(self,p.type,"boss" if room_data(state.room).get("boss",false) else "")
      "flask":
       state.flask_mana+=state.battle_flask_drop
       _emit("event",("领取出口守卫奖励，贴身魔瓶获得%d魔力。" if Prison.is_exit_battle(self) else "领取Boss奖励，贴身魔瓶获得%d魔力。") % state.battle_flask_drop,{"boss_flask_reward":state.battle_flask_drop})
@@ -2900,8 +2933,9 @@ func _execute(c: Dictionary) -> void:
   "retain_skip": Cards.finish_retain(self)
 
 func _execute_attack(c: Dictionary, targets: Array) -> void:
+ var damage_group={}
  if c.payload.get("witch_action",false):
-  Character.execute(self,c)
+  Character.execute(self,c,damage_group)
   return
  var p=c.payload
  if not p.get("replay",false) and BasicAttacks.TYPES[p.type][0].has("first_use_cost"): state.combat.attack_started[p.type]=true
@@ -2922,7 +2956,7 @@ func _execute_attack(c: Dictionary, targets: Array) -> void:
   var target=_enemy(id)
   for hit in range(p.hits):
    if target.is_empty() or target.gone: break
-   _damage_enemy(target,p.damage,p.damage_type,c.label+("第%d击" % (hit+1) if p.hits>1 else ""),{"hit":hit+1,"hits":p.hits,"attack":true})
+   _damage_enemy(target,p.damage,p.damage_type,c.label+("第%d击" % (hit+1) if p.hits>1 else ""),{"hit":hit+1,"hits":p.hits,"attack":true},damage_group)
   if not target.is_empty() and not target.gone and p.interrupt and not target.intent.is_empty() and not target.intent.get("delayed",false):
    target.intent.delayed=true
    var cancelled=target.intent.get("cancel_on_interrupt",false)
@@ -2931,7 +2965,7 @@ func _execute_attack(c: Dictionary, targets: Array) -> void:
  if p.fall and CaptureBind.fixed_posture(self)=="":
   state.posture="lie"
   RelicEffects.fell(self)
-  _emit("event","你并腿踢出后落地，变为躺姿。")
+  _emit("event","攻击结束后，你转为躺姿。")
 
 func _cleanup(released: bool=true) -> void:
  var roots=Cards.restraint_roots(self) if released and not state.powers.is_empty() else []
@@ -3391,6 +3425,7 @@ func export_snapshot() -> Dictionary:
 func restore_snapshot(saved: Dictionary) -> Dictionary:
  var candidate=saved.duplicate(true)
  var saved_revision=candidate.get("save_revision")
+ var migrate_drone=saved_revision is int and saved_revision in [Snapshot.REINFORCEMENT_STATE_REVISION,Snapshot.CUP_STACK_REVISION,Snapshot.IRON_DRONE_REVISION]
  if saved_revision is int and saved_revision==Snapshot.REINFORCEMENT_STATE_REVISION:
   var special_items=[]
   if candidate.get("special_equipment") is Array: special_items.append_array(candidate.special_equipment)
@@ -3402,12 +3437,22 @@ func restore_snapshot(saved: Dictionary) -> Dictionary:
  if saved_revision is int and saved_revision in [Snapshot.REINFORCEMENT_STATE_REVISION,Snapshot.CUP_STACK_REVISION]:
   var migration_issue=Snapshot.migrate_cup_stacks(candidate,self)
   if migration_issue!="": return {"ok":false,"error":"无法继续这份存档："+migration_issue}
+ if migrate_drone:
+  Snapshot.migrate_iron_drone(candidate,self)
   candidate.save_revision=Snapshot.REVISION
  elif not Snapshot.is_current(candidate): return {"ok":false,"code":"version","error":Snapshot.INCOMPATIBLE}
  var issue=Snapshot.check(candidate,self)
  if issue!="": return {"ok":false,"error":"无法继续这份存档："+issue}
  var previous=state
  state=candidate
+ if migrate_drone:
+  for enemy in state.enemies:
+   var member=Enemies.encounter_member(state,enemy.type)
+   if member.has("name"): enemy.name=member.name
+   if enemy.type=="iron_drone" and not enemy.gone and state.phase=="battle":
+    var delayed=enemy.intent.delayed
+    enemy.intent=EnemyPlans.build(self,enemy)
+    enemy.intent.delayed=delayed
  # Saves written before security five became an ordinary cell carry the removed
  # high-security manifest; drop the key so no second terminal path survives a load.
  var loaded_capture: Dictionary=state.get("capture",{})

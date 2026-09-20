@@ -5,7 +5,7 @@ const SECRET_WEAPON_TRACTION={2:1.0,3:2.0,4:3.0,5:4.0,6:6.0}
 const MODIFIER_LIMITS={"pressure_gain_flat":100,"turn_charge":10,"climax_comfort":1,"cast_chance_percent":100,"desire_cast_curve":1,"pickup_pressure":100,"battle_end_pressure":100,"mechanical_damage_reduction_percent":100,"battle_force_last":1,"shuffle_energy_step":100,"shop_discount_percent":100,"skill_mana_cap":15,"preparation_turn_mana":100,"card_mana_discount":100,"toe_cast":1,"battle_turn_reserve":10,"battle_opening_focus":10,"reward_card_options":1,"elite_entry_mana":100,"boss_entry_mana":100,"prison_entry_mana":100,"pickup_mana_full":1,"pressure_reduction_percent":100,"max_energy":10,"keep_hand":1,"turn_end_pressure_loss":100,"turn_start_pressure":100,"combat_retention_layers":10,"unspent_turn_mana":100,"pressure_guard_turns":10,"unrestricted_items":1,"shop_flask_mana":100,"climax_flask_mana":100,"climax_next_draw":10,"capacity":10,"battle_mana":100,"low_mana_end_restore":100,"restraint_mana":100,"preparation_turns":10,"strength":10,"dexterity":10,"leg_dexterity":10,"opening_draw":10,"opening_energy":10,"opening_charge":10,"turn_draw":10,"opening_mana":100,"retain_energy":1,"pickup_mana_max":100,"pickup_mana":100,"mana_energy_step":100,"turn_energy_step":100,"single_hand_cast":1,"soften_locked_strain":1,"always_wall":1}
 
 const RARITIES={"common":"普通","uncommon":"罕见","rare":"稀有","boss":"Boss","special":"特殊"}
-const BOSS_POOL=["masochist_mark","doubao","gourd_flask","tattoo_sticker","cursed_blindfold","nesting_doll","binding_pyramid","shining_lamp","cursed_plate_lock"]
+const BOSS_POOL=["masochist_mark","doubao","gourd_flask","tattoo_sticker","cursed_blindfold","nesting_doll","binding_pyramid","shining_lamp","cursed_plate_lock","desire_cube_pro_max"]
 const FALLBACK="rolling_log"
 const COMMON_FALLBACK="intellect_cloak"
 const WRIST_BRACER_STRENGTH=2
@@ -40,7 +40,7 @@ static var TYPES={
  "magnifying_glass":{"rarity":"rare","name":"放大镜","detail":"选择奖励牌时，可供选择的牌增加1张。拾起时，同一窗口中已生成的奖励牌不受影响。","modifiers":{"reward_card_options":1}},
  "axe_amulet":{"rarity":"uncommon","name":"斧护符","detail":"进入精英房、Boss房或监狱时，恢复20魔力。","modifiers":{"elite_entry_mana":20,"boss_entry_mana":20,"prison_entry_mana":20}},
  "oune_hand":{"rarity":"uncommon","name":"欧内的手","detail":"拾取时，将1张没有“消耗”的「魔术手」加入卡组。","modifiers":{},"pickup_cards":["magic_hand_gift"]},
- "universal_scanner":{"rarity":"uncommon","name":"扫描全能王","pickup_bundle":true,"detail":"拾取时，选择一张卡组中的牌复制，双面唯一能力牌除外。","shop_only":true,"modifiers":{}},
+ "universal_scanner":{"rarity":"uncommon","name":"扫描全能王","pickup_bundle":true,"detail":"拾取时，选择一张卡组中的牌复制，基础牌、双面唯一能力牌除外。","shop_only":true,"modifiers":{}},
  "membership_card":{"rarity":"rare","name":"会员卡","detail":"商店限定。购买会员卡仅可使用自身魔力。持有后，商店全部商品、删牌及解除拘束服务五折；其他交易仍可使用自身魔力或魔瓶付款。","shop_only":true,"shop_payment":"self","modifiers":{"shop_discount_percent":50}},
  "m_donalds":{"rarity":"uncommon","name":"M当劳","detail":"商店限定，仅可用魔瓶购买。拾取时，魔力上限＋10，并回满自身魔力。","shop_only":true,"shop_payment":"flask","modifiers":{"pickup_mana_max":10,"pickup_mana_full":1}},
  "tattoo_sticker":{"rarity":"boss","name":"纹身贴","detail":"最大能量＋1。拾取时，将2张「淫纹」加入卡组。","modifiers":{"max_energy":1}},
@@ -65,7 +65,7 @@ static var TYPES={
  "graduate_certificate":{"rarity":"uncommon","name":"优秀学员毕业证书","detail":"「用力！」和「顾涌！」的卡面基础伤害＋4。","modifiers":{},"card_base_bonuses":{"strain":4,"slip":4}},
  "little_pig":{"rarity":"rare","name":"一只小猪","detail":"始终视为贴墙。操作环境工具仍需靠近。","modifiers":{"always_wall":1}},
  "small_gem":{"rarity":"common","name":"小宝石","detail":"战斗第1回合，额外获得1能量。","modifiers":{"opening_energy":1}},
- "desire_cube_pro_max":{"rarity":"special","character_id":"original","name":"欲望魔方 Pro Max","detail":"魔法少女专属。拾取时，获得50点快感。每场战斗结束后，获得10点快感。\n改变快感对施法成功率的影响：快感0%／100%时为0%，25%／75%时为50%，50%时为100%；部位拘束等其他判定照常。\n解锁淫魔法卡牌与专用遗物池。","modifiers":{"pickup_pressure":50,"battle_end_pressure":10,"desire_cast_curve":1}},
+ "desire_cube_pro_max":{"rarity":"boss","name":"欲望魔方 Pro Max","detail":"拾取时，获得50点快感。每场战斗结束后，获得10点快感。\n改变快感对施法成功率的影响：快感0%／100%时为0%，25%／75%时为50%，50%时为100%；部位拘束等其他判定照常。\n解锁淫魔法卡牌与专用遗物池。\n从Boss遗物池获得时，额外获得1件随机专用遗物与1张随机淫魔法稀有卡，并将1张「心痒难耐」加入卡组和手牌。","modifiers":{"pickup_pressure":50,"battle_end_pressure":10,"desire_cast_curve":1}},
  "desire_cube":{"rarity":"rare","name":"欲望魔方","detail":"每被施加一件拘束具，恢复5魔力。复合装备整件计1次。","modifiers":{"restraint_mana":5}},
  "happy_fa":{"rarity":"uncommon","name":"开心小fa","detail":"每累计3个玩家回合，获得1能量。进度跨战斗保留。","modifiers":{"turn_energy_step":3}},
  "casting_manual":{"rarity":"rare","name":"施法动作教程","detail":"只需一只手的手掌和手指自由，即可满足手部施法条件。","modifiers":{"single_hand_cast":1}},

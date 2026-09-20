@@ -64,6 +64,7 @@ static func run(t) -> void:
  await t.mouse_button(point,MOUSE_BUTTON_RIGHT,true);await t.mouse_button(point,MOUSE_BUTTON_RIGHT,false)
  t.check(ui.attack_forms.get("heavy",0)==1 and ui.find_child("BasicAttack_heavy",true,false).disabled,"BASIC UI disabled attack can still change form")
  await third_kick(t)
+ await continuous_kick(t)
 
 static func third_kick(t) -> void:
  var ui=t.ui
@@ -85,10 +86,28 @@ static func third_kick(t) -> void:
  ui.render();await t.frames()
  t.check(ui.find_child("BasicAttack_kick",true,false).disabled and t.visible_text(ui.find_child("BasicAttack_kick",true,false)).contains("4级"),"KICK UI full leg restraint shows specific disabled reason")
  var before=ui.game.export_snapshot()
- for form in [0,1,2]:
+ for form in [3,0,1,2]:
   var point=ui.find_child("BasicAttack_kick",true,false).get_global_rect().get_center()
   await t.mouse_button(point,MOUSE_BUTTON_RIGHT,true);await t.mouse_button(point,MOUSE_BUTTON_RIGHT,false)
   t.check(ui.attack_forms.kick==form and ui.game.export_snapshot()==before,"KICK UI disabled forms still cycle without spending resources or resetting cooldown")
+
+static func continuous_kick(t) -> void:
+ var ui=t.ui
+ ui.restart(42);ui.game.state.posture="sit";ui.game.state.energy=3
+ ui.game.state.enemies[0].hp=100;ui.game.state.enemies[0].max_hp=100
+ ui.render();await t.frames()
+ var before=ui.game.export_snapshot()
+ for form in [1,2,3]:
+  var point=t.action_button("kick").get_global_rect().get_center()
+  await t.mouse_button(point,MOUSE_BUTTON_RIGHT,true);await t.mouse_button(point,MOUSE_BUTTON_RIGHT,false)
+  t.check(ui.attack_forms.kick==form and ui.game.state==before,"CONTINUOUS KICK UI cycling reaches seated combo without changing state")
+ var button=t.action_button("kick")
+ t.check(t.visible_text(button).contains("连续踢！") and button.get_node("BasicActionEnergy/EnergyCost").text=="3" and ui.find_child("BasicAttackDetail_kick",true,false).text=="3 × 4 伤害" and t.visible_text(button).contains("击后躺下"),"CONTINUOUS KICK UI shows real X cost hit count and fall warning")
+ check_alignment(t,button)
+ await t.drag_control_to(button,ui.selected_enemy)
+ t.check(ui.view.energy==0 and ui.view.posture=="lie" and ui.game.state.enemies[0].hp==88,"CONTINUOUS KICK UI native drag pays and resolves the full combo then falls")
+ ui.game.state.posture="sit";ui.render();await t.frames()
+ t.check(t.action_button("kick").disabled and t.visible_text(t.action_button("kick")).contains("至少需要1"),"CONTINUOUS KICK UI zero energy displays the formal rejection")
 
 static func justice_opening(t) -> void:
  var ui=t.ui

@@ -29,7 +29,7 @@ static func register(g) -> void:
   var spec={"card_type":"skill","rarity":"basic","cost":0 if index==4 else 1,"mode":"strain","damage_type":"strain","base":float(damage),"hits":hits,"bound_modes":["strain","slip"],"witch_training_stage":index,"starting_card":true}
   if index>=2: spec.follow_through=true;spec.target_slots=rules.FOLLOW_THROUGH_SLOTS
   var ending="，顺延。" if index>=2 else "。"
-  add(g,TRAINING[index],"脱缚练习",spec,["技能","挣扎%d×%d%s" % [damage,hits,ending],"滑脱%d×%d%s" % [damage,hits,ending],"两面合计打出10／20／30／40次后永久进化。本局跨战斗保留；每段分别结算，一张牌只累计1次。"],"repeated_strain")
+  add(g,TRAINING[index],"脱缚练习",spec,["技能","挣扎{base}×{hits}"+ending,"滑脱{base}×{hits}"+ending,"两面合计打出10／20／30／40次后永久进化。本局跨战斗保留；每段分别结算，一张牌只累计1次。"],"repeated_strain")
   rules.SPECS[TRAINING[index]].reward_excluded=true
   rules.SPECS[TRAINING[index]].encyclopedia_hidden=index>0
  add(g,"witch_mana_transfer","魔力抽调",{"card_type":"skill","type_tags":["skill","magic"],"rarity":"common","cost":0,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"witch_actions":{"bound":"flask"},"self_faces":{"bound":{"card_type":"skill"},"free":{"card_type":"magic","cast":true,"energy_cost":1,"effects":[{"op":"reserve_mana","amount":4}]}}},["技能／魔法","至多消耗40魔瓶魔力，为自己恢复等量魔力。","{self_free_effects}","只取恢复所需的魔瓶魔力，不超过自身魔力上限。"],"mana_conversion")

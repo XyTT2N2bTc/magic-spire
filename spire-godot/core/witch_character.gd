@@ -6,7 +6,7 @@ const ID="witch"
 const Expansion=preload("res://core/witch_expansion.gd")
 const PARTS=["hand","mouth","legs","mind"]
 const NAMES={"hand":"手部","mouth":"嘴部","legs":"腿部","mind":"精神"}
-const CHANGED=["strain","magic_hand","magic_hand_gift","magic_slip","siphon","ready_to_strike","mana_search","mana_invocation","mana_surge","adaptability","mana_conversion","focus","mana_circuit","pleasure_conversion"]
+const CHANGED=["strain","magic_hand","magic_hand_gift","magic_slip","siphon","ready_to_strike","mana_search","mana_invocation","mana_surge","adaptability","mana_conversion","focus","mana_circuit","pleasure_conversion","itching_heart","self_satisfaction","psychological_suggestion","rally_spirit","desire_rune","forced_edging","forced_climax"]
 const REMOVED=["ease","leverage","crossed_legs","repeated_strain","embers","rekindle","fire_control","strong_elbow","brace","echo_cast","wildfire_descent","flame_flourish","unlock","tear","chain","infusion","fire_dynamics","fire_mastery","double_unlock"]
 const STARTER=["slip","slip","slip","witch_magic_slip","witch_strain","witch_strain","witch_strain","witch_escape_practice","witch_key","witch_preparation","witch_accumulation"]
 static var registered=false
@@ -44,6 +44,13 @@ static func register(g) -> void:
   g.B.CARD_NAMES[id]=g.B.CARD_NAMES[original]
   g.B.CARD_INFO[id]=g.B.CARD_INFO[original].duplicate(true)
   if g.B.CARD_TRAITS.has(original): g.B.CARD_TRAITS[id]=g.B.CARD_TRAITS[original].duplicate(true)
+  if spec.get("reward_pool","")=="lewd_magic":
+   _adapt_lewd_effects(spec)
+   for face in spec.get("self_faces",{}).values():
+    if face.has("buff"):
+     _adapt_lewd_effects(rules.BUFFS[face.buff])
+     rules.BUFFS[face.buff].detail=rules.BUFFS[face.buff].detail.replace("蓄力","精神集中")
+   g.B.CARD_INFO[id]=g.B.CARD_INFO[id].map(func(text):return text.replace("蓄力","精神集中"))
  var s=rules.SPECS
  s.witch_strain.free_effects=[{"op":"witch_focus","amount":1}]
  for id in ["witch_magic_hand","witch_magic_hand_gift"]:
@@ -80,7 +87,7 @@ static func register(g) -> void:
  rules.BUFFS.witch_accumulation={"name":"魔力积蓄","duration":"battle","stackable":true,"witch_mana_damage":0.01,"detail":"每有1点魔力，造成的伤害提高1%。计入自身与临时魔力，可叠加。"}
  _basic(g,"witch_accumulation","魔力积蓄",{"card_type":"power","cost":3,"mode":"power","self_faces":{"bound":{"buff":"witch_accumulation"},"free":{"buff":"witch_accumulation"}}},["能力","{buff}","{buff}",""],"mana_circuit")
  # Text stays character-local as well as the execution data.
- for id in ["witch_adaptability","witch_mana_circuit"]:
+ for id in ["witch_adaptability","witch_mana_circuit","witch_desire_rune"]:
   g.B.CARD_INFO[id][1]="{bound_buff}";g.B.CARD_INFO[id][2]="{self_free_buff}"
  g.B.CARD_INFO.witch_strain[2]="{free_effects}"
  g.B.CARD_INFO.witch_ready_to_strike[3]="所选手牌仅在施法成功时消耗。基础动作包括各部位施法预备和释放；减费不叠加。"
@@ -96,6 +103,13 @@ static func _basic(g, id: String, name: String, spec: Dictionary, info: Array, a
  info[2]=info[2].replace("{effects}","{self_free_effects}").replace("{buff}","{self_free_buff}")
  spec.rarity="basic";spec.character_id=ID;spec.reward_excluded=true;spec.encyclopedia_hidden=true;spec.art_type=art
  g.Cards.Rules.SPECS[id]=spec;g.B.CARD_NAMES[id]=name;g.B.CARD_INFO[id]=info
+
+static func _adapt_lewd_effects(value: Variant) -> void:
+ if value is Array:
+  for item in value: _adapt_lewd_effects(item)
+ elif value is Dictionary:
+  if value.get("op","")=="charge": value.op="witch_focus"
+  for item in value.values(): _adapt_lewd_effects(item)
 
 static func card_id(g, type: String) -> String:
  return "witch_"+type if active(g) and type in CHANGED else type
@@ -210,7 +224,7 @@ static func consume_buff(g, id: String) -> void:
  if g.state.card_buff_uses[id]<=0:
   g.state.card_buffs.erase(id);g.state.card_buff_uses.erase(id)
 
-static func execute(g, c: Dictionary) -> void:
+static func execute(g, c: Dictionary, damage_group: Dictionary) -> void:
  var p=c.payload
  # The casting profile is frozen in the candidate, before consuming modifiers.
  var success=g._cast_magic(c)
@@ -232,7 +246,7 @@ static func execute(g, c: Dictionary) -> void:
  for hit in range(p.hits):
   for enemy in targets:
    if enemy.is_empty() or enemy.gone: continue
-   g._damage_enemy(enemy,p.damage,p.damage_type,c.label,{"hit":hit+1,"hits":p.hits,"attack":true,"witch":true})
+   g._damage_enemy(enemy,p.damage,p.damage_type,c.label,{"hit":hit+1,"hits":p.hits,"attack":true,"witch":true},damage_group)
    if p.interrupt and not enemy.gone and not enemy.intent.is_empty() and not enemy.intent.get("delayed",false):
     enemy.intent.delayed=true
     g._emit("event",enemy.name+"的动作被打断。",{"interrupt":{"enemy":enemy.id,"cancelled":enemy.intent.get("cancel_on_interrupt",false)}})

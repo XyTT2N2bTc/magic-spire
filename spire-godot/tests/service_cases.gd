@@ -184,6 +184,56 @@ static func removal_prices(t) -> void:
  t.check(not g.restore_snapshot(bad).ok and g.state==saved,"REMOVE invalid persisted count refuses atomically")
  t.check(Game.new(42).state.shop_removals==0 and g.Services.Data.removal_price(g.state.shop_removals)==110,"REMOVE a genuinely new game starts at thirty while the next removal costs 110")
 
+static func refresh_stock(t) -> void:
+ var g=Game.new(42,true,"shop")
+ t.check(t.action(g,"service",{"op":"take","index":0,"payment":"self"}).ok and t.action(g,"service",{"op":"remove","payment":"self"}).ok,"REFRESH setup buys a card and uses removal")
+ g.state.relics.append_array(["flyer","mana_earring"])
+ g.state.mana=49.5;g.state.flask_mana=500.0;g.state.temporary_mana=1000.0
+ var before=g.export_snapshot();var refresh=t.find_action(g,"service",{"op":"refresh","payment":"self"},false)
+ g.get_view();g.candidates()
+ t.check(refresh.mana==50 and not refresh.valid and not g.dispatch(refresh.id,g.state.version).ok and g.state==before,"REFRESH insufficient payment and previews preserve stock, count and RNG without mixing sources")
+ g.state.mana=50.0;refresh=t.find_action(g,"service",{"op":"refresh","payment":"self"});before=g.export_snapshot()
+ t.check(not g.dispatch(refresh.id,g.state.version-1).ok and g.state==before,"REFRESH stale request rejects before payment")
+ t.check(g.dispatch(refresh.id,g.state.version).ok and g.state.mana==0 and g.state.shop_refreshes==1,"REFRESH first refresh costs fifty")
+ var room=g.room_data(g.state.room)
+ t.check(room.stock.size()==12 and room.stock.all(func(row):return not row.taken) and room.stock!=before.rooms.filter(func(r):return r.id==g.state.room)[0].stock,"REFRESH replaces stock and refills sold slots")
+ t.check(room.remove_used and g.state.shop_removals==before.shop_removals and g.state.deck==before.deck,"REFRESH preserves purchases and removal service usage")
+ t.check(g.state.tick==before.tick and g.state.rng==before.rng and g.state.charge==before.charge and g.state.flask_mana==before.flask_mana and g.state.temporary_mana==before.temporary_mana,"REFRESH avoids spell, entry and combat RNG hooks")
+ var saved=g.export_snapshot()
+ t.check(not g.dispatch(refresh.id,before.version).ok and g.state==saved,"REFRESH duplicate request cannot pay twice")
+ var twin=Save.roundtrip(t,g,"global shop refresh count and frozen stock")
+ if twin==null: return
+ var stock=room.stock.duplicate(true)
+ g.Services.start(g)
+ t.check(g.room_data(g.state.room).stock==stock and t.find_action(g,"service",{"op":"refresh","payment":"flask"}).mana==100,"REFRESH reopening preserves stock and price")
+ for sample in [g,twin]:
+  var candidate=t.find_action(sample,"service",{"op":"refresh","payment":"flask"})
+  t.check(candidate.mana==100 and sample.dispatch(candidate.id,sample.state.version).ok and sample.state.flask_mana==400 and sample.state.shop_refreshes==2,"REFRESH second costs one hundred flask mana")
+ t.check(g.room_data(g.state.room).stock==twin.room_data(twin.state.room).stock,"REFRESH snapshot reproduces next stock")
+ var old_shop=g.state.room
+ g.state.room=g.state.rooms.filter(func(r):return r.kind=="shop" and r.id!=old_shop)[0].id;g.Services.start(g)
+ t.check(t.find_action(g,"service",{"op":"refresh","payment":"flask"}).mana==200,"REFRESH another shop preserves global cost")
+ var balance=g.state.flask_mana
+ t.check(t.action(g,"service",{"op":"refresh","payment":"flask"}).ok and g.state.flask_mana==balance-200 and g.state.shop_refreshes==3,"REFRESH third costs two hundred")
+ for from_exit in [true,false]:
+  g._restart_tower(from_exit)
+  g.state.room=g.state.rooms.filter(func(r):return r.kind=="shop")[0].id;g.Services.start(g)
+  t.check(t.find_action(g,"service",{"op":"refresh","payment":"flask"},false).mana==400,"REFRESH continuation and prison escape preserve cost")
+ saved=g.export_snapshot()
+ for invalid in [-1,"3"]:
+  var bad=saved.duplicate(true);bad.shop_refreshes=invalid
+  t.check(not g.restore_snapshot(bad).ok and g.state==saved,"REFRESH corrupt count rejects atomically")
+ var fresh=Game.new(42,true,"shop")
+ t.check(t.find_action(fresh,"service",{"op":"refresh","payment":"self"}).mana==50,"REFRESH new game resets cost")
+ fresh.state.relics.append("membership_card");fresh.state.flask_mana=100.0
+ t.check(t.find_action(fresh,"service",{"op":"refresh","payment":"flask"}).mana==25 and t.action(fresh,"service",{"op":"refresh","payment":"flask"}).ok and fresh.state.flask_mana==75,"REFRESH uses membership discount")
+ fresh._install_special("negative_plate_lock_medium","special_2_a",2)
+ before=fresh.export_snapshot()
+ t.check(not t.action(fresh,"service",{"op":"refresh","payment":"self"}).ok and fresh.state==before,"REFRESH flat lock blocks own payment")
+ t.check(t.action(fresh,"service",{"op":"refresh","payment":"flask"}).ok and fresh.state.flask_mana==25,"REFRESH flat lock permits bottle payment")
+ var chest=Game.new(42);chest.state.room=chest.state.rooms.filter(func(r):return r.kind=="treasure")[0].id;chest.Services.start(chest)
+ t.check(not chest.candidates().any(func(c):return c.payload.kind=="service" and c.payload.op=="refresh"),"REFRESH absent from treasure")
+
 static func treasure_with_plate(t) -> void:
  var g=Game.new(42)
  g.state.room=g.state.rooms.filter(func(r):return r.kind=="treasure")[0].id;g.Services.start(g)
@@ -227,6 +277,7 @@ static func _play_first_card(t, g) -> Dictionary:
  var card=t.hand_card(g,"strain")
  return t.action(g,"card",{"uid":card.uid,"target":g.equipment_at("thigh")[0].id})
 static func run(t) -> void:
+ refresh_stock(t)
  preload("res://tests/universal_scanner_cases.gd").run(t)
  preload("res://tests/membership_card_cases.gd").run(t)
  non_transitions_do_not_write(t)
@@ -339,7 +390,7 @@ static func stock_layout(t) -> void:
 
 static func rarity_prices(t) -> void:
  var seen=[]
- var expected={"card":{"common":15.0,"uncommon":25.0,"rare":40.0},"relic":{"common":45.0,"uncommon":65.0,"rare":90.0,"special":45.0}}
+ var expected={"card":{"common":20.0,"uncommon":30.0,"rare":50.0},"relic":{"common":50.0,"uncommon":70.0,"rare":100.0,"special":45.0}}
  for seed in range(16):
   for source in ["self","flask"]:
    var g=Game.new(seed)
@@ -380,18 +431,18 @@ static func m_donalds(t) -> void:
  t.check(g.RelicRewards.offer(g,"shop",rng,excluded)==type and g.Relics.TYPES[type].rarity=="uncommon","M SHOP joins the existing uncommon probability band")
  var index=g.room_data(g.state.room).stock.find(g.room_data(g.state.room).stock.filter(func(row):return row.type==type)[0])
  var row=g.get_view().shop.stock[index]
- t.check(row.price==65 and row.required_payment=="flask" and row.detail.contains("上限＋10") and row.detail.contains("回满"),"M SHOP price, payment restriction and exact effect are projected together")
- g.state.mana=100;g.state.flask_mana=64;g.state.temporary_mana=100
+ t.check(row.price==70 and row.required_payment=="flask" and row.detail.contains("上限＋10") and row.detail.contains("回满"),"M SHOP price, payment restriction and exact effect are projected together")
+ g.state.mana=100;g.state.flask_mana=69;g.state.temporary_mana=100
  var before=g.export_snapshot()
  var own=t.find_action(g,"service",{"op":"take","index":index,"payment":"self"},false)
  var bottle=t.find_action(g,"service",{"op":"take","index":index,"payment":"flask"},false)
  t.check(not own.valid and own.reason=="仅可使用魔瓶购买。" and not g.dispatch(own.id,g.state.version).ok and g.state==before,"M SHOP self payment is rejected atomically despite sufficient personal mana")
  t.check(not bottle.valid and not g.dispatch(bottle.id,g.state.version).ok and g.state==before,"M SHOP cannot combine bottle balance with personal or temporary mana")
- g.state.mana_max=135;g.state.mana=7;g.state.flask_mana=65;g.state.pressure=99
+ g.state.mana_max=135;g.state.mana=7;g.state.flask_mana=70;g.state.pressure=99
  g._install_template("mouth_band","mouth",24,24,false,"fixture",3)
  bottle=t.find_action(g,"service",{"op":"take","index":index,"payment":"flask"},false)
  before=g.export_snapshot()
- t.check(bottle.valid and bottle.mana==65 and not g.dispatch(bottle.id,g.state.version-1).ok and g.state==before,"M SHOP current payment ignores spell multipliers; stale purchase does nothing")
+ t.check(bottle.valid and bottle.mana==70 and not g.dispatch(bottle.id,g.state.version-1).ok and g.state==before,"M SHOP current payment ignores spell multipliers; stale purchase does nothing")
  t.check(g.dispatch(bottle.id,g.state.version).ok and g.state.flask_mana==0 and g.state.mana_max==145 and g.state.mana==145 and g.state.temporary_mana==100 and g.state.energy==before.energy,"M SHOP purchase pays only bottle and restores full personal mana after increasing the actual cap")
  t.check(g.room_data(g.state.room).stock[index].taken and type in g.state.relics and type not in g.RelicRewards.available(g,"shop") and g.validate()=="","M SHOP purchase sells out, excludes owned relic and leaves valid state")
  before=g.export_snapshot();g.RelicEffects.gain(g,type)

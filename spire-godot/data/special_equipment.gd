@@ -135,13 +135,13 @@ static var TYPES={
  "crotch_rope_low":_type("初级裆部股绳","crotch_rope",3,0,0,["special_3_a"],"粗劣麻绳","同时经过双穴区域，但只刺激小穴。"),
  "crotch_rope_medium":_type("中级裆部股绳","crotch_rope",5,0,0,["special_3_a"],"尼龙绳","同时经过双穴区域，但只刺激小穴。"),
  "crotch_rope_high":_type("高级裆部股绳","crotch_rope",7,0,0,["special_3_a"],"魔导纤维绳","同时经过双穴区域，但只刺激小穴。"),
- "glans_cup_medium":_type("中级龟头榨精杯","glans_cup",4,12,BATTERY_TURNS[2],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
- "glans_cup_high":_type("高级龟头榨精杯","glans_cup",5,15,BATTERY_TURNS[3],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
- "full_cup_medium":_type("中级全包榨精杯","full_cup",6,15,BATTERY_TURNS[2],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
- "full_cup_high":_type("高级全包榨精杯","full_cup",8,18,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
- "urethral_full_cup_medium":_type("中级马眼全包榨精杯","urethral_full_cup",8,18,BATTERY_TURNS[2],["special_2_a","special_2_b","special_2_c","special_2_d"],"硅胶与塑料","全包榨精杯内整合中级马眼组件。"),
- "urethral_full_cup_high":_type("高级马眼全包榨精杯","urethral_full_cup",10,22,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c","special_2_d"],"硅胶与塑料","全包榨精杯内整合高级马眼组件。"),
- "forced_milking_cup_high":_type("高级强制榨精飞机杯","forced_milking_cup",0,20,0,["special_2_a","special_2_b","special_2_c"],"硅胶、塑料与皮革","由固定结构持续驱动，不受电池回合限制。")}
+ "glans_cup_medium":_type("中级龟头榨精杯","glans_cup",2,8,BATTERY_TURNS[2],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
+ "glans_cup_high":_type("高级龟头榨精杯","glans_cup",3,11,BATTERY_TURNS[3],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
+ "full_cup_medium":_type("中级全包榨精杯","full_cup",4,11,BATTERY_TURNS[2],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
+ "full_cup_high":_type("高级全包榨精杯","full_cup",6,14,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
+ "urethral_full_cup_medium":_type("中级马眼全包榨精杯","urethral_full_cup",6,14,BATTERY_TURNS[2],["special_2_a","special_2_b","special_2_c","special_2_d"],"硅胶与塑料","全包榨精杯内整合中级马眼组件。"),
+ "urethral_full_cup_high":_type("高级马眼全包榨精杯","urethral_full_cup",8,18,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c","special_2_d"],"硅胶与塑料","全包榨精杯内整合高级马眼组件。"),
+ "forced_milking_cup_high":_type("高级强制榨精飞机杯","forced_milking_cup",8,16,0,["special_2_a","special_2_b","special_2_c"],"硅胶、塑料与皮革","由固定结构持续驱动，不受电池回合限制。")}
 
 static func _add_chastity_types() -> void:
  if TYPES.has("negative_plate_lock_medium"): return

@@ -48,7 +48,7 @@ static func run(t) -> void:
  await t.start_practice("Practice_puppeteer_solo")
  var master=ui.view.enemies[0].id
  var master_art=ui.find_child("EnemyArt_"+master,true,false)
- t.check(ui.view.enemies[0].maximum==96 and master_art.enemy_sprite.texture.resource_path.ends_with("enemy-puppeteer-formal-v1.png"),"PUPPET UI practice displays supplied formal illustration and 96 HP")
+ t.check(ui.view.enemies[0].maximum==76 and master_art.enemy_sprite.texture.resource_path.ends_with("enemy-puppeteer-formal-v1.png"),"PUPPET UI practice displays supplied formal illustration and 76 HP")
  t.check(ui.view.enemies.size()==2 and ui.game.state.enemies[0].intent.kind=="puppet_awaken","PUPPET UI opening already shows both real actors with awakening intent")
  var doll=ui.view.enemies.filter(func(e):return e.template=="puppet")[0].id
  var doll_art=ui.find_child("EnemyArt_"+doll,true,false)
@@ -82,15 +82,17 @@ static func run(t) -> void:
  var barrier=ui.view.statuses.filter(func(s):return s.id=="damage_barrier_"+master)[0]
  t.check(ui.find_child("StatusIcon_damage_barrier_"+master,true,false).find_child("StatusCount",true,false).text=="0" and not barrier.detail.contains("层") and barrier.value.contains("0点伤害"),"PUPPET UI exhausted barrier displays zero remaining damage with no stack count")
  ui.localization.set_locale("en_US")
- t.check(ui.localization.display(barrier.detail).contains("per turn"),"PUPPET UI barrier has an English turn-limit explanation")
+ var translated_barrier=ui.localization.display(barrier.detail)
+ t.check(translated_barrier.contains("per turn") and translated_barrier.contains("capacity"),"PUPPET UI barrier has English turn-limit and capacity explanations: "+translated_barrier+" diagnostics="+str(ui.localization.diagnostics()))
  ui.localization.set_locale("zh_CN")
  t.check(ui.find_child("StatusIcon_puppet_stock_"+doll,true,false).find_child("StatusCount",true,false).text=="1","PUPPET UI real multihit updates ordinary stock icon")
  t.check(await t.click("end") and ui.game._enemy(doll).puppet_prepared.has("composite") and ui.game._enemy(doll).max_hp==15,"PUPPET UI next action prepares composite before mending")
- t.check(await t.click("end") and await t.click("end") and ui.game._enemy(doll).hp==20 and ui.game._enemy(doll).max_hp==20 and ui.find_child("StatusIcon_puppet_stock_"+doll,true,false).find_child("StatusCount",true,false).text=="4","PUPPET UI final cycle action restores increased health and reaction capacity")
+ t.check(ui.view.statuses.filter(func(s):return s.id=="puppet_stock_"+doll)[0].value=="1/2" and barrier.detail.contains("容量上限－1"),"PUPPET UI barrier trigger updates the visible stock maximum and explanation")
+ t.check(await t.click("end") and await t.click("end") and ui.game._enemy(doll).hp==20 and ui.game._enemy(doll).max_hp==20 and ui.find_child("StatusIcon_puppet_stock_"+doll,true,false).find_child("StatusCount",true,false).text=="3","PUPPET UI mending adds one to the reduced capacity and refills it")
  await t.start_practice("Practice_binding_box_solo")
  var box_id=ui.view.enemies[0].id
  t.check(ui.find_child("EnemyArt_"+box_id,true,false).mode=="binding_box" and ui.view.statuses.any(func(s):return s.id=="carried_"+box_id and s.value=="3件"),"BOX UI practice renders mechanical box and actual carried stock")
- t.check(await t.click("end") and ui.view.posture=="sit" and ui.find_child("HeroGuardBindValue",true,false).text=="50/100" and ui.view.statuses.any(func(s):return s.id=="guard_bind" and s.detail.contains("固定为坐姿")),"BOX UI turn-start passive updates shared bar and explains fixed sitting")
+ t.check(await t.click("end") and ui.view.posture=="sit" and ui.find_child("HeroGuardBindValue",true,false).text=="40/100" and ui.view.statuses.any(func(s):return s.id=="guard_bind" and s.detail.contains("首个玩家回合不触发")),"BOX UI opening preserves forty and explains the first upkeep skip")
  await t.start_practice("Practice_drone_solo")
  var drone_id=ui.view.enemies[0].id
  t.check(ui.view.enemies[0].template=="drone" and ui.find_child("EnemyArt_"+drone_id,true,false).mode=="drone" and ui.find_child("StatusIcon_hard_"+drone_id,true,false)!=null,"DRONE UI native practice renders mechanical enemy and hard buff")

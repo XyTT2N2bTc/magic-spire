@@ -122,8 +122,9 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
  for enemy in s.enemies:
   var definition=g.Enemies.TYPES[enemy.type]
   if not enemy.gone and definition.has("damage_cap"):
-   var remaining=g.number(g.Enemies.barrier_remaining(enemy))
-   entry(out,"damage_barrier_"+enemy.id,"enemy","护身屏障","本回合还能受到%s点伤害" % remaining,"每回合受到的最终伤害合计最多%s点，多次攻击、多段及玩偶转移伤害共用额度；下一回合恢复。" % g.number(definition.damage_cap),enemy.name,"战斗期间持续生效","bad")
+   var health_scale=g.DemoExit.health_multiplier(s)
+   var remaining=g.number(g.Enemies.barrier_remaining(enemy,health_scale))
+   entry(out,"damage_barrier_"+enemy.id,"enemy","护身屏障","本回合还能受到%s点伤害" % remaining,"每回合受到的最终伤害合计最多%s点，多次攻击、多段及玩偶转移伤害共用额度；下一回合恢复。" % g.number(g.Enemies.barrier_limit(enemy,health_scale))+"\n"+g.Enemies.BARRIER_CAPACITY_DESCRIPTION,enemy.name,"战斗期间持续生效","bad")
    mark(out,"shield",remaining,true,enemy.id)
   if not enemy.gone and enemy.has("puppet_owner"):
    entry(out,"puppet_"+enemy.id,"limit","引敌缚咒" if enemy.puppet_awakened else "牵线保护","%s/%s生命" % [g.number(enemy.hp),g.number(enemy.max_hp)],g.Puppets.description(g,enemy),g._enemy(enemy.puppet_owner).name,"玩偶师被击败后，玩偶与这些效果一同消失","bad")

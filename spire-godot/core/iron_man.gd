@@ -1,14 +1,22 @@
 extends RefCounted
 
 const Replacement=preload("res://core/equipment_replacement.gd")
+const Bind=preload("res://core/capture_bind.gd")
 
 const CYCLE_LENGTH=5
-const ENERGY_THRESHOLD=3
-const CAPTURE_GAIN=15.0
+const ENERGY_THRESHOLD=5
+const DRONE_ENERGY_THRESHOLD=3
+const CAPTURE_GAIN=10.0
 const DRONE_CAPTURE_GAIN=5.0
 const LEATHER_POOL=["belt","fine_belt","eye_leather","mouth_band"]
 const TAPE_POOL=["tape","eye_tape","mouth_tape"]
 const COMPOSITE_POOL=["glove","leg"]
+const CUP_STAGES=[
+ {"type":"glans_cup_medium","tier":2},
+ {"type":"full_cup_medium","tier":2},
+ {"type":"full_cup_medium","tier":3},
+ {"type":"urethral_full_cup_medium","tier":3},
+ {"type":"urethral_full_cup_high","tier":3}]
 
 static func initialize(e: Dictionary) -> void:
  e.iron_enhancements=0
@@ -24,6 +32,13 @@ static func link_supports(enemies: Array) -> void:
 
 static func capture_start(e: Dictionary) -> float:
  return 30.0+5.0*int(e.get("iron_enhancements",0))
+
+static func cup_spec(e: Dictionary) -> Dictionary:
+ return CUP_STAGES[mini(int(e.get("iron_enhancements",0)),CUP_STAGES.size()-1)].duplicate()
+
+static func fallback_spec(e: Dictionary) -> Dictionary:
+ var level=int(e.get("iron_enhancements",0))
+ return {"grade":3 if level>=3 else 2,"tier":3 if level>=1 else 2,"count":3+(1 if level>=2 else 0)+maxi(0,level-3)}
 
 static func _upgrade_count(total: int, index: int) -> int:
  if total<index: return 0
@@ -44,8 +59,7 @@ static func modifiers(e: Dictionary) -> Dictionary:
   "locks":2*third+fourth}
 
 static func intent_facts(e: Dictionary, state: Dictionary) -> Dictionary:
- var bind=state.get("guard_bind",{})
- if bind.get("progress",0.0)>=100.0 and bind.get("sources",{}).values().any(func(source):return source.get("enemy","")==e.id): return {"kind":"capture"}
+ if Bind.capture_ready(state): return {"kind":"capture"}
  if e.iron_stun_turns>0: return {"kind":"iron_stunned"}
  if e.stage==1: return {"kind":"bind_apply"}
  var mods=modifiers(e)
@@ -70,10 +84,10 @@ static func plan(g, e: Dictionary) -> Dictionary:
   "capture": text="执行收押"
   "iron_stunned": text="机械减伤失效 · 发呆"
   "bind_apply": text="施加捕缚 · 初始%s/100" % g.number(capture_start(e))
-  "iron_bind_gain": text="捕缚＋15" if g.CaptureBind.has_bind(g,"iron_man") else "重新施加捕缚 · 初始%s/100" % g.number(capture_start(e))
+  "iron_bind_gain": text="捕缚＋%s" % g.number(CAPTURE_GAIN) if g.CaptureBind.has_bind(g,"iron_man") else "重新施加捕缚 · 初始%s/100" % g.number(capture_start(e))
   "iron_restraints": text="施加%d件%s%d档皮革拘束具%s" % [facts.count,g.Equipment.GRADES[facts.grade],facts.tier," · 加固%d档" % facts.reinforce if facts.reinforce>0 else ""]
   "iron_composite": text="施加%s%d档复合皮革拘束具%s%s" % [g.Equipment.GRADES[facts.grade],facts.tier," · 特殊装备×%d" % facts.special if facts.special>0 else ""," · 上锁×%d" % facts.locks if facts.locks>0 else ""]
-  "iron_recharge": text="补满全部特殊装备电量"
+  "iron_recharge": text="佩戴／替换特殊装备 · 补满电量"
   "iron_upgrade": text="强化捕缚系统"
  facts.text=text;facts.delayed=false
  return facts
@@ -81,9 +95,10 @@ static func plan(g, e: Dictionary) -> Dictionary:
 static func installation_intents(g, e: Dictionary) -> Array:
  var mods=modifiers(e)
  var ordinary=g.EnemyPlans.application(LEATHER_POOL,mini(3,2+mods.grade),mini(3,2+mods.tier),2+mods.ordinary)
- ordinary.replace=true;ordinary.shoulders=true
+ ordinary.replace=true;ordinary.shoulders=true;ordinary.tighten_missing=true
  var composite={"kind":"apply","pool":"composite","templates":COMPOSITE_POOL.duplicate(),"grade":mini(3,2+mods.grade),"tier":mini(3,2+mods.tier),"count":1,"locked":false,"final":false,"replace":true,"text":"施加复合皮革拘束具","delayed":false}
  var result=[ordinary,composite]
+ composite.tighten_missing=true
  if mods.special>0:
   result.append({"kind":"apply","pool":"special","templates":g.SpecialEquipment.prison_pool(3,true,false),"grade":3,"tier":3,"count":mods.special,"locked":false,"final":false,"replace":true,"text":"佩戴高级特殊装备","delayed":false})
  return result
@@ -96,16 +111,13 @@ static func execute(g, e: Dictionary, intent: Dictionary) -> void:
    if g.CaptureBind.has_bind(g,"iron_man"): g.CaptureBind.gain_bind(g,CAPTURE_GAIN,e.name+"的捕缚")
    else: g.CaptureBind.apply_bind(g,e)
   "iron_restraints":
-   var plan=g.EnemyPlans.application(LEATHER_POOL,intent.grade,intent.tier,intent.count)
-   plan.replace=true;plan.shoulders=true
-   g._enemy_operation(e,plan)
+   g._enemy_operation(e,installation_intents(g,e)[0])
    if intent.reinforce>0: g.EnemyPlans.execute_tighten_budget(g,e,{"budget":intent.reinforce})
   "iron_composite":
-   var composite={"kind":"apply","pool":"composite","templates":COMPOSITE_POOL.duplicate(),"grade":intent.grade,"tier":intent.tier,"count":1,"locked":false,"final":false,"replace":true,"text":"施加复合皮革拘束具","delayed":false}
-   g._enemy_operation(e,composite)
+   var plans=installation_intents(g,e)
+   g._enemy_operation(e,plans[1])
    if intent.special>0:
-    var special={"kind":"apply","pool":"special","templates":g.SpecialEquipment.prison_pool(3,true,false),"grade":3,"tier":3,"count":intent.special,"locked":false,"final":false,"replace":true,"text":"佩戴高级特殊装备","delayed":false}
-    g._enemy_operation(e,special)
+    g._enemy_operation(e,plans[2])
    for i in range(intent.locks): g._enemy_operation(e,{"kind":"lock","text":"随机上锁","random_target":true,"delayed":false})
   "iron_recharge": recharge(g,e)
   "iron_upgrade": upgrade(g,e)
@@ -113,13 +125,15 @@ static func execute(g, e: Dictionary, intent: Dictionary) -> void:
 static func apply_capture_equipment(g, e: Dictionary) -> void:
  var cursed=g.state.special_equipment.any(g.SpecialEquipment.is_cursed_plate)
  if g.Character.active(g) or cursed:
-  var pool=g.SpecialEquipment.prison_pool(2,false,false)
-  var plan={"kind":"apply","pool":"special","templates":pool,"grade":2,"tier":mini(3,2+modifiers(e).tier),"count":4,"locked":false,"final":false,"replace":true,"text":"佩戴四件性玩具","delayed":false}
+  var spec=fallback_spec(e)
+  var pool=g.SpecialEquipment.prison_pool(spec.grade,false,false)
+  var plan={"kind":"apply","pool":"special","templates":pool,"grade":spec.grade,"tier":spec.tier,"count":spec.count,"locked":false,"final":false,"replace":true,"text":"佩戴／替换特殊装备","delayed":false}
   g._enemy_operation(e,plan)
   return
- var replaced=Replacement.force_special(g,"urethral_full_cup_medium",3,e.name+"的捕缚")
+ var spec=cup_spec(e)
+ var replaced=Replacement.force_special(g,spec.type,spec.tier,e.name+"的捕缚")
  if replaced.ok:
-  g._emit("event",e.name+"替换并佩戴了中级马眼全包榨精杯。",{"iron_capture_equipment":{"enemy":e.id,"installed":replaced.installed[0].id,"removed":replaced.removed}})
+  g._emit("event",e.name+"佩戴／替换了"+g.SpecialEquipment.TYPES[spec.type].name+"，紧度%d档。" % spec.tier,{"iron_capture_equipment":{"enemy":e.id,"installed":replaced.installed[0].id,"removed":replaced.removed}})
 
 static func active_special(g) -> Array:
  return g.state.special_equipment.filter(func(item):
@@ -127,15 +141,10 @@ static func active_special(g) -> Array:
   var spec=g.SpecialEquipment.TYPES[item.type]
   return spec.duration>0 and (spec.energy_gain>0 or spec.turn_gain>0))
 
-static func _drone(g) -> Dictionary:
- for enemy in g.state.enemies:
-  if enemy.type=="iron_drone" and not enemy.gone: return enemy
- return {}
-
 static func energy_trigger(g, e: Dictionary) -> void:
  for item in active_special(g).duplicate(): g._remote_special(item,e.name+"的捕缚",false)
- var drone=_drone(g)
- if drone.is_empty(): return
+
+static func drone_energy_trigger(g, drone: Dictionary) -> void:
  g._enemy_operation(drone,g.EnemyPlans.application(TAPE_POOL,1,2,1))
  g.CaptureBind.gain_bind(g,DRONE_CAPTURE_GAIN,drone.name+"的捕缚")
  var powered=active_special(g)
@@ -145,6 +154,7 @@ static func energy_trigger(g, e: Dictionary) -> void:
  g._enemy_operation(drone,{"kind":"lock","text":"随机上锁","random_target":true,"delayed":false})
 
 static func recharge(g, e: Dictionary) -> void:
+ apply_capture_equipment(g,e)
  var count=0
  for item in g.state.special_equipment:
   var duration=int(g.SpecialEquipment.TYPES[item.type].duration)
@@ -155,15 +165,16 @@ static func recharge(g, e: Dictionary) -> void:
 static func upgrade(g, e: Dictionary) -> void:
  e.iron_enhancements+=1
  var index=(e.iron_enhancements-1)%4+1
- g._emit("event",e.name+"完成第%d次强化：此后捕缚值＋5，并获得第%d组强化。" % [e.iron_enhancements,index],{"iron_upgrade":{"enemy":e.id,"total":e.iron_enhancements,"kind":index}})
+ g._emit("event",e.name+"强化升至%d层：此后捕缚值＋5，并获得第%d组强化。" % [e.iron_enhancements,index],{"iron_upgrade":{"enemy":e.id,"total":e.iron_enhancements,"kind":index}})
 
 static func capture_removed(g) -> void:
  for e in g.state.enemies:
   if e.type!="iron_man" or e.gone: continue
+  e.iron_enhancements=maxi(0,e.iron_enhancements-1)
   e.iron_stun_turns=maxi(e.iron_stun_turns,1)
   e.iron_armor_break_turns=maxi(e.iron_armor_break_turns,2)
   e.intent=plan(g,e)
-  g._emit("event",e.name+"的捕缚系统被破坏：机械减伤失效2回合，并将在下一次行动时发呆。")
+  g._emit("event",e.name+"的捕缚系统被破坏：强化降至%d层，机械减伤失效2回合，并将在下一次行动时发呆。" % e.iron_enhancements)
 
 static func begin_enemy_turn(e: Dictionary) -> void:
  if e.type=="iron_man" and e.iron_armor_break_turns>0: e.iron_armor_break_turns-=1
@@ -195,7 +206,7 @@ static func validate(g, e: Dictionary, enemies: Array=[], snapshot: Dictionary={
  if not g.Snapshot.fields(e,"iron_enhancements:i iron_stun_turns:i iron_armor_break_turns:i iron_support_ids:z"): return "铁男强化记录不完整。"
  if e.iron_enhancements<0 or e.iron_stun_turns not in [0,1] or e.iron_armor_break_turns<0 or e.iron_armor_break_turns>2: return "铁男强化或破甲回合不合法。"
  var expected_enhancements=0 if e.stage==1 else int((e.stage-2)/CYCLE_LENGTH)
- if e.iron_enhancements!=expected_enhancements: return "铁男强化次数与行动阶段不一致。"
+ if e.iron_enhancements>expected_enhancements: return "铁男强化次数与行动阶段不一致。"
  var roster=g.state.enemies if enemies.is_empty() else enemies
  if e.iron_support_ids.size()!=2 or e.iron_support_ids[0]==e.iron_support_ids[1] or e.iron_support_ids.any(func(id):
   var matches=roster.filter(func(enemy):return enemy.id==id)
@@ -204,8 +215,10 @@ static func validate(g, e: Dictionary, enemies: Array=[], snapshot: Dictionary={
  var support_types=e.iron_support_ids.map(func(id):return roster.filter(func(enemy):return enemy.id==id)[0].type)
  support_types.sort()
  if support_types!=["binding_box","iron_drone"]: return "铁男随行单位类型不完整。"
- if not e.gone and not e.intent.is_empty():
-  var expected=intent_facts(e,g.state if snapshot.is_empty() else snapshot)
+ var current_state=g.state if snapshot.is_empty() else snapshot
+ # Completed battles retain the last announced intent, not a live cycle prediction.
+ if current_state.phase=="battle" and not e.gone and not e.intent.is_empty():
+  var expected=intent_facts(e,current_state)
   if e.intent.get("kind","")!=expected.get("kind",""): return "铁男意图与当前行动阶段不一致。"
   for key in ["count","grade","tier","reinforce","special","locks"]:
    if e.intent.has(key)!=expected.has(key) or (expected.has(key) and e.intent[key]!=expected[key]): return "铁男意图数值与当前强化阶段不一致。"

@@ -9,6 +9,7 @@ static func run(t) -> void:
  zero_energy_fireball(t)
 
  ordinary_kicks(t)
+ continuous_kick(t)
  justice_opening(t)
  interrupt_cooldown(t)
  bound_kick_cooldown(t)
@@ -97,6 +98,53 @@ static func ordinary_kicks(t) -> void:
  g.state.strength=2;g.state.charge=1
  var c=attack(t,g,"kick",2)
  t.check(is_equal_approx(c.payload.damage,4.4) and g.dispatch(c.id,g.state.version).ok and g.state.charge==0,"KICK level-three damage includes strength and consumes shared charge once")
+
+static func continuous_kick(t) -> void:
+ for energy in [0,1,2,3,5]:
+  var g=Game.new(42);g.state.posture="sit";g.state.energy=energy;g.state.kick_last=g.state.round
+  g.state.enemies[0].hp=200;g.state.enemies[0].max_hp=200
+  var before=g.export_snapshot();var c=attack(t,g,"kick",3)
+  t.check(c.valid==(energy>=1) and c.cost==energy and c.payload.x==energy and c.payload.hits==energy+1 and c.payload.damage==3 and c.payload.fall==(energy>=3),"CONTINUOUS KICK X boundary controls cost hit count and fall")
+  g.get_view();g.candidates()
+  t.check(g.state==before and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"CONTINUOUS KICK previews and stale submissions preserve all state")
+  if energy==0:
+   t.check(c.reason.contains("至少需要1") and not g.dispatch(c.id,g.state.version).ok and g.state==before,"CONTINUOUS KICK zero energy cannot buy the bonus hit")
+   continue
+  t.check(c.brief=="3 × %d 伤害" % (energy+1) and g.candidate_detail(c).contains("共%d次" % (energy+1)),"CONTINUOUS KICK short and detailed previews agree on every hit")
+  t.check(g.dispatch(c.id,g.state.version).ok and g.state.energy==0 and g.state.enemies[0].hp==200-3*(energy+1) and g.state.enemies[1].hp==before.enemies[1].hp,"CONTINUOUS KICK spends all energy once and hits only the chosen enemy")
+  var events=g.state.logs.slice(before.logs.size())
+  var hits=events.filter(func(log):return log.data.has("hit"))
+  t.check(hits.size()==energy+1 and g.state.posture==("lie" if energy>=3 else "sit") and g.state.kick_last==before.kick_last and not g.state.enemies[0].intent.delayed,"CONTINUOUS KICK has separate hits no innate interrupt and no shared cooldown")
+  if energy>=3:
+   t.check(events.find(hits[-1])<events.find(events.filter(func(log):return log.text=="攻击结束后，你转为躺姿。")[0]),"CONTINUOUS KICK falls only after the last damage event")
+ for posture in ["stand","lie"]:
+  var g=Game.new(42);g.state.posture=posture
+  var c=attack(t,g,"kick",3);var before=g.export_snapshot()
+  t.check(not c.valid and c.reason.contains("需要坐姿") and not g.dispatch(c.id,g.state.version).ok and g.state==before,"CONTINUOUS KICK requires a seated posture")
+ for severity in range(5):
+  var g=Game.new(42);g.state.posture="sit";g.state.energy=2;g.state.strength=2;g.state.charge=1
+  var restraints=[[],["thigh"],["ankle"],["ankle","foot"],["thigh","calf","ankle","foot","toes"]]
+  for slot in restraints[severity]: g.add_fixture(slot,4)
+  var c=attack(t,g,"kick",3);var before=g.export_snapshot()
+  t.check(c.valid==(severity<4) and is_equal_approx(c.payload.damage,8*[1.0,0.8,0.6,0.4,0.0][severity]),"CONTINUOUS KICK applies strength charge and leg restrictions to every hit")
+  if severity<4:
+   t.check(g.dispatch(c.id,g.state.version).ok and is_equal_approx(g.state.enemies[0].hp,before.enemies[0].hp-3*c.payload.damage) and g.state.charge==0,"CONTINUOUS KICK consumes charge once for the full combo")
+  else:
+   t.check(not g.dispatch(c.id,g.state.version).ok and g.state==before,"CONTINUOUS KICK fully restrained legs reject without payment")
+ var g=Game.new(42);g.state.posture="sit";g.state.energy=3;g.state.enemies[0].hp=1
+ var other_hp=g.state.enemies[1].hp
+ t.check(g.dispatch(attack(t,g,"kick",3).id,g.state.version).ok and g.state.enemies[0].gone and g.state.enemies[1].hp==other_hp and g.state.posture=="lie" and g.state.energy==0,"CONTINUOUS KICK early kill stops hits without retargeting or waiving payment and fall")
+ g=Game.new(42);g.state.posture="sit";g.state.energy=2;g.Cards.grant_buff(g,"ready_to_strike_free")
+ var c=attack(t,g,"kick",3)
+ t.check(c.cost==2 and c.payload.hits==3 and g.dispatch(c.id,g.state.version).ok and g.state.energy==0,"CONTINUOUS KICK X payment remains all remaining energy under physical discounts")
+ g=Game.new(42,true,"binding_box_solo");g.CaptureBind.apply_bind(g,g.state.enemies[0]);g.state.energy=3
+ c=attack(t,g,"kick",3);var before=g.export_snapshot()
+ t.check(not c.valid and c.reason.contains("无法在踢击后躺下") and not g.dispatch(c.id,g.state.version).ok and g.state==before,"CONTINUOUS KICK capture cannot waive the mandatory fall")
+ g.state.energy=2;c=attack(t,g,"kick",3)
+ t.check(c.valid and g.dispatch(c.id,g.state.version).ok and g.state.posture=="sit","CONTINUOUS KICK captured seated player can use a non-falling combo")
+ g=Game.new(42);g.state.posture="lie";g.state.energy=2;g.Cards.grant_buff(g,"kip_up_free")
+ c=attack(t,g,"kick",3)
+ t.check(c.valid and g.dispatch(c.id,g.state.version).ok and g.state.posture=="lie" and "kip_up_free" not in g.state.card_buffs,"CONTINUOUS KICK shared posture waiver permits the seated form and is consumed once")
 
 static func interrupt_cooldown(t) -> void:
  var g=Game.new(42);g.state.energy=8

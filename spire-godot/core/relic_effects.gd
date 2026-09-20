@@ -25,7 +25,7 @@ static func keeps_combat_state(g) -> bool:
 static func phase_matches(g, phase: String) -> bool:
  return g.state.phase in COMBAT_PHASES if phase=="battle" else phase==g.state.phase
 
-static func gain(g, id: String) -> void:
+static func gain(g, id: String, source: String="") -> void:
  if not g.Relics.can_gain(g.state.relics,id): return
  if gain_reason(g,id)!="": return
  if id=="cursed_blindfold":
@@ -65,6 +65,15 @@ static func gain(g, id: String) -> void:
  var pressure=float(spec.get("pickup_pressure",0))
  if pressure>0: g.Pressure.gain(g,pressure,g.Relics.TYPES[id].name)
  g.state.pressure=cap_pressure(g,g.state.pressure)
+ if id=="desire_cube_pro_max" and source=="boss":
+  g._gain_card("itching_heart",{},true)
+  var relic=g.RelicRewards.offer(g,"normal",null,[],id)
+  gain(g,relic)
+  var cards=g.reward_offer(g.Cards.Rules.RARE,"fixed",null,1,"lewd_magic")
+  for type in cards:
+   g._gain_card(type)
+   g._emit("event","欲望魔方 Pro Max：获得「%s」。" % g.B.CARD_NAMES[type])
+  if cards.is_empty(): g._emit("event","欲望魔方 Pro Max：没有可获得的淫魔法稀有卡。")
 
 static func gain_reason(g, id: String) -> String:
  if not g.Character.relic_allowed(g,id): return "该遗物不适用于当前角色。"
@@ -212,14 +221,14 @@ static func begin_turn(g) -> void:
    g._emit("event",definition(g,id).name+"：获得%d层蓄力。" % charge,{"relic_trigger":{"id":id,"name":definition(g,id).name}})
   var opening=int(definition(g,id).modifiers.get("opening_energy",0))
   if g.state.combat.first_turn and opening>0:
-   g.state.energy+=opening
+   opening=g._gain_energy(opening)
    g._emit("event",definition(g,id).name+"：本场第一回合，获得%d能量。" % opening,{"relic_trigger":{"id":id,"name":definition(g,id).name},"energy_gain":opening})
   var step=int(definition(g,id).modifiers.get("turn_energy_step",0))
   if step<=0: continue
   var progress=int(g.state.relic_counters.get(id,0))+1
   g.state.relic_counters[id]=progress%step
   if progress<step: continue
-  g.state.energy+=1
+  if g._gain_energy(1)==0: continue
   g._emit("event",definition(g,id).name+"：累计%d回合，获得1能量。" % step,{"relic_trigger":{"id":id,"name":definition(g,id).name},"energy_gain":1})
 
 static func shuffled(g) -> void:
@@ -229,8 +238,7 @@ static func shuffled(g) -> void:
   var progress=int(g.state.relic_counters.get(id,0))+1
   g.state.relic_counters[id]=progress%step
   if progress<step: continue
-  var gain=g.Relics.SHUFFLE_ENERGY_GAIN
-  g.state.energy+=gain
+  var gain=g._gain_energy(g.Relics.SHUFFLE_ENERGY_GAIN)
   g._emit("event",definition(g,id).name+"：累计%d次洗牌，获得%d能量。" % [step,gain],{"relic_trigger":{"id":id,"name":definition(g,id).name},"energy_gain":gain})
 
 static func pressure_guard(g) -> String:
@@ -363,7 +371,7 @@ static func mana_lost(g, amount: float, temporary: float=0.0) -> void:
   if id=="ditto": g.state.relic_counters[id]=remainder
   else: g.state.combat.mana_spent=remainder
   if energy<=0: continue
-  g.state.energy+=energy
+  energy=g._gain_energy(energy)
   g._emit("event",definition(g,id).name+"：累计消耗魔力，获得%d能量。" % energy,{"relic_trigger":{"id":id,"name":definition(g,id).name}})
 
 static func card_played(g, type: String, free: bool) -> void:
@@ -501,8 +509,9 @@ static func trigger(g, event: String, context: Dictionary={}) -> void:
    g._emit("event",definition(g,id).name+"生效。",{"relic_trigger":{"id":id,"name":definition(g,id).name}})
   elif spec.op=="fixed_enemy_damage":
    var targets=g.state.enemies.filter(func(enemy):return not enemy.gone).map(func(enemy):return enemy.id)
+   var damage_group={}
    for enemy_id in targets:
-    g._damage_enemy(g._enemy(enemy_id),spec.amount,"fixed",definition(g,id).name,{"relic_trigger":{"id":id,"name":definition(g,id).name}})
+    g._damage_enemy(g._enemy(enemy_id),spec.amount,"fixed",definition(g,id).name,{"relic_trigger":{"id":id,"name":definition(g,id).name}},damage_group)
   else:
    var amount=context.get("amount",0.0)*spec.ratio if spec.has("ratio") else spec.amount
    g.state.relic_pending[id]={"op":spec.op,"amount":amount}

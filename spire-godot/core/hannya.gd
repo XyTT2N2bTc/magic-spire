@@ -46,11 +46,8 @@ static func heavy_bonus(g, type: String, form: int) -> int:
 static func give(g, type: String, hand: bool, messages: Array) -> void:
  var card=g._gain_temporary_card(type)
  assert(not card.is_empty())
- if hand and g.state.hand.size()<g.B.HAND_LIMIT:
+ if hand and g._put_card_in_hand(card):
   g.state.discard.erase(card)
-  g.state.draw_serial+=1;card.draw_serial=g.state.draw_serial
-  card.draw_free=not g.Cards.has_escape_target(g,type)
-  g.state.hand.append(card);g._card_motion("draw",card)
   messages.append("「%s」加入手牌" % g.B.CARD_NAMES[type])
  else:
   messages.append(("手牌已满，" if hand else "")+"「%s」加入弃牌堆" % g.B.CARD_NAMES[type])

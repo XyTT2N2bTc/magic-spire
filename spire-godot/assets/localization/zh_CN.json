@@ -2,6 +2,7 @@
   "schema_version": 1,
   "locale": "zh_CN",
   "messages": {
+    "ui.shop.refresh": {"text": "刷新 · {price}魔力", "context": "店主立绘右上角刷新按钮，整局累计涨价"},
     "ui.portrait.expand": {"text": "放大立绘", "context": "身体栏立绘右下角按钮"},
     "ui.flask.deposit_uses": {"text": "存 {dots}", "context": "魔瓶战斗存取独立剩余次数"},
     "ui.flask.withdraw_uses": {"text": "取 {dots}", "context": "魔瓶战斗存取独立剩余次数"},

@@ -122,7 +122,7 @@ static func failure_outcome(g, c: Dictionary) -> Dictionary:
 
 static func commit_failure(g, outcome: Dictionary) -> void:
  if outcome.power_uid=="": return
- g.state.energy+=outcome.energy
+ outcome.energy=g._gain_energy(outcome.energy)
  if not outcome.zero_cost: return
  for card in g.state.powers:
   if card.uid==outcome.power_uid:
@@ -218,8 +218,7 @@ static func restraint_changed(g, event: String, count: int=1) -> void:
   # Energy uses the same physical-root count and power stacks as card draw,
   # even when no card fits in hand.
   if trigger.get("energy",0)>0:
-   var energy=count*trigger.energy*card.get("power_stacks",1)
-   g.state.energy+=energy
+   var energy=g._gain_energy(count*trigger.energy*card.get("power_stacks",1))
    g._emit("event",Rules.BUFFS[id].name+"：恢复%d能量。" % energy,{"power_trigger":{"id":id,"uid":card.uid},"restraint_energy":{"event":event,"count":count,"amount":energy}})
 
 static func _power_draw(g, card: Dictionary, amount: int) -> void:
@@ -390,7 +389,8 @@ static func flush_powers(g) -> bool:
   if effect.target=="enemies":
    var targets=g.state.enemies.filter(func(enemy):return not enemy.gone).map(func(enemy):return enemy.id)
    var damage=effect.base*card.get("power_stacks",1)*damage_multiplier(g,"card_effect")
-   for target in targets: g._damage_enemy(g._enemy(target),damage,effect.damage_type,label)
+   var damage_group={}
+   for target in targets: g._damage_enemy(g._enemy(target),damage,effect.damage_type,label,{},damage_group)
   else:
    # Freeze targets AND multipliers before any removal reveals an inner layer.
    var hits=[]
@@ -528,13 +528,13 @@ static func face_text(g, type: String, free: bool, uid: String="") -> String:
  if uid!="" and Rules.SPECS[type].has("hannya_stage"):
   var text=Hannya.detail(g,Rules.SPECS[type].hannya_stage,free)+Rules.SPECS[type].get("play_music_text","")+"消耗。"
   return ("固有。" if g.B.CARD_TRAITS.get(type,{}).get("innate",false) else "")+text
- return g.B.card_info(type,g.number(face_mana(g,type,free)),base_damage(g,type,uid),true,worn_count(g),body_count_context(g,type))[2 if free else 1]
+ return g.B.card_info(type,g.number(face_mana(g,type,free)),face_damage_values(g,type,uid),true,worn_count(g),body_count_context(g,type))[2 if free else 1]
 
 static func face_texts(g, type: String, uid: String="") -> Dictionary:
  if uid!="" and Rules.SPECS[type].has("hannya_stage"):
   return {"bound":face_text(g,type,false,uid),"free":face_text(g,type,true,uid)}
  var costs={"bound":g.number(face_mana(g,type,false)),"free":g.number(face_mana(g,type,true))}
- var info=g.B.card_info(type,costs,base_damage(g,type,uid),true,worn_count(g),body_count_context(g,type))
+ var info=g.B.card_info(type,costs,face_damage_values(g,type,uid),true,worn_count(g),body_count_context(g,type))
  return {"bound":info[1],"free":info[2]}
 
 static func instance(g, uid: String) -> Dictionary:
@@ -546,7 +546,9 @@ static func instance(g, uid: String) -> Dictionary:
 
 static func metadata(g, type: String, uid: String="") -> Dictionary:
  var costs={"bound":face_mana(g,type,false),"free":face_mana(g,type,true)}
- var result=g.B.card_metadata(type,costs,base_damage(g,type,uid),worn_count(g),body_count_context(g,type))
+ var values=face_damage_values(g,type,uid)
+ var result=g.B.card_metadata(type,costs,values,worn_count(g),body_count_context(g,type))
+ result.face_damage=values
  if uid!="" and Rules.SPECS[type].has("witch_training_stage"):
   result.note=g.B.CARD_INFO[type][3]+"\n"+g.Character.Expansion.training_progress(instance(g,uid))
  result.face_casting={}
@@ -574,6 +576,19 @@ static func base_damage(g, type: String, uid: String="") -> float:
  var dynamic_bonus=0.0 if scaling.is_empty() else worn_count(g,scaling.include_special)*scaling.per_item
  if g.Character.active(g) and spec.mode=="magic_slip": dynamic_bonus+=g.state.witch_focus
  return float(spec.get("base",0.0))+dynamic_bonus+g.Relics.card_base_bonus(g.state.relics,type,g.state.get("ditto_form",""))+instance(g,uid).get("damage_bonus",0)
+
+# Numeric face values, not parsed copy. Empty faces have no escape damage.
+# Target-specific bonuses, assistance and multipliers belong to target previews.
+static func face_damage_values(g, type: String, uid: String="") -> Dictionary:
+ var values={"bound":[],"free":[]}
+ if not Rules.damage(type): return values
+ var base=base_damage(g,type,uid)
+ for second in [false,true]:
+  if Rules.free_effect(type,second): continue
+  var side="free" if second else "bound"
+  for hit_index in range(Rules.SPECS[type].get("hits",1)):
+   values[side].append(g.escape_values(Rules.face_mode(type,second),base,{},false,hit_index).raw)
+ return values
 
 static func grow(g, type: String, uid: String) -> void:
  var amount=Rules.SPECS[type].get("damage_growth",0)
@@ -656,12 +671,17 @@ static func replace_permanent(g, uid: String, type: String) -> void:
   for card in g.state[zone]:
    if card.uid==uid: card.type=type
 
+# Capture eligibility is shared by orientation, candidates and commit checks.
+static func can_target_bind(type: String) -> bool:
+ var spec=Rules.SPECS[type]
+ return spec.mode=="lower" or (Rules.damage(type) and (not spec.has("target_slots") or spec.has("witch_training_stage")))
+
 # Draw orientation ignores energy/mana shortages; only a real escape route matters.
 static func has_escape_target(g, type: String) -> bool:
  if Rules.SPECS[type].has("bound_modes"): return true
  if Rules.single_face(type) or Rules.SPECS[type].has("self_faces"): return true
  if g.B.CARD_TRAITS.get(type,{}).get("unplayable",false): return true
- if Rules.damage(type) and not Rules.SPECS[type].has("target_slots") and g.CaptureBind.has_bind(g): return true
+ if can_target_bind(type) and g.CaptureBind.has_bind(g): return true
  for target in g.action_targets():
   var p=target_payload(g,type,target.slot,target)
   if reason(g,p)!="": continue
@@ -690,13 +710,14 @@ static func availability(g, card: Dictionary, free: bool, choices: Array) -> Dic
    issue=eligible[0].reason if not eligible.is_empty() else options[0].reason
  return {"usable":false,"dim":true,"text":"（"+issue.trim_suffix("。")+"）"}
 
-static func target_payload(g, type: String, slot: String, target: Dictionary, assist_profiles: Array=[], uid: String="", second: bool=false) -> Dictionary:
+static func target_payload(g, type: String, slot: String, target: Dictionary, assist_profiles: Array=[], uid: String="", second: bool=false, force_continuation: bool=false) -> Dictionary:
  var spec=Rules.SPECS[type]
  var p={"type":type,"slot":slot,"target":target.get("id",""),"free":second if spec.has("bound_modes") else target.is_empty(),"mode":Rules.face_mode(type,second)}
  if not target.is_empty():
   if Rules.damage(type):
-   var continuing=spec.get("follow_through",false) and g.state.card_chain.get("type","")==type
-   p.preview=g.escape_preview(target,p.mode,base_damage(g,type,uid),assist_profiles,false,false,continuing)
+   var continuing=force_continuation or (spec.get("follow_through",false) and g.state.card_chain.get("type","")==type)
+   p.preview=g.escape_preview(target,p.mode,base_damage(g,type,uid),assist_profiles,false,false,continuing,false,spec.get("ignore_tightness_reduction",false))
+   p.preview.face_value=face_damage_values(g,type,uid)["free" if p.free else "bound"][0]
    scale_card_preview(g,p.preview,p.mode)
    p.tool_bonus=g.InstalledTools.preview(g,target,Rules.damage_type(type,p.free),p.preview)
    if g.SpecialEquipment.is_reinforcement(target):
@@ -706,16 +727,15 @@ static func target_payload(g, type: String, slot: String, target: Dictionary, as
 
 static func bind_payload(g, type: String, uid: String="", second: bool=false) -> Dictionary:
  var mode=Rules.face_mode(type,second)
- var is_strain=mode=="strain"
- var attribute="strength" if is_strain else "dexterity"
- var bonus=g.RelicEffects.attribute(g,attribute)
- var charge=g.charge_bonus()
- var buff_multiplier=damage_multiplier(g,"equipment")*card_damage_multiplier(g,mode)*g.Character.damage_multiplier(g)
- var multiplier=g.CaptureBind.damage_multiplier(g)*buff_multiplier
- var base=base_damage(g,type,uid)
- var raw=base+bonus+charge
+ var fixed=mode=="lower"
+ var buff_multiplier=1.0 if fixed else damage_multiplier(g,"equipment")*card_damage_multiplier(g,mode)*g.Character.damage_multiplier(g)
+ var guard_multiplier=1.0 if fixed else g.CaptureBind.damage_multiplier(g)
+ var multiplier=guard_multiplier*buff_multiplier
+ var base=g.CaptureBind.LOWER_DAMAGE if fixed else base_damage(g,type,uid)
+ var values={"bonus":0.0,"charge":0.0,"raw":base} if fixed else g.escape_values(mode,base)
+ var raw=values.raw
  return {"type":type,"slot":g.CaptureBind.BIND_TARGET,"target":g.CaptureBind.BIND_TARGET,"free":second,"mode":mode,
-  "preview":{"guard_multiplier":g.CaptureBind.damage_multiplier(g),"damage_buff_multiplier":buff_multiplier,"base":base,"bonus":bonus,"charge":charge,"raw":raw,"multiplier":multiplier,"damage":raw*multiplier,"environment_true":0.0}}
+  "preview":{"guard_multiplier":guard_multiplier,"damage_buff_multiplier":buff_multiplier,"base":base,"bonus":values.bonus,"charge":values.charge,"raw":raw,"face_value":raw,"multiplier":multiplier,"damage":raw*multiplier,"environment_true":0.0}}
 
 static func reason(g, p: Dictionary) -> String:
  if not action_ignores_restraints(g) and p.type=="henshin" and g.state.equipment.any(func(e):return g.Equipment.lock_only(e)):
@@ -773,7 +793,7 @@ static func reason(g, p: Dictionary) -> String:
  if p.get("self_target",false): return ""
  if Rules.free_effect(p.type,p.free): return ""
  if spec.has("target_slots") and p.slot not in spec.target_slots and p.target!=g.CaptureBind.BIND_TARGET: return "只能处理%s的拘束具。" % "、".join(spec.target_slots.map(func(slot):return g.B.SLOT_NAMES[slot]))
- if p.target==g.CaptureBind.BIND_TARGET: return "" if g.CaptureBind.has_bind(g) and Rules.damage(p.type) else "捕缚已经解除。"
+ if p.target==g.CaptureBind.BIND_TARGET: return "" if g.CaptureBind.has_bind(g) and can_target_bind(p.type) else "捕缚已经解除。"
  var target=g._equipment(p.target)
  if target.is_empty(): return "原目标已经解除。"
  if g.Equipment.lock_only(target) and p.mode!="unlock": return g.Equipment.LOCK_ONLY_REASON
@@ -809,6 +829,7 @@ static func detail(g, p: Dictionary) -> String:
  if Rules.free_effect(p.type,p.free): return g.B.card_info(p.type)[2]
  if p.target==g.CaptureBind.BIND_TARGET:
   var preview=p.preview
+  if p.mode=="lower": return "每层降紧固定削减%s点捕缚；不受属性、蓄力或伤害倍率影响，不消耗蓄力。" % g.number(preview.damage)+Rules.effect_details(Rules.SPECS[p.type])
   var detail="对捕缚造成%s点%s伤害。牌面基础、属性与蓄力全额计入；不计算紧度、堆叠、锁和环境加成。" % [g.number(preview.damage),"挣扎" if p.mode=="strain" else "滑脱"]
   if preview.guard_multiplier>1.0: detail+="\n当前除眼罩、口球外没有其他拘束具，伤害×2。"
   if preview.damage_buff_multiplier>1.0: detail+="\n卡牌伤害增益×%s。" % g.number(preview.damage_buff_multiplier)
@@ -888,7 +909,7 @@ static func candidates(g, out: Array, card: Dictionary) -> void:
   var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":false,"mode":spec.mode,"self_target":true}
   g._candidate(out,p,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":p}},energy_cost(g,card.type),0,reason(g,p),"","card")
   return
- if Rules.damage(card.type) and (not spec.has("target_slots") or spec.has("witch_training_stage")) and g.CaptureBind.has_bind(g):
+ if can_target_bind(card.type) and g.CaptureBind.has_bind(g):
   for second in ([false,true] if spec.has("bound_modes") else [false]):
    var bind=bind_payload(g,card.type,card.uid,second)
    bind.kind="card";bind.uid=card.uid
@@ -1058,7 +1079,7 @@ static func resolve(g, p: Dictionary) -> String:
    g.state.exhaust.append(exhausted);g._card_motion("exhaust",exhausted)
   var energy=int(face.get("energy_gain",0))
   if face.has("pressure_energy"): energy+=int(g.state.pressure/face.pressure_energy)
-  g.state.energy+=energy
+  energy=g._gain_energy(energy)
   var mana_before=g.state.mana
   g.state.mana=minf(g.state.mana_max,g.state.mana+face.get("mana_gain",0.0))
   if face.has("spell_base_bonus"):
@@ -1156,9 +1177,9 @@ static func hit(g, p: Dictionary) -> String:
   g._emit("event","施法打开了牢门锁。")
   return ""
  if p.target==g.CaptureBind.BIND_TARGET:
-  g._consume_charge()
+  if p.mode!="lower": g._consume_charge()
   g.CaptureBind.damage_bind(g,p.preview.damage,"「"+g.B.CARD_NAMES[p.type]+"」")
-  consume_card_damage(g,p.mode,p.preview.damage)
+  if p.mode!="lower": consume_card_damage(g,p.mode,p.preview.damage)
   apply_effects(g,Rules.SPECS[p.type].get("hit_effects",[]),Rules.SPECS[p.type])
   return ""
  var target=g._equipment(p.target)
@@ -1487,6 +1508,10 @@ static func apply_effects(g, effects: Array, spec: Dictionary, source: String=""
      if effect.get("draw_after",0)>0: g._draw(effect.draw_after)
     else: request_retain(g,value,effect.get("draw_after",0))
    "reserve_mana": g.state.temporary_mana+=value*Rules.RESERVE_MANA_VALUE
+   "energy":
+    var received=effect.duplicate()
+    received.amount=g._gain_energy(value)
+    description=Rules.effect_text(received,{})
    "charge": g._gain_charge(value)
    "mana":
     var before=g.state.mana

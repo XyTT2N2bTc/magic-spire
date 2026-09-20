@@ -21,15 +21,14 @@ static func installation_intents(g, e: Dictionary) -> Array:
   "iron_man": return g.IronMan.installation_intents(g,e)
   "iron_drone": return []
   "puppeteer":
-   var ordinary=application(g.Enemies.TYPES.puppet.install_pool,2)
-   ordinary.replace=true;ordinary.shoulders=true
+   var ordinary=g.Puppets.ordinary(g)
    var special=special_application(g,e);special.grade=2;special.tier=3;special.replace=true
    return [ordinary,six_composite(2,2,true),special]
-  "puppet": return [g.Puppets.ordinary(g,e)]+e.get("puppet_prepared",{}).values().duplicate(true)
+  "puppet": return [g.Puppets.ordinary(g)]+e.get("puppet_prepared",{}).values().duplicate(true)
   "sequence": return spec.repeat_cycle.filter(func(p):return p.kind=="apply").duplicate(true)
   "humanoid": return spec.opening.filter(func(p):return p.kind=="apply").duplicate(true)
   "drone": return [application(spec.install_pool,1,1,2)]
-  "binding_box": return [application(spec.install_pool,2,2,2)]+carried_intents(g,e)
+  "binding_box": return [application(spec.install_pool,2,g.Enemies.encounter_member(g.state,e.type).get("application_tier",2),2)]+carried_intents(g,e)
   "guard":
    var ordinary=application(g.Guard.ordinary_templates(),2)
    ordinary.replace=true
@@ -160,7 +159,10 @@ static func build(g, e: Dictionary) -> Dictionary:
  if spec.behavior=="guard": return g.Guard.build(g,e)
  if spec.behavior=="six_bind": return six_plan(g,e)
  if spec.behavior=="iron_man": return g.IronMan.plan(g,e)
- if spec.behavior=="iron_drone": return {"kind":"idle","text":"无人机等待捕缚系统触发。","delayed":false}
+ if spec.behavior in ["iron_drone","drone","binding_box"]:
+  var required=g.CaptureBind.required_intent(g,e)
+  if required!="": return {"kind":required,"text":{"capture":"执行收押","bind_apply":"施加捕缚 · 初始%s/100" % g.number(g.CaptureBind.initial_value(g,e)),"bind_prepare":"准备捕缚"}[required],"delayed":false}
+ if spec.behavior=="iron_drone": return {"kind":"idle","text":"维持捕缚 · 每累计%d能量触发" % g.CaptureBind.energy_threshold(g,"iron_drone"),"delayed":false}
  if spec.behavior=="puppeteer": return g.Puppets.plan(e)
  if spec.behavior=="puppet": return {"kind":"idle","text":"玩偶不会行动","delayed":false}
  if spec.has("weighted_moves"):
@@ -177,17 +179,16 @@ static func build(g, e: Dictionary) -> Dictionary:
  var material=spec.get("restraint_name","绳索")
  match spec.behavior:
   "drone","binding_box":
-   var required=g.CaptureBind.required_intent(g,e)
-   if required!="": return {"kind":required,"text":{"capture":"执行收押","bind_apply":"施加捕缚 · 初始%s/100" % g.number(spec.capture_start),"bind_prepare":"准备捕缚"}[required],"delayed":false}
    var box=spec.behavior=="binding_box"
+   var member=g.Enemies.encounter_member(g.state,e.type)
    match e.guard.cycle_step:
     0:
      if not targets(g,e,"tighten").is_empty() and g._random_index("enemy",2)==1:
-      return {"kind":"tighten_budget","budget":4 if box else 2,"text":"收紧皮革拘束具 · 累计4档" if box else "收紧胶带 · 累计2档","delayed":false}
-     return application(spec.install_pool,2 if box else 1,2 if box else 1,2)
+      return {"kind":"tighten_budget","budget":member.get("reinforce_budget",4) if box else 2,"text":"收紧皮革拘束具 · 累计%d档" % member.get("reinforce_budget",4) if box else "收紧胶带 · 累计2档","delayed":false}
+     return application(spec.install_pool,2 if box else 1,member.get("application_tier",2) if box else 1,2)
     1: return {"kind":"charge" if box else "bind_gain","text":"准备施加复合装备" if box else "捕缚进度＋10","delayed":false}
     _:
-     if box: return {"kind":"bind_gain" if e.carried_indices.is_empty() else "carried_apply","text":"捕缚进度＋10" if e.carried_indices.is_empty() else "施加一件盒内复合装备","delayed":false}
+     if box: return {"kind":"bind_gain" if e.carried_indices.is_empty() else "carried_apply","text":"捕缚进度＋%s" % g.number(g.CaptureBind.gain_amount(g,e)) if e.carried_indices.is_empty() else "施加一件盒内复合装备","delayed":false}
      return {"kind":"idle","text":"发呆","delayed":false}
   "humanoid","sequence":
    var index=e.stage-1

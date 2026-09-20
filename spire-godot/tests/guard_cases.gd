@@ -37,6 +37,7 @@ static func capture_routes_through_the_main_path(t) -> void:
   t.check(not g.room_data("prison").is_empty() and g.state.wall=="rough","TRANSITION CAPTURE cell exists and the wall is rough "+route)
   t.check(g.validate()=="","TRANSITION CAPTURE captured state validates "+route+": "+g.validate())
 static func run(t) -> void:
+ lower_and_charge(t)
  opening_fallback(t)
  capture_routes_through_the_main_path(t)
 
@@ -152,6 +153,47 @@ static func run(t) -> void:
  g.Pressure.gain(g,10.0,"测试刺激")
  t.check(g.state.guard_bind.progress==100.0 and g.state.overload_count==1 and e.intent.kind=="capture","GUARD each climax adds ten bind progress and schedules capture")
  t.check(g.validate()=="","GUARD new state and cycle remain valid")
+
+static func lower_and_charge(t) -> void:
+ for covered in [false,true]:
+  var g=Game.new(42,true,"guard")
+  g.state.equipment.clear();g.state.composites.clear();g.state.links.clear()
+  bind(g,g.state.enemies[0],80.0)
+  if covered: g._install_template("rope","wrist",8,10,false,"fixture")
+  g.state.charge=3;g.state.charge_all=true;g.state.turn_strength=9
+  g.Cards.grant_buff(g,"henshin_free")
+  var card=t.grant_fixture_card(g,"ease")
+  var choice=t.find_action(g,"card",{"uid":card.uid,"target":CaptureBind.BIND_TARGET,"free":false})
+  t.check(choice.valid and choice.payload.preview.damage==8.0 and choice.payload.preview.charge==0.0 and choice.payload.preview.multiplier==1.0,"BIND LOWER fixed eight ignores charge, attributes and both damage multipliers")
+  t.check(g.Cards.has_escape_target(g,"ease"),"BIND LOWER capture counts as a real bound-face target")
+  var before=g.export_snapshot()
+  t.check(not g.dispatch(choice.id,g.state.version-1).ok and g.export_snapshot()==before,"BIND LOWER stale submission leaves all resources and capture unchanged")
+  t.check(g.dispatch(choice.id,g.state.version).ok and g.state.guard_bind.progress==72 and g.state.charge==3 and g.state.charge_all,"BIND LOWER committed single step deals eight without consuming any charge")
+  t.check(g.state.energy==before.energy-choice.cost and g.state.mana==before.mana-choice.mana_payment.mana,"BIND LOWER formal energy and mana costs are paid once")
+ for progress in [8.0,10.0,40.0]:
+  var g=Game.new(43,true,"guard")
+  g.state.equipment.clear();g.state.composites.clear();g.state.links.clear()
+  bind(g,g.state.enemies[0],progress);g.state.charge=2
+  var card=t.grant_fixture_card(g,"magic_hand")
+  var choice=t.find_action(g,"card",{"uid":card.uid,"target":CaptureBind.BIND_TARGET,"free":false})
+  t.check(choice.valid,"BIND LOWER body-restricted multi-step lowering can target capture")
+  var before=g.export_snapshot()
+  var outcome=g.dispatch(choice.id,g.state.version)
+  t.check(outcome.ok and g.state.card_chain.is_empty() and g.state.play.is_empty(),"BIND LOWER multi-step resolves through the complete card pipeline: "+str(outcome))
+  t.check((g.state.guard_bind.is_empty() if progress<=24 else g.state.guard_bind.progress==progress-24) and g.state.charge==2,"BIND LOWER each step deals eight and stops when capture reaches zero")
+  var hits=g.state.logs.slice(before.logs.size()).filter(func(row):return row.data.get("guard_bind",{}).get("action","")=="damage")
+  t.check(hits.size()==mini(3,ceili(progress/8.0)) and g.state.energy==before.energy-choice.cost,"BIND LOWER uses only required hits and pays once for the whole card")
+  t.check(g.validate()=="","BIND LOWER completed or cleared capture leaves a valid state")
+ for type in ["strain","slip"]:
+  for all_charge in [false,true]:
+   var g=Game.new(44,true,"guard")
+   g.state.equipment.clear();g.state.composites.clear();g.state.links.clear()
+   bind(g,g.state.enemies[0],80.0);g.state.charge=2;g.state.charge_all=all_charge
+   var card=t.grant_fixture_card(g,type)
+   var choice=t.find_action(g,"card",{"uid":card.uid,"target":CaptureBind.BIND_TARGET,"free":false})
+   var charge=6.0 if all_charge else 3.0
+   t.check(choice.valid and choice.payload.preview.charge==charge and choice.payload.preview.damage==(6.0+charge)*2,"BIND CHARGE ordinary escape keeps normal charge scaling: "+type)
+   t.check(g.dispatch(choice.id,g.state.version).ok and g.state.guard_bind.progress==80.0-choice.payload.preview.damage and g.state.charge==(0 if all_charge else 1),"BIND CHARGE ordinary escape consumes the normal number of charge layers: "+type)
 
 static func opening_fallback(t) -> void:
  var R=preload("res://tests/replacement_cases.gd")

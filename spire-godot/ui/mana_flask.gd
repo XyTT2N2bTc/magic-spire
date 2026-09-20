@@ -12,9 +12,10 @@ static func build(ui) -> void:
  value.tooltip_text=ui.game.number(ui.view.mana_flask.mana);value.mouse_filter=Control.MOUSE_FILTER_STOP
  ui._place(value,Rect2(123,14,91,36),panel)
  for op in ["deposit","withdraw"]:
-  if ui.view.mana_flask.limited:
+  var limit=ui.view.mana_flask.limit if op=="deposit" else ui.view.mana_flask.withdraw_limit
+  if limit>0:
    var left=ui.view.mana_flask.remaining if op=="deposit" else ui.view.mana_flask.withdraw_remaining
-   var dots="●".repeat(left)+"○".repeat(ui.view.mana_flask.limit-left)
+   var dots="●".repeat(left)+"○".repeat(limit-left)
    var caption=ui.localization.text("ui.flask."+op+"_uses","存 {dots}" if op=="deposit" else "取 {dots}",{"dots":dots})
    var uses=ui._label(caption,11,ui.GOLD)
    uses.name="FlaskDepositUses" if op=="deposit" else "FlaskWithdrawUses"

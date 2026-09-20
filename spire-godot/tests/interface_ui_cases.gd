@@ -25,11 +25,17 @@ static func feedback(t) -> void:
  report.add_image(shot);report.add_image(shot);report.add_image(shot);await t.frames()
  t.check(report.draft.images.size()==3 and ui.find_child("FeedbackCapture",true,false).disabled,"FEEDBACK three-image cap blocks extra captures")
  t.check(ui.find_child("FeedbackReview",true,false).get_global_rect().end.y<850 and ui.find_child("FeedbackForm",true,false).get_global_rect().end.x<ui.find_child("FeedbackAttachments",true,false).get_global_rect().position.x,"FEEDBACK split form and attachments keep primary action within the viewport")
+ report.draft.context.version="0.17";report.draft.id="old-version-receipt"
+ var original_context=report.draft.context.duplicate(true)
+ var current_version=str(ProjectSettings.get_setting("application/config/version",""))
+ original_context.version=current_version
  ui._close_drawers();ui._refresh_drawers();report.open();await t.frames()
  t.check(ui.find_child("FeedbackTitle",true,false).text=="测试反馈" and report.draft.images.size()==3,"FEEDBACK closing and reopening preserves text and screenshots")
+ t.check(report.draft.context==original_context and report.draft.id=="" and report.payload().context.version==current_version,"FEEDBACK restored old draft refreshes runtime version and receipt while preserving captured scene")
  var include=ui.find_child("FeedbackLogs",true,false);include.button_pressed=true;include.toggled.emit(true)
  await press(t,"FeedbackReview");await t.frames()
  t.check(report.confirming and report.payload().logs=="本场行动测试记录" and t.visible_text(ui.drawer_layer).contains("本场行动测试记录"),"FEEDBACK confirmation previews explicitly selected logs")
+ t.check(t.visible_text(ui.drawer_layer).contains("版本"+current_version),"FEEDBACK confirmation displays the current runtime version")
  t.check(not t.visible_text(ui.drawer_layer).contains("gmail.com"),"FEEDBACK confirmation also hides recipient")
  var old_endpoint=ProjectSettings.get_setting("feedback/endpoint",null)
  ProjectSettings.set_setting("feedback/endpoint","");await press(t,"FeedbackSend");await t.frames()

@@ -6,25 +6,30 @@ static func start(g) -> void:
  var room=g.room_data(g.state.room)
  g._apply_transition("shop_enter",{"phase":room.kind});g.state.wall=room.wall;g.state.energy=0;g.state.enemies=[]
  if not room.has("stock"):
-  room.stock=[];room.remove_used=false
+  room.remove_used=false
   if room.kind=="shop": g.RelicEffects._mana_hook(g,"shop_flask_mana","进入商店","flask_mana")
-  var rng=RandomNumberGenerator.new()
-  rng.seed=int(g.state.seed)+int(g.state.tower_generation)*1000003+int(room.id.hash())+194701
-  if room.kind=="shop":
-   for rarity in Data.CARD_SLOTS:
-    var pool=g.Cards.Rules.REWARDS.filter(func(type):return g.Cards.Rules.SPECS[type].rarity==rarity)
-    for type in g.reward_offer(pool,"fixed",rng,Data.CARD_SLOTS[rarity]):
-     _add(room,"card",type,Data.CARD_PRICES[rarity])
-   var tools=Data.TOOLS.duplicate()
-   for i in range(mini(Data.TOOL_SLOTS,tools.size())):
-    var type=tools.pop_at(rng.randi_range(0,tools.size()-1))
-    _add(room,"tool",type,Data.PRICES[type])
-  if room.kind=="treasure": room.chest_size=g.RelicRewards.chest(g,rng)
-  for i in range(Data.RELIC_SLOTS if room.kind=="shop" else 1):
-   var excluded=room.stock.filter(func(row):return row.kind=="relic").map(func(row):return row.type)
-   var relic=g.RelicRewards.offer(g,"shop" if room.kind=="shop" else room.chest_size,rng,excluded)
-   _add(room,"relic",relic,Data.RELIC_PRICES[g.Relics.TYPES[relic].rarity] if room.kind=="shop" else 0.0)
+  _restock(g,room)
  g._emit("event","来到魔力商店。商品已摆好，价格以魔力结算。" if room.kind=="shop" else "发现遗物宝箱，可以打开领取，也可以直接离开。",{"shop_entry":{"room":room.id}} if room.kind=="shop" else {})
+
+static func _restock(g, room: Dictionary, refresh: int=0) -> void:
+ room.stock=[]
+ var rng=RandomNumberGenerator.new()
+ # Refreshes have a deterministic stock stream without advancing combat/reward RNG.
+ rng.seed=int(g.state.seed)+int(g.state.tower_generation)*1000003+int(room.id.hash())+194701+refresh*1000033
+ if room.kind=="shop":
+  for rarity in Data.CARD_SLOTS:
+   var pool=g.Cards.Rules.REWARDS.filter(func(type):return g.Cards.Rules.SPECS[type].rarity==rarity)
+   for type in g.reward_offer(pool,"fixed",rng,Data.CARD_SLOTS[rarity]):
+    _add(room,"card",type,Data.CARD_PRICES[rarity])
+  var tools=Data.TOOLS.duplicate()
+  for i in range(mini(Data.TOOL_SLOTS,tools.size())):
+   var type=tools.pop_at(rng.randi_range(0,tools.size()-1))
+   _add(room,"tool",type,Data.PRICES[type])
+ if room.kind=="treasure": room.chest_size=g.RelicRewards.chest(g,rng)
+ for i in range(Data.RELIC_SLOTS if room.kind=="shop" else 1):
+  var excluded=room.stock.filter(func(row):return row.kind=="relic").map(func(row):return row.type)
+  var relic=g.RelicRewards.offer(g,"shop" if room.kind=="shop" else room.chest_size,rng,excluded)
+  _add(room,"relic",relic,Data.RELIC_PRICES[g.Relics.TYPES[relic].rarity] if room.kind=="shop" else 0.0)
 
 static func _add(room: Dictionary, kind: String, type: String, price: float) -> void:
  room.stock.append({"kind":kind,"type":type,"price":price,"taken":false})
@@ -67,6 +72,9 @@ static func release_job_detail(_g, args: Dictionary) -> String:
 static func remove_card_detail(_g, _args: Dictionary) -> String:
  return "永久移除这张牌。本店仅能使用一次。"
 
+static func refresh_detail(_g, _args: Dictionary) -> String:
+ return "重新随机全部商品并补满货位。每次刷新后价格翻倍，换店不重置。"
+
 static func leave_detail(_g, _args: Dictionary) -> String:
  return "保留已获得的物品，继续向上一层前进。"
 
@@ -101,6 +109,7 @@ static func candidates(g, out: Array) -> void:
    var offer_args={"offer":offer}
    paid_candidate(g,out,payload,"购买 · "+name(g,offer),{"kind":"service.offer","args":offer_args,"fallback":offer_detail(g,offer_args)},discounted_price(g,offer.price),reason,"service",required_payment)
  if room.kind=="shop":
+  paid_candidate(g,out,{"kind":"service","op":"refresh"},"刷新商品",{"kind":"service.refresh","args":{},"fallback":refresh_detail(g,{})},discounted_price(g,Data.refresh_price(int(g.state.get("shop_refreshes",0)))),"","service_refresh")
   for job in release_jobs(g):
    var job_args={"job":job}
    paid_candidate(g,out,{"kind":"service","op":"release","target":job.id},"解除「"+job.name+"」",{"kind":"service.release_job","args":job_args,"fallback":release_job_detail(g,job_args)},job.price,job.reason,"service_release")
@@ -113,6 +122,12 @@ static func execute(g, p: Dictionary) -> String:
  var room=g.room_data(g.state.room)
  if p.op=="leave":
   g._finish_preparation()
+  return ""
+ if p.op=="refresh":
+  var trade=_shop_trade(g,p)
+  g.state.shop_refreshes=int(g.state.get("shop_refreshes",0))+1
+  _restock(g,room,g.state.shop_refreshes)
+  g._emit("event","商店商品已刷新。",{"shop_trade":trade,"shop_refresh":{"count":g.state.shop_refreshes}})
   return ""
  if p.op=="release":
   var trade=_shop_trade(g,p)
@@ -171,6 +186,8 @@ static func _shop_trade(g, p: Dictionary) -> Dictionary:
 
 static func validate(g) -> String:
  if not g.Snapshot.fields(g.state,"shop_removals:i") or g.state.shop_removals<0: return "商店删牌次数不正确。"
+ var refreshes=g.state.get("shop_refreshes",0)
+ if not refreshes is int or refreshes<0: return "商店刷新次数不正确。"
  for room in g.state.rooms:
   if not room.has("stock"): continue
   if room.kind not in ["shop","treasure"] or not room.stock is Array or not room.get("remove_used") is bool: return "商品或宝箱记录损坏。"

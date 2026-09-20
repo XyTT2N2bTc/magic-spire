@@ -35,7 +35,7 @@ static func options(g, p: Dictionary) -> Array:
    if target.id==p.target or target.durability<=0: continue
    var covered=physical_points(g,target)
    if point not in covered: continue
-   var preview=g.escape_preview(target,p.mode,p.preview.base*FACTOR,[],false,false,p.mode=="strain",true)
+   var preview=g.escape_preview(target,p.mode,p.preview.face_value*FACTOR,[],false,false,p.mode=="strain",true,p.preview.get("ignore_tightness_reduction",false))
    g.Cards.scale_card_preview(g,preview,p.mode)
    if preview.reason!="" or preview.immune or preview.damage<=0: continue
    if p.mode!="strain":
@@ -64,7 +64,7 @@ static func apply(g, p: Dictionary, selected: Array) -> void:
   g._apply_equipment_damage(target,choice.preview.damage,kind,false,false)
   if kind=="slip": g.RelicEffects.card_slipped(g,tier,target)
   var record=choice.preview.duplicate(true)
-  record.card_splash={"source":p.target,"target":target.id,"point":choice.point,"base":p.preview.base,"factor":FACTOR,"before":before,"after":target.durability}
+  record.card_splash={"source":p.target,"target":target.id,"point":choice.point,"base":p.preview.face_value,"factor":FACTOR,"before":before,"after":target.durability}
   record.action_result=g.ActionCopy.equipment_result("波及",target.name,before,target.durability,kind)
   g._emit("mechanical","「%s」波及%s：%s。耐久%s→%s。" % [g.B.CARD_NAMES[p.type],target.name,g._formula(choice.preview),g.number(before),g.number(target.durability)],record)
 

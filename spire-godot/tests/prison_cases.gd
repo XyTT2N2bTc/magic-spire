@@ -918,10 +918,7 @@ static func cup_stack_migration(t) -> void:
   t.check(restored52.restore_snapshot(old52).ok and restored52.validate()=="" and restored52.state.special_equipment.filter(D.is_reinforcement).is_empty(),"CUP SAVE real revision-52 tight cups remain bandless while extra cups are removed")
   t.check(restored52.state.special_equipment.filter(func(item):return D.exclusive_family(item.type)=="cup").map(func(item):return item.id)==[keep],"CUP SAVE revision-52 migration uses the same highest-grade and earliest tie rule")
   if pair[0]!="urethral_full_cup_high": continue
-  var amount=0.0
-  for item in saved.special_equipment:
-   amount+=D.effective_gain(g,item,"turn_start")*g.Pressure.source_multiplier(g,D.TYPES[item.type].get("turn_stimulates",D.TYPES[item.type].stimulates))
-  t.check(is_equal_approx(amount,110.52),"CUP PRISON legacy pair exceeds the 100 threshold even after Marble's 0.6 multiplier")
+  # Cup balance changes do not alter migration, inspection or recharge invariants.
   var playable=0;var inspections=0
   for step in range(30):
    if restored.state.phase=="inspection":

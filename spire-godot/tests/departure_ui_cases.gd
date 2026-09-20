@@ -30,4 +30,21 @@ static func run(t) -> void:
  ui.game=preload("res://core/game.gd").new(42,false,"equipment",true,false,25,false,false,"witch")
  ui._reset_interface(ui.game.get_view());ui.render();await t.frames()
  t.check(ui.find_child("DepartureOption_4",true,false)==null and ui.find_child("DepartureOption_3",true,false)!=null and ui.view.reward_panel.destination.contains("四选一"),"OPENING UI witch retains four options without original-only swap")
+ await cube_boss_pickup(t)
  ui.game_factory=preload("res://tests/game_fixture.gd")
+
+static func cube_boss_pickup(t) -> void:
+ var ui=t.ui;var type="desire_cube_pro_max"
+ for role in ["original","witch"]:
+  ui.game=preload("res://core/game.gd").new(42,false,"equipment",true,false,25,false,false,role)
+  var g=ui.game
+  g.state.room="summit";g._start_battle();g._finish_battle();g.state.pressure=0.0
+  for attempt in range(32):
+   if type in g.state.boss_relic_options: break
+   g.RelicRewards.battle_drop(g)
+  ui._reset_interface(g.get_view());ui.render();await t.frames()
+  var before=g.export_snapshot()
+  t.check(await t.click("reward",{"category":"relic","type":type}) and type in g.state.relics and g.state.deck.size()==before.deck.size()+2,"DESIRE UI actual boss selection grants permanent bonus cards: "+role)
+  var heart=g.state.hand.filter(func(card):return card.type==g.Character.card_id(g,"itching_heart"))
+  t.check(heart.size()==1 and g.state.relics.filter(func(id):return g.Relics.TYPES[id].get("required_relic","")==type).size()==1,"DESIRE UI bonus heart enters hand and one themed relic is owned: "+role)
+  t.check(await t.click("reward",{"type":"skip"}) and ui.view.phase=="prepare" and ui.card_buttons.has(heart[0].uid),"DESIRE UI bonus heart is usable in preparation after leaving rewards: "+role)

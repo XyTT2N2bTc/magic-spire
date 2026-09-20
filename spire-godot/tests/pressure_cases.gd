@@ -216,6 +216,7 @@ static func run(t) -> void:
  committed_receipt(t)
  flat_mana_cost(t)
  climax_card_practice(t)
+ climax_release_energy(t)
  calm_mouth(t)
  calm_next_energy(t)
  formal_sources(t)
@@ -378,6 +379,46 @@ static func climax_card_practice(t) -> void:
  t.check(actions.size()==2 and actions.any(func(c):return c.payload.kind=="end") and actions.any(func(c):return c.payload.kind=="surrender") and result.get("music_feedback",[]).is_empty(),"CLIMAX PRACTICE keeps continue and surrender while ordinary actions stay blocked")
  var normal=Game.new(42)
  t.check(normal.state.pressure==0 and normal.state.special_equipment.is_empty(),"CLIMAX PRACTICE setup never enters a normal run")
+
+static func climax_release_energy(t) -> void:
+ var embrace=preload("res://tests/restraint_embrace_cases.gd")
+ var give=preload("res://tests/curse_cases.gd")
+ for free in [false,true]:
+  for deficit in [1.0,9.0,11.0,20.0]:
+   var g=Game.new(42,false,"equipment",true,true,25,false,true)
+   g.state.energy=20
+   embrace.activate(t,g,free)
+   g.RelicEffects.gain(g,"cursed_plate_lock")
+   var target=g.add_fixture("wrist",1)
+   var card=give.give(g,"slip")
+   g.state.pressure=P.maximum(g)-deficit
+   var before=g.export_snapshot()
+   var c=t.find_action(g,"card",{"uid":card.uid,"target":target.id,"free":false})
+   t.check(c.valid and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"CLIMAX RELEASE stale paid escape preserves pressure and equipment")
+   var result=g.dispatch(c.id,g.state.version)
+   var interrupted=deficit<=12.0
+   t.check(result.ok and g._equipment(target.id).is_empty() and g.state.overloaded==interrupted and g.state.overload_total==int(interrupted),"CLIMAX RELEASE cursed lock and embrace commit paid escape at deficit "+str(deficit)+" free="+str(free)+": "+result.get("error",""))
+   t.check(g.state.energy==(0 if interrupted else before.energy-c.cost+int(free)) and g.validate()=="","CLIMAX RELEASE energy stays zero after interruption and normal refunds remain")
+   if result.ok and free:
+    t.check(result.card_feedback.filter(func(event):return event.kind=="draw").size()==1,"CLIMAX RELEASE interruption preserves the equipment release draw")
+   if result.ok and interrupted:
+    var serial=g.state.draw_serial
+    g._cleanup()
+    t.check(g.state.energy==0 and g.state.overload_total==1 and g.state.draw_serial==serial,"CLIMAX RELEASE repeat cleanup cannot repeat refunds or climax")
+ var g=Game.new(42,true,"climax_card")
+ g.state.pressure=0;g.state.energy=20
+ embrace.activate(t,g,true)
+ g.RelicEffects.gain(g,"sundial")
+ g.state.relic_counters.sundial=2
+ g.state.discard.append_array(g.state.draw);g.state.draw.clear()
+ g.state.special_equipment[0].durability=1.0
+ var target_id=g.state.special_equipment[0].id
+ g.state.pressure=99
+ var card=g.state.hand.filter(func(c):return c.type=="strain")[0]
+ var result=t.action(g,"card",{"uid":card.uid,"free":true})
+ t.check(result.ok and g.state.overloaded and g.state.energy==0 and g._equipment(target_id).is_empty(),"CLIMAX RELEASE automatic equipment loss commits without granting usable energy")
+ t.check(g.state.relic_counters.sundial==0 and result.get("card_feedback",[]).filter(func(event):return event.kind=="shuffle").size()==1,"CLIMAX RELEASE automatic draw still triggers and consumes the sundial cycle")
+ t.check(g.validate()=="" and g.state.overload_total==1,"CLIMAX RELEASE chained draw and relic refund preserve valid single interruption")
 
 
 # Feedback 1847ba708526785c2322abae5cdd7561: explicit unlimited-mode fixture.

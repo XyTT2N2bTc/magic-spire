@@ -4,6 +4,7 @@ const Library=preload("res://data/enemy_library.gd")
 const FirstFloor=preload("res://data/first_floor_enemy_pools.gd")
 const B=preload("res://data/balance.gd")
 const Special=preload("res://data/special_equipment.gd")
+const BARRIER_CAPACITY_DESCRIPTION="伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低0，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。"
 # Strength is an independent encounter-design value, never an equipment grade or damage multiplier.
 static var TYPES=definitions()
 
@@ -19,9 +20,9 @@ static func definitions() -> Dictionary:
  var versatile_special={"kind":"apply","text":"安装一件初级2档性玩具","delayed":false,"final":false,"replace":true,"count":1,"grade":1,"tier":2,"pool":"special","templates":Special.RANDOM_POOLS[1].duplicate()}
  var versatile_control={"kind":"versatile_control","text":"寻找可以上锁或加固的拘束具","delayed":false}
  var result={
- "iron_man":{"behavior":"iron_man","humanoid":true,"mechanical":true,"visual":"iron_man","name":"铁男","hp":150,"strength":6,"order":40,"capture_kind":"iron_man","capture_start":30.0,"capture_poses":["sit","lie"],"install_pool":["belt","fine_belt","eye_leather","mouth_band"]},
- "iron_drone":{"behavior":"iron_drone","mechanical":true,"can_arrest":false,"visual":"drone","name":"捕缚无人机","hp":50,"order":44},
- "puppeteer":{"behavior":"puppeteer","humanoid":true,"visual":"puppeteer","name":"玩偶师","hp":96,"order":51,"damage_cap":30.0,"special_pool":Special.RANDOM_POOLS[2].duplicate()},
+ "iron_man":{"behavior":"iron_man","humanoid":true,"mechanical":true,"visual":"iron_man","name":"铁男","hp":120,"strength":6,"order":40,"capture_kind":"iron_man","capture_start":30.0,"capture_poses":["sit","lie"],"install_pool":["belt","fine_belt","eye_leather","mouth_band"]},
+ "iron_drone":{"behavior":"iron_drone","mechanical":true,"can_arrest":false,"capture_kind":"iron_drone","capture_start":20.0,"visual":"drone","name":"捕缚无人机","hp":40,"order":44},
+ "puppeteer":{"behavior":"puppeteer","humanoid":true,"visual":"puppeteer","name":"玩偶师","hp":76,"order":51,"damage_cap":30.0,"special_pool":Special.RANDOM_POOLS[2].duplicate()},
  "puppet":{"behavior":"puppet","humanoid":true,"visual":"puppet","name":"玩偶","hp":15,"order":52,"reaction_capacity":3,"capacity_per_mend":1,"health_per_mend":5,"install_pool":ordinary_medium.duplicate()},
  "six_bind":{"behavior":"six_bind","humanoid":true,"visual":"six_bind","name":"六缚","hp":220,"strength":6,"order":60,"climax_capture_threshold":4,"climax_capture_repeat":1,
   "install_pool":ordinary_medium.duplicate(),"opening_pool":ordinary_initial+['mouth_band'],"special_pools":{1:Special.RANDOM_POOLS[1].duplicate(),2:Special.RANDOM_POOLS[2].duplicate()}},
@@ -83,7 +84,7 @@ static func definitions() -> Dictionary:
  return result
 
 static var ENCOUNTERS={
- "iron_man_solo":{"group":"铁男","rank":"boss","members":[{"type":"iron_man","grade":3},{"type":"binding_box","grade":2,"hp":50},{"type":"iron_drone","grade":2}]},
+ "iron_man_solo":{"group":"铁男","rank":"boss","members":[{"type":"iron_man","grade":3},{"type":"binding_box","grade":2,"hp":40,"name":"凑数型拘束盒","capture_start":20.0,"capture_gain":5.0,"application_tier":1,"reinforce_budget":2},{"type":"iron_drone","grade":2,"name":"凑数型无人机"}]},
  "puppeteer_solo":{"group":"玩偶师","rank":"elite","members":[{"type":"puppeteer","grade":2}]},
  "event_belt_trio":{"group":"漂浮皮带群","rank":"event","members":[{"type":"belt","grade":1},{"type":"belt","grade":1},{"type":"belt","grade":1}]},
  "drone_pair":{"group":"双魔导无人机","rank":"strong","members":[],"fixed_members":[{"type":"drone","grade":1},{"type":"drone","grade":1}],"weak_strength":0},
@@ -124,6 +125,12 @@ static var ENCOUNTERS={
  "belt_gag":{"group":"组合练习","rank":"strong","members":Library.members(["belt_basic","gag_basic"])},
  "rope_tape":{"group":"组合练习","rank":"strong","members":Library.members(["rope_basic","tape_basic"])},
  "double_rope":{"group":"组合练习","rank":"strong","members":Library.members(["rope_basic","rope_basic"])}}
+static func encounter_member(state: Dictionary, type: String) -> Dictionary:
+ var encounter=ENCOUNTERS.get(state.room_encounters.get(state.room,""),{})
+ for member in encounter.get("members",[]):
+  if member.type==type: return member
+ return {}
+
 static func description(id: String) -> String:
  if id=="weak_group": return "弱怪组合"
  var encounter=ENCOUNTERS[id]
@@ -149,5 +156,8 @@ static func damage_multiplier(g, type: String, damage_type: String) -> float:
   if override>=0: reduction=minf(reduction,override)
  return 1.0-reduction/100.0
 
-static func barrier_remaining(enemy: Dictionary) -> float:
- return maxf(0.0,TYPES[enemy.type].damage_cap-enemy.barrier_damage)
+static func barrier_limit(enemy: Dictionary, health_scale: float) -> float:
+ return TYPES[enemy.type].get("damage_cap",INF)*health_scale
+
+static func barrier_remaining(enemy: Dictionary, health_scale: float) -> float:
+ return maxf(0.0,barrier_limit(enemy,health_scale)-enemy.barrier_damage)

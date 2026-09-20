@@ -2,6 +2,7 @@
   "schema_version": 1,
   "locale": "en_US",
   "messages": {
+    "ui.shop.refresh": {"source": "刷新 · {price}魔力", "text": "Refresh · {price} Mana"},
     "ui.portrait.expand": {"source": "放大立绘", "text": "Enlarge portrait"},
     "ui.flask.deposit_uses": {"source": "存 {dots}", "text": "In {dots}"},
     "ui.flask.withdraw_uses": {"source": "取 {dots}", "text": "Out {dots}"},

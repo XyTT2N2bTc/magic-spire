@@ -29,6 +29,31 @@ static func run(t) -> void:
  suggestion(t)
  selection(t)
  prison(t)
+ witch_variants(t)
+
+static func witch_variants(t) -> void:
+ var g=preload("res://tests/witch_character_cases.gd").fresh()
+ g.RelicEffects.gain(g,"desire_cube_pro_max")
+ for type in Pack:
+  var id=g.Character.card_id(g,type);var original=g.Cards.Rules.SPECS[type]
+  var variant=g.Cards.Rules.SPECS[id]
+  t.check(id=="witch_"+type and variant.reward_pool=="lewd_magic" and variant.rarity==original.rarity and variant.cost==original.cost and g.Character.allowed_card(g,id) and g.can_offer_card(id),"LEWD WITCH independent compatible card preserves original costs and pool: "+type)
+  t.check(not g.Character.incompatible(g,variant) and g.B.card_info(id).all(func(text):return not text.contains("蓄力")),"LEWD WITCH effect tree and copy use focus instead of charge: "+type)
+ var rare=g.reward_offer(g.Cards.Rules.RARE,"fixed",null,3,"lewd_magic")
+ t.check(rare.size()==2 and rare.has("witch_forced_edging") and rare.has("witch_forced_climax"),"LEWD WITCH filtered rare reward cannot leak unrelated witch expansion cards")
+ t.check(g.Cards.Rules.BUFFS.desire_rune_bound.pressure_gained.effects==[{"op":"charge","amount":1}] and g.Cards.Rules.SPECS.self_satisfaction.self_faces.free.effects.has({"op":"charge","amount":2}),"LEWD WITCH registration leaves original charge mechanics intact")
+ for entry in [["self_satisfaction",2],["psychological_suggestion",1]]:
+  g=preload("res://tests/witch_character_cases.gd").fresh();g.state.pressure=37.5;g.state.energy=10;g.state.sure_cast=true
+  var card=preload("res://tests/curse_cases.gd").give(g,entry[0])
+  t.check(t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.state.witch_focus==entry[1] and g.state.charge==0,"LEWD WITCH actual free face grants matching focus count: "+entry[0])
+ g=preload("res://tests/witch_character_cases.gd").fresh();g.state.pressure=37.5
+ var card=preload("res://tests/curse_cases.gd").give(g,"desire_rune")
+ t.check(t.action(g,"card",{"uid":card.uid,"free":false}).ok,"LEWD WITCH adapted rune enters power zone through real play")
+ g.Pressure.gain(g,29,"test")
+ t.check(g.state.witch_focus==0,"LEWD WITCH rune keeps the thirty-pressure threshold")
+ g.Pressure.gain(g,1,"test")
+ t.check(g.state.witch_focus==1 and g.state.charge==0 and g.state.powers[0].power_pressure_progress==0,"LEWD WITCH rune grants focus once at exact threshold")
+ preload("res://tests/persistence_cases.gd").roundtrip(t,g,"witch lewd power meter")
 
 static func costs(t) -> void:
  var g=fresh();var card=give(t,g,"forced_edging")

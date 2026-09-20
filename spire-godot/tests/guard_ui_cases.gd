@@ -118,12 +118,12 @@ static func sidebar_drag(t) -> void:
  preload("res://tests/guard_cases.gd").bind(ui.game,ui.game.state.enemies[0],36.0)
  ui.game.state.energy=5
  ui.game.state.draw.append_array(ui.game.state.hand);ui.game.state.hand.clear()
- for type in ["strain","slip","unlock"]:preload("res://tests/curse_cases.gd").give(ui.game,type)
+ for type in ["strain","slip","ease","unlock"]:preload("res://tests/curse_cases.gd").give(ui.game,type)
  ui.render();await t.frames()
  var sidebar=ui.find_child("SidebarGuardBindTarget",true,false)
  t.check(sidebar!=null and sidebar.get_global_rect().encloses(ui.find_child("MainGuardBind",true,false).get_global_rect()) and sidebar.get_global_rect().encloses(ui.find_child("MainGuardBindCaption",true,false).get_global_rect()),"GUARD sidebar whole capture row accepts drops including caption and meter")
  t.check(not sidebar.get_global_rect().intersects(ui.find_child("FlaskDeposit",true,false).get_global_rect()),"GUARD sidebar receiver does not overlap flask controls")
- for type in ["strain","slip"]:
+ for type in ["strain","slip","ease"]:
   var card=ui.view.hand.filter(func(entry):return entry.type==type)[0]
   if ui.card_faces.get(card.uid,false):await t.flip(card.uid)
   var c=ui.actions.find("card",{"uid":card.uid,"target":"guard_bind","free":false})

@@ -636,7 +636,7 @@ func _battle_scene() -> void:
  _speech_bubble()
  var living=view.enemies.filter(func(e):return not e.gone)
  # Presentation order only; combat and target IDs retain their original order.
- living=living.filter(func(e):return e.template!="puppeteer")+living.filter(func(e):return e.template=="puppeteer")
+ living=living.filter(func(e):return e.template=="iron_drone")+living.filter(func(e):return e.template not in ["puppeteer","iron_man","iron_drone"])+living.filter(func(e):return e.template in ["puppeteer","iron_man"])
  var enemy_count=living.size()
  var enemy_scale=minf(1.0,ENEMY_STAGE_WIDTH/(ENEMY_GROUP_WIDTH*maxi(1,enemy_count)))
  var enemy_row_width=enemy_count*ENEMY_GROUP_WIDTH*enemy_scale

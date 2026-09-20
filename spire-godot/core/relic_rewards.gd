@@ -23,10 +23,10 @@ static func available(g, source: String="normal") -> Array:
   if source=="boss": return g.RelicEffects.gain_reason(g,id)==""
   return g.Relics.TYPES[id].get("required_relic","") in [""]+g.state.relics and g.Character.relic_allowed(g,id) and (not g.Character.active(g) or g.RelicEffects.gain_reason(g,id)==""))
 
-static func offer(g, source: String="normal", rng=null, excluded: Array=[]) -> String:
- var pool=available(g,source).filter(func(id):return id not in excluded)
- var tier=source if source in TIERS or source=="boss" else rarity(source,random(g,100,rng))
- var choices=pool.filter(func(id):return g.Relics.TYPES[id].rarity==tier)
+static func offer(g, source: String="normal", rng=null, excluded: Array=[], required_relic: String="") -> String:
+ var pool=available(g,source).filter(func(id):return id not in excluded and (required_relic=="" or g.Relics.TYPES[id].get("required_relic","")==required_relic))
+ var tier=source if source in TIERS or source=="boss" else ("" if required_relic!="" else rarity(source,random(g,100,rng)))
+ var choices=pool.filter(func(id):return tier=="" or g.Relics.TYPES[id].rarity==tier)
  var fallback=g.Relics.COMMON_FALLBACK if tier=="common" else g.Relics.FALLBACK
  var id=fallback if choices.is_empty() else choices[random(g,choices.size(),rng)]
  # Keep offer history for frozen reward validation, not eligibility.

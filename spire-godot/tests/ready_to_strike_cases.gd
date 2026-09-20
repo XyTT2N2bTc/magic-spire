@@ -47,9 +47,12 @@ static func physical_discount(t) -> void:
    var g=Game.new(42);g.state.round=2;g._discard_end()
    var source=Cards.give(g,TYPE);var chosen=Cards.give(g,"sensitive")
    t.check(t.action(g,"card",{"uid":source.uid,"hand_uid":chosen.uid,"free":true}).ok and g.state.charge==0,"READY free face grants discount without charge")
+   var spec=g.BasicAttacks.TYPES[type][form]
+   if spec.get("x_cost",false):
+    t.check(t.action(g,"posture",{"dest":"sit","wall":false}).ok,"READY enter the seated X-cost attack through the normal posture action")
    var c=t.find_action(g,"attack",{"type":type,"form":form})
-   var before=g.export_snapshot();var base=g.BasicAttacks.TYPES[type][form].cost
-   t.check(c.valid and c.cost==base-1 and g.state==before,"READY physical form preview applies one discount without consuming it: "+type+str(form))
+   var before=g.export_snapshot();var expected=g.state.energy if spec.get("x_cost",false) else spec.cost-1
+   t.check(c.valid and c.cost==expected and g.state==before,"READY physical preview discounts fixed costs and preserves all-energy X payment without consuming the buff: "+type+str(form))
    t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"READY stale attack preserves discount and resources")
    var hp=g._enemy(c.payload.enemy).hp
    t.check(g.dispatch(c.id,g.state.version).ok and g.state.energy==before.energy-c.cost and g._enemy(c.payload.enemy).hp<hp and "ready_to_strike_free" not in g.state.card_buffs,"READY full physical action pays discounted cost and consumes once: "+type+str(form))

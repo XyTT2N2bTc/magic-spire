@@ -11,7 +11,16 @@ static func run(t) -> void:
     t.check(name in Selection.resolve(t.SUITES.keys(),[area],true).selected,"RUNNER extracted feature keeps its former reward integration coverage: "+name+" / "+area)
  t.check(t.SUITES.values().all(func(suite):return suite==null or suite is String),"RUNNER registries contain resource paths so unselected suites are never preloaded")
  var names=t.SUITES.keys()
+ for area in ["relics","card_power","card_growth","witch_character"]:
+  t.check("card_splash" in Selection.resolve(names,[area],true).selected,"RUNNER live card values and splash follow attribute, growth and character changes: "+area)
+ for area in ["card_power","card_expansion","relics","special_equipment"]:
+  t.check("pressure" in Selection.resolve(names,[area],true).selected,"RUNNER interruption and energy-refund interactions follow changes to "+area)
+ for area in ["core","guard"]:
+  t.check("iron_man" in Selection.resolve(names,[area],true).selected,"RUNNER shared capture readiness changes include Iron Man: "+area)
  t.check(Selection.resolve(names,["witch_character"]).selected==["witch_character"],"RUNNER witch character rules have an executable complete scope")
+ t.check("enemies" in Selection.resolve(names,["witch_character"],true).selected,"RUNNER witch attacks include shared multi-hit enemy barrier checks")
+ for area in ["card_power","relics"]:
+  t.check("enemies" in Selection.resolve(names,[area],true).selected,"RUNNER area damage sources include shared enemy barrier checks: "+area)
  for area in Selection.CROSS_AREAS.witch_character:
   t.check("witch_character" in Selection.resolve(names,[area],true).selected,"RUNNER witch character follows its affected boundary "+area)
  var direct=Selection.resolve(names,["casting","casting"])

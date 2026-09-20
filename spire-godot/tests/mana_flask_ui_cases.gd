@@ -73,6 +73,22 @@ static func run(t) -> void:
  await t.capture("ui-shop-flask-payment.png")
  await Pointer.press(t,ui.find_child("ShopOffer%d" % index,true,false));await t.frames()
  t.check(ui.view.mana==0 and ui.view.mana_flask.mana==100-candidate.mana,"FLASK UI native purchase deducts selected bottle balance")
+ await preparation_deposit(t)
+ await prison_deposit(t)
+
+static func prison_deposit(t) -> void:
+ var ui=t.ui
+ ui.restart(42,true,"prison_test")
+ preload("res://tests/prison_cases.gd").clear_fixture(ui.game)
+ ui.game.state.mana=50.0;ui.game.state.flask_mana=100.0
+ ui.render();await t.frames()
+ t.check(ui.find_child("FlaskDepositUses",true,false).text=="存 ●" and ui.find_child("FlaskWithdrawUses",true,false)==null,"FLASK UI cell shows one deposit dot and no withdrawal limit")
+ await Pointer.press(t,ui.find_child("FlaskDeposit",true,false));await t.frames()
+ t.check(ui.view.mana==40 and ui.view.mana_flask.mana==110 and ui.find_child("FlaskDepositUses",true,false).text=="存 ○","FLASK UI cell native deposit updates balances and consumes one dot")
+ var button=ui.find_child("FlaskDeposit",true,false)
+ t.check(button.disabled and button.tooltip_text=="本回合已存入1次。" and not ui.find_child("FlaskWithdraw",true,false).disabled,"FLASK UI exhausted cell deposit explains denial without disabling withdrawal")
+ t.check(await t.click("end") and ui.view.phase=="prison","FLASK UI actual cell end advances exploration")
+ t.check(ui.find_child("FlaskDepositUses",true,false).text=="存 ●" and not ui.find_child("FlaskDeposit",true,false).disabled,"FLASK UI next cell turn restores one deposit dot")
 
 static func transfer_during_feedback(t) -> void:
  var ui=t.ui
@@ -98,3 +114,16 @@ static func transfer_during_feedback(t) -> void:
   stable=stable and balances_shown(ui,60,0)
  presenter.set_process(true)
  t.check(stable and presenter.pending.is_empty() and presenter.active.is_empty() and ui.game.export_snapshot()==committed,"FLASK UI old feedback cannot rewind transferred balances or modify committed state")
+
+static func preparation_deposit(t) -> void:
+ var ui=t.ui
+ ui.restart(42);ui.game._finish_battle()
+ ui.render();await t.frames()
+ t.check(await t.click("reward",{"type":"skip"}) and ui.view.phase=="prepare","FLASK UI enters preparation through reward action")
+ ui.game.state.mana=60;ui.game.state.flask_mana=100;ui.render();await t.frames()
+ t.check(ui.find_child("FlaskDepositUses",true,false).text=="存 ●●●" and ui.find_child("FlaskWithdrawUses",true,false)==null,"FLASK UI preparation shows three deposit uses and no withdrawal counter")
+ for i in range(3): await Pointer.press(t,ui.find_child("FlaskDeposit",true,false))
+ t.check(ui.find_child("FlaskDeposit",true,false).disabled and ui.find_child("FlaskDepositUses",true,false).text=="存 ○○○" and ui.find_child("FlaskDeposit",true,false).tooltip_text=="本回合已存入3次。","FLASK UI third preparation deposit disables only deposit")
+ for i in range(5): await Pointer.press(t,ui.find_child("FlaskWithdraw",true,false))
+ t.check(balances_shown(ui,80,80) and not ui.find_child("FlaskWithdraw",true,false).disabled and ui.find_child("FlaskDeposit",true,false).disabled,"FLASK UI five preparation withdrawals commit without restoring deposits")
+ t.check(await t.click("end") and ui.view.phase=="prepare" and ui.find_child("FlaskDepositUses",true,false).text=="存 ●●●" and not ui.find_child("FlaskDeposit",true,false).disabled,"FLASK UI next preparation turn restores three visible deposit uses")

@@ -106,7 +106,7 @@ static var CARD_INFO = {"itching_heart":["淫魔法","降紧1。","随机佩戴�
  "mana_invocation":["魔法","{mana_gain}","{mana_gain}",""],
  "letter_opener":["能力","每使用3张技能牌：全部最外层拘束具挣扎3，仅乘倍率。","每使用3张技能牌：全体敌人受到5伤害。","可叠加，各张独立累计；跨回合保留，多段只计一张。"],
  "repeated_strain":["挣扎","挣扎{base}×{hits}。顺延。","{free_effects}",""],
- "boar_emperor_blaze":["挣扎","挣扎{base}×{hits}。超级顺延。","{free_effects}",""],
+ "boar_emperor_blaze":["挣扎","挣扎{base}×{hits}。超级顺延。无视紧度减伤。","{free_effects}",""],
  "flame_flourish":["能力","火球现在可以对拘束具使用,但是伤害减半","每回合火球次数＋1。","自由面次数可叠加，拘束面不叠加。敌人与拘束具共用次数。"],
  "fire_mastery":["能力","火球无视身体限制；不获得手势加成。","火球伤害×2。","同面不叠加；费用与快感施法概率不变。"],
  "strong_elbow":["挣扎","挣扎{base}。","下次肘击伤害×2。","对下一次肘击的所有段数生效。"],
@@ -139,11 +139,11 @@ static func card_info(type: String, mana: Variant=null, base: Variant=null, inli
  var values={"follow_through":rules.FOLLOW_THROUGH_TEXT}
  if spec.has("worn_damage"):
   values.worn_per_item=str(spec.worn_damage.per_item)
-  values.dynamic_damage="" if base==null else "（当前%s）" % str(base).trim_suffix(".0")
+  values.dynamic_damage="" if base==null or base is Dictionary else "（当前%s）" % str(base).trim_suffix(".0")
  for key in spec.get("hand_modifiers",{}): values[key]=str(spec.hand_modifiers[key]).trim_suffix(".0")
  for key in ["base","bonus","refund","hits","damage_growth"]:
   if spec.has(key): values[key]=str(spec[key]).trim_suffix(".0")
- if base!=null: values.base=str(base).trim_suffix(".0")
+ if base!=null and not base is Dictionary: values.base=str(base).trim_suffix(".0")
  if spec.has("free_effects"):
   var effects=spec.free_effects.map(func(effect):return rules.effect_text(effect,spec,true))
   values.free_effects="；".join(effects)+("。" if not effects.is_empty() else "")
@@ -170,6 +170,12 @@ static func card_info(type: String, mana: Variant=null, base: Variant=null, inli
  var result=CARD_INFO[type].duplicate()
  for index in range(result.size()):
   var free=index==2
+  if base is Dictionary:
+   var damage=base.get("free" if free else "bound",[])
+   if not damage.is_empty():
+    values.base=str(damage[0]).trim_suffix(".0")
+    if spec.has("worn_damage"): values.dynamic_damage="（当前%s）" % values.base
+    if damage.size()>1: result[index]=result[index].replace("{base}×{hits}",damage_sequence(damage))
   var face_mana=mana.get("free" if free else "bound") if mana is Dictionary else mana
   var cost=rules.face_mana_base(type,free,SPELL_COST) if face_mana==null else float(face_mana)
   var gain=float(spec.get("self_faces",{}).get("free" if free else "bound",{}).get("mana_gain",0))
@@ -188,6 +194,14 @@ static func card_info(type: String, mana: Variant=null, base: Variant=null, inli
   if traits.get("ethereal",false): result[side]+="虚无。"
   if traits.get("innate",false): result[side]="固有。"+result[side]
  return result
+
+# Compress equal consecutive hits without pretending limited Charge buffs every hit.
+static func damage_sequence(values: Array) -> String:
+ var groups=[]
+ for value in values:
+  if not groups.is_empty() and groups[-1].value==value: groups[-1].count+=1
+  else: groups.append({"value":value,"count":1})
+ return "＋".join(groups.map(func(group):return "%s×%d" % [str(group.value).trim_suffix(".0"),group.count]))
 
 static func card_metadata(type: String, mana_costs: Dictionary={}, base: Variant=null, worn_count: Variant=null, body_count: Variant=null) -> Dictionary:
  var costs={}
