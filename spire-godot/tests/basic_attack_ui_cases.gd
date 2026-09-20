@@ -64,6 +64,7 @@ static func run(t) -> void:
  await t.mouse_button(point,MOUSE_BUTTON_RIGHT,true);await t.mouse_button(point,MOUSE_BUTTON_RIGHT,false)
  t.check(ui.attack_forms.get("heavy",0)==1 and ui.find_child("BasicAttack_heavy",true,false).disabled,"BASIC UI disabled attack can still change form")
  await third_kick(t)
+ await continuous_kick(t)
 
 static func third_kick(t) -> void:
  var ui=t.ui
@@ -85,10 +86,28 @@ static func third_kick(t) -> void:
  ui.render();await t.frames()
  t.check(ui.find_child("BasicAttack_kick",true,false).disabled and t.visible_text(ui.find_child("BasicAttack_kick",true,false)).contains("4级"),"KICK UI full leg restraint shows specific disabled reason")
  var before=ui.game.export_snapshot()
- for form in [0,1,2]:
+ for form in [3,0,1,2]:
   var point=ui.find_child("BasicAttack_kick",true,false).get_global_rect().get_center()
   await t.mouse_button(point,MOUSE_BUTTON_RIGHT,true);await t.mouse_button(point,MOUSE_BUTTON_RIGHT,false)
   t.check(ui.attack_forms.kick==form and ui.game.export_snapshot()==before,"KICK UI disabled forms still cycle without spending resources or resetting cooldown")
+
+static func continuous_kick(t) -> void:
+ var ui=t.ui
+ ui.restart(42);ui.game.state.posture="sit";ui.game.state.energy=3
+ ui.game.state.enemies[0].hp=100;ui.game.state.enemies[0].max_hp=100
+ ui.render();await t.frames()
+ var before=ui.game.export_snapshot()
+ for form in [1,2,3]:
+  var point=t.action_button("kick").get_global_rect().get_center()
+  await t.mouse_button(point,MOUSE_BUTTON_RIGHT,true);await t.mouse_button(point,MOUSE_BUTTON_RIGHT,false)
+  t.check(ui.attack_forms.kick==form and ui.game.state==before,"CONTINUOUS KICK UI cycling reaches seated combo without changing state")
+ var button=t.action_button("kick")
+ t.check(t.visible_text(button).contains("连续踢！") and button.get_node("BasicActionEnergy/EnergyCost").text=="3" and ui.find_child("BasicAttackDetail_kick",true,false).text=="3 × 4 伤害" and t.visible_text(button).contains("击后躺下"),"CONTINUOUS KICK UI shows real X cost hit count and fall warning")
+ check_alignment(t,button)
+ await t.drag_control_to(button,ui.selected_enemy)
+ t.check(ui.view.energy==0 and ui.view.posture=="lie" and ui.game.state.enemies[0].hp==88,"CONTINUOUS KICK UI native drag pays and resolves the full combo then falls")
+ ui.game.state.posture="sit";ui.render();await t.frames()
+ t.check(t.action_button("kick").disabled and t.visible_text(t.action_button("kick")).contains("至少需要1"),"CONTINUOUS KICK UI zero energy displays the formal rejection")
 
 static func justice_opening(t) -> void:
  var ui=t.ui
@@ -293,6 +312,7 @@ static func quick_release(t) -> void:
  for phase in ["prepare","rest"]:
   ui.restart(42);ui.game.state.phase=phase;ui.game.state.pressure=40;ui.render();await t.frames()
   t.check(ui.find_child("BasicActionRail",true,false)!=null and ui.find_child("DeepBreath",true,false)!=null,"QUICK noncombat keeps action rail and breath: "+phase)
+  check_exploration_rail_alignment(t)
   frozen=ui.game.export_snapshot()
   await pointer.press(t,ui.find_child("ActionRailToggle",true,false));await pointer.press(t,ui.find_child("ActionRailToggle",true,false))
   t.check(ui.game.export_snapshot()==frozen,"QUICK noncombat page switches are read-only: "+phase)
@@ -302,6 +322,7 @@ static func quick_release(t) -> void:
   t.check(ui.view.energy==frozen.energy-calm.cost and ui.game.state.pressure<frozen.pressure,"QUICK noncombat breath click still pays and lowers pressure")
  await t.start_practice("Practice_prison_test")
  t.check(ui.find_child("BasicActionRail",true,false)!=null,"QUICK exploration retains rail")
+ check_exploration_rail_alignment(t)
  ui.game._gain_tool("shard");var tool=ui.game.state.items[-1];tool.mount="hand_wall";ui.render();await t.frames()
  await pointer.press(t,ui.find_child("ActionRailToggle",true,false))
  var mounted=ui.find_child("InstalledTools",true,false)
@@ -443,6 +464,11 @@ static func exploration_fireball(t) -> void:
  ui.render();await t.frames()
  var fire=ui.find_child("BasicAttack_fireball",true,false)
  t.check(fire!=null and fire.disabled and fire.tooltip_text.contains("尚未获得"),"FIRE exploration retains a disabled fireball with its missing-ability reason")
+ check_exploration_rail_alignment(t)
+ await t.capture("ui-exploration-action-rail.png")
+ ui.localization.set_locale("en_US");ui.render();await t.frames()
+ check_exploration_rail_alignment(t)
+ ui.localization.set_locale("zh_CN");ui.render();await t.frames()
  var card=preload("res://tests/curse_cases.gd").give(ui.game,"flame_flourish")
  ui.render();await t.frames()
  var power=ui.actions.find("card",{"uid":card.uid,"free":false})
@@ -458,4 +484,15 @@ static func exploration_fireball(t) -> void:
  point=ui.body_buttons.wrist.get_global_rect().get_center();await t.move_mouse(point,true)
  await t.release_target(await t.reveal_drop_target(c.id))
  t.check(is_equal_approx(ui.game._equipment(target.id).durability,frozen.equipment[0].durability-c.payload.damage) and ui.view.energy==frozen.energy-c.cost and ui.view.mana<frozen.mana,"FIRE exploration drag to restraint pays official mana and energy and applies magic damage")
+ ui.game.state.equipment.clear();ui.render();await t.frames()
+ fire=ui.find_child("BasicAttack_fireball",true,false)
+ t.check(fire.disabled and fire.tooltip_text.contains("没有拘束具"),"FIRE exploration empty-target placeholder retains the full reason")
+ check_exploration_rail_alignment(t)
  ui.restart(42);await t.frames()
+
+static func check_exploration_rail_alignment(t) -> void:
+ var rail=t.ui.find_child("BasicActionRail",true,false).get_global_rect()
+ var fire=t.ui.find_child("BasicAttack_fireball",true,false).get_global_rect()
+ var breath=t.ui.find_child("DeepBreath",true,false).get_global_rect()
+ var toggle=t.ui.find_child("ActionRailToggle",true,false).get_global_rect()
+ t.check(rail.encloses(fire) and is_equal_approx(fire.position.y,breath.position.y) and is_equal_approx(fire.end.y,breath.end.y) and is_equal_approx(fire.end.y,toggle.end.y),"FIRE exploration placeholder aligns with breath and toggle inside the rail")

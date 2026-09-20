@@ -4,7 +4,7 @@ const LiveGame=preload("res://core/game.gd")
 
 static func run(t) -> void:
  practice_descriptions(t)
- var health={"gag":24,"rope":30,"tape":30,"cable_tie":30,"lock":28,"mixed_bundle":56,"rope_serpent":60,"trader":56,"versatile":60,"guard":90,"puppeteer":96,"belt":30,"toybox":30,"small_circle":30,"ominous_circle":40,"drone":32,"binding_box":64,"rope_mass":48,"belt_mass":48,"rope_heap":96,"belt_heap":96,"puppet":10,"six_bind":220}
+ var health={"gag":24,"rope":30,"tape":30,"cable_tie":30,"lock":28,"mixed_bundle":56,"rope_serpent":60,"trader":56,"versatile":60,"guard":90,"puppeteer":76,"belt":30,"toybox":30,"small_circle":30,"ominous_circle":40,"drone":32,"binding_box":64,"rope_mass":48,"belt_mass":48,"rope_heap":96,"belt_heap":96,"puppet":15,"six_bind":220}
  for cycle in range(3):
   var g=Game.new(42);g.state.demo_cycle=cycle;g.state.enemies=[]
   var factor=[1.0,1.5,2.0][cycle]
@@ -20,7 +20,7 @@ static func run(t) -> void:
 
 static func practice_descriptions(t) -> void:
  var health_text=RegEx.new();health_text.compile("(\\d+)生命")
- for kind in ["puppeteer_solo","binding_box_solo","drone_solo","mixed_bundle_solo","mixed_pair","rope_serpent_solo","small_circle_solo","versatile_solo"]:
+ for kind in ["iron_man_solo","puppeteer_solo","binding_box_solo","drone_solo","mixed_bundle_solo","mixed_pair","rope_serpent_solo","small_circle_solo","versatile_solo"]:
   var game=LiveGame.new(42,true,kind)
   var before=game.export_snapshot()
   var spec=game.Tower.practice_spec(kind)

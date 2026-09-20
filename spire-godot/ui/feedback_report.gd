@@ -68,12 +68,18 @@ func open() -> void:
  host._open_drawer("show_feedback")
 
 func _capture_context() -> void:
+ var version=str(ProjectSettings.get_setting("application/config/version",""))
  if draft.context.is_empty():
   var v=host.view
-  draft.context={"version":str(ProjectSettings.get_setting("application/config/version","")),"platform":OS.get_name(),"phase":v.get("phase_caption",""),"scene":v.get("room_name",""),"floor":v.get("run_header",{}).get("location",""),"round":v.get("round",0),"seed":v.get("seed",0)}
+  draft.context={"version":version,"platform":OS.get_name(),"phase":v.get("phase_caption",""),"scene":v.get("room_name",""),"floor":v.get("run_header",{}).get("location",""),"round":v.get("round",0),"seed":v.get("seed",0)}
   var rows=[]
   for item in v.get("action_log",[]).slice(-40): rows.append("%s · 第%s回合：%s" % [item.get("actor",""),str(item.get("round",0)),item.get("text","")])
   draft.logs="\n".join(rows).left(18000)
+  save_draft()
+ elif draft.context.get("version","")!=version:
+  # Upgrade restored drafts without discarding their original scene or attachments.
+  draft.context.version=version
+  changed()
   save_draft()
  _capture_save_once()
 

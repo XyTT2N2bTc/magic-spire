@@ -3,9 +3,9 @@ extends RefCounted
 # Read-only presentation of existing physical layers and action previews.
 const REGIONS=[
  {"id":"region_head","name":"头颈","members":["eyes","mouth","neck"]},
- {"id":"region_upper","name":"手胸","members":["upper_arm","forearm","wrist","hands","special_1"]},
+ {"id":"region_upper","name":"手胸","members":["upper_arm","forearm","wrist","hands"]},
  {"id":"region_lower","name":"臀腿","members":["thigh","calf","ankle","feet"]},
- {"id":"region_intimate","name":"性器","members":["special_2","special_3"]}]
+ {"id":"region_intimate","name":"性器","members":["special_1","special_2","special_3"]}]
 
 static func regions(g, bodies: Array) -> Array:
  var result=[]
@@ -65,7 +65,7 @@ static func preview(g, c: Dictionary) -> Dictionary:
    if not root.is_empty():
     if g._composite_body(root).id==target.id: damage=target.durability
     result.note="同时取下"+root.name+"。"
-  if g.SpecialEquipment.is_chastity(target) and not target.locked and damage>0 and p.get("mode","") in ["slip","magic_slip"]: damage=target.durability
+  if damage>0 and g.SpecialEquipment.unlocked_release(target,p.get("mode","")): damage=target.durability
  elif p.has("after"):
   damage=target.durability-p.after
  elif p.has("damage"):

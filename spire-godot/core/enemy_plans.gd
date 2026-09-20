@@ -18,16 +18,17 @@ static func installation_intents(g, e: Dictionary) -> Array:
  match spec.behavior:
   "lock": return [spec.chastity_departure.duplicate(true)] if g.state.chastity_locks_enabled else []
   "six_bind": return [six_ordinary(spec,2,2,1,true),six_composite(2,2,true),six_special(spec,1,1,true),six_special(spec,2,1,true)]
+  "iron_man": return g.IronMan.installation_intents(g,e)
+  "iron_drone": return []
   "puppeteer":
-   var ordinary=application(g.Enemies.TYPES.puppet.install_pool,2)
-   ordinary.replace=true;ordinary.shoulders=true
+   var ordinary=g.Puppets.ordinary(g)
    var special=special_application(g,e);special.grade=2;special.tier=3;special.replace=true
    return [ordinary,six_composite(2,2,true),special]
-  "puppet": return [g.Puppets.ordinary(g,e)]+e.get("puppet_prepared",{}).values().duplicate(true)
+  "puppet": return [g.Puppets.ordinary(g)]+e.get("puppet_prepared",{}).values().duplicate(true)
   "sequence": return spec.repeat_cycle.filter(func(p):return p.kind=="apply").duplicate(true)
   "humanoid": return spec.opening.filter(func(p):return p.kind=="apply").duplicate(true)
   "drone": return [application(spec.install_pool,1,1,2)]
-  "binding_box": return [application(spec.install_pool,2,2,2)]+carried_intents(g,e)
+  "binding_box": return [application(spec.install_pool,2,g.Enemies.encounter_member(g.state,e.type).get("application_tier",2),2)]+carried_intents(g,e)
   "guard":
    var ordinary=application(g.Guard.ordinary_templates(),2)
    ordinary.replace=true
@@ -54,9 +55,9 @@ static func can_affect_equipment(g, e: Dictionary) -> bool:
  var behavior=definition.behavior
  var cycle=definition.get("cycle",[])
  var declared=definition.get("opening",[])+definition.get("repeat_cycle",[])
- var tightens=behavior in ["guard","six_bind","binding_box","drone"] or (behavior=="restraint" and (cycle.is_empty() or cycle.any(func(kind):return kind in ["tighten","tighten_pair","random_strike"]))) or declared.any(func(p):return p.kind in ["tighten","versatile_control"] or p.get("tighten_missing",false))
+ var tightens=behavior in ["guard","six_bind","iron_man","binding_box","drone"] or (behavior=="restraint" and (cycle.is_empty() or cycle.any(func(kind):return kind in ["tighten","tighten_pair","random_strike"]))) or declared.any(func(p):return p.kind in ["tighten","versatile_control"] or p.get("tighten_missing",false))
  if (tightens or definition.get("weighted_moves",{}).values().any(func(m):return m.plan.get("tighten_after",false))) and not targets(g,e,"tighten").is_empty(): return true
- var locks=behavior in ["guard","lock"] or declared.any(func(p):return p.kind in ["lock","versatile_control"])
+ var locks=behavior in ["guard","iron_man","lock"] or declared.any(func(p):return p.kind in ["lock","versatile_control"])
  if locks and not targets(g,e,"lock").is_empty(): return true
  var plans=installation_intents(g,e)
  # Include passive and burst specifications without adding them to reinforcement fallback.
@@ -74,7 +75,7 @@ static func can_affect_equipment(g, e: Dictionary) -> bool:
 
 static func can_arrest(g, e: Dictionary) -> bool:
  var spec=g.Enemies.TYPES[e.type]
- return not e.gone and (spec.get("humanoid",false) or spec.get("mechanical",false))
+ return not e.gone and spec.get("can_arrest",spec.get("humanoid",false) or spec.get("mechanical",false))
 
 static func has_equipment_space(g) -> bool:
  return g.state.enemies.any(func(enemy):return can_affect_equipment(g,enemy))
@@ -157,6 +158,11 @@ static func build(g, e: Dictionary) -> Dictionary:
  if can_arrest(g,e) and not has_equipment_space(g): return {"kind":"capture","text":"执行逮捕","delayed":false}
  if spec.behavior=="guard": return g.Guard.build(g,e)
  if spec.behavior=="six_bind": return six_plan(g,e)
+ if spec.behavior=="iron_man": return g.IronMan.plan(g,e)
+ if spec.behavior in ["iron_drone","drone","binding_box"]:
+  var required=g.CaptureBind.required_intent(g,e)
+  if required!="": return {"kind":required,"text":{"capture":"执行收押","bind_apply":"施加捕缚 · 初始%s/100" % g.number(g.CaptureBind.initial_value(g,e)),"bind_prepare":"准备捕缚"}[required],"delayed":false}
+ if spec.behavior=="iron_drone": return {"kind":"idle","text":"维持捕缚 · 每累计%d能量触发" % g.CaptureBind.energy_threshold(g,"iron_drone"),"delayed":false}
  if spec.behavior=="puppeteer": return g.Puppets.plan(e)
  if spec.behavior=="puppet": return {"kind":"idle","text":"玩偶不会行动","delayed":false}
  if spec.has("weighted_moves"):
@@ -173,17 +179,16 @@ static func build(g, e: Dictionary) -> Dictionary:
  var material=spec.get("restraint_name","绳索")
  match spec.behavior:
   "drone","binding_box":
-   var required=g.CaptureBind.required_intent(g,e)
-   if required!="": return {"kind":required,"text":{"capture":"执行收押","bind_apply":"施加捕缚 · 初始%s/100" % g.number(spec.capture_start),"bind_prepare":"准备捕缚"}[required],"delayed":false}
    var box=spec.behavior=="binding_box"
+   var member=g.Enemies.encounter_member(g.state,e.type)
    match e.guard.cycle_step:
     0:
      if not targets(g,e,"tighten").is_empty() and g._random_index("enemy",2)==1:
-      return {"kind":"tighten_budget","budget":4 if box else 2,"text":"收紧皮革拘束具 · 累计4档" if box else "收紧胶带 · 累计2档","delayed":false}
-     return application(spec.install_pool,2 if box else 1,2 if box else 1,2)
+      return {"kind":"tighten_budget","budget":member.get("reinforce_budget",4) if box else 2,"text":"收紧皮革拘束具 · 累计%d档" % member.get("reinforce_budget",4) if box else "收紧胶带 · 累计2档","delayed":false}
+     return application(spec.install_pool,2 if box else 1,member.get("application_tier",2) if box else 1,2)
     1: return {"kind":"charge" if box else "bind_gain","text":"准备施加复合装备" if box else "捕缚进度＋10","delayed":false}
     _:
-     if box: return {"kind":"bind_gain" if e.carried_indices.is_empty() else "carried_apply","text":"捕缚进度＋10" if e.carried_indices.is_empty() else "施加一件盒内复合装备","delayed":false}
+     if box: return {"kind":"bind_gain" if e.carried_indices.is_empty() else "carried_apply","text":"捕缚进度＋%s" % g.number(g.CaptureBind.gain_amount(g,e)) if e.carried_indices.is_empty() else "施加一件盒内复合装备","delayed":false}
      return {"kind":"idle","text":"发呆","delayed":false}
   "humanoid","sequence":
    var index=e.stage-1
@@ -254,6 +259,7 @@ static func targets(g, e: Dictionary, kind: String, required_slots: Array=[]) ->
  # §3.1 item 1: one read scope per call; the enemy plan only reads equipment.
  var previous=g._begin_equipment_read()
  var choices=g.physical_pieces().filter(func(x):return g._can_tighten(x) if kind=="tighten" else Equipment.allows(x,"lock") and not x.locked)
+ if kind=="tighten" and e.type=="iron_man": choices=choices.filter(func(x):return g.state.equipment.has(x))
  if not required_slots.is_empty():
   choices=choices.filter(func(x):return Equipment.coverage(x).any(func(slot):return slot in required_slots))
  var definition=g.Enemies.TYPES[e.type]

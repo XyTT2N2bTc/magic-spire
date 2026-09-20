@@ -215,7 +215,7 @@ static func run(t) -> void:
  # Content registrations fail here rather than silently choosing another behavior.
  for id in g.Enemies.TYPES:
   var spec=g.Enemies.TYPES[id]
-  t.check(spec.hp>0 and spec.behavior in ["restraint","dispenser","attachment","lock","guard","humanoid","sequence","six_bind","binding_box","drone","puppeteer","puppet"] and spec.visual in ["rope","belt","tape","cable_tie","toybox","silencer","lock","guard","rope_mass","rope_heap","belt_mass","belt_heap","trader","versatile","mixed_bundle","rope_serpent","ominous_circle","six_bind","binding_box","drone","puppeteer","puppet"],"CONTENT enemy behavior and visual registered "+id)
+  t.check(spec.hp>0 and spec.behavior in ["restraint","dispenser","attachment","lock","guard","humanoid","sequence","six_bind","binding_box","drone","puppeteer","puppet","iron_man","iron_drone"] and spec.visual in ["rope","belt","tape","cable_tie","toybox","silencer","lock","guard","rope_mass","rope_heap","belt_mass","belt_heap","trader","versatile","mixed_bundle","rope_serpent","ominous_circle","six_bind","binding_box","drone","puppeteer","puppet","iron_man"],"CONTENT enemy behavior and visual registered "+id)
   if spec.has("special_pool"): t.check(not spec.special_pool.is_empty() and spec.special_pool.all(func(type):return g.SpecialEquipment.DESIGNS.has(type)),"CONTENT enemy special pool resolves "+id)
   if spec.behavior=="attachment": t.check(spec.attachment_slot in ["eyes","mouth"] and spec.attachment_pool.all(func(template):return spec.attachment_slot in g.Equipment.TEMPLATES[template].slots),"CONTENT attachment pool matches declared body region "+id)
   for field in ["install_pool","final_pool","attachment_pool"]:

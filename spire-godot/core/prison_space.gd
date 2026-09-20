@@ -101,7 +101,7 @@ static func wall_warning(g, route: Array) -> String:
  if not g.wall_contact() or route.is_empty(): return ""
  var segment=route.slice(0,mini(route.size(),g.wall_movement_profile().distance))
  if not segment.any(func(pos):return wall_distance(pos)>0): return ""
- if g.Relics.value(g.state.relics,"always_wall")>0: return "本次会离开墙边；遗物仍提供贴墙效果，墙上工具需回到安装处使用。"
+ if g.relic_value("always_wall")>0: return "本次会离开墙边；遗物仍提供贴墙效果，墙上工具需回到安装处使用。"
  return "本次会暂时离墙，结束时回到墙边。" if wall_distance(segment.back())==0 else "本次移动后将离墙，墙面效果暂停。"
 
 static func view(g) -> Dictionary:

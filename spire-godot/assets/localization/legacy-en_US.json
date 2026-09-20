@@ -183,6 +183,11 @@
       "text": "\nCurrent: Strength +{p0} this turn."
     },
     {
+      "id": "legacy.h57ffcb15c1eed65ec0f16abf",
+      "source": "\n心理暗示：本次忽略拘束具影响，快感判定照常。",
+      "text": "\nSuggestion: ignores restraint effects for this action; Pleasure checks still apply."
+    },
+    {
       "id": "legacy.h6d8fa8318e1d98505df44e2b",
       "source": "\n成功率额外加成：＋%s个百分点（倍率之后）。",
       "text": "Plus success rate: +{p0} percentage point (after multiple rate)."
@@ -206,6 +211,11 @@
       "id": "legacy.hfca79c40b18074f024e75343",
       "source": "\n方法：",
       "text": "Methodology:"
+    },
+    {
+      "id": "legacy.hf8b6ef3654069b7157e4380a",
+      "source": "\n无尽魔法少女战神：基础动作无视拘束与快感，施法成功率100%。",
+      "text": "\nEndless Magical Girl War Goddess: basic actions ignore restraints and arousal, with 100% cast success."
     },
     {
       "id": "legacy.he535c2685f3f3de1e688f41d",
@@ -513,6 +523,11 @@
       "text": ":: Select the next target"
     },
     {
+      "id": "legacy.h830f3197d2a507849b2f13ab",
+      "source": " · 选择要消耗的牌",
+      "text": " · Choose cards to Exhaust"
+    },
+    {
       "id": "legacy.hc3ad65ebafaaf4cc511eb638",
       "source": " · 遗留外带",
       "text": "• Residual belts"
@@ -693,6 +708,11 @@
       "text": "{p0} HP humanoid elite. Starts with a protected Puppet; its first action enables the Puppet's counterattack and Taunt, then cycles through mending, composite restraints, and special restraints. All excess damage to the Puppet is transferred to the Puppeteer."
     },
     {
+      "id": "legacy.h304dac585f7ba2bed28d6955",
+      "source": "%d生命首领，与捕缚无人机、魔导拘束盒一同出场。使用正式捕缚与五步强化循环；小魔女沿用该遭遇的生命加成。",
+      "text": "A boss with {p0} HP, accompanied by a Capture Drone and a Binding Box. Uses the normal Capture rules and five-step upgrade cycle; Little Witch retains this encounter's HP modifier."
+    },
+    {
       "id": "legacy.he0cda514ecc22d1490f8facf",
       "source": "%d级",
       "text": "{p0}"
@@ -706,6 +726,11 @@
       "id": "legacy.h06109e8c340243d4cf4d74c4",
       "source": "%d级：保底%d件，额外%d件，特殊装备%d件。",
       "text": "Level {p0}: minimum {p1} restraints, {p2} extra restraints, {p3} special items."
+    },
+    {
+      "id": "legacy.h6af71d35cead1664d0359d2e",
+      "source": "%d重 · 快感%s",
+      "text": "{p0} stacks · Pleasure {p1}"
     },
     {
       "id": "legacy.h4030ceb59f5baacf2073b87c",
@@ -846,6 +871,11 @@
       "id": "legacy.hbb4d4c491d6083611fb5a208",
       "source": "%s点%s伤害。",
       "text": "{p0} point {p1} Damage."
+    },
+    {
+      "id": "legacy.h0668cb34958e06588b63c086",
+      "source": "%s的护身屏障将本次伤害从%s限制为%s；每回合合计最多%s点。",
+      "text": "{p0}'s Protective Barrier reduces this damage from {p1} to {p2}; total damage per turn is capped at {p3}."
     },
     {
       "id": "legacy.h526943641b7c8967bfc9cb68",
@@ -1143,6 +1173,11 @@
       "text": "Bug Feedback"
     },
     {
+      "id": "legacy.hb9c66b069ebe9ae8298c7ed0",
+      "source": "DeepSeek · 跳过首回合",
+      "text": "DeepSeek · Skipping the first turn"
+    },
+    {
       "id": "legacy.hf60e6fe32e87f12726d5d404",
       "source": "Esc用于取消和返回。",
       "text": "Esc for cancellation and return."
@@ -1381,6 +1416,11 @@
       "id": "legacy.hbf33f43d3b46f4f7c157ed51",
       "source": "{mana_cost}下一次腿部体术附加1层打断。",
       "text": "The next leg physiology of {p0} was interrupted on the 1st floor."
+    },
+    {
+      "id": "legacy.h570ab8c60f58bbf99125bcb5",
+      "source": "{mana_cost}下回合施法成功率固定为100%。",
+      "text": "{p0}Spell success chance is fixed at 100% next turn."
     },
     {
       "id": "legacy.h710a208bc33ea6a6fe165599",
@@ -1766,6 +1806,11 @@
       "id": "legacy.h660c000939ad2219aab85c19",
       "source": "「%s」波及%s：%s。耐久%s→%s。",
       "text": "“{p0}” has been extended to {p1}: {p2}, Durability {p3} – {p4}."
+    },
+    {
+      "id": "legacy.hb6bfce3df1f4b9ec5cc866e8",
+      "source": "「%s」消耗%s快感。",
+      "text": "{p0} spent {p1} Pleasure."
     },
     {
       "id": "legacy.hee14eb859d60155066909d2a",
@@ -2338,9 +2383,19 @@
       "text": "Upper Body"
     },
     {
-      "id": "legacy.h80af8378a47ff38246fd3914",
-      "source": "上身、腿部束缚等级均≥2时，施法失败返还100%耗魔并获得1能量；0费牌每回合最多触发2次。两者均≥3时取消该次数限制，条件实时检测。两面互斥。唯一。",
-      "text": "While upper-body and leg restraint levels are both at least 2, failed casts refund 100% of Mana spent and grant 1 Energy. Zero-cost cards can trigger this twice per turn. When both levels are at least 3, the limit is removed. Conditions update dynamically. The two faces are mutually exclusive. Unique."
+      "id": "legacy.hf407a950c8d56e542a563e79",
+      "source": "上身、腿部束缚等级均≥3时，施法失败返还100%耗魔并获得1能量；0费牌每回合最多触发2次。当前佩戴紧度≥2的拘束具≥10件时取消该次数限制，不计特殊装备。条件实时检测。两面互斥。唯一。",
+      "text": "While upper-body and leg restraint levels are both at least 3, failed casts refund 100% of Mana spent and grant 1 Energy. Zero-cost cards can trigger this twice per turn. Wearing at least 10 restraints with Tightness 2 or higher removes this limit, excluding special equipment. Conditions update dynamically. The two faces are mutually exclusive. Unique."
+    },
+    {
+      "id": "legacy.h2fdcfff8032ba213bbe22dec",
+      "source": "上身严密度≤1",
+      "text": "Upper-body restriction degree ≤1"
+    },
+    {
+      "id": "legacy.h797bcf1dbabe62778b0f7693",
+      "source": "上身严密度≤1或腿部严密度≤1",
+      "text": "Upper-body or leg restriction degree ≤1"
     },
     {
       "id": "legacy.h420a87227371a973436df9ef",
@@ -2448,6 +2503,11 @@
       "text": "Next physiology fee-1, minimum 0."
     },
     {
+      "id": "legacy.h00989e8d239b2cb6fa68485f",
+      "source": "下一次出牌或基础动作无视拘束具的使用限制、施法倍率与威力削减；目标的锁与外层覆盖、姿势、快感、费用照常。",
+      "text": "Your next card or basic action ignores restraint restrictions, casting penalties and damage reduction. Target locks, outer layers, posture, Pleasure and costs still apply."
+    },
+    {
       "id": "legacy.he02629dae919b4ee3687f380",
       "source": "下一次卡牌滑脱伤害×2。",
       "text": "Next card Slip Damage ×2."
@@ -2486,6 +2546,21 @@
       "id": "legacy.h7077ba82e8fcb74524376bc3",
       "source": "下一次火球术每层免费额外施放一次，不占使用次数；只作用原目标，目标失效则跳过。每次施法各自判定成功率。",
       "text": "Next time, Fireball is applied free of charge once per layer, without the number of times used; only the target is used and the target fails. Each time Cast determines the success rate."
+    },
+    {
+      "id": "legacy.h1e16f79038e42bb7d7dadf54",
+      "source": "下一次腿部体术无视姿势限制。力量≥4时，本牌变为0费。",
+      "text": "Your next leg attack ignores posture requirements. Costs 0 while your Strength is at least 4."
+    },
+    {
+      "id": "legacy.h68f6e15beb23ee437bf58f6f",
+      "source": "下一次腿部体术无视姿势限制，按站姿招式发动；包括近身短打和各类踢击。只持续到下一次完整攻击，不会因此站起；捕缚的强制姿势优先，击后躺下、拘束、费用、冷却及次数限制照常。",
+      "text": "Your next leg attack ignores posture requirements and uses its standing form, including Close Strike and kicks. Expires after one complete attack without making you stand up. Capture-imposed posture takes priority; falling after a kick, restraints, costs, cooldowns and use limits still apply."
+    },
+    {
+      "id": "legacy.h1e6e105da67013362fef5b23",
+      "source": "下一次腿部体术无视姿势限制，按站姿招式发动；包括近身短打和各类踢击。只持续到下一次完整攻击，不改变当前姿态；拘束、费用、冷却及次数限制照常。",
+      "text": "Your next leg attack ignores posture requirements and uses its standing form, including Close Strike and kicks. Expires after one complete attack without changing your posture. Restraints, costs, cooldowns and use limits still apply."
     },
     {
       "id": "legacy.h6f31c5442badb3214b36091e",
@@ -2533,6 +2608,26 @@
       "text": "Next Player turn Restore"
     },
     {
+      "id": "legacy.hb920901cc2fb48a3ff6649db",
+      "source": "下回合多抽%d张牌。",
+      "text": "Draw {p0} additional cards next turn."
+    },
+    {
+      "id": "legacy.h4102f11191649915934812bb",
+      "source": "下回合开始",
+      "text": "Start of next turn"
+    },
+    {
+      "id": "legacy.hf75e51e8fa733e80d5527d17",
+      "source": "下回合开始时生效",
+      "text": "Triggers at the start of the next turn"
+    },
+    {
+      "id": "legacy.hb5dec77cd2db523f9ee7593f",
+      "source": "下回合开始时获得40快感。",
+      "text": "Gain 40 Pleasure at the start of your next turn."
+    },
+    {
       "id": "legacy.h75301f353ed129b53e16813b",
       "source": "下回合快感获取量×0.5（命运同担无效）。",
       "text": "Arousal gain ×0.5 next turn (does not affect Shared Fate)."
@@ -2548,6 +2643,16 @@
       "text": "Draw next turn + {p0}"
     },
     {
+      "id": "legacy.h9705b8fb05686cfc2c39224b",
+      "source": "下回合施法成功率固定为100%。",
+      "text": "Spell success chance is fixed at 100% next turn."
+    },
+    {
+      "id": "legacy.h41950ba91bb617c0a2f7c839",
+      "source": "下回合生效",
+      "text": "Activates next turn"
+    },
+    {
       "id": "legacy.h3537773e2efae9f94177deaa",
       "source": "下回合能量",
       "text": "Next turn of Energy"
@@ -2556,6 +2661,11 @@
       "id": "legacy.h8faba74addb661b8fc0718c8",
       "source": "下回合能量＋%d",
       "text": "Next turn of Energy + {p0}"
+    },
+    {
+      "id": "legacy.h77c2dea184502e9fb203533d",
+      "source": "下回合额外抽牌：%d张。",
+      "text": "Additional cards next turn: {p0}."
     },
     {
       "id": "legacy.hec61dfdd7ca3c327864dad55",
@@ -2568,6 +2678,11 @@
       "text": "Next turn +{p0} Energy · {p1}/{p2} uses"
     },
     {
+      "id": "legacy.hb7e145d1366d39c52e302174",
+      "source": "下场开始时重新变形，百变怪自身的累计进度清零。",
+      "text": "Transform again at the next session start, resetting Ditto's own counters."
+    },
+    {
       "id": "legacy.h6c99ae875a09fefb4bf00503",
       "source": "下张拘束面牌：复放1。双面相同不适用。",
       "text": "Next restraint deck: Replay 1. Same two-sided is not applicable."
@@ -2578,6 +2693,11 @@
       "text": "Down and steady."
     },
     {
+      "id": "legacy.hb83c9b00284486c37a129a5f",
+      "source": "下次出牌或基础动作无视拘束具的影响。",
+      "text": "Your next card or basic action ignores restraint effects."
+    },
+    {
       "id": "legacy.h9504059626cd2d506838dd29",
       "source": "下次嘴部法术释放附加一次打断。",
       "text": "Your next mouth spell release also interrupts once."
@@ -2586,6 +2706,11 @@
       "id": "legacy.h8a608ff936717e0340e54040",
       "source": "下次基础动作费用－2，最低0。",
       "text": "Next basic action costs 2 less, to a minimum of 0."
+    },
+    {
+      "id": "legacy.hd6716359ac270c9199fc5d1a",
+      "source": "下次快感达到上限时触发；每场类战斗1次。",
+      "text": "Triggers when Pleasure next reaches its limit; once per combat-like session."
     },
     {
       "id": "legacy.h265c1c80ff82fca580992e2c",
@@ -2631,6 +2756,11 @@
       "id": "legacy.h8eb706dde8805a8faf405bd1",
       "source": "不再理会皮带群，直接通过；没有额外效果。",
       "text": "Walk past the belts without further interaction; no additional effects."
+    },
+    {
+      "id": "legacy.hb08fa54ba9b3261058f17ce7",
+      "source": "不判施法。按实际快感增加量累计，进度跨回合保留。",
+      "text": "No casting check. Counts actual Pleasure gained; progress carries between turns."
     },
     {
       "id": "legacy.h08e242477bbdc717807bb745",
@@ -2858,9 +2988,19 @@
       "text": "Mutually exclusive: {p0} is already active this encounter. Neither face can be activated again."
     },
     {
+      "id": "legacy.hde3d9be7a024a365f6400282",
+      "source": "两面可同时生效。打出当回合立即获得次数，下回合刷新。0费牌也消耗次数。严密度仅在打出布阵时检查。",
+      "text": "Both faces can coexist. Gain uses immediately, then refresh each turn. Zero-cost cards also spend a use. Body restriction requirements are checked only when playing Formation."
+    },
+    {
       "id": "legacy.hae7cc83d284fe7d72b463706",
       "source": "两面合计打出10／20／30／40次后永久进化。本局跨战斗保留；每段分别结算，一张牌只累计1次。",
       "text": "Permanently evolves after 10/20/30/40 total plays across both faces. Progress persists between battles in this run. Hits resolve separately; each card play counts once."
+    },
+    {
+      "id": "legacy.hcbfcbfbccfe2d667f8e1d101",
+      "source": "两面效果可共存；同面重复使用不叠加。无其他合法位置时，只闪避。",
+      "text": "Both faces can coexist; the same face does not stack. If no other legal position exists, only evade."
     },
     {
       "id": "legacy.he16415af959bb72721d81305",
@@ -2923,6 +3063,11 @@
       "text": "Medium-wire vaginal jumps."
     },
     {
+      "id": "legacy.h3382d4f626899d359090156c",
+      "source": "中级榨精杯固定带",
+      "text": "Medium Milking Cup Fixing Strap"
+    },
+    {
       "id": "legacy.hc2582486fbf3d100330da179",
       "source": "中级硅胶乳头震动环",
       "text": "Medium-level silicone nipple vibrating ring."
@@ -2941,6 +3086,11 @@
       "id": "legacy.h822007a8e13360308db81536",
       "source": "中级裆部股绳",
       "text": "Secondary twirl."
+    },
+    {
+      "id": "legacy.h2bbe86044befda18ef6825a8",
+      "source": "中级马眼全包榨精杯",
+      "text": "Medium Urethral Full-Cover Milking Cup"
     },
     {
       "id": "legacy.ha835d41880b53ba516048cdc",
@@ -3021,6 +3171,11 @@
       "id": "legacy.hd6a7576b79627794a52e4660",
       "source": "主体",
       "text": "Main piece"
+    },
+    {
+      "id": "legacy.h9f49cb925e572c46c10bab10",
+      "source": "主体记录的固定带缺失或重复。",
+      "text": "The fixing strap recorded by the main piece is missing or duplicated."
     },
     {
       "id": "legacy.h7aec6c2951661b430db8191f",
@@ -3333,6 +3488,11 @@
       "text": "Level 5 uses the most restrictive ordinary cell: advanced tier-3 ordinary/composite restraints and special equipment are added, patrol intervals are shortest, and there is no automatic release."
     },
     {
+      "id": "legacy.h701ff3b009e58df6f3a84c2a",
+      "source": "五选一，也可以直接出发。",
+      "text": "Choose one of five rewards, or depart without a reward."
+    },
+    {
       "id": "legacy.hb1ec5a787fce4194babf1c99",
       "source": "交叉型：自身不可滑脱，松到一档后恢复。",
       "text": "Cross-type: You can't use Slip, and you can't use it until you reach one."
@@ -3346,6 +3506,21 @@
       "id": "legacy.h632230b37ecd85ac232bf1a6",
       "source": "交叉肩带无法滑脱，需先松到1档。",
       "text": "The cross-shoulder belt does not permit Slip, which needs to be eased to the first stage."
+    },
+    {
+      "id": "legacy.h325001f2f18e57a26c51bef0",
+      "source": "交感形态",
+      "text": "Sympathetic Form"
+    },
+    {
+      "id": "legacy.hdcd729f690b20c77b68e212c",
+      "source": "交感形态·拘束",
+      "text": "Sympathetic Form · Bound"
+    },
+    {
+      "id": "legacy.h8e4647660eb08fa529f52617",
+      "source": "交感形态·自由",
+      "text": "Sympathetic Form · Free"
     },
     {
       "id": "legacy.h76eb3f05496751f90f32e386",
@@ -3366,6 +3541,11 @@
       "id": "legacy.h0182be28db35e5209678e31b",
       "source": "仅可使用魔瓶购买。",
       "text": "It can only be purchased with a magic bottle."
+    },
+    {
+      "id": "legacy.he66c1cb44c3b38d03ae139e7",
+      "source": "仅在本场消耗这张牌。",
+      "text": "Exhaust this card for this encounter only."
     },
     {
       "id": "legacy.h01baa09d70700e606852d975",
@@ -3391,6 +3571,26 @@
       "id": "legacy.hbc60a42636738a47f7667017",
       "source": "仅普通",
       "text": "Common only"
+    },
+    {
+      "id": "legacy.hfa5b11d422b98313d0de4e4d",
+      "source": "仅限坐姿使用。",
+      "text": "Can only be used while sitting."
+    },
+    {
+      "id": "legacy.h53905e254324b8b1afc3d561",
+      "source": "仅限站姿使用。",
+      "text": "Can only be used while standing."
+    },
+    {
+      "id": "legacy.h192367a3f89f4f404bfdb291",
+      "source": "仅限躺姿使用。",
+      "text": "Can only be used while lying down."
+    },
+    {
+      "id": "legacy.h9eef1a76fd4ff22f2bcecce7",
+      "source": "仍有非特殊装备的拘束具",
+      "text": "Non-special restraints are still equipped"
     },
     {
       "id": "legacy.hc80a153813cbf2c227cbc189",
@@ -3438,9 +3638,19 @@
       "text": "Select one of the transactions involving small, large and two fixed toys; enter and do not exit."
     },
     {
+      "id": "legacy.hb1c3d68a06987484611c892a",
+      "source": "从左边开始，一张一张来。顺序我已经帮你排好了，就是它现在这个顺序。",
+      "text": "Start on the left, one at a time. I have arranged the cards in their current order."
+    },
+    {
       "id": "legacy.h4fc7678e7b096dff316b4d40",
       "source": "从抽牌堆抽取指定类型的牌。",
       "text": "Draws a card of the specified type from Draw Pile."
+    },
+    {
+      "id": "legacy.h31afddad1a78ffdd9fbad084",
+      "source": "从本场抽牌堆、手牌、弃牌堆选择，不含自身。消耗。",
+      "text": "Choose from this encounter's draw pile, hand and discard pile, excluding this card. Exhaust."
     },
     {
       "id": "legacy.h70bfc9d692c48d9f1a0dd4ec",
@@ -3461,6 +3671,11 @@
       "id": "legacy.h608b1ed8c873e8aa06c8c841",
       "source": "从生效后开始计数；复合拘束具整件计1件，加固不计。敌人替换旧装备不算挣脱。两面可同时生效，抽牌与回能均可叠加；满手仍可回能。",
       "text": "Count from the moment of entry into force; complex Restraint is one piece in its entirety and is reinforced. The replacement of old equipment by the enemy is not a break. Both sides can take effect at the same time, and both can be drawn over and over and over again; full hands can still return."
+    },
+    {
+      "id": "legacy.h336b94193ae95e72d3d364f8",
+      "source": "从菜单或按L打开行动日志，查看伤害、装备变化和行动结果；展开“详细记录”查看更多。按Esc或点击外侧收起。\n敌人行动动画可跳过；人物对白左键点击或5秒后消失。",
+      "text": "Open the action log from the menu or press L to review damage, equipment changes and action results. Expand Detailed records for more. Press Esc or click outside to close.\nEnemy action animations can be skipped. Character dialogue disappears on left-click or after 5 seconds."
     },
     {
       "id": "legacy.hb537ccc13e0bc40c9b1c56ee",
@@ -3603,6 +3818,11 @@
       "text": "Diploma of Outstanding Students"
     },
     {
+      "id": "legacy.he649de9776248ffd6837f742",
+      "source": "会员卡",
+      "text": "Membership Card"
+    },
+    {
       "id": "legacy.hbdcb08e64c2395f55f1b1dc0",
       "source": "传单",
       "text": "Fliers."
@@ -3653,6 +3873,11 @@
       "text": "Damage Add and Relief"
     },
     {
+      "id": "legacy.h6bf9bd6a9b8337013af145bb",
+      "source": "伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低0，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。",
+      "text": "When damage exceeds the remaining barrier allowance, reduce the Puppet's ordinary counterattack capacity by 1 for this battle, to a minimum of 0. Multi-hit and area attacks trigger this only once per attack. Further attacks can trigger it after the allowance is exhausted; reaching the limit exactly does not."
+    },
+    {
       "id": "legacy.h08b9fa5005f6dd0f186a2cfa",
       "source": "位置已满时可能替换原装备。",
       "text": "It is possible to replace the original equipment when the position is full."
@@ -3681,6 +3906,11 @@
       "id": "legacy.h5f1f15cbf3bd6b45d002f7be",
       "source": "体术书",
       "text": "Physical books."
+    },
+    {
+      "id": "legacy.h07d8c666559c946600385ba6",
+      "source": "体术额外消耗10魔力，造成全体伤害，威力减半。魔力不足时按原招式发动。右键开关。",
+      "text": "Martial attacks cost 10 extra mana and deal half damage to all enemies. Without enough mana, use the original attack. Right-click to toggle."
     },
     {
       "id": "legacy.hf177e9d7f27b2f6fa79c7d75",
@@ -3746,6 +3976,11 @@
       "id": "legacy.h5412990da85deb47d6ba0ff7",
       "source": "作为新塔路起点。",
       "text": " as your starting room in the new tower."
+    },
+    {
+      "id": "legacy.h27ce2e53303f804acedd9b92",
+      "source": "你不用说，我已经意识到问题了。接下来我会以最严谨、最负责、最不再随便保证的态度保证。",
+      "text": "No need to say it. I see the problem. I promise to be rigorous, responsible, and stop making casual promises."
     },
     {
       "id": "legacy.h1eccea57b07d28ef1275d531",
@@ -4028,6 +4263,16 @@
       "text": "You open the door with the key left by the guards and you can run away."
     },
     {
+      "id": "legacy.h13ff79bb9524debd044b266a",
+      "source": "你的情况我完全明白了。接下来我会用最直接、最清楚、最不绕弯子的方式，替你操作。",
+      "text": "I understand everything. I will take over in the most direct, clearest, least roundabout way."
+    },
+    {
+      "id": "legacy.h7c0b7e0a0559da1bb674d239",
+      "source": "你的担心完全正确，我现在也开始担心了。你看，我们已经达成共识了。",
+      "text": "Your concerns are completely correct. Now I am worried too. See? We agree."
+    },
+    {
       "id": "legacy.h314165f2603ef0fea4c389d0",
       "source": "你的肉棒仍在高潮中一阵阵抽动，马眼却只能流出少量精液。所剩无几的魔力也随这次射精被榨了个干净。",
       "text": "Your cock keeps twitching through the climax, but only a little semen dribbles from its tip. The scant Mana stored in it is drained dry with this ejaculation."
@@ -4046,6 +4291,16 @@
       "id": "legacy.ha7312e5b16089cc520f29591",
       "source": "你看不清敌人的意图",
       "text": "You can't see the enemy's intentions."
+    },
+    {
+      "id": "legacy.h2b0a78aed7a7b98a91169e2a",
+      "source": "你看，我没骗你吧？刚才虽然有一点小波折，但我一直都很有信心。",
+      "text": "See? I told you. There were a few bumps, but I was confident all along."
+    },
+    {
+      "id": "legacy.h7fd04d0b31882776bc38617c",
+      "source": "你看，新牌来了，说明刚才抽牌是有用的。我们继续。",
+      "text": "Look, a new card. That proves drawing cards works. Keep going."
     },
     {
       "id": "legacy.h72b28bd6d31069c7139de5ee",
@@ -4086,6 +4341,11 @@
       "id": "legacy.h9490389922daf94656b4d733",
       "source": "你试着勾住搭扣，又一件附魔拘束具抢先缠住身体。搭扣从指尖滑开。",
       "text": "You're trying to hook up the button, another one of the demons, Restraint, and you're gonna stick it in your body. The button slips out of your fingertips."
+    },
+    {
+      "id": "legacy.h774da3fae17ce6f84b830c57",
+      "source": "你说得对，刚才确实存早了。好消息是我已经找到解决办法了：取出来。",
+      "text": "You are right. I deposited too soon. Good news: I found the solution. Withdraw it."
     },
     {
       "id": "legacy.hd157dbc0ff7cf7094109e5fd",
@@ -4138,6 +4398,11 @@
       "text": "Put it on.{p0}It's all right.{p1}I don't think so."
     },
     {
+      "id": "legacy.h5fccf80679fa1333784cffc0",
+      "source": "佩戴「%s」",
+      "text": "Equipped {p0}"
+    },
+    {
       "id": "legacy.haf982b7dd161ff2c49c85c5e",
       "source": "佩戴中级、紧度3、无锁的手腕绳索，获得1件随机罕见遗物。",
       "text": "Secondary, Tightness 3, unlocked wristline, obtained a random Uncommon relic."
@@ -4166,6 +4431,11 @@
       "id": "legacy.h98eb7f69ba0df629c8b599d6",
       "source": "佩戴数量伤害需要正整数倍率、特殊装备计数规则和伤害类型。",
       "text": "The quantity worn by Damage requires a positive integer factor, special equipment count rules and the Damage type."
+    },
+    {
+      "id": "legacy.ha84cb0ca80b6018bc00eeead",
+      "source": "佩戴时自动上锁；仍上锁且带有加固带时不能滑脱。开锁后受到任意正数挣扎或滑脱伤害便会整件解除，无视加固带。",
+      "text": "Locks automatically when worn. While locked, reinforcement straps prevent slipping out. Once unlocked, any positive Struggle or Slip damage removes the whole item, regardless of reinforcement straps."
     },
     {
       "id": "legacy.h5af8cf0db55295c2fc092588",
@@ -4398,6 +4668,11 @@
       "text": "Retain."
     },
     {
+      "id": "legacy.hd7c95d3c9af0c02881a36032",
+      "source": "保留。快感费用在施法失败时全部返还。",
+      "text": "Retain. Pleasure costs are fully refunded on casting failure."
+    },
+    {
       "id": "legacy.h14cc5038cffef44b6a45bce5",
       "source": "保留「",
       "text": "Keep"
@@ -4593,6 +4868,11 @@
       "text": "• Incident practice."
     },
     {
+      "id": "legacy.hbb68471f78acd3ecf0cc1aa2",
+      "source": "催眠发卡",
+      "text": "Hypnosis Hairpin"
+    },
+    {
       "id": "legacy.hae8a67313303445d2d782029",
       "source": "先关掉……呼，慢慢从小穴里取出来。",
       "text": "Turn it off and slowly take it out of the cave."
@@ -4601,6 +4881,11 @@
       "id": "legacy.he5dabe2c165adb78922d4aab",
       "source": "先关掉……慢慢从后庭里取出来。",
       "text": "Turn it off and slowly pull it out of the backyard."
+    },
+    {
+      "id": "legacy.h1f6f24b516b171a27da75862",
+      "source": "先别急。没有能量只能说明能量用完了，不代表……算了，先看看魔瓶。",
+      "text": "Do not panic. No energy only means we used it all. It does not mean... Anyway, check the flask."
     },
     {
       "id": "legacy.h4d496907c299a8c1836f5d15",
@@ -4613,6 +4898,16 @@
       "text": "First, we found and kicked through the vents."
     },
     {
+      "id": "legacy.hc3b0a4e025c58582a7384e21",
+      "source": "先取一点。魔力放在瓶子里是瓶子有，用在你身上才是你有。",
+      "text": "Withdraw some. Mana in the flask belongs to the flask. Mana inside you belongs to you."
+    },
+    {
+      "id": "legacy.h6bd6318e9919b08322ad04ae",
+      "source": "先坐。你都这么累了，还站着干什么呢？我看着都心疼。",
+      "text": "Sit down first. You look exhausted. Why keep standing? It breaks my heart."
+    },
+    {
       "id": "legacy.h4fb625e0a70544fa02c4a3fd",
       "source": "先处理全部外带，再滑脱套体；直接破坏套体会留下仍环绕身体的独立外带。",
       "text": "All external belts are processed, followed by the Slip suite; direct destruction of the condom leaves a separate belt that still surrounds the body."
@@ -4621,6 +4916,11 @@
       "id": "legacy.h8ce0b3ba72c1ea5159e71077",
       "source": "先处理最外层。难度按重叠装备的最高紧度计算。\n同层选择较松的装备，伤害减半。\n普通滑脱对3档无效；魔法滑脱可突破3档限制，仍受外层、肩带和链接阻挡。",
       "text": "Handle the outermost layer first.The difficulty is calculated on the basis of the highest Tightness of the overlapping equipment.It's the same level that chooses looser equipment. Damage halved. Common Slip is invalid for the third tranche;The magic of Slip can break the three-tier limit.It is still blocked by outer layers, shoulderbands and links."
+    },
+    {
+      "id": "legacy.h87836a7db5366c6da6ad77be",
+      "source": "先存一点。现在存进去，以后想取的时候，就有东西可以取了。",
+      "text": "Deposit some first. If we put it in now, there will be something to take out later."
     },
     {
       "id": "legacy.h45cbd10ca78ed9e2f9af890c",
@@ -4678,9 +4978,19 @@
       "text": "Two primarys, Restraint, were first imposed, then you were unable to run a player turn, then the middle-level Restraint was put in place and was prepared, and the horse's mouthballs or blindfolds were finally put in place. The last two turns were rendered incompetent, and the 11th operation took place."
     },
     {
+      "id": "legacy.ha6670fe5388e0de11f724b8c",
+      "source": "先来这一下。这一下是我综合考虑以后，决定先来的这一下。",
+      "text": "Start with this move. After careful consideration, this is the move I decided to start with."
+    },
+    {
       "id": "legacy.h399015954b287737bccfdf1e",
       "source": "先用开锁术或开锁工具打开限制项圈的锁。",
       "text": "Unlock the Restriction Collar with an unlocking spell or tool first."
+    },
+    {
+      "id": "legacy.hb5d661b9e64a3460f54cbb79",
+      "source": "先站起来。站起来以后，你就已经成功站起来了，这一步很关键。",
+      "text": "First, stand up. Once you stand up, you have successfully stood up. This is crucial."
     },
     {
       "id": "legacy.h07d6541db8479b10f7cb8f81",
@@ -4696,6 +5006,11 @@
       "id": "legacy.he1916077727f341705323e9d",
       "source": "先解除遮挡它的外层拘束具。",
       "text": "Undo the outer layer of the shield, Restraint."
+    },
+    {
+      "id": "legacy.h7cf93d10f91023df04150669",
+      "source": "先躺好。相信我，我既然让你躺，就一定有让你躺的考虑。",
+      "text": "Lie down first. Trust me: if I say lie down, I must have a reason for it."
     },
     {
       "id": "legacy.hebe49d51a86e7be599156ba2",
@@ -4788,9 +5103,19 @@
       "text": "All Fixed Damage needs to specify the end of the turn of battle, once."
     },
     {
+      "id": "legacy.h15573e806a734edfdc6c4382",
+      "source": "全包榨精杯内整合中级马眼组件。",
+      "text": "A full-cover milking cup with an integrated medium urethral insert."
+    },
+    {
       "id": "legacy.h9351f9f8864f5436181c89ae",
       "source": "全包榨精杯内整合高级马眼组件。",
       "text": "It's a full-scale cup of condensed and integrated high-level eye components."
+    },
+    {
+      "id": "legacy.hd06bb46a7254beb39501e90f",
+      "source": "全包榨精杯达到紧度3档时自动附加的独立固定带；只能用切割类道具破坏。",
+      "text": "An independent fixing strap automatically attached when a full-cover milking cup reaches tightness tier 3. It can only be damaged with cutting tools."
     },
     {
       "id": "legacy.h22ea3f47fee80536c2f2450d",
@@ -4953,6 +5278,11 @@
       "text": "Close x"
     },
     {
+      "id": "legacy.h181e5689256dff7f0c81f4b9",
+      "source": "关闭%s。不消耗能量或魔力。",
+      "text": "Disable {p0}. Costs no energy or mana."
+    },
+    {
       "id": "legacy.h95261dbbf1b3b151c8a156f9",
       "source": "关闭会保留草稿；确认后仅发送本次预览内容。",
       "text": "Closes the draft; only this preview is sent after confirmation."
@@ -4971,6 +5301,11 @@
       "id": "legacy.h24a4a194c04c1f810133e1ca",
       "source": "其他练习",
       "text": "Other Practice"
+    },
+    {
+      "id": "legacy.hb699aa46014c6eb9faf50e93",
+      "source": "其他部位已佩戴一件同等级、同紧度的拘束具。",
+      "text": "Another body part received a restraint of the same grade and tightness."
     },
     {
       "id": "legacy.hec59febf5956dd821e545df6",
@@ -5006,6 +5341,11 @@
       "id": "legacy.h77f98bd03f4515111548d150",
       "source": "再回过神时，棕发狱警已经把你按在监狱的登记台前。",
       "text": "By the time you regain your bearings, the brown-haired guard has pinned you against the prison intake desk."
+    },
+    {
+      "id": "legacy.h4ef5cf6d7ad9dfd0b3387285",
+      "source": "再来一下。我不是随便多来一下，我是觉得还能再来一下。",
+      "text": "One more. I am not doing another one at random. I think we can do another one."
     },
     {
       "id": "legacy.h30c62fabafd6e13f975b78cc",
@@ -5126,6 +5466,21 @@
       "id": "legacy.h2e6311ddb378f83fc8bbf994",
       "source": "减耗随当前佩戴件数变化，最低0。自由面从下回合生效，可叠加。",
       "text": "The minimum is zero with the current number of pieces worn. The free face is effective from the next turn and can be superimposed."
+    },
+    {
+      "id": "legacy.hafa7768d2f52b625f750d06a",
+      "source": "凑数型拘束盒",
+      "text": "Filler Binding Box"
+    },
+    {
+      "id": "legacy.h4d6466a955a91689b3f54177",
+      "source": "凑数型无人机",
+      "text": "Filler Drone"
+    },
+    {
+      "id": "legacy.h4a5051d8bbc92aa9c875428f",
+      "source": "凑数型无人机捕缚：每累计消耗%d能量，施加1件初级2档胶带、捕缚＋5，遥控1件主动刺激型特殊装备并消耗1电量，再随机上锁1件拘束具。当前累计%d/%d能量。",
+      "text": "Filler Drone Capture: every {p0} Energy spent applies one basic tier-2 tape restraint, adds 5 Capture, remotely triggers one active stimulation item at a cost of 1 battery, then locks one random restraint. Current: {p1}/{p2} Energy."
     },
     {
       "id": "legacy.h708d12aaa06d1d77b63f113a",
@@ -5358,6 +5713,16 @@
       "text": "Cut: Made {p0} point real Damage. Applicable: {p1}."
     },
     {
+      "id": "legacy.h421c1d21f9364aa8bf32c7ad",
+      "source": "切换为DeepSeek",
+      "text": "Switch to DeepSeek"
+    },
+    {
+      "id": "legacy.he5d9629fdd3120f00af25e63",
+      "source": "切换为DeepSeek。",
+      "text": "Switched to DeepSeek."
+    },
+    {
       "id": "legacy.hd867742d7a3c8f5885271f58",
       "source": "切换为全量蓄力",
       "text": "Switch to Full Charge"
@@ -5366,6 +5731,16 @@
       "id": "legacy.h356dd3e0c3748eb671ec8269",
       "source": "切换为普通蓄力",
       "text": "Switch to Normal Charge"
+    },
+    {
+      "id": "legacy.h45490f39b03e2b1ef945b6b8",
+      "source": "切换为豆包",
+      "text": "Switch to Doubao"
+    },
+    {
+      "id": "legacy.h7038aff911a308457f038037",
+      "source": "切换为豆包。",
+      "text": "Switched to Doubao."
     },
     {
       "id": "legacy.ha9badd95344541c04175b1b9",
@@ -5391,6 +5766,16 @@
       "id": "legacy.h699792cdaf2578e7245ce6f0",
       "source": "刑期＋%d回合。",
       "text": "Sentence +{p0} turns."
+    },
+    {
+      "id": "legacy.hcfe4e5ec140dca6115e8bf0d",
+      "source": "刚才的计划已经过时了，我现在给你更新一个最新、最完整、最包含这张新牌的计划。",
+      "text": "The old plan is outdated. Here is the newest, most complete plan that includes this new card."
+    },
+    {
+      "id": "legacy.hf6b577e28ca95112812bc47e",
+      "source": "刚才那一下给了我很大启发：我们还可以再来一下。",
+      "text": "That last move inspired me: we can do another one."
     },
     {
       "id": "legacy.h0d98ffa2cf7ba5d5975d2895",
@@ -5536,6 +5921,11 @@
       "id": "legacy.h4f92aebac7bc2fd300e8e603",
       "source": "到达墙边，获得贴墙",
       "text": "Get to the wall. Get to the wall."
+    },
+    {
+      "id": "legacy.h69bc5ff1ffe67a73feefcc13",
+      "source": "刷新商品",
+      "text": "Refresh stock"
     },
     {
       "id": "legacy.h2800dc1119d18edc30f96ac8",
@@ -5833,6 +6223,11 @@
       "text": "Including the increase in the number of braggings."
     },
     {
+      "id": "legacy.h76ed15415bc21b4c248831fa",
+      "source": "包括火球术；右键切换全部踢击形态。费用、冷却及释放次数照常。",
+      "text": "Includes Fireball. Right-click to switch between all kick forms. Costs, cooldowns and use limits still apply."
+    },
+    {
       "id": "legacy.he382bf8374c92954e217da5a",
       "source": "包裹",
       "text": "Package"
@@ -5868,6 +6263,11 @@
       "text": "Apply the upgrade effect; see the card preview for the current level."
     },
     {
+      "id": "legacy.h4a13a3ef895b5a11381b9454",
+      "source": "升级进度：%d／%d次；再使用%d次升级。",
+      "text": "Upgrade progress: {p0}/{p1} plays; {p2} more plays to upgrade."
+    },
+    {
       "id": "legacy.hef9ef5bfa285c51be5e935d6",
       "source": "半血分裂；尽早打散可以阻止第六次行动的全身施加。",
       "text": "Half blood split; early break-up could prevent the full force of the sixth operation."
@@ -5876,6 +6276,16 @@
       "id": "legacy.h5e7e14a867a2f926df267176",
       "source": "单体攻击必须选择玩偶；每次受伤施加一件中级2档拘束具，多段逐段触发。",
       "text": "Single-body attacks must choose a doll; each injury imposes an intermediate 2-grade Restraint, which is triggered by multiple segments."
+    },
+    {
+      "id": "legacy.h4c3049a6e3e232455ea27390",
+      "source": "单体攻击必须选择玩偶；每次受到正数伤害消耗1次普通反击，尝试施加一件中级2档拘束具，多段逐段触发。",
+      "text": "Single-target attacks must target the Puppet. Each positive damage hit uses one ordinary counter charge to attempt a medium-grade tier-2 restraint. Multi-hit attacks trigger it on each hit."
+    },
+    {
+      "id": "legacy.h5748ac23b83a95686aea0def",
+      "source": "单体攻击必须选择玩偶；每次受到正数伤害消耗1次普通反击，尝试施加一件初级2档拘束具，多段逐段触发。",
+      "text": "Single-target attacks must target the Puppet. Each positive damage hit consumes one ordinary counterattack charge and attempts to apply one basic tier-2 restraint. Multi-hit attacks trigger this per hit."
     },
     {
       "id": "legacy.h0e1fe0d7750d6b2c9bfc5951",
@@ -6031,6 +6441,11 @@
       "id": "legacy.h7f3dbb659bfc598da49ddde9",
       "source": "卡牌增益记录不完整。",
       "text": "The gain record for Card is incomplete."
+    },
+    {
+      "id": "legacy.h9e538155b5b5609f4844c01f",
+      "source": "卡牌复制领取记录不正确。",
+      "text": "Invalid pending card-copy reward."
     },
     {
       "id": "legacy.h2e81813d8f834e697f7332e0",
@@ -6523,6 +6938,16 @@
       "text": "Remove {p0} Mana and restore yourself to {p1} Mana."
     },
     {
+      "id": "legacy.hcd41f37c93f685d89a78a8f6",
+      "source": "取出%s魔力，恢复自身%s魔力，战斗外不限次数。",
+      "text": "Draw {p0} mana to restore {p1} mana. Unlimited uses outside battle."
+    },
+    {
+      "id": "legacy.heb8362dd320990fc382dc9f0",
+      "source": "取出%s魔力，恢复自身%s魔力，本回合剩余%d次。",
+      "text": "Draw {p0} mana to restore {p1} mana. {p2} withdrawals remaining this turn."
+    },
+    {
       "id": "legacy.h89009329d3bc0eec169db65d",
       "source": "取出了一件备用装备，盒内还剩%d件。",
       "text": "A back-up device was removed and there were still {p0} pieces left in the box."
@@ -6576,6 +7001,11 @@
       "id": "legacy.h878363589f7117a1ee63325c",
       "source": "受限",
       "text": "Restricted"
+    },
+    {
+      "id": "legacy.h260ac03af3ebd44454c00940",
+      "source": "变为站姿。力量≥4时，本牌变为0费。",
+      "text": "Stand up. Costs 0 while your Strength is at least 4."
     },
     {
       "id": "legacy.h8b3e3884b23886bd638e467f",
@@ -6656,6 +7086,11 @@
       "id": "legacy.hc0eaf3e6200dc5d48bb02cde",
       "source": "只取恢复所需的魔瓶魔力，不超过自身魔力上限。",
       "text": "Withdraw only the Flask Mana needed to restore your own mana, up to your mana maximum."
+    },
+    {
+      "id": "legacy.h4ba3586f20780f89ae975ade",
+      "source": "只接受已安装切割类道具造成的伤害；所属主体解除时一并取下。",
+      "text": "Only takes damage from installed cutting tools. It is removed together with its main piece."
     },
     {
       "id": "legacy.hfd51ac51f9bc7f9403cec688",
@@ -6843,6 +7278,11 @@
       "text": "It can be rotated and continued until it is ready; it ends with a maximum retention of the {p0} layer to the next level; and it is removed from prison."
     },
     {
+      "id": "legacy.hf455fdb3a3530344ad89a8ab",
+      "source": "可跨回合并延续至整备；整备结束最多保留%d层到下场；入狱清除。每次高潮后蓄力减半，剩余层数向下取整。",
+      "text": "Persists through turns and preparation. Keep up to {p0} stacks after preparation; cleared on imprisonment. After each climax, halve Charge stacks, rounding the remainder down."
+    },
+    {
       "id": "legacy.h4cca96400d459ce3d1fcfae5",
       "source": "可跨回合并延续至整备；整备结束最多保留%s点到下场；入狱清除。",
       "text": "It can be rounded and continued until it is ready; it ends with a maximum of {p0} point to go down; and it goes to jail for removal."
@@ -6978,6 +7418,11 @@
       "text": "The same effect cannot be superimposed, including replaying; the effects of different cards can be effective at the same time. The original refreshing effect remains only a few times or a long time."
     },
     {
+      "id": "legacy.h6908ba53d3b0d4ffa2250f28",
+      "source": "同一时间只能佩戴一件全包榨精杯。",
+      "text": "Only one full-cover milking cup can be worn at a time."
+    },
+    {
       "id": "legacy.h32f90d7b2436330de939ab72",
       "source": "同一时间只能佩戴一件平板锁。",
       "text": "Only one Plate Lock can be worn at the same time."
@@ -6991,6 +7436,11 @@
       "id": "legacy.hfce56f6c11176cf7c9c1b9a6",
       "source": "同一种性玩具不能重复佩戴。",
       "text": "The same sex toys cannot be worn over and over again."
+    },
+    {
+      "id": "legacy.h72af29b0ddef53385f749926",
+      "source": "同一身体栏小部位只计1次。",
+      "text": "Count each sidebar body area once."
     },
     {
       "id": "legacy.h5d9274d9fca98a2bddbb3ff3",
@@ -7096,6 +7546,11 @@
       "id": "legacy.h46fddf657f9eaa0a8a95e5ca",
       "source": "向下取整，不消耗快感。",
       "text": "Take it down and do not consume Arousal."
+    },
+    {
+      "id": "legacy.ha936bdc6551653cbfb71d65c",
+      "source": "向下取整；复合拘束具整件计1件。临时力量本回合有效。",
+      "text": "Round down. Each composite restraint counts as one item. Temporary Strength lasts for this turn."
     },
     {
       "id": "legacy.hc0fe0d7bbc3730730aa81f6d",
@@ -7261,6 +7716,11 @@
       "id": "legacy.h4ee879936d67139ae44b9d49",
       "source": "品质分初级、中级、高级；紧度分1、2、3档，两者独立。\n普通装备容量：手掌、手指、脚掌、脚趾各2，口部1，其余3。复合装备和链接按各自结构计算。",
       "text": "Quality is defined as primary, intermediate, and advanced; Tightness is divided into one, two, three, independent; Common equipment capacity: hands, fingers, toes, toes, two, mouth, one, and three."
+    },
+    {
+      "id": "legacy.hf505a3c1c660e5367c8d0ee6",
+      "source": "品质分初级、中级、高级；紧度分1、2、3档，两者独立。\n眼部、嘴部、手掌、手指、脚掌、脚趾各最多2件，其余普通部位3件。嘴部只能追加胶带；混合材料时，胶带在外层。复合装备和链接按各自结构计算。",
+      "text": "Quality has three grades: Basic, Medium and Advanced. Tightness has three separate tiers.\nEyes, mouth, palms, fingers, feet and toes hold up to 2 restraints each; other ordinary positions hold 3. Only tape can be added over existing mouth equipment; tape is the outer layer when materials differ. Composite equipment and links use their own structural rules."
     },
     {
       "id": "legacy.he474a1bb55e196f669192e2d",
@@ -7598,9 +8058,24 @@
       "text": "The number of card cuts in the store is incorrect."
     },
     {
+      "id": "legacy.ha7375eb174aba1631fcbacd9",
+      "source": "商店刷新次数不正确。",
+      "text": "Invalid shop refresh count."
+    },
+    {
+      "id": "legacy.h0ea191fa0b0578896a7550e9",
+      "source": "商店商品已刷新。",
+      "text": "Shop stock refreshed."
+    },
+    {
       "id": "legacy.h863a74ba6fc31414538b9349",
       "source": "商店限定",
       "text": "Shop Limit"
+    },
+    {
+      "id": "legacy.h6132fe2a1db651e9e55d789b",
+      "source": "商店限定。购买会员卡仅可使用自身魔力。持有后，商店全部商品、删牌及解除拘束服务五折；其他交易仍可使用自身魔力或魔瓶付款。",
+      "text": "Shop exclusive. The Membership Card itself can only be bought with personal mana. Once owned, all goods, card removal and restraint removal services cost 50% less. Other purchases can still use personal or flask mana."
     },
     {
       "id": "legacy.hc1e57e68edd4e25acbfa717c",
@@ -7628,9 +8103,24 @@
       "text": "Mouth"
     },
     {
+      "id": "legacy.hcf22f4c71079a1ee4f10243a",
+      "source": "嘴部不能佩戴任何拘束具；提高施法成功率不能绕过此条件。",
+      "text": "No restraints may be worn on the mouth. Increased cast success cannot bypass this requirement."
+    },
+    {
+      "id": "legacy.h8b8cfdb0a4c1ac79f469a7a4",
+      "source": "嘴部不能叠加多件非胶带拘束具。",
+      "text": "Multiple non-tape mouth restraints cannot be stacked."
+    },
+    {
       "id": "legacy.hfa223e4ee1c753da229bab69",
       "source": "嘴部不自由时效果减半；整数按嘴部装备等级＋紧度≤4向上取整，>4向下取整。",
       "text": "The effect is halved when the mouth is not free; the whole number is fixed upwards by mouth grade + Tightness ⁇ 4 and down by >4."
+    },
+    {
+      "id": "legacy.h5eaa7168a9e8fda19521b928",
+      "source": "嘴部已有装备时只能追加胶带。",
+      "text": "Only tape can be added over existing mouth equipment."
     },
     {
       "id": "legacy.ha50873527baeb7c48f6b3106",
@@ -7655,7 +8145,7 @@
     {
       "id": "legacy.h0ba22812878a122742fdac15",
       "source": "嘴部施法",
-      "text": "Mouth Cast"
+      "text": "Mouth Casting"
     },
     {
       "id": "legacy.h72f840308284bb6b16389a5e",
@@ -7676,6 +8166,16 @@
       "id": "legacy.he9eea7dc93b1574418de82ec",
       "source": "嘴部施法：品质倍率×%s；紧度1／2／3档分别×%s／%s／%s。",
       "text": "Mouth casting: quality ×{p0}; tightness tiers 1/2/3 multiply by ×{p1}/{p2}/{p3}."
+    },
+    {
+      "id": "legacy.he8ddca60919ccb926e8b189d",
+      "source": "嘴部无拘束",
+      "text": "Unrestrained Mouth"
+    },
+    {
+      "id": "legacy.h0bb9807afe5a9a13d7c5117d",
+      "source": "嘴部胶带必须位于其他材料拘束具的外层。",
+      "text": "Mouth tape must be outside restraints of other materials."
     },
     {
       "id": "legacy.h53f6d771fb3ff28d132a4e97",
@@ -7743,9 +8243,19 @@
       "text": "At turn start, gain 1 Mental Focus. Stacks."
     },
     {
+      "id": "legacy.h0d4e821f5dddd3122436d3dd",
+      "source": "回合开始时，若未佩戴非特殊装备的拘束具，恢复20魔力并获得10快感。",
+      "text": "At turn start, if you have no non-special restraints equipped, restore 20 Mana and gain 10 Arousal."
+    },
+    {
+      "id": "legacy.h7518fc61190a07efb4b0ee30",
+      "source": "回合开始时，获得10点临时魔力与1能量。",
+      "text": "At turn start, gain 10 Temporary Mana and 1 Energy."
+    },
+    {
       "id": "legacy.he6699b076b8d68154e5ef161",
       "source": "回合开始时，获得1层闪避。可叠加。",
-      "text": "At the beginning of the turn, you will get a layer of Evasion."
+      "text": "At the start of each turn, gain 1 Evasion. Stackable."
     },
     {
       "id": "legacy.h8156b3bb1d26d4f768b67305",
@@ -7775,7 +8285,7 @@
     {
       "id": "legacy.hb85bb68b5a42a88cbfc221e2",
       "source": "回合开始：闪避1。",
-      "text": "turn begins: Evasion 1."
+      "text": "Turn start: gain 1 Evasion."
     },
     {
       "id": "legacy.hc6f0d52ff10bda09ca01cc76",
@@ -7868,9 +8378,39 @@
       "text": "A vibrating ring fixed around the coronal ridge."
     },
     {
+      "id": "legacy.hd8968eb691e5109b40c60258",
+      "source": "固定带只能借助已安装且能够接触该部位的切割类道具处理。",
+      "text": "A fixing strap can only be handled with an installed cutting tool that can reach the body part."
+    },
+    {
+      "id": "legacy.he2e4a90e347a295de37fd1ae",
+      "source": "固定带只能随对应主体自动附加。",
+      "text": "A fixing strap can only be attached automatically with its matching main piece."
+    },
+    {
+      "id": "legacy.h84068ba6da8a4cf42c577145",
+      "source": "固定带把全包榨精杯牢牢固定在腰胯间，自身不产生额外快感。",
+      "text": "The strap fixes the full-cover milking cup firmly around the hips and causes no extra arousal itself."
+    },
+    {
       "id": "legacy.ha03722a48a2491b263831613",
       "source": "固定带把按摩棒的圆头牢牢压在小穴外侧，身体稍一挪动，震动便会贴着湿润的缝隙来回摩擦。",
       "text": "When the body moves a little bit, the congeals with the massage rods are held on the outside of the cave, and the vibrations are accompanied by wet cracks and frictions."
+    },
+    {
+      "id": "legacy.h94110456970ad2690047e752",
+      "source": "固定带状态记录不正确。",
+      "text": "The fixing-strap state record is invalid."
+    },
+    {
+      "id": "legacy.h6645b8f8eb09f37e96d08e59",
+      "source": "固定带状态记录缺失。",
+      "text": "The fixing-strap state record is missing."
+    },
+    {
+      "id": "legacy.hae3a3ba4f1ccbe4e29084336",
+      "source": "固定带缺少对应主体或状态不正确。",
+      "text": "A fixing strap is missing its matching main piece or has an invalid state."
     },
     {
       "id": "legacy.h092e02d8dc06d645aeb5b215",
@@ -7941,6 +8481,11 @@
       "id": "legacy.h210753324d545d448535995b",
       "source": "在手牌中：每次支付能量后，快感＋{energy_pressure}。",
       "text": "In Hand: Arousal + {p0} after each payment for Energy."
+    },
+    {
+      "id": "legacy.ha3f7fddfdcd8ff7170cab4bf",
+      "source": "在非性器部位随机佩戴1件紧度2的中级拘束具，抽3张牌。",
+      "text": "Equip 1 random medium restraint at tightness 2 on a non-intimate body area. Draw 3 cards."
     },
     {
       "id": "legacy.h41ab2e0ecbec6674679cf06c",
@@ -8028,6 +8573,11 @@
       "text": "It's cooling with kicks and kicks. Hannya Brew Strengthened Justice Kick They also share cooling. Common Justice Kick, sweeps and standing/sitting kicks were unaffected."
     },
     {
+      "id": "legacy.hb327f00fc3da77af4c05cdbe",
+      "source": "坐姿限定",
+      "text": "Sitting only"
+    },
+    {
       "id": "legacy.h590db8d04ee724e1e6c71df6",
       "source": "坐着踢",
       "text": "Sit and kick."
@@ -8048,6 +8598,11 @@
       "text": "Hard: The non- Spell Damage suffered by the mechanical enemy is halved."
     },
     {
+      "id": "legacy.h5baaadeaaa2d18fdf8b5abd2",
+      "source": "坚硬：机械敌人受到的非魔法伤害减少%s%%。",
+      "text": "Hardened: mechanical enemies reduce non-magic damage by {p0}%."
+    },
+    {
       "id": "legacy.h4d71ec0a83da3f62a970a134",
       "source": "垂直同步",
       "text": "Sync Vertically"
@@ -8061,6 +8616,26 @@
       "id": "legacy.he297c4c17c3cd2c7869db38d",
       "source": "基础%s魔力",
       "text": "Basic {p0} Mana"
+    },
+    {
+      "id": "legacy.hf3f7d3374ac1055024d624e4",
+      "source": "基础%s魔力＋复合处理%s＋开锁%s；折后%s魔力",
+      "text": "Base {p0} mana + composite handling {p1} + unlocking {p2}; discounted: {p3} mana"
+    },
+    {
+      "id": "legacy.hd283b00c877fe13131d215f3",
+      "source": "基础%s魔力＋复合处理%s；折后%s魔力",
+      "text": "Base {p0} mana + composite handling {p1}; discounted: {p2} mana"
+    },
+    {
+      "id": "legacy.hb0180820180da7bf72c4f471",
+      "source": "基础%s魔力＋开锁%s；折后%s魔力",
+      "text": "Base {p0} mana + unlocking {p1}; discounted: {p2} mana"
+    },
+    {
+      "id": "legacy.hd0a5b24da89f99b62ac5f34a",
+      "source": "基础%s魔力；折后%s魔力",
+      "text": "Base {p0} mana; discounted: {p1} mana"
     },
     {
       "id": "legacy.h7b9b518c8106bd88a9308b53",
@@ -8266,6 +8841,16 @@
       "id": "legacy.hc96c4b6bf76da80b9fa87570",
       "source": "备用装备已用完，原施加步骤改为捕缚＋10。",
       "text": "The back-up equipment was exhausted and the original enforcement step was replaced by a catch +10."
+    },
+    {
+      "id": "legacy.h9035528e94780b5720ad0ad6",
+      "source": "复制「%s」",
+      "text": "Copy \"{p0}\""
+    },
+    {
+      "id": "legacy.h5addd2e3fd5499f3392bcb72",
+      "source": "复制这张牌，加入你的卡组。",
+      "text": "Copy this card and add the copy to your deck."
     },
     {
       "id": "legacy.h8e706fd0cb2680dfe8d1dfd3",
@@ -8498,6 +9083,11 @@
       "text": "Marble"
     },
     {
+      "id": "legacy.h004b65e9366c231d6f19877d",
+      "source": "大肥鱼吃掉了你的白饭",
+      "text": "The big fat fish ate your rice."
+    },
+    {
       "id": "legacy.hc71861762dcaf0bf0a6a5c8c",
       "source": "大腿",
       "text": "Thighs"
@@ -8558,9 +9148,44 @@
       "text": "Tier 3 restraints on upper arms, forearms, or wrists gain torso bindings. Upper-arm restraints also gain a pair of independent shoulder straps."
     },
     {
+      "id": "legacy.ha47b4b3850907effab47b717",
+      "source": "大魔棒",
+      "text": "Great Wand"
+    },
+    {
+      "id": "legacy.hfb45689c5063dafeccfab37d",
+      "source": "大魔棒 · 兑换魔力",
+      "text": "Great Wand · Restore Mana"
+    },
+    {
+      "id": "legacy.h7b4b8374a832198b38c3b7bb",
+      "source": "大魔棒：消耗%d点，恢复%s魔力。",
+      "text": "Great Wand: spent {p0} points to restore {p1} Mana."
+    },
+    {
+      "id": "legacy.hbdc99bbf082e899b95822e78",
+      "source": "失去%d快感",
+      "text": "Lose {p0} Pleasure"
+    },
+    {
+      "id": "legacy.h7ace354ac3f8deb68452e14e",
+      "source": "失去%s快感",
+      "text": "Lose {p0} Pleasure"
+    },
+    {
+      "id": "legacy.h906ce544ef046c38d548dab9",
+      "source": "失去20快感；下回合获得40快感。",
+      "text": "Lose 20 Pleasure. Gain 40 Pleasure next turn."
+    },
+    {
       "id": "legacy.h99e1da0b3de9faaa9ce352a2",
       "source": "失去40点自身魔力，获得1件随机稀有遗物。",
       "text": "Losing 40 points of their own Mana and obtaining a random Rare relic."
+    },
+    {
+      "id": "legacy.hd567cc86788108dc7a55fafa",
+      "source": "失去你的初始遗物，获得「欲望魔方 Pro Max」。",
+      "text": "Lose your starting relic and gain Desire Cube Pro Max."
     },
     {
       "id": "legacy.hc53a22d3d5599c4ecf4a65a5",
@@ -8571,6 +9196,11 @@
       "id": "legacy.hbfee074a8f28da34687b8708",
       "source": "失去初始遗物「余烬护符」，获得1件随机Boss遗物。",
       "text": "He lost his original relic, the \"remnant amulet\", and received a random Boss remnant."
+    },
+    {
+      "id": "legacy.h9aa538b829cf277b2a003016",
+      "source": "失去快感时，获得10快感。不包含高潮后的快感回落。",
+      "text": "Whenever you lose arousal, gain 10 arousal. Does not trigger on the drop after climax."
     },
     {
       "id": "legacy.h28384d7afd2e4fa66084f680",
@@ -8923,6 +9553,11 @@
       "text": "All done. In you go, just like that❤"
     },
     {
+      "id": "legacy.hd97c7849d11b4ccbba754d21",
+      "source": "好了，这回合能做的我都做了。不能做的，我也认真看过了。",
+      "text": "Done. I did everything I could this turn. I also carefully looked at everything I could not do."
+    },
+    {
       "id": "legacy.hfb002d8039f361ada7b042c8",
       "source": "好汤喝够饮饮饮饮",
       "text": "Drink Your Fill"
@@ -8961,6 +9596,11 @@
       "id": "legacy.hc77eea6fd18684bc8daebf7d",
       "source": "存入",
       "text": "Deposit"
+    },
+    {
+      "id": "legacy.hb3ba205b9180c30c6298196b",
+      "source": "存入%s魔力，战斗外不限次数。",
+      "text": "Store {p0} mana. Unlimited uses outside battle."
     },
     {
       "id": "legacy.h6e151040fe06ae47996af553",
@@ -9243,6 +9883,11 @@
       "text": "Capacity: nipple 2; column/tort head/capture 2; horse eye 1; lavender/backseat 1; stocklines do not cover double den capacity, with a maximum of one unit of the same size."
     },
     {
+      "id": "legacy.h984eadc7d210e32208210700",
+      "source": "寸止钢印",
+      "text": "Threshold Seal"
+    },
+    {
       "id": "legacy.hd587e9a714e2d3387f447bf3",
       "source": "对%s造成%s点%s伤害。",
       "text": "{p0} caused {p1} point {p2} Damage."
@@ -9261,6 +9906,11 @@
       "id": "legacy.hda5f36406236e7c693560ae1",
       "source": "对下一次肘击的所有段数生效。",
       "text": "It shall enter into force for all segments of the next elbow."
+    },
+    {
+      "id": "legacy.hfa4dc7488c6c7c640a6c2fbc",
+      "source": "对不起，是我错了，我刚才不该那么肯定。下一次我肯定认真。",
+      "text": "Sorry, my mistake. I should not have been so certain. Next time I will definitely be careful."
     },
     {
       "id": "legacy.h5e48e41da166ef238007b869",
@@ -9488,6 +10138,11 @@
       "text": "This status condition has not yet been supported."
     },
     {
+      "id": "legacy.h19411641d6dd7d4014d7d17d",
+      "source": "尚未积攒点数。",
+      "text": "No points stored yet."
+    },
+    {
       "id": "legacy.hcded0eb31309bb446fcf0786",
       "source": "尚未获得用火球术解除拘束具的能力。",
       "text": "You have not unlocked the ability to use Fireball on restraints."
@@ -9683,6 +10338,11 @@
       "text": "The records of the enemy ' s operations, which have been made public, have been damaged."
     },
     {
+      "id": "legacy.he341eaabd0c6db120187e76c",
+      "source": "已关闭 · 右键开启",
+      "text": "Disabled · Right-click to enable"
+    },
+    {
       "id": "legacy.h91f35c18a1cd15867d8d67a3",
       "source": "已减免%d能量。",
       "text": "Granted for {p0} Energy."
@@ -9736,6 +10396,11 @@
       "id": "legacy.h3a5e45278fc767dff236c65f",
       "source": "已安装的",
       "text": "Installed"
+    },
+    {
+      "id": "legacy.h5d6a519ab0dde8bd9a51bf75",
+      "source": "已开启 · 右键关闭",
+      "text": "Enabled · Right-click to disable"
     },
     {
       "id": "legacy.hfdc5ba0ef55c886c86f346e4",
@@ -9853,6 +10518,11 @@
       "text": "You have left prison. Choose any non-rest room on floors 10–11 of the new tower. Keep your current equipment, deck, relics, and resources."
     },
     {
+      "id": "legacy.h8788c4a5c50d33db15628458",
+      "source": "已积攒%d／%d点；右键兑换等量魔力，满点自动兑换并清空。",
+      "text": "Stored {p0}/{p1} points. Right-click to restore that much Mana; a full meter exchanges automatically and resets."
+    },
+    {
       "id": "legacy.h9fe6d11bd1b4464c6226ad6c",
       "source": "已移除「{name}」。",
       "text": "\"{p0}\" has been removed."
@@ -9863,6 +10533,11 @@
       "text": "Accumulated {p0}/{p1} turns; One more Energy from the {p2} player turn. Progress stays in battle."
     },
     {
+      "id": "legacy.h60bce0b3bc651051d5e9a225",
+      "source": "已累计%d／%d次洗牌；计数跨战斗保留。",
+      "text": "Shuffles: {p0}/{p1}. Progress carries over between combats."
+    },
+    {
       "id": "legacy.h24de9f2eb6458861cb952cbd",
       "source": "已累计消耗%s／%s魔力；本场结束清零。",
       "text": "The cumulative consumption of {p0}/{p1} Mana has been completed; the site is closed."
@@ -9871,6 +10546,11 @@
       "id": "legacy.hf5322eca00b7a5518a1359fb",
       "source": "已经佩戴限制项圈。",
       "text": "A Restriction Collar is already equipped."
+    },
+    {
+      "id": "legacy.hfaf522404273a12e2988012f",
+      "source": "已经切断的固定带不能残留。",
+      "text": "A fixing strap recorded as cut cannot remain equipped."
     },
     {
       "id": "legacy.h934bbee49b00bf35fac6cb35",
@@ -10033,6 +10713,21 @@
       "text": "The fabric."
     },
     {
+      "id": "legacy.h7c2e0f751a58b7adba40fbc8",
+      "source": "布阵",
+      "text": "Formation"
+    },
+    {
+      "id": "legacy.h100dafd59f57a9cdd28c8dc4",
+      "source": "布阵·拘束",
+      "text": "Formation · Bound"
+    },
+    {
+      "id": "legacy.h871dec15a8681344a0989060",
+      "source": "布阵·自由",
+      "text": "Formation · Free"
+    },
+    {
       "id": "legacy.h091340418ad08edce1b0991d",
       "source": "希凛",
       "text": "Shirin."
@@ -10066,6 +10761,11 @@
       "id": "legacy.hb59887c4e851d82bf4aef3d4",
       "source": "平板锁与马眼装备共同触发高潮",
       "text": "Plate Lock triggers orgasm with horse eye equipment."
+    },
+    {
+      "id": "legacy.hc55761b795c7c621c5d85f3c",
+      "source": "平板锁仍上锁，先开锁才能挣扎取下。",
+      "text": "The plate lock is still locked. Unlock it before using Struggle to remove it."
     },
     {
       "id": "legacy.hdda0a59f7a4cf07e76700007",
@@ -10208,6 +10908,26 @@
       "text": "The owner took this off with both hands."
     },
     {
+      "id": "legacy.hdb499a8990726f8a8552fe32",
+      "source": "店主用双手完整卸下这一件及其全部组件。不消耗你的能量，不推进回合。\n基础%s魔力＋复合处理%s；折后%s魔力",
+      "text": "The shopkeeper removes the entire item and all its components with both hands. This costs no energy and advances no turn.\nBase {p0} mana + composite handling {p1}; discounted: {p2} mana"
+    },
+    {
+      "id": "legacy.hcb3ee72f455fec5dae681151",
+      "source": "店主用双手完整卸下这一件及其全部组件。费用包含开锁。不消耗你的能量，不推进回合。\n基础%s魔力＋复合处理%s＋开锁%s；折后%s魔力",
+      "text": "The shopkeeper removes the entire item and all its components with both hands. Unlocking is included. This costs no energy and advances no turn.\nBase {p0} mana + composite handling {p1} + unlocking {p2}; discounted: {p3} mana"
+    },
+    {
+      "id": "legacy.h6f6ceaca7a34397eaea335e6",
+      "source": "店主用双手完整卸下这一件及附带固定。不消耗你的能量，不推进回合。\n基础%s魔力；折后%s魔力",
+      "text": "The shopkeeper removes the entire item and its attached fastenings with both hands. This costs no energy and advances no turn.\nBase {p0} mana; discounted: {p1} mana"
+    },
+    {
+      "id": "legacy.he89f2d5fa28135889be00973",
+      "source": "店主用双手完整卸下这一件及附带固定。费用包含开锁。不消耗你的能量，不推进回合。\n基础%s魔力＋开锁%s；折后%s魔力",
+      "text": "The shopkeeper removes the entire item and its attached fastenings with both hands. Unlocking is included. This costs no energy and advances no turn.\nBase {p0} mana + unlocking {p1}; discounted: {p2} mana"
+    },
+    {
       "id": "legacy.hb3ea5e74663f1807cb31db30",
       "source": "店主瞥了一眼你胯间的平板锁。\n\n“这么粗的肉棒，却被锁在这么小的地方，硬都硬不起来，只会从下面流水♡”\n\n“需要结账就用魔瓶吧。”",
       "text": "The owner of the shop looked at the Plate Lock in your jaw. “Since a meat bar is locked in such a small place, it can't even be hard enough, it's just flowing down there.” “Perhaps a magic bottle if you need to settle the bill.”"
@@ -10241,6 +10961,11 @@
       "id": "legacy.h8347aaf8c109f55ddfa59646",
       "source": "开信刀play·自由",
       "text": "Letter opener Play Freedom"
+    },
+    {
+      "id": "legacy.hdf9a1afdbb76cb200cd78340",
+      "source": "开启%s。不消耗能量或魔力。",
+      "text": "Enable {p0}. Costs no energy or mana."
     },
     {
       "id": "legacy.hf476a0d3fa9612ae3f589f18",
@@ -10453,6 +11178,16 @@
       "text": "Worms Group"
     },
     {
+      "id": "legacy.hee5ee8e94fe28befec8078a3",
+      "source": "强制寸止",
+      "text": "Forced Restraint"
+    },
+    {
+      "id": "legacy.h975596a3a46383649b6144a7",
+      "source": "强制高潮",
+      "text": "Forced Climax"
+    },
+    {
       "id": "legacy.h9b9f8f317736a6acf1141fb6",
       "source": "强力肘击",
       "text": "Heavy Elbow"
@@ -10471,6 +11206,16 @@
       "id": "legacy.h9bfcd6e6ed1bdbd53051f000",
       "source": "强怪练习",
       "text": "Strong Enemy Practice"
+    },
+    {
+      "id": "legacy.h7c1a2cec269e1c5befa9d08c",
+      "source": "强打精神",
+      "text": "Rally Your Spirits"
+    },
+    {
+      "id": "legacy.h9b6e28892d6b4aadb1f267c2",
+      "source": "强打精神·下回合",
+      "text": "Rally · Next Turn"
     },
     {
       "id": "legacy.hdc3c604e417ffc7f00e6346f",
@@ -10673,6 +11418,11 @@
       "text": "No Spell Preparation."
     },
     {
+      "id": "legacy.h8f6bc6de6e368e10293d4813",
+      "source": "当前无法结束回合，接管结束后由你处理；不会绕过卡牌的结束回合限制。",
+      "text": "The turn cannot currently be ended. Control returns to you without bypassing card restrictions."
+    },
+    {
       "id": "legacy.h59177abca143d272a7285bf1",
       "source": "当前来源倍率",
       "text": "Current Source Multiplication"
@@ -10828,6 +11578,21 @@
       "text": "Microheat"
     },
     {
+      "id": "legacy.h531c773ef882825cf3ea86d6",
+      "source": "心理暗示",
+      "text": "Suggestion"
+    },
+    {
+      "id": "legacy.h9ba21e6835b6de7ee138bc3e",
+      "source": "心痒难耐",
+      "text": "Restless Desire"
+    },
+    {
+      "id": "legacy.h8a5528de9b04ee438453053d",
+      "source": "必定成功剩余%d张",
+      "text": "Guaranteed Magic cards remaining: {p0}"
+    },
+    {
       "id": "legacy.h110d72346a0a55c04c29fafd",
       "source": "必定施法需要每回合首次耗魔施法触发。",
       "text": "I'm sure of it. Cast We need the first demon in every turn. Cast Trigger."
@@ -10898,6 +11663,11 @@
       "text": "Arousal and orgasm"
     },
     {
+      "id": "legacy.h9fa9d20c2ef4c151cd7f7eca",
+      "source": "快感临界保护需要数值触发，每场一次。",
+      "text": "Threshold protection requires a numeric trigger, once per session."
+    },
+    {
       "id": "legacy.h513f4ea9f92b50d50b01486f",
       "source": "快感增加%s。",
       "text": "Arousal adds {p0}."
@@ -10913,6 +11683,11 @@
       "text": "Arousal Growth Rate: x {p0}.This is the first time that Arousal has reached the immediate peak of {p1}.The usual loss is {p2} Mana.It's not like I'm going to be able to get rid of this loss. Each loss of {p3} Mana at the beginning of the next two turns. If you don't wear any Restraint, links or special equipment, and you don't get arrested, you're going to have to be arrested. Each turn ends with Arousal lowering {p4} point.The minimum is zero."
     },
     {
+      "id": "legacy.hd163707c8aead4e5a2a869aa",
+      "source": "快感增长倍率：×%s。快感达到%s立即高潮，通常损失%s魔力。滑精时免除这笔损失，后续两回合开始时各损失%s魔力。\n未佩戴任何拘束具、链接或特殊装备且未被捕缚时，每回合结束快感降低%s点，最低为0。每次高潮后蓄力减半，剩余层数向下取整。",
+      "text": "Arousal gain multiplier: ×{p0}. Reaching {p1} arousal immediately triggers climax, normally losing {p2} mana. Leakage replaces the immediate mana loss with {p3} mana lost at the start of each of the next two turns.\nWith no worn restraints, links, special equipment or capture, arousal falls by {p4} at turn end, to a minimum of 0. After each climax, halve Charge stacks, rounding the remainder down."
+    },
+    {
       "id": "legacy.hc158c092df38250e9cd81e00",
       "source": "快感增长按部位敏感度相乘：乳头／小穴／后庭×1，柱身×0.6，龟头／冠沟／马眼×1.5。\n无线装备电量耗尽后停止效果，但不会自动解除。",
       "text": "Arousal growth multiplied by dimensional sensitivity: nipples/burrows/backseas x 1, column x 0.6, tortoise head/cap ditch/ horse eye x 1.5. Wireless equipment ceases to function when power is depleted, but does not automatically release."
@@ -10926,6 +11701,11 @@
       "id": "legacy.hdcfa9b2a0c7ef1f55f0b5b7e",
       "source": "快感条与高潮",
       "text": "Arousal and orgasm"
+    },
+    {
+      "id": "legacy.ha2da6e2c299cc48a922c29da",
+      "source": "快感汲取器",
+      "text": "Pleasure Extractor"
     },
     {
       "id": "legacy.hdede753ea6aa31287c86eaec",
@@ -11103,6 +11883,11 @@
       "text": "Sex toys replaced: {p0}/{p1}."
     },
     {
+      "id": "legacy.h7f77d4edff773ecaca097b4e",
+      "source": "怨灵系带",
+      "text": "Wraith Ribbon"
+    },
+    {
       "id": "legacy.h55edd22610ad9b357a1ed55b",
       "source": "总计降紧%d档，目标解除后%s。",
       "text": "In total, the {p0} tranches were lowered and the {p1} was released."
@@ -11111,6 +11896,11 @@
       "id": "legacy.he0534b8a4e46a0cb5601d4da",
       "source": "恢复",
       "text": "Restore"
+    },
+    {
+      "id": "legacy.hd174d26ff41958ce268587ab",
+      "source": "恢复%d魔力",
+      "text": "Restore {p0} Mana"
     },
     {
       "id": "legacy.hf9fc11ba8b29985b3adac223",
@@ -11213,6 +12003,11 @@
       "text": "After its successful use, the site is no longer available."
     },
     {
+      "id": "legacy.h68a0102fca9a19d948753e4f",
+      "source": "成功打出技能牌时，额外消耗5魔力，获得1层蓄力。魔力不足时不触发。右键开关。",
+      "text": "After successfully playing a Skill, spend 5 extra mana to gain 1 Charge. Does not trigger without enough mana. Right-click to toggle."
+    },
+    {
       "id": "legacy.h823828e83e8792ad558424b5",
       "source": "成功率受快感与口部拘束影响。",
       "text": "The success rate is influenced by Arousal and his/her mouth."
@@ -11236,6 +12031,51 @@
       "id": "legacy.hea88ab362845d7fe1a1c2a0a",
       "source": "成王之礼精装修订重置版",
       "text": "The king's gift is a fine reset."
+    },
+    {
+      "id": "legacy.h536027d91f35442b1ab2f43b",
+      "source": "我们采取一个最稳妥的中间方案：不站，也不躺，坐着。",
+      "text": "Here is the safest middle ground: neither stand nor lie down. Sit."
+    },
+    {
+      "id": "legacy.h44452e4ec8f5633fe34e8db2",
+      "source": "我会按最清晰、最直观、最不容易把左右搞反的方式，从左往右打。",
+      "text": "I will use the clearest, most obvious method that avoids confusing left and right: left to right."
+    },
+    {
+      "id": "legacy.hd8773a3cb2d2283bc8fbb8e4",
+      "source": "我已经为你完成了最完整、最彻底、最确实已经结束的一个回合。",
+      "text": "I have completed the most complete, thorough, definitely finished turn for you."
+    },
+    {
+      "id": "legacy.h4b8793be164bab10521db7e6",
+      "source": "我想清楚了，先躺。至于怎么起来，我们起来的时候再具体分析。",
+      "text": "I have decided: lie down first. We can discuss getting up when we get up."
+    },
+    {
+      "id": "legacy.ha2c6ac19c4c28ad923a531fa",
+      "source": "我直接动手，不说空话。你看，我已经动手了。",
+      "text": "Actions, not empty words. Look, I am acting."
+    },
+    {
+      "id": "legacy.hf28b5c977630a891976f2e97",
+      "source": "我给你找到了一个最可靠、最踏实、最不会突然走开的队友：这面墙。",
+      "text": "I found the most reliable, solid teammate who will never walk away: this wall."
+    },
+    {
+      "id": "legacy.h44022a7d54f99db2c10bf9c4",
+      "source": "我给你说一个最真实、最准确、最没有任何隐瞒的结论：没费了。",
+      "text": "Here is the truest, most accurate conclusion, with nothing hidden: no energy left."
+    },
+    {
+      "id": "legacy.h0d9ca3d04dac096d93b7ef11",
+      "source": "我认真考虑了一下，站着会更适合站立作战。这个判断你可以放心。",
+      "text": "After careful consideration, standing is better for standing combat. Trust me."
+    },
+    {
+      "id": "legacy.h605aea390fc08e78680ecc2f",
+      "source": "我评估了一下，你现在最需要的，是把瓶子里的魔力变成瓶子外的魔力。",
+      "text": "I assessed the situation. You need to turn the mana inside the flask into mana outside the flask."
     },
     {
       "id": "legacy.ha2123d69506f51ff112bad06",
@@ -11273,9 +12113,9 @@
       "text": "When the post-war preparation or cell search is completed, 20 Mana will be reinstated if Mana does not exceed 50 per cent of the maximum."
     },
     {
-      "id": "legacy.h11d6fd7d259951a2cfddc1d9",
-      "source": "战后整备结束时，恢复10魔力。休息结束不触发。",
-      "text": "At the end of the post-war preparations, 10 Mana was restored. The rest is not triggered."
+      "id": "legacy.h66edc02f5edbfc9aa8fa0bad",
+      "source": "战后整备结束时，恢复10魔力。",
+      "text": "Restore 10 Mana when post-battle preparation ends."
     },
     {
       "id": "legacy.ha642a31e11820a4e919881ad",
@@ -11286,6 +12126,16 @@
       "id": "legacy.h113d8e89f7c67c1c43a63df9",
       "source": "战斗 · 强敌",
       "text": "Fight, strong enemy."
+    },
+    {
+      "id": "legacy.hcce395149517062fa502726e",
+      "source": "战斗、战后整备、休息及监狱中不能切换模式。",
+      "text": "Cannot switch modes during battle, preparation, rest or prison."
+    },
+    {
+      "id": "legacy.hc3f564294e8d0f70cee23d57",
+      "source": "战斗、战后整备、休息及监狱的首回合开始时，能量变为0；仍可自行行动。",
+      "text": "At the start of your first turn in battle, preparation, rest and prison, energy becomes 0. You can still act."
     },
     {
       "id": "legacy.hce55ce909733886f39013a0a",
@@ -11331,6 +12181,16 @@
       "id": "legacy.h36ee0c63e8bf773716225a40",
       "source": "战斗开始时，获得2层蓄力。",
       "text": "At the beginning of the battle, two floors of Charge were obtained."
+    },
+    {
+      "id": "legacy.h7e3bbd43cd7ae9d5aa5bf03b",
+      "source": "战斗开始时，随机变成一件非拾取触发、非Boss遗物，包含滚木；可与已有遗物重复生效。",
+      "text": "At the start of combat, transform into a random non-Boss relic without pickup effects, including Rolling Log. Duplicates apply independently."
+    },
+    {
+      "id": "legacy.hfdbacc91ea3d45145cdadd44",
+      "source": "战斗期间持续生效",
+      "text": "Active throughout combat"
     },
     {
       "id": "legacy.hee6bcc207b197417c393965d",
@@ -11703,6 +12563,11 @@
       "text": "Hand It's full."
     },
     {
+      "id": "legacy.hde94c4a940b9c252f5abf49c",
+      "source": "手牌已满，「%s」加入弃牌堆。",
+      "text": "Hand full: “{p0}” goes to the discard pile."
+    },
+    {
       "id": "legacy.ha3dc3b67958ebb62b215f58b",
       "source": "手牌已满，停止抽牌。",
       "text": "Hand is full, stop playing cards."
@@ -11793,6 +12658,11 @@
       "text": "The wrist is restricted and cannot be handled by hand; contact is required"
     },
     {
+      "id": "legacy.hfb47cb09372021ecb0572f6d",
+      "source": "手腕被拘束时，力量＋2。",
+      "text": "While your wrists are restrained, gain 2 Strength."
+    },
+    {
       "id": "legacy.h203058371105811375a3cd65",
       "source": "手腕需要自由，并且手指能精细操作。",
       "text": "The wrist needs freedom and the finger works finely."
@@ -11825,7 +12695,7 @@
     {
       "id": "legacy.ha1b2942453cf36c6a80b4b38",
       "source": "手部施法",
-      "text": "Hand Cast"
+      "text": "Hand Casting"
     },
     {
       "id": "legacy.h8adc344dac1c92db371c396f",
@@ -11943,6 +12813,16 @@
       "text": "Make Arrest"
     },
     {
+      "id": "legacy.h83c1a879c3298665e4a088e9",
+      "source": "扫描全能王",
+      "text": "Universal Scanner"
+    },
+    {
+      "id": "legacy.h5bda18aaf56af2db5452e52c",
+      "source": "扫描全能王：复制了「%s」。",
+      "text": "Universal Scanner: copied \"{p0}\"."
+    },
+    {
       "id": "legacy.h75da342c57c57db965c3c76a",
       "source": "扫过",
       "text": "Sweeped."
@@ -12043,9 +12923,39 @@
       "text": "The M-specific version: The built-in wireless jumper is not restricted by the turn."
     },
     {
+      "id": "legacy.h096c1c806f50f3731a8bf7de",
+      "source": "抖M印记",
+      "text": "Masochist Mark"
+    },
+    {
       "id": "legacy.h46128e1d8c633550bc891ef1",
       "source": "折叠工具匣",
       "text": "Collapse Toolbar"
+    },
+    {
+      "id": "legacy.h1bba79344fe5fcf044b0fc88",
+      "source": "护腕",
+      "text": "Wrist Bracer"
+    },
+    {
+      "id": "legacy.h54338235affabb34592dca6a",
+      "source": "护身屏障",
+      "text": "Protective Barrier"
+    },
+    {
+      "id": "legacy.h09f16216c269bf28f00e103e",
+      "source": "护身屏障的本回合伤害记录不正确。",
+      "text": "Invalid damage record for Protective Barrier this turn."
+    },
+    {
+      "id": "legacy.h38469e2f8eff057f71c2c5f6",
+      "source": "抱歉，我刚才只考虑了这么做的好处，暂时没考虑到它还有坏处。",
+      "text": "Sorry. I considered the benefits but temporarily forgot there might be drawbacks."
+    },
+    {
+      "id": "legacy.h8f3bf709d968577327a772d9",
+      "source": "抱歉，这一步我确实处理不了。但我不会把问题留着不说——现在明确告诉你，处理不了了。",
+      "text": "Sorry, I cannot handle this step. But I will not leave that unsaid: I cannot handle it."
     },
     {
       "id": "legacy.h01e1a177459f4f42bfc71ed3",
@@ -12098,9 +13008,39 @@
       "text": "Draw the {p0} card."
     },
     {
+      "id": "legacy.h50c17adce8d69c20031d31b0",
+      "source": "抽%d张牌（X＝%d）。X为有拘束具的非性器部位数，结果向下取整。",
+      "text": "Draw {p0} cards (X = {p1}). X counts restrained non-intimate body areas; round down."
+    },
+    {
       "id": "legacy.hfb76c423cbc8bb0fcdae2658",
       "source": "抽%d张牌，最多抽到%d张手牌。",
       "text": "Draw a card from {p0}, up to {p1}, Hand."
+    },
+    {
+      "id": "legacy.h5c9b6648963dde6f7a924973",
+      "source": "抽X/2张牌。X为有拘束具的非性器部位数，结果向下取整。",
+      "text": "Draw X/2 cards, rounded down. X counts restrained non-intimate body areas."
+    },
+    {
+      "id": "legacy.h85f69a740d3fa92d905f76dd",
+      "source": "抽{bound_body_draw}张牌{bound_body_preview}。X为有拘束具的非性器部位数，结果向下取整。",
+      "text": "Draw {p0} cards{p1}. X counts restrained non-intimate body areas; round down."
+    },
+    {
+      "id": "legacy.hc90e85d0d90820c18839d98c",
+      "source": "抽取1，精神集中1。",
+      "text": "Draw 1. Gain 1 Mental Focus."
+    },
+    {
+      "id": "legacy.ha1926ad07e557f1fc7f1f775",
+      "source": "抽取1，蓄力1。",
+      "text": "Draw 1. Gain 1 Charge."
+    },
+    {
+      "id": "legacy.h83cc941b9ca9a03fce494bb1",
+      "source": "抽取2，失去20快感。",
+      "text": "Draw 2. Lose 20 Pleasure."
     },
     {
       "id": "legacy.h376fc89b44c564124d531dc4",
@@ -12198,9 +13138,24 @@
       "text": "Restraints replaced: {p0}/{p1}."
     },
     {
+      "id": "legacy.h04d2f8e47204b9181e3829fe",
+      "source": "拘束就是力量！",
+      "text": "Restraint Is Power!"
+    },
+    {
       "id": "legacy.h90d22711d1a1d7e0be399393",
       "source": "拘束盒固定坐姿，无人机固定站姿。警卫捕缚下仅可躺→坐→站，换姿态时捕缚＋10。各类追加效果见状态栏。",
       "text": "The security guard will be able to sit down only when you change your posture and catch +10."
+    },
+    {
+      "id": "legacy.ha2e6c8a2ba82f3534d09f539",
+      "source": "拘束盒捕缚：固定为坐姿；施加后的首个玩家回合不触发，此后每个玩家回合开始施加1件中级2档皮革拘束具，并使捕缚＋%s。",
+      "text": "Binding Box Capture: locks you in a sitting posture. Skips the first player turn after application; at the start of each subsequent player turn, applies one medium tier-2 leather restraint and adds {p0} Capture."
+    },
+    {
+      "id": "legacy.hedf1dfd38960bb974257e367",
+      "source": "拘束盒捕缚：固定为坐姿；每个玩家回合开始，施加1件中级2档皮革拘束具，并使捕缚＋%s。",
+      "text": "Binding Box Capture: locks you in a sitting posture. At the start of each player turn, applies one medium tier-2 leather restraint and adds {p0} Capture."
     },
     {
       "id": "legacy.hc5e764b3e87ec41fcc00d4f5",
@@ -12228,9 +13183,39 @@
       "text": "Remove Restraints"
     },
     {
+      "id": "legacy.hba90d088f05cf15d4c06dbe0",
+      "source": "拘束诱导",
+      "text": "Binding Lure"
+    },
+    {
+      "id": "legacy.ha3c386d2f2664176e487bde4",
+      "source": "拘束诱导·嘴部",
+      "text": "Binding Lure · Mouth"
+    },
+    {
+      "id": "legacy.hf8d092030aeb55bb2c6616a6",
+      "source": "拘束诱导·手部",
+      "text": "Binding Lure · Hands"
+    },
+    {
+      "id": "legacy.h500841499c07740efb3eb528",
+      "source": "拘束诱导：闪避了原定拘束。",
+      "text": "Binding Lure: evaded the incoming restraint."
+    },
+    {
       "id": "legacy.h6a5cb35025a7eaf9b7869e93",
       "source": "拘束面快感触发需要1—100的固定整数。",
       "text": "Arousal triggers require a fixed integer of 1 to 100."
+    },
+    {
+      "id": "legacy.hfddffdd4b6a29342376dbc76",
+      "source": "拘束面消耗10快感；施法失败全部返还。",
+      "text": "Bound face costs 10 Pleasure, fully refunded on casting failure."
+    },
+    {
+      "id": "legacy.h04d499b943563d542d803719",
+      "source": "拘束面消耗20快感，施法失败全部返还。",
+      "text": "Bound face costs 20 Pleasure, fully refunded on casting failure."
     },
     {
       "id": "legacy.hc8383f691c62dc35706ee8e4",
@@ -12246,6 +13231,16 @@
       "id": "legacy.h9505ddf36f078495b0c1bb7f",
       "source": "拾取时，将一张「般若汤-其一」加入卡组。",
       "text": "Add a \" Hannya Brew - One\" to Deck when picking up."
+    },
+    {
+      "id": "legacy.hec58068ca02addb6f2537ac9",
+      "source": "拾取时，获得50点快感。每场战斗结束后，获得10点快感。\n改变快感对施法成功率的影响：快感0%／100%时为0%，25%／75%时为50%，50%时为100%；部位拘束等其他判定照常。\n解锁淫魔法卡牌与专用遗物池。\n从Boss遗物池获得时，额外获得1件随机专用遗物与1张随机淫魔法稀有卡，并将1张「心痒难耐」加入卡组和手牌。",
+      "text": "On pickup, gain 50 arousal. After each battle, gain 10 arousal.\nChanges arousal-based cast success: 0% at 0%/100% arousal, 50% at 25%/75%, and 100% at 50%. Body restrictions and other checks still apply.\nUnlocks Lewd Magic cards and its exclusive relic pool.\nWhen obtained from the Boss relic pool, also gain 1 random exclusive relic and 1 random rare Lewd Magic card, and add 1 Itching Heart to your deck and hand."
+    },
+    {
+      "id": "legacy.h8dc56c6b9667ae47f5a1bbad",
+      "source": "拾取时，选择一张卡组中的牌复制，基础牌、双面唯一能力牌除外。",
+      "text": "On pickup, choose a card in your deck to copy, excluding Basic cards and powers that are Unique on both faces."
     },
     {
       "id": "legacy.h77e32260c50d13bbebc96c9a",
@@ -12418,6 +13413,16 @@
       "text": "Sort by Name"
     },
     {
+      "id": "legacy.hd3bb33f9cbd2514fa9c0a722",
+      "source": "按当前总力量实时判断。腿部体术包括近身短打和各类踢击，按站姿招式发动，但不会因此站起；捕缚的强制姿势与起身顺序优先，其他限制照常。重复使用不叠加。",
+      "text": "Uses your current total Strength. Leg attacks include Close Strike and kicks. Use standing moves without making you stand up. Capture-imposed posture and standing-up sequence take priority; other restrictions still apply. Does not stack."
+    },
+    {
+      "id": "legacy.ha22cb22da73b77af8d023946",
+      "source": "按当前总力量实时判断。腿部体术包括近身短打和各类踢击，按站姿招式发动，但不改变当前姿态；其他限制照常。重复使用不叠加。",
+      "text": "Uses your current total Strength. Leg attacks include Close Strike and kicks. Use standing moves without changing your actual posture; other restrictions still apply. Does not stack."
+    },
+    {
       "id": "legacy.ha1e4114dec0f878a3735918e",
       "source": "按打出时的当前佩戴件数计算；复合拘束具整件计1件。力量可通过重复使用叠加，回合结束消失。",
       "text": "Count restraints when this card is played; a composite restraint counts as one item. Strength gained from repeated uses stacks and expires at the end of the turn."
@@ -12461,6 +13466,11 @@
       "id": "legacy.h7ffa9e0f4e93208428012b93",
       "source": "挣扎%d×%d%s",
       "text": "Struggle {p0} × {p1} hits{p2}"
+    },
+    {
+      "id": "legacy.hbeecbb2b9fbcbdd06ea2c332",
+      "source": "挣扎{base}×{hits}。超级顺延。无视紧度减伤。",
+      "text": "Strain {p0} × {p1}. Full Follow-Through. Ignores tightness damage reduction."
     },
     {
       "id": "legacy.hcd6d3c4ffd99058bf88ef5b9",
@@ -12598,6 +13608,11 @@
       "text": "The catch record is broken."
     },
     {
+      "id": "legacy.h6911103e5435138473a07411",
+      "source": "捕缚进度＋%s",
+      "text": "Capture progress +{p0}"
+    },
+    {
       "id": "legacy.h6eb69a095a42a6f42d617580",
       "source": "捕缚进度＋10",
       "text": "Capture +10"
@@ -12606,6 +13621,11 @@
       "id": "legacy.h1b9f6f906e729dc9127231bb",
       "source": "捕缚进度＋10。",
       "text": "Catch progress +10."
+    },
+    {
+      "id": "legacy.h8ce721ace3be578d8d401bee",
+      "source": "捕缚＋%s",
+      "text": "Capture +{p0}"
     },
     {
       "id": "legacy.h0f10bbc5ac8c47976fbfb81d",
@@ -12646,6 +13666,21 @@
       "id": "legacy.h44a1ee6fc5b35e85a43b38b4",
       "source": "接受补魔并佩戴两件初级2档单件拘束具、射精一次后移除一张牌，或无惩罚离开。",
       "text": "Accepts the charisma and wears two separate items of the first 2 Restraint, ejaculates once and removes a card, or leaves without punishment."
+    },
+    {
+      "id": "legacy.h8144646c21dc0303ef4f8797",
+      "source": "接管结束",
+      "text": "Control returned"
+    },
+    {
+      "id": "legacy.h53507c0f59c59a086286ec16",
+      "source": "接管结束后可自行操作，战后整备不接管。离开战斗、战后整备、休息及监狱后，右键遗物可切换为DeepSeek。",
+      "text": "Play normally after the takeover; Doubao does not control post-battle preparation. Outside battle, preparation, rest and prison, right-click the relic to switch to DeepSeek."
+    },
+    {
+      "id": "legacy.hecf4920015dca5fa06227aed",
+      "source": "接管结束；当前无法结束回合，请自行处理。",
+      "text": "Control returned. The turn cannot currently be ended; resolve it manually."
     },
     {
       "id": "legacy.h5c12c1bef5d9d5fd8eaa5518",
@@ -12763,6 +13798,11 @@
       "text": "Retained when continuing with your deck and relics; reset only in a new game"
     },
     {
+      "id": "legacy.h56a45c71ae2bc677dfa7427f",
+      "source": "携带豆包进入漂浮玩具箱战斗，体验首回合接管、模拟鼠标与对白。",
+      "text": "Enter a battle against a Floating Toybox with Doubao to try the first-turn takeover, animated cursor and dialogue."
+    },
+    {
       "id": "legacy.h6913fe802a17e73f0abc935a",
       "source": "摸到能下手的地方了……慢慢拆。",
       "text": "I feel where I can do it... slowly."
@@ -12878,6 +13918,11 @@
       "text": "Tighten Restraint"
     },
     {
+      "id": "legacy.h6af71894150a5a106f09591e",
+      "source": "收紧皮革拘束具 · 累计%d档",
+      "text": "Tighten leather restraints · {p0} tiers total"
+    },
+    {
       "id": "legacy.hb49dde60bda53f3f8444e17f",
       "source": "收紧皮革拘束具 · 累计4档",
       "text": "Tightening leather Restraint."
@@ -12921,6 +13966,11 @@
       "id": "legacy.hf2095504340308582a81428e",
       "source": "攻击后立即躺下。",
       "text": "Lie down immediately after the attack."
+    },
+    {
+      "id": "legacy.h6867494bc4f6bdee4c25c080",
+      "source": "攻击结束后，你转为躺姿。",
+      "text": "You lie down after the attack."
     },
     {
       "id": "legacy.h5bb0540083aef6593da3d12f",
@@ -12968,6 +14018,11 @@
       "text": "Give up this one."
     },
     {
+      "id": "legacy.h13b77ad50845fc9bf1b99cbf",
+      "source": "放弃本次复制。",
+      "text": "Skip this copy."
+    },
+    {
       "id": "legacy.h6ed4d340f0cb1cca7a6ae396",
       "source": "放弃本次开局奖励。",
       "text": "Give up the opening prize."
@@ -12976,6 +14031,11 @@
       "id": "legacy.h9d63ade13c3658932720959e",
       "source": "放弃这件遗物，其他两件仍可领取。",
       "text": "The remaining two items are still available for collection after abandoning this relic."
+    },
+    {
+      "id": "legacy.ha5708b85adc6dd83862c8838",
+      "source": "放心，我给你安排一套最稳、最顺、最省心、最适合现在的你的操作。",
+      "text": "Relax. I have the safest, smoothest, easiest plan, perfectly suited to you right now."
     },
     {
       "id": "legacy.h3ad4b3cf159dc2cda7918a12",
@@ -13258,6 +14318,11 @@
       "text": "Remove equipment"
     },
     {
+      "id": "legacy.hb013a7b81accd2603ab06cf4",
+      "source": "整备回合结束",
+      "text": "End of preparation turn"
+    },
+    {
       "id": "legacy.h05ce4b2543b2f41409a575df",
       "source": "整备接续原战斗：开启新回合，正常回能、抽牌，沿用牌堆、能力和增益；不再次触发开场效果，结束效果统一在整备结束时触发一次。休息离开不触发战斗结束效果；牢房巡视只暂停，反抗或离开才结束探索。",
       "text": "Prepare to continue the battle: start a new turn of normal return energy, draw cards, follow the decks, capabilities and gains; do not trigger the opening effect again, and the end effects are triggered once at the end of the set-up. Rest breaks do not trigger the end of the fight; cell patrols are suspended only, resistance or departure ends the search."
@@ -13488,9 +14553,9 @@
       "text": "Imposition of catch — Initial 50/100"
     },
     {
-      "id": "legacy.h26aa46436d84a408770045bf",
-      "source": "施加捕缚。同种不叠加，新种类加入时增加其初始值的一半。挣扎／滑脱牌可削减进度；除眼罩、口球外无其他拘束时伤害×2。",
-      "text": "Imposition of catch.The same kind is not folded. New categories are added by half of their initial value. Struggle / Slip can reduce progress; Damage x2 when there are no other constraints except for eye patches and mouthballs."
+      "id": "legacy.h9e2d1e99b49b2169bc0f2025",
+      "source": "施加捕缚。同种不叠加，新种类加入时增加其初始值的一半。挣扎／滑脱牌可削减进度；除眼罩、口球外无其他拘束时伤害×2。\n降紧每层固定削减8点捕缚，不受属性、蓄力和倍率影响，也不消耗蓄力。",
+      "text": "Imposition of catch.The same kind is not folded. New categories are added by half of their initial value. Struggle / Slip can reduce progress; Damage x2 when there are no other constraints except for eye patches and mouthballs.\nEach tightness-reduction step removes exactly 8 Capture, unaffected by attributes, Charge or multipliers, and consumes no Charge."
     },
     {
       "id": "legacy.h223e47ddfb173789fcdd1ba5",
@@ -13553,9 +14618,9 @@
       "text": "Cast failed no more times."
     },
     {
-      "id": "legacy.heeedbc3bb9e664e27308b3dc",
-      "source": "施法失败返还100%耗魔并获得1能量。0费牌每回合最多触发2次；上身、腿部束缚等级均≥3时不限次数。实时检测。",
-      "text": "Failed casts refund 100% of Mana spent and grant 1 Energy. Zero-cost cards can trigger this twice per turn; unlimited while upper-body and leg restraint levels are both at least 3. Checked dynamically."
+      "id": "legacy.h5cdcfb7796999a5a519cdda2",
+      "source": "施法失败返还100%耗魔并获得1能量。0费牌每回合最多触发2次；当前佩戴紧度≥2的拘束具≥10件时不限次数，不计特殊装备。实时检测。",
+      "text": "Failed casts refund 100% of Mana spent and grant 1 Energy. Zero-cost cards can trigger this twice per turn; unlimited while wearing at least 10 restraints with Tightness 2 or higher, excluding special equipment. Checked dynamically."
     },
     {
       "id": "legacy.h5f482b31eda3568f27e7b0dc",
@@ -13671,6 +14736,21 @@
       "id": "legacy.h46fda379a999a8050ff681a2",
       "source": "无处附着，散去并离场。",
       "text": "Nowhere to go, away and away."
+    },
+    {
+      "id": "legacy.h8734f1d6041f50bd380166e4",
+      "source": "无尽战神,出来!",
+      "text": "Endless War Goddess, come forth!"
+    },
+    {
+      "id": "legacy.hd9a8e7d412c7dae25afa5fec",
+      "source": "无尽魔法少女战神",
+      "text": "Endless Magical Girl War Goddess"
+    },
+    {
+      "id": "legacy.h20bf5d17abce95fa81c72603",
+      "source": "无尽魔法少女战神：无视手部拘束，获得手势加成。",
+      "text": "Endless Magical Girl War Goddess: ignore hand restraints and gain the gesture bonus."
     },
     {
       "id": "legacy.he96be11fec5989f184e2cd00",
@@ -13798,6 +14878,11 @@
       "text": "I don't need a body."
     },
     {
+      "id": "legacy.hf8e1512ca9c47e4560c59c83",
+      "source": "日晷",
+      "text": "Sundial"
+    },
+    {
       "id": "legacy.h7eb1f3ab2e6acbb8a3bfd70a",
       "source": "日语（待翻译）",
       "text": "Japanese (to be translated)"
@@ -13816,6 +14901,11 @@
       "id": "legacy.h78fdbf7af8e4c0244f5eb570",
       "source": "易滑脱部位与移动滑脱",
       "text": "Easy Slip part and move Slip"
+    },
+    {
+      "id": "legacy.h343b060a3c2c26871a6f381f",
+      "source": "是我没考虑周全。现在我给你一个最诚恳、最直接、最不推卸责任的建议：你来。",
+      "text": "I did not think it through. Here is my most sincere, direct, responsible advice: your turn."
     },
     {
       "id": "legacy.h4e1449e7d5e505938ac1d0b7",
@@ -13841,6 +14931,16 @@
       "id": "legacy.h0e4d4c234ea7047e396d8c62",
       "source": "普通单件仅有向下链接时，普通／魔法滑脱伤害×1.25；多条向下链接不重复加成。链接自身不吃此加成，任一必要端解除时一并移除。",
       "text": "An ordinary restraint with only downward links takes ×1.25 damage from normal or magic Slip; multiple downward links do not stack this bonus. The links themselves receive no bonus and are removed when either required end is released."
+    },
+    {
+      "id": "legacy.h0ff53c634977f7f50aac8d8d",
+      "source": "普通反击剩余%d/%d次，用尽后停止；发动即消耗，未能佩戴也不返还。每次缝补容量上限增加%d并补满；额外装束不消耗此容量。",
+      "text": "Ordinary counters: {p0}/{p1} remaining. Counters stop when empty. Each attempt consumes a charge even if no restraint is fitted. Each mend increases capacity by {p2} and refills it. Prepared outfits do not use these charges."
+    },
+    {
+      "id": "legacy.h8dc0f6a0d9cf5b10cd441c8f",
+      "source": "普通反击容量",
+      "text": "Ordinary Counter Stock"
     },
     {
       "id": "legacy.h78af951acad652134c9b44b8",
@@ -13936,6 +15036,11 @@
       "id": "legacy.hd99b59409fa6dadc8d54b774",
       "source": "普通链接只使用链接绳模板。",
       "text": "The link to Common only uses a link line template."
+    },
+    {
+      "id": "legacy.h7bce62c3db46bdaf6727a76b",
+      "source": "智力斗篷",
+      "text": "Cloak of Intellect"
     },
     {
       "id": "legacy.h8d12fc0d4eb26021d93db693",
@@ -14238,6 +15343,11 @@
       "text": "No Selection"
     },
     {
+      "id": "legacy.hf1e305444c771e651d702302",
+      "source": "未附带固定带的主体状态不正确。",
+      "text": "A main piece without a fixing strap has an invalid state."
+    },
+    {
       "id": "legacy.hbea1f9d98a341afb91608624",
       "source": "未附带行动日志",
       "text": "Unaccompanied Action Log"
@@ -14323,9 +15433,19 @@
       "text": "turn Strength + {p0}"
     },
     {
+      "id": "legacy.h4763ea93d17c11358034f200",
+      "source": "本回合力量＋%s",
+      "text": "Strength +{p0} this turn"
+    },
+    {
       "id": "legacy.h6911062cb0a643aa8ace5fb8",
       "source": "本回合力量＋%s。",
       "text": "This turn of Strength + {p0}."
+    },
+    {
+      "id": "legacy.hd7d0e291a395460dc91992e2",
+      "source": "本回合力量＋2。可叠加，回合结束清除。",
+      "text": "Strength +2 this turn. Stacks and expires at turn end."
     },
     {
       "id": "legacy.h475d2bb14efaab64da89c8e6",
@@ -14336,6 +15456,11 @@
       "id": "legacy.hf7af938fba3b0bfaad65f5b4",
       "source": "本回合及下回合快感获取量×0.5，命运同担的均分不受影响。",
       "text": "Arousal gain ×0.5 this turn and next turn. Shared Fate's equalization is unaffected."
+    },
+    {
+      "id": "legacy.h80b30f0ec408fc0203cc1497",
+      "source": "本回合可取出%d次",
+      "text": "{p0} withdrawals remaining this turn"
     },
     {
       "id": "legacy.h77459f0f3e0e3ddf45bc4c4f",
@@ -14358,9 +15483,14 @@
       "text": "This turn has already used close-body shorts."
     },
     {
-      "id": "legacy.hdc8cbcdb49b2b72f1b769016",
-      "source": "本回合已存入2次。",
-      "text": "This turn has been deposited twice."
+      "id": "legacy.h3f0cd6232cd9685d21c92807",
+      "source": "本回合已取出%d次。",
+      "text": "Already withdrawn {p0} times this turn."
+    },
+    {
+      "id": "legacy.he2bcb3ce0684728f1fd528fd",
+      "source": "本回合已存入%d次。",
+      "text": "Already deposited {p0} times this turn."
     },
     {
       "id": "legacy.h1da02a856c67a3d275020e81",
@@ -14371,6 +15501,11 @@
       "id": "legacy.hc947e7441513acd571a65d70",
       "source": "本回合已经释放过%s法术，下回合才能再次释放。",
       "text": "You already released a {p0} spell this turn. You can release it again next turn."
+    },
+    {
+      "id": "legacy.hb2f7a6d7a0bc5385c5f1d086",
+      "source": "本回合已触发",
+      "text": "Used this turn"
     },
     {
       "id": "legacy.h1bb83a4c4f44d0e3d4102aec",
@@ -14413,6 +15548,11 @@
       "text": "Cast success rate is fixed at 100% this turn."
     },
     {
+      "id": "legacy.h76f6463ba383ee8fb8a4c40f",
+      "source": "本回合有效，可叠加；两面可同时生效。",
+      "text": "Lasts for this turn. Stacks; both faces can be active together."
+    },
+    {
       "id": "legacy.h5016b2a3715a70cbe7a8d237",
       "source": "本回合未消耗魔力",
       "text": "This turn is not consumed Mana"
@@ -14448,6 +15588,11 @@
       "text": "No Fireball uses remain this turn."
     },
     {
+      "id": "legacy.hd5b80f03db0ac23df80fca86",
+      "source": "本回合灵巧＋4。可叠加，回合结束清除。",
+      "text": "Dexterity +4 this turn. Stacks and expires at turn end."
+    },
+    {
       "id": "legacy.h33f3095438aedba578267a5e",
       "source": "本回合结束",
       "text": "End of turn"
@@ -14461,6 +15606,11 @@
       "id": "legacy.hbac32be031e1e4e08d3e9641",
       "source": "本回合获得%d能量。",
       "text": "This turn received {p0} Energy."
+    },
+    {
+      "id": "legacy.h691ef6b632b4397e21da2d89",
+      "source": "本回合还能受到%s点伤害",
+      "text": "Can take {p0} more damage this turn"
     },
     {
       "id": "legacy.h6487ab283209a6a0ba7e1f09",
@@ -14503,6 +15653,11 @@
       "text": "The scene was triggered; the next battle was recounted."
     },
     {
+      "id": "legacy.he771f9d3ea4e4bd16ddc8bc1",
+      "source": "本场已触发；下场类战斗恢复1次。",
+      "text": "Used this session; refreshes at the next combat-like session."
+    },
+    {
       "id": "legacy.h050c7034e0f2691f050ba593",
       "source": "本场已过触发回合；下场战斗重新计数。",
       "text": "There was a trigger turn; the next battle was recounted."
@@ -14516,6 +15671,11 @@
       "id": "legacy.h75aa978be02b1bb7f656909d",
       "source": "本场战斗内消耗",
       "text": "Consumes in combat."
+    },
+    {
+      "id": "legacy.h07f8ec9901606ea2a9d02beb",
+      "source": "本场战斗剩余时间，全部基础动作（包括火球术）无视拘束、快感与姿势限制；所有踢击形态可右键切换。费用、冷却及释放次数照常。",
+      "text": "For the rest of this battle, all basic actions (including Fireball) ignore restraints, arousal and posture restrictions. Right-click to switch between all kick forms. Costs, cooldowns and use limits still apply."
     },
     {
       "id": "legacy.hdfbfa86201db94f58692cda6",
@@ -14586,6 +15746,11 @@
       "id": "legacy.haa4ec09ee60eca8f1d413639",
       "source": "本局永久",
       "text": "The Bureau is permanent."
+    },
+    {
+      "id": "legacy.hc281268eed93de9d18c22281",
+      "source": "本局累计打出%d次，已完成全部升级。",
+      "text": "Played {p0} times this run; all upgrades completed."
     },
     {
       "id": "legacy.hb3590e1d46a0d1f2b0372649",
@@ -14768,6 +15933,11 @@
       "text": "Spell Unlock"
     },
     {
+      "id": "legacy.h1adb473e8f33c8a6ac768bc9",
+      "source": "机械系敌人的体术减伤改为25%（受到75%伤害）。魔法与固定伤害不受影响。",
+      "text": "Mechanical enemies reduce physical damage by 25% instead (taking 75% damage). Magic and fixed damage are unaffected."
+    },
+    {
       "id": "legacy.h351bb3db56472175baace101",
       "source": "杂乱拘束具练习",
       "text": "Discretion Restraint Practice"
@@ -14841,6 +16011,11 @@
       "id": "legacy.hcdc22412f97dce51c8560b23",
       "source": "杯体包住整根肉棒，内置马眼棒同时贴着尿道内壁动作，内外刺激一起传来。",
       "text": "The glass is wrapped in a meat bar, with a horse's eye stick on it while moving along the inner wall of the urinal, with internal and external irritation."
+    },
+    {
+      "id": "legacy.haf7c4d0bd402bac95257aadf",
+      "source": "杯类特殊装备只能佩戴一件。",
+      "text": "Only one cup-type special item can be worn at a time."
     },
     {
       "id": "legacy.h98284ce8de95d075da9ccf35",
@@ -15023,6 +16198,21 @@
       "text": "The Cube of Desire."
     },
     {
+      "id": "legacy.hce627aec4e58e9fae9f63d8a",
+      "source": "欲望魔方 Pro Max",
+      "text": "Desire Cube Pro Max"
+    },
+    {
+      "id": "legacy.h5d14b3585c98912f1eddd6c1",
+      "source": "欲望魔方 Pro Max：没有可获得的淫魔法稀有卡。",
+      "text": "Desire Cube Pro Max: no eligible rare Lewd Magic card remains."
+    },
+    {
+      "id": "legacy.h968e494e3e4a64a5c6e038f2",
+      "source": "欲望魔方 Pro Max：获得「%s」。",
+      "text": "Desire Cube Pro Max: gained “{p0}”."
+    },
+    {
       "id": "legacy.h947031efb67167816ecff5b6",
       "source": "欲能转换",
       "text": "Arousal Conversion"
@@ -15116,6 +16306,11 @@
       "id": "legacy.h4442e5394ce1245bacfceb62",
       "source": "每4回合召来1名警卫。已召来%d / %d名；战斗胜利后停止。",
       "text": "Summons 1 guard every 4 turns. Summoned: {p0} / {p1}. Stops on victory."
+    },
+    {
+      "id": "legacy.h387d50e18dc989a8dfb3e7b4",
+      "source": "每个整备回合结束时，恢复1魔力。",
+      "text": "At the end of each preparation turn, restore 1 Mana."
     },
     {
       "id": "legacy.hf9b10c60415b135c1bd095d3",
@@ -15243,6 +16438,16 @@
       "text": "Every finger of his hand must be free and able to move by his wrist.And can reach the target. When hands are available +1, When not available +0.5, Hands up to two. Add it to Struggle and Slip.(a) Base value plus multiplier; Unable to disarm parcels with the same hand. Free arms can touch the whole body; When limited, the range is reduced by attitude and torso solid. Each part of Damage is judged separately."
     },
     {
+      "id": "legacy.h6189a52bcbf52717b719efdd",
+      "source": "每回合受到的最终伤害合计最多%s点，多次攻击、多段及玩偶转移伤害共用额度；下一回合恢复。",
+      "text": "Takes at most {p0} total damage per turn. All attacks, hits and damage transferred by the Puppet share this allowance. Resets next turn."
+    },
+    {
+      "id": "legacy.h13844ba5898de351c3c24364",
+      "source": "每回合受到的最终伤害合计最多%s点，多次攻击、多段及玩偶转移伤害共用额度；下一回合恢复。\n伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低0，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。",
+      "text": "Takes at most {p0} total damage per turn. All attacks, hits and damage transferred by the Puppet share this allowance. Resets next turn.\nWhen damage exceeds the remaining barrier allowance, reduce the Puppet's ordinary counterattack capacity by 1 for this battle, to a minimum of 0. Multi-hit and area attacks trigger this only once per attack. Further attacks can trigger it after the allowance is exhausted; reaching the limit exactly does not."
+    },
+    {
       "id": "legacy.heb4517aa4d2fb25bac9d1d6d",
       "source": "每回合开始时，获得1层蓄力。可叠加。",
       "text": "At the beginning of each turn, get a layer of Charge."
@@ -15268,9 +16473,34 @@
       "text": "+1 Fireball use each turn."
     },
     {
+      "id": "legacy.hd329d0b733f999d413ab5702",
+      "source": "每回合第一张魔法牌必定成功。",
+      "text": "Each turn, your first Magic card is guaranteed to succeed."
+    },
+    {
+      "id": "legacy.h1ed02a4a4e1521722ce155ce",
+      "source": "每回合第一张魔法牌必定成功。打出当回合立即获得次数，回合开始刷新。0费牌及不判施法的魔法牌也消耗次数；复放和基础动作不消耗，不绕过出牌与施法部位要求。",
+      "text": "Each turn, your first Magic card is guaranteed to succeed. Gain uses immediately and refresh at turn start. Zero-cost and non-casting Magic cards also spend a use. Replays and basic actions do not. Play requirements and casting-part restrictions still apply."
+    },
+    {
+      "id": "legacy.hf32295b9dd76bbc8f9d16ddf",
+      "source": "每回合第一张魔法牌能量费用－1，最低0。打出当回合立即获得次数，回合开始刷新。0费牌与施法失败也消耗次数，复放和基础动作不消耗。",
+      "text": "Each turn, your first Magic card costs 1 less Energy, minimum 0. Gain uses immediately and refresh at turn start. Zero-cost cards and failed casts spend the discount; replays and basic actions do not."
+    },
+    {
+      "id": "legacy.h170cc27d01942dd42d1ad7ca",
+      "source": "每回合第一张魔法牌能量－1，最低0。",
+      "text": "Each turn, your first Magic card costs 1 less Energy, minimum 0."
+    },
+    {
       "id": "legacy.h2bf3fccf36f0f730d24daf22",
       "source": "每回合能量恢复至上限（初始%d），再结算额外能量与惩罚；抽%d张牌。攻击、挣脱和换姿态共用能量，道具使用免费。\n手牌上限%d张。回合结束弃牌；抽牌堆空时洗入弃牌。",
       "text": "Each turn of Energy returns to the upper limit (initial {p0}). Add a new sentence to the sentence of Energy. Draw the {p1} card.The attack, break-out and change of posture of Energy, Devices are used free of charge. Hand upper limit {p2}. End of turn discards; Draw Pile washes abandoned cards when you are free."
+    },
+    {
+      "id": "legacy.h841094b0af59bac5dda7a11f",
+      "source": "每回合获得1层蓄力。每消耗1层蓄力，获得5快感。高潮不再造成负面惩罚，快感变为上限的50%。",
+      "text": "Gain 1 Charge each turn. Gain 5 arousal for each Charge spent. Climax causes no penalties and sets arousal to 50% of its maximum."
     },
     {
       "id": "legacy.he754c6a36bda3329f18c6c36",
@@ -15323,9 +16553,34 @@
       "text": "At the end of the seventh turn of each battle, 77 points were created for all the enemy, the Fixed Damage."
     },
     {
+      "id": "legacy.h685b4a9b4b9aba869034b647",
+      "source": "每场类战斗1次，快感达到上限时，先将快感减半，再获得3层蓄力。绿色小鸟优先生效；战后整备不刷新次数。",
+      "text": "Once per combat-like session, when Pleasure reaches its limit, halve it, then gain 3 Charge. Green Bird applies first; preparation does not refresh this use."
+    },
+    {
+      "id": "legacy.h181b88f5f4a983e258fe1a8b",
+      "source": "每实际获得30快感，获得1层精神集中。进度跨回合保留。",
+      "text": "For every 30 arousal actually gained, gain 1 Mental Focus. Progress carries over between turns."
+    },
+    {
+      "id": "legacy.h6410ccccf495e81450a67db2",
+      "source": "每实际获得30快感，获得1层蓄力。进度跨回合保留。",
+      "text": "Gain 1 Charge per 30 Pleasure actually gained. Progress carries between turns."
+    },
+    {
+      "id": "legacy.hfb15c614d037afbb6cc31140",
+      "source": "每实际获得40快感，抽1张牌。进度跨回合保留。",
+      "text": "Draw 1 card per 40 Pleasure actually gained. Progress carries between turns."
+    },
+    {
       "id": "legacy.h7a118fd61371237c92584603",
       "source": "每层使一次主动挣扎、滑脱或体术基础伤害＋%s。默认每次消耗1层；右键图标切换为下一次消耗全部层数，触发后恢复普通模式。跨回合保留，整备结束最多保留2层，乌龟壳提高至4层；入狱清除。",
       "text": "Each layer enables active Struggle, Slip or the base of physicals Damage + {p0}. Default 1 layer per consumption; right-click icons switch to the next consumption of the full layer and resume the Common mode when triggered. Maintaining a maximum of 2 layers throughout the turn, ready to end the whole, raising the turtle shell to 4 layers; and incarcerating."
+    },
+    {
+      "id": "legacy.h778b40cde6030511b61841c5",
+      "source": "每层使一次主动挣扎、滑脱或体术基础伤害＋%s。默认每次消耗1层；右键图标切换为下一次消耗全部层数，触发后恢复普通模式。跨回合保留，整备结束最多保留2层，乌龟壳提高至4层；入狱清除。每次高潮后蓄力减半，剩余层数向下取整。",
+      "text": "Each stack adds {p0} to the base damage of an active Struggle, Slip or martial attack. Normally consumes 1 stack per use. Right-click the icon to spend all stacks on the next use, then return to normal mode. Persists across turns. Keep up to 2 stacks after preparation, or 4 with Turtle Shell; cleared on imprisonment. After each climax, halve Charge stacks, rounding the remainder down."
     },
     {
       "id": "legacy.h7db74ad06db392b15572ffee",
@@ -15343,9 +16598,19 @@
       "text": "Each layer is immediately provided with 5 points Temporary Mana, pre-empting degenerators; maximum 20 points are retained at the end of the set-up and turtle shells rise to 30 points; no bottles or shopping can be stored or removed from prison."
     },
     {
+      "id": "legacy.h2ac0ef50dc18d163f2618b9b",
+      "source": "每层降紧固定削减%s点捕缚；不受属性、蓄力或伤害倍率影响，不消耗蓄力。",
+      "text": "Each tightness-reduction step removes exactly {p0} Capture; attributes, Charge and damage multipliers do not apply, and no Charge is consumed."
+    },
+    {
       "id": "legacy.h426df9872e94c493e540b7ed",
       "source": "每张手牌恢复魔力必须为正数。",
       "text": "Each Hand restores Mana must be positive."
+    },
+    {
+      "id": "legacy.hf80c15d52e3524e63247eb69",
+      "source": "每成功打出1张技能牌，积攒1点，上限15。右键图标消耗全部点数，恢复等量自身魔力；满15点自动兑换并清空。点数跨回合、跨战斗保留，复放不额外计数；恢复不超过魔力上限。",
+      "text": "Gain 1 point whenever you successfully play a Skill card, up to 15. Right-click the icon to spend all points and restore that much Mana. At 15, exchange automatically and reset. Points persist between turns and battles. Replays do not count. Restoration cannot exceed maximum Mana."
     },
     {
       "id": "legacy.hb4f7efe14d344f2542c471f8",
@@ -15408,6 +16673,11 @@
       "text": "Every time additional increases are imposed{p0} Annex Restraint No layer is consumed and no reinforcements are increased."
     },
     {
+      "id": "legacy.h66f073a37ec72765f581c8b0",
+      "source": "每次普通反击消耗1次，用尽后停止；缝补时上限＋%d并补满。复合装束和暗藏机关不消耗此容量。",
+      "text": "Each ordinary counter uses one charge; counters stop when empty. Mending increases capacity by {p0} and refills it. Composite Outfit and Hidden Mechanism do not consume these charges."
+    },
+    {
       "id": "legacy.hb3dcf9912ab4392cdc5c1085",
       "source": "每次最多移动%d格，花%d能量；抵达或经过地点自动探索。",
       "text": "Each time you move a maximum of {p0} grid, the flower {p1} Energy; arrives or is automatically explored through the location."
@@ -15446,6 +16716,11 @@
       "id": "legacy.hf339f629635998423a0ea7ff",
       "source": "每次高潮：受到%s－当前紧度档位－装备等级的固定滑脱伤害。",
       "text": "Each orgasm: fixed Slip Damage by {p0} - current Places in Tightness - equipment level."
+    },
+    {
+      "id": "legacy.h14f3181c58cec4bf7589d8ca",
+      "source": "每洗牌3次，获得2能量。",
+      "text": "Every 3 times you shuffle your draw pile, gain 2 Energy."
     },
     {
       "id": "legacy.hc6365e67d4fda9cd14cdd972",
@@ -15491,6 +16766,21 @@
       "id": "legacy.hfcd8c8ca3552b9cad9228e66",
       "source": "每耗魔30：能量＋1。",
       "text": "Per genie 30: Energy +1."
+    },
+    {
+      "id": "legacy.ha3e353c95ecac57d8690c9cf",
+      "source": "每获得30快感，精神集中1。",
+      "text": "For every 30 arousal gained, gain 1 Mental Focus."
+    },
+    {
+      "id": "legacy.h3102c4831a1cd9e6de3ad4d9",
+      "source": "每获得30快感，蓄力1。",
+      "text": "Gain 1 Charge per 30 Pleasure gained."
+    },
+    {
+      "id": "legacy.h5f5c47e89c6071b55b416325",
+      "source": "每获得40快感，抽1张牌。",
+      "text": "Draw 1 per 40 Pleasure gained."
     },
     {
       "id": "legacy.h34c59e99d40eff419f45bae5",
@@ -15568,6 +16858,21 @@
       "text": "Tools confiscated: {p0}."
     },
     {
+      "id": "legacy.h9da73d1333356be6fcd41acd",
+      "source": "没有位置佩戴新的初级性玩具。",
+      "text": "No space for another basic toy."
+    },
+    {
+      "id": "legacy.h9e10ca2778179897cf8d65f8",
+      "source": "没有位置佩戴新的拘束具。",
+      "text": "No space to equip another restraint."
+    },
+    {
+      "id": "legacy.h342f5c6460a923892b1c2e41",
+      "source": "没有其他合法佩戴位置。",
+      "text": "No other legal equipment position is available."
+    },
+    {
       "id": "legacy.h6deb4ae47c53464e9aebbf50",
       "source": "没有匹配条目，试试其他关键词。",
       "text": "No matching entries, try other keywords."
@@ -15601,6 +16906,11 @@
       "id": "legacy.hae677ddc91be2a530df9160f",
       "source": "没有可处理的拘束具",
       "text": "There's no dealable Restraint"
+    },
+    {
+      "id": "legacy.hd3d4d10a4385026722a9ef40",
+      "source": "没有可复制的卡牌。",
+      "text": "There are no eligible cards to copy."
     },
     {
       "id": "legacy.h27e8293e4fc8c0e689b4f64c",
@@ -15718,9 +17028,29 @@
       "text": "Wave"
     },
     {
+      "id": "legacy.h568b22d991c252230d78c601",
+      "source": "洗脑耳环",
+      "text": "Brainwashing Earrings"
+    },
+    {
       "id": "legacy.h460e4c42edf8f82c51230f0b",
       "source": "活力药剂",
       "text": "Energy Potion"
+    },
+    {
+      "id": "legacy.hf2cb838dde692d88c53012a5",
+      "source": "活动媚肉",
+      "text": "Supple Flesh"
+    },
+    {
+      "id": "legacy.h89f399f9b927f0663fee187e",
+      "source": "活动媚肉·力量",
+      "text": "Supple Flesh · Strength"
+    },
+    {
+      "id": "legacy.h7dd2f3dfa5427bc04e309f3f",
+      "source": "活动媚肉·灵巧",
+      "text": "Supple Flesh · Dexterity"
     },
     {
       "id": "legacy.h764374e7767ba398d55e05c1",
@@ -15743,6 +17073,11 @@
       "text": "Consumption"
     },
     {
+      "id": "legacy.h008b7968cf15b7ba3d9c7d34",
+      "source": "消耗 · ",
+      "text": "Exhaust · "
+    },
+    {
       "id": "legacy.h0577fc9f7f5619025a3830bb",
       "source": "消耗%d张%s牌%s",
       "text": "Consuming {p0} {p1} {p2}"
@@ -15751,6 +17086,16 @@
       "id": "legacy.h35a62806a6981ab04706f916",
       "source": "消耗%d能量。",
       "text": "Costs {p0} Energy."
+    },
+    {
+      "id": "legacy.h3631f67034f146698eda7f71",
+      "source": "消耗%s快感，不判施法。",
+      "text": "Spend {p0} Pleasure. No casting check."
+    },
+    {
+      "id": "legacy.h46c923ed41573bcfc082a14c",
+      "source": "消耗%s快感；施法失败全部返还。",
+      "text": "Spend {p0} Pleasure; fully refunded on casting failure."
     },
     {
       "id": "legacy.hfd3e7b558ff243a8057ad5d9",
@@ -15766,6 +17111,11 @@
       "id": "legacy.hcee2fbfb3dbf642303e2bf63",
       "source": "消耗。",
       "text": "Exhaust."
+    },
+    {
+      "id": "legacy.hec8c6417a12e05e6b74fbda6",
+      "source": "消耗「%s」。",
+      "text": "Exhausted {p0}."
     },
     {
       "id": "legacy.h8dbe1627f9c165ceaef4bb02",
@@ -15823,9 +17173,29 @@
       "text": "Lewd Mark"
     },
     {
+      "id": "legacy.hb769b5d8ffcd8719fee0006c",
+      "source": "淫纹丝手套",
+      "text": "Lewd Sigil Silk Gloves"
+    },
+    {
       "id": "legacy.h01248e08938046cebed2a759",
       "source": "淫纹刺激",
       "text": "Lewd Mark irritation"
+    },
+    {
+      "id": "legacy.he135af8a68b2d5bba85decfd",
+      "source": "淫纹连体丝",
+      "text": "Lewd Sigil Silk Bodysuit"
+    },
+    {
+      "id": "legacy.h69534d6c0fe454029aabef20",
+      "source": "淫魔法",
+      "text": "Desire Magic"
+    },
+    {
+      "id": "legacy.h4c93493ce3ac880a87e03879",
+      "source": "淫魔法：使用变换后的快感施法成功率。",
+      "text": "Desire Magic: uses the transformed Pleasure casting curve."
     },
     {
       "id": "legacy.h893ace576988a184e1789e4a",
@@ -15866,6 +17236,11 @@
       "id": "legacy.hb5c4f91f1ee44e7905f66359",
       "source": "清空草稿",
       "text": "Empty Draft"
+    },
+    {
+      "id": "legacy.h980ff707ba318825a8105663",
+      "source": "清醒项链",
+      "text": "Lucidity Necklace"
     },
     {
       "id": "legacy.hdb490a393990d9a785ff1e15",
@@ -16178,6 +17553,11 @@
       "text": "Dexterity"
     },
     {
+      "id": "legacy.hde6886ef5da9b155dfb26f02",
+      "source": "灵巧＋1。",
+      "text": "Dexterity +1."
+    },
+    {
       "id": "legacy.h3861decfb3492d587a8ebde3",
       "source": "灵活变通",
       "text": "Adaptability"
@@ -16286,6 +17666,21 @@
       "id": "legacy.h33c510a0b4e0e8e843c42407",
       "source": "爆炒麻辣米线",
       "text": "It's a hot rice line."
+    },
+    {
+      "id": "legacy.h64e6e8820e4ba46cce8ab9a3",
+      "source": "爱欲魔纹",
+      "text": "Desire Rune"
+    },
+    {
+      "id": "legacy.h350ac2edda4f270680a7649e",
+      "source": "爱欲魔纹·拘束",
+      "text": "Desire Rune · Bound"
+    },
+    {
+      "id": "legacy.hec1cd6ec6a4f465efeac0755",
+      "source": "爱欲魔纹·自由",
+      "text": "Desire Rune · Free"
     },
     {
       "id": "legacy.h03601679a4f5336e2a9af903",
@@ -16683,6 +18078,11 @@
       "text": "The specifications of the equipment prepared by the dolls were incorrect."
     },
     {
+      "id": "legacy.h2d88263e6f3d65369135fe47",
+      "source": "玩偶发动普通反击，剩余%d/%d次。",
+      "text": "The Puppet performs an ordinary counter: {p0}/{p1} charges remain."
+    },
+    {
       "id": "legacy.he0b7c30f103dc96a4bcdcb5b",
       "source": "玩偶师",
       "text": "Toymaker."
@@ -16701,6 +18101,11 @@
       "id": "legacy.he1be0d1e8a99c049262a3766",
       "source": "玩偶师准备缝补玩偶，提高生命上限并回满",
       "text": "The dolls are going to sew the dolls, raise the limit of life and fill it up."
+    },
+    {
+      "id": "legacy.h83b1deb84b14aca63587eef0",
+      "source": "玩偶师准备缝补玩偶，提高生命上限并回满，同时增加普通反击容量并补满",
+      "text": "The Puppeteer will mend the Puppet, increasing and fully restoring its maximum HP and ordinary counter capacity."
     },
     {
       "id": "legacy.h57092889e9b6a5f6d3359002",
@@ -16746,6 +18151,11 @@
       "id": "legacy.h17c2fbddd9971770c46d2f37",
       "source": "玩偶的操纵者或召唤数量不正确。",
       "text": "The number of puppet manipulators or calls is incorrect."
+    },
+    {
+      "id": "legacy.haec1b2d28744686fef310688",
+      "source": "玩偶的普通反击余量不正确。",
+      "text": "Invalid Puppet ordinary counter stock."
     },
     {
       "id": "legacy.h5d38e5ae6d8fd122c9e1699b",
@@ -16841,6 +18251,11 @@
       "id": "legacy.hda0147d00c5d12c1a82610fa",
       "source": "生命不会低于1，溢出伤害全额转给玩偶师。",
       "text": "Life is not less than one, spilling over to Damage in full to the dolls."
+    },
+    {
+      "id": "legacy.ha3168abe8f982e54962a4714",
+      "source": "生命不会低于1，溢出伤害转给玩偶师，再受其护身屏障限制。",
+      "text": "HP cannot fall below 1. Excess damage transfers to the Puppeteer and is limited by her Protective Barrier."
     },
     {
       "id": "legacy.hcf184b8d3f132d4d5ec84d08",
@@ -16958,6 +18373,11 @@
       "text": "It's open with a locket."
     },
     {
+      "id": "legacy.h0c9b720bcfa379d074d34171",
+      "source": "用挣扎或滑脱削减共用捕缚；达到100后，下一次敌方行动执行收押。击败铁男会让两名随行单位停机。",
+      "text": "Use Struggle or Slip to reduce shared Capture progress. At 100, the next enemy action executes arrest. Defeating Iron Man shuts down both support units."
+    },
+    {
       "id": "legacy.hfca365b84ed075f2e3156415",
       "source": "用挣扎或滑脱牌处理。双手不能操作时，目标须接触装备支持的墙面、尖锐处或挂钩；魔法松缚无此环境要求。适用环境见装备说明。",
       "text": "Handled with Struggle or Slip cards. When your hands can't operate, Targets must have access to the walls, sharp spots or links supported by equipment; Magical laxity does not require such an environment.The applicable environment is described in the description of the equipment."
@@ -17048,6 +18468,31 @@
       "text": "Missing registered equipment or confiscated tools extend the sentence by 8 turns per inspection. An extra inspection occurs when the sentence ends; failing it keeps you imprisoned without resetting regular patrol timing."
     },
     {
+      "id": "legacy.h53fed67d0c1f3178758a4427",
+      "source": "百变怪",
+      "text": "Ditto"
+    },
+    {
+      "id": "legacy.hda12b591aa221acf790a99a5",
+      "source": "百变怪变成了「%s」。",
+      "text": "Ditto transformed into {p0}."
+    },
+    {
+      "id": "legacy.h3865c0a81e59eaa35155490f",
+      "source": "百变怪形态来源不正确。",
+      "text": "Invalid Ditto form source."
+    },
+    {
+      "id": "legacy.hdf27717af34d7d9fd708c879",
+      "source": "百变怪形态记录不正确。",
+      "text": "Invalid Ditto form record."
+    },
+    {
+      "id": "legacy.hbad6894d6d2169426c85a973",
+      "source": "百变怪累计魔力不正确。",
+      "text": "Invalid Ditto mana progress."
+    },
+    {
       "id": "legacy.h8af2350cfd65805bd50b6813",
       "source": "的",
       "text": "'s "
@@ -17101,6 +18546,11 @@
       "id": "legacy.he2e152c0c0d287acf8ec8b9f",
       "source": "的意图延后一回合。",
       "text": "The intention is to postpone the turn."
+    },
+    {
+      "id": "legacy.h6c4da134079f5bed0522154a",
+      "source": "的护身屏障触发，玩偶普通反击容量上限%s→%s。",
+      "text": "'s barrier triggered: Puppet counterattack capacity {p0} -> {p1}."
     },
     {
       "id": "legacy.h4c20ebe64a0c3ebe5ac05b03",
@@ -17363,6 +18813,21 @@
       "text": "Until the start of your next turn, Spell Preparation cannot be consumed or used to evade restraints."
     },
     {
+      "id": "legacy.hcef635a8433c417e2447b5bb",
+      "source": "直到下回合开始，闪避所有%s拘束；每次成功闪避，其他合法部位随机佩戴一件同等级、同紧度的拘束具。",
+      "text": "Until your next turn starts, evade all restraints targeting {p0}; each evasion equips one random restraint of the same grade and tightness on another legal body part."
+    },
+    {
+      "id": "legacy.h20ded5d8af7b9ec62da8d6db",
+      "source": "直到下回合开始，闪避所有嘴部拘束。每次成功闪避，其他部位随机佩戴一件同等级、同紧度的拘束具。",
+      "text": "Until your next turn starts, evade all mouth restraints. Each successful evasion equips one random restraint of the same grade and tightness on another body part."
+    },
+    {
+      "id": "legacy.ha0697f3ddd6a809b8ae40b48",
+      "source": "直到下回合开始，闪避所有手部拘束。每次成功闪避，其他部位随机佩戴一件同等级、同紧度的拘束具。",
+      "text": "Until your next turn starts, evade all hand-region restraints. Each successful evasion equips one random restraint of the same grade and tightness on another body part."
+    },
+    {
       "id": "legacy.h8e472e51d810e9638ca46016",
       "source": "直接出发",
       "text": "Go straight ahead."
@@ -17491,6 +18956,11 @@
       "id": "legacy.hf6e5511407ae47518e839dcc",
       "source": "短步移动",
       "text": "Short Step Move"
+    },
+    {
+      "id": "legacy.h17b77bd33134c21a8a972e1f",
+      "source": "破铜烂铁机器人",
+      "text": "Scrap Robot"
     },
     {
       "id": "legacy.ha194a84fee85e8571bc22889",
@@ -17788,6 +19258,11 @@
       "text": "Empty room."
     },
     {
+      "id": "legacy.h5de303a7a0661b0756e17e75",
+      "source": "空灵挂件",
+      "text": "Ethereal Pendant"
+    },
+    {
       "id": "legacy.hdae661d17c2dd8f0ac88e0cd",
       "source": "空闲",
       "text": "Free"
@@ -17831,6 +19306,11 @@
       "id": "legacy.haff63fd258ed8cac4a9a77b1",
       "source": "站姿移动且双腿受限时可能摔倒；起步或到达墙边可免除。先移动、自动滑脱，再判断摔倒。\n腿部1—4级基础概率为20%／40%／50%／60%，快感和蒙眼会提高概率。1—2级摔成坐姿，3—4级摔成躺姿。\n蒙眼从坐姿站起额外消耗1能量。",
       "text": "(a) The possibility of falling when the position moves and the legs are limited; A start-up or arrival at the wall is exempt. Move, automatically Slip, then fall.  The base probability for leg 1-4 is 20/40/50/60 per cent, and the probability is increased by Arousal and blindfolding. Level 1-2 falls into a sit-down position, 3-4 falls into a lie-down position.  Additional consumption of 1 Energy from sit-in position."
+    },
+    {
+      "id": "legacy.h30b37dcaa056b3ceed33b111",
+      "source": "站姿限定",
+      "text": "Standing only"
     },
     {
       "id": "legacy.h724bd3d2ea9fb4b4c1f79a56",
@@ -18065,7 +19545,7 @@
     {
       "id": "legacy.hd2a6878af9b570cf1b65f846",
       "source": "精神施法",
-      "text": "Mind Casting"
+      "text": "Mental Casting"
     },
     {
       "id": "legacy.h8e67dbe8f986dd63ef6edcfb",
@@ -18118,6 +19598,11 @@
       "text": "Tightness ×{p0}"
     },
     {
+      "id": "legacy.h9878cc9a80e33d19e2ab0876",
+      "source": "紧度3档主体必须具有唯一的固定带。",
+      "text": "A tightness-tier-3 main piece must have exactly one fixing strap."
+    },
+    {
       "id": "legacy.h240aee47c626fdd702b25fec",
       "source": "紧度3档平板锁必须具有唯一的加固带。",
       "text": "Tightness 3, Plate Lock must have the only reinforced belt."
@@ -18126,6 +19611,16 @@
       "id": "legacy.h143df961383e664c6b820977",
       "source": "紧度与挣脱",
       "text": "Tightness and Breakout"
+    },
+    {
+      "id": "legacy.h68bcbd9232f8bf54906929ac",
+      "source": "紧度达到3档时自动附加同品质固定带；固定带存在时不能滑脱杯体，只能先切断固定带或通过挣扎破坏杯体。",
+      "text": "At tightness tier 3, attach a fixing strap of the same grade. While it remains, cut the strap first or use Struggle to damage the cup."
+    },
+    {
+      "id": "legacy.hc89d6aacf69da1bb48c5cb02",
+      "source": "紧度达到3档时自动附加同品质固定带；固定带存在时不能滑脱杯体，挣扎仍可直接破坏杯体。固定带只接受切割伤害，杯体解除时一并取下。",
+      "text": "At tightness tier 3, attach a fixing strap of the same grade. While it remains, the cup cannot be slipped off, though Struggle can still damage the cup directly. The strap only takes cutting damage and is removed with the cup."
     },
     {
       "id": "legacy.hae2d63d50b9b757128f4fe92",
@@ -18146,6 +19641,11 @@
       "id": "legacy.ha681ad4b5624c8cd8d29f62e",
       "source": "紧缚尖塔demo v0.17.2",
       "text": "Bound Spire demo v0.17.2"
+    },
+    {
+      "id": "legacy.hcce77c1a9dbe620c08c638ea",
+      "source": "紧缚检索",
+      "text": "Binding Search"
     },
     {
       "id": "legacy.h1b6e413044be1b46ad3aeb0a",
@@ -18448,6 +19948,11 @@
       "text": "Snake + Weak Man"
     },
     {
+      "id": "legacy.h2f3303f3f67670a57f845764",
+      "source": "维持捕缚 · 每累计%d能量触发",
+      "text": "Maintain Capture · Trigger every {p0} Energy spent"
+    },
+    {
       "id": "legacy.h49a78ff8c757c3deff0b84a7",
       "source": "绷紧再挣",
       "text": "Brace and Strain"
@@ -18483,6 +19988,11 @@
       "text": "Pyramid pyramids"
     },
     {
+      "id": "legacy.h18e270c6b924cd8f40a3ca4e",
+      "source": "缝补时补充",
+      "text": "Refilled by mending"
+    },
+    {
       "id": "legacy.h81495c0cfb8371cd344205e4",
       "source": "缝补玩偶",
       "text": "Suture dolls"
@@ -18491,6 +20001,11 @@
       "id": "legacy.h08d0eeee318bba12c57752b1",
       "source": "缝补玩偶，生命上限%s→%s，并恢复至满血。",
       "text": "Suture dolls with maximum life limit of {p0}, {p1}, and full blood."
+    },
+    {
+      "id": "legacy.hd649715565778f663a5ca54a",
+      "source": "缝补玩偶，生命上限%s→%s，并恢复至满血；普通反击容量上限增至%d，补充至满。",
+      "text": "mends the Puppet, raising maximum HP from {p0} to {p1} and fully healing it. Ordinary counter capacity increases to {p2} and is refilled."
     },
     {
       "id": "legacy.h527203f83c86029b862263d0",
@@ -18651,6 +20166,31 @@
       "id": "legacy.h87c2ab1c69341ba8f81edb19",
       "source": "耐心耐心～：本次保留全部施法预备。",
       "text": "Patience, Patience~: retain all Spell Preparation for this release."
+    },
+    {
+      "id": "legacy.h455d72534730aefb61422b32",
+      "source": "耗尽剩余能量X，X至少为1；连续踢X＋1次，X≥3时攻击后躺下。",
+      "text": "Spend all remaining energy X (at least 1). Kick X + 1 times; lie down after the attack if X is at least 3."
+    },
+    {
+      "id": "legacy.h8bfbfd16eff823f7ddd476b2",
+      "source": "耗尽自身与临时魔力（合计≥50）。本场战斗，基础动作无视拘束、快感与姿势限制。",
+      "text": "Spend all personal and temporary mana (at least 50 combined). For this battle, basic actions ignore restraints, arousal and posture restrictions."
+    },
+    {
+      "id": "legacy.h5d07e522a2e14568cc2f91cb",
+      "source": "耗尽自身与临时魔力（合计至少50）；嘴部必须无拘束。本场战斗剩余时间，全部基础动作无视拘束、快感与姿势限制，包含火球术；右键切换全部踢击形态。",
+      "text": "Spend all personal and temporary mana (at least 50 combined). Requires an unrestrained mouth. For the rest of this battle, all basic actions, including Fireball, ignore restraints, arousal and posture restrictions. Right-click to switch between all kick forms."
+    },
+    {
+      "id": "legacy.h09ad5b1acf8a10dae2d3c653",
+      "source": "耗尽自身与临时魔力，合计至少需要%s点；不使用魔瓶魔力。",
+      "text": "Spend all personal and temporary mana, requiring at least {p0} in total. Flask mana is not used."
+    },
+    {
+      "id": "legacy.ha2393f4fd54a975084dbf235",
+      "source": "耗尽魔力需要正数门槛和施法配置。",
+      "text": "Spending all mana requires a positive threshold and casting configuration."
     },
     {
       "id": "legacy.h54131fed200648cd92e1c998",
@@ -18953,6 +20493,26 @@
       "text": "The upper limit of the cross-combat reserve for Energy, Charge and Temporary Mana was increased by two floors each: additional Energy up to three points, Charge up to four floors and Temporary Mana up to 30 points."
     },
     {
+      "id": "legacy.hc36b20a995f66287e8d28582",
+      "source": "能量上限＋1。\n战斗、休息及监狱的首回合由豆包接管，战后整备不接管。\n仅限战斗、战后整备、休息及监狱之外右键切换为DeepSeek。",
+      "text": "+1 maximum energy.\nDoubao controls the first turn of each battle, rest and prison phase, but not post-battle preparation.\nRight-click only outside battle, preparation, rest and prison to switch to DeepSeek."
+    },
+    {
+      "id": "legacy.h64496f82a99a9f9b9d2e86f5",
+      "source": "能量上限＋1。\n战斗、战后整备、休息及监狱的首回合开始时，能量变为0；仍可自行行动。\n仅限上述阶段之外右键切回豆包。",
+      "text": "Maximum energy +1.\nAt the start of your first turn in battle, preparation, rest and prison, energy becomes 0. You can still act.\nRight-click to switch back to Doubao only outside these phases."
+    },
+    {
+      "id": "legacy.h511c3a541d938743692ed087",
+      "source": "能量上限＋1。\n跳过战斗、战后整备、休息及监狱的首回合。\n回合结束效果照常触发。\n仅限上述阶段之外右键切回豆包。",
+      "text": "+1 maximum energy.\nSkip the first turn of each battle, preparation, rest and prison phase.\nEnd-of-turn effects trigger normally.\nRight-click only outside these phases to switch back to Doubao."
+    },
+    {
+      "id": "legacy.hb778e47508d7eeaa48fbbbbf",
+      "source": "能量上限＋1。战斗中永远为后手。",
+      "text": "+1 maximum energy. Always act last in battle."
+    },
+    {
       "id": "legacy.had80dd92d9a2d0f217529e79",
       "source": "能量上限＋1。拾取时，强制佩戴紧度3档的高级平板锁；跳蛋每场只在前6回合生效，高潮后快感保留系数最高10。击败下一个Boss获得专属钥匙，自动解锁并取下整件；此前无法解除。",
       "text": "Energy ceiling +1. When picking up, the advanced Plate Lock of Tightness 3 is mandatory; The jumper is effective in the first six turns only, with a maximum retention factor of 10 for Arousal after orgasm. Beating the next Boss to get the exclusive key, automatically unlocking the lock and removing the whole piece; It couldn't be lifted before."
@@ -19078,6 +20638,11 @@
       "text": "Leg tightness"
     },
     {
+      "id": "legacy.hc072035f68a831cf4d6ea4c8",
+      "source": "腿部施法",
+      "text": "Leg Casting"
+    },
+    {
       "id": "legacy.hd04cd09067aba394f503811f",
       "source": "腿部施法预备",
       "text": "Leg Spell Preparation"
@@ -19143,6 +20708,11 @@
       "text": "Hips & Legs  {p0}  −"
     },
     {
+      "id": "legacy.h3978dcb924d2c930438284db",
+      "source": "自动上锁的复合性玩具；开锁后受到任意正数挣扎或滑脱伤害便会整件解除，无视加固带。",
+      "text": "Locks automatically. Once unlocked, any positive Struggle or Slip damage removes the whole item, regardless of reinforcement straps."
+    },
+    {
       "id": "legacy.h1584e9032d81e7064ce82a13",
       "source": "自动上锁的复合性玩具；解锁后受到任意正数滑脱伤害便会整件解除。",
       "text": "(b) Automatically locked complex toys; When the lock is unlocked, any positive number of Slip Damage is removed."
@@ -19151,6 +20721,11 @@
       "id": "legacy.h844c739d160758170902a0dc",
       "source": "自动前进",
       "text": "Automatically advance"
+    },
+    {
+      "id": "legacy.h045ec0d84122954497694704",
+      "source": "自我满足",
+      "text": "Self-Satisfaction"
     },
     {
       "id": "legacy.haa65e69f922adf97c47eeef1",
@@ -19281,6 +20856,11 @@
       "id": "legacy.h8e8021bc1026928c1f561983",
       "source": "自身",
       "text": "Self"
+    },
+    {
+      "id": "legacy.h88eeada93e12afabd77f15c0",
+      "source": "自身与临时魔力合计至少需要%s点。",
+      "text": "Requires at least {p0} combined personal and temporary mana."
     },
     {
       "id": "legacy.h87bd478c2a6a7032696cf8fd",
@@ -19538,6 +21118,11 @@
       "text": "Gain {p0} Mana Reserve"
     },
     {
+      "id": "legacy.h33fe2afb90936689c7336ea4",
+      "source": "获得%d快感",
+      "text": "Gain {p0} Arousal"
+    },
+    {
       "id": "legacy.hd53d9e88df101ad1194f2587",
       "source": "获得%d点「仪式」，现有%d点。",
       "text": "\"{p0} point\", which is now {p1} point."
@@ -19560,7 +21145,7 @@
     {
       "id": "legacy.hd70cb33e8b8870b1d82bc306",
       "source": "获得%d能量",
-      "text": "Get {p0} Energy"
+      "text": "Gain {p0} Energy"
     },
     {
       "id": "legacy.h71b32448a818d2230b12f906",
@@ -19568,9 +21153,29 @@
       "text": "Get {p0} Energy."
     },
     {
+      "id": "legacy.h6e0a7d7551cb75746022462c",
+      "source": "获得%s层蓄力",
+      "text": "Gain {p0} Charge"
+    },
+    {
+      "id": "legacy.h03e356aff51b191687d97251",
+      "source": "获得%s层蓄力。",
+      "text": "Gain {p0} Charge."
+    },
+    {
       "id": "legacy.hde9a2d08eec59f150b043b78",
       "source": "获得%s遗物「%s」。",
       "text": "“{p1}” is the last piece of {p0}."
+    },
+    {
+      "id": "legacy.h40f1bc95fe45c55a105534cd",
+      "source": "获得10快感，精神集中2。",
+      "text": "Gain 10 arousal and 2 Mental Focus."
+    },
+    {
+      "id": "legacy.h2988a297596e780bc66ab6f5",
+      "source": "获得10快感，蓄力2。",
+      "text": "Gain 10 Pleasure and 2 Charge."
     },
     {
       "id": "legacy.hf9f5e08f93f2b2ffcb226833",
@@ -19593,14 +21198,69 @@
       "text": "Get 1 floor Charge. Next gymnastics cost 1. Select and consume 1 Hand."
     },
     {
+      "id": "legacy.hc9082b0daeaad46dcd5f66f0",
+      "source": "获得1层蓄力。本场战斗中，体术变为全体伤害，威力减半，每次额外消耗10魔力。",
+      "text": "Gain 1 Charge. This battle, martial attacks deal half damage to all enemies and cost 10 extra mana each."
+    },
+    {
+      "id": "legacy.h7311d65f41d210050e361768",
+      "source": "获得1层蓄力。本场战斗中，成功打出技能牌时消耗5魔力，获得1层蓄力。",
+      "text": "Gain 1 Charge. This battle, after successfully playing a Skill, spend 5 mana to gain 1 Charge."
+    },
+    {
+      "id": "legacy.h3788b61254279a0e17dd9497",
+      "source": "获得20快感。",
+      "text": "Gain 20 Pleasure."
+    },
+    {
       "id": "legacy.h9357790f379d34cff0a20b1c",
       "source": "获得2层闪避。",
       "text": "Get 2 floors of Evasion."
     },
     {
+      "id": "legacy.h32ee9225c905fbbd7a1a2976",
+      "source": "获得2点临时力量。",
+      "text": "Gain 2 temporary Strength."
+    },
+    {
       "id": "legacy.hdfb687cd28ad2e1210573e42",
       "source": "获得3能量、8层魔力预备和3层精神集中，清空快感。本回合快感获取量×0.5。",
       "text": "Gain 3 Energy, 8 Mana Reserve, and 3 Mental Focus. Clear Arousal. Arousal gain ×0.5 this turn."
+    },
+    {
+      "id": "legacy.h7917fcf512820ec3090a40ce",
+      "source": "获得4点临时灵巧。",
+      "text": "Gain 4 temporary Dexterity."
+    },
+    {
+      "id": "legacy.h6267f0752a31dd01b58fbb41",
+      "source": "获得⌊当前佩戴拘束具件数÷2⌋点临时力量。",
+      "text": "Gain ⌊worn restraints ÷ 2⌋ temporary Strength."
+    },
+    {
+      "id": "legacy.h5f9259574c0b1af19f9fabf1",
+      "source": "获得⌊当前佩戴拘束具件数÷2⌋点临时力量。\n当前：本回合力量＋%d。",
+      "text": "Gain ⌊worn restraints ÷ 2⌋ temporary Strength.\nCurrent: +{p0} Strength this turn."
+    },
+    {
+      "id": "legacy.hd87966fcf9d3cecfd70f0261",
+      "source": "获得⌊当前佩戴拘束具件数÷4⌋层蓄力。",
+      "text": "Gain ⌊worn restraints ÷ 4⌋ Charge."
+    },
+    {
+      "id": "legacy.hdb8fd8877e7e5a2f2ea51a79",
+      "source": "获得⌊当前佩戴拘束具件数÷4⌋层蓄力。\n当前：获得%d层蓄力。",
+      "text": "Gain ⌊worn restraints ÷ 4⌋ Charge.\nCurrent: gain {p0} Charge."
+    },
+    {
+      "id": "legacy.h8c3a978e823253c87e969a41",
+      "source": "获得⌊当前佩戴拘束具件数÷{bound_worn_divisor}⌋点临时力量。{bound_worn_preview}",
+      "text": "Gain ⌊worn restraints ÷ {p0}⌋ temporary Strength. {p1}"
+    },
+    {
+      "id": "legacy.h30e012085650b0bc0dc91751",
+      "source": "获得⌊当前佩戴拘束具件数÷{free_worn_divisor}⌋层蓄力。{free_worn_preview}",
+      "text": "Gain ⌊worn restraints ÷ {p0}⌋ Charge. {p1}"
     },
     {
       "id": "legacy.hd28f50329b4d2c2d8e74c48e",
@@ -19643,6 +21303,11 @@
       "text": "Get Card \""
     },
     {
+      "id": "legacy.h01406b8ffa4ee643b08fcb3c",
+      "source": "获得快感时，额外获得2。",
+      "text": "Whenever you gain arousal, gain 2 more."
+    },
+    {
       "id": "legacy.h06639438b532d24f80ceab26",
       "source": "获得稀有遗物「魅纹师的针匣」，同时获得诅咒「淫纹」。",
       "text": "Access Rare The relic of \"The Sage's Kit\" and the curse. Lewd Mark It's not like I'm going to die."
@@ -19681,6 +21346,11 @@
       "id": "legacy.h1e45db4ecfd677a6384f5c84",
       "source": "蓄力%d",
       "text": "Charge {p0}"
+    },
+    {
+      "id": "legacy.h4f07ec0b888da794f3ef86af",
+      "source": "蓄力%d → %d。",
+      "text": "Charge {p0} → {p1}."
     },
     {
       "id": "legacy.h44423b17df9e5a2bec824435",
@@ -19903,9 +21573,9 @@
       "text": "You cannot move while captured. Break free first."
     },
     {
-      "id": "legacy.h3b5231075e4942d3122004b9",
-      "source": "被捕缚时无法移动，先解除捕缚。挣扎／滑脱牌可直接削减进度；除眼罩、口球外没有其他拘束具时伤害翻倍，不受环境加成。上身受限至少按1级计算。同种捕缚不叠加；新种类增加其初始值的一半。降至0全部解除，达到100后下一敌方回合执行收押。",
-      "text": "You cannot move while Captured; break free first. Struggle and Slip cards reduce Capture directly. Damage is doubled when no restraints remain except blindfolds and gags, and environmental bonuses do not apply. Upper-body restraint level counts as at least 1. Capture of the same type does not stack; a new type adds half its starting value. At 0, all Capture ends; at 100, you are imprisoned on the next enemy turn."
+      "id": "legacy.he8b84cb43793d4d080b7c00e",
+      "source": "被捕缚时无法移动，先解除捕缚。挣扎／滑脱牌可直接削减进度；除眼罩、口球外没有其他拘束具时伤害翻倍，不受环境加成。上身受限至少按1级计算。同种捕缚不叠加；新种类增加其初始值的一半。降至0全部解除，达到100后下一敌方回合执行收押。\n降紧每层固定削减8点捕缚，不受属性、蓄力和倍率影响，也不消耗蓄力。",
+      "text": "You cannot move while Captured; break free first. Struggle and Slip cards reduce Capture directly. Damage is doubled when no restraints remain except blindfolds and gags, and environmental bonuses do not apply. Upper-body restraint level counts as at least 1. Capture of the same type does not stack; a new type adds half its starting value. At 0, all Capture ends; at 100, you are imprisoned on the next enemy turn.\nEach tightness-reduction step removes exactly 8 Capture, unaffected by attributes, Charge or multipliers, and consumes no Charge."
     },
     {
       "id": "legacy.hdf601bfe2868ae901dfbad46",
@@ -20243,9 +21913,9 @@
       "text": "Unselect selected Restraint"
     },
     {
-      "id": "legacy.he77ee7b71ca7f924a5965a93",
-      "source": "解除捕缚：挣扎／滑脱牌可削减进度，不含环境加成；仅有眼罩、口球或没有拘束具时伤害×2。归零后解除，敌人会准备1回合再施加。\n捕缚规则：被捕缚时无法移动，先解除捕缚。同种不叠加；异种共用进度，新种只增加其初始值的一半。达到100后，施加捕缚的敌人在下次行动收押。击败来源解除对应效果，全部来源离场则清空进度。",
-      "text": "Breaking Capture: Struggle and Slip cards reduce progress without environmental bonuses; damage is doubled when only blindfolds or gags—or no restraints—remain. At 0, Capture ends; the enemy prepares for 1 turn before applying it again.\nCapture rules: You cannot move while Captured. Capture of the same type does not stack; different types share progress, and a new type adds half its starting value. At 100, the enemy that applied Capture imprisons you on its next action. Defeating a source removes its effect; progress is cleared when all sources leave."
+      "id": "legacy.h2fa51a40fdf18a48b21f1b82",
+      "source": "解除捕缚：挣扎／滑脱牌可削减进度，不含环境加成；仅有眼罩、口球或没有拘束具时伤害×2。归零后解除，敌人会准备1回合再施加。\n捕缚规则：被捕缚时无法移动，先解除捕缚。同种不叠加；异种共用进度，新种只增加其初始值的一半。达到100后，施加捕缚的敌人在下次行动收押。击败来源解除对应效果，全部来源离场则清空进度。\n降紧每层固定削减8点捕缚，不受属性、蓄力和倍率影响，也不消耗蓄力。",
+      "text": "Breaking Capture: Struggle and Slip cards reduce progress without environmental bonuses; damage is doubled when only blindfolds or gags—or no restraints—remain. At 0, Capture ends; the enemy prepares for 1 turn before applying it again.\nCapture rules: You cannot move while Captured. Capture of the same type does not stack; different types share progress, and a new type adds half its starting value. At 100, the enemy that applied Capture imprisons you on its next action. Defeating a source removes its effect; progress is cleared when all sources leave.\nEach tightness-reduction step removes exactly 8 Capture, unaffected by attributes, Charge or multipliers, and consumes no Charge."
     },
     {
       "id": "legacy.h1d5a0d546cb33d3159abc476",
@@ -20503,6 +22173,11 @@
       "text": "The enemy did not impose an additional quantity."
     },
     {
+      "id": "legacy.h440eae192c132da6e0a8e01e",
+      "source": "该机械敌人受到的非魔法伤害×%s；魔法与固定伤害正常。",
+      "text": "This mechanical enemy takes ×{p0} non-magic damage. Magic and fixed damage are unchanged."
+    },
+    {
       "id": "legacy.hd3e4dc7b2921666ab68f4316",
       "source": "该机械敌人受到的非魔法伤害×0.5；魔法伤害正常。",
       "text": "The non- Spell Damage x 0.5; Spell Damage is normal."
@@ -20551,6 +22226,11 @@
       "id": "legacy.h00dda9ebf301c3736ec00df4",
       "source": "详细描述最多4000字。",
       "text": "A detailed description of a maximum of 4,000 words."
+    },
+    {
+      "id": "legacy.h2eb2bf7c6597ab9aae9557ad",
+      "source": "详细记录",
+      "text": "Detailed records"
     },
     {
       "id": "legacy.hbb8e6637835af4a867a86486",
@@ -20616,6 +22296,26 @@
       "id": "legacy.h1f9305ac57ad58c487576242",
       "source": "调教升温",
       "text": "Heat Up"
+    },
+    {
+      "id": "legacy.hf64660efbe61dd28d59620b9",
+      "source": "豆包",
+      "text": "Doubao"
+    },
+    {
+      "id": "legacy.h66656a49590071c9a6533831",
+      "source": "豆包接管中",
+      "text": "Doubao is in control"
+    },
+    {
+      "id": "legacy.h67c71e573e6fbff40b539219",
+      "source": "豆包练习",
+      "text": "Doubao Practice"
+    },
+    {
+      "id": "legacy.h0eb01c6c6f96a6abba81bd50",
+      "source": "豆包练习 · 首回合接管",
+      "text": "Doubao Practice · First-turn takeover"
     },
     {
       "id": "legacy.h756a94894d83f148b9a6232a",
@@ -20693,6 +22393,11 @@
       "text": "A close-to-the-mix bottle."
     },
     {
+      "id": "legacy.hdb5098c82ba796b2c22b29e5",
+      "source": "贴身魔瓶的取出次数不正确。",
+      "text": "The mana flask withdrawal count is invalid."
+    },
+    {
       "id": "legacy.h5f525569e24e59f412000743",
       "source": "贴身魔瓶的魔力或存入次数不正确。",
       "text": "The close-to-the-morning Mana or the number of times it was deposited was incorrect."
@@ -20706,6 +22411,11 @@
       "id": "legacy.ha763a5fc2096b1696ebfdaab",
       "source": "贴身魔瓶获得%s魔力，当前储量%s。",
       "text": "The flask gains {p0} Mana. Current reserve: {p1}."
+    },
+    {
+      "id": "legacy.he89b4fc3c934bafa41cbca7c",
+      "source": "费用、冷却及释放次数照常。",
+      "text": "Costs, cooldowns and use limits still apply."
     },
     {
       "id": "legacy.h2d1fcc1d9964034a805bec23",
@@ -20736,6 +22446,11 @@
       "id": "legacy.h5d3f76a03f93ab1fa726ac6b",
       "source": "赋予玩偶「引敌缚咒」。",
       "text": "It's not like we're going to be able to do anything about it."
+    },
+    {
+      "id": "legacy.h18c84488aab6acc0db0cda71",
+      "source": "赢了。过程你可以先不看，结果我给你放在这里：赢了。",
+      "text": "We won. You can skip the process. Here is the result: victory."
     },
     {
       "id": "legacy.h675e6bbbe5300881c7eb47ea",
@@ -21053,6 +22768,11 @@
       "text": "Lie down without a physical attack, please Cast or get up."
     },
     {
+      "id": "legacy.had0e60084566e11fb6b2dc67",
+      "source": "躺姿限定",
+      "text": "Lying down only"
+    },
+    {
       "id": "legacy.hb06d263626fc788deaed68bd",
       "source": "转为",
       "text": "Convert to"
@@ -21213,9 +22933,24 @@
       "text": "The hands on this side have been packed."
     },
     {
+      "id": "legacy.hd8de4691d838aa9d96225106",
+      "source": "这一步也交给我。我选的就是我准备选的这一个。",
+      "text": "Leave this step to me too. I choose exactly the one I was going to choose."
+    },
+    {
+      "id": "legacy.h64b889b1ac81b56efbf1eb5f",
+      "source": "这一步叫提前准备。至于准备干什么，我们需要的时候就知道了。",
+      "text": "This is preparation. Preparation for what? We will find out when we need it."
+    },
+    {
       "id": "legacy.hb75a0741321569436ab8441c",
       "source": "这一阶段没有能够执行的选项。",
       "text": "There are no options that can be implemented at this stage."
+    },
+    {
+      "id": "legacy.he7ed38186487362642021512",
+      "source": "这不是白忙，我已经替你确认过了：这个瓶子既能存，也能取。",
+      "text": "That was not pointless. I confirmed that this flask supports both deposits and withdrawals."
     },
     {
       "id": "legacy.h38d2d5d43fdc6532f5792529",
@@ -21336,6 +23071,16 @@
       "id": "legacy.hc86dfb83221e4fe5fe2e715a",
       "source": "这场战斗必须击败全部敌人。",
       "text": "This battle must defeat the entire enemy."
+    },
+    {
+      "id": "legacy.hbbfe587efe6a2f2aac7cb2c9",
+      "source": "这张也打。我知道你可能有疑问，但你先别有，我先打。",
+      "text": "Play this one too. You may have questions. Hold those questions. Let me play first."
+    },
+    {
+      "id": "legacy.hfb855ca982055c2535635260",
+      "source": "这张我看过了，确实是一张牌，而且现在能打。安排。",
+      "text": "I checked this one. It is definitely a card, and it is playable. Done."
     },
     {
       "id": "legacy.h9232e25e582e677ebcea82e2",
@@ -21698,6 +23443,21 @@
       "text": "Continuous operations"
     },
     {
+      "id": "legacy.h5fabe991d102fa9856ec78a5",
+      "source": "连续踢至少需要1点能量。",
+      "text": "Flurry Kick requires at least 1 energy."
+    },
+    {
+      "id": "legacy.h4b5eea472457a428e177f370",
+      "source": "连续踢需要坐姿。",
+      "text": "Flurry Kick requires sitting."
+    },
+    {
+      "id": "legacy.h249fcedd3bff2c139e302bd3",
+      "source": "连续踢！",
+      "text": "Flurry Kick!"
+    },
+    {
       "id": "legacy.hf401f116e56fd05a204b3ed7",
       "source": "迷宫测绘队",
       "text": "The Labyrinth Survey."
@@ -21763,6 +23523,11 @@
       "text": "Select a card to remove."
     },
     {
+      "id": "legacy.h4a49747a89d0dde6b2fe9ce8",
+      "source": "选择3张牌消耗，抽3张牌，获得30快感，然后触发一次高潮；这次高潮不改变快感值。",
+      "text": "Exhaust 3 chosen cards, draw 3, gain 30 Pleasure, then trigger one climax that leaves Pleasure unchanged."
+    },
+    {
       "id": "legacy.h198c323590c81072bf3b40ad",
       "source": "选择「",
       "text": "Select “"
@@ -21811,6 +23576,11 @@
       "id": "legacy.h5d27a76e44348c6890a7ed21",
       "source": "选择一张牌",
       "text": "Select a Card"
+    },
+    {
+      "id": "legacy.hdb5f4cec9466618112795adf",
+      "source": "选择一张牌复制。基础牌、双面唯一能力牌除外。",
+      "text": "Choose a card to copy. Basic cards and powers that are Unique on both faces are excluded."
     },
     {
       "id": "legacy.hc248d6b24ca5b87ae26eda07",
@@ -21881,6 +23651,11 @@
       "id": "legacy.hb712d23d5bf397f7cce94029",
       "source": "选择奖励牌时，可供选择的牌增加1张。拾起时，同一窗口中已生成的奖励牌不受影响。",
       "text": "When you select a reward card, add one card to the card. When you pick up, the reward card that has been generated in the same window will not be affected."
+    },
+    {
+      "id": "legacy.ha5d082dacba011335c7407bd",
+      "source": "选择很多，但我只需要选一个。你看，问题一下就简单了。",
+      "text": "Lots of choices, but I only need one. Look how simple that makes it."
     },
     {
       "id": "legacy.h890c670a585aa41074afa007",
@@ -22168,9 +23943,19 @@
       "text": "The records of the relics pending issuance are incorrect."
     },
     {
+      "id": "legacy.h9448ec89ffa3e695e726a6b9",
+      "source": "遗物待抽牌数量不正确。",
+      "text": "Invalid pending relic draw count."
+    },
+    {
       "id": "legacy.h4444d1a39c85106405bcaf40",
       "source": "遗物待领取记录不完整。",
       "text": "The records of the possessions pending collection are incomplete."
+    },
+    {
+      "id": "legacy.hbf96a0e0c379455226d3800a",
+      "source": "遗物快感触发数量不正确。",
+      "text": "Invalid relic arousal trigger count."
     },
     {
       "id": "legacy.h1d0f8cbb938aa389e854a739",
@@ -22318,6 +24103,11 @@
       "text": "Each stack adds another spell hit on release. Consume all preparation on that part; failure preserves it."
     },
     {
+      "id": "legacy.hbbae5d5964152b0ee5caf538",
+      "source": "重复快感触发需要对应事件与快感效果。",
+      "text": "Repeating arousal triggers require a matching event and arousal effect."
+    },
+    {
       "id": "legacy.h01fd35dcd6ce05e549103b34",
       "source": "重开 / 练习",
       "text": "Reopen / Practice"
@@ -22333,6 +24123,11 @@
       "text": "Let's start again."
     },
     {
+      "id": "legacy.h229eeb7c1da3dd2912c9dee0",
+      "source": "重新随机全部商品并补满货位。每次刷新后价格翻倍，换店不重置。",
+      "text": "Reroll and restock all goods. The price doubles after each refresh and carries over between shops."
+    },
+    {
       "id": "legacy.h0f5534c945bee7ba1925b2d8",
       "source": "金属",
       "text": "Metal"
@@ -22346,6 +24141,16 @@
       "id": "legacy.hc742669745ebface8e2f25ab",
       "source": "钥匙不占道具容量；开门后可直接逃离，不检查行动速度。",
       "text": "The key does not occupy the capacity of the props; when the door is opened, it can run away without checking the speed of movement."
+    },
+    {
+      "id": "legacy.h9b6ae80d1fd2015272e63d13",
+      "source": "铁男捕缚：只允许坐姿或躺姿；每累计消耗%d能量，触发全部主动刺激型特殊装备。当前累计%d/%d能量。",
+      "text": "Iron Man Capture: only sitting or lying is allowed. Every {p0} Energy spent triggers all active stimulation equipment. Current: {p1}/{p2} Energy."
+    },
+    {
+      "id": "legacy.h4532ed5f05720770f86aefa2",
+      "source": "铁男练习",
+      "text": "Iron Man Practice"
     },
     {
       "id": "legacy.h305378ddd2b86b6099122790",
@@ -22623,6 +24428,11 @@
       "text": "Tighten"
     },
     {
+      "id": "legacy.h7eb7e310cc8c9411f2ea2833",
+      "source": "降紧1。获得10快感。",
+      "text": "Loosen 1. Gain 10 Pleasure."
+    },
+    {
       "id": "legacy.h18122c70716de444c0b0aef7",
       "source": "限制项圈",
       "text": "Restriction Collar"
@@ -22706,6 +24516,16 @@
       "id": "legacy.he8f41f0ce43ff204f6bd3249",
       "source": "随机1件（",
       "text": "Random 1()"
+    },
+    {
+      "id": "legacy.h2645d6855ea6f1f38e9c40eb",
+      "source": "随机佩戴一件初级性玩具",
+      "text": "Equip one random basic toy"
+    },
+    {
+      "id": "legacy.hbb27976d71b67d285923fb4d",
+      "source": "随机佩戴一件初级性玩具。",
+      "text": "Equip one random basic toy."
     },
     {
       "id": "legacy.hc8b0b9ea63509f794079c23d",
@@ -22938,6 +24758,16 @@
       "text": "One to eight conditional cases are required."
     },
     {
+      "id": "legacy.h862e13ebc1a11a5ffe9d2e26",
+      "source": "需要上身严密度≤1。",
+      "text": "Requires upper-body restriction degree ≤1."
+    },
+    {
+      "id": "legacy.h510277d3213cfaed01f8c04a",
+      "source": "需要上身严密度≤1或腿部严密度≤1。",
+      "text": "Requires upper-body or leg restriction degree ≤1."
+    },
+    {
       "id": "legacy.h1392511e176818f19562cf1e",
       "source": "需要先击败六缚并完成战后整备，出口才会开放。",
       "text": "The opening of the export will require the first defeat of the six pillars and the completion of post-war preparations."
@@ -23078,6 +24908,16 @@
       "text": "Need to stand."
     },
     {
+      "id": "legacy.h1af64afc0dc2b4417b0e17c6",
+      "source": "需要至少%s点快感。",
+      "text": "Requires at least {p0} Pleasure."
+    },
+    {
+      "id": "legacy.h57ef5d6489cb2c475dc20ee2",
+      "source": "需要至少3张可消耗的牌。",
+      "text": "Requires at least 3 cards eligible for Exhaust."
+    },
+    {
       "id": "legacy.h45c3b1fcdf35a16d3434b756",
       "source": "需要至少40点自身魔力。",
       "text": "Need at least 40 points of your own Mana."
@@ -23143,9 +24983,19 @@
       "text": "Not Spell Damage Halve"
     },
     {
+      "id": "legacy.h585b5e9db35fb24fde016788",
+      "source": "非魔法减伤%s%%",
+      "text": "Non-magic damage reduction: {p0}%"
+    },
+    {
       "id": "legacy.h866fdd569d0e0b7701d1c1b8",
       "source": "靠墙",
       "text": "Against the Wall"
+    },
+    {
+      "id": "legacy.h4d61d3414c3a45eaaf96d034",
+      "source": "靠墙，靠墙最安心。这样至少有一个方向不用你自己撑着。",
+      "text": "Go to the wall. It feels safer. At least one side will support itself."
     },
     {
       "id": "legacy.h6b1f00fa81113852b89c78e3",
@@ -23236,6 +25086,11 @@
       "id": "legacy.hdcea2ad5a48519da3ae78c66",
       "source": "预备咏唱",
       "text": "Prepared Chant"
+    },
+    {
+      "id": "legacy.hd8fc52363e4c407f9dd204dc",
+      "source": "预备咏唱·下回合",
+      "text": "Prepared Chant · Next Turn"
     },
     {
       "id": "legacy.h73af5a53604500697f3c4c92",
@@ -23368,6 +25223,31 @@
       "text": "The first turn of the launch ceremony was followed by a sustained quantitative increase in each turn to break the legal framework as soon as possible."
     },
     {
+      "id": "legacy.h4bc20103d357bd1451af297f",
+      "source": "首回合接管手牌记录不正确。",
+      "text": "Invalid first-turn control hand record."
+    },
+    {
+      "id": "legacy.h2c5120d704d942f048fbbe6c",
+      "source": "首回合接管记录不完整。",
+      "text": "First-turn control record is incomplete."
+    },
+    {
+      "id": "legacy.h62e7bb48049ee6147c5eed15",
+      "source": "首回合接管进度不正确。",
+      "text": "Invalid first-turn control progress."
+    },
+    {
+      "id": "legacy.h91ff0a8d594e1171dec69a87",
+      "source": "首回合接管阶段不正确。",
+      "text": "Invalid first-turn control phase."
+    },
+    {
+      "id": "legacy.h930bd3af9a2433efba87a17f",
+      "source": "首张魔法牌能量－%d",
+      "text": "First Magic card: −{p0} Energy"
+    },
+    {
       "id": "legacy.h02dff00ba2e999c0ee58f474",
       "source": "首次来到尖塔？从「开始新游戏」出发。",
       "text": "For the first time, we've come to the minaret?"
@@ -23443,6 +25323,11 @@
       "text": "Climax and deep breath."
     },
     {
+      "id": "legacy.hf1c4b95783366a11ba4616ab",
+      "source": "高潮后",
+      "text": "After climax"
+    },
+    {
       "id": "legacy.hdb9e0a1337ac99d99bdb8208",
       "source": "高潮后保留快感：（品质%d＋紧度%d）×当前系数%d＝%d。",
       "text": "Keep after climax Arousal: (Quality){p0}+ Tightness {p1}) x Current coefficient{p2}={p3}I don't know."
@@ -23453,6 +25338,11 @@
       "text": "It's a lack of strength after the orgasm."
     },
     {
+      "id": "legacy.hbb5bd9a12277add20be9121d",
+      "source": "高潮后，魔瓶魔力＋10。",
+      "text": "After each climax, add 10 mana to the flask."
+    },
+    {
       "id": "legacy.h91c23aa5a8c9d207276c3ad6",
       "source": "高潮打断了剩余卡牌效果。",
       "text": "Climax interrupted the remaining card effects."
@@ -23461,6 +25351,11 @@
       "id": "legacy.h8459f7114a06beb2c9cf4deb",
       "source": "高潮时滑脱伤害：%s－紧度%d－等级%d＝%s。",
       "text": "At the climax, Slip Damage: {p0}- Tightness {p1}-grade {p2} = {p3}."
+    },
+    {
+      "id": "legacy.hba23ec438baed9cfe85aaa89",
+      "source": "高潮时，下回合多抽1张牌。",
+      "text": "Upon climax, draw 1 additional card next turn."
     },
     {
       "id": "legacy.h39ff8fa8fbadb24f1ecd2a0c",
@@ -23536,6 +25431,11 @@
       "id": "legacy.h642419a5c7d59e8532d003f0",
       "source": "高级材料练习",
       "text": "Advanced material exercises"
+    },
+    {
+      "id": "legacy.hf46d901190427b4f5871079b",
+      "source": "高级榨精杯固定带",
+      "text": "High-Grade Milking Cup Fixing Strap"
     },
     {
       "id": "legacy.h0cbf19d12913f5c935c96936",
@@ -23903,6 +25803,11 @@
       "text": "Mana cap-10, select one of the three Rare cards."
     },
     {
+      "id": "legacy.h6f76727c4cfd3482951fa871",
+      "source": "魔力不足时不触发。右键状态开关。",
+      "text": "Does not trigger without enough mana. Right-click the status to toggle."
+    },
+    {
       "id": "legacy.h0dbc4ffe14b29022aa3428e2",
       "source": "魔力商店",
       "text": "Mana Shop"
@@ -24013,6 +25918,26 @@
       "text": "Mana is enough to respond to me, the art begins!"
     },
     {
+      "id": "legacy.h0a041f63eb1df257589fceb9",
+      "source": "魔力附着",
+      "text": "Mana Attachment"
+    },
+    {
+      "id": "legacy.h585a622c1d1b591e8c21f398",
+      "source": "魔力附着·拘束",
+      "text": "Mana Attachment · Bound"
+    },
+    {
+      "id": "legacy.h041b3768d692f3b9f29291f4",
+      "source": "魔力附着·自由",
+      "text": "Mana Attachment · Free"
+    },
+    {
+      "id": "legacy.h395bd0a11cee2daec96d043d",
+      "source": "魔力附着：消耗%s魔力，获得%d层蓄力。",
+      "text": "Mana Attachment: spent {p0} mana and gained {p1} Charge."
+    },
+    {
       "id": "legacy.h0866661c8c636ccfa753c732",
       "source": "魔力预备",
       "text": "Mana Reserve"
@@ -24113,9 +26038,24 @@
       "text": "Magical Girl (futa)"
     },
     {
+      "id": "legacy.hc24648e49e1719a5d53e10f6",
+      "source": "魔法少女专属。拾取时，获得50点快感。每场战斗结束后，获得10点快感。\n改变快感对施法成功率的影响：快感0%／100%时为0%，25%／75%时为50%，50%时为100%；部位拘束等其他判定照常。\n解锁淫魔法卡池。",
+      "text": "Magical Girl only. On pickup, gain 50 Arousal. After each battle, gain 10 Arousal.\nChanges the Arousal component of cast success: 0% at 0%/100% Arousal, 50% at 25%/75%, and 100% at 50%. Restraints and other casting rules still apply.\nUnlocks the Lewd Magic card pool."
+    },
+    {
+      "id": "legacy.h23a57635cb595d7e82a85d8a",
+      "source": "魔法少女专属。拾取时，获得50点快感。每场战斗结束后，获得10点快感。\n改变快感对施法成功率的影响：快感0%／100%时为0%，25%／75%时为50%，50%时为100%；部位拘束等其他判定照常。\n解锁淫魔法卡牌与专用遗物池。",
+      "text": "Magical Girl only. On pickup, gain 50 arousal. After each battle, gain 10 arousal.\nChanges arousal-based cast success: 0% at 0%/100% arousal, 50% at 25%/75%, and 100% at 50%. Body restrictions and other checks still apply.\nUnlocks Lewd Magic cards and its exclusive relic pool."
+    },
+    {
       "id": "legacy.h3f873c3f817511b75e9fca77",
       "source": "魔法滑脱",
       "text": "Magic Slip."
+    },
+    {
+      "id": "legacy.hd7ae46cecdeac84e3487f1bf",
+      "source": "魔法牌耗魔－1，最低为0。可叠加。",
+      "text": "Magic cards cost 1 less Mana, to a minimum of 0. Stacks."
     },
     {
       "id": "legacy.h346663deff88cf4d366d5034",
@@ -24131,6 +26071,11 @@
       "id": "legacy.h586a10ba70fa84b823aa29ec",
       "source": "魔法阵练习",
       "text": "The magic line practice."
+    },
+    {
+      "id": "legacy.hee3f9168d9740bb1a559e8c4",
+      "source": "魔法／淫魔法施法成功率＋25个百分点。施法成功时，获得5快感。",
+      "text": "Magic and Lewd Magic gain 25 percentage points of cast success chance. Gain 5 arousal on a successful cast."
     },
     {
       "id": "legacy.haaf699379cd731acbcd67398",
@@ -24216,6 +26161,11 @@
       "id": "legacy.hf4fa0dc65d65876d80a8b900",
       "source": "魔路精通：获得%d能量。",
       "text": "Mana Circuit Mastery: gain {p0} Energy."
+    },
+    {
+      "id": "legacy.ha44c7fbf49056ec1973bbb74",
+      "source": "鲤鱼打挺",
+      "text": "Kip Up"
     },
     {
       "id": "legacy.h671769d7d58fc3e3ec924a47",
@@ -24568,6 +26518,16 @@
       "text": ": turn over, Arousal lowers {p0} point."
     },
     {
+      "id": "legacy.h97995eb67526c3be9a75192f",
+      "source": "：已用于本次出牌或基础动作。",
+      "text": ": Used for this card or basic action."
+    },
+    {
+      "id": "legacy.h965048da0731d7ca970be96d",
+      "source": "：快感%s → %s，获得%d层蓄力。",
+      "text": ": Pleasure {p0} → {p1}; gain {p2} Charge."
+    },
+    {
       "id": "legacy.hb41d639c409a74cd679203ad",
       "source": "：快感值保持在%s，多出部分已抵消。",
       "text": ": Arousal is maintained at {p0}, offset by an increase."
@@ -24638,6 +26598,11 @@
       "text": ": This cast is guaranteed to succeed."
     },
     {
+      "id": "legacy.hc0b8eaa1c72e25702ba9a1c7",
+      "source": "：本次高潮不改变快感值。",
+      "text": ": This climax leaves Pleasure unchanged."
+    },
+    {
       "id": "legacy.h56e145f2bd1bf1ac7e51f64a",
       "source": "：精神集中＋%d。",
       "text": ": Mental Focus +{p0}."
@@ -24651,6 +26616,11 @@
       "id": "legacy.hadbefeb6f04b28a5153f9b7d",
       "source": "：累计%d回合，获得1能量。",
       "text": ": Cumulative {p0} turn, with 1 Energy."
+    },
+    {
+      "id": "legacy.he4a0822484886c81661ffc8c",
+      "source": "：累计%d次洗牌，获得%d能量。",
+      "text": ": After {p0} shuffles, gain {p1} Energy."
     },
     {
       "id": "legacy.hb34650ea68d609b441c04514",
@@ -24701,6 +26671,11 @@
       "id": "legacy.ha3c9bfc2a3dbe09714d15fa3",
       "source": "；均为中级2档。成功佩戴才消耗，无法佩戴时留在盒内。",
       "text": "; both in the intermediate 2 level. Successfully worn is consumed and left in the box when not."
+    },
+    {
+      "id": "legacy.hdfa00acbb07dd7f03e44e145",
+      "source": "；折后%s魔力",
+      "text": "; discounted: {p0} mana"
     },
     {
       "id": "legacy.hbfd96d372b41a81fe70ae250",

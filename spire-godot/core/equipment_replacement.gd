@@ -33,13 +33,50 @@ static func execute(g, prepared: Dictionary) -> Dictionary:
  if not fresh.ok: return _fail(fresh.reason)
  for key in ["_after","removed","installed","lost_links","comparisons"]:
   if fresh.get(key)!=prepared.get(key): return _fail("替换方案的预演结果已改变，需要重新检查。")
- # Only changed fields are committed: an enemy/event reference held by the
- # enclosing Game operation must not be orphaned by replacing the whole state.
- for key in fresh._after:
-  if g.state.get(key)!=fresh._after[key]:
-   var value=fresh._after[key]
-   g.state[key]=value.duplicate(true) if value is Array or value is Dictionary else value
+ _commit_changes(g,fresh._after)
  return {"ok":true,"reason":"","removed":fresh.removed.duplicate(),"installed":fresh.installed.duplicate(true),"lost_links":fresh.lost_links.duplicate(),"comparisons":fresh.comparisons.duplicate(true)}
+
+# Some captures explicitly replace every removable special item covered by one
+# prescribed device. This remains a replacement transaction: cursed items are
+# an absolute boundary, cleanup owns dependent pieces and links, and the normal
+# special factory owns the incoming item.
+static func force_special(g, type: String, tier: int, source: String) -> Dictionary:
+ if not g.SpecialEquipment.DESIGNS.has(type) or tier not in [1,2,3]: return _fail("指定的特殊装备不合法。")
+ var original=g.state
+ var feedback=g._resource_feedback
+ g._resource_feedback=null
+ g.state=original.duplicate(true)
+ var result=_force_special_live(g,type,tier,source)
+ var after=g.state.duplicate(true) if result.ok else {}
+ g.state=original
+ g._resource_feedback=feedback
+ if not result.ok: return result
+ _commit_changes(g,after)
+ return result
+
+# Both replacement policies commit only changed fields. Keep unchanged enclosing
+# enemy/event references alive and never expose trial containers as authority.
+static func _commit_changes(g, after: Dictionary) -> void:
+ for key in after:
+  if g.state.get(key)!=after[key]:
+   var value=after[key]
+   g.state[key]=value.duplicate(true) if value is Array or value is Dictionary else value
+
+static func _force_special_live(g, type: String, tier: int, source: String) -> Dictionary:
+ var coverage=g.SpecialEquipment.DESIGNS[type].slots
+ var blocking=g.state.special_equipment.filter(func(item):return not g.SpecialEquipment.is_reinforcement(item) and g.SpecialEquipment.occupied_slots(item).any(func(slot):return slot in coverage))
+ if blocking.any(g.SpecialEquipment.is_cursed_plate): return _fail(g.SpecialEquipment.CURSED_PLATE_REASON)
+ var old_targets=g.action_targets().duplicate(true)
+ for item in blocking:
+  item.durability=0.0
+ if not blocking.is_empty(): g._cleanup(false)
+ var installed=g._install_special(type,coverage[0],tier)
+ if installed.is_empty(): return _fail("清理可替换装备后仍无法佩戴指定装备。")
+ if g.SpecialEquipment.validate(g.state.special_equipment)!="" or g._capacity_issue(g.physical_pieces())!="": return _fail("替换后的特殊装备结构不合法。")
+ var live=g.action_targets().map(func(item):return item.id)
+ var removed=old_targets.filter(func(item):return item.id not in live and item.template!="link_rope").map(func(item):return item.id)
+ var lost_links=old_targets.filter(func(item):return item.id not in live and item.template=="link_rope").map(func(item):return item.id)
+ return {"ok":true,"reason":"","removed":removed,"installed":[installed],"lost_links":lost_links,"comparisons":[]}
 
 static func _fail(reason: String) -> Dictionary:
  return {"ok":false,"reason":reason,"removed":[],"installed":[],"lost_links":[],"comparisons":[]}
@@ -177,9 +214,9 @@ static func _plan(g, requests: Array, source: String, protected_ids: Array) -> D
  var mandatory_ids=[]
  for request in specs:
   if request.kind!="special_install": continue
-  var family=g.SpecialEquipment.TYPES[request.type].family
+  var family=g.SpecialEquipment.exclusive_family(request.type)
   for item in before.special_equipment:
-   if g.SpecialEquipment.TYPES[item.type].family!=family or item.id in mandatory_ids: continue
+   if g.SpecialEquipment.exclusive_family(item.type)!=family or item.id in mandatory_ids: continue
    if g.cursed_plate(item): return _fail(g.SpecialEquipment.CURSED_PLATE_REASON)
    if item.id in protected_ids: return _fail("同一批次刚安装的特殊装备不能再次被替换。")
    mandatory.append({"id":item.id,"pieces":[item.duplicate(true)],"counts":_counts(g,[item]),"composite":false})
@@ -199,8 +236,8 @@ static func _plan(g, requests: Array, source: String, protected_ids: Array) -> D
   prototypes.append(item)
  for unit in mandatory:
   var old=unit.pieces[0]
-  var family=g.SpecialEquipment.TYPES[old.type].family
-  var incoming=new_pieces.filter(func(piece):return g.SpecialEquipment.is_special(piece) and g.SpecialEquipment.TYPES[piece.type].family==family)
+  var family=g.SpecialEquipment.exclusive_family(old.type)
+  var incoming=new_pieces.filter(func(piece):return g.SpecialEquipment.is_special(piece) and g.SpecialEquipment.exclusive_family(piece.type)==family)
   if incoming.is_empty() or comparison_value(g,incoming[0])<comparison_value(g,old): return _fail("同族新装备的品质不足，不能替换现有装备。")
  var demand=_counts(g,new_pieces)
  g.state=before.duplicate(true)
@@ -211,6 +248,9 @@ static func _plan(g, requests: Array, source: String, protected_ids: Array) -> D
  var deficit={}
  for point in demand:
   var capacity=g.SpecialEquipment.capacity(point) if point in g.SpecialEquipment.slots() else g._capacity(g.Links.point_slot(point))
+  for piece in new_pieces:
+   if point not in g.SpecialEquipment.slots() and point in g.Equipment.capacity_points(piece):
+    capacity=mini(capacity,g.Equipment.capacity(g.Links.point_slot(point),piece.template)+demand[point]-1)
   var extra=existing.get(point,0)-mandatory_counts.get(point,0)+demand[point]-capacity
   if extra>0: deficit[point]=extra
  var units=_units(g,deficit)

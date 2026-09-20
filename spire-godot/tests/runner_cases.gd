@@ -11,7 +11,16 @@ static func run(t) -> void:
     t.check(name in Selection.resolve(t.SUITES.keys(),[area],true).selected,"RUNNER extracted feature keeps its former reward integration coverage: "+name+" / "+area)
  t.check(t.SUITES.values().all(func(suite):return suite==null or suite is String),"RUNNER registries contain resource paths so unselected suites are never preloaded")
  var names=t.SUITES.keys()
+ for area in ["relics","card_power","card_growth","witch_character"]:
+  t.check("card_splash" in Selection.resolve(names,[area],true).selected,"RUNNER live card values and splash follow attribute, growth and character changes: "+area)
+ for area in ["card_power","card_expansion","relics","special_equipment"]:
+  t.check("pressure" in Selection.resolve(names,[area],true).selected,"RUNNER interruption and energy-refund interactions follow changes to "+area)
+ for area in ["core","guard"]:
+  t.check("iron_man" in Selection.resolve(names,[area],true).selected,"RUNNER shared capture readiness changes include Iron Man: "+area)
  t.check(Selection.resolve(names,["witch_character"]).selected==["witch_character"],"RUNNER witch character rules have an executable complete scope")
+ t.check("enemies" in Selection.resolve(names,["witch_character"],true).selected,"RUNNER witch attacks include shared multi-hit enemy barrier checks")
+ for area in ["card_power","relics"]:
+  t.check("enemies" in Selection.resolve(names,[area],true).selected,"RUNNER area damage sources include shared enemy barrier checks: "+area)
  for area in Selection.CROSS_AREAS.witch_character:
   t.check("witch_character" in Selection.resolve(names,[area],true).selected,"RUNNER witch character follows its affected boundary "+area)
  var direct=Selection.resolve(names,["casting","casting"])
@@ -46,10 +55,12 @@ static func run(t) -> void:
 # Follow actual run calls, not helper imports. A case must have exactly one owner.
 static func ownership(t) -> void:
  var paths=t.SUITES.values().filter(func(path):return path is String)
+ # Inline core/UI cases also own run(self) calls; shared runner probes are not cases.
+ paths.append_array(["res://tests/test_game.gd","res://tests/ui_smoke.gd"])
  var ui=FileAccess.get_file_as_string("res://tests/ui_smoke.gd").split("func module_checks")[0]
  var registry=RegEx.new();registry.compile('"[^"\\n]+":\\s*"(res://tests/[^"\\n]+)"')
  for entry in registry.search_all(ui): paths.append(entry.get_string(1))
- var calls=RegEx.new();calls.compile(r'preload\("(res://tests/[^"]+)"\)\.run\(t(?:,|\))')
+ var calls=RegEx.new();calls.compile(r'preload\("(res://tests/[^"]+_cases\.gd)"\)\.run\((?:t|self)(?:,|\))')
  var owners={}
  for path in paths: visit(t,path,path,owners,calls)
  var directory=DirAccess.open("res://tests")

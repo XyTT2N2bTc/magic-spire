@@ -8,7 +8,7 @@ static func description(g, type: String) -> String:
  return effect_description(type,TYPES[type].damage*g.Cards.damage_multiplier(g,"equipment"),assisted(g))
 
 static func assisted(g) -> bool:
- return g.Relics.value(g.state.relics,"unrestricted_items")>0
+ return g.relic_value("unrestricted_items")>0
 
 static func is_fixed(g, item: Dictionary) -> bool:
  return item.mount!="carry" or (assisted(g) and not TYPES[item.type].get("trigger_damage_types",[]).is_empty())

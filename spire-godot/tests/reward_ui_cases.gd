@@ -376,8 +376,10 @@ static func rolling_log(t) -> void:
  await t.capture("ui-rolling-log.png")
  ui.game.state.relics.append_array(ui.game.Relics.REWARDS)
  ui.game.state.room_encounters[ui.game.state.room]="guard_solo";ui.game._finish_battle();ui.render();await t.frames()
- t.check(ui.find_child("Reward_relic",true,false)!=null and t.visible_text(ui.layout).contains("滚木"),"LOG UI elite pool exhaustion displays collectible reward")
- t.check(await t.click("reward",{"category":"relic"}) and ui.find_child("RelicShortcut_rolling_log",true,false).find_child("RelicCounter",true,false).text=="3" and ui.find_child("Reward_relic",true,false).disabled,"LOG UI real claim adds one copy and disables only the current reward")
+ var dropped=ui.game.state.battle_relic_drop
+ var copies=int(ui.game.state.relic_counters.get(dropped,1))
+ t.check(dropped in ["rolling_log","intellect_cloak"] and ui.find_child("Reward_relic",true,false)!=null and t.visible_text(ui.find_child("Reward_relic",true,false)).contains(ui.game.Relics.TYPES[dropped].name),"LOG UI elite exhaustion displays the frozen tier fallback reward")
+ t.check(await t.click("reward",{"category":"relic"}) and ui.find_child("RelicShortcut_"+dropped,true,false).find_child("RelicCounter",true,false).text==str(copies+1) and ui.find_child("Reward_relic",true,false).disabled,"LOG UI real claim increments the offered collectible and disables the claimed reward")
  ui.restart(42)
  for count in range(3): ui.game.RelicEffects.gain(ui.game,"rolling_log")
  ui.game.state.relics.append_array(ui.game.Relics.shop_pool())
@@ -385,10 +387,15 @@ static func rolling_log(t) -> void:
  ui.game.state.flask_mana=200;ui.game.Services.start(ui.game);ui.shop_payment="flask";ui.render();await t.frames()
  var flask_before=ui.game.state.flask_mana
  var offers=ui.view.shop.stock.filter(func(offer):return offer.kind=="relic")
- t.check(offers.size()==3 and offers.all(func(offer):return offer.type=="rolling_log" and offer.rarity_name=="特殊"),"LOG UI empty shop pool displays three special collectible slots")
+ t.check(offers.size()==3 and offers.all(func(offer):return offer.type in ["rolling_log","intellect_cloak"] and offer.rarity_name==("普通" if offer.type=="intellect_cloak" else "特殊")),"LOG UI exhausted shop displays three fallback slots with their actual rarity")
+ var quoted_payment=0.0
  for offer in offers:
-  t.check(await t.click("service",{"op":"take","index":offer.index,"payment":"flask"}) and ui.find_child("ShopOffer%d" % offer.index,true,false).disabled,"LOG UI each identical collectible has an independent real purchase button")
- t.check(ui.find_child("RelicShortcut_rolling_log",true,false).find_child("RelicCounter",true,false).text=="6" and ui.view.mana_flask.mana==flask_before-135,"LOG UI repeat shop purchases update one quantity badge and charge three prices")
+  copies=int(ui.game.state.relic_counters.get(offer.type,1))
+  quoted_payment+=offer.price
+  t.check(await t.click("service",{"op":"take","index":offer.index,"payment":"flask"}) and ui.find_child("ShopOffer%d" % offer.index,true,false).disabled,"LOG UI each fallback slot has an independent real purchase button")
+  var icons=ui.find_children("RelicShortcut_"+offer.type,"",true,false)
+  t.check(icons.size()==1 and icons[0].find_child("RelicCounter",true,false).text==str(copies+1),"LOG UI each purchase increments only its collectible badge")
+ t.check(ui.view.mana_flask.mana==flask_before-quoted_payment,"LOG UI purchases pay the displayed prices including owned relic discounts")
  ui.restart(42);await t.frames()
 
 static func pressure_relics(t) -> void:

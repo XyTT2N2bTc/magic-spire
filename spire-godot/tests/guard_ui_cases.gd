@@ -7,8 +7,8 @@ static func run(t) -> void:
  t.check(ui.view.phase=="battle" and ui.view.enemies.size()==1 and ui.view.enemies[0].type=="guard" and ui.view.enemies[0].maximum==90,"GUARD UI practice starts real succubus guard")
  var enemy=ui.view.enemies[0].id
  var picture=ui.find_child("EnemyArt_"+enemy,true,false)
- var expected_path="res://assets/art/enemy-guards-v1/guard-purple-v1.png" if picture.variant=="guard_purple" else "res://assets/art/enemy-guards-v1/guard-brown-v1.png"
- t.check(picture.variant==ui.view.enemies[0].visual_variant and picture.enemy_sprite.texture.resource_path==expected_path,"GUARD UI uses the generated guard portrait variant from the read-only view")
+ var expected_path="res://assets/art/enemy-succubus-guards-v1/succubus-purple-v1.png" if picture.variant=="guard_purple" else "res://assets/art/enemy-succubus-guards-v1/succubus-brown-v1.png"
+ t.check(picture.variant==ui.view.enemies[0].visual_variant and picture.enemy_sprite.texture.resource_path==expected_path and picture.enemy_sprite.texture!=ui.Arena.Art.GUARD_PORTRAITS[picture.variant],"GUARD UI uses the original succubus portrait variant without borrowing the prison guard art")
  var group=ui.find_child("EnemyGroup_"+enemy,true,false)
  var select=ui.find_child("EnemySelect_"+enemy,true,false)
  t.check(is_equal_approx(group.position.x+group.size.x/2.0,ui.ENEMY_STAGE_LEFT+ui.ENEMY_STAGE_WIDTH/2.0),"GUARD UI single enemy uses the full stage width without reserving action-log space")
@@ -64,17 +64,17 @@ static func run(t) -> void:
  var mana=ui.view.mana
  var deck=ui.view.deck_count
  t.check(await t.click("end") and ui.view.phase=="captured" and ui.view.security==1 and ui.view.reward_count==0 and ui.view.mana==maxf(0.0,mana-20.0) and ui.view.deck_count==deck,"GUARD UI next enemy action captures, milks once and grants no battle reward")
- t.check(ui.find_child("PrisonIntakePanel",true,false)!=null and t.visible_text(ui.layout).contains("监狱收押") and t.visible_text(ui.layout).contains("榨取魔力 20") and t.visible_text(ui.layout).contains("登记台前") and not t.visible_text(ui.layout).contains("本次没有战后恢复"),"GUARD UI capture uses the one-time event-style intake page with its real mana loss")
+ t.check(ui.find_child("PrisonIntakePanel",true,false)!=null and ui.find_child("PrisonGuardPortrait",true,false).texture==ui.Arena.Art.GUARD_PORTRAITS.guard_brown and t.visible_text(ui.layout).contains("监狱收押") and t.visible_text(ui.layout).contains("榨取魔力 20") and t.visible_text(ui.layout).contains("登记台前") and not t.visible_text(ui.layout).contains("本次没有战后恢复"),"GUARD UI capture uses the current senior prison guard and one-time intake page with its real mana loss")
 
  await t.start_practice("Practice_double_guard")
  t.check(ui.view.enemies.size()==2 and ui.view.enemies[0].id!=ui.view.enemies[1].id,"GUARD UI double guards retain independent ids")
  for guard in ui.view.enemies:
   picture=ui.find_child("EnemyArt_"+guard.id,true,false)
-  t.check(picture.variant==guard.visual_variant and guard.visual_variant in ["guard_purple","guard_brown"],"GUARD UI paired guard keeps its own registered portrait "+guard.id)
+  t.check(picture.variant==guard.visual_variant and guard.visual_variant in ["guard_purple","guard_brown"] and picture.enemy_sprite.texture==ui.Arena.Art.SUCCUBUS_GUARD_PORTRAITS[guard.visual_variant],"GUARD UI paired guard keeps its own original succubus portrait "+guard.id)
  var first_group=ui.find_child("EnemyGroup_"+ui.view.enemies[0].id,true,false)
  var last_group=ui.find_child("EnemyGroup_"+ui.view.enemies[-1].id,true,false)
  var row_right=last_group.position.x+last_group.size.x*last_group.scale.x
- t.check(is_equal_approx(first_group.position.x-ui.ENEMY_STAGE_LEFT,ui.ENEMY_STAGE_LEFT+ui.ENEMY_STAGE_WIDTH-row_right) and row_right>ui.action_log_panel.position.x,"GUARD UI enemy row stays centered across the stage even when it extends behind the action log")
+ t.check(is_equal_approx(first_group.position.x-ui.ENEMY_STAGE_LEFT,ui.ENEMY_STAGE_LEFT+ui.ENEMY_STAGE_WIDTH-row_right) and ui.find_child("ActionSidebar",true,false)==null,"GUARD UI enemy row stays centered across the stage with no scene action log overlay")
  var first=ui.view.enemies[0].id
  var second=ui.view.enemies[1].id
  var kick=ui.view.candidates.filter(func(c):return c.payload.kind=="attack" and c.payload.type=="kick" and c.payload.form==0 and c.payload.enemy==second)[0]
@@ -88,7 +88,7 @@ static func run(t) -> void:
   ui.restart(seed,true,"guard");await t.frames()
   if ui.view.enemies[0].visual_variant=="guard_brown":
    picture=ui.find_child("EnemyArt_"+ui.view.enemies[0].id,true,false)
-   brown_found=picture.enemy_sprite.texture.resource_path=="res://assets/art/enemy-guards-v1/guard-brown-v1.png"
+   brown_found=picture.enemy_sprite.texture.resource_path=="res://assets/art/enemy-succubus-guards-v1/succubus-brown-v1.png"
    await t.capture("ui-guard-brown-portrait.png")
    break
  t.check(brown_found,"GUARD UI registered brown portrait is reachable through formal seeded generation")
@@ -107,7 +107,9 @@ static func reinforcements(t) -> void:
  for i in range(4):
   preload("res://tests/prison_reinforcement_cases.gd").quiet(g);ui.render();await t.frames()
   t.check(await t.click("end"),"REINFORCEMENTS UI actual end button advances field")
- t.check(ui.view.enemies.size()==2 and ui.actor_targets.has(g.state.enemies.back().id) and ui.view.statuses.any(func(row):return row.id=="prison_reinforcements" and row.detail.contains("1 / 2")),"REINFORCEMENTS UI new guard is targetable and shared count updates")
+ var reinforcement=g.state.enemies.back()
+ var reinforcement_picture=ui.find_child("EnemyArt_"+reinforcement.id,true,false)
+ t.check(ui.view.enemies.size()==2 and ui.actor_targets.has(reinforcement.id) and reinforcement_picture.enemy_sprite.texture==ui.Arena.Art.SUCCUBUS_GUARD_PORTRAITS[reinforcement.visual_variant] and ui.view.statuses.any(func(row):return row.id=="prison_reinforcements" and row.detail.contains("1 / 2")),"REINFORCEMENTS UI new guard is targetable, uses the original succubus art and updates the shared count")
 
 
 static func sidebar_drag(t) -> void:
@@ -116,12 +118,12 @@ static func sidebar_drag(t) -> void:
  preload("res://tests/guard_cases.gd").bind(ui.game,ui.game.state.enemies[0],36.0)
  ui.game.state.energy=5
  ui.game.state.draw.append_array(ui.game.state.hand);ui.game.state.hand.clear()
- for type in ["strain","slip","unlock"]:preload("res://tests/curse_cases.gd").give(ui.game,type)
+ for type in ["strain","slip","ease","unlock"]:preload("res://tests/curse_cases.gd").give(ui.game,type)
  ui.render();await t.frames()
  var sidebar=ui.find_child("SidebarGuardBindTarget",true,false)
  t.check(sidebar!=null and sidebar.get_global_rect().encloses(ui.find_child("MainGuardBind",true,false).get_global_rect()) and sidebar.get_global_rect().encloses(ui.find_child("MainGuardBindCaption",true,false).get_global_rect()),"GUARD sidebar whole capture row accepts drops including caption and meter")
  t.check(not sidebar.get_global_rect().intersects(ui.find_child("FlaskDeposit",true,false).get_global_rect()),"GUARD sidebar receiver does not overlap flask controls")
- for type in ["strain","slip"]:
+ for type in ["strain","slip","ease"]:
   var card=ui.view.hand.filter(func(entry):return entry.type==type)[0]
   if ui.card_faces.get(card.uid,false):await t.flip(card.uid)
   var c=ui.actions.find("card",{"uid":card.uid,"target":"guard_bind","free":false})

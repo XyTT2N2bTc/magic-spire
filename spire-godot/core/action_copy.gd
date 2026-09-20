@@ -141,6 +141,9 @@ static func climax_cues(context: Dictionary) -> Dictionary:
  return {"dialogue":dialogue,"narration":"climax.narration."+variant}
 
 static func hero_cue(payload: Dictionary, context: Dictionary={}) -> String:
+ if payload.get("kind","")=="card" and not context.get("spell_failed",false):
+  var cue=CardRules.SPECS.get(payload.get("type",""),{}).get("play_cue","")
+  if cue!="": return cue
  if int(context.get("climax_count",0))>0: return climax_cues(context).dialogue
  var group=_paid_group(payload,context)
  if group=="": return ""

@@ -2,6 +2,24 @@ extends Control
 
 # Only renders the counter supplied by the shared relic projection.
 const ART={
+ "brainwash_earrings":preload("res://assets/ui/relics/brainwash_earrings.svg"),
+ "hypnosis_hairpin":preload("res://assets/ui/relics/hypnosis_hairpin.svg"),
+ "lewd_silk_bodysuit":preload("res://assets/ui/relics/lewd_silk_bodysuit.svg"),
+ "lewd_silk_gloves":preload("res://assets/ui/relics/lewd_silk_gloves.svg"),
+
+ "lucidity_necklace":preload("res://assets/ui/relics/lucidity_necklace.svg"),
+ "edging_seal":preload("res://assets/ui/relics/edging_seal.svg"),
+ "pleasure_extractor":preload("res://assets/ui/relics/pleasure_extractor.svg"),
+ "desire_cube_pro_max":preload("res://assets/ui/relics/desire_cube_pro_max.svg"),
+ "scrap_robot":preload("res://assets/ui/relics/scrap_robot.svg"),
+ "ditto":preload("res://assets/ui/relics/ditto.svg"),
+ "doubao":preload("res://assets/ui/relics/doubao.png"),
+ "deepseek":preload("res://assets/ui/relics/deepseek.png"),
+ "masochist_mark":preload("res://assets/ui/relics/masochist_mark.svg"),
+ "universal_scanner":preload("res://assets/ui/relics/universal_scanner.svg"),
+ "sundial":preload("res://assets/ui/relics/sundial.svg"),
+ "membership_card":preload("res://assets/ui/relics/membership_card.svg"),
+ "great_wand":preload("res://assets/ui/relics/great_wand.svg"),
  "secret_weapon":preload("res://assets/ui/relics/secret_weapon.svg"),
  "witch_amulet":preload("res://assets/ui/relics/witch_amulet.svg"),
  "witch_noodles":preload("res://assets/ui/relics/witch_noodles.svg"),
@@ -45,6 +63,10 @@ const ART={
  "donut":preload("res://assets/ui/relics/donut.svg"),
  "small_sigil":preload("res://assets/ui/relics/small_sigil.svg"),
  "martial_book":preload("res://assets/ui/relics/martial_book.svg"),
+ "wrist_bracer":preload("res://assets/ui/relics/wrist_bracer.svg"),
+ "wraith_ribbon":preload("res://assets/ui/relics/wraith_ribbon.svg"),
+ "ethereal_pendant":preload("res://assets/ui/relics/ethereal_pendant.svg"),
+ "intellect_cloak":preload("res://assets/ui/relics/intellect_cloak.svg"),
  "strawberry":preload("res://assets/ui/relics/strawberry.svg"),
  "break_bracer":preload("res://assets/ui/relics/break_bracer.svg"),
  "silk_ring":preload("res://assets/ui/relics/silk_ring.svg"),
@@ -60,8 +82,10 @@ var badge: Label
 
 func _ready() -> void:
  mouse_filter=Control.MOUSE_FILTER_IGNORE
- if ART.has(relic.get("id","")):
-  var picture=TextureRect.new();picture.texture=ART[relic.id];picture.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+ var art_id=relic.get("icon",relic.get("id",""))
+ if ART.has(art_id):
+  var picture=TextureRect.new();picture.texture=ART[art_id];picture.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+  if art_id in ["doubao","deepseek"]: picture.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
   picture.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED;glyph=picture
  else: glyph=preload("res://ui/shop_glyph.gd").new()
  glyph.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(glyph)

@@ -7,6 +7,8 @@ static func events(g) -> Array:
  return g.state.logs.filter(func(row):return row.data.has("card_splash")).map(func(row):return row.data.card_splash)
 
 static func run(t) -> void:
+ face_values(t)
+ multi_hit_values(t)
  strain(t)
  slip(t)
  collateral_effects(t)
@@ -14,7 +16,7 @@ static func run(t) -> void:
  for seed_value in range(24): ties(t,seed_value)
 
 static func strain(t) -> void:
- var g=F.fresh();g.state.wall="rough";g.state.wall_distance=0;g.state.charge=3
+ var g=F.fresh();g.state.wall="rough";g.state.wall_distance=0;g.state.charge=3;g.state.strength=2
  var main=F.piece(g,"thigh","thigh_root",80,100)
  var peer=F.piece(g,"thigh","thigh_root",60,100)
  var locked=F.piece(g,"thigh","thigh_root",50,100);locked.locked=true
@@ -22,11 +24,12 @@ static func strain(t) -> void:
  var card=Give.give(g,"concentration");card.damage_bonus=3
  var c=t.find_action(g,"card",{"uid":card.uid,"target":main.id,"free":false},true)
  var before=g.export_snapshot();var choices=Splash.select(g,c.payload)
- t.check(choices.size()==2 and choices.all(func(x):return x.preview.base==4.5 and x.preview.bonus==0 and x.preview.charge==0 and x.preview.assist.bonus==0 and x.preview.environment_true==0),"SPLASH uses grown printed base only, excluding stats, charge, hands and wall flat bonus")
+ t.check(c.payload.preview.face_value==14 and choices.size()==2 and choices.all(func(x):return x.preview.base==7 and x.preview.bonus==0 and x.preview.charge==0 and x.preview.assist.bonus==0 and x.preview.environment_true==0),"SPLASH halves the grown face plus strength and charge exactly once, excluding hands and wall")
  t.check(choices.any(func(x):return x.target==locked.id and x.preview.lock_multiplier==0.5) and choices.all(func(x):return x.preview.divisor>1),"SPLASH each recipient keeps its own lock and stack multipliers")
  g.get_view();g.candidates()
  t.check(g.state==before and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"SPLASH preview and stale commit preserve state and all random streams")
  t.check(g.dispatch(c.id,g.state.version).ok,"SPLASH strain commits through original candidate")
+ t.check(is_equal_approx(g._equipment(main.id).durability,80-c.payload.preview.damage),"SPLASH primary damage does not double count the displayed bonuses")
  for choice in choices:
   var old=before.equipment.filter(func(e):return e.id==choice.target)[0]
   t.check(is_equal_approx(g._equipment(choice.target).durability,old.durability-choice.preview.damage),"SPLASH actual frozen per-recipient damage matches preview")
@@ -34,7 +37,7 @@ static func strain(t) -> void:
  t.check(g.validate()=="","SPLASH strain leaves valid state")
 
 static func slip(t) -> void:
- var g=F.fresh()
+ var g=F.fresh();g.state.dexterity=4;g.state.charge=1
  var main=F.piece(g,"thigh","above_knee",40,100)
  var root=F.piece(g,"thigh","thigh_root",40,100)
  var loose=F.piece(g,"thigh","thigh_root",20,100)
@@ -44,10 +47,11 @@ static func slip(t) -> void:
  var card=Give.give(g,"slip")
  var c=t.find_action(g,"card",{"uid":card.uid,"target":main.id},true)
  var choices=Splash.select(g,c.payload)
- t.check(c.payload.preview.base==6 and choices.all(func(x):return x.preview.base==3),"SPLASH basic slip uses six primary base and three collateral base")
+ t.check(c.payload.preview.base==6 and c.payload.preview.face_value==13 and choices.all(func(x):return x.preview.base==6.5),"SPLASH slip inherits displayed dexterity and charge once")
  t.check(choices.size()==2 and choices.any(func(x):return x.target==loose.id) and choices.any(func(x):return x.target==mid.id),"SPLASH slip picks one lowest-ratio eligible target at EACH other point in panel group")
  t.check(choices.filter(func(x):return x.target==loose.id)[0].preview.penalty==0.5,"SPLASH weakest same-layer recipient still receives original same-layer penalty")
  t.check(g.dispatch(c.id,g.state.version).ok and events(g).size()==2 and root.durability==40 and same.durability==30 and calf.durability==40,"SPLASH excludes tighter alternative, original point and other panel groups")
+ t.check(g.state.charge==0 and events(g).all(func(event):return event.base==13),"SPLASH frozen face value survives primary charge consumption without another charge cost")
  g=F.fresh();main=F.piece(g,"thigh","above_knee",40,100)
  root=F.piece(g,"thigh","thigh_root",100,100)
  mid=F.piece(g,"thigh","mid_thigh",20,100);mid.locked=true
@@ -67,6 +71,48 @@ static func slip(t) -> void:
  root=F.piece(g,"thigh","thigh_root",40,100);root.points=["thigh_root","mid_thigh"]
  p=g.Cards.target_payload(g,"slip","thigh",main);choices=Splash.select(g,p)
  t.check(choices.size()==1 and choices[0].target==root.id,"SPLASH deduplicates multi-point physical equipment")
+
+static func face_values(t) -> void:
+ var g=F.fresh();g.state.strength=2;g.state.dexterity=5;g.state.charge=2
+ var card=Give.give(g,"concentration");card.damage_bonus=3
+ var before=g.export_snapshot()
+ var entry=g.live_card_text(card.type,card.uid)
+ t.check(entry.bound.contains("挣扎14") and entry.free.contains("滑脱17") and entry.face_damage=={"bound":[14.0],"free":[17.0]},"FACE VALUES dual bound faces use their own attribute plus charge and physical growth")
+ t.check(entry.face_effects.bound.contains("挣扎14") and entry.face_effects.free.contains("滑脱17") and g.live_card_text_set([card]).instances[card.uid]==entry,"FACE VALUES visible effects and deck projections share numeric values")
+ var book=preload("res://data/encyclopedia.gd").card(card.type)
+ t.check(book.bound.contains("挣扎6") and book.free.contains("滑脱6") and g.state==before,"FACE VALUES encyclopedia remains static and live projections never consume charge")
+ entry.face_damage.bound[0]=999
+ t.check(g.live_card_text(card.type,card.uid).face_damage.bound==[14.0],"FACE VALUES returned numeric containers are isolated")
+ t.check(g.live_card_text("strain").free.contains("蓄力1") and g.live_card_text("ease").bound.contains("降紧1") and g.live_card_text("ease").face_damage.bound.is_empty(),"FACE VALUES resource gains and fixed lowering never receive damage bonuses")
+ var sequence=g.live_card_text("chain")
+ t.check(sequence.face_damage.bound==[9.0,9.0,6.0] and sequence.bound.contains("挣扎9×2＋6×1"),"FACE VALUES limited charge displays exact per-hit values")
+ t.check(t.action(g,"status_toggle",{"status":"charge","enabled":true}).ok,"FACE VALUES full-charge mode changes through formal command")
+ sequence=g.live_card_text("chain")
+ t.check(sequence.face_damage.bound==[12.0,6.0,6.0] and sequence.bound.contains("挣扎12×1＋6×2"),"FACE VALUES full charge applies only to the first projected hit")
+ var target=F.piece(g,"ankle","ankle",40,100)
+ g.state.relics.append("smooth_stockings")
+ var preview=g.Cards.target_payload(g,"slip","ankle",target).preview
+ t.check(preview.face_value==17 and preview.bonus==7 and g.live_card_text("slip").face_damage.bound==[17.0],"FACE VALUES target-only stocking bonus stays outside untargeted card values")
+ var witch=preload("res://core/game.gd").new(42,true,"equipment",true,false,25,false,false,"witch")
+ witch.state.dexterity=4;witch.state.charge=1
+ var training=witch.live_card_text("witch_escape_practice")
+ t.check(training.face_damage.free==[8.0,5.0,5.0] and training.free.contains("滑脱8×1＋5×2") and training.bound.contains("挣扎4×1＋1×2"),"FACE VALUES witch training uses dynamic per-face templates and individual charge consumption")
+
+static func multi_hit_values(t) -> void:
+ for all_charge in [false,true]:
+  var g=F.fresh();g.state.strength=2;g.state.charge=2
+  if all_charge: t.check(t.action(g,"status_toggle",{"status":"charge","enabled":true}).ok,"FACE VALUES enable full charge for actual multi-hit cast")
+  var target=F.piece(g,"thigh","thigh_root",400,1000)
+  F.piece(g,"thigh","thigh_root",200,1000)
+  var card=Give.give(g,"chain")
+  var values=g.live_card_text(card.type,card.uid).face_damage.bound
+  var c=t.find_action(g,"card",{"uid":card.uid,"target":target.id,"free":false},true)
+  var before=g.export_snapshot()
+  t.check(c.valid and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"FACE VALUES stale multi-hit cast preserves charge and card")
+  t.check(g.dispatch(c.id,g.state.version).ok and g.state.card_chain.is_empty() and g.state.charge==0 and g.state.energy==before.energy-2,"FACE VALUES actual multi-hit cast consumes its charge and energy once")
+  t.check(events(g).map(func(event):return event.base)==values,"FACE VALUES each actual splash reads the corresponding displayed hit value")
+  var hits=g.state.logs.filter(func(row):return row.data.has("follow_through_hit")).map(func(row):return row.data.face_value)
+  t.check(hits==values,"FACE VALUES primary hits and splash share the same refreshed per-hit values")
 
 static func ties(t, seed_value: int) -> void:
  var g=F.fresh(seed_value)

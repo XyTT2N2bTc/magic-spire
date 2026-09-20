@@ -2,6 +2,15 @@ extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 
 static func run(t) -> void:
+ preload("res://tests/lewd_relic_cases.gd").run(t)
+ preload("res://tests/lucidity_necklace_cases.gd").run(t)
+ preload("res://tests/edging_seal_cases.gd").run(t)
+ preload("res://tests/desire_cube_cases.gd").run(t)
+ preload("res://tests/scrap_robot_cases.gd").run(t)
+ preload("res://tests/ditto_cases.gd").run(t)
+ preload("res://tests/first_turn_control_cases.gd").run(t)
+ preload("res://tests/sundial_cases.gd").run(t)
+ preload("res://tests/great_wand_cases.gd").run(t)
  preload("res://tests/secret_weapon_cases.gd").run(t)
  preload("res://tests/combat_extension_cases.gd").run(t)
  preload("res://tests/axe_amulet_cases.gd").run(t)
@@ -17,6 +26,8 @@ static func run(t) -> void:
  combat(t)
  lifecycle(t)
  attributes(t)
+ wrist_and_ribbon(t)
+ preload("res://tests/relic_mana_cases.gd").run(t)
  drops(t)
  casting_manual(t)
  periodic_energy(t)
@@ -116,8 +127,13 @@ static func spicy_rice_noodles(t) -> void:
  t.check(g.state==before and not g.dispatch(choice.id,version).ok and g.state==before,"NOODLES viewing and stale transition cannot duplicate stacks")
  t.check(not g.state.logs.any(func(log):return log.data.get("relic_trigger",{}).get("id","")==id),"NOODLES no duplicate opening feedback during preparation")
  g=Game.new(80,true,"prison_test");g.state.relics=[id];g.state.charge=2;g.state.prison.left=1
- t.action(g,"end");t.action(g,"prison",{"action":"inspect"});t.action(g,"prison",{"action":"accept"});t.action(g,"prison",{"action":"resume"})
- t.check(g.state.phase=="prison" and g.state.charge==2,"NOODLES inspection resume does not reopen the session")
+ var serial=g.state.combat.serial
+ var opening_logs=g.state.logs.filter(func(log):return log.data.get("relic_trigger",{}).get("id","")==id).size()
+ t.check(t.action(g,"end").ok and t.action(g,"prison",{"action":"inspect"}).ok,"NOODLES reaches inspection through formal actions")
+ t.check(t.action(g,"prison",{"action":"accept"}).ok and g.state.charge==1 and g.state.logs.any(func(log):return log.data.has("prison_inspection_climax")),"NOODLES inspection climax halves two carried charge stacks before resume")
+ var carried_charge=g.state.charge
+ t.check(t.action(g,"prison",{"action":"resume"}).ok and g.state.phase=="prison" and g.state.charge==carried_charge and g.state.combat.serial==serial,"NOODLES inspection resume preserves charge and the original session")
+ t.check(g.state.logs.filter(func(log):return log.data.get("relic_trigger",{}).get("id","")==id).size()==opening_logs,"NOODLES inspection resume does not repeat opening feedback")
 
 static func kings_gift(t) -> void:
  var id="kings_gift_revised"
@@ -402,6 +418,38 @@ static func attributes(t) -> void:
  wrist=g.add_fixture("wrist",6)
  t.check(g.escape_preview(wrist,"strain",5).bonus==1,"RELIC strength also increases restraint strain")
 
+static func wrist_and_ribbon(t) -> void:
+ var g=Game.new(76)
+ g.state.wall="normal"
+ g.state.equipment.clear();g.state.links.clear();g.state.composites.clear();g.state.relics=[]
+ for id in ["wrist_bracer","wraith_ribbon"]:
+  var excluded=g.Relics.REWARDS.filter(func(key):return key!=id)
+  t.check(preload("res://tests/rolling_log_cases.gd").offer_tier(g,"common",excluded)==id and id in g.Relics.shop_pool(),"WRIST/RIBBON common reward and shop availability: "+id)
+ g.RelicEffects.gain(g,"wrist_bracer")
+ t.check(g.RelicEffects.attribute(g,"strength")==0 and g.RelicEffects.attribute(g,"dexterity")==0,"WRIST free wrists grant no attributes")
+ var forearm=g.add_fixture("forearm",1)
+ t.check(g.RelicEffects.attribute(g,"strength")==0,"WRIST forearm restriction alone does not qualify")
+ var wrist=g.add_fixture("wrist",1)
+ t.check(g.RelicEffects.attribute(g,"strength")==2 and g.RelicEffects.attribute(g,"dexterity")==0,"WRIST bound wrists grant only two strength")
+ t.check(g.escape_preview(wrist,"strain",6).bonus==2 and g.escape_preview(wrist,"slip",6).bonus==0,"WRIST actual escape previews use strength without dexterity")
+ var second=g.add_fixture("wrist",4,10,false,1)
+ t.check(g.RelicEffects.attribute(g,"strength")==2,"WRIST multiple restraints do not multiply the bonus")
+ var card=preload("res://tests/reward_cases.gd").give(t,g,"slip")
+ t.check(t.action(g,"card",{"uid":card.uid,"target":second.id,"slot":"wrist","free":false}).ok and not g.state.equipment.any(func(item):return item.id==second.id) and g.RelicEffects.attribute(g,"strength")==2,"WRIST removing one layer keeps the bonus")
+ card=preload("res://tests/reward_cases.gd").give(t,g,"slip")
+ t.check(t.action(g,"card",{"uid":card.uid,"target":wrist.id,"slot":"wrist","free":false}).ok and not g.state.equipment.any(func(item):return item.id==wrist.id) and g.RelicEffects.attribute(g,"strength")==0,"WRIST final removal through formal play clears the bonus immediately")
+ g._install_assembly("glove","short","fixture",2,2)
+ t.check(g.RelicEffects.attribute(g,"strength")==2,"WRIST composite wrist coverage also qualifies")
+ g.RelicEffects.gain(g,"wraith_ribbon")
+ t.check(g.RelicEffects.attribute(g,"strength")==2 and g.RelicEffects.attribute(g,"dexterity")==1,"RIBBON grants one dexterity alongside the conditional wrist strength")
+ t.check(g.escape_preview(forearm,"slip",6).bonus==1 and g.escape_preview(forearm,"magic_slip",6).bonus==1 and g.escape_preview(forearm,"slip",1.2,[],true).bonus==1,"RIBBON normal magical and passive slip use the same attribute")
+ var snapshot=g.export_snapshot();var twin=Game.new(76)
+ t.check(twin.restore_snapshot(snapshot).ok and twin.RelicEffects.attribute(twin,"strength")==2 and twin.RelicEffects.attribute(twin,"dexterity")==1,"WRIST/RIBBON snapshot restores derived attributes without bonus state")
+ g.get_view();g.candidates()
+ t.check(g.state==snapshot,"WRIST/RIBBON repeated projection never accumulates attributes or consumes random state")
+ g.state.composites.clear();g.state.equipment.clear();g._cleanup()
+ t.check(g.RelicEffects.attribute(g,"strength")==0 and g.RelicEffects.attribute(g,"dexterity")==1,"RIBBON remains active with all wrists free")
+
 static func lifecycle(t) -> void:
  var g=Game.new(79)
  g.state.relics=["ember","small_sigil","ready_backpack","donut"]
@@ -442,7 +490,7 @@ static func drops(t) -> void:
  g.state.relic_seen=g.Relics.REWARDS.duplicate()
  t.check(g.RelicRewards.available(g)==pool,"RELIC previously offered but unclaimed relics remain available in this run")
  for id in pool: g.state.relics.append(id)
- t.check(g.RelicRewards.available(g).is_empty() and g.RelicRewards.offer(g)==g.Relics.FALLBACK,"RELIC only owning the entire pool exhausts ordinary rewards")
+ t.check(g.RelicRewards.available(g).is_empty() and g.RelicRewards.offer(g) in [g.Relics.FALLBACK,g.Relics.COMMON_FALLBACK],"RELIC owning the entire pool uses the rolled tier fallback")
  g=Game.new(78);g.RelicRewards.battle_drop(g)
  t.check(g.state.battle_relic_drop=="","RELIC ordinary battle does not award a relic")
  g.state.room_encounters[g.state.room]="guard_solo"

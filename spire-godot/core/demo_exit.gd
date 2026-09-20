@@ -41,7 +41,7 @@ static func continue_run(g) -> void:
  g._clear_charge();g.state.temporary_mana=0.0;g.state.next_energy=0;g.state.sure_cast=false;g.state.weakness_turns=0
  var pressure_before=g.state.pressure
  var posture_before=g.state.posture
- g.state.pressure=maxf(0.0,pressure_before-PRESSURE_RELIEF)
+ g.Pressure.lose(g,PRESSURE_RELIEF)
  g.state.posture="stand"
  g._reset_piles()
  g._emit("event","新的塔路已展开。第%s阶段：怪物基础生命×%s，可解除的装备已解除，魔力已补满；快感降低%s，姿势变为站立。" % [["一","二","三"][g.state.demo_cycle],g.number(health_multiplier(g.state)),g.number(pressure_before-g.state.pressure)],{"demo_cycle":g.state.demo_cycle,"pressure_before":pressure_before,"pressure_after":g.state.pressure,"posture_before":posture_before,"posture_after":"stand"})

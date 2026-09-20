@@ -718,7 +718,7 @@ static func compile(g, recipe: String) -> Array:
  return []
 
 static func reward_text(kind: String, g=null) -> String:
- var count=3 if g==null else 3+int(g.Relics.value(g.state.relics,"reward_card_options"))
+ var count=3 if g==null else 3+int(g.relic_value("reward_card_options"))
  match Data.card_reward_kind(kind):
   "common": return "普通牌%d选1。" % count
   "uncommon": return "罕见牌%d选1。" % count

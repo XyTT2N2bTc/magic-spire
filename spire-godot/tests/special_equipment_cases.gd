@@ -3,17 +3,74 @@ const Game=preload("res://tests/game_fixture.gd")
 const D=preload("res://data/special_equipment.gd")
 
 static func run(t) -> void:
+ cup_exclusion(t)
  catalog_and_projection(t)
  capacity_and_composites(t)
  pleasure_and_battery(t)
  climax_slip(t)
  escape_routes(t)
+ cup_reinforcements(t)
  manual_insertables(t)
  registry_paths(t)
  environment_classes(t)
  chastity_locks(t)
+ unlocked_plate_strain(t)
  slip_mana(t)
  upgrade_components(t)
+
+static func cup_exclusion(t) -> void:
+ D.ensure_catalog()
+ var types=D.TYPES.keys().filter(func(type):return D.exclusive_family(type)=="cup")
+ for first in types:
+  for second in types:
+   var g=Game.new(42)
+   var cup=g._install_special(first,D.DESIGNS[first].slots[0],3)
+   var before=g.export_snapshot()
+   t.check(not cup.is_empty() and g._install_special(second,D.DESIGNS[second].slots[0],3).is_empty() and g.state==before,"CUP EXCLUSION all types and grades share one slot: "+first+" / "+second)
+ var g=Game.new(42)
+ var cup=g._install_special("glans_cup_medium","special_2_b",2)
+ var result=g.Application.execute_concrete(g,{"kind":"special_install","type":"urethral_full_cup_high"},"fixture",true)
+ t.check(result.ok and g._equipment(cup.id).is_empty() and g.state.special_equipment.filter(func(e):return D.exclusive_family(e.type)=="cup").size()==1 and g.validate()=="","CUP EXCLUSION authorized higher-grade cross-family replacement removes the old cup")
+ var before=g.export_snapshot()
+ result=g.Application.execute_concrete(g,{"kind":"special_install","type":"glans_cup_medium"},"fixture",true)
+ t.check(not result.ok and g.state==before,"CUP EXCLUSION weaker cross-family replacement rolls back")
+ g=Game.new(42);cup=g._install_special("full_cup_medium","special_2_a",3)
+ var band=g.state.special_equipment.filter(func(e):return D.reinforcement_matches(e,cup))[0]
+ result=g.Application.execute_concrete(g,{"kind":"special_install","type":"forced_milking_cup_high"},"fixture",true)
+ t.check(result.ok and g._equipment(cup.id).is_empty() and g._equipment(band.id).is_empty() and g.validate()=="","CUP EXCLUSION replacement also removes the previous cup's band")
+ g=Game.new(42);cup=g._install_special("glans_cup_medium","special_2_b",2)
+ t.check(not g._install_special("shaft_ring_low","special_2_a",1).is_empty() and g.validate()=="","CUP EXCLUSION other toy families retain their existing capacity rules")
+
+static func unlocked_plate_strain(t) -> void:
+ for type in D.CHASTITY_TYPES.filter(func(id):return id!="cursed_plate_lock"):
+  var g=Game.new(42,false,"equipment",true,true,25)
+  g.state.equipment.clear();g.state.composites.clear();g.state.links.clear()
+  var lock=g._install_special(type,"special_2_a",3)
+  var strap=g.state.special_equipment.filter(func(e):return e.owner_id==lock.id)[0]
+  var other=g._install_special("nipple_ring_medium","special_1_a",2)
+  var card=t.grant_fixture_card(g,"strain")
+  var before=g.export_snapshot()
+  var blocked=t.find_action(g,"card",{"uid":card.uid,"target":lock.id,"free":false})
+  t.check(not blocked.valid and not g.dispatch(blocked.id,g.state.version).ok and g.state==before,"PLATE STRAIN locked root rejects action without payment")
+  var unlock=t.grant_fixture_card(g,"unlock")
+  t.check(t.action(g,"card",{"uid":unlock.uid,"target":lock.id,"free":false}).ok,"PLATE STRAIN formal unlock opens root")
+  lock=g._equipment(lock.id)
+  # The attached tier-three band must not block a looser unlocked owner.
+  lock.durability=lock.maximum*0.8
+  before=g.export_snapshot()
+  g._apply_equipment_damage(lock,0,"strain")
+  t.check(g.state==before,"PLATE STRAIN zero damage does not remove root or band")
+  var candidate=t.find_action(g,"card",{"uid":card.uid,"target":lock.id,"free":false})
+  var preview=preload("res://core/release_view.gd").preview(g,candidate)
+  t.check(candidate.valid and candidate.payload.preview.damage>0 and preview.after==0 and g.state==before,"PLATE STRAIN positive hit previews whole removal despite tighter band and stays read-only")
+  t.check(not g.dispatch(candidate.id,g.state.version-1).ok and g.state==before,"PLATE STRAIN stale candidate rolls back resources and equipment")
+  t.check(g.dispatch(candidate.id,g.state.version).ok and g._equipment(lock.id).is_empty() and g._equipment(strap.id).is_empty() and not g._equipment(other.id).is_empty() and g.state.energy==before.energy-candidate.cost,"PLATE STRAIN one paid hit removes root and own band only")
+ var g=Game.new(42)
+ g.RelicEffects.gain(g,"cursed_plate_lock")
+ var cursed=g.state.special_equipment.filter(D.is_cursed_plate)[0]
+ var before=g.export_snapshot()
+ g._apply_equipment_damage(cursed,999,"strain")
+ t.check(not D.unlocked_release(cursed,"strain") and g.escape_preview(cursed,"strain",999).reason==D.CURSED_PLATE_REASON and g.state==before,"PLATE STRAIN cursed branch keeps its exclusive key protection")
 
 static func slip_mana(t) -> void:
  var g=Game.new(42,false,"equipment",true,true,25)
@@ -86,7 +143,16 @@ static func catalog_and_projection(t) -> void:
  t.check(g.state==before,"SPECIAL view and candidate projection are read-only")
  for slot in D.slots():
   t.check(g._install_template("rope",slot,4,10,false,"test").is_empty(),"SPECIAL ordinary restraint factory rejects reserved slot "+slot)
- t.check(D.TYPES.size()==39 and D.DESIGNS.size()==D.TYPES.size(),"SPECIAL complete built-in catalog has paired trigger and fixed-design records")
+ var type_ids=D.TYPES.keys();var design_ids=D.DESIGNS.keys()
+ type_ids.sort();design_ids.sort()
+ t.check(type_ids==design_ids,"SPECIAL trigger and fixed-design catalogs pair by exact stable ID")
+ var required_types=["forced_milking_cup_high","negative_plate_lock_medium","negative_plate_lock_catheter_medium","negative_vibrator_lock_catheter_high","cursed_plate_lock","chastity_reinforcement_medium","chastity_reinforcement_high","cup_reinforcement_medium","cup_reinforcement_high"]
+ for family in ["nipple_clamp","nipple_ring","shaft_ring","corona_ring","urethral_rod","vaginal_egg","anal_egg","external_wand","crotch_rope"]:
+  for grade in ["low","medium","high"]: required_types.append(family+"_"+grade)
+ for family in ["glans_cup","full_cup","urethral_full_cup"]:
+  for grade in ["medium","high"]: required_types.append(family+"_"+grade)
+ for type in required_types:
+  t.check(D.TYPES.has(type),"SPECIAL required built-in equipment remains registered "+type)
  for family in ["nipple_clamp","nipple_ring","shaft_ring","corona_ring","urethral_rod","vaginal_egg","anal_egg","external_wand","crotch_rope","glans_cup","full_cup","urethral_full_cup","forced_milking_cup"]:
   t.check(D.STIMULATION_TEXTS.has(family) and not D.STIMULATION_TEXTS[family].is_empty(),"SPECIAL every playable family owns current-wear stimulation prose "+family)
  for type in D.TYPES:
@@ -114,10 +180,10 @@ static func capacity_and_composites(t) -> void:
  var g=Game.new(42)
  t.check(D.slots().map(func(slot):return D.capacity(slot))==[2,2,2,2,1,1,1],"SPECIAL corrected per-slot capacities are registered")
  var cup=g._install_special("full_cup_medium","special_2_a")
- var glans=g._install_special("glans_cup_medium","special_2_b")
+ var ring=g._install_special("corona_ring_low","special_2_c")
  var shaft=g._install_special("shaft_ring_low","special_2_a")
  var rod=g._install_special("urethral_rod_low","special_2_d")
- t.check(not cup.is_empty() and not glans.is_empty() and not shaft.is_empty() and not rod.is_empty() and g.validate()=="","SPECIAL compatible different families fill the penis region atomically")
+ t.check(not cup.is_empty() and not ring.is_empty() and not shaft.is_empty() and not rod.is_empty() and g.validate()=="","SPECIAL one cup and compatible non-cup families fill shared positions atomically")
  t.check(D.occupied_slots(cup)==["special_2_a","special_2_b","special_2_c"] and g.targets_at("special_2_c").has(cup),"SPECIAL one composite cup root covers and targets through every declared slot")
  var before=g.state.duplicate(true)
  t.check(g._install_special("shaft_ring_high","special_2_a").is_empty() and g.state==before,"SPECIAL same family cannot be duplicated even when a slot has room")
@@ -149,7 +215,7 @@ static func pleasure_and_battery(t) -> void:
  var glans=g._install_special("glans_cup_medium","special_2_b")
  t.check(is_equal_approx(D.gain(shaft,"turn_start"),2.4),"SPECIAL shaft gain applies the 0.6 sensitivity multiplier")
  t.check(is_equal_approx(D.gain(rod,"energy"),6.0),"SPECIAL urethral gain applies the 1.5 sensitivity multiplier")
- t.check(is_equal_approx(D.gain(glans,"turn_start"),36.0),"SPECIAL multi-position cup combines the sensitivity of stimulated positions")
+ t.check(is_equal_approx(D.gain(glans,"turn_start"),24.0),"SPECIAL multi-position cup combines the sensitivity of stimulated positions")
 
  g=Game.new(42)
  var clamp=g._install_special("nipple_clamp_low","special_1_a")
@@ -187,7 +253,7 @@ static func climax_slip(t) -> void:
  g.Pressure.gain(g,400,"连续高潮",true)
  var sequence=g.state.logs.filter(func(log):return log.data.has("climax_slip"))
  t.check(sequence.size()==3 and sequence.map(func(log):return log.data.climax_slip.tightness)==[2,2,1] and sequence.map(func(log):return log.data.climax_slip.damage)==[3.0,3.0,2.0] and g._equipment(rod.id).is_empty(),"CLIMAX SLIP consecutive climaxes recalculate tightness after each hit and stop once the rod comes out")
- t.check(g.validate()=="" and D.climax_slip_damage({"type":"shaft_ring_low","grade":1},2)==0 and D.climax_slip_rule("urethral_full_cup_high")=="","CLIMAX SLIP unrelated rings and integrated cup remain outside urethral-rod rule")
+ t.check(g.validate()=="" and D.climax_slip_damage({"type":"shaft_ring_low","grade":1},2)==0 and D.climax_slip_rule("urethral_full_cup_medium")=="" and D.climax_slip_rule("urethral_full_cup_high")=="","CLIMAX SLIP unrelated rings and integrated cups remain outside urethral-rod rule")
 
 static func escape_routes(t) -> void:
  for type in ["shaft_ring_low","corona_ring_low","urethral_rod_low","crotch_rope_low","full_cup_medium"]:
@@ -228,6 +294,81 @@ static func escape_routes(t) -> void:
  preview=g.escape_preview(rod,"strain",5)
  t.check(preview.reason=="" and preview.damage>0,"SPECIAL rest-room hook opens the urethral rod card route when the height can contact it")
  t.check(not g.candidates().any(func(c):return c.payload.kind=="hook" and c.payload.get("target","")==rod.id),"SPECIAL hook remains a card prerequisite and never becomes a separate direct action")
+
+static func cup_reinforcements(t) -> void:
+ var medium=D.TYPES.urethral_full_cup_medium
+ var design=D.DESIGNS.urethral_full_cup_medium
+ t.check(medium.name=="中级马眼全包榨精杯" and medium.energy_gain==6.0 and medium.turn_gain==14.0 and medium.duration==9 and design.grade==2 and design.maximum==16 and design.slots==["special_2_a","special_2_b","special_2_c","special_2_d"],"CUP BAND medium urethral full cup owns the authored grade, coverage, battery and stimulation")
+ t.check("urethral_full_cup_medium" in D.prison_pool(2,true) and "urethral_full_cup_medium" not in D.prison_pool(2,false),"CUP BAND medium urethral full cup follows the existing prison cup gate")
+ for type in ["full_cup_medium","full_cup_high","urethral_full_cup_medium","urethral_full_cup_high"]:
+  var g=Game.new(42)
+  var cup=g._install_special(type,"special_2_a",3)
+  var straps=g.state.special_equipment.filter(func(item):return D.reinforcement_matches(item,cup))
+  t.check(not cup.is_empty() and straps.size()==1 and straps[0].grade==cup.grade and D.is_cup_reinforcement(straps[0]) and D.DESIGNS[straps[0].type].capacity_cost==0 and g.validate()=="","CUP BAND tier-three full cup creates one same-grade zero-capacity component: "+type)
+  var strap=straps[0]
+  var relation_snapshot=g.export_snapshot();var relation_restore=Game.new(17)
+  t.check(relation_restore.restore_snapshot(relation_snapshot).ok and relation_restore.state.special_equipment==g.state.special_equipment,"CUP BAND owner relation survives snapshot restore: "+type)
+  var before=strap.durability
+  g._apply_equipment_damage(strap,5,"strain")
+  t.check(strap.durability==before,"CUP BAND component ignores non-cutting damage: "+type)
+  g._apply_equipment_damage(strap,5,"cut")
+  t.check(strap.durability==before-5 and not g._equipment(cup.id).is_empty(),"CUP BAND cutting damages the component without removing its owner: "+type)
+  var blocked=g.escape_preview(cup,"slip",20)
+  t.check(blocked.reason.contains("固定带") and blocked.damage==0 and g.escape_preview(cup,"magic_slip",20).reason.contains("固定带"),"CUP BAND surviving component blocks ordinary and magic slip: "+type)
+  var durability=cup.durability
+  g._apply_equipment_damage(cup,20,"slip")
+  t.check(cup.durability==durability,"CUP BAND direct slip resolution cannot bypass the component: "+type)
+  var strain=g.escape_preview(cup,"strain",20)
+  t.check(strain.reason=="" and strain.damage>0,"CUP BAND strain remains a direct route against the cup body: "+type)
+  g._apply_equipment_damage(cup,cup.durability,"strain");g._cleanup()
+  t.check(g._equipment(cup.id).is_empty() and g._equipment(strap.id).is_empty() and g.validate()=="","CUP BAND owner removal cascades its component: "+type)
+ var g=Game.new(42)
+ var cup=g._install_special("urethral_full_cup_medium","special_2_a",2)
+ t.check(not cup.is_empty() and not g.state.special_equipment.any(func(item):return D.reinforcement_matches(item,cup)) and g.escape_preview(cup,"slip",20).reason=="","CUP BAND tier-two cup keeps its normal slip route without creating a component")
+ var saved=g.export_snapshot();var restored=Game.new(17)
+ t.check(restored.restore_snapshot(saved).ok and restored.state.special_equipment==g.state.special_equipment,"CUP BAND medium urethral cup survives snapshot restore")
+ g=Game.new(42)
+ cup=g._install_special("urethral_full_cup_medium","special_2_a",3)
+ var cut_strap=g.state.special_equipment.filter(func(item):return D.reinforcement_matches(item,cup))[0]
+ var no_tool=t.find_action(g,"card",{"uid":t.hand_card(g,"slip").uid,"target":cut_strap.id,"free":false})
+ t.check(not no_tool.valid and no_tool.reason.contains("已安装") and g.validate()=="","CUP BAND a damage card cannot target the component without an installed compatible cutting tool")
+ g._gain_tool("saw");var saw=g.state.items[-1]
+ t.check(t.action(g,"item_install",{"item":saw.id,"mount":"hand_wall"}).ok,"CUP BAND cutting tool uses the formal installation transaction")
+ cup=g._equipment(cup.id);cut_strap=g._equipment(cut_strap.id);saw=g._item(saw.id)
+ cut_strap.durability=g.Tools.TYPES.saw.damage
+ var cut_card=t.hand_card(g,"slip")
+ var cut_action=t.find_action(g,"card",{"uid":cut_card.uid,"target":cut_strap.id,"free":false})
+ var cut_before=g.export_snapshot()
+ t.check(cut_action.valid and cut_action.payload.get("preview",{}).get("damage",-1)==0 and cut_action.payload.get("tool_bonus",{}).get("damage",-1)==g.Tools.TYPES.saw.damage,"CUP BAND real card candidate previews only installed-tool cutting damage: "+str(cut_action))
+ t.check(g.dispatch(cut_action.id,g.state.version).ok,"CUP BAND real card submission cuts the component")
+ cup=g._equipment(cup.id);saw=g._item(saw.id)
+ var magic_after_cut=g.escape_preview(cup,"magic_slip",20)
+ t.check(not cup.is_empty() and g._equipment(cut_strap.id).is_empty(),"CUP BAND fully cutting the component preserves only its owner")
+ t.check(cup.get("reinforcement_state","")=="removed" and g.validate()=="","CUP BAND fully cutting the component leaves a valid persistent owner state: "+g.validate())
+ t.check(magic_after_cut.reason=="" and magic_after_cut.damage>0,"CUP BAND fully cutting the component reopens magic slip: "+magic_after_cut.reason)
+ t.check(saw.uses==cut_before.items[-1].uses-1,"CUP BAND formal cutting consumes one installed-tool use")
+ saved=g.export_snapshot();restored=Game.new(17)
+ t.check(restored.restore_snapshot(saved).ok and restored._equipment(cup.id).get("reinforcement_state","")=="removed","CUP BAND cut history survives snapshot restore without recreating the component")
+ g=Game.new(42)
+ cup=g._install_special("full_cup_medium","special_2_a",3)
+ var strap=g.state.special_equipment.filter(func(item):return D.reinforcement_matches(item,cup))[0]
+ strap.owner_id="missing"
+ t.check(g.validate().contains("固定带缺少对应主体"),"CUP BAND forged orphan component is rejected by the shared validator")
+ g=Game.new(42)
+ cup=g._install_special("full_cup_medium","special_2_a",2)
+ var forged=g._install_special("nipple_ring_medium","special_1_a",2)
+ forged.type="cup_reinforcement_medium";forged.name=D.TYPES.cup_reinforcement_medium.name;forged.slot="special_2_a";forged.coverage=D.DESIGNS.cup_reinforcement_medium.slots.duplicate();forged.contact_slots=forged.coverage.duplicate();forged.grade=2;forged.maximum=16;forged.durability=16;forged.remaining=0;forged.material="leather";forged.owner_id=cup.id
+ t.check(g.validate().contains("未附带固定带"),"CUP BAND low-tightness owner cannot gain a forged component through snapshot data")
+ cup.erase("reinforcement_state")
+ t.check(g.validate().contains("固定带状态记录缺失"),"CUP BAND current snapshot cannot drop the owner state to reopen the legacy path")
+ g=Game.new(42)
+ cup=g._install_special("full_cup_medium","special_2_a",3)
+ t.check(g._install_special("urethral_full_cup_medium","special_2_a",3).is_empty() and g.state.special_equipment.filter(D.is_reinforced_cup).size()==1 and g.validate()=="","CUP BAND ordinary and urethral full-cover families are mutually exclusive")
+ var legacy=g.export_snapshot();legacy.save_revision=g.Snapshot.REINFORCEMENT_STATE_REVISION
+ for item in legacy.special_equipment:
+  if D.supports_reinforcement(item): item.erase("reinforcement_state")
+ restored=Game.new(17)
+ t.check(restored.restore_snapshot(legacy).ok and restored._equipment(cup.id).get("reinforcement_state","")=="active" and restored.validate()=="","CUP BAND revision-52 snapshots migrate owner state before strict validation")
 
 static func manual_insertables(t) -> void:
  for pair in [["vaginal_egg_low","special_3_a"],["anal_egg_low","special_3_b"]]:
@@ -300,10 +441,11 @@ static func environment_classes(t) -> void:
 
 static func chastity_locks(t) -> void:
  var g=Game.new(42,false,"equipment",true,true,25)
- var cup=g._install_special("full_cup_medium","special_2_a",2)
+ var cup=g._install_special("full_cup_medium","special_2_a",3)
+ var cup_strap=g.state.special_equipment.filter(func(item):return D.reinforcement_matches(item,cup))[0]
  var rod=g._install_special("urethral_rod_medium","special_2_d",2)
  var lock=g._install_special("negative_plate_lock_medium","special_2_a",2)
- t.check(not lock.is_empty() and lock.locked and g._equipment(cup.id).is_empty() and not g._equipment(rod.id).is_empty(),"CHASTITY plain plate atomically removes shaft toys while retaining an independent meatus rod")
+ t.check(not lock.is_empty() and lock.locked and g._equipment(cup.id).is_empty() and g._equipment(cup_strap.id).is_empty() and not g._equipment(rod.id).is_empty(),"CHASTITY plain plate atomically removes a full cup and its component while retaining an independent meatus rod")
  var locked_preview=g.escape_preview(lock,"slip",6)
  t.check(locked_preview.reason=="" and locked_preview.damage>0 and locked_preview.lock_multiplier==1.0,"CHASTITY an auto-locked root without reinforcement uses the ordinary lock rule and retains its slip route")
  t.check(g.Pressure.maximum(g)==120 and is_equal_approx(g.Pressure.source_multiplier(g,[]),1.2) and is_equal_approx(g.Pressure.source_multiplier(g,["special_2_a"]),1.0) and is_equal_approx(g.Pressure.source_multiplier(g,["special_2_d"]),1.2),"CHASTITY grade plus tightness raises maximum and multiplies only sources outside covered slots")

@@ -54,6 +54,10 @@ func _popup_scroller(node: Node) -> ScrollContainer:
  return null
 
 func _input(event: InputEvent) -> void:
+ if host._takeover_locked():
+  get_viewport().set_input_as_handled();cancel();return
+ if not popup_context and (event is InputEventScreenTouch or event is InputEventScreenDrag) and host.handle_portrait_input(event):
+  get_viewport().set_input_as_handled();cancel();return
  if event is InputEventScreenTouch:
   get_viewport().set_input_as_handled()
   if event.pressed:

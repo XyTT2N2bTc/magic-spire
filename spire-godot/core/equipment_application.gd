@@ -109,7 +109,8 @@ static func execute(g, spec: Dictionary, source: String, domain: String="enemy")
  result.ok=result.count>0
  return result
 
-# A frozen request never retargets or draws randomness. Replacement owns all removal,
+# A frozen request never retargets; dodge reactions may generate a separate install.
+# Replacement owns all removal,
 # link preservation and whole-group commit; the original factories own plain installs.
 static func execute_concrete(g, request: Dictionary, source: String, allow_replace: bool=false, protected_ids: Array=[], voluntary: bool=false) -> Dictionary:
  var requests=request.get("requests",[]) if request.get("kind","")=="application_group" else [request]

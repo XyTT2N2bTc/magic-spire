@@ -32,7 +32,7 @@ static func run(t) -> void:
   t.check(g.state.relics.filter(func(id):return id in g.Relics.REWARDS and g.Relics.TYPES[id].rarity==rarity).size()==1,"BOSS nesting doll grants one ordinary-pool relic of "+rarity)
  g=Game.new(42);g.state.relics.append_array(g.Relics.REWARDS);g.RelicEffects.gain(g,"nesting_doll")
  for i in range(3): t.action(g,"relic_bundle",{"op":"claim","index":i})
- t.check(g.state.relic_counters.get("rolling_log",0)==3,"BOSS empty ordinary rarity pools reuse collectible fallback three times")
+ t.check(g.state.relic_counters.get("rolling_log",0)==2 and g.state.relic_counters.get("intellect_cloak",0)==2,"BOSS empty pools grant one extra common cloak and two collectible logs")
  g=Game.new(42);g.RelicEffects.gain(g,"binding_pyramid")
  var kept=g.state.hand.duplicate(true);g._discard_end()
  t.check(g.state.hand==kept,"BOSS pyramid retains ordinary hand at turn end")
@@ -41,6 +41,30 @@ static func run(t) -> void:
  pyramid_boundaries(t)
  mask(t)
  rewards(t)
+ reward_pool(t)
+
+static func reward_pool(t) -> void:
+ for witch in [false,true]:
+  var g=preload("res://tests/witch_character_cases.gd").fresh() if witch else Game.new(42)
+  g.state.mana_max=g.B.MANA_MAX_FLOOR;g.state.mana=g.state.mana_max
+  g.RelicEffects.gain(g,"binding_pyramid")
+  var before=g.export_snapshot()
+  var pool=g.RelicRewards.available(g,"boss")
+  t.check(not pool.is_empty() and pool.all(func(id):return id in g.Relics.BOSS_POOL),"BOSS query selects boss definitions rather than ordinary rewards")
+  t.check("binding_pyramid" not in pool and "shining_lamp" not in pool,"BOSS query excludes owned rewards and unaffordable mana reductions")
+  t.check(("cursed_plate_lock" in pool)==(not witch),"BOSS query respects character equipment eligibility")
+  pool.clear()
+  t.check(g.state==before and not g.RelicRewards.available(g,"boss").is_empty(),"BOSS query and caller edits leave state, history, RNG and registry unchanged")
+  var offered=g.RelicRewards.offer(g,"boss",null,g.Relics.BOSS_POOL.filter(func(id):return id!="shining_lamp"))
+  t.check(offered==g.Relics.FALLBACK,"BOSS exclusion cannot offer an unaffordable remaining relic")
+  g.state.relics.append_array(g.Relics.BOSS_POOL.filter(func(id):return id not in g.state.relics and id!="nesting_doll" and g.RelicEffects.gain_reason(g,id)==""))
+  g.state.room="summit"
+  g.RelicRewards.battle_drop(g)
+  t.check(g.state.boss_relic_options==["nesting_doll"],"BOSS short pool freezes one eligible option without duplicates or filler")
+  t.check(g.RelicRewards.offer(g,"boss")=="nesting_doll","BOSS single offer and battle options use the same eligibility")
+  g.state.relics.append("nesting_doll")
+  g.RelicRewards.battle_drop(g)
+  t.check(g.state.boss_relic_options==[g.Relics.FALLBACK] and g.state.relic_seen.count(g.Relics.FALLBACK)==1,"BOSS exhausted eligible pool freezes one fallback and records it once")
 
 static func pyramid_boundaries(t) -> void:
  for boundary in ["victory","prepare_early","prepare_last","rest_early","rest_last","prison_exit","prison_resist"]:

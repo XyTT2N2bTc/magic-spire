@@ -29,7 +29,7 @@ static func run(t) -> void:
  t.check(N.ENCOUNTERS.trader_solo.members==[{"type":"trader","grade":2}],"TRADER fixed practice encounter")
  t.check(N.FirstFloor.choices("weak").all(func(id):return not Book.encounter_contains(id,"trader")),"TRADER absent from weak pool")
  t.check(N.FirstFloor.choices("strong").filter(func(id):return Book.encounter_contains(id,"trader"))==["versatile_trader"],"TRADER joins strong pool only with versatile partner")
- t.check(N.FirstFloor.ELITE_ENCOUNTERS.all(func(id):return not Book.encounter_contains(id,"trader")) and not Book.encounter_contains(N.FirstFloor.SUMMIT_ENCOUNTER,"trader"),"TRADER absent from elite and summit pools")
+ t.check(N.FirstFloor.ELITE_ENCOUNTERS.all(func(id):return not Book.encounter_contains(id,"trader")) and N.FirstFloor.SUMMIT_ENCOUNTERS.all(func(id):return not Book.encounter_contains(id,"trader")),"TRADER absent from elite and summit pools")
 
  var expected=["apply","debuff","apply","apply","apply","apply","apply","apply","apply","apply","capture"]
  var g=Game.new(701,true,"trader_solo")

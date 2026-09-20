@@ -34,6 +34,10 @@ static func entries() -> Dictionary:
  puppet.description="%d生命人形精英。开场携带受保护的玩偶；首次行动激活玩偶反击与嘲讽，随后循环缝补、复合装束和特殊装束。玩偶溢出伤害全额转给玩偶师。" % Enemies.TYPES.puppeteer.hp
  puppet.encounter="puppeteer_solo";puppet.items=[]
  result.puppeteer_solo=entry("puppeteer_solo","wrist",puppet)
+ var iron=scenario("铁男练习","用挣扎或滑脱削减共用捕缚；达到100后，下一次敌方行动执行收押。击败铁男会让两名随行单位停机。")
+ iron.description="%d生命首领，与捕缚无人机、魔导拘束盒一同出场。使用正式捕缚与五步强化循环；小魔女沿用该遭遇的生命加成。" % Enemies.TYPES.iron_man.hp
+ iron.encounter="iron_man_solo";iron.items=[]
+ result.iron_man_solo=entry("iron_man_solo","wrist",iron)
  var box=scenario("魔导拘束盒练习","用魔法突破坚硬，及时削减捕缚进度。")
  box.description="%d生命。首次施加40/100捕缚，固定为坐姿；每个玩家回合开始追加中级2档皮革拘束具并推进10点。盒内有三件中级2档复合装备。" % Enemies.TYPES.binding_box.hp
  box.encounter="binding_box_solo";box.items=[]

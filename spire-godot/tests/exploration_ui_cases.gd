@@ -53,10 +53,6 @@ static func run(t) -> void:
  t.check(not ui.actor_targets.has("prison_door") and not t.visible_text(ui.find_child("PrisonControls",true,false)).contains("踢击通风口"),"EXP UI return clears secondary targets")
 
 static func open_details(t,id: String) -> void:
- var log_close=t.ui.find_child("CloseActionLog",true,false)
- if log_close!=null and log_close.is_visible_in_tree():
-  var close_point=log_close.get_global_rect().get_center()
-  await t.move_mouse(close_point);await t.mouse_button(close_point,MOUSE_BUTTON_LEFT,true);await t.mouse_button(close_point,MOUSE_BUTTON_LEFT,false)
  var button=t.ui.find_child("InspectPrison_"+id,true,false)
  t.check(button!=null,"EXP UI visible place has secondary entry "+id)
  if button==null:return
@@ -85,7 +81,6 @@ static func distance_and_installed(t) -> void:
  t.check(meter!=null and meter.get_node("Overflow").value>meter.get_node("Normal").value,"EXP UI exposes red overflow beyond original distance")
  t.check(meter.get_node("Overflow").get_theme_stylebox("fill").bg_color==ui.RED and meter.get_node("Normal").value==3,"EXP UI overflow is red and normal portion retains the baseline")
  t.check(meter.size.y<=26,"EXP UI distance meter stays compact")
- await preload("res://tests/target_sidebar_ui_cases.gd").press(t,ui.find_child("CloseActionLog",true,false))
  await t.capture("ui-119-prison-distance-tool.png")
  Spatial.position(ui.game,[0,3]);ui.render();await t.frames()
  # A site on the interior produces a departure warning before any action is taken.
@@ -99,5 +94,4 @@ static func distance_and_installed(t) -> void:
  Spatial.position(ui.game,[0,3]);ui.render();await t.frames()
  t.check(ui.find_children("PrisonDistance_*","",true,false).is_empty(),"EXP UI blind mode never displays numeric distance bars")
  t.check(t.visible_text(ui.find_child("PrisonExploration",true,false)).contains("本次移动后将离墙"),"EXP UI blind directional choices give departure warning")
- await preload("res://tests/target_sidebar_ui_cases.gd").press(t,ui.find_child("CloseActionLog",true,false))
  await t.capture("ui-120-prison-blind-wall-warning.png")

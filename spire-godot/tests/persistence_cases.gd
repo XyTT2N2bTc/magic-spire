@@ -429,12 +429,17 @@ static func step_both(t,g,h,kind: String,extra: Dictionary={}) -> void:
 static func revision_boundary(t) -> void:
  var g=Game.new(42)
  var before=g.export_snapshot()
- for revision in [null,Game.Snapshot.REVISION-1,Game.Snapshot.REVISION+1,"2"]:
+ var previous=before.duplicate(true);previous.save_revision=Game.Snapshot.REINFORCEMENT_STATE_REVISION
+ var restored=g.restore_snapshot(previous)
+ var packed=Store.unpack(Store.pack(previous))
+ t.check(restored.ok and packed.ok and g.state.save_revision==Game.Snapshot.REVISION,"SAVE immediately previous reinforcement schema migrates through direct and disk restore")
+ g=Game.new(42);before=g.export_snapshot()
+ for revision in [null,Game.Snapshot.REINFORCEMENT_STATE_REVISION-1,Game.Snapshot.REVISION+1,"2"]:
   var saved=before.duplicate(true)
   if revision==null: saved.erase("save_revision")
   else: saved.save_revision=revision
-  var restored=g.restore_snapshot(saved)
-  var packed=Store.unpack(Store.pack(saved))
+  restored=g.restore_snapshot(saved)
+  packed=Store.unpack(Store.pack(saved))
   t.check(not restored.ok and restored.get("code")=="version" and not packed.ok and packed.get("code")=="version","SAVE disk and direct restore reject unsupported revision without migration "+str(revision))
   t.check(g.export_snapshot()==before,"SAVE incompatible revision never partially restores "+str(revision))
  var prison=Game.new(42,true,"prison_test")
@@ -444,6 +449,33 @@ static func revision_boundary(t) -> void:
   if missing_pool: invalid.prison.erase("discovery_pool")
   else: invalid.prison.discovery_pool.append("return_seal");invalid.prison.discoveries.append("return_seal")
   t.check(not prison.restore_snapshot(invalid).ok and prison.export_snapshot()==stable,"SAVE obsolete discovery shapes rejected without filling defaults")
+
+static func unlimited_file_size(t) -> void:
+ var g=Game.new(42)
+ g._emit("event","large-save fixture")
+ var snapshot=g.export_snapshot()
+ snapshot.logs[-1].text="x".repeat(8388609)
+ t.check(g.restore_snapshot(snapshot).ok,"SAVE large valid log restores through normal state validation")
+ var store=store_for("unlimited-size")
+ var written=store.write_game(g)
+ t.check(written.ok,"SAVE writes a valid file above the former 8 MiB limit: "+str(written.get("error","")))
+ if not written.ok: return
+ var file=FileAccess.open(store.path("tower"),FileAccess.READ)
+ t.check(file.get_length()>8388608,"SAVE fixture file really exceeds the former byte limit")
+ file.close()
+ var loaded=store.read_slot("tower")
+ t.check(loaded.ok and not loaded.backup and loaded.snapshot==g.restart_snapshot(),"SAVE large primary loads without truncation")
+ var newer=Game.new(43)
+ t.check(store.write_game(newer).ok,"SAVE replacing a large primary keeps normal backup flow")
+ file=FileAccess.open(store.path("tower"),FileAccess.WRITE)
+ file.store_string("broken");file.close()
+ loaded=store.read_slot("tower")
+ t.check(loaded.ok and loaded.backup and loaded.snapshot==g.restart_snapshot(),"SAVE large backup still recovers after primary corruption")
+ var envelope=JSON.parse_string(text_at(store.path("tower")+".bak"))
+ envelope.payload+="x"
+ file=FileAccess.open(store.path("tower")+".bak",FileAccess.WRITE)
+ file.store_string(JSON.stringify(envelope));file.close()
+ t.check(not store.read_slot("tower").ok,"SAVE unlimited size does not bypass checksum validation")
 
 static func map_drawings(t) -> void:
  var g=Game.new(42);var snapshot=g.export_snapshot()
@@ -663,6 +695,7 @@ static func run(t) -> void:
 
  event_pipeline_writes_only_declared_keys(t)
  map_drawings(t)
+ unlimited_file_size(t)
  preload("res://tests/scene_restart_cases.gd").run(t,same)
  revision_boundary(t)
  event_conditions(t)

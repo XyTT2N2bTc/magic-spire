@@ -20,6 +20,9 @@ const BACKGROUND=preload("res://assets/art/moonlit-gallery-v1.png")
 const GUARD_PORTRAITS={
  "guard_purple":preload("res://assets/art/enemy-guards-v1/guard-purple-v1.png"),
  "guard_brown":preload("res://assets/art/enemy-guards-v1/guard-brown-v1.png")}
+const SUCCUBUS_GUARD_PORTRAITS={
+ "guard_purple":preload("res://assets/art/enemy-succubus-guards-v1/succubus-purple-v1.png"),
+ "guard_brown":preload("res://assets/art/enemy-succubus-guards-v1/succubus-brown-v1.png")}
 static func hero_texture(pose: String, has_restraint_level: bool=false, character_id: String="original") -> Texture2D:
  if character_id=="witch": return WITCH_POSES[pose]
  if has_restraint_level and HERO_RESTRAINED_POSES.has(pose): return HERO_RESTRAINED_POSES[pose]

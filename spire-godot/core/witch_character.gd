@@ -6,7 +6,7 @@ const ID="witch"
 const Expansion=preload("res://core/witch_expansion.gd")
 const PARTS=["hand","mouth","legs","mind"]
 const NAMES={"hand":"手部","mouth":"嘴部","legs":"腿部","mind":"精神"}
-const CHANGED=["strain","magic_hand","magic_hand_gift","magic_slip","siphon","ready_to_strike","mana_search","mana_invocation","mana_surge","adaptability","mana_conversion","focus","mana_circuit","pleasure_conversion"]
+const CHANGED=["strain","magic_hand","magic_hand_gift","magic_slip","siphon","ready_to_strike","mana_search","mana_invocation","mana_surge","adaptability","mana_conversion","focus","mana_circuit","pleasure_conversion","itching_heart","self_satisfaction","psychological_suggestion","rally_spirit","desire_rune","forced_edging","forced_climax"]
 const REMOVED=["ease","leverage","crossed_legs","repeated_strain","embers","rekindle","fire_control","strong_elbow","brace","echo_cast","wildfire_descent","flame_flourish","unlock","tear","chain","infusion","fire_dynamics","fire_mastery","double_unlock"]
 const STARTER=["slip","slip","slip","witch_magic_slip","witch_strain","witch_strain","witch_strain","witch_escape_practice","witch_key","witch_preparation","witch_accumulation"]
 static var registered=false
@@ -44,6 +44,13 @@ static func register(g) -> void:
   g.B.CARD_NAMES[id]=g.B.CARD_NAMES[original]
   g.B.CARD_INFO[id]=g.B.CARD_INFO[original].duplicate(true)
   if g.B.CARD_TRAITS.has(original): g.B.CARD_TRAITS[id]=g.B.CARD_TRAITS[original].duplicate(true)
+  if spec.get("reward_pool","")=="lewd_magic":
+   _adapt_lewd_effects(spec)
+   for face in spec.get("self_faces",{}).values():
+    if face.has("buff"):
+     _adapt_lewd_effects(rules.BUFFS[face.buff])
+     rules.BUFFS[face.buff].detail=rules.BUFFS[face.buff].detail.replace("蓄力","精神集中")
+   g.B.CARD_INFO[id]=g.B.CARD_INFO[id].map(func(text):return text.replace("蓄力","精神集中"))
  var s=rules.SPECS
  s.witch_strain.free_effects=[{"op":"witch_focus","amount":1}]
  for id in ["witch_magic_hand","witch_magic_hand_gift"]:
@@ -80,7 +87,7 @@ static func register(g) -> void:
  rules.BUFFS.witch_accumulation={"name":"魔力积蓄","duration":"battle","stackable":true,"witch_mana_damage":0.01,"detail":"每有1点魔力，造成的伤害提高1%。计入自身与临时魔力，可叠加。"}
  _basic(g,"witch_accumulation","魔力积蓄",{"card_type":"power","cost":3,"mode":"power","self_faces":{"bound":{"buff":"witch_accumulation"},"free":{"buff":"witch_accumulation"}}},["能力","{buff}","{buff}",""],"mana_circuit")
  # Text stays character-local as well as the execution data.
- for id in ["witch_adaptability","witch_mana_circuit"]:
+ for id in ["witch_adaptability","witch_mana_circuit","witch_desire_rune"]:
   g.B.CARD_INFO[id][1]="{bound_buff}";g.B.CARD_INFO[id][2]="{self_free_buff}"
  g.B.CARD_INFO.witch_strain[2]="{free_effects}"
  g.B.CARD_INFO.witch_ready_to_strike[3]="所选手牌仅在施法成功时消耗。基础动作包括各部位施法预备和释放；减费不叠加。"
@@ -97,6 +104,13 @@ static func _basic(g, id: String, name: String, spec: Dictionary, info: Array, a
  spec.rarity="basic";spec.character_id=ID;spec.reward_excluded=true;spec.encyclopedia_hidden=true;spec.art_type=art
  g.Cards.Rules.SPECS[id]=spec;g.B.CARD_NAMES[id]=name;g.B.CARD_INFO[id]=info
 
+static func _adapt_lewd_effects(value: Variant) -> void:
+ if value is Array:
+  for item in value: _adapt_lewd_effects(item)
+ elif value is Dictionary:
+  if value.get("op","")=="charge": value.op="witch_focus"
+  for item in value.values(): _adapt_lewd_effects(item)
+
 static func card_id(g, type: String) -> String:
  return "witch_"+type if active(g) and type in CHANGED else type
 
@@ -104,6 +118,7 @@ static func incompatible(g, value: Variant) -> bool:
  if value is Array:
   return value.any(func(v):return incompatible(g,v))
  if not value is Dictionary: return false
+ if value.has("strength") or value.has("zero_cost_strength") or value.get("resource","")=="turn_strength": return true
  if value.get("op","")=="charge": return true
  if value.has("attacks") or value.has("attack_filters") or value.has("replay") or value.has("spell") or value.has("requires_successful_spell") or value.has("refresh_spell") or value.has("spell_base_bonus"): return true
  if value.has("buff") and incompatible(g,g.Cards.Rules.BUFFS[value.buff]): return true
@@ -111,6 +126,8 @@ static func incompatible(g, value: Variant) -> bool:
 
 static func allowed_card(g, type: String, character: String="") -> bool:
  var role=g.state.get("character_id","original") if character=="" else character
+ var required=g.Cards.Rules.REWARD_POOL_RELICS.get(g.Cards.Rules.SPECS.get(type,{}).get("reward_pool",""),"")
+ if required!="" and not relic_allowed(g,required,role): return false
  if role!=ID: return not type.begins_with("witch_")
  var original=type.trim_prefix("witch_")
  if original in REMOVED or original.begins_with("hannya") or original=="good_soup": return false
@@ -186,7 +203,7 @@ static func attack_candidates(g, out: Array) -> void:
     var all_targets=part=="mouth" and not charge
     if not charge and reason=="": reason=g.Puppets.taunt_reason(g,enemy,all_targets)
     var names={"hand":["火焰箭","烈焰箭","炎枪术"],"mouth":["吹雪","冰风","暴风雪"],"mind":["思维侵入","思维扰乱","思维破坏"],"legs":["魔女飞踹！","魔女飞踹！","魔女飞踹！"]}
-    var label=NAMES[part]+"施法预备" if charge else names[part][2 if n>=4 else (1 if n>=2 else 0)]
+    var label=NAMES[part]+"施法" if charge else names[part][2 if n>=4 else (1 if n>=2 else 0)]
     var hits=1 if part=="legs" else n+1
     var base={"hand":6.0,"mouth":4.0,"mind":4.0,"legs":1.0}[part]
     var focus=0 if charge or part=="legs" else g.state.witch_focus
@@ -197,9 +214,9 @@ static func attack_candidates(g, out: Array) -> void:
     g._candidate(out,p,label,{"kind":"witch.attack","args":copy_args,"fallback":attack_detail(g,copy_args)},maxi(0,cost-discount),mana,reason,"","attack")
     out.back().casting=casting
     var own_after=maxf(0,g.state.mana-out.back().mana_payment.mana)
-    var target_multiplier=1.0 if all_targets else g.Enemies.damage_multiplier(enemy.type,p.damage_type)
+    var target_multiplier=1.0 if all_targets else g.Enemies.damage_multiplier(g,enemy.type,p.damage_type)
     out.back().brief="预备 %d → %d" % [n,n+1] if charge else ("全体 " if all_targets else "")+g.number(damage*damage_multiplier(g,own_after,maxf(0,g.state.temporary_mana-out.back().mana_payment.temporary_mana))*target_multiplier)+" × %d" % hits
-    out.back().brief_tags="当前%d层" % n
+    out.back().brief_tags=""
 
 static func consume_buff(g, id: String) -> void:
  if id not in g.state.card_buffs: return
@@ -207,7 +224,7 @@ static func consume_buff(g, id: String) -> void:
  if g.state.card_buff_uses[id]<=0:
   g.state.card_buffs.erase(id);g.state.card_buff_uses.erase(id)
 
-static func execute(g, c: Dictionary) -> void:
+static func execute(g, c: Dictionary, damage_group: Dictionary) -> void:
  var p=c.payload
  # The casting profile is frozen in the candidate, before consuming modifiers.
  var success=g._cast_magic(c)
@@ -229,7 +246,7 @@ static func execute(g, c: Dictionary) -> void:
  for hit in range(p.hits):
   for enemy in targets:
    if enemy.is_empty() or enemy.gone: continue
-   g._damage_enemy(enemy,p.damage,p.damage_type,c.label,{"hit":hit+1,"hits":p.hits,"attack":true,"witch":true})
+   g._damage_enemy(enemy,p.damage,p.damage_type,c.label,{"hit":hit+1,"hits":p.hits,"attack":true,"witch":true},damage_group)
    if p.interrupt and not enemy.gone and not enemy.intent.is_empty() and not enemy.intent.get("delayed",false):
     enemy.intent.delayed=true
     g._emit("event",enemy.name+"的动作被打断。",{"interrupt":{"enemy":enemy.id,"cancelled":enemy.intent.get("cancel_on_interrupt",false)}})
@@ -241,14 +258,18 @@ static func damage_multiplier(g, mana: float=-1.0, temporary: float=-1.0) -> flo
   if card.type=="witch_accumulation": stacks+=int(card.get("power_stacks",1))
  return 1.0+((g.state.mana if mana<0 else mana)+(g.state.temporary_mana if temporary<0 else temporary))*0.01*stacks
 
+static func restraint_part(g, slot: String) -> String:
+ return "mouth" if slot=="mouth" else ("hand" if slot in g.B.ARM_SLOTS else ("legs" if slot in g.B.LEG_SLOTS else ""))
+
 static func evade(g, requests: Array, source: String) -> bool:
  if not active(g): return false
+ if Expansion.induce(g,requests,source): return true
  if Expansion.protects_preparation(g): return false
  var parts=[]
  for request in requests:
   var slots=g.Application._slots(request)
   for slot in slots:
-   var part="mouth" if slot=="mouth" else ("hand" if slot in g.B.ARM_SLOTS else ("legs" if slot in g.B.LEG_SLOTS else ""))
+   var part=restraint_part(g,slot)
    if part!="" and part not in parts: parts.append(part)
  for part in parts:
   if g.state.witch_charges[part]>=2:
@@ -277,8 +298,11 @@ static func lose_focus(g, amount: int, source: String) -> void:
 
 static func relic_allowed(g, id: String, character: String="") -> bool:
  var role=g.state.get("character_id","original") if character=="" else character
- if role!=ID: return g.Relics.TYPES[id].get("character_id","")!="witch"
- return id not in ["shining_lamp","olihakimi","mana_earring","break_bracer","ember"]
+ var required=g.Relics.TYPES[id].get("character_id","")
+ if required!="" and required!=role: return false
+ if role!=ID: return true
+ if g.Relics.TYPES[id].modifiers.has("strength"): return false
+ return id not in ["shining_lamp","olihakimi","mana_earring","break_bracer","ember","wrist_bracer"]
 
 static func validate(g, s: Dictionary) -> String:
  if not s.get("deck") is Array: return "卡组记录不完整。"

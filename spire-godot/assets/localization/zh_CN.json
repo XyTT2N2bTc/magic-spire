@@ -2,6 +2,10 @@
   "schema_version": 1,
   "locale": "zh_CN",
   "messages": {
+    "ui.shop.refresh": {"text": "刷新 · {price}魔力", "context": "店主立绘右上角刷新按钮，整局累计涨价"},
+    "ui.portrait.expand": {"text": "放大立绘", "context": "身体栏立绘右下角按钮"},
+    "ui.flask.deposit_uses": {"text": "存 {dots}", "context": "魔瓶战斗存取独立剩余次数"},
+    "ui.flask.withdraw_uses": {"text": "取 {dots}", "context": "魔瓶战斗存取独立剩余次数"},
     "ui.quick_release.previous": {"text": "上一个拘束具（←）", "context": "快捷栏目标循环和探索火球术入口"},
     "ui.quick_release.next": {"text": "下一个拘束具（→）", "context": "快捷栏目标循环和探索火球术入口"},
     "ui.quick_release.fire_locked": {"text": "尚未获得用火球术解除拘束具的能力。", "context": "快捷栏目标循环和探索火球术入口"},
@@ -70,6 +74,8 @@
     "ui.run_review.progress": {"text": "已到达第 {floor} 层 · 已走过 {nodes} 个节点", "context": "节点概况的进度行；{floor}／{nodes} 由 view.route 现算的整数"},
     "ui.run_review.no_route": {"text": "没有可回顾的路线数据。", "context": "view.route 为空而面板已开时的失败态，替代地图位置"},
     "ui.run_review.deck_empty": {"text": "卡组为空。", "context": "卡组块空数据文案，交给 deck_browser.setup 的 empty_message"},
-    "ui.run_review.copy": {"text": "复制本局标识", "context": "标识块的复制按钮；点击调用 ui.copy_seed()，「已复制」分支复用 ui.map.seed_copied"}
+    "ui.run_review.copy": {"text": "复制本局标识", "context": "标识块的复制按钮；点击调用 ui.copy_seed()，「已复制」分支复用 ui.map.seed_copied"},
+    "ui.settings.doubao_voice_enabled": {"text": "播放豆包语音", "context": "豆包对白语音独立开关"},
+    "ui.settings.doubao_voice_volume": {"text": "豆包语音音量 · {percent}%", "context": "豆包语音独立音量百分比"}
   }
 }

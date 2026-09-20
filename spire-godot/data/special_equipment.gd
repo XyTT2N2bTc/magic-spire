@@ -31,6 +31,7 @@ const Environments=preload("res://data/environments.gd")
 const ALL_ENVIRONMENTS=Environments.CLASSES
 const ENVIRONMENT_NAMES=Environments.NAMES
 const INSTANCE_FIELDS=["id","template","type","slot","coverage","contact_slots","remaining","name","grade","maximum","durability","locked","layer","material","variant","owner_id"]
+const OPTIONAL_INSTANCE_FIELDS=["reinforcement_state"]
 const CLIMAX_SLIP_BASE=6.0
 const CHASTITY_FAMILY="chastity_lock"
 const CURSED_VIBRATOR_TURNS=6
@@ -38,6 +39,9 @@ const CHASTITY_CLIMAX_FACTOR_LIMIT=10
 const CHASTITY_TYPES=["negative_plate_lock_medium","negative_plate_lock_catheter_medium","negative_vibrator_lock_catheter_high","cursed_plate_lock"]
 const CURSED_PLATE_REASON="诅咒平板锁只能用下一个Boss掉落的专属钥匙解除。"
 const CHASTITY_COMPONENTS=["chastity_reinforcement_medium","chastity_reinforcement_high"]
+const CUP_REINFORCEMENT_FAMILIES=["full_cup","urethral_full_cup"]
+const CUP_COMPONENTS=["cup_reinforcement_medium","cup_reinforcement_high"]
+const REINFORCEMENT_COMPONENTS=CHASTITY_COMPONENTS+CUP_COMPONENTS
 
 # Explicit enemy/event generation pools. Cup families are authored equipment but
 # never random results; the external wand starts at medium grade.
@@ -85,10 +89,10 @@ const STIMULATION_TEXTS={
 static func _chastity_type(name: String, catheter: bool, vibrator: bool=false) -> Dictionary:
  var slots=["special_2_a","special_2_b","special_2_c"]
  if catheter: slots.append("special_2_d")
- return {"name":name,"family":CHASTITY_FAMILY,"energy_gain":8.0 if vibrator else (6.0 if catheter else 0.0),"turn_gain":12.0 if vibrator else 0.0,"duration":BATTERY_TURNS[3] if vibrator else 0,"stimulates":["special_2_d"] if catheter else [],"turn_stimulates":slots.duplicate() if vibrator else [],"turn_stimulus_factor":0.4 if vibrator else 1.0,"material_text":"魔导金属与硅胶","detail":"自动上锁的复合性玩具；解锁后受到任意正数滑脱伤害便会整件解除。","wear_text":"「%s」合拢包住柱身、龟头与冠沟，锁芯随即自动扣死。" % name,"integrated_catheter":catheter,"integrated_vibrator":vibrator}
+ return {"name":name,"family":CHASTITY_FAMILY,"energy_gain":8.0 if vibrator else (6.0 if catheter else 0.0),"turn_gain":12.0 if vibrator else 0.0,"duration":BATTERY_TURNS[3] if vibrator else 0,"stimulates":["special_2_d"] if catheter else [],"turn_stimulates":slots.duplicate() if vibrator else [],"turn_stimulus_factor":0.4 if vibrator else 1.0,"material_text":"魔导金属与硅胶","detail":"自动上锁的复合性玩具；开锁后受到任意正数挣扎或滑脱伤害便会整件解除，无视加固带。","wear_text":"「%s」合拢包住柱身、龟头与冠沟，锁芯随即自动扣死。" % name,"integrated_catheter":catheter,"integrated_vibrator":vibrator}
 
-static func _reinforcement_type(name: String) -> Dictionary:
- return {"name":name,"family":name,"energy_gain":0.0,"turn_gain":0.0,"duration":0,"stimulates":[],"material_text":"加固皮带与金属扣","detail":"平板锁达到紧度3档时自动附加的独立加固带；只能用切割类道具破坏。","wear_text":"","component_only":true}
+static func _reinforcement_type(name: String, owner_name: String) -> Dictionary:
+ return {"name":name,"family":name,"energy_gain":0.0,"turn_gain":0.0,"duration":0,"stimulates":[],"material_text":"加固皮带与金属扣","detail":"%s达到紧度3档时自动附加的独立固定带；只能用切割类道具破坏。" % owner_name,"wear_text":"","component_only":true}
 
 static func _wear_text(name: String, family: String) -> String:
  return str(WEAR_TEXTS.get(family,"将「{name}」佩戴到相应位置。")).replace("{name}",name)
@@ -131,12 +135,13 @@ static var TYPES={
  "crotch_rope_low":_type("初级裆部股绳","crotch_rope",3,0,0,["special_3_a"],"粗劣麻绳","同时经过双穴区域，但只刺激小穴。"),
  "crotch_rope_medium":_type("中级裆部股绳","crotch_rope",5,0,0,["special_3_a"],"尼龙绳","同时经过双穴区域，但只刺激小穴。"),
  "crotch_rope_high":_type("高级裆部股绳","crotch_rope",7,0,0,["special_3_a"],"魔导纤维绳","同时经过双穴区域，但只刺激小穴。"),
- "glans_cup_medium":_type("中级龟头榨精杯","glans_cup",4,12,BATTERY_TURNS[2],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
- "glans_cup_high":_type("高级龟头榨精杯","glans_cup",5,15,BATTERY_TURNS[3],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
- "full_cup_medium":_type("中级全包榨精杯","full_cup",6,15,BATTERY_TURNS[2],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
- "full_cup_high":_type("高级全包榨精杯","full_cup",8,18,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
- "urethral_full_cup_high":_type("高级马眼全包榨精杯","urethral_full_cup",10,22,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c","special_2_d"],"硅胶与塑料","全包榨精杯内整合高级马眼组件。"),
- "forced_milking_cup_high":_type("高级强制榨精飞机杯","forced_milking_cup",0,20,0,["special_2_a","special_2_b","special_2_c"],"硅胶、塑料与皮革","由固定结构持续驱动，不受电池回合限制。")}
+ "glans_cup_medium":_type("中级龟头榨精杯","glans_cup",2,8,BATTERY_TURNS[2],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
+ "glans_cup_high":_type("高级龟头榨精杯","glans_cup",3,11,BATTERY_TURNS[3],["special_2_b","special_2_c"],"硅胶与塑料","包覆龟头和冠沟的主动榨精杯。"),
+ "full_cup_medium":_type("中级全包榨精杯","full_cup",4,11,BATTERY_TURNS[2],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
+ "full_cup_high":_type("高级全包榨精杯","full_cup",6,14,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c"],"硅胶与塑料","完整包覆柱身、龟头和冠沟。"),
+ "urethral_full_cup_medium":_type("中级马眼全包榨精杯","urethral_full_cup",6,14,BATTERY_TURNS[2],["special_2_a","special_2_b","special_2_c","special_2_d"],"硅胶与塑料","全包榨精杯内整合中级马眼组件。"),
+ "urethral_full_cup_high":_type("高级马眼全包榨精杯","urethral_full_cup",8,18,BATTERY_TURNS[3],["special_2_a","special_2_b","special_2_c","special_2_d"],"硅胶与塑料","全包榨精杯内整合高级马眼组件。"),
+ "forced_milking_cup_high":_type("高级强制榨精飞机杯","forced_milking_cup",8,16,0,["special_2_a","special_2_b","special_2_c"],"硅胶、塑料与皮革","由固定结构持续驱动，不受电池回合限制。")}
 
 static func _add_chastity_types() -> void:
  if TYPES.has("negative_plate_lock_medium"): return
@@ -149,8 +154,10 @@ static func _add_chastity_types() -> void:
  TYPES.cursed_plate_lock.relic_only=true
  TYPES.cursed_plate_lock.detail="高级、紧度3档。默认跳蛋每场只在前6回合生效，高潮保留系数最高10；抖M专用版保持原本的无限效果。获得专属钥匙前不能开锁或解除；击败下一个Boss后自动取下整件。"
  TYPES.cursed_plate_lock.wear_text="诅咒平板锁已佩戴并上锁。"
- TYPES.chastity_reinforcement_medium=_reinforcement_type("中级平板锁加固带")
- TYPES.chastity_reinforcement_high=_reinforcement_type("高级平板锁加固带")
+ TYPES.chastity_reinforcement_medium=_reinforcement_type("中级平板锁加固带","平板锁")
+ TYPES.chastity_reinforcement_high=_reinforcement_type("高级平板锁加固带","平板锁")
+ TYPES.cup_reinforcement_medium=_reinforcement_type("中级榨精杯固定带","全包榨精杯")
+ TYPES.cup_reinforcement_high=_reinforcement_type("高级榨精杯固定带","全包榨精杯")
 
 static var DESIGNS={
  "nipple_clamp_low":_design(1,["special_1_a"],["hook","wall"],"metal"),
@@ -184,18 +191,21 @@ static var DESIGNS={
  "glans_cup_high":_design(3,["special_2_b","special_2_c"],["hook","wall"]),
  "full_cup_medium":_design(2,["special_2_a","special_2_b","special_2_c"],["hook","wall"]),
  "full_cup_high":_design(3,["special_2_a","special_2_b","special_2_c"],["hook","wall"]),
+ "urethral_full_cup_medium":_design(2,["special_2_a","special_2_b","special_2_c","special_2_d"],["hook","wall"]),
  "urethral_full_cup_high":_design(3,["special_2_a","special_2_b","special_2_c","special_2_d"],["hook","wall"]),
  "forced_milking_cup_high":_design(3,["special_2_a","special_2_b","special_2_c"],["hook","wall"],"leather")}
 
 static func _add_chastity_designs() -> void:
  if DESIGNS.has("negative_plate_lock_medium"): return
- DESIGNS.negative_plate_lock_medium=_design(2,["special_2_a","special_2_b","special_2_c"],[],"metal",["slip","magic_slip","unlock"],1)
- DESIGNS.negative_plate_lock_catheter_medium=_design(2,["special_2_a","special_2_b","special_2_c","special_2_d"],[],"metal",["slip","magic_slip","unlock"],1)
- DESIGNS.negative_vibrator_lock_catheter_high=_design(3,["special_2_a","special_2_b","special_2_c","special_2_d"],[],"metal",["slip","magic_slip","unlock"],1)
+ DESIGNS.negative_plate_lock_medium=_design(2,["special_2_a","special_2_b","special_2_c"],[],"metal",["strain","slip","magic_slip","unlock"],1)
+ DESIGNS.negative_plate_lock_catheter_medium=_design(2,["special_2_a","special_2_b","special_2_c","special_2_d"],[],"metal",["strain","slip","magic_slip","unlock"],1)
+ DESIGNS.negative_vibrator_lock_catheter_high=_design(3,["special_2_a","special_2_b","special_2_c","special_2_d"],[],"metal",["strain","slip","magic_slip","unlock"],1)
  DESIGNS.cursed_plate_lock=DESIGNS.negative_vibrator_lock_catheter_high.duplicate(true)
- DESIGNS.chastity_reinforcement_medium=_design(2,["special_2_a","special_2_b","special_2_c"],["sharp"],"leather",[],0)
- DESIGNS.chastity_reinforcement_high=_design(3,["special_2_a","special_2_b","special_2_c"],["sharp"],"leather",[],0)
- for type in CHASTITY_COMPONENTS: DESIGNS[type].tools=["shard","saw"]
+ DESIGNS.chastity_reinforcement_medium=_design(2,["special_2_a","special_2_b","special_2_c"],["sharp"],"leather",["strain","slip"],0)
+ DESIGNS.chastity_reinforcement_high=_design(3,["special_2_a","special_2_b","special_2_c"],["sharp"],"leather",["strain","slip"],0)
+ DESIGNS.cup_reinforcement_medium=_design(2,["special_2_a","special_2_b","special_2_c"],["sharp"],"leather",["strain","slip"],0)
+ DESIGNS.cup_reinforcement_high=_design(3,["special_2_a","special_2_b","special_2_c"],["sharp"],"leather",["strain","slip"],0)
+ for type in REINFORCEMENT_COMPONENTS: DESIGNS[type].tools=["shard","saw"]
 
 static func ensure_catalog() -> void:
  _add_chastity_types();_add_chastity_designs()
@@ -218,6 +228,10 @@ static func prison_pool(grade: int, cups: bool, include_chastity: bool=false) ->
 
 static func is_special(item: Dictionary) -> bool:
  return item.get("template","")=="special"
+
+static func exclusive_family(type: String) -> String:
+ var family=TYPES[type].family
+ return "cup" if family in CUP_FAMILIES else family
 
 static func is_chastity_type(type: String) -> bool:
  return type in CHASTITY_TYPES
@@ -245,7 +259,37 @@ static func is_cursed_plate(item: Dictionary) -> bool:
  return is_special(item) and item.get("type","")=="cursed_plate_lock"
 
 static func is_reinforcement(item: Dictionary) -> bool:
+ return is_special(item) and item.get("type","") in REINFORCEMENT_COMPONENTS
+
+static func is_chastity_reinforcement(item: Dictionary) -> bool:
  return is_special(item) and item.get("type","") in CHASTITY_COMPONENTS
+
+static func is_cup_reinforcement(item: Dictionary) -> bool:
+ return is_special(item) and item.get("type","") in CUP_COMPONENTS
+
+static func is_reinforced_cup(item: Dictionary) -> bool:
+ return is_special(item) and TYPES.get(item.get("type",""),{}).get("family","") in CUP_REINFORCEMENT_FAMILIES
+
+static func supports_reinforcement(item: Dictionary) -> bool:
+ return is_chastity(item) or is_reinforced_cup(item)
+
+static func reinforcement_type(owner: Dictionary) -> String:
+ if is_chastity(owner): return "chastity_reinforcement_high" if owner.grade==3 else "chastity_reinforcement_medium"
+ if is_reinforced_cup(owner): return "cup_reinforcement_high" if owner.grade==3 else "cup_reinforcement_medium"
+ return ""
+
+static func reinforcement_matches(component: Dictionary, owner: Dictionary) -> bool:
+ return component.get("owner_id","")==owner.get("id","") and ((is_chastity_reinforcement(component) and is_chastity(owner)) or (is_cup_reinforcement(component) and is_reinforced_cup(owner)))
+
+static func migrate_reinforcement_state(items: Array) -> void:
+ ensure_catalog()
+ var valid=items.filter(func(item):return item is Dictionary)
+ for owner in valid:
+  if not supports_reinforcement(owner) or owner.has("reinforcement_state"): continue
+  var straps=valid.filter(func(item):return reinforcement_matches(item,owner))
+  owner.reinforcement_state="active" if straps.size()==1 else "none"
+  # Older cups had no band at any tightness; loading must not add a new restraint.
+  if straps.is_empty() and is_reinforced_cup(owner) and float(owner.get("durability",0))>float(owner.get("maximum",0))*0.80000001: owner.reinforcement_state="removed"
 
 static func catheter(item: Dictionary) -> bool:
  return is_chastity(item) and TYPES[item.type].get("integrated_catheter",false)
@@ -256,7 +300,7 @@ static func portrait_layers(items: Array) -> Array:
  var has_chastity=items.any(func(item):return item.get("durability",0)>0 and is_chastity(item))
  if has_chastity:
   layers.append("flat_lock")
- if items.any(func(item):return item.get("durability",0)>0 and is_reinforcement(item)):
+ if items.any(func(item):return item.get("durability",0)>0 and is_chastity_reinforcement(item)):
   layers.append("flat_lock_reinforcement")
  var has_urethral=items.any(func(item):return item.get("durability",0)>0 and (catheter(item) or TYPES.get(item.get("type",""),{}).get("family","")=="urethral_rod"))
  if has_chastity and has_urethral:
@@ -268,7 +312,12 @@ static func generation_pool(types: Array, include_chastity: bool) -> Array:
  return types.filter(func(type):return not TYPES.get(type,{}).get("relic_only",false) and (include_chastity or not is_chastity_type(type)))
 
 static func allows(item: Dictionary, method: String) -> bool:
+ if is_chastity(item) and method=="strain": return unlocked_release(item,method)
  return DESIGNS.has(item.get("type","")) and method in DESIGNS[item.type].methods
+
+# Shared by eligibility, damage resolution and the read-only release projection.
+static func unlocked_release(item: Dictionary, method: String) -> bool:
+ return is_chastity(item) and not is_cursed_plate(item) and not item.get("locked",true) and method in ["strain","slip","magic_slip"]
 
 static func capacity(slot: String) -> int:
  return CAPACITIES.get(slot,0)
@@ -291,6 +340,7 @@ static func used_capacity(items: Array, slot: String) -> int:
 
 static func method_reason(item: Dictionary, method: String) -> String:
  if allows(item,method): return ""
+ if is_chastity(item) and method=="strain": return CURSED_PLATE_REASON if is_cursed_plate(item) else "平板锁仍上锁，先开锁才能挣扎取下。"
  if TYPES.get(item.get("type",""),{}).get("family","") in ["vaginal_egg","anal_egg"]:
   return item.name+"不能用挣脱牌处理，只能在双臂和双手完全自由后直接取出。"
  if method=="hook" and "hook" in DESIGNS.get(item.get("type",""),{}).get("environments",[]):
@@ -314,6 +364,8 @@ static func escape_reason(g, item: Dictionary, method: String, hands: Array) -> 
  if is_cursed_plate(item): return CURSED_PLATE_REASON
  var issue=method_reason(item,method)
  if issue!="": return issue
+ if is_reinforcement(item):
+  return "" if environment_contact(g,item,"sharp") else "固定带只能借助已安装且能够接触该部位的切割类道具处理。"
  if method not in ["strain","slip"]: return ""
  if not hands.is_empty(): return ""
  for environment in DESIGNS[item.type].environments:
@@ -376,7 +428,8 @@ static func _stimulus_sentence(item: Dictionary) -> String:
  if is_chastity(item):
   var spec=TYPES[item.type]
   return "平板锁紧压着肉棒，使肉棒无法正常勃起"+("；内置导尿管贴在尿道中" if catheter(item) else "")+("，无线跳蛋同时在锁内震动。" if spec.get("integrated_vibrator",false) else "。")
- if is_reinforcement(item): return "加固带把平板锁紧紧固定在胯间，自身不产生额外快感。"
+ if is_chastity_reinforcement(item): return "加固带把平板锁紧紧固定在胯间，自身不产生额外快感。"
+ if is_cup_reinforcement(item): return "固定带把全包榨精杯牢牢固定在腰胯间，自身不产生额外快感。"
  return STIMULATION_TEXTS.get(TYPES[item.type].family,TYPES[item.type].detail)
 
 static func _stimulus_formula(item: Dictionary, timing: String, multiplier: float) -> String:
@@ -392,7 +445,7 @@ static func _stimulus_formula(item: Dictionary, timing: String, multiplier: floa
  return " × ".join(factors)+"＝"+_number(base*sensitivity*internal*multiplier)+"快感"
 
 static func stimulation_text(item: Dictionary, multiplier: float=1.0, tightness: int=-1, protected: bool=false, context: Dictionary={}) -> String:
- if protected and is_reinforcement(item): return "加固带把平板锁紧紧固定在胯间，自身不产生额外快感。"
+ if protected and is_reinforcement(item): return _stimulus_sentence(item)
  var spec=TYPES[item.type]
  var lines=[_stimulus_sentence(item)]
  if is_chastity(item):
@@ -428,19 +481,20 @@ static func stimulation_text(item: Dictionary, multiplier: float=1.0, tightness:
  return "\n".join(lines)
 
 static func description(item: Dictionary, multiplier: float=1.0, tightness: int=-1, protected: bool=false, context: Dictionary={}) -> String:
- if protected and is_reinforcement(item): return "加固带将平板锁紧紧固定在胯间，自身不产生额外快感。\n无法提前解除；获得专属钥匙后随锁体一并取下。"
+ if protected and is_reinforcement(item): return _stimulus_sentence(item)+"\n无法提前解除；获得专属钥匙后随主体一并取下。"
  var lines=[stimulation_text(item,multiplier,tightness,protected,context)]
  if is_chastity(item):
-  if not is_cursed_plate(item): lines.append("佩戴时自动上锁；仍上锁且带有加固带时不能滑脱。开锁后受到任意正数滑脱伤害便会整件解除。")
+  if not is_cursed_plate(item): lines.append("佩戴时自动上锁；仍上锁且带有加固带时不能滑脱。开锁后受到任意正数挣扎或滑脱伤害便会整件解除，无视加固带。")
   else: lines.append("无法提前开锁或解除；击败下一个Boss后自动取下整件。")
- elif is_reinforcement(item): lines.append("只接受已安装切割类道具造成的伤害；所属平板锁解除时一并取下。")
+ elif is_reinforced_cup(item): lines.append("紧度达到3档时自动附加同品质固定带；固定带存在时不能滑脱杯体，挣扎仍可直接破坏杯体。固定带只接受切割伤害，杯体解除时一并取下。")
+ elif is_reinforcement(item): lines.append("只接受已安装切割类道具造成的伤害；所属主体解除时一并取下。")
  elif allows(item,"manual"): lines.append("双臂、双腕和双手完全自由时，可花费1能量直接取出。")
  return "\n".join(lines)
 
 static func wear_text(type: String) -> String:
  return str(TYPES.get(type,{}).get("wear_text",""))
 
-static func validate(items) -> String:
+static func validate(items, legacy_cups: bool=false) -> String:
  ensure_catalog()
  if not items is Array: return "性玩具列表不完整。"
  var used=[]
@@ -451,29 +505,35 @@ static func validate(items) -> String:
   for key in INSTANCE_FIELDS:
    if not item.has(key): return "性玩具实例缺少必要属性。"
   for key in item:
-   if key not in INSTANCE_FIELDS: return "性玩具实例包含未定义属性。"
+   if key not in INSTANCE_FIELDS and key not in OPTIONAL_INSTANCE_FIELDS: return "性玩具实例包含未定义属性。"
   var spec=DESIGNS[item.type]
   var family=TYPES[item.type].family
   var climax_base=TYPES[item.type].get("climax_slip_base",0.0)
   if (family=="urethral_rod")!=(climax_base==CLIMAX_SLIP_BASE): return "马眼棒的高潮滑脱规则不正确。"
   if not item.get("id") is String or not item.id.begins_with("special_") or item.id in used: return "性玩具编号重复或不正确。"
-  if family in families: return "同一种性玩具不能重复佩戴。"
+  var wear_family=family if legacy_cups else exclusive_family(item.type)
+  if wear_family in families: return "同一种性玩具不能重复佩戴。"
   if item.slot!=spec.slots[0] or item.coverage!=spec.slots or item.contact_slots!=spec.slots or item.get("template")!="special" or item.get("name")!=TYPES[item.type].name or item.get("grade")!=spec.grade or item.get("maximum")!=spec.maximum or (is_chastity(item) and not item.get("locked") is bool) or (not is_chastity(item) and item.get("locked")!=false) or item.get("layer")!=0 or item.get("material")!=spec.material or item.get("variant")!=0: return "性玩具的品质、位置或固定类型不正确。"
   if not item.get("owner_id") is String: return "性玩具所属关系不正确。"
   if is_reinforcement(item):
-   var owners=items.filter(func(owner):return owner.get("id","")==item.owner_id and is_chastity(owner) and owner.grade==item.grade)
-   if owners.size()!=1 or item.locked or item.owner_id=="" or item.durability<=0 or item.durability>item.maximum: return "平板锁加固带缺少对应锁体或状态不正确。"
+   var owners=items.filter(func(owner):return reinforcement_matches(item,owner) and owner.grade==item.grade)
+   if owners.size()!=1 or item.locked or item.owner_id=="" or item.durability<=0 or item.durability>item.maximum: return "固定带缺少对应主体或状态不正确。"
   elif item.owner_id!="": return "普通性玩具不能附属于其他装备。"
+  if supports_reinforcement(item) and not item.has("reinforcement_state"): return "固定带状态记录缺失。"
+  if item.has("reinforcement_state") and (not item.reinforcement_state is String or not supports_reinforcement(item) or item.reinforcement_state not in ["none","active","removed"]): return "固定带状态记录不正确。"
   if typeof(item.get("durability")) not in [TYPE_INT,TYPE_FLOAT] or not is_finite(item.durability) or item.durability<=0 or item.durability>spec.maximum: return "性玩具耐久不正确。"
   for covered in spec.slots: counts[covered]=counts.get(covered,0)+int(spec.capacity_cost)
   var duration=TYPES[item.type].duration
   if item.remaining<0 or item.remaining>duration or (duration==0 and item.remaining!=0): return "性玩具剩余电量不正确。"
-  used.append(item.id);families.append(family)
+  used.append(item.id);families.append(wear_family)
  var locks=items.filter(func(item):return is_chastity(item))
  if locks.size()>1: return "同一时间只能佩戴一件平板锁。"
- for lock in locks:
-  var straps=items.filter(func(item):return is_reinforcement(item) and item.owner_id==lock.id)
-  if (lock.durability/lock.maximum>0.80000001 and straps.size()!=1) or straps.size()>1: return "紧度3档平板锁必须具有唯一的加固带。"
+ for owner in items.filter(supports_reinforcement):
+  var straps=items.filter(func(item):return reinforcement_matches(item,owner))
+  var status=owner.reinforcement_state
+  if status=="none" and (not straps.is_empty() or owner.durability/owner.maximum>0.80000001): return "未附带固定带的主体状态不正确。"
+  if status=="active" and straps.size()!=1: return "主体记录的固定带缺失或重复。"
+  if status=="removed" and not straps.is_empty(): return "已经切断的固定带不能残留。"
  for slot in counts:
   if counts[slot]>capacity(slot): return slot_name(slot)+"的性玩具超出容量。"
  return ""

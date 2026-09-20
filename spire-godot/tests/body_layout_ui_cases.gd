@@ -3,6 +3,7 @@ const Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
 
 static func run(t) -> void:
  var ui=t.ui
+ await nipple_region(t)
  var portrait=ui.find_child("EquipmentPortrait",true,false)
  var panel=ui.find_child("BodyEquipmentPanel",true,false)
  t.check(portrait.texture.get_image().detect_alpha()!=Image.ALPHA_NONE and portrait.stretch_mode==TextureRect.STRETCH_KEEP_ASPECT_CENTERED,"BODY transparent original portrait keeps aspect ratio")
@@ -68,6 +69,85 @@ static func run(t) -> void:
  await release_preview(t)
  await adaptive_regions(t)
  await applied_regions(t)
+ await portrait_zoom(t)
+
+static func nipple_region(t) -> void:
+ var ui=t.ui
+ ui.restart(42)
+ ui.game._install_special("nipple_clamp_low","special_1_a")
+ ui.render();await t.frames()
+ var upper=ui.view.body_regions.filter(func(region):return region.id=="region_upper")[0]
+ var intimate=ui.view.body_regions.filter(func(region):return region.id=="region_intimate")[0]
+ var nipple=ui.view.body_groups.filter(func(body):return body.id=="special_1")[0]
+ t.check(not upper.members.any(func(body):return body.id=="special_1") and intimate.members.map(func(body):return body.id)==["special_1","special_2","special_3"],"BODY nipple group belongs to genital region")
+ t.check(intimate.targets.keys()==nipple.targets.keys() and not upper.targets.keys().any(func(id):return nipple.targets.has(id)),"BODY nipple equipment and release targets project only through genital region")
+ await t.inspect_body("special_1")
+ t.check("region_intimate" in ui.expanded_body_regions and "region_upper" not in ui.expanded_body_regions,"BODY nipple inspection opens genital region")
+ ui.restart(42);await t.frames()
+
+static func portrait_zoom(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames()
+ var panel=ui.layout.body
+ var portrait=panel.get_node("Canvas/EquipmentPortrait")
+ var button=panel.get_node("Canvas/ExpandPortrait")
+ var compact=panel.get_global_rect()
+ var original=portrait.get_global_rect()
+ var regions=ui.expanded_body_regions.duplicate()
+ var before=ui.game.export_snapshot()
+ t.check(original.encloses(button.get_global_rect()),"PORTRAIT zoom button fits inside original portrait area")
+ await t.capture("ui-portrait-zoom-button.png")
+ await Pointer.press(t,button)
+ t.check(panel.portrait_expanded and is_equal_approx(panel.get_global_rect().end.y,900) and portrait.size.x>original.size.x and portrait.size.y>original.size.y,"PORTRAIT pointer opens full-height left column")
+ t.check(not panel.get_node("Canvas/Slots").visible and not button.visible and portrait.stretch_mode==TextureRect.STRETCH_KEEP_ASPECT_CENTERED,"PORTRAIT enlarged image keeps full aspect and hides body controls")
+ t.check(panel.z_index>ui.find_child("ManaFlask",true,false).z_index,"PORTRAIT expanded panel covers elevated flask controls")
+ t.check(panel.get_node("Canvas/PortraitBackdrop").visible and panel.get_node("Canvas/PortraitBackdrop").color.a==1.0,"PORTRAIT opaque backdrop prevents old resource controls showing through")
+ ui.render(ui.view);await t.frames()
+ t.check(ui.layout.body==panel and panel.get_node("Canvas/EquipmentPortrait")==portrait and panel.portrait_expanded and ui.expanded_body_regions==regions,"PORTRAIT refresh reuses image and preserves original region expansion")
+ await t.capture("ui-portrait-expanded.png")
+ var inside=panel.get_global_rect().get_center()
+ await t.mouse_button(inside,MOUSE_BUTTON_LEFT,true);await t.mouse_button(inside,MOUSE_BUTTON_LEFT,false)
+ t.check(panel.portrait_expanded and ui.game.export_snapshot()==before,"PORTRAIT left column click keeps inspection without actions")
+ var outside=ui.end_button.get_global_rect().get_center()
+ await t.mouse_button(outside,MOUSE_BUTTON_LEFT,true);await t.mouse_button(outside,MOUSE_BUTTON_LEFT,false)
+ t.check(not panel.portrait_expanded and panel.get_global_rect()==compact and portrait.get_global_rect()==original and ui.game.export_snapshot()==before,"PORTRAIT outside action click restores exact layout without click-through")
+ await Pointer.press(t,button)
+ var touch=InputEventScreenTouch.new();touch.position=outside;touch.pressed=true
+ t.root.push_input(touch,true);await t.frames()
+ t.check(not panel.portrait_expanded,"PORTRAIT native touch press dismisses immediately before release")
+ touch=InputEventScreenTouch.new();touch.position=outside;touch.pressed=false
+ t.root.push_input(touch,true);await t.frames()
+ t.check(not panel.portrait_expanded and ui.game.export_snapshot()==before,"PORTRAIT outside touch dismisses without gameplay changes")
+ var keys=preload("res://tests/keyboard_ui_cases.gd")
+ ui.keyboard_input.settings.hold_end=true
+ await keys.key(t,KEY_E)
+ t.check(not ui.keyboard_input.end_hold.is_empty(),"PORTRAIT fixture arms actual end-turn hold")
+ await Pointer.press(t,button)
+ await keys.key(t,KEY_E,false)
+ await t.create_timer(0.6).timeout;await t.frames()
+ t.check(ui.keyboard_input.end_hold.is_empty() and ui.keyboard_input.held_keys.is_empty() and ui.game.export_snapshot()==before,"PORTRAIT inspection cancels pending hold and clears held shortcuts")
+ await keys.tap(t,KEY_ESCAPE)
+ t.check(not panel.portrait_expanded,"PORTRAIT Escape restores compact layout")
+ await keys.key(t,KEY_E)
+ t.check(not ui.keyboard_input.end_hold.is_empty(),"PORTRAIT released shortcut works again after inspection")
+ await keys.key(t,KEY_E,false)
+ ui.keyboard_input.settings.hold_end=false
+ await Pointer.press(t,button)
+ ui.restart(42);await t.frames()
+ t.check(not ui.layout.body.portrait_expanded and ui.layout.body.get_global_rect()==compact,"PORTRAIT new session restores compact sidebar")
+ ui.layout.scale=Vector2(0.85,0.85);ui.layout.position=Vector2(35,25);await t.frames()
+ var touch_input=preload("res://tests/touch_ui_cases.gd")
+ await touch_input.tap(t,ui.layout.body.get_node("Canvas/ExpandPortrait"))
+ panel=ui.layout.body
+ t.check(panel.portrait_expanded,"PORTRAIT touch opens enlargement in scaled layout")
+ inside=panel.get_global_rect().get_center()
+ await touch_input.finger(t,inside,true);await touch_input.finger(t,inside,false)
+ t.check(panel.portrait_expanded,"PORTRAIT scaled left-column touch remains inside inspection")
+ outside=panel.get_global_rect().end+Vector2(8,-100)
+ await touch_input.finger(t,outside,true);await touch_input.finger(t,outside,false)
+ t.check(not panel.portrait_expanded and ui.game.export_snapshot()==before,"PORTRAIT scaled outside touch restores without actions")
+ ui.layout.scale=Vector2.ONE;ui.layout.position=Vector2.ZERO
+ ui.restart(42);await t.frames()
 
 static func applied_regions(t) -> void:
  var ui=t.ui
@@ -107,7 +187,11 @@ static func adaptive_regions(t) -> void:
  ui.restart(42);await t.frames()
  var panel=ui.find_child("BodyEquipmentPanel",true,false)
  var before=ui.game.export_snapshot()
- t.check(panel.size.x==310 and ui.body_buttons.region_head.size.x==100,"REGIONS narrower sidebar and region column")
+ t.check(panel.position==Vector2(0,64) and panel.size==Vector2(375,531) and ui.body_buttons.region_head.size.x==128,"REGIONS body frame fills the left border below the header")
+ var resources=ui.find_child("MainResourcePanel",true,false)
+ var tools_panel=ui.find_child("ResourceToolsPanel",true,false)
+ t.check(resources.position.x==panel.position.x and tools_panel.position.x==panel.position.x and resources.size.x==panel.size.x and tools_panel.size.x==panel.size.x,"REGIONS body resources and tools align across the full left column")
+ t.check(resources.position.y-panel.get_rect().end.y==4 and tools_panel.position.y-resources.get_rect().end.y==4 and tools_panel.get_rect().end.y==900,"REGIONS narrow separators and tools reaching the bottom leave no outer black gutter")
  await Pointer.press(t,ui.body_buttons.region_head)
  await Pointer.press(t,ui.body_buttons.region_lower)
  t.check(ui.expanded_body_regions==["region_head","region_lower"],"REGIONS retain two expanded groups when their measured rows fit")

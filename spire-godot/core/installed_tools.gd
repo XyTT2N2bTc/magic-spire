@@ -23,6 +23,8 @@ static func select(g, target: Dictionary, damage_type: String, used: Array=[]) -
  return best
 
 static func preview(g, target: Dictionary, damage_type: String, base: Dictionary) -> Dictionary:
+ if g.SpecialEquipment.is_reinforcement(target):
+  return {} if base.reason!="" else select(g,target,damage_type,g.state.card_chain.get("tools_used",[]))
  if base.damage<=0 or base.reason!="" or base.immune or base.release or base.damage>=target.durability: return {}
  return select(g,target,damage_type,g.state.card_chain.get("tools_used",[]))
 

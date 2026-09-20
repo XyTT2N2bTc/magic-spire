@@ -10,6 +10,7 @@ var item_art: Control
 
 func _ready() -> void:
  mouse_filter=Control.MOUSE_FILTER_IGNORE
+ if status.get("disabled",false): modulate=Color(0.55,0.55,0.55,0.8)
  ink=Color("e7a2a7") if status.tone=="bad" else Color("91d6d0") if status.tone=="good" else Color("d8c18f")
  if status.icon=="mana": ink=Color("c5a2ed")
  if status.get("emphasized",false): ink=Color("ffcf65")

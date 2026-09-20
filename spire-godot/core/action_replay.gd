@@ -36,9 +36,7 @@ static func payload(g, type: String, original: Dictionary, used: Array) -> Dicti
  else:
   var equipment=g._equipment(p.target)
   if equipment.is_empty() or equipment.durability<=0: return {}
-  p.merge(g.Cards.target_payload(g,type,p.slot,equipment,g.HandAssist.profiles(g),p.uid,p.free),true)
-  if spec.get("follow_through",false):
-   p.preview=g.escape_preview(equipment,spec.mode,g.Cards.base_damage(g,type),g.HandAssist.profiles(g),false,false,true)
+  p.merge(g.Cards.target_payload(g,type,p.slot,equipment,g.HandAssist.profiles(g),p.uid,p.free,spec.get("follow_through",false)),true)
   if p.get("tool_bonus",{}).get("item","") in used: p.tool_bonus={}
  if p.target!="prison_door" and g.Cards.reason(g,p)!="": return {}
  return p

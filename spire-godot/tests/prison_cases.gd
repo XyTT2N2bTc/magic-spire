@@ -107,6 +107,7 @@ static func escape_route_cases(t) -> void:
  t.check(g.state.rooms==g.Tower.prison_route(2) and g.validate()=="","PRISON next escape rebuilds route with the increased guard count")
 
 static func run(t) -> void:
+ cup_stack_migration(t)
  preload("res://tests/prison_reinforcement_cases.gd").run(t)
  inspection_climax_cases(t)
  sentence_cases(t)
@@ -436,7 +437,7 @@ static func security_cases(t) -> void:
   var crotch_rope="crotch_rope_"+["","low","medium","high"][grade]
   t.check(crotch_rope in toy_pool and toy_pool.all(func(type):return g.SpecialEquipment.DESIGNS[type].grade==grade),"PRISON security %d toy pool keeps crotch ropes and uses the current grade" % level)
   t.check(toy_pool.any(func(type):return g.SpecialEquipment.TYPES[type].family in g.SpecialEquipment.CUP_FAMILIES)==(level>=3),"PRISON cups open exactly from security three")
-  t.check(g.state.capture.special_added.size()==(B.PRISON_INTAKE[level].special if level<5 else 2) and g.state.capture.special_baseline==g.state.special_equipment.map(func(e):return e.id) and g.state.special_equipment.all(func(e):return e.type in toy_pool),"PRISON intake adds the tier-specific number of legal special roots")
+  t.check(g.state.capture.special_added.size()==(B.PRISON_INTAKE[level].special if level<5 else 2) and g.state.capture.special_baseline==g.state.special_equipment.map(func(e):return e.id) and g.state.special_equipment.all(func(e):return e.type in toy_pool or g.SpecialEquipment.is_reinforcement(e)),"PRISON intake counts special roots separately from their factory-owned bands")
   var before=g.state.duplicate(true)
   var view=g.get_view()
   t.check(view.prison.equipment_rule==g.Prison.equipment_label(g) and view.prison.equipment_rule.contains("复合")== (level>=3) and g.state==before and g.validate()=="","PRISON security profile projection agrees with legal generation and is readonly")
@@ -866,3 +867,68 @@ static func security_health_cases(t) -> void:
  var g=Game.new(42,true,"guard")
  g.state.security=0;g._spawn_enemies("drone_solo")
  t.check(g.state.enemies[0].hp==g.Enemies.TYPES.drone.hp,"PRISON no negative health at security zero")
+
+# Build a formerly valid two-family save without reopening the current installer.
+static func legacy_cup_pair(t, first: String, second: String):
+ var g=intake(t,5)
+ g.state.special_equipment=[];g.state.relics=["marble_stone"]
+ g.state.pressure=0;g.state.overloaded=false;g.state.overload_count=0
+ g._install_special(first,g.SpecialEquipment.DESIGNS[first].slots[0],3)
+ var donor=Game.new(42)
+ donor._install_special(second,donor.SpecialEquipment.DESIGNS[second].slots[0],3)
+ var added=donor.state.special_equipment.duplicate(true)
+ var ids={}
+ for item in added:
+  ids[item.id]="special_"+str(g.state.next_equipment);g.state.next_equipment+=1
+ for item in added:
+  item.id=ids[item.id]
+  if item.owner_id!="": item.owner_id=ids[item.owner_id]
+ g.state.special_equipment.append_array(added)
+ var all_ids=g.state.special_equipment.map(func(item):return item.id)
+ g.state.prison.special_baseline=all_ids.duplicate();g.state.prison.special_missing=[]
+ g.state.capture.special_baseline=all_ids.duplicate();g.state.capture.special_added=all_ids.duplicate();g.state.capture.retained_special=[]
+ g.state.save_revision=g.Snapshot.CUP_STACK_REVISION
+ t.check(g.SpecialEquipment.validate(g.state.special_equipment,true)=="","CUP SAVE fixture obeys the previous cross-family and capacity rules")
+ return g
+
+static func cup_stack_migration(t) -> void:
+ var D=preload("res://data/special_equipment.gd")
+ for pair in [["full_cup_medium","forced_milking_cup_high",1],["forced_milking_cup_high","full_cup_high",0],["urethral_full_cup_high","forced_milking_cup_high",0]]:
+  var g=legacy_cup_pair(t,pair[0],pair[1])
+  var saved=g.export_snapshot()
+  var cups=saved.special_equipment.filter(func(item):return D.exclusive_family(item.type)=="cup")
+  var keep=cups[pair[2]].id
+  var remove=cups[1-pair[2]].id
+  var removed=saved.special_equipment.filter(func(item):return item.id==remove or item.owner_id==remove).map(func(item):return item.id)
+  var restored=Game.new(77)
+  t.check(restored.restore_snapshot(saved).ok and restored.validate()=="" and restored.state.save_revision==restored.Snapshot.REVISION,"CUP SAVE older two-cup prison state migrates to the current revision")
+  t.check(restored.state.special_equipment.filter(func(item):return D.exclusive_family(item.type)=="cup").map(func(item):return item.id)==[keep],"CUP SAVE highest grade wins, with earliest equipped as the equal-grade tie breaker")
+  t.check(removed.all(func(id):return restored._equipment(id).is_empty() and id not in restored.state.prison.special_baseline and id not in restored.state.capture.special_baseline and id not in restored.state.capture.special_added),"CUP SAVE removed owners and bands leave no inspection violation records")
+  t.check(saved==g.state and restored.state.mana==saved.mana and restored.state.relics==saved.relics,"CUP SAVE migration preserves the caller's old save, mana and relics")
+  var before=restored.export_snapshot();var forged=saved.duplicate(true);forged.save_revision=restored.Snapshot.REVISION
+  t.check(not restored.restore_snapshot(forged).ok and restored.state==before,"CUP SAVE current revision cannot reopen legacy stacking by restoring a forged pair")
+  var old52=saved.duplicate(true);old52.save_revision=restored.Snapshot.REINFORCEMENT_STATE_REVISION
+  var old_bands=old52.special_equipment.filter(D.is_reinforcement).map(func(item):return item.id)
+  old52.special_equipment=old52.special_equipment.filter(func(item):return not D.is_reinforcement(item))
+  for item in old52.special_equipment: item.erase("reinforcement_state")
+  for record in [old52.capture,old52.prison]:
+   for key in ["special_added","special_baseline"]:
+    if record.has(key): record[key]=record[key].filter(func(id):return id not in old_bands)
+  var restored52=Game.new(19)
+  t.check(restored52.restore_snapshot(old52).ok and restored52.validate()=="" and restored52.state.special_equipment.filter(D.is_reinforcement).is_empty(),"CUP SAVE real revision-52 tight cups remain bandless while extra cups are removed")
+  t.check(restored52.state.special_equipment.filter(func(item):return D.exclusive_family(item.type)=="cup").map(func(item):return item.id)==[keep],"CUP SAVE revision-52 migration uses the same highest-grade and earliest tie rule")
+  if pair[0]!="urethral_full_cup_high": continue
+  # Cup balance changes do not alter migration, inspection or recharge invariants.
+  var playable=0;var inspections=0
+  for step in range(30):
+   if restored.state.phase=="inspection":
+    var action={"arrival":"inspect","result":"accept","done":"resume"}[restored.state.prison.stage]
+    t.check(t.action(restored,"prison",{"action":action}).ok,"CUP PRISON repaired save progresses through real inspections")
+    if action=="accept":
+     inspections+=1
+     t.check(restored.state.prison.special_missing.is_empty(),"CUP PRISON migrated extra cups are not treated as removed contraband")
+   else:
+    if not restored.state.overloaded and restored.state.energy>0: playable+=1
+    t.check(t.action(restored,"end").ok,"CUP PRISON repaired save progresses through real turn boundaries")
+   t.check(restored.state.special_equipment.filter(func(item):return D.exclusive_family(item.type)=="cup").size()==1,"CUP PRISON inspections and recharge cannot reintroduce a second cup")
+  t.check(playable>0 and inspections>=2,"CUP PRISON repaired fifth-security run retains playable turns across multiple recharge cycles")

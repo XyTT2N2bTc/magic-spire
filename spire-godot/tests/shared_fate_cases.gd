@@ -16,7 +16,7 @@ static func run(t) -> void:
    t.check(g.dispatch(action.id,g.state.version).ok and g.state.mana==average and g.state.pressure==average,"FATE exact mean preserves fractional values on either face")
    t.check(g.state.energy==0 and g.state.temporary_mana==15 and g.state.equipment==before.equipment and g.state.tick==before.tick and g.state.discard.any(func(c):return c.uid==card.uid),"FATE normal discard leaves unrelated resources, equipment and turn unchanged")
  var g=Game.new(42)
- t.check("shared_fate" in g.Cards.Rules.UNCOMMON and not g.Cards.Rules.distinct_faces("shared_fate") and g.B.card_info("shared_fate")[1]==g.B.card_info("shared_fate")[2],"FATE uncommon pool and identical face text use shared definition")
+ t.check("shared_fate" in g.Cards.Rules.RARE and "shared_fate" not in g.Cards.Rules.UNCOMMON and g.Cards.Rules.SPECS.shared_fate.rarity=="rare" and not g.Cards.Rules.distinct_faces("shared_fate") and g.B.card_info("shared_fate")[1]==g.B.card_info("shared_fate")[2],"FATE rare pool and identical face text use shared definition")
  Give.play(t,g,"mana_circuit",false)
  g.state.mana=90;g.state.pressure=10;g.state.relics=["marble_stone","mana_earring"]
  Give.give(g,"sensitive")

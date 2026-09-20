@@ -3,6 +3,7 @@ extends Control
 const Art=preload("res://ui/pixel_art.gd")
 const EquipmentPortrait=preload("res://ui/equipment_portrait.gd")
 const ILLUSTRATIONS={
+ "iron_man":preload("res://assets/ui/enemies/iron_man.svg"),
  "puppeteer":preload("res://assets/ui/enemies/puppeteer.svg"),
  "puppet":preload("res://assets/ui/enemies/puppet.svg"),
  "rope":preload("res://assets/ui/enemies/rope.svg"),
@@ -92,7 +93,7 @@ func _refresh_enemy_art() -> void:
   remove_child(enemy_sprite);enemy_sprite.queue_free();enemy_sprite=null
  var texture=art_settings.art_texture("enemies",template) if art_settings!=null else null
  if texture==null:
-  if mode=="guard": texture=Art.GUARD_PORTRAITS.get(variant,Art.GUARD_PORTRAITS.guard_purple)
+  if mode=="guard": texture=Art.SUCCUBUS_GUARD_PORTRAITS.get(variant,Art.SUCCUBUS_GUARD_PORTRAITS.guard_purple)
   else: texture=ILLUSTRATIONS.get(mode)
  if texture!=null:
   enemy_sprite=_sprite(texture,"EnemySprite")

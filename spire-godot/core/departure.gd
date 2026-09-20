@@ -4,6 +4,11 @@ const Data=preload("res://data/departure.gd")
 static func initial_relic(g) -> String:
  return "witch_amulet" if g.Character.active(g) else "ember"
 
+static func option_count(g, custom: bool, character: String="") -> int:
+ if custom: return 3
+ var role=g.state.get("character_id","original") if character=="" else character
+ return 5 if role=="original" else 4
+
 static func description(g, id: String) -> String:
  if id=="boss": return "失去初始遗物「%s」，获得1件随机Boss遗物。" % g.Relics.TYPES[initial_relic(g)].name
  return Data.OPTIONS[id]
@@ -14,7 +19,7 @@ static func start(g, cursed_plate_start: bool=false) -> void:
   g.RelicEffects.gain(g,"cursed_plate_lock")
  var rng=RandomNumberGenerator.new();rng.seed=int(g.state.seed)^0x4e454f57
  var options=[]
- for i in range(3 if cursed_plate_start else 4):
+ for i in range(option_count(g,cursed_plate_start)):
   var group=Data.GROUPS[i]
   options.append(freeze(g,group[rng.randi_range(0,group.size()-1)],rng))
  g.state.departure={"options":options,"stage":"choose","selected":"","capacity_bonus":0,"result":"","cursed_plate_start":cursed_plate_start}
@@ -27,7 +32,7 @@ static func freeze(g, id: String, rng) -> Dictionary:
   "uncommon","rare_card":
    entry.cards=g.reward_offer(g.Cards.Rules.UNCOMMON if id=="uncommon" else g.Cards.Rules.RARE,"fixed",rng,3)
   "transform":
-   var pool=g.Character.pool(g,g.Cards.Rules.COMMON+g.Cards.Rules.UNCOMMON)
+   var pool=g.Character.pool(g,g.Cards.Rules.COMMON+g.Cards.Rules.UNCOMMON).filter(g.can_offer_card)
    for card in g.state.deck:
     if g.Cards.Rules.SPECS[card.type].rarity=="basic": entry.changes[card.uid]=pool[rng.randi_range(0,pool.size()-1)]
   "potion":
@@ -36,8 +41,10 @@ static func freeze(g, id: String, rng) -> Dictionary:
   "curse":
    var pool=g.Cards.Rules.SPECS.keys().filter(func(type):return g.Cards.Rules.SPECS[type].card_type=="curse")
    entry.curse=pool[rng.randi_range(0,pool.size()-1)]
- var tiers={"common_relic":["common"],"rare_relic":["rare"],"basics":["common","uncommon"],"wrist":["uncommon"],"boss":["boss"]}.get(id,[])
+ var tiers=Data.RELIC_TIERS.get(id,[])
  for tier in tiers: entry.relics.append(g.RelicRewards.offer(g,tier,rng,entry.relics))
+ for relic in Data.FIXED_RELICS.get(id,[]):
+  entry.relics.append(relic)
  return entry
 
 static func selected(g) -> Dictionary:
@@ -51,7 +58,7 @@ static func reason(g, entry: Dictionary) -> String:
    if g.state.mana_max<=10: return "魔力上限必须大于10。"
   "rare_relic":
    if g.state.mana<40: return "需要至少40点自身魔力。"
-  "boss":
+  "boss","desire_cube_pro_max":
    if initial_relic(g) not in g.state.relics: return "已经失去初始遗物「%s」。" % g.Relics.TYPES[initial_relic(g)].name
   "wrist":
    var issue=g.Application._request_reason(g,Data.WRIST)
@@ -117,9 +124,7 @@ static func execute(g, p: Dictionary) -> String:
    result="移除了「%s」。" % g.B.CARD_NAMES[old]
   "transform":
    var type=entry.changes[p.uid]
-   for zone in ["deck"]+g.Cards.ZONES:
-    for card in g.state[zone]:
-     if card.uid==p.uid: card.type=type
+   g.Cards.replace_permanent(g,p.uid,type)
    result="「%s」变化为「%s」。" % [g.B.CARD_NAMES[p.type],g.B.CARD_NAMES[type]]
   "uncommon","rare_card":
    if entry.id=="rare_card": g.state.mana_max-=10;g.state.mana=minf(g.state.mana,g.state.mana_max)
@@ -138,9 +143,13 @@ static func execute(g, p: Dictionary) -> String:
   "wrist":
    var applied=g.Application.execute_concrete(g,Data.WRIST,"departure")
    if not applied.ok: return applied.reason
-  "boss": g.state.relics.erase(initial_relic(g))
+  "boss","desire_cube_pro_max":
+   g.state.relics.erase(initial_relic(g))
+   if entry.id=="desire_cube_pro_max":
+    for card in g.state.deck.duplicate():
+     if card.type=="ease": g.Cards.replace_permanent(g,card.uid,"itching_heart")
  for relic in entry.relics:
-  g.RelicEffects.gain(g,relic)
+  g.RelicEffects.gain(g,relic,"boss" if entry.id=="boss" else "")
   result+="\n获得「%s」。" % g.Relics.TYPES[relic].name
  d.stage="done";d.result=result
  g._emit("event",result)
@@ -152,7 +161,7 @@ static func panel(g, actions: Array) -> Dictionary:
  for c in actions:
   if c.payload.kind!="departure": continue
   rows.append({"action_id":c.id,"label":c.label,"detail":c.detail,"reason":c.reason,"valid":c.valid,"type":c.payload.get("type",""),"uid":c.payload.get("uid",""),"op":c.payload.op})
- var invitation="三选一，也可以直接出发。\n初始遗物已替换为「诅咒平板锁」。" if d.get("cursed_plate_start",false) else "四选一，也可以直接出发。"
+ var invitation="三选一，也可以直接出发。\n初始遗物已替换为「诅咒平板锁」。" if d.get("cursed_plate_start",false) else ("五选一，也可以直接出发。" if d.options.size()==5 else "四选一，也可以直接出发。")
  return {"active":true,"layout":"departure","title":"选择一张牌" if d.stage=="card" else ("准备出发" if d.stage=="done" else "第0层 · 出发"),"destination":description(g,d.selected) if d.stage=="card" else (d.result if d.stage=="done" else invitation),"continue_id":"","continue_label":"","extra_ids":[],"rows":[],"entries":rows,"stage":d.stage}
 
 static func validate(g, s: Dictionary) -> String:
@@ -162,7 +171,8 @@ static func validate(g, s: Dictionary) -> String:
  var custom=d.get("cursed_plate_start",false)
  if not custom is bool: return "定制开局记录不正确。"
  if custom and s.phase=="departure" and (not s.chastity_locks_enabled or "cursed_plate_lock" not in s.relics or "ember" in s.relics): return "定制开局遗物记录不正确。"
- if not g.Snapshot.fields(d,"options:a stage:s selected:s capacity_bonus:i result:s") or d.options.size()!=(3 if custom else 4) or d.stage not in ["choose","card","done"] or d.capacity_bonus not in [0,1]: return "开局选择记录不正确。"
+ var count=option_count(g,custom,s.get("character_id","original"))
+ if not g.Snapshot.fields(d,"options:a stage:s selected:s capacity_bonus:i result:s") or d.options.size() not in ([4,5] if count==5 else [count]) or d.stage not in ["choose","card","done"] or d.capacity_bonus not in [0,1]: return "开局选择记录不正确。"
  for i in range(d.options.size()):
   var e=d.options[i]
   if not g.Snapshot.fields(e,"id:s cards:z changes:d relics:z potion:s curse:s") or e.id not in Data.GROUPS[i]: return "开局选项分类不正确。"
@@ -175,8 +185,10 @@ static func validate(g, s: Dictionary) -> String:
    for uid in e.changes:
     if not uid is String or not g.Character.reward_member(g,e.changes[uid],s.get("character_id","original")) or e.changes[uid] not in g.Character.pool(g,g.Cards.Rules.COMMON+g.Cards.Rules.UNCOMMON,s.get("character_id","original")): return "变化结果不正确。"
   elif not e.changes.is_empty(): return "开局选项不应含有变化结果。"
-  var tiers={"common_relic":["common"],"rare_relic":["rare"],"basics":["common","uncommon"],"wrist":["uncommon"],"boss":["boss"]}.get(e.id,[])
-  if e.relics.size()!=tiers.size(): return "开局遗物数量不正确。"
+  var tiers=Data.RELIC_TIERS.get(e.id,[])
+  var fixed=Data.FIXED_RELICS.get(e.id,[])
+  if e.relics.size()!=tiers.size()+fixed.size(): return "开局遗物数量不正确。"
+  if not fixed.is_empty() and e.relics!=fixed: return "开局遗物品质不正确。"
   for j in range(tiers.size()):
    if e.relics[j] not in g.Relics.TYPES or e.relics[j] not in s.relic_seen or g.Relics.TYPES[e.relics[j]].rarity!=tiers[j]: return "开局遗物品质不正确。"
   if e.id=="potion":

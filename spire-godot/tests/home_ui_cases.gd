@@ -63,8 +63,34 @@ static func run(t) -> void:
  await first_battle_tutorial(t)
  await preload("res://tests/departure_ui_cases.gd").run(t)
  await henshin_practice(t)
+ await iron_practice(t)
  await plate_lock_practice(t)
  await preload("res://tests/witch_character_ui_cases.gd").run(t)
+
+static func iron_practice(t) -> void:
+ var ui=t.ui
+ ui._return_home();await t.frames()
+ await Click.press(t,"HomePractice")
+ var entry=ui.find_child("Practice_iron_man_solo",true,false)
+ t.check(entry!=null and entry.text=="铁男练习","IRON HOME practice menu exposes the encounter")
+ if entry==null: return
+ var ancestor=entry.get_parent()
+ while ancestor!=null and not ancestor is ScrollContainer: ancestor=ancestor.get_parent()
+ if ancestor!=null: ancestor.ensure_control_visible(entry)
+ await t.frames()
+ await Click.press(t,"Practice_iron_man_solo")
+ t.check(ui.view.practice_kind=="iron_man_solo" and ui.view.phase=="battle" and ui.view.enemies.size()==3,"IRON HOME native practice click opens the full real encounter")
+ await t.close_information()
+ var members=ui.view.enemies
+ var iron=members.filter(func(e):return e.template=="iron_man")[0]
+ var box=members.filter(func(e):return e.template=="binding_box")[0]
+ var drone=members.filter(func(e):return e.template=="iron_drone")[0]
+ t.check(ui.actor_targets[drone.id].get_global_rect().get_center().x<ui.actor_targets[box.id].get_global_rect().get_center().x and ui.actor_targets[box.id].get_global_rect().get_center().x<ui.actor_targets[iron.id].get_global_rect().get_center().x,"IRON HOME drone, box and boss appear from left to right with matching targets")
+ t.check(ui.game.state.enemies.map(func(e):return e.type)==["iron_man","binding_box","iron_drone"],"IRON HOME visual positions preserve combat action order")
+ t.check(await t.click("end"),"IRON HOME turn-end input commits the opening")
+ t.check(ui.game.CaptureBind.has_bind(ui.game,"iron_man"),"IRON HOME opening applies the real capture state")
+ t.check(ui.find_child("HeroGuardBindValue",true,false).text=="50/100","IRON HOME opening displays the three initial captures without immediate box upkeep")
+ ui._return_home();await t.frames()
 
 static func custom_opening(t) -> void:
  var ui=t.ui

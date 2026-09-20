@@ -34,7 +34,14 @@ static func run(t) -> void:
   for n in range(3): g.add_fixture(slot,8,10,false,n)
  t.check(g.Cards.worn_count(g)>=20 and g._mana_cost(10)==0,"RESONANCE more than one hundred percent never generates negative payment")
  g.Cards.end_powers(g);t.check(g._mana_cost(10)==10,"RESONANCE cleanup removes mana reduction")
- g=setup();Give.play(t,g,"resonance",true);Give.play(t,g,"resonance",true)
+ g=setup();g.state.energy=1
+ card=Give.give(g,"resonance");c=t.find_action(g,"card",{"uid":card.uid,"free":true});before=g.export_snapshot()
+ t.check(c.cost==2 and not c.valid and not g.dispatch(c.id,g.state.version).ok and g.state==before,"RESONANCE free face rejects one energy without partial payment")
+ g.state.energy=2;c=t.find_action(g,"card",{"uid":card.uid,"free":true});before=g.export_snapshot()
+ t.check(c.valid and c.cost==2 and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"RESONANCE free face previews two energy and stale play is atomic")
+ t.check(g.dispatch(c.id,g.state.version).ok and g.state.energy==0 and g.state.evasion==0,"RESONANCE free face spends exactly two energy without immediate evasion")
+ g.state.energy=2
+ t.check(Give.play(t,g,"resonance",true).ok and g.state.energy==0,"RESONANCE second free copy also spends two energy")
  t.check(g.state.evasion==0 and g.state.powers.size()==2,"RESONANCE free activation does not immediately evade")
  for enemy in g.state.enemies: enemy.intent.delayed=true
  t.check(t.action(g,"end").ok and g.state.evasion==2,"RESONANCE next turn gains one evasion per copy")

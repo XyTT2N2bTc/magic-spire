@@ -232,7 +232,7 @@ static func _batch_cases(t) -> void:
  g=Game.new(55)
  var old=g._install_template("mouth_tape","mouth",4,10,false,"fixture")
  result=A.execute(g,{"pool":"ordinary","templates":["mouth_tape"],"grade":2,"tier":3,"count":3,"replace":true},"prison")
- t.check(result.count==1 and result.removed==[old.id] and result.installed.size()==1 and g._equipment(result.installed[0].id).size()>0,"APPLY one batch cannot repeatedly replace its newly installed item to spend quota")
+ t.check(result.count==2 and result.removed==[old.id] and result.installed.size()==2 and result.installed.all(func(item):return not g._equipment(item.id).is_empty()) and g.equipment_at("mouth").size()==2,"APPLY tape fills the second mouth slot then replaces only the old item; new batch items remain protected")
 
  # Explicit grouping is also available to frozen events; a bad last request must
  # not leave the first install behind even when its target was originally empty.

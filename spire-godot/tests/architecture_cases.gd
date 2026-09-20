@@ -240,9 +240,9 @@ class UncachedGame extends "res://tests/game_fixture.gd":
 class PreviewCountingGame extends "res://tests/game_fixture.gd":
  var escape_builds=0
  var cast_builds=0
- func _build_escape_preview(target: Dictionary, mode: String, base: float, assist_profiles: Array=[], passive: bool=false, area_effect: bool=false, continuation: bool=false, splash: bool=false) -> Dictionary:
+ func _build_escape_preview(target: Dictionary, mode: String, base: float, assist_profiles: Array=[], passive: bool=false, area_effect: bool=false, continuation: bool=false, splash: bool=false, ignore_tightness_reduction: bool=false) -> Dictionary:
   escape_builds+=1
-  return super._build_escape_preview(target,mode,base,assist_profiles,passive,area_effect,continuation,splash)
+  return super._build_escape_preview(target,mode,base,assist_profiles,passive,area_effect,continuation,splash,ignore_tightness_reduction)
  func _build_cast_view(profile: Dictionary) -> Dictionary:
   cast_builds+=1
   return super._build_cast_view(profile)
@@ -372,7 +372,7 @@ static func run(t) -> void:
  card_identity(t)
  current_effect_boundaries(t)
  instance_effect_boundaries(t)
- for kind in ["equipment","component_links","prison_test","succubus_three_games","trader_solo","drone_solo","binding_box_solo"]:
+ for kind in ["equipment","component_links","prison_test","succubus_three_games","trader_solo","drone_solo","binding_box_solo","doubao"]:
   var g=Game.new(42,true,kind)
   if kind in ["drone_solo","binding_box_solo"]:
    t.check(t.action(g,"end").ok and g.CaptureBind.has_bind(g),"ARCH formal enemy turn establishes source-bound capture "+kind)
@@ -750,6 +750,14 @@ static func current_effect_boundaries(t) -> void:
  projection_contract(t,g,"new rest session")
 
 static func instance_effect_boundaries(t) -> void:
+ var control=preload("res://tests/first_turn_control_cases.gd").enter(t,"battle",1)
+ projection_contract(t,control,"manual zero-energy first turn")
+ var attachment=preload("res://tests/mana_attachment_cases.gd")
+ var powered=attachment.setup()
+ attachment.activate(t,powered,false);attachment.activate(t,powered,true)
+ projection_contract(t,powered,"independent active power faces")
+ t.check(attachment.toggle(t,powered,true).ok,"ARCH power switch uses the common status command")
+ projection_contract(t,powered,"one disabled power face")
  var f=preload("res://tests/concentration_cases.gd").setup()
  var g=f.g
  t.check(t.action(g,"card",{"uid":f.card.uid,"target":f.target.id,"free":true}).ok,"ARCH second bound face grows through the formal action")
@@ -889,7 +897,7 @@ static func copy_single_entry_matches_projection(t) -> void:
 static func copy_route_bytes_unchanged(t) -> void:
  var router=preload("res://core/copy_router.gd")
  var catalog=preload("res://data/encyclopedia.gd")
- t.check(router.categories()==["card.catalog","card.face","card.face_text","card.target","card.two_face","consumables.description","demo_exit.continue","demo_exit.end","departure.description","departure.finish","departure.skip","event.choice","event.prepare","event.reward_skip","game.attack","game.attack_release","game.calm","game.depart","game.end_climax","game.end_turn","game.finish_pack","game.finish_prepare","game.finish_rest","game.hook","game.item_cut","game.item_discard","game.item_door_lock","game.item_escape","game.item_install","game.item_retrieve","game.item_unlock","game.manual_collar","game.manual_release","game.manual_retrieve","game.posture","game.posture_wall","game.rest_begin","game.rest_card","game.rest_flask","game.rest_rare","game.retain","game.retain_skip","game.reward_flask","game.reward_item","game.reward_item_skip","game.reward_other","game.reward_relic","game.reward_skip","game.reward_skip_category","game.status_toggle","game.surrender","game.travel_step","game.wall_move","mana_flask.deposit","mana_flask.withdraw","prison.door_exit","prison.enter","prison.inspection","prison.key","prison.resist","prison.unlock_door","prison.vent_exit","prison.vent_kick","prison_space.explore_blind","prison_space.explore_site","relic_bundle.claim","relic_bundle.finish","relic_bundle.skip","service.leave","service.offer","service.release_job","service.remove_card","witch.attack","witch.card_log"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
+ t.check(router.categories()==["card.catalog","card.face","card.face_text","card.target","card.two_face","consumables.description","demo_exit.continue","demo_exit.end","departure.description","departure.finish","departure.skip","event.choice","event.prepare","event.reward_skip","game.attack","game.attack_release","game.calm","game.depart","game.end_climax","game.end_turn","game.finish_pack","game.finish_prepare","game.finish_rest","game.hook","game.item_cut","game.item_discard","game.item_door_lock","game.item_escape","game.item_install","game.item_retrieve","game.item_unlock","game.manual_collar","game.manual_release","game.manual_retrieve","game.posture","game.posture_wall","game.rest_begin","game.rest_card","game.rest_flask","game.rest_rare","game.retain","game.retain_skip","game.reward_flask","game.reward_item","game.reward_item_skip","game.reward_other","game.reward_relic","game.reward_skip","game.reward_skip_category","game.status_toggle","game.surrender","game.travel_step","game.wall_move","mana_flask.deposit","mana_flask.withdraw","prison.door_exit","prison.enter","prison.inspection","prison.key","prison.resist","prison.unlock_door","prison.vent_exit","prison.vent_kick","prison_space.explore_blind","prison_space.explore_site","relic.control_done","relic.control_toggle","relic.discharge","relic_bundle.claim","relic_bundle.finish","relic_bundle.skip","service.leave","service.offer","service.refresh","service.release_job","service.remove_card","witch.attack","witch.card_log"],"COPY ROUTER enumerates its registered categories: "+str(router.categories()))
  for phase in ["battle","departure"]:
   for count in [0,12,26]:
    var key="%s:%d" % [phase,count]
@@ -945,8 +953,8 @@ static func copy_migrated_kinds(t,router) -> void:
  var sentinel="COPY-SENTINEL"
  var flask=copy_baseline_fixture("battle",0)
  flask.state.mana=50.0;flask.state.flask_mana=8.0;flask.state.flask_deposits=1
- t.check(router.text(flask,{"kind":"mana_flask.deposit","args":{"amount":10.0,"remaining":1},"fallback":sentinel})==copy_candidate(flask,"flask","deposit").get("detail",""),"COPY R1 mana_flask.deposit renders like the deposit candidate")
- t.check(router.text(flask,{"kind":"mana_flask.withdraw","args":{"drawn":8.0,"restored":8.0},"fallback":sentinel})==copy_candidate(flask,"flask","withdraw").get("detail",""),"COPY R1 mana_flask.withdraw renders like the withdraw candidate")
+ t.check(router.text(flask,{"kind":"mana_flask.deposit","args":{"amount":10.0,"remaining":2,"limited":true},"fallback":sentinel})==copy_candidate(flask,"flask","deposit").get("detail",""),"COPY R1 mana_flask.deposit renders like the deposit candidate")
+ t.check(router.text(flask,{"kind":"mana_flask.withdraw","args":{"drawn":8.0,"restored":8.0,"remaining":3,"limited":true},"fallback":sentinel})==copy_candidate(flask,"flask","withdraw").get("detail",""),"COPY R1 mana_flask.withdraw renders like the withdraw candidate")
  var exit_game=copy_baseline_fixture("battle",0)
  preload("res://tests/demo_exit_cases.gd").exit_fixture(exit_game)
  t.check(router.text(exit_game,{"kind":"demo_exit.end","args":{},"fallback":sentinel})==copy_candidate(exit_game,"demo_end","").get("detail",""),"COPY R1 demo_exit.end renders like the exit candidate")
@@ -988,8 +996,8 @@ static func copy_migrated_kinds(t,router) -> void:
   var assembled=target_game._candidate_detail(base,candidate.payload,target_game.Cards.magic_card_traction(target_game,candidate.payload),candidate.mana_payment)
   if assembled!=target_game.candidate_detail(candidate): target_mismatch.append(candidate.id)
  t.check(target_seen>0 and target_mismatch.is_empty() and target_game.copy_router_failures.is_empty(),"COPY R3a card.target renders like the wrapper for every card candidate: "+str(target_seen)+" "+str(target_mismatch.slice(0,3)))
- # R3b: paid_candidate 的三个站点经路由渲染必须逐字节等于候选值。
- var paid_mismatch=[];var paid_seen={"offer":0,"release":0,"remove":0}
+ # R3b: paid candidates must render through their registered builders without fallback.
+ var paid_mismatch=[];var paid_seen={"offer":0,"release":0,"remove":0,"refresh":0}
  for candidate in shop_game.candidates():
   if candidate.payload.get("kind","")!="service" or candidate.payload.get("op","")!="take": continue
   paid_seen.offer+=1
@@ -1005,7 +1013,12 @@ static func copy_migrated_kinds(t,router) -> void:
  var remove_candidate=copy_candidate(remove_game,"service","remove")
  paid_seen.remove+=1
  if remove_candidate.is_empty() or router.text(remove_game,{"kind":"service.remove_card","args":{},"fallback":sentinel})!=remove_candidate.get("detail",""): paid_mismatch.append("remove")
- t.check(paid_seen.offer>0 and paid_mismatch.is_empty(),"COPY R3b service.offer, release_job and remove_card render like the paid candidates: "+JSON.stringify(paid_seen)+" "+str(paid_mismatch.slice(0,3)))
+ var refresh_before=shop_game.export_snapshot()
+ var refresh_candidate=copy_candidate(shop_game,"service","refresh")
+ paid_seen.refresh+=1
+ if refresh_candidate.is_empty() or router.text(shop_game,{"kind":"service.refresh","args":{},"fallback":sentinel})!=refresh_candidate.get("detail",""): paid_mismatch.append("refresh")
+ t.check(shop_game.state==refresh_before,"COPY R3b refresh detail leaves stock, payment and randomness unchanged")
+ t.check(paid_seen.offer>0 and paid_mismatch.is_empty(),"COPY R3b service.offer, refresh, release_job and remove_card render like the paid candidates: "+JSON.stringify(paid_seen)+" "+str(paid_mismatch.slice(0,3)))
  # R3c: Prison.add 的九个站点经路由渲染必须逐字节等于候选值。
  var prison_mismatch=[];var prison_seen=0
  for entry in [["captured","prison.enter","enter",{}],["inspection","prison.inspection","inspect",{}],["inspection","prison.resist","resist",{}],["room","prison.vent_kick","vent_kick",{}],["room","prison.vent_exit","vent_exit",{}],["room","prison.key","key",{}],["room","prison.door_exit","door_exit",{}],["blind","prison_space.explore_blind","explore",{}]]:

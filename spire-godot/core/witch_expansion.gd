@@ -1,13 +1,13 @@
 extends RefCounted
 
-const REWARDS=["witch_mana_transfer","witch_patience","witch_endurance","witch_small_fry","witch_authority"]
+const REWARDS=["witch_binding_lure","witch_mana_transfer","witch_patience","witch_endurance","witch_small_fry","witch_authority"]
 const TRAINING=["witch_escape_practice","witch_escape_practice_10","witch_escape_practice_20","witch_escape_practice_30","witch_escape_practice_40"]
 const LOCK_TEXT="锁定回合结束按钮！"
 
 static func register(g) -> void:
  var rules=g.Cards.Rules
  var buffs={
-  "witch_patience":{"name":"耐心耐心～","duration":"turn","detail":"直到下回合开始，施法预备不消耗，也不能用来抵挡拘束。"},
+  "witch_patience":{"name":"耐心耐心～","duration":"next_turn_start","detail":"直到下回合开始，施法预备不消耗，也不能用来抵挡拘束。"},
   "witch_half_pressure":{"name":"忍耐","duration":"turn","witch_pressure_factor":0.5,"detail":"本回合快感获取量×0.5，命运同担的均分不受影响。"},
   "witch_endurance_two":{"name":"忍耐·本回合及下回合","duration":"turn","witch_pressure_factor":0.5,"on_expire_buff":"witch_half_pressure","detail":"本回合及下回合快感获取量×0.5，命运同担的均分不受影响。"},
   "witch_endurance_next":{"name":"忍耐·下回合","duration":"turn","on_expire_buff":"witch_half_pressure","detail":"下回合快感获取量×0.5，命运同担的均分不受影响。"},
@@ -15,6 +15,7 @@ static func register(g) -> void:
   "witch_authority_power":{"name":"窃取权柄","duration":"battle","stackable":true,"detail":"打出时获得对应牌面的效果。本回合必须获胜，否则只能投降。"}
  }
  for part in ["hand","mouth"]:
+  buffs["witch_induction_"+part]={"name":"拘束诱导·"+g.Character.NAMES[part],"duration":"next_turn_start","detail":"直到下回合开始，闪避所有%s拘束；每次成功闪避，其他合法部位随机佩戴一件同等级、同紧度的拘束具。" % g.Character.NAMES[part]}
   buffs["witch_interrupt_"+part]={"name":"杂鱼♡～杂鱼♡～·"+g.Character.NAMES[part],"duration":"battle","attack_uses":1,"detail":"下次成功释放%s基础法术时附加一次打断；同次释放不重复打断。" % g.Character.NAMES[part]}
  for buff in buffs.values(): buff.witch_session=true
  rules.BUFFS.merge(buffs)
@@ -28,7 +29,7 @@ static func register(g) -> void:
   var spec={"card_type":"skill","rarity":"basic","cost":0 if index==4 else 1,"mode":"strain","damage_type":"strain","base":float(damage),"hits":hits,"bound_modes":["strain","slip"],"witch_training_stage":index,"starting_card":true}
   if index>=2: spec.follow_through=true;spec.target_slots=rules.FOLLOW_THROUGH_SLOTS
   var ending="，顺延。" if index>=2 else "。"
-  add(g,TRAINING[index],"脱缚练习",spec,["技能","挣扎%d×%d%s" % [damage,hits,ending],"滑脱%d×%d%s" % [damage,hits,ending],"两面合计打出10／20／30／40次后永久进化。本局跨战斗保留；每段分别结算，一张牌只累计1次。"],"repeated_strain")
+  add(g,TRAINING[index],"脱缚练习",spec,["技能","挣扎{base}×{hits}"+ending,"滑脱{base}×{hits}"+ending,"两面合计打出10／20／30／40次后永久进化。本局跨战斗保留；每段分别结算，一张牌只累计1次。"],"repeated_strain")
   rules.SPECS[TRAINING[index]].reward_excluded=true
   rules.SPECS[TRAINING[index]].encyclopedia_hidden=index>0
  add(g,"witch_mana_transfer","魔力抽调",{"card_type":"skill","type_tags":["skill","magic"],"rarity":"common","cost":0,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"witch_actions":{"bound":"flask"},"self_faces":{"bound":{"card_type":"skill"},"free":{"card_type":"magic","cast":true,"energy_cost":1,"effects":[{"op":"reserve_mana","amount":4}]}}},["技能／魔法","至多消耗40魔瓶魔力，为自己恢复等量魔力。","{self_free_effects}","只取恢复所需的魔瓶魔力，不超过自身魔力上限。"],"mana_conversion")
@@ -36,6 +37,8 @@ static func register(g) -> void:
  add(g,"witch_endurance","忍耐",{"card_type":"skill","rarity":"uncommon","cost":0,"mode":"self","witch_actions":{"bound":"endure_two","free":"endure_next"},"witch_requirements":{"free":"mouth_score"},"self_faces":{"bound":{"exhaust":true},"free":{"exhaust":true}}},["技能","本回合及下回合快感获取量×0.5（命运同担无效）。将1张敏感加入弃牌堆。","下回合快感获取量×0.5（命运同担无效）。",""],"concentration")
  add(g,"witch_small_fry","杂鱼♡～杂鱼♡～",{"card_type":"magic","rarity":"rare","cost":1,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"witch_actions":{"bound":"interrupt_mouth","free":"interrupt_hand"},"self_faces":{"bound":{"cast":true,"energy_cost":1,"mana_cost":10.0},"free":{"cast":true,"mana_cost":20.0}}},["魔法","下次嘴部法术释放附加一次打断。","下次手部法术释放附加一次打断。","同次释放不重复打断；施法预备动作不消耗此效果。"],"infusion")
  add(g,"witch_authority","窃取权柄",{"card_type":"power","rarity":"rare","cost":0,"mode":"power","witch_actions":{"bound":"authority_release","free":"authority_energy"},"witch_requirements":{"free":"tightness"},"self_faces":{"bound":{"buff":"witch_authority_power","mana_cost":60.0},"free":{"buff":"witch_authority_power","mana_cost":60.0}}},["能力","解除全部拘束与捕缚，清空快感。本回合快感获取量×0.5。"+LOCK_TEXT,"获得3能量、8层魔力预备和3层精神集中，清空快感。本回合快感获取量×0.5。"+LOCK_TEXT,"必须在本回合获胜，否则只能投降。"],"henshin")
+
+ add(g,"witch_binding_lure","拘束诱导",{"card_type":"skill","rarity":"uncommon","cost":0,"mode":"self","bound_modes":["self","self"],"self_faces":{"bound":{"buff":"witch_induction_mouth"},"free":{"buff":"witch_induction_hand"}}},["技能","直到下回合开始，闪避所有嘴部拘束。每次成功闪避，其他部位随机佩戴一件同等级、同紧度的拘束具。","直到下回合开始，闪避所有手部拘束。每次成功闪避，其他部位随机佩戴一件同等级、同紧度的拘束具。","两面效果可共存；同面重复使用不叠加。无其他合法位置时，只闪避。"],"witch_binding_lure")
 
 static func add(g, id: String, name: String, spec: Dictionary, text: Array, art: String) -> void:
  if id=="witch_authority": spec.warning=LOCK_TEXT
@@ -53,6 +56,27 @@ static func pressure_multiplier(g) -> float:
 
 static func end_reason(g) -> String:
  return "窃取权柄：本回合不能结束回合，必须获胜，否则只能投降。" if g.state.phase=="battle" and "witch_authority_lock" in g.state.card_buffs else ""
+
+static func induce(g, requests: Array, source: String) -> bool:
+ var protected=["mouth","hand"].filter(func(part):return "witch_induction_"+part in g.state.card_buffs)
+ if protected.is_empty(): return false
+ for request in requests:
+  var occupied=g.Application._slots(request)
+  if not occupied.any(func(slot):return g.Character.restraint_part(g,slot) in protected): continue
+  var slots=g.B.SLOTS.filter(func(slot):return slot not in occupied and g.Character.restraint_part(g,slot) not in protected)
+  var spec={"templates":g.Equipment.TEMPLATES.keys(),"slots":slots,"allow_links":false,"grade":request.get("grade",2),"tier":request.get("tier",2),"replace":false}
+  # The redirected cost is voluntary: it must not recurse or consume another dodge.
+  var replacement=g.Application.choose(g,spec,source,"equipment")
+  var outcome=g.Application.execute_concrete(g,replacement,source,false,[],true) if not replacement.is_empty() else {}
+  g._emit("event","拘束诱导：闪避了原定拘束。"+("其他部位已佩戴一件同等级、同紧度的拘束具。" if outcome.get("ok",false) else "没有其他合法佩戴位置。"),{"witch_induction":{"source":source,"grade":spec.grade,"tier":spec.tier,"redirected":outcome.get("ok",false)}})
+  return true
+ return false
+
+static func training_progress(card: Dictionary) -> String:
+ var count=int(card.get("practice_plays",0))
+ if count>=40: return "本局累计打出%d次，已完成全部升级。" % count
+ var next=(int(count/10)+1)*10
+ return "升级进度：%d／%d次；再使用%d次升级。" % [count,next,next-count]
 
 static func reason(g, p: Dictionary) -> String:
  var spec=g.Cards.Rules.SPECS[p.type]
@@ -89,7 +113,7 @@ static func resolve(g, p: Dictionary) -> void:
     g.CaptureBind.clear_bind(g)
     for target in g.action_targets(): g._apply_manual_release(target,0.0,true,true)
     g._cleanup()
-   g.state.pressure=0.0
+   g.Pressure.lose(g,g.state.pressure)
    g.Cards.grant_buff(g,"witch_authority_lock")
  if action!="" and action!="flask":
   var log_args={"type":p.type,"free":p.free}

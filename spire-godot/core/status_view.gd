@@ -102,7 +102,8 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
     entry(out,"carried_"+enemy.id,"limit","备用装备 · "+enemy.name,"%d件" % names.size(),("、".join(names)+"；均为中级2档。成功佩戴才消耗，无法佩戴时留在盒内。" if not names.is_empty() else "备用装备已用完，原施加步骤改为捕缚＋10。"),enemy.name,"本场战斗内消耗")
     mark(out,"stock",str(names.size()),true,enemy.id)
    if not enemy.gone and g.Enemies.TYPES[enemy.type].get("mechanical",false):
-    entry(out,"hard_"+enemy.id,"limit","坚硬 · "+enemy.name,"非魔法伤害减半","该机械敌人受到的非魔法伤害×0.5；魔法伤害正常。",enemy.name,"该敌人存活期间","bad")
+    var multiplier=g.Enemies.damage_multiplier(g,enemy.type,"physical")
+    entry(out,"hard_"+enemy.id,"limit","坚硬 · "+enemy.name,"非魔法减伤%s%%" % g.number((1.0-multiplier)*100),"该机械敌人受到的非魔法伤害×%s；魔法与固定伤害正常。" % g.number(multiplier),enemy.name,"该敌人存活期间","bad")
     mark(out,"shield","",true,enemy.id)
    if not enemy.gone and g.Enemies.TYPES[enemy.type].has("quantity_gain") and enemy.get("application_bonus",0)>0:
     entry(out,"quantity_"+enemy.id,"limit","狂躁 · "+enemy.name,"%d层" % enemy.application_bonus,"每次施加额外增加%d件拘束具，不消耗层数，也不增加加固次数。" % enemy.application_bonus,enemy.name,"来源存活期间","bad")
@@ -119,9 +120,17 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
     entry(out,"turn_install_"+enemy.id,"limit",effect.name,"%d层 · 每回合%d件" % [enemy.turn_install_layers,enemy.turn_install_layers],"每个玩家回合%s时，每层新增一件初级2档%s类装备。" % [timing,g.Enemies.TYPES[enemy.type].restraint_name],enemy.name,"来源被击败或分裂后立即停止","bad")
     mark(out,"bind",str(enemy.turn_install_layers))
  for enemy in s.enemies:
+  var definition=g.Enemies.TYPES[enemy.type]
+  if not enemy.gone and definition.has("damage_cap"):
+   var health_scale=g.DemoExit.health_multiplier(s)
+   var remaining=g.number(g.Enemies.barrier_remaining(enemy,health_scale))
+   entry(out,"damage_barrier_"+enemy.id,"enemy","护身屏障","本回合还能受到%s点伤害" % remaining,"每回合受到的最终伤害合计最多%s点，多次攻击、多段及玩偶转移伤害共用额度；下一回合恢复。" % g.number(g.Enemies.barrier_limit(enemy,health_scale))+"\n"+g.Enemies.BARRIER_CAPACITY_DESCRIPTION,enemy.name,"战斗期间持续生效","bad")
+   mark(out,"shield",remaining,true,enemy.id)
   if not enemy.gone and enemy.has("puppet_owner"):
    entry(out,"puppet_"+enemy.id,"limit","引敌缚咒" if enemy.puppet_awakened else "牵线保护","%s/%s生命" % [g.number(enemy.hp),g.number(enemy.max_hp)],g.Puppets.description(g,enemy),g._enemy(enemy.puppet_owner).name,"玩偶师被击败后，玩偶与这些效果一同消失","bad")
    mark(out,"puppet","",true,enemy.id)
+   entry(out,"puppet_stock_"+enemy.id,"enemy","普通反击容量","%d/%d" % [enemy.puppet_stock,g.Puppets.capacity(g,enemy)],"每次普通反击消耗1次，用尽后停止；缝补时上限＋%d并补满。复合装束和暗藏机关不消耗此容量。" % definition.capacity_per_mend,enemy.name,"缝补时补充","bad")
+   mark(out,"stock",str(enemy.puppet_stock),true,enemy.id)
  for region in ["arms","legs"]:
   var level=g.level(region)
   var arms=region=="arms"
@@ -154,7 +163,7 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
  mark(out,"movement","",false)
  var upper=1 if g.level("arms")>=3 or g.occupied("fingers") else 0
  var lower=1 if g.level("legs")>=3 else 0
- var extra=int(g.Relics.value(s.relics,"capacity"))
+ var extra=int(g.relic_value("capacity"))
  entry(out,"capacity","body","随身容量","%d / %d格" % [g.carried_items(),g.item_capacity()],"基础3格＋遗物%d－上肢%d－下肢%d；双手手指同时受限与上肢扣减不叠加。" % [extra,upper,lower],"身体限制与随身遗物","超出容量时使用或放下多余道具","bad" if g.carried_items()>g.item_capacity() else "neutral")
  for attribute in ["strength","dexterity"]:
   var name="力量" if attribute=="strength" else "灵巧"
@@ -162,7 +171,7 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
   var modifier=g.Cards.hand_modifier(g,attribute)
   var power_modifier=g.Cards.power_attribute_modifier(g,attribute)
   var detail="在倍率计算前增加%s基础值。" % ("挣扎及全部体术每段伤害" if attribute=="strength" else "主动与被动滑脱")
-  detail+="\n人物%s · 遗物%s · 手牌%s · 能力%s。" % [g.number(s[attribute]),g.number(g.Relics.value(s.relics,attribute)),g.number(modifier),g.number(power_modifier)]
+  detail+="\n人物%s · 遗物%s · 手牌%s · 能力%s。" % [g.number(s[attribute]),g.number(g.relic_value(attribute)),g.number(modifier),g.number(power_modifier)]
   if attribute=="strength" and s.turn_strength>0: detail+="\n临时力量＋%d，本回合结束清除。" % s.turn_strength
   if modifier!=0: detail+="手牌加值不用于移动被动滑脱；离开手牌立即失效。"
   if power_modifier!=0: detail+="增益加值按当前卡牌效果计算；般若汤持续至本场整备结束。"
@@ -170,7 +179,7 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
   mark(out,attribute,g.number(value),value!=0 or modifier!=0 or power_modifier!=0)
  if g.state.sure_cast: entry(out,"sure_cast","benefit","定咒","1次","下一次合法施法成功率100%，费用照常。","定咒卷轴","下次施法或本场整备结束","good")
  if g.state.sure_cast: mark(out,"sure_cast","1")
- for id in g.Cards.active_buffs(g):
+ for id in g.Cards.active_buffs(g,true):
   var buff=g.Cards.Rules.BUFFS[id]
   if buff.get("hidden",false): continue
   var stacks=g.Cards.buff_stacks(g,id)
@@ -182,11 +191,15 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
   if buff.has("attack_uses") or buff.get("stack_uses",false): out.back().badge=str(g.state.card_buff_uses.get(id,0))
   if buff.get("restraint_draw",{}).get("next_turn",false): out.back().badge=str(g.Cards.pending_draw(g,id))
   out.back().merge(power_art(g,id))
+  if buff.duration=="next_turn_start": out.back().duration="下回合开始"
+  if buff.get("toggleable",false):
+   var enabled=id in g.Cards.active_buffs(g)
+   out.back().merge({"toggle":true,"emphasized":enabled,"disabled":not enabled,"badge":"开" if enabled else "关"},true)
  if s.temporary_mana>0: entry(out,"temporary_mana","benefit","临时魔力",g.number(s.temporary_mana)+"点","优先抵扣法术和卡牌耗魔，不受魔力上限限制；不能存入魔瓶或用于购物。","预备魔力","可跨回合并延续至整备；整备结束最多保留%s点到下场；入狱清除。" % g.number(g.B.TEMPORARY_MANA_RETENTION+g.combat_retention_bonus()*5),"good")
  if s.temporary_mana>0: mark(out,"mana",g.number(s.temporary_mana))
  if s.charge>0:
   var detail="下一次主动挣扎、滑脱或体术基础伤害＋%s；%s" % [g.number(g.charge_bonus()),"消耗全部%d层，随后恢复普通模式。右键切回普通蓄力。" % s.charge if s.charge_all else "每次触发消耗1层。右键切换为全量蓄力。"]
-  var duration="可跨回合并延续至整备；整备结束最多保留%d层到下场；入狱清除。" % (g.B.CHARGE_RETENTION+g.combat_retention_bonus())
+  var duration="可跨回合并延续至整备；整备结束最多保留%d层到下场；入狱清除。每次高潮后蓄力减半，剩余层数向下取整。" % (g.B.CHARGE_RETENTION+g.combat_retention_bonus())
   entry(out,"charge","benefit","全量蓄力" if s.charge_all else "蓄力","%d层" % s.charge,detail,"卡牌、道具或已触发遗物",duration,"good")
   mark(out,"charge",str(s.charge))
   out.back().merge({"toggle":true,"emphasized":s.charge_all})

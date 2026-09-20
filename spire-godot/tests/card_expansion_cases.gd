@@ -12,6 +12,13 @@ static func cast(t,g,type: String,free: bool) -> Dictionary:
  return t.action(g,"card",{"uid":card.uid,"free":free})
 
 static func run(t) -> void:
+ preload("res://tests/lewd_magic_cases.gd").run(t)
+ preload("res://tests/supple_flesh_cases.gd").run(t)
+ preload("res://tests/binding_power_cases.gd").run(t)
+ preload("res://tests/mana_attachment_cases.gd").run(t)
+ preload("res://tests/binding_search_cases.gd").run(t)
+ preload("res://tests/kip_up_cases.gd").run(t)
+ preload("res://tests/endless_war_goddess_cases.gd").run(t)
  preload("res://tests/confluence_cases.gd").run(t)
  preload("res://tests/hannya_cases.gd").run(t)
  preload("res://tests/siphon_strength_cases.gd").run(t)

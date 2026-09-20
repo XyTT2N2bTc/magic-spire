@@ -23,6 +23,7 @@
 
 - `core/card_effects.gd` 的 `static func text_entry(g, type: String, uid: String = "") -> Dictionary`：
   条目正文 = 四步 `face_texts` → `face_costs` → `merge(metadata)` → 可能的 `casting`。
+- 实时条目的 `face_damage` 为 `bound/free` 两面的逐段伤害数值数组，无伤害面为空；与卡面正文共用 `Cards.face_damage_values`，具体加成与波及读取规则见 [卡牌设计](../design/cards.md#9-图鉴与卡面投影)。该字段只读，不写入牌实例或存档。
 - 判据：全仓只有这一处构造这四步；下面三条路径都必须经由它。
 
 ### 三个只读入口
@@ -197,18 +198,16 @@ S 按下列显示入口**逐条取源再取并集**；只允许用本次 View �
    descriptor 经 `core/copy_router.gd` 渲染、基线 View 的冻结 `detail`）逐字节相等；
    `copy_router.categories()` 覆盖该批已迁移类别且无未知 kind；未迁移生产者走直传通道行为不变；
    `copy_router_failures` 为空。红时按四类归因：文本内容／候选数量顺序／缺 detail／未知 kind。
+   新增类别时同步注册类别断言，并在 `copy_migrated_kinds` 验证真实候选站点；用不同于正常文案的哨兵回退值，避免漏注册时返回原文而掩盖失败。商店购买、刷新、解除与删牌均走这条证据路径。
 
 ```powershell
 & tools/check.ps1 -Suite card_power,architecture,casting,card_growth -Impact -TimeoutSeconds 900
 & tools/check.ps1 -UI -Suite architecture -UISuite display,targeting,keyboard,interface,card_power,card_growth,shoulder,torso_binding -TimeoutSeconds 900
 ```
 
-- 判读：退出码 0；输出含 `RULE SCOPE:`、每个 `SUITE RESULT: PASS <name>`、`PASS: N assertions`；
+- 判读：退出码 0；输出含 `RULE SCOPE:`、每个 `SUITE RESULT: <name> PASS`、`PASS: N assertions`；
   `summary.json` 的 `status=passed` 且 `before==after` 指纹（`source_changed`／`plan` 不算通过）。
-- **既有阻塞项豁免写法**：失败集**恰好等于**既有两项阻塞项（`card_power` 的 5 条 `witch_*`；UI 的
-  `shoulder` 2 条 + `torso_binding` 1 条）时，记录为「本片判据通过 + 既有阻塞项未通过」：
-  退出码与 `status` 允许为红，但必须在证据里给出阻塞项日志 id，并证明本片新增／迁移的断言与其余套件全绿。
-  失败集多出任何一条即未完成；**不得**把 `card_power` 从命令里删掉，也不得修改或删除红断言换取绿灯。
+- 范围内出现失败时，记录实际失败分类、断言及日志 id，整轮仍为失败；可分别列明本片已通过的判据和尚未解决的问题，不沿用历史失败名单作为豁免。修复后按受影响范围重新取证，不删除有效失败断言或缩小范围换取绿灯。
 - 被触及的既有断言（`tests/card_text_cases.gd` 全类型读取、`tests/casting_cases.gd`、
   `tests/hannya_ui_cases.gd`、`tests/card_power_ui_cases.gd`、`tests/encyclopedia_ui_cases.gd`、
   `tests/concentration_cases.gd`、`tests/graduate_certificate_cases.gd` 及 tests 中全部 `.detail` 读取）

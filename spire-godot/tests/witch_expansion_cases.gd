@@ -13,6 +13,7 @@ static func play(t,g,type: String,free: bool=false) -> Dictionary:
  return t.action(g,"card",{"uid":card.uid,"free":free})
 
 static func run(t) -> void:
+ _patience_turn_window(t)
  var g=fresh()
  t.check(g.state.deck.size()==11 and g.state.deck.filter(func(c):return c.type=="slip").size()==3 and g.state.deck.any(func(c):return c.type=="witch_magic_slip") and g.state.deck.any(func(c):return c.type=="witch_escape_practice") and not g.state.deck.any(func(c):return c.type=="witch_magic_hand"),"WITCH expansion exact eleven-card starter")
  for part in g.Character.PARTS:
@@ -75,6 +76,43 @@ static func run(t) -> void:
  for role in ["original","witch"]:
   var book=preload("res://data/encyclopedia.gd").entries(g,role)
   t.check(book.any(func(row):return row.id=="witch_authority")== (role=="witch") and book.any(func(row):return row.id=="witch_amulet")== (role=="witch"),"WITCH encyclopedia role isolates cards and relics "+role)
+
+static func _patience_turn_window(t) -> void:
+ var Save=preload("res://tests/persistence_cases.gd")
+ for protected in [false,true]:
+  var g=_patience_encounter()
+  g.state.posture="stand";g.state.order="first";g.state.witch_charges.hand=4
+  var enemy=g.state.enemies[0]
+  var intent=g.EnemyPlans.application(["rope"],1,1);intent.slot="wrist"
+  enemy.intent=intent.duplicate(true)
+  if protected:
+   t.check(play(t,g,"witch_patience").ok,"PATIENCE protection activates through card submission")
+   var status=g.get_view().statuses.filter(func(row):return row.id=="power_witch_patience")[0]
+   t.check(status.duration=="下回合开始","PATIENCE status describes its actual next-start boundary")
+  var restored=Save.roundtrip(t,g,"patience before enemy action")
+  t.check(t.action(g,"end").ok,"PATIENCE real end turn includes enemy application and next player start")
+  t.check(g.state.witch_charges.hand==(4 if protected else 2),"PATIENCE only protected charges survive the intervening enemy action")
+  t.check(g.state.equipment.any(func(item):return item.source==enemy.id and item.slot=="wrist")==protected,"PATIENCE protection suspends charge evasion, allowing actual restraint installation")
+  t.check(not g.Character.Expansion.protects_preparation(g),"PATIENCE protection is gone when the next player turn opens")
+  if restored!=null:
+   t.check(t.action(restored,"end").ok and restored.state.witch_charges==g.state.witch_charges and restored.state.equipment==g.state.equipment,"PATIENCE restored protection follows identical enemy and expiry sequence")
+  if protected:
+   g.state.enemies[0].intent=intent.duplicate(true)
+   t.check(t.action(g,"end").ok and g.state.witch_charges.hand==2,"PATIENCE next round restores ordinary charge evasion")
+ var g=_patience_encounter()
+ g.state.posture="lie";g.state.order="last";g.state.witch_charges.hand=4
+ var intent=g.EnemyPlans.application(["rope"],1,1);intent.slot="wrist";g.state.enemies[0].intent=intent
+ g.state.enemies[0].acted_round=g.state.round
+ t.check(play(t,g,"witch_patience").ok and t.action(g,"end").ok and g.state.witch_charges.hand==2,"PATIENCE expires before enemy-first actions belonging to the next round")
+ g=fresh();play(t,g,"witch_patience");g.Cards.end_powers(g)
+ t.check(not g.Character.Expansion.protects_preparation(g),"PATIENCE session cleanup still clears protection")
+
+static func _patience_encounter():
+ var g=fresh()
+ g.state.room_encounters.entrance="rope_solo";g._start_battle()
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ g.state.relics=[];g.state.energy=30;g.state.mana=100
+ return g
 
 static func _training(t) -> void:
  var shared=fresh();shared.state.equipment.clear()

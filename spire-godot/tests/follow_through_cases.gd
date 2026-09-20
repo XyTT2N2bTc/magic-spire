@@ -22,18 +22,21 @@ static func use(t,g,target: Dictionary) -> Dictionary:
 static func run(t) -> void:
  revised_multihit(t)
  repeated_strain(t)
+ super_follow_through(t)
+ ignore_tightness(t)
  var g=fresh()
  var spec=g.Cards.Rules.SPECS[TYPE]
  var info=g.B.card_info(TYPE)
- t.check(spec.cost==3 and spec.rarity=="rare" and spec.card_type=="skill" and TYPE in g.Cards.Rules.RARE and info[1]=="挣扎6×5。顺延。" and info[2]=="蓄力5。","FOLLOW rare three-energy skill has exact concise faces")
+ t.check(spec.cost==3 and spec.rarity=="rare" and spec.card_type=="skill" and TYPE in g.Cards.Rules.RARE and info[1]=="挣扎6×5。超级顺延。无视紧度减伤。" and info[2]=="蓄力6。","FOLLOW rare three-energy skill has exact concise faces")
  var card=Give.give(g,TYPE)
  var before=g.export_snapshot()
- t.check(t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.state.charge==5 and g.state.energy==0 and g.state.mana==before.mana and g.state.rng==before.rng,"FOLLOW free face grants five charge without mana, random rolls or continuation")
+ t.check(t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.state.charge==6 and g.state.energy==0 and g.state.mana==before.mana and g.state.rng==before.rng,"FOLLOW free face grants six charge without mana, random rolls or continuation")
 
  # One surviving target remains selected even after its ratio falls below its peer.
  g=fresh();var target=piece(g,"thigh","thigh_root",100,100)
  var peer=piece(g,"thigh","thigh_root",99,100)
  card=Give.give(g,TYPE);var c=t.find_action(g,"card",{"uid":card.uid,"target":target.id})
+ t.check(g.candidate_detail(c).contains("全身合法目标") and not g.candidate_detail(c).contains("不跨"),"FOLLOW super strain target detail agrees with full-body keyword and behavior")
  before=g.export_snapshot();g.get_view();g.candidates()
  t.check(g.state==before and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"FOLLOW previews and stale submission preserve complete state and RNG")
  g.state.energy=2;before=g.export_snapshot()
@@ -64,7 +67,7 @@ static func run(t) -> void:
   t.check(t.action(twin,"card",{"uid":card.uid,"target":target.id}).ok and hits(twin)==hits(g) and twin.state.rng==g.state.rng,"FOLLOW restored state reproduces exact random targets and damage")
 
  g=fresh();target=piece(g,"thigh","thigh_root");hand=piece(g,"fingers","fingers")
- t.check(use(t,g,target).ok and hits(g).size()==1 and g.state.card_chain.is_empty() and not g._equipment(hand.id).is_empty(),"FOLLOW no same-region target ends remaining hits without crossing regions")
+ t.check(use(t,g,target).ok and hits(g).map(func(h):return h.target)==[target.id,hand.id] and g.state.card_chain.is_empty() and g._equipment(hand.id).is_empty(),"FOLLOW super continuation crosses regions and ends only when no legal target remains")
 
  # New targets always use the currently exposed layer, even if an inner layer is tighter.
  g=fresh();target=piece(g,"thigh","thigh_root")
@@ -142,3 +145,45 @@ static func repeated_strain(t) -> void:
  t.check(t.action(g,"card",{"uid":card.uid,"target":target.id}).ok and hits(g).map(func(hit):return hit.target)==[target.id,middle.id,foot.id] and g._equipment(inner.id).is_empty() and not g._equipment(arm.id).is_empty(),"REPEATED exhaust card follows point, body part and region then stops without crossing")
  var restored=Save.roundtrip(t,g,"repeated strain after exhaust and continuation")
  if restored!=null: t.check(restored.state.exhaust.any(func(c):return c.uid==card.uid) and restored.state.card_chain.is_empty(),"REPEATED exhausted physical card survives current snapshot roundtrip")
+
+static func super_follow_through(t) -> void:
+ var g=fresh()
+ var target=piece(g,"thigh","thigh_root")
+ var local=piece(g,"calf","mid_calf")
+ var wrist=piece(g,"wrist","wrist")
+ var mouth=piece(g,"mouth","mouth")
+ var eyes=piece(g,"eyes","eyes")
+ var fingers=piece(g,"fingers","fingers")
+ t.check(use(t,g,target).ok and hits(g).map(func(h):return h.target)==[target.id,local.id,wrist.id,fingers.id,mouth.id],"FOLLOW super strain exhausts local region before wrist priority and then follows the new region")
+ t.check(not g._equipment(eyes.id).is_empty() and g.state.energy==0 and g.state.card_chain.is_empty(),"FOLLOW super strain retains five-hit cap and one payment")
+ g=fresh();g.state.charge=2
+ var card=Give.give(g,TYPE);var before=g.export_snapshot()
+ var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
+ t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"FOLLOW free super card stale submission grants no charge or payment")
+ t.check(g.dispatch(c.id,g.state.version).ok and g.state.charge==8 and g.state.discard.any(func(v):return v.uid==card.uid),"FOLLOW free six charge adds to existing charge and discards once")
+
+static func ignore_tightness(t) -> void:
+ var g=fresh();var target=piece(g,"thigh","thigh_root",100,100)
+ var previous=g._begin_equipment_read()
+ var ordinary=g.escape_preview(target,"strain",6)
+ var bypass=g.escape_preview(target,"strain",6,[],false,false,false,false,true)
+ var ordinary_again=g.escape_preview(target,"strain",6)
+ g._equipment_read=previous
+ t.check(ordinary.multiplier<1 and bypass.multiplier==1 and ordinary_again==ordinary and bypass.damage>ordinary.damage,"BLAZE preview cache separates tightness bypass from ordinary strain")
+ target.durability=20
+ ordinary=g.escape_preview(target,"strain",6)
+ bypass=g.Cards.target_payload(g,TYPE,"thigh",target).preview
+ t.check(ordinary.multiplier>1 and bypass.multiplier==ordinary.multiplier and bypass.damage==ordinary.damage,"BLAZE preserves low-tightness damage bonus")
+ target.durability=100;target.locked=true
+ var peer=piece(g,"thigh","thigh_root",100,100)
+ var card=Give.give(g,TYPE)
+ var payload=t.find_action(g,"card",{"uid":card.uid,"target":target.id}).payload
+ var splash=g.Cards.Splash.select(g,payload)
+ t.check(payload.preview.multiplier==1 and payload.preview.lock_multiplier==0.5 and payload.preview.divisor==2,"BLAZE ignores only tightness reduction and retains lock and stack reductions")
+ t.check(splash.size()==1 and splash[0].target==peer.id and splash[0].preview.multiplier==1 and splash[0].preview.divisor==2,"BLAZE splash inherits bypass while preserving stacking")
+ t.check(t.action(g,"card",{"uid":card.uid,"target":target.id}).ok,"BLAZE actual card dispatch succeeds against locked tight target")
+ var records=g.state.logs.filter(func(row):return row.data.has("follow_through_hit"))
+ var splashes=g.state.logs.filter(func(row):return row.data.has("card_splash"))
+ t.check(records.size()==5 and records.all(func(row):return row.data.multiplier==1 and is_equal_approx(row.data.follow_through_hit.before-row.data.follow_through_hit.after,row.data.damage)),"BLAZE all five actual hits bypass tightness with matching damage records")
+ t.check(splashes.size()==5 and splashes.all(func(row):return row.data.multiplier==1 and is_equal_approx(row.data.card_splash.before-row.data.card_splash.after,row.data.damage)),"BLAZE all five actual splashes bypass tightness with matching damage records")
+ t.check(is_equal_approx(records[0].data.damage,payload.preview.damage) and is_equal_approx(splashes[0].data.damage,splash[0].preview.damage),"BLAZE initial main and splash previews match actual resolution")

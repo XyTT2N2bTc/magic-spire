@@ -1,5 +1,8 @@
 extends RefCounted
 
+static func toy_spec(g) -> Dictionary:
+ return {"pool":"special","templates":g.SpecialEquipment.RANDOM_POOLS[1],"grade":1,"tier":2,"count":1,"replace":false}
+
 # Internal X-card effect. Installation and tightening retain the existing factories.
 const Rules=preload("res://data/card_rules.gd")
 
@@ -12,11 +15,21 @@ static func options(g, type: String, x: int) -> Array:
  for grade in g.Equipment.GRADES:
   var tier=rule.tighten_per_x*x-int(grade)
   if tier not in [1,2,3]: continue
-  for request in g.EquipmentOffers.ordinary(g,grade,false,rule.templates):
-   if request.slot not in rule.slots: continue
-   request.grade=grade;request.tier=tier;request.locked=false;request.variant=0
-   result.append(request)
+  result.append_array(install_options(g,grade,tier,rule.slots,rule.templates))
  return result
+
+static func install_options(g, grade: int, tier: int, slots: Array=[], templates: Array=[]) -> Array:
+ var result=[]
+ for request in g.EquipmentOffers.ordinary(g,grade,false,templates):
+  if not slots.is_empty() and request.slot not in slots: continue
+  request.grade=grade;request.tier=tier;request.locked=false;request.variant=0
+  result.append(request)
+ return result
+
+static func install(g, request: Dictionary, source: String) -> Dictionary:
+ var variants=g.Equipment.MATERIALS[g.Equipment.TEMPLATES[request.template].material][request.grade]
+ request.variant=g._random_index("equipment",variants.size())
+ return g.Application.execute_concrete(g,request,source,false,[],true)
 
 # Only accept first choices that leave room for the second. Preview uses no random
 # selection, and restores state plus feedback before returning detached requests.
@@ -73,9 +86,7 @@ static func resolve(g, p: Dictionary) -> void:
   var plan=installation_plan(g,p.type,x,true)
   assert(plan.size()==2,"Self-binding must have a complete legal pair before payment")
   for request in plan:
-   var variants=g.Equipment.MATERIALS[g.Equipment.TEMPLATES[request.template].material][request.grade]
-   request.variant=g._random_index("equipment",variants.size())
-   var applied=g.Application.execute_concrete(g,request,p.type,false,[],true)
+   var applied=install(g,request,p.type)
    assert(applied.ok and applied.count==1,"Self-binding installation changed inside its transaction")
    var item=applied.installed[0]
    changes.append({"id":item.id,"grade":item.grade,"tier":g.tier(item.durability,item.maximum)})

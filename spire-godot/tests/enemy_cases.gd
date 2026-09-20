@@ -395,6 +395,8 @@ static func weak_group_cases(t) -> void:
   while g.state.phase=="travel":t.action(g,"travel_step")
   var room=g.room_data(g.state.room)
   t.check(g.state.enemies.size() in [1,2] and room.enemy_members.reduce(func(total,m):return total+Enemies.TYPES[m.type].strength,0)==2,"POOL exact strength two from actual arrival")
+  for type in ["gag","lock"]:
+   t.check(g.state.enemies.filter(func(e):return e.type==type).size()<=1,"POOL real arrival never duplicates limited monster: "+type)
   for e in g.state.enemies:seen[e.type]=true
   duplicated=duplicated or (g.state.enemies.size()==2 and g.state.enemies[0].type==g.state.enemies[1].type)
   before=g.export_snapshot();g.get_view();g.route_view();g.candidates()
@@ -440,6 +442,38 @@ static func weak_group_cases(t) -> void:
  var single=Enemies.FirstFloor.roll(LiveGame.new(3))
  t.check(single.size()==1 and single[0].type=="rope","POOL budget controls count for future strengths")
  Enemies.TYPES.rope.strength=strength;Enemies.FirstFloor.POOLS.weak=pool
+ limited_group_cases(t)
+
+static func limited_group_cases(t) -> void:
+ var g=preload("res://core/game.gd").new(42)
+ g._install_template("belt","wrist",8,10,false,"fixture")
+ var original=Enemies.FirstFloor.POOLS.weak.duplicate()
+ for type in ["gag","lock"]:
+  Enemies.FirstFloor.POOLS.weak=[type+"_solo"]
+  var before=g.export_snapshot()
+  t.check(Enemies.FirstFloor.roll(g).is_empty() and g.state==before,"POOL unique monster alone cannot fill two points or consume RNG: "+type)
+  var single=Enemies.FirstFloor.roll(g,1)
+  t.check(single.size()==1 and single[0].type==type,"POOL unique monster remains eligible alone: "+type)
+  Enemies.FirstFloor.POOLS.weak=[type+"_solo","rope_solo"]
+  var seen_limited=false;var seen_pair=false
+  for i in range(32):
+   var roster=Enemies.FirstFloor.roll(g)
+   var amount=roster.filter(func(m):return m.type==type).size()
+   seen_limited=seen_limited or amount==1;seen_pair=seen_pair or amount==0
+   t.check(roster.size()==2 and amount<=1,"POOL same-type limit preserves exact budget: "+type)
+  t.check(seen_limited and seen_pair,"POOL mixed partner and repeatable rope pair both remain reachable: "+type)
+ Enemies.FirstFloor.POOLS.weak=["gag_solo","lock_solo"]
+ var pair=Enemies.FirstFloor.roll(g)
+ t.check(pair.size()==2 and pair.any(func(m):return m.type=="gag") and pair.any(func(m):return m.type=="lock"),"POOL one gag and one lock can share an encounter")
+ var before=g.export_snapshot()
+ t.check(Enemies.FirstFloor.roll(g,3).is_empty() and g.state==before,"POOL two limited types cannot fill a larger budget by duplication")
+ Enemies.FirstFloor.POOLS.weak=["gag_solo","toybox_solo"]
+ for id in Enemies.TYPES.toybox.special_pool:g._install_special(id,g.SpecialEquipment.DESIGNS[id].slots[0])
+ var strict=Enemies.FirstFloor.candidates(g)
+ t.check(strict.size()==1 and strict[0].type=="gag","POOL strict supply contains only the eligible unique gag")
+ var relaxed=Enemies.FirstFloor.roll(g)
+ t.check(relaxed.size()==2 and relaxed.filter(func(m):return m.type=="gag").size()<=1 and relaxed.any(func(m):return m.type=="toybox"),"POOL nonempty but insufficient unique supply relaxes other eligibility to complete budget")
+ Enemies.FirstFloor.POOLS.weak=original
 
 static func strong_group_cases(t) -> void:
  var LiveGame=preload("res://core/game.gd")
@@ -469,6 +503,8 @@ static func strong_group_cases(t) -> void:
    t.check(group in Enemies.FirstFloor.choices("strong") and group!=previous and g.state.last_strong_group==group,"STRONG draws registered recipe excluding previous actual group")
    var roster=room.enemy_members
    t.check(roster.reduce(func(total,m):return total+Enemies.TYPES[m.type].strength,0)==4,"STRONG actual roster exact strength four")
+   for type in ["gag","lock"]:
+    t.check(roster.filter(func(m):return m.type==type).size()<=1,"STRONG mixed roster never duplicates limited monster: "+type)
    var masses=roster.filter(func(m):return Enemies.TYPES[m.type].get("family","")=="mass_family")
    var weak=roster.filter(func(m):return Enemies.TYPES[m.type].strength==1)
    var recipe_matches=roster==Enemies.ENCOUNTERS[group].get("fixed_members",[])
@@ -533,6 +569,8 @@ static func humanoid_equipment_audit(t) -> void:
  for type in humans:
   var g=Game.new(42,true,"puppeteer_solo" if type=="puppet" else ("guard" if type=="guard" else type+"_solo"))
   if type=="six_bind": g=preload("res://tests/six_bind_cases.gd").encounter()
+  if type=="iron_man":
+   g=Game.new(42);g.state.room_encounters.entrance="iron_man_solo";g._start_battle()
   var actors=g.state.enemies.filter(func(enemy):return enemy.type==type)
   t.check(actors.size()==1,"HUMAN AUDIT real encounter contains registered actor: "+type)
   if actors.is_empty(): continue
@@ -551,14 +589,22 @@ static func humanoid_equipment_audit(t) -> void:
   g._enemy_operation(e,plan)
   t.check(existing.filter(func(item):return g._equipment(item.id).is_empty()).size()==1 and g.equipment_at("wrist").any(func(item):return item.grade==plan.grade and item.template=="belt"),"HUMAN AUDIT real operation replaces one weaker full-slot item: "+type)
   t.check(g._equipment(outside.id)==outside and g.state.logs.any(func(log):return not log.data.get("replaced",[]).is_empty()),"HUMAN AUDIT replacement reports actual removal and preserves unrelated equipment: "+type)
- # Six-bind opening and finale must reinforce the same full mouth area when
- # stronger equipment refuses replacement, rather than skipping the area.
+ # One occupied mouth slot still admits outer tape; fallback starts at full capacity.
  for grade in [1,2]:
   var g=preload("res://tests/six_bind_cases.gd").encounter(41)
   var mouth=R.install(g,R.request("mouth",3,2))
-  var id=mouth.id
+  var before=mouth.duplicate(true)
   g._six_area_sweep(g.state.enemies[0],grade,2)
-  t.check(not g._equipment(id).is_empty() and g.tier(g._equipment(id).durability,g._equipment(id).maximum)==3,"HUMAN AUDIT six-bind area sweep reinforces stronger occupied mouth at grade "+str(grade))
+  var pieces=g.equipment_at("mouth")
+  var added=pieces.filter(func(item):return item.id!=mouth.id)
+  t.check(pieces.size()==2 and added.size()==1 and added[0].template=="mouth_tape" and added[0].grade==grade and added[0].layer>mouth.layer and g._equipment(mouth.id)==before,"HUMAN AUDIT six-bind appends legal outer tape before tightening an occupied mouth at grade "+str(grade))
+  g=preload("res://tests/six_bind_cases.gd").encounter(41)
+  mouth=R.install(g,R.request("mouth",3,2));before=mouth.duplicate(true)
+  var tape_request=R.request("mouth",3,2);tape_request.template="mouth_tape"
+  var tape=R.install(g,tape_request);var tape_id=tape.id
+  t.check(not tape.is_empty() and g.equipment_at("mouth").size()==2 and g.validate()=="","HUMAN AUDIT fallback fixture fills mouth capacity with stronger legal outer tape")
+  g._six_area_sweep(g.state.enemies[0],grade,2)
+  t.check(g.equipment_at("mouth").size()==2 and not g._equipment(tape_id).is_empty() and g.tier(g._equipment(tape_id).durability,g._equipment(tape_id).maximum)==3 and g._equipment(mouth.id)==before,"HUMAN AUDIT six-bind full mouth rejects weaker replacement and tightens only its exposed outer tape at grade "+str(grade))
  # Multi-target control uses the same tier-three locking + durability recovery.
  var g=Game.new(42,true,"versatile_solo")
  g.state.equipment.clear();g.state.composites.clear();g.state.links.clear()

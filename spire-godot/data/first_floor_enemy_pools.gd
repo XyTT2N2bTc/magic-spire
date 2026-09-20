@@ -42,36 +42,43 @@ static func candidates(g, strict: bool=true) -> Array:
     seen[key]=true;result.append(member.duplicate(true))
  return result
 
+static func unique_type(g, type: String, unique_types: bool) -> bool:
+ return unique_types or g.Enemies.TYPES[type].get("unique_in_group",false)
+
+static func remaining_options(g, options: Array, type: String, unique_types: bool) -> Array:
+ return options.filter(func(other):return other.type!=type) if unique_type(g,type,unique_types) else options
+
 static func can_fill(g, options: Array, budget: int, unique_types: bool) -> bool:
  var reachable=[];reachable.resize(budget+1);reachable.fill(false);reachable[0]=true
- if unique_types:
-  var seen={}
-  for member in options:
-   if seen.has(member.type): continue
-   seen[member.type]=true
-   var strength=int(g.Enemies.TYPES[member.type].strength)
-   for total in range(budget,strength-1,-1):
-    reachable[total]=reachable[total] or reachable[total-strength]
- else:
-  for total in range(1,budget+1):
-   reachable[total]=options.any(func(m):return int(g.Enemies.TYPES[m.type].strength)<=total and reachable[total-int(g.Enemies.TYPES[m.type].strength)])
+ var seen={}
+ for member in options:
+  if seen.has(member.type): continue
+  seen[member.type]=true
+  var strength=int(g.Enemies.TYPES[member.type].strength)
+  # Descending totals spend a unique type once; ascending totals allow repeats.
+  var totals=range(budget,strength-1,-1) if unique_type(g,member.type,unique_types) else range(strength,budget+1)
+  for total in totals:
+   reachable[total]=reachable[total] or reachable[total-strength]
  return reachable[budget]
 
 static func roll(g, budget: int=WEAK_STRENGTH, max_strength: int=0, unique_types: bool=false) -> Array:
  var options=candidates(g)
  if options.is_empty(): options=candidates(g,false)
  if max_strength>0: options=options.filter(func(m):return g.Enemies.TYPES[m.type].strength<=max_strength)
- if unique_types and not can_fill(g,options,budget,true):
+ if not can_fill(g,options,budget,unique_types):
   options=candidates(g,false).filter(func(m):return max_strength<=0 or g.Enemies.TYPES[m.type].strength<=max_strength)
  # Check the remaining budget before each draw, including removal of that type.
  if not can_fill(g,options,budget,unique_types): return []
  var result=[];var remaining=budget
  while remaining>0:
-  var valid=options.filter(func(m):return int(g.Enemies.TYPES[m.type].strength)<=remaining and can_fill(g,options.filter(func(other):return other.type!=m.type) if unique_types else options,remaining-int(g.Enemies.TYPES[m.type].strength),unique_types))
+  var valid=options.filter(func(m):return int(g.Enemies.TYPES[m.type].strength)<=remaining and can_fill(g,remaining_options(g,options,m.type,unique_types),remaining-int(g.Enemies.TYPES[m.type].strength),unique_types))
   var member=valid[g._random_index("encounter",valid.size())].duplicate(true)
   result.append(member);remaining-=int(g.Enemies.TYPES[member.type].strength)
-  if unique_types: options=options.filter(func(m):return m.type!=member.type)
+  options=remaining_options(g,options,member.type,unique_types)
  return result
 
 const ELITE_ENCOUNTERS=["guard_solo","heap_family","puppeteer_solo"]
-const SUMMIT_ENCOUNTER="six_bind_solo"
+const SUMMIT_ENCOUNTERS=["six_bind_solo","iron_man_solo"]
+
+static func summit_name(encounter: String) -> String:
+ return {"six_bind_solo":"六缚","iron_man_solo":"铁男"}.get(encounter,"首领")

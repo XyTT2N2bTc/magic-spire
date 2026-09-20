@@ -13,9 +13,10 @@ var grid: GridContainer
 var counter: Label
 var empty: Label
 var scroll: ScrollContainer
+var selection_candidates: Dictionary={}
 
-func setup(ui, physical_cards: Array, powers_only: bool=false, empty_message: String="卡组为空。") -> void:
- host=ui;name="DeckBrowser"
+func setup(ui, physical_cards: Array, powers_only: bool=false, empty_message: String="卡组为空。", choices: Dictionary={}) -> void:
+ host=ui;name="DeckBrowser";selection_candidates=choices
  size_flags_vertical=Control.SIZE_EXPAND_FILL
  add_theme_constant_override("separation",16)
  # 牌堆浏览属全量入口（docs/ondemand-copy.md §1.3）：条目按需现算，字段与旧投影逐项相同。
@@ -88,7 +89,12 @@ func refresh() -> void:
  for card in shown:
   var button=existing.get(card.physical_uid)
   if button==null:
-   button=host._display_card(card.type,grid,Callable(),"deck_"+card.physical_uid,Vector2(210,278),card.physical_uid,true,card)
+   var choice=selection_candidates.get(card.physical_uid,{})
+   var select=Callable() if choice.is_empty() else func():host._submit(choice)
+   button=host._display_card(card.type,grid,select,"deck_"+card.physical_uid,Vector2(210,278),card.physical_uid,true,card)
+   if not choice.is_empty():
+    button.disabled=not choice.valid
+    host.candidate_buttons[choice.id]=button
    button.set_meta("physical_uid",card.physical_uid)
    button.flip_requested.connect(func():refresh.call_deferred())
    button.pivot_offset=Vector2(105,139)
@@ -98,5 +104,8 @@ func refresh() -> void:
   existing.erase(card.physical_uid)
   grid.move_child(button,shown.find(card))
   button.set_meta("printed_cost",numeric_cost(card))
- for child in existing.values(): grid.remove_child(child);child.queue_free()
+ for child in existing.values():
+  var choice=selection_candidates.get(child.get_meta("physical_uid"),{})
+  if not choice.is_empty(): host.candidate_buttons.erase(choice.id)
+  grid.remove_child(child);child.queue_free()
  scroll.scroll_vertical=0

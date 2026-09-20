@@ -27,17 +27,28 @@ static func build(ui) -> void:
   return
  var index=0
  var option_count=panel.entries.filter(func(entry):return entry.op=="choose").size()
- var start_x=(1600-(option_count*352-28))/2.0
+ var start_x=(1600-(mini(option_count,4)*352-28))/2.0
  for entry in panel.entries:
   var choice=ui.actions.by_id[entry.action_id]
   if entry.op in ["skip","finish"]:
    var button=ui._button(entry.label,func():ui._submit(choice),ui.GOLD)
-   button.name="DepartureContinue";ui._place(button,Rect2(650,692,300,54),root)
+   button.name="DepartureContinue";ui._place(button,Rect2(650,750 if option_count==5 else 692,300,54),root)
    ui.candidate_buttons[choice.id]=button
    continue
   var color=ui.GOLD if index in [2,3] else ui.CYAN
   var button=ui._button("",func():ui._submit(choice),color);button.disabled=not entry.valid
   button.name="DepartureOption_"+str(index)
+  if index==4:
+   ui._place(button,Rect2(start_x+3*352,636,324,98),root)
+   var extra_title=ui._label("05 · "+entry.label,20,ui.GOLD)
+   ui._place(extra_title,Rect2(16,8,292,28),button)
+   var extra_detail=ui._label(entry.detail if entry.valid else entry.reason,17,ui.TEXT if entry.valid else ui.RED)
+   extra_detail.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+   ui._place(extra_detail,Rect2(16,38,292,54),button)
+   for child in button.get_children(): ui._ignore_mouse(child)
+   ui.candidate_buttons[choice.id]=button
+   index+=1
+   continue
   ui._place(button,Rect2(start_x+index*352,286,324,338),root)
   var number=ui._label("0%d" % (index+1),40,Color(color,0.40))
   ui._place(number,Rect2(24,22,100,54),button)

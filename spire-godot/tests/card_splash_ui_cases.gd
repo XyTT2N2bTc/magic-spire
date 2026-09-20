@@ -7,10 +7,13 @@ static func run(t) -> void:
  var ui=t.ui
  for type in ["strain","slip"]:
   ui.restart(42);await t.frames();ui.game._discard_end();ui.game.state.wall="normal"
+  ui.game.state.strength=2;ui.game.state.dexterity=4;ui.game.state.charge=1
   var main=F.piece(ui.game,"thigh","above_knee",60,100)
   var peer=F.piece(ui.game,"thigh","above_knee" if type=="strain" else "thigh_root",40,100)
   var card=Give.give(ui.game,type);ui.card_faces[card.uid]=false
   ui.render();await t.frames()
+  var value=11 if type=="strain" else 13
+  t.check(t.visible_text(ui.card_buttons[card.uid]).contains(("挣扎" if type=="strain" else "滑脱")+str(value)),"SPLASH UI rendered card face shows current attribute and charge bonus "+type)
   var before=ui.game.export_snapshot()
   await t.start_drag(card.uid,"thigh")
   var choice=ui.actions.find("card",{"uid":card.uid,"target":main.id,"free":false})

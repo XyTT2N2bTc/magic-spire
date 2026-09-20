@@ -2,7 +2,6 @@ extends RefCounted
 
 const Game=preload("res://core/game.gd")
 const FORMAT=2
-const MAX_BYTES=8388608
 const Phases=preload("res://data/phases.gd")
 var directory: String
 
@@ -114,7 +113,6 @@ func read_file(filename: String) -> Dictionary:
  if not FileAccess.file_exists(filename): return failure("尚无存档。")
  var file=FileAccess.open(filename,FileAccess.READ)
  if file==null: return failure("无法打开存档文件。")
- if file.get_length()>MAX_BYTES: file.close();return failure("存档文件过大，无法读取。")
  var text=file.get_as_text();file.close()
  return unpack(text)
 
@@ -149,7 +147,6 @@ func write_game(game, replace_incompatible: bool=false, map_drawings: Dictionary
  var old=read_file(filename)
  if not old.ok and old.get("code","")=="version" and not replace_incompatible: return failure("保存已暂停：原存档版本不兼容，只有明确开始新局才会替换。","version")
  var content=pack(game.restart_snapshot(),map_drawings)
- if content.to_utf8_buffer().size()>MAX_BYTES: return failure("保存失败：进度超过存档大小限制。")
  var absolute=ProjectSettings.globalize_path(directory)
  if DirAccess.make_dir_recursive_absolute(absolute)!=OK: return failure("保存失败：无法创建存档文件夹。当前游戏仍可继续。")
  var temp=filename+".tmp"

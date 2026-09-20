@@ -8,22 +8,23 @@ static func run(t) -> void:
  var g=Game.new(42,true,"binding_box_solo")
  var e=g.state.enemies[0]
  t.check(g.state.enemies.size()==1 and e.type=="binding_box" and e.hp==64 and e.carried_indices==[0,1,2] and e.intent.kind=="bind_apply","BOX practice starts with one mechanical enemy and three carried pieces")
- t.check(t.action(g,"end").ok and g.state.guard_bind.progress==50 and g.state.posture=="sit" and g.level("arms")>=1,"BOX opening adds forty then player-turn passive adds ten and fixes sitting")
- t.check(g.state.equipment.size()==1 and g.state.equipment[0].grade==2 and g.tier(g.state.equipment[0].durability,g.state.equipment[0].maximum)==2 and g.state.equipment[0].material=="leather","BOX turn-start passive installs real medium tier-two leather before drawing")
+ t.check(t.action(g,"end").ok and g.state.guard_bind.progress==40 and g.state.posture=="sit" and g.level("arms")>=1,"BOX opening adds forty and fixes sitting without the first upkeep gain")
+ t.check(g.state.equipment.is_empty(),"BOX newly applied capture skips the first upkeep installation")
  t.check(not t.find_action(g,"posture",{"dest":"stand","wall":false}).valid,"BOX fixed sitting blocks standing")
- t.check(t.action(g,"end").ok and g._enemy(e.id).intent.kind=="charge" and g.state.guard_bind.progress==60,"BOX first cycle action advances to preparation and triggers one passive")
+ t.check(t.action(g,"end").ok and g._enemy(e.id).intent.kind=="charge" and g.state.guard_bind.progress==50,"BOX first cycle action advances to preparation and triggers one passive")
+ t.check(g.state.equipment.size()==3 and g.state.equipment[-1].grade==2 and g.tier(g.state.equipment[-1].durability,g.state.equipment[-1].maximum)==2 and g.state.equipment[-1].material=="leather","BOX following upkeep installs real medium tier-two leather after the two cycle pieces")
  t.check(t.action(g,"end").ok and g._enemy(e.id).intent.kind=="carried_apply" and g._enemy(e.id).carried_indices.size()==3,"BOX preparation preserves stock and announces composite installation")
  var h=Save.roundtrip(t,g,"box prepared stock and sitting capture")
  Save.step_both(t,g,h,"end")
  e=g._enemy(e.id)
- t.check(e.carried_indices.size()==2 and g.state.composites.size()==1 and g.state.guard_bind.progress==80,"BOX successful announced installation consumes exactly one stock entry")
+ t.check(e.carried_indices.size()==2 and g.state.composites.size()==1 and g.state.guard_bind.progress==70,"BOX successful announced installation consumes exactly one stock entry")
  var clean=g.export_snapshot()
  var bad=clean.duplicate(true);bad.enemies[0].carried_indices=[0,0]
  t.check(not g.restore_snapshot(bad).ok and g.state==clean,"BOX duplicate stock rejected atomically on restore")
  Bind.damage_bind(g,100,"测试")
  t.check(g._enemy(e.id).intent.kind=="bind_prepare","BOX escaped capture requires a preparation turn")
  t.check(t.action(g,"end").ok and not Bind.has_bind(g) and g._enemy(e.id).carried_indices.size()==2,"BOX preparation neither ticks absent capture nor restores stock")
- t.check(t.action(g,"end").ok and g.state.guard_bind.progress==50 and g._enemy(e.id).carried_indices.size()==2,"BOX recapture retains consumed stock and resumes player-start effect")
+ t.check(t.action(g,"end").ok and g.state.guard_bind.progress==40 and g._enemy(e.id).carried_indices.size()==2,"BOX recapture retains consumed stock and skips its first upkeep again")
 
  # All three inventory pieces are selected through the same legal replacement path.
  g=Game.new(21,true,"binding_box_solo");e=g.state.enemies[0]
@@ -78,3 +79,15 @@ static func run(t) -> void:
  var progress=g.state.guard_bind.progress;count=g.physical_pieces().size()
  Bind.turn_start(g)
  t.check(not Bind.has_bind(g,"binding_box") and Bind.has_bind(g,"guard") and g.state.guard_bind.progress==progress and g.physical_pieces().size()==count,"BOX defeat stops only its source and its turn-start passive")
+ first_enemy_turn(t)
+
+static func first_enemy_turn(t) -> void:
+ var g=Game.new(33,true,"binding_box_solo")
+ g.state.relics.append("masochist_mark")
+ g._start_battle()
+ t.check(g.state.order=="last" and g.state.guard_bind.progress==40 and g.state.equipment.is_empty(),"BOX enemy-first opening has forty capture and no same-round upkeep")
+ t.check(t.action(g,"end").ok and g.state.guard_bind.progress==50 and not g.state.equipment.is_empty(),"BOX enemy-first next round resumes upkeep without an extra skipped turn")
+ Bind.damage_bind(g,100,"测试重新捕缚")
+ t.check(t.action(g,"end").ok and not Bind.has_bind(g),"BOX enemy-first escape prepares a fresh capture")
+ t.check(t.action(g,"end").ok and g.state.guard_bind.progress==40,"BOX enemy-first reapplication retains its initial progress")
+ t.check(t.action(g,"end").ok and g.state.guard_bind.progress==50,"BOX enemy-first reapplication resumes upkeep on the next round")

@@ -16,7 +16,7 @@ func _ready() -> void:
  settings.initialize(host.persistence_enabled)
 
 func blocked() -> bool:
- return popup_region()!=null or host.show_reward_cards or host.show_reward_relics or is_instance_valid(host.enemy_feedback) or host.view.pressure.overloaded
+ return host._takeover_locked() or popup_region()!=null or host.show_reward_cards or host.show_reward_relics or is_instance_valid(host.enemy_feedback) or host.view.pressure.overloaded
 
 func popup_region() -> Control:
  var modal=host.modal_region()
@@ -32,6 +32,7 @@ func text_entry() -> bool:
  return focus is LineEdit or focus is TextEdit
 
 func handle(event: InputEvent) -> bool:
+ if host._takeover_locked(): return true
  if OS.has_feature("android"): return false
  if not event is InputEventKey: return false
  var base=int(event.keycode if event.keycode!=0 else event.physical_keycode)
@@ -221,10 +222,7 @@ func navigate(action: String) -> void:
  elif action in ["items","status","map"]: press({"items":"OpenItems","status":"OpenStatus","map":"OpenMap"}[action])
  elif action=="body":
   host.show_body=not body_was_open;host.selected_card="";host._refresh_body_details()
- elif action=="log":
-  if is_instance_valid(host.action_log_panel) and host.action_log_panel.is_visible_in_tree(): press("CloseActionLog")
-  elif is_instance_valid(host.action_log_toggle) and host.action_log_toggle.is_visible_in_tree(): press("OpenActionLog")
-  else: host._open_drawer("show_log")
+ elif action=="log": host._open_drawer("show_log")
 
 func press(name: String) -> void:
  var button=host.find_child(name,true,false)
@@ -262,7 +260,8 @@ func cancel() -> void:
   host.show_body=false;host.show_route=false;host.render(host.view);return
  if not host.show_home: host._open_drawer("show_menu")
 
-func clear() -> void:
+func clear(release_keys: bool=false) -> void:
+ if release_keys: held_keys.clear()
  if not selection.is_empty() and host.active_drag.is_empty(): host.DragTargets.clear(host)
  selection={};choices=[];end_hold={}
  if is_instance_valid(target_panel): target_panel.hide();target_panel.queue_free()

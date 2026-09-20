@@ -3,6 +3,7 @@ extends RefCounted
 # Read-only card wording, derived from the same face effects and eligibility data.
 const Rules=preload("res://data/card_rules.gd")
 const TERMS={
+ "mouth_clear":{"name":"嘴部无拘束","detail":"嘴部不能佩戴任何拘束具；提高施法成功率不能绕过此条件。"},
  "mind":{"name":"精神施法","detail":"无需手部或嘴部动作，仍受快感及施法成功率加成影响。"},
  "legs":{"name":"腿部施法预备","detail":"成功率受快感和腿部受限等级影响。"},
  "witch_focus":{"name":"精神集中","detail":"下次造成伤害的魔法每段伤害增加对应层数，整次施放消耗全部层数。施法失败或高潮时失去1层。跨战斗最多保留2层，乌龟壳提高至4层。"},
@@ -57,11 +58,16 @@ static func requirements(type: String, free: bool, names: Dictionary) -> Array:
    var limit=spec.free_max_levels[region]
    result.append(("上身" if region=="arms" else "腿部")+"束缚等级"+("＝0" if limit==0 else "≤"+str(limit)))
  if spec.has("self_faces"):
+  var posture=spec.self_faces["free" if free else "bound"].get("requires_posture","")
+  if posture!="": result.append({"stand":"站姿限定","sit":"坐姿限定","lie":"躺姿限定"}[posture])
   var buff=Rules.BUFFS.get(spec.self_faces["free" if free else "bound"].get("buff",""),{})
+  if buff.has("max_degree_any"):
+   result.append("或".join(buff.max_degree_any.keys().map(func(region):return ("上身" if region=="arms" else "腿部")+"严密度≤"+str(buff.max_degree_any[region]))))
   for region in buff.get("min_levels",{}):
    result.append(("上身" if region=="arms" else "腿部")+"束缚等级≥"+str(buff.min_levels[region]))
   var slots=spec.self_faces["free" if free else "bound"].get("free_slots",[])
-  if not slots.is_empty(): result.append(("上身各部位" if slots==Rules.UPPER_BODY_SLOTS else "／".join(slots.map(func(slot):return names[slot])))+"紧度＝0")
+  if slots==["mouth"]: result.append("嘴部无拘束")
+  elif not slots.is_empty(): result.append(("上身各部位" if slots==Rules.UPPER_BODY_SLOTS else "／".join(slots.map(func(slot):return names[slot])))+"紧度＝0")
  return result
 
 static func _effect_terms(ids: Array, effects: Array) -> void:
@@ -96,9 +102,11 @@ static func keywords(type: String, free: bool, traits: Dictionary) -> Array:
   var face=spec.self_faces["free" if free else "bound"]
   if face.get("requires_hand",false): ids.append("hand_use")
   _effect_terms(ids,face.get("effects",[]))
+  if face.get("worn_resource",{}).get("resource","")=="charge": ids.append("charge")
   if face.has("buff"): _buff_terms(ids,Rules.BUFFS[face.buff])
   if face.get("exhaust_hand",false): ids.append("exhaust")
-  if not face.get("free_slots",[]).is_empty(): ids.append("upper_clear")
+  if face.get("free_slots",[])==["mouth"]: ids.append("mouth_clear")
+  elif not face.get("free_slots",[]).is_empty(): ids.append("upper_clear")
  else:
   for key in (["free_effects"] if free else ["hit_effects","lowered_effects","destroyed_effects"]): _effect_terms(ids,spec.get(key,[]))
  if spec.card_type=="power": ids.append("power")
@@ -112,7 +120,7 @@ static func keywords(type: String, free: bool, traits: Dictionary) -> Array:
    var term=TERMS[id].duplicate(true)
    if id=="follow_through" and spec.get("follow_through_scope","region")=="body":
     term.name="超级顺延"
-    term.detail="先按顺延处理；区域内无合法目标后，按手腕→口部／手指→其他部位寻找全身合法目标，同级随机。没有合法目标时结束。"
+    term.detail=Rules.SUPER_FOLLOW_THROUGH_TEXT
    result.append(term)
  return result
 
@@ -125,6 +133,11 @@ static func mana_entries(type: String, free: bool, cost: float, worn_count: Vari
   if effect.op=="reserve_mana": temporary+=Rules.amount(effect,spec)*Rules.RESERVE_MANA_VALUE
  var gain=Rules.HANNYA_MANA_GAIN if spec.has("hannya_stage") else float(face.get("mana_gain",0))
  var entries=[]
+ var pressure=Rules.face_pressure_cost(type,free)
+ if pressure>0 or Rules.lewd_magic(type):
+  entries.append({"kind":"pressure","amount":pressure,"text":"−"+str(int(pressure)) if pressure>0 else "","detail":"消耗%s快感；施法失败全部返还。" % str(int(pressure)) if pressure>0 and Rules.face_casts(type,free) else ("消耗%s快感，不判施法。" % str(int(pressure)) if pressure>0 else "淫魔法：使用变换后的快感施法成功率。")})
+ if spec.has("all_mana_minimum"):
+  return [{"kind":"cost","amount":cost,"text":"-X","detail":"耗尽自身与临时魔力，合计至少需要%s点；不使用魔瓶魔力。" % str(spec.all_mana_minimum)}]
  for item in [{"kind":"cost","amount":cost},{"kind":"gain","amount":gain},{"kind":"temporary","amount":temporary}]:
   if item.amount<=0: continue
   var value=String.num(item.amount,2).trim_suffix(".0")
@@ -145,7 +158,7 @@ static func metadata(type: String, traits: Dictionary, names: Dictionary, mana_c
  var result={"face_requirements":{},"face_keywords":{},"cast_faces":{},"face_mana":{},"face_names":{},"free_faces":{}}
  result.face_type_names={};result.face_warnings={}
  for side in ["bound","free"]:
-  result.face_type_names[side]="／".join(Rules.type_tags(type,side=="free").map(func(tag):return Rules.TYPES[tag]))
+  result.face_type_names[side]="／".join(Rules.type_tags(type,side=="free").map(func(tag):return "淫魔法" if tag=="magic" and Rules.lewd_magic(type) else Rules.TYPES[tag]))
   result.face_warnings[side]=Rules.SPECS[type].get("warning","")
   result.face_names[side]=Rules.face_name(type,side=="free")
   result.free_faces[side]=Rules.free_effect(type,side=="free")

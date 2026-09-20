@@ -22,13 +22,14 @@
 | 链接绳 | `data/links.gd`（材料方法复用 equipment） | 含绳索／皮带类的普通池、显式 `link_rope` 池、明确练习配置 | `_install_link` 与端点清理 |
 | 性玩具装备 | `data/special_equipment.gd::TYPES/DESIGNS/RANDOM_POOLS/prison_pool` | 敌人 `special_pool`、事件 `special_install`、监狱池、练习 | `Game._install_special` 与既有解除／触发管线 |
 | 随身／已安装道具 | `data/field_tools.gd::TYPES` | 商店 `TOOLS+PRICES`、休息服务、事件、监狱发现池、练习 | `_gain_tool`、原道具候选与执行 |
-| 遗物 | `data/relics.gd::TYPES/REWARDS` | 初始配置、商店、宝箱、精英奖励、事件 | `core/relic_effects.gd` |
+| 遗物 | `data/relics.gd::TYPES/REWARDS/BOSS_POOL/shop_pool` | 初始配置；随机奖励统一经 `RelicRewards.available` 按来源筛选，供单件抽取 `offer` 与 Boss 三选一 `battle_drop` 使用 | `core/relic_effects.gd` |
 | 敌人／遭遇 | `data/enemies.gd::TYPES/ENCOUNTERS`、`data/first_floor_enemy_pools.gd::POOLS` | 塔路冻结遭遇、精英／塔顶配置、练习 | `_spawn_enemies`、`core/enemy_plans.gd`、`core/guard.gd` |
 | 事件 | `data/room_events.gd::TYPES`（由内容包登记） | 抵达事件房时从本局未出现事件中抽取 | `core/room_events.gd` |
 | 卡牌 | `data/card_rules.gd::SPECS/BUFFS` | `COMMON/UNCOMMON/RARE/REWARDS` 与专用来源 | `core/card_effects.gd` |
 
 - “注册即生效”风险：`EquipmentOffers.ordinary` 的空 `templates` 会枚举所有有合法槽的普通模板，警卫通用选装可能立即选到新增定义；事件定义也会进入塔路全表抽取。要让草稿“注册但暂停生成”，必须先补来源过滤，或把草稿留在文档里。
 - 定义、活动池、实例、显示是四层；登记定义不代表完成生成，界面不按名称分支决定资格。新增内容必须同时接入真实规则、存档校验、状态／结果投影与测试。
+- `RelicRewards.available` 只读查询当前来源的可选遗物，返回独立数组，不推进随机或写入已见记录；抽取及奖励冻结仍由 `offer`／`battle_drop` 完成。Boss 候选共用 `RelicEffects.gain_reason` 检查领取资格，不在各奖励来源重复判定。
 
 ## 3. 随机域与结果保存
 
@@ -52,6 +53,21 @@
 
 ## 4. 装备、道具与遗物的生成约束
 
+淫魔法卡池由卡牌声明 `reward_pool: "lewd_magic"`，先沿 `Character.allowed_card` 检查解锁遗物的角色限制，再沿 `CardRewards.eligible` 检查是否持有对应遗物；奖励、商店和开局变牌复用该资格。角色兼容性仍先行筛选，已持有卡牌与冻结存档的合法性不依赖之后是否仍持有解锁遗物。目前未加入此标签的正式卡牌，等待后续设计，不生成占位牌。遗物与曲线规则见 [game-design.md](game-design.md)。
+
+```mermaid
+flowchart LR
+  A[开局选项声明] --> B[Departure 冻结与正式候选]
+  B --> C[Game.dispatch 复核及事务]
+  C --> D[Departure.execute 移除初始遗物]
+  D --> E[RelicEffects.gain 拾取效果]
+  E --> F[Pressure.gain 唯一快感结算]
+  G[RelicEffects.end_combat 战斗场次结束] --> F
+  H[Game._cast_path] --> I[Pressure.cast_chance 可选曲线]
+  I --> J[既有部位倍率与保底]
+  K[奖励／商店／变牌] --> L[CardRewards.eligible 条件卡池]
+```
+
 - 普通装备的等级、紧度、容量、精准位置、三档添加优先级与“先补空小部位”的排序见 `./game-design.md` §6.5；`EquipmentOffers.preferred` 在同优先级内优先选择能覆盖空小部位的方案。
 - 链接候选统一读 `EquipmentOffers.links`：区域内纵向子部位可任意相连，跨区域只取相邻边界，股绳仅接手腕／大腿根；每对物理装备最多一条；复合按真实组件共享额度；`contact_points` 随两端保存并复核。
 - 新增普通单件可安装部位时必须同步提供 `Equipment.WEAR_TEXTS` 正文，不能退回“已装在某处”的占位句。
@@ -59,6 +75,47 @@
 - 道具逐一选择来源：商店 `data/room_services.gd::TOOLS+PRICES`、事件效果／奖励、休息服务、`core/prison.gd` 活动发现池或练习配置。传送符（折返符）有定义与使用逻辑但不进入任何随机生成池——正式新局抵达塔底时获得1张，见 `./game-design.md` §14。
 - 遗物新增 hook 必须先有真实读取／触发代码（当前已消费的数值 hook：`battle_mana`、`capacity`、`preparation_turns`、`opening_draw`、`turn_draw`、`turn_energy_step`、`combat_retention_layers`、`pickup_cards` 等）；事件钩子为挣扎归零、卡牌滑脱降档、飞踢落地与实际魔力支付。断缚护腕等带额外条件的遗物由 `RelicEffects` 处理，不能只写一个看似合理的 `modifiers` 键。
 - 随机遗物来自 `REWARDS` 并排除已持有；初始余烬护符与指定事件遗物只登记 `TYPES`。当前没有每个敌人的独立掉落表，不要凭敌人模板的 `loot` 字段发物品。
+
+快感汲取器（`pleasure_extractor`）：罕见遗物，每次高潮后魔瓶魔力＋10；普通、滑精与剧情高潮共用结算，批量高潮按实际次数累计。直接补充魔瓶，不占手动存入次数，不受角色魔力上限限制。沿既有遗物魔力钩子写入，不增加存档字段。
+
+```text
+快感阈值／上限重算／资源均分／剧情高潮
+  → Pressure._apply_overloads（实际次数）
+  → RelicEffects.climax → _mana_hook（climax_flask_mana × 次数）
+  → state.flask_mana → 共用魔瓶视图
+```
+
+清醒项链（`lucidity_necklace`）：稀有遗物，高潮时，下回合多抽1张牌。普通、滑精、强制与剧情高潮共用触发；多次累计，记入各遗物实例的 `relic_counters`，读档与场景切换保留到下一个玩家回合。回合开始先领取并清空既有待抽数量，之后本回合新触发的高潮留到再下一回合；实际抽牌沿统一牌堆、手牌上限和洗牌规则。百变怪沿既有规则独立计数、重新变形时清空自身计数。
+
+```text
+Pressure._apply_overloads（实际次数）
+  → RelicEffects.climax → 遗物待抽计数累加／既有魔瓶补充
+下一玩家回合开始 → RelicEffects.turn_draw（领取并清空待抽）
+  → Game._draw（基础抽牌＋遗物额外抽牌）
+只读图标与详情 → RelicEffects.counter（待抽数量）
+```
+
+### 淫魔法专用遗物
+
+下列四件以 `required_relic: desire_cube_pro_max` 声明随机池门槛，共用 `RelicRewards.available` 筛选；仅持有欲望魔方 Pro Max 时进入商店、宝箱、精英及随机遗物来源。快感汲取器、清醒项链不受此门槛影响。百变怪的形态池不走奖励筛选，仍可变为这四件。
+
+| 遗物 | 品质 | 规则 |
+| --- | --- | --- |
+| 洗脑耳环 | 普通 | 每次正向快感获得结算，在倍率之后额外＋2；合并进同次增长，不递归触发自身，仍受快感上限保护。 |
+| 催眠发卡 | 稀有 | 每次实际主动／被动降低快感后获得10快感；包括支付快感，不包括高潮回落、初始化与读档。 |
+| 淫纹连体丝 | 罕见 | 每玩家回合获得1层蓄力；每实际消耗1层蓄力获得5快感，清除或过期不算消耗。高潮保留正面奖励及计数，免除扣魔力、能量清零、弃牌／中断、下回合乏力、蓄力减半与滑精惩罚，快感设为当前上限50%。 |
+| 淫纹丝手套 | 普通 | 所有实际魔法／淫魔法施法成功率额外＋25个百分点，最高100%，不绕过身体使用限制；每次施法成功获得5快感。 |
+
+```text
+随机来源 → RelicRewards.available → required_relic → 原品质抽取
+百变怪 → 原 transform_pool（不受专用奖励池门槛影响）
+快感增长 → Pressure.gain（额外＋2并统一结算）
+主动／被动减快感 → Pressure.lose → RelicEffects.trigger
+实际蓄力消耗／施法成功 → 同一 trigger（repeat）
+  → 既有 relic_pending → flush → Pressure.gain（逐次触发，避免付款中断卡牌移动）
+  → 动作落地、敌方行动后、开场抽牌前后、旅行抵达前及会话清场前结清
+玩家开场／高潮 → 共用回合及高潮入口 → 连体丝效果
+```
 
 ## 5. 敌人与遭遇
 
@@ -69,7 +126,7 @@
 | behavior | 行动骨架 | 附加定义 |
 | --- | --- | --- |
 | `restraint` | 初级二档随机施加→加固同类（优先自身来源）→准备→中级三档附着并离场 | `install_pool/final_pool`，按真实子位置与最低品质过滤 |
-| `attachment` | 准备两次→固定部位附着并离场 | `attachment_slot/attachment_pool`（当前为中级三档口球，口部容量1） |
+| `attachment` | 准备两次→固定部位附着并离场 | `attachment_slot/attachment_pool`（当前为中级三档口球，只能附着在空闲嘴部） |
 | `dispenser` | 准备→佩戴→停顿，循环不离场 | `special_pool` 显式白名单 |
 | `lock` | 预告上锁→上锁，循环不离场 | 只处理已有合法装备 |
 | `drone` | 首动施加捕缚→循环（处理胶带／捕缚＋10／发呆） | 见 `./enemies-first-floor.md` |

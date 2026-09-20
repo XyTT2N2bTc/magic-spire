@@ -17,7 +17,7 @@
 - 一次玩家输入的全部去向：选择类点击（只改本地选中态）、提交类点击（进唯一提交入口）、
   被拒／无效分支（只呈现原因）、以及提交成功后的投影与界面落地。
 - 文件域：`ui/main.gd`（唯一允许 `preload` core 的 UI 文件；唯一提交入口与全部节重建函数）、
-  `ui/keyboard_input.gd`、`ui/touch_input.gd`、`ui/action_index.gd`、`ui/target_queries.gd`、
+  `ui/keyboard_input.gd`、`ui/touch_input.gd`、`ui/first_turn_presenter.gd`、`ui/action_index.gd`、`ui/target_queries.gd`、
   `ui/shell/game_layout.gd`、`ui/shell/body_sidebar.gd`、`ui/shell/header.gd`、
   反馈模块 `card_motion.gd`／`resource_feedback.gd`／`combat_feedback.gd`／`enemy_feedback.gd`／
   `impact_feedback.gd`；
@@ -36,13 +36,14 @@
 | 模块 | 边界（谁） | 小接口 | 内部（藏） |
 | --- | --- | --- | --- |
 | M1 输入适配 | `ui/keyboard_input.gd`、`ui/touch_input.gd` | `handle(event) -> bool`；触摸只合成既有鼠标事件 | 键位表、选择状态机、长按阈值、弹窗桥 |
-| M2 提交 | `ui/main.gd` 的 `_submit` | `_submit(c, expected_version=-1) -> void` | 分流、守卫、反馈编排 |
+| M1a 自动接管展示 | `ui/first_turn_presenter.gd` | `sync`／`advance`／`outcome`；调用同一 `_submit(c, version, true)` | 台词、模拟鼠标、动画等待与过期任务取消；只读 View，不选规则动作、不支付 |
+| M2 提交 | `ui/main.gd` 的 `_submit` | `_submit(c, expected_version=-1, takeover=false) -> void` | 分流、守卫、反馈编排 |
 | M3 展示调度 | `ui/main.gd` 的 `render` 与 `_refresh_drawers` | `render(snapshot={})`；`_refresh_drawers()` | 页面重建、抽屉局部刷新；身体栏和立绘沿自身显示键复用 |
 | M4 只读查询 | `ui/action_index.gd`、`ui/target_queries.gd` | `_init(actions)`／`select`／`find`／`first_usable`；static 查询 | 去重、排序、首／末拒绝原因选择 |
 | M5 静态场景与实例 | `ui/shell/game_layout.gd`、`ui/shell/body_sidebar.gd` | `begin_frame`／`hero_portrait`／`enemy_group`／`body_sidebar`／`end_frame`；`configure`／`_presentation_key`／`expand_applied` | 场景节点、按外观比对、展开预算、滚动 |
 | M6 提交后反馈 | `card_motion.gd`、`resource_feedback.gd`、`combat_feedback.gd`、`enemy_feedback.gd`、`impact_feedback.gd` | `positions`／`enqueue`／`play`／`consume`／`finish` | 补间、队列、播报分页与高亮；瞬时层单帧合并与淡出包络 |
 
-`M1 → M2/M3`（经 host）→ `M4/M5` →（`main.gd` 的 `preload`）`core.Game`／`core.SaveStore`；
+`M1/M1a → M2/M3`（经 host）→ `M4/M5` →（`main.gd` 的 `preload`）`core.Game`／`core.SaveStore`；
 `M6 ← M3` 传入的 `view`／`payload`／锚点节点。仅 `ui/main.gd` 允许 `preload` core。
 
 依赖方向禁令：
@@ -89,6 +90,20 @@
 | `combat_feedback.play(ui, before, payload)` | 提交前 View＋已提交 payload | `_submit` ok 分支 | 只用可见前后差分（HP／日志／装备耐久）；不预测、不改伤害／意图／资源／时机 |
 | `impact_feedback.play(events, payload, snapshot) -> void` | `events` 为 `dispatch` 返回的 `resource_feedback` 事件（可为空数组）；`payload` 为本次已提交候选的载荷；`snapshot` 为提交后 View（只读 `snapshot.pressure.value`／`.maximum` 与 `snapshot.mana_max`）。同一次提交一次调用：层内部按字段求和合并，不逐事件重播。效果族由已提交事实唯一决定：`pressure` 净涨出滤镜、`charge`／`next_energy` 净涨出黄边框、`mana`／`temporary_mana`／`witch_focus` 任一净变化（Δ≠0）出蓝边框、载荷 `kind=="calm"` 出白边框（同提交多族命中按白＞黄＞蓝取一，仍只出一条边框）、攻击／挣扎／滑脱载荷出震动。蓝边框分加减两变体：Δ>0 走 gain（短促上冲后淡出、边带更宽），Δ<0 走 loss（即刻峰值、退得更慢、边带更窄），两变体同一色 token 且峰值按该字段自身参考尺度的归一化 Δ 的绝对值 缩放（mana 用提交后 View 的 `mana_max`，临时魔力／精神集中用各自保留上限），不设最小增量门槛；施法失败因净损失自动落在 loss 变体，无需额外标志 | `_submit` ok 分支（经 `ui/main.gd` 的节内助手按 `will_play` 预判后才创建节点） | 只消费已提交数据：不读 `state`／`state.logs`，不预测、不改数值／候选／存档／随机；无效果可播时 `play` 是空操作；层内所有节点 `MOUSE_FILTER_IGNORE`，无 `_process`，一次性 Tween 结束后 `hide()` 并 `set_process(false)`；震动位移的是承载内容的 `main.gd` GameLayout，结束时按记录原点精确复位 |
 | `enemy_feedback.finish()` | 清 `ui.enemy_feedback` 并释放 | `_return_home`、`_reset_interface`、播报结束 | 节点存在即"播报期"：提交入口守卫与 `blocked()` 都据此吃输入（产品决策）；全屏 `MOUSE_FILTER_STOP` 不得被 `render` 提前回收 |
+
+### 现行自动接管与提交守卫
+
+- 首回合规则由 `core/first_turn_control.gd` 从已有正式候选中选出下一步，经 `GameView` 输出
+  `view.first_turn_control`（`name`／`locked`／`candidate`／`key`）；具体玩法见 `docs/design/game-design.md`。
+  展示层不能重选动作、重算资格或推进规则随机；`control_next` 由 core 在事务内消费，UI 原样提交候选 ID 与版本。
+- `_submit(c, expected_version=-1, takeover=false)` 是唯一提交入口。普通输入在接管锁定时返回；
+  `takeover=true` 仅供 `FirstTurnPresenter` 的已选步骤进入该入口，仍受首页／敌方播报守卫、候选身份与版本复核约束。
+  此参数不是跳过规则验证的权限。成功和失败均刷新投影；自动提交结果另交 `outcome` 播放反馈。
+- 接管展示跨等待保留候选及版本，以游戏对象身份、`generation`、版本、首页状态与接管锁定状态共同失效；
+  改局、返回首页或版本变化后，旧步骤不得提交。节点使用前重新检查有效性；该显示生命周期不适用 core 装备查询的调用内作用域限制。
+- 证据复用 `first_turn_control_cases`／`first_turn_control_ui_cases` 的真实接管、手动输入阻断与换局取消；
+  `architecture_cases.projection_contract` 覆盖自动接管、手动零能量首回合与双面能力开关的状态／注册表引用隔离。
+  `runner_cases.ownership` 同时扫描分类模块与规则／UI 根入口的 `.run(t)` 和 `.run(self)`，避免内联入口重复执行已注册专项；共享运行器故障探针不作为玩法用例归属。
 
 ### 待实现：接缝 B 的 `commit`／`present`／`present_rejection`
 
@@ -141,7 +156,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 | `actions` | `_fixed_actions`／`_build_action_rail` | `phase`、`selected_enemy`、`attack_forms`、`quick_release_open`、候选子集(attack/pressure/flow/surrender)的 id/valid/reason/cost/label/body_part/casting/brief/risk |
 | `posture` | `_posture_controls`／`_wall_controls` | `posture`、候选子集(posture/wall_move) 的 id/valid/reason/cost/distance/adjacent/wall、`guard_bind.is_empty` |
 | `resources` | `_bottom_controls` | `energy`、`mana`、`temporary_mana`、`mana_max`、`pressure`、`guard_bind`、`powers.size`、`draw_count`、`discard_count`、`phase`、`surrender_version` |
-| `log_sidebar` | `_action_sidebar` | `action_log`、`phase`、`action_log_open/pinned` |
+| `show_log`（共享抽屉） | `_log_drawer` | `action_log`、`logs`；入口及只读约定见[界面契约](release-interface.md#行动日志) |
 | `body_bar` | `body_sidebar.configure` | 既有 `_presentation_key`：`size.y`、locale、选中部位、展开顺序、每区域 members 显示字段；命中时保留按钮与滚动 |
 | `body_details` | `_body_details`／`_equipment_tile`／`_action_row`／`_card_target` | `selected_slot`、`selected_card`、`selected_candidate`、`show_body`、`pending_retain`、`quick_release_open`、`guard_bind.is_empty`、`card_faces`、相关候选子集 id/valid/reason/cost/preview |
 | `pickers` | `_player_picker`／`_hand_target_picker` | `player_pick`、`player_pick_data`、`hand` 相关项、候选子集(card/hand_uid) |
@@ -298,3 +313,36 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 ①不新增入口，玩家有效操作都从既有唯一入口走；②每次有效操作只做增量——由"本次操作改变了什么"
 推出"哪些投影／候选需要更新"；③**覆盖优先**：先把"哪些状态变化必须触发哪些更新"枚举完整
 （枚举不全＝过期视图／候选，属正确性问题，省时间排在覆盖之后）。
+
+## 遗物首回合自动行动
+
+玩法真源见 [Boss遗物](../design/game-design.md)。`first_turn_control` 只在正式回合开始时记录适用阶段与模式，`FirstTurnControl.select` 只读筛选已有合法候选；下一步进度随候选返回，提交时才在事务副本内写入。随机游标、付款及效果失败一起回滚。
+
+```mermaid
+flowchart LR
+ A[正式回合开始] --> B[记录模式和本阶段首次接管]
+ B --> C[只读选择下一条合法候选]
+ C --> D[View候选与接管提示]
+ D --> E[只读表现层：输入遮罩／对白／模拟鼠标]
+ E --> H[原_submit携带候选与版本]
+ H --> F[Game.dispatch复核ID和版本]
+ F --> G[事务内写入接管进度并执行原行动]
+ G --> C
+```
+
+`ui/first_turn_presenter.gd` 仅消费 View 中的 `first_turn_control`，等待现有敌人反馈后，把正式候选映射到已有行动、卡牌、身体目标控件；模拟鼠标不触碰系统鼠标，不发送伪造输入事件。移动、点击与对白等待结束后调用原 `_submit`，该入口再走 `dispatch`。游戏实例、界面版本和接管身份变化时放弃旧等待。其余候选保持可见但不可提交；玩家输入由统一接管锁阻挡，只有表现层调度可走自动提交。
+
+DeepSeek 在正式 `begin_turn` 结算开局能量为0并记录首回合已触发；View仅给短时提示，不安排自动候选。豆包仍使用原 `end` 执行结束效果。自动卡牌携带已确定的合法目标；施法失败对白读取提交结果的 `spell_failed`，不解析日志文字。切换仍走正式 `relic_toggle` 候选，类战斗内候选无效。
+
+对白与语音共用 `DoubaoDialogue.entry(cue, variant)`，同一返回值携带中文源文与录音资源路径，未识别的额外选择cue统一回退到choice。`FirstTurnPresenter._say` 是字幕与语音启动的唯一入口，单个播放器按实际剩余时长参与原等待；不解析字幕决定音频、不新增核心状态或随机。声音偏好独立保存在 `DisplaySettings`，经声音页共用控件构造器更新；表现层同步时取消过期会话录音。
+
+```mermaid
+flowchart LR
+  C[正式候选及提交结果] --> Q[既有对白cue与差分]
+  Q --> E[Dialogue.entry]
+  E --> S[Presenter._say]
+  S --> T[本地化字幕]
+  S --> V[单个语音播放器]
+  V --> W[原提交前等待]
+  P[DisplaySettings声音偏好] --> V
+```

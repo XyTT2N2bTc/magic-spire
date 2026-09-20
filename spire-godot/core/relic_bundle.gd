@@ -2,12 +2,21 @@ extends RefCounted
 
 static func start(g, source: String) -> void:
  var entries=[]
+ if source=="universal_scanner":
+  g.state.relic_bundle={"source":source,"entries":entries}
+  return
  for rarity in g.RelicRewards.TIERS:
   entries.append({"type":g.RelicRewards.offer(g,rarity),"rarity":rarity,"status":"pending"})
  g.state.relic_bundle={"source":source,"entries":entries}
 
 static func candidates(g) -> Array:
  var out=[]
+ if g.state.relic_bundle.source=="universal_scanner":
+  for card in copy_cards(g):
+   var args={"card_type":card.type}
+   g._candidate(out,{"kind":"relic_bundle","op":"copy","uid":card.uid,"type":card.type},"复制「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"relic_bundle.claim","args":args,"fallback":claim_detail(g,args)},0,0,"","","reward")
+  g._candidate(out,{"kind":"relic_bundle","op":"finish"},"跳过",{"kind":"relic_bundle.finish","args":{},"fallback":finish_detail(g,{})},0,0,"","","reward")
+  return out
  for i in range(g.state.relic_bundle.entries.size()):
   var entry=g.state.relic_bundle.entries[i]
   if entry.status!="pending": continue
@@ -20,16 +29,29 @@ static func candidates(g) -> Array:
  return out
 
 # R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+static func copy_cards(g) -> Array:
+ return g.state.deck.filter(func(card):return g.Cards.Rules.SPECS[card.type].rarity!="basic" and g.can_offer_card(card.type))
+
 static func claim_detail(g, args: Dictionary) -> String:
+ if args.has("card_type"): return "复制这张牌，加入你的卡组。"
  return g.Relics.TYPES[String(args.get("relic_id",""))].detail
 
 static func skip_detail(_g, _args: Dictionary) -> String:
  return "放弃这件遗物，其他两件仍可领取。"
 
 static func finish_detail(_g, _args: Dictionary) -> String:
+ if _g.state.relic_bundle.get("source","")=="universal_scanner": return "放弃本次复制。"
  return "未领取的遗物将被放弃。"
 
 static func execute(g, p: Dictionary) -> void:
+ if g.state.relic_bundle.source=="universal_scanner":
+  if p.op=="copy":
+   var card=copy_cards(g).filter(func(entry):return entry.uid==p.uid)[0]
+   g._gain_card(card.type,card)
+   g._emit("event","扫描全能王：复制了「%s」。" % g.B.CARD_NAMES[card.type],{"relic_trigger":{"id":"universal_scanner","name":"扫描全能王"},"card_copy":{"source_uid":card.uid,"type":card.type}})
+  else: g._emit("event","放弃本次复制。")
+  g.state.relic_bundle={}
+  return
  if p.op=="finish":
   var count=g.state.relic_bundle.entries.filter(func(entry):return entry.status=="pending").size()
   if count>0: g._emit("event","放弃套娃中剩余的%d件遗物。" % count)
@@ -41,6 +63,11 @@ static func execute(g, p: Dictionary) -> void:
  else: g._emit("event","跳过「"+g.Relics.TYPES[entry.type].name+"」。")
 
 static func panel(g, actions: Array) -> Dictionary:
+ if g.state.relic_bundle.source=="universal_scanner":
+  var cards=copy_cards(g)
+  var copies=actions.filter(func(c):return c.payload.get("kind","")=="relic_bundle" and c.payload.op=="copy")
+  var exits=actions.filter(func(c):return c.payload.get("kind","")=="relic_bundle" and c.payload.op=="finish")
+  return {"active":true,"layout":"relic_bundle","selection":"card_copy","title":g.Relics.TYPES.universal_scanner.name,"destination":"选择一张牌复制。基础牌、双面唯一能力牌除外。" if not cards.is_empty() else "没有可复制的卡牌。","continue_id":exits[0].id,"continue_label":"跳过","extra_ids":[],"rows":[],"entries":[],"cards":cards.duplicate(true),"action_ids":copies.map(func(c):return c.id)}
  var entries=[]
  for i in range(g.state.relic_bundle.entries.size()):
   var saved=g.state.relic_bundle.entries[i]
@@ -60,6 +87,9 @@ static func validate(g, state: Dictionary) -> String:
  var bundle=state.get("relic_bundle")
  if not bundle is Dictionary: return "遗物待领取记录不完整。"
  if bundle.is_empty(): return ""
+ if bundle.get("source","")=="universal_scanner":
+  if bundle.size()!=2 or bundle.source not in state.relics or not bundle.get("entries") is Array or not bundle.entries.is_empty(): return "卡牌复制领取记录不正确。"
+  return ""
  if bundle.size()!=2 or bundle.get("source","")!="nesting_doll" or bundle.source not in state.relics or not bundle.get("entries") is Array or bundle.entries.size()!=3: return "套娃奖励记录不正确。"
  var seen=[]
  for i in range(3):
@@ -69,7 +99,8 @@ static func validate(g, state: Dictionary) -> String:
   if id not in g.Relics.TYPES or id not in state.relic_seen: return "套娃遗物来源不正确。"
   if id!=g.Relics.FALLBACK:
    if id not in g.Relics.REWARDS or g.Relics.TYPES[id].rarity!=entry.rarity or id in seen: return "套娃遗物品质或重复记录不正确。"
-   if (id in state.relics)!=(entry.status=="claimed"): return "套娃遗物持有记录与领取状态不符。"
+   if not g.Relics.TYPES[id].get("collectible",false) and (id in state.relics)!=(entry.status=="claimed"): return "套娃遗物持有记录与领取状态不符。"
+   if entry.status=="claimed" and id not in state.relics: return "套娃遗物领取记录缺少已获遗物。"
   elif entry.status=="claimed" and id not in state.relics: return "套娃遗物领取记录缺少已获遗物。"
   seen.append(id)
  return ""

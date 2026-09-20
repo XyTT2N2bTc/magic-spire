@@ -92,8 +92,9 @@ static var TEMPLATES={
 static func maximum(grade: int) -> float:
  return {1:B.BASIC_DURABILITY,2:B.MEDIUM_DURABILITY,3:B.HIGH_DURABILITY}.get(grade,0.0)
 
-static func capacity(slot: String) -> int:
- return 2 if slot=="eyes" or slot in SMALL_SLOTS else (1 if slot=="mouth" else 3)
+static func capacity(slot: String, template: String="") -> int:
+ if slot=="mouth" and template!="" and TEMPLATES[template].material!="tape": return 1
+ return 2 if slot in ["eyes","mouth"] or slot in SMALL_SLOTS else 3
 
 static func default_template(slot: String) -> String:
  if slot=="eyes": return "eye_cloth"

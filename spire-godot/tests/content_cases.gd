@@ -350,6 +350,10 @@ static func run(t) -> void:
  collectible.data.modifiers={};collectible.data.rarity="special";collectible.data.collectible=true
  var collectible_result=Catalog.compile(g,[collectible])
  t.check(collectible_result.ok and collectible_result.tables.relic[collectible.data.id].collectible and collectible.data.id not in collectible_result.tables.rewards,"PACK special no-effect collectibles use shared loader without entering normal pool")
+ var cloak=collectible.duplicate(true);cloak.data.rarity="common";cloak.data.modifiers={"card_mana_discount":1}
+ var cloak_result=Catalog.compile(g,[cloak])
+ t.check(cloak_result.ok and cloak_result.tables.relic[cloak.data.id].collectible and cloak.data.id in cloak_result.tables.rewards,"PACK common mana-discount collectible uses the shared counted contract")
+ var bad_cloak=cloak.duplicate(true);bad_cloak.data.modifiers.card_mana_discount=2;invalids.append(bad_cloak)
  for changes in [{"collectible":"true"},{"rarity":"common"},{"modifiers":{"strength":1}},{"card_base_bonuses":{"strain":4}}]:
   var bad=collectible.duplicate(true);bad.data.merge(changes,true);invalids.append(bad)
  var card_relic=input.documents.filter(func(d):return d.data.kind=="relic")[0].duplicate(true)

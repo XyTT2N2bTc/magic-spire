@@ -183,7 +183,7 @@ static func run(t) -> void:
  c=t.find_action(g,"card",{"uid":strain.uid,"target":link.id,"slot":"calf"})
  t.check(c.payload.preview.divisor==1 and c.payload.preview.lock_multiplier==1 and c.payload.preview.damage>damage,"LINK strain uses own tightness and charge without endpoint locks or stacks")
  damage=c.payload.preview.damage
- var splash=g.escape_preview(a,"strain",g.Cards.Rules.SPECS.strain.base*0.5,[],false,false,true,true).damage
+ var splash=g.escape_preview(a,"strain",c.payload.preview.face_value*0.5,[],false,false,true,true).damage
  t.check(g.dispatch(c.id,version).ok and is_equal_approx(g._equipment(link.id).durability,8-damage) and g.state.charge==0,"LINK one card damages shared rope once and spends charge")
  t.check(is_equal_approx(g._equipment(a.id).durability,a_before-splash) and g._equipment(b.id).durability==b_before,"LINK strain splashes only selected calf endpoint, preserving ankle endpoint")
  before=JSON.stringify(g.state)

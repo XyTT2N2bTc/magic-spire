@@ -12,7 +12,7 @@
 - 收束对象：**进度的写盘时机与写入内容**。"进度"＝玩家在本局内的推进；恢复粒度＝三个固定点。
 - 文件域：`core/game.gd`（声明表的 `checkpoint` 标记、`_checkpoint_kind`、`dispatch` 结果的
   `checkpoint` 键；另见「加性字段与只读入口」的 `state.initial_seed` 与 `restore_snapshot` 回填）、
-  `ui/main.gd`（写盘判据与三条非进度写盘）、`core/save_store.gd`（新增只读入口 `fixed_point_text`）。
+  `ui/main.gd`（写盘判据与三条非进度写盘）、`core/save_store.gd`（文件读写与校验；新增只读入口 `fixed_point_text`）。
 - 人可见后果（人已裁定接受）：
   1. 崩溃／退出后回到三个固定点中最近的一个（本层入口／上一场战斗结束／上次整备结束）；
      场景内（战斗中途、整备途中、房间之间）的进度不再保留。
@@ -21,8 +21,8 @@
   4. 主菜单摘要时间更新频率明显下降（只在三个固定点、手动保存与画线时变化）。
 - 非目标：不改存档格式与 `save_revision`、不改 `pack()`／`unpack()` 的格式与校验、
   不改 `restart_snapshot()` 的冻结时机、不改 `read_slot` 回退规则与 `summary()` 语义、
-  不改 `TRANSITIONS` 既有 kind 语义（只加 `checkpoint` 标记）、不新增模块依赖、
-  不做启动期迁移脚本、不改启动链。（后续切片新增的加性字段与只读入口见下节；`pack()`／`unpack()`
+  不改 `TRANSITIONS` 既有 kind 语义（只加 `checkpoint` 标记）、不新增生产文件与只读接口、
+  不新增模块依赖、不做启动期迁移脚本、不改启动链。（后续切片新增的加性字段与只读入口见下节；`pack()`／`unpack()`
   与 `write_game` 的格式、校验、`.bak` 顺序仍不变。）
 
 ## 接口
@@ -104,8 +104,9 @@ state.initial_seed: int    # = _init 的 run_seed；state.seed 仍由 _restart_t
 
 ## 失败语义
 
+- 存档文件读写不设置字节数上限；超过原8 MiB的主档和备份均走相同格式、校验和、状态验证及回退流程。底层文件读写失败仍正常报告。
 - **保留不得弱化**：失败路径与全部文案（`"保存失败：…原存档保留。"`／
-  `"保存已暂停：原存档版本不兼容…"`／slot 非法／大小超限／回读校验失败）；`pack()`／`unpack()`
+  `"保存已暂停：原存档版本不兼容…"`／slot 非法／回读校验失败）；`pack()`／`unpack()`
   的格式与校验；`restart_snapshot()` 的冻结时机；`read_slot` 的回退规则与 `summary()` 的语义；
   `.bak` 顺序；任一失败不得被放行、不得为绿灯改文案。
 - 语义归属：`checkpoint` 的推导只回答"这次提交是不是固定点、是哪一类"；
