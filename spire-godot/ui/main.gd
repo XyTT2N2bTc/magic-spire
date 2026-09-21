@@ -1093,10 +1093,12 @@ func _card_tooltip(button: Button, card: Dictionary) -> void:
   var casting=card.get("face_casting",{}).get(side,card.casting)
   lines.append("施法成功率 · "+casting.percent+"\n"+casting.formula)
   lines.append("失败返还50%耗魔。")
- for term in card.face_keywords[side]: lines.append(term.name+"："+term.detail)
  if card.note!="": lines.append(card.note)
- if lines.is_empty(): _hide_term();return
- _show_term(button,{"label":card.name+("" if card.single_face else (" · "+card.face_names[side])),"detail":"\n".join(lines)})
+ # Rule terms are read straight from the face metadata and travel as their own boxes
+ # (docs/spec/card-terms.md「接口」): every other line keeps today's wording and order.
+ var terms=card.face_keywords[side]
+ if lines.is_empty() and terms.is_empty(): _hide_term();return
+ _show_term(button,{"label":card.name+("" if card.single_face else (" · "+card.face_names[side])),"detail":"\n".join(lines),"terms":terms})
 
 func _remove_local_panel(node_name: String) -> void:
  var panel=layout.get_node_or_null(node_name)
@@ -1909,11 +1911,27 @@ func _show_term(anchor: Control, entry: Dictionary) -> void:
  var column=VBoxContainer.new();column.add_theme_constant_override("separation",10);term_popup.add_child(column)
  if entry.label!="": column.add_child(_label(entry.label,19,CYAN))
  if entry.detail!="": column.add_child(_label(entry.detail,15,TEXT))
+ # Optional key `terms` (raw face_keywords entries, never re-derived here): one box per term,
+ # each box carries exactly the same name/definition label pair the single panel uses.
+ # A missing or empty list keeps the plain panel verbatim for every other caller.
+ for term in entry.get("terms",[]):
+  var box=PanelContainer.new();box.name="TermBox"
+  box.add_theme_stylebox_override("panel",Palette.surface())
+  var body=VBoxContainer.new();body.add_theme_constant_override("separation",2)
+  box.add_child(body)
+  body.add_child(_label(term.name,19,CYAN))
+  body.add_child(_label(term.detail,15,TEXT))
+  column.add_child(box)
  var text_width=0.0
- for label in column.get_children():
-  var font=label.get_theme_font("font")
-  var font_size=label.get_theme_font_size("font_size")
-  for line in label.text.split("\n"):
+ # Term boxes nest their labels one level deeper than the plain panel, so measure the subtree.
+ var pending: Array=[column]
+ while not pending.is_empty():
+  var node=pending.pop_back()
+  for child in node.get_children(): pending.append(child)
+  if not node is Label: continue
+  var font=node.get_theme_font("font")
+  var font_size=node.get_theme_font_size("font_size")
+  for line in node.text.split("\n"):
    text_width=maxf(text_width,font.get_string_size(line,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x)
  column.custom_minimum_size.x=clampf(ceilf(text_width)+2,40,326)
  _ignore_mouse(term_popup)

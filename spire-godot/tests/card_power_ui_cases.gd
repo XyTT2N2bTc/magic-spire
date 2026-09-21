@@ -1,6 +1,7 @@
 extends RefCounted
 const Cards=preload("res://tests/curse_cases.gd")
 const Click=preload("res://tests/target_sidebar_ui_cases.gd")
+const Interface=preload("res://tests/interface_ui_cases.gd")
 
 static func run(t) -> void:
  await preload("res://tests/lewd_magic_ui_cases.gd").run(t)
@@ -184,7 +185,7 @@ static func mana_search(t) -> void:
  t.check(t.visible_text(ui.card_buttons[card.uid]).contains("检索魔法1"),"SEARCH UI right click reveals usable bound face")
  await t.move_mouse(Vector2(1100,90));await t.move_mouse(t.card_point(card.uid));await t.frames()
  var tip=ui.find_child("TermExplanation",true,false)
- t.check(tip!=null and t.visible_text(tip).contains("检索：从抽牌堆抽取指定类型的牌。") and t.visible_text(tip).length()<65,"SEARCH UI hover is one short explanation without duplicated notes or draw rules")
+ t.check(tip!=null and Interface.term_boxes(tip)==Interface.pinned_terms("mana_search","bound") and t.visible_text(tip).length()<65,"SEARCH UI hover keeps exactly one short box naming and defining the term: "+str(Interface.term_boxes(tip)))
  var before=ui.game.state.hand.size()
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
  t.check(ui.game.state.energy==2 and ui.game.state.hand.size()==before and not ui.card_buttons.has(card.uid),"SEARCH UI real bound play costs one and draws a replacement")

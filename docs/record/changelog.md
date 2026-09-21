@@ -1430,3 +1430,9 @@ flowchart LR
 - 冲突4文件按「两侧语义都在」处理：`spire-godot/ui/main.gd` 路线侧栏同时保留上游 `TowerBossPreview` 与本分支 `SeedChip` 标题行（chip 仍是该界面唯一的查看／复制入口）；`docs/design/game-design.md` §10.4 取上游「首领数值见[第一幕敌人](../design/enemies-first-floor.md)」措辞＋本分支「塔路次数 +1／初始种子不变」子句；`docs/record/{changelog,verification}.md` 两侧条目都留、按日期排序、不改写任一方旧句。其余上游改动（玩法、监狱、美术、校验）与本分支的种子角标、反馈附带存档、本局回顾面板全部保留。
 - 同段数值口径按「文档跟随实现」判定：合并后 `data/enemies.gd` 的 `six_bind` 为200、`iron_man` 为140（上游 v0.18.2 调整），本分支继承的220／330／440 与实现不符，故不保留该处旧数字，改指向上游新文档。
 - 检查：规则门6分类2869断言退出0、窗口门 localization 51＋route 255＋interface 413 共719断言全PASS退出0、文档门禁PASS（32文档、1112引用、允许清单6条零新增）；两门同一冻结指纹 `B2BC0F39…`。上一条记录登记的两条美术红（35张 `witch_*` 缺立绘、6张新卡共用占位插画）本轮实测已消失，原因见[验证记录](verification.md)同日条目。本次只提交合并，未推送、未打包、未改版本号。
+
+## 2026-09-21｜卡面词条悬停分框
+
+- 战斗外卡面（图鉴、卡组浏览、回顾卡组，以及商店、事件、奖励、保留选牌与战斗内手牌共用的同一入口）悬停词条从单面板的 `名称：定义` 行改为**一条词条一个方框**：单一决策点 `ui/main.gd::_card_tooltip` 传 `entry.terms`，单一呈现入口 `ui/main.gd::_show_term` 按 `terms` 分框；`terms` 缺省或为空时逐字保持原单面板（意图图标、拖拽拒绝、`tooltip_text` 兜底不受影响）。词条仍取 `data/card_text.gd::TERMS` 经 `face_keywords` 的既有取源，界面不重算、不抄第二份文案；未改判定、数值、存档版本、View 键与本地化。口径见[卡面词条悬停显示](../spec/card-terms.md)。
+- 测试：图鉴（框集合与顺序、翻面换面、与锚面不重叠＋真实点击、无 `terms` 仍为单面板）、卡组浏览实例卡（升级进度与框集合、悬停不改状态与 `view.version`）、触摸长按等价各新增具名断言；`tests/card_power_ui_cases.gd` 的 `SEARCH UI hover` 断言按依赖表授权改为「该面唯一框＋名称与定义分别断言＋长度上界」，未删除或放宽。
+- 检查：规则门 architecture／localization／persistence 1677 断言 exit 0；窗口门 interface／encyclopedia／card_power／events／rewards／touch／status／casting／route／localization 共 10 类 2213 断言 exit 0；文档门禁 PASS（34 文档、1275 引用、允许清单 6 条零新增）；两门同一冻结指纹 `3B531E31…`。判据 1–7 逐条敏感性实验、既有红项与未跑项见[验证记录](verification.md)。仅源码、测试与记录，未打包发布。

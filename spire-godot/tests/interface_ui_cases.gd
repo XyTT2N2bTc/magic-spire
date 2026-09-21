@@ -236,6 +236,29 @@ static func feedback_save(t) -> void:
  ui.saves=old_saves
  ui._close_drawers();ui._refresh_drawers()
 
+# Judge pins for the hover term boxes (docs/spec/card-terms.md 判据1「按 data/card_text.gd::TERMS 的
+# 字面比较」): rewording a term, dropping it from keywords() or rendering the wrong face must fail the
+# assertion, which a comparison against the same metadata source could not do. Same shape as the
+# wording pins in tests/card_text_cases.gd; product code keeps TERMS as the only wording source.
+const TERM_PINS={
+ "mana_search":{"bound":[{"name":"检索","detail":"从抽牌堆抽取指定类型的牌。"}],
+  "free":[{"name":"检索","detail":"从抽牌堆抽取指定类型的牌。"},{"name":"束缚等级","detail":"上身或腿部综合受限程度（0—4级）。0级不等于各部位自由。"}]},
+ "witch_escape_practice":{"bound":[{"name":"挣扎","detail":"受力量、蓄力和挣扎倍率影响。卡牌以卡面伤害的50%波及同位置其他拘束具，各自计算倍率。"}],
+  "free":[{"name":"滑脱","detail":"受灵巧、蓄力和滑脱倍率影响；三档免疫。卡牌波及同大部位其他位置：各选最松的可滑脱装备1件，并列随机；基础为卡面伤害的50%，各自计算倍率。"}]}}
+
+# One box per term, each box a name label plus a definition label, in face-metadata order.
+static func pinned_terms(type: String, side: String) -> Array:
+ return TERM_PINS[type][side].duplicate(true)
+
+static func term_boxes(popup) -> Array:
+ var result=[]
+ if popup==null or popup.get_child_count()==0: return result
+ for child in popup.get_child(0).get_children():
+  if not child is PanelContainer: continue
+  var labels=child.get_child(0).get_children()
+  result.append({"name":labels[0].text,"detail":labels[1].text})
+ return result
+
 static func press(t, name: String) -> void:
  var button=t.ui.find_child(name,true,false)
  t.check(button!=null and button.is_visible_in_tree(),"INTERFACE actual navigation button available: "+name)
@@ -253,6 +276,7 @@ static func run(t) -> void:
  await deck_browser(t)
  await deck_sorting(t)
  await pile_browsers(t)
+ await card_terms(t)
  var ui=t.ui
  ui.restart(42);await t.frames()
  var scene_id=ui.layout.get_instance_id()
@@ -601,6 +625,37 @@ static func pile_browsers(t) -> void:
  var expected=before.draw.map(func(card):return card.uid);expected.sort()
  t.check(actual==expected and actual.size()==ui.view.draw_count and ui.game.state==before,"PILES reopened draw reflects current cards after drawing and reshuffling")
  await t.close_information()
+
+# Battle-exterior card faces read their terms from the metadata of the dictionary they were built
+# with (docs/spec/card-terms.md「取源」); the deck browser is the instance-card surface, where the
+# merged growth note must survive next to the boxes.
+static func card_terms(t) -> void:
+ var ui=t.ui
+ var Catalog=preload("res://data/encyclopedia.gd")
+ ui.selected_character="witch";ui.restart(42);await t.frames()
+ ui.game=preload("res://tests/witch_expansion_cases.gd").fresh()
+ ui.game._gain_card("witch_escape_practice")
+ var deck_card=ui.game.state.deck.filter(func(row):return row.type=="witch_escape_practice").back()
+ ui.game.state.discard.filter(func(row):return row.uid==deck_card.uid).back().practice_plays=6
+ ui.render();await t.frames()
+ var catalog_note=Catalog.card("witch_escape_practice").note
+ var instance_note=ui.game.live_card_text("witch_escape_practice",deck_card.uid).note
+ t.check(instance_note.begins_with(catalog_note) and instance_note!=catalog_note,"TERMS UI deck instance carries growth text the catalog note does not")
+ var before=ui.game.export_snapshot();var version=ui.view.version
+ await press(t,"OpenDeck")
+ var face=ui.find_child("DeckGrid",true,false).get_children().filter(func(button):return button.get_meta("physical_uid")==deck_card.uid)[0]
+ var side="free" if face.free_face else "bound"
+ await t.move_mouse(Vector2(70,100));await t.frames()
+ await t.move_mouse(face.get_global_rect().get_center());await t.frames()
+ var popup=ui.find_child("TermExplanation",true,false)
+ var expected=pinned_terms("witch_escape_practice",side)
+ t.check(popup!=null and term_boxes(popup)==expected,"TERMS UI deck instance hover boxes equal the current face metadata: "+str(term_boxes(popup)))
+ t.check(popup!=null and popup.get_child(0).get_children().filter(func(node):return node is PanelContainer).size()==expected.size(),"TERMS UI deck instance box count equals the face term count")
+ t.check(popup!=null and t.visible_text(popup).contains(instance_note),"TERMS UI deck instance hover keeps the growth text merged from the physical card")
+ t.check(ui.game.export_snapshot()==before and ui.view.version==version,"TERMS UI deck hover changes no state and no view version")
+ await t.move_mouse(Vector2(70,100));await t.frames()
+ await t.close_information()
+ ui.selected_character="original";ui.restart(42);await t.frames()
 
 static func run_header(t) -> void:
  var ui=t.ui
