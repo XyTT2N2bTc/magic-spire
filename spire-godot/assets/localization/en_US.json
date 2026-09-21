@@ -50,7 +50,7 @@
     "ui.settings.language": {"source": "语言", "text": "Language"},
     "ui.settings.language.zh_cn": {"source": "简体中文", "text": "Simplified Chinese"},
     "ui.settings.language.en_us": {"source": "English", "text": "English"},
-    "ui.settings.language.ja_jp": {"source": "日语（待翻译）", "text": "Japanese (Translation Pending)"},
+    "ui.settings.language.ja_jp": {"source": "日本語", "text": "Japanese"},
     "ui.settings.mobile": {"source": "横屏 · 长按查看详情／切换", "text": "Landscape · Hold for details / switch"},
     "ui.settings.mode": {"source": "显示模式", "text": "Display Mode"},
     "ui.settings.mode.windowed": {"source": "窗口", "text": "Windowed"},

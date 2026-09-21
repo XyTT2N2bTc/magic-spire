@@ -1,5 +1,262 @@
 {
   "schema_version": 1,
   "locale": "ja_JP",
-  "messages": {}
+  "messages": {
+    "ui.art.inspect.fit": {
+      "source": "适应屏幕",
+      "text": "画面に合わせる"
+    },
+    "ui.art.inspect.native": {
+      "source": "1:1 原图",
+      "text": "1:1 原寸"
+    },
+    "ui.art.test": {
+      "source": "测试版画风",
+      "text": "テスト版アート"
+    },
+    "ui.art.formal": {
+      "source": "正式版·跟随模式",
+      "text": "正式版・追従モード"
+    },
+    "ui.art.original": {
+      "source": "正式版·原图",
+      "text": "正式版・原寸"
+    },
+    "ui.art.fixed": {
+      "source": "正式版·扶她出去",
+      "text": "正式版・ふたなり差分"
+    },
+    "ui.shop.refresh": {
+      "source": "刷新 · {price}魔力",
+      "text": "更新・魔力{price}"
+    },
+    "ui.portrait.expand": {
+      "source": "放大立绘",
+      "text": "立ち絵を拡大"
+    },
+    "ui.flask.deposit_uses": {
+      "source": "存 {dots}",
+      "text": "預ける {dots}"
+    },
+    "ui.flask.withdraw_uses": {
+      "source": "取 {dots}",
+      "text": "取り出す {dots}"
+    },
+    "ui.quick_release.previous": {
+      "source": "上一个拘束具（←）",
+      "text": "前の拘束具（←）"
+    },
+    "ui.quick_release.next": {
+      "source": "下一个拘束具（→）",
+      "text": "次の拘束具（→）"
+    },
+    "ui.quick_release.fire_locked": {
+      "source": "尚未获得用火球术解除拘束具的能力。",
+      "text": "拘束具にファイアボールを使う能力をまだ獲得していません。"
+    },
+    "ui.quick_release.fire_empty": {
+      "source": "没有拘束具可供火球术选为目标。",
+      "text": "ファイアボールの対象にできる拘束具がありません。"
+    },
+    "ui.quick_release.empty": {
+      "source": "没有拘束具",
+      "text": "拘束具なし"
+    },
+    "ui.quick_release.durability": {
+      "source": "耐久 {current}/{maximum} · 紧度{tier}",
+      "text": "耐久 {current}/{maximum}・締め付け{tier}"
+    },
+    "ui.quick_release.help": {
+      "source": "先选部位再点牌，或直接拖牌；右键切小部位，左右箭头切换拘束具。",
+      "text": "部位を選んでからカードをクリックするか、直接ドラッグします。右クリックで小部位、左右キーで拘束具を切り替えます。"
+    },
+    "ui.quick_release.wrong_card": {
+      "source": "这张牌不能用于当前选中的拘束具",
+      "text": "このカードは選択中の拘束具には使えません"
+    },
+    "ui.quick_release.tools": {
+      "source": "道具使用",
+      "text": "アイテムを使う"
+    },
+    "ui.quick_release.to_actions": {
+      "source": "切换至动作栏",
+      "text": "アクション欄へ切替"
+    },
+    "ui.quick_release.to_release": {
+      "source": "切换至快捷挣脱栏",
+      "text": "クイック脱出欄へ切替"
+    },
+    "ui.quick_release.exploration": {
+      "source": "切换至快捷挣脱栏，可对选中的拘束具使用解除牌，也可使用已安装道具。",
+      "text": "クイック脱出欄に切り替えると、選択中の拘束具に解除カードや設置済みアイテムを使えます。"
+    },
+    "ui.home.character.original": {
+      "source": "魔法少女(futa)",
+      "text": "魔法少女（ふたなり）"
+    },
+    "ui.home.character.witch": {
+      "source": "小魔女·测试版",
+      "text": "小魔女・テスト版"
+    },
+    "ui.home.disclaimer": {
+      "source": "免责声明：本游戏为爱发电，免费发布。\n如果你花钱购买了本游戏，说明你上当了。",
+      "text": "免責事項：本作は非営利の個人制作ゲームで、無料公開されています。\n代金を支払って入手した場合は、詐欺販売です。"
+    },
+    "ui.settings.frame_limit": {
+      "source": "帧率上限",
+      "text": "フレームレート上限"
+    },
+    "ui.settings.frame_unlimited": {
+      "source": "无上限",
+      "text": "無制限"
+    },
+    "ui.settings.frame_value": {
+      "source": "{fps}帧",
+      "text": "{fps} FPS"
+    },
+    "ui.settings.vsync": {
+      "source": "垂直同步",
+      "text": "垂直同期"
+    },
+    "ui.settings.vsync_note": {
+      "source": "开启垂直同步可减少画面撕裂；即使选择无上限，帧率仍可能受显示器刷新率限制。",
+      "text": "垂直同期を有効にすると画面のティアリングを抑えられます。無制限を選んでも、モニターのリフレッシュレートで制限される場合があります。"
+    },
+    "ui.home.title": {
+      "source": "紧缚尖塔",
+      "text": "緊縛の尖塔"
+    },
+    "ui.home.masochist_mode": {
+      "source": "抖M专用版",
+      "text": "ドM専用モード"
+    },
+    "ui.home.continue_practice": {
+      "source": "继续练习",
+      "text": "練習を続ける"
+    },
+    "ui.home.continue": {
+      "source": "继续游戏",
+      "text": "ゲームを続ける"
+    },
+    "ui.home.new_game": {
+      "source": "开始新游戏",
+      "text": "ニューゲーム"
+    },
+    "ui.home.encyclopedia": {
+      "source": "图鉴",
+      "text": "図鑑"
+    },
+    "ui.home.tutorial": {
+      "source": "教程书",
+      "text": "チュートリアル"
+    },
+    "ui.home.practice": {
+      "source": "练习与自定义",
+      "text": "練習・カスタム"
+    },
+    "ui.home.quit": {
+      "source": "退出游戏",
+      "text": "ゲームを終了"
+    },
+    "ui.home.saves": {
+      "source": "存档与继续",
+      "text": "セーブ・続きから"
+    },
+    "ui.common.close": {
+      "source": "关闭 ×",
+      "text": "閉じる ×"
+    },
+    "ui.settings.title": {
+      "source": "设置",
+      "text": "設定"
+    },
+    "ui.settings.tab.display": {
+      "source": "显示",
+      "text": "表示"
+    },
+    "ui.settings.tab.audio": {
+      "source": "声音",
+      "text": "サウンド"
+    },
+    "ui.settings.tab.keys": {
+      "source": "键位",
+      "text": "キー設定"
+    },
+    "ui.settings.language": {
+      "source": "语言",
+      "text": "言語"
+    },
+    "ui.settings.language.zh_cn": {
+      "source": "简体中文",
+      "text": "簡体字中国語"
+    },
+    "ui.settings.language.en_us": {
+      "source": "English",
+      "text": "English"
+    },
+    "ui.settings.language.ja_jp": {
+      "source": "日本語",
+      "text": "日本語"
+    },
+    "ui.settings.mobile": {
+      "source": "横屏 · 长按查看详情／切换",
+      "text": "横画面・長押しで詳細表示／切替"
+    },
+    "ui.settings.mode": {
+      "source": "显示模式",
+      "text": "表示モード"
+    },
+    "ui.settings.mode.windowed": {
+      "source": "窗口",
+      "text": "ウィンドウ"
+    },
+    "ui.settings.mode.borderless": {
+      "source": "无边框窗口",
+      "text": "ボーダーレスウィンドウ"
+    },
+    "ui.settings.mode.fullscreen": {
+      "source": "全屏",
+      "text": "フルスクリーン"
+    },
+    "ui.settings.resolution": {
+      "source": "分辨率",
+      "text": "解像度"
+    },
+    "ui.settings.native_resolution": {
+      "source": "全屏使用显示器原生分辨率。",
+      "text": "フルスクリーンではモニターのネイティブ解像度を使用します。"
+    },
+    "ui.settings.feedback_speed": {
+      "source": "敌方行动展示速度",
+      "text": "敵の行動表示速度"
+    },
+    "ui.settings.speed.fast": {
+      "source": "快速",
+      "text": "速い"
+    },
+    "ui.settings.speed.normal": {
+      "source": "标准",
+      "text": "標準"
+    },
+    "ui.settings.speed.slow": {
+      "source": "舒缓",
+      "text": "ゆっくり"
+    },
+    "ui.settings.music_enabled": {
+      "source": "打出卡牌时播放音乐",
+      "text": "カード使用時に音楽を再生"
+    },
+    "ui.settings.music_volume": {
+      "source": "音乐音量 · {percent}%",
+      "text": "音楽音量・{percent}%"
+    },
+    "ui.settings.doubao_voice_enabled": {
+      "source": "播放豆包语音",
+      "text": "豆包ボイスを再生"
+    },
+    "ui.settings.doubao_voice_volume": {
+      "source": "豆包语音音量 · {percent}%",
+      "text": "豆包ボイス音量・{percent}%"
+    }
+  }
 }

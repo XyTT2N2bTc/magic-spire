@@ -29,7 +29,7 @@ static func run(t) -> void:
  t.check(is_equal_approx(c.mana,9.5) and g.dispatch(c.id,g.state.version).ok and is_equal_approx(before.mana-g.state.mana,9.5),"RESONANCE fixed fireball actually pays discounted fractional cost")
  card=Give.give(g,"rekindle");c=t.find_action(g,"card",{"uid":card.uid,"free":false});g.state.temporary_mana=9.5;before=g.export_snapshot()
  t.check(is_equal_approx(c.mana,9.5) and g.dispatch(c.id,g.state.version).ok and g.state.temporary_mana==0 and g.state.mana==before.mana,"RESONANCE magic card uses discounted cost and temporary pool first")
- t.check(g.Cards.face_mana(g,"mana_conversion",false)==10,"RESONANCE existing fixed mana conversion remains fixed")
+ t.check(g.Cards.face_mana(g,"mana_conversion",false)==20,"RESONANCE existing fixed mana conversion remains fixed")
  for slot in g.B.SLOTS:
   for n in range(3): g.add_fixture(slot,8,10,false,n)
  t.check(g.Cards.worn_count(g)>=20 and g._mana_cost(10)==0,"RESONANCE more than one hundred percent never generates negative payment")

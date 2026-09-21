@@ -388,12 +388,12 @@ static func combat(t) -> void:
  var card=preload("res://tests/reward_cases.gd").give(t,g,"mana_conversion")
  g.state.combat.mana_spent=20
  var energy=g.state.energy
- t.check(t.action(g,"card",{"uid":card.uid,"target":"self","free":false}).ok and g.state.energy==energy+2 and g.state.mana==50,"RELIC actual fixed mana exchange triggers earring as well as card energy")
+ t.check(t.action(g,"card",{"uid":card.uid,"target":"self","free":false}).ok and g.state.energy==energy+3 and g.state.mana==40,"RELIC actual fixed mana exchange triggers earring as well as card energy")
  var before=JSON.stringify(g.state)
  t.check(not g.dispatch("missing",g.state.version).ok and JSON.stringify(g.state)==before,"RELIC invalid command grants no resources or progress")
  for phase in ["map","travel","event","inspection"]:
   g.state.phase=phase;g.RelicEffects.mana_lost(g,40)
- t.check(g.state.combat.mana_spent==0 and g.state.energy==energy+2,"RELIC non-card phases never accumulate mana loss")
+ t.check(g.state.combat.mana_spent==10 and g.state.energy==energy+3,"RELIC non-card phases never accumulate mana loss")
  var needle=g.Relics.view(["enchanters_needle_case"])[0]
  t.check(needle.rarity=="rare" and needle.rarity_name=="稀有" and needle.detail.contains("额外抽1张牌") and "enchanters_needle_case" not in g.Relics.REWARDS,"RELIC needle case is a rare event-only relic with its draw effect disclosed")
 

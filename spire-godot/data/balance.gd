@@ -114,7 +114,7 @@ static var CARD_INFO = {"itching_heart":["淫魔法","降紧1。","随机佩戴�
  "fire_mastery":["能力","火球无视身体限制；不获得手势加成。","火球伤害×2。","同面不叠加；费用与快感施法概率不变。"],
  "strong_elbow":["挣扎","挣扎{base}。","下次肘击伤害×2。","对下一次肘击的所有段数生效。"],
  "pleasure_conversion":["转换","每20当前快感：能量＋1。","每20当前快感：能量＋1。","向下取整，不消耗快感。"],
- "mana_conversion":["魔法","{mana_cost}能量＋1。","{mana_gain}","固定兑换不受遗物施法返还影响；失败仍返还50%耗魔。"],
+ "mana_conversion":["魔法","{mana_cost}能量＋2。","{mana_gain}","固定兑换不受遗物施法返还影响；失败仍返还50%耗魔。"],
  "mana_surge":["魔法","{mana_cost}{bound_effects}","{mana_cost}{self_free_effects}",""],
  "henshin":["魔法","{mana_cost}解除全部拘束具与捕缚。打出时播放dj版雨爱。","{mana_cost}本场全部伤害×2。打出时播放dj版雨爱。","伤害加倍同源不叠加。"],
  "focus":["技能","{bound_effects}","{self_free_effects}",""],

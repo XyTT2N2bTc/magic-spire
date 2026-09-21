@@ -50,7 +50,7 @@
     "ui.settings.language": {"text": "语言", "context": "显示设置中的语言选择"},
     "ui.settings.language.zh_cn": {"text": "简体中文", "context": "简体中文语言选项"},
     "ui.settings.language.en_us": {"text": "English", "context": "英语语言选项"},
-    "ui.settings.language.ja_jp": {"text": "日语（待翻译）", "context": "尚未提供译文的日语资源选项；翻译完成后更新"},
+    "ui.settings.language.ja_jp": {"text": "日本語", "context": "日语语言选项"},
     "ui.settings.mobile": {"text": "横屏 · 长按查看详情／切换", "context": "移动端显示设置"},
     "ui.settings.mode": {"text": "显示模式", "context": "窗口模式标题"},
     "ui.settings.mode.windowed": {"text": "窗口", "context": "有边框窗口模式"},
