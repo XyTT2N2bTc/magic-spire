@@ -180,12 +180,15 @@ function Invoke-SpireCheck {
 $beforeFingerprint = Get-SourceFingerprint
 $exitCode = 0
 $failureMessage = ''
+$documentFailure = ''
 try {
     # Rule-class document reference gate: an independent phase in the same shape as the content-pack
     # gate (tools/check-content.ps1), run through this shell with its own log, result line and
-    # summary field. It needs no engine, so it runs first and a broken contract reference fails the
-    # whole round instead of hiding behind rule/UI results. -ExecutionPolicy Bypass: the child is a
-    # fresh host whose policy is the machine default, and a blocked script would read as a red gate.
+    # summary field. It needs no engine, so it runs first and it runs on every round. A failure is
+    # recorded, not thrown: one typo in a contract must not cancel the engine phases and throw away
+    # a whole round of rule/UI evidence -- the round takes the non-zero exit at the end instead, so
+    # a document red and a rule red land in the same evidence. -ExecutionPolicy Bypass: the child is
+    # a fresh host whose policy is the machine default, and a blocked script would read as a red gate.
     $documentLog = Join-Path $checkDirectory 'check-docs.log'
     $documentOutput = ''
     $documentExit = 1
@@ -201,7 +204,10 @@ try {
     $documentOutput = $documentOutput.TrimEnd() + "`nDOCS RESULT: $documentResult`n"
     [IO.File]::WriteAllText($documentLog, $documentOutput)
     $documentOutput -split '\r?\n' | Where-Object { $_ -match '^DOCS? ' } | Write-Output
-    if ($documentResult -eq 'FAIL') { throw ('Rule-class document gate failed (exit=' + $documentExit + '). See ' + $documentLog) }
+    if ($documentResult -eq 'FAIL') {
+        $documentFailure = ('Rule-class document gate failed (exit=' + $documentExit + '). See ' + $documentLog)
+        Write-Output $documentFailure
+    }
     if ($Import -or -not (Test-Path -LiteralPath (Join-Path $gameDirectory '.godot'))) {
         Invoke-SpireCheck -Name 'import' -EngineArguments @('--headless', '--editor', '--quit')
     }
@@ -283,6 +289,12 @@ if ($VerifyRunner) {
     $rules = Get-PhaseSummary -Name rules -Requested $Suite -Enabled (-not $UIOnly)
     $window = Get-PhaseSummary -Name ui -Requested $UISuite -Enabled ([bool]($UI -or $UIOnly))
     $documentGate = Get-DocumentPhaseSummary
+    # Deferred document failure: the phase collected its result, the round fails here. A rule/UI
+    # failure keeps the message it already recorded.
+    if ($documentFailure) {
+        $exitCode = 1
+        if (-not $failureMessage) { $failureMessage = $documentFailure }
+    }
     $changed = $beforeFingerprint -ne $afterFingerprint
     if ($changed -and -not $ListOnly) {
         $exitCode = 1
@@ -294,6 +306,9 @@ if ($VerifyRunner) {
     $summaryPath = Join-Path $checkDirectory 'summary.json'
     [IO.File]::WriteAllText($summaryPath, ($summary | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
     Write-Output ('SUMMARY: ' + $summaryPath)
-    if ($exitCode -ne 0) { Write-Output ('.\tools\check.ps1 -RerunFailed "' + $checkDirectory + '"') }
+    if ($exitCode -ne 0) {
+        # A document-only failure leaves no suite to rerun, and -RerunFailed refuses such a round.
+        if (($rules.retry.Count + $window.retry.Count) -gt 0) { Write-Output ('.\tools\check.ps1 -RerunFailed "' + $checkDirectory + '"') }
+    }
 }
 exit $exitCode
