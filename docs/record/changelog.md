@@ -1240,3 +1240,9 @@ flowchart LR
 
 
 2026-09-20合并上游 v0.18.1（`b7aa046`）到 `seed-chip-save-upload`：两侧都保留——上游 v0.18／v0.18.1 的玩法与架构维护、验证刷新、美术与音频，以及本分支的种子角标（`state.initial_seed` 唯一回填／`SeedChip`／`SaveStore.fixed_point_text`）、反馈附带当前进度存档（`include_save`／原因码／`schema>=2` 门控）与本局回顾面板（`ui/run_review.gd`／`route_map.read_only`／`ui/main.gd` 两处入口）。冲突 10 文件按「两侧语义都在」处理：本地化两份取并集（key 不重复、`en_US.source` 与 zh_CN `text` 逐字一致）；`core/game.gd::restore_snapshot` 保留上游三档旧修订迁移链＋本分支 `initial_seed` 唯一回填（放在迁移之后、`Snapshot.check` 之前）；`core/game_view.gd` 同时保留 `first_turn_control` 与 `initial_seed`／`tower_generation`；`ui/feedback_report.gd` 同时保留上游跨版本草稿刷新与本分支「每身份只捕获一次」；`ui/main.gd` 同时保留 `_queue_takeover_step()` 与 `_refresh_seed_chip()`；`docs/record/*` 两侧条目都留并按日期排序，`docs/spec/*` 两侧段落都留（`feedback-deployment.md` 入口位置取上游已更正的说法＋本分支存档附件子句；`save-fixed-points.md` 非目标取两侧并集）。本分支一处断言按上游新规则更新：`interface_ui_cases.gd::feedback_save` 的「恢复草稿的 context 逐键不变」改为「原场次不变、只有 `version` 跟随本次构建」。检查：规则门6分类2858断言退出0、窗口门 route 253＋localization 51 PASS、interface 409 FAIL（红项全为上游新增内容：35 张 `witch_*` 缺立绘、6 张上游新卡共用占位立绘），未清理由见[验证记录](verification.md)同日条目。本次只提交合并，未推送、未打包、未改版本号。
+
+## 2026-09-21｜文档门禁：规则类文档入源码指纹＋引用检查
+
+- `tools/check.ps1::Get-SourceFingerprint` 纳入规则类文档（`docs/spec`／`docs/design`／`docs/guide`／根 `AGENTS.md`／`.zcode/skills`），`docs/record`（只追加记录）与 `docs/history`（只读归档）写明理由排除；范围唯一声明在新增 `spire-godot/tools/doc-scan-scope.ps1`。改一条契约正文即改变指纹（实测 `82B98233…`→`69152F58…`，还原回 `82B98233…`），追加记录类不变。
+- 新增独立门禁 `spire-godot/tools/check-docs.ps1`：点名路径必须存在、`文件::符号` 锚点必须已声明、本地 md 链接必须可达；允许存在的缺失引用逐条登记（8 条，带理由与消掉条件），每次打印条目数，清单只能缩小。四条「改坏即红、还原即绿」敏感性证明、指纹实测与既有门禁复跑（规则门 672 断言退出0、窗口门 304 断言退出0，同一指纹 `DEA47A3E…`）见 [验证记录](verification.md) 同日条。
+- `.zcode/skills/repo-ops/SKILL.md` 增命令面；`spire-docs` 的「已知零守卫」节改写为「文档守卫」，根 `AGENTS.md` 技能索引改用同词。未改玩法与产品代码，未推送、未改版本号、未发布。

@@ -40,7 +40,9 @@ if ($PSBoundParameters.ContainsKey('UISuite') -and -not ($UI -or $UIOnly)) {
 if ($ListOnly -and ($Import -or $VerifyRunner)) { throw '-ListOnly cannot be combined with -Import or -VerifyRunner.' }
 if ($UIOnly -and $Impact) { throw '-Impact applies to rule suites; UI suites are selected explicitly.' }
 . (Join-Path $PSScriptRoot 'find-godot.ps1')
+. (Join-Path $PSScriptRoot 'doc-scan-scope.ps1')
 $gameDirectory = Split-Path -Parent $PSScriptRoot
+$repositoryRoot = Split-Path -Parent $gameDirectory
 $engine = Find-SpireGodot -Console
 $buildDirectory = Join-Path $gameDirectory 'build'
 [IO.Directory]::CreateDirectory($buildDirectory) | Out-Null
@@ -63,6 +65,12 @@ function Get-SourceFingerprint {
     }
     Get-ChildItem -LiteralPath $gameDirectory -File | Where-Object { $_.Extension -in @('.godot','.gd','.tscn','.tres') } | ForEach-Object {
         $entries.Add($_.Name + ':' + (Get-FileHash -LiteralPath $_.FullName).Hash)
+    }
+    # Rule-class documents sit above the module (docs/, AGENTS.md, .zcode/skills) and are part of
+    # the guarded surface: a contract edit must move the fingerprint instead of passing silently.
+    # Records and the archive are excluded in doc-scan-scope.ps1 (append-only churn, not rules).
+    foreach ($document in (Get-RuleDocFiles -RepositoryRoot $repositoryRoot)) {
+        $entries.Add($document.Substring($repositoryRoot.Length + 1) + ':' + (Get-FileHash -LiteralPath $document -Algorithm SHA256).Hash)
     }
     $bytes = [Text.Encoding]::UTF8.GetBytes((($entries | Sort-Object) -join "`n"))
     $sha = [Security.Cryptography.SHA256]::Create()

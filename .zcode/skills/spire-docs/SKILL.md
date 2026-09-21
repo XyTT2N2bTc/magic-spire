@@ -2,7 +2,7 @@
 name: spire-docs
 description: >-
   《紧缚尖塔》的文档规范：五类生命周期与写入规则、符号锚点、判据优先、改动同步义务、
-  依赖表与允许改动表、记录诚实、已知零守卫。改动 docs/、写契约或写记录之前读它。
+  依赖表与允许改动表、记录诚实、文档守卫。改动 docs/、写契约或写记录之前读它。
 ---
 
 # 文档规范（magic-spire）
@@ -43,7 +43,14 @@ description: >-
 - 指纹与摘要只作**同一次运行内**的守卫，**不当身份**；跨运行可对账的是逐分类计数与具名 check。
 - 运行号必须可查（`build/checks/<运行号>`）；日志已被清理时写明"随临时 worktree 删除"。
 
-## 已知零守卫（结构警告）
+## 文档守卫（现行）
 
-- `docs/` **不在** `tools/check.ps1::Get-SourceFingerprint` 的目录集合内：改文档不会触发任何检查，连"源码变了"都不报。
-- 因此文档改动必须**自证**：点名路径存在、依赖表与实现一致、被取代即删。文档门禁落地前（见 `docs/record/proposals/`），这三条靠人审。
+- 规则类文档（`docs/spec`、`docs/design`、`docs/guide`、根 `AGENTS.md`、`.zcode/skills/*/SKILL.md`）
+  在 `tools/check.ps1::Get-SourceFingerprint` 内：改这些文档会触发 `SOURCE CHANGED`，不再是零守卫。
+  范围与排除理由（`docs/record/**` 只追加、`docs/history/**` 只读归档）的唯一声明在
+  `spire-godot/tools/doc-scan-scope.ps1`。
+- 引用门禁 `spire-godot/tools/check-docs.ps1`：点名路径必须存在、`文件::符号` 锚点必须已声明、
+  本地 md 链接必须可达。允许存在的缺失引用逐条登记在检查内的允许清单（带理由与消掉条件），
+  检查每次打印条目数；清单只能缩小。
+- 仍靠人审：依赖表与实现的文件面一致（多写、少写都要改）、判据条目的实质正确性、
+  被取代段落的删除。这三条没有机械判据。
