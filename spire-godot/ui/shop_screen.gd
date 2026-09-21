@@ -84,7 +84,7 @@ func _card_offer(offer: Dictionary, rect: Rect2) -> void:
  var card_size=Vector2(196,196*1.32)
  var button=ui._display_card(offer.type,box,func():
   if not candidate.is_empty(): ui._submit(candidate),"shop_"+str(offer.index),card_size)
- button.position.x=(rect.size.x-card_size.x)/2
+ button.position.x=(rect.size.x-button.size.x)/2
  button.name="ShopOffer%d" % offer.index
  button.disabled=offer.taken or not candidate.get("valid",false)
  if not offer.taken: ui.candidate_buttons[candidate.id]=button

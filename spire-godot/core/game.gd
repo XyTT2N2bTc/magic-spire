@@ -258,6 +258,11 @@ func _restart_tower(from_exit: bool=false) -> void:
  # Derive a fresh seed within the committed random stream, so restoring the
  # reward screen reproduces the same new run. Live object ids remain monotonic.
  var previous_seed=int(state.seed)
+ var retained_summit="" if from_exit else state.room_encounters.get("summit","")
+ # Older escape-route saves discarded the tower row, but kept its generation seed.
+ if not from_exit and retained_summit=="" and state.map_region=="prison":
+  for room in Tower.generate(previous_seed):
+   if room.id=="summit": retained_summit=room.encounter;break
  var next_seed=_random_index("prison",2147483647)
  if next_seed==previous_seed: next_seed=(next_seed+1)%2147483647
  _leave_mounted_tools()
@@ -270,7 +275,7 @@ func _restart_tower(from_exit: bool=false) -> void:
  state.map_region="tower";state.last_strong_group=""
  state.event_seen=[]
  state.pressure_sources=state.pressure_sources.filter(func(s):return s.room=="")
- _generate_tower()
+ _generate_tower(retained_summit)
  if not from_exit:
   for room in state.rooms:
    if room.get("pool","")=="ordinary": room.pool="strong"
@@ -288,9 +293,9 @@ func _restart_tower(from_exit: bool=false) -> void:
  if not from_exit:
   _emit("event","已离开监狱。请选择新塔路第10—11层的任一非休息、非宝箱区域作为起点；保留当前装备、卡组、遗物与资源。新地图的普通战斗全部使用强怪池。",{"new_tower":{"previous_seed":previous_seed,"seed":next_seed}})
 
-func _generate_tower() -> void:
+func _generate_tower(retained_summit: String="") -> void:
  state.room_encounters={}
- state.rooms=Tower.generate(int(state.seed))
+ state.rooms=Tower.generate(int(state.seed),retained_summit)
  for room in state.rooms:
   if room.kind!="battle": continue
   if room.get("pool","")=="ordinary":
@@ -846,10 +851,22 @@ func _battle_end_reason() -> String:
  if EnemyPlans.has_equipment_space(self): return ""
  return "saturated"
 
-# The original saturation entry, now a thin wrapper over the single judgement and the single
-# executor; callers and their order are unchanged.
+# Existing settlement boundary: resolve long-battle departures/preparations, then ask
+# the single battle-end judgement. Callers and their ordering remain unchanged.
 func _finish_if_saturated() -> bool:
  if state.phase!="battle" or not state.card_chain.is_empty(): return false
+ if EnemyPlans.long_battle_limit(self):
+  for enemy in state.enemies:
+   if enemy.gone: continue
+   if not Enemies.TYPES[enemy.type].get("humanoid",false):
+    enemy.gone=true;enemy.intent={};enemy.erase("turn_install_layers")
+    _emit("event",enemy.name+"离开战场。",{"long_battle_departure":enemy.id})
+   elif CaptureBind.kind(self,enemy)=="" and enemy.intent.get("kind","")!="capture":
+    # Switching to arrest must not undo an interruption already paid for this turn.
+    var delayed=enemy.intent.get("delayed",false)
+    enemy.intent=_plan(enemy)
+    enemy.intent.delayed=delayed
+  CaptureBind.observe(self)
  var end_kind=_battle_end_reason()
  if end_kind=="victory":
   _finish_battle("victory")
@@ -2335,10 +2352,9 @@ func kick_profile(variant: Dictionary={}) -> Dictionary:
  var posture=BasicAttacks.posture(self,"kick",variant)
  var bound=variant.get("kick_bound",false) if freedom else (_bound_feet() and not Cards.action_ignores_restraints(self))
  var leg_level=0 if freedom or Cards.action_ignores_restraints(self) else level("legs")
- var charge_bonus=self.charge_bonus()+RelicEffects.attribute(self,"strength")
  var label=("并拢飞踢" if posture=="stand" else "并腿蹬击") if bound else (BasicAttacks.TYPES.kick[0].name if posture=="stand" else "坐姿踢击")
  var base_damage=(B.BOUND_KICK if posture=="stand" else B.BOUND_SEATED_KICK) if bound else (B.KICK if posture=="stand" else B.SEATED_KICK)
- var damage=(base_damage+charge_bonus)*B.BODY_DAMAGE[leg_level]
+ var damage=BasicAttacks.physical_damage(self,base_damage,leg_level)
  var reason="躺姿没有体术攻击，请施法或起身。" if posture=="lie" else ("腿部活动受限达到三级，无法独立踢击。" if not bound and leg_level>=3 else "")
  var spec=BasicAttacks.TYPES.kick[0]
  var cost=spec.bound_cost if bound else (spec.cost if posture=="stand" else spec.seated_cost)
@@ -2364,7 +2380,6 @@ func _attack_offer(out: Array, e: Dictionary, type: String, form: int) -> void:
  var posture=BasicAttacks.posture(self,type,spec)
  var leg_level=0 if freedom or Cards.action_ignores_restraints(self) else level("legs")
  var cost=BasicAttacks.energy_cost(self,type,form)
- var charge_bonus=self.charge_bonus()+RelicEffects.attribute(self,"strength")
  var reason=""
  var mana=0.0
  var damage=0.0
@@ -2378,7 +2393,7 @@ func _attack_offer(out: Array, e: Dictionary, type: String, form: int) -> void:
   "strike","heavy":
    var ignore_restraints=Cards.attack_ignores_restraints(self,type)
    var arm_level=0 if ignore_restraints else level("arms")
-   damage=(spec.damage+Cards.Hannya.heavy_bonus(self,type,form)+charge_bonus)*B.BODY_DAMAGE[arm_level]
+   damage=BasicAttacks.physical_damage(self,spec.damage+Cards.Hannya.heavy_bonus(self,type,form),arm_level)
    if posture!="stand": reason=label+"需要站姿。"
    elif arm_level>=3: reason="双臂活动受限达到三级，无法完成"+label+"。"
    elif type=="heavy" and not ignore_restraints and level("legs")!=0: reason="近身短打需要双腿活动自由。"
@@ -2387,14 +2402,14 @@ func _attack_offer(out: Array, e: Dictionary, type: String, form: int) -> void:
    if spec.has("postures"):
     var posture_spec=spec.postures.get(posture,spec.postures.values()[0])
     label=posture_spec.name
-    damage=(posture_spec.damage+charge_bonus)*B.BODY_DAMAGE[leg_level]
+    damage=BasicAttacks.physical_damage(self,posture_spec.damage,leg_level)
     if not spec.postures.has(posture): reason="踢击需要站姿或坐姿。" if spec.postures.size()>1 else "连续踢需要坐姿。"
     elif leg_level>posture_spec.max_level: reason="站着踢需要双腿活动自由。" if posture=="stand" else "腿部严密度达到4级，无法坐着踢。"
     if spec.get("x_cost",false):
      fall=cost>=spec.fall_energy
      if reason=="" and cost<1: reason="连续踢至少需要1点能量。"
    elif all_targets:
-    damage=(spec.damage+charge_bonus)*B.BODY_DAMAGE[leg_level]
+    damage=BasicAttacks.physical_damage(self,spec.damage,leg_level)
     if posture!="stand": reason="横扫需要站姿。"
     elif not freedom and not Cards.action_ignores_restraints(self) and (_bound_feet() or leg_level>=3): reason="双腿无法独立活动，不能横扫。"
    else:
@@ -2743,7 +2758,7 @@ func _cast_path(part: String, profile: Dictionary) -> Dictionary:
   winning_rolls=0
   formula+="\n"+reason
  var chance=float(winning_rolls)/B.CAST_ROLL_STEPS
- return {"part":part,"source_part":"toes" if toe_route else part,"reason":reason,"chance":chance,"winning_rolls":winning_rolls,"base":base,"factors":factors,"multiplier":multiplier,"chance_bonus":chance_bonus,"percent":number(chance*100)+"%","formula":formula,"detail":formula+"\n嘴部施法受口部装备影响；手部施法默认需要双手的手掌和手指均自由，施法动作教程可放宽为一只完整自由手。多种可用部位取最高成功率。"+Cards.failure_refund_detail(self)+"；能量照扣，卡牌留手。"}
+ return {"part":part,"source_part":"toes" if toe_route else part,"reason":reason,"chance":chance,"winning_rolls":winning_rolls,"base":base,"factors":factors,"multiplier":multiplier,"chance_bonus":chance_bonus,"percent":number(chance*100)+"%","formula":formula,"detail":formula+"\n嘴部施法受口部装备影响；手部施法默认需要双手的手掌和手指均自由，施法动作教程可放宽为一只完整自由手。多种可用部位取最高成功率。"+Cards.failure_refund_detail(self)+"。"}
 
 func _cast_magic(c: Dictionary) -> bool:
  var paid=not c.payload.get("replay",false) and c.mana>0
@@ -2785,7 +2800,7 @@ func _cast_magic(c: Dictionary) -> bool:
  _emit("event",result,{"spell":{"success":success,"chance":chance,"roll":roll,"pressure":state.pressure,"base":casting.base,"factors":casting.factors,"chance_bonus":casting.chance_bonus,"part":casting.part,"source_part":casting.source_part,"type":c.payload.type,"mana_refund":refund,"energy_refund":energy_refund}})
  if success: RelicEffects.trigger(self,"spell_succeeded")
  if success and c.payload.type in Cards.Rules.FIXED_MAGIC and c.payload.type not in state.combat.successful_spells: state.combat.successful_spells.append(c.payload.type)
- Cards.spell_used(self,c.payload.type)
+ if success: Cards.spell_used(self,c.payload.type)
  return success
 
 func _pay_magic(c: Dictionary) -> void:

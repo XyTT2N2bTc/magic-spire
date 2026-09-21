@@ -55,6 +55,26 @@ static func run(t) -> void:
  t.check(ui.view.action_log.back().cue=="event.binding_cleric.choose" and ui.find_child("OpenActionLog",true,false)==null,"COPY UI event result remains in shared log without scene entry")
  t.check(ui.find_child("HeroSpeech",true,false)==null,"COPY UI events use authored prose without a separate character dialogue interface")
  await concise_log(t)
+ await stale_prison_speech(t)
+
+static func stale_prison_speech(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames()
+ # Reproduce a loaded old preparation warning, then reach a new preparation formally.
+ ui.game.state.logs.append({"kind":"event","text":"历史检查结果。","round":1,"phase":"prepare","data":{"npc_copy":{"cue":"prison.guard.release_fail","visual":"guard_brown"}}})
+ for enemy in ui.game.state.enemies: enemy.hp=1
+ ui.render();await t.frames()
+ var kick_point=ui.find_child("BasicAttack_kick",true,false).get_global_rect().get_center()
+ await t.mouse_button(kick_point,MOUSE_BUTTON_RIGHT,true);await t.mouse_button(kick_point,MOUSE_BUTTON_RIGHT,false)
+ t.check(await t.click("attack",{"type":"kick","form":1,"enemy":ui.view.enemies[0].id}) and ui.view.phase=="reward","COPY UI real area attack reaches reward with an old prison warning in history")
+ t.check(await t.click("reward",{"type":"skip"}) and ui.view.phase=="prepare","COPY UI reward reaches a later preparation with the same historical phase")
+ var before=ui.game.export_snapshot()
+ ui.render();await t.frames()
+ t.check(ui.view.npc_speech.is_empty() and ui.find_child("NpcSpeech",true,false)==null and ui.game.export_snapshot()==before,"COPY UI later preparation hides old prison warning without changing saved state")
+ var restored=preload("res://tests/game_fixture.gd").new(9)
+ t.check(restored.restore_snapshot(before).ok,"COPY UI old warning snapshot remains loadable")
+ ui.game=restored;ui._reset_interface(ui.game.get_view());ui.render();await t.frames()
+ t.check(ui.view.npc_speech.is_empty() and ui.find_child("NpcSpeech",true,false)==null,"COPY UI reload cannot revive the old prison warning")
 
 static func concise_log(t) -> void:
  var ui=t.ui

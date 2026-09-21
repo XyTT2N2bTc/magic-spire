@@ -4,13 +4,17 @@ extends TextureRect
 const FREE=preload("res://assets/art/equipment-portrait-cutout-v1.png")
 const BATTLE_FREE=preload("res://assets/art/hero-stand-cutout-v2.png")
 const WITCH_SIDEBAR=preload("res://assets/art/witch-sidebar-cutout-v1.png")
-const BOUND_BASE=preload("res://assets/art/equipment-body-sliced-v3.png")
-const BOUND_FLAT_LOCK=preload("res://assets/art/equipment-body-flat-lock-v1.png")
+const BOUND_BASE=preload("res://assets/art/equipment-material-body-plain-rope-free-v1.png")
+const BOUND_FLAT_LOCK=preload("res://assets/art/equipment-material-body-flat-lock-rope-free-v1.png")
 const BOUND_SINGLE_GLOVE=preload("res://assets/art/equipment-body-single-glove-v1.png")
 const BOUND_SINGLE_GLOVE_FLAT_LOCK=preload("res://assets/art/equipment-body-single-glove-flat-lock-v1.png")
+const BOUND_BASES={
+ "plain":{"free":BOUND_BASE,"bound":preload("res://assets/art/equipment-material-body-plain-rope-bound-v1.png"),"leather_free":preload("res://assets/art/equipment-material-body-plain-leather-free-v1.png"),"leather_bound":preload("res://assets/art/equipment-material-body-plain-leather-bound-v1.png")},
+ "flat_lock":{"free":BOUND_FLAT_LOCK,"bound":preload("res://assets/art/equipment-material-body-flat-lock-rope-bound-v1.png"),"leather_free":preload("res://assets/art/equipment-material-body-flat-lock-leather-free-v1.png"),"leather_bound":preload("res://assets/art/equipment-material-body-flat-lock-leather-bound-v1.png")}}
+const REINFORCEMENT_WITHOUT_CROTCH_ROPE=preload("res://assets/art/equipment-overlay-flat-lock-reinforcement-no-crotch-rope-v1.png")
 const FLAT_LOCK_THIGH={
- "bound":preload("res://assets/art/equipment-leg-thigh_root-flat-lock-v1.png"),
- "free":preload("res://assets/art/equipment-leg-thigh_root-flat-lock-free-v1.png")}
+ "bound":preload("res://assets/art/equipment-material-leg-thigh_root-flat-lock-rope-v1.png"),
+ "free":preload("res://assets/art/equipment-material-leg-thigh_root-flat-lock-free-v1.png")}
 const SINGLE_GLOVE_THIGH={
  "bound":preload("res://assets/art/equipment-leg-thigh_root-single-glove-v1.png"),
  "free":preload("res://assets/art/equipment-leg-thigh_root-single-glove-free-v1.png"),
@@ -32,6 +36,7 @@ const BOUND_EYE=Vector2(895,329)
 const FREE_EYE=Vector2(823,383)
 const FREE_FACE_SCALE=0.907
 const FREE_FACE_ROTATION=-0.1035
+const SINGLE_LEG_DRAW_ORDER=["single_leg_upper","single_leg_lower","single_leg_long"]
 var variant=-1
 var fixed_portrait=false
 var battle_free_portrait=false
@@ -41,7 +46,10 @@ var equipped_eyes=false
 var active_leg_layers: Array=[]
 var active_special_layers: Array=[]
 var active_composite_layers: Array=[]
+var active_materials: Dictionary={}
 static var leg_layers: Dictionary=_load_leg_layers()
+static var single_leg_layers: Dictionary=_load_single_leg_layers()
+static var single_leg_bases: Dictionary=_load_single_leg_bases()
 var appearance: Array=[]
 
 # Shared display policy for the arena and sidebar; never query the live game here.
@@ -63,16 +71,70 @@ static func visual_facts(view: Dictionary) -> Array:
   var spec=leg_layers[key]
   if spec.value in view.get("body_coverage",{}).get(spec.field,[]):legs.append(key)
  var bodies=view.get("bodies",[])
- return [view.get("has_restraint_level",false),view.get("equipment_portrait_layers",[]).duplicate(),view.get("composite_portrait_layers",[]).duplicate(),legs,
+ return [view.get("has_restraint_level",false),view.get("equipment_portrait_layers",[]).duplicate(),view.get("composite_portrait_layers",[]).duplicate(),legs,view.get("body_coverage",{}).get("materials",{}).duplicate(),
   bodies.any(func(body):return body.id=="mouth" and body.occupied),
   bodies.any(func(body):return body.id=="eyes" and body.occupied)]
 
 static func _load_leg_layers() -> Dictionary:
  var entries=JSON.parse_string(FileAccess.get_file_as_string("res://assets/art/equipment-leg-layers.json"))
+ var materials=JSON.parse_string(FileAccess.get_file_as_string("res://assets/art/equipment-material-layers.json"))
  var result={}
  for entry in entries:
-  result[entry.id]={"texture":load(entry.texture),"free_texture":load(entry.free_texture),"origin":Vector2(entry.origin[0],entry.origin[1]),"field":entry.field,"value":entry.value}
+  var material=materials.legs[entry.id]
+  var styles={}
+  for kind in material.styles:
+   styles[kind]={}
+   for style in material.styles[kind]:styles[kind][style]=load(material.styles[kind][style])
+  result[entry.id]={"texture":styles.plain.rope,"free_texture":styles.plain.free,"styles":styles,"origin":Vector2(material.origin[0],material.origin[1]),"field":entry.field,"value":entry.value,
+   "glove_texture":load(entry.texture),"glove_free_texture":load(entry.free_texture),"glove_origin":Vector2(entry.origin[0],entry.origin[1])}
  return result
+
+static func _load_single_leg_layers() -> Dictionary:
+ var manifest=JSON.parse_string(FileAccess.get_file_as_string("res://assets/art/equipment-single-leg-layers.json"))
+ var result={}
+ for key in manifest.layers:
+  var entry=manifest.layers[key]
+  var slices={}
+  for slice_id in entry.get("slices",{}):
+   slices[slice_id]={}
+   for context in entry.slices[slice_id]: slices[slice_id][context]=load(entry.slices[slice_id][context])
+  result[key]={"texture":load(entry.texture),"origin":Vector2(entry.origin[0],entry.origin[1]),"slices":slices}
+ return result
+
+static func _load_single_leg_bases() -> Dictionary:
+ var manifest=JSON.parse_string(FileAccess.get_file_as_string("res://assets/art/equipment-single-leg-layers.json"))
+ var result={}
+ for key in manifest.bases:
+  result[key]={}
+  for context in manifest.bases[key]:result[key][context]=load(manifest.bases[key][context])
+ return result
+
+func _single_leg_for_slice(slice_id: String) -> String:
+ var selected=""
+ for key in SINGLE_LEG_DRAW_ORDER:
+  if key in active_composite_layers and single_leg_layers[key].slices.has(slice_id): selected=key
+ return selected
+
+func _single_leg_slice_context(slice_id: String, bound: bool) -> String:
+ if "single_glove" in active_composite_layers:
+  var glove_prefix="single_glove_"
+  if slice_id=="thigh_root" and "flat_lock" in active_special_layers:glove_prefix+="flat_lock_"
+  return glove_prefix+("bound" if bound else "free")
+ var material=active_materials.get(slice_id,"rope") if bound else "free"
+ return ("flat_lock_" if slice_id=="thigh_root" and "flat_lock" in active_special_layers else "")+material
+
+func _single_leg_base_key() -> String:
+ if "single_leg_long" in active_composite_layers:return "single_leg_long"
+ if "single_leg_upper" in active_composite_layers and "single_leg_lower" in active_composite_layers:return "single_leg_upper_lower"
+ if "single_leg_upper" in active_composite_layers:return "single_leg_upper"
+ if "single_leg_lower" in active_composite_layers:return "single_leg_lower"
+ return ""
+
+func _single_leg_base_context(has_flat_lock: bool, has_single_glove: bool) -> String:
+ if has_single_glove:return "single_glove_flat_lock" if has_flat_lock else "single_glove"
+ var context="flat_lock_" if has_flat_lock else "plain_"
+ if active_materials.get("upper","rope")=="leather":context+="leather_"
+ return context+("bound" if "crotch_rope" in active_special_layers else "free")
 
 func configure(view: Dictionary, fixed: bool=false, battle_free: bool=false) -> void:
  var next_witch=view.get("character_id","original")=="witch"
@@ -85,9 +147,16 @@ func configure(view: Dictionary, fixed: bool=false, battle_free: bool=false) -> 
  variant=0 if view.has_restraint_level and not fixed and not witch_portrait else -1
  active_special_layers.assign(view.get("equipment_portrait_layers",[]))
  active_composite_layers.assign(view.get("composite_portrait_layers",[]))
+ active_materials=view.body_coverage.get("materials",{}).duplicate()
  var has_flat_lock="flat_lock" in active_special_layers
  var has_single_glove="single_glove" in active_composite_layers
- texture=WITCH_SIDEBAR if witch_portrait else ((BATTLE_FREE if battle_free_portrait else FREE) if variant<0 else (BOUND_SINGLE_GLOVE_FLAT_LOCK if has_flat_lock and has_single_glove else (BOUND_FLAT_LOCK if has_flat_lock else (BOUND_SINGLE_GLOVE if has_single_glove else BOUND_BASE))))
+ var base_key="flat_lock" if has_flat_lock else "plain"
+ var rope_key="bound" if "crotch_rope" in active_special_layers else "free"
+ if active_materials.get("upper","rope")=="leather":rope_key="leather_"+rope_key
+ var bound_texture=(BOUND_SINGLE_GLOVE_FLAT_LOCK if has_flat_lock else BOUND_SINGLE_GLOVE) if has_single_glove else BOUND_BASES[base_key][rope_key]
+ var leg_base_key=_single_leg_base_key()
+ if leg_base_key!="":bound_texture=single_leg_bases[leg_base_key][_single_leg_base_context(has_flat_lock,has_single_glove)]
+ texture=WITCH_SIDEBAR if witch_portrait else ((BATTLE_FREE if battle_free_portrait else FREE) if variant<0 else bound_texture)
  active_leg_layers.clear()
  for key in leg_layers:
   var spec=leg_layers[key]
@@ -115,6 +184,12 @@ func _ready() -> void:
   var layer=TextureRect.new();layer.name="Overlay_free_"+key;layer.texture=FREE_SPECIAL_LAYERS[key].texture
   layer.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;layer.mouse_filter=Control.MOUSE_FILTER_IGNORE
   add_child(layer)
+ # Single-leg sleeves replace the ordinary horizontal leg slices and therefore
+ # stay last in draw order; otherwise those slices reopen visible seams.
+ for key in SINGLE_LEG_DRAW_ORDER:
+  var layer=TextureRect.new();layer.name="Overlay_"+key;layer.texture=single_leg_layers[key].texture
+  layer.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;layer.mouse_filter=Control.MOUSE_FILTER_IGNORE
+  add_child(layer)
  resized.connect(_align_layers);_align_layers()
 
 func _align_layers() -> void:
@@ -125,13 +200,21 @@ func _align_layers() -> void:
   var layer=get_node("Overlay_"+key)
   layer.visible=not witch_portrait and not fixed_portrait and not (battle_free_portrait and variant<0) and (equipped_mouth if key=="mouth" else (equipped_eyes if key=="eyes" else variant>=0))
   if key in leg_layers:
-   if key=="thigh_root" and "single_glove" in active_composite_layers:
+   var single_leg=_single_leg_for_slice(key)
+   if single_leg!="":
+    var context=_single_leg_slice_context(key,key in active_leg_layers)
+    layer.texture=single_leg_layers[single_leg].slices[key][context]
+   elif key=="thigh_root" and "single_glove" in active_composite_layers:
     var thigh_key=("flat_lock_" if "flat_lock" in active_special_layers else "")+("bound" if key in active_leg_layers else "free")
     layer.texture=SINGLE_GLOVE_THIGH[thigh_key]
-   elif key=="thigh_root" and "flat_lock" in active_special_layers:
-    layer.texture=FLAT_LOCK_THIGH.bound if key in active_leg_layers else FLAT_LOCK_THIGH.free
-   else: layer.texture=leg_layers[key].texture if key in active_leg_layers else leg_layers[key].free_texture
+   elif "single_glove" in active_composite_layers:
+    layer.texture=leg_layers[key].glove_texture if key in active_leg_layers else leg_layers[key].glove_free_texture
+   else:
+    var kind="flat_lock" if key=="thigh_root" and "flat_lock" in active_special_layers else "plain"
+    var material=active_materials.get(key,"rope") if key in active_leg_layers else "free"
+    layer.texture=leg_layers[key].styles[kind][material]
   var position_in_source=layers[key].origin-BOUND_CROP
+  if key in leg_layers and "single_glove" in active_composite_layers:position_in_source=leg_layers[key].glove_origin-BOUND_CROP
   var layer_factor=1.0;var angle=0.0
   if variant<0 and key in LAYERS:
    position_in_source=FREE_EYE+(LAYERS[key].origin-BOUND_EYE).rotated(FREE_FACE_ROTATION)*FREE_FACE_SCALE-FREE_CROP
@@ -140,6 +223,7 @@ func _align_layers() -> void:
   layer.size=layer.texture.get_size()*factor*layer_factor;layer.rotation=angle
  for key in SPECIAL_LAYERS:
   var layer=get_node("Overlay_"+key)
+  layer.texture=REINFORCEMENT_WITHOUT_CROTCH_ROPE if key=="flat_lock_reinforcement" and not "crotch_rope" in active_special_layers and not "single_glove" in active_composite_layers else SPECIAL_LAYERS[key].texture
   layer.visible=not witch_portrait and variant>=0 and not fixed_portrait and key in active_special_layers
   layer.position=offset+(SPECIAL_LAYERS[key].origin-BOUND_CROP)*factor
   layer.size=layer.texture.get_size()*factor
@@ -147,4 +231,10 @@ func _align_layers() -> void:
   var layer=get_node("Overlay_free_"+key)
   layer.visible=not witch_portrait and battle_free_portrait and variant<0 and not fixed_portrait and key in active_special_layers
   layer.position=offset+(FREE_SPECIAL_LAYERS[key].origin-BATTLE_FREE_CROP)*factor
+  layer.size=layer.texture.get_size()*factor
+ for key in SINGLE_LEG_DRAW_ORDER:
+  var layer=get_node("Overlay_"+key)
+  var hidden_by_long=key!="single_leg_long" and "single_leg_long" in active_composite_layers
+  layer.visible=not witch_portrait and variant>=0 and not fixed_portrait and key in active_composite_layers and not hidden_by_long
+  layer.position=offset+(single_leg_layers[key].origin-BOUND_CROP)*factor
   layer.size=layer.texture.get_size()*factor

@@ -85,7 +85,8 @@ static func boundaries(t) -> void:
  g=game();Cards.play(t,g,"wildfire_descent",false);Cards.play(t,g,"echo_cast",true);g.state.pressure=99
  before=g.export_snapshot();c=fire(t,g);result=g.dispatch(c.id,g.state.version)
  var casts=g.state.logs.slice(before.logs.size()).filter(func(log):return log.data.get("spell",{}).get("type","")=="fireball")
- t.check(result.ok and casts.size()==2 and casts[0].data.spell.roll!=casts[1].data.spell.roll and g.state.hand.size()==before.hand.size()+2 and is_equal_approx(g.state.mana,before.mana-c.mana*0.5),"ECHO two independent cast rolls, draw on both attempts, one payment")
+ var successful_casts=casts.filter(func(log):return log.data.spell.success).size()
+ t.check(result.ok and casts.size()==2 and successful_casts<2 and casts[0].data.spell.roll!=casts[1].data.spell.roll and g.state.hand.size()==before.hand.size()+successful_casts and is_equal_approx(g.state.mana,before.mana-c.mana*0.5),"ECHO two independent cast rolls, draw only on successful attempts, one payment")
  # Extra resolution never counts as a second skill or consumes a cutter twice.
  g=game();Cards.play(t,g,"letter_opener",true);Cards.play(t,g,"echo_cast",false)
  g.state.wall="normal";target=g.add_fixture("wrist",100,100,true)

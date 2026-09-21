@@ -61,12 +61,12 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
    var count=s.witch_charges[part]
    var detail="至少4层可使用魔女飞踹：伤害1，打断，消耗全部腿部施法预备。" if part=="legs" else "释放时每层额外触发一次法术效果，消耗该部位全部施法预备；失败保留。"
    detail+="每回合预备次数不限；各部位每回合只能成功释放1次。"
-   if g.Character.Expansion.protects_preparation(g): detail+="耐心耐心～生效：暂不消耗施法预备，也不抵挡拘束。"
+   if g.Character.Expansion.protects_preparation(g): detail+="耐心耐心～生效：施法预备不会减少（主动释放除外），也不抵挡拘束。"
    if part!="mind": detail+="对应部位被施加拘束时可消耗2层抵挡；不足2层不能抵挡。"
    entry(out,"witch_charge_"+part,"benefit",g.Character.NAMES[part]+"施法预备","%d层" % count,detail,"基础动作","本场整备结束或高潮时清空","good")
    mark(out,{"hand":"hand","mouth":"mouth","legs":"foot","mind":"ritual"}[part],str(count))
   if s.witch_focus>0:
-   entry(out,"witch_focus","benefit","精神集中","%d层" % s.witch_focus,"下次造成伤害的魔法每段伤害＋%d，整次施放消耗全部层数。施法失败或高潮时失去1层。" % s.witch_focus,"卡牌／遗物","使用后清除；跨战斗最多保留%d层" % (2+g.combat_retention_bonus()),"good")
+   entry(out,"witch_focus","benefit","精神集中","%d层" % s.witch_focus,"下次对敌人造成伤害的魔法每段伤害＋%d，整次施放消耗全部层数；魔力松缚不受加成，也不消耗层数。施法失败或高潮时失去1层。" % s.witch_focus,"卡牌／遗物","使用后清除；跨战斗最多保留%d层" % (2+g.combat_retention_bonus()),"good")
    mark(out,"ritual",str(s.witch_focus))
  for buff in s.body_buffs:
   var spec=g.Tools.TYPES[buff.type]
@@ -134,7 +134,7 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
  for region in ["arms","legs"]:
   var level=g.level(region)
   var arms=region=="arms"
-  var detail="肘击与近身短打倍率×%s；三级起无法使用这两种攻击。" % g.number(B.BODY_DAMAGE[level]) if arms else "独立踢击与横扫倍率×%s。站着踢要求0级；坐着踢4级起不可用。并腿踢击使用独立规则。姿态费用与移动速度随腿部限制变化。" % g.number(B.BODY_DAMAGE[level])
+  var detail="肘击与近身短打伤害×%s（含力量和蓄力）；三级起无法使用这两种攻击。" % g.number(B.BODY_DAMAGE[level]) if arms else "腿部体术伤害×%s（含力量和蓄力）。站着踢要求0级；坐着踢4级起不可用。并腿踢击沿用此伤害倍率。姿态费用与移动速度随腿部限制变化。" % g.number(B.BODY_DAMAGE[level])
   if arms and g.Cards.attack_ignores_restraints(g,"strike"): detail+="魔术手生效期间，手部体术暂时忽略这些拘束限制与减益。"
   if arms: detail+="切换姿态"+("减少1能量，最低0。" if level<=1 else "不获得双臂灵活的能量减免。")
   entry(out,region,"body","上身束缚等级" if arms else "腿部束缚等级","%d / 4级" % level,detail,sources(g,B.ARM_SLOTS if arms else B.LEG_SLOTS,"",true),"随真实拘束部位变化", "bad" if level>0 else "neutral")
@@ -191,7 +191,7 @@ static func build(g, special_regions: Array, pressure: Dictionary) -> Array:
   if buff.has("attack_uses") or buff.get("stack_uses",false): out.back().badge=str(g.state.card_buff_uses.get(id,0))
   if buff.get("restraint_draw",{}).get("next_turn",false): out.back().badge=str(g.Cards.pending_draw(g,id))
   out.back().merge(power_art(g,id))
-  if buff.duration=="next_turn_start": out.back().duration="下回合开始"
+  if buff.duration=="next_turn_start": out.back().duration=buff.get("duration_text","下回合开始")
   if buff.get("toggleable",false):
    var enabled=id in g.Cards.active_buffs(g)
    out.back().merge({"toggle":true,"emphasized":enabled,"disabled":not enabled,"badge":"开" if enabled else "关"},true)

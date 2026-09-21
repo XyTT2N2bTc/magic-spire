@@ -1,0 +1,78 @@
+{
+  "source_size": [
+    1536,
+    2304
+  ],
+  "difference_bounds": [
+    675,
+    858,
+    954,
+    1120
+  ],
+  "changed_pixels": 41896,
+  "bound_crop": [
+    390,
+    90,
+    1130,
+    2304
+  ],
+  "sources": {
+    "free": {
+      "path": "C:\\Users\\16563\\AppData\\Local\\Temp\\codex-clipboard-9359ef44-4306-445f-9943-ea570c3776f5.png",
+      "sha256": "056d6f16b6058560b24e6ef32b1a6e216bff3f9e7389e49e07a834602b28f2d6"
+    },
+    "bound": {
+      "path": "C:\\Users\\16563\\AppData\\Local\\Temp\\codex-clipboard-0a5a87f5-9b19-469e-835a-05bce54cf054.png",
+      "sha256": "3ec1855b084ffd5902d4a7e283251ef35b6064cfaf27f75367b777f01fd05f0f"
+    }
+  },
+  "layers": {
+    "bound": {
+      "texture": "res://assets/art/equipment-overlay-crotch-rope-v1.png",
+      "origin": [
+        665,
+        848
+      ],
+      "size": [
+        299,
+        282
+      ],
+      "sha256": "aa4031b5211b1c8939a5a8cd725983ea7a36e3e697c3a5c4bec6f7bdad9c994f"
+    },
+    "free": {
+      "texture": "res://assets/art/equipment-overlay-crotch-rope-free-v1.png",
+      "origin": [
+        665,
+        848
+      ],
+      "size": [
+        299,
+        282
+      ],
+      "sha256": "af2a8e2ca6f010bbb44b6c9036f1e9ab3e9f39f9b67356c40de17aa72b5c88a9"
+    }
+  },
+  "method": "Aligned pixel difference and connected white-backdrop cutout using existing helpers. Source colors preserved except white-matte edge removal. No generated pixels.",
+  "compositing": "Paired replacement patches. Replace the region before drawing, rather than adding the free patch above an existing rope. Body contour changes require alpha replacement.",
+  "trim": {
+    "region": "lower-right protrusion",
+    "patch_y_min": 238,
+    "patch_diagonal_limit": 468,
+    "feather_pixels": 1.5
+  },
+  "verification": "Before the requested trim, both alpha replacements reproduce source cutout alpha and visible pixels exactly. Final trim changes alpha only; source colors stay unchanged.",
+  "flat_lock_status": "Prepared separately from later supplied sources; see equipment-crotch-rope-flat-lock-layer.json.",
+  "runtime_status": "Ordinary and flat-lock bound standing bases follow actual crotch_rope presence. Single-glove uses its original artwork by user request; free/fixed/other poses unchanged.",
+  "runtime_bases": {
+    "plain": {
+      "without_rope": "res://assets/art/equipment-body-plain-no-crotch-rope-v1.png",
+      "with_rope": "res://assets/art/equipment-body-sliced-v3.png",
+      "sha256": "ad7c7e5aaa0da7c79f011a7d2a5e192e15aabac6e8a46586c37a49af21bcf5b1"
+    },
+    "flat_lock": {
+      "without_rope": "res://assets/art/equipment-body-flat-lock-no-crotch-rope-v1.png",
+      "with_rope": "res://assets/art/equipment-body-flat-lock-v1.png",
+      "sha256": "7a81daa587760e4d530b0d360a11deb220d47383f696dd1f2e3d0163cd42236d"
+    }
+  }
+}

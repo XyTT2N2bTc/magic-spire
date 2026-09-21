@@ -144,7 +144,9 @@ static func required_intent(g, enemy: Dictionary) -> String:
  var source_kind=kind(g,enemy)
  if source_kind=="": return ""
  if capture_ready(g.state) and g.EnemyPlans.can_arrest(g,enemy): return "capture"
- if source_kind=="iron_man": return ""
+ if source_kind=="iron_man":
+  # Keep a still-required opening capture, including its delayed flag.
+  return "bind_apply" if g.IronMan.intent_facts(enemy,g.state).kind=="bind_apply" else ""
  if source_kind=="guard" and enemy.stage==1: return "guard_sequence"
  if not has_bind(g,source_kind):
   return "bind_apply" if enemy.guard.bind_ready or (source_kind!="guard" and enemy.stage==1) else "bind_prepare"

@@ -14,6 +14,7 @@ static func run(t) -> void:
  interrupt_cooldown(t)
  bound_kick_cooldown(t)
  bound_kick_scaling(t)
+ body_damage_scaling(t)
  for item in [["strike",0,8.0,1,1],["strike",1,4.0,2,1],["heavy",0,18.0,1,2],["heavy",1,6.0,3,2]]:
   var g=Game.new(42)
   var c=attack(t,g,item[0],item[1]);var id=g.state.enemies[0].id
@@ -86,7 +87,7 @@ static func ordinary_kicks(t) -> void:
    t.check(c.valid==allowed and c.cost==1 and not c.payload.interrupt and not c.payload.fall and not c.payload.all,"KICK third form checks stance-specific severity without interrupt or fall")
    var before=g.export_snapshot()
    if allowed:
-    var expected=(8.0 if posture=="stand" else 6.0)*[1.0,0.8,0.6,0.4][severity]
+    var expected=(8.0 if posture=="stand" else 6.0)*[1.0,1.0,0.8,0.6][severity]
     t.check(is_equal_approx(c.payload.damage,expected) and c.label==("站着踢" if posture=="stand" else "坐着踢"),"KICK stance name and reduced damage match actual severity")
     var hp=g.state.enemies[0].hp;var other=g.state.enemies[1].hp
     t.check(g.dispatch(c.id,g.state.version).ok and is_equal_approx(g.state.enemies[0].hp,hp-expected) and g.state.enemies[1].hp==other,"KICK third form applies actual single-target physical damage")
@@ -97,7 +98,7 @@ static func ordinary_kicks(t) -> void:
  var g=Game.new(42);g.state.posture="sit";g.add_fixture("ankle",4);g.add_fixture("foot",4)
  g.state.strength=2;g.state.charge=1
  var c=attack(t,g,"kick",2)
- t.check(is_equal_approx(c.payload.damage,4.4) and g.dispatch(c.id,g.state.version).ok and g.state.charge==0,"KICK level-three damage includes strength and consumes shared charge once")
+ t.check(is_equal_approx(c.payload.damage,6.6) and g.dispatch(c.id,g.state.version).ok and g.state.charge==0,"KICK level-three damage includes strength and consumes shared charge once")
 
 static func continuous_kick(t) -> void:
  for energy in [0,1,2,3,5]:
@@ -126,7 +127,7 @@ static func continuous_kick(t) -> void:
   var restraints=[[],["thigh"],["ankle"],["ankle","foot"],["thigh","calf","ankle","foot","toes"]]
   for slot in restraints[severity]: g.add_fixture(slot,4)
   var c=attack(t,g,"kick",3);var before=g.export_snapshot()
-  t.check(c.valid==(severity<4) and is_equal_approx(c.payload.damage,8*[1.0,0.8,0.6,0.4,0.0][severity]),"CONTINUOUS KICK applies strength charge and leg restrictions to every hit")
+  t.check(c.valid==(severity<4) and is_equal_approx(c.payload.damage,8*[1.0,1.0,0.8,0.6,0.4][severity]),"CONTINUOUS KICK applies strength charge and leg restrictions to every hit")
   if severity<4:
    t.check(g.dispatch(c.id,g.state.version).ok and is_equal_approx(g.state.enemies[0].hp,before.enemies[0].hp-3*c.payload.damage) and g.state.charge==0,"CONTINUOUS KICK consumes charge once for the full combo")
   else:
@@ -172,7 +173,7 @@ static func bound_kick_cooldown(t) -> void:
   var g=Game.new(42);g.state.posture=posture;g.add_fixture("ankle",4)
   g.state.relics.append("turn_ribbon");g.state.energy=20
   var c=attack(t,g,"kick",0);var before=g.export_snapshot()
-  t.check(c.valid and c.cost==1 and c.payload.fall and c.payload.damage==(6 if posture=="stand" else 3) and c.payload.interrupt==(posture=="stand") and c.risk.contains("躺下"),"BOUND KICK both poses preview reduced damage with the original fall and interrupt distinction")
+  t.check(c.valid and c.cost==1 and c.payload.fall and c.payload.damage==(8 if posture=="stand" else 4) and c.payload.interrupt==(posture=="stand") and c.risk.contains("躺下"),"BOUND KICK both poses preview reduced damage with the original fall and interrupt distinction")
   t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"BOUND KICK stale submission preserves posture cooldown and resources")
   var hp=g.state.enemies[0].hp
   t.check(g.dispatch(c.id,g.state.version).ok and g.state.posture=="lie" and g.state.energy==19 and g.state.enemies[0].hp==hp-c.payload.damage and g.BasicAttacks.kick_cooldown(g)==3,"BOUND KICK either pose falls and starts the shared three-round cooldown")
@@ -200,12 +201,47 @@ static func bound_kick_scaling(t) -> void:
    var g=Game.new(42);g.state.posture=posture;g.state.strength=2;g.state.charge=1
    for slot in fixtures[index]: g.add_fixture(slot,4)
    t.check(g.level("legs")==index+1 and g._bound_feet(),"BOUND KICK fixture provides actual shared leg restriction")
-   var expected=([12.0,9.0,6.0,0.0] if posture=="stand" else [8.0,6.0,4.0,0.0])[index]
+   var expected=([15.0,12.0,9.0,6.0] if posture=="stand" else [10.0,8.0,6.0,4.0])[index]
    var before=g.export_snapshot();var c=attack(t,g,"kick",0)
-   t.check(c.valid and is_equal_approx(c.payload.damage,expected) and g.state==before,"BOUND KICK leg multiplier applies to base strength and charge without preview mutation")
+   t.check(c.valid and is_equal_approx(c.payload.damage,expected) and g.state==before,"BOUND KICK leg multiplier includes base strength and charge without preview mutation")
    t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"BOUND KICK stale scaled attack preserves all resources")
    var hp=g.state.enemies[0].hp
-   t.check(g.dispatch(c.id,g.state.version).ok and is_equal_approx(g.state.enemies[0].hp,hp-expected) and g.state.charge==0 and g.state.energy==before.energy-1 and g.state.posture=="lie","BOUND KICK actual scaled damage includes the zero-multiplier boundary and consumes charge once")
+   t.check(g.dispatch(c.id,g.state.version).ok and is_equal_approx(g.state.enemies[0].hp,hp-expected) and g.state.charge==0 and g.state.energy==before.energy-1 and g.state.posture=="lie","BOUND KICK actual damage includes the level-four multiplier and consumes charge once")
+
+static func body_damage_scaling(t) -> void:
+ var arms=[[],["upper_arm"],["wrist"],["wrist","palm"],["upper_arm","forearm","wrist","palm","fingers"]]
+ for severity in range(5):
+  for form in [["strike",0,8.0,1],["strike",1,4.0,2],["heavy",0,18.0,1],["heavy",1,6.0,3]]:
+   for all_charge in [false,true]:
+    var g=Game.new(42)
+    if form[0]=="heavy":
+     t.check(preload("res://tests/curse_cases.gd").play(t,g,"hannya_1",true).ok,"BODY SCALING base bonus comes from an actual Hannya play")
+    g.state.energy=3;g.state.strength=2;g.state.turn_strength=1;g.state.charge=2;g.state.charge_all=all_charge
+    g.state.enemies[0].hp=500;g.state.enemies[0].max_hp=500
+    for slot in arms[severity]: g.add_fixture(slot,4)
+    var c=attack(t,g,form[0],form[1]);var before=g.export_snapshot()
+    var base_bonus=(2 if form[1]==0 else 1) if form[0]=="heavy" else 0
+    var expected=(form[2]+base_bonus+(4 if form[0]=="heavy" else 3)+(6 if all_charge else 3))*[1.0,1.0,0.8,0.6,0.4][severity]
+    t.check(g.level("arms")==severity and c.valid==(severity<3) and is_equal_approx(c.payload.damage,expected),"BODY SCALING arm forms include total strength and normal/all charge before body reduction")
+    t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"BODY SCALING stale preview cannot spend charge")
+    if severity<3:
+     t.check(g.dispatch(c.id,g.state.version).ok and is_equal_approx(g.state.enemies[0].hp,500-expected*form[3]) and g.state.charge==(0 if all_charge else 1),"BODY SCALING every combo hit receives frozen bonus while charge is consumed once")
+    else:
+     t.check(not g.dispatch(c.id,g.state.version).ok and g.state==before,"BODY SCALING positive damage cannot bypass blocked arm actions")
+ var g=Game.new(42);g.state.strength=2;g.state.charge=1;g.add_fixture("wrist",4)
+ g.Cards.grant_buff(g,"strong_elbow_free");g.Cards.grant_buff(g,"henshin_free")
+ var enemy=g._append_enemies([{"type":"drone","grade":1}])[0];enemy.hp=500;enemy.max_hp=500
+ var c=t.find_action(g,"attack",{"type":"strike","form":1,"enemy":enemy.id})
+ t.check(is_equal_approx(c.payload.damage,28.8) and g.dispatch(c.id,g.state.version).ok and is_equal_approx(g._enemy(enemy.id).hp,471.2) and g.state.charge==0,"BODY SCALING bonuses receive body restriction, both attack multipliers and mechanical reduction on each hit")
+ g=Game.new(42);g.state.strength=2;g.state.charge=1;g.add_fixture("thigh",4)
+ var sweep=attack(t,g,"kick",1);var hp=g.state.enemies.map(func(e):return e.hp)
+ t.check(sweep.valid and sweep.payload.damage==10 and g.dispatch(sweep.id,g.state.version).ok and g.state.charge==0,"BODY SCALING sweep shares the body scaling formula and pays charge once")
+ for i in range(hp.size()): t.check(g.state.enemies[i].hp==hp[i]-10,"BODY SCALING sweep applies the full bonus to each target")
+ var legs=[[],["thigh"],["ankle"],["ankle","foot"],["thigh","calf","ankle","foot","toes"]]
+ for severity in range(5):
+  g=preload("res://tests/witch_character_cases.gd").fresh()
+  for slot in legs[severity]: g.add_fixture(slot,4)
+  t.check(g.Character.profile(g,"legs").multiplier==[1.0,0.8,0.6,0.4,0.0][severity],"BODY SCALING physical balance does not change witch leg casting chance")
 
 static func body_part_projection(t) -> void:
  var g=Game.new(42)

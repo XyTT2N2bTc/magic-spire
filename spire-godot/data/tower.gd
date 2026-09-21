@@ -61,7 +61,7 @@ static func prison_route(security: int) -> Array:
   {"id":"prison_rest","name":"休息点","kind":"rest","wall":"rough","next":["prison_gate"],"floor":1,"lane":0.5},
   {"id":"prison_gate","name":"监狱出口 · 精英战","kind":"battle","wall":"normal","next":[],"floor":2,"lane":0.5,"encounter":"guard_solo","encounter_repeats":security,"requires_defeat":true}]
 
-static func generate(run_seed: int) -> Array:
+static func generate(run_seed: int, retained_summit: String="") -> Array:
  var random=RandomNumberGenerator.new()
  random.seed=run_seed ^ 791939
  var grid={}
@@ -145,6 +145,7 @@ static func generate(run_seed: int) -> Array:
   r.name="%02d · %s" % [r.floor+1,r.name]
  rooms.push_front({"id":"entrance","name":"塔底入口","floor":-1,"lane":0.5,"wall":"normal","next":rooms.filter(func(r):return r.floor==0).map(func(r):return r.id),"kind":"entry","map_version":MAP_VERSION})
  var summit_encounter=FirstFloor.SUMMIT_ENCOUNTERS[random.randi_range(0,FirstFloor.SUMMIT_ENCOUNTERS.size()-1)]
+ if retained_summit!="": summit_encounter=retained_summit
  var summit={"id":"summit","name":"塔顶 · "+FirstFloor.summit_name(summit_encounter),"floor":LAST_FLOOR,"lane":0.5,"wall":"rough","next":["exit"],"kind":"battle","encounter":summit_encounter,"boss":true,"requires_defeat":true}
  for r in rooms:
   if r.floor==14: r.next=["summit"]

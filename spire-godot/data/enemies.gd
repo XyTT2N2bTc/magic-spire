@@ -4,7 +4,8 @@ const Library=preload("res://data/enemy_library.gd")
 const FirstFloor=preload("res://data/first_floor_enemy_pools.gd")
 const B=preload("res://data/balance.gd")
 const Special=preload("res://data/special_equipment.gd")
-const BARRIER_CAPACITY_DESCRIPTION="伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低0，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。"
+const PUPPET_MIN_CAPACITY=1
+const BARRIER_CAPACITY_DESCRIPTION="伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低1，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。"
 # Strength is an independent encounter-design value, never an equipment grade or damage multiplier.
 static var TYPES=definitions()
 
@@ -20,11 +21,11 @@ static func definitions() -> Dictionary:
  var versatile_special={"kind":"apply","text":"安装一件初级2档性玩具","delayed":false,"final":false,"replace":true,"count":1,"grade":1,"tier":2,"pool":"special","templates":Special.RANDOM_POOLS[1].duplicate()}
  var versatile_control={"kind":"versatile_control","text":"寻找可以上锁或加固的拘束具","delayed":false}
  var result={
- "iron_man":{"behavior":"iron_man","humanoid":true,"mechanical":true,"visual":"iron_man","name":"铁男","hp":120,"strength":6,"order":40,"capture_kind":"iron_man","capture_start":30.0,"capture_poses":["sit","lie"],"install_pool":["belt","fine_belt","eye_leather","mouth_band"]},
+ "iron_man":{"behavior":"iron_man","humanoid":true,"mechanical":true,"visual":"iron_man","name":"铁男","hp":140,"strength":6,"order":40,"capture_kind":"iron_man","capture_start":30.0,"capture_poses":["sit","lie"],"install_pool":["belt","fine_belt","eye_leather","mouth_band"]},
  "iron_drone":{"behavior":"iron_drone","mechanical":true,"can_arrest":false,"capture_kind":"iron_drone","capture_start":20.0,"visual":"drone","name":"捕缚无人机","hp":40,"order":44},
- "puppeteer":{"behavior":"puppeteer","humanoid":true,"visual":"puppeteer","name":"玩偶师","hp":76,"order":51,"damage_cap":30.0,"special_pool":Special.RANDOM_POOLS[2].duplicate()},
+ "puppeteer":{"behavior":"puppeteer","humanoid":true,"visual":"puppeteer","name":"玩偶师","hp":96,"order":51,"damage_cap":30.0,"special_pool":Special.RANDOM_POOLS[2].duplicate()},
  "puppet":{"behavior":"puppet","humanoid":true,"visual":"puppet","name":"玩偶","hp":15,"order":52,"reaction_capacity":3,"capacity_per_mend":1,"health_per_mend":5,"install_pool":ordinary_medium.duplicate()},
- "six_bind":{"behavior":"six_bind","humanoid":true,"visual":"six_bind","name":"六缚","hp":220,"strength":6,"order":60,"climax_capture_threshold":4,"climax_capture_repeat":1,
+ "six_bind":{"behavior":"six_bind","humanoid":true,"visual":"six_bind","name":"六缚","hp":200,"strength":6,"order":60,"climax_capture_threshold":4,"climax_capture_repeat":1,
   "install_pool":ordinary_medium.duplicate(),"opening_pool":ordinary_initial+['mouth_band'],"special_pools":{1:Special.RANDOM_POOLS[1].duplicate(),2:Special.RANDOM_POOLS[2].duplicate()}},
  "versatile":{"behavior":"humanoid","humanoid":true,"visual":"versatile","name":"多面手","hp":60,"strength":2,"order":49,
   "special_pool":Special.RANDOM_POOLS[1].duplicate(),"install_pool":ordinary_medium.duplicate(),

@@ -10,6 +10,9 @@ static func run(t) -> void:
  var graph=ui.find_child("TowerRoute",true,false)
  var scroll=ui.find_child("TowerMapScroll",true,false)
  var before=ui.game.export_snapshot()
+ var summit=ui.view.route.filter(func(room):return room.icon=="boss")[0]
+ var boss_preview=ui.find_child("TowerBossPreview",true,false)
+ t.check(boss_preview!=null and boss_preview.text==summit.name and boss_preview.is_visible_in_tree(),"ROUTE actual frozen boss is visible from the bottom of the map")
  var workspace=ui.find_child("RouteWorkspace",true,false)
  var messages_panel=ui.find_child("RouteMessages",true,false)
  var relics=ui.find_child("RelicStrip",true,false)
@@ -62,6 +65,7 @@ static func run(t) -> void:
  await Pointer.press(t,ui.find_child("MapOverview",true,false))
  graph=ui.find_child("TowerRoute",true,false)
  t.check(graph.compact and graph.buttons.size()==ui.view.route.size() and ui.game.export_snapshot()==before,"ROUTE art overview preserves rooms, rules and randomness")
+ t.check(ui.find_child("TowerBossPreview",true,false).text==summit.name,"ROUTE overview keeps the same boss visible without rerolling")
  t.check(graph.strokes==stored_ink and graph.ink_position(stored_ink[0][0]).distance_to(graph.point_for(drawing_room))<1.0,"ROUTE overview keeps marks aligned to their original room")
  await t.capture("ui-118-map-art-overview.png")
  await Pointer.press(t,ui.find_child("MapLocate",true,false))

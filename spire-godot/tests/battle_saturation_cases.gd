@@ -2,6 +2,7 @@ extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 
 static func run(t) -> void:
+ long_battle_cases(t)
  arrest_next_turn(t)
  var g=Game.new(42)
  var before=g.state.duplicate(true)
@@ -67,6 +68,83 @@ static func exhaust(g, enemy: Dictionary) -> void:
   if g.Enemies.behavior(enemy.type) in ["six_bind","guard","drone","binding_box"] and not targets.is_empty():
    g._enemy_operation(enemy,{"kind":"tighten","target":targets[0].id,"tier":3,"text":"加固","delayed":false});progressed=true
   if not progressed: return
+
+static func long_battle_fixture(t, count: int=20, tier: int=1, type: String="rope"):
+ var g=Game.new(42)
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ var spec=g.EnemyPlans.application(["rope","belt","tape","cable_tie"],1,tier)
+ for i in range(count+20):
+  if g.Cards.worn_count(g)>=count: break
+  t.check(g.Application.execute(g,spec,"fixture").ok,"LONG BATTLE builds legal equipment through the shared installer")
+ t.check(g.Cards.worn_count(g)==count,"LONG BATTLE fixture counts whole worn items")
+ g.state.enemies=[];g._append_enemies([{"type":type,"grade":1}])
+ g.state.round=15;g.state.order="first"
+ for enemy in g.state.enemies: enemy.intent={"kind":"idle","text":"停顿","delayed":false}
+ return g
+
+static func long_battle_cases(t) -> void:
+ var g=long_battle_fixture(t)
+ g.state.round=14
+ var before=g.export_snapshot()
+ t.check(not g._finish_if_saturated() and g.state==before,"LONG BATTLE round fourteen does not withdraw even with twenty items")
+ t.check(t.action(g,"end").ok and g.state.round==15 and g.state.phase=="reward","LONG BATTLE real round transition withdraws at fifteen")
+ t.check(g.state.enemies.all(func(e):return e.gone and not e.defeated and e.hp==e.max_hp) and g.state.reward_count==1,"LONG BATTLE departure awards one victory without damage, defeat or split children")
+ t.check(not g._finish_if_saturated() and g.state.reward_count==1,"LONG BATTLE victory cannot award twice")
+
+ g=long_battle_fixture(t,19)
+ t.check(not g.EnemyPlans.long_battle_limit(g) and not g._finish_if_saturated(),"LONG BATTLE nineteen low-tier items do not meet either equipment threshold")
+ g=long_battle_fixture(t,13,3)
+ t.check(not g.EnemyPlans.long_battle_limit(g),"LONG BATTLE total tightness thirty-nine is below threshold")
+ t.check(g.Application.execute(g,g.EnemyPlans.application(["rope","belt","tape"],1,1),"fixture").ok,"LONG BATTLE adds one tier-one piece at the tightness boundary")
+ t.check(g.Cards.worn_count(g)==14 and g.EnemyPlans.long_battle_limit(g) and g._finish_if_saturated(),"LONG BATTLE forty tightness wins even below twenty items")
+
+ # Every registered nonhuman type, including machines and splitters, shares the rule.
+ for type in Game.Enemies.TYPES:
+  if Game.Enemies.TYPES[type].get("humanoid",false): continue
+  g=long_battle_fixture(t,20,1,type)
+  var amount=g.state.enemies.size()
+  var actor=g.state.enemies[0]
+  if g.CaptureBind.kind(g,actor)!="": g.CaptureBind.apply_bind(g,actor)
+  t.check(g._finish_if_saturated() and g.state.phase=="reward" and g.state.enemies.size()==amount and g.state.enemies.all(func(e):return e.gone and not e.defeated) and g.state.guard_bind.is_empty(),"LONG BATTLE every nonhuman leaves without defeat spawns and releases capture: "+type)
+
+ for encounter in ["six_bind_solo","iron_man_solo"]:
+  g=long_battle_fixture(t)
+  g.state.room_encounters[g.state.room]=encounter;g._spawn_enemies(encounter)
+  before=g.export_snapshot()
+  t.check(not g.EnemyPlans.long_battle_limit(g) and not g._finish_if_saturated() and g.state==before,"LONG BATTLE boss encounter exempts boss and all support units: "+encounter)
+ g=long_battle_fixture(t)
+ g.room_data(g.state.room).boss=true
+ t.check(not g.EnemyPlans.long_battle_limit(g),"LONG BATTLE room-level boss flag excludes custom boss rosters")
+
+ g=long_battle_fixture(t,20,1,"versatile")
+ var human=g.state.enemies[0]
+ human.intent.delayed=true
+ var machine=g._append_enemies([{"type":"drone","grade":1}])[0]
+ machine.intent=g._plan(machine);g.state.pressure=20
+ before=g.export_snapshot();g.get_view();g.candidates()
+ t.check(g.state==before,"LONG BATTLE reading candidates and view cannot trigger departure or arrest")
+ t.check(not g.dispatch("forged",g.state.version).ok and g.state==before,"LONG BATTLE rejected action cannot trigger the limit")
+ human=g._enemy(human.id);machine=g._enemy(machine.id)
+ var result=t.action(g,"calm")
+ human=g._enemy(human.id);machine=g._enemy(machine.id)
+ t.check(result.ok and g.state.phase=="battle" and machine.gone and not human.gone and human.intent.kind=="capture" and g.state.guard_bind.is_empty(),"LONG BATTLE mixed roster keeps human fight active and prepares arrest without applying capture: "+str(result))
+ t.check(human.intent.delayed,"LONG BATTLE first arrest preparation preserves an already interrupted ordinary intent")
+ var twin=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"long battle arrest preparation")
+ t.check(twin.state.enemies[0].intent.kind=="capture","LONG BATTLE announced arrest survives save and load")
+ for attempt in range(2):
+  # Freeze an actual interrupted intent; ordinary turn execution must honor it each time.
+  human.intent.delayed=true
+  t.check(not g._finish_if_saturated() and human.intent.delayed,"LONG BATTLE repeated threshold does not erase this turn's interruption")
+  result=t.action(g,"end")
+  human=g._enemy(human.id)
+  t.check(result.ok and g.state.phase=="battle" and human.intent.kind=="capture" and not human.intent.delayed,"LONG BATTLE interrupted arrest prepares again on each later turn: "+str(result))
+ result=t.action(g,"end")
+ t.check(result.ok and g.state.phase=="captured" and g.state.reward_count==0,"LONG BATTLE next uninterrupted enemy action performs normal imprisonment: "+str(result))
+
+ g=long_battle_fixture(t,20,1,"guard")
+ human=g.state.enemies[0];human.intent=g._plan(human)
+ before=human.intent.duplicate(true)
+ t.check(not g._finish_if_saturated() and human.intent==before and human.intent.kind!="capture","LONG BATTLE existing humanoid capture mechanism keeps its original opening")
 
 static func arrest_next_turn(t) -> void:
  var g=Game.new(42)

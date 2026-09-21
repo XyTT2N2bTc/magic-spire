@@ -96,7 +96,7 @@ static func _cards_and_flows(t) -> void:
  candidate=t.find_action(g,"card",{"uid":card.uid,"free":false})
  t.check(g.dispatch(candidate.id,g.state.version).ok and g.state.energy==energy-candidate.cost+3,"WITCH pleasure conversion uses fifteen threshold")
  for free_face in [false,true]:
-  g=fresh();g.state.energy=10;card=give(t,g,"ready_to_strike");var chosen=t.hand_card(g,"slip")
+  g=fresh();g.state.energy=10;card=give(t,g,"ready_to_strike");var chosen=t.hand_card(g,"witch_slip")
   t.check(t.action(g,"card",{"uid":card.uid,"free":free_face,"hand_uid":chosen.uid}).ok and g.state.exhaust.any(func(c):return c.uid==chosen.uid),"WITCH ready consumes chosen hand card")
   if free_face:
    candidate=t.find_action(g,"attack",{"type":"witch_mouth","form":1})

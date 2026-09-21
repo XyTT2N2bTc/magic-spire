@@ -34,8 +34,11 @@ static func escape_route_cases(t) -> void:
  var Saves=preload("res://tests/persistence_cases.gd")
  for level in range(1,5):
   var g=intake(t,level);clear_fixture(g);g.state.posture="stand"
+  # Older saves can contain a due-inspection line emitted during preparation.
+  g.state.logs.append({"kind":"event","text":"历史检查结果。","round":1,"phase":"prepare","data":{"npc_copy":{"cue":"prison.guard.release_fail","visual":"guard_brown"}}})
   var original_seed=g.state.seed
   exit_to_route(t,g)
+  t.check(g.get_view().npc_speech.is_empty(),"PRISON leaving the cell suppresses historical guard dialogue without deleting logs")
   t.check(g.state.rooms==g.Tower.prison_route(level) and g.state.map_region=="prison" and g.state.seed==original_seed and g.get_view().map_name=="监狱","PRISON exterior is a three-node fixed route and does not reseed early")
   var before=g.export_snapshot()
   var view=g.get_view();g.candidates()
@@ -65,6 +68,7 @@ static func escape_route_cases(t) -> void:
    if attack.is_empty(): t.action(g,"end")
    else: t.check(g.dispatch(attack.id,g.state.version).ok,"PRISON route guard defeated with formal attack")
   t.check(g.state.phase=="reward" and g.state.reward_count==reward_before+1 and g.state.seed==original_seed,"PRISON all guards yield one reward and wait before new seed")
+  t.check(g.get_view().npc_speech.is_empty(),"PRISON exit-guard victory cannot replay a former cell inspection")
   t.check(g.state.reward_options.size()==3 and g.state.reward_options.all(func(type):return g.Cards.Rules.SPECS[type].rarity=="rare") and g.state.battle_relic_drop!="" and g.state.battle_flask_drop==60,"PRISON guard has rare three-choice, relic and flask rewards")
   var flask_before=g.state.flask_mana
   t.check(t.action(g,"reward",{"category":"flask","type":"boss_mana"}).ok and g.state.flask_mana==flask_before+60,"PRISON claim sixty flask mana")
@@ -87,6 +91,7 @@ static func escape_route_cases(t) -> void:
    while g.carried_items()>g.item_capacity(): t.action(g,"item_discard",{"item":g.state.items[0].id})
    t.action(g,"finish_pack")
   t.check(g.state.phase=="map" and g.state.room=="tower_bottom" and g.state.map_region=="tower" and g.state.seed!=original_seed and g.state.tower_generation==1,"PRISON rewarded victory returns directly to a genuinely new seeded tower")
+  t.check(g.get_view().npc_speech.is_empty() and g.state.logs.any(func(log):return log.data.get("npc_copy",{}).get("cue","")=="prison.guard.release_fail"),"PRISON tower return hides the old warning while preserving its history")
   t.check(g.state.rooms.filter(func(room):return room.has("encounter_choices")).all(func(room):return room.pool=="strong"),"PRISON guard victory makes every ordinary encounter strong")
   t.check(g.state.item_drop_chance==drop_chance and g.state.rng.size()==g.B.RNG_SALTS.size() and g.state.rng.values().all(func(value):return value==0),"PRISON same-act reseeding preserves drop chance and resets every registered random domain")
   t.check(g.state.deck.size()==deck_count+1 and g.state.equipment==equipment and g.state.special_equipment==special and g.state.relics==relics and g.state.mana==minf(g.state.mana_max,mana+10) and g.state.pressure==pressure and g.state.security==level and g.state.save_slot==slot,"PRISON exit reward closes battle once, preserving character and save ownership")
@@ -708,6 +713,7 @@ static func sentence_cases(t) -> void:
  for level in range(1,5):
   var g=intake(t,level);clear_fixture(g)
   var deadline=[20,30,50,0][level-1]
+  var original_boss=g.state.room_encounters.get("summit","")
   t.check(g.Prison.sentence_limit(g)==deadline and g.state.prison.served_turns==0,"PRISON sentence follows security")
   g.state.prison.key=true
   g.state.prison.served_turns=deadline-2 if deadline>0 else 80
@@ -718,6 +724,7 @@ static func sentence_cases(t) -> void:
    continue
   preload("res://tests/persistence_cases.gd").step_both(t,g,saved,"end")
   t.check(g.state.tower_start_pending and g.state.phase=="map" and g.state.security==level,"PRISON deadline releases without raising security")
+  t.check(original_boss!="" and g.state.room_encounters.summit==original_boss,"PRISON sentence release retains the original tower boss")
   t.check(g.state.rooms.filter(func(room):return room.has("encounter_choices")).all(func(room):return room.pool=="strong"),"PRISON sentence release makes every ordinary encounter strong")
   var checks=g.state.logs.filter(func(log):return log.data.has("inspection") and log.data.inspection.get("temporary",false))
   t.check(checks.size()==1 and checks[0].data.inspection.sentence_extension==0,"PRISON clean release performs exactly one temporary inspection")
@@ -813,7 +820,7 @@ static func release_inspection_cases(t) -> void:
   t.check(g.state.overload_total==climax_before+1 and g.get_view().npc_speech.cue=="prison.guard.release_pass" and g.get_view().npc_speech.visual=="guard_brown","PRISON normal release follows its extra milking with the senior guard dialogue")
 
 static func battle_pause_cases(t) -> void:
- # docs/design/prison.md §2: a running prison battle freezes the whole cell clock
+ # docs/design/prison.md §2: battle and preparation freeze the whole cell clock
  # (patrol countdown, sentence and due check) and keeps the cell position; the cell
  # resumes from the paused values once the player is back.
  var g=intake(t)
@@ -838,8 +845,16 @@ static func battle_pause_cases(t) -> void:
  t.action(g,"reward",{"type":"skip"})
  var preparation=Game.new(42)
  t.check(preparation.restore_snapshot(g.export_snapshot()).ok and preparation.state.phase=="prepare","PRISON battle-pause boundary restores the real post-battle preparation")
- preparation.state.prison.served_turns=0
- t.check(t.action(preparation,"end").ok and preparation.state.prison.served_turns==1 and preparation.state.prison.left==left_before and preparation.validate()=="","PRISON preparation advances the sentence while the patrol stays paused")
+ # Missing registered equipment must not cause a due inspection during preparation.
+ preparation.state.equipment=[];preparation.state.composites=[];preparation.state.links=[];preparation.state.special_equipment=[]
+ var preparation_turns=preparation.state.prepare_left
+ for i in range(preparation_turns):
+  t.check(t.action(preparation,"end").ok,"PRISON preparation completes its normal budget")
+  t.check(preparation.state.prison.served_turns==due_limit-1 and preparation.state.prison.left==left_before and preparation.state.prison.checks==0 and preparation.state.prison.sentence_extra==0 and preparation.equipment_targets().is_empty() and preparation.state.special_equipment.is_empty(),"PRISON preparation cannot advance sentence inspect or re-equip, including its final turn")
+ t.check(preparation.state.phase=="prison" and preparation.state.prison.key and preparation.validate()=="","PRISON natural preparation completion returns to the valid keyed cell")
+ var saved=preload("res://tests/persistence_cases.gd").roundtrip(t,preparation,"paused sentence after preparation")
+ preload("res://tests/persistence_cases.gd").step_both(t,preparation,saved,"end")
+ t.check(preparation.state.prison.served_turns==due_limit and preparation.state.prison.checks==1 and preparation.state.prison.sentence_extra==B.PRISON_SENTENCE_PENALTY and not preparation.equipment_targets().is_empty(),"PRISON first complete cell turn resumes the due inspection and missing-equipment penalty")
  t.action(g,"finish_prepare")
  t.check(g.state.phase=="prison" and g.state.prison.served_turns==due_limit-1 and g.state.prison.space.position==cell_position and g.state.wall_distance==Spatial.Space.wall_distance(cell_position),"PRISON return to the cell reuses the same position, the same paused clock and recomputes its wall distance")
  g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]

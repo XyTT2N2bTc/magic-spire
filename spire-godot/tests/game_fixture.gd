@@ -1,8 +1,8 @@
 extends "res://core/game.gd"
 # Stable encounter fixture for mechanics/UI cases. The shipped Game and normal-play
 # tests use the actual random opening. No commands or rule checks are overridden.
-func _generate_tower() -> void:
- super._generate_tower()
+func _generate_tower(retained_summit: String="") -> void:
+ super._generate_tower(retained_summit)
  var entrance=room_data("entrance")
  var first=room_data(entrance.next[0])
  state.rooms.erase(entrance)

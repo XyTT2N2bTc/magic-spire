@@ -209,8 +209,9 @@ static func build(g) -> Dictionary:
    action.body_part="嘴部"
    action.brief="快感－%s" % g.number(calm.reduction)
    action.brief_tags="下回合＋%d能量 · %d/%d次" % [g.B.CALM_NEXT_ENERGY,calm.remaining,g.B.CALM_USES_PER_TURN]
- var body_coverage={"points":[]}
- for e in g.physical_pieces():
+ var physical_pieces=g.physical_pieces()
+ var body_coverage={"points":[],"materials":portrait_materials(g,physical_pieces)}
+ for e in physical_pieces:
   for point in Equipment.physical_points(e):
    if not point in body_coverage.points: body_coverage.points.append(point)
  var bodies: Array=[]
@@ -318,12 +319,21 @@ static func build(g) -> Dictionary:
   if shown.has(type): card_texts[type]=g.Cards.text_entry(g,type)
  var chain={} if state.card_chain.is_empty() else {"name":B.CARD_NAMES[state.card_chain.type],"remaining":state.card_chain.remaining,"selection":state.card_chain.get("mode","")=="select_exhaust"}
  var copy=g.ActionCopy.view(state.logs,pressure.overloaded)
+ # Historical prison dialogue must not revive in a later scene with the same phase.
+ var npc_cue=copy.npc_speech.get("cue","")
+ if npc_cue.begins_with("prison.") and not state.prison.get("active",false):
+  if npc_cue!="prison.guard.release_pass" or not state.tower_start_pending: copy.npc_speech={}
  var grouped_bodies=body_groups(g,bodies,special_regions)
  var arms_level=g.level("arms")
  var legs_level=g.level("legs")
  var composite_portrait_layers: Array=[]
- if state.composites.any(func(root):return root.get("kind","")=="glove" and g.Composites.active(root)):
-  composite_portrait_layers.append("single_glove")
+ for root in state.composites:
+  if not g.Composites.active(root): continue
+  var layer=""
+  if root.get("kind","")=="glove": layer="single_glove"
+  elif root.get("kind","")=="leg":
+   layer={"upper":"single_leg_upper","lower":"single_leg_lower","ankle":"single_leg_long","toes":"single_leg_long"}.get(root.get("variant",""),"")
+  if layer!="" and layer not in composite_portrait_layers: composite_portrait_layers.append(layer)
  for body in grouped_bodies:
   body.can_release=actions.any(func(c):return c.payload.kind=="manual" and c.valid and c.payload.after==0.0 and body.targets.has(c.payload.target))
  var reward=reward_panel(g,actions)
@@ -344,6 +354,27 @@ static func build(g) -> Dictionary:
   "first_turn_control":g.FirstTurnControl.view(g,actions),"candidates":actions,"logs":state.logs.duplicate(true),"summary":state.summary,"prepare_left":state.prepare_left,"preparation_turns":g.preparation_turns(),"draw_count":state.draw.size(),"discard_count":state.discard.size(),"draw_cards":state.draw.map(func(card):return {"uid":card.uid,"type":card.type}),"discard_cards":state.discard.map(func(card):return {"uid":card.uid,"type":card.type}),"deck_count":state.deck.size(),"deck_cards":state.deck.map(func(card):return {"uid":card.uid,"type":card.type}),"pending_retain":state.pending_retain,
   # Run identity (docs/spec/seed-identity.md): the map chip reads it; existing keys and order unchanged.
   "initial_seed":state.initial_seed,"tower_generation":state.tower_generation}
+
+# Display-only material choice; exposure remains owned by the equipment query seam.
+static func portrait_materials(g, pieces: Array) -> Dictionary:
+ var groups={"upper":[],"thigh_root":["thigh_root"],"mid_thigh":["mid_thigh"],"above_knee":["above_knee"],"below_knee":["below_knee"],"mid_calf":["mid_calf"],"ankle":["ankle"],"foot":["foot"]}
+ for slot in B.ARM_SLOTS+["neck","shoulder"]:groups.upper.append_array(Equipment.points(slot))
+ var result={}
+ for key in groups:
+  var leather=0;var rope=0;var outer_leather=false
+  for piece in pieces:
+   if piece.get("durability",0)<=0:continue
+   var points=Equipment.display_points(piece).filter(func(point):return point in groups[key])
+   if points.is_empty():continue
+   var material=piece.get("material","")
+   if material=="rope":rope+=1
+   elif material=="leather":
+    leather+=1
+    for slot in Equipment.contact_slots(piece):
+     for point in points:
+      if (point in Equipment.points(slot) or point=="shoulder") and g._outer_at(piece,slot,point):outer_leather=true
+  result[key]="leather" if outer_leather or leather>rope else "rope"
+ return result
 
 static func travel_log(logs: Array) -> Array:
  var result=[]

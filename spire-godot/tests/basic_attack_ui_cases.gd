@@ -124,8 +124,11 @@ static func bound_kick(t) -> void:
  var ui=t.ui
  ui.restart(42);ui.game.state.posture="sit";ui.game.add_fixture("ankle",4);ui.render();await t.frames()
  var c=ui.actions.find("attack",{"type":"kick","form":0,"enemy":ui.selected_enemy})
- t.check(c.valid and c.payload.fall and ui.game.candidate_detail(c).contains("3回合冷却") and c.risk.contains("躺下") and ui.find_child("BasicAttackDetail_kick",true,false).text.contains("3 伤害"),"BOUND KICK UI shows reduced seated damage shared cooldown and fall cost")
- t.check(await t.click("attack",{"type":"kick","form":0,"enemy":ui.selected_enemy}) and ui.view.posture=="lie","BOUND KICK UI actual seated kick leaves the player lying down")
+ t.check(c.valid and c.payload.fall and ui.game.candidate_detail(c).contains("3回合冷却") and c.risk.contains("躺下") and ui.find_child("BasicAttackDetail_kick",true,false).text.contains("4 伤害"),"BOUND KICK UI shows reduced seated damage shared cooldown and fall cost")
+ ui.game.state.strength=2;ui.game.state.charge=1;ui.render();await t.frames()
+ var hp=ui.game._enemy(ui.selected_enemy).hp
+ t.check(ui.find_child("BasicAttackDetail_kick",true,false).text.contains("8 伤害"),"BOUND KICK UI includes strength and charge before body damage reduction")
+ t.check(await t.click("attack",{"type":"kick","form":0,"enemy":ui.selected_enemy}) and ui.view.posture=="lie" and ui.game._enemy(ui.selected_enemy).hp==hp-8 and ui.game.state.charge==0,"BOUND KICK UI actual seated kick matches preview and consumes charge once")
  t.check(await t.click("posture",{"dest":"sit","wall":false}),"BOUND KICK UI recovers through actual posture action")
  c=ui.actions.find("attack",{"type":"kick","form":0,"enemy":ui.selected_enemy})
  t.check(not c.valid and c.reason.contains("冷却") and ui.find_child("BasicAttack_kick",true,false).disabled and ui.view.statuses.any(func(s):return s.id=="kick_cooldown" and s.detail.contains("共用冷却")),"BOUND KICK UI displays cooldown in both actual action and status after sitting up")

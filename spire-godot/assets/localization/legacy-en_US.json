@@ -173,6 +173,11 @@
       "text": "Currently:"
     },
     {
+      "id": "legacy.hea5bf35212c3143a688ced79",
+      "source": "\n当前：力量＋%s。",
+      "text": "\nCurrent: Strength +{p0}."
+    },
+    {
       "id": "legacy.h2ab94b967065ca30151e07a0",
       "source": "\n当前：恢复%s魔力。",
       "text": "\nCurrent: Restore {p0} Mana."
@@ -376,6 +381,16 @@
       "id": "legacy.hc81b3e9a75284bf49b0ddda1",
       "source": "\n遗留外带 · 套体已解除，这条外带仍然固定。",
       "text": "The remnant belt... the holster has been removed, and this belt is still fixed."
+    },
+    {
+      "id": "legacy.h636ae1db63fbe97ee8bcc169",
+      "source": "\n长战斗：非首领战从第%d回合起，佩戴拘束具≥%d件或总紧度≥%d时，反复准备逮捕；仍可打断。首领战整场不适用，包括随行单位。",
+      "text": "\nLong battles: In non-boss battles, from round {p0}, repeatedly prepares to arrest if you wear at least {p1} restraints or total Tightness reaches {p2}. This can still be interrupted. This never applies during boss battles, including their support units."
+    },
+    {
+      "id": "legacy.hb226a9bf999f2fa2eb011aa6",
+      "source": "\n长战斗：非首领战从第%d回合起，佩戴拘束具≥%d件或总紧度≥%d时，自动离场；全部敌人离场按胜利结算。首领战整场不适用，包括随行单位。",
+      "text": "\nLong battles: In non-boss battles, from round {p0}, automatically leaves if you wear at least {p1} restraints or total Tightness reaches {p2}. If all enemies leave, you win. This never applies during boss battles, including their support units."
     },
     {
       "id": "legacy.h38ddab007cf8d611752fcf23",
@@ -1453,11 +1468,6 @@
       "text": "{p0} is all Damage x2."
     },
     {
-      "id": "legacy.h5df0222bb768e6719de59184",
-      "source": "{mana_cost}每使用火球术：抽牌1。",
-      "text": "{p0}Whenever you use Fireball: Draw 1 card."
-    },
-    {
       "id": "legacy.ha1aa9b1b8e7a5672525e684d",
       "source": "{mana_cost}消耗一张指定手牌；{bound_effects}",
       "text": "{p0} consumes one of the specified Hand s; {p1}"
@@ -1466,6 +1476,11 @@
       "id": "legacy.hc701c97e9ab821fc73015687",
       "source": "{mana_cost}消耗一张指定手牌；{self_free_buff}",
       "text": "{p0} consumes one of the specified Hand s; {p1}"
+    },
+    {
+      "id": "legacy.h06eae24ed20003d18afb881f",
+      "source": "{mana_cost}火球术施法成功时：抽牌1。",
+      "text": "{p0}Whenever you successfully cast Fireball: Draw 1 card."
     },
     {
       "id": "legacy.h5a4433ac4ad39ae700fac2dd",
@@ -2473,6 +2488,16 @@
       "text": "The next 2 hand-based basic actions ignore restraint conditions. Each completed action consumes 1 use; uses can stack. Casting success is still checked."
     },
     {
+      "id": "legacy.hf3656ed1aeb50c6153d498c6",
+      "source": "下3张技能牌消耗－1，最低0。",
+      "text": "The next 3 Skill cards cost 1 less Energy, to a minimum of 0."
+    },
+    {
+      "id": "legacy.hd186d9a99c30bb41d50e7765",
+      "source": "下3张技能牌费用－1，最低0；0费技能牌也消耗次数。再次获得时累计次数。",
+      "text": "The next 3 Skill cards cost 1 less Energy, to a minimum of 0. Zero-cost Skills also consume a use. Gaining this effect again adds uses."
+    },
+    {
       "id": "legacy.h8491891371f5cc8b9589a850",
       "source": "下一个拘束具（→）",
       "text": "Next Restraint (→)"
@@ -2653,6 +2678,11 @@
       "text": "Activates next turn"
     },
     {
+      "id": "legacy.hdb5a0a6aa35bbc993e6aecaf",
+      "source": "下回合结束",
+      "text": "End of your next turn"
+    },
+    {
       "id": "legacy.h3537773e2efae9f94177deaa",
       "source": "下回合能量",
       "text": "Next turn of Energy"
@@ -2706,6 +2736,16 @@
       "id": "legacy.h8a608ff936717e0340e54040",
       "source": "下次基础动作费用－2，最低0。",
       "text": "Next basic action costs 2 less, to a minimum of 0."
+    },
+    {
+      "id": "legacy.h252b43d84bb8f4e2b5dcd3bf",
+      "source": "下次对敌人造成伤害的魔法每段伤害增加对应层数，整次施放消耗全部层数；魔力松缚不受加成，也不消耗层数。施法失败或高潮时失去1层。跨战斗最多保留2层，乌龟壳提高至4层。",
+      "text": "Your next damaging spell against enemies adds these stacks to each hit and consumes all stacks for the entire cast. Magic Loosening neither benefits nor consumes stacks. Lose 1 stack on cast failure or climax. Keep up to 2 stacks between battles, or 4 with Turtle Shell."
+    },
+    {
+      "id": "legacy.h3760843b0c68918f46788a5d",
+      "source": "下次对敌人造成伤害的魔法每段伤害＋%d，整次施放消耗全部层数；魔力松缚不受加成，也不消耗层数。施法失败或高潮时失去1层。",
+      "text": "Your next damaging spell against enemies gains +{p0} per hit and consumes all stacks for the entire cast. Magic Loosening neither benefits nor consumes stacks. Lose 1 stack on cast failure or climax."
     },
     {
       "id": "legacy.hd6716359ac270c9199fc5d1a",
@@ -2996,6 +3036,11 @@
       "id": "legacy.hae7cc83d284fe7d72b463706",
       "source": "两面合计打出10／20／30／40次后永久进化。本局跨战斗保留；每段分别结算，一张牌只累计1次。",
       "text": "Permanently evolves after 10/20/30/40 total plays across both faces. Progress persists between battles in this run. Hits resolve separately; each card play counts once."
+    },
+    {
+      "id": "legacy.h8587fc68b6d88b5d5e0d1007",
+      "source": "两面合计打出7／14／21／28／35次后永久进化。本局跨战斗保留；每段分别结算，一张牌只累计1次。",
+      "text": "Permanently evolve after playing either face a total of 7/14/21/28/35 times. Progress persists across battles this run. Hits resolve separately; each card play counts once."
     },
     {
       "id": "legacy.hcbfcbfbccfe2d667f8e1d101",
@@ -3873,9 +3918,9 @@
       "text": "Damage Add and Relief"
     },
     {
-      "id": "legacy.h6bf9bd6a9b8337013af145bb",
-      "source": "伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低0，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。",
-      "text": "When damage exceeds the remaining barrier allowance, reduce the Puppet's ordinary counterattack capacity by 1 for this battle, to a minimum of 0. Multi-hit and area attacks trigger this only once per attack. Further attacks can trigger it after the allowance is exhausted; reaching the limit exactly does not."
+      "id": "legacy.h0ab576c675f95235d72c6c79",
+      "source": "伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低1，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。",
+      "text": "When damage exceeds the remaining barrier allowance, reduce the Puppet's ordinary counterattack capacity by 1 for this battle, to a minimum of 1. Multi-hit and area attacks trigger this only once per attack. Further attacks can trigger it after the allowance is exhausted; reaching the limit exactly does not."
     },
     {
       "id": "legacy.h08b9fa5005f6dd0f186a2cfa",
@@ -4416,6 +4461,11 @@
       "id": "legacy.h5d39d925fb4930f08d879692",
       "source": "佩戴件数",
       "text": "Number of items worn"
+    },
+    {
+      "id": "legacy.hd71cc99d4f016e8f3bfab462",
+      "source": "佩戴件数收益需要合法资源、正整数除数与收益。",
+      "text": "Worn-restraint gains require a valid resource and positive integer divisor and amount."
     },
     {
       "id": "legacy.h9e14bead7e10774d1e215cb7",
@@ -5518,16 +5568,6 @@
       "text": "Manual milking during the pre-release inspection"
     },
     {
-      "id": "legacy.hb45fa4602ce3dd68a581b9a4",
-      "source": "出狱前检查未通过，出狱期限延长8回合；继续服刑，正常巡视按原周期进行。",
-      "text": "You failed the pre-release inspection. Your sentence is extended by 8 turns, while regular patrols continue on their existing schedule."
-    },
-    {
-      "id": "legacy.h9dfa826291b2be0d313b54ae",
-      "source": "出狱前检查通过，按当前安全等级补齐出狱装备。接下来可以选择新塔路第10—11层的起点。",
-      "text": "You passed the pre-release inspection. Release equipment is applied for your current security level; now choose a starting room on floors 10–11 of the new tower."
-    },
-    {
       "id": "legacy.hb745aae5564737166ef45a22",
       "source": "出狱后的新塔路",
       "text": "The Tower After Release"
@@ -5563,14 +5603,19 @@
       "text": "Your sentence is due. An additional inspection takes place now without changing the normal patrol cycle."
     },
     {
-      "id": "legacy.h5d88f6cf43e571dd8d73d8ac",
-      "source": "出狱期限已到，资深狱警进入牢房进行额外检查；本次不计入正常巡视周期。",
-      "text": "Your sentence is due. The senior guard enters the cell for an additional inspection; it does not count toward the regular patrol cycle."
-    },
-    {
       "id": "legacy.hd76827ece9d09dfaeb58006e",
       "source": "出狱期限记录不正确。",
       "text": "Invalid sentence progress."
+    },
+    {
+      "id": "legacy.he796da8a86126859d8c629b0",
+      "source": "出狱检查未通过，刑期延长8回合。",
+      "text": "You failed the release inspection. Your sentence is extended by 8 turns."
+    },
+    {
+      "id": "legacy.h229e968f046009fe72d45174",
+      "source": "出狱检查通过。狱警按当前安全等级施加出狱装备后，你可以选择新塔路第10—11层的起点。",
+      "text": "You passed the release inspection. After the guard applies release equipment for your current security level, you may choose a starting room on floors 10–11 of the new tower."
     },
     {
       "id": "legacy.h2215477312d998434967207c",
@@ -5761,6 +5806,16 @@
       "id": "legacy.ha380da93d3d1b5a58d79b9a6",
       "source": "切换至快捷挣脱栏，可对选中的拘束具使用解除牌，也可使用已安装道具。",
       "text": "Switch to the Quick Release Bar. Use release cards on the selected restraint, or use an installed tool."
+    },
+    {
+      "id": "legacy.h273ae69ec99c959a1e5a7255",
+      "source": "刑期到了。让我检查完，没问题就放你出去。",
+      "text": "Your sentence is up. Let me check you over, and if everything is in order, you can leave."
+    },
+    {
+      "id": "legacy.hb24ffd0a918c1303ac436a0e",
+      "source": "刑期已满，资深狱警前来进行出狱检查。",
+      "text": "Your sentence is complete. The senior guard arrives to conduct your release inspection."
     },
     {
       "id": "legacy.h699792cdaf2578e7245ce6f0",
@@ -6053,6 +6108,16 @@
       "text": "Strength and Dexterity"
     },
     {
+      "id": "legacy.hc3f1747b2fd7e989daaf1438",
+      "source": "力量加成持续到你的下回合结束。",
+      "text": "The Strength bonus lasts until the end of your next turn."
+    },
+    {
+      "id": "legacy.h76e1fdf0ef9bc97b4863367a",
+      "source": "力量加成持续到你的本回合结束。",
+      "text": "The Strength bonus lasts until the end of your current turn."
+    },
+    {
       "id": "legacy.ha30797a3e7a1ec8adaf80a99",
       "source": "力量增加挣扎和体术的每段基础伤害。灵巧增加滑脱伤害，包括移动滑脱。",
       "text": "Strength adds Struggle and every part of the bodyology base Damage. Dexterity adds Slip Damage. Including moving Slip."
@@ -6061,6 +6126,16 @@
       "id": "legacy.hf8e2d8627baf8547be7c93ae",
       "source": "力量＋%d，灵巧＋%d。",
       "text": "Strength + {p0}, Dexterity + {p1}."
+    },
+    {
+      "id": "legacy.ha6d666ee814739f826e85e20",
+      "source": "力量＋%s",
+      "text": "Strength +{p0}"
+    },
+    {
+      "id": "legacy.hffc349bbaa69d7e9660d98c3",
+      "source": "力量＋%s。",
+      "text": "Strength +{p0}."
     },
     {
       "id": "legacy.hb160ceb21412b14d3fab001e",
@@ -6221,11 +6296,6 @@
       "id": "legacy.h0216a7999061685fd164487b",
       "source": "包含炫火增加的次数。",
       "text": "Including the increase in the number of braggings."
-    },
-    {
-      "id": "legacy.h76ed15415bc21b4c248831fa",
-      "source": "包括火球术；右键切换全部踢击形态。费用、冷却及释放次数照常。",
-      "text": "Includes Fireball. Right-click to switch between all kick forms. Costs, cooldowns and use limits still apply."
     },
     {
       "id": "legacy.he382bf8374c92954e217da5a",
@@ -7218,9 +7288,9 @@
       "text": "Available"
     },
     {
-      "id": "legacy.h50aef23206600006331c1d89",
-      "source": "可叠加。失败火球也触发；群攻每层触发一次。",
-      "text": "Stackable. Failed Fireballs also trigger it; area attacks trigger once per stack."
+      "id": "legacy.hbf5ee1dccb4900fdbbea7f04",
+      "source": "可叠加。群攻每层触发一次。",
+      "text": "Stackable. Area attacks trigger once per stack."
     },
     {
       "id": "legacy.h4f4abd75feb5d2ad8f79020b",
@@ -7413,11 +7483,6 @@
       "text": "The same set of special equipment just installed cannot be replaced again."
     },
     {
-      "id": "legacy.hd938cc28d5663a8afcfdddf6",
-      "source": "同一效果不可叠加，包括复放；不同牌面的效果可以同时生效。原有刷新效果仍只刷新次数或时长。",
-      "text": "The same effect cannot be superimposed, including replaying; the effects of different cards can be effective at the same time. The original refreshing effect remains only a few times or a long time."
-    },
-    {
       "id": "legacy.h6908ba53d3b0d4ffa2250f28",
       "source": "同一时间只能佩戴一件全包榨精杯。",
       "text": "Only one full-cover milking cup can be worn at a time."
@@ -7548,9 +7613,9 @@
       "text": "Take it down and do not consume Arousal."
     },
     {
-      "id": "legacy.ha936bdc6551653cbfb71d65c",
-      "source": "向下取整；复合拘束具整件计1件。临时力量本回合有效。",
-      "text": "Round down. Each composite restraint counts as one item. Temporary Strength lasts for this turn."
+      "id": "legacy.h2da3a6a1a90678a26a88cd25",
+      "source": "向下取整；复合拘束具整件计1件。",
+      "text": "Round down. Each composite restraint counts as one item."
     },
     {
       "id": "legacy.hc0fe0d7bbc3730730aa81f6d",
@@ -8653,6 +8718,16 @@
       "text": "Base Actions"
     },
     {
+      "id": "legacy.h3b776807d886c31bb9c7cf44",
+      "source": "基础动作施法预备不再消耗魔力。",
+      "text": "Basic-action Spell Preparation no longer costs Mana."
+    },
+    {
+      "id": "legacy.hce3439a6cfbe30662766aad3",
+      "source": "基础动作施法预备不消耗魔力；主动释放仍照常消耗魔力。",
+      "text": "Basic-action Spell Preparation costs no Mana; releasing a spell still costs its normal Mana."
+    },
+    {
       "id": "legacy.hb122fed135088f92c2fa01cf",
       "source": "基础操作",
       "text": "Basic Operations"
@@ -8741,6 +8816,11 @@
       "id": "legacy.hb322023e691fd2f285a24c92",
       "source": "塔顶 · 六缚",
       "text": "Top of the tower."
+    },
+    {
+      "id": "legacy.hf416a63aecac1a1f2e339cd3",
+      "source": "塔顶 · 铁男",
+      "text": "Summit · Iron Man"
     },
     {
       "id": "legacy.he9ae3cfe8729390edd492053",
@@ -9218,9 +9298,9 @@
       "text": "Failed cast: 100% refund, +1 Energy"
     },
     {
-      "id": "legacy.h8768ce62605afc823460453f",
-      "source": "失败返还50%耗魔，能量照扣，原牌留手。",
-      "text": "Failed to return 50% of the deperate, Energy button, original card left."
+      "id": "legacy.hef7f05059248c99a9b55291b",
+      "source": "失败返还50%耗魔。",
+      "text": "Failed casts refund 50% of Mana spent."
     },
     {
       "id": "legacy.hcac1994de3299e3c90193741",
@@ -9708,9 +9788,9 @@
       "text": "Defeating the guard opens starting-room selection for the new map. Rest and treasure rooms cannot be selected."
     },
     {
-      "id": "legacy.h92577b38311247c243539ff0",
-      "source": "安全等级1／2／3的刑期为20／30／50回合，4／5级不自动出狱。牢房与战后整备累计刑期，战斗暂停计时；检查确认不计回合。每次检查发现缺装或没收工具，最多延长8回合；正常充电、恢复消耗牌不延长。到期立即执行一次临时巡视检查，不重置正常巡视周期。检查不通过则处罚并延长8回合，下次到期重新检查；通过后按当前安全等级施加出狱装备，再选择新塔路起点。",
-      "text": "Sentences at security levels 1/2/3 last 20/30/50 turns. Levels 4/5 have no automatic release. Cell turns and post-battle preparation count toward the sentence; battle pauses the clock. Confirming an inspection does not consume a turn. Missing equipment or confiscated tools add at most 8 turns per inspection; normal recharging and restoring exhausted cards do not extend the sentence. When the sentence expires, an extra inspection runs immediately without resetting the normal patrol cycle. Failure brings punishment and 8 extra turns, with another check at the new deadline. Passing applies release equipment for the current security level before you choose a new tower starting point."
+      "id": "legacy.he8bbbcf1a935afd7879787fc",
+      "source": "安全等级1／2／3的刑期为20／30／50回合，4／5级不自动出狱。刑期只在牢房回合累计，战斗与战后整备暂停计时；检查确认不计回合。每次检查发现缺装或没收工具，最多延长8回合；正常充电、恢复消耗牌不延长。刑期结束时进行出狱检查：通过后施加出狱装备并选择新塔路起点；未通过则处罚并延长8回合，服满后再次检查。",
+      "text": "Sentences at security levels 1/2/3 last 20/30/50 turns. Levels 4/5 have no automatic release. Only cell turns count toward the sentence; battle pauses the clock, as does post-battle preparation. Confirming an inspection does not consume a turn. Missing equipment or confiscated tools add at most 8 turns per inspection; normal recharging and restoring exhausted cards do not extend the sentence. When your sentence ends, you receive a release inspection. Pass to receive release equipment and choose a new tower starting point. Fail and your sentence is extended by 8 turns, followed by another inspection."
     },
     {
       "id": "legacy.h3df6bf88f15fd9d3822ed21b",
@@ -10071,11 +10151,6 @@
       "id": "legacy.hb5696453d9d138253544ba73",
       "source": "少了%d件拘束具。她准备再给你加上%d件%s。",
       "text": "{p0} restraints are missing. She prepares to put {p1} {p2} on you."
-    },
-    {
-      "id": "legacy.h645d0856a8be565500e32486",
-      "source": "少了东西还想出去？回去继续待着，等我下次检查。",
-      "text": "You are missing equipment and still expect to leave? Go back and wait for my next inspection."
     },
     {
       "id": "legacy.h3333e94e9b110f6d6fc36751",
@@ -12603,11 +12678,6 @@
       "text": "Hand Energy must be more than zero."
     },
     {
-      "id": "legacy.hc9a66c24c174bdcd20672543",
-      "source": "手续办完了。身上的东西照旧带走——出去以后，可别这么快又被送回来❤",
-      "text": "The paperwork is done. You will leave with everything still on you—and once you are out, try not to get sent back too soon❤"
-    },
-    {
       "id": "legacy.h2202f202de2aaad9fa38c72d",
       "source": "手肘上方",
       "text": "Above the elbow."
@@ -12751,6 +12821,11 @@
       "id": "legacy.h0c705b78272e7ee4c6a7890a",
       "source": "打出时获得对应牌面的效果。本回合必须获胜，否则只能投降。",
       "text": "Gain the chosen face's effect when played. Win this turn or surrender."
+    },
+    {
+      "id": "legacy.hc6e9777f271bd1eb71185e3b",
+      "source": "打出时，下3张技能牌费用－1，最低0；0费技能牌也消耗次数。",
+      "text": "On play, the next 3 Skill cards cost 1 less Energy, to a minimum of 0. Zero-cost Skills also consume a use."
     },
     {
       "id": "legacy.hac0346212423eac5ea81e584",
@@ -15278,11 +15353,6 @@
       "text": "No immediate loss of Mana during the orgasm; every subsequent loss of {p1} Mana at the start of the {p0} game is reduced by 1 point by Energy."
     },
     {
-      "id": "legacy.ha447bdda739f54fad81e9d5f",
-      "source": "期限到了？先让我做最后一次检查。",
-      "text": "Your sentence is up? Let me conduct one final inspection first."
-    },
-    {
       "id": "legacy.h80870070e3fa5fb75436a050",
       "source": "未使用的能量保留到下一回合。",
       "text": "Unused Energy is reserved for the next turn."
@@ -15668,14 +15738,14 @@
       "text": "The next legitimate battle in this battle is 100% Cast Success Rate at the same cost."
     },
     {
+      "id": "legacy.hf2cbc4d089e1b6de6e991483",
+      "source": "本场战斗中，所有基础动作和火球术都无视拘束、快感与姿势限制。右键可切换所有踢击招式。使用动作仍需付费、等待冷却，并受每回合次数上限限制。",
+      "text": "For this battle, all basic actions and Fireball ignore restraints, arousal and posture restrictions. Right-click to switch between all kick forms. Actions still cost resources and must respect cooldowns and per-turn use limits."
+    },
+    {
       "id": "legacy.h75aa978be02b1bb7f656909d",
       "source": "本场战斗内消耗",
       "text": "Consumes in combat."
-    },
-    {
-      "id": "legacy.h07f8ec9901606ea2a9d02beb",
-      "source": "本场战斗剩余时间，全部基础动作（包括火球术）无视拘束、快感与姿势限制；所有踢击形态可右键切换。费用、冷却及释放次数照常。",
-      "text": "For the rest of this battle, all basic actions (including Fireball) ignore restraints, arousal and posture restrictions. Right-click to switch between all kick forms. Costs, cooldowns and use limits still apply."
     },
     {
       "id": "legacy.hdfbfa86201db94f58692cda6",
@@ -15723,9 +15793,9 @@
       "text": "Remove it at the end of the setup."
     },
     {
-      "id": "legacy.hd5dd2ec634be0cb890e6979a",
-      "source": "本场每使用一次火球术，抽1张牌。可叠加。",
-      "text": "A card is drawn every time you use Fireball. It can be folded."
+      "id": "legacy.h3962b1ba2c9286102e655bb2",
+      "source": "本场每成功施放一次火球术，抽1张牌。可叠加。",
+      "text": "For this battle, whenever you successfully cast Fireball, draw 1 card. Stackable."
     },
     {
       "id": "legacy.hee88565a4b312dd8a6fff923",
@@ -16118,9 +16188,19 @@
       "text": "File."
     },
     {
+      "id": "legacy.h9291455166e1852df0482151",
+      "source": "检查没通过哦。回去乖乖待着，等我下次来吧❤",
+      "text": "No release for you. Go back and be good until I come again❤"
+    },
+    {
       "id": "legacy.hf92a03300b7e1bed63fb5829",
       "source": "检查结束。",
       "text": "Inspection complete."
+    },
+    {
+      "id": "legacy.hfafb3ca4a532e06c0ed6b6ce",
+      "source": "检查通过。手续办完了，身上的东西照旧带走——出去以后，可别这么快又被送回来❤",
+      "text": "Inspection passed. The paperwork is done, and you will leave with everything still on you—once you are out, try not to get sent back too soon❤"
     },
     {
       "id": "legacy.haa0b63126c1303bcce8b01b4",
@@ -16218,6 +16298,11 @@
       "text": "Arousal Conversion"
     },
     {
+      "id": "legacy.hb2efd7eebe2b172166c312fc",
+      "source": "欲能转换（魔女）",
+      "text": "Desire Conversion (Witch)"
+    },
+    {
       "id": "legacy.h63482fa4998cdad275f70f3a",
       "source": "正义飞踢",
       "text": "Justice Kick"
@@ -16241,6 +16326,11 @@
       "id": "legacy.hfdf2342a0f09e8b158f1ce7d",
       "source": "正义飞踢：2能量，18伤害，要求站姿且双腿活动自由，可连续使用。\n肘击：1能量，8伤害；右键切换为4×2。\n近身短打：2能量，18伤害；右键切换为6×3，每回合1次。要求双腿自由，双臂受限时减伤。\n并腿踢击：站姿可打断，击后躺下；坐姿伤害降低。基础伤害、力量和蓄力一起受双腿束缚衰减。横扫：1能量，全体4伤害，可连续使用；要求站姿且双腿可独立活动。",
       "text": "Justice Kick:2 Energy ♪ 18 ♪ Damage, requires standing and freedom of movement on both legs, which can be used continuously.  Elbow: 1 Energy, 8 Damage; Right toggle to 4x2.  Close assault: 2 Energy, 18 Damage; Right-click toggle to 6 x 3, one time per turn. Both legs were required to be free and their arms were reduced when they were limited.  (a) Kicking with the legs: standing can be interrupted and lying behind; Sit down, Damage. The basics of Damage, Strength and Charge were reduced by both legs. Crossing: 1 Energy, all 4 Damage, available for continuous use; They are required to stand and move independently of their legs."
+    },
+    {
+      "id": "legacy.h1574a4ac6ed97111ff6248fa",
+      "source": "正义飞踢：2能量，18伤害，要求站姿且双腿活动自由，可连续使用。\n肘击：1能量，8伤害；右键切换为4×2。\n近身短打：2能量，18伤害；右键切换为6×3，每回合1次。要求双腿自由，双臂受限时减伤。\n并腿踢击：站姿可打断，击后躺下；坐姿伤害降低。基础伤害、力量和蓄力之和，按对应部位严密度0—4级乘100%／100%／80%／60%／40%。横扫：1能量，全体5伤害，可连续使用；要求站姿且双腿可独立活动。",
+      "text": "Justice Kick: 2 Energy, 18 damage. Requires standing with unrestricted legs; can be used repeatedly.\nElbow Strike: 1 Energy, 8 damage; right-click for 4 damage twice.\nClose Strike: 2 Energy, 18 damage; right-click for 6 damage three times. Once per turn. Requires unrestricted legs; arm restraints reduce damage.\nBound-leg kicks interrupt while standing and leave you lying down; seated kicks have lower base damage. Multiply the sum of base damage, Strength and Charge by 100%/100%/80%/60%/40% for restriction levels 0-4 of the corresponding body region. Sweep: 1 Energy, 5 damage to all enemies. Can be used repeatedly; requires standing with independently movable legs."
     },
     {
       "id": "legacy.h841fca54c06df90958394e77",
@@ -16363,6 +16453,11 @@
       "text": "Each propriet is received separately; it is expressly prohibited to take it when the capacity is full, and the remaining propules continue to be abandoned and the event ended directly, without being assembled or organized."
     },
     {
+      "id": "legacy.h99904b5beda4cb977195fb20",
+      "source": "每佩戴%d件拘束具，恢复%d魔力，不超过上限。",
+      "text": "For every {p0} restraints worn, restore {p1} Mana, up to the maximum."
+    },
+    {
       "id": "legacy.h7fa092063fd5a3ba38d03a5d",
       "source": "每佩戴%d件拘束具，恢复1点魔力。",
       "text": "For every {p0} restraints worn, restore 1 Mana."
@@ -16371,6 +16466,16 @@
       "id": "legacy.hfdfb9e14c5b4be699bcbdae2",
       "source": "每佩戴%d件拘束具，恢复1点魔力。\n当前：恢复%s魔力。",
       "text": "For every {p0} restraints worn, restore 1 Mana.\nCurrent: restore {p1} Mana."
+    },
+    {
+      "id": "legacy.h938fb016972adbbd92d57a8b",
+      "source": "每佩戴%d件拘束具，恢复2点魔力。",
+      "text": "For every {p0} restraints worn, restore 2 Mana."
+    },
+    {
+      "id": "legacy.hb57498ab5d145ee94eeed8e7",
+      "source": "每佩戴%d件拘束具，恢复2点魔力。\n当前：恢复%s魔力。",
+      "text": "For every {p0} restraints worn, restore 2 Mana.\nCurrent: restore {p1} Mana."
     },
     {
       "id": "legacy.he28b164d147ca4c86a1ceee5",
@@ -16391,6 +16496,11 @@
       "id": "legacy.h871193592d6c43273b1c4317",
       "source": "每佩戴{free_worn_divisor}件拘束具，恢复1点魔力。{free_worn_preview}",
       "text": "For every {p0} restraints worn, restore 1 Mana.{p1}"
+    },
+    {
+      "id": "legacy.h890576c3c6ddfc6d7735a59e",
+      "source": "每佩戴{free_worn_divisor}件拘束具，恢复{free_worn_amount}点魔力。{free_worn_preview}",
+      "text": "For every {p0} restraints worn, restore {p1} Mana.{p2}"
     },
     {
       "id": "legacy.h808c28db54b6c6e029bf0b95",
@@ -16423,11 +16533,6 @@
       "text": "Each of the three skill cards used: all of the outermost levels of Restraint Struggle 3 Multiplier rate only."
     },
     {
-      "id": "legacy.h080a17e99a682d6dbdf57857",
-      "source": "每使用火球术：抽牌1。",
-      "text": "Whenever you use Fireball, draw 1 card."
-    },
-    {
       "id": "legacy.h98fca9843bdfb33ac9be8074",
       "source": "每只手必须手指自由；手掌可用时＋1，手掌不能使用时减半为＋0.5。两手分别相加，适用于挣扎、普通滑脱和魔法滑脱；手腕、触及与外露条件仍须满足。",
       "text": "Each hand must be free of finger; When handheld +1, halved to +0.5 when handheld. Both hands added for Struggle, Common Slip and Slip; The conditions for wrists, touching and exposure must still be met."
@@ -16443,9 +16548,9 @@
       "text": "Takes at most {p0} total damage per turn. All attacks, hits and damage transferred by the Puppet share this allowance. Resets next turn."
     },
     {
-      "id": "legacy.h13844ba5898de351c3c24364",
-      "source": "每回合受到的最终伤害合计最多%s点，多次攻击、多段及玩偶转移伤害共用额度；下一回合恢复。\n伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低0，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。",
-      "text": "Takes at most {p0} total damage per turn. All attacks, hits and damage transferred by the Puppet share this allowance. Resets next turn.\nWhen damage exceeds the remaining barrier allowance, reduce the Puppet's ordinary counterattack capacity by 1 for this battle, to a minimum of 0. Multi-hit and area attacks trigger this only once per attack. Further attacks can trigger it after the allowance is exhausted; reaching the limit exactly does not."
+      "id": "legacy.h2b2370389173bbcc52ffef60",
+      "source": "每回合受到的最终伤害合计最多%s点，多次攻击、多段及玩偶转移伤害共用额度；下一回合恢复。\n伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低1，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。",
+      "text": "Takes at most {p0} total damage per turn. All attacks, hits and damage transferred by the Puppet share this allowance. Resets next turn.\nWhen damage exceeds the remaining barrier allowance, reduce the Puppet's ordinary counterattack capacity by 1 for this battle, to a minimum of 1. Multi-hit and area attacks trigger this only once per attack. Further attacks can trigger it after the allowance is exhausted; reaching the limit exactly does not."
     },
     {
       "id": "legacy.heb4517aa4d2fb25bac9d1d6d",
@@ -16848,6 +16953,11 @@
       "text": "Siphon Strength"
     },
     {
+      "id": "legacy.hadafeb92b556a25436ac7798",
+      "source": "汲取（魔女）",
+      "text": "Siphon (Witch)"
+    },
+    {
       "id": "legacy.h9431754289270605a8d93093",
       "source": "没收%d件道具，清除临时增益。追加%d件拘束具、%d条链接、%d件特殊装备。",
       "text": "Confiscated {p0} items and cleared temporary buffs. Added {p1} restraints, {p2} links and {p3} special items."
@@ -17021,6 +17131,11 @@
       "id": "legacy.h2cb21ac63eb5029b51c3b5cf",
       "source": "法术使用触发需要已登记的法术。",
       "text": "The use of magic triggers the use of a registered technique."
+    },
+    {
+      "id": "legacy.hd2e3cf830c72e13dfe081e2f",
+      "source": "法阵减费",
+      "text": "Circle Discount"
     },
     {
       "id": "legacy.h2631053db9b39ff3617785af",
@@ -17241,6 +17356,11 @@
       "id": "legacy.h980ff707ba318825a8105663",
       "source": "清醒项链",
       "text": "Lucidity Necklace"
+    },
+    {
+      "id": "legacy.hf9943a445b4c95c9db9c891b",
+      "source": "清除所有捕缚。",
+      "text": "Clear all Capture."
     },
     {
       "id": "legacy.hdb490a393990d9a785ff1e15",
@@ -17503,6 +17623,11 @@
       "text": "Fireball · Self-Release"
     },
     {
+      "id": "legacy.hb1021a64326632df54a2e60c",
+      "source": "火球术也无视拘束、快感与姿势限制。右键可切换所有踢击招式。使用动作仍需付费、等待冷却，并受每回合次数上限限制。",
+      "text": "Fireball also ignores restraints, arousal and posture restrictions. Right-click to switch between all kick forms. Actions still cost resources and must respect cooldowns and per-turn use limits."
+    },
+    {
       "id": "legacy.h2d603ac178e6bb44a52a845a",
       "source": "火球术伤害×2。",
       "text": "Fireball Damage x2."
@@ -17521,6 +17646,11 @@
       "id": "legacy.h30e4b60d7652a92fe5dcfbd0",
       "source": "火球术对全体敌人造成伤害，每次施法只判定一次成功率。",
       "text": "Fireball It's for the whole enemy. Damage Every time. Cast The success rate is judged only once."
+    },
+    {
+      "id": "legacy.he4af3c03d6449c0a04804be1",
+      "source": "火球术施法成功时：抽牌1。",
+      "text": "Whenever you successfully cast Fireball, draw 1 card."
     },
     {
       "id": "legacy.h1904cb1faa9d4658159463f1",
@@ -17571,6 +17701,11 @@
       "id": "legacy.hc2876eff62398e6a970b6994",
       "source": "灵活变通·自由",
       "text": "Flexibility and freedom"
+    },
+    {
+      "id": "legacy.hcc51d19314418c146e46e01a",
+      "source": "灵活变通（魔女）",
+      "text": "Adaptability (Witch)"
     },
     {
       "id": "legacy.h3f7e6b2a33e5cd3b85b330ff",
@@ -18303,6 +18438,11 @@
       "text": "Life: {p0} Action: No initiative, call by dolls.  (c) Cartage protection: Life is at least one, spilling over Damage and transferring it to dolls in full.  (a) Curse of the enemy: to be mocked; Positive number per segment Damage You've been subjected to a second stage. Common Restraint It's a relic. Damage It also triggers. The attack is not restricted by ridicule.  Ready: at the time of the next attack, additional composite/special equipment, one each, will be placed in place; Many sections only trigger once, and the relics of Damage do not trigger. is replaced if the position is insufficient."
     },
     {
+      "id": "legacy.h97c505f2518ef5407c691174",
+      "source": "生命：%s\n行动：准备→施加1件%s2档%s类拘束具→加固同类拘束具，循环。",
+      "text": "HP: {p0}\nActions: Prepare -> apply 1 {p1} grade, tier-2 {p2} restraint -> tighten matching restraints; repeat."
+    },
+    {
       "id": "legacy.hf71e92c9568fbcc17a596dbd",
       "source": "生命：%s\n行动：准备→施加1件%s2档%s类拘束具→加固同类拘束具，循环。不会自行离场。",
       "text": "Life: Operation {p0}: Prepares to impose a {p1} 2 {p2} type Restraint strengthens the same Restraint. Do not go off on its own."
@@ -18463,9 +18603,9 @@
       "text": "I left it in the same room."
     },
     {
-      "id": "legacy.h56ccb8b8d021d74a4afeaee6",
-      "source": "登记装备缺失或检查时工具被没收，当次期限延长8回合。到期另做临时检查，不通过则继续服刑，不重置正常巡视周期。",
-      "text": "Missing registered equipment or confiscated tools extend the sentence by 8 turns per inspection. An extra inspection occurs when the sentence ends; failing it keeps you imprisoned without resetting regular patrol timing."
+      "id": "legacy.h394944e87b4fdb3a57165ec0",
+      "source": "登记装备缺失或检查时工具被没收，当次期限延长8回合。刑期结束后进行出狱检查；未通过则继续服刑8回合。",
+      "text": "Missing registered equipment or confiscated tools extend the sentence by 8 turns per inspection. When your sentence ends, you receive a release inspection; failing it adds another 8 turns."
     },
     {
       "id": "legacy.h53fed67d0c1f3178758a4427",
@@ -18801,6 +18941,11 @@
       "id": "legacy.h4d2d25a2888d3e7c13db6b2e",
       "source": "目标：",
       "text": "Objectives:"
+    },
+    {
+      "id": "legacy.h1aa0f2274b9e5395a448f1f4",
+      "source": "直到下回合开始，施法预备不会减少（主动释放除外），也不能用来抵挡拘束。",
+      "text": "Until your next turn starts, Spell Preparation cannot decrease except when actively releasing a spell, and cannot block restraints."
     },
     {
       "id": "legacy.hf94c4c6bb7fe4ad34f692b5f",
@@ -19545,7 +19690,7 @@
     {
       "id": "legacy.hd2a6878af9b570cf1b65f846",
       "source": "精神施法",
-      "text": "Mental Casting"
+      "text": "Mind Casting"
     },
     {
       "id": "legacy.h8e67dbe8f986dd63ef6edcfb",
@@ -19806,6 +19951,16 @@
       "id": "legacy.hd63e7ab49b014fcb0f334e85",
       "source": "结束连续开锁",
       "text": "Over and out of the lock."
+    },
+    {
+      "id": "legacy.h6ecc2407f1fb08cc2d58384f",
+      "source": "绘制法阵",
+      "text": "Draw a Magic Circle"
+    },
+    {
+      "id": "legacy.h9f929f53634faadb6cb08a77",
+      "source": "绘制法阵·预备",
+      "text": "Magic Circle: Preparation"
     },
     {
       "id": "legacy.h6e55fb9d8a3dacc1708dbcd9",
@@ -20158,6 +20313,11 @@
       "text": "Patience, Patience~"
     },
     {
+      "id": "legacy.h86f12807653ba133220beaa1",
+      "source": "耐心耐心～生效：施法预备不会减少（主动释放除外），也不抵挡拘束。",
+      "text": "Patience is active: Spell Preparation cannot decrease except when actively releasing a spell, and cannot block restraints."
+    },
+    {
       "id": "legacy.h33d6ac21204fe27f7af5fab6",
       "source": "耐心耐心～生效：暂不消耗施法预备，也不抵挡拘束。",
       "text": "Patience, Patience~ is active: Spell Preparation is preserved and cannot evade restraints."
@@ -20231,6 +20391,11 @@
       "id": "legacy.hb5ccd80e59ecd708d0bf8de9",
       "source": "肘击、近身短打和踢击禁用；火球、卡牌魔法不受无力化影响，仍需满足各自施法条件。",
       "text": "Elbows, close-ups and kicks are banned; fireballs, Card magic is not affected by impotence and each must still meet the conditions of Cast."
+    },
+    {
+      "id": "legacy.hd9efe7830f8db9504031afc8",
+      "source": "肘击与近身短打伤害×%s（含力量和蓄力）；三级起无法使用这两种攻击。",
+      "text": "Elbow Strike and Close Strike damage x{p0}, including Strength and Charge. Both attacks are unavailable at level 3 or higher."
     },
     {
       "id": "legacy.h35d158ebe17407757a983358",
@@ -20603,6 +20768,11 @@
       "text": "Escape Practice's play count does not match its evolution stage."
     },
     {
+      "id": "legacy.h9633c50aeefae2c2aa2d4b75",
+      "source": "脱缚练习（Lv.%d）",
+      "text": "Escape Practice (Lv.{p0})"
+    },
+    {
       "id": "legacy.h7c0b95c8ce61ec36a2ee0055",
       "source": "脱缚练习：本局累计打出%d次。",
       "text": "Escape Practice: played {p0} times this run."
@@ -20626,6 +20796,11 @@
       "id": "legacy.h66d7e94226e24cee84e868a3",
       "source": "腿部严密度达到4级，无法坐着踢。",
       "text": "The leg was so tight that it could not sit and kick."
+    },
+    {
+      "id": "legacy.hb108911daa2bb3881e09120e",
+      "source": "腿部体术伤害×%s（含力量和蓄力）。站着踢要求0级；坐着踢4级起不可用。并腿踢击沿用此伤害倍率。姿态费用与移动速度随腿部限制变化。",
+      "text": "Leg attack damage x{p0}, including Strength and Charge. Standing Kick requires level 0; Seated Kick is unavailable at level 4. Bound-leg kicks use the same damage multiplier. Posture costs and movement speed depend on leg restrictions."
     },
     {
       "id": "legacy.h5c857e82f8bf5a3ff5f85698",
@@ -20848,9 +21023,9 @@
       "text": "Escape by self-locking requires at least 1 speed of movement; please stand first."
     },
     {
-      "id": "legacy.h3d437d77df16953ab9f16603",
-      "source": "自行挣脱、探索或等待；每次检查有违规最多延长8回合。到期临时检查通过后，才能选择10—11层非休息、非宝箱起点。",
-      "text": "Free yourself, explore, or wait. Violations extend the sentence by up to 8 turns per inspection. Pass the extra inspection at release time to choose a starting room on floors 10–11, excluding rest sites and treasure rooms."
+      "id": "legacy.hbafac6507459490ccdbb0fa6",
+      "source": "自行挣脱、探索或等待；每次检查有违规最多延长8回合。刑期结束后须通过出狱检查，才能选择10—11层非休息、非宝箱起点。",
+      "text": "Free yourself, explore, or wait. Violations extend the sentence by up to 8 turns per inspection. After serving your sentence, pass the release inspection to choose a non-rest, non-treasure starting room on floors 10–11."
     },
     {
       "id": "legacy.h8e8021bc1026928c1f561983",
@@ -21233,14 +21408,14 @@
       "text": "Gain 4 temporary Dexterity."
     },
     {
-      "id": "legacy.h6267f0752a31dd01b58fbb41",
-      "source": "获得⌊当前佩戴拘束具件数÷2⌋点临时力量。",
-      "text": "Gain ⌊worn restraints ÷ 2⌋ temporary Strength."
+      "id": "legacy.hbf00e1fb26d5fac2d7af982b",
+      "source": "获得⌊当前佩戴拘束具件数÷2⌋点临时力量，直到你的下回合结束前。",
+      "text": "Gain ⌊worn restraints ÷ 2⌋ temporary Strength until the end of your next turn."
     },
     {
-      "id": "legacy.h5f9259574c0b1af19f9fabf1",
-      "source": "获得⌊当前佩戴拘束具件数÷2⌋点临时力量。\n当前：本回合力量＋%d。",
-      "text": "Gain ⌊worn restraints ÷ 2⌋ temporary Strength.\nCurrent: +{p0} Strength this turn."
+      "id": "legacy.hf1dd8945431ed87841732619",
+      "source": "获得⌊当前佩戴拘束具件数÷2⌋点临时力量，直到你的下回合结束前。\n当前：力量＋%d。",
+      "text": "Gain ⌊worn restraints ÷ 2⌋ temporary Strength until the end of your next turn.\nCurrent: +{p0} Strength."
     },
     {
       "id": "legacy.hd87966fcf9d3cecfd70f0261",
@@ -21253,9 +21428,9 @@
       "text": "Gain ⌊worn restraints ÷ 4⌋ Charge.\nCurrent: gain {p0} Charge."
     },
     {
-      "id": "legacy.h8c3a978e823253c87e969a41",
-      "source": "获得⌊当前佩戴拘束具件数÷{bound_worn_divisor}⌋点临时力量。{bound_worn_preview}",
-      "text": "Gain ⌊worn restraints ÷ {p0}⌋ temporary Strength. {p1}"
+      "id": "legacy.h3ffbe253f882b37d16d18c31",
+      "source": "获得⌊当前佩戴拘束具件数÷{bound_worn_divisor}⌋点临时力量，直到你的下回合结束前。{bound_worn_preview}",
+      "text": "Gain ⌊worn restraints ÷ {p0}⌋ temporary Strength until the end of your next turn. {p1}"
     },
     {
       "id": "legacy.h30e012085650b0bc0dc91751",
@@ -21571,6 +21746,11 @@
       "id": "legacy.h709cf77589de8dc9c940fc9d",
       "source": "被捕缚时无法移动，先解除捕缚。",
       "text": "You cannot move while captured. Break free first."
+    },
+    {
+      "id": "legacy.h3b5231075e4942d3122004b9",
+      "source": "被捕缚时无法移动，先解除捕缚。挣扎／滑脱牌可直接削减进度；除眼罩、口球外没有其他拘束具时伤害翻倍，不受环境加成。上身受限至少按1级计算。同种捕缚不叠加；新种类增加其初始值的一半。降至0全部解除，达到100后下一敌方回合执行收押。",
+      "text": "You cannot move while Captured; break free first. Struggle and Slip cards reduce Capture directly. Damage is doubled when no restraints remain except blindfolds and gags, and environmental bonuses do not apply. Upper-body restraint level counts as at least 1. Capture of the same type does not stack; a new type adds half its starting value. At 0, all Capture ends; at 100, you are imprisoned on the next enemy turn."
     },
     {
       "id": "legacy.he8b84cb43793d4d080b7c00e",
@@ -21911,6 +22091,11 @@
       "id": "legacy.h3643964961802aefaf4f4069",
       "source": "解除所选拘束具",
       "text": "Unselect selected Restraint"
+    },
+    {
+      "id": "legacy.he77ee7b71ca7f924a5965a93",
+      "source": "解除捕缚：挣扎／滑脱牌可削减进度，不含环境加成；仅有眼罩、口球或没有拘束具时伤害×2。归零后解除，敌人会准备1回合再施加。\n捕缚规则：被捕缚时无法移动，先解除捕缚。同种不叠加；异种共用进度，新种只增加其初始值的一半。达到100后，施加捕缚的敌人在下次行动收押。击败来源解除对应效果，全部来源离场则清空进度。",
+      "text": "Breaking Capture: Struggle and Slip cards reduce progress without environmental bonuses; damage is doubled when only blindfolds or gags—or no restraints—remain. At 0, Capture ends; the enemy prepares for 1 turn before applying it again.\nCapture rules: You cannot move while Captured. Capture of the same type does not stack; different types share progress, and a new type adds half its starting value. At 100, the enemy that applied Capture imprisons you on its next action. Defeating a source removes its effect; progress is cleared when all sources leave."
     },
     {
       "id": "legacy.h2fa51a40fdf18a48b21f1b82",
@@ -24103,6 +24288,11 @@
       "text": "Each stack adds another spell hit on release. Consume all preparation on that part; failure preserves it."
     },
     {
+      "id": "legacy.h700b464906fcdbf9eb30e8e6",
+      "source": "重复使用或复放同一效果不会叠加；不同牌面的效果可以同时生效。",
+      "text": "Using or replaying the same effect again does not stack it. Effects from different card faces can be active at the same time."
+    },
+    {
       "id": "legacy.hbbae5d5964152b0ee5caf538",
       "source": "重复快感触发需要对应事件与快感效果。",
       "text": "Repeating arousal triggers require a matching event and arousal effect."
@@ -25068,6 +25258,11 @@
       "text": "Wriggle!"
     },
     {
+      "id": "legacy.haf43ecfe396c5a8cce7a1119",
+      "source": "顾涌！（魔女）",
+      "text": "Wriggle! (Witch)"
+    },
+    {
       "id": "legacy.h281d89c7eee33dbbe5c09800",
       "source": "预告上锁",
       "text": "We'll lock it up."
@@ -26023,6 +26218,11 @@
       "text": "During the period of entry into force of Mage Hand, these binding restrictions and benefits were temporarily ignored by the arm ' s gymnastics."
     },
     {
+      "id": "legacy.h8b8797cc180da952f09cc67b",
+      "source": "魔术手（魔女）",
+      "text": "Mage Hand (Witch)"
+    },
+    {
       "id": "legacy.hf92fd0c0b8c950fc1ebd32e5",
       "source": "魔法",
       "text": "Spell"
@@ -26321,6 +26521,11 @@
       "id": "legacy.hf58d11cda0686bd50be455ce",
       "source": "（进入时确定）",
       "text": "(identified upon entry)"
+    },
+    {
+      "id": "legacy.hf26e2c9e33169231c561bd3a",
+      "source": "（魔女）",
+      "text": " (Witch)"
     },
     {
       "id": "legacy.h0f217171d96106915d169690",
@@ -26696,11 +26901,6 @@
       "id": "legacy.h18392b0dea9b49799a91e4ed",
       "source": "；耐久 %s → %s。",
       "text": "; Durability {p0} ⁇ {p1}."
-    },
-    {
-      "id": "legacy.h5369404fb5a0ecbdef04383b",
-      "source": "；能量照扣，卡牌留手。",
-      "text": "; Energy button, Card stays."
     },
     {
       "id": "legacy.hd37a9ce19b67732e50b1e937",

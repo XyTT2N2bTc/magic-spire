@@ -32,6 +32,9 @@ static func execute(g, master: Dictionary, intent: Dictionary) -> void:
    g._emit("event",master.name+"赋予玩偶「引敌缚咒」。",{"puppet_awakened":doll.id})
   "puppet_mend":
    var previous=doll.max_hp
+   # Old saves may have reached zero; mending still adds one to today's floor.
+   var spec=g.Enemies.TYPES[doll.type]
+   doll.puppet_capacity_lost=mini(doll.get("puppet_capacity_lost",0),spec.reaction_capacity+spec.capacity_per_mend*doll.puppet_mends-g.Enemies.PUPPET_MIN_CAPACITY)
    doll.puppet_mends+=1;doll.max_hp+=g.Enemies.TYPES[doll.type].health_per_mend;doll.hp=doll.max_hp
    doll.puppet_stock=capacity(g,doll)
    g._emit("event",master.name+"缝补玩偶，生命上限%s→%s，并恢复至满血；普通反击容量上限增至%d，补充至满。" % [g.number(previous),g.number(doll.max_hp),doll.puppet_stock],{"puppet_mend":{"enemy":doll.id,"before":previous,"maximum":doll.max_hp,"stock":doll.puppet_stock}})
@@ -59,7 +62,7 @@ static func prepared_name(g, prepared: Dictionary) -> String:
 
 static func capacity(g, doll: Dictionary) -> int:
  var spec=g.Enemies.TYPES[doll.type]
- return maxi(0,spec.reaction_capacity+spec.capacity_per_mend*doll.puppet_mends-doll.get("puppet_capacity_lost",0))
+ return maxi(g.Enemies.PUPPET_MIN_CAPACITY,spec.reaction_capacity+spec.capacity_per_mend*doll.puppet_mends-doll.get("puppet_capacity_lost",0))
 
 static func barrier_trigger(g, master: Dictionary, damage_group: Dictionary) -> void:
  if damage_group.has(master.id): return
@@ -67,7 +70,7 @@ static func barrier_trigger(g, master: Dictionary, damage_group: Dictionary) -> 
  var doll=owned(g,master)
  if doll.is_empty(): return
  var before=capacity(g,doll)
- if before<=0: return
+ if before<=g.Enemies.PUPPET_MIN_CAPACITY: return
  doll.puppet_capacity_lost=int(doll.get("puppet_capacity_lost",0))+1
  var maximum=capacity(g,doll)
  doll.puppet_stock=mini(doll.puppet_stock,maximum)

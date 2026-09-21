@@ -152,7 +152,11 @@ static func binding_enthusiast(t) -> void:
  var face=ui.card_buttons[card.uid]
  t.check(face.rarity=="rare" and t.visible_text(face).contains("能力 · 稀有") and t.visible_text(face).contains("当前每件拘束具/性玩具：力量、灵巧＋1") and t.visible_text(face).contains("使用拘束面牌时，快感固定＋10") and face.get_node("CardIllustration").texture!=null,"BINDING ENTHUSIAST UI shows rare power, dynamic wording, fixed trigger and dedicated art")
  var body=face.get_node("CardText")
- t.check(body.get_node("Content").size.y<=body.size.y,"BINDING ENTHUSIAST UI keeps the complete wording visible on the hand card")
+ t.check(is_equal_approx(face.art_bottom-6,face.size.y*2.0/3.0),"BINDING ENTHUSIAST UI uses the shared two-thirds art area")
+ body.scroll_vertical=int(ceilf(body.get_node("Content").size.y));await t.frames()
+ var effect=body.get_node("Content/CardEffect")
+ t.check(effect.get_global_rect().end.y<=body.get_global_rect().end.y+1,"BINDING ENTHUSIAST UI complete wording remains reachable by scrolling")
+ body.scroll_vertical=0
  await t.capture("ui-binding-enthusiast.png")
  await t.flip(card.uid)
  t.check(t.visible_text(ui.card_buttons[card.uid]).contains("当前每件拘束具/性玩具：力量、灵巧＋1") and t.visible_text(ui.card_buttons[card.uid]).contains("使用拘束面牌时，快感固定＋10"),"BINDING ENTHUSIAST UI matching free face keeps the complete effect")
@@ -628,7 +632,8 @@ static func magic_hand(t) -> void:
   ui.render();await t.frames()
   if ui.card_faces.get(card.uid,false)!=free: await t.flip(card.uid)
   var face=ui.card_buttons[card.uid];var text=t.visible_text(face)
-  t.check(face.rarity=="uncommon" and face.get_node("CardCost").text=="1" and text.contains("消耗") and text.contains("下2次手部体术" if free else "降紧3。超级顺延"),"HAND UI uncommon faces display exact effect, energy and exhaust")
+  var keywords=t.visible_text(face.get_node("CardKeywords"))
+  t.check(face.rarity=="uncommon" and face.get_node("CardCost").text=="1" and keywords.contains("消耗") and (face.get_node("CardText/Content/CardEffect").text.contains("下2次手部体术") if free else (face.get_node("CardText/Content/CardEffect").text=="降紧3。" and keywords.contains("超级顺延"))),"HAND UI uncommon faces separate exact effects from bottom keywords and preserve energy")
   t.check(t.visible_text(face.get_node("CardMana")).contains("20") and text.contains("嘴部"),"HAND UI both faces expose mouth casting and twenty mana")
   var before=ui.game.export_snapshot()
   await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
@@ -723,11 +728,11 @@ static func confluence(t) -> void:
  if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
  var face=ui.card_buttons[card.uid]
  t.check(face.rarity=="common" and face.get_node("CardCost").text=="0" and t.visible_text(face).contains("技能") and t.visible_text(face.get_node("CardMana/Mana_gain")).strip_edges()=="+0","CONFLUENCE UI common zero-energy skill displays zero gain with no equipment")
- t.check(t.visible_text(face).contains("每佩戴1件拘束具，恢复1点魔力。") and t.visible_text(face).contains("当前：恢复0魔力。"),"CONFLUENCE UI zero-gain card retains its equipment scaling rule")
+ t.check(t.visible_text(face).contains("每佩戴1件拘束具，恢复2点魔力。") and t.visible_text(face).contains("当前：恢复0魔力。") and t.visible_text(face.get_node("CardKeywords")).contains("消耗"),"CONFLUENCE UI zero-gain card retains its equipment scaling rule and exhaust keyword")
  await t.capture("ui-confluence-description.png")
  for slot in ["eyes","ankle","thigh"]: ui.game.add_fixture(slot,8)
  ui.render();await t.frames()
- t.check(t.visible_text(ui.card_buttons[card.uid].get_node("CardMana/Mana_gain")).strip_edges()=="+3","CONFLUENCE UI mana corner updates after equipment changes")
+ t.check(t.visible_text(ui.card_buttons[card.uid].get_node("CardMana/Mana_gain")).strip_edges()=="+6","CONFLUENCE UI mana corner updates after equipment changes")
  await t.flip(card.uid)
  t.check(t.visible_text(ui.card_buttons[card.uid]).contains("本回合力量＋1") and not ui.card_buttons[card.uid].get_node("CardMana").visible,"CONFLUENCE UI bound face shows floored strength without a false mana badge")
  t.check(t.visible_text(ui.card_buttons[card.uid]).contains("每佩戴2件拘束具，本回合获得1点力量，不足2件不计。"),"CONFLUENCE UI bound face keeps threshold and duration alongside current strength")
@@ -736,7 +741,7 @@ static func confluence(t) -> void:
  card=Cards.give(ui.game,"confluence");ui.render();await t.frames()
  if not ui.card_faces.get(card.uid,false): await t.flip(card.uid)
  await preload("res://tests/curse_ui_cases.gd").click_card(t,card.uid)
- t.check(ui.game.state.mana==33 and ui.game.state.energy==0,"CONFLUENCE UI free play really restores three mana without energy")
+ t.check(ui.game.state.mana==36 and ui.game.state.energy==0 and ui.game.state.exhaust.any(func(x):return x.uid==card.uid) and not ui.game.state.discard.any(func(x):return x.uid==card.uid),"CONFLUENCE UI free play restores six mana without energy and exhausts")
 
 
 static func reuse(t) -> void:

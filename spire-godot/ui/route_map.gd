@@ -12,6 +12,7 @@ var compact=false
 # without pan/pencil input; drawing, coordinates and colours stay identical.
 var read_only=false
 var region_name="塔路"
+var localize: Callable
 var press_origin=Vector2.ZERO
 var press_scroll=0
 var pointer_down=false
@@ -231,7 +232,8 @@ func _draw() -> void:
    draw_texture_rect(COMPLETED_CHECK,Rect2(point+Vector2(9,5) if compact else point+Vector2(20,13),Vector2.ONE*extent),false)
   if compact: continue
   var title={"battle":"战斗","weak":"战斗","strong":"战斗 · 强敌","elite":"精英","boss":"塔顶 · 首领","event":"事件","rest":"休息","shop":"商店","treasure":"宝箱","entry":"塔底入口","exit":"出口"}[room.icon]
-  if region_name=="监狱": title=room.name
+  if region_name=="监狱" or room.icon=="boss": title=room.name
+  if localize.is_valid(): title=localize.call(title)
   var width=font.get_string_size(title,HORIZONTAL_ALIGNMENT_LEFT,-1,14).x
   draw_string(font,point+Vector2(-width/2,53),title,HORIZONTAL_ALIGNMENT_LEFT,-1,14,color)
   var status="当前所在" if room.current else STATUS[room.status]

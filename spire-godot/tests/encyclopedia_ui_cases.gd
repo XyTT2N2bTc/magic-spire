@@ -20,6 +20,7 @@ static func art_choices(t) -> void:
  picker.select(1);picker.item_selected.emit(1);await t.frames()
  t.check(is_instance_valid(picture.enemy_sprite),"ART switching back recreates formal preview immediately")
  await Click.press(t,"EncyclopediaCategory_cards")
+ book.show_entry(book.rows.filter(func(row):return row.category=="cards" and not settings.has_formal_art("cards",row.id))[0]);await t.frames()
  picker=ui.find_child("EncyclopediaArtStyle",true,false)
  var face=ui.find_child("DisplayCard_encyclopedia_"+book.selected,true,false)
  t.check(picker.is_item_disabled(1) and ui.find_child("EncyclopediaArtNote",true,false).text=="正式版立绘未添加" and face.get_node("CardIllustration").texture==face.ILLUSTRATIONS[face.symbol],"ART missing formal card keeps original illustration with explicit unavailable option")
@@ -37,7 +38,157 @@ static func art_choices(t) -> void:
  picker.select(1);picker.item_selected.emit(1);await t.frames()
  t.check(art.texture==official and ui.game.export_snapshot()==before,"ART switching formal portrait changes no card rules or game state")
  await t.capture("ui-crossed-legs-formal.png")
+ await infusion_art_faces(t,book)
+ await binding_art_variants(t,book)
+ await hannya_art_group(t,book)
  settings.art_choices=choices;settings.persistence_enabled=persist
+
+static func inspect_card_art(t) -> void:
+ var ui=t.ui;var book=ui.find_child("Encyclopedia",true,false)
+ var Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
+ var Keys=preload("res://tests/keyboard_ui_cases.gd")
+ var Touch=preload("res://tests/touch_ui_cases.gd")
+ var settings=ui.display_settings;var choices=settings.art_choices.duplicate(true)
+ var persist=settings.persistence_enabled;settings.persistence_enabled=false
+ settings.set_art_style("cards","infusion","formal")
+ book.show_entry(book.rows.filter(func(row):return row.category=="cards" and row.id=="infusion")[0]);await t.frames()
+ var face=ui.find_child("DisplayCard_encyclopedia_infusion",true,false)
+ var before=ui.game.export_snapshot();var scroll=book.detail.get_parent().scroll_vertical
+ for free in [false,true]:
+  if face.free_face!=free: face.flip_requested.emit();await t.frames()
+  var source=face.get_node("CardIllustration").texture
+  await Pointer.press(t,face);await t.frames()
+  var modal=ui.modal_region();var image=ui.find_child("ArtInspectionImage",true,false)
+  t.check(modal!=null and image.texture==source and image.texture.get_size()==source.get_size(),"ART INSPECT native card click uses current face source texture without thumbnail resampling")
+  var area=ui.find_child("ArtInspectionScroll",true,false).get_global_rect()
+  var rect=image.get_global_rect()
+  t.check(area.encloses(rect) and rect.get_center().distance_to(modal.get_global_rect().get_center())<1 and is_equal_approx(rect.size.x/rect.size.y,source.get_size().x/source.get_size().y),"ART INSPECT full artwork fits centrally without cropping or distortion")
+  await Keys.tap(t,KEY_F);await Keys.tap(t,KEY_Z)
+  t.check(ui.game.export_snapshot()==before and ui.show_encyclopedia,"ART INSPECT keys cannot trigger background game actions")
+  await Pointer.press(t,ui.find_child("ArtInspectionZoom",true,false));await t.frames()
+  t.check((image.size*image.get_screen_transform().get_scale().abs()).is_equal_approx(source.get_size()),"ART INSPECT one-to-one mode maps source pixels to screen pixels")
+  if free:
+   var window_size=t.root.size
+   t.root.size=Vector2i(1280,720);await t.frames(8)
+   t.check((image.size*image.get_screen_transform().get_scale().abs()).is_equal_approx(source.get_size()),"ART INSPECT native pixel size survives non-baseline window stretch")
+   t.root.size=window_size;await t.frames(8)
+  await Pointer.press(t,ui.find_child("ArtInspectionZoom",true,false));await t.frames()
+  if free: await t.capture("ui-card-art-inspection.png")
+  await Keys.tap(t,KEY_ESCAPE)
+  t.check(ui.modal_region()==null and ui.show_encyclopedia and book.selected=="infusion" and book.detail.get_parent().scroll_vertical==scroll,"ART INSPECT Escape dismisses only art and preserves book position")
+ settings.set_art_style("cards","infusion","test");await t.frames()
+ await Touch.tap(t,face);await t.frames()
+ t.check(ui.find_child("ArtInspectionImage",true,false).texture==face.ILLUSTRATIONS.infusion,"ART INSPECT touch opens selected test artwork")
+ t.check(ui.find_child("ArtInspectionClose",true,false)==null,"ART INSPECT no dedicated close button")
+ await Touch.tap(t,ui.find_child("ArtInspectionZoom",true,false));await t.frames()
+ var native_blank=ui.find_child("ArtInspectionScroll",true,false).get_global_rect().position+Vector2(12,12)
+ await Touch.finger(t,native_blank,true);await Touch.finger(t,native_blank,false);await t.frames()
+ t.check(ui.modal_region()==null and ui.show_encyclopedia,"ART INSPECT native-mode inner dark area dismisses art")
+ await Touch.tap(t,face);await t.frames()
+ var blank=ui.find_child("ArtInspectionScroll",true,false).get_global_rect().position+Vector2(12,12)
+ await Touch.finger(t,blank,true);await Touch.finger(t,blank,false);await t.frames()
+ t.check(ui.modal_region()==null and ui.show_encyclopedia,"ART INSPECT touch on inner dark area closes only art")
+ await Pointer.press(t,face);await t.frames()
+ await t.move_mouse(Vector2(10,450));await t.mouse_button(Vector2(10,450),MOUSE_BUTTON_LEFT,true);await t.mouse_button(Vector2(10,450),MOUSE_BUTTON_LEFT,false);await t.frames()
+ t.check(ui.modal_region()==null and ui.show_encyclopedia and ui.game.export_snapshot()==before,"ART INSPECT backdrop consumes dismissal without click-through")
+ await Pointer.press(t,face);await t.frames()
+ ui._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST);await t.frames()
+ t.check(ui.modal_region()==null and ui.show_encyclopedia,"ART INSPECT Android back dismisses only the inspection")
+ book._inspect_card(face)
+ var old=ui.modal_region();old.dismiss();book._inspect_card(face)
+ t.check(ui.modal_region()!=null and ui.modal_region()!=old,"ART INSPECT same-frame reopen keeps modal identity")
+ ui.modal_region().dismiss();await t.frames()
+ book._inspect_card(face)
+ ui._close_drawers();ui._refresh_drawers();await t.frames()
+ t.check(ui.modal_region()==null,"ART INSPECT owner exit releases active modal")
+ ui._open_drawer("show_encyclopedia");await t.frames()
+ await Click.press(t,"EncyclopediaCategory_cards")
+ settings.art_choices=choices;settings.persistence_enabled=persist;settings.apply()
+
+static func hannya_art_group(t,book) -> void:
+ var ui=t.ui;var settings=ui.display_settings;var before=ui.game.export_snapshot()
+ var members=["hannya_1","hannya_2","hannya_3","hannya_4","good_soup","hannya_swallow","hannya_infusion","hannya_henshin"]
+ var holder=VBoxContainer.new();holder.position=Vector2(-4000,-4000);ui.add_child(holder)
+ var faces=[]
+ for id in members:
+  ui._display_card(id,holder,Callable(),"hannya_group_"+id,Vector2(200,320),"",false)
+  faces.append(holder.find_child("DisplayCard_hannya_group_"+id,true,false))
+ book.show_entry(book.rows.filter(func(row):return row.category=="cards" and row.id=="hannya_1")[0]);await t.frames()
+ var picker=ui.find_child("EncyclopediaArtStyle",true,false)
+ for style in ["test","formal"]:
+  var index=0 if style=="test" else 1
+  picker.select(index);picker.item_selected.emit(index);await t.frames()
+  for face in faces:
+   var expected=face.ILLUSTRATIONS[face.symbol] if style=="test" else settings.art_texture("cards",face.symbol,face.effect_free)
+   t.check(settings.art_style("cards",face.symbol)==style and face.get_node("CardIllustration").texture==expected,"HANNYA ART main selector updates every live derivative: "+face.symbol+" "+style)
+ settings.set_art_style("cards","hannya_infusion","test");await t.frames()
+ t.check(members.all(func(id):return settings.art_style("cards",id)=="test") and faces.all(func(face):return face.get_node("CardIllustration").texture==face.ILLUSTRATIONS[face.symbol]),"HANNYA ART derivative changes the shared choice and refreshes all existing faces")
+ t.check(["infusion","henshin","light_as_swallow"].all(func(id):return settings.art_style("cards",id)=="formal") and ui.game.export_snapshot()==before,"HANNYA ART normal originals and gameplay remain independent")
+ var path="res://build/hannya-art-preference-%s.cfg" % Time.get_ticks_usec()
+ var config=ConfigFile.new();config.set_value("art","choices",{"cards":{"hannya_2":"formal","hannya_1":"test","hannya_henshin":"formal"}});config.save(path)
+ var restored=preload("res://ui/display_settings.gd").new();restored.path=path;restored.initialize(t.root)
+ t.check(members.all(func(id):return restored.art_style("cards",id)=="test") and restored.art_choices.cards.keys()==["hannya_1"],"HANNYA ART main preference wins conflicting legacy entries without separate derivative keys")
+ restored.set_art_style("cards","good_soup","formal");restored.initialize(t.root)
+ t.check(members.all(func(id):return restored.art_style("cards",id)=="formal"),"HANNYA ART derivative selection survives preference reload for the entire family")
+ config.set_value("art","choices",{"cards":{"hannya_3":"test"}});config.save(path);restored.initialize(t.root)
+ t.check(restored.art_style("cards","hannya_1")=="test","HANNYA ART legacy derivative-only preference is retained")
+ DirAccess.remove_absolute(path)
+ settings.apply();settings.set_art_style("cards","hannya_1","formal")
+ holder.queue_free();await t.frames()
+
+static func binding_art_variants(t,book) -> void:
+ var ui=t.ui;var settings=ui.display_settings;var before=ui.game.export_snapshot()
+ var previous=[settings.fixed_hero_portrait,settings.chastity_locks_enabled,settings.cursed_plate_start,settings.cursed_plate_masochist_mode]
+ settings.set_fixed_hero_portrait(false)
+ book.show_entry(book.rows.filter(func(row):return row.category=="cards" and row.id=="binding_enthusiast")[0]);await t.frames()
+ var picker=ui.find_child("EncyclopediaArtStyle",true,false)
+ var face=ui.find_child("DisplayCard_encyclopedia_binding_enthusiast",true,false)
+ var art=face.get_node("CardIllustration")
+ var original="res://assets/art/card-binding-enthusiast-formal-v1.png"
+ var fixed="res://assets/art/card-binding-enthusiast-fixed-formal-v1.png"
+ t.check(picker.item_count==4 and picker.selected==1 and art.texture.resource_path==original,"BINDING ART default follows mode with both formal variants available")
+ settings.set_fixed_hero_portrait(true);await t.frames()
+ t.check(art.texture.resource_path==fixed,"BINDING ART changing fixed portrait mode refreshes existing card")
+ face.flip_requested.emit();await t.frames()
+ t.check(art.texture.resource_path==fixed,"BINDING ART alternate applies to both card faces")
+ picker.select(2);picker.item_selected.emit(2);await t.frames()
+ t.check(settings.art_style("cards","binding_enthusiast")=="original" and art.texture.resource_path==original,"BINDING ART explicit original overrides enabled mode")
+ picker.select(3);picker.item_selected.emit(3);await t.frames()
+ settings.set_fixed_hero_portrait(false);await t.frames()
+ t.check(art.texture.resource_path==fixed,"BINDING ART explicit alternate remains selectable with mode off")
+ var path=settings.path;var persist=settings.persistence_enabled
+ settings.path="res://build/binding-art-preference-%s.cfg" % Time.get_ticks_usec();settings.persistence_enabled=true;settings.save()
+ var restored=preload("res://ui/display_settings.gd").new();restored.path=settings.path;restored.initialize(t.root)
+ t.check(restored.art_style("cards","binding_enthusiast")=="fixed" and restored.art_texture("cards","binding_enthusiast").resource_path==fixed,"BINDING ART explicit variant survives preference reload")
+ restored.set_art_style("cards","binding_enthusiast","original");restored.initialize(t.root)
+ t.check(restored.art_style("cards","binding_enthusiast")=="original" and restored.art_texture("cards","binding_enthusiast").resource_path==original,"BINDING ART original variant survives preference reload")
+ restored.set_art_style("cards","binding_enthusiast","formal");restored.set_fixed_hero_portrait(true);restored.initialize(t.root)
+ t.check(restored.art_style("cards","binding_enthusiast")=="formal" and restored.art_texture("cards","binding_enthusiast").resource_path==fixed,"BINDING ART automatic choice restores saved mode")
+ settings.path=path;settings.persistence_enabled=persist;settings.apply()
+ picker.select(0);picker.item_selected.emit(0);await t.frames()
+ settings.set_fixed_hero_portrait(true);await t.frames()
+ t.check(art.texture==face.ILLUSTRATIONS.binding_enthusiast,"BINDING ART mode does not override explicit test style")
+ picker.select(1);picker.item_selected.emit(1);await t.frames()
+ settings.set_fixed_hero_portrait(false);await t.frames()
+ t.check(art.texture.resource_path==original and ui.game.export_snapshot()==before,"BINDING ART returning to automatic restores mode tracking without gameplay changes")
+ settings.fixed_hero_portrait=previous[0];settings.chastity_locks_enabled=previous[1];settings.cursed_plate_start=previous[2];settings.cursed_plate_masochist_mode=previous[3]
+
+static func infusion_art_faces(t,book) -> void:
+ var ui=t.ui;var settings=ui.display_settings;var before=ui.game.export_snapshot()
+ book.show_entry(book.rows.filter(func(row):return row.category=="cards" and row.id=="infusion")[0]);await t.frames()
+ for id in ["infusion","hannya_infusion"]:
+  var face=ui.find_child("DisplayCard_encyclopedia_"+id,true,false)
+  var art=face.get_node("CardIllustration")
+  t.check(not face.effect_free and art.texture.resource_path.ends_with("card-infusion-leg-formal-v1.png"),"INFUSION ART bound face starts with empowered leg: "+id)
+  face.flip_requested.emit();await t.frames()
+  t.check(face.effect_free and art.texture.resource_path.ends_with("card-infusion-hand-formal-v1.png"),"INFUSION ART real face flip switches to empowered hand: "+id)
+  settings.set_art_style("cards",id,"test");await t.frames()
+  t.check(art.texture==face.ILLUSTRATIONS[id],"INFUSION ART test style restores original SVG: "+id)
+  face.flip_requested.emit();await t.frames()
+  t.check(not face.effect_free and art.texture==face.ILLUSTRATIONS[id],"INFUSION ART flipping in test style retains original SVG: "+id)
+  settings.set_art_style("cards",id,"formal");await t.frames()
+  t.check(art.texture.resource_path.ends_with("card-infusion-leg-formal-v1.png") and art.stretch_mode==TextureRect.STRETCH_KEEP_ASPECT_CENTERED,"INFUSION ART formal restore follows current face without stretching: "+id)
+ t.check(ui.game.export_snapshot()==before,"INFUSION ART flips and style changes preserve game snapshot")
 
 static func run(t) -> void:
  var store=Store.new("res://build/home-ui-"+str(Time.get_ticks_usec()))
@@ -93,6 +244,7 @@ static func run(t) -> void:
   await Click.press(t,"EncyclopediaCategory_"+category)
   t.check(ui.find_child("EncyclopediaEntries",true,false).get_child_count()>0,"BOOK populated category "+category)
  await art_choices(t)
+ await inspect_card_art(t)
  var hidden_variants=["magic_hand_gift","hannya_swallow","hannya_infusion","hannya_henshin","hannya_2","hannya_3","hannya_4","good_soup"]
  t.check(hidden_variants.all(func(id):return ui.find_child("EncyclopediaEntry_"+id,true,false)==null),"BOOK UI omits duplicate special card variants")
  var variant_search=ui.find_child("EncyclopediaSearch",true,false)
@@ -135,7 +287,7 @@ static func run(t) -> void:
  branch.select(4);branch.item_selected.emit(4);await t.frames()
  t.check(t.visible_text(ui.find_child("EncyclopediaDetail",true,false)).contains("慌乱"),"BOOK dedicated curse branch")
  var face=ui.find_child("DisplayCard_encyclopedia_panic",true,false)
- t.check(face!=null and face.drag_payload.is_empty() and not face.lift_on_hover and face.size==Vector2(226,290),"BOOK uses hand card face without gameplay drag")
+ t.check(face!=null and face.drag_payload.is_empty() and not face.lift_on_hover and face.size*face.scale==Vector2(300,480),"BOOK uses enlarged portrait card face with equally enlarged text and no gameplay drag")
  face.flip_requested.emit();await t.frames()
  t.check(not face.free_face and ui.game.export_snapshot()==initial and not store.has_files("tower"),"BOOK single-face curse cannot flip or start a run")
  var search=ui.find_child("EncyclopediaSearch",true,false)
@@ -196,7 +348,7 @@ static func character_catalog(t) -> void:
  t.check(book.rows.any(func(row):return row.category=="cards" and row.id=="witch_authority") and not book.rows.any(func(row):return row.category=="cards" and row.id=="fire_mastery"),"BOOK witch collection includes exclusive cards and excludes incompatible originals")
  book.show_entry(book.rows.filter(func(row):return row.id=="witch_escape_practice")[0]);await t.frames()
  var training=ui.find_child("DisplayCard_encyclopedia_witch_escape_practice",true,false)
- t.check(t.visible_text(training).contains("初始") and t.visible_text(training).contains("1×3") and ui.find_child("EncyclopediaCardFamily",true,false).get_child_count()==5,"BOOK starter training and all four evolutions share one page with separate-hit notation")
+ t.check(t.visible_text(training).contains("初始") and t.visible_text(training).contains("1×3") and ui.find_child("EncyclopediaCardFamily",true,false).get_child_count()==6,"BOOK starter training and all five evolutions share one page with separate-hit notation")
  book.show_entry(book.rows.filter(func(row):return row.id=="witch_authority")[0]);await t.frames()
  var authority=ui.find_child("DisplayCard_encyclopedia_witch_authority",true,false)
  for side in range(2):
@@ -237,9 +389,18 @@ static func static_cards(t) -> void:
   for member in [type]+catalog.related_cards(type):
    var card=catalog.card(member)
    var face=ui.find_child("DisplayCard_encyclopedia_"+member,true,false)
+   if member=="magic_hand":
+    var labels=face.get_node("CardKeywords").get_children()
+    var cost=face.get_node("CardCost");var title=face.get_node("CardTitle");var mana=face.get_node("CardMana")
+    t.check(labels.size()==2 and labels[1].position.x>=labels[0].get_rect().end.x+8,"BOOK first opening lays out enlarged keyword widths without overlap")
+    t.check(cost.get_rect().get_center()==Vector2(28.5,28.5) and title.get_rect().get_center().y==28.5 and mana.get_rect().get_center().y==28.5,"BOOK enlarged cost circle, title and mana badge share a vertical center")
    for index in range(2):
     var side="free" if face.free_face else "bound"
-    t.check(face.get_node("CardCost").text==card.face_costs[side] and face.get_node("CardText/Content/CardEffect").text==card.face_effects[side],"BOOK uses base cost and effect on both faces, including descendants: "+member+"/"+side)
+    var rendered=face.get_node("CardText/Content/CardEffect").text
+    var tags=face.get_node("CardKeywords").get_children().map(func(label):return label.text)
+    var expected=Array(card.face_effects[side].split("。",false));expected.sort()
+    var displayed=Array(rendered.split("。",false))+tags;displayed.sort()
+    t.check(face.get_node("CardCost").text==card.face_costs[side] and displayed==expected,"BOOK preserves base effect sentences across body and bottom keywords on both faces: "+member+"/"+side)
     var badges=face.get_node("CardMana").get_children()
     t.check(badges.size()==card.face_mana[side].size() and card.face_mana[side].all(func(entry):return t.visible_text(face.get_node("CardMana/Mana_"+entry.kind)).strip_edges()==entry.text),"BOOK mana badges use static values or formulas: "+member+"/"+side)
     face.mouse_entered.emit();await t.frames()

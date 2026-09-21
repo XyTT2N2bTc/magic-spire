@@ -48,7 +48,7 @@ static func run(t) -> void:
  await t.start_practice("Practice_puppeteer_solo")
  var master=ui.view.enemies[0].id
  var master_art=ui.find_child("EnemyArt_"+master,true,false)
- t.check(ui.view.enemies[0].maximum==76 and master_art.enemy_sprite.texture.resource_path.ends_with("enemy-puppeteer-formal-v1.png"),"PUPPET UI practice displays supplied formal illustration and 76 HP")
+ t.check(ui.view.enemies[0].maximum==96 and master_art.enemy_sprite.texture.resource_path.ends_with("enemy-puppeteer-formal-v1.png"),"PUPPET UI practice displays supplied formal illustration and 96 HP")
  t.check(ui.view.enemies.size()==2 and ui.game.state.enemies[0].intent.kind=="puppet_awaken","PUPPET UI opening already shows both real actors with awakening intent")
  var doll=ui.view.enemies.filter(func(e):return e.template=="puppet")[0].id
  var doll_art=ui.find_child("EnemyArt_"+doll,true,false)

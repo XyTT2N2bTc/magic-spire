@@ -38,6 +38,9 @@ static func cost_description(type: String) -> String:
 static func kick_cooldown(g) -> int:
  return maxi(0,g.state.kick_last+int(TYPES.kick[0].cooldown_turns)+1-g.state.round)
 
+static func physical_damage(g, base: float, body_level: int) -> float:
+ return (base+g.RelicEffects.attribute(g,"strength")+g.charge_bonus())*g.B.BODY_DAMAGE[body_level]
+
 static func fireball_damage(g) -> float:
  var base=g.B.FIREBALL_ASSISTED if fireball_gesture(g) else g.B.FIREBALL
  return (base+g.state.spell_base_bonuses.get("fireball",0)+g.Cards.spell_power(g,"fireball").get("base_bonus",0.0))*g.Cards.damage_multiplier(g,"fireball")

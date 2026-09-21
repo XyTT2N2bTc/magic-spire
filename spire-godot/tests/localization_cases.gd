@@ -102,6 +102,11 @@ static func run(t) -> void:
  t.check(l.set_locale("en_US") and l.text("ui.home.title","紧缚尖塔")=="Bound Spire","LOCALE registered English copy resolves through its semantic ID")
  var practice_health=RegEx.new();practice_health.compile("(\\d+)生命")
  var chinese=RegEx.new();chinese.compile("[\\x{3400}-\\x{9fff}]")
+ for entry in preload("res://data/encyclopedia.gd").entries().filter(func(row):return row.category=="enemies" and row.id in ["drone","versatile"]):
+  var line=Array(entry.text.split("\n")).filter(func(value):return value.begins_with("长战斗："))[0]
+  var translated=l.display("\n"+line)
+  t.check(chinese.search(translated)==null and translated.contains("15") and translated.contains("20") and translated.contains("40") and translated.contains("boss battles") and translated.contains("support units"),"LOCALE long-battle enemy copy translates thresholds and boss exemption: "+entry.id)
+  t.check(translated.contains("automatically leaves") if entry.id=="drone" else translated.contains("repeatedly prepares to arrest"),"LOCALE long-battle enemy outcome remains distinct: "+entry.id)
  var prison_entries=preload("res://data/tutorial.gd").entries()
  for id in ["prison0","prison3","prison4","prison6","prison_security"]:
   var entry=prison_entries.filter(func(row):return row.id==id)[0]
@@ -138,6 +143,8 @@ static func run(t) -> void:
  t.check(l.display("援军")=="Reinforcements" and l.display("3回合后抵达")=="Arrives in 3 turns" and not l.display("每4回合召来1名警卫。已召来1 / 3名；战斗胜利后停止。").contains("警卫"),"LOCALE reinforcement timer and shared limit translate")
  t.check(l.display("每佩戴2件拘束具，本回合获得1点力量，不足2件不计。")=="For every 2 restraints worn, gain 1 Strength this turn. Fewer than 2 do not count.","LOCALE changed card text translates divisor and incomplete groups in static previews")
  t.check(l.display("每佩戴3件拘束具，恢复1点魔力。\n当前：恢复4魔力。")=="For every 3 restraints worn, restore 1 Mana.\nCurrent: restore 4 Mana.","LOCALE changed card text preserves the actual multiline resource preview")
+ t.check(l.display("肘击与近身短打伤害×0.8（含力量和蓄力）；三级起无法使用这两种攻击。")=="Elbow Strike and Close Strike damage x0.8, including Strength and Charge. Both attacks are unavailable at level 3 or higher.","LOCALE physical damage copy includes strength and charge in body restriction multiplier")
+ t.check(l.display("每佩戴1件拘束具，恢复2点魔力。\n当前：恢复6魔力。")=="For every 1 restraints worn, restore 2 Mana.\nCurrent: restore 6 Mana." and l.display("每佩戴1件拘束具，恢复2魔力，不超过上限。")=="For every 1 restraints worn, restore 2 Mana, up to the maximum.","LOCALE confluence doubled mana rule and preview preserve actual values")
  t.check(l.display("魔路精通")=="Mana Circuit Mastery" and l.display("0费剩余2次")=="Zero-cost triggers remaining: 2","LOCALE mastery name and live quota translate")
  t.check(l.display("两面互斥：本场已启用「魔路精通」，不能再次启用任一面。").contains("Mutually exclusive"),"LOCALE mutual exclusion explains unavailable face")
  t.check(l.set_locale("ja_JP") and l.text("ui.home.title","紧缚尖塔")=="紧缚尖塔","LOCALE empty Japanese resource uses the original Chinese")

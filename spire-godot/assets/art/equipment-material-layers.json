@@ -1,0 +1,357 @@
+{
+  "sources": {
+    "leather": {
+      "path": "C:\\Users\\16563\\Downloads\\00169-825092941.png",
+      "sha256": "b07a285599e8700b86cb097bc9e057d55c4f8a93980d07be4f80702dd03f8964"
+    },
+    "rope": {
+      "path": "C:\\Users\\16563\\Downloads\\00163-4122631836.png",
+      "sha256": "056d6f16b6058560b24e6ef32b1a6e216bff3f9e7389e49e07a834602b28f2d6"
+    }
+  },
+  "bound_crop": [
+    390,
+    90,
+    1130,
+    2304
+  ],
+  "bases": {
+    "plain": {
+      "free": "res://assets/art/equipment-material-body-plain-rope-free-v1.png",
+      "leather_free": "res://assets/art/equipment-material-body-plain-leather-free-v1.png",
+      "bound": "res://assets/art/equipment-material-body-plain-rope-bound-v1.png",
+      "leather_bound": "res://assets/art/equipment-material-body-plain-leather-bound-v1.png"
+    },
+    "flat_lock": {
+      "free": "res://assets/art/equipment-material-body-flat-lock-rope-free-v1.png",
+      "leather_free": "res://assets/art/equipment-material-body-flat-lock-leather-free-v1.png",
+      "bound": "res://assets/art/equipment-material-body-flat-lock-rope-bound-v1.png",
+      "leather_bound": "res://assets/art/equipment-material-body-flat-lock-leather-bound-v1.png"
+    }
+  },
+  "legs": {
+    "thigh_root": {
+      "origin": [
+        390,
+        1180
+      ],
+      "styles": {
+        "plain": {
+          "rope": "res://assets/art/equipment-material-leg-thigh_root-plain-rope-v1.png",
+          "free": "res://assets/art/equipment-material-leg-thigh_root-plain-free-v1.png",
+          "leather": "res://assets/art/equipment-material-leg-thigh_root-plain-leather-v1.png"
+        },
+        "flat_lock": {
+          "rope": "res://assets/art/equipment-material-leg-thigh_root-flat-lock-rope-v1.png",
+          "free": "res://assets/art/equipment-material-leg-thigh_root-flat-lock-free-v1.png",
+          "leather": "res://assets/art/equipment-material-leg-thigh_root-flat-lock-leather-v1.png"
+        }
+      }
+    },
+    "mid_thigh": {
+      "origin": [
+        390,
+        1325
+      ],
+      "styles": {
+        "plain": {
+          "rope": "res://assets/art/equipment-material-leg-mid_thigh-plain-rope-v1.png",
+          "free": "res://assets/art/equipment-material-leg-mid_thigh-plain-free-v1.png",
+          "leather": "res://assets/art/equipment-material-leg-mid_thigh-plain-leather-v1.png"
+        }
+      }
+    },
+    "above_knee": {
+      "origin": [
+        390,
+        1480
+      ],
+      "styles": {
+        "plain": {
+          "rope": "res://assets/art/equipment-material-leg-above_knee-plain-rope-v1.png",
+          "free": "res://assets/art/equipment-material-leg-above_knee-plain-free-v1.png",
+          "leather": "res://assets/art/equipment-material-leg-above_knee-plain-leather-v1.png"
+        }
+      }
+    },
+    "below_knee": {
+      "origin": [
+        390,
+        1625
+      ],
+      "styles": {
+        "plain": {
+          "rope": "res://assets/art/equipment-material-leg-below_knee-plain-rope-v1.png",
+          "free": "res://assets/art/equipment-material-leg-below_knee-plain-free-v1.png",
+          "leather": "res://assets/art/equipment-material-leg-below_knee-plain-leather-v1.png"
+        }
+      }
+    },
+    "mid_calf": {
+      "origin": [
+        390,
+        1800
+      ],
+      "styles": {
+        "plain": {
+          "rope": "res://assets/art/equipment-material-leg-mid_calf-plain-rope-v1.png",
+          "free": "res://assets/art/equipment-material-leg-mid_calf-plain-free-v1.png",
+          "leather": "res://assets/art/equipment-material-leg-mid_calf-plain-leather-v1.png"
+        }
+      }
+    },
+    "ankle": {
+      "origin": [
+        390,
+        1965
+      ],
+      "styles": {
+        "plain": {
+          "rope": "res://assets/art/equipment-material-leg-ankle-plain-rope-v1.png",
+          "free": "res://assets/art/equipment-material-leg-ankle-plain-free-v1.png",
+          "leather": "res://assets/art/equipment-material-leg-ankle-plain-leather-v1.png"
+        }
+      }
+    },
+    "foot": {
+      "origin": [
+        390,
+        2135
+      ],
+      "styles": {
+        "plain": {
+          "rope": "res://assets/art/equipment-material-leg-foot-plain-rope-v1.png",
+          "free": "res://assets/art/equipment-material-leg-foot-plain-free-v1.png",
+          "leather": "res://assets/art/equipment-material-leg-foot-plain-leather-v1.png"
+        }
+      }
+    }
+  },
+  "outputs": {
+    "res://assets/art/equipment-material-body-plain-rope-free-v1.png": {
+      "size": [
+        740,
+        2214
+      ],
+      "sha256": "19127729298d957c7c6e8cf6f78beb0d127526cde2ab246200a86816d71ed437"
+    },
+    "res://assets/art/equipment-material-body-plain-leather-free-v1.png": {
+      "size": [
+        740,
+        2214
+      ],
+      "sha256": "e53188e3a6fdd1e7ed9134c16ca2c3257096d1b2d061da530ba61664510e33e4"
+    },
+    "res://assets/art/equipment-material-body-plain-rope-bound-v1.png": {
+      "size": [
+        740,
+        2214
+      ],
+      "sha256": "1cb2eb65d38fba0acb3bd77e59f0a766768c718ed6aab634872c75e6e00bc896"
+    },
+    "res://assets/art/equipment-material-body-plain-leather-bound-v1.png": {
+      "size": [
+        740,
+        2214
+      ],
+      "sha256": "95cb3019a07a62521b143b1e42351353cca92a40b0ee81fc9b12e34de11672d0"
+    },
+    "res://assets/art/equipment-material-leg-thigh_root-plain-rope-v1.png": {
+      "size": [
+        740,
+        145
+      ],
+      "sha256": "39abfbe9d7d47a6fbcdb5fd1193e2ff949ac667ed9aca16b2c1bfb08faf7ae37"
+    },
+    "res://assets/art/equipment-material-leg-thigh_root-plain-free-v1.png": {
+      "size": [
+        740,
+        145
+      ],
+      "sha256": "336760b39ddbb6cf41ae75466e1f8ae260907329b8a65075fb178600f3804311"
+    },
+    "res://assets/art/equipment-material-leg-thigh_root-plain-leather-v1.png": {
+      "size": [
+        740,
+        145
+      ],
+      "sha256": "1c24cb7a79474fbe49ec6cc2106754c77c83a537c73c14327d6c53d7d5ae3e46"
+    },
+    "res://assets/art/equipment-material-leg-mid_thigh-plain-rope-v1.png": {
+      "size": [
+        740,
+        155
+      ],
+      "sha256": "3b1ede44f15a052804c1675b1913f1155ab9b6110c80b3f6bd7f805a8718c308"
+    },
+    "res://assets/art/equipment-material-leg-mid_thigh-plain-free-v1.png": {
+      "size": [
+        740,
+        155
+      ],
+      "sha256": "445ce95b927e83f7963e162605efe5725496dd67baf1880df11bd64642831e86"
+    },
+    "res://assets/art/equipment-material-leg-mid_thigh-plain-leather-v1.png": {
+      "size": [
+        740,
+        155
+      ],
+      "sha256": "01ed97c7b5e44d0d08e652882bf63069401c1d5a54a1769884564221530a0c2b"
+    },
+    "res://assets/art/equipment-material-leg-above_knee-plain-rope-v1.png": {
+      "size": [
+        740,
+        145
+      ],
+      "sha256": "94e59c40f7f8a1f12914fc8666d6482c7794007dd94270c582f1824a3e2c06bb"
+    },
+    "res://assets/art/equipment-material-leg-above_knee-plain-free-v1.png": {
+      "size": [
+        740,
+        145
+      ],
+      "sha256": "c13d875dcb7d5a0ddff6c8b474795dd3eabf4640f3c996ad5dae8af7984b4b58"
+    },
+    "res://assets/art/equipment-material-leg-above_knee-plain-leather-v1.png": {
+      "size": [
+        740,
+        145
+      ],
+      "sha256": "7fe477f2bc6b0523b1074e27dbf046a6b18263870fe58b22ae953418b1f13b82"
+    },
+    "res://assets/art/equipment-material-leg-below_knee-plain-rope-v1.png": {
+      "size": [
+        740,
+        175
+      ],
+      "sha256": "7e53fb7c20b98700ae2188ea3d21d9b1c88fcb6e9ce3c2c70f889b952f9498d8"
+    },
+    "res://assets/art/equipment-material-leg-below_knee-plain-free-v1.png": {
+      "size": [
+        740,
+        175
+      ],
+      "sha256": "8f2705870232c06a635c8e66708358579f7370f03ad8fc1da50cbded6c4da8ea"
+    },
+    "res://assets/art/equipment-material-leg-below_knee-plain-leather-v1.png": {
+      "size": [
+        740,
+        175
+      ],
+      "sha256": "e60c6e34deb2d81bdd572b215a6c041262df08094b9b153b630d7f7bf3f7f417"
+    },
+    "res://assets/art/equipment-material-leg-mid_calf-plain-rope-v1.png": {
+      "size": [
+        740,
+        165
+      ],
+      "sha256": "08670ea066517e9372f22388f64e6e844a8e47d0a1468efc1a90e61349783caa"
+    },
+    "res://assets/art/equipment-material-leg-mid_calf-plain-free-v1.png": {
+      "size": [
+        740,
+        165
+      ],
+      "sha256": "1901b02a9c6e8d7e6e8e325033d95642b83f5a0e7db6824cd2d3c5d757f37577"
+    },
+    "res://assets/art/equipment-material-leg-mid_calf-plain-leather-v1.png": {
+      "size": [
+        740,
+        165
+      ],
+      "sha256": "753ed56ca2949f3c85da8e5c71c7a039b57c7f7317476bffd7b76bc6048e014a"
+    },
+    "res://assets/art/equipment-material-leg-ankle-plain-rope-v1.png": {
+      "size": [
+        740,
+        170
+      ],
+      "sha256": "0f06deaa2e5424d67ff90b2fc1dad043f8d838ce1fa00c26acec34e24706d2e6"
+    },
+    "res://assets/art/equipment-material-leg-ankle-plain-free-v1.png": {
+      "size": [
+        740,
+        170
+      ],
+      "sha256": "a9c9d8bc71afbebaf538f67f8a2617f5db804c74b9e9863b2df07a63a7000884"
+    },
+    "res://assets/art/equipment-material-leg-ankle-plain-leather-v1.png": {
+      "size": [
+        740,
+        170
+      ],
+      "sha256": "bcba5e6bb4e7378bf11b874abacd27583a187cfe2e14fa7fbcb60c677c0c461a"
+    },
+    "res://assets/art/equipment-material-leg-foot-plain-rope-v1.png": {
+      "size": [
+        740,
+        169
+      ],
+      "sha256": "91dde2e31a5307e09d9f08e527c8cc160461341c7876070742923916100a2bc8"
+    },
+    "res://assets/art/equipment-material-leg-foot-plain-free-v1.png": {
+      "size": [
+        740,
+        169
+      ],
+      "sha256": "d5c32bc29f1c1a3193684fe11d5237e4943a8e1fcda17007970b2edee6279ecf"
+    },
+    "res://assets/art/equipment-material-leg-foot-plain-leather-v1.png": {
+      "size": [
+        740,
+        169
+      ],
+      "sha256": "f1981a5c67edc4c991066056266c2c266c88d1fbc40cb335e8ee3ed80c7e40a4"
+    },
+    "res://assets/art/equipment-material-body-flat-lock-rope-free-v1.png": {
+      "size": [
+        740,
+        2214
+      ],
+      "sha256": "d42cd9d5bd139526338a63d5f33d55fa44df72931c4babb0eab4c4661a409618"
+    },
+    "res://assets/art/equipment-material-body-flat-lock-leather-free-v1.png": {
+      "size": [
+        740,
+        2214
+      ],
+      "sha256": "14182f32a0564f95ad85c1146bbe8be4c71ac9df3cbc42cf43705ee50cdb0885"
+    },
+    "res://assets/art/equipment-material-body-flat-lock-rope-bound-v1.png": {
+      "size": [
+        740,
+        2214
+      ],
+      "sha256": "53990ace17ad86657644f1ab7ffb233b15659d9db0920c5b2bffdd5c0d1ca904"
+    },
+    "res://assets/art/equipment-material-body-flat-lock-leather-bound-v1.png": {
+      "size": [
+        740,
+        2214
+      ],
+      "sha256": "d0206a025fa4895c887347c9de6e852fd63e8781cc8216f01ac111ebf4160441"
+    },
+    "res://assets/art/equipment-material-leg-thigh_root-flat-lock-rope-v1.png": {
+      "size": [
+        740,
+        145
+      ],
+      "sha256": "8487d27e219b942b0c0bc23af08603adc0381de5bcf782450e49212d3a8a58ce"
+    },
+    "res://assets/art/equipment-material-leg-thigh_root-flat-lock-free-v1.png": {
+      "size": [
+        740,
+        145
+      ],
+      "sha256": "126eaef1466371465a4aa481e000d2098074f0b925ca419bb4299a1ca6d491cb"
+    },
+    "res://assets/art/equipment-material-leg-thigh_root-flat-lock-leather-v1.png": {
+      "size": [
+        740,
+        145
+      ],
+      "sha256": "c5ccd2733d1ec47cd1d530443f03fabe616b640d3754ad16c2c7fb5e9125d4fb"
+    }
+  },
+  "policy": "Outer leather takes precedence; otherwise leather count must exceed rope count. Ties/neither use rope. Upper body totals unique physical pieces. All single-glove compositions keep original art."
+}

@@ -20,6 +20,7 @@ static func travel(t,g,target: String) -> void:
   steps+=1
 
 static func run(t) -> void:
+ retained_summit_cases(t)
  preload("res://tests/demo_exit_cases.gd").run(t)
  for seed in range(12):
   var g=Game.new(seed)
@@ -43,12 +44,12 @@ static func run(t) -> void:
  t.check(not t.action(g,"depart",{"room":"exit"}).ok and JSON.stringify(g.state)==before,"PROGRESSION cannot skip summit from final rest")
  t.check(g.room_entry_reason(g.room_data("exit")).contains("塔顶首领"),"PROGRESSION unavailable exit explains actual boss prerequisite")
  travel(t,g,"summit")
- t.check(g.state.phase=="battle" and g.state.enemies.size()==1 and g.state.enemies[0].hp==220 and g.state.enemies[0].type=="six_bind" and not g.state.practice,"PROGRESSION final room starts one full-health 六缚 in real run")
+ t.check(g.state.phase=="battle" and g.state.enemies.size()==1 and g.state.enemies[0].hp==200 and g.state.enemies[0].type=="six_bind" and not g.state.practice,"PROGRESSION final room starts one full-health 六缚 in real run")
  t.check(JSON.stringify(g.state.equipment)==equipment and g.state.mana==42 and g.state.pressure==17 and g.state.traversed_edges.has([rest_id,"summit"]),"PROGRESSION rest departure and summit travel preserve gear/resources without battle-ending rewards")
  var first=g.state.enemies[0].id
  var damage=t.find_action(g,"attack",{"type":"strike","enemy":first}).payload.damage
  t.action(g,"attack",{"type":"strike","enemy":first})
- t.check(g._enemy(first).hp==220-damage and g.state.phase=="battle","PROGRESSION actual attack damage affects the real boss")
+ t.check(g._enemy(first).hp==200-damage and g.state.phase=="battle","PROGRESSION actual attack damage affects the real boss")
  # Shorten remaining HP to isolate reward/exit integration, not enemy balance.
  g._enemy(first).hp=1
  t.action(g,"attack",{"type":"strike","enemy":first})
@@ -83,6 +84,7 @@ static func run(t) -> void:
   if target=="summit": g.state.room_encounters.summit="six_bind_solo";g.room_data("summit").encounter="six_bind_solo"
   before_room(g,target);t.action(g,"finish_rest");travel(t,g,target)
   var old_route=JSON.stringify(g.state.rooms)
+  var old_summit=g.state.room_encounters.summit
   var old_ids=g.state.enemies.map(func(e):return e.id)
   var old_reward=g.state.reward_count
   # Prepare an imminent capture; normal shared enemy phase must stop immediately after it.
@@ -103,6 +105,7 @@ static func run(t) -> void:
    if i<2:t.action(g,"end")
   while g.carried_items()>g.item_capacity():t.action(g,"item_discard",{"item":g.state.items[0].id})
   t.check(t.action(g,"prison",{"action":"vent_exit"}).ok and g.state.phase=="map" and g.state.room=="prison_start","PROGRESSION tower loss exits into prison route")
+  t.check(g.state.room_encounters.summit==old_summit and g.restore_snapshot(g.export_snapshot()).ok,"PROGRESSION prison route save retains the frozen tower boss")
   # Traverse the new exit challenge using the existing navigation fight fixture.
   g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[];g.state.pressure=0;g.state.posture="stand"
   travel(t,g,"prison_rest");t.action(g,"rest_begin");t.action(g,"finish_rest");travel(t,g,"prison_gate")
@@ -112,6 +115,7 @@ static func run(t) -> void:
   t.action(g,"reward",{"type":"skip"})
   t.finish_packing(g)
   t.check(g.state.security==1 and g.state.completed_rooms.is_empty() and old_route!=JSON.stringify(g.state.rooms) and not g.room_entry_reason(g.room_data("exit")).is_empty(),"PROGRESSION rebuilt tower includes fresh locked summit and preserves security")
+  t.check(g.state.room_encounters.summit==old_summit and g.room_data("summit").encounter==old_summit,"PROGRESSION guard victory preserves original boss in both generated room and encounter")
   before=JSON.stringify(g.state)
   t.check(g.state.tower_start_pending and not t.action(g,"depart",{"room":"summit"}).ok and JSON.stringify(g.state)==before,"PROGRESSION prison return cannot select summit before a legal floor-ten-or-eleven start")
   var starts=g.state.rooms.filter(func(room):return room.floor in [9,10] and room.kind in ["battle","event","shop"])
@@ -122,4 +126,41 @@ static func run(t) -> void:
   t.check(t.action(g,"depart",{"room":start.id}).ok and not g.state.tower_start_pending and g.state.room==start.id and g.state.security==1,"PROGRESSION formal start selection clears the pending choice and preserves security")
   # The start choice is now committed; isolate the summit boundary as above.
   before_room(g,"summit");t.action(g,"finish_rest");travel(t,g,"summit")
-  t.check(g.state.enemies.size()==1 and g.state.enemies[0].id not in old_ids and g.state.enemies[0].hp==220 and g.state.security==1,"PROGRESSION rebuilt summit creates a new boss instance without clearing safety history")
+  var boss_type="six_bind" if old_summit=="six_bind_solo" else "iron_man"
+  t.check(g.state.enemies.any(func(e):return e.type==boss_type and e.id not in old_ids and e.hp==e.max_hp) and g.state.security==1,"PROGRESSION rebuilt summit creates the retained boss at full health without clearing safety history")
+
+static func retained_summit_cases(t) -> void:
+ var legacy=Game.new(42)
+ var legacy_boss=legacy.state.room_encounters.summit
+ legacy.state.security=1;legacy.Prison.escape(legacy,"vent_exit")
+ legacy.state.room_encounters.erase("summit")
+ t.check(legacy.restore_snapshot(legacy.export_snapshot()).ok,"BOSS pre-retention prison route saves still restore")
+ legacy.Prison.return_to_tower(legacy)
+ t.check(legacy.state.room_encounters.summit==legacy_boss,"BOSS legacy escape restores original boss from the old seed before replacing the map")
+ var changed=0
+ for boss in Game.Enemies.FirstFloor.SUMMIT_ENCOUNTERS:
+  var g=Game.new(42)
+  # Isolate both encounter choices; the complete escape route is covered above.
+  g.state.room_encounters.summit=boss;g.room_data("summit").encounter=boss
+  g.room_data("summit").name="塔顶 · "+g.Enemies.FirstFloor.summit_name(boss)
+  for visit in range(3):
+   g.state.security=1
+   g.state.tower_start_pending=false
+   g.Prison.escape(g,"vent_exit")
+   var saved=g.export_snapshot()
+   var restored=g.restore_snapshot(saved)
+   t.check(restored.ok,"BOSS prison route restores retained encounter for "+boss+": "+str(restored))
+   var valid=g.export_snapshot()
+   var invalid=valid.duplicate(true);invalid.room_encounters.summit="guard_solo"
+   t.check(not g.restore_snapshot(invalid).ok and g.state==valid,"BOSS snapshot rejects non-boss retained encounters without changing the run")
+   g.Prison.return_to_tower(g)
+   var room=g.room_data("summit")
+   t.check(g.state.room_encounters.summit==boss and room.encounter==boss and room.name=="塔顶 · "+g.Enemies.FirstFloor.summit_name(boss),"BOSS repeated map replacement preserves identity and display name")
+  for cycle in [1,2]:
+   preload("res://tests/demo_exit_cases.gd").exit_fixture(g)
+   var previous=g.state.room_encounters.summit
+   t.check(t.action(g,"demo_continue").ok and g.state.demo_cycle==cycle,"BOSS next cycle uses formal continuation")
+   var expected=Tower.generate(g.state.seed).filter(func(room):return room.id=="summit")[0].encounter
+   t.check(g.state.room_encounters.summit==expected,"BOSS next cycle draws from its new seed instead of retaining previous boss")
+   if previous!=expected: changed+=1
+ t.check(changed>0,"BOSS cycle fixtures exercise a different boss rather than accidentally matching every draw")

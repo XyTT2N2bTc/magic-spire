@@ -142,9 +142,13 @@ static func pool(t) -> void:
  g._gain_card("fire_control");g.state.relics.erase(TYPE)
  t.check(g.state.deck.any(func(card):return card.type=="fire_control") and not g.can_offer_card("fire_control"),"DESIRE losing relic closes future offers without deleting owned cards")
  var shared=g.Cards.Rules.SPECS.prepared_chant;var shared_original=shared.duplicate(true);shared.reward_pool="lewd_magic"
+ # Character variants are registered before this temporary pool tag is applied.
+ var mapped=g.Cards.Rules.SPECS.witch_prepared_chant;var mapped_original=mapped.duplicate(true);mapped.reward_pool="lewd_magic"
  var witch=Opening.new(42,false,"equipment",true,false,25,false,false,"witch")
- t.check(witch.Character.allowed_card(witch,"prepared_chant") and not witch.can_offer_card("prepared_chant"),"DESIRE compatible witch card remains locked until cube ownership")
+ t.check(witch.Character.allowed_card(witch,"witch_prepared_chant") and not witch.can_offer_card("witch_prepared_chant") and witch.reward_offer(["prepared_chant"],"fixed",null,1,"lewd_magic").is_empty(),"DESIRE compatible mapped witch card remains locked until cube ownership")
  witch.RelicEffects.gain(witch,TYPE)
- t.check(witch.can_offer_card("prepared_chant") and "prepared_chant" in witch.Character.pool(witch,["prepared_chant"]),"DESIRE witch ownership unlocks compatible tagged cards through shared eligibility")
+ var pool_cards=witch.Character.pool(witch,["prepared_chant"])
+ t.check(witch.can_offer_card("witch_prepared_chant") and "witch_prepared_chant" in pool_cards and "prepared_chant" not in pool_cards and witch.reward_offer(["prepared_chant"],"fixed",null,1,"lewd_magic")==["witch_prepared_chant"],"DESIRE witch ownership unlocks the mapped card through the actual reward offer")
  shared.clear();shared.merge(shared_original)
+ mapped.clear();mapped.merge(mapped_original)
  spec.clear();spec.merge(original)

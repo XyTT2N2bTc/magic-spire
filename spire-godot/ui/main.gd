@@ -941,6 +941,9 @@ func _record_projection_miss(point: String, key: String) -> void:
  projection_misses.append({"point":point,"key":key,"view_version":version})
 
 func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0, parent: Node=null, hand_interaction: bool=true, lift: bool=true, live_state: bool=true) -> Button:
+ var dimensions=CardFace.dimensions(rect.size.y)
+ rect.position.x+=(rect.size.x-dimensions.x)/2
+ rect.size=dimensions
  card=card.duplicate()
  if live_state:
   card.merge(view.card_texts.get(card.type,{}),true)
@@ -992,6 +995,14 @@ func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0,
  textbox.size_flags_horizontal=Control.SIZE_EXPAND_FILL
  textbox.add_theme_constant_override("separation",1)
  text_area.add_child(textbox)
+ var keywords=HFlowContainer.new();keywords.name="CardKeywords";keywords.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ keywords.add_theme_constant_override("h_separation",8);keywords.add_theme_constant_override("v_separation",2)
+ keywords.minimum_size_changed.connect(func(): button.fit_text.call_deferred())
+ button.add_child(keywords)
+ var requirements=VBoxContainer.new();requirements.name="CardRequirements";requirements.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ requirements.add_theme_constant_override("separation",1)
+ requirements.minimum_size_changed.connect(func(): button.fit_text.call_deferred())
+ button.add_child(requirements)
  _refresh_card_face(button,card)
  button.mouse_entered.connect(func():_card_tooltip(button,card))
  button.mouse_exited.connect(_hide_term)
@@ -1011,7 +1022,7 @@ func _display_card(type: String, parent: Node, fn: Callable=Callable(), key: Str
  # An explicit source already includes physical-instance text. Reapplying the hand's
  # type-only projection would erase growth on a same-type card in another pile.
  var button=_card(data,Rect2(Vector2.ZERO,dimensions),fn if fn.is_valid() else func():pass,0,parent,false,false,live_state and source.is_empty())
- button.custom_minimum_size=dimensions
+ button.custom_minimum_size=button.size
  button.size_flags_horizontal=Control.SIZE_SHRINK_BEGIN
  button.size_flags_vertical=Control.SIZE_SHRINK_BEGIN
  button.name="DisplayCard_"+key
@@ -1030,17 +1041,32 @@ func _refresh_card_face(button: Button, card: Dictionary) -> void:
  var textbox=text_area.get_node("Content")
  for child in textbox.get_children():
   textbox.remove_child(child);child.queue_free()
- var classification=_label(card.get("face_type_names",{}).get(side,card.type_name)+" · "+card.rarity_name+("" if card.single_face else (" · "+card.face_names[side]))+(" · 保留" if card.get("retained",false) else ""),11,button.RARITY_COLORS[card.rarity])
+ var classification=_label(card.get("face_type_names",{}).get(side,card.type_name)+" · "+card.rarity_name+("" if card.single_face else (" · "+card.face_names[side])),11,button.RARITY_COLORS[card.rarity])
  classification.name="CardClassification";textbox.add_child(classification)
  var warning=card.get("face_warnings",{}).get(side,"")
- var body=_label(card.face_effects[side].replace(warning,"") if warning!="" else card.face_effects[side],14,TEXT)
+ var copy=CardFace.separate_keywords(card.face_effects[side].replace(warning,"") if warning!="" else card.face_effects[side],card.face_keywords[side])
+ if card.get("retained",false) and "保留" not in copy.keywords: copy.keywords.append("保留")
+ var keywords=button.get_node("CardKeywords")
+ for child in keywords.get_children():
+  keywords.remove_child(child);child.queue_free()
+ for keyword in copy.keywords:
+  var tag=_label(keyword,roundi(11*button.text_scale()),GOLD);tag.autowrap_mode=TextServer.AUTOWRAP_OFF
+  keywords.add_child(tag)
+ keywords.visible=not copy.keywords.is_empty()
+ var body=_label(copy.body,14,TEXT)
  body.visible=body.text!=""
  body.name="CardEffect";textbox.add_child(body)
  if warning!="":
   var warning_label=_label(warning,14,RED);warning_label.name="CardWarning";textbox.add_child(warning_label)
+ var requirements=button.get_node("CardRequirements")
+ for child in requirements.get_children():
+  requirements.remove_child(child);child.queue_free()
  for text in card.face_requirements[side]:
   var requirement=_label(text,11,CYAN)
-  requirement.name="CardRequirement";textbox.add_child(requirement)
+  requirement.name="CardRequirement";requirement.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
+  requirements.add_child(requirement)
+ requirements.visible=requirements.get_child_count()>0
+ _ignore_mouse(requirements)
  if card.has("availability"):
   var availability=card.availability.free if button.free_face else card.availability.bound
   button.modulate=Color(0.55,0.55,0.55,1) if availability.dim else Color.WHITE
@@ -1062,10 +1088,11 @@ func _card_tooltip(button: Button, card: Dictionary) -> void:
  if content.size.y>text_area.size.y or keyboard_details or (is_instance_valid(touch_input) and touch_input.held and touch_input.details_allowed):
   for label in content.get_children():
    if label.visible and label.name!="CardClassification": lines.append(label.text)
+  for label in button.get_node("CardRequirements").get_children(): lines.append(label.text)
  if card.cast_faces[side] and card.has("casting"):
   var casting=card.get("face_casting",{}).get(side,card.casting)
   lines.append("施法成功率 · "+casting.percent+"\n"+casting.formula)
-  lines.append("失败返还50%耗魔，能量照扣，原牌留手。")
+  lines.append("失败返还50%耗魔。")
  for term in card.face_keywords[side]: lines.append(term.name+"："+term.detail)
  if card.note!="": lines.append(card.note)
  if lines.is_empty(): _hide_term();return
@@ -1093,13 +1120,14 @@ func _hand() -> void:
   _place(_label("手牌已用完",19,MUTED),Rect2(570,749,780,45))
   return
  var count=view.hand.size()
- var step=minf(192,746.0/maxi(1,count-1))
- var start=850.0-(float(count-1)*step+184)/2
+ var dimensions=CardFace.dimensions(252)
+ var step=minf(dimensions.x+8,746.0/maxi(1,count-1))
+ var start=850.0-(float(count-1)*step+dimensions.x)/2
  for i in range(count):
   var card=view.hand[i]
   var mid=float(i)-float(count-1)/2
   var y=630+absf(mid)*4
-  var b=_card(card,Rect2(start+i*step,y,184,252),func(): _activate_card(card.uid),mid*0.018)
+  var b=_card(card,Rect2(Vector2(start+i*step,y),dimensions),func(): _activate_card(card.uid),mid*0.018)
   card_buttons[card.uid]=b
   if _selecting_hand():
    var choice=_hand_choice(card.uid)
@@ -1691,6 +1719,7 @@ func _route_screen() -> void:
  map_column.add_child(scroll)
  var graph=RouteMap.new(); graph.name="TowerRoute"
  graph.region_name=view.map_name
+ graph.localize=localization.display
  graph.rooms=view.route; graph.selected=route_focus
  var drawing_key=view.map_name+str(view.seed)+JSON.stringify(view.route.map(func(room):return [room.id,room.floor,room.lane,room.paths.map(func(path):return path.to)]))
  if not map_drawings.has(drawing_key): map_drawings[drawing_key]=[]
@@ -1710,6 +1739,10 @@ func _route_screen() -> void:
  for c in actions.select("route",{"kind":"depart"}):
   candidate_buttons[c.id]=graph.buttons[c.payload.room]
  var right=VBoxContainer.new();right.name="RouteMessages";right.custom_minimum_size.x=220;row.add_child(right)
+ for room in view.route:
+  if room.icon=="boss":
+   var boss_title=_label(room.name,20,GOLD)
+   boss_title.name="TowerBossPreview";right.add_child(boss_title)
  var title_row=HBoxContainer.new();title_row.add_theme_constant_override("separation",8);right.add_child(title_row)
  var title=_label("移动消息",20,GOLD);title.size_flags_horizontal=Control.SIZE_EXPAND_FILL;title_row.add_child(title)
  # Run identity chip: the only view/copy entry, hung on the existing title row (no extra row).
@@ -1954,6 +1987,9 @@ func handle_portrait_input(event: InputEvent) -> bool:
 func _input(event: InputEvent) -> void:
  if _takeover_locked():
   get_viewport().set_input_as_handled();return
+ var inspection=modal_region()
+ if inspection!=null and inspection.has_method("dismiss") and event.is_action_pressed("ui_cancel"):
+  inspection.dismiss();get_viewport().set_input_as_handled();return
  if handle_portrait_input(event):
   get_viewport().set_input_as_handled();return
  if is_instance_valid(keyboard_input) and keyboard_input.handle(event):
@@ -2144,8 +2180,11 @@ func _clear_drop_targets() -> void:
  drag_hover_key=""
 
 func modal_region() -> Control:
- var panel=layout.get_node_or_null("ShopPaymentPerformance") if is_instance_valid(layout) else null
- return panel if panel!=null and panel.is_visible_in_tree() and not panel.is_queued_for_deletion() else null
+ if not is_instance_valid(layout): return null
+ for id in ["CardArtInspection","ShopPaymentPerformance"]:
+  var panel=layout.get_node_or_null(id)
+  if panel!=null and panel.is_visible_in_tree() and not panel.is_queued_for_deletion(): return panel
+ return null
 
 func _notification(what: int) -> void:
  if what==NOTIFICATION_WM_GO_BACK_REQUEST and _takeover_locked(): return
@@ -2155,6 +2194,7 @@ func _notification(what: int) -> void:
   if touch_input.dismiss_popup(): return
   var modal=modal_region()
   if modal!=null:
+   if modal.has_method("dismiss"): modal.dismiss();return
    modal.find_child("ShopPaymentContinue",true,false).pressed.emit();return
   if player_pick:
    _clear_player_picker();selected_card="";render(view);return
