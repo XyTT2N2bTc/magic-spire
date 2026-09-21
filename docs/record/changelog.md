@@ -1246,3 +1246,10 @@ flowchart LR
 - `tools/check.ps1::Get-SourceFingerprint` 纳入规则类文档（`docs/spec`／`docs/design`／`docs/guide`／根 `AGENTS.md`／`.zcode/skills`），`docs/record`（只追加记录）与 `docs/history`（只读归档）写明理由排除；范围唯一声明在新增 `spire-godot/tools/doc-scan-scope.ps1`。改一条契约正文即改变指纹（实测 `82B98233…`→`69152F58…`，还原回 `82B98233…`），追加记录类不变。
 - 新增独立门禁 `spire-godot/tools/check-docs.ps1`：点名路径必须存在、`文件::符号` 锚点必须已声明、本地 md 链接必须可达；允许存在的缺失引用逐条登记（8 条，带理由与消掉条件），每次打印条目数，清单只能缩小。四条「改坏即红、还原即绿」敏感性证明、指纹实测与既有门禁复跑（规则门 672 断言退出0、窗口门 304 断言退出0，同一指纹 `DEA47A3E…`）见 [验证记录](verification.md) 同日条。
 - `.zcode/skills/repo-ops/SKILL.md` 增命令面；`spire-docs` 的「已知零守卫」节改写为「文档守卫」，根 `AGENTS.md` 技能索引改用同词。未改玩法与产品代码，未推送、未改版本号、未发布。
+
+## 2026-09-21｜文档门禁接入主门禁＋指纹改序数排序（宿主无关）
+
+- `tools/check-docs.ps1` 不再只能手工跑：`tools/check.ps1` 把它接成**独立阶段**（对齐内容包校验的形态）——不依赖引擎、跑在 `import`／规则门之前，日志 `build/checks/<运行号>/check-docs.log`，结果行 `DOCS RESULT: PASS|FAIL`，`summary.json` 新增 `docs` 字段（`status`／`documents`／`references`／`problems`／`allowlist`／`log`，失败轮的计数为 `null`），失败即整轮失败并逐条打印 `DOC FAIL`。扫描范围仍只有一份声明（`tools/doc-scan-scope.ps1::Get-RuleDocFiles`），阶段不重建文件列表，允许清单条目数每轮打印。
+- 敏感性证明：把 `docs/spec/project-map.md` 的点名路径 `spire-godot/project.godot` 改坏 → 完整门禁 `-Suite architecture,localization` 退出 **1** 并指名该违规（运行号 `20260921T054926430-13080`）；`git checkout` 还原 → 退出 **0**、2/2 PASS、672 断言、`before==after==C2E48624…`（运行号 `20260921T054933989-19800`）。
+- 指纹宿主依赖修复：`Get-SourceFingerprint` 的拼接由 `Sort-Object`（宿主文化排序，ICU／NLS）改为序数排序（`[Array]::Sort` ＋ `StringComparer.Ordinal`），同一文件集在 `pwsh` 7 与 Windows PowerShell 5.1 下取同一个值（同一冻结 753 条集：文化排序 `0DD9DF27…`／`2302ED3A…` 不同，序数排序两宿主同为 `A20CA1FB…`；改后两宿主实跑同读 `C2E48624…`），同一次运行内 `before==after` 仍成立；指纹仍只作同一次运行内的守卫，不当身份。
+- 允许清单 8 → 6：`docs/ondemand-copy.md` 与 `spire-godot/tools/play_release.ps1` 两条随 planner `ff4aae2` 的契约修正失效后删除，删除后两宿主 `tools/check-docs.ps1` 均 `DOCS PASS`（`allowlist 6 entrie(s)`）、零新增 `DOC FAIL`；余 6 条保留（未落地的两片仍在引用）。`.zcode/skills/repo-ops/SKILL.md` 命令面同步为「文档门禁现在是主门禁的独立阶段，也可单跑」。未改玩法与产品代码，未推送、未改版本号、未发布。

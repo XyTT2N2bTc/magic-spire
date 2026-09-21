@@ -36,8 +36,6 @@ $declaredMissing = [ordered]@{
     'tools/check-index.ps1'              = 'belongs to the unlanded check-routing slice (docs/record/proposals/check-routing-and-per-click-checks.md); removal condition: that slice lands.'
     'tests/check_index.json'             = 'unlanded check-routing slice freeze file; removal condition: that slice lands.'
     'tests/check_index*.gd'              = 'unlanded check-routing slice test files; removal condition: that slice lands.'
-    'spire-godot/tools/play_release.ps1' = 'docs/spec/run-review.md and run-review-dependencies.md name this untracked coordinator script, which has moved out of the tree (release entry is play-release.cmd plus release/); removal condition: the contracts name the current entry point.'
-    'docs/ondemand-copy.md'              = 'docs/spec/run-review.md cites a stale path; the file is docs/spec/ondemand-copy.md. This slice must not edit docs/spec bodies; removal condition: the planner fixes that citation.'
 }
 
 $repositoryPrefixes = @('spire-godot', 'docs', '.zcode', 'release', 'outputs')
