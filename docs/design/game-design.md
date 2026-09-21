@@ -481,7 +481,7 @@ DeepSeek 首回合顶部显示「大肥鱼吃掉了你的白饭」，不锁定�
 - 进度自动写盘只在进入更高楼层、战斗结束（含收押）、整备结束时触发，由正式迁移声明生成 checkpoint；场景内行动及快速 SL 恢复不再写盘，新局、手动“保存场景起点”和地图批注仍保留原写盘入口。
 - 主页恢复最近一次磁盘保存的起点；菜单“快速 SL”恢复当前场景的内存起点，两者共用恢复流程但不保证恢复到同一时刻。
 - 内存场景起点仍按原流程冻结：战斗从首次可操作的第一回合恢复，包括已结算的开场效果、初始手牌、敌人、装备、魔力、能量与随机状态；不重新洗随机、不重复发开场遗物。
-- 恢复只替换通过校验的完整状态并刷新操作版本，不重新初始化、不补结算；失败保留当前游戏。文件编码版本与快照修订号分开维护，只接受当前 `Snapshot.REVISION`；加性字段不升版，缺 `state.initial_seed` 的旧档在 `restore_snapshot` 单点回填为当时的 `seed`（类型不符仍拒绝），其余不做迁移。
+- 恢复只替换通过校验的完整状态并刷新操作版本，不重新初始化、不补结算；失败保留当前游戏。文件编码版本与快照修订号分开维护：当前 `Snapshot.REVISION` 直接接受；比它早的三档修订号（`core/snapshot.gd::REINFORCEMENT_STATE_REVISION`／`core/snapshot.gd::CUP_STACK_REVISION`／`core/snapshot.gd::IRON_DRONE_REVISION`）由 `core/game.gd::restore_snapshot` 在 `Snapshot.check` 之前按迁移链升级并写回当前修订（`core/snapshot.gd::migrate_cup_stacks`、`core/snapshot.gd::migrate_iron_drone` 与 `data/special_equipment.gd::migrate_reinforcement_state`）；迁移判定旧档数据不完整时整档拒绝、保留当前游戏；其余修订号（更早、更新、缺 `save_revision` 或非整数）一律拒绝，不做迁移。加性字段不升版，缺 `state.initial_seed` 的旧档在 `restore_snapshot` 单点回填为当时的 `seed`（类型不符仍拒绝）。
 
 ## 14. 已知缺口（未实现或未冻结，不得当作既有功能）
 

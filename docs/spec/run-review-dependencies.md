@@ -14,7 +14,7 @@
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
 | `ui/run_review.gd`（新建） | 新建 `extends RefCounted` 的静态组装入口：`TITLE_KEY`／`TITLE_FALLBACK`／`title_text(ui)`／`can_open(route)`／`drawer(ui)` 与三块内容（标识／节点概况／卡组）；标识块复制按钮 `RunReviewCopy`（初始文本读 `ui._run_review_copy_text()`，`pressed → ui.copy_seed()`） | 只读 `ui.view`、`ui._text`、`ui._label`、`ui._scroll`、`ui._drawer_shell`；自身不调用任何 `ui.game.*`；不派发候选、不进 `_submit`、不写盘；不新增计时器／回调，不写剪贴板 |
-| `ui/route_map.gd` | 新增 `var read_only=false`；`_ready()` 在该标志下不建房间按钮、不连 `room_selected`；`_input()` 在该标志下首行早退 | `read_only=false` 的既有行为逐项不变（`buttons`、`room_selected`、右键绘画、按住左键平移）；`_draw()`／`point_for()`／`_layout_nodes()`／`ink_position()` 的渲染与坐标语义不变 |
+| `ui/route_map.gd` | 新增 `var read_only=false`；`_ready()` 在该标志下不建房间按钮、不连 `room_selected`／`_layout_nodes`（回顾地图只读的**实际生效守卫**）；`_input()` 在该标志下首行早退（保留，但不是回顾地图的生效路径：回顾地图的父节点是滚动列内的 `VBoxContainer`，其后的父滚动守卫先返回） | `read_only=false` 的既有行为逐项不变（`buttons`、`room_selected`、右键绘画、按住左键平移）；`_draw()`／`point_for()`／`_layout_nodes()`／`ink_position()` 的渲染与坐标语义不变 |
 | `ui/main.gd` | `DRAWERS` 增 `show_run_review`；`var show_run_review=false`；`var run_review_copy: Button`；`const RunReview=preload("res://ui/run_review.gd")`；`func _run_review_copy_text()`；`_refresh_drawers()` 非主页分支增一行分派；`_drawer_shell()` 的整窗遮罩条件增 `show_run_review`；`_route_screen()` 的 `navigation` 增 `OpenRunReview`；`_demo_exit_screen()` 增 `OpenRunReview`（其面板 rect 高度可按内容调整）；`copy_seed()` 与 `_refresh_seed_chip()` 改为经同一刷新入口同时改写角标与面板按钮两处文本（守卫沿用 `is_instance_valid`） | `SeedChip` 的可见性判据、文本、位置与 1.2 s 窗口不变；`seed_report_text()`／`copy_seed()` 的签名、剪贴板内容与四要素结构不变；`MapOverview`／`MapLocate`／`MapClearDrawing`／`TowerRoute`／`TowerMapScroll` 的**文本、行为与相互判据不动**（本片只**追加**一个按钮；追加使 `navigation` 整格上移一行、`TravelMessageScroll` 变矮，属追加的必然布局后果）；`_select_route_room`、`_open_drawer`／`_close_drawers`、Esc 与安卓返回键清单语义不变 |
 | `assets/localization/zh_CN.json` | 新增「本地化 key 表」的 8 条（`text`＋`context`） | 既有条目不改不删；`schema_version`／`locale` 不变 |
 | `assets/localization/en_US.json` | 新增同 8 条（`source` 与 zh_CN 的 `text` 逐字相同，`text` 非空） | 既有条目的 `source`／`text` 不改；`coverage("en_US").missing==0` 继续成立 |
@@ -45,7 +45,7 @@
 - 新增 View 键、候选、`state` 字段；升 `Snapshot.REVISION`；改 `core/snapshot.gd`／`core/game.gd`／
   `core/game_view.gd`／`core/save_store.gd`。
 - 改动 `ui/feedback_report.gd` 与反馈附件域、`ui/route_map.gd` 的 `STATUS` 文案表、
-  `data/balance.gd::RNG_SALTS`、未跟踪的 `spire-godot/tools/play_release.ps1`。
+  `data/balance.gd::RNG_SALTS`、协调者的本地发布脚本（未入库，本表不点名其路径）。
 - 用「先打开面板再让 `visible=false`」冒充入口不可见；在面板里留空白格表示无数据。
 - 推送、打标签、改版本号、改 `project.godot` 或导出预设。
 

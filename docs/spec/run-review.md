@@ -28,7 +28,7 @@
 const TITLE_KEY="ui.run_review.title"
 const TITLE_FALLBACK="本局回顾"
 static func title_text(ui) -> String        # = ui._text(TITLE_KEY,TITLE_FALLBACK)；面板标题与两个入口按钮共用
-static func can_open(route: Array) -> bool  # = not route.is_empty()：入口可见性的唯一判据
+static func can_open(route: Array) -> bool  # = not route.is_empty()：两处入口的创建守卫（观测按控件是否存在，见「入口可见性」）
 static func drawer(ui) -> void              # 建 ui._drawer_shell(...) 面板并追加三块
 #   复制按钮 name="RunReviewCopy"：初始文本读 ui._run_review_copy_text()，pressed → ui.copy_seed()，
 #   建好后把 ui.run_review_copy 指向它（面板自己唯一的 ui 字段写入）。
@@ -61,7 +61,8 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 
 - 不使用 `view.rooms_completed` 作为进度来源：进度行与地图必须来自同一数组，避免同一语义的第二个来源。
 - 卡组块的现算文案经 `deck_browser.setup` 内部既有入口 `ui.game.live_card_text_set`
-  （`docs/ondemand-copy.md` §1.3 登记的全量只读入口）；`run_review.gd` 自身不调用任何 `ui.game.*`。
+  （`docs/spec/ondemand-copy.md`「三个只读入口」登记的全量入口）；`run_review.gd` 自身不调用
+  任何 `ui.game.*`。
 
 ### 只读保证（实现必须同时满足）
 
@@ -70,7 +71,8 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
    它只写剪贴板与 `seed_copied_until`，不得自写 `DisplayServer.clipboard_set`、不得自建截止时间或回调。
 2. 回顾地图实例只读：`room_selected` 不接 `ui._select_route_room`，`drawings_changed` 不接
    `ui._save_progress`（这两条连接只属于 `_route_screen()`）。
-3. `route_map.read_only=true`：`_ready()` 不建房间按钮、`_input()` 首行早退（见下节）。
+3. `route_map.read_only=true`：`_ready()` 不建房间按钮（回顾地图「点节点不出发」的实际保证）；
+   `_input()` 的 `read_only` 首行早退保留，但在回顾地图上不是生效路径（见下节）。
 4. 回顾地图实例的 `buttons` 为空，`strokes` 保持空；不写 `ui.map_drawings`、不进 `ui.candidate_buttons`。
 5. 除 `_open_drawer`／`_close_drawers` 的抽屉显示态与 `ui.run_review_copy`（面板自己的视图指针）外，
    本面板不改任何 `ui` 字段。
@@ -80,10 +82,14 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 
 ### 入口可见性
 
-- 唯一判据 `RunReview.can_open(view.route)`：`view.route` 为空（`core/game_view.gd::build` 里
+- 观测判据＝**入口控件是否存在**：`view.route` 为空（`core/game_view.gd::build` 里
   `state.practice` 或 `state.room=="prison"` 的练习局与牢房）时**不创建**入口控件——不是
-  `visible=false` 的空壳，`ui.find_children("OpenRunReview","",true,false)` 必须为空
-  （该判据在现有套件里的可证伪性限制见场景 G）。
+  `visible=false` 的空壳，`ui.find_children("OpenRunReview","",true,false)` 必须为空。
+  实现侧的守卫是两处调用点上的 `RunReview.can_open(view.route)`
+  （`ui/main.gd::_route_screen()` 与 `ui/main.gd::_demo_exit_screen()`）；函数名只是定位用的
+  符号锚点，判据不按它的返回值判定。**可证伪性限制**：把 `can_open` 改成恒真在现有 `route`
+  套件里实测 0 条变红（练习局走练习屏、牢房相位不渲染这两个入口屏）；能证伪空壳入口的是
+  「无条件创建入口」变异，细节与实测见场景 G。
 - 两个入口，同一个 `name="OpenRunReview"`（两屏在 `render()` 里互斥，任意时刻至多一个）：
   - 路线屏 `ui/main.gd::_route_screen()`：追加在右栏 `navigation`（`MapOverview`／`MapLocate` 之后）：
     既有控件的**文本、行为与相互判据不动**；追加使该格多出一行、既有格随之上移，
@@ -110,10 +116,14 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
 
 ### 只读地图的实现口径（`ui/route_map.gd`）
 
-- 新增 `var read_only=false`，只影响两处：
-  - `_ready()`：`read_only` 时不遍历 `rooms` 建 `Button`、不连 `pressed → room_selected.emit`
-    （`buttons` 保持空，房间因此没有任何点击命中格）。
-  - `_input()`：`read_only` 时第一行早退（不绘画、不接管左键平移；滚轮仍由父滚动控件处理）。
+- 新增 `var read_only=false`。回顾地图下**实际生效的只有 `_ready()` 一处**：
+  - `_ready()`（生效路径）：`read_only` 时不遍历 `rooms` 建 `Button`、不连
+    `pressed → room_selected.emit`，也不连 `resized → _layout_nodes`／不调用 `_layout_nodes()`
+    （`buttons` 保持空，房间因此没有任何点击命中格；只读分支改连 `resized → queue_redraw`）。
+  - `_input()`：`read_only` 首行早退代码存在，但回顾地图**不靠它**——紧随其后的
+    `get_parent() as ScrollContainer` 守卫先返回（回顾地图的父节点是滚动列内的
+    `VBoxContainer`，不是 `ScrollContainer`），绘画与左键平移本就不会被接管。
+    不得把这个首行早退当成回顾地图只读的生效点或观测点。
 - `_draw()`、`point_for()`、`_layout_nodes()`、`ink_position()` 不改：同一渲染器、同一坐标与配色，
   紧凑模式继续只画图标与层号（`compact` 分支）。
 - `read_only=false`（路线屏）逐项不变：既有 `ROUTE` 断言（每房间都有按钮、节点点击出发、
@@ -344,8 +354,8 @@ Esc 与安卓返回键沿既有 `DRAWERS` 清单关闭，不新增关闭通道�
   `ui/main.gd`（两个入口、抽屉接线、复制按钮的第二视图：`run_review_copy`／`_run_review_copy_text()`，
   并由 `copy_seed()` 与 `_refresh_seed_chip()` 这一对唯一入口驱动两处文本）、
   两份本地化（新增 8 条）、`tests/route_ui_cases.gd`（含 `run_review(t)`）均已按上表落地；
-  `core/`、`data/`、`Snapshot.REVISION`、`ui/feedback_report.gd`、未跟踪的
-  `spire-godot/tools/play_release.ps1` 零改动。
+  `core/`、`data/`、`Snapshot.REVISION`、`ui/feedback_report.gd`、协调者的本地发布脚本
+  （未入库，本文件不点名其路径）零改动。
 - 证据：上面两条命令退出码 0 且指纹未漂移；每条判据的敏感性证明实测（还原后复跑）。
 - 记录：`docs/record/changelog.md` 追加一条（日期＋范围＋证据＋未推送）；
   `docs/record/verification.md` 追加一节（日期＋域＋命令＋逐分类结果＋具名 check＋敏感性实测＋
