@@ -2,6 +2,12 @@
   "schema_version": 1,
   "locale": "zh_CN",
   "messages": {
+    "ui.art.inspect.fit": {"text": "适应屏幕", "context": "原图检视缩放切换"},
+    "ui.art.inspect.native": {"text": "1:1 原图", "context": "按原始像素大小检视立绘"},
+    "ui.art.test": {"text": "测试版画风", "context": "图鉴卡图选择"},
+    "ui.art.formal": {"text": "正式版·跟随模式", "context": "图鉴卡图选择"},
+    "ui.art.original": {"text": "正式版·原图", "context": "图鉴卡图选择"},
+    "ui.art.fixed": {"text": "正式版·扶她出去", "context": "图鉴卡图选择"},
     "ui.shop.refresh": {"text": "刷新 · {price}魔力", "context": "店主立绘右上角刷新按钮，整局累计涨价"},
     "ui.portrait.expand": {"text": "放大立绘", "context": "身体栏立绘右下角按钮"},
     "ui.flask.deposit_uses": {"text": "存 {dots}", "context": "魔瓶战斗存取独立剩余次数"},

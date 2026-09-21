@@ -6,8 +6,8 @@ const TERMS={
  "mouth_clear":{"name":"嘴部无拘束","detail":"嘴部不能佩戴任何拘束具；提高施法成功率不能绕过此条件。"},
  "mind":{"name":"精神施法","detail":"无需手部或嘴部动作，仍受快感及施法成功率加成影响。"},
  "legs":{"name":"腿部施法预备","detail":"成功率受快感和腿部受限等级影响。"},
- "witch_focus":{"name":"精神集中","detail":"下次造成伤害的魔法每段伤害增加对应层数，整次施放消耗全部层数。施法失败或高潮时失去1层。跨战斗最多保留2层，乌龟壳提高至4层。"},
- "unique":{"name":"唯一","detail":"同一效果不可叠加，包括复放；不同牌面的效果可以同时生效。原有刷新效果仍只刷新次数或时长。"},
+ "witch_focus":{"name":"精神集中","detail":"下次对敌人造成伤害的魔法每段伤害增加对应层数，整次施放消耗全部层数；魔力松缚不受加成，也不消耗层数。施法失败或高潮时失去1层。跨战斗最多保留2层，乌龟壳提高至4层。"},
+ "unique":{"name":"唯一","detail":"重复使用或复放同一效果不会叠加；不同牌面的效果可以同时生效。"},
  "traction":{"name":"牵扯","detail":"触发花费能量引起的装备刺激、手牌刺激与捕缚效果。额外牵扯1次按1能量判定，不实际扣能量。"},
  "innate":{"name":"固有","detail":"每场开始时，优先进入起始手牌。"},
  "ethereal":{"name":"虚无","detail":"回合结束仍在手牌时消耗，优先于保留效果。"},
@@ -97,7 +97,7 @@ static func keywords(type: String, free: bool, traits: Dictionary) -> Array:
  if Rules.face_casts(type,free): ids.append_array(spec.casting.parts)
  elif spec.get("casting",{}).get("parts",[])==["hand"]: ids.append("hand_use")
  if not Rules.free_effect(type,free) and TERMS.has(Rules.face_mode(type,free)): ids.append(Rules.face_mode(type,free))
- if not free and spec.get("follow_through",false): ids.append("follow_through")
+ if not Rules.free_effect(type,free) and spec.get("follow_through",false): ids.append("follow_through")
  if spec.has("self_faces"):
   var face=spec.self_faces["free" if free else "bound"]
   if face.get("requires_hand",false): ids.append("hand_use")
@@ -147,7 +147,7 @@ static func mana_entries(type: String, free: bool, cost: float, worn_count: Vari
   entries.append(item)
  if face.get("worn_resource",{}).get("resource","")=="mana":
   var amount=0 if worn_count==null else Rules.worn_gain(face,int(worn_count))
-  entries.append({"kind":"gain","amount":float(amount),"text":"+X" if worn_count==null else "+"+str(amount),"detail":"恢复等于当前佩戴拘束具件数的魔力，不超过上限。"})
+  entries.append({"kind":"gain","amount":float(amount),"text":"+X" if worn_count==null else "+"+str(amount),"detail":"每佩戴%d件拘束具，恢复%d魔力，不超过上限。" % [face.worn_resource.divisor,face.worn_resource.get("amount",1)]})
  var per_card=float(face.get("exhaust_hand_batch",{}).get("mana_gain",0))
  if per_card>0:
   var value=String.num(per_card,2).trim_suffix(".0")

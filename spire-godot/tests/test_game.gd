@@ -262,7 +262,7 @@ func _more_tests() -> void:
  g.add_fixture("wrist",4)
  g.state.charge=1
  var strike=find_action(g,"attack",{"type":"strike","enemy":"enemy_1"})
- check(is_equal_approx(strike.payload.damage,6.6),"TC-CHARGE-0001 base bonus scales with body restriction")
+ check(g.level("arms")==2 and is_equal_approx(strike.payload.damage,8.8),"TC-CHARGE-0001 base and charge bonus use level-two body restriction")
  check(action(g,"attack",{"type":"strike","enemy":"enemy_1"}).ok and g.state.charge==0,"TC-CHARGE-0001 one charge consumed")
 
  g=Game.new()

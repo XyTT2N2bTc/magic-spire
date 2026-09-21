@@ -18,13 +18,13 @@ static func run(t) -> void:
  barrier_capacity(t)
  var g=start(t,false)
  var master_id=g.state.enemies[0].id
- t.check(g.Enemies.TYPES.puppeteer.hp==76 and g.Enemies.TYPES.puppeteer.humanoid and g.Enemies.TYPES.puppet.humanoid and "puppeteer_solo" in g.Enemies.FirstFloor.ELITE_ENCOUNTERS,"PUPPET elite registration, health and both humanoid types")
+ t.check(g.Enemies.TYPES.puppeteer.hp==96 and g.Enemies.TYPES.puppeteer.humanoid and g.Enemies.TYPES.puppet.humanoid and "puppeteer_solo" in g.Enemies.FirstFloor.ELITE_ENCOUNTERS,"PUPPET elite registration, health and both humanoid types")
  var id=doll(g).id
  var before=g.export_snapshot()
  g.candidates();g.get_view()
  t.check(g.state==before and doll(g).hp==15 and not doll(g).puppet_awakened and doll(g).stage==1,"PUPPET summon has innate protection and read-only preview, no early taunt")
  g._damage_enemy(g._enemy(id),17,"physical","测试伤害")
- t.check(g._enemy(id).hp==1 and g._enemy(master_id).hp==73 and g.state.equipment.is_empty(),"PUPPET innate floor forwards exactly three excess damage without an early reaction")
+ t.check(g._enemy(id).hp==1 and g._enemy(master_id).hp==93 and g.state.equipment.is_empty(),"PUPPET innate floor forwards exactly three excess damage without an early reaction")
  t.check(t.find_action(g,"attack",{"type":"strike","enemy":master_id}).valid,"PUPPET master remains targetable until awakening")
  var twin=Save.roundtrip(t,g,"puppet before awakening")
  Save.step_both(t,g,twin,"end")
@@ -91,13 +91,13 @@ static func barrier_and_stock(t) -> void:
  for amount in [29.0,30.0,31.0]:
   var g=start(t,false);var master=g.state.enemies[0]
   g._damage_enemy(master,amount,"physical","屏障边界")
-  t.check(master.hp==76-minf(amount,30) and g.Enemies.barrier_remaining(master,g.DemoExit.health_multiplier(g.state))==maxf(0,30-amount),"PUPPET BARRIER boundary clamps actual turn damage")
+  t.check(master.hp==96-minf(amount,30) and g.Enemies.barrier_remaining(master,g.DemoExit.health_multiplier(g.state))==maxf(0,30-amount),"PUPPET BARRIER boundary clamps actual turn damage")
  var g=start(t,false);var master=g.state.enemies[0]
  g._damage_enemy(master,12,"magic","屏障测试")
  g._damage_enemy(doll(g),35,"physical","转移测试")
- t.check(master.hp==46 and doll(g).hp==1 and master.barrier_damage==30,"PUPPET BARRIER direct and transferred damage share the same turn allowance")
+ t.check(master.hp==66 and doll(g).hp==1 and master.barrier_damage==30,"PUPPET BARRIER direct and transferred damage share the same turn allowance")
  g._damage_enemy(master,20,"fixed","遗物测试")
- t.check(master.hp==46,"PUPPET BARRIER exhausted allowance blocks later fixed damage in the same turn")
+ t.check(master.hp==66,"PUPPET BARRIER exhausted allowance blocks later fixed damage in the same turn")
  var before=g.export_snapshot();g.get_view();g.candidates()
  t.check(g.state==before,"PUPPET BARRIER previews do not refill allowance")
  var twin=Save.roundtrip(t,g,"barrier exhausted allowance")
@@ -107,13 +107,13 @@ static func barrier_and_stock(t) -> void:
  t.check(t.action(g,"end").ok and master.barrier_damage==30 and g.state.enemies[0].barrier_damage==0,"PUPPET BARRIER next formal round resets only committed state")
  master=g.state.enemies[0]
  g._damage_enemy(master,31,"fixed","新回合测试")
- t.check(master.hp==16 and master.barrier_damage==30,"PUPPET BARRIER new turn grants a fresh thirty damage allowance")
+ t.check(master.hp==36 and master.barrier_damage==30,"PUPPET BARRIER new turn grants a fresh thirty damage allowance")
  # Real two-hit action exceeds the budget in its first hit; a second action cannot reset it.
  g=start(t);g.state.energy=10;g.state.turn_strength=50;doll(g).hp=1
  var master_id=g.state.enemies[0].id
- t.check(t.action(g,"attack",{"type":"strike","form":1,"enemy":doll(g).id}).ok and g._enemy(master_id).hp==46 and doll(g).puppet_stock==1,"PUPPET BARRIER real multihit transfer shares thirty damage while each hit consumes ordinary stock")
+ t.check(t.action(g,"attack",{"type":"strike","form":1,"enemy":doll(g).id}).ok and g._enemy(master_id).hp==66 and doll(g).puppet_stock==1,"PUPPET BARRIER real multihit transfer shares thirty damage while each hit consumes ordinary stock")
  g._damage_enemy(g._enemy(master_id),40,"magic","另一攻击")
- t.check(g._enemy(master_id).hp==46,"PUPPET BARRIER later attack remains capped for whole turn")
+ t.check(g._enemy(master_id).hp==66,"PUPPET BARRIER later attack remains capped for whole turn")
  g=start(t)
  for i in range(3):g._damage_enemy(doll(g),1,"fixed","反击测试")
  t.check(doll(g).puppet_stock==0 and g.physical_pieces().size()==3,"PUPPET STOCK initial three charges allow exactly three ordinary reactions")
@@ -142,7 +142,7 @@ static func barrier_and_stock(t) -> void:
  var other=g._append_enemies([{"type":"puppeteer","grade":2}])[0]
  g._damage_enemy(g.state.enemies[0],40,"magic","独立屏障测试")
  g._damage_enemy(other,7,"fixed","独立屏障测试")
- t.check(g.state.enemies[0].barrier_damage==30 and other.barrier_damage==7 and other.hp==69,"PUPPET BARRIER each owner keeps an independent turn allowance")
+ t.check(g.state.enemies[0].barrier_damage==30 and other.barrier_damage==7 and other.hp==89,"PUPPET BARRIER each owner keeps an independent turn allowance")
 
 static func scaled_barrier(t) -> void:
  for cycle in range(3):
@@ -151,16 +151,16 @@ static func scaled_barrier(t) -> void:
   g.state.demo_cycle=cycle;g._start_battle()
   var master=g.state.enemies[0]
   var factor=[1.0,1.5,2.0][cycle];var limit=[30.0,45.0,60.0][cycle]
-  t.check(master.max_hp==76*factor and g.Enemies.barrier_limit(master,factor)==limit,"PUPPET CYCLE health and damage allowance share the cycle multiplier")
+  t.check(master.max_hp==96*factor and g.Enemies.barrier_limit(master,factor)==limit,"PUPPET CYCLE health and damage allowance share the cycle multiplier")
   g._damage_enemy(master,limit-1,"magic","周目屏障边界")
   g=Save.roundtrip(t,g,"scaled barrier one damage remaining")
   master=g.state.enemies[0]
   var status=g.get_view().statuses.filter(func(s):return s.id=="damage_barrier_"+master.id)[0]
   t.check(status.detail.contains("最多%s点" % g.number(limit)) and g.Enemies.barrier_remaining(master,factor)==1,"PUPPET CYCLE status and restored allowance use the scaled limit")
   g._damage_enemy(doll(g),doll(g).hp+2,"fixed","周目转移伤害")
-  t.check(master.barrier_damage==limit and master.hp==76*factor-limit,"PUPPET CYCLE transfer shares and cannot exceed the scaled turn budget")
+  t.check(master.barrier_damage==limit and master.hp==96*factor-limit,"PUPPET CYCLE transfer shares and cannot exceed the scaled turn budget")
   g._damage_enemy(master,999,"fixed","周目屏障已耗尽")
-  t.check(master.hp==76*factor-limit,"PUPPET CYCLE further damage remains blocked after scaled allowance is exhausted")
+  t.check(master.hp==96*factor-limit,"PUPPET CYCLE further damage remains blocked after scaled allowance is exhausted")
   g=Save.roundtrip(t,g,"scaled barrier exhausted")
   var stable=g.export_snapshot();var invalid=stable.duplicate(true)
   invalid.enemies[0].barrier_damage=limit+0.5
@@ -172,18 +172,26 @@ static func barrier_capacity(t) -> void:
  g._damage_enemy(master,30,"fixed","恰好上限")
  g._damage_enemy(master,0,"fixed","零伤害")
  t.check(g.Puppets.capacity(g,doll(g))==3 and doll(g).puppet_stock==3,"PUPPET CAPACITY exact limit and zero damage do not trigger loss")
- for expected in [2,1,0,0]:
+ for expected in [2,1,1,1]:
   g._damage_enemy(master,1,"fixed","屏障阻挡")
   t.check(g.Puppets.capacity(g,doll(g))==expected and doll(g).puppet_stock==expected,"PUPPET CAPACITY each later damage event lowers and clamps capacity without negative debt")
- t.check(doll(g).puppet_capacity_lost==3,"PUPPET CAPACITY repeated blocking at zero cannot accumulate future capacity debt")
- g=Save.roundtrip(t,g,"zero puppet capacity")
- t.check(t.action(g,"end").ok and g.Puppets.capacity(g,doll(g))==0,"PUPPET CAPACITY next round resets the barrier but preserves lost capacity")
+ t.check(doll(g).puppet_capacity_lost==2,"PUPPET CAPACITY repeated blocking at one cannot accumulate future capacity debt")
+ g=Save.roundtrip(t,g,"minimum puppet capacity")
+ t.check(t.action(g,"end").ok and g.Puppets.capacity(g,doll(g))==1,"PUPPET CAPACITY next round resets the barrier but preserves lost capacity")
  for i in range(3): t.check(t.action(g,"end").ok,"PUPPET CAPACITY normal cycle proceeds to mending")
- t.check(g.Puppets.capacity(g,doll(g))==1 and doll(g).puppet_stock==1,"PUPPET CAPACITY mending restores one capacity and refills after the zero floor")
+ t.check(g.Puppets.capacity(g,doll(g))==2 and doll(g).puppet_stock==2,"PUPPET CAPACITY mending restores one capacity and refills after the one-capacity floor")
  var stable=g.export_snapshot()
  for value in [-1,5,"1",1.5]:
   var bad=stable.duplicate(true);bad.enemies.filter(func(e):return e.type=="puppet")[0].puppet_capacity_lost=value
   t.check(not g.restore_snapshot(bad).ok and g.state==stable,"PUPPET CAPACITY malformed or excessive loss rejects atomically")
+ # A previous version could save capacity zero. Keep spent stock empty, but mend +1.
+ g=start(t,false)
+ var zero_save=g.export_snapshot()
+ var old_doll=zero_save.enemies.filter(func(e):return e.type=="puppet")[0]
+ old_doll.puppet_capacity_lost=3;old_doll.puppet_stock=0
+ t.check(g.restore_snapshot(zero_save).ok and g.Puppets.capacity(g,doll(g))==1 and doll(g).puppet_stock==0,"PUPPET CAPACITY old zero-capacity saves show floor one without granting unspent reactions")
+ for i in range(4):t.check(t.action(g,"end").ok,"PUPPET CAPACITY old zero-capacity save reaches real mend")
+ t.check(g.Puppets.capacity(g,doll(g))==2 and doll(g).puppet_stock==2,"PUPPET CAPACITY old zero-capacity save mends from the new floor to two")
  g=start(t,false)
  var legacy=g.export_snapshot();legacy.enemies.filter(func(e):return e.type=="puppet")[0].erase("puppet_capacity_lost")
  t.check(g.restore_snapshot(legacy).ok and g.Puppets.capacity(g,doll(g))==3,"PUPPET CAPACITY older saves without a loss field retain their original capacity")

@@ -12,6 +12,7 @@ static func enemy(g, type: String) -> Dictionary:
  return g.state.enemies.filter(func(e):return e.type==type)[0]
 
 static func run(t) -> void:
+ interrupt_contract(t)
  capture_contract(t)
  practice_contract(t)
  cup_progression(t)
@@ -27,12 +28,12 @@ static func run(t) -> void:
  var iron=enemy(g,"iron_man")
  var box=enemy(g,"binding_box")
  var drone=enemy(g,"iron_drone")
- t.check(iron.hp==120 and box.hp==40 and drone.hp==40 and iron.intent.kind=="bind_apply" and drone.intent.kind=="bind_apply","IRON encounter starts with approved health and independent opening intents")
+ t.check(iron.hp==140 and box.hp==40 and drone.hp==40 and iron.intent.kind=="bind_apply" and drone.intent.kind=="bind_apply","IRON encounter starts with approved health and independent opening intents")
  t.check(box.name=="凑数型拘束盒" and drone.name=="凑数型无人机","IRON encounter owns both support display names")
  t.check(iron.iron_support_ids.has(box.id) and iron.iron_support_ids.has(drone.id) and g.validate()=="","IRON boss owns both support identities in a valid state")
 
  var witch=encounter(true)
- t.check(enemy(witch,"iron_man").hp==156 and enemy(witch,"binding_box").hp==52 and enemy(witch,"iron_drone").hp==52,"IRON witch encounter multiplies exactly the three boss members by 1.3")
+ t.check(enemy(witch,"iron_man").hp==182 and enemy(witch,"binding_box").hp==52 and enemy(witch,"iron_drone").hp==52,"IRON witch encounter multiplies exactly the three boss members by 1.3")
 
  var plate_game=encounter(false,43)
  var ordinary_plate=plate_game._install_special("negative_plate_lock_medium","special_2_a",3)
@@ -164,11 +165,11 @@ static func practice_contract(t) -> void:
  var localizer=preload("res://ui/localization.gd").new()
  localizer.set_locale("en_US")
  var spec=Game.Tower.practice_spec("iron_man_solo")
- t.check(localizer.display(spec.name)=="Iron Man Practice" and localizer.display(spec.description).contains("120 HP") and localizer.display(spec.hint).contains("At 100"),"IRON PRACTICE English description preserves health and capture timing")
+ t.check(localizer.display(spec.name)=="Iron Man Practice" and localizer.display(spec.description).contains("140 HP") and localizer.display(spec.hint).contains("At 100"),"IRON PRACTICE English description preserves health and capture timing")
  for role in ["original","witch"]:
   var g=preload("res://core/game.gd").new(42,true,"iron_man_solo",true,false,25,false,false,role)
   t.check(g.state.practice_kind=="iron_man_solo" and g.state.phase=="battle" and g.state.enemies.size()==3,"IRON PRACTICE real initialization starts the complete encounter: "+role)
-  t.check(enemy(g,"iron_man").hp==(156 if role=="witch" else 120) and g.validate()=="","IRON PRACTICE uses normal role-specific health and valid support identities: "+role)
+  t.check(enemy(g,"iron_man").hp==(182 if role=="witch" else 140) and g.validate()=="","IRON PRACTICE uses normal role-specific health and valid support identities: "+role)
   t.check(t.action(g,"end").ok and g.CaptureBind.has_bind(g,"iron_man"),"IRON PRACTICE opening uses the formal enemy action pipeline: "+role)
 
 static func cup_progression(t) -> void:
@@ -394,3 +395,26 @@ static func capture_gain_contract(t) -> void:
   before=g.state.guard_bind.progress
   g.CaptureBind.turn_start(g)
   t.check(g.state.guard_bind.progress==before and g.state.equipment.size()==pieces,"IRON GAIN reapplying either box capture also skips its first upkeep")
+
+static func interrupt_contract(t) -> void:
+ for witch in [false,true]:
+  for stage in range(1,7):
+   var g=encounter(witch)
+   var iron=enemy(g,"iron_man")
+   for support in g.state.enemies:
+    if support.type!="iron_man": support.gone=true;support.defeated=true;support.hp=0;support.intent={}
+   iron.stage=stage;iron.intent=g._plan(iron)
+   var kind=iron.intent.kind
+   var attack={"type":"witch_legs" if witch else "strike","form":1 if witch else 0,"enemy":iron.id}
+   if witch: g.state.witch_charges.legs=4
+   else: g.Cards.grant_buff(g,"infusion_free")
+   var candidate=t.find_action(g,"attack",attack)
+   t.check(candidate.valid and candidate.payload.interrupt and g.dispatch(candidate.id,g.state.version).ok,"IRON INTERRUPT real character attack commits "+str([witch,stage]))
+   iron=enemy(g,"iron_man")
+   t.check(iron.intent.kind==kind and iron.intent.delayed and iron.stage==stage,"IRON INTERRUPT post-action capture observation preserves delayed intent "+str([witch,stage]))
+   var before=g.export_snapshot();g.get_view();g.candidates()
+   t.check(g.state==before,"IRON INTERRUPT projections preserve delayed intent and random state")
+   var twin=Save.roundtrip(t,g,"iron interrupted action "+str([witch,stage]))
+   t.check(twin!=null and enemy(twin,"iron_man").intent.delayed,"IRON INTERRUPT save retains delayed action")
+   t.check(t.action(g,"end").ok and enemy(g,"iron_man").stage==stage and enemy(g,"iron_man").intent.kind==kind and not enemy(g,"iron_man").intent.delayed,"IRON INTERRUPT enemy skips one action without advancing cycle "+str([witch,stage]))
+   t.check(t.action(g,"end").ok and enemy(g,"iron_man").stage==stage+1,"IRON INTERRUPT original action resumes on following enemy turn "+str([witch,stage]))

@@ -408,7 +408,10 @@ static func escape(g, route: String) -> void:
  g.state.map_region="prison"
  g.state.pressure_sources=g.state.pressure_sources.filter(func(s):return s.room=="")
  g.state.rooms=g.Tower.prison_route(g.state.security)
+ # Keep the frozen tower encounter while its rooms are replaced by the escape route.
+ var summit=g.state.room_encounters.get("summit","")
  g.state.room_encounters={"prison_gate":"guard_solo"}
+ if summit!="": g.state.room_encounters.summit=summit
  g._apply_transition("prison_escape",{"room":"prison_start"});g.state.wall="normal";g.state.wall_distance=1
  g.state.room_event={};g.state.completed_rooms=[];g.state.traversed_edges=[];g.state.journey={}
  g.state.enemies=[];g._apply_transition("prison_escape",{"phase":"map"});g.state.energy=0
@@ -477,17 +480,15 @@ static func sentence_label(g) -> String:
 
 static func completed_turn(g) -> bool:
  if not g.state.prison.get("active",false): return false
- # A running prison battle leaves the whole cell clock frozen: neither the patrol
- # countdown nor the sentence advances, so the due release check cannot fire inside
- # a battle. The cell resumes from the paused values once the player is back
- # (docs/design/prison.md §2).
- if g.state.phase=="battle": return false
+ # Only a completed cell turn advances the sentence or runs its due inspection.
+ # Battle and post-battle preparation keep both clocks frozen, including on return.
+ if g.state.phase!="prison": return false
  g.state.prison.served_turns+=1
  var limit=sentence_limit(g)
  if limit==0 or g.state.prison.served_turns<limit: return false
  if not release_inspection(g): return false
  var outcome=intake_equipment(g)
- g._emit("event","出狱前检查通过，按当前安全等级补齐出狱装备。接下来可以选择新塔路第10—11层的起点。",{"sentence_release":{"served":g.state.prison.served_turns,"limit":limit,"equipment":outcome},"npc_copy":{"cue":"prison.guard.release_pass","visual":SENIOR_GUARD}})
+ g._emit("event","出狱检查通过。狱警按当前安全等级施加出狱装备后，你可以选择新塔路第10—11层的起点。",{"sentence_release":{"served":g.state.prison.served_turns,"limit":limit,"equipment":outcome},"npc_copy":{"cue":"prison.guard.release_pass","visual":SENIOR_GUARD}})
  g.RelicEffects.end_combat(g)
  g.Pressure.clear_penalties(g)
  g.CaptureBind.clear_bind(g)
@@ -504,12 +505,12 @@ static func release_inspection(g) -> bool:
  var missing=p.missing.duplicate()
  var special_missing=p.special_missing.duplicate()
  var extra=p.sentence_extra
- g._emit("event","出狱期限已到，资深狱警进入牢房进行额外检查；本次不计入正常巡视周期。",{"npc_copy":{"cue":"prison.guard.release_check","visual":SENIOR_GUARD}})
+ g._emit("event","刑期已满，资深狱警前来进行出狱检查。",{"npc_copy":{"cue":"prison.guard.release_check","visual":SENIOR_GUARD}})
  execute(g,{"payload":{"action":"inspect","temporary":true}})
  execute(g,{"payload":{"action":"accept","temporary":true}})
  p.stage=stage;p.missing=missing;p.special_missing=special_missing
  if p.sentence_extra==extra: return true
- g._emit("event","出狱前检查未通过，出狱期限延长8回合；继续服刑，正常巡视按原周期进行。",{"sentence_delayed":{"limit":sentence_limit(g),"extension":p.sentence_extra-extra},"npc_copy":{"cue":"prison.guard.release_fail","visual":SENIOR_GUARD}})
+ g._emit("event","出狱检查未通过，刑期延长8回合。",{"sentence_delayed":{"limit":sentence_limit(g),"extension":p.sentence_extra-extra},"npc_copy":{"cue":"prison.guard.release_fail","visual":SENIOR_GUARD}})
  return false
 
 static func start_room(room: Dictionary) -> bool:

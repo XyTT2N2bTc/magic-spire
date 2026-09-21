@@ -1,0 +1,350 @@
+{
+  "bound_crop": [
+    390,
+    90,
+    1130,
+    2304
+  ],
+  "sources": {
+    "reference": {
+      "path": "C:\\Users\\16563\\Downloads\\00077-1312644243.png",
+      "sha256": "3EC1855B084FFD5902D4A7E283251EF35B6064CFAF27F75367B777F01FD05F0F"
+    },
+    "upper": {
+      "path": "C:\\Users\\16563\\Downloads\\00158-520016716.png",
+      "sha256": "766E3F4238602EDCB4C763B16D617F01434B5B79E6A179F6F484CF758D7DCCEC"
+    },
+    "upper_lower": {
+      "path": "C:\\Users\\16563\\Downloads\\00159-2677612210.png",
+      "sha256": "4A766A4F8066473CB4FD50773627B9F77609554B9B7421B13CB55A6456E31CA8"
+    },
+    "long": {
+      "path": "C:\\Users\\16563\\Downloads\\00160-4038985730.png",
+      "sha256": "5E5E12727C1F55BB9F7A64B4B7B937A27E2B8E98400D0E591A229A67ADDECCF8"
+    }
+  },
+  "layers": {
+    "single_leg_upper": {
+      "texture": "res://assets/art/equipment-overlay-single-leg-upper-v1.png",
+      "origin": [
+        593,
+        1160
+      ],
+      "source_bounds": [
+        593,
+        1160,
+        886,
+        1631
+      ],
+      "sha256": "6090E7159A81FE07DB32E88648D2FCDFCACC3BB44471B86CA033875C860ACB0B",
+      "slices": {
+        "thigh_root": {
+          "rope": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-leather-v1.png",
+          "flat_lock_rope": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-flat_lock_rope-v1.png",
+          "flat_lock_free": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-flat_lock_free-v1.png",
+          "flat_lock_leather": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-flat_lock_leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-single_glove_free-v1.png",
+          "single_glove_flat_lock_bound": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-single_glove_flat_lock_bound-v1.png",
+          "single_glove_flat_lock_free": "res://assets/art/equipment-leg-thigh_root-single-leg-upper-single_glove_flat_lock_free-v1.png"
+        },
+        "mid_thigh": {
+          "rope": "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-single_glove_free-v1.png"
+        },
+        "above_knee": {
+          "rope": "res://assets/art/equipment-leg-above_knee-single-leg-upper-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-above_knee-single-leg-upper-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-above_knee-single-leg-upper-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-above_knee-single-leg-upper-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-above_knee-single-leg-upper-single_glove_free-v1.png"
+        }
+      }
+    },
+    "single_leg_lower": {
+      "texture": "res://assets/art/equipment-overlay-single-leg-lower-v1.png",
+      "origin": [
+        590,
+        1619
+      ],
+      "source_bounds": [
+        590,
+        1619,
+        830,
+        2136
+      ],
+      "sha256": "8E46E0207ECB38FD05B5CE52595A2ADFA547DC90CA019858A2C9A23966A9C8A5",
+      "slices": {
+        "below_knee": {
+          "rope": "res://assets/art/equipment-leg-below_knee-single-leg-lower-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-below_knee-single-leg-lower-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-below_knee-single-leg-lower-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-below_knee-single-leg-lower-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-below_knee-single-leg-lower-single_glove_free-v1.png"
+        },
+        "mid_calf": {
+          "rope": "res://assets/art/equipment-leg-mid_calf-single-leg-lower-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-mid_calf-single-leg-lower-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-mid_calf-single-leg-lower-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-mid_calf-single-leg-lower-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-mid_calf-single-leg-lower-single_glove_free-v1.png"
+        },
+        "ankle": {
+          "rope": "res://assets/art/equipment-leg-ankle-single-leg-lower-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-ankle-single-leg-lower-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-ankle-single-leg-lower-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-ankle-single-leg-lower-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-ankle-single-leg-lower-single_glove_free-v1.png"
+        }
+      }
+    },
+    "single_leg_long": {
+      "texture": "res://assets/art/equipment-overlay-single-leg-long-v1.png",
+      "origin": [
+        590,
+        1160
+      ],
+      "source_bounds": [
+        590,
+        1160,
+        886,
+        2136
+      ],
+      "sha256": "81E7EC84BBD8A2C34DD2CF4C6BD556D1C94A4F82D934546959BEF2FCA37998C8",
+      "slices": {
+        "thigh_root": {
+          "rope": "res://assets/art/equipment-leg-thigh_root-single-leg-long-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-thigh_root-single-leg-long-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-thigh_root-single-leg-long-leather-v1.png",
+          "flat_lock_rope": "res://assets/art/equipment-leg-thigh_root-single-leg-long-flat_lock_rope-v1.png",
+          "flat_lock_free": "res://assets/art/equipment-leg-thigh_root-single-leg-long-flat_lock_free-v1.png",
+          "flat_lock_leather": "res://assets/art/equipment-leg-thigh_root-single-leg-long-flat_lock_leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-thigh_root-single-leg-long-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-thigh_root-single-leg-long-single_glove_free-v1.png",
+          "single_glove_flat_lock_bound": "res://assets/art/equipment-leg-thigh_root-single-leg-long-single_glove_flat_lock_bound-v1.png",
+          "single_glove_flat_lock_free": "res://assets/art/equipment-leg-thigh_root-single-leg-long-single_glove_flat_lock_free-v1.png"
+        },
+        "mid_thigh": {
+          "rope": "res://assets/art/equipment-leg-mid_thigh-single-leg-long-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-mid_thigh-single-leg-long-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-mid_thigh-single-leg-long-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-mid_thigh-single-leg-long-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-mid_thigh-single-leg-long-single_glove_free-v1.png"
+        },
+        "above_knee": {
+          "rope": "res://assets/art/equipment-leg-above_knee-single-leg-long-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-above_knee-single-leg-long-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-above_knee-single-leg-long-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-above_knee-single-leg-long-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-above_knee-single-leg-long-single_glove_free-v1.png"
+        },
+        "below_knee": {
+          "rope": "res://assets/art/equipment-leg-below_knee-single-leg-long-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-below_knee-single-leg-long-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-below_knee-single-leg-long-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-below_knee-single-leg-long-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-below_knee-single-leg-long-single_glove_free-v1.png"
+        },
+        "mid_calf": {
+          "rope": "res://assets/art/equipment-leg-mid_calf-single-leg-long-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-mid_calf-single-leg-long-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-mid_calf-single-leg-long-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-mid_calf-single-leg-long-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-mid_calf-single-leg-long-single_glove_free-v1.png"
+        },
+        "ankle": {
+          "rope": "res://assets/art/equipment-leg-ankle-single-leg-long-rope-v1.png",
+          "free": "res://assets/art/equipment-leg-ankle-single-leg-long-free-v1.png",
+          "leather": "res://assets/art/equipment-leg-ankle-single-leg-long-leather-v1.png",
+          "single_glove_bound": "res://assets/art/equipment-leg-ankle-single-leg-long-single_glove_bound-v1.png",
+          "single_glove_free": "res://assets/art/equipment-leg-ankle-single-leg-long-single_glove_free-v1.png"
+        }
+      }
+    }
+  },
+  "bases": {
+    "single_leg_upper": {
+      "plain_free": "res://assets/art/equipment-body-single-leg-upper-plain_free-v1.png",
+      "plain_bound": "res://assets/art/equipment-body-single-leg-upper-plain_bound-v1.png",
+      "plain_leather_free": "res://assets/art/equipment-body-single-leg-upper-plain_leather_free-v1.png",
+      "plain_leather_bound": "res://assets/art/equipment-body-single-leg-upper-plain_leather_bound-v1.png",
+      "flat_lock_free": "res://assets/art/equipment-body-single-leg-upper-flat_lock_free-v1.png",
+      "flat_lock_bound": "res://assets/art/equipment-body-single-leg-upper-flat_lock_bound-v1.png",
+      "flat_lock_leather_free": "res://assets/art/equipment-body-single-leg-upper-flat_lock_leather_free-v1.png",
+      "flat_lock_leather_bound": "res://assets/art/equipment-body-single-leg-upper-flat_lock_leather_bound-v1.png",
+      "single_glove": "res://assets/art/equipment-body-single-leg-upper-single_glove-v1.png",
+      "single_glove_flat_lock": "res://assets/art/equipment-body-single-leg-upper-single_glove_flat_lock-v1.png"
+    },
+    "single_leg_lower": {
+      "plain_free": "res://assets/art/equipment-body-single-leg-lower-plain_free-v1.png",
+      "plain_bound": "res://assets/art/equipment-body-single-leg-lower-plain_bound-v1.png",
+      "plain_leather_free": "res://assets/art/equipment-body-single-leg-lower-plain_leather_free-v1.png",
+      "plain_leather_bound": "res://assets/art/equipment-body-single-leg-lower-plain_leather_bound-v1.png",
+      "flat_lock_free": "res://assets/art/equipment-body-single-leg-lower-flat_lock_free-v1.png",
+      "flat_lock_bound": "res://assets/art/equipment-body-single-leg-lower-flat_lock_bound-v1.png",
+      "flat_lock_leather_free": "res://assets/art/equipment-body-single-leg-lower-flat_lock_leather_free-v1.png",
+      "flat_lock_leather_bound": "res://assets/art/equipment-body-single-leg-lower-flat_lock_leather_bound-v1.png",
+      "single_glove": "res://assets/art/equipment-body-single-leg-lower-single_glove-v1.png",
+      "single_glove_flat_lock": "res://assets/art/equipment-body-single-leg-lower-single_glove_flat_lock-v1.png"
+    },
+    "single_leg_upper_lower": {
+      "plain_free": "res://assets/art/equipment-body-single-leg-upper-lower-plain_free-v1.png",
+      "plain_bound": "res://assets/art/equipment-body-single-leg-upper-lower-plain_bound-v1.png",
+      "plain_leather_free": "res://assets/art/equipment-body-single-leg-upper-lower-plain_leather_free-v1.png",
+      "plain_leather_bound": "res://assets/art/equipment-body-single-leg-upper-lower-plain_leather_bound-v1.png",
+      "flat_lock_free": "res://assets/art/equipment-body-single-leg-upper-lower-flat_lock_free-v1.png",
+      "flat_lock_bound": "res://assets/art/equipment-body-single-leg-upper-lower-flat_lock_bound-v1.png",
+      "flat_lock_leather_free": "res://assets/art/equipment-body-single-leg-upper-lower-flat_lock_leather_free-v1.png",
+      "flat_lock_leather_bound": "res://assets/art/equipment-body-single-leg-upper-lower-flat_lock_leather_bound-v1.png",
+      "single_glove": "res://assets/art/equipment-body-single-leg-upper-lower-single_glove-v1.png",
+      "single_glove_flat_lock": "res://assets/art/equipment-body-single-leg-upper-lower-single_glove_flat_lock-v1.png"
+    },
+    "single_leg_long": {
+      "plain_free": "res://assets/art/equipment-body-single-leg-long-plain_free-v1.png",
+      "plain_bound": "res://assets/art/equipment-body-single-leg-long-plain_bound-v1.png",
+      "plain_leather_free": "res://assets/art/equipment-body-single-leg-long-plain_leather_free-v1.png",
+      "plain_leather_bound": "res://assets/art/equipment-body-single-leg-long-plain_leather_bound-v1.png",
+      "flat_lock_free": "res://assets/art/equipment-body-single-leg-long-flat_lock_free-v1.png",
+      "flat_lock_bound": "res://assets/art/equipment-body-single-leg-long-flat_lock_bound-v1.png",
+      "flat_lock_leather_free": "res://assets/art/equipment-body-single-leg-long-flat_lock_leather_free-v1.png",
+      "flat_lock_leather_bound": "res://assets/art/equipment-body-single-leg-long-flat_lock_leather_bound-v1.png",
+      "single_glove": "res://assets/art/equipment-body-single-leg-long-single_glove-v1.png",
+      "single_glove_flat_lock": "res://assets/art/equipment-body-single-leg-long-single_glove_flat_lock-v1.png"
+    }
+  },
+  "output_sha256": {
+    "res://assets/art/equipment-overlay-single-leg-upper-v1.png": "6090E7159A81FE07DB32E88648D2FCDFCACC3BB44471B86CA033875C860ACB0B",
+    "res://assets/art/equipment-overlay-single-leg-lower-v1.png": "8E46E0207ECB38FD05B5CE52595A2ADFA547DC90CA019858A2C9A23966A9C8A5",
+    "res://assets/art/equipment-overlay-single-leg-long-v1.png": "81E7EC84BBD8A2C34DD2CF4C6BD556D1C94A4F82D934546959BEF2FCA37998C8",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-rope-v1.png": "38D611748F74A8AEADD5481D01FC12E311E1858F6471A107671D3802962D9CD6",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-free-v1.png": "75012F62F57D8417046F6DDB2594D9C15D3AC11E3FFE6C56625D766E2A5254F4",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-leather-v1.png": "75012F62F57D8417046F6DDB2594D9C15D3AC11E3FFE6C56625D766E2A5254F4",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-flat_lock_rope-v1.png": "5AA2ED90D0D545549524259764616B511810C8C63631ABA16D898DDA493431A3",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-flat_lock_free-v1.png": "485A5EB4E0F07B5C86C521AF58C2BDA3705FCE4A0B19DFF63F846B241DE87534",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-flat_lock_leather-v1.png": "485A5EB4E0F07B5C86C521AF58C2BDA3705FCE4A0B19DFF63F846B241DE87534",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-single_glove_bound-v1.png": "11E20600CF4501F8110355F4411081BA910FF18F6D12BF37D274751CA5656205",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-single_glove_free-v1.png": "70AFFE23B940C442902B6831918F1604E9CA9B2F8A25F53655B95F892E9FF55C",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-single_glove_flat_lock_bound-v1.png": "42C98C45A55A5CAD03F32765906A9A38DBF247CF8739496BA9547228E9127DF8",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-upper-single_glove_flat_lock_free-v1.png": "079368E5EF7DA11A90349999B5A41F00A607164A813EABEEFE97AB2BD7921112",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-rope-v1.png": "68B2C0D39AE6E09B5A2F3F6AA729C56EBBC643C87676C3E43ADF56AB0C5A1A1F",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-free-v1.png": "68B2C0D39AE6E09B5A2F3F6AA729C56EBBC643C87676C3E43ADF56AB0C5A1A1F",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-leather-v1.png": "68B2C0D39AE6E09B5A2F3F6AA729C56EBBC643C87676C3E43ADF56AB0C5A1A1F",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-single_glove_bound-v1.png": "31E830EBE5C7CC38CCBF7E31D4469AA5BB97CE5132EB3CAD17A2F146BB9211F6",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-upper-single_glove_free-v1.png": "31E830EBE5C7CC38CCBF7E31D4469AA5BB97CE5132EB3CAD17A2F146BB9211F6",
+    "res://assets/art/equipment-leg-above_knee-single-leg-upper-rope-v1.png": "58D9AA6E11E70727364925C64859E0D7E8D9379A830ADD30D902C943DD00AF17",
+    "res://assets/art/equipment-leg-above_knee-single-leg-upper-free-v1.png": "C19735240324BA02574F8FE8EB07554B387FDB7478DF6B6DA9D5DF5511611501",
+    "res://assets/art/equipment-leg-above_knee-single-leg-upper-leather-v1.png": "C19735240324BA02574F8FE8EB07554B387FDB7478DF6B6DA9D5DF5511611501",
+    "res://assets/art/equipment-leg-above_knee-single-leg-upper-single_glove_bound-v1.png": "D00D7BF6F860E43C95DFE9ACF45895C84FEF56CA67BAABFD2CE06846BB3A596F",
+    "res://assets/art/equipment-leg-above_knee-single-leg-upper-single_glove_free-v1.png": "D1B8EC90657FCDF3541F45A63B4052B6D0271DA87A52514F927A9DBAF3592CE8",
+    "res://assets/art/equipment-leg-below_knee-single-leg-lower-rope-v1.png": "8739ADC84CD505296CEB1D4ECAD5CA63FBB300B9CE4F1AD888C72BFF94DBE879",
+    "res://assets/art/equipment-leg-below_knee-single-leg-lower-free-v1.png": "8739ADC84CD505296CEB1D4ECAD5CA63FBB300B9CE4F1AD888C72BFF94DBE879",
+    "res://assets/art/equipment-leg-below_knee-single-leg-lower-leather-v1.png": "8739ADC84CD505296CEB1D4ECAD5CA63FBB300B9CE4F1AD888C72BFF94DBE879",
+    "res://assets/art/equipment-leg-below_knee-single-leg-lower-single_glove_bound-v1.png": "0FBCB426485BE385CFB3298E3B0DC623EA75B87D18E5FA5704775919EFB09CEB",
+    "res://assets/art/equipment-leg-below_knee-single-leg-lower-single_glove_free-v1.png": "0FBCB426485BE385CFB3298E3B0DC623EA75B87D18E5FA5704775919EFB09CEB",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-lower-rope-v1.png": "59A45E586AEBC85EF053734581372E67E43015C68E3684DF6F4F38020F152A44",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-lower-free-v1.png": "59A45E586AEBC85EF053734581372E67E43015C68E3684DF6F4F38020F152A44",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-lower-leather-v1.png": "59A45E586AEBC85EF053734581372E67E43015C68E3684DF6F4F38020F152A44",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-lower-single_glove_bound-v1.png": "B2863A164A3D1E62955A9EDAC5C236FA89F5CF3A0CB0D712EF257155A457DDF3",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-lower-single_glove_free-v1.png": "B2863A164A3D1E62955A9EDAC5C236FA89F5CF3A0CB0D712EF257155A457DDF3",
+    "res://assets/art/equipment-leg-ankle-single-leg-lower-rope-v1.png": "D06F6598B75489AB27C4411CC94BD1ABC3BEAA44B56BD25E6CAFA98C48EE08A6",
+    "res://assets/art/equipment-leg-ankle-single-leg-lower-free-v1.png": "D06F6598B75489AB27C4411CC94BD1ABC3BEAA44B56BD25E6CAFA98C48EE08A6",
+    "res://assets/art/equipment-leg-ankle-single-leg-lower-leather-v1.png": "D06F6598B75489AB27C4411CC94BD1ABC3BEAA44B56BD25E6CAFA98C48EE08A6",
+    "res://assets/art/equipment-leg-ankle-single-leg-lower-single_glove_bound-v1.png": "133C7B1E7B7660C6B1D0297219F6B661C8A90C857FE8E63552D90934532696BF",
+    "res://assets/art/equipment-leg-ankle-single-leg-lower-single_glove_free-v1.png": "133C7B1E7B7660C6B1D0297219F6B661C8A90C857FE8E63552D90934532696BF",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-rope-v1.png": "DAACD2A0628CB3D40851CF1ACC0A1B5CE76DE1E22662DE7767C597E713DB1B41",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-free-v1.png": "F8D61BCE228D51B999239B069F3E7A25CFAAED021E4D5ABC8C8FB94FEED96B1C",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-leather-v1.png": "F8D61BCE228D51B999239B069F3E7A25CFAAED021E4D5ABC8C8FB94FEED96B1C",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-flat_lock_rope-v1.png": "0A80728A9D5EB571A2E1C381A3A9639CD126A0B4D4B89A69096F8F30F06C7E07",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-flat_lock_free-v1.png": "B2022A92E90D954F5B8EDB3B55A5DA79458F9B395E887A7AEF64408E2D2A336D",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-flat_lock_leather-v1.png": "B2022A92E90D954F5B8EDB3B55A5DA79458F9B395E887A7AEF64408E2D2A336D",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-single_glove_bound-v1.png": "26AC08D926D5FB3E98BCC027977C6C8CC40AD6AF8765C72272DABEAC4E599DD9",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-single_glove_free-v1.png": "9BB425A75FFD1186F38AD522723758E75B10500F784714224A588B4FB7752DBA",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-single_glove_flat_lock_bound-v1.png": "814AEBB14D06CBA0F9521DCC47B546642902E334765969EEAE0444FDB7B60838",
+    "res://assets/art/equipment-leg-thigh_root-single-leg-long-single_glove_flat_lock_free-v1.png": "06EA21F4AD7D9C879F78FECD374AA3BC7FE610701D32A94510C0E825CED4B711",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-long-rope-v1.png": "68B2C0D39AE6E09B5A2F3F6AA729C56EBBC643C87676C3E43ADF56AB0C5A1A1F",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-long-free-v1.png": "68B2C0D39AE6E09B5A2F3F6AA729C56EBBC643C87676C3E43ADF56AB0C5A1A1F",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-long-leather-v1.png": "68B2C0D39AE6E09B5A2F3F6AA729C56EBBC643C87676C3E43ADF56AB0C5A1A1F",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-long-single_glove_bound-v1.png": "31E830EBE5C7CC38CCBF7E31D4469AA5BB97CE5132EB3CAD17A2F146BB9211F6",
+    "res://assets/art/equipment-leg-mid_thigh-single-leg-long-single_glove_free-v1.png": "31E830EBE5C7CC38CCBF7E31D4469AA5BB97CE5132EB3CAD17A2F146BB9211F6",
+    "res://assets/art/equipment-leg-above_knee-single-leg-long-rope-v1.png": "6B7648C40D6B4212F3BC11A0C7FC331B7B0E468300E99245A1211BAF2B2985EA",
+    "res://assets/art/equipment-leg-above_knee-single-leg-long-free-v1.png": "6B7648C40D6B4212F3BC11A0C7FC331B7B0E468300E99245A1211BAF2B2985EA",
+    "res://assets/art/equipment-leg-above_knee-single-leg-long-leather-v1.png": "6B7648C40D6B4212F3BC11A0C7FC331B7B0E468300E99245A1211BAF2B2985EA",
+    "res://assets/art/equipment-leg-above_knee-single-leg-long-single_glove_bound-v1.png": "D28405B4B63561E439C6515F6062CF6938877F0CAE5500191B4DA1B2F9D6D5B0",
+    "res://assets/art/equipment-leg-above_knee-single-leg-long-single_glove_free-v1.png": "D28405B4B63561E439C6515F6062CF6938877F0CAE5500191B4DA1B2F9D6D5B0",
+    "res://assets/art/equipment-leg-below_knee-single-leg-long-rope-v1.png": "2B0D2DB492308B0BBF9837096105FF375F1BD1B1B9DFE0BF8B9C588E842D55C9",
+    "res://assets/art/equipment-leg-below_knee-single-leg-long-free-v1.png": "2B0D2DB492308B0BBF9837096105FF375F1BD1B1B9DFE0BF8B9C588E842D55C9",
+    "res://assets/art/equipment-leg-below_knee-single-leg-long-leather-v1.png": "2B0D2DB492308B0BBF9837096105FF375F1BD1B1B9DFE0BF8B9C588E842D55C9",
+    "res://assets/art/equipment-leg-below_knee-single-leg-long-single_glove_bound-v1.png": "EB75A24407978FFDC09268F52586D9C1835F3A8F57C6D7DD0A476B4FBBD4A92B",
+    "res://assets/art/equipment-leg-below_knee-single-leg-long-single_glove_free-v1.png": "EB75A24407978FFDC09268F52586D9C1835F3A8F57C6D7DD0A476B4FBBD4A92B",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-long-rope-v1.png": "59A45E586AEBC85EF053734581372E67E43015C68E3684DF6F4F38020F152A44",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-long-free-v1.png": "59A45E586AEBC85EF053734581372E67E43015C68E3684DF6F4F38020F152A44",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-long-leather-v1.png": "59A45E586AEBC85EF053734581372E67E43015C68E3684DF6F4F38020F152A44",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-long-single_glove_bound-v1.png": "B2863A164A3D1E62955A9EDAC5C236FA89F5CF3A0CB0D712EF257155A457DDF3",
+    "res://assets/art/equipment-leg-mid_calf-single-leg-long-single_glove_free-v1.png": "B2863A164A3D1E62955A9EDAC5C236FA89F5CF3A0CB0D712EF257155A457DDF3",
+    "res://assets/art/equipment-leg-ankle-single-leg-long-rope-v1.png": "D06F6598B75489AB27C4411CC94BD1ABC3BEAA44B56BD25E6CAFA98C48EE08A6",
+    "res://assets/art/equipment-leg-ankle-single-leg-long-free-v1.png": "D06F6598B75489AB27C4411CC94BD1ABC3BEAA44B56BD25E6CAFA98C48EE08A6",
+    "res://assets/art/equipment-leg-ankle-single-leg-long-leather-v1.png": "D06F6598B75489AB27C4411CC94BD1ABC3BEAA44B56BD25E6CAFA98C48EE08A6",
+    "res://assets/art/equipment-leg-ankle-single-leg-long-single_glove_bound-v1.png": "133C7B1E7B7660C6B1D0297219F6B661C8A90C857FE8E63552D90934532696BF",
+    "res://assets/art/equipment-leg-ankle-single-leg-long-single_glove_free-v1.png": "133C7B1E7B7660C6B1D0297219F6B661C8A90C857FE8E63552D90934532696BF",
+    "res://assets/art/equipment-body-single-leg-upper-plain_free-v1.png": "966EF8A501E7AED50165B96B33B0F06CCF675A341E42C2C17A4F2D9529CF5C3C",
+    "res://assets/art/equipment-body-single-leg-upper-plain_bound-v1.png": "A119DB7DB407E5DCB02927A27435108038F3D086EF0988AB09FE2A0FBC354379",
+    "res://assets/art/equipment-body-single-leg-upper-plain_leather_free-v1.png": "037A9C899E587372C21569D8A81DF242FB35DA5F481FEBCCDBC8129A6E114A55",
+    "res://assets/art/equipment-body-single-leg-upper-plain_leather_bound-v1.png": "CBD54EB1669EA39A3F8636E4C740DE010E0BDABC21AF8BA1B3119D53FEC3EA00",
+    "res://assets/art/equipment-body-single-leg-upper-flat_lock_free-v1.png": "B52E02CF3C33AFB622E73FDD96C328CD30E20CFAB46DD35022A609F8BA45DF96",
+    "res://assets/art/equipment-body-single-leg-upper-flat_lock_bound-v1.png": "2410929B44F18F85431E36FB15C45D8944B0D7E58E70EDE877EABF719E6D56A8",
+    "res://assets/art/equipment-body-single-leg-upper-flat_lock_leather_free-v1.png": "BF633088178A2191EF56174ED29DF466E97837BA67360C42B15C266BE6A07D60",
+    "res://assets/art/equipment-body-single-leg-upper-flat_lock_leather_bound-v1.png": "FA8F758F9B87CD7B3BE6FC80A50CBA559CA0E51BD263E8490E5D5F8BE2A0864E",
+    "res://assets/art/equipment-body-single-leg-upper-single_glove-v1.png": "6D3D82D6D986161CB88A1078097DBCF100BC41881978DBC605972E6FAF1401F4",
+    "res://assets/art/equipment-body-single-leg-upper-single_glove_flat_lock-v1.png": "4CF4F5E5495FE2D78149D3B85AF9822D70C04C119521837E8D11277010BFF6D8",
+    "res://assets/art/equipment-body-single-leg-lower-plain_free-v1.png": "8C128EF4647BD4365D206958A53BFA98F6247B7BC8F697DF5D57A2CF7CB0D36D",
+    "res://assets/art/equipment-body-single-leg-lower-plain_bound-v1.png": "8F466D23A4A44DFC7D6518F80C771372EEA16A09221ED21EC266273E1C7E3578",
+    "res://assets/art/equipment-body-single-leg-lower-plain_leather_free-v1.png": "679032C313906EB82211CC6F3D5E141073B67C82955BDA956082B05A863CE75D",
+    "res://assets/art/equipment-body-single-leg-lower-plain_leather_bound-v1.png": "30BADD5D4B611028DC9D0523DD1A1307BE1B815F45639A753FDC6F122808D062",
+    "res://assets/art/equipment-body-single-leg-lower-flat_lock_free-v1.png": "78CF000A101F8F1A19C302368522B61CA708E1C8834EB25C509FF4051F517995",
+    "res://assets/art/equipment-body-single-leg-lower-flat_lock_bound-v1.png": "1FC0BC8B2835F172F8DD64D02C1E0991CCABCD41B1D3DDB927B77850030C7295",
+    "res://assets/art/equipment-body-single-leg-lower-flat_lock_leather_free-v1.png": "00E811EAA02E3D96B2CE1DA386595EB550689053A444DF6E16C1916321AAC939",
+    "res://assets/art/equipment-body-single-leg-lower-flat_lock_leather_bound-v1.png": "743F6216E489CB1319E536C5E7AC311E6C3B7BF2BFB41916ADF6D53E38DB5CDD",
+    "res://assets/art/equipment-body-single-leg-lower-single_glove-v1.png": "9F1C768155F20C5ABFDA72FE90B7614F60AE4E13A5C3E213B319B8A99DBF785A",
+    "res://assets/art/equipment-body-single-leg-lower-single_glove_flat_lock-v1.png": "390B9D379C243D27D4F3FC1B02EBAED57D51FFAAAFA2C68EA1735DDFE7598EA0",
+    "res://assets/art/equipment-body-single-leg-upper-lower-plain_free-v1.png": "59AC8219FA76E70AA7BEE8194345AE43E449BE2A8C11BB05F90832C44D21FB5D",
+    "res://assets/art/equipment-body-single-leg-upper-lower-plain_bound-v1.png": "D945C7E7DDA02AEE036A741E3447EAB4BCB72FC5727C3FF026BC6FD0B8489562",
+    "res://assets/art/equipment-body-single-leg-upper-lower-plain_leather_free-v1.png": "68E0D8EB1A2D6135219D027BB3D0E197CD327C35F39FB2079940A909945F0728",
+    "res://assets/art/equipment-body-single-leg-upper-lower-plain_leather_bound-v1.png": "D07DBFBA8315AED1A790F4DB8AE55C97933332D5BEC344FDBAE9979DAC2966AC",
+    "res://assets/art/equipment-body-single-leg-upper-lower-flat_lock_free-v1.png": "89A8A4A6FE2C792399A3308EC168B91AED8F8DC54D5F4851D3DCF21B0575AD96",
+    "res://assets/art/equipment-body-single-leg-upper-lower-flat_lock_bound-v1.png": "5AC7360DD6128459AB15EFEB3AB0A0CF55AAB3D5763740AF00D440A64F2583BD",
+    "res://assets/art/equipment-body-single-leg-upper-lower-flat_lock_leather_free-v1.png": "B2E63536995A410027E68D97BCE15CAA91D8D221F38EB224E0470E4902B7CF2A",
+    "res://assets/art/equipment-body-single-leg-upper-lower-flat_lock_leather_bound-v1.png": "89DB5A1C8499383D0355455EDEEBA0529900DBECF9BF57F4BF70F93B5318EC66",
+    "res://assets/art/equipment-body-single-leg-upper-lower-single_glove-v1.png": "D5033CFFE6881B71B480F4FFBC2C040502E1EDC182ABF996A62A731604312D1C",
+    "res://assets/art/equipment-body-single-leg-upper-lower-single_glove_flat_lock-v1.png": "47DD1DBBDD957B6DB1AB677A8E37AEA586BFE33DF03EA9D2DD57D294BA409F93",
+    "res://assets/art/equipment-body-single-leg-long-plain_free-v1.png": "32A45C23BBE06AC43B55FF69D6586B6FEE10F7C12391A4EDF64032A351D661C4",
+    "res://assets/art/equipment-body-single-leg-long-plain_bound-v1.png": "4AEFF84372BFCF8A10B9B49B3A6AACB12BDFC06A223679D5220B33F0F0266B4A",
+    "res://assets/art/equipment-body-single-leg-long-plain_leather_free-v1.png": "776CB606386AF36DB2A86254F1B69ACCFD7EEAA63FB9AF9BD7DD956C79DC09FA",
+    "res://assets/art/equipment-body-single-leg-long-plain_leather_bound-v1.png": "C2766F2E3DF6A7410D878FEF0860DE5071D81F871254DF5A6DB5A5AC13899E86",
+    "res://assets/art/equipment-body-single-leg-long-flat_lock_free-v1.png": "0E3F75E93024EF9930D2636389977EBEFDDB84150AC63AF3DE1E58F85FE2A195",
+    "res://assets/art/equipment-body-single-leg-long-flat_lock_bound-v1.png": "12EBD4AB8C17C7DB4C6A25B1A521727167512E40989646229ADF268F7CF9E1A7",
+    "res://assets/art/equipment-body-single-leg-long-flat_lock_leather_free-v1.png": "896FB6F79D79F272E6ADAD32D262A4D2D5107D2A60A5153DA81347C04C07CECD",
+    "res://assets/art/equipment-body-single-leg-long-flat_lock_leather_bound-v1.png": "4214EFEB7D59AD1B815557FB4F5D85EE776FA79FBFCD76BAF3F6FED3493F8C22",
+    "res://assets/art/equipment-body-single-leg-long-single_glove-v1.png": "C98217AFA824150FB741C7E190B876E26387D6030FCBC644489231956F5E6E3C",
+    "res://assets/art/equipment-body-single-leg-long-single_glove_flat_lock-v1.png": "6248A7292B6F48937490B9CBFC04F2AA9375A18E0444E715B513A87848331A9F"
+  },
+  "variant_mapping": {
+    "upper": [
+      "single_leg_upper"
+    ],
+    "lower": [
+      "single_leg_lower"
+    ],
+    "ankle": [
+      "single_leg_long"
+    ],
+    "toes": [
+      "single_leg_long"
+    ]
+  },
+  "note": "The upper and lower overlays compose to reproduce image 3; arm differences are excluded."
+}

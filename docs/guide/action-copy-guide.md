@@ -41,5 +41,6 @@ cue 的取用与投影由 `core/action_copy.gd` 与现有日志存档实现（�
 - 已删除且不再生成的旧 cue：`hero.attack`、`hero.card.bound/free`、`hero.pose`、`hero.calm`、`hero.end`、`hero.item`、`hero.event`、`hero.default`。旧记录若仍保存这些 cue，投影时直接忽略，不替换成「嗯……」等占位对白；当前没有新分类的零费普通操作也不新增人物对白。
 - `core/action_copy.gd` 只解析文本并生成只读显示；正式日志的 `data.action_copy` 保存 cue 与当时的 actor／result，`data.hero_copy` 保存本次说话资格确定后的 cue，`data.climax_copy` 保存同期第二人称高潮旁白 cue，均复用现有日志存档，不新增第二个日志状态数组。
 - 修改文字会重新呈现已保存 cue；执行动作、抽牌或重抽随机都不受影响。
+- 狱警浮动对白仅在活动牢房流程中展示；离开牢房后历史台词保留在日志，不得在出口战或返塔整备时重新弹出。刑满检查通过的告别台词只在当次返塔起点选择期间例外保留。投影通道：历史日志 `ActionCopy.view → GameView` 按当前牢房／返塔状态过滤 → UI 按阶段展示；不删除日志、不写游戏状态。
 - 新增行为／台词条件必须在对应提交处确定稳定 cue：不能用中文正文推断规则，不能在 UI 修改游戏状态。怪物从原敌人执行入口登记，连动子动作沿普通操作入口；事件完成后只登记一条结果摘要。
 - 需要更细的卡牌、情绪或表情分支时，在 `core/action_copy.gd` 的接口上增加结构化条件，不用测试台词替代实际机械结果。

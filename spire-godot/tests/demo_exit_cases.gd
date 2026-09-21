@@ -45,7 +45,7 @@ static func run(t) -> void:
   t.check(g.state.security==2 and g.state.map_region=="tower" and g.state.room=="tower_bottom","DEMO health fixture retains security two at the new tower entry")
   g.state.enemies=[]
   var boss=g._append_enemies([{"type":"six_bind","grade":2}])[0]
-  t.check(boss.hp==220*scale+security_bonus and boss.max_hp==220*scale+security_bonus,"DEMO boss health scales its base before adding retained security health")
+  t.check(boss.hp==200*scale+security_bonus and boss.max_hp==200*scale+security_bonus,"DEMO boss health scales its base before adding retained security health")
   var heap=g._append_enemies([{"type":"rope_heap","grade":2}])[0]
   var basis=heap.hp/2
   g._split_enemy(heap,basis)

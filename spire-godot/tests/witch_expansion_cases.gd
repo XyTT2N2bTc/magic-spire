@@ -15,7 +15,7 @@ static func play(t,g,type: String,free: bool=false) -> Dictionary:
 static func run(t) -> void:
  _patience_turn_window(t)
  var g=fresh()
- t.check(g.state.deck.size()==11 and g.state.deck.filter(func(c):return c.type=="slip").size()==3 and g.state.deck.any(func(c):return c.type=="witch_magic_slip") and g.state.deck.any(func(c):return c.type=="witch_escape_practice") and not g.state.deck.any(func(c):return c.type=="witch_magic_hand"),"WITCH expansion exact eleven-card starter")
+ t.check(g.state.deck.size()==11 and g.state.deck.filter(func(c):return c.type=="witch_slip").size()==3 and g.state.deck.any(func(c):return c.type=="witch_magic_slip") and g.state.deck.any(func(c):return c.type=="witch_escape_practice") and not g.state.deck.any(func(c):return c.type=="witch_magic_hand"),"WITCH expansion exact eleven-card starter")
  for part in g.Character.PARTS:
   g=fresh();g.state.witch_charges[part]=4
   for repeat in range(3): t.check(t.action(g,"attack",{"type":"witch_"+part,"form":0}).ok,"WITCH unlimited preparation "+part)
@@ -31,14 +31,15 @@ static func run(t) -> void:
  g.state.mana=0;g.state.flask_mana=8
  t.check(play(t,g,"witch_mana_transfer").ok and g.state.mana==8 and g.state.flask_mana==0,"WITCH transfer handles partial flask")
  t.check(play(t,g,"witch_mana_transfer",true).ok and g.state.temporary_mana==20,"WITCH transfer free gives four reserves")
- g=fresh();t.check(play(t,g,"witch_patience",true).ok and g.state.next_energy==3 and g.state.mana==75,"WITCH patience pays twenty-five for next energy")
+ g=fresh();t.check(play(t,g,"witch_patience",true).ok and g.state.next_energy==3 and g.state.mana==80,"WITCH patience pays twenty for next energy")
  g._begin_player_turn();t.check(g.state.energy==6,"WITCH patience awards next-turn energy")
  g=fresh();g._install_template("mouth_band","mouth",24.0,24.0,false,"fixture",3,0)
  var card=Give.give(g,"witch_patience")
  t.check(not t.find_action(g,"card",{"uid":card.uid,"free":true}).valid,"WITCH patience rejects mouth grade three")
  g=fresh();t.check(play(t,g,"witch_patience").ok,"WITCH preparation protection plays")
  g.state.witch_charges.hand=4
- t.check(t.action(g,"attack",{"type":"witch_hand","form":1}).ok and g.state.witch_charges.hand==4,"WITCH protection preserves release charges")
+ t.check(t.action(g,"attack",{"type":"witch_hand","form":1}).ok and g.state.witch_charges.hand==0,"WITCH protection allows voluntary release to consume charges")
+ g.state.witch_charges.hand=4
  t.check(not g.Character.evade(g,[{"template":"rope","slot":"wrist"}],"fixture") and g.state.witch_charges.hand==4,"WITCH protection disables charge evasion")
  g.Pressure._apply_overloads(g,1)
  t.check(g.state.witch_charges.hand==4,"WITCH protection preserves charges at climax")
@@ -128,11 +129,11 @@ static func _training(t) -> void:
  for item in invalid.discard:
   if item.uid==shared_card.uid: item.practice_plays=3
  t.check(not shared.restore_snapshot(invalid).ok and shared.state==valid,"WITCH rejects mismatched permanent and live progress even within one stage")
- for count in [0,9,10,19,20,29,30,39,40]:
+ for count in [0,6,7,13,14,20,21,27,28,34,35]:
   for free in [false,true]:
    var g=fresh();g.state.equipment.clear()
    var target=g._install_template("belt","wrist",24.0,24.0,true,"fixture",3,0)
-   var type=g.Character.Expansion.TRAINING[mini(4,count/10)]
+   var type=g.Character.Expansion.TRAINING[mini(5,count/7)]
    var card=Give.give(g,type);card.practice_plays=count
    for permanent in g.state.deck:
     if permanent.uid==card.uid: permanent.practice_plays=count
@@ -141,11 +142,11 @@ static func _training(t) -> void:
    t.check(c.valid and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"WITCH training stale use rolls back "+str([count,free]))
    t.check(g.dispatch(c.id,g.state.version).ok,"WITCH training real multihit "+str([count,free]))
    var played=g.state.discard.filter(func(item):return item.uid==card.uid)
-   t.check(not played.is_empty() and played[0].practice_plays==count+1 and played[0].type==g.Character.Expansion.TRAINING[mini(4,(count+1)/10)],"WITCH training counts one whole card and evolves after threshold "+str([count,free]))
+   t.check(not played.is_empty() and played[0].practice_plays==count+1 and played[0].type==g.Character.Expansion.TRAINING[mini(5,(count+1)/7)],"WITCH training counts one whole card and evolves after threshold "+str([count,free]))
    var expected=g.Cards.Rules.SPECS[type].hits
    var hits=g.state.logs.filter(func(row):return row.data.has("base") and row.data.has("action_result"))
    t.check(hits.size()==expected and hits.all(func(row):return row.data.base==g.Cards.Rules.SPECS[type].base),"WITCH training keeps separate base damage per hit "+str([count,free]))
-   t.check(g.state.card_chain.is_empty() and g.state.energy==before.energy-(0 if count>=40 else 1),"WITCH training pays once and completes every segment "+str([count,free]))
+   t.check(g.state.card_chain.is_empty() and g.state.energy==before.energy-(0 if count>=35 else 1),"WITCH training pays once and completes every segment "+str([count,free]))
    var saved=g.export_snapshot()
    t.check(Game.new(42).restore_snapshot(saved).ok,"WITCH training evolution restores consistently "+str([count,free]))
    g.Cards.end_powers(g);g._reset_piles()

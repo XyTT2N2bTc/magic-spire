@@ -1,5 +1,123 @@
 # 本批美术提示词与来源
 
+## 2026-09-21 股绳差分运行时接入
+
+- 后续接入覆盖普通受限站姿与平板锁受限站姿；所有包含单手套的组合（含单手套＋平板锁）按用户最终要求沿用原底图及原加强带，不应用本次差分。此前两节是素材准备记录。
+- 数据流：真实特殊装备 family／正耐久 → `SpecialEquipment.portrait_layers` → 共享 `EquipmentPortrait.configure` 底图选择。普通与平板锁新增无股绳底图，有股绳时复用旧底图；加强带按同一股绳事实切换。固定、自由、坐／躺立绘沿原通道。
+- 本地按源图差异替换 RGBA，而非把无绳贴片叠在旧轮廓上；覆盖源图变为透明的区域以消除旧轮廓细线，平板锁右边沿使用所供锁版源图校正。没有使用生成工具，原文件不变。
+- 新运行素材为 `equipment-body-plain-no-crotch-rope-v1.png`、`equipment-body-flat-lock-no-crotch-rope-v1.png`（均740×2214）与 `equipment-overlay-flat-lock-reinforcement-no-crotch-rope-v1.png`（246×294），PNG只含IHDR／IDAT／IEND；来源及底图哈希见两份股绳清单。单手套适配试产物已撤除。
+
+## 2026-09-21 平板锁版股绳局部差分
+
+- 用户补充 `00170-135882225.png`（无股绳）与 `QQ图片20260911234734.png`（有股绳），采用这对1536×2304同坐标原图，保留其锁体与加固带像素。仅适配这组带加固带的平板锁图，不宣称适配其它未提供画面。
+- 数据流：源图对 → 既有本地白底抠图／差分辅助函数 → `equipment-overlay-crotch-rope-flat-lock-v1.png` 与 `equipment-overlay-crotch-rope-flat-lock-free-v1.png`；均296×274，源坐标原点(670,851)，相对BOUND_CROP为(280,761)。变化区域(680,861,956,1113)，来源、哈希与组合约束见 `equipment-crotch-rope-flat-lock-layer.json`。
+- 两个方向的局部alpha替换均完整还原目标抠图的alpha及可见像素；仅图像PNG块、不含文本元数据，原文件不变。这版无普通差分的尖细突起，不套用普通版裁尖线以免裁掉锁带。只准备素材，未接入运行时。
+
+## 2026-09-21 股绳局部差分素材
+
+- 采用用户最终确认的图1 `codex-clipboard-9359ef44-4306-445f-9943-ea570c3776f5.png`（无股绳）、图2 `codex-clipboard-0a5a87f5-9b19-469e-835a-05bce54cf054.png`（有股绳）；此前发错的图未使用。
+- 数据流：两张1536×2304对齐源图 → 复用 `build_equipment_special_layers.py` 的本地白底抠图与差分辅助函数 → 同坐标透明替换贴片。仅差异区域及羽化边缘，保留周围皮肤轮廓；不调用生成工具，不改原图，不带PNG文本元数据。
+- 有股绳 `equipment-overlay-crotch-rope-v1.png`，无股绳 `equipment-overlay-crotch-rope-free-v1.png`，均299×282，源坐标原点(665,848)。实际变化范围(675,858,954,1120)，相对既有BOUND_CROP原点为(275,758)。来源哈希及图层信息见 `equipment-crotch-rope-layer.json`。
+- 两张为替换贴片；清除旧区域再绘制对应版本，不能仅在旧绳之上叠无股绳图。裁尖前双向alpha替换与对应抠图的透明度及可见像素完全一致；按用户指示削去贴片右下尖细突起（局部y≥238，x+y≥468，边缘1.5像素羽化），只改alpha不重画颜色。
+- 本次只准备差分素材，未修改运行时装备映射；平板锁版本使用用户后续单独提供的图对，见上节。
+
+## 2026-09-21 欲能转换正式卡图
+
+- 用户提供 `00155-2092312727.png`，按约定接入 `card-pleasure-conversion-formal-v1.png`。
+- 本地移除PNG文本元数据，保留1920×1920原始像素、比例与背景；逐块CRC及原始IDAT一致性检查通过，源文件不变。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.pleasure_conversion` → 既有卡面／图鉴；双面共图，默认正式版并保留测试画风，不改规则与布局。
+
+## 2026-09-21 交感形态正式卡图
+
+- 用户提供 `00153-1864203336.png`，接入 `card-sympathetic-form-formal-v1.png`。
+- 本地移除PNG文本元数据，保留1920×1920原始像素、比例与背景；CRC及原始IDAT一致性检查通过，源文件不变。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.sympathetic_form` → 既有卡面／图鉴；双面共图，默认正式版并保留测试画风，不改规则与布局。
+
+## 2026-09-21 用力与顾涌正式卡图
+
+- 用户提供 `00145-3340865038.png` → 用力！`card-strain-formal-v1.png`；顾涌！采用用户最新提供的 `00152-3394080224.png` → `card-slip-formal-v1.png`。
+- 本地移除PNG元数据，保留1920×1920原始像素、比例与背景，源文件不变；逐块CRC与原始IDAT一致性检查通过。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.strain/slip` → 既有卡面／图鉴；双面共图，默认正式版，保留测试画风切换，不改规则与布局。
+
+## 2026-09-21 命运同担正式卡图
+
+- 用户提供 `codex-clipboard-16a2216e-9fa5-4909-a847-d17eec8aacd8.png`，按已确认工作流接入命运同担；项目文件 `card-shared-fate-formal-v1.png`。
+- 本地过滤PNG元数据，仅保留图像必需块，逐块CRC与原始IDAT一致性检查通过；保留1920×1920像素、比例和背景，源文件不变。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.shared_fate` → 既有卡面／图鉴；双面共图，默认正式版并保留测试SVG切换，不改布局与规则。
+
+## 2026-09-21 紧缚爱好模式替换图
+
+- 用户提供 `codex-clipboard-072b8bf6-4aad-446a-a327-9fc2fb9cde0b.png`，接入 `card-binding-enthusiast-fixed-formal-v1.png`；去除tEXt元数据后仅IHDR／IDAT／IEND，1920×1920，CRC与原始IDAT逐字节一致，保留原像素和源文件。
+- `FORMAL_ART.cards.binding_enthusiast` 统一声明原图与替换图；`formal` 默认跟随 `fixed_hero_portrait`（扶她出去），图鉴可显式选原图或替换图，手动选择优先并沿已有美术偏好保存。测试版仍可选。
+- 数据流：模式开关／图鉴 → DisplaySettings美术偏好 → `art_texture` → `art_changed`刷新既有卡面；双面共用所选图片，不改游戏快照或规则。其它单图、灌注双面与敌人继续使用同一接口。
+
+## 2026-09-21 紧缚爱好正式卡图
+
+- 用户提供 `00141-3931109664.png`，授权接入紧缚爱好；项目文件 `card-binding-enthusiast-formal-v1.png`。
+- 本地移除PNG文本元数据，成品仅IHDR／IDAT／IEND，逐块CRC与原图IDAT一致性通过。保留1920×1920原始像素、比例与背景，不改源文件。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.binding_enthusiast` → 既有卡面／图鉴；双面共图，默认正式版并保留测试SVG切换，不改原有布局或规则。
+
+## 2026-09-21 般若汤系列与猪神之皇焚正式卡图
+
+- 用户提供 `00140-3340243041.png` 作为般若汤系列共用图，接入 `card-hannya-formal-v1.png`，1920×1920；去除PNG文本元数据，逐块CRC与原始IDAT一致性检查通过。
+- 用户指定 `b12bd754d9fac3f1ab10a764434018f7.jpg` 用于猪神之皇焚，接入 `card-boar-emperor-blaze-formal-v1.jpg`，1080×1092；移除JPEG的APP0元信息，保留压缩图像扫描数据及原有文字，不重新压缩、不裁切。
+- 数据流：去元数据图片 → `DisplaySettings.FORMAL_ART` → 既有卡面／图鉴。`hannya_1`至`hannya_4`及`good_soup`共享同一图片；`boar_emperor_blaze`使用猪图。双面共图，保留测试版选择，源文件不变。
+
+## 2026-09-21 熟练而已正式卡图
+
+- 用户提供 `00139-1844109518.png`，按已确认工作流接入熟练而已；项目文件 `card-practiced-formal-v1.png`。
+- 本地移除PNG文本元数据，成品仅IHDR／IDAT／IEND，逐块CRC及原图IDAT一致性通过。保留1920×1920原始像素与背景，源文件不变。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.practiced` → 既有卡面／图鉴；双面共用此图，默认正式版并保留测试SVG切换，不改布局和规则。
+
+## 2026-09-21 无尽魔法少女战神正式卡图
+
+- 用户提供 `00138-2324526895.png`，按已确认工作流接入无尽魔法少女战神；项目文件 `card-endless-war-goddess-formal-v1.png`。
+- 本地移除PNG文本元数据，成品仅IHDR／IDAT／IEND，逐块CRC及原图IDAT一致性通过。保留1920×1920原始像素与背景，不改源文件。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.endless_war_goddess` → 既有卡面／图鉴；双面共用此图，默认正式版并保留测试SVG切换，不改布局和规则。
+
+## 2026-09-21 灌注双面正式卡图
+
+- 用户提供 `00135-3764119089.png`（手部）与 `00136-4112113424.png`（腿部），分别接入 `card-infusion-hand-formal-v1.png` 与 `card-infusion-leg-formal-v1.png`。
+- 本地移除PNG文本元数据，仅保留IHDR／IDAT／IEND；逐块CRC与原图IDAT一致性检查通过，两图均1920×1920，保持像素、比例与暗色背景，源文件不变。
+- 数据流：`CardFace.effect_free` → `DisplaySettings.art_texture` → `FORMAL_ART` 的双面映射 → 同一卡图控件。依据现行效果，自由面用手部图，拘束面用腿部图；普通灌注与般若汤赠送版共用此组资源。单图卡牌与敌人沿用原路径，测试版仍用原SVG。
+
+## 2026-09-21 汲取力量正式卡图
+
+- 用户提供 `codex-clipboard-c92b71c3-118c-48cd-81b1-068bb13dd5bd.png`，按已确认的卡图工作流接入汲取力量；项目文件 `card-siphon-strength-formal-v1.png`。
+- 本地过滤PNG元数据，逐块CRC与原图IDAT一致性检查通过；保留1920×1920尺寸、原始像素和暗色背景，源文件不变。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.siphon_strength` → 既有卡面／图鉴；默认正式图，原SVG仍可切换，不改规则与布局。
+
+## 2026-09-20 火焰精通正式卡图
+
+- 用户提供 `00133-803601954.png`，授权用作火焰精通正式卡图；项目文件 `card-fire-mastery-formal-v1.png`。
+- 本地移除PNG元数据，成品仅含IHDR／IDAT／IEND；逐块CRC与原图IDAT一致性检查通过。保留1920×1920尺寸、原始像素和暗色背景，源文件不变。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.fire_mastery` → 既有卡面／图鉴；默认正式图，原SVG仍可切换，不改规则与布局。
+
+## 2026-09-20 魔力回路正式卡图
+
+- 用户提供 `codex-clipboard-32230ebd-2737-4710-8555-489dbabd35cd.png`，授权用作魔力回路正式卡图；项目文件 `card-mana-circuit-formal-v1.png`。
+- 元数据过滤后仅保留 PNG 图像必需块，逐块CRC和原图IDAT一致性检查通过；保留1920×1920尺寸、原始像素和暗色背景，原文件不变。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards.mana_circuit` → 现有卡面／图鉴；默认正式图，原SVG仍可切换，不改规则与布局。
+
+## 2026-09-20 身轻如燕正式卡图
+
+- 用户提供 `00130-3456336496.png`，授权接入身轻如燕正式版画风；项目文件 `card-light-as-swallow-formal-v1.png`。
+- 本地清除元数据，保留1920×1920尺寸、原有暗色背景和像素；不裁切、拉伸或重绘，原下载文件保持不变。PNG逐块CRC及原图IDAT一致性检查通过。
+- 数据流：清理后PNG → `DisplaySettings.FORMAL_ART.cards` 中 `light_as_swallow`／`hannya_swallow` → 既有卡面与图鉴。普通版和赠送版共用正式图，保留测试版切换，不改玩法。
+
+## 2026-09-20 henshin 正式卡图
+
+- 用户提供 `codex-clipboard-8a396aef-a837-46fe-b00a-ee0cf51635b2.png`，授权作为 henshin 正式卡图；项目文件 `card-henshin-formal-v1.png`。
+- 原剪贴板 PNG 已仅含 IHDR／IDAT／IEND，无附加元数据；本地过滤后仍与原图逐字节一致，逐块 CRC 检查通过。保持1920×1920尺寸、暗色背景与像素，不裁切、不拉伸、不重绘；源文件保持不变。
+- 在 `DisplaySettings.FORMAL_ART.cards` 中登记 `henshin` 与 `hannya_henshin`，普通与完美版本共用同一图片；默认正式版，测试版 SVG 仍可选。复用既有卡面与图鉴通道，不改玩法。
+
+## 2026-09-20 火动力学正式卡图
+
+- 用户提供 `00127-3676734309.png` 并授权用作火动力学正式版画风；接入文件为 `card-fire-dynamics-formal-v1.png`，1920×1920，保留原有暗色背景。
+- 本地移除 PNG 文本元数据，成品仅含 IHDR／IDAT／IEND 块；IDAT 压缩像素数据与用户原图逐字节一致，无缩放、裁切或重绘。下载目录原图保持不变。
+- 通过 `DisplaySettings.FORMAL_ART.cards.fire_dynamics` 复用现有卡面与图鉴通道，默认正式版，原 SVG 仍可选作测试版；不改规则与画框。
+- 成品 SHA256：`3e129faf50479464b033353b27e85b0aba5949191849c3e7a686b3d57d51993b`。
+
 ## 2026-09-19 魅魔警卫恢复原版战斗立绘
 
 按用户最新要求，魅魔警卫恢复为2026-09-09提供并在项目v0.15验收的两张原版制服魅魔透明图。成品从仓库历史对象逐字节取回到`enemy-succubus-guards-v1/`，没有重新抠图、生成或重绘；源图、处理参数、尺寸与SHA256见该目录`README.md`。
@@ -320,3 +438,20 @@ assets/ui/relics/masochist_mark.svg、doubao.svg、deepseek.svg 为本次手工�
 ## 2026-09-20｜四件专用遗物图标
 
 `assets/ui/relics/brainwash_earrings.svg`、`hypnosis_hairpin.svg`、`lewd_silk_bodysuit.svg`、`lewd_silk_gloves.svg` 为本次手写的原生 SVG，以耳环、发卡、连体衣及手套轮廓配合旋纹、金色描边与青紫色点缀。统一通过 `RelicIcon.ART` 显示；无第三方图片或生成模型素材。
+
+## 2026-09-21｜单腿套装备差分
+
+用户提供四张1536×2304对齐原图，由`tools/build_equipment_single_leg_layers.py`在本地对白底抠图并按连通像素差异提取腿部，没有调用生成式绘图。脚本只保留纵坐标1100以下的三个大面积腿部差异组件，明确排除四张图中同时变化的手臂装备。
+
+- 基准`C:/Users/16563/Downloads/00077-1312644243.png`，SHA-256 `3EC1855B084FFD5902D4A7E283251EF35B6064CFAF27F75367B777F01FD05F0F`。
+- 短上段`C:/Users/16563/Downloads/00158-520016716.png`，SHA-256 `766E3F4238602EDCB4C763B16D617F01434B5B79E6A179F6F484CF758D7DCCEC`；输出`equipment-overlay-single-leg-upper-v1.png`。
+- 短上段＋短下段`C:/Users/16563/Downloads/00159-2677612210.png`，SHA-256 `4A766A4F8066473CB4FD50773627B9F77609554B9B7421B13CB55A6456E31CA8`；其中小腿组件独立输出`equipment-overlay-single-leg-lower-v1.png`，可单独显示或与短上段叠合还原原图。
+- 长款`C:/Users/16563/Downloads/00160-4038985730.png`，SHA-256 `5E5E12727C1F55BB9F7A64B4B7B937A27E2B8E98400D0E591A229A67ADDECCF8`；输出`equipment-overlay-single-leg-long-v1.png`，用于长至脚踝与长至脚趾两种现有套体。
+
+来源、裁框与成品哈希集中记录在`equipment-single-leg-layers.json`。运行时按活动复合装备的稳定`kind/variant`读取；短上段、短下段可以同时存在，长款生效时保留真实投影但隐藏两种短款连续层。脚本同时为三种腿套生成完整底图替换，并为覆盖到的每个横切片生成完整RGBA替换，包含套体、皮肤与透明轮廓；普通、皮革、平板锁、单手套及其组合分别保留对应上下文。运行时先以目标图透明区域清除底图和横切片中的旧轮廓，再把连续差分置于其它覆盖层之后；不会因隐藏整条横切片形成透明缺口，也不会让短款从长款透明边缘穿出。套体破坏后差分与替换切片同时消失，剩余独立外带恢复既有分段显示。
+
+## 2026-09-21｜皮带与红绳材质差分
+
+使用用户提供的两张1536×2304对齐原图，通过 `tools/build_equipment_material_layers.py` 本地像素差异、既有抠图与RGBA替换函数处理，没有生成新画面；32张PNG均无嵌入元数据。皮带源 `C:/Users/16563/Downloads/00169-825092941.png`，SHA-256 `b07a285599e8700b86cb097bc9e057d55c4f8a93980d07be4f80702dd03f8964`；红绳源 `C:/Users/16563/Downloads/00163-4122631836.png`，SHA-256 `056d6f16b6058560b24e6ef32b1a6e216bff3f9e7389e49e07a834602b28f2d6`。
+
+成品来源、尺寸、坐标及哈希集中于 `equipment-material-layers.json`。普通／平板锁、股绳有无与上身两种材质共8张底图；七个腿锚点各有红绳／皮带／自由切片，大腿根另有平板锁版本，共24张。连续分界采用源图y=1180、1325、1480、1625、1800、1965、2135、2304。皮革版只从两张源图的差异中保留9个大面积深色皮带组件及窄抗锯齿边缘，再合成到自由切片的统一皮肤底图；皮带掩膜不得触及横切片分界。这样相邻部位混用红绳、皮带或自由状态时不会切换整段皮肤色调，也不会形成横向黑线。红绳与自由切片重建逐可见像素保持原有成品。单腿套生成器复用这些边界，单手套仍使用其专用旧切片，避免恢复旧手臂像素。显示选择契约见 `docs/spec/release-interface.md`。

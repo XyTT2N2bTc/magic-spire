@@ -259,7 +259,7 @@ static func check_stock_layout(t) -> void:
   if offer.kind=="card":
    var price=ui.find_child("ShopPrice%d" % offer.index,true,false)
    var price_rect=price.get_global_rect()
-   t.check(button.size.x==196 and price.horizontal_alignment==HORIZONTAL_ALIGNMENT_CENTER and absf(price_rect.get_center().x-rect.get_center().x)<1 and price_rect.position.y>rect.end.y,"SHOP smaller card and price share a center with a clear vertical gap")
+   t.check(button.size.x==162 and price.horizontal_alignment==HORIZONTAL_ALIGNMENT_CENTER and absf(price_rect.get_center().x-rect.get_center().x)<1 and price_rect.position.y>rect.end.y,"SHOP portrait card and price share a center with a clear vertical gap")
    t.check(price.position.y+price.size.y+button.get_parent().position.y<416,"SHOP price stays above the wooden shelf")
   t.check(button.is_visible_in_tree() and shop.get_global_rect().encloses(rect) and ui.get_viewport_rect().encloses(rect),"SHOP UI every product remains inside shop and viewport: "+str(offer.index))
   t.check(rectangles.all(func(other):return not other.intersects(rect)),"SHOP UI product hit areas never overlap: "+str(offer.index))

@@ -97,7 +97,7 @@ func refresh() -> void:
     host.candidate_buttons[choice.id]=button
    button.set_meta("physical_uid",card.physical_uid)
    button.flip_requested.connect(func():refresh.call_deferred())
-   button.pivot_offset=Vector2(105,139)
+   button.pivot_offset=button.size/2
    button.mouse_entered.connect(func():
     button.scale=Vector2.ONE*1.045;button.z_index=4)
    button.mouse_exited.connect(func():button.scale=Vector2.ONE;button.z_index=0)

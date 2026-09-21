@@ -327,7 +327,9 @@ static func check(s: Dictionary, g) -> String:
  if s.map_region=="prison" and s.room!="prison":
   var route=s.rooms.filter(func(room):return room.kind!="prison")
   var route_security=s.security
-  if route_security<1 or route!=g.Tower.prison_route(route_security) or s.room_encounters!={"prison_gate":"guard_solo"}: return "监狱路线或出口警卫数量不正确。"
+  var encounters=s.room_encounters.duplicate()
+  if encounters.get("summit","") in g.Enemies.FirstFloor.SUMMIT_ENCOUNTERS: encounters.erase("summit")
+  if route_security<1 or route!=g.Tower.prison_route(route_security) or encounters!={"prison_gate":"guard_solo"}: return "监狱路线或出口警卫数量不正确。"
  for r in s.rooms:
   if r.next.any(func(id):return id not in room_ids) or (r.has("requires_clear") and r.requires_clear not in room_ids): return "地图连接的房间不存在。"
  for edge in s.traversed_edges:

@@ -1,6 +1,26 @@
 extends Button
 
 const Palette=preload("res://ui/visual_theme.gd")
+const WIDTH_TO_HEIGHT=5.0/8.0
+
+static func dimensions(height: float) -> Vector2:
+ return Vector2(roundf(height*WIDTH_TO_HEIGHT),height)
+
+# Only standalone glossary sentences move; effect clauses keep their full wording.
+static func separate_keywords(effect: String, terms: Array) -> Dictionary:
+ var names=terms.map(func(term):return term.name)
+ var result={"body":"","keywords":[]}
+ var sentences=effect.split("。",true)
+ for index in range(sentences.size()):
+  var sentence=sentences[index]
+  var keyword=sentence.strip_edges()
+  if keyword in names:
+   if keyword not in result.keywords: result.keywords.append(keyword)
+  else:
+   result.body+=sentence+("。" if index<sentences.size()-1 else "")
+ result.body=result.body.strip_edges()
+ return result
+
 const ILLUSTRATIONS={
  "witch_binding_lure":preload("res://assets/ui/cards/witch_binding_lure.svg"),
  "itching_heart":preload("res://assets/ui/cards/desire_magic.svg"),
@@ -102,21 +122,28 @@ var tween: Tween
 var drag_payload: Dictionary={}
 var display_name=""
 var free_face=false
-var effect_free=false
+var effect_free=false:
+ set(value):
+  if effect_free==value: return
+  effect_free=value
+  if art_settings!=null and has_node("CardIllustration"): _art_changed("cards",symbol)
 var face_name="拘束"
 var localize: Callable
 var lift_on_hover=true
 const ART_HEIGHT_RATIO=2.0/3.0
-const ART_HEIGHT_OVERRIDES={"binding_enthusiast":0.58}
 var art_bottom=174.0
 
 const MANA_COLORS={"cost":Color("8dd6ef"),"gain":Color("80e0c5"),"temporary":Color("c4a0ef")}
+
+func text_scale() -> float:
+ return maxf(1.0,size.y/320.0)
 
 func _display(value: Variant) -> String:
  var text=str(value)
  return str(localize.call(text)) if localize.is_valid() else text
 
 func set_mana(entries: Array) -> void:
+ var unit=text_scale()
  var group=get_node_or_null("CardMana")
  if group==null:
   group=HBoxContainer.new();group.name="CardMana"
@@ -128,14 +155,14 @@ func set_mana(entries: Array) -> void:
  for entry in entries:
   if entry.kind=="pressure":
    var heart=Control.new();heart.name="Mana_pressure"
-   heart.custom_minimum_size=Vector2(42,36);heart.mouse_filter=Control.MOUSE_FILTER_IGNORE
+   heart.custom_minimum_size=Vector2(42,36)*unit;heart.mouse_filter=Control.MOUSE_FILTER_IGNORE
    heart.tooltip_text=_display(entry.detail)
    var art=TextureRect.new();art.texture=preload("res://assets/ui/cards/pressure_heart.svg")
    art.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;art.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
    art.mouse_filter=Control.MOUSE_FILTER_IGNORE;heart.add_child(art);art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
    var amount=Label.new();amount.text=entry.text
    amount.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;amount.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
-   amount.add_theme_font_size_override("font_size",16);amount.add_theme_color_override("font_color",Color("fff3fa"))
+   amount.add_theme_font_size_override("font_size",roundi(16*text_scale()));amount.add_theme_color_override("font_color",Color("fff3fa"))
    amount.mouse_filter=Control.MOUSE_FILTER_IGNORE;heart.add_child(amount);amount.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
    group.add_child(heart)
    continue
@@ -145,40 +172,43 @@ func set_mana(entries: Array) -> void:
   var style=StyleBoxFlat.new()
   style.bg_color=Color("29233e") if entry.kind=="temporary" else Color("143542")
   style.border_color=MANA_COLORS[entry.kind]
-  style.set_border_width_all(2);style.set_corner_radius_all(7 if entry.kind=="temporary" else 18)
-  style.content_margin_left=6;style.content_margin_right=6
+  style.set_border_width_all(2);style.set_corner_radius_all(roundi((7 if entry.kind=="temporary" else 18)*unit))
+  var compact=size.x<180
+  style.content_margin_left=(4 if compact else 6)*unit;style.content_margin_right=style.content_margin_left
   badge.add_theme_stylebox_override("panel",style)
   var label=Label.new();label.text=_display(entry.text)
   label.mouse_filter=Control.MOUSE_FILTER_IGNORE
   label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
   label.add_theme_color_override("font_color",MANA_COLORS[entry.kind])
   var font=label.get_theme_font("font")
-  var font_size=21
-  while font_size>13 and font.get_string_size(label.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>49: font_size-=1
+  var font_size=17 if compact else roundi(21*text_scale())
+  while font_size>roundi(13*unit) and font.get_string_size(label.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>49*unit: font_size-=1
   label.add_theme_font_size_override("font_size",font_size)
-  badge.custom_minimum_size=Vector2(38,36)
+  badge.custom_minimum_size=Vector2(32 if compact else 38,36)*unit
   badge.add_child(label);group.add_child(badge)
  _layout_header()
 
 func _layout_header() -> void:
  var title=get_node_or_null("CardTitle")
  if title==null: return
+ var unit=text_scale()
  var group=get_node_or_null("CardMana")
- var right=size.x-5
+ title.position=Vector2(43*unit,0)
+ title.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+ var right=size.x-5*unit
  if group!=null and group.visible:
   group.size=group.get_combined_minimum_size()
-  group.position=Vector2(size.x-group.size.x-1,1)
-  right=group.position.x-4
+  group.position=Vector2(size.x-group.size.x-unit,unit)
+  right=group.position.x-4*unit
  var width=maxf(1,right-title.position.x)
  title.clip_text=true
  var full_title=_display(display_name) if display_name!="" else title.text.replace("\n","")
  title.text=full_title
  title.autowrap_mode=TextServer.AUTOWRAP_OFF
- title.position.y=10
- var title_height=31.0
+ var title_height=38.0*unit
  title.add_theme_constant_override("line_spacing",0)
- var font_size=17
- while font_size>11 and title.get_theme_font("font").get_string_size(title.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>width: font_size-=1
+ var font_size=roundi(17*text_scale())
+ while font_size>roundi(11*unit) and title.get_theme_font("font").get_string_size(title.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>width: font_size-=1
  title.add_theme_font_size_override("font_size",font_size)
  # Long names use the existing header height instead of pushing into mana badges.
  if title.get_theme_font("font").get_string_size(title.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>width:
@@ -186,17 +216,23 @@ func _layout_header() -> void:
   if separator<0: separator=full_title.find("(")
   if separator>0: title.text=full_title.substr(0,separator)+"\n"+full_title.substr(separator)
   title.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
-  title.position.y=1;title_height=40
+  title_height=40*unit
  title.size=Vector2(width,title_height)
+ var cost=get_node_or_null("CardCost")
+ if cost!=null:
+  cost.autowrap_mode=TextServer.AUTOWRAP_OFF
+  cost.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+  cost.add_theme_font_size_override("font_size",roundi(23*unit))
+  cost.position=Vector2.ZERO;cost.size=Vector2(38,38)*unit
 
 # The illustration keeps its share even when a face has long requirements.
 func _layout_art() -> void:
- art_bottom=6.0+size.y*ART_HEIGHT_OVERRIDES.get(symbol,ART_HEIGHT_RATIO)
+ art_bottom=6.0+size.y*ART_HEIGHT_RATIO
  var picture=get_node_or_null("CardIllustration")
  if picture!=null:
-  # Existing artwork is mostly landscape: fit both axes, below the header.
-  picture.position=Vector2(8,42)
-  picture.size=Vector2(maxf(1,size.x-16),maxf(1,art_bottom-42))
+  # Fit the full illustration below the header without cropping or stretching.
+  picture.position=Vector2(8,42*text_scale())
+  picture.size=Vector2(maxf(1,size.x-16),maxf(1,art_bottom-picture.position.y))
  var header=get_node_or_null("CardHeader")
  if header!=null: header.queue_redraw()
  queue_redraw()
@@ -207,17 +243,49 @@ func fit_text() -> void:
  var area=get_node_or_null("CardText")
  if area==null: return
  area.position=Vector2(12,art_bottom+4)
- area.size=Vector2(size.x-24,maxf(1,size.y-area.position.y-8))
- area.get_node("Content/CardEffect").add_theme_font_size_override("font_size",13)
+ var bottom=size.y-8
+ var footer=get_node_or_null("CardKeywords")
+ var requirements=get_node_or_null("CardRequirements")
+ var available_width=size.x-24
+ var keyword_width=0.0
+ var requirement_width=0.0
+ for group in [footer,requirements]:
+  if group==null or not group.visible: continue
+  for label in group.get_children():
+   var font_size=roundi(11*text_scale())
+   if label.get_theme_font_size("font_size")!=font_size: label.add_theme_font_size_override("font_size",font_size)
+   if group==footer:
+    keyword_width+=label.get_combined_minimum_size().x+8
+   else:
+    for line in label.text.split("\n"):
+     requirement_width=maxf(requirement_width,ceilf(label.get_theme_font("font").get_string_size(line,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x))
+ keyword_width=maxf(0,keyword_width-8)
+ requirement_width=minf(available_width,requirement_width)
+ var side_by_side=keyword_width+requirement_width+8<=available_width
+ if requirements!=null and requirements.visible:
+  requirements.size=Vector2(requirement_width,requirements.get_combined_minimum_size().y)
+  requirements.position=Vector2(size.x-12-requirements.size.x,size.y-14-requirements.size.y)
+  bottom=requirements.position.y-4
+ if footer!=null and footer.visible:
+  # The flow owns keyword widths after font shaping; a minimum-size update reflows the body.
+  footer.size=Vector2(available_width-requirement_width-8 if side_by_side and requirement_width>0 else available_width,footer.get_combined_minimum_size().y)
+  footer.position=Vector2(12,size.y-14-footer.size.y)
+  if requirement_width>0 and not side_by_side: footer.position.y=bottom-footer.size.y
+  bottom=minf(bottom,footer.position.y-4)
+ area.size=Vector2(size.x-24,maxf(1,bottom-area.position.y))
+ for label in area.get_node("Content").get_children():
+  var base_size=12 if label.name=="CardEffect" else (14 if label.name=="CardWarning" else 11)
+  label.add_theme_font_size_override("font_size",roundi(base_size*text_scale()))
 
 func _draw_header() -> void:
  var header=get_node("CardHeader")
  var accent=RARITY_COLORS[rarity]
- header.draw_rect(Rect2(8,6,size.x-16,35),Color("142c36") if effect_free else Color("17222f"))
- header.draw_line(Vector2(8,40),Vector2(size.x-8,40),Color(accent,0.55),1,true)
- header.draw_circle(Vector2(19,19),20,Color("102634") if effect_free else Color("2f2b25"))
- header.draw_arc(Vector2(19,19),19,0,TAU,32,accent,2,true)
- header.draw_arc(Vector2(19,19),15,0,TAU,32,Color(accent,0.4),1,true)
+ var unit=text_scale()
+ header.draw_rect(Rect2(8,6,size.x-16,41*unit-6),Color("142c36") if effect_free else Color("17222f"))
+ header.draw_line(Vector2(8,40*unit),Vector2(size.x-8,40*unit),Color(accent,0.55),1,true)
+ header.draw_circle(Vector2(19,19)*unit,20*unit,Color("102634") if effect_free else Color("2f2b25"))
+ header.draw_arc(Vector2(19,19)*unit,19*unit,0,TAU,32,accent,2,true)
+ header.draw_arc(Vector2(19,19)*unit,15*unit,0,TAU,32,Color(accent,0.4),1,true)
 
 func _gui_input(event: InputEvent) -> void:
  if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
@@ -264,7 +332,7 @@ func _ready() -> void:
 
 func _art_changed(category: String, id: String) -> void:
  if category!="cards" or id!=symbol: return
- var texture=art_settings.art_texture(category,id)
+ var texture=art_settings.art_texture(category,id,effect_free)
  $CardIllustration.texture=texture if texture!=null else ILLUSTRATIONS.get(preload("res://data/card_rules.gd").SPECS.get(symbol,{}).get("art_type",symbol))
 
 func _hover(raised: bool) -> void:
@@ -288,8 +356,8 @@ func _draw() -> void:
  draw_rect(Rect2(8,6,size.x-16,art_bottom-6),Color("24515a") if effect_free else Color("3b3b37"))
  for i in range(9):
   var alpha=0.08*(1-float(i)/9)
-  var band=(art_bottom-43)/9
-  draw_rect(Rect2(8,42+i*band,size.x-16,band),Color(accent,alpha))
+  var band=(art_bottom-42*text_scale()-1)/9
+  draw_rect(Rect2(8,42*text_scale()+i*band,size.x-16,band),Color(accent,alpha))
  draw_line(Vector2(8,art_bottom),Vector2(size.x-8,art_bottom),Color(accent,0.7),1,true)
  # Foil corner brackets distinguish the two faces even with illustration overlap.
  for side in [-1,1]:

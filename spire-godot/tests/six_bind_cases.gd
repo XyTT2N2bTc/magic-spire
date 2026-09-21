@@ -46,7 +46,7 @@ static func run(t) -> void:
  interrupted_bound_kick_cycle(t)
  var g=encounter()
  var e=g.state.enemies[0]
- t.check(e.type=="six_bind" and e.name=="六缚" and e.hp==220 and e.constriction==0 and e.intent.kind=="six_prepare","SIX BIND summit boss starts with preparation and zero constriction")
+ t.check(e.type=="six_bind" and e.name=="六缚" and e.hp==200 and e.constriction==0 and e.intent.kind=="six_prepare","SIX BIND summit boss starts with preparation and zero constriction")
  var result=t.action(g,"end");e=g.state.enemies[0]
  t.check(result.ok and e.stage==2 and e.intent.kind=="six_opening" and g.state.equipment.is_empty(),"SIX BIND first action only prepares the formation")
  result=t.action(g,"end");e=g.state.enemies[0]

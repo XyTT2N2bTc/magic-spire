@@ -74,6 +74,13 @@ static func run(t) -> void:
   t.check(entries.filter(func(e):return e.category=="special" and e.id==type)[0].text.contains("每次高潮：受到6－当前紧度档位－装备等级的固定滑脱伤害"),"BOOK urethral rod explains climax slip formula: "+type)
  t.check(not entries.filter(func(e):return e.category=="special" and e.id=="urethral_full_cup_high")[0].text.contains("固定滑脱伤害"),"BOOK integrated urethral cup does not inherit the separate rod-family rule")
  t.check(entries.filter(func(e):return e.category=="enemies").size()==Book.N.TYPES.size(),"BOOK all registered enemies included, not pending designs")
+ for entry in entries.filter(func(e):return e.category=="enemies"):
+  var spec=Book.N.TYPES[entry.id]
+  var affected=not spec.get("humanoid",false) or not spec.has("capture_kind")
+  t.check(not entry.text.contains("不会自行离场") and entry.text.contains("长战斗：")==affected,"BOOK long-battle copy follows humanoid and capture boundaries: "+entry.id)
+  if affected:
+   t.check(entry.text.contains("第15回合") and entry.text.contains("20件") and entry.text.contains("40") and entry.text.contains("首领战整场不适用"),"BOOK long-battle thresholds and boss exemption are explicit: "+entry.id)
+   t.check(entry.text.contains("反复准备逮捕") if spec.get("humanoid",false) else entry.text.contains("自动离场"),"BOOK long-battle outcome follows the registered enemy kind: "+entry.id)
  var iron_box=entries.filter(func(e):return e.category=="enemies" and e.id=="binding_box")[0]
  t.check(iron_box.text.contains("生命：64") and iron_box.text.contains("铁男战中的随行实例为40") and iron_box.text.contains("小魔女铁男战为52"),"BOOK binding box distinguishes its ordinary and Iron Man encounter health")
  var relics=entries.filter(func(e):return e.category=="relics")

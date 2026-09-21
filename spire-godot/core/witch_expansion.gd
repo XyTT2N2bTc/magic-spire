@@ -1,13 +1,16 @@
 extends RefCounted
 
-const REWARDS=["witch_binding_lure","witch_mana_transfer","witch_patience","witch_endurance","witch_small_fry","witch_authority"]
-const TRAINING=["witch_escape_practice","witch_escape_practice_10","witch_escape_practice_20","witch_escape_practice_30","witch_escape_practice_40"]
+const REWARDS=["witch_magic_circle","witch_binding_lure","witch_mana_transfer","witch_patience","witch_endurance","witch_small_fry","witch_authority"]
+const TRAINING=["witch_escape_practice","witch_escape_practice_10","witch_escape_practice_20","witch_escape_practice_30","witch_escape_practice_40","witch_escape_practice_35"]
 const LOCK_TEXT="锁定回合结束按钮！"
 
 static func register(g) -> void:
  var rules=g.Cards.Rules
  var buffs={
-  "witch_patience":{"name":"耐心耐心～","duration":"next_turn_start","detail":"直到下回合开始，施法预备不消耗，也不能用来抵挡拘束。"},
+  "witch_patience":{"name":"耐心耐心～","duration":"next_turn_start","detail":"直到下回合开始，施法预备不会减少（主动释放除外），也不能用来抵挡拘束。"},
+  "witch_circle_free":{"name":"绘制法阵·预备","duration":"battle","detail":"基础动作施法预备不消耗魔力；主动释放仍照常消耗魔力。"},
+  "witch_circle_bound":{"name":"绘制法阵","duration":"battle","stackable":true,"detail":"打出时，下3张技能牌费用－1，最低0；0费技能牌也消耗次数。"},
+  "witch_circle_skills":{"name":"法阵减费","duration":"battle","attack_uses":3,"stack_uses":true,"detail":"下3张技能牌费用－1，最低0；0费技能牌也消耗次数。再次获得时累计次数。"},
   "witch_half_pressure":{"name":"忍耐","duration":"turn","witch_pressure_factor":0.5,"detail":"本回合快感获取量×0.5，命运同担的均分不受影响。"},
   "witch_endurance_two":{"name":"忍耐·本回合及下回合","duration":"turn","witch_pressure_factor":0.5,"on_expire_buff":"witch_half_pressure","detail":"本回合及下回合快感获取量×0.5，命运同担的均分不受影响。"},
   "witch_endurance_next":{"name":"忍耐·下回合","duration":"turn","on_expire_buff":"witch_half_pressure","detail":"下回合快感获取量×0.5，命运同担的均分不受影响。"},
@@ -26,14 +29,17 @@ static func register(g) -> void:
  for index in range(TRAINING.size()):
   var damage=1 if index<2 else (2 if index==2 else 3)
   var hits=3 if index==0 else 6
-  var spec={"card_type":"skill","rarity":"basic","cost":0 if index==4 else 1,"mode":"strain","damage_type":"strain","base":float(damage),"hits":hits,"bound_modes":["strain","slip"],"witch_training_stage":index,"starting_card":true}
+  var spec={"card_type":"skill","rarity":"basic","cost":0 if index==5 else 1,"mode":"strain","damage_type":"strain","base":float(damage),"hits":hits,"bound_modes":["strain","slip"],"witch_training_stage":index,"starting_card":true}
   if index>=2: spec.follow_through=true;spec.target_slots=rules.FOLLOW_THROUGH_SLOTS
-  var ending="，顺延。" if index>=2 else "。"
-  add(g,TRAINING[index],"脱缚练习",spec,["技能","挣扎{base}×{hits}"+ending,"滑脱{base}×{hits}"+ending,"两面合计打出10／20／30／40次后永久进化。本局跨战斗保留；每段分别结算，一张牌只累计1次。"],"repeated_strain")
+  if index>=4: spec.follow_through_scope="body"
+  var ending="，超级顺延。" if index>=4 else ("，顺延。" if index>=2 else "。")
+  add(g,TRAINING[index],"脱缚练习（Lv.%d）" % index,spec,["技能","挣扎{base}×{hits}"+ending,"滑脱{base}×{hits}"+ending,"两面合计打出7／14／21／28／35次后永久进化。本局跨战斗保留；每段分别结算，一张牌只累计1次。"],"repeated_strain")
   rules.SPECS[TRAINING[index]].reward_excluded=true
   rules.SPECS[TRAINING[index]].encyclopedia_hidden=index>0
  add(g,"witch_mana_transfer","魔力抽调",{"card_type":"skill","type_tags":["skill","magic"],"rarity":"common","cost":0,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"witch_actions":{"bound":"flask"},"self_faces":{"bound":{"card_type":"skill"},"free":{"card_type":"magic","cast":true,"energy_cost":1,"effects":[{"op":"reserve_mana","amount":4}]}}},["技能／魔法","至多消耗40魔瓶魔力，为自己恢复等量魔力。","{self_free_effects}","只取恢复所需的魔瓶魔力，不超过自身魔力上限。"],"mana_conversion")
- add(g,"witch_patience","耐心耐心～",{"card_type":"skill","type_tags":["skill","magic"],"rarity":"uncommon","cost":0,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"witch_actions":{"bound":"protect"},"witch_requirements":{"free":"mouth_grade"},"self_faces":{"bound":{"card_type":"skill"},"free":{"card_type":"magic","cast":true,"energy_cost":1,"mana_cost":25.0,"effects":[{"op":"next_energy","amount":3}]}}},["技能／魔法","直到下回合开始，施法预备不会被消耗，也不能用来抵挡拘束。","下回合额外获得3能量。",""],"prepared_chant")
+ add(g,"witch_patience","耐心耐心～",{"card_type":"skill","type_tags":["skill","magic"],"rarity":"uncommon","cost":0,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"witch_actions":{"bound":"protect"},"witch_requirements":{"free":"mouth_grade"},"self_faces":{"bound":{"card_type":"skill"},"free":{"card_type":"magic","cast":true,"energy_cost":1,"mana_cost":20.0,"effects":[{"op":"next_energy","amount":3}]}}},["技能／魔法","直到下回合开始，施法预备不会减少（主动释放除外），也不能用来抵挡拘束。","下回合额外获得3能量。",""],"prepared_chant")
+ g.B.CARD_TRAITS.witch_patience={"retain":true}
+ add(g,"witch_magic_circle","绘制法阵",{"card_type":"power","rarity":"uncommon","cost":1,"mode":"power","free_max_levels":{"arms":3},"self_faces":{"bound":{"buff":"witch_circle_bound","effects":[{"op":"buff","buff":"witch_circle_skills"}]},"free":{"buff":"witch_circle_free"}}},["能力","下3张技能牌消耗－1，最低0。","基础动作施法预备不再消耗魔力。",""],"formation")
  add(g,"witch_endurance","忍耐",{"card_type":"skill","rarity":"uncommon","cost":0,"mode":"self","witch_actions":{"bound":"endure_two","free":"endure_next"},"witch_requirements":{"free":"mouth_score"},"self_faces":{"bound":{"exhaust":true},"free":{"exhaust":true}}},["技能","本回合及下回合快感获取量×0.5（命运同担无效）。将1张敏感加入弃牌堆。","下回合快感获取量×0.5（命运同担无效）。",""],"concentration")
  add(g,"witch_small_fry","杂鱼♡～杂鱼♡～",{"card_type":"magic","rarity":"rare","cost":1,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"witch_actions":{"bound":"interrupt_mouth","free":"interrupt_hand"},"self_faces":{"bound":{"cast":true,"energy_cost":1,"mana_cost":10.0},"free":{"cast":true,"mana_cost":20.0}}},["魔法","下次嘴部法术释放附加一次打断。","下次手部法术释放附加一次打断。","同次释放不重复打断；施法预备动作不消耗此效果。"],"infusion")
  add(g,"witch_authority","窃取权柄",{"card_type":"power","rarity":"rare","cost":0,"mode":"power","witch_actions":{"bound":"authority_release","free":"authority_energy"},"witch_requirements":{"free":"tightness"},"self_faces":{"bound":{"buff":"witch_authority_power","mana_cost":60.0},"free":{"buff":"witch_authority_power","mana_cost":60.0}}},["能力","解除全部拘束与捕缚，清空快感。本回合快感获取量×0.5。"+LOCK_TEXT,"获得3能量、8层魔力预备和3层精神集中，清空快感。本回合快感获取量×0.5。"+LOCK_TEXT,"必须在本回合获胜，否则只能投降。"],"henshin")
@@ -47,6 +53,12 @@ static func add(g, id: String, name: String, spec: Dictionary, text: Array, art:
 
 static func protects_preparation(g) -> bool:
  return g.Character.active(g) and "witch_patience" in g.state.card_buffs
+
+static func free_preparation(g) -> bool:
+ return g.Character.active(g) and "witch_circle_free" in g.Cards.active_buffs(g)
+
+static func skill_discount(g, type: String, free: bool) -> int:
+ return 1 if g.Character.active(g) and "witch_circle_skills" in g.state.card_buffs and "skill" in g.Cards.Rules.type_tags(type,free) else 0
 
 static func pressure_multiplier(g) -> float:
  var result=1.0
@@ -74,8 +86,8 @@ static func induce(g, requests: Array, source: String) -> bool:
 
 static func training_progress(card: Dictionary) -> String:
  var count=int(card.get("practice_plays",0))
- if count>=40: return "本局累计打出%d次，已完成全部升级。" % count
- var next=(int(count/10)+1)*10
+ if count>=35: return "本局累计打出%d次，已完成全部升级。" % count
+ var next=(int(count/7)+1)*7
  return "升级进度：%d／%d次；再使用%d次升级。" % [count,next,next-count]
 
 static func reason(g, p: Dictionary) -> String:
@@ -127,7 +139,7 @@ static func evolve(g, card: Dictionary) -> void:
  if not g.Cards.Rules.SPECS[card.type].has("witch_training_stage"): return
  var count=int(card.get("practice_plays",0))+1
  var old=card.type
- card.practice_plays=count;card.type=TRAINING[mini(4,count/10)]
+ card.practice_plays=count;card.type=TRAINING[mini(5,count/7)]
  for permanent in g.state.deck:
   if permanent.uid==card.uid: permanent.practice_plays=count;permanent.type=card.type
  g._emit("event","脱缚练习：本局累计打出%d次。" % count+("已永久进化。" if old!=card.type else ""),{"witch_practice":{"uid":card.uid,"plays":count,"evolved":old!=card.type}})
@@ -136,6 +148,6 @@ static func validate_card(g, card: Dictionary) -> String:
  var spec=g.Cards.Rules.SPECS[card.type]
  if spec.has("witch_training_stage"):
   var count=card.get("practice_plays",0)
-  if not count is int or count<0 or mini(4,count/10)!=spec.witch_training_stage: return "脱缚练习的累计次数与进化阶段不一致。"
+  if not count is int or count<0 or mini(5,count/7)!=spec.witch_training_stage: return "脱缚练习的累计次数与进化阶段不一致。"
  elif card.has("practice_plays"): return "这张牌没有脱缚练习进度。"
  return ""

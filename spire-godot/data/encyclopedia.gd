@@ -157,9 +157,9 @@ static func entries(g=null, character: String="") -> Array:
   if N.FirstFloor.SUMMIT_ENCOUNTERS.any(func(id):return encounter_contains(id,type)): sources.append("塔顶")
   var text="生命：%s\n" % spec.hp+BEHAVIORS.get(spec.behavior,"")
   if type=="puppeteer": text="生命：%s\n开场：自带%s生命玩偶，首回合赋予嘲讽与受伤反击。\n行动：准备中级2档复合拘束具→准备中级3档特殊装备→缝补，循环。缝补使玩偶生命上限＋5并回满，普通反击容量上限＋1并补满。\n护身屏障：每回合最多受到%s点最终伤害，上限随周目生命倍率提高；直接伤害与玩偶转移共用额度，下回合恢复。\n" % [spec.hp,N.TYPES.puppet.hp,spec.damage_cap]+N.BARRIER_CAPACITY_DESCRIPTION+"\n牵线保护：玩偶生命最低为1，溢出伤害转给玩偶师。击败玩偶师，玩偶同时离场。"
-  if type=="puppet": text="生命：%s\n行动：不主动行动，由玩偶师操纵。生命最低为1，溢出伤害转给玩偶师。\n引敌缚咒：单体攻击必须选择玩偶，群攻不受限制；每段正数伤害消耗1次普通反击，尝试施加1件初级2档普通拘束具，遗物伤害也会触发。\n普通反击容量初始%d，上限受护身屏障削减，最低0；容量耗尽后停止反击。缝补使上限＋1并补满。\n备装：下一次攻击命中时，额外施加已准备的复合／特殊装备，各1件；多段只触发1次，不消耗普通反击容量。遗物伤害不触发备装，位置不足时可合法替换。" % [spec.hp,spec.reaction_capacity]
+  if type=="puppet": text="生命：%s\n行动：不主动行动，由玩偶师操纵。生命最低为1，溢出伤害转给玩偶师。\n引敌缚咒：单体攻击必须选择玩偶，群攻不受限制；每段正数伤害消耗1次普通反击，尝试施加1件初级2档普通拘束具，遗物伤害也会触发。\n普通反击容量初始%d，上限受护身屏障削减，最低1；容量耗尽后停止反击。缝补使上限＋1并补满。\n备装：下一次攻击命中时，额外施加已准备的复合／特殊装备，各1件；多段只触发1次，不消耗普通反击容量。遗物伤害不触发备装，位置不足时可合法替换。" % [spec.hp,spec.reaction_capacity]
   if spec.has("cycle") and not spec.has("split_threshold"):
-   text="生命：%s\n行动：准备→施加1件%s2档%s类拘束具→加固同类拘束具，循环。不会自行离场。" % [spec.hp,E.GRADES[spec.install_grade],spec.restraint_name]
+   text="生命：%s\n行动：准备→施加1件%s2档%s类拘束具→加固同类拘束具，循环。" % [spec.hp,E.GRADES[spec.install_grade],spec.restraint_name]
    text+="可施加同类链接绳。"
   if spec.has("split_threshold"):
    text=("生命：%s\n" % spec.hp)+"行动：①{material}增生；②准备；③施加2件中级2档{material}类拘束具；④加固至多2件至3档；⑤蓄力；⑥全身施加中级3档拘束具（含链接绳），再以最大生命的50%分裂。\n增生：每个玩家回合开始，施加1件初级2档同类拘束具，敌人离场后停止。\n分裂：受击后存活且生命≤50%时提前分裂，直接击杀不分裂。分裂为1只{large}和2只{small}：大怪继承当前生命，小怪各取其一半、向上取整；下回合开始行动。".format({"material":spec.restraint_name,"large":N.TYPES[spec.split_spawns[0].type].name,"small":N.TYPES[spec.split_spawns[1].type].name})
@@ -177,6 +177,10 @@ static func entries(g=null, character: String="") -> Array:
   if type=="mixed_bundle": text="生命：%s\n开场：散缚，施加2件初级2档拘束具。\n行动：之后随机选招。散缚同开场；翻卷收紧先施加1件初级2档，再加固1件至3档；躁动膨胀获得1层狂躁。\n狂躁：每层使后续施加数量＋1，不增加加固次数。\n限制：散缚、躁动膨胀不连用，翻卷收紧最多连用2次。可施加各类初级普通拘束具（含口球、链接绳），不会替换。" % spec.hp
   if type=="rope_serpent": text="生命：%s\n行动：缠身→随机收紧或甩缚，循环；两种招式各50%%。\n缠身：紧缠＋1层。每个玩家回合结束，每层施加1件初级2档绳索类拘束具。\n收紧：加固1件绳索类拘束具至3档。甩缚：施加2件初级2档绳索类拘束具，含链接绳。\n特殊：预告收紧时没有目标则改为甩缚；预告后失去目标则不生效。打断不停止紧缠，击败该绳蛇才停止。" % spec.hp
   if type in ["ominous_circle","small_circle"]: text="生命：%s\n开场：获得%d点仪式，此后每个自身回合结束，施加数量＋%d。\n行动：从第2次行动起持续施加拘束具，数量通常为%d、%d、%d……；每件随机为初级2档或中级1档，含链接绳。\n无位置时：剩余每次施加改为加固1次；也无法加固则结束，不累计到下回合。\n特殊：仪式启动后，打断施加不会阻止数量增长；击败后停止。" % [spec.hp,spec.ritual_gain,spec.ritual_gain,1+spec.ritual_gain,1+2*spec.ritual_gain,1+3*spec.ritual_gain]
+  if not spec.get("humanoid",false) or not spec.has("capture_kind"):
+   var limit="\n长战斗：非首领战从第%d回合起，佩戴拘束具≥%d件或总紧度≥%d时，自动离场；全部敌人离场按胜利结算。首领战整场不适用，包括随行单位。"
+   if spec.get("humanoid",false): limit="\n长战斗：非首领战从第%d回合起，佩戴拘束具≥%d件或总紧度≥%d时，反复准备逮捕；仍可打断。首领战整场不适用，包括随行单位。"
+   text+=limit % [B.ENEMY_LONG_BATTLE_ROUND,B.ENEMY_LONG_BATTLE_COUNT,B.ENEMY_LONG_BATTLE_TIGHTNESS]
   if spec.has("capture_kind"): text+="\n"+CAPTURE_RULES
   if spec.has("defeat_spawns"):
    var spawn_counts={}

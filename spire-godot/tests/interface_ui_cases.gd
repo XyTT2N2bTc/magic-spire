@@ -138,16 +138,19 @@ static func run(t) -> void:
 static func card_illustrations(t) -> void:
  var face_script=preload("res://ui/card_face.gd")
  var before=t.ui.game.export_snapshot()
- var missing=[];var broken=[];var overflow=[];var paths=[]
+ var missing=[];var broken=[];var overflow=[];var paths={}
+ var desire_art=["itching_heart","self_satisfaction","psychological_suggestion","rally_spirit","desire_rune","forced_edging","forced_climax"]
  for id in t.ui.game.Cards.Rules.SPECS:
-  if not face_script.ILLUSTRATIONS.has(id):
+  var spec=t.ui.game.Cards.Rules.SPECS[id]
+  var art=spec.get("art_type",id)
+  if not face_script.ILLUSTRATIONS.has(art):
    missing.append(id);continue
-  var texture=face_script.ILLUSTRATIONS[id]
-  var source=preload("res://data/card_rules.gd").SPECS[id].get("art_source","magic_hand" if id=="magic_hand_gift" else "")
-  var shared=source!="" and texture==face_script.ILLUSTRATIONS[source]
-  if texture==null or texture.get_image().get_used_rect().size==Vector2i.ZERO or (texture.resource_path in paths and not shared):
+  var texture=face_script.ILLUSTRATIONS[art]
+  var source=spec.get("art_source","magic_hand" if art=="magic_hand_gift" else art)
+  if source in desire_art: source="itching_heart"
+  if texture==null or texture!=face_script.ILLUSTRATIONS.get(source) or texture.get_image().get_used_rect().size==Vector2i.ZERO or (paths.has(texture.resource_path) and paths[texture.resource_path]!=source):
    broken.append(id);continue
-  paths.append(texture.resource_path)
+  paths[texture.resource_path]=source
   var card=face_script.new()
   card.symbol=id;card.lift_on_hover=false
   card.position=Vector2(-2000,-2000);card.size=Vector2(190,285)
@@ -155,12 +158,12 @@ static func card_illustrations(t) -> void:
   var picture=card.get_node("CardIllustration")
   for dimensions in [Vector2(190,285),Vector2(290,360)]:
    card.size=dimensions;card.free_face=not card.free_face;card.queue_redraw()
-   var art_ratio=0.58 if id=="binding_enthusiast" else 2.0/3.0
+   var art_ratio=2.0/3.0
    if picture.texture!=texture or picture.material!=null or picture.mouse_filter!=Control.MOUSE_FILTER_IGNORE or not Rect2(Vector2.ZERO,dimensions).encloses(picture.get_rect()) or not is_equal_approx(card.art_bottom-6,dimensions.y*art_ratio) or picture.stretch_mode!=TextureRect.STRETCH_KEEP_ASPECT_CENTERED or picture.position.y<42 or not picture.clip_contents:
     overflow.append(id)
   card.free()
  t.check(missing.is_empty(),"CARD ART every registered card has an illustration: "+str(missing))
- t.check(broken.is_empty(),"CARD ART illustrations are nonempty and distinct except the magic-hand gift variant: "+str(broken))
+ t.check(broken.is_empty(),"CARD ART illustrations are nonempty and distinct except declared art aliases and the desire-card group: "+str(broken))
  t.check(face_script.ILLUSTRATIONS.magic_hand_gift==face_script.ILLUSTRATIONS.magic_hand,"CARD ART gift variant shares the original magic-hand illustration")
  t.check(overflow.is_empty(),"CARD ART both sizes/faces keep their specified art area and fit the full image proportionally below the header: "+str(overflow))
  t.check(t.ui.game.export_snapshot()==before,"CARD ART display never changes cards, resources or random state")
@@ -172,7 +175,8 @@ static func card_illustrations(t) -> void:
   samples.append({"face":face,"data":data})
  var text_overflow=[]
  var header_errors=[]
- for dimensions in [Vector2(184,252),Vector2(226,290)]:
+ var keyword_errors=[]
+ for dimensions in [Vector2(158,252),Vector2(181,290),Vector2(300,480)]:
   for free in [false,true]:
    for sample in samples:
     sample.face.size=dimensions;t.ui.card_faces[sample.data.uid]=free;t.ui._refresh_card_face(sample.face,sample.data)
@@ -181,7 +185,9 @@ static func card_illustrations(t) -> void:
     var box=sample.face.get_node("CardText")
     var content=box.get_node("Content")
     var picture=sample.face.get_node("CardIllustration")
-    var art_ratio=0.58 if sample.data.type=="binding_enthusiast" else 2.0/3.0
+    var footer=sample.face.get_node("CardKeywords")
+    var requirements=sample.face.get_node("CardRequirements")
+    var art_ratio=2.0/3.0
     if not Rect2(Vector2.ZERO,dimensions).encloses(box.get_rect()) or box.position.y<picture.get_rect().end.y or not is_equal_approx(sample.face.art_bottom-6,dimensions.y*art_ratio) or content.size.x>box.size.x or not box.clip_contents: text_overflow.append(sample.data.type+str(free)+str(dimensions))
     # Scroll offsets are integer pixels; a fractional layout remainder is not a scrollable row.
     if floorf(content.size.y-box.size.y)>=1:
@@ -190,17 +196,33 @@ static func card_illustrations(t) -> void:
      box.scroll_vertical=0
     var badges=sample.face.get_node("CardMana")
     var title=sample.face.get_node("CardTitle")
+    var cost=sample.face.get_node("CardCost")
+    var header_scale=1.5 if dimensions.y==480 else 1.0
+    if not cost.get_rect().get_center().is_equal_approx(Vector2(19,19)*header_scale) or cost.get_line_count()!=1 or title.get_rect().end.y>picture.position.y: header_errors.append(sample.data.type+" header alignment")
     if sample.data.type=="hannya_henshin":
-     t.check(title.text.replace("\n","")==sample.data.name and title.get_visible_line_count()==title.get_line_count() and title.get_rect().end.y<=42,"HANNYA TITLE full perfect-henshin name fits the header without truncation: rect=%s lines=%d/%d font=%d" % [str(title.get_rect()),title.get_visible_line_count(),title.get_line_count(),title.get_theme_font_size("font_size")])
+     t.check(title.text.replace("\n","")==sample.data.name and title.get_visible_line_count()==title.get_line_count() and title.get_rect().end.y<=42*header_scale,"HANNYA TITLE full perfect-henshin name fits the header without truncation: rect=%s lines=%d/%d font=%d" % [str(title.get_rect()),title.get_visible_line_count(),title.get_line_count(),title.get_theme_font_size("font_size")])
     var expected=sample.data.face_mana["free" if free else "bound"]
     if badges.visible!=not expected.is_empty() or badges.get_child_count()!=expected.size(): header_errors.append(sample.data.type+" visibility")
-    if badges.visible and (not Rect2(Vector2.ZERO,dimensions).encloses(badges.get_rect()) or title.get_rect().end.x>badges.position.x or badges.position.y>2): header_errors.append(sample.data.type+" overlap: title="+str(title.get_rect())+" badges="+str(badges.get_rect())+" card="+str(dimensions))
+    if badges.visible and (not Rect2(Vector2.ZERO,dimensions).encloses(badges.get_rect()) or title.get_rect().end.x>badges.position.x or badges.position.y>2 or badges.get_rect().end.y>picture.position.y): header_errors.append(sample.data.type+" overlap: title="+str(title.get_rect())+" badges="+str(badges.get_rect())+" card="+str(dimensions))
+    if footer.visible:
+     if not Rect2(Vector2.ZERO,dimensions).encloses(footer.get_rect()) or box.get_rect().end.y>footer.position.y: keyword_errors.append(sample.data.type+" footer bounds")
+     for label in footer.get_children():
+      if not Rect2(Vector2.ZERO,footer.size).encloses(label.get_rect()) or label.get_line_count()!=1: keyword_errors.append(sample.data.type+" split keyword")
+      if footer.get_children().any(func(other):return other!=label and label.get_rect().intersects(other.get_rect())): keyword_errors.append(sample.data.type+" overlapping keywords")
+    var requirement_text=Array(sample.data.face_requirements["free" if free else "bound"])
+    if requirements.get_children().map(func(label):return label.text)!=requirement_text: keyword_errors.append(sample.data.type+" missing requirements")
+    if requirements.visible:
+     if not Rect2(Vector2.ZERO,dimensions).encloses(requirements.get_rect()) or not is_equal_approx(requirements.get_rect().end.x,dimensions.x-12) or not is_equal_approx(requirements.get_rect().end.y,dimensions.y-14) or box.get_rect().end.y>requirements.position.y or requirements.position.y<picture.get_rect().end.y: keyword_errors.append(sample.data.type+" requirement bounds "+str(dimensions)+str(requirements.get_rect()))
+     if footer.visible and requirements.get_rect().intersects(footer.get_rect()): keyword_errors.append(sample.data.type+" requirements overlap keywords")
+     if requirements.get_children().any(func(label):return label.horizontal_alignment!=HORIZONTAL_ALIGNMENT_RIGHT or not Rect2(Vector2.ZERO,requirements.size).encloses(label.get_rect())): keyword_errors.append(sample.data.type+" requirement alignment")
+    if sample.data.type=="fire_dynamics":
+     if not footer.visible or footer.get_child_count()!=1 or footer.get_child(0).text!="唯一" or content.get_node("CardEffect").text.contains("唯一"): keyword_errors.append("fire dynamics unique must move to bottom on both faces")
  # A deliberate display-only long-copy fixture survives later wording simplifications.
  # Every real card and both faces have already been checked above.
  var dense=samples[0]
  dense.face.position=Vector2(700,280);dense.face.z_index=200
  dense.face.get_node("CardText/Content/CardEffect").text="使用前请确认目标。\n".repeat(12)
- dense.face.size=Vector2(184,252);dense.face.fit_text();await t.frames()
+ dense.face.size=Vector2(158,252);dense.face.fit_text();await t.frames()
  var scroll=dense.face.get_node("CardText")
  var art_rect=dense.face.get_node("CardIllustration").get_rect()
  t.check(scroll.get_node("Content").size.y>scroll.size.y,"CARD TEXT explicit long-copy fixture overflows the narrow hand card")
@@ -215,6 +237,9 @@ static func card_illustrations(t) -> void:
   t.ui.card_faces.erase(sample.data.uid);sample.face.free()
  t.check(text_overflow.is_empty(),"CARD TEXT both face sizes keep full scrollable effects and restrictions below the fixed art area: "+str(text_overflow))
  t.check(header_errors.is_empty(),"CARD MANA badges stay at top right without covering titles on either face/size: "+str(header_errors))
+ t.check(keyword_errors.is_empty(),"CARD KEYWORDS standalone tags stay whole at the bottom outside scrollable effects: "+str(keyword_errors))
+ var copy=face_script.separate_keywords("每消耗1张，恢复10魔力。消耗。",[{"name":"消耗"}])
+ t.check(copy.body=="每消耗1张，恢复10魔力。" and copy.keywords==["消耗"],"CARD KEYWORDS preserve effect clauses mentioning a keyword")
  t.check(t.ui.game.export_snapshot()==before,"CARD TEXT layout and flip do not change game state")
 
 static func tutorial(t) -> void:

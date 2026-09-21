@@ -7,6 +7,8 @@ const UPPER_BODY_SLOTS=["eyes","mouth","neck","shoulder","upper_arm","forearm","
 
 # Mechanical card definitions. Display templates in balance.gd read these values.
 static var BUFFS={
+ "binding_power_current":{"name":"拘束就是力量！","duration":"next_turn_start","stack_uses":true,"attributes":{"strength":1},"on_expire_buff":"binding_power_last","duration_text":"下回合结束","detail":"力量加成持续到你的下回合结束。"},
+ "binding_power_last":{"name":"拘束就是力量！","duration":"turn","stack_uses":true,"attributes":{"strength":1},"detail":"力量加成持续到你的本回合结束。"},
  "psychological_suggestion":{"name":"心理暗示","duration":"battle","next_action_freedom":true,"stack_uses":true,"detail":"下一次出牌或基础动作无视拘束具的使用限制、施法倍率与威力削减；目标的锁与外层覆盖、姿势、快感、费用照常。"},
  "rally_spirit_next":{"name":"强打精神·下回合","duration":"next_turn_start","stack_uses":true,"on_expire_effects":[{"op":"pressure","amount":40}],"detail":"下回合开始时，获得40快感。"},
  "desire_rune_bound":{"name":"爱欲魔纹·拘束","duration":"battle","pressure_gained":{"step":30,"effects":[{"op":"charge","amount":1}]},"detail":"每实际获得30快感，获得1层蓄力。进度跨回合保留。"},
@@ -18,7 +20,7 @@ static var BUFFS={
  "kip_up_free":{"name":"鲤鱼打挺","duration":"next_attack","attacks":["heavy","kick"],"ignore_posture":true,"detail":"下一次腿部体术无视姿势限制，按站姿招式发动；包括近身短打和各类踢击。只持续到下一次完整攻击，不会因此站起；捕缚的强制姿势优先，击后躺下、拘束、费用、冷却及次数限制照常。"},
  "sympathetic_form_free":{"name":"交感形态·自由","duration":"battle","stackable":true,"turn_start_requirements":{"no_restraints":true,"include_special":false},"turn_start_effects":[{"op":"mana","amount":20},{"op":"pressure","amount":10}],"detail":"回合开始时，若未佩戴非特殊装备的拘束具，恢复20魔力并获得10快感。"},
  "sympathetic_form_bound":{"name":"交感形态·拘束","duration":"battle","stackable":true,"turn_start_effects":[{"op":"reserve_mana","amount":2},{"op":"energy","amount":1}],"detail":"回合开始时，获得10点临时魔力与1能量。"},
- "endless_war_goddess":{"name":"无尽魔法少女战神","duration":"battle","attack":"all","ignore_restraints":true,"unrestricted_basics":true,"detail":"本场战斗剩余时间，全部基础动作（包括火球术）无视拘束、快感与姿势限制；所有踢击形态可右键切换。费用、冷却及释放次数照常。"},
+ "endless_war_goddess":{"name":"无尽魔法少女战神","duration":"battle","attack":"all","ignore_restraints":true,"unrestricted_basics":true,"detail":"本场战斗中，所有基础动作和火球术都无视拘束、快感与姿势限制。右键可切换所有踢击招式。使用动作仍需付费、等待冷却，并受每回合次数上限限制。"},
  "prepared_chant":{"name":"预备咏唱","duration":"turn","cast_minimum":1.0,"detail":"本回合施法成功率固定为100%。"},
  "prepared_chant_next":{"name":"预备咏唱·下回合","duration":"next_turn_start","on_expire_buff":"prepared_chant","detail":"下回合施法成功率固定为100%。"},
  "reuse_free":{"name":"魔路精通·自由","duration":"battle","failure_conversion":{"temporary_only":true,"refund":0.0,"energy":1,"zero_cost_limit":2},"exclusive_group":"reuse","detail":"本次耗魔全部由临时魔力支付时，施法失败不返还魔力，改为获得1能量。0费牌每回合最多触发2次。两面互斥。唯一。"},
@@ -49,7 +51,7 @@ static var BUFFS={
  "echo_cast_bound":{"name":"余势复演·拘束","duration":"battle","stack_uses":true,"replay":{"kind":"card","distinct_faces":true},"detail":"下一张成功打出的拘束面牌，每层额外释放一次；双面效果相同的牌不适用。免费复放，只作用原目标，目标失效则跳过。"},
  "echo_cast_free":{"name":"余势复演·火球","duration":"battle","stack_uses":true,"replay":{"kind":"attack","spell":"fireball"},"detail":"下一次火球术每层免费额外施放一次，不占使用次数；只作用原目标，目标失效则跳过。每次施法各自判定成功率。"},
  "embers_free":{"name":"余火","duration":"turn","spell":"fireball","attack":"fireball","base_bonus":4.0,"detail":"本回合火球术基础伤害＋4。同源不叠加。"},
- "wildfire_descent":{"name":"猛火下山","duration":"battle","stackable":true,"spell":"fireball","spell_use_effects":[{"op":"draw","amount":1}],"detail":"本场每使用一次火球术，抽1张牌。可叠加。"},
+ "wildfire_descent":{"name":"猛火下山","duration":"battle","stackable":true,"spell":"fireball","spell_use_effects":[{"op":"draw","amount":1}],"detail":"本场每成功施放一次火球术，抽1张牌。可叠加。"},
  "adaptability_bound":{"name":"灵活变通·挣扎","duration":"battle","stackable":true,"turn_start_effects":[{"op":"charge","amount":1}],"detail":"每回合开始时，获得1层蓄力。可叠加。"},
  "adaptability_free":{"name":"灵活变通·自由","duration":"battle","stackable":true,"turn_start_effects":[{"op":"reserve_mana","amount":1}],"detail":"每回合开始时，获得5点临时魔力。可叠加。"},
  "fire_dynamics_bound":{"name":"火动力学·稳燃","duration":"battle","spell":"fireball","chance_bonus":0.30,"detail":"火球术施法成功率＋30%。"},
@@ -87,7 +89,7 @@ static var SPECS=_with_hannya({
  "forced_climax":{"card_type":"magic","reward_pool":"lewd_magic","rarity":"rare","cost":1,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"select_exhaust":3,"self_faces":{"bound":{"cast":true},"free":{"cast":true}}},
  "forced_edging":{"card_type":"magic","reward_pool":"lewd_magic","rarity":"rare","cost":0,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"pressure_cost":20.0,"effects":[{"op":"energy","amount":1}]},"free":{"cast":true,"energy_cost":1,"mana_cost":10.0,"effects":[{"op":"draw","amount":2},{"op":"pressure_loss","amount":20}]}}},
  "supple_flesh":{"card_type":"skill","rarity":"uncommon","cost":0,"mode":"self","self_faces":{"bound":{"buff":"supple_flesh_bound"},"free":{"buff":"supple_flesh_free"}}},
- "binding_power":{"card_type":"skill","rarity":"common","cost":1,"mode":"self","bound_modes":["self","self"],"self_faces":{"bound":{"worn_resource":{"resource":"turn_strength","divisor":2}},"free":{"worn_resource":{"resource":"charge","divisor":4}}}},
+ "binding_power":{"card_type":"skill","rarity":"common","cost":1,"mode":"self","bound_modes":["self","self"],"self_faces":{"bound":{"worn_resource":{"resource":"strength","divisor":2,"buff":"binding_power_current"}},"free":{"worn_resource":{"resource":"charge","divisor":4}}}},
  "mana_attachment":{"card_type":"power","type_tags":["magic","power"],"rarity":"uncommon","cost":1,"mode":"power","casting":{"parts":["none"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":10.0,"buff":"mana_attachment_bound","effects":[{"op":"charge","amount":1}]},"free":{"cast":true,"mana_cost":10.0,"buff":"mana_attachment_free","effects":[{"op":"charge","amount":1}]}}},
  "binding_search":{"card_type":"magic","type_tags":["magic","skill"],"rarity":"uncommon","cost":1,"mode":"self","casting":{"parts":["none"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":10.0,"body_draw_divisor":2},"free":{"cast":true,"mana_cost":10.0,"self_install":{"grade":2,"tier":2},"effects":[{"op":"draw","amount":3}]}}},
  "kip_up":{"card_type":"skill","rarity":"common","cost":1,"zero_cost_strength":4,"mode":"self","self_faces":{"bound":{"requires_posture":"lie","posture":"stand"},"free":{"buff":"kip_up_free"}}},
@@ -95,7 +97,7 @@ static var SPECS=_with_hannya({
  "self_binding":{"card_type":"skill","rarity":"uncommon","cost":0,"x_cost":true,"mode":"self","self_binding":{"templates":["rope","cord","belt","fine_belt","tape","cable_tie"],"slots":FOLLOW_THROUGH_REGIONS.legs,"tighten_per_x":2,"mana_per_x":15},"self_faces":{"bound":{},"free":{}}},
  "prepared_chant":{"card_type":"magic","rarity":"common","cost":1,"mode":"self","casting":{"parts":["mouth"],"multiplier":1.0},"self_faces":{"bound":{"cast":true,"mana_cost":10.0,"buff":"prepared_chant"},"free":{"cast":true,"mana_cost":10.0,"buff":"prepared_chant_next"}}},
  "reuse":{"card_type":"power","rarity":"uncommon","cost":1,"mode":"power","self_faces":{"free":{"buff":"reuse_free"},"bound":{"energy_cost":1,"buff":"reuse_bound"}}},
- "confluence":{"card_type":"skill","rarity":"common","cost":0,"mode":"self","self_faces":{"bound":{"worn_resource":{"resource":"turn_strength","divisor":2}},"free":{"worn_resource":{"resource":"mana","divisor":1}}}},
+ "confluence":{"card_type":"skill","rarity":"common","cost":0,"mode":"self","self_faces":{"bound":{"worn_resource":{"resource":"turn_strength","divisor":2}},"free":{"exhaust":true,"worn_resource":{"resource":"mana","divisor":1,"amount":2}}}},
  "resonance":{"card_type":"power","rarity":"uncommon","cost":1,"mode":"power","self_faces":{"bound":{"buff":"resonance_bound"},"free":{"energy_cost":1,"buff":"resonance_free"}}},
  "formation":{"card_type":"power","rarity":"uncommon","cost":2,"mode":"power","self_faces":{"bound":{"buff":"formation_bound"},"free":{"buff":"formation_free"}}},
  "practiced":{"card_type":"power","rarity":"rare","cost":2,"mode":"power","self_faces":{"bound":{"buff":"practiced_bound"},"free":{"buff":"practiced_free"}}},
@@ -286,7 +288,7 @@ static func amount(effect: Dictionary, spec: Dictionary) -> int:
  return int(spec.get(value,0) if value is String else value)
 
 static func worn_gain(face: Dictionary, count: int) -> int:
- return int(count/int(face.worn_resource.divisor)) if face.has("worn_resource") else 0
+ return int(count/int(face.worn_resource.divisor))*int(face.worn_resource.get("amount",1)) if face.has("worn_resource") else 0
 
 static func hand_batch_matches(type: String, batch: Dictionary) -> bool:
  return batch.include_type in type_tags(type) if batch.has("include_type") else batch.exclude_type not in type_tags(type)
@@ -353,7 +355,8 @@ static func definition_reason(spec: Dictionary) -> String:
     if not bonus is Dictionary or bonus.get("spell","") not in FIXED_MAGIC or not bonus.get("amount") is int or bonus.amount<1 or bonus.amount>100: return "永久法术加伤需要已登记的法术及1—100整数。"
    if face.has("worn_resource"):
     var gain=face.worn_resource
-    if spec.mode!="self" or not gain is Dictionary or gain.keys().any(func(key):return key not in ["resource","divisor"]) or gain.get("resource","") not in ["mana","turn_strength","charge"] or not gain.get("divisor") is int or gain.divisor<1: return "佩戴件数收益需要合法资源及正整数除数。"
+    if spec.mode!="self" or not gain is Dictionary or gain.keys().any(func(key):return key not in ["resource","divisor","amount","buff"]) or gain.get("resource","") not in ["mana","turn_strength","charge","strength"] or not gain.get("divisor") is int or gain.divisor<1 or not gain.get("amount",1) is int or gain.get("amount",1)<1: return "佩戴件数收益需要合法资源、正整数除数与收益。"
+    if gain.resource=="strength" and (not BUFFS.has(gain.get("buff","")) or not BUFFS[gain.buff].get("stack_uses",false) or BUFFS[gain.buff].get("attributes",{}).get("strength",0)!=1): return "力量收益需要可叠加的每层1点力量增益。"
    for key in ["mana_cost","pressure_cost","mana_gain","energy_cost","energy_gain","pressure_energy"]:
     if face.has(key) and (not (face[key] is int or face[key] is float) or not is_finite(float(face[key])) or face[key]<0): return "卡牌资源数值不正确。"
    if face.has("pressure_energy") and face.pressure_energy<=0: return "能量转换需要正数快感间隔。"

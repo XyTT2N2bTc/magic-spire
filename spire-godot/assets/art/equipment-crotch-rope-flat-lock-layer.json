@@ -1,0 +1,62 @@
+{
+  "source_size": [
+    1536,
+    2304
+  ],
+  "difference_bounds": [
+    680,
+    861,
+    956,
+    1113
+  ],
+  "changed_pixels": 28723,
+  "bound_crop": [
+    390,
+    90,
+    1130,
+    2304
+  ],
+  "sources": {
+    "free": {
+      "path": "C:\\Users\\16563\\Downloads\\00170-135882225.png",
+      "sha256": "4aaacc0b4a125b09e65a9e176dafe09875c64e089b6140f2ff462d9c50e4702f"
+    },
+    "bound": {
+      "path": "C:\\Users\\16563\\Downloads\\QQ图片20260911234734.png",
+      "sha256": "3dc5243fe19daba7136bbe0d5b6b7deec786cc88e7963f9b956e4b985c31cd23"
+    }
+  },
+  "layers": {
+    "bound": {
+      "texture": "res://assets/art/equipment-overlay-crotch-rope-flat-lock-v1.png",
+      "origin": [
+        670,
+        851
+      ],
+      "size": [
+        296,
+        274
+      ],
+      "sha256": "67016b24e4d92d59ebf3a8bd33fef3eaa66b9c6a98bcc4f923a8ba16e080b25f"
+    },
+    "free": {
+      "texture": "res://assets/art/equipment-overlay-crotch-rope-flat-lock-free-v1.png",
+      "origin": [
+        670,
+        851
+      ],
+      "size": [
+        296,
+        274
+      ],
+      "sha256": "2f7c87fab803fdf09a4c3e6464d9acb9ec7ea87ced77ef5e68b7a0d552970208"
+    }
+  },
+  "method": "Aligned pixel difference and connected white-backdrop cutout using existing helpers. Source colors preserved except white-matte edge removal. No generated pixels.",
+  "compositing": "Use with the matched flat-lock portrait. Replace this local region only; preserve all existing lock and attachment layers. Not for the ordinary portrait.",
+  "trim": null,
+  "verification": "Both directional alpha replacements reproduce the source cutout alpha and visible pixels exactly. No ordinary-variant diagonal trim is applied over the lock or strap.",
+  "flat_lock_status": "Prepared from the supplied matched flat-lock pair; lock, reinforcement strap and rod retain source pixels.",
+  "runtime_status": "Ordinary and flat-lock bound standing bases follow actual crotch_rope presence. Single-glove uses its original artwork by user request; free/fixed/other poses unchanged.",
+  "runtime_reinforcement_without_rope": "res://assets/art/equipment-overlay-flat-lock-reinforcement-no-crotch-rope-v1.png"
+}

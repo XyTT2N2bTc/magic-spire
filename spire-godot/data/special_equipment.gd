@@ -305,6 +305,8 @@ static func portrait_layers(items: Array) -> Array:
  var has_urethral=items.any(func(item):return item.get("durability",0)>0 and (catheter(item) or TYPES.get(item.get("type",""),{}).get("family","")=="urethral_rod"))
  if has_chastity and has_urethral:
   layers.append("urethral_rod")
+ if items.any(func(item):return item.get("durability",0)>0 and TYPES.get(item.get("type",""),{}).get("family","")=="crotch_rope"):
+  layers.append("crotch_rope")
  return layers
 
 static func generation_pool(types: Array, include_chastity: bool) -> Array:

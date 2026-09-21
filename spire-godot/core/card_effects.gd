@@ -237,10 +237,10 @@ static func expire_turn_buffs(g, at_start: bool=false) -> void:
   if Rules.BUFFS[id].duration=="turn" or (at_start and Rules.BUFFS[id].duration=="next_turn_start"):
    for repeat in range(int(g.state.card_buff_uses.get(id,1))):
     if Rules.BUFFS[id].has("on_expire_effects"): expired_effects.append({"effects":Rules.BUFFS[id].on_expire_effects,"name":Rules.BUFFS[id].name})
-   if Rules.BUFFS[id].has("on_expire_buff"): next_buffs.append(Rules.BUFFS[id].on_expire_buff)
+    if Rules.BUFFS[id].has("on_expire_buff"): next_buffs.append(Rules.BUFFS[id].on_expire_buff)
    g.state.card_buffs.erase(id)
    g.state.card_buff_uses.erase(id)
-   g._emit("event",Rules.BUFFS[id].name+"的本回合效果结束。",{"expired_card_buff":id})
+   if not Rules.BUFFS[id].has("on_expire_buff"): g._emit("event",Rules.BUFFS[id].name+"的本回合效果结束。",{"expired_card_buff":id})
  for id in next_buffs: grant_buff(g,id)
  for pending in expired_effects: apply_effects(g,pending.effects,{},pending.name)
 
@@ -317,7 +317,7 @@ static func record_play(g, type: String, free: bool=false, played_uid: String=""
   if amount>0: g.Pressure.gain(g,amount,Rules.BUFFS[id].name+"的拘束面刺激",true)
 
 static func progress_text(g, id: String) -> String:
- if Rules.BUFFS[id].duration=="next_turn_start" and Rules.BUFFS[id].has("on_expire_buff"): return "下回合生效"
+ if Rules.BUFFS[id].duration=="next_turn_start" and Rules.BUFFS[id].has("on_expire_buff") and not Rules.BUFFS[id].has("attributes"): return "下回合生效"
  if Rules.BUFFS[id].get("toggleable",false): return "已开启 · 右键关闭" if id in active_buffs(g) else "已关闭 · 右键开启"
  if Rules.BUFFS[id].has("turn_start_requirements"):
   var issue=buff_requirement(g,Rules.BUFFS[id].turn_start_requirements)
@@ -508,10 +508,10 @@ static func uses_magic(p: Dictionary) -> bool:
  return Rules.face_casts(p.type,p.get("free",not Rules.SPECS[p.type].has("self_faces")))
 
 static func energy_cost(g, type: String, free: bool=false) -> int:
- if Rules.SPECS[type].get("x_cost",false): return maxi(0,g.state.energy)
+ if Rules.SPECS[type].get("x_cost",false): return maxi(0,g.state.energy-g.Character.Expansion.skill_discount(g,type,free))
  var base=Hannya.energy_cost(g) if Rules.SPECS[type].get("drinking",false) else Rules.energy_cost(type,free)
  if Rules.SPECS[type].has("zero_cost_strength") and g.RelicEffects.attribute(g,"strength")>=Rules.SPECS[type].zero_cost_strength: base=0
- return maxi(0,base-first_magic(g,type,free).energy_discount)
+ return maxi(0,base-first_magic(g,type,free).energy_discount-g.Character.Expansion.skill_discount(g,type,free))
 
 static func energy_label(g, type: String, free: bool=false) -> String:
  return "X" if Rules.SPECS[type].get("x_cost",false) else str(energy_cost(g,type,free))
@@ -574,7 +574,6 @@ static func base_damage(g, type: String, uid: String="") -> float:
  var spec=Rules.SPECS[type]
  var scaling=spec.get("worn_damage",{})
  var dynamic_bonus=0.0 if scaling.is_empty() else worn_count(g,scaling.include_special)*scaling.per_item
- if g.Character.active(g) and spec.mode=="magic_slip": dynamic_bonus+=g.state.witch_focus
  return float(spec.get("base",0.0))+dynamic_bonus+g.Relics.card_base_bonus(g.state.relics,type,g.state.get("ditto_form",""))+instance(g,uid).get("damage_bonus",0)
 
 # Numeric face values, not parsed copy. Empty faces have no escape damage.
@@ -978,9 +977,6 @@ static func settle_played_card(g) -> void:
  if g.state.play.is_empty(): return
  var card=g.state.play.pop_back()
  g.Character.Expansion.evolve(g,card)
- if g.Character.active(g) and Rules.SPECS[card.type].mode=="magic_slip" and card.get("witch_used_focus",false):
-  g.state.witch_focus=0
-  card.erase("witch_used_focus")
  var exhaust=g.B.CARD_TRAITS.get(card.type,{}).get("exhaust",false) or card.get("exhaust_after_play",false)
  card.erase("exhaust_after_play")
  g._card_motion("play_exhaust" if exhaust else "play",card)
@@ -999,6 +995,7 @@ static func play(g, c: Dictionary) -> void:
  # Casting settles before any physical card movement, including door spells.
  var success=not uses_magic(p) or g._cast_magic(c)
  consume_first_magic(g,p)
+ if g.Character.Expansion.skill_discount(g,p.type,p.free)>0: g.Character.consume_buff(g,"witch_circle_skills")
  if not success: return
  var pressure=0.0 if p.get("replay",false) else Rules.face_pressure_cost(p.type,p.free)
  if pressure>0:
@@ -1034,7 +1031,6 @@ static func play(g, c: Dictionary) -> void:
  if Rules.SPECS[p.type].has("select_exhaust"):
   g.state.card_chain={"type":p.type,"slot":"","mode":"select_exhaust","remaining":Rules.SPECS[p.type].select_exhaust,"free":p.free}
   return
- if g.Character.active(g) and not p.free and Rules.SPECS[card.type].mode=="magic_slip": card.witch_used_focus=true
  var used=resolve(g,p)
  grow(g,p.type,p.uid)
  if not Rules.free_effect(p.type,p.free) and not p.get("self_target",false) and Rules.SPECS[p.type].get("hits",1)>1:
@@ -1091,6 +1087,8 @@ static func resolve(g, p: Dictionary) -> String:
   if face.has("worn_resource"):
    if face.worn_resource.resource=="mana": g.state.mana=minf(g.state.mana_max,g.state.mana+worn_gain)
    elif face.worn_resource.resource=="charge": g._gain_charge(worn_gain)
+   elif face.worn_resource.resource=="strength":
+    for stack in range(worn_gain): grant_buff(g,face.worn_resource.buff)
    else: g.state.turn_strength+=worn_gain
   var face_effects=face.get("effects",[]).duplicate(true)
   var body_count=occupied_body_count(g) if face.has("body_draw_divisor") else 0
@@ -1098,7 +1096,7 @@ static func resolve(g, p: Dictionary) -> String:
   var effect_results=apply_effects(g,face_effects,spec)
   if not installed.is_empty(): effect_results.push_front("佩戴「%s」" % installed[0].name)
   if face.has("worn_resource"):
-   var gain_copy={"mana":"恢复%s魔力","turn_strength":"本回合力量＋%s","charge":"获得%s层蓄力"}[face.worn_resource.resource]
+   var gain_copy={"mana":"恢复%s魔力","turn_strength":"本回合力量＋%s","strength":"力量＋%s","charge":"获得%s层蓄力"}[face.worn_resource.resource]
    effect_results.append(gain_copy % g.number(g.state.mana-mana_before if face.worn_resource.resource=="mana" else worn_gain))
   var batch_cards=[]
   if face.has("exhaust_hand_batch"):

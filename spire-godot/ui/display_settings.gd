@@ -1,7 +1,39 @@
 extends RefCounted
 signal art_changed(category: String, id: String)
 
-const FORMAL_ART={"cards":{"crossed_legs":"res://assets/art/card-crossed-legs-formal-v1.png"},"enemies":{
+const INFUSION_ART={"bound":"res://assets/art/card-infusion-leg-formal-v1.png","free":"res://assets/art/card-infusion-hand-formal-v1.png"}
+const HANNYA_ART="res://assets/art/card-hannya-formal-v1.png"
+const ART_STYLE_GROUPS={"cards":{"hannya_1":["hannya_1","hannya_2","hannya_3","hannya_4","good_soup","hannya_swallow","hannya_infusion","hannya_henshin"]}}
+const FORMAL_ART={"cards":{
+ "strain":"res://assets/art/card-strain-formal-v1.png",
+ "slip":"res://assets/art/card-slip-formal-v1.png",
+ "crossed_legs":"res://assets/art/card-crossed-legs-formal-v1.png",
+ "fire_dynamics":"res://assets/art/card-fire-dynamics-formal-v1.png",
+ "henshin":"res://assets/art/card-henshin-formal-v1.png",
+ "hannya_henshin":"res://assets/art/card-henshin-formal-v1.png",
+ "light_as_swallow":"res://assets/art/card-light-as-swallow-formal-v1.png",
+ "hannya_swallow":"res://assets/art/card-light-as-swallow-formal-v1.png",
+ "mana_circuit":"res://assets/art/card-mana-circuit-formal-v1.png",
+ "fire_mastery":"res://assets/art/card-fire-mastery-formal-v1.png",
+ "siphon_strength":"res://assets/art/card-siphon-strength-formal-v1.png",
+ "infusion":INFUSION_ART,
+ "hannya_infusion":INFUSION_ART,
+ "endless_war_goddess":"res://assets/art/card-endless-war-goddess-formal-v1.png",
+ "practiced":"res://assets/art/card-practiced-formal-v1.png",
+ "shared_fate":"res://assets/art/card-shared-fate-formal-v1.png",
+ "sympathetic_form":"res://assets/art/card-sympathetic-form-formal-v1.png",
+ "pleasure_conversion":"res://assets/art/card-pleasure-conversion-formal-v1.png",
+ "hannya_1":HANNYA_ART,
+ "hannya_2":HANNYA_ART,
+ "hannya_3":HANNYA_ART,
+ "hannya_4":HANNYA_ART,
+ "good_soup":HANNYA_ART,
+ "boar_emperor_blaze":"res://assets/art/card-boar-emperor-blaze-formal-v1.jpg",
+ "binding_enthusiast":{"mode":"fixed_hero_portrait","variants":{
+  "original":{"label":"正式版·原图","path":"res://assets/art/card-binding-enthusiast-formal-v1.png"},
+  "fixed":{"label":"正式版·扶她出去","path":"res://assets/art/card-binding-enthusiast-fixed-formal-v1.png"},
+ }},
+},"enemies":{
  "six_bind":"res://assets/art/enemy-six-bind-formal-v1.png",
  "puppeteer":"res://assets/art/enemy-puppeteer-formal-v1.png",
  "puppet":"res://assets/art/enemy-puppet-formal-v1.png",
@@ -89,9 +121,10 @@ func initialize(target: Window, persist: bool=true) -> void:
    var choices_for_category=saved_art.get(category,{})
    if not choices_for_category is Dictionary: continue
    for id in choices_for_category:
-    if id is String and choices_for_category[id] in ["test","formal"]:
+    if id is String and choices_for_category[id] in art_style_options(category,id):
      if not art_choices.has(category): art_choices[category]={}
-     art_choices[category][id]=choices_for_category[id]
+     var owner=art_choice_id(category,id)
+     if id==owner or not art_choices[category].has(owner): art_choices[category][owner]=choices_for_category[id]
  var saved_mode=config.get_value("display","mode",mode)
  var saved_limit=config.get_value("display","frame_limit",60)
  var saved_vsync=config.get_value("display","vsync_enabled",true)
@@ -177,6 +210,10 @@ func set_fixed_hero_portrait(enabled: bool) -> void:
   cursed_plate_start=false
   cursed_plate_masochist_mode=false
  save()
+ for category in FORMAL_ART:
+  for id in FORMAL_ART[category]:
+   var source=FORMAL_ART[category][id]
+   if source is Dictionary and source.get("mode","")=="fixed_hero_portrait": art_changed.emit(category,id)
 
 func set_doubao_voice(enabled: bool, volume: float) -> void:
  doubao_voice_enabled=enabled;doubao_voice_volume=clampf(volume,0.0,1.0)
@@ -210,17 +247,38 @@ func mark_first_battle_tutorial_seen() -> void:
 func has_formal_art(category: String, id: String) -> bool:
  return FORMAL_ART.get(category,{}).has(id)
 
+func art_style_options(category: String, id: String) -> Dictionary:
+ var options={"test":"测试版画风","formal":"正式版立绘"}
+ var source=FORMAL_ART.get(category,{}).get(id)
+ if source is Dictionary and source.has("variants"):
+  options.formal="正式版·跟随模式"
+  for variant in source.variants: options[variant]=source.variants[variant].label
+ return options
+
 func art_style(category: String, id: String) -> String:
  if not has_formal_art(category,id): return "test"
- return art_choices.get(category,{}).get(id,"formal")
+ return art_choices.get(category,{}).get(art_choice_id(category,id),"formal")
 
-func art_texture(category: String, id: String) -> Texture2D:
- if art_style(category,id)!="formal": return null
- return load(FORMAL_ART[category][id])
+func art_choice_id(category: String, id: String) -> String:
+ for owner in ART_STYLE_GROUPS.get(category,{}):
+  if id in ART_STYLE_GROUPS[category][owner]: return owner
+ return id
+
+func art_texture(category: String, id: String, effect_free: bool=false) -> Texture2D:
+ var style=art_style(category,id)
+ if style=="test": return null
+ var source=FORMAL_ART[category][id]
+ if source is Dictionary and source.has("variants"):
+  var variant=("fixed" if get(source.mode) else "original") if style=="formal" else style
+  source=source.variants[variant].path
+ if source is Dictionary: source=source["free" if effect_free else "bound"]
+ return load(source)
 
 func set_art_style(category: String, id: String, style: String) -> void:
- if not FORMAL_ART.has(category) or id.is_empty() or style not in ["formal","test"]: return
+ if not FORMAL_ART.has(category) or id.is_empty() or style not in art_style_options(category,id): return
  if style=="formal" and not has_formal_art(category,id): return
  if not art_choices.has(category): art_choices[category]={}
- art_choices[category][id]=style
- save();art_changed.emit(category,id)
+ var owner=art_choice_id(category,id)
+ art_choices[category][owner]=style
+ save()
+ for member in ART_STYLE_GROUPS.get(category,{}).get(owner,[id]): art_changed.emit(category,member)

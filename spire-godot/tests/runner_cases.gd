@@ -11,6 +11,8 @@ static func run(t) -> void:
     t.check(name in Selection.resolve(t.SUITES.keys(),[area],true).selected,"RUNNER extracted feature keeps its former reward integration coverage: "+name+" / "+area)
  t.check(t.SUITES.values().all(func(suite):return suite==null or suite is String),"RUNNER registries contain resource paths so unselected suites are never preloaded")
  var names=t.SUITES.keys()
+ for area in ["card_power","card_expansion","relics","witch_character","persistence"]:
+  t.check("basic_attacks" in Selection.resolve(names,[area],true).selected,"RUNNER basic attacks retain card, relic, character and first-use persistence integration: "+area)
  for area in ["relics","card_power","card_growth","witch_character"]:
   t.check("card_splash" in Selection.resolve(names,[area],true).selected,"RUNNER live card values and splash follow attribute, growth and character changes: "+area)
  for area in ["card_power","card_expansion","relics","special_equipment"]:

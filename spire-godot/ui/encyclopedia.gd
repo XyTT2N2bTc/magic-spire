@@ -1,6 +1,7 @@
 extends HBoxContainer
 const Catalog=preload("res://data/encyclopedia.gd")
 const RelicIcon=preload("res://ui/relic_icon.gd")
+const CARD_HEIGHT=480.0
 var host
 var rows=[]
 var category="equipment"
@@ -137,28 +138,47 @@ func _card_family(entry: Dictionary) -> void:
  var flow=HFlowContainer.new();flow.name="EncyclopediaCardFamily"
  flow.add_theme_constant_override("h_separation",18);flow.add_theme_constant_override("v_separation",20)
  detail.add_child(flow)
+ var dimensions=host.CardFace.dimensions(CARD_HEIGHT)
  for type in [entry.card]+related:
-  var column=VBoxContainer.new();column.custom_minimum_size.x=226
+  var column=VBoxContainer.new();column.custom_minimum_size.x=dimensions.x
   column.name="EncyclopediaCardSection_"+type;flow.add_child(column)
   if not related.is_empty():
    var label="当前卡牌" if type==entry.card else Catalog.VARIANT_SOURCES.get(type,"衍生牌")
    column.add_child(host._label(label,15,host.CYAN if type==entry.card else host.GOLD))
-  host._display_card(type,column,Callable(),"encyclopedia_"+type,Vector2(226,290),"",false)
+  var face=host._display_card(type,column,Callable(),"encyclopedia_"+type,dimensions,"",false)
+  face.pressed.connect(func():_inspect_card(face))
   var note=Catalog.card(type).note
   if note!="":
-   var text=host._label(note,14,host.MUTED);text.custom_minimum_size.x=226
+   var text=host._label(note,14,host.MUTED);text.custom_minimum_size.x=dimensions.x
    text.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;column.add_child(text)
+
+func _inspect_card(face: Button) -> void:
+ if host.modal_region()!=null: return
+ var texture=face.get_node("CardIllustration").texture
+ if texture==null: return
+ host._hide_term()
+ var inspection=preload("res://ui/art_inspection.gd").new()
+ inspection.host=host;inspection.texture=texture;inspection.origin=weakref(face)
+ host.layout.add_child(inspection)
+ var reference=weakref(inspection)
+ tree_exiting.connect(func():
+  var panel=reference.get_ref()
+  if is_instance_valid(panel): panel.dismiss(),CONNECT_ONE_SHOT)
 
 func _art_selector(entry: Dictionary) -> void:
  var settings=host.display_settings
  var picker=OptionButton.new();picker.name="EncyclopediaArtStyle"
- picker.add_item("测试版画风");picker.add_item("正式版立绘")
+ var options=settings.art_style_options(entry.category,entry.id)
+ for style in options:
+  var label=host.localization.display(options[style])
+  if options.size()>2: label=host._text("ui.art."+style,options[style])
+  picker.add_item(label);picker.set_item_metadata(picker.item_count-1,style)
  picker.set_item_disabled(1,not settings.has_formal_art(entry.category,entry.id))
- picker.select(1 if settings.art_style(entry.category,entry.id)=="formal" else 0)
+ picker.select(options.keys().find(settings.art_style(entry.category,entry.id)))
  picker.size_flags_horizontal=Control.SIZE_SHRINK_BEGIN;detail.add_child(picker)
  var note=host._label("正式版立绘未添加" if not settings.has_formal_art(entry.category,entry.id) else "",14,host.MUTED)
  note.name="EncyclopediaArtNote";note.visible=not note.text.is_empty();detail.add_child(note)
  picker.item_selected.connect(func(index):
-  settings.set_art_style(entry.category,entry.id,"formal" if index==1 else "test")
+  settings.set_art_style(entry.category,entry.id,picker.get_item_metadata(index))
   note.text=settings.save_error if not settings.save_error.is_empty() else ("正式版立绘未添加" if not settings.has_formal_art(entry.category,entry.id) else "")
   note.visible=not note.text.is_empty())

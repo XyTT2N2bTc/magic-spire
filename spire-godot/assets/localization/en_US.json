@@ -2,6 +2,12 @@
   "schema_version": 1,
   "locale": "en_US",
   "messages": {
+    "ui.art.inspect.fit": {"source": "适应屏幕", "text": "Fit to screen"},
+    "ui.art.inspect.native": {"source": "1:1 原图", "text": "1:1 original"},
+    "ui.art.test": {"source": "测试版画风", "text": "Test artwork"},
+    "ui.art.formal": {"source": "正式版·跟随模式", "text": "Formal · Follow mode"},
+    "ui.art.original": {"source": "正式版·原图", "text": "Formal · Original"},
+    "ui.art.fixed": {"source": "正式版·扶她出去", "text": "Formal · Futa Off"},
     "ui.shop.refresh": {"source": "刷新 · {price}魔力", "text": "Refresh · {price} Mana"},
     "ui.portrait.expand": {"source": "放大立绘", "text": "Enlarge portrait"},
     "ui.flask.deposit_uses": {"source": "存 {dots}", "text": "In {dots}"},

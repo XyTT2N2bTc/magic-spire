@@ -49,7 +49,7 @@ static func run(t) -> void:
  await enter_room(t,"summit")
  var iron_members={}
  for member in ui.view.enemies: iron_members[member.template]=member.maximum
- t.check(iron_members=={"iron_man":150.0,"binding_box":50.0,"iron_drone":50.0} and ui.view.room_name=="塔顶 · 铁男","SUMMIT UI Iron Man boss room displays the boss and both approved supports")
+ t.check(iron_members=={"iron_man":140.0,"binding_box":40.0,"iron_drone":40.0} and ui.view.room_name=="塔顶 · 铁男","SUMMIT UI Iron Man boss room displays the boss and both approved supports")
  var iron_id=ui.view.enemies.filter(func(e):return e.template=="iron_man")[0].id
  var iron_art=ui.find_child("EnemyArt_"+iron_id,true,false)
  t.check(iron_art.mode=="iron_man" and is_instance_valid(iron_art.enemy_sprite) and iron_art.enemy_sprite.texture.resource_path.ends_with("/iron_man.svg") and iron_art.enemy_sprite.texture.get_image().detect_alpha()!=Image.ALPHA_NONE,"SUMMIT ART actual Iron Man boss resolves its own transparent mechanical portrait")
@@ -58,11 +58,11 @@ static func run(t) -> void:
  ui.restart(42);await t.frames()
  ui.game.state.room_encounters.summit="six_bind_solo";ui.game.room_data("summit").encounter="six_bind_solo";ui.game.room_data("summit").name="塔顶 · 六缚"
  await enter_room(t,"summit")
- t.check(not ui.view.practice and ui.view.enemies.size()==1 and ui.view.enemies[0].template=="six_bind" and ui.view.enemies[0].maximum==220 and ui.view.room_name=="塔顶 · 六缚","SUMMIT UI final room starts the real boss battle")
+ t.check(not ui.view.practice and ui.view.enemies.size()==1 and ui.view.enemies[0].template=="six_bind" and ui.view.enemies[0].maximum==200 and ui.view.room_name=="塔顶 · 六缚","SUMMIT UI final room starts the real boss battle")
  await t.capture("ui-43-summit-battle.png")
  var boss=ui.view.enemies[0].id
  await t.drag_control_to(t.action_button("kick"),boss)
- t.check(ui.view.enemies[0].hp<220,"SUMMIT UI direct drag damages the actual boss")
+ t.check(ui.view.enemies[0].hp<200,"SUMMIT UI direct drag damages the actual boss")
  for e in ui.game.state.enemies:
   e.intent={"kind":"capture","text":"执行收押","delayed":false}
  ui.render();await t.frames()
@@ -88,7 +88,7 @@ static func run(t) -> void:
  t.check(ui.view.pressure.value==35.0 and ui.view.posture=="stand" and ui.game.state.logs.any(func(log):return log.text.contains("快感降低40，姿势变为站立")),"EXIT UI real continuation shows reduced pressure, standing and matching log")
  ui.game.state.room_encounters.summit="six_bind_solo";ui.game.room_data("summit").encounter="six_bind_solo";ui.game.room_data("summit").name="塔顶 · 六缚"
  await enter_room(t,"summit")
- t.check(ui.view.enemies[0].maximum==330,"EXIT UI next tower displays scaled boss health")
+ t.check(ui.view.enemies[0].maximum==300,"EXIT UI next tower displays scaled boss health")
  # Final-cycle boundary only; skip replaying the already-covered full battle path.
  ui.game.state.demo_cycle=2
  preload("res://tests/demo_exit_cases.gd").exit_fixture(ui.game)

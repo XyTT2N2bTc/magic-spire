@@ -80,6 +80,15 @@ static func can_arrest(g, e: Dictionary) -> bool:
 static func has_equipment_space(g) -> bool:
  return g.state.enemies.any(func(enemy):return can_affect_equipment(g,enemy))
 
+static func long_battle_limit(g) -> bool:
+ if g.state.phase!="battle" or g.state.round<g.B.ENEMY_LONG_BATTLE_ROUND: return false
+ if g.room_data(g.state.room).get("boss",false) or g.Enemies.ENCOUNTERS.get(g.state.room_encounters.get(g.state.room,""),{}).get("rank","")=="boss": return false
+ if g.Cards.worn_count(g)>=g.B.ENEMY_LONG_BATTLE_COUNT: return true
+ # Sum tiers using the same whole-item membership as the existing worn counter.
+ var tightness=0
+ for tier in [1,2,3]: tightness+=g.Cards.worn_count(g,true,tier)
+ return tightness>=g.B.ENEMY_LONG_BATTLE_TIGHTNESS
+
 static func application_spec(g, e: Dictionary, intent: Dictionary) -> Dictionary:
  var spec=intent.duplicate(true)
  spec.count+=e.get("application_bonus",0)
@@ -153,6 +162,8 @@ static func lock_departure_pending(g, e: Dictionary) -> bool:
 
 static func build(g, e: Dictionary) -> Dictionary:
  var spec=g.Enemies.TYPES[e.type]
+ if spec.get("humanoid",false) and g.CaptureBind.kind(g,e)=="" and long_battle_limit(g):
+  return {"kind":"capture","text":"准备逮捕","delayed":false}
  if spec.behavior=="six_bind" and g.state.overload_total>=e.next_climax_capture:
   return {"kind":"capture","text":"准备逮捕","delayed":false,"cancel_on_interrupt":true,"climax_threshold":e.next_climax_capture}
  if can_arrest(g,e) and not has_equipment_space(g): return {"kind":"capture","text":"执行逮捕","delayed":false}
