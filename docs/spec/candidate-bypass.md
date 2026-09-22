@@ -154,8 +154,15 @@
 3. `keyed_read_matches_full_build`（`architecture`，`tests/architecture_cases.gd`）
    - Given 夹具矩阵（0／12／26／44 件 × 战斗／整备／休息／商店／事件／监狱，同种子）
    - When 对每个 UI 显示键集合调用 `display_rows(needs)`
-   - Then 结果与 `candidates().filter(任一键命中)` 逐行逐字段逐顺序相等；`state`／随机游标／
-     `export_snapshot()` 不变；未命中任何键的行工厂计数 0
+   - Then 结果与 `candidates().filter(任一键命中)` **逐行逐字段逐顺序**相等——含候选集合与顺序、
+     `id`／`group`／`label`、`valid`／`reason`／`risk`、`cost`／`mana`／`mana_payment`、
+     投影追加的 `release_preview`／`casting`／`body_part`／`brief`／`brief_tags`；
+     `state`／随机游标／`export_snapshot()` 不变；未命中任何键的行工厂计数 0
+3b. `display_path_baseline_unchanged`（`architecture`）
+   - Given 切片开始时用**未改源码**复算并记录的 `candidates()` 与 `get_view()` 基线（含一致哈希与原始值）
+   - When 改动后在同一夹具上重算
+   - Then 逐字段比对相等（`JSON.stringify` 后 sha256 只作快速指纹，判定以逐字段比对为准，打印首个差异路径）；
+     不一致以复算值为准并记录差异，**不得改基线去迁就实现**
 4. `keyed_read_fails_closed`（`architecture`）
    - Given 同上夹具
    - When 传入 `[]`、含未知组名、含 `"*"` 三种输入
@@ -191,6 +198,7 @@
 | --- | --- | --- |
 | 场景 1 的「索引重建 0、重建节 ≤3」 | 让同一 View 的 `render` 走回整树路径 | **今天就是红的**（每次 `render` 都重建索引与整树）——能看见回归 |
 | 场景 3 的逐字段等价 | 从按键读取的行工厂表里删掉一个组／多挂一个组 | 今天无此入口，不适用；落地后即红 |
+| 场景 3b 的基线一致 | 在按键读取路径里改写任一 `reason` 文本 | 今天无此入口，不适用；落地后即红 |
 | 场景 4 的 fail-closed | 把未知组名改成返回空数组 | 落地后即红 |
 | 场景 5 的第二判定 | 在 `ui/action_index.gd::find` 里合成一行（伪造 `valid`） | 落地后即红 |
 | 场景 2 的兜底 | 从兜底触发清单里去掉 `phase` | 落地后即红 |
@@ -225,7 +233,11 @@
   产物只放已忽略目录 `build/<topic>-<date>/`，摘要登记 `docs/record/verification.md` 后删除原始目录。
 - 判据用**计数与相等性**；毫秒数只作报告（现状基线，可直接引用，不重复测）：
   44 件档一次出牌提交 104–142 ms（`dispatch` 43–47%、`get_view` 35–48%、render 11–21%）；
-  选择类点击 26.9–28.3 ms（其中 render 23.7 ms，占 84–89%）；候选行数 = 6N+28。
+  选择类点击 26.9–28.3 ms（其中 render 23.7 ms，占 84–89%）；候选行数 = 6N+28；
+  一次投影内 `physical_pieces()` 入口数 = N+5、返回元素数 = N²+5N。
+- 行为零变化的比对协议（沿用 `docs/spec/equipment-query-seam.md` 的口径）：切片开始时先用未改源码
+  复算并记录 `candidates()`／`get_view()` 基线；判定用逐字段深比较＋首个差异路径；
+  基线捕获脚本只放已忽略目录 `build/<topic>-<date>/`，用完删除，不入库、不留运行时钩子。
 - 人的路径（判据是套件布尔 check）：战斗中依次打出一张牌／攻击／结束回合／翻面手牌／点选敌人／
   开身体栏／用一件道具／进商店买一件／进事件选完／读档／新局／快速 SL，逐项与改动前一致。
 - 算未完成（任一）：任一必跑分类未执行／失败／无授权跳过；按键读取与全量构建不一致；

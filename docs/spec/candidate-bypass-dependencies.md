@@ -19,7 +19,7 @@
 | `ui/main.gd` | `render` 增加同一 View 的局部刷新路径：不重建索引、不读 `view.candidates`、只重建节键变化的节；节键缺失即兜底 | 兜底触发清单与节名沿用 `docs/spec/response-pipeline.md`（唯一来源，不新建第二份节表）；`_submit` 仍只传 `id` 与 `view.version`；`get_view` 调用点集合不变；选择类点击仍不提交、不写档 |
 | `ui/action_index.gd` | 默认**零改动** | `by_id`／`by_group` 只登记收到的行；`select`／`find`／`first_usable` 不判定资格、不造行、不改行 |
 | `core/game_view.gd` | B3 获批时：候选派生字段改由按键读取取行（只改取值来源） | 字段**值**逐字段不变（含 `hand` 的 `availability` 文本、`items` 的 `target_groups`／`unavailable_reasons`、`body_groups` 的 `can_release`、`reward_panel`、`route`、`first_turn_control`、`card_texts` 显示集合）；`build` 内 `candidates()` 的调用口径变化必须写进验证记录 |
-| `tests/architecture_cases.gd` | 新增具名 check：按键读取等价、fail-closed、无第二判定、行工厂入口计数 | 既有断言与助手签名不改；不删既有 `INDEX` 前缀 check |
+| `tests/architecture_cases.gd` | 新增具名 check：按键读取等价、fail-closed、无第二判定、行工厂入口计数、未改源码基线比对 | 既有断言与助手签名不改；不删既有 `INDEX` 前缀 check |
 | `tests/display_ui_cases.gd` | 新增具名 check：同一 View 渲染零读取、点击计数 | 既有断言不删不改 |
 | `tests/interface_ui_cases.gd` | 新增兜底触发／反例断言 | 既有页面切换断言不改 |
 | `tests/target_sidebar_ui_cases.gd`、`tests/body_layout_ui_cases.gd` | 各新增一条选择类点击零读取断言（复用既有夹具与真实输入助手） | 既有断言不删不改 |
