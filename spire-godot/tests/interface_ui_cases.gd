@@ -635,6 +635,9 @@ static func card_terms(t) -> void:
  ui.selected_character="witch";ui.restart(42);await t.frames()
  ui.game=preload("res://tests/witch_expansion_cases.gd").fresh()
  ui.game._gain_card("witch_escape_practice")
+ # Tallest live face measured for this slice (build/term_probe sweep, docs/record/verification.md):
+ # four boxes with the longest definitions of any card, so it is the worst case for the clamp.
+ ui.game._gain_card("endless_war_goddess")
  var deck_card=ui.game.state.deck.filter(func(row):return row.type=="witch_escape_practice").back()
  ui.game.state.discard.filter(func(row):return row.uid==deck_card.uid).back().practice_plays=6
  ui.render();await t.frames()
@@ -653,6 +656,21 @@ static func card_terms(t) -> void:
  t.check(popup!=null and popup.get_child(0).get_children().filter(func(node):return node is PanelContainer).size()==expected.size(),"TERMS UI deck instance box count equals the face term count")
  t.check(popup!=null and t.visible_text(popup).contains(instance_note),"TERMS UI deck instance hover keeps the growth text merged from the physical card")
  t.check(ui.game.export_snapshot()==before and ui.view.version==version,"TERMS UI deck hover changes no state and no view version")
+ # The tallest live face of every card (374x710, four boxes, 825px longest definition): the popup
+ # height is otherwise only bounded by the position clamp, so this is its worst case.
+ var tall_rows=ui.game.state.deck.filter(func(row):return row.type=="endless_war_goddess")
+ t.check(not tall_rows.is_empty(),"TERMS UI tallest face fixture sits in the deck")
+ if not tall_rows.is_empty():
+  var tall_face=ui.find_child("DeckGrid",true,false).get_children().filter(func(button):return button.get_meta("physical_uid")==tall_rows.back().uid)[0]
+  var scroll=tall_face.get_parent()
+  while scroll!=null and not scroll is ScrollContainer: scroll=scroll.get_parent()
+  if scroll!=null: scroll.ensure_control_visible(tall_face)
+  await t.frames()
+  await t.move_mouse(Vector2(70,100));await t.frames()
+  await t.move_mouse(tall_face.get_global_rect().get_center());await t.frames()
+  var tall_popup=ui.find_child("TermExplanation",true,false)
+  var tall_rect=tall_popup.get_global_rect() if tall_popup!=null else Rect2()
+  t.check(tall_popup!=null and Rect2(0,0,1600,900).encloses(tall_rect) and not tall_rect.intersects(tall_face.get_global_rect()),"TERMS UI tallest face keeps every term box inside the viewport and clear of the anchor")
  await t.move_mouse(Vector2(70,100));await t.frames()
  await t.close_information()
  ui.selected_character="original";ui.restart(42);await t.frames()

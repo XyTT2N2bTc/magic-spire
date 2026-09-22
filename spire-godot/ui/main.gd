@@ -1903,6 +1903,21 @@ func _hide_term() -> void:
  term_popup=null
  term_anchor=null
 
+# Widest rendered line of a label subtree, used to size the popup: autowrap labels give the
+# containers no usable minimum width of their own, so the drawn text is the only measurement.
+func _text_line_width(subtree: Node) -> float:
+ var widest=0.0
+ var pending: Array=[subtree]
+ while not pending.is_empty():
+  var node=pending.pop_back()
+  for child in node.get_children(): pending.append(child)
+  if not node is Label: continue
+  var font=node.get_theme_font("font")
+  var font_size=node.get_theme_font_size("font_size")
+  for line in node.text.split("\n"):
+   widest=maxf(widest,font.get_string_size(line,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x)
+ return widest
+
 func _show_term(anchor: Control, entry: Dictionary) -> void:
  if is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed: return
  _hide_term()
@@ -1916,24 +1931,20 @@ func _show_term(anchor: Control, entry: Dictionary) -> void:
  # A missing or empty list keeps the plain panel verbatim for every other caller.
  for term in entry.get("terms",[]):
   var box=PanelContainer.new();box.name="TermBox"
-  box.add_theme_stylebox_override("panel",Palette.surface())
+  var frame=Palette.surface()
+  box.add_theme_stylebox_override("panel",frame)
   var body=VBoxContainer.new();body.add_theme_constant_override("separation",2)
   box.add_child(body)
   body.add_child(_label(term.name,19,CYAN))
   body.add_child(_label(term.detail,15,TEXT))
   column.add_child(box)
- var text_width=0.0
- # Term boxes nest their labels one level deeper than the plain panel, so measure the subtree.
- var pending: Array=[column]
- while not pending.is_empty():
-  var node=pending.pop_back()
-  for child in node.get_children(): pending.append(child)
-  if not node is Label: continue
-  var font=node.get_theme_font("font")
-  var font_size=node.get_theme_font_size("font_size")
-  for line in node.text.split("\n"):
-   text_width=maxf(text_width,font.get_string_size(line,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x)
- column.custom_minimum_size.x=clampf(ceilf(text_width)+2,40,326)
+  # Each box spends its own stylebox left/right margin inside the column, so a box sized by the
+  # label text alone hands the labels that much less width and wraps their last characters.
+  var chrome=frame.get_margin(SIDE_LEFT)+frame.get_margin(SIDE_RIGHT)
+  box.custom_minimum_size.x=clampf(ceilf(_text_line_width(box))+2,40,326)+chrome
+ # Term boxes nest their labels one level deeper than the plain panel, so measure the subtree;
+ # a term box already carries its own margin, while the plain panel keeps today's sizing verbatim.
+ column.custom_minimum_size.x=clampf(ceilf(_text_line_width(column))+2,40,326)
  _ignore_mouse(term_popup)
  term_popup.minimum_size_changed.connect(func():
   if is_instance_valid(anchor): _position_term.call_deferred(anchor.get_global_rect())

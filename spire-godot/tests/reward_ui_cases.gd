@@ -235,6 +235,16 @@ static func battle_loot(t) -> void:
  var point=row.get_global_rect().get_center()
  await t.move_mouse(point);await t.mouse_button(point,MOUSE_BUTTON_LEFT,true);await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
  t.check(ui.show_reward_cards and ui.find_child("RewardBack",true,false)!=null and ui.game.state==before,"LOOT UI native row click opens choices without changing state")
+ # The reward card choice is a real card face (docs/spec/card-terms.md「触发面」): hovering it must
+ # show one box per term of the face it displays, next to the card and never over it.
+ var choice_face=ui.find_child("RewardChoice_"+ui.game.state.reward_options[0],true,false)
+ var choice_terms=preload("res://data/balance.gd").card_metadata(ui.game.state.reward_options[0]).face_keywords["free" if choice_face.free_face else "bound"]
+ t.check(not choice_terms.is_empty(),"LOOT UI reward choice fixture carries face terms: "+ui.game.state.reward_options[0])
+ await t.move_mouse(choice_face.get_global_rect().get_center());await t.frames()
+ var choice_popup=ui.find_child("TermExplanation",true,false)
+ t.check(choice_popup!=null and preload("res://tests/interface_ui_cases.gd").term_boxes(choice_popup)==choice_terms,"LOOT UI reward choice hover boxes equal the hovered face terms: "+str(preload("res://tests/interface_ui_cases.gd").term_boxes(choice_popup)))
+ var choice_rect=choice_popup.get_global_rect() if choice_popup!=null else Rect2()
+ t.check(choice_popup!=null and not choice_rect.intersects(choice_face.get_global_rect()),"LOOT UI reward choice term boxes clear the anchor card")
  var card=ui.find_child("RewardChoice_"+ui.game.state.reward_options[0],true,false)
  point=card.get_global_rect().get_center()
  await t.move_mouse(point);await t.mouse_button(point,MOUSE_BUTTON_RIGHT,true);await t.mouse_button(point,MOUSE_BUTTON_RIGHT,false)

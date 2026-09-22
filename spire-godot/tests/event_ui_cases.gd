@@ -201,6 +201,21 @@ static func run(t) -> void:
  t.check(await t.click("event",{"action":"choose","choice":"purify"}) and ui.view.room_event.stage=="remove_card" and ui.find_child("EventContinue",true,false)!=null,"EVENT UI cleric purification presents its committed scene before card selection")
  await open_selection(t,"remove")
  t.check(ui.find_child("EventSelectionGrid",true,false).get_child_count()==ui.view.deck_count,"EVENT UI cleric removal uses the shared physical card modal")
+ # The event card option is a real card face (docs/spec/card-terms.md「触发面」): hovering it must
+ # show one box per term of the face it displays, next to the card and never over it.
+ var event_face=ui.find_child("EventSelectionGrid",true,false).get_child(0).get_child(0)
+ var event_uid=String(event_face.get_meta("physical_uid",""))
+ var event_rows=ui.view.deck_cards.filter(func(row):return row.uid==event_uid)
+ t.check(not event_rows.is_empty(),"EVENT UI card option tile maps to a real deck card: "+event_uid)
+ if not event_rows.is_empty():
+  var event_terms=preload("res://data/balance.gd").card_metadata(event_rows[0].type).face_keywords["free" if event_face.free_face else "bound"]
+  t.check(not event_terms.is_empty(),"EVENT UI card option fixture carries face terms: "+event_rows[0].type)
+  await t.move_mouse(event_face.get_global_rect().get_center());await t.frames()
+  var event_popup=ui.find_child("TermExplanation",true,false)
+  t.check(event_popup!=null and preload("res://tests/interface_ui_cases.gd").term_boxes(event_popup)==event_terms,"EVENT UI card option hover boxes equal the hovered face terms: "+str(preload("res://tests/interface_ui_cases.gd").term_boxes(event_popup)))
+  var event_rect=event_popup.get_global_rect() if event_popup!=null else Rect2()
+  t.check(event_popup!=null and not event_rect.intersects(event_face.get_global_rect()),"EVENT UI card option term boxes clear the anchor card")
+  await t.move_mouse(Vector2(30,50));await t.frames()
 
  await t.start_practice("Practice_bound_adventurer_relic")
  text=t.visible_text(ui.layout)

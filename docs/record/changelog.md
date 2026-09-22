@@ -1,5 +1,12 @@
 # 变更与开发记录
 
+## 2026-09-23 词条悬停分框收口：框宽计边距、事件／奖励悬停断言与长内容几何
+
+- 修 `ui/main.gd::_show_term` 的框宽测量：词条框自身 stylebox 左右各 12px 内容边距原先没算进列宽，框末约 22px 必然换行（真实窗口实测图鉴 `mana_search` 拘束面 221×151 → **245×125**；全库最高的 `hannya_1` 与卡组活卡面 `endless_war_goddess` 宽度 350 → 374、高度不变）。新增单条测量路径 `ui/main.gd::_text_line_width`，框宽＝自身文本宽＋该框 stylebox 边距（边距从 token 读，不写死）；列仍保留原式，无 `terms` 的单面板逐字不变；未改判定、取源、`_position_term` 常量与 `_ignore_mouse`。
+- 测试：`tests/event_ui_cases.gd`（事件卡选项，`binding_cleric` 净化→移除选牌真实入口）与 `tests/reward_ui_cases.gd`（奖励选牌，种子 78 精英奖励真实入口）各新增一条悬停断言（框集合＝该面 `face_keywords`、与锚面不相交），`tests/interface_ui_cases.gd::card_terms` 新增全库最高活卡面（`endless_war_goddess`，374×710）的视口内含断言；事件／奖励两条消掉依赖表「已授权未加」的缺口，同时消掉「依赖表与实现文件面不一致（多写）」。
+- 敏感性实测：错面变异 `20260922T154738796-36084`（事件／奖励两条新断言红）、压住锚面变异 `20260922T155152668-41600`（三条几何红）、高度 clamp 变异 `20260922T155541376-31448`（长内容几何红，且为该分类唯一红）；点击断言「弹窗压住点击点＋不忽略输入」实测**不红**（`spire-godot/build/mutation-m3-terms-case.log`），再加「指针离开不关闭」才红（`mutation-m4-terms-case.log`）——`_ignore_mouse` 仍无机械判据，按契约防御保留。
+- 检查：规则门 architecture／localization／persistence 1795 断言 exit 0（`20260922T160155184-10180`）；窗口门 interface／encyclopedia／card_power／events／rewards／touch／casting／route／localization 共 9 类 1994 断言 exit 0（`20260922T160640439-37168`）；两门同一冻结指纹 `FC5D650B…`；文档门禁 PASS（34 文档、1301 引用、允许清单 6 条零新增）。补充轮 `intent,status`（`20260922T160317032-2764`）确认 `intent` 仍恰为既有 6 条红、单面板路径未变。验收程序 1–5 逐步登记与未跑项见[验证记录](verification.md)。未推送、未打标签、未改版本号、未打包。
+
 ## 2026-09-23 日文本地化：补齐三片新增界面文案
 
 - 补齐 17 条语义 ID 日文：`ui.map.seed`／`ui.map.seed_copied`；`ui.feedback.save.attached`／`declined`／`unchecked`／`none`／`uncaptured`／`invalid`／`oversized`；`ui.run_review.title`／`identity`／`route`／`deck`／`progress`／`no_route`／`deck_empty`／`copy`。只改 `spire-godot/assets/localization/ja_JP.json`（81 条，与 `zh_CN`／`en_US` 对齐），`source` 与 zh_CN `text` 逐字相同，`{initial}`／`{iteration}`／`{name}`／`{size}`／`{floor}`／`{nodes}` 原样保留。
