@@ -118,8 +118,9 @@
 `& tools/check.ps1 -UIOnly -UISuite interface,encyclopedia,card_power,events,rewards,touch,status,casting`
 出现各分类 `UI RESULT: … PASS`；`docs/spec/card-terms.md` 与依赖表的路径／锚点被 `tools/check-docs.ps1` 接受；
 验收程序 1–5 **逐步**登记到 `docs/record/verification.md`——每步写实际结果，未做的步骤写「未跑」及原因；
-缺步不登记、或把未跑写成通过，即未完成。`-UIOnly` 的分类 PASS 不覆盖验收程序的真实窗口操作，
-不能代替 3／5 两步的逐步登记。未跑分类、`SOURCE CHANGED:` 轮次不算通过。
+缺步不登记、或把未跑写成通过，即未完成。上面 `-UIOnly` 分类里的既有用例不含商店买卡／去卡、事件卡选项、
+奖励选牌、保留选牌的悬停断言（`events`／`rewards` 只跑既有非悬停断言），也不含 3／5 两步在界面上的逐点操作，
+故分类 PASS 不能代替这两步的登记。未跑分类、`SOURCE CHANGED:` 轮次不算通过。
 
 ## 非目标
 
