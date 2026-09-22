@@ -1,6 +1,6 @@
-# 本地化与英文版（操作指南）
+# 本地化（操作指南）
 
-现状：默认简体中文；设置页可即时切换 English；`ja_JP` 为空资源并回退中文。
+现状：默认简体中文；设置页可即时切换 English／日本語。
 本文只写怎么改、怎么验；卡面与候选详情文案的按需投影契约见 `docs/spec/ondemand-copy.md`，语言在显示边界的处理入口是 `ui/localization.gd`（代码即接口）。
 
 ## 资源结构
@@ -9,7 +9,8 @@
 | --- | --- |
 | `assets/localization/zh_CN.json` | 共用语义 ID 与当前中文源文。 |
 | `assets/localization/en_US.json` | 共用语义 ID 的英文译文，`source` 必须与中文源文一致。 |
-| `assets/localization/ja_JP.json` | 待翻译的日语资源（空资源，回退中文）。 |
+| `assets/localization/ja_JP.json` | 共用语义 ID 的日文译文。 |
+| `assets/localization/legacy-ja_JP.json` | 尚未逐项迁移为语义 ID 的全运行时日文兼容目录。 |
 | `assets/localization/legacy-en_US.json` | 尚未逐项迁移为语义 ID 的全运行时英文兼容目录，每项保存稳定哈希 ID、中文 `source` 与英文 `text`。 |
 
 写入约定：
@@ -25,7 +26,7 @@
 先盘点，再生成，最后人工检查受影响的界面：
 
 1. `python tools/localization_inventory.py` 重新扫描运行时源码与内容包，输出 `build/localization/inventory.json`。清单跳过 `legacy-*` 翻译目录；注释、测试夹具、开发文档与图片内文字不计入。
-2. `python tools/build_english_catalog.py` 从本机离线模型与缓存重建兼容英文目录。模型与缓存只在被忽略的 `build/` 下工作，不随游戏资源发布；人工译文优先于自动生成结果。所有源文已有缓存时，纯人工校订无需加载离线模型。
+2. `python tools/build_english_catalog.py` 从本机离线模型与缓存重建兼容英文目录；`python tools/build_japanese_catalog.py` 从中文源文重建语义 ID 与日文兼容目录。日文生成器使用 `build/nllb-200-distilled-600M-ct2-int8/` 下的 CTranslate2 模型；模型与缓存均在被忽略的 `build/` 下工作，不随游戏资源发布。高频界面和关键规则使用生成器内的人工日文，自动生成内容仍须按本次改动涉及的界面人工复核。所有源文已有缓存时，重建无需加载离线模型。
 3. 新增或修改中文时按「盘点 → 生成 → 人工检查关键界面」执行；成功加载中文源目录后清空旧兼容缓存，缺失／损坏的兼容包回退原文。
 
 条目数（共用语义 ID 数、兼容目录条数、覆盖的中文串数）用上面两条命令复算，不写死在本文。

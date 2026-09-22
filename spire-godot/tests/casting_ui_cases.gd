@@ -147,7 +147,7 @@ static func mana_badges(t) -> void:
  var surge=ui.card_buttons[cards.mana_surge.uid]
  t.check(t.visible_text(surge.get_node("CardMana/Mana_cost")).strip_edges()=="−5" and ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy}).mana==10,"MANA UI high-pressure spell card badge and fireball retain base costs")
  t.check(not ui.view.pressure.detail.contains("施法魔力消耗"),"MANA UI pressure description no longer advertises surcharge")
- t.check(t.visible_text(exchange.get_node("CardMana/Mana_cost")).strip_edges()=="−10" and not t.visible_text(exchange.get_node("CardText")).contains("耗魔"),"MANA UI fixed payment lives only in the top badge")
+ t.check(t.visible_text(exchange.get_node("CardMana/Mana_cost")).strip_edges()=="−20" and not t.visible_text(exchange.get_node("CardText")).contains("耗魔"),"MANA UI fixed payment lives only in the top badge")
  t.check(t.visible_text(temporary.get_node("CardMana/Mana_temporary")).strip_edges()=="+10" and t.visible_text(gain.get_node("CardMana/Mana_gain")).strip_edges()=="+20","MANA UI temporary and regular restoration display point values")
  t.check(temporary.get_node("CardMana/Mana_temporary").get_theme_stylebox("panel").border_color!=gain.get_node("CardMana/Mana_gain").get_theme_stylebox("panel").border_color,"MANA UI temporary pool has a distinct visual style")
  t.check(not ui.card_buttons[cards.strain.uid].get_node("CardMana").visible,"MANA UI ordinary physical card has no visible mana component")

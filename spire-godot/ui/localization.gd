@@ -163,7 +163,7 @@ static func _regex_escape(value: String) -> String:
  return result
 
 static func _legacy_source(value: String) -> Dictionary:
- var pattern="^";var names=[];var literal="";var literal_weight=0;var i=0
+ var pattern="^";var names=[];var literal="";var literal_weight=0;var numeric_only=true;var i=0
  var format=RegEx.new();format.compile(r"%(?:[-+ 0#]*)(?:\d+|\*)?(?:\.(?:\d+|\*))?[diouxXfFeEgGaAcsp]")
  while i<value.length():
   if value.substr(i,2)=="%%": literal+="%";i+=2;continue
@@ -171,7 +171,11 @@ static func _legacy_source(value: String) -> Dictionary:
   if hit!=null and hit.get_start()==i:
    pattern+=_regex_escape(literal);literal=""
    var name="p%d" % names.size();names.append(name)
-   pattern+="(.+?)";i=hit.get_end();continue
+   var conversion=hit.get_string().right(1)
+   if conversion in ["d","i","u"]: pattern+="([+-]?\\d+)"
+   elif conversion in ["f","F","e","E","g","G","a","A"]: pattern+="([+-]?\\d+(?:\\.\\d+)?)"
+   else: pattern+="(.+?)";numeric_only=false
+   i=hit.get_end();continue
   if value[i]=="{" and (i==0 or value[i-1]!="{"):
    var end=value.find("}",i+1)
    if end>=0 and (end+1>=value.length() or value[end+1]!="}"):
@@ -179,11 +183,11 @@ static func _legacy_source(value: String) -> Dictionary:
     if raw.is_valid_identifier() or raw.is_valid_int():
      pattern+=_regex_escape(literal);literal=""
      var name="p%d" % names.size();names.append(name)
-     pattern+="(.+?)";i=end+1;continue
+     pattern+="(.+?)";numeric_only=false;i=end+1;continue
   if value.unicode_at(i)>=0x3400 and value.unicode_at(i)<=0x9fff: literal_weight+=1
   literal+=value[i];i+=1
  pattern+=_regex_escape(literal)+"$"
- return {"pattern":pattern,"names":names,"dynamic":not names.is_empty(),"literal_weight":literal_weight}
+ return {"pattern":pattern,"names":names,"dynamic":not names.is_empty(),"literal_weight":literal_weight,"numeric_only":numeric_only}
 
 func install_legacy_translation(language: String, document: Variant) -> bool:
  if not supported(language) or language==DEFAULT_LOCALE or not _shape(document,["schema_version","locale","messages"]) or document.schema_version!=1 or document.locale!=language or not document.messages is Array:
@@ -200,7 +204,7 @@ func install_legacy_translation(language: String, document: Variant) -> bool:
    for name in parsed.names: expected[name]=expected.get(name,0)+1
    if not target.ok or target.parameters!=expected:
     _record("legacy_parameters",entry.id);return false
-   if parsed.literal_weight>=2:
+   if parsed.literal_weight>=2 or (parsed.literal_weight>=1 and parsed.numeric_only):
     var regex=RegEx.new()
     if regex.compile(parsed.pattern)!=OK:
      _record("legacy_pattern",entry.id);return false

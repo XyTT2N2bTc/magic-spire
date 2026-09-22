@@ -11,6 +11,15 @@ static func source() -> Dictionary:
 static func translation(messages: Dictionary) -> Dictionary:
  return {"schema_version":1,"locale":"ja_JP","messages":messages}
 
+static func numeric_literals(text: String, source_format: bool) -> Array:
+ var placeholder=RegEx.new()
+ placeholder.compile("%(?:[-+ 0#]*)(?:\\d+|\\*)?(?:\\.(?:\\d+|\\*))?[diouxXfFeEgGaAcsp]|\\{(?:[A-Za-z_][A-Za-z0-9_.]*|\\d+)\\}" if source_format else "\\{p\\d+\\}")
+ var cleaned=placeholder.sub(text,"",true)
+ var number=RegEx.new();number.compile("\\d+(?:\\.\\d+)?")
+ var values=[]
+ for found in number.search_all(cleaned): values.append(found.get_string())
+ return values
+
 # docs/spec/event-pipeline.md「证据入口」: the legacy English catalog has to
 # match the validator wording this slice rewrote — retired sources deleted, rewritten
 # sources translated.
@@ -80,25 +89,63 @@ const REQUIRED_SOURCES={
  "这段事件已经走过，不能再回头。": "This event has already happened. You cannot go back."}
 
 static func locale_legacy_catalog_matches_current_sources(t) -> void:
- var file=FileAccess.open("res://assets/localization/legacy-en_US.json",FileAccess.READ)
- t.check(file!=null,"LOCALE legacy catalog is readable")
- if file==null: return
- var parsed=JSON.parse_string(file.get_as_text())
- t.check(parsed is Dictionary and parsed.get("locale")=="en_US","LOCALE legacy catalog keeps its locale marker")
- var by_source={}
- for message in parsed.get("messages",[]):
-  by_source[message.get("source","")]=message
- for source in REMOVED_SOURCES:
-  t.check(not by_source.has(source),"LOCALE retired source is deleted from the catalog: "+source)
- for source in REQUIRED_SOURCES:
-  t.check(by_source.has(source) and str(by_source[source].get("text","")).strip_edges()!="","LOCALE rewritten source keeps a non-empty translation: "+source)
+ var reference_sources={}
+ for locale in ["en_US","ja_JP"]:
+  var path="res://assets/localization/legacy-"+locale+".json"
+  var file=FileAccess.open(path,FileAccess.READ)
+  t.check(file!=null,"LOCALE "+locale+" legacy catalog is readable")
+  if file==null: continue
+  var raw=file.get_as_text()
+  if locale=="ja_JP":
+   var forbidden=["広島","海外の反応","ありがとうございました","やってみよう","ショウジョウ","(笑)","ブラックリスト","⁇","�","[PH","ZXQ","カードキャプターさくら","この記事へのトラックバック","カーディガン","恐怖の根源","自律師"]
+   t.check(forbidden.all(func(marker):return not raw.contains(marker)),"LOCALE Japanese legacy catalog rejects known generated hallucination markers")
+  var parsed=JSON.parse_string(raw)
+  t.check(parsed is Dictionary and parsed.get("locale")==locale,"LOCALE "+locale+" legacy catalog keeps its locale marker")
+  var by_source={}
+  var semantic_mismatch=false
+  var localized_residue=false
+  var missing_literal_number=false
+  for message in parsed.get("messages",[]):
+   by_source[message.get("source","")]=message
+   if locale=="ja_JP":
+    var source_text=str(message.get("source",""));var target_text=str(message.get("text",""))
+    localized_residue=localized_residue or ["回合","原始","次数","装备","结算","档","施加","法阵","刷新","布局","概率","备用","基准","截图","紫发","降低"].any(func(marker):return target_text.contains(marker))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("回合") and ["回転","回路","逆転","結束","サイクル","輪"].any(func(marker):return target_text.contains(marker)))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("回合") and not ["ターン","ラウンド"].any(func(marker):return target_text.contains(marker)))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("档") and not source_text.contains("存档") and (target_text.contains("ファイル") or target_text.contains("ランキング")))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("生命") and target_text.contains("人生"))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("件拘束具") and target_text.contains("事件拘束具"))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("上限") and target_text.contains("国境"))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("自缚") and not ["自縛","自己拘束","自己結合"].any(func(marker):return target_text.contains(marker)))
+    var negative_source=["无法","不能","不可","不得","禁止"].any(func(marker):return source_text.contains(marker))
+    var negative_target=["ない","ません","不可","禁止","不能","無効","なし","ず","ぬ","できな","られな"].any(func(marker):return target_text.contains(marker))
+    semantic_mismatch=semantic_mismatch or (negative_source and not negative_target)
+    semantic_mismatch=semantic_mismatch or (source_text.contains("恢复") and not ["回復","復元","戻","再開","補充","返還"].any(func(marker):return target_text.contains(marker)))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("存档") and not ["セーブ","保存","ファイル","アーカイブ","記録"].any(func(marker):return target_text.contains(marker)))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("最多") and not ["最大","まで","以下","上限","せいぜい","のみ"].any(func(marker):return target_text.contains(marker)))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("至少") and not ["以上","最低","少なくとも"].any(func(marker):return target_text.contains(marker)))
+    semantic_mismatch=semantic_mismatch or (source_text.contains("免费") and not ["無料","コスト0","無償"].any(func(marker):return target_text.contains(marker)))
+    var target_numbers=numeric_literals(target_text,false)
+    for number in numeric_literals(source_text,true):
+     var index=target_numbers.find(number)
+     if index<0: missing_literal_number=true
+     else: target_numbers.remove_at(index)
+  if locale=="ja_JP": t.check(not semantic_mismatch,"LOCALE Japanese legacy catalog rejects known source-conditioned semantic mistranslations")
+  if locale=="ja_JP": t.check(not localized_residue,"LOCALE Japanese legacy targets reject known Simplified Chinese residue")
+  if locale=="ja_JP": t.check(not missing_literal_number,"LOCALE Japanese legacy targets preserve every literal numeric rule value")
+  if reference_sources.is_empty(): reference_sources=by_source
+  else: t.check(by_source.size()==reference_sources.size() and reference_sources.keys().all(func(source):return by_source.has(source)),"LOCALE "+locale+" legacy catalog covers the same current sources as English")
+  for source in REMOVED_SOURCES:
+   t.check(not by_source.has(source),"LOCALE "+locale+" retired source is deleted from the catalog: "+source)
+  for source in REQUIRED_SOURCES:
+   t.check(by_source.has(source) and str(by_source[source].get("text","")).strip_edges()!="","LOCALE "+locale+" rewritten source keeps a non-empty translation: "+source)
 
 static func run(t) -> void:
  locale_legacy_catalog_matches_current_sources(t)
  bundled_font(t)
  var l=Localizer.new()
  t.check(l.diagnostics().is_empty() and l.locale=="zh_CN","LOCALE shipped resources load locally and default to Chinese: "+str(l.diagnostics()))
- t.check(l.coverage("zh_CN").total>0 and l.coverage("en_US").missing==0 and l.coverage("ja_JP").translated==0,"LOCALE English is complete for registered IDs while Japanese remains an empty scaffold")
+ t.check(l.coverage("zh_CN").total>0 and l.coverage("en_US").missing==0 and l.coverage("ja_JP").missing==0,"LOCALE English and Japanese are complete for registered IDs")
  t.check(l.set_locale("en_US") and l.text("ui.home.title","紧缚尖塔")=="Bound Spire","LOCALE registered English copy resolves through its semantic ID")
  var practice_health=RegEx.new();practice_health.compile("(\\d+)生命")
  var chinese=RegEx.new();chinese.compile("[\\x{3400}-\\x{9fff}]")
@@ -147,7 +194,87 @@ static func run(t) -> void:
  t.check(l.display("每佩戴1件拘束具，恢复2点魔力。\n当前：恢复6魔力。")=="For every 1 restraints worn, restore 2 Mana.\nCurrent: restore 6 Mana." and l.display("每佩戴1件拘束具，恢复2魔力，不超过上限。")=="For every 1 restraints worn, restore 2 Mana, up to the maximum.","LOCALE confluence doubled mana rule and preview preserve actual values")
  t.check(l.display("魔路精通")=="Mana Circuit Mastery" and l.display("0费剩余2次")=="Zero-cost triggers remaining: 2","LOCALE mastery name and live quota translate")
  t.check(l.display("两面互斥：本场已启用「魔路精通」，不能再次启用任一面。").contains("Mutually exclusive"),"LOCALE mutual exclusion explains unavailable face")
- t.check(l.set_locale("ja_JP") and l.text("ui.home.title","紧缚尖塔")=="紧缚尖塔","LOCALE empty Japanese resource uses the original Chinese")
+ t.check(l.set_locale("ja_JP") and l.text("ui.home.title","紧缚尖塔")=="緊縛の尖塔","LOCALE registered Japanese copy resolves through its semantic ID")
+ t.check(l.display("好了，带着这副样子进去吧❤").contains("格好") and l.display("好了，带着这副样子进去吧❤").contains("❤"),"LOCALE Japanese dialogue keeps the instruction instead of collapsing to punctuation")
+ t.check(l.display("抽取2，失去20快感。").contains("2") and l.display("抽取2，失去20快感。").contains("20") and l.display("抽取2，失去20快感。").contains("快感"),"LOCALE Japanese card result keeps draw, loss and pleasure values")
+ t.check(l.display("删牌服务 · %s魔力" % 12).contains("カード削除") and l.display("删牌服务 · %s魔力" % 12).contains("12"),"LOCALE Japanese dynamic service label keeps its action and price")
+ t.check(l.display("正在提交，请稍候…").length()>8 and l.display("正在提交，请稍候…").contains("待"),"LOCALE Japanese pending message keeps its instruction instead of collapsing to an ellipsis")
+ t.check(l.display("{mana_cost}本场全部伤害×2。打出时播放dj版雨爱。".format({"mana_cost":"50魔力"})).contains("雨愛"),"LOCALE Japanese authored music cue cannot turn into unrelated generated copy")
+ for rain_source in ["{mana_cost}解除全部拘束与捕缚。打出时播放dj版雨爱。","{mana_cost}解除全部拘束具与捕缚。打出时播放dj版雨爱。"]:
+  var rain_copy=l.display(rain_source.format({"mana_cost":"50魔力"}))
+  t.check(rain_copy.contains("雨愛") and rain_copy.contains("解除") and not rain_copy.contains("ダンジョン"),"LOCALE every Japanese Rain Love cue preserves the authored song and release effect")
+ t.check(l.display("下一个目标")=="次の対象" and l.display("不受身体和姿势限制。").contains("制限を受けない") and l.display("前进一回合")=="1ターン進む","LOCALE short Japanese action rules preserve qualifiers and negation")
+ var prison_copy=l.display("已服刑%d回合 · 不自动出狱" % 8)
+ t.check(prison_copy.contains("8") and prison_copy.contains("自動釈放なし"),"LOCALE Japanese prison status keeps served turns and no-auto-release rule")
+ var prison_rules=[
+  l.display("安全等级1／2／3的刑期为20／30／50回合，4／5级不自动出狱。刑期只在牢房回合累计，战斗与战后整备暂停计时；检查确认不计回合。每次检查发现缺装或没收工具，最多延长8回合；正常充电、恢复消耗牌不延长。刑期结束时进行出狱检查：通过后施加出狱装备并选择新塔路起点；未通过则处罚并延长8回合，服满后再次检查。"),
+  l.display("安全等级1／2／3／4：累计20／30／50回合／不自动出狱。牢房、反抗战及其整备均累计；检查确认不计回合。每次检查发现缺装或没收工具，最多延长8回合；正常充电、恢复消耗牌不延长。到期按当前安全等级执行一次入狱装备判定，再选择新塔路起点。"),
+  l.display("安全等级1／2／3／4：累计20／30／50回合／不自动出狱。牢房、反抗战及其整备均累计；检查确认不计回合。每次检查发现缺装或没收工具，最多延长8回合；正常充电、恢复消耗牌不延长。到期立即执行一次临时巡视检查，不重置正常巡视周期。检查不通过则处罚并延长8回合，下次到期重新检查；通过后按当前安全等级施加出狱装备，再选择新塔路起点。")]
+ t.check(prison_rules[0].contains("独房でのターンだけ進み") and prison_rules[0].contains("刑期終了時に釈放検査") and prison_rules[0].contains("釈放時装備"),"LOCALE Japanese prison overview preserves sentence progress, release inspection and release equipment")
+ t.check(prison_rules[1].contains("抵抗戦") and prison_rules[1].contains("収監時装備判定") and prison_rules[2].contains("臨時巡回検査") and prison_rules[2].contains("通常巡回の周期はリセットしない"),"LOCALE Japanese prison variants preserve resistance-battle counting, intake equipment and temporary inspection timing")
+ var prison_exit=l.display("保留正常收押生成的装备，从出口守卫战开始，守卫使用正常血量。胜利后领取稀有卡三选一、遗物和60魔瓶魔力，再选择10—11层起点。")
+ t.check(prison_exit.contains("レアカード3枚から1枚") and prison_exit.contains("魔瓶魔力60") and prison_exit.contains("10～11層"),"LOCALE Japanese prison exit reward preserves one-of-three rare cards, flask mana and starting floors")
+ var prison_capture=l.display("收押至监狱，保留原装备与传送符、没收其他道具并追加装备；随后榨精一次，立即损失最多20魔力。无战斗奖励，战斗结束遗物照常触发。")
+ t.check(prison_capture.contains("転送符は保持") and prison_capture.contains("搾精を1回") and prison_capture.contains("最大20") and prison_capture.contains("戦闘報酬はなく"),"LOCALE Japanese prison capture result preserves the talisman, milking, mana loss and absent battle reward")
+ t.check(l.display("一键解除 · %d能量" % 3)=="一括解除・エネルギー3","LOCALE Japanese one-click release label keeps both the action and dynamic energy cost")
+ for growth_source in ["挣扎{base}。使用后，本场两面伤害＋{damage_growth}。","滑脱{base}。使用后，本场两面伤害＋{damage_growth}。"]:
+  var growth_copy=l.display(growth_source.format({"base":8,"damage_growth":2}))
+  t.check(growth_copy.contains("8") and growth_copy.contains("両面") and growth_copy.contains("＋2"),"LOCALE Japanese escape growth rules keep action value, both faces and growth")
+ t.check(l.display("草稿已保留。")=="下書きを保存しました。","LOCALE Japanese draft status is a complete sentence")
+ var discard_copy=l.display("将%d张「%s」混入弃牌堆。" % [2,"ProbeCard"])
+ t.check(discard_copy.contains("2枚") and discard_copy.contains("ProbeCard") and discard_copy.contains("捨て札"),"LOCALE Japanese discard insertion keeps count, card name and destination")
+ t.check(l.display("魅魔的魔力典当铺")=="サキュバスの魔力質店","LOCALE Japanese succubus pawnshop title keeps its actual meaning")
+ t.check(l.display("保存失败：写入校验未通过，原存档保留。").contains("書き込み検証") and l.display("保存失败：写入校验未通过，原存档保留。").contains("セーブデータ"),"LOCALE Japanese save validation failure cannot become an unrelated exam")
+ t.check(l.display("大魔棒")=="巨大魔法棒" and l.display("大魔棒：消耗4点，恢复12魔力。").contains("4") and l.display("大魔棒：消耗4点，恢复12魔力。").contains("12"),"LOCALE Japanese large wand name and resource result keep their meaning")
+ t.check(l.display("每个整备回合结束时，恢复1魔力。").contains("準備ターンの終了時") and l.display("每个整备回合结束时，恢复1魔力。").contains("回復"),"LOCALE Japanese preparation-turn recovery keeps both timing and action")
+ t.check(l.display("移动 · 第%d回合" % 7)=="移動・第7ターン" and l.display("第%d回合：%s，%s。" % [7,"A","B"])=="第7ターン：A、B。","LOCALE Japanese dynamic turn labels keep their runtime value and order")
+ t.check(l.display("进度归零解除；达到100后下一敌方回合收押").contains("次の敵ターン") and not l.display("进度归零解除；达到100后下一敌方回合收押").contains("100年"),"LOCALE Japanese capture threshold uses the next enemy turn, not a calendar year")
+ var delayed_pressure=l.display("失去20快感；下回合获得40快感。")
+ t.check(delayed_pressure.contains("20") and delayed_pressure.contains("失") and delayed_pressure.contains("40") and delayed_pressure.contains("次のターン"),"LOCALE Japanese delayed pressure rule keeps both immediate loss and next-turn gain")
+ t.check(l.display("快感跨战保留；可通过深呼吸降低")=="快感は戦闘をまたいで保持され、深呼吸で減少させられる","LOCALE Japanese pleasure summary preserves both cross-battle retention and deep-breath reduction")
+ var pleasure_rule=l.display("快感达到%s：损失%s魔力，结束当前行动，下回合能量－%d。快感跨战保留，能量惩罚不跨战。滑精时免除高潮的即时魔力损失，后续两回合开始时各损失%s魔力。\n深呼吸：每回合最多2次，%d能量，基础快感－%s，下回合能量＋%d。嘴部拘束的等级＋紧度总值为2／3／4／5／6时，快感降低量衰减20%%／40%%／60%%／80%%／100%%；多件取最高总值。高级、紧度3档时无法使用。成功使用仍获得完整的下回合能量。" % [100,20,1,10,1,15,1])
+ t.check(pleasure_rule.contains("戦闘をまたいで保持") and pleasure_rule.contains("エネルギーペナルティは持ち越さない") and pleasure_rule.contains("深呼吸") and pleasure_rule.contains("減衰"),"LOCALE Japanese pleasure rules preserve cross-battle state, energy scope and deep-breath scaling")
+ var temporary_payment=l.display("本次耗魔全部由临时魔力支付时，施法失败不返还魔力，改为获得1能量。0费牌每回合最多触发2次。两面互斥。唯一。")
+ t.check(temporary_payment.contains("一時魔力") and temporary_payment.contains("返還せず") and temporary_payment.contains("エネルギーを1") and temporary_payment.contains("最大2回") and temporary_payment.contains("排他的"),"LOCALE Japanese temporary-mana rule preserves payment, failure, energy, quota and exclusivity")
+ var formation_refresh=l.display("两面可同时生效。打出当回合立即获得次数，下回合刷新。0费牌也消耗次数。严密度仅在打出布阵时检查。")
+ t.check(formation_refresh.contains("同時") and formation_refresh.contains("直ちに") and formation_refresh.contains("次のターンに更新") and formation_refresh.contains("コスト0") and formation_refresh.contains("布陣"),"LOCALE Japanese formation rule preserves immediate uses, refresh timing, zero-cost consumption and check timing")
+ var ritual_growth=l.display("首回合启动仪式，之后每回合施加数量持续增长，尽快击破法阵。")
+ t.check(ritual_growth.contains("第1ターン") and ritual_growth.contains("毎ターン") and ritual_growth.contains("増加") and ritual_growth.contains("魔法陣を破壊"),"LOCALE Japanese ritual rule preserves start, growth and destruction objective")
+ var echo_fireball=l.display("下一次火球术每层免费额外施放一次，不占使用次数；只作用原目标，目标失效则跳过。每次施法各自判定成功率。")
+ t.check(echo_fireball.contains("1層につき1回") and echo_fireball.contains("使用回数を消費しない") and echo_fireball.contains("元の対象") and echo_fireball.contains("スキップ") and echo_fireball.contains("各発動ごと"),"LOCALE Japanese echo fireball rule preserves free casts, original target, invalid-target skip and independent checks")
+ var card_chain=l.display("每成功打出另一张牌，本回合施法成功率额外＋3个百分点。回合开始清零。唯一。")
+ t.check(card_chain.contains("1枚使用するたび") and card_chain.contains("＋3") and card_chain.contains("ターン開始時に0") and card_chain.contains("唯一"),"LOCALE Japanese card-chain rule preserves per-card accumulation and turn reset")
+ t.check(l.display("分裂时的生命记录不合法")=="分裂時のHP記録が不正","LOCALE Japanese split-state error cannot become a divorce message")
+ t.check(l.display("唯一。")=="唯一。" and l.display("电量剩余%d回合。" % 4)=="バッテリー残量：あと4ターン。","LOCALE Japanese short keyword and battery countdown remain complete phrases")
+ t.check(l.display("沿已选路线前进，不抽牌、不恢复资源；本段剩余%d回合。" % 3).ends_with("残り3ターン。"),"LOCALE Japanese route countdown keeps the remaining-turn value")
+ var rope_snake=l.display("生命：%s\n行动：缠身→随机收紧或甩缚，循环；两种招式各50%%。\n缠身：紧缠＋1层。每个玩家回合结束，每层施加1件初级2档绳索类拘束具。\n收紧：加固1件绳索类拘束具至3档。甩缚：施加2件初级2档绳索类拘束具，含链接绳。\n特殊：预告收紧时没有目标则改为甩缚；预告后失去目标则不生效。打断不停止紧缠，击败该绳蛇才停止。" % 80)
+ t.check(rope_snake.contains("中断されても緊縛は停止せず") and rope_snake.contains("倒した時だけ停止") and not rope_snake.contains("Haunt"),"LOCALE Japanese rope-snake rule preserves the interruption exception")
+ t.check(l.display("传送符只能在一至四级牢房的可行动回合使用，巡视和战斗中不能使用。").begins_with("転送符") and not l.display("传送符只能在一至四级牢房的可行动回合使用，巡视和战斗中不能使用。").contains("送信機"),"LOCALE Japanese teleport talisman cannot become a communication device")
+ var proficiency=l.display("施法成功率最低75%；每次使用魔法牌，额外牵扯1次（按1能量），无论成败。唯一。")
+ t.check(proficiency.contains("最低75%") and proficiency.contains("牽引") and proficiency.contains("エネルギー1として判定") and proficiency.ends_with("唯一。"),"LOCALE Japanese proficiency rule preserves threshold, pull trigger, energy basis and uniqueness")
+ var enemy_sequence=l.display("行动：①初级2档拘束具×2；②无力化1回合；③中级2档拘束具×1，准备就绪＋1；④优先施加中级马具口球或眼罩，无位置时改为其他普通拘束具。\n后续：重复①③④两轮，第11次行动收押。\n无力化：禁用体术，火球与卡牌魔法不受影响。\n准备就绪：每成功施加或替换1件消耗1层，使该件直接达到3档；失败保留。③先用旧层数，再获得新层数。\n范围：普通拘束具与链接绳，不施加复合拘束具；初级不含口球。出手时选择装备和位置，满位时可替换。")
+ t.check(enemy_sequence.contains("第11行動で収監") and enemy_sequence.contains("体術を使用できない") and enemy_sequence.contains("ファイアボールとカード魔法には影響しない"),"LOCALE Japanese enemy sequence preserves the eleventh-action arrest and physical-skill-only disable")
+ var guard_capture=l.display("开场会束住手腕、口部和脚踝，再准备并施加50/100的捕缚。无法新增或合法替换时，改为加固该处1次；紧度3且可上锁时，上锁并恢复满耐久。用挣扎或滑脱牌削减捕缚；达到100后，警卫下一次行动会收押你。")
+ t.check(guard_capture.contains("もがく") and guard_capture.contains("抜け出し") and guard_capture.contains("100に達すると") and guard_capture.contains("次の行動で収監"),"LOCALE Japanese guard summary preserves release-card actions, capture threshold and next-action imprisonment")
+ var membership=l.display("商店限定。购买会员卡仅可使用自身魔力。持有后，商店全部商品、删牌及解除拘束服务五折；其他交易仍可使用自身魔力或魔瓶付款。")
+ t.check(membership.contains("自身の魔力だけ") and membership.contains("半額") and not membership.contains("5倍") and membership.contains("魔瓶"),"LOCALE Japanese membership card preserves its payment restriction and half-price services")
+ var capture_rules=l.display("被捕缚时无法移动，先解除捕缚。挣扎／滑脱牌可直接削减进度；除眼罩、口球外没有其他拘束具时伤害翻倍，不受环境加成。上身受限至少按1级计算。同种捕缚不叠加；新种类增加其初始值的一半。降至0全部解除，达到100后下一敌方回合执行收押。\n降紧每层固定削减8点捕缚，不受属性、蓄力和倍率影响，也不消耗蓄力。")
+ t.check(capture_rules.contains("捕縛進捗を直接減らす") and capture_rules.contains("初期値の半分だけ進捗を増やす") and capture_rules.contains("固定で8減らす"),"LOCALE Japanese capture glossary preserves direct reduction, added half progress and fixed loosening value")
+ var binding_echo=l.display("下一张成功打出的拘束面牌，每层额外释放一次；双面效果相同的牌不适用。免费复放，只作用原目标，目标失效则跳过。")
+ t.check(binding_echo.contains("1層につき1回追加発動") and binding_echo.contains("無料") and binding_echo.contains("元の対象") and binding_echo.contains("無効ならスキップ"),"LOCALE Japanese binding echo preserves per-layer replay, cost, target and invalid-target skip")
+ var damage_cap=l.display("每回合受到的最终伤害合计最多%s点，多次攻击、多段及玩偶转移伤害共用额度；下一回合恢复。\n伤害超过屏障剩余额度时，玩偶普通反击容量上限－1，最低1，持续本场战斗；多段及群攻每次攻击只扣一次。额度耗尽后继续攻击仍可触发，恰好打满不触发。" % 12)
+ t.check(damage_cap.contains("最大12") and damage_cap.contains("同じ上限枠を共有") and damage_cap.contains("上限－1（最低1）") and damage_cap.contains("ちょうど使い切った攻撃では発動しない"),"LOCALE Japanese barrier rule preserves the shared cap and counter-capacity decrement boundary")
+ var wand_points=l.display("每成功打出1张技能牌，积攒1点，上限15。右键图标消耗全部点数，恢复等量自身魔力；满15点自动兑换并清空。点数跨回合、跨战斗保留，复放不额外计数；恢复不超过魔力上限。")
+ t.check(wand_points.contains("上限15") and wand_points.contains("15ポイントになると自動的") and wand_points.contains("ターンと戦闘をまたいで保持") and wand_points.contains("再発動では追加されない"),"LOCALE Japanese large-wand points preserve the cap, automatic exchange and carry-over rules")
+ var free_hand_arts=l.display("接下来2次手部体术按自由态发动，忽略拘束限制与减益；包括肘击、近身短打及其连击。每次完整攻击消耗1次，姿势、费用与次数限制照常。每次使用增加2次，剩余次数可累计。")
+ t.check(free_hand_arts.contains("手部体術") and free_hand_arts.contains("攻撃全体につき使用回数を1消費") and free_hand_arts.contains("残り回数は累積"),"LOCALE Japanese free-hand effect preserves martial arts, per-complete-attack use and stacked remainder")
+ t.check(l.text("ui.flask.withdraw_uses","取 {dots}",{"dots":"..."})=="取り出す ..." and l.text("ui.flask.deposit_uses","存 {dots}",{"dots":"..."})=="預ける ...","LOCALE Japanese flask actions keep deposit and withdrawal verbs")
+ t.check(l.display("恢复12魔力。").contains("回復") and l.display("支付12魔力。").contains("支払") and l.display("返还12魔力").contains("返還"),"LOCALE Japanese mana logs keep restore, pay and refund actions distinct")
+ t.check(l.display("4件")=="4個" and l.display("3张")=="3枚" and l.display("张")=="枚","LOCALE Japanese dynamic counters keep their units")
+ var damage_copy=l.display("对Dummy造成12点Fire伤害。")
+ t.check(damage_copy.contains("Dummy") and damage_copy.contains("12") and damage_copy.contains("Fire") and damage_copy.contains("ダメージ"),"LOCALE Japanese generic damage log keeps target, amount and type")
+ var self_bind_copy=l.display("自缚：在Hands佩戴Belt（Medium，紧度2档）。")
+ t.check(self_bind_copy.contains("自縛") and self_bind_copy.contains("Hands") and self_bind_copy.contains("Belt") and self_bind_copy.contains("2"),"LOCALE Japanese self-binding log keeps the action, slot, item and tightness")
  t.check(not l.set_locale("../../invalid") and l.locale=="ja_JP","LOCALE invalid language is rejected without changing preference")
  var spec=source()
  t.check(l.install_source(spec),"LOCALE accepts complete named source templates")
@@ -214,7 +341,7 @@ static func bundled_font(t) -> void:
  var supported={}
  for ch in isolated.get_supported_chars(): supported[ch]=true
  var absent={}
- for file in ["res://assets/localization/zh_CN.json","res://assets/localization/legacy-en_US.json","res://data/balance.gd","res://ui/main.gd"]:
+ for file in ["res://assets/localization/zh_CN.json","res://assets/localization/legacy-en_US.json","res://assets/localization/legacy-ja_JP.json","res://data/balance.gd","res://ui/main.gd"]:
   for ch in FileAccess.get_file_as_string(file):
    var cp=ch.unicode_at(0)
    if cp>=0x3400 and cp<=0x9fff and not supported.has(ch): absent[ch]=true
@@ -237,9 +364,9 @@ static func legacy_contract(t) -> void:
  for bad in [null,{}, {"schema_version":1,"locale":"en_US","messages":[{"id":"legacy.turn","source":"第%d回合","text":"Turn"}]}, {"schema_version":1,"locale":"en_US","messages":[{"id":"legacy.same","source":"甲","text":"A"},{"id":"legacy.same","source":"乙","text":"B"}]}]:
   t.check(not l.install_legacy_translation("en_US",bad) and l.display("第3回合：等待")=="Turn 3: 等待","LOCALE invalid compatibility catalog is rejected atomically")
  document.messages.append({"id":"legacy.symbols","source":"%s / %s","text":"UNRELATED {p0} and {p1}"})
- document.messages.append({"id":"legacy.short","source":"第%d!","text":"UNRELATED {p0}"})
+ document.messages.append({"id":"legacy.short","source":"第%d!","text":"Ordinal {p0}"})
  t.check(l.install_legacy_translation("en_US",document),"LOCALE weak legacy templates can be skipped without discarding valid entries")
- t.check(l.display("12 / 30")=="12 / 30" and l.display("第12!")=="第12!","LOCALE punctuation and one Chinese character cannot qualify a dynamic translation template")
+ t.check(l.display("12 / 30")=="12 / 30" and l.display("第12!")=="Ordinal 12","LOCALE punctuation-only templates stay disabled while a numeric template may use one exact Chinese anchor")
  t.check(l.display("第12回合：行动")=="Turn 12: Action","LOCALE constrained Chinese templates still translate their nested values")
 
 static func file_fallbacks(t) -> void:

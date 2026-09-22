@@ -1436,3 +1436,7 @@ flowchart LR
 - 战斗外卡面（图鉴、卡组浏览、回顾卡组，以及商店、事件、奖励、保留选牌与战斗内手牌共用的同一入口）悬停词条从单面板的 `名称：定义` 行改为**一条词条一个方框**：单一决策点 `ui/main.gd::_card_tooltip` 传 `entry.terms`，单一呈现入口 `ui/main.gd::_show_term` 按 `terms` 分框；`terms` 缺省或为空时逐字保持原单面板（意图图标、拖拽拒绝、`tooltip_text` 兜底不受影响）。词条仍取 `data/card_text.gd::TERMS` 经 `face_keywords` 的既有取源，界面不重算、不抄第二份文案；未改判定、数值、存档版本、View 键与本地化。口径见[卡面词条悬停显示](../spec/card-terms.md)。
 - 测试：图鉴（框集合与顺序、翻面换面、与锚面不重叠＋真实点击、无 `terms` 仍为单面板）、卡组浏览实例卡（升级进度与框集合、悬停不改状态与 `view.version`）、触摸长按等价各新增具名断言；`tests/card_power_ui_cases.gd` 的 `SEARCH UI hover` 断言按依赖表授权改为「该面唯一框＋名称与定义分别断言＋长度上界」，未删除或放宽。
 - 检查：规则门 architecture／localization／persistence 1677 断言 exit 0；窗口门 interface／encyclopedia／card_power／events／rewards／touch／status／casting／route／localization 共 10 类 2213 断言 exit 0；文档门禁 PASS（34 文档、1275 引用、允许清单 6 条零新增）；两门同一冻结指纹 `3B531E31…`。判据 1–7 逐条敏感性实验、既有红项与未跑项见[验证记录](verification.md)。仅源码、测试与记录，未打包发布。
+
+## 2026-09-21｜魔力转换拘束面数值调整
+
+- 原角色魔力转换拘束面改为0能量、固定消耗20魔力、获得2能量；同步卡面和设计表。自由面仍消耗1能量恢复10魔力，小魔女专属版原有数值保留。仅源码更新，未打包发布。

@@ -2740,7 +2740,7 @@ func _options_drawer() -> void:
  var language=OptionButton.new();language.name="LanguageSelection"
  language.add_item(_text("ui.settings.language.zh_cn","简体中文"))
  language.add_item(_text("ui.settings.language.en_us","English"))
- language.add_item(_text("ui.settings.language.ja_jp","日语（待翻译）"))
+ language.add_item(_text("ui.settings.language.ja_jp","日本語"))
  for index in range(localization.LOCALES.size()): language.set_item_metadata(index,localization.LOCALES[index])
  language.select(localization.LOCALES.find(display_settings.locale))
  language.item_selected.connect(func(index):_set_language(language.get_item_metadata(index)))

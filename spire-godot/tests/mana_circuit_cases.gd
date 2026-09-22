@@ -74,7 +74,7 @@ static func run(t) -> void:
  for i in range(3):
   card=Cards.give(g,"mana_conversion")
   t.check(t.action(g,"card",{"uid":card.uid,"free":false}).ok,"CIRCUIT unrestricted conversion pays mana after arms become restricted")
- t.check(g.state.energy==energy+4 and g.state.powers[0].power_mana_progress==0,"CIRCUIT body restriction only applies when activating the free face")
+ t.check(g.state.energy==energy+8 and g.state.powers[0].power_mana_progress==0,"CIRCUIT body restriction only applies when activating the free face")
 
  # A multi-step card pays once; its award waits until the continuation finishes.
  g=fresh();activate(t,g,false);spend(t,g)

@@ -89,12 +89,12 @@ static func run(t) -> void:
   g=Game.new(42);g.state.mana=60;g.state.energy=3;g.state.pressure=60;g.state.temporary_mana=5
   g.state.sure_cast=true
   var magic=g.state.rng.magic
-  t.check(cast(t,g,"mana_conversion",free).ok and g.state.mana==(70 if free else 55) and g.state.energy==(2 if free else 4),"CONVERSION exact ten mana exchange in either direction")
+  t.check(cast(t,g,"mana_conversion",free).ok and g.state.mana==(70 if free else 45) and g.state.energy==(2 if free else 5),"CONVERSION bound pays twenty mana for two energy; free restores ten mana")
   t.check(g.state.temporary_mana==(5 if free else 0) and g.state.rng.magic==magic and not g.state.sure_cast,"CONVERSION guaranteed spell keeps fixed cost with temporary mana payment, consumes guarantee")
   g=Game.new(42);g.state.mana=60;g.state.energy=3;g.state.pressure=99;g.state.temporary_mana=5
   copy=give(t,g,"mana_conversion");c=t.find_action(g,"card",{"uid":copy.uid,"free":free})
   before=g.export_snapshot()
-  t.check(c.valid and c.mana==(0 if free else 10) and g.dispatch(c.id,g.state.version).ok,"CONVERSION either face uses normal probabilistic spell submission with fixed payment")
+  t.check(c.valid and c.mana==(0 if free else 20) and g.dispatch(c.id,g.state.version).ok,"CONVERSION either face uses normal probabilistic spell submission with fixed payment")
   t.check(g.state.mana==before.mana-c.mana_payment.mana*0.5 and g.state.energy==before.energy-c.cost and g.state.temporary_mana==before.temporary_mana-c.mana_payment.temporary_mana*0.5 and g.state.hand.any(func(x):return x.uid==copy.uid),"CONVERSION failed exchange spends cost without gain, uses temporary mana and keeps card")
   t.check(g.state.rng.magic==before.rng.magic+1 and not g.state.logs.filter(func(x):return x.data.has("spell")).back().data.spell.success,"CONVERSION failure uses the shared casting random domain")
  g=Game.new(42);g.state.energy=0;copy=give(t,g,"mana_conversion");before=g.export_snapshot()
