@@ -3032,7 +3032,7 @@ flowchart LR
 | 卡组一览 `endless_war_goddess` 拘束面（活卡面，含成长文案） | 350×494 | 350×710 | 374×710 |
 | 图鉴 `hannya_1`（全库 233 面最高） | 未测（presplit 轮只跑前两面） | 350×632 | 374×632 |
 
-- 全库扫描（探针 `--sweep`，233 个面＝128 张卡的可用面，真实窗口）：修前与修后均 `viewport_overflow=0`；最高的仍是 `hannya_1` 632 高（宽 350→374）。活卡面最高实测为卡组一览的 `endless_war_goddess` **374×710**（占 900 高视口 79%，锚点 y=572 时 clamp 后弹窗底 886），即本片长内容用例选它的理由：词条 4 条、最长定义 825px，是 y clamp 的最坏用例。**当前没有任何面压出屏底**（最高 710＜可容纳 826），故风险 B 未落地为真实缺陷，新断言是回归守卫而非复现已知红。
+- 全库扫描（探针 `--sweep`，对 `data/card_rules.gd::SPECS` 的 121 张卡两面各悬停一次共 242 次，其中 233 次弹出弹窗、9 次为无词条且无其它行的面（走 `_hide_term`）；真实窗口）：修前与修后均 `viewport_overflow=0`；最高的仍是 `hannya_1` 632 高（宽 350→374）。活卡面最高实测为卡组一览的 `endless_war_goddess` **374×710**（占 900 高视口 79%，锚点 y=572 时 clamp 后弹窗底 886），即本片长内容用例选它的理由：词条 4 条、最长定义 825px，是 y clamp 的最坏用例。**当前没有任何面压出屏底**（最高 710＜可容纳 826），故风险 B 未落地为真实缺陷，新断言是回归守卫而非复现已知红。
 - 新增断言（3 个文件共 9 条：5 条行为＋4 条夹具守卫）：
   - `tests/event_ui_cases.gd`（`Practice_binding_cleric` 净化→`remove` 移除选牌真实入口，既有流程内追加）：`EVENT UI card option tile maps to a real deck card`、`EVENT UI card option fixture carries face terms`（夹具守卫）、`EVENT UI card option hover boxes equal the hovered face terms`、`EVENT UI card option term boxes clear the anchor card`。
   - `tests/reward_ui_cases.gd::battle_loot`（种子 78 精英奖励→卡牌三选一真实入口）：`LOOT UI reward choice fixture carries face terms`（夹具守卫）、`LOOT UI reward choice hover boxes equal the hovered face terms`、`LOOT UI reward choice term boxes clear the anchor card`。二者消掉依赖表「已授权但未加」的两条，同时消掉「依赖表与实现文件面不一致（多写）」。
