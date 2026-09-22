@@ -14,7 +14,7 @@
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
 | `ui/main.gd::_card_tooltip` | 词条不再拼进 `detail` 行；改按顺序传 `entry.terms`；无词条且无其它行时仍走 `_hide_term()` | 其它行（溢出正文、`施法成功率 · …`、`card.note`）的文本、顺序与触发条件不变；只读 `button`／`card`，不调用任何 `ui.game.*` 或 `ui.actions` |
-| `ui/main.gd::_show_term` | 按可选键 `entry.terms` 逐条生成词条框（名称 CYAN 19px＋定义 TEXT 15px），整组仍挂在 `term_popup`（节点名 `TermExplanation`）子树内；`terms` 空或缺省时保持今日单面板 | `term_popup`／`term_anchor` 仍是唯一属主变量，`_hide_term()` 是唯一关闭入口；`_ignore_mouse(term_popup)` 保持；`touch_input.finger>=0 and not details_allowed` 的早退守卫不变；`_drag_rejection` 的 `drag_reason` 元数据语义不变 |
+| `ui/main.gd::_show_term` | 按可选键 `entry.terms` 逐条生成词条框（每框名称＋定义两个标签，沿用 CYAN 19px／TEXT 15px——**字号与配色是机制声明，无断言覆盖**，见 `docs/spec/card-terms.md`「接口」），整组仍挂在 `term_popup`（节点名 `TermExplanation`）子树内；`terms` 空或缺省时保持今日单面板 | `term_popup`／`term_anchor` 仍是唯一属主变量，`_hide_term()` 是唯一关闭入口；`_ignore_mouse(term_popup)` 保持（**防御性保留：删除后点击断言仍绿，无断言覆盖**，见同契约「接口」的已知不可观测项）；`touch_input.finger>=0 and not details_allowed` 的早退守卫不变；`_drag_rejection` 的 `drag_reason` 元数据语义不变 |
 | `ui/main.gd::_position_term` | 默认零改动（若多框需要整组测量，只允许改测量对象） | 右侧 `anchor.end.x+12`／越界改左／x∈[20,1580−宽]、y∈[74,886−高] 的 clamp 与「不与锚面重叠」不变；`_position_term` 仍是唯一定位入口 |
 | `ui/main.gd::_card`／`ui/main.gd::_display_card` | 默认零改动（悬停信号连接与 `source` 合并已满足本片） | `mouse_entered`／`mouse_exited`／`focus_entered`／`focus_exited` 的连接对象与 `_refresh_card_face` 的悬停重入不变 |
 | `ui/card_face.gd` | 默认零改动 | `ui/card_face.gd::separate_keywords` 与卡面徽章渲染（`CardKeywords`）不变；本片不读卡面文本反推词条 |
@@ -42,7 +42,9 @@
 
 - 在 `ui/` 里重算词条集合（再写一份 `keywords()` 判定）、按名称字符串反查 `TERMS`、或复制第二份词条文案。
 - 新增第二个弹窗属主变量／第二条关闭路径（自建 `_hide_terms()`、直接 `queue_free` 而不经 `_hide_term`）。
-- 把词条框做成覆盖锚点卡面的浮层，或让框拦截鼠标（去掉 `_ignore_mouse`、把 `mouse_filter` 改成 `STOP`）。
+- 把词条框做成覆盖锚点卡面的浮层，或让框拦截鼠标（去掉 `_ignore_mouse`、把 `mouse_filter` 改成 `STOP`）：
+  前者有几何断言（`docs/spec/card-terms.md` 判据 6），后者**无机械判据**——删除 `_ignore_mouse` 不会让任何断言变红，
+  只靠 cleaner／审查者核对差异面。
 - 把无词条的面渲染成空框、空白面板，或以「面板先显示再 `visible=false`」冒充无词条。
 - 改 `data/card_text.gd::TERMS` 的文案与集合、改卡面徽章渲染、动 `_position_term` 的边界常量。
 - 在 `ui/main.gd::_card_tooltip` 里提交候选、写 `view.version`、调用 `ui.game.dispatch`／`ui._submit`／`_save_progress`。
