@@ -1,5 +1,11 @@
 # 变更与开发记录
 
+## 2026-09-23 日文本地化：补齐三片新增界面文案
+
+- 补齐 17 条语义 ID 日文：`ui.map.seed`／`ui.map.seed_copied`；`ui.feedback.save.attached`／`declined`／`unchecked`／`none`／`uncaptured`／`invalid`／`oversized`；`ui.run_review.title`／`identity`／`route`／`deck`／`progress`／`no_route`／`deck_empty`／`copy`。只改 `spire-godot/assets/localization/ja_JP.json`（81 条，与 `zh_CN`／`en_US` 对齐），`source` 与 zh_CN `text` 逐字相同，`{initial}`／`{iteration}`／`{name}`／`{size}`／`{floor}`／`{nodes}` 原样保留。
+- 术语沿现有语料（卡组＝デッキ、塔路＝塔路、存档＝セーブデータ、反馈服务＝フィードバックサービス）；本局标识的复制与回顾面板只读显示，不改候选、存档或随机。纯显示资源，不影响规则与存档兼容。
+- 验证见 [验证记录](verification.md)。未推送、未打标签、未改版本号、未打包。
+
 ## 2026-09-21 图鉴牌面原图检视
 
 - 图鉴卡面及派生卡点击后检视当前画风、当前正反面的原始纹理；默认完整居中，可切换1:1原始像素并滚动。点击暗色空白处返回，不设置关闭按钮；Esc与安卓返回同样可用。
