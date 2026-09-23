@@ -3104,3 +3104,17 @@ flowchart LR
 - 低项（已裁定/登记，不返工）：`_hand_or_box` 的 `expected_version` 原样传、归一收口在 `core/game.gd::command` 一处（pre-R2 在改道处另有一次；无可达差异例，按「同一语义一条路径」保留现单点）；`_self_action` 一条 `actions.by_id` 回落（注释声明 R5 过渡）；`core/game_view.gd::_takeover_step` 读行 `automated`（R5 行载体删除后消失）。
 - 未跑（未验证）：§7.5 UI 全量组合在补正后未整轮重跑（interface 序列红已登记）；G5 冻基线未在未改源码树重算；V1–V11 真人验收；全量回归；打包发布。
 - 产物：`build/checks/` 内本次各运行号目录（含复核者自跑 5 轮）留证；`build/r3-*`（探针／基线／变异备份／敏感性日志）与三份心跳、复核日志**随本条登记清理**（变异备份 `r3-mut-backup-*.gd` 确认未进主树）。
+
+## 2026-09-24｜候选层移除 R4：显示改线（装备／快捷解除／拖放／道具）＋双模型审查（分支 `seed-chip-save-upload`，commit `41c1b6d`）
+
+- 域：装备／快捷解除／拖放／道具域显示改线（T5／T9）：`ui/main.gd::_equipment_actions`／`_attack_drop_candidate`／`_item_details`／`_door_candidate`／`_free_player_candidate`／`_hook_drawer`／`_guard_bind_card_candidate`／`_chain_screen`；`ui/target_queries.gd` 行筛面改指令装配（首参由行索引改 `view`）；`ui/quick_release_bar.gd`／`ui/drag_targets.gd`／`ui/keyboard_input.gd` 取用同步；DUP4 收敛（`ui/target_queries.gd::first_usable(offers, fallback)` 唯一通道；`ui/action_index.gd::first_usable` 以 `"last"` 委托并注释声明 R5 随行载体消失）。
+- 实现者证据（cursor-agent／grok-4.7-xhigh；16 文件 +628/−178）：UI 六套件门 `20260923T162644324-56872`（card_power／display／touch／keyboard／body_layout／targeting 全 PASS）；runner `20260923T163218114-35848`；还原绿轮 `20260923T164035134-28352`；三者同指纹 `E2E8F241C3FE439FB61C…`（协调者以 `-ListOnly` 复算一致）。
+- **规则门覆盖缺口与其闭合（协调者核验发现）**：实现者引用的规则门 `20260923T153559213-53772` 跑在旧指纹 `5CA93EAF8860…`（其后仍有代码修复），不覆盖最终字节；审查 P0 在各自 worktree 补跑 `-Suite architecture,persistence,casting -Impact` 闭合——bunny `20260923T165257850-6948`（passed、38 分类、`before==after==E2E8F241C3FE…`，与主树字节指纹一致）；muse `20260923T165345859-35032`（passed、22020 断言；指纹 `7F99B3F8…` 为 worktree 行尾变体，muse 主动披露口径差）。
+- **双匿名模型并行审查对照**（同一派单 `build/r4-review-brief.md` 逐字相同、同对象、并行；天花板不同＝bunny max／muse xhigh，已声明为混杂因素）：
+  - 两者 P0–P5 全过、**零假阳性**；协调者抽查主树可验断言（`fact_id` 式 `JSON.stringify(payload).sha256_text().substr(0,24)`、依赖表 8＋2 行、四个具名用例 `r4_display_points_do_not_read_rows`／`r4_display_facts_match_determination`／`r4_pointer_paths`／`query_contract`、`ui/action_index.gd::first_usable` 委托、`basic_attack_ui_cases.gd:84` 的 KICK 属 UI 套件）逐条相符。
+  - bunny（~15 分钟）：三屏未动取证＝`git diff --unified=0 | rg` 零命中；P3 变异 `_equipment_actions` 改回 `actions.select` → 红 `20260923T165834971-25268`（display FAIL、点名该函数）；还原（附 `ui/main.gd` SHA-256）→ 绿 `20260923T165952166-26544`（234 断言、同指纹）；如实登记自身 worktree 冷启动预热失败（不作源码结果）。
+  - muse（~34 分钟）：额外 UI 六套件（`interface` 首轮 3 红经 `-RerunFailed` 复绿 `20260923T171134867-14784`）＋runner `20260923T171312159-25700`；P3 变异 `_chain_screen` → 红 `20260923T171437693-39812`（具名断言点名）→ 绿 `20260923T171757141-27740`；P1 深至接合机制（`fact_id`／`command_domain_ready` 守卫收敛／事实来源同源）；披露 518 个 `.import` 副产物（声明无源码差异）；一处轻微口径不精（把 `basic_attacks` 规则套件 PASS 表述为“未见 KICK 红”；KICK 为 UI 用例）。
+  - 结论与取用建议：`build/r4-review-comparison.md`（两者均达可用审查者水准；bunny＝快档复核性价比高，muse＝深查／交叉印证）。
+- **既有红更新**：①`interface` 序列红经 `-RerunFailed` 可复绿（登记口径更新）；②`basic_attacks::KICK UI level-three sitting preview reads shared damage`（`tests/basic_attack_ui_cases.gd:84`，UI 套件）未变。
+- 未跑（未验证）：R5 终态与 G7；V1–V11 真人验收；`-Suite all` 全量回归；打包发布。
+- 产物：两份审查报告 `build/review-r4-*-report.md`、对比 `build/r4-review-comparison.md`、派单 `build/r4-review-brief.md` **保留待人类过目**；实现者与审查心跳随本条登记清理（审查运行目录随各自临时 worktree 删除，运行号身份留存）。
