@@ -567,7 +567,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 
 ```powershell
 & tools/check.ps1 -Suite architecture,persistence -Impact -TimeoutSeconds 900
-& tools/check.ps1 -UIOnly -UISuite display,interface,targeting,body_layout,touch -TimeoutSeconds 900
+& tools/check.ps1 -UIOnly -UISuite display,interface,targeting,body_layout,touch,card_power -TimeoutSeconds 900
 & tools/check.ps1 -Suite runner -VerifyRunner
 & tools/check-docs.ps1
 ```
