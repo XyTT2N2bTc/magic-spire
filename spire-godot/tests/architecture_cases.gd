@@ -1202,6 +1202,11 @@ const R1_BASELINE={
 }
 # R1 不删除任何记录键（候选行／view.candidates／提交身份 id 的删除在批 R5 才发生，届时 mask 显式声明）。
 const R1_MASK=[]
+# 批 R3 的显式 mask：本批唯一新增的视图键（显示事实投影，T5／T8）。行读边（D13 对应行）在本批从 ui/ 删除，
+# 但 view 的键不因此减少（候选行载体与 view.candidates 键到 R5 才删），故 mask 只声明新增键、不声明删除键。
+# view 摘要按 mask 删键后必须与 R1 冻结值逐字节相等；键集合另按 R3_VIEW_KEYS_BASE 逐条核对（防静默增删）。
+const R3_VIEW_MASK=["display_facts"]
+const R3_VIEW_KEYS_BASE=["action_log","arms","battle_item_drop","battle_relic_drop","battle_rewards","bodies","body_coverage","body_groups","body_regions","candidates","capacity","capture","card_chain","card_costs","card_instances","card_texts","carried_items","casting","character_id","climax","composite_portrait_layers","content_status","deck_cards","deck_count","demo_cycle","demo_exit","demo_finished","discard_cards","discard_count","draw_cards","draw_count","encounter","end_turn_locked","enemies","energy","energy_max","equipment_fireball_unlocked","equipment_portrait_layers","first_turn_control","guard_bind","hand","has_restraint_level","hook_contact","hook_environment_name","hook_location","hook_uses","initial_seed","items","journey","legs","logs","mana","mana_flask","mana_max","map_name","map_region","movement","npc_speech","order","pending_retain","phase","phase_caption","pose_name","posture","powers","practice","practice_description","practice_focus","practice_hint","practice_kind","practice_options","preparation_turns","prepare_left","pressure","prison","relics","rest_left","retain_left","reward_count","reward_destination","reward_panel","reward_title","room_event","room_name","rooms_completed","round","route","run_header","security","seed","shop","speech","statuses","summary","temporary_mana","tower_generation","tower_start_pending","travel_log","travel_turns","version","wall","wall_position","wall_text"]
 
 const R1_TAKEOVER_COUNTS=[0,12]
 const R1_COUNTS=[0,12,26,44]
@@ -1308,7 +1313,7 @@ static func r1_record(g, phase: String, count: int) -> Dictionary:
  out["rows_verdicts"]=r1_digest(JSON.stringify(rows.map(func(c):return [c.id,c.valid,c.reason,c.risk,c.cost,c.mana,c.mana_payment])))
  out["rows_payloads"]=r1_digest(JSON.stringify(rows.map(func(c):return c.payload)))
  out["rows_labels"]=r1_digest(JSON.stringify(rows.map(func(c):return c.label)))
- out["view"]=r1_digest(JSON.stringify(view))
+ out["view"]=r1_digest(JSON.stringify(r1_view_without_mask(view)))
  out["view_candidates"]=str(view.candidates.size())
  out["view_card_texts"]=str(view.card_texts.size())
  out["view_hand"]=str(view.hand.size())
@@ -1354,6 +1359,14 @@ static func r1_record(g, phase: String, count: int) -> Dictionary:
  out["validate_after"]=str(g.validate())
  return out
 
+# view 摘要按批 R3 的显式 mask 删键（docs/spec/candidate-removal.md §5 G6 的 mask 语义：显式声明、不得静默）。
+static func r1_view_without_mask(view: Dictionary) -> Dictionary:
+ var masked={}
+ for key in view:
+  if key in R3_VIEW_MASK: continue
+  masked[key]=view[key]
+ return masked
+
 static func r1_record_digest(record: Dictionary) -> String:
  var paths=record.keys()
  paths.sort()
@@ -1372,11 +1385,23 @@ static func behavior_baseline_equivalence(t) -> void:
  declared.sort()
  var path_problems=[]
  var value_problems=[]
+ var key_problems=[]
+ var mask_problems=[]
  for cell in cells:
   var phase=String(cell[0])
   var count=int(cell[1])
   var key="%s:%d" % [phase,count]
-  var record=r1_record(r1_build(phase,count),phase,count)
+  var built=r1_build(phase,count)
+  var view_keys=built.get_view().keys()
+  var kept=view_keys.filter(func(name):return name in R3_VIEW_KEYS_BASE)
+  var added=view_keys.filter(func(name):return not name in R3_VIEW_KEYS_BASE)
+  if kept.size()!=R3_VIEW_KEYS_BASE.size():
+   key_problems.append(key+" kept="+str(kept.size())+" frozen="+str(R3_VIEW_KEYS_BASE.size())+" missing="+str(R3_VIEW_KEYS_BASE.filter(func(name):return not name in view_keys).slice(0,3)))
+  added.sort()
+  var declared_mask=R3_VIEW_MASK.duplicate()
+  declared_mask.sort()
+  if added!=declared_mask: mask_problems.append(key+" added="+str(added)+" declared="+str(declared_mask))
+  var record=r1_record(built,phase,count)
   var paths=record.keys()
   paths.sort()
   if paths!=declared:
@@ -1396,6 +1421,8 @@ static func behavior_baseline_equivalence(t) -> void:
  t.check(path_problems.is_empty() and undeclared.is_empty(),"G6 behavior_baseline_equivalence: every cell keeps exactly the frozen record paths and the declared mask is empty: "+str(path_problems.slice(0,3)))
  value_problems.sort()
  t.check(value_problems.is_empty(),"G6 behavior_baseline_equivalence: every field equals the unmodified-source baseline; first difference "+str(value_problems.slice(0,3)))
+ t.check(key_problems.is_empty(),"G6 behavior_baseline_equivalence: every cell keeps exactly the frozen view keys outside the declared mask: "+str(key_problems.slice(0,3)))
+ t.check(mask_problems.is_empty(),"G6 behavior_baseline_equivalence: the added view keys are exactly the declared mask: "+str(mask_problems.slice(0,3)))
 
 # docs/spec/candidate-removal.md §5 G4（批 R1；R2 前置补正：写点扫描面加宽，销 R1 复核缺口①）。
 # 扫描面＝core/ 与 ui/ 的源码文本（tests／data 不进面）；写点四种形态——字段赋值（.valid=／.reason=）、

@@ -4,7 +4,7 @@ const Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
 static func run(t) -> void:
  var ui=t.ui
  var fire=ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy})
- var fire_button=ui.candidate_buttons[fire.id]
+ var fire_button=ui.candidate_buttons[ui.display_key(fire.payload)]
  var hover_before=ui.game.export_snapshot()
  await t.move_mouse(Vector2(1100,90));await t.frames()
  await t.move_mouse(fire_button.get_global_rect().get_center());await t.frames()
@@ -26,7 +26,7 @@ static func run(t) -> void:
  ui.game.state.pressure=75
  ui.render();await t.frames()
  fire=ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy})
- fire_button=ui.candidate_buttons[fire.id]
+ fire_button=ui.candidate_buttons[ui.display_key(fire.payload)]
  await t.move_mouse(Vector2(1100,90));await t.frames()
  await t.move_mouse(fire_button.get_global_rect().get_center());await t.frames()
  fire_tip=ui.find_child("TermExplanation",true,false)

@@ -13,18 +13,18 @@
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
-| `core/game.gd` | R1 抽唯一合法性判定（工作名 eligibility，未落地）；R2 `core/game.gd::dispatch` 改收类型化指令（形状＋参数合法性复核），删按 id 取行；R5 删 `core/game.gd::candidates`／`core/game.gd::_candidate`／`core/game.gd::_build_candidates`／`core/game.gd::_phase_candidates` | 五条预检（Consumables／Binding／SpecialEquipment／Cards／RelicEffects）的顺序与 `error` 文案、事务副本与全回滚、`version` 成功一次自增、执行分支、`get_view` 调用点白名单语义逐字不变 |
-| `core/game_view.gd` | R3–R5 显示点改经唯一判定取显示事实（T5）；不再物化行表；删 `view.candidates` 键 | `core/game_view.gd::build` 签名；显示字段**值**（availability／原因／风险／费用等）逐字段不变；只读 |
+| `core/game.gd` | R1 抽唯一合法性判定（工作名 eligibility，未落地）；R2 `core/game.gd::dispatch` 改收类型化指令（形状＋参数合法性复核），删按 id 取行；R3 显示事实来源（`core/game.gd::_fact`／`core/game.gd::display_fact`／`core/game.gd::shape_key` 与行动／姿态／墙面／底栏的事实构建器）；R5 删 `core/game.gd::candidates`／`core/game.gd::_candidate`／`core/game.gd::_build_candidates`／`core/game.gd::_phase_candidates` | 五条预检（Consumables／Binding／SpecialEquipment／Cards／RelicEffects）的顺序与 `error` 文案、事务副本与全回滚、`version` 成功一次自增、执行分支、`get_view` 调用点白名单语义逐字不变 |
+| `core/game_view.gd` | R3–R5 显示点改经唯一判定取显示事实（T5；R3 落地：新增 `view.display_facts` 键＝`core/game_view.gd::display_facts`）；不再物化行表；删 `view.candidates` 键 | `core/game_view.gd::build` 签名；显示字段**值**（availability／原因／风险／费用等）逐字段不变；只读 |
 | `core/first_turn_control.gd` | R1 接管阻断并入判定（不再写 `valid`／`reason`）；`select` 不再直呼行工厂；R5 行构建面删除 | `begin_turn`／`commit`／`view`／`validate` 语义；"豆包接管中"文案；`control_next` 事务内消费与回滚不变 |
-| `core/card_effects.gd` | R3 `availability` 改消费判定结果；R5 行生产（`target_candidate` 等）改显示事实构建 | availability 显示语义与文本不变 |
+| `core/card_effects.gd` | R3 `availability` 改消费判定结果，卡牌事实 `core/card_effects.gd::card_facts`／`core/card_effects.gd::target_facts`（手牌域）；R5 行生产改显示事实构建 | availability 显示语义与文本不变 |
 | `core/consumables.gd` | R5 行生产转发改显示事实构建 | 枚举语义、文案、顺序不变 |
 | `core/demo_exit.gd` | R5 行生产转发改显示事实构建 | 同上 |
-| `core/witch_character.gd` | R5 行生产转发改显示事实构建 | 同上 |
+| `core/witch_character.gd` | R3 角色2 攻击事实 `core/witch_character.gd::attack_facts`（行动栏）；R5 行生产转发改显示事实构建 | 同上 |
 | `core/room_events.gd` | R5 行生产转发改显示事实构建 | 冻结选项语义不变 |
 | `core/relic_bundle.gd` | R5 行生产转发改显示事实构建 | 同上 |
 | `core/room_services.gd` | R5 行生产转发改显示事实构建 | 同上 |
 | `core/relic_effects.gd` | R5 行生产转发改显示事实构建 | 同上 |
-| `core/prison.gd` | R5 行生产转发改显示事实构建 | 同上 |
+| `core/prison.gd` | R3 牢门解锁事实 `core/prison.gd::unlock_facts`（手牌可用性输入）；R5 行生产转发改显示事实构建 | 同上 |
 | `core/mana_flask.gd` | R5 行生产转发改显示事实构建 | 同上 |
 | `core/departure.gd` | R5 行生产转发改显示事实构建 | 同上 |
 
@@ -32,7 +32,7 @@
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
-| `ui/main.gd` | R2 A1–A60 直连与改道（A40–A45）收敛为 `emit`；`ui/main.gd::_submit` 改造为路由执行段（Q4 定名）；R3／R4 显示改线 | 唯一提交执行段；`ui/main.gd::render` 空快照取投影；checkpoint 非空才写盘；选择类点击零提交零写盘 |
+| `ui/main.gd` | R2 A1–A60 直连与改道（A40–A45）收敛为 `emit`；`ui/main.gd::_submit` 改造为路由执行段（Q4 定名）；R3 显示改线（显示键 `ui/main.gd::display_key`；姿态拖放身份改形状键）／R4 显示改线 | 唯一提交执行段；`ui/main.gd::render` 空快照取投影；checkpoint 非空才写盘；选择类点击零提交零写盘 |
 | `ui/action_index.gd` | R5 **整文件删除** | 删除前不得先改语义；删除属终态断言之一 |
 | `ui/target_queries.gd` | R4 行筛选面（`payload_candidates`／`release_*`／`body_cards`／`single_*`）改指令装配或并入分类子路由；纯显示查询（`ui/target_queries.gd::body_at`／`ui/target_queries.gd::equipment_entries`）保留 | 纯显示查询语义不变；不持游戏、控件、跨刷新缓存 |
 | `ui/quick_release_bar.gd` | R4 行取用改指令装配 | 格内显示字段与不可用原因原文不变 |

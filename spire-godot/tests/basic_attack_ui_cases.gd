@@ -40,7 +40,7 @@ static func run(t) -> void:
   button=ui.find_child("BasicAttack_"+type,true,false)
   t.check(button.drag_payload.form==1,"BASIC UI drag payload preserves selected form")
   var c=ui.actions.find("attack",{"type":type,"form":1,"enemy":ui.selected_enemy})
-  t.check(ui.candidate_buttons.has(c.id) and t.visible_text(button).contains(c.label),"BASIC UI flipped form uses its actual candidate")
+  t.check(ui.candidate_buttons.has(ui.display_key(c.payload)) and t.visible_text(button).contains(c.label),"BASIC UI flipped form uses its actual candidate")
   if type=="heavy":
    t.check(button.size.x<240 and t.visible_text(button).contains("6 × 3 伤害"),"BASIC UI multi-hit short strike fits its action slot")
    check_alignment(t,button)

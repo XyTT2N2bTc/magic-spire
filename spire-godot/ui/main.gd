@@ -727,13 +727,13 @@ func _build_action_rail() -> void:
   if quick_release_open:
    preload("res://ui/quick_release_bar.gd").build(self,container,218.6)
    return
-  var attack_choices=actions.select("attack",{"enemy":selected_enemy})
+  var attack_choices=view.display_facts.actions.filter(func(c):return String(c.payload.get("kind",""))=="attack" and String(c.payload.get("enemy",""))==selected_enemy)
   for type in attack_forms.keys():
    var forms=attack_choices.filter(func(c):return c.payload.type==type).map(func(c):return c.payload.form)
    if not forms.is_empty() and attack_forms[type] not in forms: attack_forms[type]=forms[0]
   var offers=attack_choices.filter(func(c):return c.payload.form==attack_forms.get(c.payload.type,0))
   if view.phase!="battle":
-   var spells=actions.select("attack",{"type":"fireball","enemy":""})
+   var spells=view.display_facts.actions.filter(func(c):return String(c.payload.get("kind",""))=="attack" and String(c.payload.get("type",""))=="fireball" and String(c.payload.get("enemy",""))=="")
    var spell=preload("res://ui/quick_release_bar.gd").first(spells)
    offers=[] if spell.is_empty() else [spell]
   var heavy_index=-1;var kick_index=-1
@@ -743,7 +743,7 @@ func _build_action_rail() -> void:
   if heavy_index>=0 and kick_index>=0:
    var heavy=offers[heavy_index]
    offers[heavy_index]=offers[kick_index];offers[kick_index]=heavy
-  offers.append_array(actions.select("pressure"))
+  offers.append_array(view.display_facts.actions.filter(func(c):return String(c.payload.get("kind",""))=="calm"))
   var width=218.6
   if view.phase!="battle":
    _place(_label(preload("res://ui/quick_release_bar.gd").message(self,"exploration","切换至快捷挣脱栏，可对选中的拘束具使用解除牌，也可使用已安装道具。"),15,MUTED),Rect2(402,565,650,38),container)
@@ -765,7 +765,7 @@ func _build_action_rail() -> void:
   for i in range(offers.size()):
    var c=offers[i]
    var attack=c.payload.kind=="attack"
-   var alternatives=actions.select("attack",{"enemy":selected_enemy,"type":c.payload.type}) if attack else []
+   var alternatives=attack_choices.filter(func(o):return o.payload.type==c.payload.type) if attack else []
    var summary=c.get("brief","")
    if not c.has("brief"): summary=detail_of(c).trim_suffix("。")
    var tags=c.get("brief_tags","")
@@ -791,7 +791,7 @@ func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: St
   if view.phase!="battle" and c.payload.kind=="attack": keyboard_input.select_attack(c.payload.type)
   else: command_router.emit(String(c.payload.get("kind","")),c),accent,c.payload.kind=="attack")
  btn.disabled=not c.valid;btn.clip_contents=true
- _place(btn,rect,parent);candidate_buttons[c.id]=btn
+ _place(btn,rect,parent);candidate_buttons[display_key(c.payload)]=btn
  _attack_tile_labels(btn,c,rect.size,summary,tags,accent)
  var tooltip="部位："+c.body_part+"\n消耗%d能量。\n" % c.cost+("当前施法成功率："+c.casting.percent+"\n" if c.has("casting") else "")+detail_of(c)
  if c.has("casting"): tooltip+="\n失败返还本次耗魔的50%，能量照扣。"+("蓄力保留，精神集中失去1层。" if c.payload.get("witch_action",false) else "火球术次数不消耗。")
@@ -875,13 +875,13 @@ func _basic_action_reason(c: Dictionary) -> String:
  return short.get(c.reason,c.reason.trim_suffix("。"))
 
 func _posture_layout(count: int) -> Dictionary:
- var with_move=view.phase=="battle" and not actions.select("wall_move",{"direction":"toward"}).is_empty()
+ var with_move=view.phase=="battle" and not view.display_facts.wall_moves.filter(func(c):return String(c.payload.get("direction",""))=="toward").is_empty()
  var rows=count+(1 if with_move else 0)
  var stride=minf(48.0,100.0/maxi(1,rows)) if with_move else 48.0
  return {"top":725-rows*stride,"stride":stride,"with_move":with_move}
 
 func _posture_controls() -> void:
- var choices=actions.select("posture").filter(func(c):return c.payload.adjacent)
+ var choices=view.display_facts.postures.filter(func(c):return c.payload.adjacent)
  if choices.is_empty(): return
  var ordinary=choices.filter(func(c):return not c.payload.wall)
  var placement=_posture_layout(ordinary.size())
@@ -897,7 +897,8 @@ func _posture_controls() -> void:
   var btn=_button(text,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN if c.payload.wall else GOLD,true)
   btn.custom_minimum_size.y=placement.stride-4
   btn.name="Posture_"+c.payload.dest+("_wall" if c.payload.wall else "")
-  btn.drag_payload={"self_action_id":c.id,"version":view.version}
+  # 拖放身份＝显示键（形状）；R5 域的行身份键仍可用（过渡）。
+  btn.drag_payload={"self_action_id":display_key(c.payload),"version":view.version}
   btn.drag_label=c.label
   btn.add_theme_font_size_override("font_size",10 if placement.stride<48 else 12)
   btn.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
@@ -907,7 +908,7 @@ func _posture_controls() -> void:
    btn.add_theme_stylebox_override(state_name,style)
   btn.disabled=not c.valid;btn.tooltip_text=detail_of(c) if c.valid else c.reason
   _place(btn,Rect2(128 if c.payload.wall else 0,index*placement.stride,121 if has_wall else 249,placement.stride-4),container)
-  candidate_buttons[c.id]=btn
+  candidate_buttons[display_key(c.payload)]=btn
 
 # 显示边界的唯一卡面取用点（docs/ondemand-copy.md §3）：命中投影即用，未命中经 §1.4 单条入口补算并记录。
 func card_entry(type: String, uid: String="") -> Dictionary:
@@ -927,6 +928,11 @@ func card_face_name(type: String, uid: String, free: bool) -> String:
  if names.has(side): return names[side]
  _record_projection_miss("card_face_name",type+"#"+side)
  return ""
+
+# 显示键（R3 起的手牌／行动／姿态／墙面／底栏按钮注册键）：指令形状 → 稳定键（core 的 shape_key），
+# 提交身份 id 不参与；同一形状的按钮只有一个（G2 已断言每个 (kind, params) 恰有一条候选行）。
+func display_key(payload: Dictionary) -> String:
+ return game.shape_key(payload)
 
 # 候选详情的唯一取用点（docs/ondemand-copy.md §3）：命中即用，缺失时经 §2 只读入口按 payload 补算并记录。
 func detail_of(candidate: Dictionary) -> String:
@@ -1139,7 +1145,7 @@ func _hand() -> void:
    b.drag_payload={};b.disabled=choice.is_empty() or not choice.valid
    b.chosen=not b.disabled;b.modulate=Color(0.45,0.45,0.45,1) if b.disabled else Color.WHITE
    b.set_meta("hand_selectable",not b.disabled);b.queue_redraw()
-   if not choice.is_empty(): candidate_buttons[choice.id]=b
+   if not choice.is_empty(): candidate_buttons[display_key(choice.payload)]=b
   if is_instance_valid(card_motion) and card_motion.pending_draws.has(card.uid): b.hide()
 
 func _climax_narration() -> void:
@@ -1201,10 +1207,10 @@ func _bottom_controls(include_tools: bool=true) -> void:
  _place(draw_button,Rect2(161,835,198,42))
  var discard_button=_button("弃牌堆\n%d" % view.discard_count,func():_open_drawer("show_deck","discard"));discard_button.name="DiscardPileButton"
  _place(discard_button,Rect2(1327,786,82,70))
- for c in actions.select("flow"):
+ for c in view.display_facts.flow:
   var b=_button(c.label,func(): command_router.emit(String(c.payload.get("kind","")),c),CYAN if c.payload.kind=="end" else GOLD)
   _place(b,Rect2(1424,735 if c.payload.kind=="end" else 837,155,90 if c.payload.kind=="end" else 38))
-  candidate_buttons[c.id]=b
+  candidate_buttons[display_key(c.payload)]=b
   if c.payload.kind=="end":
    end_button=b;b.name="EndTurnButton";b.add_theme_font_size_override("font_size",24)
    b.disabled=not c.valid;b.tooltip_text=c.reason
@@ -1214,7 +1220,7 @@ func _bottom_controls(include_tools: bool=true) -> void:
     seal.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;seal.stretch_mode=TextureRect.STRETCH_SCALE
     seal.mouse_filter=Control.MOUSE_FILTER_IGNORE
     _place(seal,Rect2(0,0,155,90),b)
- var surrender=actions.find("surrender")
+ var surrender=view.display_facts.surrender
  if not surrender.is_empty():
   var button=_button("确定要投降吗" if surrender_version==view.version else "投降",func():pass,RED)
   button.name="SurrenderButton";button.add_theme_font_size_override("font_size",16)
@@ -1245,11 +1251,11 @@ func _resource_meter(id: String, rect: Rect2, value: float, maximum: float, colo
  _place(number_label,Rect2(rect.position+Vector2(0,(rect.size.y-22)/2),Vector2(rect.size.x,22)))
 
 func _wall_controls() -> void:
- var choices=actions.select("wall_move",{"direction":"toward"})
+ var choices=view.display_facts.wall_moves.filter(func(action):return String(action.payload.get("direction",""))=="toward")
  if choices.is_empty(): return
  var c=choices[0]
  var text="向墙移动 · %d格 / %d能量" % [c.payload.distance,c.cost] if c.payload.distance>0 else "向墙移动 · 距墙0格"
- var placement=_posture_layout(actions.select("posture").filter(func(action):return action.payload.adjacent and not action.payload.wall).size())
+ var placement=_posture_layout(view.display_facts.postures.filter(func(action):return action.payload.adjacent and not action.payload.wall).size())
  if not c.valid and (c.payload.distance>0 or not view.guard_bind.is_empty()):
   text=c.reason if placement.with_move and placement.stride<48 else text+"\n"+c.reason
  var btn=_button(text,func():command_router.emit(String(c.payload.get("kind","")),c),GOLD)
@@ -1264,7 +1270,7 @@ func _wall_controls() -> void:
    style.content_margin_top=2;style.content_margin_bottom=2
    btn.add_theme_stylebox_override(state_name,style)
  _place(btn,Rect2(1330,placement.top if placement.with_move else 493,249,placement.stride-4 if placement.with_move else 47))
- candidate_buttons[c.id]=btn
+ candidate_buttons[display_key(c.payload)]=btn
 
 func _body_at(slot: String) -> Dictionary:
  return TargetQueries.body_at(view,slot)
@@ -2400,11 +2406,18 @@ func _activate_guard_bind_target() -> void:
   notice=c.reason
   render(view)
 
+# 姿态拖放的显示事实解析（姿态域，R3）：按钮按显示键（形状）携带；R5 域的行身份键保留回落。
+func _self_action(data: Dictionary) -> Dictionary:
+ var key=String(data.get("self_action_id",""))
+ for f in view.display_facts.postures:
+  if display_key(f.payload)==key: return f
+ return actions.by_id.get(key,{})
+
 func _can_drop_on_player(data: Dictionary) -> bool:
  if data.get("version",-1)!=view.version: return false
  if data.has("self_action_id"):
-  var c=actions.by_id.get(data.self_action_id,{})
-  return not c.is_empty() and c.group=="posture" and c.valid
+  var c=_self_action(data)
+  return not c.is_empty() and String(c.payload.get("kind",""))=="posture" and c.valid
  var self_card=actions.find("card",{"uid":data.get("card_uid",""),"self_target":true,"free":data.get("free",false)})
  if not self_card.is_empty(): return self_card.valid
  if _card_is_free(data.get("card_uid",""),data.get("free",false)):
@@ -2418,7 +2431,7 @@ func _player_drag_preview(data: Dictionary) -> void:
   _drag_rejection(actor_targets.hero,"行动已失效，请重新选择。")
   return
  if data.has("self_action_id"):
-  var c=actions.by_id.get(data.self_action_id,{})
+  var c=_self_action(data)
   _drag_rejection(actor_targets.hero,"行动已失效，请重新选择。" if c.is_empty() else ("" if c.valid else c.reason))
   return
  var self_card=actions.find("card",{"uid":data.get("card_uid",""),"self_target":true,"free":data.get("free",false)})
@@ -2435,7 +2448,7 @@ func _receive_player_drop(data: Dictionary) -> void:
  if not _can_drop_on_player(data): return
  if command_router.emit("card",{"kind":"card","uid":data.get("card_uid",""),"free":data.get("free",false)},int(data.version)).handled: return
  if data.has("self_action_id"):
-  var row=actions.by_id.get(data.self_action_id,{})
+  var row=_self_action(data)
   if not row.is_empty(): command_router.emit(String(row.payload.get("kind","")),row,int(data.version))
   return
  player_pick_data=data.duplicate(true)
@@ -2549,8 +2562,18 @@ func _player_picker() -> void:
 func _selecting_hand() -> bool:
  return player_pick and player_pick_data.get("hand_selection",false)
 
+# 手牌选择态的显示读取（手牌域，R3）：从手牌显示事实里按形状取该组合，不再取候选行。
 func _hand_choice(uid: String) -> Dictionary:
- return actions.find("card",{"uid":player_pick_data.card_uid,"free":player_pick_data.free,"hand_uid":uid,"target":player_pick_data.target,"slot":player_pick_data.slot})
+ for f in view.display_facts.cards:
+  var p=f.payload
+  if String(p.get("kind",""))!="card": continue
+  if String(p.get("uid",""))!=String(player_pick_data.get("card_uid","")): continue
+  if bool(p.get("free",false))!=bool(player_pick_data.get("free",false)): continue
+  if String(p.get("hand_uid",""))!=uid: continue
+  if String(p.get("target",""))!=String(player_pick_data.get("target","")): continue
+  if String(p.get("slot",""))!=String(player_pick_data.get("slot","")): continue
+  return f
+ return {}
 
 func _hand_target_picker() -> void:
  var panel=_panel(Rect2(560,564,770,48));panel.name="HandSelectionBar"

@@ -248,12 +248,21 @@ static func candidates(g, out: Array) -> void:
  if reason=="" and not p.key and g.movement_profile().speed<1: reason="自行开锁逃离需要行动速度至少1；请先站起。"
  if reason=="": reason=capacity_reason(g)
  add(out,g,"door_exit","离开牢门",{"kind":"prison.door_exit","args":{},"fallback":door_exit_detail(g,{})},0,reason)
+ for f in unlock_facts(g): g._fact_row(out,f)
+
+# 牢门解锁事实（手牌域的手牌可用性输入，docs/spec/candidate-removal.md §2.1 T5／T8；批 R3）：
+# 手牌上屏的术式解锁牌可用性与本处行构建共用同一份事实，不再取候选行。
+static func unlock_facts(g) -> Array:
+ var facts=[]
+ if g.state.phase!="prison": return facts
+ var p=g.state.prison
  for card in g.state.hand:
   if g.Cards.Rules.SPECS[card.type].mode!="unlock": continue
-  reason="牢门已经打开。" if p.door_open else ("需要先到牢门前。" if not Space.at(g,"door") else g.Cards.body_reason(g,card.type))
+  var reason="牢门已经打开。" if p.door_open else ("需要先到牢门前。" if not Space.at(g,"door") else g.Cards.body_reason(g,card.type))
   var payload={"kind":"prison","action":"unlock","uid":card.uid,"type":card.type,"target":"prison_door","slot":"wrist","mode":"unlock","free":false}
   var door_args={"type":card.type}
-  g._candidate(out,payload,g.B.CARD_NAMES[card.type]+" · 牢门",{"kind":"prison.unlock_door","args":door_args,"fallback":unlock_door_detail(g,door_args)},g.Cards.energy_cost(g,card.type,false),g.Cards.face_mana(g,card.type,false),reason,"","prison")
+  facts.append(g._fact(payload,g.B.CARD_NAMES[card.type]+" · 牢门",{"kind":"prison.unlock_door","args":door_args,"fallback":unlock_door_detail(g,door_args)},g.Cards.energy_cost(g,card.type,false),g.Cards.face_mana(g,card.type,false),reason,"","prison"))
+ return facts
 
 static func capacity_reason(g) -> String:
  return "随身道具超出容量，请在道具栏使用或放弃多出的工具。" if g.carried_items()>g.item_capacity() else ""

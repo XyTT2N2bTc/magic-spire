@@ -193,11 +193,11 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | T2 | N1 指令路由 → N2 分类子路由 | 调用 | 唯一分类点：按 `kind` 查声明表转子路由；表外 `kind` fail-closed（拒绝并记录，不静默） | （新） |
 | T3 | N2 分类子路由 → `core/game.gd::dispatch` | 调用 | **唯一后端提交边**（UI 侧 `dispatch` 调用点唯一，实测断言锁住） | B1（改签名） |
 | T4 | `core/game.gd::dispatch` → N4 唯一判定 | 调用 | 提交侧**强制复核**（指令形状＋参数合法性＋判定），替代按 id 取行 | B2 |
-| T5 | `core/game_view.gd::build` → N4 唯一判定 | 调用 | 显示侧取可用／原因／风险（按显示点计算，不物化全表） | D2、D3、D4、D6 |
+| T5 | `core/game_view.gd::build` → N4 唯一判定 | 调用 | 显示侧取可用／原因／风险（按显示点计算，不物化全表）；R3 落地：`core/game_view.gd::display_facts` 逐显示点调 `core/game.gd::display_fact` | D2、D3、D4、D6 |
 | T6 | N2 分类子路由 → `core/game.gd::candidate_detail`／`live_card_text`（经 `ui/main.gd` helper） | 调用 | detail／卡面按需现算（现状保留） | D11、D12（保留） |
 | T7 | `core/game.gd::dispatch` → N6 执行与事务 | 调用＋写入 | 事务副本、失败全回滚、成功 `version` 一次自增（不变） | B5–B8、B10（保留） |
 | T8 | N7 投影 → `view` 显示事实 | 数据 | 每显示点的 `{可用, reason, risk, cost, …}`＋现有显示字段；**不含候选行、不含提交身份 id** | D6 |
-| T9 | N8 显示消费 ← `view` 显示事实 | 数据 | 节函数按显示点读显示事实上屏；不可用文本＝判定 `reason` 原文 | D9、D10、D13 |
+| T9 | N8 显示消费 ← `view` 显示事实 | 数据 | 节函数按显示点读显示事实上屏；不可用文本＝判定 `reason` 原文；R3 落地：显示点按 `ui/main.gd::display_key`（＝`core/game.gd::shape_key` 的形状键）取事实 | D9、D10、D13 |
 | T10 | N9 持久化（E1–E5） | 调用＋写入 | 世界替换与固定点写盘（不变） | E1–E5（保留） |
 
 **P2 口径**：T4（提交侧）与 T5（显示侧）是**同一判定实现的两条调用边**，不构成第二份判定；
@@ -208,6 +208,9 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 - **删边（随对应增边同批删除）**：A1–A60（54 条直连＋6 条改道链，收敛为 T1）、B2（按 id 取行复核）、
   C1–C8（候选物化整组，含 `first_turn_control` 的行写点与直呼行工厂）、D2、D3、D4（改走 T5）、D6、
   D8、D9、D10、D13（行索引与行筛选）。
+  **R3 已删 D13 的手牌／行动／姿态／墙面／底栏行读边**（`ui/main.gd::_build_action_rail`／`_posture_layout`／
+  `_posture_controls`／`_wall_controls`／`_bottom_controls`／`_hand_choice`；核对面＝`tests/display_ui_cases.gd::r3_display_points_do_not_read_rows`），
+  R4 删装备／快捷解除／拖放／道具行，R5 删服务／事件／监狱／路线／奖励／出发行。
 - **新增边**：T1、T2、T3（签名改）、T4、T5。
 - **保留边**：B1（签名改）、B3–B7、B9、B10、C9、D1、D5、D11、D12、E1–E5。
 - **终态断言**（全部批次完成后 `rg` 复算）：`candidates`／`_candidate`／`_build_candidates`／
@@ -460,7 +463,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 | --- | --- | --- | --- |
 | **R1** | 判定收口（行为零变化）：从 `core/game.gd::_candidate` 抽出**唯一合法性判定**（工作名 eligibility，未落地）；`_candidate` 改为调它；接管阻断（现 `core/first_turn_control.gd::select` 写 `blocked.valid`／`blocked.reason`）改为判定内读接管状态返回同文案——销 DUP2 | Gherkin 4、6；行为与未改源码基线逐字段相等；「写 `valid`／`reason` 的位置只有判定一处」源文本断言 | 人审通过 |
 | **R2** | 指令收口＋后端身份复核：落地指令形状、指令路由、分类子路由（新 UI 文件＝提案获批，或 Q1 选定落法）；A1–A60 收敛为 T1（同批删直连与改道链）；`core/game.gd::dispatch` 改收类型化指令，复核＝指令形状＋参数合法性＋判定（T4），**删除按 id 取行（B2）与提交身份 id**；拒绝文案逐字不变 | Gherkin 1、2、3、8；A／B 边表 `rg` 复算（直连 0 条、UI→dispatch 唯一） | R1；Q1 裁定；§3.3 清单经人类过目（Q5 裁定） |
-| **R3** | 显示改线・手牌／行动／姿态／墙面／底栏域：这些显示点改读判定显示事实（T5／T9），同批删这些点的行读边（D13 对应行）；`ui/main.gd::detail_of`／`card_entry` 不动 | Gherkin 5、6（该域显示文本逐字相等） | R2 |
+| **R3** | 显示改线・手牌／行动／姿态／墙面／底栏域：这些显示点改读判定显示事实（T5／T9），同批删这些点的行读边（D13 对应行）；`ui/main.gd::detail_of`／`card_entry` 不动。**已落地**：事实来源＝`core/game.gd::_fact`／`core/game.gd::display_fact`（行与显示事实共用同一事实与同一判定），投影键＝`view.display_facts`（G6 的显式 mask），显示键＝`core/game.gd::shape_key` | Gherkin 5、6（该域显示文本逐字相等）——G5 落 `tests/display_ui_cases.gd::display_facts_match_determination`（display 分类；`targeting`／`body_layout` 两分类的域属 R4） | R2 |
 | **R4** | 显示改线・装备／快捷解除／拖放／道具域：`ui/target_queries.gd` 行筛选面改指令装配（并入分类子路由），纯显示查询保留；同批删对应行读边（D9／D10 对应行）；DUP4 收敛（保留首／末项回退各自可见行为） | Gherkin 5、6（该域）＋拖放／快捷解除真实输入例 | R3 |
 | **R5** | 显示改线・服务／事件／监狱／路线／奖励／出发域＋**行载体删除**：各生产者改投影显示事实构建；删除 `core/game.gd::candidates`／`_candidate`／`_build_candidates`／`_phase_candidates` 与 `ui/action_index.gd`（销 DUP3／DUP5）；`view.candidates` 键删除 | Gherkin 5、6、7、9；终态断言全绿；基线等价（mask 显式声明删除集合） | R4 |
 
@@ -497,7 +500,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
    - When 扫描 `core/` 与 `ui/` 中对 `valid`／`reason` 的写点
    - Then 写点只有唯一判定一处（接管阻断在判定内返回同文案）；`ui/` 无第二判定实现；显示不可用文本
      等于判定 `reason` 原文（不改写、不拼接）
-5. `display_facts_match_determination`（`display`／`targeting`／`body_layout`）
+5. `display_facts_match_determination`（`display`／`targeting`／`body_layout`；R3 落地 `display` 分类，夹具矩阵 0／12／26／44 件 × 战斗／整备／休息＋未改源码基线；`targeting`／`body_layout` 的域随 R4）
    - Given 夹具矩阵（0／12／26／44 件 × 战斗／整备／休息／商店／事件／监狱，同种子）
    - When 逐显示点读取显示事实（手牌 availability、装备／快捷解除可用与原因、道具 target_groups／
      unavailable_reasons、行动／姿态／墙面／底栏按钮、路线／奖励／服务／事件／监狱条目）

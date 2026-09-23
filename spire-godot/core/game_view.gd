@@ -190,6 +190,41 @@ static func _build_equipment_entry(g, e: Dictionary) -> Dictionary:
  return {"id":e.id,"name":g._equipment_name(e),"image":preload("res://data/equipment_images.gd").path(e),"card_status":"\n".join(card_status),"lock_only":lock_only,"lockable":Equipment.allows(e,"lock") or g.SpecialEquipment.is_chastity(e),"tier":current_tier,"durability":e.durability,"maximum":e.maximum,"ratio":e.durability/e.maximum,"locked":e.locked,"linked":linked,
   "root_id":e.get("root_id",""),"part":e.get("part",""),"position_text":Equipment.position_text(e),"sort_order":Equipment.anatomical_order(e),"material_name":Equipment.material_name(e),"methods":Equipment.method_text(e),"description":description,"summary":summary}
 
+# 显示事实投影（docs/spec/candidate-removal.md §2.1 T5／T8；批 R3 的手牌／行动／姿态／墙面／底栏域）：
+# 每个显示点的事实经唯一判定（core/game.gd::eligibility）按显示点现算，不物化行表、不带提交身份 id。
+# 键面＝显示点分组；条目＝payload＋显示字段＋判定结论。
+#   actions＝行动栏（基础攻击＋装备自解火球＋深呼吸）；flow＝底栏收尾；surrender＝底栏投降（无实例时为空字典）；
+#   postures／wall_moves／cards（手牌域：卡牌组＋牢门解锁，手牌可用性的输入）。
+static func display_facts(g, actions: Array) -> Dictionary:
+ var lock=g.eligibility_takeover()
+ var chosen=_takeover_step(g,actions)
+ var rail: Array=[]
+ rail.append_array(g.attack_facts())
+ rail.append_array(g.equipment_spell_facts())
+ var flow_all=g.flow_facts()
+ rail.append_array(flow_all.filter(func(f):return String(f.payload.get("kind",""))=="calm"))
+ var flow=flow_all.filter(func(f):return String(f.payload.get("kind",""))!="calm")
+ var cards: Array=[]
+ for card in g.state.hand: cards.append_array(g.Cards.card_facts(g,card))
+ cards.append_array(g.Prison.unlock_facts(g))
+ var surrender=g.surrender_fact()
+ return {"actions":_fact_list(g,rail,lock,chosen),"flow":_fact_list(g,flow,lock,chosen),"surrender":{} if surrender.is_empty() else _fact_list(g,[surrender],lock,chosen)[0],"postures":_fact_list(g,g.posture_facts(),lock,chosen),"wall_moves":_fact_list(g,g.wall_move_facts(),lock,chosen),"cards":_fact_list(g,cards,lock,chosen)}
+
+# 接管锁（Gherkin 8 的文案逐字不变）：阻断结论＝唯一判定的 eligibility_takeover，步骤选择＝first_turn_control 的
+# 唯一选择结果。过渡说明：选择结果今日标注在候选行上（automated），R5 删行载体时随之改为落在显示事实的形状上。
+static func _takeover_step(g, actions: Array) -> String:
+ for c in actions:
+  if bool(c.get("automated",false)): return g.shape_key(c.payload)
+ return ""
+
+static func _fact_list(g, source: Array, lock: Dictionary, chosen: String) -> Array:
+ var result: Array=[]
+ for f in source:
+  var fact=g.display_fact(f)
+  if not lock.is_empty() and g.shape_key(f.payload)!=chosen: fact.merge(lock,true)
+  result.append(fact)
+ return result
+
 # Read-only projection. All gameplay changes remain in game.gd.
 static func build(g) -> Dictionary:
  var state=g.state
@@ -197,18 +232,7 @@ static func build(g) -> Dictionary:
  for action in actions:
   var release=ReleaseView.preview(g,action)
   if not release.is_empty(): action.release_preview=release
-  if action.payload.kind=="attack" and g.Cards.Rules.FIXED_MAGIC.has(action.payload.type):
-   action.casting=g.cast_view(g.Cards.cast_profile(g,action.payload.type,action.mana>0))
-  if action.payload.kind=="attack":
-   action.body_part={"strike":"双臂","heavy":"双臂／双腿","kick":"双腿"}.get(action.payload.type,"")
-   if action.has("casting"):
-    var part=action.casting.get("source_part",action.casting.part)
-    action.body_part="脚趾" if part=="toes" else g.Cards.Rules.CAST_PART_NAMES[part]
-  elif action.payload.kind=="calm":
-   var calm=g.Pressure.calm(g)
-   action.body_part="嘴部"
-   action.brief="快感－%s" % g.number(calm.reduction)
-   action.brief_tags="下回合＋%d能量 · %d/%d次" % [g.B.CALM_NEXT_ENERGY,calm.remaining,g.B.CALM_USES_PER_TURN]
+ var display=display_facts(g,actions)
  var physical_pieces=g.physical_pieces()
  var body_coverage={"points":[],"materials":portrait_materials(g,physical_pieces)}
  for e in physical_pieces:
@@ -244,7 +268,7 @@ static func build(g) -> Dictionary:
   hand.append({"uid":card.uid,"type":card.type,"name":B.CARD_NAMES[card.type],"cost":"—" if B.CARD_TRAITS.get(card.type,{}).get("unplayable",false) else g.Cards.Rules.energy_label(card.type),"tag":info[0],"bound":bound,"free":info[2],"note":info[3],"retained":B.CARD_TRAITS.get(card.type,{}).get("retain",false) or card.retain_until>state.tick,"single_face":g.Cards.Rules.single_face(card.type)})
   hand.back().merge(g.Cards.Rules.classification(card.type))
   hand.back().merge(g.Cards.metadata(g,card.type,card.uid),true)
-  var choices=actions.filter(func(c):return c.payload.get("uid","")==card.uid and c.payload.kind in ["card","prison"])
+  var choices=display.cards.filter(func(f):return f.payload.get("uid","")==card.uid and f.payload.get("kind","") in ["card","prison"])
   hand.back().unplayable=B.CARD_TRAITS.get(card.type,{}).get("unplayable",false)
   hand.back().availability={"free":g.Cards.availability(g,card,true,choices),"bound":g.Cards.availability(g,card,false,choices)}
   hand.back().magic=hand.back().cast_faces.bound or hand.back().cast_faces.free
@@ -351,7 +375,7 @@ static func build(g) -> Dictionary:
   "wall":state.wall,"wall_position":wall_position,"wall_text":wall_position.name+" · "+wall_position.status,
   "practice":state.practice,"practice_kind":state.practice_kind,"practice_description":practice_table.get(state.practice_kind,Tower.PRACTICES.equipment).spec.description,"practice_hint":practice_table.get(state.practice_kind,Tower.PRACTICES.equipment).spec.hint,"practice_options":practice_options,"practice_focus":practice_table.get(state.practice_kind,Tower.PRACTICES.equipment).focus,
   "tower_start_pending":state.tower_start_pending,"map_name":"监狱" if state.map_region=="prison" else "塔路","map_region":state.map_region,"room_name":"选择出狱起点" if state.tower_start_pending else (g.room_data(state.room).name if state.room=="prison" else (Tower.practice_spec(state.practice_kind).name if state.practice else g.room_data(state.room).name)),"route":[] if state.practice or state.room=="prison" else g.route_view(actions),"movement":g.movement_profile(),"journey":state.journey.duplicate(true),"travel_turns":state.travel_turns,"rooms_completed":state.completed_rooms.size(),"reward_count":state.reward_count,
-  "first_turn_control":g.FirstTurnControl.view(g,actions),"candidates":actions,"logs":state.logs.duplicate(true),"summary":state.summary,"prepare_left":state.prepare_left,"preparation_turns":g.preparation_turns(),"draw_count":state.draw.size(),"discard_count":state.discard.size(),"draw_cards":state.draw.map(func(card):return {"uid":card.uid,"type":card.type}),"discard_cards":state.discard.map(func(card):return {"uid":card.uid,"type":card.type}),"deck_count":state.deck.size(),"deck_cards":state.deck.map(func(card):return {"uid":card.uid,"type":card.type}),"pending_retain":state.pending_retain,
+  "first_turn_control":g.FirstTurnControl.view(g,actions),"candidates":actions,"display_facts":display,"logs":state.logs.duplicate(true),"summary":state.summary,"prepare_left":state.prepare_left,"preparation_turns":g.preparation_turns(),"draw_count":state.draw.size(),"discard_count":state.discard.size(),"draw_cards":state.draw.map(func(card):return {"uid":card.uid,"type":card.type}),"discard_cards":state.discard.map(func(card):return {"uid":card.uid,"type":card.type}),"deck_count":state.deck.size(),"deck_cards":state.deck.map(func(card):return {"uid":card.uid,"type":card.type}),"pending_retain":state.pending_retain,
   # Run identity (docs/spec/seed-identity.md): the map chip reads it; existing keys and order unchanged.
   "initial_seed":state.initial_seed,"tower_generation":state.tower_generation}
 

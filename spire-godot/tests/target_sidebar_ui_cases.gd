@@ -131,7 +131,7 @@ static func run(t) -> void:
  await press(t,ui.actor_targets[second])
  t.check(ui.selected_enemy==second and ui.game.export_snapshot()==before,"TARGET sprite click selects enemy without action or random change")
  t.check(ui.layout.get_instance_id()==layout_id and ui.card_buttons.values()[0].get_instance_id()==card_id and ui.game.view_reads==reads,"TARGET selection updates attacks without rebuilding scene/cards or reprojecting rules")
- var attacks=ui.view.candidates.filter(func(c):return c.group=="attack" and ui.candidate_buttons.has(c.id))
+ var attacks=ui.view.candidates.filter(func(c):return c.group=="attack" and ui.candidate_buttons.has(ui.display_key(c.payload)))
  t.check(attacks.size()==4 and attacks.all(func(c):return c.payload.enemy==second),"TARGET all four rendered attacks now reference clicked enemy")
  await t.open_menu();await Navigation.press(t,"OpenLog")
  t.check(ui.show_log and not ui.show_menu,"LOG menu opens one shared log drawer")

@@ -564,7 +564,7 @@ static func ready_to_strike(t) -> void:
   await preload("res://tests/curse_ui_cases.gd").click_card(t,source.uid)
   t.check(ui.find_child("HandTargetPicker",true,false)==null and ui.find_child("HandSelectionBar",true,false)!=null and ui.game.export_snapshot()==before,"READY UI clicking either face selects directly in the hand without a second window or payment")
   var options=ui.actions.select("card",{"uid":source.uid,"free":free})
-  t.check(options.size()==2 and options.all(func(c):return ui.candidate_buttons.get(c.id)==ui.card_buttons[c.payload.hand_uid]),"READY UI duplicate cards remain separate selectable physical targets")
+  t.check(options.size()==2 and options.all(func(c):return ui.candidate_buttons.get(ui.display_key(c.payload))==ui.card_buttons[c.payload.hand_uid]),"READY UI duplicate cards remain separate selectable physical targets")
   t.check(ui.card_buttons[source.uid].disabled and not ui.card_buttons[chosen.uid].disabled and ui.card_buttons[chosen.uid].get_meta("hand_selectable",false),"READY UI dims source and highlights actual eligible hand cards")
   if not free: await t.capture("ui-hand-exhaust-selection.png")
   await Click.press(t,ui.find_child("HandTargetCancel",true,false));await t.frames()

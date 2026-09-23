@@ -3,6 +3,101 @@ const Navigation=preload("res://tests/interface_ui_cases.gd")
 const Settings=preload("res://ui/display_settings.gd")
 const Portrait=preload("res://ui/equipment_portrait.gd")
 const Art=preload("res://ui/pixel_art.gd")
+const Cases=preload("res://tests/architecture_cases.gd")
+
+# docs/spec/candidate-removal.md §5 G5（批 R3 的手牌／行动／姿态／墙面／底栏域）：夹具矩阵 0／12／26／44 件
+# × 战斗／整备／休息（同种子 42）。①每个显示点的可用／原因／风险／费用与唯一判定对同一形状的输出逐字段相等
+# （同一形状恰有一条候选行＝G2 已断言的前提）；②显示文本与未改源码基线逐字相等（基线于批 R3 前用未改源码复算，
+# 只含显示文本字段，不含提交身份 id）。键＝显示点（kind＋声明 params 的 8 位摘要；手牌点＝hand|uid）。
+const R3_G5_CELLS=[["battle",0],["battle",12],["battle",26],["battle",44],["prepare",0],["prepare",12],["prepare",26],["prepare",44],["rest",0],["rest",12],["rest",26],["rest",44]]
+const R3_G5_BASELINE={
+ "battle:0":{"attack|08fca583":"ebcecd4a035227be67b22d098ba35a83","attack|0c0c7bd1":"0a1b193599a04105a0d109039781b9b8","attack|113750c3":"237d7d23d5ab52c223807e9a90b3bf70","attack|2c270d2a":"eb89680af2670fe8c0f8b312b9861e0b","attack|52271fb5":"4de1bd5271b4cda78e40e480149e5920","attack|52fc0492":"9eed933e9067640e55df0697bf87aae5","attack|576c7b23":"638426dd3d8bc3f4cfc2ce8c351d6d32","attack|57c9f6c8":"9d8c1538d03513e2dc45f55a28a5546d","attack|6234891c":"495dfff5b54eba4ba4d31aa180db5c06","attack|828e3ba0":"1b01362e632760344a9d3c8fd687ae49","attack|a2e396da":"e24c68f50bc5da0b10030899f2e348a6","attack|d845d27a":"e0cf1531d0f801334eb0b6112957f9b7","attack|e01afa84":"e03c0e7604d0d09f5874c40bf3707e6b","attack|e271ef98":"93e85e7c5148fb4adb815a0e1cc062e9","attack|e8b9ed92":"21c8238f2244fe1a2e94c381bc0efc85","attack|edbfd60b":"237d7d23d5ab52c223807e9a90b3bf70","attack|f1466260":"59035bc1ddd448038b67af9bd27ab48a","attack|fd8648f7":"36c7a68bbc66301508eeec21d95013c2","calm|44136fa3":"22f22bd5655c18cf140d6b62a6d553c0","end|44136fa3":"669b85ed16826d266af4864f98c18aff","hand|card_1":"2cef93ec87602eca7a69f21b2dd03bfe","hand|card_10":"dc7af853ad29313100ec20d785605a3f","hand|card_4":"b6c18d758f81d807b1e6082e625c5efb","hand|card_7":"2cef93ec87602eca7a69f21b2dd03bfe","hand|card_9":"25301a25f02a59e025f9fe69d72a77a1","posture|415624d6":"2dd0890dd2101b22bb642e55937056c0","posture|99cbd16f":"f19cc76fdf4e9eddc9289705ea7c699b","posture|b7ae54f1":"1ba4b0f2263a41546ccdefde8482bf31","surrender|44136fa3":"be8c1cda992e77565be9e8d4c859f37a","wall_move|3c876c16":"5f366e62149218c26561a0c838ac79ff","wall_move|8d07fe3f":"57383e77989ec6113b5bcd39b30ae430"},
+ "battle:12":{"attack|08fca583":"6fc557d137f0980f6469cff113cf059f","attack|0c0c7bd1":"ec60867ee6befbea6b04befac9d3b2e4","attack|113750c3":"187dd276d48337c9351f73f86651a8cf","attack|2c270d2a":"a388e0c26f0abf0f4c96743da1b57a1a","attack|52271fb5":"f7342cf5520c97bee4425ed69ab7d2df","attack|52fc0492":"c31235bb26bba9b7db939b7f1b1b0996","attack|576c7b23":"08401c88d053d4aa4e8dd539b3d50abe","attack|57c9f6c8":"732abe3ba841068a101537b8d18e2cc7","attack|6234891c":"fdaa61935e43240f89bbebaba020acda","attack|828e3ba0":"afdfb2a5e743000cb0576e684ac2fdb8","attack|a2e396da":"febd5617f363b273eafd5d718fc10373","attack|d845d27a":"bd728aa7a950c3e6b3c9516b86ffe9b6","attack|e01afa84":"a7ce455637c28c61542c83891e079be3","attack|e271ef98":"4c3628ce5c4d941f517e2a0398e8e512","attack|e8b9ed92":"beb6d0508599c0026a617aff36c2bd10","attack|edbfd60b":"187dd276d48337c9351f73f86651a8cf","attack|f1466260":"86dafa295a7c4d4388009121f3446110","attack|fd8648f7":"f5972417ee2f3f33a859b8e0d8dbd553","calm|44136fa3":"41ea03020ea2e37ff17b9aa376452480","end|44136fa3":"669b85ed16826d266af4864f98c18aff","hand|card_1":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_10":"6a43699b10926047d1f401cd755856fe","hand|card_4":"d634fc537a1de9bf73f2a74480de9a13","hand|card_7":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_9":"d9dccd7e156b95a9c8063c1bfcd9901d","posture|415624d6":"c068e1c3526291d1cddfb6cfce8891a4","posture|99cbd16f":"893f5abd33222c88851a76cdbd17f95e","posture|b7ae54f1":"b2ab8c5543f2ef0dee335d72d9383b8f","surrender|44136fa3":"be8c1cda992e77565be9e8d4c859f37a","wall_move|3c876c16":"cb750472dd2c00db35c4a8096ff7ae20","wall_move|8d07fe3f":"92135c9b7739223dd37b80192ffe4dd6"},
+ "battle:26":{"attack|08fca583":"6fc557d137f0980f6469cff113cf059f","attack|0c0c7bd1":"ec60867ee6befbea6b04befac9d3b2e4","attack|113750c3":"187dd276d48337c9351f73f86651a8cf","attack|2c270d2a":"a388e0c26f0abf0f4c96743da1b57a1a","attack|52271fb5":"f7342cf5520c97bee4425ed69ab7d2df","attack|52fc0492":"c31235bb26bba9b7db939b7f1b1b0996","attack|576c7b23":"08401c88d053d4aa4e8dd539b3d50abe","attack|57c9f6c8":"732abe3ba841068a101537b8d18e2cc7","attack|6234891c":"fdaa61935e43240f89bbebaba020acda","attack|828e3ba0":"afdfb2a5e743000cb0576e684ac2fdb8","attack|a2e396da":"febd5617f363b273eafd5d718fc10373","attack|d845d27a":"bd728aa7a950c3e6b3c9516b86ffe9b6","attack|e01afa84":"a7ce455637c28c61542c83891e079be3","attack|e271ef98":"4c3628ce5c4d941f517e2a0398e8e512","attack|e8b9ed92":"beb6d0508599c0026a617aff36c2bd10","attack|edbfd60b":"187dd276d48337c9351f73f86651a8cf","attack|f1466260":"86dafa295a7c4d4388009121f3446110","attack|fd8648f7":"f5972417ee2f3f33a859b8e0d8dbd553","calm|44136fa3":"41ea03020ea2e37ff17b9aa376452480","end|44136fa3":"669b85ed16826d266af4864f98c18aff","hand|card_1":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_10":"6a43699b10926047d1f401cd755856fe","hand|card_4":"d634fc537a1de9bf73f2a74480de9a13","hand|card_7":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_9":"d9dccd7e156b95a9c8063c1bfcd9901d","posture|415624d6":"c068e1c3526291d1cddfb6cfce8891a4","posture|99cbd16f":"893f5abd33222c88851a76cdbd17f95e","posture|b7ae54f1":"b2ab8c5543f2ef0dee335d72d9383b8f","surrender|44136fa3":"be8c1cda992e77565be9e8d4c859f37a","wall_move|3c876c16":"cb750472dd2c00db35c4a8096ff7ae20","wall_move|8d07fe3f":"92135c9b7739223dd37b80192ffe4dd6"},
+ "battle:44":{"attack|08fca583":"6fc557d137f0980f6469cff113cf059f","attack|0c0c7bd1":"ec60867ee6befbea6b04befac9d3b2e4","attack|113750c3":"187dd276d48337c9351f73f86651a8cf","attack|2c270d2a":"4369f312c78ee15fb41002b26d1e3b4f","attack|52271fb5":"f7342cf5520c97bee4425ed69ab7d2df","attack|52fc0492":"c31235bb26bba9b7db939b7f1b1b0996","attack|576c7b23":"08401c88d053d4aa4e8dd539b3d50abe","attack|57c9f6c8":"732abe3ba841068a101537b8d18e2cc7","attack|6234891c":"fdaa61935e43240f89bbebaba020acda","attack|828e3ba0":"bdcd892e2dbb67f40cf741789e2531a8","attack|a2e396da":"febd5617f363b273eafd5d718fc10373","attack|d845d27a":"bd728aa7a950c3e6b3c9516b86ffe9b6","attack|e01afa84":"a7ce455637c28c61542c83891e079be3","attack|e271ef98":"4c3628ce5c4d941f517e2a0398e8e512","attack|e8b9ed92":"beb6d0508599c0026a617aff36c2bd10","attack|edbfd60b":"187dd276d48337c9351f73f86651a8cf","attack|f1466260":"86dafa295a7c4d4388009121f3446110","attack|fd8648f7":"f5972417ee2f3f33a859b8e0d8dbd553","calm|44136fa3":"41ea03020ea2e37ff17b9aa376452480","end|44136fa3":"669b85ed16826d266af4864f98c18aff","hand|card_1":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_10":"6a43699b10926047d1f401cd755856fe","hand|card_4":"d634fc537a1de9bf73f2a74480de9a13","hand|card_7":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_9":"d9dccd7e156b95a9c8063c1bfcd9901d","posture|415624d6":"c068e1c3526291d1cddfb6cfce8891a4","posture|99cbd16f":"893f5abd33222c88851a76cdbd17f95e","posture|b7ae54f1":"b2ab8c5543f2ef0dee335d72d9383b8f","surrender|44136fa3":"be8c1cda992e77565be9e8d4c859f37a","wall_move|3c876c16":"cb750472dd2c00db35c4a8096ff7ae20","wall_move|8d07fe3f":"92135c9b7739223dd37b80192ffe4dd6"},
+ "prepare:0":{"calm|44136fa3":"22f22bd5655c18cf140d6b62a6d553c0","end|44136fa3":"ccf506b0f535604ecfd0b85263063020","finish_prepare|44136fa3":"16e153aaa7bcde7b75927b5313c20f3b","hand|card_2":"b6c18d758f81d807b1e6082e625c5efb","hand|card_3":"2cef93ec87602eca7a69f21b2dd03bfe","hand|card_4":"b6c18d758f81d807b1e6082e625c5efb","hand|card_5":"2cef93ec87602eca7a69f21b2dd03bfe","hand|card_6":"b6c18d758f81d807b1e6082e625c5efb","posture|415624d6":"2dd0890dd2101b22bb642e55937056c0","posture|99cbd16f":"f19cc76fdf4e9eddc9289705ea7c699b","posture|b7ae54f1":"1ba4b0f2263a41546ccdefde8482bf31","wall_move|3c876c16":"5f366e62149218c26561a0c838ac79ff","wall_move|8d07fe3f":"57383e77989ec6113b5bcd39b30ae430"},
+ "prepare:12":{"calm|44136fa3":"41ea03020ea2e37ff17b9aa376452480","end|44136fa3":"ccf506b0f535604ecfd0b85263063020","finish_prepare|44136fa3":"16e153aaa7bcde7b75927b5313c20f3b","hand|card_2":"d634fc537a1de9bf73f2a74480de9a13","hand|card_3":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_4":"d634fc537a1de9bf73f2a74480de9a13","hand|card_5":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_6":"d634fc537a1de9bf73f2a74480de9a13","posture|415624d6":"c068e1c3526291d1cddfb6cfce8891a4","posture|99cbd16f":"893f5abd33222c88851a76cdbd17f95e","posture|b7ae54f1":"b2ab8c5543f2ef0dee335d72d9383b8f","wall_move|3c876c16":"cb750472dd2c00db35c4a8096ff7ae20","wall_move|8d07fe3f":"92135c9b7739223dd37b80192ffe4dd6"},
+ "prepare:26":{"calm|44136fa3":"41ea03020ea2e37ff17b9aa376452480","end|44136fa3":"ccf506b0f535604ecfd0b85263063020","finish_prepare|44136fa3":"16e153aaa7bcde7b75927b5313c20f3b","hand|card_2":"d634fc537a1de9bf73f2a74480de9a13","hand|card_3":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_4":"d634fc537a1de9bf73f2a74480de9a13","hand|card_5":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_6":"d634fc537a1de9bf73f2a74480de9a13","posture|415624d6":"c068e1c3526291d1cddfb6cfce8891a4","posture|99cbd16f":"893f5abd33222c88851a76cdbd17f95e","posture|b7ae54f1":"b2ab8c5543f2ef0dee335d72d9383b8f","wall_move|3c876c16":"cb750472dd2c00db35c4a8096ff7ae20","wall_move|8d07fe3f":"92135c9b7739223dd37b80192ffe4dd6"},
+ "prepare:44":{"calm|44136fa3":"41ea03020ea2e37ff17b9aa376452480","end|44136fa3":"ccf506b0f535604ecfd0b85263063020","finish_prepare|44136fa3":"16e153aaa7bcde7b75927b5313c20f3b","hand|card_2":"d634fc537a1de9bf73f2a74480de9a13","hand|card_3":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_4":"d634fc537a1de9bf73f2a74480de9a13","hand|card_5":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_6":"d634fc537a1de9bf73f2a74480de9a13","posture|415624d6":"c068e1c3526291d1cddfb6cfce8891a4","posture|99cbd16f":"893f5abd33222c88851a76cdbd17f95e","posture|b7ae54f1":"b2ab8c5543f2ef0dee335d72d9383b8f","wall_move|3c876c16":"cb750472dd2c00db35c4a8096ff7ae20","wall_move|8d07fe3f":"92135c9b7739223dd37b80192ffe4dd6"},
+ "rest:0":{"calm|44136fa3":"22f22bd5655c18cf140d6b62a6d553c0","end|44136fa3":"ccf506b0f535604ecfd0b85263063020","finish_rest|44136fa3":"080e941244f81ab6fb9b5f4aeaf3ae69","hand|card_1":"e490995e413e23d65606cc925a4cdd61","hand|card_10":"bb2d9be540a8cb6ec4c2713e85fde8e4","hand|card_4":"3c12bac8e29d0304432814eeea7b4d52","hand|card_7":"e490995e413e23d65606cc925a4cdd61","hand|card_9":"5d2f81969b0798537bc18a05cc83ff4f","posture|415624d6":"2dd0890dd2101b22bb642e55937056c0","posture|99cbd16f":"f19cc76fdf4e9eddc9289705ea7c699b","posture|b7ae54f1":"1ba4b0f2263a41546ccdefde8482bf31","wall_move|3c876c16":"5f366e62149218c26561a0c838ac79ff","wall_move|8d07fe3f":"57383e77989ec6113b5bcd39b30ae430"},
+ "rest:12":{"calm|44136fa3":"41ea03020ea2e37ff17b9aa376452480","end|44136fa3":"ccf506b0f535604ecfd0b85263063020","finish_rest|44136fa3":"080e941244f81ab6fb9b5f4aeaf3ae69","hand|card_1":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_10":"6a43699b10926047d1f401cd755856fe","hand|card_4":"d634fc537a1de9bf73f2a74480de9a13","hand|card_7":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_9":"d9dccd7e156b95a9c8063c1bfcd9901d","posture|415624d6":"c068e1c3526291d1cddfb6cfce8891a4","posture|99cbd16f":"893f5abd33222c88851a76cdbd17f95e","posture|b7ae54f1":"b2ab8c5543f2ef0dee335d72d9383b8f","wall_move|3c876c16":"cb750472dd2c00db35c4a8096ff7ae20","wall_move|8d07fe3f":"92135c9b7739223dd37b80192ffe4dd6"},
+ "rest:26":{"calm|44136fa3":"41ea03020ea2e37ff17b9aa376452480","end|44136fa3":"ccf506b0f535604ecfd0b85263063020","finish_rest|44136fa3":"080e941244f81ab6fb9b5f4aeaf3ae69","hand|card_1":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_10":"6a43699b10926047d1f401cd755856fe","hand|card_4":"d634fc537a1de9bf73f2a74480de9a13","hand|card_7":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_9":"d9dccd7e156b95a9c8063c1bfcd9901d","posture|415624d6":"c068e1c3526291d1cddfb6cfce8891a4","posture|99cbd16f":"893f5abd33222c88851a76cdbd17f95e","posture|b7ae54f1":"b2ab8c5543f2ef0dee335d72d9383b8f","wall_move|3c876c16":"cb750472dd2c00db35c4a8096ff7ae20","wall_move|8d07fe3f":"92135c9b7739223dd37b80192ffe4dd6"},
+ "rest:44":{"calm|44136fa3":"41ea03020ea2e37ff17b9aa376452480","end|44136fa3":"ccf506b0f535604ecfd0b85263063020","finish_rest|44136fa3":"080e941244f81ab6fb9b5f4aeaf3ae69","hand|card_1":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_10":"6a43699b10926047d1f401cd755856fe","hand|card_4":"d634fc537a1de9bf73f2a74480de9a13","hand|card_7":"a227f1b4f8ca3f81c9adde7512fec8de","hand|card_9":"d9dccd7e156b95a9c8063c1bfcd9901d","posture|415624d6":"c068e1c3526291d1cddfb6cfce8891a4","posture|99cbd16f":"893f5abd33222c88851a76cdbd17f95e","posture|b7ae54f1":"b2ab8c5543f2ef0dee335d72d9383b8f","wall_move|3c876c16":"cb750472dd2c00db35c4a8096ff7ae20","wall_move|8d07fe3f":"92135c9b7739223dd37b80192ffe4dd6"},
+}
+
+# 显示点的显示文本字段（与基线同一取数口径：标签、费用、可用性、原因、风险、短文案、部位、施法、详情）。
+static func r3_point_fields(c: Dictionary) -> Array:
+ var casting=c.get("casting",{})
+ return [String(c.label),str(c.cost),str(c.mana),str(c.valid),String(c.reason),String(c.risk),String(c.get("brief","")),String(c.get("brief_tags","")),String(c.get("body_part","")),str(casting.get("percent","")),str(casting.get("formula","")),String(c.get("detail",""))]
+
+# 本批删边的核对面（docs/spec/candidate-removal.md §2.2 的 D13 对应行）：手牌／行动／姿态／墙面／底栏域的
+# 显示读只经显示事实，不再在点名函数里按 payload 字段取候选行。域外显示点（练习／捕获／路线／身体／道具／
+# 拖放等）本批不动，仍按行读，故按函数点名核对而不是全文件扫描。
+const R3_DISPLAY_POINTS={
+ "_build_action_rail":["attack","pressure"],
+ "_posture_layout":["wall_move"],
+ "_posture_controls":["posture"],
+ "_wall_controls":["wall_move","posture"],
+ "_bottom_controls":["flow","surrender"],
+ "_hand_choice":["card"],
+}
+
+static func r3_display_points_do_not_read_rows(t) -> void:
+ var handle=FileAccess.open("res://ui/main.gd",FileAccess.READ)
+ var declaration=RegEx.new()
+ var slash=String.chr(92)
+ declaration.compile("^"+slash+"s*func"+slash+"s+([A-Za-z_][A-Za-z0-9_]*)")
+ var offenders=[]
+ var current=""
+ var text="" if handle==null else handle.get_as_text()
+ for line in text.split(String.chr(10)):
+  var code=String(line).split("#")[0]
+  var declared=declaration.search(code)
+  if declared!=null: current=declared.get_string(1)
+  if not R3_DISPLAY_POINTS.has(current): continue
+  if not (code.contains("actions.select(") or code.contains("actions.find(")): continue
+  for group in R3_DISPLAY_POINTS[current]:
+   if code.contains(String.chr(34)+group+String.chr(34)): offenders.append(current+" "+code.strip_edges())
+ t.check(offenders.is_empty(),"G5 display_facts_match_determination: the R3 display points read display facts instead of candidate rows: "+str(offenders.slice(0,3)))
+
+static func r3_point_key(g, payload: Dictionary) -> String:
+ var kind=String(payload.get("kind",""))
+ return kind+"|"+JSON.stringify(g.command_params(kind,payload)).sha256_text().substr(0,8)
+
+static func display_facts_match_determination(t) -> void:
+ for cell in R3_G5_CELLS:
+  var name="%s:%d" % [cell[0],cell[1]]
+  var g=Cases.r1_build(cell[0],cell[1])
+  var view=g.get_view()
+  var rows={}
+  for c in view.candidates: rows[g.shape_key(c.payload)]=c
+  var points={}
+  var mismatches=[]
+  for group in ["actions","flow","postures","wall_moves","surrender","cards"]:
+   var entries=view.display_facts.get(group,{})
+   if not (entries is Array): entries=[] if entries.is_empty() else [entries]
+   for f in entries:
+    var key=g.shape_key(f.payload)
+    var row=rows.get(key,{})
+    if row.is_empty():
+     mismatches.append("no determination row for "+key)
+     continue
+    for field in ["valid","reason","risk","cost","mana"]:
+     if f.get(field)!=row.get(field): mismatches.append(key+"."+field+" fact="+str(f.get(field))+" determination="+str(row.get(field)))
+    if JSON.stringify(f.get("mana_payment",{}))!=JSON.stringify(row.get("mana_payment",{})): mismatches.append(key+".mana_payment fact="+JSON.stringify(f.get("mana_payment",{}))+" determination="+JSON.stringify(row.get("mana_payment",{})))
+    if group=="cards": continue
+    points[r3_point_key(g,f.payload)]=r3_point_fields(f)
+  for card in view.hand:
+   points["hand|"+String(card.uid)]=[JSON.stringify(card.availability),String(card.bound),String(card.free),String(card.cost)]
+  t.check(mismatches.is_empty(),"G5 display_facts_match_determination: every display fact equals the single determination for the same shape ("+name+"): "+str(mismatches.slice(0,3)))
+  var expected=R3_G5_BASELINE.get(name,{})
+  var problems=[]
+  for key in points:
+   var digest=JSON.stringify(points[key]).sha256_text().substr(0,32)
+   if expected.get(key,"")!=digest: problems.append(key+" baseline="+str(expected.get(key,""))+" current="+digest)
+  for key in expected:
+   if not points.has(key): problems.append(key+" missing")
+  t.check(problems.is_empty(),"G5 display_facts_match_determination: display text equals the unmodified-source baseline ("+name+"): "+str(problems.slice(0,3)))
 
 static func choose(t, name: String, index: int) -> void:
  var picker=t.ui.find_child(name,true,false)
@@ -270,6 +365,8 @@ static func takeover_path_unchanged(t) -> void:
  ui.restart(42);await t.frames()
 
 static func run(t) -> void:
+ r3_display_points_do_not_read_rows(t)
+ display_facts_match_determination(t)
  await portrait_snapshot_boundary(t)
  await submit_reject_semantics_unchanged(t)
  await takeover_path_unchanged(t)

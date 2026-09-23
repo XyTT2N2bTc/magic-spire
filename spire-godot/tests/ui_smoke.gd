@@ -137,6 +137,13 @@ func reveal_body(slot: String) -> void:
  await mouse_button(point,MOUSE_BUTTON_LEFT,true)
  await mouse_button(point,MOUSE_BUTTON_LEFT,false)
 
+# 显示键（R3 域）优先、行身份键（R4／R5 域）回落：按钮注册键随批迁移，测试语义不变。
+func candidate_button(c: Dictionary) -> Button:
+ var key=ui.display_key(c.payload)
+ if ui.candidate_buttons.has(key): return ui.candidate_buttons[key] as Button
+ if ui.candidate_buttons.has(c.id): return ui.candidate_buttons[c.id] as Button
+ return null
+
 func click(kind: String, extra: Dictionary={}, settle_feedback: bool=true) -> bool:
  # Result acknowledgement is a real UI click, not a rule action or skipped stage.
  if kind=="event":
@@ -151,17 +158,17 @@ func click(kind: String, extra: Dictionary={}, settle_feedback: bool=true) -> bo
   var matches=true
   for k in extra:
    if c.payload.get(k)!=extra[k]: matches=false
-  if matches and not ui.candidate_buttons.has(c.id) and ui.view.reward_panel.active:
+  if matches and candidate_button(c)==null and ui.view.reward_panel.active:
    var rows=ui.view.battle_rewards.filter(func(row):return c.id in row.action_ids)
    if not rows.is_empty():
     var row=rows[0]
     var opener=ui.find_child("Reward_"+row.category+("_"+row.id if row.id!="" else ""),true,false)
     if opener!=null: opener.pressed.emit();await frames()
-  if matches and kind=="event" and not ui.candidate_buttons.has(c.id):
+  if matches and kind=="event" and candidate_button(c)==null:
    var groups=ui.view.room_event.selections.filter(func(group):return group.options.any(func(option):return option.choice==c.payload.get("choice","")))
    if not groups.is_empty(): await preload("res://tests/event_ui_cases.gd").open_selection(self,groups[0].id)
    elif c.payload.action=="reward" and c.payload.get("type","")!="skip": await preload("res://tests/event_ui_cases.gd").open_selection(self,"reward")
-  if matches and kind=="item_use" and not ui.candidate_buttons.has(c.id):
+  if matches and kind=="item_use" and candidate_button(c)==null:
    var item=ui.view.items.filter(func(i):return i.id==c.payload.item)[0]
    var groups=item.target_groups.filter(func(group):return c.id in group.candidates)
    if not groups.is_empty():
@@ -171,15 +178,16 @@ func click(kind: String, extra: Dictionary={}, settle_feedback: bool=true) -> bo
     await frames()
     var menu=ui.find_child("ToolSlot_"+groups[0].id,true,false)
     if menu!=null: menu.pressed.emit();await frames()
-  if matches and kind=="item_install" and not ui.candidate_buttons.has(c.id):
+  if matches and kind=="item_install" and candidate_button(c)==null:
    ui.selected_item=c.payload.item;ui.selected_item_slot=""
    if ui.show_items: ui.render(ui.view)
    else: ui._open_drawer("show_items")
    await frames()
    var install_menu=ui.find_child("ToolInstallMenu",true,false)
    if install_menu!=null: install_menu.pressed.emit();await frames()
-  if matches and ui.candidate_buttons.has(c.id):
-   ui.candidate_buttons[c.id].pressed.emit()
+  var button=candidate_button(c)
+  if matches and button!=null:
+   button.pressed.emit()
    await frames(2,settle_feedback)
    return true
  return false
@@ -335,6 +343,8 @@ func action_button(type: String, group: String="attack", destination: String="")
   if c.group!=group: continue
   if group=="attack" and c.payload.type!=type: continue
   if group=="posture" and (c.payload.dest!=destination or c.payload.wall): continue
+  var key=ui.display_key(c.payload)
+  if ui.candidate_buttons.has(key): return ui.candidate_buttons[key]
   if ui.candidate_buttons.has(c.id): return ui.candidate_buttons[c.id]
  return null
 

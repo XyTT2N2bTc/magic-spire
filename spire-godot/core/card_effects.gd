@@ -691,11 +691,12 @@ static func has_escape_target(g, type: String) -> bool:
 static func body_reason(g, type: String) -> String:
  return g.cast_view(cast_profile(g,type)).reason if Rules.SPECS[type].has("casting") else ""
 
-# Per-face usability reuses real candidates. Curse styling is explicitly exempt.
-static func availability(g, card: Dictionary, free: bool, choices: Array) -> Dictionary:
+# Per-face usability consumes the determination results of this card's command shapes (批 R3：显示事实，
+# 不再取候选行). Curse styling is explicitly exempt.
+static func availability(g, card: Dictionary, free: bool, facts: Array) -> Dictionary:
  if g.B.CARD_TRAITS.get(card.type,{}).get("unplayable",false): return {"usable":false,"dim":false,"text":""}
- var options=choices.filter(func(c):return Rules.single_face(card.type) or c.payload.get("free",false)==free)
- if options.any(func(c):return c.valid): return {"usable":true,"dim":false,"text":"可用"}
+ var options=facts.filter(func(f):return Rules.single_face(card.type) or f.payload.get("free",false)==free)
+ if options.any(func(f):return f.valid): return {"usable":true,"dim":false,"text":"可用"}
  var issue=body_reason(g,card.type)
  if g.state.overloaded: issue="本回合正在高潮"
  elif not g.state.card_chain.is_empty(): issue="请先完成当前连续效果"
@@ -705,7 +706,7 @@ static func availability(g, card: Dictionary, free: bool, choices: Array) -> Dic
   if options.is_empty(): issue="没有可用的自由部位" if Rules.free_effect(card.type,free) else "没有可处理的拘束具"
   else:
    # Prefer a structurally eligible target's resource shortage over another target's lock/cover reason.
-   var eligible=options.filter(func(c):return reason(g,c.payload)=="")
+   var eligible=options.filter(func(f):return f.source_reason=="")
    issue=eligible[0].reason if not eligible.is_empty() else options[0].reason
  return {"usable":false,"dim":true,"text":"（"+issue.trim_suffix("。")+"）"}
 
@@ -858,7 +859,10 @@ static func detail(g, p: Dictionary) -> String:
  if Rules.SPECS[p.type].get("follow_through",false): lower_text+="总计降紧%d档，目标解除后%s。" % [Rules.SPECS[p.type].hits,"超级顺延" if Rules.SPECS[p.type].get("follow_through_scope","region")=="body" else "顺延"]
  return lower_text
 
-static func target_candidate(g, out: Array, p: Dictionary, label: String, cost: int, mana: float, risk: String="") -> void:
+# 卡牌事实（手牌域，docs/spec/candidate-removal.md §2.1 T5／T8；批 R3）：行与显示事实的唯一来源。
+# 返回事实列表（payload／label／copy／cost／mana／reason／risk／group），判定与 detail 由 Game 的事实入口给出。
+static func target_facts(g, p: Dictionary, label: String, cost: int, mana: float, risk: String="") -> Array:
+ var facts=[]
  var choices=[p]
  if Rules.SPECS[p.type].get("exhaust_hand",false):
   choices=[]
@@ -869,7 +873,8 @@ static func target_candidate(g, out: Array, p: Dictionary, label: String, cost: 
    p.hand_uid="";choices.append(p)
  for choice in choices:
   # B3（docs/ondemand-copy.md §1.5）：descriptor 只留类别与参数，detail 由 Game.candidate_detail 现算。
-  g._candidate(out,choice,label,{"kind":"card.target","args":{"payload":choice}},cost,mana,reason(g,choice),risk,"card")
+  facts.append(g._fact(choice,label,{"kind":"card.target","args":{"payload":choice}},cost,mana,reason(g,choice),risk,"card"))
+ return facts
 
 # R3（docs/ondemand-copy.md §11.5）：转发包装的文案参数改走路由，签名与产出保持不变。
 # R6（docs/ondemand-copy.md §11.5）：单面卡面正文的 builder，正文留在本模块。
@@ -882,12 +887,13 @@ static func target_detail(g, args: Dictionary) -> String:
  if payload.get("hand_uid","")!="": text+="\n本次消耗「%s」。" % g.B.CARD_NAMES[g._card(payload.hand_uid).type]
  return text
 
-static func candidates(g, out: Array, card: Dictionary) -> void:
- if g.B.CARD_TRAITS.get(card.type,{}).get("unplayable",false): return
+static func card_facts(g, card: Dictionary) -> Array:
+ var facts=[]
+ if g.B.CARD_TRAITS.get(card.type,{}).get("unplayable",false): return facts
  var spec=Rules.SPECS[card.type]
  if spec.has("free_slots"):
   var free_payload={"kind":"card","uid":card.uid,"type":card.type,"slot":spec.free_slots[0],"target":"","free":true,"mode":spec.mode}
-  target_candidate(g,out,free_payload,"自由 · "+g.B.CARD_NAMES[card.type],energy_cost(g,card.type,true),face_mana(g,card.type,true))
+  facts.append_array(target_facts(g,free_payload,"自由 · "+g.B.CARD_NAMES[card.type],energy_cost(g,card.type,true),face_mana(g,card.type,true)))
  if spec.has("self_faces"):
   for side in ["bound","free"]:
    var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":side=="free","mode":spec.mode,"self_target":true}
@@ -902,18 +908,18 @@ static func candidates(g, out: Array, card: Dictionary) -> void:
      p.hand_uid="";choices.append(p)
    for choice in choices:
     var face_label=Rules.face_name(card.type,choice.free)+"面" if spec.has("bound_modes") else ("自由面" if choice.free else "挣脱面")
-    g._candidate(out,choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+face_label,{"kind":"card.target","args":{"payload":choice}},energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),reason(g,choice),"","card")
-  return
+    facts.append(g._fact(choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+face_label,{"kind":"card.target","args":{"payload":choice}},energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),reason(g,choice),"","card"))
+  return facts
  if Rules.single_face(card.type):
   var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":false,"mode":spec.mode,"self_target":true}
-  g._candidate(out,p,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":p}},energy_cost(g,card.type),0,reason(g,p),"","card")
-  return
+  facts.append(g._fact(p,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":p}},energy_cost(g,card.type),0.0,reason(g,p),"","card"))
+  return facts
  if can_target_bind(card.type) and g.CaptureBind.has_bind(g):
   for second in ([false,true] if spec.has("bound_modes") else [false]):
    var bind=bind_payload(g,card.type,card.uid,second)
    bind.kind="card";bind.uid=card.uid
    var mana=face_mana(g,card.type,second)
-   target_candidate(g,out,bind,"冲开捕缚 · %s伤害" % g.number(bind.preview.damage),energy_cost(g,card.type),mana)
+   facts.append_array(target_facts(g,bind,"冲开捕缚 · %s伤害" % g.number(bind.preview.damage),energy_cost(g,card.type),mana))
  var assist_profiles=g.HandAssist.profiles(g)
  var seen_special=[]
  var face_costs={}
@@ -946,7 +952,11 @@ static func candidates(g, out: Array, card: Dictionary) -> void:
     var label="自由 · "+g.B.SLOT_NAMES[slot] if Rules.free_effect(card.type,p.free) else "解除 · "+g._equipment_name(target)
     if Rules.free_effect(card.type,p.free) and slot in ["palm","fingers"] and not g.equipment_at(slot).is_empty(): label="自由 · "+("右" if g.hand_blocked(slot,"left") else "左")+g.B.SLOT_NAMES[slot]
     if spec.has("bound_modes"): label=Rules.face_name(card.type,p.free)+" · "+g._equipment_name(target)
-    target_candidate(g,out,p,label,cost,mana,risk)
+    facts.append_array(target_facts(g,p,label,cost,mana,risk))
+ return facts
+
+static func candidates(g, out: Array, card: Dictionary) -> void:
+ for f in card_facts(g,card): g._fact_row(out,f)
 
 static func can_select_retain(g, card: Dictionary) -> bool:
  return card.retain_until<0 and not g.B.CARD_TRAITS.get(card.type,{}).get("retain",false)

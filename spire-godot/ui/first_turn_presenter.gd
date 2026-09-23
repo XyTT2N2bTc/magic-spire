@@ -169,6 +169,11 @@ func advance() -> void:
  if _current(token,version): await _step(c,token,version)
  if token==generation: busy=false
 
+# 步骤按钮定位：R3 域（行动／姿态／墙面／底栏）按显示键注册；R5 域的魔瓶按钮仍按行身份键注册（过渡）。
+static func _candidate_button(host, c: Dictionary) -> Control:
+ var button=host.candidate_buttons.get(host.display_key(c.payload))
+ return button if button!=null else host.candidate_buttons.get(c.id)
+
 func _step(c: Dictionary, token: int, version: int) -> void:
  var p=c.payload
  # Choose the displayed face/form before locating the same formal command on screen.
@@ -183,7 +188,7 @@ func _step(c: Dictionary, token: int, version: int) -> void:
   empty_said=true;_say("empty");await _pause(_reading_time())
   if not _current(token,version): return
  _say(_cue(c),c.label)
- var source=host.card_buttons.get(p.get("uid","")) if p.kind in ["card","prison"] else host.candidate_buttons.get(c.id)
+ var source=host.card_buttons.get(p.get("uid","")) if p.kind in ["card","prison"] else _candidate_button(host,c)
  if is_instance_valid(source): await _point(source)
  if not _current(token,version): return
  var target: Control
