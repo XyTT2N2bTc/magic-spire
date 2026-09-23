@@ -3078,3 +3078,15 @@ flowchart LR
 - 协调者接口核对：提交面 3 文件 ⊆ 允许面；`eligibility`／`eligibility_takeover` 已落地、`core/first_turn_control.gd` 零写点、`extra_traction` 行内 erase 复核通过；提交前后 `git status` 干净。
 - 未跑（未验证）：Gherkin 8（接管真人 UI 路径，属 R2 判据）；UI 分类、`-VerifyRunner`、G1／G2／G3／G5／G7／G9（属 R2–R5）；全量回归、打包与发布。
 - 产物：`build/r1-20260923/`（基线、脚本、敏感性／门禁日志）、实现者与复核者心跳、复核工作日志均为已忽略目录一次性产物，**随本条登记清理**；运行号身份以 `build/checks/<运行号>` 为准。
+
+## 2026-09-23｜候选层移除 R2：指令收口＋后端身份复核（分支 `seed-chip-save-upload`，commit `a18860a`＋第 0 步 `3bbf1e1`）
+
+- 域：前端指令收口（`ui/command_router.gd`／`ui/command_routes.gd`）＋`core/game.gd::dispatch` 改收类型化指令；39 kind 与 `COMMAND_KEYS`／`ROUTES` 落地；A1–A60 收敛（直连 0）。
+- 实现者证据：边表复算 `ui/` 内 `_submit(` 2 命中（`ui/command_router.gd:45` 唯一调用＋`ui/main.gd:2060` 定义）、`.dispatch(` 1 命中（`ui/main.gd:2075`）；`command_router.emit` 13 文件 59 命中；迁移面 183 文件清单复算一致。判据：G1／G2 落 `tests/architecture_cases.gd`（arch 527 断言）、G3 分落 `tests/persistence_cases.gd` 与 `tests/display_ui_cases.gd`（display 160 断言）、G8 落 `display_ui_cases.gd`；`tests/ui_smoke.gd::_index_boundary_tests` 四条未删未放松（仅调用形态迁移）。
+- 门禁：规则门 `20260923T092539286-22292`（PASS 21513 断言、`before==after`、docs PASS allowlist 6）；runner `20260923T094055495-53784` PASS；UI 门 `20260923T094128373-39396`——display／touch／body_layout／targeting PASS，**interface FAIL 3 条**（`INTERFACE outside click dismisses without activating covered attack`／`INTERFACE actual navigation button available: CloseDrawer`／`BOOK tutorial is a highlighted permanent header button`，后两条为级联）。
+- **interface 序列 flake 的独立判定（既有红，非本批引入）**：复核者自跑——未改源码 `b28356f` 同 5 套件序列同样 3 条（`20260923T094938797-19792`）；R2 树同 3 条（`20260923T095306564-15752`）；`interface` 单跑 PASS（`20260923T095626849-12572`）；前驱定位＝`targeting` 在 `interface` 前即可触发（`20260923T100030861-42912`、`20260923T095807293-54016`）；失败断言所在 `tests/interface_ui_cases.gd` 与触发套件 `tests/target_sidebar_ui_cases.gd` 均 R2 未改（`git diff b28356f..a18860a --stat` 仅 body_layout／display／ui_smoke 测试文件）。实现者自述的 worktree 运行号 `20260923T093753113-54472` 目录已随临时 worktree 删除（只剩身份），由上述自跑替代。**协调者建议登记为「既有序列红」**（仅 `targeting` 先于 `interface` 的同轮序列；单跑绿），与既有 `intent` 6 条并列，是否另立修复片待人类裁定。
+- 复核结论（P1–P5 通过、无产品缺陷；低项）：①`ui/main.gd::card_row_by_shape`（`:2474`）无调用者＝新增死代码——随 R3 前置清理；②G2 夹具 `COMMAND_KINDS` 域列对 end／calm／surrender 与 `ROUTES` 不一致且未被断言使用（小疵）；③`command_row` 过渡成本：`_submit` 经它取显示 payload（P2 允许的显示调用边、非第二判定），每次提交候选全量物化 2→3 次、`command_row` 为全表线性扫描——R3–R5 显示改线时替换；④`expected_version` 默认来源由 `view.version` 变 `state.version`（`core/game.gd::command`）——不变式下相等、未观察到行为差异，登记为字面偏移。
+- 复核 P6（§10 授权面）发现的**同步缺口 3 处＋1 项已随本条补正**：`release-interface.md:185`（候选 ID 句）、`response-pipeline.md` 的 `_submit` 旧签名 3 处与「原样提交候选 ID」句、`event-pipeline.md` 两行（界面／提交复核）；并在接缝 A 登记 R2 新增的四个公开接口（`command_params`／`command`／`command_issue`／`command_row`）；`candidate-removal.md` 的 A 组引言与 DUP1／DUP6 标记销项。未成真条目（ActionIndex／TargetQueries 行、ondemand-copy、equipment-query-seam 等）未动。
+- 协调者核对：提交面（`3bbf1e1`＋`a18860a`）与允许面一致；两提交后 `git status` 干净；临时 worktree 已移除（`git worktree list` 仅主树）；新文件与边表复算与实现者回报一致。
+- 未跑（未验证）：G5／G6／G7／G9（R3–R5 面）、V1–V11 真人验收、`-Suite all -UI -UISuite all` 全量回归、打包与发布。
+- 产物：`build/checks/` 内本次各运行号目录（含复核者自跑 6 轮）留证；实现者与复核者心跳随本条登记清理。

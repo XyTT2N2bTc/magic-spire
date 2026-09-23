@@ -36,8 +36,8 @@
 | 模块 | 边界（谁） | 小接口 | 内部（藏） |
 | --- | --- | --- | --- |
 | M1 输入适配 | `ui/keyboard_input.gd`、`ui/touch_input.gd` | `handle(event) -> bool`；触摸只合成既有鼠标事件 | 键位表、选择状态机、长按阈值、弹窗桥 |
-| M1a 自动接管展示 | `ui/first_turn_presenter.gd` | `sync`／`advance`／`outcome`；调用同一 `_submit(c, version, true)` | 台词、模拟鼠标、动画等待与过期任务取消；只读 View，不选规则动作、不支付 |
-| M2 提交 | `ui/main.gd` 的 `_submit` | `_submit(c, expected_version=-1, takeover=false) -> void` | 分流、守卫、反馈编排 |
+| M1a 自动接管展示 | `ui/first_turn_presenter.gd` | `sync`／`advance`／`outcome`；经指令路由 `emit` 进同一提交入口（takeover 标记不变） | 台词、模拟鼠标、动画等待与过期任务取消；只读 View，不选规则动作、不支付 |
+| M2 提交 | `ui/main.gd` 的 `_submit`（指令路由的执行段） | `_submit(cmd: Dictionary, takeover=false) -> void`（`expected_version` 随指令携带） | 分流、守卫、反馈编排 |
 | M3 展示调度 | `ui/main.gd` 的 `render` 与 `_refresh_drawers` | `render(snapshot={})`；`_refresh_drawers()` | 页面重建、抽屉局部刷新；身体栏和立绘沿自身显示键复用 |
 | M4 只读查询 | `ui/action_index.gd`、`ui/target_queries.gd` | `_init(actions)`／`select`／`find`／`first_usable`；static 查询 | 去重、排序、首／末拒绝原因选择 |
 | M5 静态场景与实例 | `ui/shell/game_layout.gd`、`ui/shell/body_sidebar.gd` | `begin_frame`／`hero_portrait`／`enemy_group`／`body_sidebar`／`end_frame`；`configure`／`_presentation_key`／`expand_applied` | 场景节点、按外观比对、展开预算、滚动 |
@@ -61,6 +61,8 @@
 | 接口 | 输入／返回 | 谁能调 | 信任依据 |
 | --- | --- | --- | --- |
 | `game.dispatch(cmd, expected_version) -> Dictionary` | `cmd`＝类型化指令 `{kind, params, expected_version}`（kind 与键面见 `docs/spec/candidate-removal.md` §3.3；`params` 只用稳定 ID）；`expected_version` 为 UI 当前 `view.version`（`_submit` 允许调用方传 `-1`，此时 UI 补 `view.version`）。复核＝指令形状＋参数合法性＋唯一判定（形状或键面不合法、形状无对应行动 → 与失效同一条拒绝）。成功 `{ok:true, version, resource_feedback, card_feedback, music_feedback, checkpoint}`：前三个是本次提交的展示事件，`checkpoint` 为固定点键；失败 `{ok:false, error:String}`（不带以上任何键） | 只有 M2 `_submit`（测试可直调，UI 其它文件禁止） | 只有 `ok=true` 才写状态：`state=state.duplicate(true)` 后执行事务，失败回滚，不留部分付款／部分装备；core 侧拒绝语义与 `tests/test_game.gd` 的 TC-CORE-0002／0003 锁定 |
+| `game.command_params(kind, source) -> Dictionary`／`game.command(source, expected_version=-1) -> Dictionary`（R2 新增） | 指令装配的唯一投影（意图来源 → 该 kind 的声明键面＋默认值）／唯一装箱（`{kind, params, expected_version}`；版本默认取当前 `state.version`） | UI 指令层（`ui/command_router.gd`／`ui/command_routes.gd`）与测试；不得在别处二次装配 | 同一形状 → 同一 `params` 只有一条路径；键面＝`COMMAND_KEYS` 的 39 kind 声明 |
+| `game.command_issue(cmd) -> String`／`game.command_row(cmd) -> Dictionary`（R2 新增） | 形状与参数合法性复核（失败返回「该行动已经失效，请重新选择。」）／形状 → 当前状态下那条已复核的行动（唯一判定经行工厂给出） | `command_issue` 由 `dispatch` 内调用；`command_row` 供显示读取路径与测试 | 形状与 `params` 相等的行恰有一条；不写 `valid`／`reason`、不产事件、不推进随机、不跨调用保留 |
 | `game.get_view() -> Dictionary` | 无输入；纯只读投影（`View.build` 内调 `Game.candidates()`、每 action 的 `ReleaseView.preview`、显示集合 `card_texts`、room_event／shop／relics／prison 四个 view） | 唯一允许的调用点集合：`_resume_snapshot`（显示初始投影）、`render`（空快照）、`_submit`（成功或被拒均取）、`restart`。新增调用点即契约违例 | `view.version` 等于投影来源的已提交 `state.version`；UI 只能减少 `get_view` 的调用次数，不能降低单次成本；投影结果不得当规则判定来源 |
 | `restore_snapshot(saved)`／`restart_snapshot()` | 返回 `{ok,error}`／快照字典；UI 只判断 `ok`，不解析结构、不迁移字段 | 快照入口只允许 `_resume_snapshot`、`restart`、`_quick_sl` 三处 | 见 `docs/spec/save-fixed-points.md` 与 `docs/spec/transition-pipeline.md` 的冻结时机约定 |
 | `game.number(n) -> String`、`game.Prison.*` 常量 | 显示格式化与立绘选择 | M3／M5 节函数 | 只读显示调用，不参与判定 |
@@ -95,9 +97,10 @@
 
 - 首回合规则由 `core/first_turn_control.gd` 从已有正式候选中选出下一步，经 `GameView` 输出
   `view.first_turn_control`（`name`／`locked`／`candidate`／`key`）；具体玩法见 `docs/design/game-design.md`。
-  展示层不能重选动作、重算资格或推进规则随机；`control_next` 由 core 在事务内消费，UI 原样提交候选 ID 与版本。
-- `_submit(c, expected_version=-1, takeover=false)` 是唯一提交入口。普通输入在接管锁定时返回；
-  `takeover=true` 仅供 `FirstTurnPresenter` 的已选步骤进入该入口，仍受首页／敌方播报守卫、候选身份与版本复核约束。
+  展示层不能重选动作、重算资格或推进规则随机；`control_next` 由 core 在事务内消费，UI 经指令路由原样提交该条指令（含 `expected_version`）。
+- `_submit(cmd, takeover=false)` 是唯一提交入口（R2 起为指令路由的执行段；`expected_version` 随指令携带）。
+  普通输入在接管锁定时返回；`takeover=true` 仅供 `FirstTurnPresenter` 的已选步骤进入该入口，
+  仍受首页／敌方播报守卫、指令形状＋参数合法性＋唯一判定与版本复核约束。
   此参数不是跳过规则验证的权限。成功和失败均刷新投影；自动提交结果另交 `outcome` 播放反馈。
 - 接管展示跨等待保留候选及版本，以游戏对象身份、`generation`、版本、首页状态与接管锁定状态共同失效；
   改局、返回首页或版本变化后，旧步骤不得提交。节点使用前重新检查有效性；该显示生命周期不适用 core 装备查询的调用内作用域限制。
@@ -183,7 +186,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 
 ## 输入域
 
-现行入口为 `_submit(c, expected_version=-1)` 与 `render(snapshot={})`。本节中 `commit`／`present`／
+现行入口为 `_submit(cmd, takeover=false)`（经指令路由）与 `render(snapshot={})`。本节中 `commit`／`present`／
 `present_rejection` 及下方脏集表均为待实现设计；不能据它们推断当前界面已经采用局部拒绝刷新。
 
 - `dispatch`：`cmd` 是**类型化指令**（`kind`＋`params`，只用稳定 ID，不含候选提交身份 id）；
