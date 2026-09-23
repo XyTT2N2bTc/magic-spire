@@ -102,11 +102,12 @@ static func run(t) -> void:
  ui.render();await t.frames();before=ui.game.export_snapshot()
  await tap(t,KEY_1)
  t.check(input.choices.size()>=2 and ui.body_buttons.values().any(func(button):return button.get_meta("target_selectable",false)),"KEYS restraint card reuses the shared legal targets and body highlighting")
- var initial=input.choices[input.choice_index].id
+ var queries=preload("res://ui/target_queries.gd")
+ var initial=queries.fact_id(input.choices[input.choice_index])
  await tap(t,KEY_TAB)
- t.check(input.choices[input.choice_index].id!=initial and ui.game.state==before,"KEYS Tab cycles a target without submitting")
+ t.check(queries.fact_id(input.choices[input.choice_index])!=initial and ui.game.state==before,"KEYS Tab cycles a target without submitting")
  await tap(t,KEY_TAB,true)
- t.check(input.choices[input.choice_index].id==initial,"KEYS Shift Tab returns to the previous target")
+ t.check(queries.fact_id(input.choices[input.choice_index])==initial,"KEYS Shift Tab returns to the previous target")
  c=input.choices[input.choice_index]
  var ankle=ui.body_buttons.ankle.get_global_rect().get_center()
  await t.move_mouse(ankle);await t.mouse_button(ankle,MOUSE_BUTTON_LEFT,true);await t.mouse_button(ankle,MOUSE_BUTTON_LEFT,false)

@@ -1,28 +1,30 @@
 extends RefCounted
 const Queries=preload("res://ui/target_queries.gd")
 
-# Presentation only: every target is an existing candidate from this view/version.
+# Presentation only: every target is an existing display fact of this view/version.
 static func choices(ui, data: Dictionary) -> Array:
  return candidates(ui,data).filter(func(c):return c.valid)
 
 static func candidates(ui, data: Dictionary) -> Array:
- return Queries.payload_candidates(ui.actions,data,ui.view.version)
+ return Queries.payload_candidates(ui.view,data,ui.view.version)
 
 static func targeted(c: Dictionary) -> bool:
  return c.payload.get("target","")!="" and c.payload.kind in ["item_use","hook","chain","release","attack"]
 
+# 拖放意图装配（N2；批 R4）：把行／显示事实落成稳定 ID 形状的拖放数据——组名＋族键＋版本，
+# 不含提交身份 id、不含候选行（原 siblings 的字段面）。落点族由 Queries.family_facts 按同一声明键面取回。
 static func source(ui, button: Button, c: Dictionary) -> void:
- button.drag_payload={"candidate_ids":siblings(ui,c).map(func(choice):return choice.id),"version":ui.view.version}
+ button.drag_payload=intent(c,ui.view.version)
  button.drag_label=c.label
 
-static func siblings(ui, source: Dictionary) -> Array:
- var fields={}
- for key in ["kind","type","item","mode","action","free","form"]:
-  if source.payload.has(key): fields[key]=source.payload[key]
- return ui.actions.select(source.group,fields).filter(func(c):return c.payload.get("target","")!="")
+static func intent(c: Dictionary, version: int) -> Dictionary:
+ var data={"group":String(c.get("group","action")),"version":version}
+ for key in Queries.FAMILY_FIELDS:
+  if c.payload.has(key): data[key]=c.payload[key]
+ return data
 
 static func equipment_choices(ui, data: Dictionary, body: Dictionary) -> Array:
- return Queries.equipment_choices(ui.actions,data,ui.view.version,body)
+ return Queries.equipment_choices(ui.view,data,ui.view.version,body)
 
 static func clear(ui, refresh_quick: bool=true) -> void:
  for entry in ui.drag_hints:

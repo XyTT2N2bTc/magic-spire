@@ -1,4 +1,5 @@
 extends RefCounted
+const Queries=preload("res://ui/target_queries.gd")
 
 # Index one view snapshot. This class selects existing actions; it never decides rules.
 var by_id: Dictionary={}
@@ -25,8 +26,7 @@ func find(group: String, fields: Dictionary={}) -> Dictionary:
  var matches=select(group,fields)
  return matches[0] if not matches.is_empty() else {}
 
+# 首个可用项的唯一通道（销 DUP4，docs/spec/candidate-removal.md §2.3）：回退策略显式声明为 "last"——
+# 改动前本类的末条拒绝回退行为逐条不变；R5 删行载体后本文件与该方法一起消失。
 func first_usable(group: String, fields: Dictionary={}) -> Dictionary:
- var matches=select(group,fields)
- for c in matches:
-  if c.valid: return c
- return matches.back() if not matches.is_empty() else {}
+ return Queries.first_usable(select(group,fields),"last")

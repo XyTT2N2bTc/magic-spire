@@ -190,11 +190,14 @@ static func _build_equipment_entry(g, e: Dictionary) -> Dictionary:
  return {"id":e.id,"name":g._equipment_name(e),"image":preload("res://data/equipment_images.gd").path(e),"card_status":"\n".join(card_status),"lock_only":lock_only,"lockable":Equipment.allows(e,"lock") or g.SpecialEquipment.is_chastity(e),"tier":current_tier,"durability":e.durability,"maximum":e.maximum,"ratio":e.durability/e.maximum,"locked":e.locked,"linked":linked,
   "root_id":e.get("root_id",""),"part":e.get("part",""),"position_text":Equipment.position_text(e),"sort_order":Equipment.anatomical_order(e),"material_name":Equipment.material_name(e),"methods":Equipment.method_text(e),"description":description,"summary":summary}
 
-# 显示事实投影（docs/spec/candidate-removal.md §2.1 T5／T8；批 R3 的手牌／行动／姿态／墙面／底栏域）：
+# 显示事实投影（docs/spec/candidate-removal.md §2.1 T5／T8；批 R3 的手牌／行动／姿态／墙面／底栏域，
+# 批 R4 补装备／快捷解除／拖放／道具／连锁／保留域）：
 # 每个显示点的事实经唯一判定（core/game.gd::eligibility）按显示点现算，不物化行表、不带提交身份 id。
-# 键面＝显示点分组；条目＝payload＋显示字段＋判定结论。
+# 键面＝显示点分组；条目＝payload＋显示字段＋判定结论＋release_preview（与行路径同一投影，`build` 对行做同一件事）。
 #   actions＝行动栏（基础攻击＋装备自解火球＋深呼吸）；flow＝底栏收尾；surrender＝底栏投降（无实例时为空字典）；
-#   postures／wall_moves／cards（手牌域：卡牌组＋牢门解锁，手牌可用性的输入）。
+#   postures／wall_moves／cards（手牌域：卡牌组＋牢门解锁，手牌可用性的输入）；
+#   equipment＝装备操作（徒手松解／取下限制项圈／直接取出）；hooks＝休息挂钩；items＝道具操作与丢弃；
+#   chain＝连锁继续与收尾；retain＝保留选择。
 static func display_facts(g, actions: Array) -> Dictionary:
  var lock=g.eligibility_takeover()
  var chosen=_takeover_step(g,actions)
@@ -208,7 +211,7 @@ static func display_facts(g, actions: Array) -> Dictionary:
  for card in g.state.hand: cards.append_array(g.Cards.card_facts(g,card))
  cards.append_array(g.Prison.unlock_facts(g))
  var surrender=g.surrender_fact()
- return {"actions":_fact_list(g,rail,lock,chosen),"flow":_fact_list(g,flow,lock,chosen),"surrender":{} if surrender.is_empty() else _fact_list(g,[surrender],lock,chosen)[0],"postures":_fact_list(g,g.posture_facts(),lock,chosen),"wall_moves":_fact_list(g,g.wall_move_facts(),lock,chosen),"cards":_fact_list(g,cards,lock,chosen)}
+ return {"actions":_fact_list(g,rail,lock,chosen),"flow":_fact_list(g,flow,lock,chosen),"surrender":{} if surrender.is_empty() else _fact_list(g,[surrender],lock,chosen)[0],"postures":_fact_list(g,g.posture_facts(),lock,chosen),"wall_moves":_fact_list(g,g.wall_move_facts(),lock,chosen),"cards":_fact_list(g,cards,lock,chosen),"equipment":_fact_list(g,g.manual_facts(),lock,chosen),"hooks":_fact_list(g,g.hook_facts(),lock,chosen),"items":_fact_list(g,g.item_facts(),lock,chosen),"chain":_fact_list(g,g.Cards.chain_display_facts(g),lock,chosen),"retain":_fact_list(g,g.retain_facts(),lock,chosen)}
 
 # 接管锁（Gherkin 8 的文案逐字不变）：阻断结论＝唯一判定的 eligibility_takeover，步骤选择＝first_turn_control 的
 # 唯一选择结果。过渡说明：选择结果今日标注在候选行上（automated），R5 删行载体时随之改为落在显示事实的形状上。
@@ -222,6 +225,9 @@ static func _fact_list(g, source: Array, lock: Dictionary, chosen: String) -> Ar
  for f in source:
   var fact=g.display_fact(f)
   if not lock.is_empty() and g.shape_key(f.payload)!=chosen: fact.merge(lock,true)
+  # 行路径在 build 里对每条候选做同一件事（ReleaseView.preview），显示事实同源同值。
+  var release=ReleaseView.preview(g,fact)
+  if not release.is_empty(): fact.release_preview=release
   result.append(fact)
  return result
 

@@ -2,6 +2,9 @@ extends RefCounted
 const Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
 
 static func run(t) -> void:
+ var display=preload("res://tests/display_ui_cases.gd")
+ display.r4_display_points_do_not_read_rows(t)
+ display.r4_display_facts_match_determination(t)
  var ui=t.ui
  await nipple_region(t)
  var portrait=ui.find_child("EquipmentPortrait",true,false)
@@ -365,7 +368,7 @@ static func selection_focus(t) -> void:
   t.check(button.get_meta("target_selectable")==not button.disabled,"FOCUS item brightness follows the actual candidate")
  var valid=ui._body_card_actions("ankle",card.uid).filter(func(c):return c.payload.free==false and c.valid)[0]
  await Pointer.press(t,ui.find_child("CardTarget_"+valid.payload.target,true,false))
- t.check(ui.selected_candidate==valid.id and ui.game.export_snapshot()==before,"FOCUS selecting one of several targets spends nothing")
+ t.check(ui.selected_candidate==preload("res://ui/target_queries.gd").fact_id(valid) and ui.game.export_snapshot()==before,"FOCUS selecting one of several targets spends nothing")
  await Pointer.press(t,ui.find_child("PlaySelectedCard",true,false))
  t.check(ui.view.energy==before.energy-valid.cost and not ui.card_buttons.has(card.uid),"FOCUS play submits exactly the selected formal candidate once")
 
@@ -383,13 +386,15 @@ static func shared_hand_target(t) -> void:
  var choices=ui._body_card_actions("hands",uid)
  var shell=choices.filter(func(c):return c.payload.target==body.id)[0]
  var inner=choices.filter(func(c):return c.payload.target==tape.id)[0]
+ var queries=preload("res://ui/target_queries.gd")
+ var shell_id=queries.fact_id(shell);var inner_id=queries.fact_id(inner)
  await t.start_drag(uid,"hands")
- t.check(choices.size()==2 and ui.drop_targets.size()==2 and ui.drop_targets.has(shell.id) and ui.drop_targets.has(inner.id),"BODY aimed hand shows its two physical pieces including blocked entries, without other regions")
- if not ui.drop_targets.has(inner.id):
+ t.check(choices.size()==2 and ui.drop_targets.size()==2 and ui.drop_targets.has(shell_id) and ui.drop_targets.has(inner_id),"BODY aimed hand shows its two physical pieces including blocked entries, without other regions")
+ if not ui.drop_targets.has(inner_id):
   await t.mouse_button(Vector2(1500,70),MOUSE_BUTTON_LEFT,false)
   return
  t.check(ui.drop_targets.values().all(func(button):return not button.get_meta("target_selectable") and button.get_parent().modulate.r<0.5),"BODY blocked hand pieces are visible at low brightness")
- await t.release_target(await t.reveal_drop_target(inner.id))
+ await t.release_target(await t.reveal_drop_target(inner_id))
  t.check(ui.game.export_snapshot()==before and ui.drop_targets.is_empty(),"BODY releasing over dimmed equipment rejects the action without payment or state changes")
  await preload("res://tests/curse_ui_cases.gd").click_card(t,uid)
  await t.inspect_body("hands")
@@ -408,10 +413,12 @@ static func shared_hand_target(t) -> void:
  ui.render();await t.frames()
  choices=ui._body_card_actions("hands",uid)
  shell=choices.filter(func(c):return c.payload.target==body.id)[0]
- t.check(shell.valid and not choices.filter(func(c):return c.payload.target==tape.id)[0].valid,"BODY removing shoulder and wrist cover enables only the outer glove")
+ var inner_again=choices.filter(func(c):return c.payload.target==tape.id)[0]
+ shell_id=queries.fact_id(shell);inner_id=queries.fact_id(inner_again)
+ t.check(shell.valid and not inner_again.valid,"BODY removing shoulder and wrist cover enables only the outer glove")
  var durability=body.durability;var damage=shell.payload.preview.damage;var energy=ui.view.energy
  await t.start_drag(uid,"hands")
- t.check(ui.drop_targets[shell.id].get_meta("target_selectable") and ui.drop_targets[shell.id].get_parent().modulate==Color.WHITE and not ui.drop_targets[inner.id].get_meta("target_selectable") and ui.drop_targets[inner.id].get_parent().modulate.r<0.5,"BODY same region distinguishes selectable outer piece from dimmed blocked inner piece")
+ t.check(ui.drop_targets[shell_id].get_meta("target_selectable") and ui.drop_targets[shell_id].get_parent().modulate==Color.WHITE and not ui.drop_targets[inner_id].get_meta("target_selectable") and ui.drop_targets[inner_id].get_parent().modulate.r<0.5,"BODY same region distinguishes selectable outer piece from dimmed blocked inner piece")
  await t.capture("ui-body-target-brightness.png")
- await t.release_target(await t.reveal_drop_target(shell.id))
+ await t.release_target(await t.reveal_drop_target(shell_id))
  t.check(is_equal_approx(ui.game._equipment(body.id).get("durability",0),maxf(0,durability-damage)) and ui.view.energy==energy-shell.cost,"BODY deduplicated glove target still commits the original candidate once")

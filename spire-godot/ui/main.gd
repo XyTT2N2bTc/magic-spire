@@ -1276,7 +1276,7 @@ func _body_at(slot: String) -> Dictionary:
  return TargetQueries.body_at(view,slot)
 
 func _body_card_actions(slot: String, uid: String) -> Array:
- return TargetQueries.body_cards(actions,_body_at(slot),uid)
+ return TargetQueries.body_cards(view,_body_at(slot),uid)
 
 func _body_drawer() -> void:
  layout.body_sidebar(self)
@@ -1286,10 +1286,10 @@ func _body_equipment_entries(body: Dictionary) -> Dictionary:
  return TargetQueries.equipment_entries(body)
 
 func _single_body_card_action(slot: String, uid: String) -> Dictionary:
- return TargetQueries.single_body_card(actions,_body_at(slot),uid,card_faces.get(uid,false))
+ return TargetQueries.single_body_card(view,_body_at(slot),uid,card_faces.get(uid,false))
 
 func _single_restraint_card_action(uid: String) -> Dictionary:
- return TargetQueries.single_equipment_card(actions,view.body_groups,uid,card_faces.get(uid,false))
+ return TargetQueries.single_equipment_card(view,view.body_groups,uid,card_faces.get(uid,false))
 
 func _body_details() -> void:
  var compact=selected_card!="" and not _single_body_card_action(selected_slot,selected_card).is_empty() and view.guard_bind.is_empty()
@@ -1306,17 +1306,17 @@ func _body_details() -> void:
  var content=_scroll(v)
  if view.pending_retain:
   content.add_child(_label("还可保留%d张，保留至下回合结束" % view.retain_left,16,CYAN))
-  for c in actions.select("retain"): _action_row(content,c)
+  for c in TargetQueries.group_facts(view,"retain"): _action_row(content,c)
  elif selected_card!="" and view.hand.any(func(c):return c.uid==selected_card):
   var card=view.hand.filter(func(c):return c.uid==selected_card)[0]
   content.add_child(_label(card.name,22,CYAN))
-  var bind_action=actions.find("card",{"uid":selected_card,"target":"guard_bind","free":card_faces.get(selected_card,false)})
+  var bind_action=TargetQueries.find(view,"card",{"uid":selected_card,"target":"guard_bind","free":card_faces.get(selected_card,false)})
   if not bind_action.is_empty():
    _card_target(content,bind_action,false,v)
    content.add_child(HSeparator.new())
   var choices=_body_card_actions(selected_slot,selected_card)
   var single=_single_body_card_action(selected_slot,selected_card)
-  if not single.is_empty(): selected_candidate=single.id
+  if not single.is_empty(): selected_candidate=TargetQueries.fact_id(single)
   for c in choices:
    if c.payload.free==card_faces.get(selected_card,false): _card_target(content,c,not single.is_empty(),v)
    elif not choices.any(func(other):return other.payload.free==card_faces.get(selected_card,false)):
@@ -1366,11 +1366,11 @@ func _equipment_tile(parent: Node, e: Dictionary, location: String="", expanded:
  parent.add_child(card)
  var box=VBoxContainer.new();box.add_theme_constant_override("separation",5);card.add_child(box)
  preload("res://ui/release_details.gd").equipment_header(self,box,e,location,accent)
- for c in actions.select("manual",{"target":e.id}):
+ for c in TargetQueries.select(view,"manual",{"target":e.id}):
   if c.valid and c.payload.after==0.0:
    var release=_button("一键解除 · %d能量" % c.cost,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN)
    release.name="QuickRelease_"+e.id
-   box.add_child(release);candidate_buttons[c.id]=release
+   box.add_child(release);candidate_buttons[TargetQueries.fact_id(c)]=release
  var details=VBoxContainer.new();details.name="EquipmentActions";details.visible=expanded
  var toggle=_button("收起详情 −" if expanded else "查看详情 ＋",func():pass,MUTED)
  toggle.pressed.connect(func():
@@ -1393,10 +1393,10 @@ func _equipment_actions(details: VBoxContainer, e: Dictionary) -> void:
  more.name="EquipmentDescriptionToggle"
  more.custom_minimum_size.y=24;more.add_theme_font_size_override("font_size",11)
  details.add_child(more);details.add_child(description)
- for c in actions.select("attack",{"target":e.id}):
+ for c in TargetQueries.select(view,"attack",{"target":e.id}):
   _action_row(details,c)
-  candidate_buttons[c.id].name="EquipmentSpell_"+e.id
- for c in actions.select("manual",{"target":e.id}):
+  candidate_buttons[TargetQueries.fact_id(c)].name="EquipmentSpell_"+e.id
+ for c in TargetQueries.select(view,"manual",{"target":e.id}):
   if not c.valid or c.payload.after!=0.0: _action_row(details,c)
  _localize_controls(details)
 
@@ -1425,7 +1425,7 @@ func _action_row(parent: Node,c: Dictionary,label: String="") -> void:
   var choices=view.hand.filter(func(card):return card.uid==c.payload.uid)
   if not choices.is_empty():
    var face=_display_card(choices[0].type,parent,func():command_router.emit(String(c.payload.get("kind","")),c),"retain_"+c.payload.uid)
-   face.disabled=not c.valid;candidate_buttons[c.id]=face
+   face.disabled=not c.valid;candidate_buttons[TargetQueries.fact_id(c)]=face
    return
  var fee=str(c.cost)+"能量"+(" / "+game.number(c.mana)+"魔力" if c.mana>0 else "")
  if c.payload.kind=="service": fee=game.number(c.mana)+("魔瓶魔力" if c.payload.get("payment","")=="flask" else "魔力") if c.mana>0 else "免费"
@@ -1434,16 +1434,17 @@ func _action_row(parent: Node,c: Dictionary,label: String="") -> void:
  if targeted: DragTargets.source(self,b,c)
  b.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
  b.disabled=not c.valid
- parent.add_child(b); candidate_buttons[c.id]=b
+ parent.add_child(b); candidate_buttons[TargetQueries.fact_id(c)]=b
  if c.has("release_preview") and c.valid: preload("res://ui/release_details.gd").preview(self,parent,c)
  else: parent.add_child(_label(detail_of(c) if c.valid else c.reason,14,MUTED if c.valid else RED))
  if c.risk!="" and c.valid: parent.add_child(_label(c.risk,13,RED))
 
 func _card_target(parent: Node,c: Dictionary, automatic: bool=false, footer: Node=null) -> void:
+ var key=TargetQueries.fact_id(c)
  if automatic:
   parent.add_child(_label(c.label,16,CYAN if c.valid else MUTED))
  else:
-  var b=_button(c.label,func(): selected_candidate=c.id; render(view),CYAN)
+  var b=_button(c.label,func(): selected_candidate=key; render(view),CYAN)
   b.name="CardTarget_"+c.payload.target;b.disabled=not c.valid
   DragTargets.focus(self,b,c.valid)
   parent.add_child(b)
@@ -1451,13 +1452,13 @@ func _card_target(parent: Node,c: Dictionary, automatic: bool=false, footer: Nod
  if not equipment.is_empty(): parent.add_child(_label(equipment.position_text+" · "+equipment.get("layer_label",""),12,MUTED))
  if not c.valid: parent.add_child(_label(c.reason,14,RED))
  elif c.risk!="": parent.add_child(_label(c.risk,14,RED))
- if selected_candidate==c.id and c.valid:
+ if selected_candidate==key and c.valid:
   if c.has("release_preview"): preload("res://ui/release_details.gd").preview(self,parent,c)
   else: parent.add_child(_label(detail_of(c),15,TEXT))
   var fee=str(c.cost)+"能量"+(" / "+game.number(c.mana)+"魔力" if c.mana>0 else "")
   var commit=_button("打出 · "+fee,func(): command_router.emit(String(c.payload.get("kind","")),c),CYAN)
   commit.name="PlaySelectedCard"
-  (footer if footer!=null else parent).add_child(commit); candidate_buttons[c.id]=commit
+  (footer if footer!=null else parent).add_child(commit); candidate_buttons[key]=commit
 
 func _rewards() -> void:
  preload("res://ui/reward_screen.gd").build(self)
@@ -1631,7 +1632,7 @@ func _prison_location_details(parent: Node,site: Dictionary) -> void:
   var points=site.installation_points.map(func(point):return point.short_label+" · "+("空闲" if point.occupant=="" else "已占用"))
   scroll.add_child(_label("   /   ".join(points),13,CYAN))
   if not installed:
-   var carry=view.items.filter(func(i):return not i.installed and not actions.select("item",{"item":i.id}).filter(func(c):return c.payload.kind=="item_install").is_empty())
+   var carry=view.items.filter(func(i):return not i.installed and not TargetQueries.select(view,"item",{"item":i.id}).filter(func(c):return c.payload.kind=="item_install").is_empty())
    if not carry.is_empty():
     if not carry.any(func(i):return i.id==selected_item): selected_item=carry[0].id
     var picker=OptionButton.new();picker.name="WallToolPicker"
@@ -1639,7 +1640,7 @@ func _prison_location_details(parent: Node,site: Dictionary) -> void:
      picker.add_item(item.name)
      if item.id==selected_item: picker.select(picker.item_count-1)
     picker.item_selected.connect(func(index):selected_item=carry[index].id;render(view));scroll.add_child(picker)
-    for c in actions.select("item",{"kind":"item_install","item":selected_item}): _compact_action(scroll,c)
+    for c in TargetQueries.select(view,"item",{"kind":"item_install","item":selected_item}): _compact_action(scroll,c)
  if kind=="door":
   var door=_button("牢门 · "+("已打开" if view.prison.door_open else "上锁"),func():pass,CYAN,true)
   door.hover_card=func(data):
@@ -1677,7 +1678,7 @@ func _compact_action(parent: Node,c: Dictionary,caption: String="",show_free_cos
  var button=_button(label,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN,targeted)
  if targeted: DragTargets.source(self,button,c)
  button.disabled=not c.valid;button.tooltip_text=detail_of(c) if c.valid else c.reason
- parent.add_child(button);candidate_buttons[c.id]=button
+ parent.add_child(button);candidate_buttons[TargetQueries.fact_id(c)]=button
  if not c.valid: parent.add_child(_label(c.reason,13,RED))
  elif c.risk!="": parent.add_child(_label(c.risk,13,RED))
  elif c.payload.kind in ["item_install","item_retrieve"]: parent.add_child(_label(detail_of(c),13,CYAN))
@@ -1697,9 +1698,10 @@ func _tool_target_card(parent: Node,c: Dictionary) -> void:
  _equipment_card_face(box,equipment,equipment.get("position_text",""),CYAN if c.valid else MUTED,true)
  if c.valid: box.add_child(_label(detail_of(c),13,CYAN))
 
+# 牢门开锁落点（拖放域，批 R4）：显示事实取用；回退保持末条拒绝（原行动索引语义）。
 func _door_candidate(data: Dictionary) -> Dictionary:
  if data.get("version",-1)!=view.version or data.get("free",true): return {}
- return actions.first_usable("prison",{"action":"unlock","uid":data.get("card_uid","")})
+ return TargetQueries.first_usable(TargetQueries.select(view,"prison",{"action":"unlock","uid":data.get("card_uid","")}),"last")
 
 func _route_screen() -> void:
  var current=view.route.filter(func(r):return r.current)[0].id
@@ -2337,7 +2339,7 @@ func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false
   target.accept_card=func(incoming): return reason=="" and incoming==data and incoming.version==view.version
   target.receive_card=func(incoming): command_router.emit_deferred(String(c.payload.get("kind","")),c,int(incoming.version))
   targets.add_child(card)
-  drop_targets[c.id]=target
+  drop_targets[TargetQueries.fact_id(c)]=target
   count+=1
  var rows=mini(3,maxi(1,ceili(count/float(columns))))
  drop_panel.size=Vector2(mini(columns,maxi(1,count))*80+20+(16 if count>columns*rows else 0),rows*90+16)
@@ -2352,7 +2354,7 @@ func _actor_drop_area(rect: Rect2, parent: Control=null, interactive: bool=false
 
 func _attack_drop_candidate(data: Dictionary, enemy_id: String) -> Dictionary:
  if data.get("version",-1)!=view.version: return {}
- return actions.find("attack",{"type":data.get("action_type",""),"form":data.get("form",0),"enemy":enemy_id})
+ return TargetQueries.find(view,"attack",{"type":data.get("action_type",""),"form":data.get("form",0),"enemy":enemy_id})
 
 func _configure_enemy_drop(button: Button, enemy_id: String) -> void:
  button.accepted_kind="attack"
@@ -2368,7 +2370,7 @@ func _configure_enemy_drop(button: Button, enemy_id: String) -> void:
 
 func _guard_bind_card_candidate(data: Dictionary) -> Dictionary:
  if data.get("version",-1)!=view.version or _card_is_free(data.get("card_uid",""),data.get("free",false)): return {}
- return actions.find("card",{"uid":data.get("card_uid",""),"target":"guard_bind","free":data.get("free",false)})
+ return TargetQueries.find(view,"card",{"uid":data.get("card_uid",""),"target":"guard_bind","free":data.get("free",false)})
 
 func _drag_rejection(anchor: Control, reason: String) -> void:
  if reason=="":
@@ -2400,25 +2402,25 @@ func _guard_bind_drop_target(rect: Rect2, node_name: String) -> Button:
 
 func _activate_guard_bind_target() -> void:
  if selected_card=="": return
- var c=actions.find("card",{"uid":selected_card,"target":"guard_bind","free":card_faces.get(selected_card,false)})
+ var c=TargetQueries.find(view,"card",{"uid":selected_card,"target":"guard_bind","free":card_faces.get(selected_card,false)})
  if not c.is_empty() and c.valid: command_router.emit(String(c.payload.get("kind","")),c,int(view.version))
  elif not c.is_empty():
   notice=c.reason
   render(view)
 
-# 姿态拖放的显示事实解析（姿态域，R3）：按钮按显示键（形状）携带；R5 域的行身份键保留回落。
+# 姿态拖放的显示事实解析（姿态域，R3；批 R4 去掉行身份回落）：按钮按显示键（形状）携带。
 func _self_action(data: Dictionary) -> Dictionary:
  var key=String(data.get("self_action_id",""))
  for f in view.display_facts.postures:
   if display_key(f.payload)==key: return f
- return actions.by_id.get(key,{})
+ return {}
 
 func _can_drop_on_player(data: Dictionary) -> bool:
  if data.get("version",-1)!=view.version: return false
  if data.has("self_action_id"):
   var c=_self_action(data)
   return not c.is_empty() and String(c.payload.get("kind",""))=="posture" and c.valid
- var self_card=actions.find("card",{"uid":data.get("card_uid",""),"self_target":true,"free":data.get("free",false)})
+ var self_card=TargetQueries.find(view,"card",{"uid":data.get("card_uid",""),"self_target":true,"free":data.get("free",false)})
  if not self_card.is_empty(): return self_card.valid
  if _card_is_free(data.get("card_uid",""),data.get("free",false)):
   var c=_free_player_candidate(data)
@@ -2434,7 +2436,7 @@ func _player_drag_preview(data: Dictionary) -> void:
   var c=_self_action(data)
   _drag_rejection(actor_targets.hero,"行动已失效，请重新选择。" if c.is_empty() else ("" if c.valid else c.reason))
   return
- var self_card=actions.find("card",{"uid":data.get("card_uid",""),"self_target":true,"free":data.get("free",false)})
+ var self_card=TargetQueries.find(view,"card",{"uid":data.get("card_uid",""),"self_target":true,"free":data.get("free",false)})
  if not self_card.is_empty():
   _drag_rejection(actor_targets.hero,"" if self_card.valid else self_card.reason)
   return
@@ -2464,10 +2466,11 @@ func _card_is_free(uid: String, second: bool) -> bool:
   if card.uid==uid: return card.free_faces["free" if second else "bound"]
  return false
 
+# 自由面落点（拖放域，批 R4）：显示事实取用；两条分支的回退策略各自保持（整牌＝末条拒绝，部位＝首条拒绝）。
 func _free_player_candidate(data: Dictionary, slot: String="") -> Dictionary:
  if not _card_is_free(data.get("card_uid",""),data.get("free",false)) or data.get("version",-1)!=view.version: return {}
  var fields={"uid":data.get("card_uid",""),"free":true}
- if slot=="": return actions.first_usable("card",fields)
+ if slot=="": return TargetQueries.first_usable(TargetQueries.select(view,"card",fields),"last")
  var matches=_body_card_actions(slot,data.get("card_uid","")).filter(func(c):return c.payload.free)
  return TargetQueries.first_usable(matches)
 
@@ -2507,7 +2510,7 @@ func quick_release_source(source: Dictionary, expected_version: int) -> Dictiona
  var data={"card_uid":uid,"free":free,"version":expected_version}
  var quick=preload("res://ui/quick_release_bar.gd").candidate(self,quick_release_region,data)
  if not quick.is_empty() and bool(quick.valid): return quick.payload
- var matching=actions.select("card",{"uid":uid,"free":free})
+ var matching=TargetQueries.select(view,"card",{"uid":uid,"free":free})
  if matching.any(func(c):return c.payload.get("mode","") in TargetQueries.RELEASE_MODES):
   notice=String(quick.reason) if not quick.is_empty() else preload("res://ui/quick_release_bar.gd").message(self,"wrong_card","这张牌不能用于当前选中的拘束具")
   selected_card=uid;selected_candidate="";show_body=false
@@ -2601,7 +2604,7 @@ func _hook_drawer() -> void:
  var v=_drawer_shell(view.hook_location+" · 剩余%d次" % view.hook_uses,Rect2(650,150,870,560))
  var content=_scroll(v)
  content.add_child(_label(view.hook_environment_name+" · "+view.hook_contact,14,CYAN))
- var targets=actions.select("hook")
+ var targets=TargetQueries.group_facts(view,"hook")
  for c in targets: _action_row(content,c)
  if targets.is_empty(): content.add_child(_label("当前没有需要处理的装备。",17,MUTED))
 
@@ -2717,7 +2720,7 @@ func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
  if selected.environment_name!="": right.add_child(_label(selected.environment_name+(" · "+selected.fixed_label if selected.installed else " · 安装后可作借力环境"),14,GOLD))
  if selected.contact_text!="": right.add_child(_label(selected.contact_text,14,CYAN))
  if selected.installed and selected.passive_text!="": right.add_child(_label(selected.passive_text,14,CYAN))
- var item_actions=actions.select("item",{"item":selected_item})
+ var item_actions=TargetQueries.select(view,"item",{"item":selected_item})
  var usage_actions=item_actions.filter(func(c):return c.payload.kind!="item_discard")
  if usage_actions.is_empty(): right.add_child(_label(selected.inactive_reason,13,MUTED))
  if selected.direct_use:
@@ -2731,7 +2734,7 @@ func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
     var button=_button(group.name,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN)
     button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
     button.name="ToolSlot_"+group.id;button.disabled=not c.valid
-    grid.add_child(button);candidate_buttons[c.id]=button
+    grid.add_child(button);candidate_buttons[TargetQueries.fact_id(c)]=button
     if not c.valid: button.tooltip_text=c.reason
   else:
    for c in item_actions:
@@ -2743,7 +2746,7 @@ func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
    button.name="ToolSlot_"+group.id;right.add_child(button)
    if selected_item_slot==group.id:
     for id in group.candidates:
-     var matches=item_actions.filter(func(c):return c.id==id)
+     var matches=item_actions.filter(func(c):return TargetQueries.fact_id(c)==id)
      if not matches.is_empty(): _tool_target_card(right,matches[0])
   if selected.target_groups.is_empty():
    for reason in selected.unavailable_reasons: right.add_child(_label(reason,14,RED))
@@ -2767,7 +2770,7 @@ func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
   if c.payload.kind=="item_discard":
    var discard=_button("丢弃",func():command_router.emit(String(c.payload.get("kind","")),c),MUTED);discard.name="ItemDiscard";discard.custom_minimum_size=Vector2(90,32)
    discard.add_theme_font_size_override("font_size",14);discard.tooltip_text="丢弃后无法取回。";discard.disabled=not c.valid
-   footer.add_child(discard);candidate_buttons[c.id]=discard
+   footer.add_child(discard);candidate_buttons[TargetQueries.fact_id(c)]=discard
 
 func _options_drawer() -> void:
  var content=_drawer_shell(_text("ui.settings.title","设置"),Rect2(390,110,820,700) if options_tab=="keys" else Rect2(550,145,500,590))
@@ -2918,7 +2921,7 @@ func _chain_screen() -> void:
  var content=_scroll(panel)
  content.add_child(_label(view.card_chain.name+(" · 选择要消耗的牌" if view.card_chain.get("selection",false) else " · 选择下一段目标"),24,GOLD))
  content.add_child(_label("费用已支付，选择下一段目标。",16,CYAN))
- for c in actions.select("chain"): _action_row(content,c)
+ for c in TargetQueries.group_facts(view,"chain"): _action_row(content,c)
 
 func _service_screen() -> void:
  var shop=ShopScreen.new();shop.ui=self;shop.name="RoomServicePanel";shop.size=Vector2(1552,790)

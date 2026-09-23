@@ -99,6 +99,109 @@ static func display_facts_match_determination(t) -> void:
    if not points.has(key): problems.append(key+" missing")
   t.check(problems.is_empty(),"G5 display_facts_match_determination: display text equals the unmodified-source baseline ("+name+"): "+str(problems.slice(0,3)))
 
+# docs/spec/candidate-removal.md §5 G5（批 R4 的装备／快捷解除／拖放／道具域）。
+# 夹具与 R3 相同，并补上商店／事件／监狱（该节 Given 的其余阶段）。文本基线在未改源码上复算后冻结。
+const R4_FACT_GROUPS=["equipment","hooks","items","chain","retain"]
+const R4_G5_CELLS=[["battle",0],["battle",12],["battle",26],["battle",44],["prepare",0],["prepare",12],["prepare",26],["prepare",44],["rest",0],["rest",12],["rest",26],["rest",44],["shop",0],["shop",12],["shop",26],["shop",44],["event",0],["event",12],["event",26],["event",44],["prison",0],["prison",12],["prison",26],["prison",44]]
+const R4_G5_BASELINE={
+ "battle:0":"cd11601cef15dee6221c6b67194dc3f5","battle:12":"dc76ae993b1ece44d0e6dbc6fa3489b4","battle:26":"747f1f340aa4a487bb4a6e3859734ce1","battle:44":"c8245d8251be3248813419d915e27f0d",
+ "prepare:0":"4686740a193e4ccc3949dabddf08d22c","prepare:12":"79c6856820354267857b66fd23bef424","prepare:26":"5585eedfffa067602b30a044b0784ec8","prepare:44":"bd5c73996249d50ec0f2279c5b5e0aa0",
+ "rest:0":"88bb205f9ffc3093160531e9fee2b42f","rest:12":"62f2f96078c1a53ccf59789b61754431","rest:26":"76cf5608dc0c0ea0d6f1c25374667e3b","rest:44":"3b6385ebe71ab599b63d02c6a57c549b",
+ "shop:0":"e3b0c44298fc1c149afbf4c8996fb924","shop:12":"e3b0c44298fc1c149afbf4c8996fb924","shop:26":"e3b0c44298fc1c149afbf4c8996fb924","shop:44":"e3b0c44298fc1c149afbf4c8996fb924",
+ "event:0":"e3b0c44298fc1c149afbf4c8996fb924","event:12":"e3b0c44298fc1c149afbf4c8996fb924","event:26":"e3b0c44298fc1c149afbf4c8996fb924","event:44":"e3b0c44298fc1c149afbf4c8996fb924",
+ "prison:0":"9ace64537bb8d66433e1b8282826f18b","prison:12":"455261e120f7e7baee46523ec5ba40c0","prison:26":"db91e6b5ccec79b4c6085c7ab7c45449","prison:44":"0d164eed90414ba73198c3d0de0c7a4e",
+}
+const R4_ROW_FREE_FUNCTIONS={
+ "res://ui/main.gd":["_equipment_actions","_attack_drop_candidate","_item_details","_door_candidate","_free_player_candidate","_hook_drawer","_guard_bind_card_candidate","_chain_screen"],
+}
+
+static func r4_entries(view: Dictionary, group: String) -> Array:
+ var entries=view.display_facts.get(group,[])
+ if entries is Array: return entries
+ return [] if entries.is_empty() else [entries]
+
+static func r4_points(g, view: Dictionary) -> Dictionary:
+ var queries=preload("res://ui/target_queries.gd")
+ var points={}
+ for group in R4_FACT_GROUPS:
+  for f in r4_entries(view,group):
+   points[group+"|"+r3_point_key(g,f.payload)]=r3_point_fields(f)
+ for f in r4_entries(view,"cards"):
+  if not (String(f.payload.get("mode","")) in queries.RELEASE_MODES): continue
+  points["release|"+r3_point_key(g,f.payload)]=[String(f.label),str(f.valid),String(f.reason),str(f.cost),str(f.mana)]
+ for item in view.items:
+  points["itemview|"+String(item.id)]=[JSON.stringify(item.get("unavailable_reasons",[])),JSON.stringify(item.get("target_groups",[]))]
+ return points
+
+static func r4_digest(points: Dictionary) -> String:
+ var keys=points.keys()
+ keys.sort()
+ var lines=[]
+ for key in keys: lines.append(String(key)+"="+JSON.stringify(points[key]))
+ return "\n".join(lines).sha256_text().substr(0,32)
+
+static func r4_fact_mismatches(g, view: Dictionary) -> Array:
+ var queries=preload("res://ui/target_queries.gd")
+ var rows={}
+ for c in view.candidates: rows[g.shape_key(c.payload)]=c
+ var mismatches=[]
+ var groups=R4_FACT_GROUPS.duplicate()
+ groups.append("cards")
+ for group in groups:
+  for f in r4_entries(view,group):
+   if group=="cards" and not (String(f.payload.get("mode","")) in queries.RELEASE_MODES): continue
+   var key=g.shape_key(f.payload)
+   var row=rows.get(key,{})
+   if row.is_empty():
+    mismatches.append("no determination row for "+key)
+    continue
+   if queries.fact_id(f)!=String(row.id): mismatches.append(key+" id fact="+queries.fact_id(f)+" row="+String(row.id))
+   for field in ["valid","reason","risk","cost","mana","label"]:
+    if f.get(field)!=row.get(field): mismatches.append(key+"."+field+" fact="+str(f.get(field))+" determination="+str(row.get(field)))
+   if JSON.stringify(f.get("mana_payment",{}))!=JSON.stringify(row.get("mana_payment",{})): mismatches.append(key+".mana_payment")
+   if JSON.stringify(f.get("release_preview",{}))!=JSON.stringify(row.get("release_preview",{})): mismatches.append(key+".release_preview")
+ return mismatches
+
+static func r4_display_points_do_not_read_rows(t) -> void:
+ var declaration=RegEx.new()
+ var slash=String.chr(92)
+ declaration.compile("^"+slash+"s*func"+slash+"s+([A-Za-z_][A-Za-z0-9_]*)")
+ var offenders=[]
+ for path in R4_ROW_FREE_FUNCTIONS:
+  var handle=FileAccess.open(path,FileAccess.READ)
+  var text="" if handle==null else handle.get_as_text()
+  var current=""
+  var watched=R4_ROW_FREE_FUNCTIONS[path]
+  for line in text.split(String.chr(10)):
+   var code=String(line).split("#")[0]
+   var declared=declaration.search(code)
+   if declared!=null: current=declared.get_string(1)
+   if not (current in watched): continue
+   if code.contains("actions.select(") or code.contains("actions.find(") or code.contains("actions.first_usable(") or code.contains("actions.by_id"):
+    offenders.append(path+" "+current)
+ var keyboard=FileAccess.open("res://ui/keyboard_input.gd",FileAccess.READ)
+ var keyboard_text="" if keyboard==null else keyboard.get_as_text()
+ if keyboard_text.contains("host.actions"): offenders.append("ui/keyboard_input.gd host.actions")
+ for path in ["res://ui/quick_release_bar.gd","res://ui/drag_targets.gd"]:
+  var reader=FileAccess.open(path,FileAccess.READ)
+  var body="" if reader==null else reader.get_as_text()
+  if body.contains("ui.actions") or body.contains(".actions.select") or body.contains(".actions.find"): offenders.append(path)
+ var queries=FileAccess.open("res://ui/target_queries.gd",FileAccess.READ)
+ var query_text="" if queries==null else queries.get_as_text()
+ if query_text.contains(".by_id") or query_text.contains("ActionIndex"): offenders.append("ui/target_queries.gd row index")
+ t.check(offenders.is_empty(),"G5 display_facts_match_determination: R4 display points read display facts instead of candidate rows: "+str(offenders.slice(0,4)))
+
+static func r4_display_facts_match_determination(t) -> void:
+ for cell in R4_G5_CELLS:
+  var name="%s:%d" % [cell[0],cell[1]]
+  var g=Cases.r1_build(cell[0],cell[1])
+  var view=g.get_view()
+  var mismatches=r4_fact_mismatches(g,view)
+  t.check(mismatches.is_empty(),"G5 display_facts_match_determination: every R4 display fact equals the single determination for the same shape ("+name+"): "+str(mismatches.slice(0,3)))
+  var digest=r4_digest(r4_points(g,view))
+  var expected=String(R4_G5_BASELINE.get(name,""))
+  t.check(expected!="" and expected==digest,"G5 display_facts_match_determination: R4 display text equals the unmodified-source baseline ("+name+"): baseline="+expected+" current="+digest)
+
 static func choose(t, name: String, index: int) -> void:
  var picker=t.ui.find_child(name,true,false)
  t.check(picker!=null and not picker.disabled,"DISPLAY enabled selector "+name)
@@ -367,6 +470,8 @@ static func takeover_path_unchanged(t) -> void:
 static func run(t) -> void:
  r3_display_points_do_not_read_rows(t)
  display_facts_match_determination(t)
+ r4_display_points_do_not_read_rows(t)
+ r4_display_facts_match_determination(t)
  await portrait_snapshot_boundary(t)
  await submit_reject_semantics_unchanged(t)
  await takeover_path_unchanged(t)

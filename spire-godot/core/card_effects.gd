@@ -1237,7 +1237,7 @@ static func continuation_part(g, slot: String) -> Array:
 
 # Select within the current physical point, then body part, then original region.
 # Queries never roll; normalize chooses once during the enclosing transaction.
-static func follow_through_candidates(g) -> Array:
+static func follow_through_facts(g) -> Array:
  var chain=g.state.card_chain
  var whole_body=Rules.SPECS[chain.type].get("follow_through_scope","region")=="body"
  var out=[]
@@ -1247,7 +1247,7 @@ static func follow_through_candidates(g) -> Array:
   var p=target_payload(g,chain.type,chain.slot,current,profiles,"",chain.get("free",false))
   if reason(g,p)=="":
    p.kind="chain";p.action="hit"
-   g._candidate(out,p,"继续 · "+g._equipment_name(current),detail(g,p),0,0,"","","chain")
+   out.append(g._fact(p,"继续 · "+g._equipment_name(current),detail(g,p),0,0.0,"","","chain"))
   if not out.is_empty() or not whole_body: return out
  var region=Rules.FOLLOW_THROUGH_REGIONS[Rules.follow_through_region(chain.slot) if whole_body else chain.region]
  var part=continuation_part(g,chain.slot).filter(func(slot):return slot in region)
@@ -1272,7 +1272,12 @@ static func follow_through_candidates(g) -> Array:
     if priority<best_priority: continue
     if priority>best_priority: out.clear();best_priority=priority
    p.kind="chain";p.action="hit"
-   g._candidate(out,p,("超级顺延 · " if whole_body else "顺延 · ")+g._equipment_name(target),detail(g,p),0,0,"","","chain")
+   out.append(g._fact(p,("超级顺延 · " if whole_body else "顺延 · ")+g._equipment_name(target),detail(g,p),0,0.0,"","","chain"))
+ return out
+
+static func follow_through_candidates(g) -> Array:
+ var out=[]
+ for f in follow_through_facts(g): g._fact_row(out,f)
  return out
 
 static func selection_cards(g, exclude_uid: String="") -> Array:
@@ -1298,16 +1303,17 @@ static func select_exhaust(g, p: Dictionary) -> void:
  g.Pressure.gain(g,30,"强制高潮")
  g.Pressure.forced_climax(g,"强制高潮")
 
-static func chain_candidates(g) -> Array:
+# 连锁继续（批 R4：行与显示事实的唯一来源，docs/spec/candidate-removal.md §2.1 T5／T8）。
+static func chain_facts(g) -> Array:
  var out=[]
  var chain=g.state.card_chain
  if chain.is_empty(): return out
  if chain.mode=="select_exhaust":
   for entry in selection_cards(g):
    var zone_name={"draw":"抽牌堆","hand":"手牌","discard":"弃牌堆"}[entry.zone]
-   g._candidate(out,{"kind":"chain","action":"select_exhaust","type":chain.type,"free":chain.free,"selected_uid":entry.card.uid},"消耗 · "+g.B.CARD_NAMES[entry.card.type]+" · "+zone_name,"仅在本场消耗这张牌。",0,0,"","","chain")
+   out.append(g._fact({"kind":"chain","action":"select_exhaust","type":chain.type,"free":chain.free,"selected_uid":entry.card.uid},"消耗 · "+g.B.CARD_NAMES[entry.card.type]+" · "+zone_name,"仅在本场消耗这张牌。",0,0.0,"","","chain"))
   return out
- if Rules.SPECS[chain.type].get("follow_through",false) and chain.slot!=g.CaptureBind.BIND_TARGET: return follow_through_candidates(g)
+ if Rules.SPECS[chain.type].get("follow_through",false) and chain.slot!=g.CaptureBind.BIND_TARGET: return follow_through_facts(g)
  var assist_profiles=g.HandAssist.profiles(g)
  var targets=g.action_targets() if chain.mode=="unlock" else ([{"id":g.CaptureBind.BIND_TARGET}] if chain.slot==g.CaptureBind.BIND_TARGET and g.CaptureBind.has_bind(g) else g.targets_at(chain.slot))
  var seen=[]
@@ -1318,14 +1324,31 @@ static func chain_candidates(g) -> Array:
   var p=bind_payload(g,chain.type,"",chain.get("free",false)) if target.id==g.CaptureBind.BIND_TARGET else target_payload(g,chain.type,chain.slot,target,assist_profiles,"",chain.get("free",false))
   if reason(g,p)!="": continue
   p.kind="chain";p.action="hit"
-  g._candidate(out,p,"继续 · "+("捕缚" if target.id==g.CaptureBind.BIND_TARGET else g._equipment_name(target)),detail(g,p),0,0,"","","chain")
+  out.append(g._fact(p,"继续 · "+("捕缚" if target.id==g.CaptureBind.BIND_TARGET else g._equipment_name(target)),detail(g,p),0,0.0,"","","chain"))
  if chain.mode=="unlock" and g.state.phase=="prison" and not g.state.prison.door_open and body_reason(g,chain.type)=="":
-  g._candidate(out,{"kind":"chain","action":"hit","type":chain.type,"target":"prison_door","mode":"unlock","free":false},"继续 · 牢门锁","打开牢门锁，不额外消耗能量或魔力；离开时仍检查速度。",0,0,"需要先到牢门前。" if not g.Prison.Space.at(g,"door") else "","","chain")
+  out.append(g._fact({"kind":"chain","action":"hit","type":chain.type,"target":"prison_door","mode":"unlock","free":false},"继续 · 牢门锁","打开牢门锁，不额外消耗能量或魔力；离开时仍检查速度。",0,0.0,"需要先到牢门前。" if not g.Prison.Space.at(g,"door") else "","","chain"))
+ return out
+
+# 「结束连续开锁」的收尾行（只在 unlock 连锁中存在）：行与显示事实唯一来源。
+static func chain_stop_fact(g) -> Dictionary:
+ if g.state.card_chain.is_empty() or g.state.card_chain.mode!="unlock": return {}
+ return g._fact({"kind":"chain","action":"stop","type":g.state.card_chain.type,"free":false,"mode":"unlock"},"结束连续开锁","保留已完成效果与已支付费用。",0,0.0,"","","chain")
+
+# 连锁显示事实（批 R4）：与行路径同源——连锁继续事实＋收尾行。
+static func chain_display_facts(g) -> Array:
+ if not g.chain_rows_active(): return []
+ var out=chain_facts(g)
+ var stop=chain_stop_fact(g)
+ if not stop.is_empty(): out.append(stop)
+ return out
+
+static func chain_candidates(g) -> Array:
+ var out=[]
+ for f in chain_facts(g): g._fact_row(out,f)
  return out
 
 static func continuation(g, out: Array) -> void:
- out.append_array(chain_candidates(g))
- if g.state.card_chain.mode=="unlock": g._candidate(out,{"kind":"chain","action":"stop","type":g.state.card_chain.type,"free":false,"mode":"unlock"},"结束连续开锁","保留已完成效果与已支付费用。",0,0,"","","chain")
+ for f in chain_display_facts(g): g._fact_row(out,f)
 
 static func continue_card(g, p: Dictionary) -> void:
  if p.action=="select_exhaust":

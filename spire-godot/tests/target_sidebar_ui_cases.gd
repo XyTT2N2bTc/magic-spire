@@ -1,6 +1,17 @@
 extends RefCounted
 const Navigation=preload("res://tests/interface_ui_cases.gd")
 
+# Synthetic rows become one view's display facts. Group names follow Queries.GROUP_FACTS.
+static func fact_view(rows: Array) -> Dictionary:
+ var queries=preload("res://ui/target_queries.gd")
+ var buckets={}
+ for row in rows:
+  var bucket=String(queries.GROUP_FACTS.get(String(row.get("group","")),""))
+  if bucket=="": continue
+  if not buckets.has(bucket): buckets[bucket]=[]
+  buckets[bucket].append(row)
+ return {"display_facts":buckets}
+
 static func query_contract(t) -> void:
  var queries=preload("res://ui/target_queries.gd")
  var index=preload("res://ui/action_index.gd")
@@ -10,39 +21,39 @@ static func query_contract(t) -> void:
  var second=make.call("second-face","left",true,true)
  var gear={"id":"gear"}
  var body={"id":"hands","slots":["left","right"],"targets":{"gear":gear},"sections":[{"name":"左手","equipment":[gear]},{"name":"右手","equipment":[gear]}]}
- var candidates=[left,right,second];var actions=index.new(candidates)
+ var candidates=[left,right,second];var view=fact_view(candidates);var actions=index.new(candidates)
  var before=candidates.duplicate(true);var body_before=body.duplicate(true)
  var data={"card_uid":"card","free":false,"version":7}
- var grouped=queries.body_cards(actions,body,"card")
+ var grouped=queries.body_cards(view,body,"card")
  t.check(grouped==[right,second] and is_same(grouped[0],actions.by_id[right.id]),"TARGET QUERY body merge keeps both faces and the original usable candidate for one physical target")
- t.check(queries.single_body_card(actions,body,"card",false)==right and queries.single_equipment_card(actions,[body],"card",false)==right,"TARGET QUERY single-equipment click uses the same physical target as body selection")
- t.check(queries.release_candidate(actions,body,"gear",data,7)==right,"TARGET QUERY quick release selects the same original bound candidate")
+ t.check(queries.single_body_card(view,body,"card",false)==right and queries.single_equipment_card(view,[body],"card",false)==right,"TARGET QUERY single-equipment click uses the same physical target as body selection")
+ t.check(queries.release_candidate(view,body,"gear",data,7)==right,"TARGET QUERY quick release selects the same original bound candidate")
  var free=data.duplicate();free.free=true
- t.check(queries.release_candidate(actions,body,"gear",free,7)==second and queries.payload_candidates(actions,free,7)==[second],"TARGET QUERY face switch is reflected without a new version")
- t.check(queries.release_candidate(actions,body,"other",data,7).is_empty(),"TARGET QUERY missing explicit target cannot fall back to another equipment")
- t.check(queries.equipment_choices(actions,data,7,body)==[left],"TARGET QUERY generic drag preserves its first-per-target rejection policy")
+ t.check(queries.release_candidate(view,body,"gear",free,7)==second and queries.payload_candidates(view,free,7)==[second],"TARGET QUERY face switch is reflected without a new version")
+ t.check(queries.release_candidate(view,body,"other",data,7).is_empty(),"TARGET QUERY missing explicit target cannot fall back to another equipment")
+ t.check(queries.equipment_choices(view,data,7,body)==[left],"TARGET QUERY generic drag preserves its first-per-target rejection policy")
  var entries=queries.equipment_entries(body);entries.gear.locations.clear();entries.clear();grouped.clear()
  t.check(queries.equipment_entries(body).gear.locations==["左手","右手"] and candidates==before and body==body_before,"TARGET QUERY result containers do not mutate source candidates or body sections")
  for version in [6,8]:
-  t.check(queries.payload_candidates(actions,data,version).is_empty() and queries.release_choices(actions,body,data,version).is_empty(),"TARGET QUERY mismatched version blocks drag and quick selection: "+str(version))
+  t.check(queries.payload_candidates(view,data,version).is_empty() and queries.release_choices(view,body,data,version).is_empty(),"TARGET QUERY mismatched version blocks drag and quick selection: "+str(version))
  var missing=data.duplicate();missing.erase("version")
- t.check(queries.payload_candidates(actions,missing,7).is_empty() and queries.release_candidate(actions,body,"gear",missing,7).is_empty(),"TARGET QUERY missing version cannot acquire an action")
+ t.check(queries.payload_candidates(view,missing,7).is_empty() and queries.release_candidate(view,body,"gear",missing,7).is_empty(),"TARGET QUERY missing version cannot acquire an action")
  var blocked=right.duplicate(true);blocked.valid=false
  var rejected=index.new([left,blocked])
  t.check(queries.first_usable([left,blocked])==left and rejected.first_usable("card")==blocked and rejected.find("card")==left,"TARGET QUERY first and last rejection policies remain distinct")
  var capture=right.duplicate(true);capture.id="capture";capture.payload.target="guard_bind"
- t.check(queries.single_equipment_card(index.new([right,capture]),[body],"card",false).is_empty(),"TARGET QUERY capture alongside one equipment still requires explicit choice")
+ t.check(queries.single_equipment_card(fact_view([right,capture]),[body],"card",false).is_empty(),"TARGET QUERY capture alongside one equipment still requires explicit choice")
  var hand_a=left.duplicate(true);hand_a.payload.hand_uid="hand-a"
  var hand_b=hand_a.duplicate(true);hand_b.id="hand-b";hand_b.payload.hand_uid="hand-b";hand_b.valid=true
  var self_card=hand_b.duplicate(true);self_card.id="self";self_card.payload.self_target=true
  var door={"id":"door","group":"prison","valid":true,"payload":{"kind":"prison","action":"unlock","uid":"card"}}
- var drag_actions=index.new([hand_a,hand_b,self_card,second,door])
- t.check(queries.payload_candidates(drag_actions,data,7)==[hand_a,self_card,door],"TARGET QUERY hand-target dedup keeps first choice and retains self-target and prison unlock entries")
- t.check(queries.payload_candidates(drag_actions,free,7)==[second],"TARGET QUERY the other face cannot acquire a prison unlock action")
+ var drag_view=fact_view([hand_a,hand_b,self_card,second,door])
+ t.check(queries.payload_candidates(drag_view,data,7)==[hand_a,self_card,door],"TARGET QUERY hand-target dedup keeps first choice and retains self-target and prison unlock entries")
+ t.check(queries.payload_candidates(drag_view,free,7)==[second],"TARGET QUERY the other face cannot acquire a prison unlock action")
  var ids={"candidate_ids":["missing","second-face","door","second-face"],"version":7}
- t.check(queries.payload_candidates(drag_actions,ids,7)==[second,door,second],"TARGET QUERY explicit IDs retain caller order and duplicates while dropping missing IDs")
+ t.check(queries.payload_candidates(drag_view,ids,7)==[second,door,second],"TARGET QUERY explicit IDs retain caller order and duplicates while dropping missing IDs")
  var fire={"id":"fire","group":"attack","valid":true,"payload":{"kind":"attack","type":"fireball","form":0,"target":"gear"}}
- var attacks=index.new([fire]);var fire_data={"action_type":"fireball","version":7}
+ var attacks=fact_view([fire]);var fire_data={"action_type":"fireball","version":7}
  t.check(queries.payload_candidates(attacks,fire_data,7)==[fire] and queries.release_candidate(attacks,body,"gear",fire_data,7)==fire,"TARGET QUERY fireball drag and exact equipment selection share the formal action")
  t.check(queries.release_candidate(attacks,body,"gear",fire_data,8).is_empty(),"TARGET QUERY stale fireball cannot retain a previously usable action")
 
@@ -114,8 +125,118 @@ static func copy_missing_key_never_crashes(t) -> void:
  t.check(ui.projection_misses.all(func(entry):return entry.view_version==ui.view.version),"COPY miss records name the render they belong to")
  t.check(ui.game.export_snapshot()==before,"COPY missing-key rendering never changes state or random cursors")
 
+static func _cancel_drag(t) -> void:
+ await t.move_mouse(Vector2(1550,70),true)
+ await t.mouse_button(Vector2(1550,70),MOUSE_BUTTON_LEFT,false)
+
+static func _drag_card(t, uid: String) -> void:
+ var origin=t.card_point(uid)
+ await t.move_mouse(origin)
+ await t.mouse_button(origin,MOUSE_BUTTON_LEFT,true)
+ await t.move_mouse(origin+Vector2(0,-42),true)
+
+# Real pointer: body bar, self, capture bar, empty space, then quick-release region then card.
+static func r4_pointer_paths(t) -> void:
+ var ui=t.ui
+ var queries=preload("res://ui/target_queries.gd")
+ var quick=preload("res://ui/quick_release_bar.gd")
+ ui.restart(42)
+ ui.game.state.equipment.clear()
+ ui.game.state.energy=0
+ var ankle=ui.game.add_fixture("ankle",80,100)
+ ui.render();await t.frames()
+ var uid=ui.view.hand.filter(func(c):return c.type=="strain")[0].uid
+ if ui.card_faces.get(uid,false): await t.flip(uid)
+ var before=ui.game.export_snapshot()
+ var fact=queries.find(ui.view,"card",{"uid":uid,"target":ankle.id,"free":false})
+ await t.start_drag(uid,"ankle")
+ var body_valid=queries.body_cards(ui.view,ui._body_at("ankle"),uid).any(func(c):return c.valid and c.payload.free==false)
+ t.check(not fact.is_empty() and not fact.valid and String(fact.reason)!="","R4 body drag fixture has an invalid determination with a reason")
+ t.check(bool(ui.body_buttons.ankle.get_meta("target_selectable",false))==body_valid,"R4 body-bar highlight matches determination availability")
+ t.check(ui.drop_targets.has(queries.fact_id(fact)),"R4 body drag exposes the determination fact")
+ var drop=ui.drop_targets[queries.fact_id(fact)]
+ t.check(bool(drop.get_meta("target_selectable",false))==bool(fact.valid),"R4 body drop highlight matches the determination")
+ t.check(String(drop.get_meta("preview_detail","")).contains(String(fact.reason)),"R4 body drag shows the determination reason verbatim")
+ await _cancel_drag(t)
+ t.check(ui.drop_targets.is_empty() and ui.active_drag.is_empty() and ui.game.export_snapshot()==before,"R4 releasing over empty space commits nothing")
+ await _drag_card(t,uid)
+ await t.move_mouse(ui.actor_targets.hero.get_global_rect().get_center(),true)
+ var self_fact=queries.find(ui.view,"card",{"uid":uid,"self_target":true,"free":false})
+ var self_lit=ui.actor_targets.hero.has_meta("idle_normal")
+ if self_fact.is_empty():
+  t.check(not self_lit,"R4 self has no availability highlight when the card has no self-target fact")
+  var invented=is_instance_valid(ui.term_popup) and ui.term_popup.has_meta("drag_reason") and String(ui.term_popup.get_meta("drag_reason",""))!=""
+  t.check(not invented,"R4 self drag does not invent a rejection")
+ else:
+  t.check(self_lit==bool(self_fact.valid),"R4 self highlight matches the self-target fact")
+  if not self_fact.valid:
+   t.check(is_instance_valid(ui.term_popup) and t.visible_text(ui.term_popup).contains(String(self_fact.reason)),"R4 self drag shows the determination reason verbatim")
+ await _cancel_drag(t)
+ t.check(ui.game.export_snapshot()==before,"R4 cancelling a self drag commits nothing")
+ var toggle=ui.find_child("ActionRailToggle",true,false)
+ if not ui.quick_release_open: await press(t,toggle)
+ await press(t,ui.find_child("QuickRelease_region_lower",true,false))
+ ui.selected_card=uid
+ ui.card_faces[uid]=false
+ ui.game.state.energy=0
+ ui.render();await t.frames()
+ var offer=quick.candidate(ui,"region_lower",{"card_uid":uid,"free":false,"version":ui.view.version})
+ var region=ui.find_child("QuickRelease_region_lower",true,false)
+ t.check(not offer.is_empty() and not offer.valid and region.get_node("Reason").text==String(offer.reason),"R4 quick-release tile shows the determination reason verbatim")
+ t.check(bool(region.get_meta("target_selectable",false))==bool(offer.valid),"R4 quick-release tile highlight matches the determination")
+ ui.game.state.energy=3
+ ui.selected_card=""
+ ui.render();await t.frames()
+ offer=quick.candidate(ui,"region_lower",{"card_uid":uid,"free":false,"version":ui.view.version})
+ var target_id=String(offer.get("payload",{}).get("target",""))
+ var spent=ui.game._equipment(target_id).durability if target_id!="" else 0
+ var energy=ui.view.energy
+ t.check(offer.get("valid",false),"R4 quick release fixture produced a usable strain offer")
+ if offer.get("valid",false):
+  var play=t.card_point(uid)
+  await t.move_mouse(play)
+  await t.mouse_button(play,MOUSE_BUTTON_LEFT,true)
+  await t.mouse_button(play,MOUSE_BUTTON_LEFT,false)
+  t.check(not ui.view.hand.any(func(c):return c.uid==uid) and ui.view.energy==energy-int(offer.cost),"R4 quick release selects a region then plays the card once")
+  t.check(ui.game._equipment(target_id).durability<spent,"R4 quick release applies the selected region's equipment")
+ ui.restart(42,true,"guard")
+ preload("res://tests/guard_cases.gd").bind(ui.game,ui.game.state.enemies[0],36.0)
+ ui.game.state.energy=3
+ var strain=ui.game.state.hand.filter(func(c):return c.type=="strain")
+ if strain.is_empty(): strain=[preload("res://tests/curse_cases.gd").give(ui.game,"strain")]
+ ui.render();await t.frames()
+ uid=strain[0].uid
+ if ui.card_faces.get(uid,false): await t.flip(uid)
+ before=ui.game.export_snapshot()
+ var bind=queries.find(ui.view,"card",{"uid":uid,"target":"guard_bind","free":false})
+ await _drag_card(t,uid)
+ t.check(ui.actor_targets.has("guard_bind") and not bind.is_empty(),"R4 capture bar is a real drop actor for a determination fact")
+ t.check(ui.actor_targets.guard_bind.has_meta("idle_normal")==bool(bind.get("valid",false)),"R4 capture-bar highlight matches the determination")
+ await _cancel_drag(t)
+ t.check(ui.game.export_snapshot()==before,"R4 cancelling a capture drag commits nothing")
+ ui.game.state.energy=0
+ var rejected=preload("res://tests/curse_cases.gd").give(ui.game,"unlock")
+ ui.render();await t.frames()
+ var rejected_uid=rejected.uid
+ t.check(queries.find(ui.view,"card",{"uid":rejected_uid,"target":"guard_bind","free":false}).is_empty(),"R4 unlock has no capture fact in the determination")
+ if rejected_uid!="":
+  if ui.card_faces.get(rejected_uid,false): await t.flip(rejected_uid)
+  before=ui.game.export_snapshot()
+  await _drag_card(t,rejected_uid)
+  var sidebar=ui.find_child("SidebarGuardBindTarget",true,false)
+  var hit=sidebar if sidebar!=null else ui.actor_targets.guard_bind
+  var point=hit.get_global_rect().position+Vector2(24,hit.size.y/2.0)
+  await t.move_mouse(point,true)
+  t.check(is_instance_valid(ui.term_popup) and t.visible_text(ui.term_popup).contains("这张牌不能处理捕缚。"),"R4 capture-bar drag shows the original rejection")
+  await _cancel_drag(t)
+  t.check(ui.game.export_snapshot()==before,"R4 cancelling a rejected capture drag commits nothing")
+
 static func run(t) -> void:
+ var display=preload("res://tests/display_ui_cases.gd")
+ display.r4_display_points_do_not_read_rows(t)
+ display.r4_display_facts_match_determination(t)
  query_contract(t)
+ await r4_pointer_paths(t)
  await unavailable_body_hint(t)
  await bound_face_hint(t)
  await automatic_targets(t)

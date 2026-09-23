@@ -13,11 +13,11 @@
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
-| `core/game.gd` | R1 抽唯一合法性判定（工作名 eligibility，未落地）；R2 `core/game.gd::dispatch` 改收类型化指令（形状＋参数合法性复核），删按 id 取行；R3 显示事实来源（`core/game.gd::_fact`／`core/game.gd::display_fact`／`core/game.gd::shape_key` 与行动／姿态／墙面／底栏的事实构建器）；R5 删 `core/game.gd::candidates`／`core/game.gd::_candidate`／`core/game.gd::_build_candidates`／`core/game.gd::_phase_candidates` | 五条预检（Consumables／Binding／SpecialEquipment／Cards／RelicEffects）的顺序与 `error` 文案、事务副本与全回滚、`version` 成功一次自增、执行分支、`get_view` 调用点白名单语义逐字不变 |
-| `core/game_view.gd` | R3–R5 显示点改经唯一判定取显示事实（T5；R3 落地：新增 `view.display_facts` 键＝`core/game_view.gd::display_facts`）；不再物化行表；删 `view.candidates` 键 | `core/game_view.gd::build` 签名；显示字段**值**（availability／原因／风险／费用等）逐字段不变；只读 |
+| `core/game.gd` | R1 抽唯一合法性判定（工作名 eligibility，未落地）；R2 `core/game.gd::dispatch` 改收类型化指令（形状＋参数合法性复核），删按 id 取行；R3 显示事实来源（`core/game.gd::_fact`／`core/game.gd::display_fact`／`core/game.gd::shape_key` 与行动／姿态／墙面／底栏的事实构建器）；R4 装备／道具／保留事实（`core/game.gd::manual_facts`／`core/game.gd::hook_facts`／`core/game.gd::item_facts`／`core/game.gd::item_action_facts`／`core/game.gd::item_discard_facts`／`core/game.gd::retain_facts`，阶段守卫 `core/game.gd::command_domain_ready`／`core/game.gd::command_tail`／`core/game.gd::chain_rows_active`）；R5 删 `core/game.gd::candidates`／`core/game.gd::_candidate`／`core/game.gd::_build_candidates`／`core/game.gd::_phase_candidates` | 五条预检（Consumables／Binding／SpecialEquipment／Cards／RelicEffects）的顺序与 `error` 文案、事务副本与全回滚、`version` 成功一次自增、执行分支、`get_view` 调用点白名单语义逐字不变 |
+| `core/game_view.gd` | R3–R5 显示点改经唯一判定取显示事实（T5；R3 落地：新增 `view.display_facts` 键＝`core/game_view.gd::display_facts`；R4 落地同键下的 equipment／hooks／items／chain／retain）；不再物化行表；删 `view.candidates` 键 | `core/game_view.gd::build` 签名；显示字段**值**（availability／原因／风险／费用等）逐字段不变；只读 |
 | `core/first_turn_control.gd` | R1 接管阻断并入判定（不再写 `valid`／`reason`）；`select` 不再直呼行工厂；R5 行构建面删除 | `begin_turn`／`commit`／`view`／`validate` 语义；"豆包接管中"文案；`control_next` 事务内消费与回滚不变 |
-| `core/card_effects.gd` | R3 `availability` 改消费判定结果，卡牌事实 `core/card_effects.gd::card_facts`／`core/card_effects.gd::target_facts`（手牌域）；R5 行生产改显示事实构建 | availability 显示语义与文本不变 |
-| `core/consumables.gd` | R5 行生产转发改显示事实构建 | 枚举语义、文案、顺序不变 |
+| `core/card_effects.gd` | R3 `availability` 改消费判定结果，卡牌事实 `core/card_effects.gd::card_facts`／`core/card_effects.gd::target_facts`（手牌域）；R4 连锁事实 `core/card_effects.gd::chain_facts`／`core/card_effects.gd::chain_stop_fact`／`core/card_effects.gd::chain_display_facts`；R5 行生产改显示事实构建 | availability 显示语义与文本不变 |
+| `core/consumables.gd` | R4 道具使用事实 `core/consumables.gd::use_facts`／`core/consumables.gd::noncombat_facts`（行由同一事实派生）；R5 删行生产转发 | 枚举语义、文案、顺序不变 |
 | `core/demo_exit.gd` | R5 行生产转发改显示事实构建 | 同上 |
 | `core/witch_character.gd` | R3 角色2 攻击事实 `core/witch_character.gd::attack_facts`（行动栏）；R5 行生产转发改显示事实构建 | 同上 |
 | `core/room_events.gd` | R5 行生产转发改显示事实构建 | 冻结选项语义不变 |
@@ -32,12 +32,12 @@
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
-| `ui/main.gd` | R2 A1–A60 直连与改道（A40–A45）收敛为 `emit`；`ui/main.gd::_submit` 改造为路由执行段（Q4 定名）；R3 显示改线（显示键 `ui/main.gd::display_key`；姿态拖放身份改形状键）／R4 显示改线 | 唯一提交执行段；`ui/main.gd::render` 空快照取投影；checkpoint 非空才写盘；选择类点击零提交零写盘 |
-| `ui/action_index.gd` | R5 **整文件删除** | 删除前不得先改语义；删除属终态断言之一 |
-| `ui/target_queries.gd` | R4 行筛选面（`payload_candidates`／`release_*`／`body_cards`／`single_*`）改指令装配或并入分类子路由；纯显示查询（`ui/target_queries.gd::body_at`／`ui/target_queries.gd::equipment_entries`）保留 | 纯显示查询语义不变；不持游戏、控件、跨刷新缓存 |
+| `ui/main.gd` | R2 A1–A60 直连与改道（A40–A45）收敛为 `emit`；`ui/main.gd::_submit` 改造为路由执行段（Q4 定名）；R3 显示改线（显示键 `ui/main.gd::display_key`；姿态拖放身份改形状键）；R4 显示改线（`ui/main.gd::_equipment_actions`／`ui/main.gd::_attack_drop_candidate`／`ui/main.gd::_item_details`／`ui/main.gd::_door_candidate`／`ui/main.gd::_free_player_candidate`／`ui/main.gd::_hook_drawer`／`ui/main.gd::_guard_bind_card_candidate`／`ui/main.gd::_chain_screen`，与仍存行 id 的接合用 `ui/target_queries.gd::fact_id`） | 唯一提交执行段；`ui/main.gd::render` 空快照取投影；checkpoint 非空才写盘；选择类点击零提交零写盘 |
+| `ui/action_index.gd` | R4 `ui/action_index.gd::first_usable` 委托 `ui/target_queries.gd::first_usable` 且回退为末项；R5 **整文件删除** | 末项回退语义不变；删除前不得再改其余语义；删除属终态断言之一 |
+| `ui/target_queries.gd` | R4 行筛选面（`ui/target_queries.gd::payload_candidates`／`release_*`／`ui/target_queries.gd::body_cards`／`single_*`）改读 `view.display_facts`；DUP4 唯一通道＝`ui/target_queries.gd::first_usable`（`fallback` 声明首项或末项）；纯显示查询（`ui/target_queries.gd::body_at`／`ui/target_queries.gd::equipment_entries`）保留 | 纯显示查询语义不变；首项与末项回退不合并；不持游戏、控件、跨刷新缓存 |
 | `ui/quick_release_bar.gd` | R4 行取用改指令装配 | 格内显示字段与不可用原因原文不变 |
 | `ui/drag_targets.gd` | R4 拖放取行改指令装配 | 拖放高亮与接收语义不变 |
-| `ui/keyboard_input.gd` | R2 三处直连改 `emit` | host 成员契约（Q4 未改名则不变）；键位与输入语义不变 |
+| `ui/keyboard_input.gd` | R2 三处直连改 `emit`；R4 显示读改 `ui/target_queries.gd`（`ui/keyboard_input.gd::handle`／`ui/keyboard_input.gd::select_card`／`ui/keyboard_input.gd::refresh_choices`／`ui/keyboard_input.gd::cycle`／`ui/keyboard_input.gd::confirm`／`ui/keyboard_input.gd::_index_of_selected`） | host 成员契约（Q4 未改名则不变）；键位与输入语义不变 |
 | `ui/first_turn_presenter.gd` | R2 自动接管提交改 `emit` | takeover 语义、对白与语音不变 |
 | `ui/deck_browser.gd` | R2 直连改 `emit` | 显示与按钮语义不变 |
 | `ui/departure_screen.gd` | R2 三处直连改 `emit` | 同上 |
