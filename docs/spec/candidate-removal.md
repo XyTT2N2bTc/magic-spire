@@ -113,13 +113,13 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | 边 | 来源 → 去向 | 类型 | 对应路径（唯一） | 标记 |
 | --- | --- | --- | --- | --- |
 | C1 | `core/game.gd::candidates` → `core/game.gd::_build_candidates` | 调用 | `candidates()` 体内唯一调用 | [R] |
-| C2 | `core/game.gd::candidates` → `core/first_turn_control.gd::select` | 调用 | `candidates()` 体内后处理（改写行，见差异 D-2） | [R] |
+| C2 | `core/game.gd::candidates` → `core/first_turn_control.gd::select` | 调用 | `candidates()` 体内后处理（改写行——R1 `20e3ff1` 后改由判定结论 merge，见差异 D-2） | [R] |
 | C3 | `core/game.gd::_build_candidates` → `core/game.gd::_phase_candidates` | 调用 | `_build_candidates` 体内唯一调用 | [R] |
 | C4 | `core/game.gd::_build_candidates`／`core/game.gd::_phase_candidates` → `core/game.gd::_candidate` | 调用 | 内联行构造（surrender／item_discard／status_toggle／rest_*／retain 等） | [R] |
-| C5 | core 各生产者 → `core/game.gd::_candidate` | 调用 | `g._candidate(…)` 转发共 96 处（`core/card_effects.gd`、`core/consumables.gd`、`core/demo_exit.gd` 等＋转发包装 `Prison.add`／`target_candidate`／`paid_candidate`） | [R] |
+| C5 | core 各生产者 → `core/game.gd::_candidate` | 调用 | `g._candidate(…)` 转发 38 处、`_candidate(` 命中 79 处（含定义行；精确复算见 §3.3.3 ③）（`core/card_effects.gd`、`core/consumables.gd`、`core/demo_exit.gd` 等＋转发包装 `Prison.add`／`target_candidate`／`paid_candidate`） | [R] |
 | C6 | `core/first_turn_control.gd::select` → `core/game.gd::_candidate` | 调用 | 直呼行工厂合成「接管结束」行（候选表构建之外的调用者，见差异 D-3） | [R] |
 | C7 | `core/game.gd::_candidate` → 行字典 | 写入 | 唯一行工厂：`row.id=JSON.stringify(payload).sha256_text().substr(0,24)`、`valid`／`reason`／`risk`／`mana_payment`／`detail`（card 组不预生成） | [R] |
-| C8 | `core/first_turn_control.gd::select` → 行字典 | 写入 | `blocked.valid=false`、`blocked.reason="豆包接管中"`（`valid`／`reason` 第二写点） | [R] |
+| C8 | `core/first_turn_control.gd::select` → 行字典 | 写入 | 原为 `blocked.valid=false`、`blocked.reason="豆包接管中"`（`valid`／`reason` 第二写点）；R1 `20e3ff1` 已销——改由判定 `eligibility_takeover` 结论 merge | [R] |
 | C9 | `core/game.gd::candidate_detail` → `core/game.gd::_candidate_detail` | 调用 | card 组 detail 按需现算 | [K*] |
 
 ### 1.4 D 组：投影与显示读取
@@ -220,7 +220,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | DUP2 | 「资格结论（valid／reason）的产生」 | `core/game.gd::_candidate`（行工厂写）＋`core/first_turn_control.gd::select`（接管阻断改写） | 收敛进 N4 一处（批 R1；接管阻断改由判定读接管状态返回同文案）——**R1（`20e3ff1`）已销项** |
 | DUP3 | 「从可选行动中定位要提交的那条」 | `core/game.gd::dispatch` 按 id 首命中＋`ui/action_index.gd::select/find/first_usable`＋`ui/target_queries.gd` 的筛选族 | 提交侧＝N4 形状复核（T4）；显示侧＝显示事实（T9）；行筛选整族删除 |
 | DUP4 | 「首个可用项回退」 | `ui/action_index.gd::first_usable`（全不可用返回**末项**）与 `ui/target_queries.gd::first_usable`（返回**首项**）同名不同义 | 显示侧展示「不可用原因」的语义由 N4 原文承载；两套回退在批 R4 收敛为一条有声明语义的通道，保留各自可见行为（首/末项差异是行为，不得顺手统一） |
-| DUP5 | 「行的构造」 | `_build_candidates`／`_phase_candidates` 生产链（96 处 `g._candidate` 转发）＋`first_turn_control` 直呼行工厂 | 行构造随行载体删除（批 R5）；生产者改投影显示事实构建 |
+| DUP5 | 「行的构造」 | `_build_candidates`／`_phase_candidates` 生产链（`g._candidate(` 38 处；口径见 §3.3.3 ③）＋`first_turn_control` 直呼行工厂 | 行构造随行载体删除（批 R5）；生产者改投影显示事实构建 |
 | DUP6 | 「提交前的指令装配／改道」 | `_submit → _use_self_card → _submit` 等 6 条改道边（A40–A45） | 并入 N2 分类子路由的装配逻辑（批 R2） |
 | （非缺陷） | detail 组装 | eager（`_candidate` 内）与按需（`candidate_detail`）共用同一组装函数 | 同一实现两条调用边，符合 P2；随行载体删除后只留按需一路 |
 
@@ -239,7 +239,9 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 
 - **指令形状**（N3）：`{kind: String, params: Dictionary, expected_version: int}`；`kind` 与 `params`
   只用稳定 ID（type／uid／slot／target／item／enemy／mode…），**不含候选提交身份 id**；
-  各 kind 的 `params` 键表在 R2 批随分类子路由定稿（覆盖优先：每条可提交指令恰有一个 kind）。
+  **kind 全集与 params 键表见 §3.3**（Q5 裁定：先出清单供人类过目，再批 R2 实现）。
+  本行旧句「各 kind 的 `params` 键表在 R2 批随分类子路由定稿」与 §3.3 冲突时**以 §3.3 为准**：
+  R2 只按 §3.3 的键面装配指令，落地期新增 kind 须先回填 §3.3（覆盖优先：每条可提交指令恰有一个 kind）。
 - **依赖方向（不新增反向边）**：core／data 不 preload ui；UI 内只有 `ui/main.gd` 允许 preload core
   （现行规则）。指令路由与分类子路由**不得** preload core；提交执行段留在 `ui/main.gd`
   （即 `ui/main.gd::_submit` 的改造形态或改名后的同位符号，实现期定名），子路由**经该段**触
@@ -268,6 +270,185 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 （标题与正文的"路由"补「文案」限定，可选）；`docs/record/proposals/check-routing-and-per-click-checks.md`
 （record 只追加**不改**，以本表为准）；根 `AGENTS.md` 实现规约「到具体运作层再路由」（动词用法，**不改**）。
 
+### 3.3 指令 kind 全集与 params 键表（R2 定稿输入）
+
+Q5 裁定：**先出清单供人类过目，再批 R2 实现**。本节对**源码复算**（不从契约文本转抄），是 R2 批
+指令形状（N3）与分类转发表（N2）的键面真源；R2 的 Gherkin 2（分类表全量）按本节逐条核。落地状态：
+本节为**清单**，不是「已通过」；R2 仍未获批。
+
+**复算命令与命中（在 `spire-godot/` 下执行，2026-09-23 工作树实测）**
+
+```powershell
+rg -o '(^|[^_a-zA-Z])_candidate\(' core/*.gd                      # 79（含定义行 1＝调用点 78）
+rg -o 'g\._candidate\(' core/*.gd                                 # 38（生产者转发包装直呼）
+rg -n 'chosen\.payload\.kind==' core/game.gd                      # 12（dispatch 的 kind 特判分支条件）
+rg -n 'match p\.kind:' -A 40 core/game.gd                         # _execute 默认执行分支（30 arm／33 kind）
+rg -n 'actions\.(select|find|first_usable)\("' ui/ --glob '*.gd'  # 显示侧按 payload 字段取行＝params 键的证据面
+rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提交边＋定义行）
+```
+
+- **kind 判定法＝三面交叉，实测相等**：①各生产者产出的 payload `kind` 取值（`core/` 内 `_candidate`
+  第 2 实参的字面量与动态构造，含 `core/prison.gd::add`／`core/room_services.gd::paid_candidate`
+  两个转发包装）；②`core/game.gd::_execute` 的 `match p.kind`；③`core/game.gd::dispatch` 的 6 类特判
+  （`event`／`departure`／`service`／`depart`／`surrender`／`prison`）。**合计 39 条 kind**。
+- **逐域计数**：战斗／装备／道具 15；整备／休息／保留 9；商店服务 1；事件 1；监狱 1；路线 2；
+  奖励 3；出发 1；遗物／魔瓶／状态／demo 6。
+- **params 键的证据面**＝显示侧按 payload 字段取行的实际字段（上表第 5 条命令的命中），
+  不是从生产者读法反推；凡显示侧按某字段取行，该字段就必须是指令 params 键。
+
+#### 3.3.1 kind 全集与 params 键表（39 条）
+
+「现状 payload 中的非提交字段」＝今日随行携带、但不构成指令提交身份；其中被执行分支消费的字段
+（`after`）R2 须二选一（判定重算回填／保留为 params 但不作身份），同批在 R2 判据点名。
+
+| kind | 域 | params 键（提交身份，只用稳定 ID） | 现状 payload 中的非提交字段 | 显示侧按字段取行的字段面 |
+| --- | --- | --- | --- | --- |
+| `card` | 战斗 | `uid`・`type`・`slot`・`target`・`free`・`mode`・`self_target`・`x`・`hand_uid` | `preview`・`after`（`mode=lower` 时被执行分支写回耐久）・`tool_bonus`・`replay`（内部复演，不提交） | `uid`／`free`／`target`／`slot`／`self_target`／`hand_uid`／`type` |
+| `chain` | 战斗 | `action`（hit／stop／select_exhaust）・`type`・`target`・`slot`・`free`・`mode`・`selected_uid` | `preview`・`after`・`tool_bonus` | `action`／`type`／`target` |
+| `attack` | 战斗 | `type`・`form`・`enemy`・`all`・`target`・`x`・`part`・`charge_action` | `hits`・`damage`・`damage_type`・`interrupt`・`fall`・`cooldown_turns`・`mana_attachment`・`witch_action` | `type`／`form`／`enemy`／`target`（`all`＝`enemy` 空） |
+| `status_toggle` | 战斗 | `status`・`enabled`・`uid` | — | `status` |
+| `posture` | 战斗 | `dest`・`wall` | `adjacent` | `dest`／`wall`／`adjacent` |
+| `wall_move` | 战斗 | `direction` | `distance`・`after`（执行写 `state.wall_distance`） | `direction` |
+| `manual` | 战斗 | `target` | `after`（执行写耐久） | `target` |
+| `hook` | 战斗 | `target` | `after`（执行写耐久） | `target` |
+| `end` | 战斗 | —（无键） | — | `kind` |
+| `calm` | 战斗 | —（无键） | — | `kind` |
+| `surrender` | 战斗 | —（无键） | — | 组名 `surrender` |
+| `item_use` | 道具 | `item`・`target` | — | `item`／`target` |
+| `item_install` | 道具 | `item`・`mount`・`operator` | — | `item`／`mount` |
+| `item_retrieve` | 道具 | `item`・`mount`・`operator` | — | `item`／`mount` |
+| `item_discard` | 道具 | `item` | — | `item` |
+| `finish_prepare` | 整备 | —（无键） | — | `kind` |
+| `finish_rest` | 整备 | —（无键） | — | `kind` |
+| `finish_pack` | 整备 | —（无键） | — | `kind` |
+| `retain` | 整备 | `uid` | — | `kind`／`uid` |
+| `retain_skip` | 整备 | —（无键） | — | `kind` |
+| `rest_rare` | 休息 | —（无键） | — | `kind` |
+| `rest_card` | 休息 | `type` | — | `kind`／`type` |
+| `rest_flask` | 休息 | —（无键） | — | `kind` |
+| `rest_begin` | 休息 | —（无键） | — | `kind` |
+| `service` | 商店服务 | `op`（take／refresh／release／remove／leave）・`index`・`target`・`uid`・`payment`（self／flask） | — | `op`／`index`／`target`／`uid`／`payment` |
+| `event` | 事件 | `action`（choose／reward／leave）・`choice`・`type` | — | `action`／`choice`／`type` |
+| `prison` | 监狱 | `action`（enter／inspect／accept／resume／resist／explore／vent_kick／vent_exit／key／door_exit／unlock）・`site`・`direction`・`steps`・`uid`・`type`・`target`・`slot`・`mode`・`free` | `wall_warning`；`temporary` 只在 `core/prison.gd::release_inspection` 的内部直调出现（非候选，不进 params） | `action`／`site`／`uid`／`target` |
+| `depart` | 路线 | `room` | — | `room` |
+| `travel_step` | 路线 | —（无键） | — | `kind` |
+| `reward` | 奖励 | `category`・`type`・`reward_id` | — | `category`／`type`／`reward_id` |
+| `reward_skip` | 奖励 | `category` | — | `category` |
+| `relic_bundle` | 奖励 | `op`（claim／skip／copy／finish）・`index`・`uid`・`type` | — | `op`／`index` |
+| `departure` | 出发 | `op`（choose／skip／card／finish）・`option`・`uid`・`type` | — | `op`／`option`／`uid`／`type` |
+| `flask` | 魔瓶 | `op`（deposit／withdraw） | — | `op` |
+| `relic_toggle` | 遗物 | `relic` | — | `relic` |
+| `relic_discharge` | 遗物 | `relic` | — | `relic` |
+| `relic_control_done` | 遗物 | —（无键） | — | `kind` |
+| `demo_end` | demo | —（无键） | — | 组名 `demo_exit` |
+| `demo_continue` | demo | —（无键） | — | 组名 `demo_exit` |
+
+「显示侧按字段取行的字段面」＝今日 `ui/` 里 `actions.select／find／first_usable` 的实际字段集合
+（R2 改为按指令形状取显示事实后，这些字段仍须能由显示点提供）。
+
+#### 3.3.2 覆盖核对表：显示点 → kind（第 1 节 A1–A60 收敛面逐条落 kind）
+
+| 显示点 | 现提交来源符号 | 落 kind（含子键） |
+| --- | --- | --- |
+| A1 | `ui/main.gd::_relic_row` | `relic_discharge`／`relic_toggle`（`relic`；现状先取 discharge 再回退 toggle） |
+| A2 | `ui/main.gd::_status_control` | `status_toggle`（`status`） |
+| A3 | `ui/main.gd::_basic_action_tile` | `attack`（战斗格）／`calm`（深呼吸格） |
+| A4 | `ui/main.gd::_posture_controls` | `posture`（`dest`・`wall`） |
+| A5 | `ui/main.gd::_bottom_controls` | `end`／`finish_prepare`／`finish_rest`／`finish_pack`（组 `flow`） |
+| A6 | `ui/main.gd::_bottom_controls` | `surrender` |
+| A7 | `ui/main.gd::_wall_controls` | `wall_move`（`direction=toward`） |
+| A8 | `ui/main.gd::_equipment_tile` | `manual`（`target`） |
+| A9 | `ui/main.gd::_action_row` | `retain`（`uid`）／`retain_skip` |
+| A10 | `ui/main.gd::_action_row` | 通用行：按该调用点传入的行落 kind（链抽屉＝`chain`；另见 `flow`／`route`／`reward`／`service` 各点） |
+| A11 | `ui/main.gd::_card_target` | `card`（`uid`・`slot`・`target`・`free`・`hand_uid`；提交时传选中时抓取的版本，保留陈旧版本拒绝） |
+| A12 | `ui/main.gd::_prison_controls` | `prison`（`action=explore`・`site`／`direction`・`steps`） |
+| A13 | `ui/main.gd::_prison_controls` | `prison`（其余 `action`：inspect／accept／resume／resist／vent_kick／vent_exit／key／door_exit／unlock） |
+| A14 | `ui/main.gd::_compact_action` | 通用紧凑行：按调用点落 `item_use`／`item_install`／`item_retrieve`／`card`／`event`／`service`／`prison`／`demo_*` |
+| A15 | `ui/main.gd::_route_screen` | `travel_step`（组 `route`） |
+| A16 | `ui/main.gd::_select_route_room` | `depart`（`room`） |
+| A17 | `ui/main.gd::_queue_map_step` | `travel_step` |
+| A18 | `ui/main.gd::_show_drop_targets` | `card`（`card_uid`）／`attack`（`action_type`・`form`）／`prison`（`action=unlock`・`uid`）／`item_use`／`hook`（落点 `click_to_use`；版本取拖起时的 `data.version`） |
+| A19 | `ui/main.gd::_activate_guard_bind_target` | `card`（`target=guard_bind`・`free`・`uid`） |
+| A20 | `ui/main.gd::_receive_player_drop` | `posture`（现唯一 `self_action_id` 源＝`ui/main.gd::_posture_controls` 的拖放；R2 拖放改装配后按落点落 kind） |
+| A21 | `ui/main.gd::_use_free_card` | `card`（`free=true`） |
+| A22 | `ui/main.gd::_activate_card` | `card`（`hand_uid` 消耗选择） |
+| A23 | `ui/main.gd::_activate_card` | `card`（快捷解除：`mode`∈`ui/target_queries.gd::RELEASE_MODES`・`target`） |
+| A24 | `ui/main.gd::_activate_card` | `card`（唯一装备：`free`） |
+| A25 | `ui/main.gd::_use_self_card` | `card`（`self_target=true`） |
+| A26 | `ui/main.gd::_item_details` | `item_use`（`item`・`target`）／`item_install`（`mount`・`operator`）／`item_retrieve` |
+| A27 | `ui/main.gd::_item_details` | `item_discard`（`item`） |
+| A28 | `ui/deck_browser.gd::refresh` | `relic_bundle`（`op=copy`・`uid`・`type`；唯一带 choices 的调用点＝`ui/relic_bundle_screen.gd::build`） |
+| A29 | `ui/departure_screen.gd::build` | `departure`（`op=card`） |
+| A30 | `ui/departure_screen.gd::build` | `departure`（`op=choose`・`option`） |
+| A31 | `ui/departure_screen.gd::build` | `departure`（`op=choose`／`card`／`skip`／`finish`，按 `core/departure.gd::panel` 的 `entries`） |
+| A32 | `ui/event_screen.gd::action` | `event`（`action=choose`／`leave`） |
+| A33 | `ui/event_screen.gd::drawer` | `event`（`action=reward`・`type`；提交传选中时的版本） |
+| A34 | `ui/event_screen.gd::multi_restraint_selector` | `event`（`action=choose`・`choice`） |
+| A35 | `ui/first_turn_presenter.gd::_step` | `posture`／`wall_move`／`attack`／`flask`／`end`／`relic_control_done`（`core/first_turn_control.gd::select` 实测 kind 过滤面；漏一条＝接管步骤不可提交） |
+| A36 | `ui/keyboard_input.gd::handle` | `end`（组 `flow` 内 `kind`）／当前选中行（`card`／`attack` 等） |
+| A37 | `ui/keyboard_input.gd::confirm` | `card`（`uid`・`free`）／`attack`（`type`・`form`） |
+| A38 | `ui/keyboard_input.gd::_process` | `end`（长按结束回合） |
+| A39 | `ui/mana_flask.gd::build` | `flask`（`op=deposit`／`withdraw`） |
+| A40 | `ui/main.gd::_submit` | 改道边：带 `hand_uid` 且非 `self_target` 的 `card` → `ui/main.gd::_use_self_card`（仍落 `card`） |
+| A41 | `ui/main.gd::_activate_card` | 同上（自身目标 `card`） |
+| A42 | `ui/main.gd::_receive_player_drop` | 同上（拖放自身目标，仍落 `card`） |
+| A43 | `ui/main.gd::_activate_card` | 改道边：自由面 `card` → `ui/main.gd::_use_free_card` |
+| A44 | `ui/main.gd::_receive_player_drop` | 同上（拖放自由面） |
+| A45 | `ui/main.gd::_activate_card` | `card`（快捷解除取行 `ui/quick_release_bar.gd::candidate`，kind 不变） |
+| A46 | `ui/reward_screen.gd::build` | **无实例**：`extra_ids` 在 `core/game_view.gd`／`core/departure.gd::panel`／`core/relic_bundle.gd::panel` 实测恒空（见 3.3.3-1） |
+| A47 | `ui/reward_screen.gd::build` | 继续按钮＝该面板 `continue_id`：`reward`（`type=skip`）／`rest_begin`／`service`（`op=leave`）／`event`（`action=reward`・`type=skip`）／`relic_bundle`（`op=finish`） |
+| A48 | `ui/reward_screen.gd::row` | `reward`（`category`・`reward_id`）／`rest_card`／`rest_rare`／`rest_flask`／`service`（`op=take`・`index`） |
+| A49 | `ui/reward_screen.gd::cards` | `reward`（`category=card`）／`event`（`action=reward`）／`service`（`op=take`） |
+| A50 | `ui/reward_screen.gd::relics` | `reward`（`category=relic`） |
+| A51 | `ui/reward_screen.gd::skip_button` | `reward_skip`（`category`） |
+| A52 | `ui/relic_bundle_screen.gd::build` | `relic_bundle`（`op=finish`） |
+| A53 | `ui/relic_bundle_screen.gd::build` | `relic_bundle`（`op=claim`・`index`） |
+| A54 | `ui/relic_bundle_screen.gd::build` | `relic_bundle`（`op=skip`・`index`） |
+| A55 | `ui/relic_bundle_screen.gd::build` | `relic_bundle`（`op=finish`） |
+| A56 | `ui/shop_screen.gd::_ready` | `service`（`op=refresh`・`payment`） |
+| A57 | `ui/shop_screen.gd::_ready` | `service`（`op=leave`） |
+| A58 | `ui/shop_screen.gd::_card_offer` | `service`（`op=take`・`index`・`payment`） |
+| A59 | `ui/shop_screen.gd::_offer` | `service`（`op=take`・`index`・`payment`） |
+| A60 | `ui/shop_screen.gd::services` | `service`（`op=remove`・`uid`／`op=release`・`target`） |
+
+**覆盖结论**：A1–A60 全部可落 kind，**无未归类显示点**；唯一空面是 A46（`extra_ids` 恒空，今日无实例）。
+39 条 kind 全部有生产者与显示点来源；反之 39 条里没有只由测试或工具构造的 kind。
+
+#### 3.3.3 存疑／口径差异项（逐条）
+
+1. **A46 空面**：`extra_ids` 在三个面板构造点实测恒为 `[]`，故 A46「额外奖励按钮」今日无实例；
+   保留为潜在入口时不新增 kind（沿用 `reward`／`service`／`event` 的继续面）。
+2. **死 kind 名 `release`**：`ui/drag_targets.gd::targeted` 的 kind 白名单含 `"release"`，全仓无生产者
+   （`rg '"kind":"release"'` 0 命中）；同一白名单另含 `"card_continue"`（仅 `core/action_copy.gd` 引用）。
+   二者是历史名，不构成 kind；R2 随拖放改指令装配删除。
+3. **转发计数口径**：精确复算＝`_candidate(` 79（含定义行）／`g._candidate(` 38；§1 C5／DUP5 已按精确数
+   改写。早期宽松口径的「96 处」（含 `_candidate_detail`／`_candidate_base_detail` 与同行多次命中）
+   不再出现在本契约，不得据此判定覆盖。
+4. **同 kind 多分支不拆 kind**：`reward`（`category`×`type`＋`reward_id`）、`prison`（`action`）、
+   `service`（`op`）、`departure`／`relic_bundle`／`flask`（`op`）、`chain`（`action`）均按 params 子键区分；
+   分类转发表按 kind 收键（39 条），子键合法性由唯一判定与 `dispatch` 形状复核共同负责。
+5. **`after` 系字段（`card`／`wall_move`／`manual`／`hook`）**：今日被执行分支消费（写回耐久或
+   `state.wall_distance`、进日志文案）。R2 必须显式二选一并写进该批判据：由唯一判定随指令形状重算回填，
+   或保留为 params 但不作为提交身份；不得两侧各算一次（违反唯一判定）。
+6. **接管面（A35）须在分类表内**：`core/first_turn_control.gd::select` 只从
+   `posture`／`wall_move`／`attack`／`flask`／`end` 五类挑步骤，末步另加 `relic_control_done`；
+   Gherkin 2 的 kind 枚举须含这六项。
+
+#### 3.3.4 边界说明（不逐 kind 重复）
+
+- **`expected_version` 由 UI 侧统一补**（现状语义，见 `ui/main.gd::_submit` 的
+  `view.version if expected_version<0 else expected_version`）：默认取提交时的当前 `view.version`；
+  选择类与拖放／键盘／接管路径在**选中或拖起时抓取**版本并在提交时传回，以保留「陈旧版本拒绝」
+  （"状态已更新，请重新选择行动。"）的可见行为。指令形状只在顶层带一个 `expected_version`，
+  不逐 kind 重复、不进 params。
+- **kind 与 params 不含候选提交身份 id**：现 `core/game.gd::_candidate` 的
+  `row.id=JSON.stringify(payload).sha256_text().substr(0,24)` 随行载体删除（批 R5）；
+  R2 起不存在按 id 取行复核（T4 改为指令形状＋参数合法性＋判定）。
+- **表外 kind fail-closed**（Gherkin 2）：分类转发表（工作名 `ROUTES`，未落地）无该 kind 时拒绝并留一条
+  记录，不静默放行、不崩。**本表是闭集**：新增 kind 必须先回填本节再实现。
+- **显示点只提供稳定 ID**：params 键不得用译文、名称、颜色或图片；显示侧现用的 `label`／`detail`／
+  `brief`／`reason`／`risk`／`cost`／`mana` 均不进 params（由唯一判定与显示事实给出）。
+
 ## 4 分批（每批独立完工・提交・回退；批间门禁绿；不得跨批开工）
 
 不变量（**任何时刻**成立）：①每条边只有一条对应路径；②**同批立新边即删旧边**；③合法性感判定实现
@@ -276,7 +457,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | 批 | 范围 | 该批判据 | 前置 |
 | --- | --- | --- | --- |
 | **R1** | 判定收口（行为零变化）：从 `core/game.gd::_candidate` 抽出**唯一合法性判定**（工作名 eligibility，未落地）；`_candidate` 改为调它；接管阻断（现 `core/first_turn_control.gd::select` 写 `blocked.valid`／`blocked.reason`）改为判定内读接管状态返回同文案——销 DUP2 | Gherkin 4、6；行为与未改源码基线逐字段相等；「写 `valid`／`reason` 的位置只有判定一处」源文本断言 | 人审通过 |
-| **R2** | 指令收口＋后端身份复核：落地指令形状、指令路由、分类子路由（新 UI 文件＝提案获批，或 Q1 选定落法）；A1–A60 收敛为 T1（同批删直连与改道链）；`core/game.gd::dispatch` 改收类型化指令，复核＝指令形状＋参数合法性＋判定（T4），**删除按 id 取行（B2）与提交身份 id**；拒绝文案逐字不变 | Gherkin 1、2、3、8；A／B 边表 `rg` 复算（直连 0 条、UI→dispatch 唯一） | R1；Q1 裁定 |
+| **R2** | 指令收口＋后端身份复核：落地指令形状、指令路由、分类子路由（新 UI 文件＝提案获批，或 Q1 选定落法）；A1–A60 收敛为 T1（同批删直连与改道链）；`core/game.gd::dispatch` 改收类型化指令，复核＝指令形状＋参数合法性＋判定（T4），**删除按 id 取行（B2）与提交身份 id**；拒绝文案逐字不变 | Gherkin 1、2、3、8；A／B 边表 `rg` 复算（直连 0 条、UI→dispatch 唯一） | R1；Q1 裁定；§3.3 清单经人类过目（Q5 裁定） |
 | **R3** | 显示改线・手牌／行动／姿态／墙面／底栏域：这些显示点改读判定显示事实（T5／T9），同批删这些点的行读边（D13 对应行）；`ui/main.gd::detail_of`／`card_entry` 不动 | Gherkin 5、6（该域显示文本逐字相等） | R2 |
 | **R4** | 显示改线・装备／快捷解除／拖放／道具域：`ui/target_queries.gd` 行筛选面改指令装配（并入分类子路由），纯显示查询保留；同批删对应行读边（D9／D10 对应行）；DUP4 收敛（保留首／末项回退各自可见行为） | Gherkin 5、6（该域）＋拖放／快捷解除真实输入例 | R3 |
 | **R5** | 显示改线・服务／事件／监狱／路线／奖励／出发域＋**行载体删除**：各生产者改投影显示事实构建；删除 `core/game.gd::candidates`／`_candidate`／`_build_candidates`／`_phase_candidates` 与 `ui/action_index.gd`（销 DUP3／DUP5）；`view.candidates` 键删除 | Gherkin 5、6、7、9；终态断言全绿；基线等价（mask 显式声明删除集合） | R4 |
@@ -440,7 +621,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | Q2 | 术语消歧 | 「指令路由／子路由」＋测试侧改称「套件选择」（3.2 表）是否照准 |
 | Q3 | H1 处置建议 | 旧 H1（equipment-query-seam 两症结违反其自身遍历禁令＋`escape_preview` 按需化未排期）**建议保持另案**：本片非目标不触接缝内部，受限级判据不进本片；请协调者另立裁定，不在本片复活旧编号体系 |
 | Q4 | `ui/main.gd::_submit` 去留 | `docs/spec/response-pipeline.md` 把 host 成员名 `_submit` 冻结在键盘／接管契约里；改造为路由执行段（保留名字，推荐）vs 改名（须同批改写该契约冻结行） |
-| Q5 | 指令 `params` 键表定稿权 | R2 批内按「覆盖优先」枚举；漏一条 kind＝显示缺失，是否要求 R2 前先出 kind 全集清单供人过目 |
+| Q5 | 指令 `params` 键表定稿权 | **已裁定（2026-09-23）**：先出 kind 全集与键表清单供人类过目，再批 R2 实现；清单落 §3.3（未落地，未过目前不算通过），R2 前置因此含「§3.3 过目」 |
 | Q6 | View 键变化波及 | `view.candidates` 等键删除对 `docs/spec/release-interface.md`／`ondemand-copy.md` 的改写口径（见第 10 节）是否照准 |
 
 ### 9.4 可能爆雷的假设（A）
