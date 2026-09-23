@@ -166,7 +166,6 @@
 | 本局回顾依赖约束（cleaner 核对） | docs/spec/run-review-dependencies.md |
 | 卡面词条悬停显示 | docs/spec/card-terms.md |
 | 卡面词条依赖约束（cleaner 核对） | docs/spec/card-terms-dependencies.md |
-| 候选局部筛查契约 | docs/spec/candidate-delta.md |
 | 装备只读查询 | docs/spec/equipment-query-seam.md |
 | 玩家可见文案的收口与按需 | docs/spec/ondemand-copy.md |
 | 界面拆分与装备详情 | docs/spec/release-interface.md |

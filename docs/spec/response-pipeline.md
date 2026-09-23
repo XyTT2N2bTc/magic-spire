@@ -179,7 +179,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 用译文、颜色、名称、图片识别玩法对象；把投影结果当规则判定来源（UI 不得自行推断资格或作废范围）。
 
 准入线：**复用必须附可证失效规则；无证明即禁止。** 跨操作持有投影（`ui.view`／`ui.actions`）与
-自己的显示态允许；增量与局部构建的分工见 `docs/spec/candidate-delta.md`。
+自己的显示态允许。
 
 ## 输入域
 
@@ -291,7 +291,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 - 候选生成成本的口径：`View.build` 在 `get_view()` 内调 `Game.candidates()`，因此"完整 View 耗时"
   已含候选生成；按行均值折算的单行数字不是一次调用成本，不得用于收益预期或完成判据。
 - 跨文件：`card_texts` 的按需化由 `docs/spec/ondemand-copy.md` 承接（投影可见集合 S）；本文件只约束
-  "UI 不得用缓存／懒加载／跳过投影绕过 `get_view`"。增量与局部构建见 `docs/spec/candidate-delta.md`。
+  "UI 不得用缓存／懒加载／跳过投影绕过 `get_view`"。
 
 ## 未排期方向（已讨论、未授权；落地前须走契约与人批）
 
@@ -305,7 +305,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 `collapse`，"连续 end turn"改为按声明拦截）；③窗口关闭由核心／结算驱动，不由 UI 判断动画播完；
 ④闭环检查：每个候选 kind 必须在策略表内，表外即红。顺序与风险：先把点击变便宜（提交不再重建整表、
 `present(dirty)` 局部刷新）→ 窗口自然缩短；**动画体系成形前不引入队列**；落地前必须与提交路径去重
-（见 `docs/spec/candidate-delta.md`）合并考虑，避免两处各自维护"提交是否有效"。
+合并考虑，避免两处各自维护"提交是否有效"。
 
 **术语与增量方向**：本仓文档里的"路由"专指**测试按源码变更选套件**（见 `docs/spec/project-map.md`
 与 `tools/check.ps1`）；"把指令收到同一接口再分发"在本链统一称**指令收口／分发**（core 侧唯一入口

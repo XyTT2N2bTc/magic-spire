@@ -1453,3 +1453,9 @@ flowchart LR
 ## 2026-09-21｜魔力转换拘束面数值调整
 
 - 原角色魔力转换拘束面改为0能量、固定消耗20魔力、获得2能量；同步卡面和设计表。自由面仍消耗1能量恢复10魔力，小魔女专属版原有数值保留。仅源码更新，未打包发布。
+
+## 2026-09-23｜候选层移除与指令路由·规划切片
+
+- 人类裁定彻底移除候选层、前端指令汇集到同一指令路由→分类子路由→后端唯一提交入口，取代 candidate-bypass 全案（B1–B4 与 H1–H5 作废为未开工）。规划产物：[候选层移除与指令路由契约](../spec/candidate-removal.md)（管线现状图 97 边／目标图 T1–T10、重复实现缺陷 DUP1–DUP6、切法 M-I–M-V、分批 R1–R5、Gherkin、validator 程序、Definition of done、待裁 Q1–Q6）＋[依赖表](../spec/candidate-removal-dependencies.md)，标 `needs-human-review`，人审通过前实现者不开工。
+- 被取代即删：`docs/spec/candidate-bypass.md`／`candidate-bypass-dependencies.md`／`candidate-delta.md`；同批删死引用 4 处（根 `AGENTS.md` 文档入口表 1 行、`docs/spec/response-pipeline.md` 3 处指针）。`tools/check-docs.ps1` 允许清单零新增（6 条维持；其中 3 条已无人引用，清理属 `tools/` 改动另行安排）。
+- 检查：`tools/check-docs.ps1` exit 0（35 文档／2071 引用／allowlist 6）。未跑：引擎门禁与全部测试分类（纯规划片，无可执行改动）。仅文档改动，未打包、未推送、未改版本号。
