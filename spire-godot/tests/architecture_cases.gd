@@ -1395,16 +1395,52 @@ static func behavior_baseline_equivalence(t) -> void:
  value_problems.sort()
  t.check(value_problems.is_empty(),"G6 behavior_baseline_equivalence: every field equals the unmodified-source baseline; first difference "+str(value_problems.slice(0,3)))
 
-# docs/spec/candidate-removal.md §5 G4（批 R1）：写 valid／reason 的位置只有唯一判定一处。
-# 扫描面＝core/ 与 ui/ 的源码文本；写点＝字段赋值（.valid=／.reason=）与非读取式字典键（"valid":／"reason":）；
+# docs/spec/candidate-removal.md §5 G4（批 R1；R2 前置补正：写点扫描面加宽，销 R1 复核缺口①）。
+# 扫描面＝core/ 与 ui/ 的源码文本（tests／data 不进面）；写点四种形态——字段赋值（.valid=／.reason=）、
+# 字典键（"valid":／"reason":）、括号赋值（["valid"]=／["reason"]=）、括号字典键（["valid"]:／["reason"]:）；
 # 读取式（x.valid／x.reason 作为值）不计。判定落点＝core/game.gd 的 eligibility／eligibility_takeover。
 const VERDICT_PRODUCERS={"core/game.gd":["eligibility","eligibility_takeover"]}
+# 非判定载体（逐函数声明）：这些模块的 reason 字段是各自域内的原因文本（装备施加结果、接触可达、事件闸门、
+# 奖励行、工具操作者、施法路线、快照预览等），不是资格结论；表外任何 reason 写点即红（加宽后的 stray 面）。
+# 双向核对：表外写点即红，表内每项仍须被扫到（防表腐烂）。
+const VERDICT_REASON_CARRIERS=[
+ "core/contact.gd::evaluate",
+ "core/contact.gd::profile",
+ "core/equipment_application.gd::_evaded",
+ "core/equipment_application.gd::_failure",
+ "core/equipment_application.gd::_result",
+ "core/equipment_application.gd::execute",
+ "core/equipment_replacement.gd::_fail",
+ "core/equipment_replacement.gd::_force_special_live",
+ "core/equipment_replacement.gd::_trial",
+ "core/equipment_replacement.gd::execute",
+ "core/game.gd::_build_cast_view",
+ "core/game.gd::_build_escape_preview",
+ "core/game.gd::_cast_path",
+ "core/game.gd::_prepare_installation",
+ "core/game.gd::kick_profile",
+ "core/game_view.gd::battle_rewards",
+ "core/game_view.gd::reward_card_row",
+ "core/game_view.gd::reward_panel",
+ "core/pressure.gd::calm",
+ "core/relic_bundle.gd::panel",
+ "core/room_events.gd::_freeze_in_place",
+ "core/room_events.gd::_freeze_staged",
+ "core/room_events.gd::condition_entries",
+ "core/room_events.gd::evaluate_option",
+ "core/room_events.gd::feasibility_gate",
+ "core/room_events.gd::probe_result",
+ "core/room_events.gd::trace_entry",
+ "core/room_services.gd::_job",
+ "core/slip_motion.gd::apply",
+ "core/tool_rules.gd::operator_profile",
+]
 
 static func verdict_write_scan() -> Dictionary:
  var valid=RegEx.new()
- valid.compile("(\\.valid\\s*=[^=])|(\"valid\"\\s*:\\s*(?!\\w+\\.valid))")
+ valid.compile("(\\.valid\\s*=[^=])|(\\[\"valid\"\\]\\s*=)|(\"valid\"\\s*:\\s*(?!\\w+\\.valid))|(\\[\"valid\"\\]\\s*:\\s*(?!\\w+\\.valid))")
  var reason=RegEx.new()
- reason.compile("(\\.reason\\s*=[^=])|(\"reason\"\\s*:\\s*(?!\\w+\\.reason))")
+ reason.compile("(\\.reason\\s*=[^=])|(\\[\"reason\"\\]\\s*=)|(\"reason\"\\s*:\\s*(?!\\w+\\.reason))|(\\[\"reason\"\\]\\s*:\\s*(?!\\w+\\.reason))")
  var declaration=RegEx.new()
  declaration.compile("^\\s*(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)")
  var hits=[]
@@ -1439,21 +1475,32 @@ static func single_eligibility_implementation(t) -> void:
  # 1) valid 键只由判定产出：其它位置的写点即红（第二份判定／接管路径自写）。
  var stray_valid=scan.hits.filter(func(hit):return hit.valid and not VERDICT_PRODUCERS.get(hit.file,[]).has(hit.function))
  t.check(stray_valid.is_empty(),"G4 single_eligibility_implementation: valid is written only by the declared determination: "+str(stray_valid.map(func(hit):return verdict_site(hit))))
- # 2) 判定落点自身在位，且两个入口都产出 valid 与 reason（删掉判定即红）。
+ # 2) reason 键只由判定产出或已声明的非判定载体产出：表外的 reason 写点即红（销 R1 复核缺口①：只写 reason 的
+ #    第二判定必须变红）。
+ var stray_reason=scan.hits.filter(func(hit):return hit.reason and not VERDICT_PRODUCERS.get(hit.file,[]).has(hit.function) and not VERDICT_REASON_CARRIERS.has(String(hit.file)+"::"+String(hit.function)))
+ t.check(stray_reason.is_empty(),"G4 single_eligibility_implementation: reason is written only by the declared determination or a declared non-verdict carrier: "+str(stray_reason.map(func(hit):return verdict_site(hit))))
+ # 3) 声明的非判定载体全部仍在位（表内每项都被扫到，表腐烂即红）。
+ var missing_carriers=[]
+ for site in VERDICT_REASON_CARRIERS:
+  var parts=String(site).split("::")
+  var row=scan.functions.get(parts[0],{}).get(parts[1],{})
+  if not row.get("reason",false): missing_carriers.append(site)
+ t.check(missing_carriers.is_empty(),"G4 single_eligibility_implementation: every declared non-verdict carrier still writes reason: "+str(missing_carriers))
+ # 4) 判定落点自身在位，且两个入口都产出 valid 与 reason（删掉判定即红）。
  var missing_production=[]
  for file in VERDICT_PRODUCERS:
   for function in VERDICT_PRODUCERS[file]:
    var row=scan.functions.get(file,{}).get(function,{})
    if not row.get("valid",false) or not row.get("reason",false): missing_production.append(file+"::"+function)
  t.check(missing_production.is_empty(),"G4 single_eligibility_implementation: every declared determination entry produces both valid and reason: "+str(missing_production))
- # 3) 同一函数同时产出 valid 与 reason 的第二实现即红。
+ # 5) 同一函数同时产出 valid 与 reason 的第二实现即红。
  var second=[]
  for file in scan.functions:
   for function in scan.functions[file]:
    var row=scan.functions[file][function]
    if row.valid and row.reason and not VERDICT_PRODUCERS.get(file,[]).has(function): second.append(file+"::"+function)
  t.check(second.is_empty(),"G4 single_eligibility_implementation: no second verdict producer: "+str(second))
- # 4) UI 与接管路径所在文件不得自写判定（销 DUP2）。
+ # 6) UI 与接管路径所在文件不得自写判定（销 DUP2）。
  var ui_writes=scan.hits.filter(func(hit):return String(hit.file).begins_with("ui/"))
  var takeover_writes=scan.hits.filter(func(hit):return String(hit.file)=="core/first_turn_control.gd")
  t.check(ui_writes.is_empty() and takeover_writes.is_empty(),"G4 single_eligibility_implementation: ui/ and the takeover path only consume the determination: ui="+str(ui_writes.map(func(hit):return verdict_site(hit)))+" takeover="+str(takeover_writes.map(func(hit):return verdict_site(hit))))
