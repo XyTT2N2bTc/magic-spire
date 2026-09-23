@@ -428,8 +428,8 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
    `service`（`op`）、`departure`／`relic_bundle`／`flask`（`op`）、`chain`（`action`）均按 params 子键区分；
    分类转发表按 kind 收键（39 条），子键合法性由唯一判定与 `dispatch` 形状复核共同负责。
 5. **`after` 系字段（`card`／`wall_move`／`manual`／`hook`）**：今日被执行分支消费（写回耐久或
-   `state.wall_distance`、进日志文案）。R2 必须显式二选一并写进该批判据：由唯一判定随指令形状重算回填，
-   或保留为 params 但不作为提交身份；不得两侧各算一次（违反唯一判定）。
+   `state.wall_distance`、进日志文案）。**裁定（人类 2026-09-23 过目通过）**：由唯一判定随指令形状
+   重算回填；`params` 只带稳定 ID 与玩家意图、不带 `after`；不得两侧各算一次（违反唯一判定）。
 6. **接管面（A35）须在分类表内**：`core/first_turn_control.gd::select` 只从
    `posture`／`wall_move`／`attack`／`flask`／`end` 五类挑步骤，末步另加 `relic_control_done`；
    Gherkin 2 的 kind 枚举须含这六项。
@@ -621,7 +621,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 | Q2 | 术语消歧 | 「指令路由／子路由」＋测试侧改称「套件选择」（3.2 表）是否照准 |
 | Q3 | H1 处置建议 | 旧 H1（equipment-query-seam 两症结违反其自身遍历禁令＋`escape_preview` 按需化未排期）**建议保持另案**：本片非目标不触接缝内部，受限级判据不进本片；请协调者另立裁定，不在本片复活旧编号体系 |
 | Q4 | `ui/main.gd::_submit` 去留 | `docs/spec/response-pipeline.md` 把 host 成员名 `_submit` 冻结在键盘／接管契约里；改造为路由执行段（保留名字，推荐）vs 改名（须同批改写该契约冻结行） |
-| Q5 | 指令 `params` 键表定稿权 | **已裁定（2026-09-23）**：先出 kind 全集与键表清单供人类过目，再批 R2 实现；清单落 §3.3（未落地，未过目前不算通过），R2 前置因此含「§3.3 过目」 |
+| Q5 | 指令 `params` 键表定稿权 | **已裁定（2026-09-23）**：先出 kind 全集与键表清单供人类过目，再批 R2 实现；清单落 §3.3；**人类已于 2026-09-23 过目通过**（39 kind、A1–A60 全覆盖；⑤`after` 系字段＝判定随形状重算回填），R2 前置「§3.3 过目」已满足 |
 | Q6 | View 键变化波及 | `view.candidates` 等键删除对 `docs/spec/release-interface.md`／`ondemand-copy.md` 的改写口径（见第 10 节）是否照准 |
 
 ### 9.4 可能爆雷的假设（A）
