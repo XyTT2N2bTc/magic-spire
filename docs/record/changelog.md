@@ -1459,3 +1459,9 @@ flowchart LR
 - 人类裁定彻底移除候选层、前端指令汇集到同一指令路由→分类子路由→后端唯一提交入口，取代 candidate-bypass 全案（B1–B4 与 H1–H5 作废为未开工）。规划产物：[候选层移除与指令路由契约](../spec/candidate-removal.md)（管线现状图 97 边／目标图 T1–T10、重复实现缺陷 DUP1–DUP6、切法 M-I–M-V、分批 R1–R5、Gherkin、validator 程序、Definition of done、待裁 Q1–Q6）＋[依赖表](../spec/candidate-removal-dependencies.md)，标 `needs-human-review`，人审通过前实现者不开工。
 - 被取代即删：`docs/spec/candidate-bypass.md`／`candidate-bypass-dependencies.md`／`candidate-delta.md`；同批删死引用 4 处（根 `AGENTS.md` 文档入口表 1 行、`docs/spec/response-pipeline.md` 3 处指针）。`tools/check-docs.ps1` 允许清单零新增（6 条维持；其中 3 条已无人引用，清理属 `tools/` 改动另行安排）。
 - 检查：`tools/check-docs.ps1` exit 0（35 文档／2071 引用／allowlist 6）。未跑：引擎门禁与全部测试分类（纯规划片，无可执行改动）。仅文档改动，未打包、未推送、未改版本号。
+
+## 2026-09-23｜候选层移除 R1：判定收口（行为零变化，分支 `seed-chip-save-upload`，commit `20e3ff1`）
+
+- 从 `core/game.gd::_candidate` 抽出唯一合法性判定 `core/game.gd::eligibility`（＋`eligibility_takeover`）；`_candidate` 改为调用它（`extra_traction` 仅作 detail 输入、行内 erase，行键集合与含义不变）；`core/first_turn_control.gd::select` 的接管阻断并入判定，该文件不再写 `valid`／`reason`（销 DUP2）。同批立新边即删旧边。契约见[候选层移除与指令路由](../spec/candidate-removal.md)（R1 行，D-2／DUP2 已同步为销项后事实）。
+- 新增具名 check：`G4 single_eligibility_implementation`（源文本写点断言）＋`G6 behavior_baseline_equivalence`（26 单元 × 58 路径＝1508 路径，对未改源码基线逐字段相等、首个差异路径＝无）；落点 `tests/architecture_cases.gd`。敏感性证明两轮实测（G4：接管改回自写→红、还原→绿；G6：判定文案改一字→红、还原→绿）。
+- 检查：门禁 `20260923T061728262-31144` exit 0、10 分类 PASS、9384 断言、`before==after`；文档门禁 PASS（允许清单零新增）。独立子代理复核（新会话、只读、自做变异）通过：P1–P4 全过、无产品缺陷；两条检查面缺口如实登记（G4 对「只写 reason」形态未守卫——随 R2 前置补正；G6 对行键顺序不敏感）。仅源码、测试与记录，未推送、未打标签、未改版本号。

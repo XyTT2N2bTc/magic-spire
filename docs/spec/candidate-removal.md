@@ -155,7 +155,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | 差异 | 契约说法 | 源码实测 |
 | --- | --- | --- |
 | D-1 | `response-pipeline.md`「失败语义」：版本不符→ID 失效→valid=false→五个 validate；`candidate-bypass.md` F5：六个 validate→版本比对 | 5 条预检：`Consumables.validate_buffs`、`Binding.state_issue` 在版本比对**之前**，`SpecialEquipment.validate`、`Cards.validate`、`RelicEffects.validate` 在**之后**；版本比对是第 3 步 |
-| D-2 | F4／F7 口径：`valid`／`reason` 唯一写点是 `_candidate` | `core/first_turn_control.gd::select` 也写 `blocked.valid`／`blocked.reason`（"豆包接管中"） |
+| D-2 | F4／F7 口径：`valid`／`reason` 唯一写点是 `_candidate` | **R1（`20e3ff1`）已销**：原 `core/first_turn_control.gd::select` 也写 `blocked.valid`／`blocked.reason`（"豆包接管中"）；现唯一写点是 `core/game.gd::eligibility`／`eligibility_takeover` |
 | D-3 | F6：行工厂只服务候选集合构建 | `core/first_turn_control.gd::select` 直呼 `_candidate` 合成「接管结束」行 |
 | D-4 | `response-pipeline.md` 接缝 A：`candidate_id` 必须来自当前 View 的 `candidates` | 实测一致；但**取行复核**在 `dispatch` 内以「当前 `candidates()` 全量重建＋按 id 首命中」实现（B2），而非查表 |
 
@@ -217,7 +217,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | 编号 | 语义 | 现状多路径 | 处置 |
 | --- | --- | --- | --- |
 | DUP1 | 「前端指令 → 提交」 | 54 条控件回调路径各自持候选字典直提（A1–A39） | 收敛为 T1（批 R2 同批删直连） |
-| DUP2 | 「资格结论（valid／reason）的产生」 | `core/game.gd::_candidate`（行工厂写）＋`core/first_turn_control.gd::select`（接管阻断改写） | 收敛进 N4 一处（批 R1；接管阻断改由判定读接管状态返回同文案） |
+| DUP2 | 「资格结论（valid／reason）的产生」 | `core/game.gd::_candidate`（行工厂写）＋`core/first_turn_control.gd::select`（接管阻断改写） | 收敛进 N4 一处（批 R1；接管阻断改由判定读接管状态返回同文案）——**R1（`20e3ff1`）已销项** |
 | DUP3 | 「从可选行动中定位要提交的那条」 | `core/game.gd::dispatch` 按 id 首命中＋`ui/action_index.gd::select/find/first_usable`＋`ui/target_queries.gd` 的筛选族 | 提交侧＝N4 形状复核（T4）；显示侧＝显示事实（T9）；行筛选整族删除 |
 | DUP4 | 「首个可用项回退」 | `ui/action_index.gd::first_usable`（全不可用返回**末项**）与 `ui/target_queries.gd::first_usable`（返回**首项**）同名不同义 | 显示侧展示「不可用原因」的语义由 N4 原文承载；两套回退在批 R4 收敛为一条有声明语义的通道，保留各自可见行为（首/末项差异是行为，不得顺手统一） |
 | DUP5 | 「行的构造」 | `_build_candidates`／`_phase_candidates` 生产链（96 处 `g._candidate` 转发）＋`first_turn_control` 直呼行工厂 | 行构造随行载体删除（批 R5）；生产者改投影显示事实构建 |
