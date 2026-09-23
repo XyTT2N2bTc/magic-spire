@@ -64,6 +64,6 @@ static func formal_draw(t) -> void:
  var card=preload("res://tests/curse_cases.gd").give(g,"pot_of_greed")
  var action=t.find_action(g,"card",{"uid":card.uid,"free":false})
  var energy=g.state.energy;var version=g.state.version
- t.check(action.valid and g.dispatch(action.id,version).ok and progress(g)==0 and g.state.energy==energy+2,"SUNDIAL real draw-two card triggers two shuffles and pays out immediately")
+ t.check(action.valid and g.dispatch(g.command(action.payload,version),version).ok and progress(g)==0 and g.state.energy==energy+2,"SUNDIAL real draw-two card triggers two shuffles and pays out immediately")
  var before=g.export_snapshot()
- t.check(not g.dispatch(action.id,version).ok and g.state==before,"SUNDIAL stale play cannot duplicate the energy reward")
+ t.check(not g.dispatch(g.command(action.payload,version),version).ok and g.state==before,"SUNDIAL stale play cannot duplicate the energy reward")

@@ -38,10 +38,10 @@ static func build(ui) -> void:
  var extra_y=682+footer_shift
  for id in footer.extra_ids:
   var choice=ui.actions.by_id[id]
-  var extra=ui._button(choice.label,func():ui._submit(choice),ui.CYAN);extra.disabled=not choice.valid
+  var extra=ui._button(choice.label,func():ui.command_router.emit(String(choice.payload.get("kind","")),choice),ui.CYAN);extra.disabled=not choice.valid
   extra.name="RewardExtra_"+choice.payload.kind;ui._place(extra,Rect2(540,extra_y,520,50),root);ui.candidate_buttons[id]=extra
   extra_y+=62
- var next=ui._button(footer.continue_label,func():ui._submit(exit),ui.GOLD)
+ var next=ui._button(footer.continue_label,func():ui.command_router.emit(String(exit.payload.get("kind","")),exit),ui.GOLD)
  next.name="RewardContinue";ui._place(next,Rect2(658,693+footer_shift if footer.extra_ids.is_empty() else extra_y,284,54),root)
  ui.candidate_buttons[exit.id]=next
  if pending and footer.extra_ids.is_empty() and not rows.any(func(entry):return entry.get("hide_skip",false)):
@@ -56,7 +56,7 @@ static func row(ui, root: Control, entry: Dictionary, rect: Rect2) -> void:
    ui.reward_card_row=entry.id;ui.show_reward_cards=true;ui.render(ui.view)
   elif entry.has("choices"):
    ui.show_reward_relics=true;ui.render(ui.view)
-  elif not choices.is_empty(): ui._submit(choices[0])
+  elif not choices.is_empty(): ui.command_router.emit(String(choices[0].payload.get("kind","")),choices[0])
  var accent=ui.CYAN if entry.category in ["item","flask"] else ui.GOLD
  var button=ui._button("",click,accent)
  button.name="Reward_"+entry.category+("_"+entry.id if entry.id!="" else "")
@@ -102,7 +102,7 @@ static func cards(ui, root: Control) -> void:
   var choice=choices[i]
   var card=preload("res://data/encyclopedia.gd").card(choice.payload.get("type",entry.symbol))
   card.uid="reward_"+card.type
-  var button=ui._card(card,Rect2(left+i*(width+gap),295,width,324),func():ui._submit(choice),0,root,false,true)
+  var button=ui._card(card,Rect2(left+i*(width+gap),295,width,324),func():ui.command_router.emit(String(choice.payload.get("kind","")),choice),0,root,false,true)
   button.name="RewardChoice_"+card.type
   button.disabled=not choice.valid
   ui.candidate_buttons[choice.id]=button
@@ -119,7 +119,7 @@ static func relics(ui, root: Control) -> void:
  for i in range(options.size()):
   var entry=options[i]
   var choice=entries[0].action_ids.map(func(id):return ui.actions.by_id[id]).filter(func(c):return c.payload.type==entry.id)[0]
-  var button=ui._button("",func():ui._submit(choice),ui.GOLD)
+  var button=ui._button("",func():ui.command_router.emit(String(choice.payload.get("kind","")),choice),ui.GOLD)
   button.name="BossRelicChoice_"+entry.id;button.disabled=not choice.valid
   ui._place(button,Rect2(left+i*(width+gap),282,width,360),root)
   var icon=preload("res://ui/relic_icon.gd").new();icon.relic=entry
@@ -138,6 +138,6 @@ static func relics(ui, root: Control) -> void:
 static func skip_button(ui, root: Control, entry: Dictionary, rect: Rect2) -> void:
  if entry.skip_id=="": return
  var choice=ui.actions.by_id[entry.skip_id]
- var button=ui._button("跳过",func():ui._submit(choice),ui.MUTED)
+ var button=ui._button("跳过",func():ui.command_router.emit(String(choice.payload.get("kind","")),choice),ui.MUTED)
  button.name="RewardSkip_"+entry.category+("_"+entry.id if entry.id!="" else "");button.disabled=not choice.valid
  ui._place(button,rect,root);ui.candidate_buttons[choice.id]=button

@@ -49,11 +49,11 @@
 | A18 | `ui/main.gd::_show_drop_targets` → `ui/main.gd::_submit` | 调用 | 落点 `click_to_use` 回调 |
 | A19 | `ui/main.gd::_activate_guard_bind_target` → `ui/main.gd::_submit` | 调用 | 捕缚条目标分支 |
 | A20 | `ui/main.gd::_receive_player_drop` → `ui/main.gd::_submit` | 调用 | `self_action_id` 拖放分支 |
-| A21 | `ui/main.gd::_use_free_card` → `ui/main.gd::_submit` | 调用 | 自由面分支 |
+| A21 | `ui/command_routes.gd::_card_intent` → `ui/main.gd::_submit` | 调用 | 自由面分支 |
 | A22 | `ui/main.gd::_activate_card` → `ui/main.gd::_submit` | 调用 | 手牌选择分支 |
 | A23 | `ui/main.gd::_activate_card` → `ui/main.gd::_submit` | 调用 | 快捷解除分支 |
 | A24 | `ui/main.gd::_activate_card` → `ui/main.gd::_submit` | 调用 | 唯一装备分支 |
-| A25 | `ui/main.gd::_use_self_card` → `ui/main.gd::_submit` | 调用 | 非 `hand_uid` 分支 |
+| A25 | `ui/command_routes.gd::_card_intent` → `ui/main.gd::_submit` | 调用 | 非 `hand_uid` 分支 |
 | A26 | `ui/main.gd::_item_details` → `ui/main.gd::_submit` | 调用 | 道具目标按钮回调 |
 | A27 | `ui/main.gd::_item_details` → `ui/main.gd::_submit` | 调用 | 丢弃按钮回调 |
 | A28 | `ui/deck_browser.gd::refresh` → `ui/main.gd::_submit` | 调用 | 牌堆浏览选择回调 |
@@ -68,11 +68,11 @@
 | A37 | `ui/keyboard_input.gd::confirm` → `ui/main.gd::_submit` | 调用 | 键盘目标确认 |
 | A38 | `ui/keyboard_input.gd::_process` → `ui/main.gd::_submit` | 调用 | 长按结束回合分支 |
 | A39 | `ui/mana_flask.gd::build` → `ui/main.gd::_submit` | 调用 | 魔瓶按钮回调 |
-| A40 | `ui/main.gd::_submit` → `ui/main.gd::_use_self_card` | 调用 | 带 `hand_uid` 卡牌的改道分支 |
-| A41 | `ui/main.gd::_activate_card` → `ui/main.gd::_use_self_card` | 调用 | 自身目标卡改道 |
-| A42 | `ui/main.gd::_receive_player_drop` → `ui/main.gd::_use_self_card` | 调用 | 拖放自身目标改道 |
-| A43 | `ui/main.gd::_activate_card` → `ui/main.gd::_use_free_card` | 调用 | 自由面改道 |
-| A44 | `ui/main.gd::_receive_player_drop` → `ui/main.gd::_use_free_card` | 调用 | 拖放自由面改道 |
+| A40 | `ui/command_router.gd::emit` → `ui/command_routes.gd::_resolved_card` | 调用 | 带 `hand_uid` 卡牌的改道分支 |
+| A41 | `ui/main.gd::_activate_card` → `ui/command_routes.gd::_card_intent` | 调用 | 自身目标卡改道 |
+| A42 | `ui/main.gd::_receive_player_drop` → `ui/command_routes.gd::_card_intent` | 调用 | 拖放自身目标改道 |
+| A43 | `ui/main.gd::_activate_card` → `ui/command_routes.gd::_card_intent` | 调用 | 自由面改道 |
+| A44 | `ui/main.gd::_receive_player_drop` → `ui/command_routes.gd::_card_intent` | 调用 | 拖放自由面改道 |
 | A45 | `ui/main.gd::_activate_card` → `ui/quick_release_bar.gd::candidate` | 调用 | 快捷解除取行（唯一查询路径） |
 | A46 | `ui/reward_screen.gd::build` → `ui/main.gd::_submit` | 调用 | 额外奖励按钮回调（`extra`） |
 | A47 | `ui/reward_screen.gd::build` → `ui/main.gd::_submit` | 调用 | 奖励页继续按钮回调（`next`） |
@@ -370,11 +370,11 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 | A18 | `ui/main.gd::_show_drop_targets` | `card`（`card_uid`）／`attack`（`action_type`・`form`）／`prison`（`action=unlock`・`uid`）／`item_use`／`hook`（落点 `click_to_use`；版本取拖起时的 `data.version`） |
 | A19 | `ui/main.gd::_activate_guard_bind_target` | `card`（`target=guard_bind`・`free`・`uid`） |
 | A20 | `ui/main.gd::_receive_player_drop` | `posture`（现唯一 `self_action_id` 源＝`ui/main.gd::_posture_controls` 的拖放；R2 拖放改装配后按落点落 kind） |
-| A21 | `ui/main.gd::_use_free_card` | `card`（`free=true`） |
+| A21 | `ui/command_routes.gd::_card_intent` | `card`（`free=true`） |
 | A22 | `ui/main.gd::_activate_card` | `card`（`hand_uid` 消耗选择） |
 | A23 | `ui/main.gd::_activate_card` | `card`（快捷解除：`mode`∈`ui/target_queries.gd::RELEASE_MODES`・`target`） |
 | A24 | `ui/main.gd::_activate_card` | `card`（唯一装备：`free`） |
-| A25 | `ui/main.gd::_use_self_card` | `card`（`self_target=true`） |
+| A25 | `ui/command_routes.gd::_card_intent` | `card`（`self_target=true`） |
 | A26 | `ui/main.gd::_item_details` | `item_use`（`item`・`target`）／`item_install`（`mount`・`operator`）／`item_retrieve` |
 | A27 | `ui/main.gd::_item_details` | `item_discard`（`item`） |
 | A28 | `ui/deck_browser.gd::refresh` | `relic_bundle`（`op=copy`・`uid`・`type`；唯一带 choices 的调用点＝`ui/relic_bundle_screen.gd::build`） |
@@ -389,10 +389,10 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 | A37 | `ui/keyboard_input.gd::confirm` | `card`（`uid`・`free`）／`attack`（`type`・`form`） |
 | A38 | `ui/keyboard_input.gd::_process` | `end`（长按结束回合） |
 | A39 | `ui/mana_flask.gd::build` | `flask`（`op=deposit`／`withdraw`） |
-| A40 | `ui/main.gd::_submit` | 改道边：带 `hand_uid` 且非 `self_target` 的 `card` → `ui/main.gd::_use_self_card`（仍落 `card`） |
+| A40 | `ui/command_router.gd::emit` | 改道边：带 `hand_uid` 且非 `self_target` 的 `card` → `ui/command_routes.gd::_resolved_card`（仍落 `card`） |
 | A41 | `ui/main.gd::_activate_card` | 同上（自身目标 `card`） |
 | A42 | `ui/main.gd::_receive_player_drop` | 同上（拖放自身目标，仍落 `card`） |
-| A43 | `ui/main.gd::_activate_card` | 改道边：自由面 `card` → `ui/main.gd::_use_free_card` |
+| A43 | `ui/main.gd::_activate_card` | 改道边：自由面 `card` → `ui/command_routes.gd::_card_intent` |
 | A44 | `ui/main.gd::_receive_player_drop` | 同上（拖放自由面） |
 | A45 | `ui/main.gd::_activate_card` | `card`（快捷解除取行 `ui/quick_release_bar.gd::candidate`，kind 不变） |
 | A46 | `ui/reward_screen.gd::build` | **无实例**：`extra_ids` 在 `core/game_view.gd`／`core/departure.gd::panel`／`core/relic_bundle.gd::panel` 实测恒空（见 3.3.3-1） |

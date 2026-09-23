@@ -46,7 +46,7 @@ static func run(t) -> void:
  g.state.enemies.back().gone=true
  enemy.intent={"kind":"lock","text":"上锁","delayed":false}
  before=g.state.duplicate(true)
- t.check(not g.dispatch("forged",g.state.version).ok and g.state==before,"SATURATION rejected commands cannot end battles")
+ t.check(not g.dispatch(g.command({"kind":"card","uid":"forged"},g.state.version),g.state.version).ok and g.state==before,"SATURATION rejected commands cannot end battles")
  t.check(t.action(g,"end").ok and g.state.phase=="reward","SATURATION formal turn boundary ends battle before a targetless enemy action")
  # Saturated initial encounters finish without pretending a lock has been defeated.
  g=Game.new(42)
@@ -123,7 +123,7 @@ static func long_battle_cases(t) -> void:
  machine.intent=g._plan(machine);g.state.pressure=20
  before=g.export_snapshot();g.get_view();g.candidates()
  t.check(g.state==before,"LONG BATTLE reading candidates and view cannot trigger departure or arrest")
- t.check(not g.dispatch("forged",g.state.version).ok and g.state==before,"LONG BATTLE rejected action cannot trigger the limit")
+ t.check(not g.dispatch(g.command({"kind":"card","uid":"forged"},g.state.version),g.state.version).ok and g.state==before,"LONG BATTLE rejected action cannot trigger the limit")
  human=g._enemy(human.id);machine=g._enemy(machine.id)
  var result=t.action(g,"calm")
  human=g._enemy(human.id);machine=g._enemy(machine.id)

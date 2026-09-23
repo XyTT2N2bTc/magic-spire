@@ -104,7 +104,7 @@ func handle(event: InputEvent) -> bool:
   var c=host.actions.find("flow",{"kind":"end"})
   if not c.is_empty() and c.valid and is_instance_valid(host.end_button) and host.end_button.is_visible_in_tree():
    if settings.hold_end: end_hold={"candidate":c,"version":host.view.version,"key":base,"elapsed":0.0}
-   else: clear();host._submit(c,host.view.version)
+   else: clear();host.command_router.emit(String(c.payload.get("kind","")),c,host.view.version)
  else: navigate(action)
  return true
 
@@ -195,7 +195,7 @@ func confirm() -> void:
   if index<0: return
   choice_index=index
  var version=int(selection.version);var c=choices[choice_index]
- clear();host._submit(c,version)
+ clear();host.command_router.emit(String(c.payload.get("kind","")),c,version)
 
 func flip() -> void:
  var button: Control
@@ -278,7 +278,7 @@ func _process(delta: float) -> void:
   end_hold={};return
  end_hold.elapsed+=delta
  if end_hold.elapsed>=0.5:
-  var c=end_hold.candidate;var version=int(end_hold.version);clear();host._submit(c,version)
+  var c=end_hold.candidate;var version=int(end_hold.version);clear();host.command_router.emit(String(c.payload.get("kind","")),c,version)
 
 func _notification(what: int) -> void:
  if what in [NOTIFICATION_APPLICATION_FOCUS_OUT,NOTIFICATION_APPLICATION_PAUSED]:

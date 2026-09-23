@@ -18,7 +18,7 @@ static func run(t) -> void:
    "prison": g.Prison.enter(g)
   t.check(g.state.pressure==15 and g.RelicEffects.attribute(g,"strength")==2,"PRESSURE RELIC first player turn gains five and strength two: "+phase)
   var before=g.export_snapshot();g.get_view();g.candidates()
-  t.check(g.state==before and not g.dispatch("missing",g.state.version).ok and g.state==before,"PRESSURE RELIC previews and rejected commands do not trigger")
+  t.check(g.state==before and not g.dispatch(g.command({"kind":"card","uid":"missing"},g.state.version),g.state.version).ok and g.state==before,"PRESSURE RELIC previews and rejected commands do not trigger")
   var start=g.state.logs.size()
   t.check(t.action(g,"end").ok,"PRESSURE RELIC real turn ends: "+phase)
   var logs=g.state.logs.slice(start)

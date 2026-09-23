@@ -12,6 +12,7 @@ const DropTarget=preload("res://ui/drop_target.gd")
 const DragTargets=preload("res://ui/drag_targets.gd")
 const ActionIndex=preload("res://ui/action_index.gd")
 const TargetQueries=preload("res://ui/target_queries.gd")
+const CommandRouter=preload("res://ui/command_router.gd")
 const Backdrop=preload("res://ui/dungeon_backdrop.gd")
 const Palette=preload("res://ui/visual_theme.gd")
 const OVERLOAD_COLOR=Palette.OVERLOAD
@@ -57,6 +58,8 @@ var localization=preload("res://ui/localization.gd").new()
 
 var game_factory=Game
 var game=Game.new()
+# 指令路由（docs/spec/candidate-removal.md §3.1 N1）：前端唯一指令入口，分类后交 _submit 执行段。
+var command_router=CommandRouter.new(self)
 var view: Dictionary
 # Read-only display diagnostics (docs/ondemand-copy.md §3): one entry per (point, key, view version),
 # cleared when ui.view is replaced. Never rendered, logged, saved or counted.
@@ -572,7 +575,7 @@ func _relic_row() -> void:
   if not choice.is_empty():
    shortcut.gui_input.connect(func(event):
     if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
-     shortcut.accept_event();_hide_term();_submit(choice))
+     shortcut.accept_event();_hide_term();command_router.emit(String(choice.payload.get("kind","")),choice))
 
 func _status_tooltip(status: Dictionary) -> Dictionary:
  return {"label":status.name+" · "+status.value,"detail":status.detail+"\n\n来源："+status.source+"\n持续："+status.duration}
@@ -605,7 +608,7 @@ func _status_control(status: Dictionary, compact: bool) -> Button:
   if not choice.is_empty():
    button.gui_input.connect(func(event):
     if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
-     button.accept_event();_hide_term();_submit(choice))
+     button.accept_event();_hide_term();command_router.emit(String(choice.payload.get("kind","")),choice))
  button.pressed.connect(func():
   if status.has("item_id"):
    selected_item=status.item_id;_open_drawer("show_items");return
@@ -786,7 +789,7 @@ func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: St
  var accent=CYAN if c.payload.kind=="calm" or c.has("casting") else GOLD
  var btn=_button("",func():
   if view.phase!="battle" and c.payload.kind=="attack": keyboard_input.select_attack(c.payload.type)
-  else: _submit(c),accent,c.payload.kind=="attack")
+  else: command_router.emit(String(c.payload.get("kind","")),c),accent,c.payload.kind=="attack")
  btn.disabled=not c.valid;btn.clip_contents=true
  _place(btn,rect,parent);candidate_buttons[c.id]=btn
  _attack_tile_labels(btn,c,rect.size,summary,tags,accent)
@@ -891,7 +894,7 @@ func _posture_controls() -> void:
   var text=name_text+" · "+str(c.cost)+"能量"
   if not c.valid: text+="\n"+c.reason
   elif c.payload.wall and placement.stride>=48: text+="\n少耗1能量"
-  var btn=_button(text,func():_submit(c),CYAN if c.payload.wall else GOLD,true)
+  var btn=_button(text,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN if c.payload.wall else GOLD,true)
   btn.custom_minimum_size.y=placement.stride-4
   btn.name="Posture_"+c.payload.dest+("_wall" if c.payload.wall else "")
   btn.drag_payload={"self_action_id":c.id,"version":view.version}
@@ -1199,7 +1202,7 @@ func _bottom_controls(include_tools: bool=true) -> void:
  var discard_button=_button("弃牌堆\n%d" % view.discard_count,func():_open_drawer("show_deck","discard"));discard_button.name="DiscardPileButton"
  _place(discard_button,Rect2(1327,786,82,70))
  for c in actions.select("flow"):
-  var b=_button(c.label,func(): _submit(c),CYAN if c.payload.kind=="end" else GOLD)
+  var b=_button(c.label,func(): command_router.emit(String(c.payload.get("kind","")),c),CYAN if c.payload.kind=="end" else GOLD)
   _place(b,Rect2(1424,735 if c.payload.kind=="end" else 837,155,90 if c.payload.kind=="end" else 38))
   candidate_buttons[c.id]=b
   if c.payload.kind=="end":
@@ -1219,7 +1222,7 @@ func _bottom_controls(include_tools: bool=true) -> void:
   button.add_theme_stylebox_override("hover",_style(Color("683039"),RED,8))
   button.pressed.connect(func():
    if surrender_version==view.version:
-    surrender_version=-1;_submit(surrender)
+    surrender_version=-1;command_router.emit(String(surrender.payload.get("kind","")),surrender)
    else:
     surrender_version=view.version;button.text="确定要投降吗")
   _place(button,Rect2(1424,833,155,44))
@@ -1249,7 +1252,7 @@ func _wall_controls() -> void:
  var placement=_posture_layout(actions.select("posture").filter(func(action):return action.payload.adjacent and not action.payload.wall).size())
  if not c.valid and (c.payload.distance>0 or not view.guard_bind.is_empty()):
   text=c.reason if placement.with_move and placement.stride<48 else text+"\n"+c.reason
- var btn=_button(text,func():_submit(c),GOLD)
+ var btn=_button(text,func():command_router.emit(String(c.payload.get("kind","")),c),GOLD)
  btn.name="WallMove_toward";btn.disabled=not c.valid
  btn.add_theme_font_size_override("font_size",11 if placement.with_move and placement.stride<48 else 13)
  btn.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
@@ -1359,7 +1362,7 @@ func _equipment_tile(parent: Node, e: Dictionary, location: String="", expanded:
  preload("res://ui/release_details.gd").equipment_header(self,box,e,location,accent)
  for c in actions.select("manual",{"target":e.id}):
   if c.valid and c.payload.after==0.0:
-   var release=_button("一键解除 · %d能量" % c.cost,func():_submit(c),CYAN)
+   var release=_button("一键解除 · %d能量" % c.cost,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN)
    release.name="QuickRelease_"+e.id
    box.add_child(release);candidate_buttons[c.id]=release
  var details=VBoxContainer.new();details.name="EquipmentActions";details.visible=expanded
@@ -1415,13 +1418,13 @@ func _action_row(parent: Node,c: Dictionary,label: String="") -> void:
  if c.payload.kind=="retain":
   var choices=view.hand.filter(func(card):return card.uid==c.payload.uid)
   if not choices.is_empty():
-   var face=_display_card(choices[0].type,parent,func():_submit(c),"retain_"+c.payload.uid)
+   var face=_display_card(choices[0].type,parent,func():command_router.emit(String(c.payload.get("kind","")),c),"retain_"+c.payload.uid)
    face.disabled=not c.valid;candidate_buttons[c.id]=face
    return
  var fee=str(c.cost)+"能量"+(" / "+game.number(c.mana)+"魔力" if c.mana>0 else "")
  if c.payload.kind=="service": fee=game.number(c.mana)+("魔瓶魔力" if c.payload.get("payment","")=="flask" else "魔力") if c.mana>0 else "免费"
  var targeted=DragTargets.targeted(c)
- var b=_button((c.label if label.is_empty() else label)+("" if c.group in ["route","reward","rest_service","service_flow","demo_exit"] else " · "+fee),func(): _submit(c),RED if c.risk!="" else GOLD,targeted)
+ var b=_button((c.label if label.is_empty() else label)+("" if c.group in ["route","reward","rest_service","service_flow","demo_exit"] else " · "+fee),func(): command_router.emit(String(c.payload.get("kind","")),c),RED if c.risk!="" else GOLD,targeted)
  if targeted: DragTargets.source(self,b,c)
  b.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
  b.disabled=not c.valid
@@ -1446,7 +1449,7 @@ func _card_target(parent: Node,c: Dictionary, automatic: bool=false, footer: Nod
   if c.has("release_preview"): preload("res://ui/release_details.gd").preview(self,parent,c)
   else: parent.add_child(_label(detail_of(c),15,TEXT))
   var fee=str(c.cost)+"能量"+(" / "+game.number(c.mana)+"魔力" if c.mana>0 else "")
-  var commit=_button("打出 · "+fee,func(): _submit(c),CYAN)
+  var commit=_button("打出 · "+fee,func(): command_router.emit(String(c.payload.get("kind","")),c),CYAN)
   commit.name="PlaySelectedCard"
   (footer if footer!=null else parent).add_child(commit); candidate_buttons[c.id]=commit
 
@@ -1579,7 +1582,7 @@ func _prison_controls() -> void:
   if not p.space.blind and not site.here:
    var c=actions.find("prison",{"action":"explore","site":site.id})
    if not c.is_empty():
-    var go=_button("前往",func():_submit(c),CYAN);go.disabled=not c.valid;go.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(go);candidate_buttons[c.id]=go
+    var go=_button("前往",func():command_router.emit(String(c.payload.get("kind","")),c),CYAN);go.disabled=not c.valid;go.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(go);candidate_buttons[c.id]=go
   if not site.interaction.is_empty():
    var inspect=_button("查看 ›",func():prison_detail=site.id;render(view),GOLD)
    inspect.name="InspectPrison_"+site.id;inspect.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(inspect)
@@ -1588,7 +1591,7 @@ func _prison_controls() -> void:
   var directions=GridContainer.new();directions.columns=2;scroll.add_child(directions)
   for c in actions.select("prison",{"action":"explore"}):
    var choice=VBoxContainer.new();choice.size_flags_horizontal=Control.SIZE_EXPAND_FILL;directions.add_child(choice)
-   var b=_button(c.label,func():_submit(c),CYAN);b.disabled=not c.valid;b.size_flags_horizontal=Control.SIZE_EXPAND_FILL;choice.add_child(b);candidate_buttons[c.id]=b
+   var b=_button(c.label,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN);b.disabled=not c.valid;b.size_flags_horizontal=Control.SIZE_EXPAND_FILL;choice.add_child(b);candidate_buttons[c.id]=b
    if c.payload.wall_warning!="": choice.add_child(_label(c.payload.wall_warning,13,RED))
  # Common movement limitations appear once, instead of after every destination.
  var reasons=[]
@@ -1641,7 +1644,7 @@ func _prison_location_details(parent: Node,site: Dictionary) -> void:
    return not c.is_empty() and c.valid
   door.receive_card=func(data):
    var c=_door_candidate(data)
-   if not c.is_empty() and c.valid: call_deferred("_submit",c,int(data.version))
+   if not c.is_empty() and c.valid: command_router.emit_deferred(String(c.payload.get("kind","")),c,int(data.version))
   scroll.add_child(door);actor_targets["prison_door"]=door
  elif kind=="vent": scroll.add_child(_label("格栅 %d / %d" % [view.prison.vent_hits,view.prison.vent_total],18,CYAN))
  if installed:
@@ -1665,7 +1668,7 @@ func _compact_action(parent: Node,c: Dictionary,caption: String="",show_free_cos
  if c.cost>0 or show_free_cost: label+=" · %d能量" % c.cost
  if c.mana>0: label+=" · %s魔力" % game.number(c.mana)
  var targeted=DragTargets.targeted(c)
- var button=_button(label,func():_submit(c),CYAN,targeted)
+ var button=_button(label,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN,targeted)
  if targeted: DragTargets.source(self,button,c)
  button.disabled=not c.valid;button.tooltip_text=detail_of(c) if c.valid else c.reason
  parent.add_child(button);candidate_buttons[c.id]=button
@@ -1772,7 +1775,7 @@ func _route_screen() -> void:
   var step=actions.find("route",{"kind":"travel_step"})
   if not step.is_empty():
    var controls=HBoxContainer.new();right.add_child(controls)
-   var advance=_button("前进一回合",func():_submit(step),CYAN)
+   var advance=_button("前进一回合",func():command_router.emit(String(step.payload.get("kind","")),step),CYAN)
    advance.name="TravelStep";advance.disabled=not step.valid;controls.add_child(advance);candidate_buttons[step.id]=advance
    if not step.valid: right.add_child(_label(step.reason,14,RED))
    var toggle=_button("暂停" if map_auto_travel else "自动前进",func():map_auto_travel=not map_auto_travel;render(view),CYAN)
@@ -1806,7 +1809,7 @@ func _select_route_room(id: String) -> void:
  var candidate=actions.find("route",{"kind":"depart","room":id})
  if not candidate.is_empty() and candidate.valid:
   map_auto_travel=true
-  _submit(candidate)
+  command_router.emit(String(candidate.payload.get("kind","")),candidate)
  else:
   var room=view.route.filter(func(r):return r.id==id)
   notice=room[0].entry_reason if not room.is_empty() else ""
@@ -1826,7 +1829,7 @@ func _queue_map_step() -> void:
  if view.version!=observed_version:
   _queue_map_step();return
  var step=actions.find("route",{"kind":"travel_step"})
- if not step.is_empty() and step.valid and not view.pressure.overloaded: _submit(step)
+ if not step.is_empty() and step.valid and not view.pressure.overloaded: command_router.emit(String(step.payload.get("kind","")),step)
  else: map_auto_travel=false
 
 # The four identity parts a player can quote. The identity is not a reproduction recipe:
@@ -2054,30 +2057,33 @@ func _shop_chatter(pool: Array) -> void:
  body.text=line;bubble.show();speech_group=bubble
  speech_deadline=Time.get_ticks_msec()+5000
 
-func _submit(c: Dictionary, expected_version: int=-1, takeover: bool=false) -> void:
+func _submit(cmd: Dictionary, takeover: bool=false) -> void:
+ # 提交执行段（docs/spec/candidate-removal.md §3.1 M-III 的 UI 侧落点）：只由指令路由调用。
  if _takeover_locked() and not takeover: return
  surrender_version=-1
  if show_home or is_instance_valid(enemy_feedback): return
- if c.valid and not c.get("automated",false) and c.payload.kind=="card" and c.payload.has("hand_uid") and not c.payload.get("self_target",false) and not _selecting_hand():
-  _use_self_card(c,view.version if expected_version<0 else expected_version);return
+ # 显示数据（M-V）：形状 → 当前状态下那条行动的派生字段；不参与提交复核。
+ var row=game.command_row(cmd)
+ var payload=row.get("payload",{}) if not row.is_empty() else {}
+ var kind=String(cmd.get("kind",""))
  var previous=view
  var previous_cards=preload("res://ui/card_motion.gd").positions(self)
  var feedback_anchor=Vector2(560,250)
  if actor_targets.has("hero"):
   var bounds=actor_targets.hero.get_global_rect()
   feedback_anchor=Vector2(bounds.get_center().x,bounds.position.y)
- var result=game.dispatch(c.id,view.version if expected_version<0 else expected_version)
+ var result=game.dispatch(cmd,int(cmd.get("expected_version",-1)))
  var updated=game.get_view()
  # Consume automated speech even when the last command has already ended takeover.
  if takeover: _skip_hero_speech(updated.speech)
  notice="" if result.ok else result.error
  if result.ok:
   preload("res://ui/shell/body_sidebar.gd").expand_applied(self,previous,updated)
-  if c.payload.get("witch_action",false) and not c.payload.charge_action: attack_forms[c.payload.type]=0
+  if payload.get("witch_action",false) and not payload.get("charge_action",false): attack_forms[payload.get("type","")]=0
   # docs/save-fixed-points.md §2／§5.1：只有提交结果带非空 checkpoint 才写盘；
   # 不比较内容、不读快照，其余提交一律不写。
   if String(result.get("checkpoint",""))!="": _save_progress()
-  if c.payload.kind=="demo_continue": _reset_interface(updated)
+  if kind=="demo_continue": _reset_interface(updated)
   player_pick=false
   selected_card=""; selected_candidate=""; show_body=false
   show_route=false
@@ -2089,8 +2095,8 @@ func _submit(c: Dictionary, expected_version: int=-1, takeover: bool=false) -> v
    # general-purpose character-status drawer, even if that drawer was open.
    _close_drawers()
  render(updated)
- if takeover and is_instance_valid(takeover_presenter): takeover_presenter.outcome(result,previous,updated,c)
- if result.ok and c.payload.kind=="demo_end":
+ if takeover and is_instance_valid(takeover_presenter): takeover_presenter.outcome(result,previous,updated,payload)
+ if result.ok and kind=="demo_end":
   _return_home()
   return
  if result.ok:
@@ -2098,12 +2104,12 @@ func _submit(c: Dictionary, expected_version: int=-1, takeover: bool=false) -> v
    resource_feedback=preload("res://ui/resource_feedback.gd").new();resource_feedback.host=self;add_child(resource_feedback)
   # 快感与精神集中由瞬时层呈现（粉滤镜／蓝边框），不再另出浮字：只有这两处在同一提交里各自展示一次。
   var instant_fields=["pressure","witch_focus"]
-  if c.payload.kind=="flask": instant_fields=["mana","flask_mana","pressure","witch_focus"]
+  if kind=="flask": instant_fields=["mana","flask_mana","pressure","witch_focus"]
   resource_feedback.enqueue(result.get("resource_feedback",[]),feedback_anchor,instant_fields)
-  _impact_feedback(result.get("resource_feedback",[]),c.payload,updated)
+  _impact_feedback(result.get("resource_feedback",[]),payload,updated)
   _animate_cards(result.get("card_feedback",[]),previous_cards)
   card_music.consume(result.get("music_feedback",[]),updated.phase,show_home)
-  CombatFeedback.play(self,previous,c.payload)
+  CombatFeedback.play(self,previous,payload)
 
 func _demo_exit_screen() -> void:
  if is_instance_valid(card_motion): card_motion.clear()
@@ -2294,7 +2300,7 @@ func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false
    if c.payload.get("preview",{}).get("release",false): effect+="\n整件脱下"
   var tone=RED if reason!="" or c.risk!="" else CYAN
   var target=_button("",func():
-   if click_to_use and reason=="": _submit(c,int(data.version)),tone,true)
+   if click_to_use and reason=="": command_router.emit(String(c.payload.get("kind","")),c,int(data.version)),tone,true)
   target.name="EquipmentDropCard_"+c.payload.target
   target.disabled=click_to_use and reason!=""
   target.custom_minimum_size=Vector2(76,86);target.size_flags_horizontal=Control.SIZE_EXPAND_FILL
@@ -2323,7 +2329,7 @@ func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false
   # Keep blocked entries visible and hoverable so their reason remains readable.
   target.accepted_kind="any"
   target.accept_card=func(incoming): return reason=="" and incoming==data and incoming.version==view.version
-  target.receive_card=func(incoming): call_deferred("_submit",c,int(incoming.version))
+  target.receive_card=func(incoming): command_router.emit_deferred(String(c.payload.get("kind","")),c,int(incoming.version))
   targets.add_child(card)
   drop_targets[c.id]=target
   count+=1
@@ -2352,7 +2358,7 @@ func _configure_enemy_drop(button: Button, enemy_id: String) -> void:
   return not c.is_empty() and c.valid
  button.receive_card=func(data):
   var c=_attack_drop_candidate(data,enemy_id)
-  if not c.is_empty() and c.valid: call_deferred("_submit",c,int(data.version))
+  if not c.is_empty() and c.valid: command_router.emit_deferred(String(c.payload.get("kind","")),c,int(data.version))
 
 func _guard_bind_card_candidate(data: Dictionary) -> Dictionary:
  if data.get("version",-1)!=view.version or _card_is_free(data.get("card_uid",""),data.get("free",false)): return {}
@@ -2382,14 +2388,14 @@ func _guard_bind_drop_target(rect: Rect2, node_name: String) -> Button:
  target.accept_card=func(data):return _guard_bind_card_candidate(data).get("valid",false)
  target.receive_card=func(data):
   var c=_guard_bind_card_candidate(data)
-  if not c.is_empty() and c.valid: call_deferred("_submit",c,int(data.version))
+  if not c.is_empty() and c.valid: command_router.emit_deferred(String(c.payload.get("kind","")),c,int(data.version))
  target.pressed.connect(_activate_guard_bind_target)
  return target
 
 func _activate_guard_bind_target() -> void:
  if selected_card=="": return
  var c=actions.find("card",{"uid":selected_card,"target":"guard_bind","free":card_faces.get(selected_card,false)})
- if not c.is_empty() and c.valid: _submit(c,int(view.version))
+ if not c.is_empty() and c.valid: command_router.emit(String(c.payload.get("kind","")),c,int(view.version))
  elif not c.is_empty():
   notice=c.reason
   render(view)
@@ -2427,15 +2433,10 @@ func _player_drag_preview(data: Dictionary) -> void:
 
 func _receive_player_drop(data: Dictionary) -> void:
  if not _can_drop_on_player(data): return
- var self_card=actions.find("card",{"uid":data.get("card_uid",""),"self_target":true,"free":data.get("free",false)})
- if not self_card.is_empty():
-  _use_self_card(self_card,int(data.version))
-  return
+ if command_router.emit("card",{"kind":"card","uid":data.get("card_uid",""),"free":data.get("free",false)},int(data.version)).handled: return
  if data.has("self_action_id"):
-  _submit(actions.by_id[data.self_action_id],int(data.version))
-  return
- if _card_is_free(data.get("card_uid",""),data.get("free",false)):
-  _use_free_card(data)
+  var row=actions.by_id.get(data.self_action_id,{})
+  if not row.is_empty(): command_router.emit(String(row.payload.get("kind","")),row,int(data.version))
   return
  player_pick_data=data.duplicate(true)
  selected_card=data.card_uid
@@ -2457,58 +2458,72 @@ func _free_player_candidate(data: Dictionary, slot: String="") -> Dictionary:
  var matches=_body_card_actions(slot,data.get("card_uid","")).filter(func(c):return c.payload.free)
  return TargetQueries.first_usable(matches)
 
-func _use_free_card(data: Dictionary) -> void:
+# M-I 内部：分类子路由的装配接口（本地选中态与显示行查询；不判定资格、不提交）。
+# 版本取值、改道、装箱都经这些接口，保证提交面与显示面共用同一份判定结论与同一条投影。
+func selecting_hand() -> bool:
+ return _selecting_hand()
+
+func card_is_free(uid: String, second: bool) -> bool:
+ return _card_is_free(uid,second)
+
+func hand_selection_source(uid: String) -> Dictionary:
+ var choice=_hand_choice(uid)
+ return choice.payload if not choice.is_empty() else {}
+
+# 形状 → 显示行：与提交侧同一投影（core 的 command_row），只用于改道门的判定结论。
+func card_row_by_shape(source: Dictionary, expected_version: int) -> Dictionary:
+ return game.command_row(game.command(source,expected_version))
+
+# 单面卡面的原文提示（点击链）：命中即给出提示并重绘，没有可提交的形状。
+func single_face_notice(uid: String) -> bool:
+ var card=view.hand.filter(func(c):return c.uid==uid)
+ if card.is_empty() or not card[0].get("single_face",false): return false
+ notice=String(card[0].bound)
+ render(view)
+ return true
+
+# 自由面意图 → 该牌自由面的显示行；没有可用部位时给出原文提示。
+func free_card_source(source: Dictionary, expected_version: int) -> Dictionary:
+ var data={"card_uid":String(source.get("uid","")),"free":bool(source.get("free",false)),"version":expected_version}
  var c=_free_player_candidate(data)
- if not c.is_empty() and c.valid: _submit(c,int(data.version))
- else:
-  notice="没有可用的自由部位。" if c.is_empty() else c.reason
+ if not c.is_empty() and bool(c.valid): return c.payload
+ notice="没有可用的自由部位。" if c.is_empty() else String(c.reason)
+ render(view)
+ return {}
+
+# 快捷解除意图 → 选中拘束具区域的显示行；牌不对区域时给出原文提示。
+func quick_release_source(source: Dictionary, expected_version: int) -> Dictionary:
+ var uid=String(source.get("uid",""))
+ var free=bool(source.get("free",false))
+ var data={"card_uid":uid,"free":free,"version":expected_version}
+ var quick=preload("res://ui/quick_release_bar.gd").candidate(self,quick_release_region,data)
+ if not quick.is_empty() and bool(quick.valid): return quick.payload
+ var matching=actions.select("card",{"uid":uid,"free":free})
+ if matching.any(func(c):return c.payload.get("mode","") in TargetQueries.RELEASE_MODES):
+  notice=String(quick.reason) if not quick.is_empty() else preload("res://ui/quick_release_bar.gd").message(self,"wrong_card","这张牌不能用于当前选中的拘束具")
+  selected_card=uid;selected_candidate="";show_body=false
   render(view)
+ return {}
+
+# 唯一装备意图 → 该牌唯一可落点的显示行。
+func single_restraint_source(uid: String) -> Dictionary:
+ return _single_restraint_card_action(uid)
+
+# 手牌选择器（原提交前改道链的本地选中态部分，R2 起由分类子路由调用）：只切换界面状态，不提交。
+func open_hand_selection(payload: Dictionary, expected_version: int) -> void:
+ player_pick_data={"card_uid":String(payload.get("uid","")),"free":bool(payload.get("free",false)),"version":expected_version,"hand_selection":true,"target":String(payload.get("target","")),"slot":String(payload.get("slot",""))}
+ if is_instance_valid(keyboard_input): keyboard_input.clear()
+ selected_card=String(payload.get("uid",""));selected_candidate="";show_body=false;player_pick=true
+ render(view)
 
 func _activate_card(uid: String) -> void:
  if _selecting_hand():
-  var choice=_hand_choice(uid)
-  if not choice.is_empty(): _submit(choice,int(player_pick_data.version))
+  command_router.emit("card",{"kind":"card","uid":player_pick_data.card_uid,"free":player_pick_data.free,"hand_uid":uid},int(player_pick_data.version))
   return
  player_pick=false
- var self_card=actions.find("card",{"uid":uid,"self_target":true,"free":card_faces.get(uid,false)})
- if not self_card.is_empty():
-  if self_card.valid: _use_self_card(self_card,int(view.version))
-  else:
-   notice=self_card.reason
-   render(view)
-  return
- var card=view.hand.filter(func(c):return c.uid==uid)
- if not card.is_empty() and card[0].get("single_face",false):
-  notice=card[0].bound
-  render(view)
-  return
- if _card_is_free(uid,card_faces.get(uid,false)):
-  _use_free_card({"card_uid":uid,"free":true,"version":view.version})
-  return
- if quick_release_open and quick_release_region!="":
-  var data={"card_uid":uid,"free":card_faces.get(uid,false),"version":view.version}
-  var quick=preload("res://ui/quick_release_bar.gd").candidate(self,quick_release_region,data)
-  if not quick.is_empty() and quick.valid:
-   _submit(quick,int(data.version));return
-  var matching=actions.select("card",{"uid":uid,"free":data.free})
-  if matching.any(func(c):return c.payload.get("mode","") in TargetQueries.RELEASE_MODES):
-   notice=quick.reason if not quick.is_empty() else preload("res://ui/quick_release_bar.gd").message(self,"wrong_card","这张牌不能用于当前选中的拘束具")
-   selected_card=uid;selected_candidate="";show_body=false
-   render(view);return
- var single=_single_restraint_card_action(uid)
- if not single.is_empty():
-  if single.valid:
-   _submit(single,int(view.version));return
-  selected_slot=single.payload.slot
+ # 卡牌意图的解析与改道在分类子路由（ui/command_routes.gd）；未解析时按默认显示转换处理。
+ if command_router.emit("card",{"kind":"card","uid":uid,"free":card_faces.get(uid,false),"click":true},int(view.version)).handled: return
  selected_card=uid; selected_candidate=""; show_body=true; show_route=false; show_log=false; show_deck=false
- render(view)
-
-func _use_self_card(c: Dictionary, expected_version: int) -> void:
- if not c.payload.has("hand_uid"):
-  _submit(c,expected_version);return
- player_pick_data={"card_uid":c.payload.uid,"free":c.payload.free,"version":expected_version,"hand_selection":true,"target":c.payload.target,"slot":c.payload.slot}
- if is_instance_valid(keyboard_input): keyboard_input.clear()
- selected_card=c.payload.uid;selected_candidate="";show_body=false;player_pick=true
  render(view)
 
 func _player_picker() -> void:
@@ -2694,7 +2709,7 @@ func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
    for c in item_actions:
     if c.payload.kind!="item_use": continue
     var group=view.body_groups.filter(func(body):return body.id==c.payload.target)[0]
-    var button=_button(group.name,func():_submit(c),CYAN)
+    var button=_button(group.name,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN)
     button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
     button.name="ToolSlot_"+group.id;button.disabled=not c.valid
     grid.add_child(button);candidate_buttons[c.id]=button
@@ -2731,7 +2746,7 @@ func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
   if selected.passive_text!="" and not selected.installed: help_box.add_child(_label("安装后："+selected.passive_text,14,CYAN))
  for c in item_actions:
   if c.payload.kind=="item_discard":
-   var discard=_button("丢弃",func():_submit(c),MUTED);discard.name="ItemDiscard";discard.custom_minimum_size=Vector2(90,32)
+   var discard=_button("丢弃",func():command_router.emit(String(c.payload.get("kind","")),c),MUTED);discard.name="ItemDiscard";discard.custom_minimum_size=Vector2(90,32)
    discard.add_theme_font_size_override("font_size",14);discard.tooltip_text="丢弃后无法取回。";discard.disabled=not c.valid
    footer.add_child(discard);candidate_buttons[c.id]=discard
 

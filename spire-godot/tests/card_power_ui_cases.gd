@@ -307,7 +307,7 @@ static func embers(t) -> void:
  var ui=t.ui
  ui.restart(42)
  var fire=ui.actions.find("attack",{"type":"fireball","enemy":ui.selected_enemy})
- ui.game.dispatch(fire.id,ui.game.state.version)
+ ui.game.dispatch(ui.game.command(fire.payload,ui.game.state.version),ui.game.state.version)
  ui.game._discard_end();ui.game.state.mana=12;ui.game.state.energy=0
  var card=Cards.give(ui.game,"embers")
  ui.render();await t.frames()

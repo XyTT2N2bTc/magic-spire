@@ -8,7 +8,7 @@ static func run(t) -> void:
  var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
  var before=g.export_snapshot();g.get_view();g.candidates()
  t.check(c.valid and c.cost==1 and c.mana==0 and g.state==before,"ADAPT one-energy uncommon power previews without side effects")
- t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"ADAPT stale activation leaves card and resources intact")
+ t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"ADAPT stale activation leaves card and resources intact")
  g.state.energy=0;before=g.export_snapshot()
  t.check(not t.action(g,"card",{"uid":card.uid,"free":true}).ok and g.state==before,"ADAPT insufficient energy rejects without activation")
  g.state.energy=3
@@ -19,7 +19,7 @@ static func run(t) -> void:
  t.check(result.resource_feedback.any(func(e):return e.field=="temporary_mana" and e.after-e.before==5),"ADAPT turn grant uses resource animation receipt")
  card=Cards.give(g,"adaptability");before=g.export_snapshot()
  c=t.find_action(g,"card",{"uid":card.uid,"free":true})
- t.check(c.valid and not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"ADAPT repeat is available but stale activation preserves state")
+ t.check(c.valid and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"ADAPT repeat is available but stale activation preserves state")
  t.check(t.action(g,"card",{"uid":card.uid,"free":false}).ok and g.state.charge==0 and g.state.powers.size()==2,"ADAPT opposite face coexists without immediate charge")
  var twin=Save.roundtrip(t,g,"both adaptability faces")
  if twin!=null: Save.step_both(t,g,twin,"end")

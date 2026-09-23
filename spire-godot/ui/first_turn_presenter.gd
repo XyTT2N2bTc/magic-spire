@@ -205,7 +205,7 @@ func _step(c: Dictionary, token: int, version: int) -> void:
  await _pause(_reading_time())
  if not _current(token,version): return
  outcome_delay=0.7
- host._submit(c,version,true)
+ host.command_router.emit(String(c.payload.get("kind","")),c,version,true)
  if p.kind=="attack": attacks+=1
  if p.kind in ["card","prison"]: cards+=1
  if p.kind=="flask" and p.op=="deposit": deposited=true

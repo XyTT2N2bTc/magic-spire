@@ -31,7 +31,7 @@ static func run(t) -> void:
  t.check(doll(g).puppet_awakened and doll(g).stage==1,"PUPPET awakened summon never takes an action")
  var blocked=t.find_action(g,"attack",{"type":"strike","enemy":master_id})
  before=g.export_snapshot()
- t.check(not blocked.valid and blocked.reason.contains("嘲讽") and not g.dispatch(blocked.id,g.state.version).ok and g.state==before,"PUPPET taunt rejects direct master attacks without payment or state change")
+ t.check(not blocked.valid and blocked.reason.contains("嘲讽") and not g.dispatch(g.command(blocked.payload,g.state.version),g.state.version).ok and g.state==before,"PUPPET taunt rejects direct master attacks without payment or state change")
  t.check(t.find_action(g,"attack",{"type":"kick","form":1,"enemy":master_id}).valid,"PUPPET taunt does not block area attacks")
  var health=g._enemy(master_id).hp
  t.check(t.action(g,"attack",{"type":"strike","form":1,"enemy":id}).ok,"PUPPET real two-hit attack")
@@ -103,7 +103,7 @@ static func barrier_and_stock(t) -> void:
  var twin=Save.roundtrip(t,g,"barrier exhausted allowance")
  t.check(twin.Enemies.barrier_remaining(twin.state.enemies[0],twin.DemoExit.health_multiplier(twin.state))==0,"PUPPET BARRIER restore preserves exhausted allowance")
  var c=t.find_action(g,"end")
- t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"PUPPET BARRIER stale end turn cannot reset allowance")
+ t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"PUPPET BARRIER stale end turn cannot reset allowance")
  t.check(t.action(g,"end").ok and master.barrier_damage==30 and g.state.enemies[0].barrier_damage==0,"PUPPET BARRIER next formal round resets only committed state")
  master=g.state.enemies[0]
  g._damage_enemy(master,31,"fixed","新回合测试")

@@ -21,7 +21,7 @@ func _ready() -> void:
  ui._place(canopy,Rect2(Vector2.ZERO,size),self)
  _text("月灯杂货铺",Rect2(25,23,210,36),23,ui.TEXT)
  var refresh=ui.actions.find("service_refresh",{"payment":ui.shop_payment})
- var refresh_button=ui._button(ui.localization.text("ui.shop.refresh","刷新 · {price}魔力",{"price":ui.game.number(refresh.mana)}),func():ui._submit(refresh),ui.GOLD)
+ var refresh_button=ui._button(ui.localization.text("ui.shop.refresh","刷新 · {price}魔力",{"price":ui.game.number(refresh.mana)}),func():ui.command_router.emit(String(refresh.payload.get("kind","")),refresh),ui.GOLD)
  refresh_button.name="ShopRefresh";refresh_button.disabled=not refresh.valid
  refresh_button.tooltip_text=ui.detail_of(refresh) if refresh.valid else refresh.reason
  refresh_button.add_theme_font_size_override("font_size",15)
@@ -65,7 +65,7 @@ func _ready() -> void:
  if remove.disabled: remove.text="删牌服务 · 已使用"
  var tidy=_service_button("整理道具", "discard",Rect2(954,718,275,46));tidy.name="ShopInventory"
  var leave=ui.actions.select("service_flow")[0]
- var button=ui._button("继续旅程 →",func():ui._submit(leave),ui.CYAN);button.name="ShopLeave"
+ var button=ui._button("继续旅程 →",func():ui.command_router.emit(String(leave.payload.get("kind","")),leave),ui.CYAN);button.name="ShopLeave"
  ui.candidate_buttons[leave.id]=button;ui._place(button,Rect2(1241,718,277,46),self)
 
 func _text(text: String, rect: Rect2, font: int, color: Color) -> Label:
@@ -83,7 +83,7 @@ func _card_offer(offer: Dictionary, rect: Rect2) -> void:
  var box=Control.new();ui._place(box,rect,self)
  var card_size=Vector2(196,196*1.32)
  var button=ui._display_card(offer.type,box,func():
-  if not candidate.is_empty(): ui._submit(candidate),"shop_"+str(offer.index),card_size)
+  if not candidate.is_empty(): ui.command_router.emit(String(candidate.payload.get("kind","")),candidate),"shop_"+str(offer.index),card_size)
  button.position.x=(rect.size.x-button.size.x)/2
  button.name="ShopOffer%d" % offer.index
  button.disabled=offer.taken or not candidate.get("valid",false)
@@ -102,7 +102,7 @@ func _card_offer(offer: Dictionary, rect: Rect2) -> void:
 func _offer(offer: Dictionary, rect: Rect2) -> void:
  var candidate=ui.actions.find("service",{"op":"take","index":offer.index,"payment":ui.shop_payment})
  var button=ui._button("",func():
-  if not candidate.is_empty(): ui._submit(candidate),ui.GOLD if offer.kind=="card" else ui.CYAN)
+  if not candidate.is_empty(): ui.command_router.emit(String(candidate.payload.get("kind","")),candidate),ui.GOLD if offer.kind=="card" else ui.CYAN)
  button.name="ShopOffer%d" % offer.index
  button.disabled=offer.taken or not candidate.get("valid",false)
  button.tooltip_text=offer.name+"\n"+offer.detail+("" if candidate.get("valid",false) or candidate.get("reason_scope","")=="payment" else "\n"+candidate.get("reason","已售罄"))
@@ -164,7 +164,7 @@ static func services(ui, parent: VBoxContainer) -> void:
    var source={}
    source.merge(live.texts.get(entry.type,{}),true)
    source.merge(live.instances.get(entry.uid,{}),true)
-   var face=ui._display_card(entry.type,box,func():ui._submit(c),"remove_"+entry.uid,Vector2(226,290),entry.uid,true,source)
+   var face=ui._display_card(entry.type,box,func():ui.command_router.emit(String(c.payload.get("kind","")),c),"remove_"+entry.uid,Vector2(226,290),entry.uid,true,source)
    face.disabled=not c.valid;ui.candidate_buttons[c.id]=face
    face.mouse_entered.connect(func():ui._shop_chatter(_chatter_pool(ui,c)))
    box.add_child(ui._label(ui.game.number(c.mana)+("魔瓶魔力" if ui.shop_payment=="flask" else "魔力"),16,ui.GOLD))

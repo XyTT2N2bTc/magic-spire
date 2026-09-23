@@ -17,7 +17,7 @@ static func run(t) -> void:
  var blocked=g.candidates().filter(func(c):return c.payload.get("target","")==lock.id)
  if not blocked.is_empty():
   var unchanged=g.export_snapshot()
-  t.check(not g.dispatch(blocked[0].id,g.state.version).ok and g.state==unchanged,"CURSED PLATE invalid submit changes no resources, logs or equipment")
+  t.check(not g.dispatch(g.command(blocked[0].payload,g.state.version),g.state.version).ok and g.state==unchanged,"CURSED PLATE invalid submit changes no resources, logs or equipment")
  var replacement=g.Application.Replacement.plan(g,[{"kind":"special_install","type":"negative_vibrator_lock_catheter_high","slot":"special_2_a","tier":3}],"enemy")
  t.check(not replacement.ok and g._equipment(lock.id)==original,"CURSED PLATE cannot be replaced")
  g._gain_card("henshin");var card=t.hand_card(g,"henshin")

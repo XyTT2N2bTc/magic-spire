@@ -34,7 +34,7 @@ static func run(t) -> void:
  shot=t.find_action(g,"attack",{"type":"fireball","enemy":mass})
  var hp=g._enemy(drone).hp;var mana=g.state.mana;var energy=g.state.energy;var start=g.state.logs.size()
  t.check(shot.payload.all and shot.detail.contains("全部敌人") and not shot.detail.contains("非魔法") and shot.payload.damage==g.B.FIREBALL_ASSISTED*2,"DYNAMICS area preview retains gesture and damage multipliers")
- t.check(g.dispatch(shot.id,g.state.version).ok and g.state.energy==energy-shot.cost and g.state.mana==mana-shot.mana and g.state.combat.attack_uses.fireball==1,"DYNAMICS area cast pays and consumes use only once")
+ t.check(g.dispatch(g.command(shot.payload,g.state.version),g.state.version).ok and g.state.energy==energy-shot.cost and g.state.mana==mana-shot.mana and g.state.combat.attack_uses.fireball==1,"DYNAMICS area cast pays and consumes use only once")
  t.check(g._enemy(mass).gone and g._enemy(drone).hp==maxf(0,hp-shot.payload.damage) and g.state.enemies.filter(func(e):return e.type=="rope").all(func(e):return e.hp==e.max_hp),"DYNAMICS magic ignores hardness and split children escape current wave")
  t.check(g.state.logs.slice(start).filter(func(log):return log.data.has("spell")).size()==1,"DYNAMICS one casting result per area attack")
  g=Game.new(42);g._discard_end();g.state.energy=20
@@ -45,10 +45,10 @@ static func run(t) -> void:
  g.state.rng.magic=rng
  var health=g.state.enemies.map(func(e):return e.hp)
  mana=g.state.mana;energy=g.state.energy
- t.check(g.dispatch(shot.id,g.state.version).ok and g.state.enemies.map(func(e):return e.hp)==health and is_equal_approx(g.state.mana,mana-shot.mana*0.5) and g.state.energy==energy-shot.cost and g.BasicAttacks.usage(g,"fireball").used==0 and g.state.rng.magic==rng+1,"DYNAMICS failed area cast rolls once and pays without any hits")
+ t.check(g.dispatch(g.command(shot.payload,g.state.version),g.state.version).ok and g.state.enemies.map(func(e):return e.hp)==health and is_equal_approx(g.state.mana,mana-shot.mana*0.5) and g.state.energy==energy-shot.cost and g.BasicAttacks.usage(g,"fireball").used==0 and g.state.rng.magic==rng+1,"DYNAMICS failed area cast rolls once and pays without any hits")
  g=Game.new(42);g._discard_end();g.state.energy=20
  play(t,g,"fire_dynamics",true);play(t,g,"flame_flourish",false)
  var equipment=g.add_fixture("wrist",8)
  shot=t.find_action(g,"attack",{"type":"fireball","target":equipment.id})
  var other_hp=g.state.enemies.map(func(e):return e.hp)
- t.check(not shot.payload.all and g.dispatch(shot.id,g.state.version).ok and g.state.enemies.map(func(e):return e.hp)==other_hp,"DYNAMICS flourish equipment spell stays single target without enemy splash")
+ t.check(not shot.payload.all and g.dispatch(g.command(shot.payload,g.state.version),g.state.version).ok and g.state.enemies.map(func(e):return e.hp)==other_hp,"DYNAMICS flourish equipment spell stays single target without enemy splash")

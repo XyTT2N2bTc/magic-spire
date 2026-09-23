@@ -155,7 +155,7 @@ static func applied_regions(t) -> void:
  ui._reset_interface(ui.game.get_view());ui.render();await t.frames()
  t.check(ui.expanded_body_regions.is_empty(),"AUTO REGION new battle does not expand starting equipment")
  var before=ui.game.export_snapshot()
- ui._submit(ui.actions.find("flow",{"kind":"end"}),ui.view.version-1);await t.frames()
+ ui.command_router.emit(String(ui.actions.find("flow",{"kind":"end"}).payload.get("kind","")),ui.actions.find("flow",{"kind":"end"}),ui.view.version-1);await t.frames()
  t.check(ui.expanded_body_regions.is_empty() and ui.game.export_snapshot()==before,"AUTO REGION rejected action never opens a region or changes state")
  t.check(await t.click("end"),"AUTO REGION enemy application uses actual end-turn submission")
  var affected=ui.view.body_regions.filter(func(region):return not region.targets.is_empty())

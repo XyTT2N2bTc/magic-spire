@@ -120,7 +120,7 @@ state.initial_seed: int    # = _init 的 run_seed；state.seed 仍由 _restart_t
 
 ## 证据入口
 
-- 具名 check（全部走真实公开命令：取候选 → `dispatch`；计数只用测试侧 `SaveStore` 子类包装，
+- 具名 check（全部走真实公开命令：发指令 → `dispatch`；计数只用测试侧 `SaveStore` 子类包装，
   生产源码不带计数器）：
 
 | 判据 | 落点（分类） |

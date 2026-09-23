@@ -9,6 +9,87 @@ var _equipment_index_issues: Array=[]
 # 只读诊断：不进 state、不进 View、不进存档、不渲染、不做成计数器。
 var copy_router_failures: Array=[]
 
+# 指令形状的键面真源（docs/spec/candidate-removal.md §3.3；N3 指令形状＝{kind, params, expected_version}）。
+# 值＝该 kind 的 params 键与默认值：键面只用稳定 ID（template／type／id／uid／slot／target…），
+# 显示与派生字段（label／detail／brief／reason／risk／cost／mana／preview／after／hits／damage…）不进键面。
+# 本表是闭集：新增 kind 必须先回填契约 §3.3 再实现；dispatch 的形状与参数合法性复核按本表判定。
+const COMMAND_KEYS={
+ "card":{"uid":"","type":"","slot":"","target":"","free":false,"mode":"","self_target":false,"x":0,"hand_uid":""},
+ "chain":{"action":"","type":"","target":"","slot":"","free":false,"mode":"","selected_uid":""},
+ "attack":{"type":"","form":0,"enemy":"","all":false,"target":"","x":0,"part":"","charge_action":false},
+ "status_toggle":{"status":"","enabled":false,"uid":""},
+ "posture":{"dest":"","wall":false},
+ "wall_move":{"direction":""},
+ "manual":{"target":""},
+ "hook":{"target":""},
+ "end":{},
+ "calm":{},
+ "surrender":{},
+ "item_use":{"item":"","target":""},
+ "item_install":{"item":"","mount":"","operator":""},
+ "item_retrieve":{"item":"","mount":"","operator":""},
+ "item_discard":{"item":""},
+ "finish_prepare":{},
+ "finish_rest":{},
+ "finish_pack":{},
+ "retain":{"uid":""},
+ "retain_skip":{},
+ "rest_rare":{},
+ "rest_card":{"type":""},
+ "rest_flask":{},
+ "rest_begin":{},
+ "service":{"op":"","index":0,"target":"","uid":"","payment":""},
+ "event":{"action":"","choice":"","type":""},
+ "prison":{"action":"","site":"","direction":"","steps":0,"uid":"","type":"","target":"","slot":"","mode":"","free":false},
+ "depart":{"room":""},
+ "travel_step":{},
+ "reward":{"category":"","type":"","reward_id":""},
+ "reward_skip":{"category":""},
+ "relic_bundle":{"op":"","index":0,"uid":"","type":""},
+ "departure":{"op":"","option":"","uid":"","type":""},
+ "flask":{"op":""},
+ "relic_toggle":{"relic":""},
+ "relic_discharge":{"relic":""},
+ "relic_control_done":{},
+ "demo_end":{},
+ "demo_continue":{},
+}
+
+# 指令装配的唯一投影（M-III 输入域）：把意图来源投影到该 kind 的声明键面并补齐默认值。
+# 提交侧与显示侧都只经本函数取得 params，保证「同一形状 → 同一 params」只有一条路径。
+func command_params(kind: String, source: Dictionary) -> Dictionary:
+ var declared=COMMAND_KEYS.get(kind,{})
+ var params={}
+ for key in declared: params[key]=source.get(key,declared[key])
+ return params
+
+# 指令装箱（N3 的唯一构造点）：kind＋params＋expected_version。版本默认取提交时的当前版本（§3.3.4）。
+func command(source: Dictionary, expected_version: int=-1) -> Dictionary:
+ var kind=String(source.get("kind",""))
+ return {"kind":kind,"params":command_params(kind,source),"expected_version":state.version if expected_version<0 else expected_version}
+
+# 指令形状与参数合法性复核（T4 前半；不判定资格、不写 valid／reason）：形状或键面不合法即拒绝。
+# 失败原因与按 id 取行复核（B2）时代的「该行动已经失效，请重新选择。」逐字相同。
+func command_issue(cmd: Dictionary) -> String:
+ var kind=String(cmd.get("kind",""))
+ if not COMMAND_KEYS.has(kind): return "该行动已经失效，请重新选择。"
+ var params=cmd.get("params")
+ if not (params is Dictionary): return "该行动已经失效，请重新选择。"
+ var declared=COMMAND_KEYS[kind]
+ for key in params:
+  if not declared.has(key) or typeof(params[key])!=typeof(declared[key]): return "该行动已经失效，请重新选择。"
+ return ""
+
+# 指令形状 → 当前状态下那条已复核的行动（唯一判定经行工厂给出）。形状与 params 相等的行恰有一条；
+# 无命中即失效。不再使用按提交身份 id 的取行复核（销 B2）。
+func command_row(cmd: Dictionary) -> Dictionary:
+ var kind=String(cmd.get("kind",""))
+ var params=command_params(kind,cmd.get("params",{}))
+ for c in candidates():
+  if String(c.payload.get("kind",""))!=kind: continue
+  if command_params(kind,c.payload)==params: return c
+ return {}
+
 # A read batch owns its indexes; commands and subsequent views never reuse them.
 # Speculative installation replaces state, so it must use live queries instead.
 # Entry materializes the piece set and every edge derived from it once; a failed self check
@@ -2567,7 +2648,7 @@ func _item_candidates(out: Array) -> void:
    var retrieve_args={"operators":operators}
    _candidate(out,{"kind":"item_retrieve","item":item.id,"mount":"carry","operator":operators[0] if not operators.is_empty() else ""},"取回工具",{"kind":"game.item_retrieve","args":retrieve_args,"fallback":copy_item_retrieve(self,retrieve_args)},0,0,Tools.retrieve_reason(self,item),"","item")
 
-func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
+func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  var buff_issue=Consumables.validate_buffs(self,state.get("body_buffs"))
  if buff_issue!="": return {"ok":false,"error":buff_issue}
  var binding_issue=Binding.state_issue(self)
@@ -2580,9 +2661,10 @@ func dispatch(candidate_id: String, expected_version: int) -> Dictionary:
  if pending_issue!="": return {"ok":false,"error":pending_issue}
  var relic_issue=RelicEffects.validate(self)
  if relic_issue!="": return {"ok":false,"error":relic_issue}
- var chosen: Dictionary={}
- for c in candidates():
-  if c.id==candidate_id: chosen=c; break
+ # T4 复核：指令形状＋参数合法性（不判定资格），随后由形状取回该条已复核的行动（唯一判定在行工厂内）。
+ var shape_issue=command_issue(cmd)
+ if shape_issue!="": return {"ok":false,"error":shape_issue}
+ var chosen=command_row(cmd)
  if chosen.is_empty(): return {"ok":false,"error":"该行动已经失效，请重新选择。"}
  if not chosen.valid: return {"ok":false,"error":chosen.reason}
  var extra_traction=Cards.magic_card_traction(self,chosen.payload)

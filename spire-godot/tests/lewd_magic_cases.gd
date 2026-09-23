@@ -141,7 +141,7 @@ static func failures(t) -> void:
  t.check(t.action(g,"card",{"uid":card.uid,"free":false}).ok,"LEWD threshold fixture starts selection")
  for i in range(3):
   var choice=g.candidates().filter(func(c):return c.payload.kind=="chain")[0]
-  t.check(g.dispatch(choice.id,g.state.version).ok,"LEWD threshold selection commits")
+  t.check(g.dispatch(g.command(choice.payload,g.state.version),g.state.version).ok,"LEWD threshold selection commits")
  t.check(g.state.pressure==20 and g.state.overload_total==2,"LEWD natural threshold and explicit climax both occur; explicit one preserves remainder")
  g=fresh();g.Cards.grant_buff(g,"psychological_suggestion")
  card=give(t,g,"forced_climax")
@@ -154,7 +154,7 @@ static func failures(t) -> void:
   t.check(not restored.restore_snapshot(saved).ok,"LEWD malformed pending action bonus type or duplicate is rejected")
  for i in range(3):
   var choice=g.candidates().filter(func(c):return c.payload.kind=="chain")[0]
-  t.check(g.dispatch(choice.id,g.state.version).ok,"LEWD protected continuation commits")
+  t.check(g.dispatch(g.command(choice.payload,g.state.version),g.state.version).ok,"LEWD protected continuation commits")
  t.check(not g.Cards.action_ignores_restraints(g),"LEWD suggestion consumed once when full card resolves")
 
 static func prison(t) -> void:

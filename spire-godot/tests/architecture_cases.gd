@@ -358,6 +358,8 @@ static func run(t) -> void:
  index_self_check_falls_back(t)
  copy_projection_masked_baseline(t)
  single_eligibility_implementation(t)
+ instruction_router_single_entry(t)
+ instruction_route_table_is_total(t)
  behavior_baseline_equivalence(t)
  copy_single_entry_matches_projection(t)
  copy_route_bytes_unchanged(t)
@@ -412,7 +414,7 @@ static func card_identity(t) -> void:
    "duplicate": g.state.deck[0]=g.state.deck[1].duplicate(true)
   var damaged=g.export_snapshot()
   t.check(g.validate()!="","ARCH equal card counts cannot hide mismatched physical identity "+damage)
-  t.check(not g.dispatch(candidate.id,g.state.version).ok and g.export_snapshot()==damaged,"ARCH invalid card identity rejects action before payment "+damage)
+  t.check(not g.dispatch(g.command(candidate.payload,g.state.version),g.state.version).ok and g.export_snapshot()==damaged,"ARCH invalid card identity rejects action before payment "+damage)
   g.state=clean
   t.check(not g.restore_snapshot(damaged).ok and g.export_snapshot()==clean,"ARCH same card invariant rejects restore atomically "+damage)
 
@@ -732,8 +734,8 @@ static func preview_read_batches(t) -> void:
    var available=g.candidates().filter(func(c):return c.valid and c.payload.kind=="card")
    if available.is_empty(): break
    var candidate=available[0]
-   var outcome=g.dispatch(candidate.id,g.state.version)
-   var expected=reference.dispatch(candidate.id,reference.state.version)
+   var outcome=g.dispatch(g.command(candidate.payload,g.state.version),g.state.version)
+   var expected=reference.dispatch(reference.command(candidate.payload,reference.state.version),reference.state.version)
    t.check(outcome==expected and outcome.ok and g.export_snapshot()==reference.export_snapshot(),"ARCH preview reuse preserves actual payment, RNG and cleanup across sequential card commits "+kind+"/"+str(step))
 
 static func current_effect_boundaries(t) -> void:
@@ -1128,7 +1130,7 @@ static func copy_r6_sites(t,router,sentinel: String) -> void:
  preload("res://tests/curse_cases.gd").give(witch,"witch_patience")
  for candidate in witch.candidates():
   if String(candidate.payload.get("type",""))=="witch_patience" and candidate.valid:
-   witch.dispatch(candidate.id,witch.state.version)
+   witch.dispatch(witch.command(candidate.payload,witch.state.version),witch.state.version)
    break
  var logged=""
  for row in witch.state.logs:
@@ -1159,7 +1161,7 @@ static func copy_candidate_detail_on_demand(t) -> void:
  var played=0
  for candidate in candidates:
   if candidate.payload.get("kind","")!="card" or not candidate.valid: continue
-  t.check(g.dispatch(candidate.id,g.state.version).ok and g.state.version>0,"COPY scenario 5 a card candidate still commits through dispatch")
+  t.check(g.dispatch(g.command(candidate.payload,g.state.version),g.state.version).ok and g.state.version>0,"COPY scenario 5 a card candidate still commits through dispatch")
   played+=1
   break
  t.check(played==1 and g.state!=before,"COPY scenario 5 write path unaffected by on-demand detail")
@@ -1229,7 +1231,7 @@ static func r1_install_equipment(g, count: int) -> void:
 static func r1_end_turn(g) -> void:
  for c in g.candidates():
   if c.payload.kind=="end" and c.valid:
-   g.dispatch(c.id,g.state.version)
+   g.dispatch(g.command(c.payload,g.state.version),g.state.version)
    return
 
 static func r1_build(phase: String, count: int):
@@ -1247,7 +1249,7 @@ static func r1_build(phase: String, count: int):
     r1_end_turn(g)
    for c in g.candidates():
     if c.payload.kind=="reward" and c.payload.get("type","")=="skip" and c.valid:
-     g.dispatch(c.id,g.state.version)
+     g.dispatch(g.command(c.payload,g.state.version),g.state.version)
      break
   "rest":
    g=GameCore.new(42,true,"equipment")
@@ -1321,12 +1323,12 @@ static func r1_record(g, phase: String, count: int) -> Dictionary:
  out["takeover_automated"]=str(automated.size())
  out["takeover_step"]=r1_digest(JSON.stringify(automated.map(func(c):return c.payload)))
  var version=int(g.state.version)
- out["reject_forged"]=str(g.dispatch("forged_id",version).get("error",""))
+ out["reject_forged"]=str(g.dispatch(g.command({"kind":"card","uid":"forged_id"},version),version).get("error",""))
  var first_invalid={}
  for c in rows:
   if not c.valid: first_invalid=c;break
- out["reject_invalid"]="<none>" if first_invalid.is_empty() else str(g.dispatch(first_invalid.id,version).get("error",""))
- out["reject_stale"]="<none>" if rows.is_empty() else str(g.dispatch(rows[0].id,version-1).get("error",""))
+ out["reject_invalid"]="<none>" if first_invalid.is_empty() else str(g.dispatch(g.command(first_invalid.payload,version),version).get("error",""))
+ out["reject_stale"]="<none>" if rows.is_empty() else str(g.dispatch(g.command(rows[0].payload,version-1),version-1).get("error",""))
  var usable={}
  for c in rows:
   if c.valid: usable=c;break
@@ -1337,7 +1339,7 @@ static func r1_record(g, phase: String, count: int) -> Dictionary:
   out["submit_keys"]="<none>"
   out["submit_checkpoint"]="<none>"
  else:
-  var result=g.dispatch(usable.id,g.state.version)
+  var result=g.dispatch(g.command(usable.payload,g.state.version),g.state.version)
   out["submit_ok"]=str(result.ok)
   out["submit_error"]=str(result.get("error",""))
   out["submit_kind"]=str(usable.payload.get("kind",""))
@@ -1504,6 +1506,120 @@ static func single_eligibility_implementation(t) -> void:
  var ui_writes=scan.hits.filter(func(hit):return String(hit.file).begins_with("ui/"))
  var takeover_writes=scan.hits.filter(func(hit):return String(hit.file)=="core/first_turn_control.gd")
  t.check(ui_writes.is_empty() and takeover_writes.is_empty(),"G4 single_eligibility_implementation: ui/ and the takeover path only consume the determination: ui="+str(ui_writes.map(func(hit):return verdict_site(hit)))+" takeover="+str(takeover_writes.map(func(hit):return verdict_site(hit))))
+
+# docs/spec/candidate-removal.md §5 G1／G2（批 R2）：指令路由单入口＋分类表全量。
+# kind 全集与逐域＝契约 §3.3.1（39 条）；本表是核对面，不是第二真源（真源是 ui/command_router.gd 的 ROUTES）。
+const COMMAND_KINDS={
+ "card":"battle","chain":"battle","attack":"battle","status_toggle":"battle","posture":"battle",
+ "wall_move":"battle","manual":"battle","hook":"battle","end":"battle","calm":"battle","surrender":"battle",
+ "item_use":"item","item_install":"item","item_retrieve":"item","item_discard":"item",
+ "finish_prepare":"flow","finish_rest":"flow","finish_pack":"flow","retain":"flow","retain_skip":"flow",
+ "rest_rare":"rest","rest_card":"rest","rest_flask":"rest","rest_begin":"rest",
+ "service":"shop","event":"event","prison":"prison","depart":"route","travel_step":"route",
+ "reward":"reward","reward_skip":"reward","relic_bundle":"reward","departure":"departure",
+ "flask":"relic","relic_toggle":"relic","relic_discharge":"relic","relic_control_done":"relic",
+ "demo_end":"demo","demo_continue":"demo"}
+
+# 契约 §5 G2 的逐域覆盖面（战斗／整备／休息／商店／事件／监狱／路线／奖励／出发／demo）。
+const COMMAND_DOMAINS=["battle","flow","rest","shop","event","prison","route","reward","departure","demo"]
+
+# 子路由的实现面：command_routes.gd::assemble 的 match 分支名（唯一分类点的落地检查）。
+static func command_route_branches() -> Array:
+ var handle=FileAccess.open("res://ui/command_routes.gd",FileAccess.READ)
+ if handle==null: return []
+ var regex=RegEx.new()
+ regex.compile("^\\s*((?:\"[a-z_]+\"\\s*,\\s*)*\"[a-z_]+\")\\s*:")
+ var result=[]
+ for line in handle.get_as_text().split("\n"):
+  var hit=regex.search(line)
+  if hit==null: continue
+  for token in hit.get_string(1).split(","):
+   var name=token.strip_edges().trim_prefix("\"").trim_suffix("\"")
+   if name!="" and name not in result: result.append(name)
+ return result
+
+static func instruction_router_single_entry(t) -> void:
+ var submit_pattern=RegEx.new()
+ submit_pattern.compile("(?:^|[^_A-Za-z0-9])_submit\\s*\\(")
+ var dispatch_pattern=RegEx.new()
+ dispatch_pattern.compile("\\.dispatch\\s*\\(")
+ var emit_pattern=RegEx.new()
+ emit_pattern.compile("command_router\\.emit(?:_deferred)?\\s*\\(")
+ var deferred_pattern=RegEx.new()
+ deferred_pattern.compile("call_deferred\\(\\s*\"_submit\"")
+ var submit_sites=[];var dispatch_sites=[];var deferred_sites=[];var emit_sites={}
+ for path in script_files("res://ui"):
+  var handle=FileAccess.open(path,FileAccess.READ)
+  if handle==null: continue
+  var relative=path.trim_prefix("res://")
+  var lines=handle.get_as_text().split("\n")
+  for index in range(lines.size()):
+   var code=String(lines[index]).split("#")[0]
+   var stripped=code.strip_edges()
+   if submit_pattern.search(code)!=null and not stripped.begins_with("func "):
+    submit_sites.append(relative+":"+str(index+1)+" "+stripped)
+   if dispatch_pattern.search(code)!=null: dispatch_sites.append(relative+":"+str(index+1)+" "+stripped)
+   if emit_pattern.search(code)!=null: emit_sites[relative]=int(emit_sites.get(relative,0))+1
+   if deferred_pattern.search(code)!=null: deferred_sites.append(relative+":"+str(index+1)+" "+stripped)
+ # 1) 提交执行段只由指令路由调用（A1–A60 形态的直连 0 条）。
+ var direct=submit_sites.filter(func(site):return not String(site).begins_with("ui/command_router.gd:"))
+ t.check(submit_sites.size()==1 and direct.is_empty() and deferred_sites.is_empty(),"G1 instruction_router_single_entry: the execution segment is called only by the router: "+str(submit_sites)+" direct="+str(direct)+" deferred="+str(deferred_sites))
+ # 2) UI 侧 dispatch 调用点唯一（在 ui/main.gd::_submit 内）。
+ t.check(dispatch_sites.size()==1 and String(dispatch_sites[0]).begins_with("ui/main.gd:"),"G1 instruction_router_single_entry: ui/ has exactly one dispatch call site: "+str(dispatch_sites))
+ # 3) 控件回调经同一入口 emit；自动接管与键盘都在其中（takeover 参数语义不变）。
+ var keyboard=int(emit_sites.get("ui/keyboard_input.gd",0))
+ var presenter=int(emit_sites.get("ui/first_turn_presenter.gd",0))
+ t.check(int(emit_sites.get("ui/main.gd",0))>0 and keyboard==3 and presenter==1 and int(emit_sites.get("ui/shop_screen.gd",0))>0,"G1 instruction_router_single_entry: every UI source emits through the router: main="+str(emit_sites.get("ui/main.gd",0))+" keyboard="+str(keyboard)+" takeover="+str(presenter))
+ var presenter_text=""
+ var presenter_handle=FileAccess.open("res://ui/first_turn_presenter.gd",FileAccess.READ)
+ if presenter_handle!=null: presenter_text=presenter_handle.get_as_text()
+ t.check(presenter_text.contains("emit(") and presenter_text.contains(",true)"),"G1 instruction_router_single_entry: the automated takeover keeps its takeover flag on the same entry")
+ # 4) 新文件在位且不 preload core（依赖方向）。
+ for name in ["ui/command_router.gd","ui/command_routes.gd"]:
+  var handle=FileAccess.open("res://"+name,FileAccess.READ)
+  var text="" if handle==null else handle.get_as_text()
+  t.check(text!="" and not text.contains("res://core"),"G1 instruction_router_single_entry: "+name+" exists and does not preload core")
+
+static func instruction_route_table_is_total(t) -> void:
+ var router=preload("res://ui/command_router.gd")
+ var routes=router.ROUTES
+ # 1) kind 全集＝契约 §3.3.1 的 39 条（多一条少一条即红）。
+ var missing=[];var extra=[]
+ for kind in COMMAND_KINDS:
+  if not routes.has(kind): missing.append(kind)
+ for kind in routes:
+  if not COMMAND_KINDS.has(kind): extra.append(kind)
+ t.check(missing.is_empty() and extra.is_empty() and routes.size()==COMMAND_KINDS.size(),"G2 instruction_route_table_is_total: the table holds exactly the 39 declared kinds: missing="+str(missing)+" extra="+str(extra)+" size="+str(routes.size()))
+ # 2) 每个 kind 恰有一条子路由，且子路由名在 command_routes.gd 有实现。
+ var branches=command_route_branches()
+ var dangling=[];var used=[]
+ for kind in routes:
+  var route=String(routes[kind])
+  if route not in branches: dangling.append(kind+"->"+route)
+  if route not in used: used.append(route)
+ var orphans=branches.filter(func(name):return name not in used)
+ t.check(dangling.is_empty() and orphans.is_empty(),"G2 instruction_route_table_is_total: every kind resolves to a declared subroute and no subroute is orphaned: dangling="+str(dangling)+" orphans="+str(orphans))
+ # 3) 覆盖优先：契约点名的域都在表内。
+ var domains=[]
+ for kind in routes:
+  if String(routes[kind]) not in domains: domains.append(String(routes[kind]))
+ var uncovered=COMMAND_DOMAINS.filter(func(name):return name not in domains)
+ t.check(uncovered.is_empty(),"G2 instruction_route_table_is_total: the named domains are covered: "+str(uncovered)+" of "+str(domains))
+ # 4) 表外 kind fail-closed：拒绝、留一条记录、不静默、不崩。
+ var probe=router.new(null)
+ var outcome=probe.emit("no_such_command",{})
+ t.check(not outcome.ok and not outcome.submitted and probe.rejections.size()==1 and String(probe.rejections[0].kind)=="no_such_command","G2 instruction_route_table_is_total: an unknown kind is refused and recorded: "+str(outcome)+" "+str(probe.rejections))
+ # 5) 提交侧按形状复核的前提：夹具里每个 (kind, params) 恰有一条候选行。
+ var duplicates=[]
+ for cell in r1_cells():
+  var g=r1_build(cell[0],cell[1])
+  if g==null: continue
+  var seen={}
+  for c in g.candidates():
+   var key=String(c.payload.get("kind",""))+"|"+JSON.stringify(g.command_params(c.payload.kind,c.payload))
+   if seen.has(key): duplicates.append(str(cell)+" "+key+" rows="+str(seen[key])+"/"+String(c.label))
+   seen[key]=String(c.label)
+ t.check(duplicates.is_empty(),"G2 instruction_route_table_is_total: every command shape resolves to exactly one row: "+str(duplicates.slice(0,3)))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.candidates():

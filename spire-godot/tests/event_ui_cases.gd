@@ -333,7 +333,7 @@ static func run(t) -> void:
  await open_selection(t,"wager_card")
  candidate=ui.view.candidates.filter(func(c):return c.payload.get("choice","").begins_with("wager_card__"))[0]
  var stale_button=ui.candidate_buttons[candidate.id]
- t.check(ui.game.dispatch(candidate.id,ui.view.version).ok,"EVENT UI stale-window fixture advances through formal dispatch")
+ t.check(ui.game.dispatch(ui.game.command(candidate.payload,ui.view.version),ui.view.version).ok,"EVENT UI stale-window fixture advances through formal dispatch")
  before=JSON.stringify(ui.game.state)
  await press(t,stale_button)
  t.check(JSON.stringify(ui.game.state)==before and ui.notice!="" and not ui.show_event_selection,"EVENT UI stale choice is rejected without another payment, reward or random advance")

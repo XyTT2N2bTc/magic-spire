@@ -22,7 +22,7 @@ static func run(t) -> void:
  await Pointer.press(t,ui.find_child("Posture_stand_wall",true,false))
  t.check(ui.view.posture=="stand" and ui.view.round==before and ui.view.energy==2,"WALL UI ascent allows further actions")
  var away=ui.actions.select("wall_move",{"direction":"away"})[0]
- ui.game.dispatch(away.id,ui.view.version);ui.render();await t.frames()
+ ui.game.dispatch(ui.game.command(away.payload,ui.view.version),ui.view.version);ui.render();await t.frames()
  await Pointer.press(t,ui.find_child("Posture_sit",true,false))
  t.check(not ui.view.wall_position.at_wall and ui.find_child("Posture_stand_wall",true,false)==null,"WALL UI leaving removes wall-only option")
  await t.start_practice("StartShortGlovePractice")

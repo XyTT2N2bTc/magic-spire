@@ -224,7 +224,7 @@ static func run(t) -> void:
   var pending=t.find_action(g,"end")
   g.state.composites[0].components[0].side="invalid"
   before=JSON.stringify(g.state)
-  var rejected=g.dispatch(pending.id,g.state.version)
+  var rejected=g.dispatch(g.command(pending.payload,g.state.version),g.state.version)
   t.check(not rejected.ok and JSON.stringify(g.state)==before,"ASSEMBLY malformed structure rejects and rolls back full turn "+scenario)
 
  # High-tier assemblies use the same mechanics and constraints, no secret magical affixes.

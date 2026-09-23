@@ -475,7 +475,7 @@ static func exploration_fireball(t) -> void:
  var card=preload("res://tests/curse_cases.gd").give(ui.game,"flame_flourish")
  ui.render();await t.frames()
  var power=ui.actions.find("card",{"uid":card.uid,"free":false})
- ui._submit(power,ui.view.version);await t.frames()
+ ui.command_router.emit(String(power.payload.get("kind","")),power,ui.view.version);await t.frames()
  fire=ui.find_child("BasicAttack_fireball",true,false)
  t.check(fire!=null and not fire.disabled and fire.drag_payload.action_type=="fireball" and ui.find_child("DeepBreath",true,false)!=null,"FIRE exploration power exposes draggable fireball beside breath")
  var c=ui.actions.find("attack",{"type":"fireball","target":target.id})

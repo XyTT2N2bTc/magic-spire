@@ -36,9 +36,9 @@ static func run(t) -> void:
  var c=t.find_action(g,"card",{"uid":t.hand_card(g,"strain").uid,"target":target.id,"free":false})
  t.check(c.valid and c.payload.tool_bonus.damage==5,"FRIEND no wall needed for real passive preview")
  var expected=target.durability-c.payload.preview.damage-5
- t.check(g.dispatch(c.id,g.state.version).ok and is_equal_approx(g._equipment(target.id).durability,expected) and g._item(item).uses==2 and g._item(item).mount=="carry","FRIEND real card applies fixed damage and consumes one use while remaining carried")
+ t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and is_equal_approx(g._equipment(target.id).durability,expected) and g._item(item).uses==2 and g._item(item).mount=="carry","FRIEND real card applies fixed damage and consumes one use while remaining carried")
  before=g.export_snapshot()
- t.check(not g.dispatch(c.id,before.version-1).ok and g.state==before,"FRIEND stale card cannot repeat tool proc")
+ t.check(not g.dispatch(g.command(c.payload,before.version-1),before.version-1).ok and g.state==before,"FRIEND stale card cannot repeat tool proc")
  g._leave_mounted_tools()
  t.check(not g._item(item).is_empty() and g.carried_items()==1,"FRIEND virtual fixed tool travels and occupies inventory")
  t.check(["neck","shoulder"].all(func(point):return point in g.Tools.reach(g,g._item(item))),"FRIEND range also includes neck and shoulder attachment points")

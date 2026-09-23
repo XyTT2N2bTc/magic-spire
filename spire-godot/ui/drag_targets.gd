@@ -124,7 +124,7 @@ static func receiver(ui, panel: Control, name: String, c: Dictionary, data: Dict
  target.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  for key in ["normal","hover","pressed","focus"]: target.add_theme_stylebox_override(key,StyleBoxEmpty.new())
  target.accept_card=func(incoming):return incoming==data and ui.view.version==data.version
- target.receive_card=func(incoming):ui.call_deferred("_submit",c,int(incoming.version))
+ target.receive_card=func(incoming):ui.command_router.emit_deferred(String(c.payload.get("kind","")),c,int(incoming.version))
 
 static func hint(ui, id: String, title: String, detail: String, rect: Rect2) -> PanelContainer:
  var panel=PanelContainer.new();panel.name="DragTargetHint_"+id;panel.z_index=220

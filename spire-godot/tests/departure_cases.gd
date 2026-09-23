@@ -31,8 +31,8 @@ static func run(t) -> void:
   if id in Data.PICKERS:
    t.check(g.state.departure.stage=="card" and g.state.mana_max==before.mana_max and g.state.deck==before.deck and not g.candidates().any(func(c):return c.payload.op in ["skip","finish"]),"OPENING bound selection has no skip and pays only with final card "+id)
    var pending=g.export_snapshot();var first=g.candidates()[0]
-   t.check(g.dispatch(first.id,g.state.version).ok,"OPENING selected card commits "+id)
-   t.check(not g.dispatch(first.id,pending.version).ok,"OPENING duplicate old card click rejects "+id)
+   t.check(g.dispatch(g.command(first.payload,g.state.version),g.state.version).ok,"OPENING selected card commits "+id)
+   t.check(not g.dispatch(g.command(first.payload,pending.version),pending.version).ok,"OPENING duplicate old card click rejects "+id)
    if id=="remove": t.check(g.state.deck.size()==9 and not g.state.draw.any(func(c):return c.uid==first.payload.uid),"OPENING removes exact physical card from deck and draw")
    if id=="transform": t.check(g.state.deck.size()==10 and g.state.deck[0].type==entry.changes[first.payload.uid] and g.state.draw[0].type==g.state.deck[0].type,"OPENING transforms selected basic card consistently across deck and draw")
    if id=="uncommon": t.check(g.state.deck.size()==11 and g.state.deck.back().type in g.Cards.Rules.UNCOMMON,"OPENING uncommon selected reward is permanent")

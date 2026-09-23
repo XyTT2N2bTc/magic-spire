@@ -38,9 +38,9 @@ static func run(t) -> void:
  var old_count=int(g.state.relic_counters.get(dropped,1))
  t.check(dropped in ["rolling_log","intellect_cloak"],"LOG elite exhaustion freezes the rolled tier fallback")
  var pick=t.find_action(g,"reward",{"category":"relic"});var version=g.state.version
- t.check(pick.valid and g.dispatch(pick.id,version).ok and g.state.relic_counters[dropped]==old_count+1,"LOG existing owner can claim another elite fallback copy")
+ t.check(pick.valid and g.dispatch(g.command(pick.payload,version),version).ok and g.state.relic_counters[dropped]==old_count+1,"LOG existing owner can claim another elite fallback copy")
  frozen=g.export_snapshot()
- t.check(not g.dispatch(pick.id,version).ok and g.state==frozen,"LOG stale claim cannot duplicate collectible")
+ t.check(not g.dispatch(g.command(pick.payload,version),version).ok and g.state==frozen,"LOG stale claim cannot duplicate collectible")
  for kind in ["shop","treasure"]:
   g=Game.new(42);g.state.relics.append_array(g.Relics.shop_pool() if kind=="shop" else g.Relics.REWARDS);g.RelicEffects.gain(g,"rolling_log")
   g.state.room=g.state.rooms.filter(func(room):return room.kind==kind)[0].id

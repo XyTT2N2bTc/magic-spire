@@ -15,8 +15,8 @@ static func activate(t,g,free: bool) -> Dictionary:
  var c=t.find_action(g,"card",{"uid":card.uid,"free":free})
  var before=g.export_snapshot();g.get_view();g.candidates()
  t.check(c.valid and c.cost==(2 if free else 1) and c.mana==0 and g.state==before,"EMBRACE both face costs and read-only preview")
- t.check(not g.dispatch(c.id,g.state.version-1).ok and g.state==before,"EMBRACE stale activation rejects atomically")
- t.check(g.dispatch(c.id,g.state.version).ok and g.state.energy==before.energy-c.cost and g.state.powers.any(func(p):return p.uid==card.uid),"EMBRACE formal activation moves one card into persistent ability zone")
+ t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"EMBRACE stale activation rejects atomically")
+ t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.energy==before.energy-c.cost and g.state.powers.any(func(p):return p.uid==card.uid),"EMBRACE formal activation moves one card into persistent ability zone")
  return card
 
 static func pending(g) -> int:
@@ -28,7 +28,7 @@ static func run(t) -> void:
  t.check(TYPE in g.Cards.Rules.UNCOMMON and g.Cards.Rules.SPECS[TYPE].rarity=="uncommon" and pending(g)==0,"EMBRACE uncommon pool registration and no retroactive equipment count")
  var copy=Cards.give(g,TYPE);var before=g.export_snapshot()
  var repeated=t.find_action(g,"card",{"uid":copy.uid,"free":true})
- t.check(repeated.valid and not g.dispatch(repeated.id,g.state.version-1).ok and g.state==before,"EMBRACE repeat is available but stale activation rejects without payment")
+ t.check(repeated.valid and not g.dispatch(g.command(repeated.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"EMBRACE repeat is available but stale activation rejects without payment")
  var target=g.state.equipment[0];var slip=Cards.give(g,"slip")
  var energy=g.state.energy
  var result=t.action(g,"card",{"uid":slip.uid,"target":target.id,"free":false})

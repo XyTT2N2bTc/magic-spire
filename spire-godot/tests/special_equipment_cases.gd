@@ -51,7 +51,7 @@ static func unlocked_plate_strain(t) -> void:
   var card=t.grant_fixture_card(g,"strain")
   var before=g.export_snapshot()
   var blocked=t.find_action(g,"card",{"uid":card.uid,"target":lock.id,"free":false})
-  t.check(not blocked.valid and not g.dispatch(blocked.id,g.state.version).ok and g.state==before,"PLATE STRAIN locked root rejects action without payment")
+  t.check(not blocked.valid and not g.dispatch(g.command(blocked.payload,g.state.version),g.state.version).ok and g.state==before,"PLATE STRAIN locked root rejects action without payment")
   var unlock=t.grant_fixture_card(g,"unlock")
   t.check(t.action(g,"card",{"uid":unlock.uid,"target":lock.id,"free":false}).ok,"PLATE STRAIN formal unlock opens root")
   lock=g._equipment(lock.id)
@@ -63,8 +63,8 @@ static func unlocked_plate_strain(t) -> void:
   var candidate=t.find_action(g,"card",{"uid":card.uid,"target":lock.id,"free":false})
   var preview=preload("res://core/release_view.gd").preview(g,candidate)
   t.check(candidate.valid and candidate.payload.preview.damage>0 and preview.after==0 and g.state==before,"PLATE STRAIN positive hit previews whole removal despite tighter band and stays read-only")
-  t.check(not g.dispatch(candidate.id,g.state.version-1).ok and g.state==before,"PLATE STRAIN stale candidate rolls back resources and equipment")
-  t.check(g.dispatch(candidate.id,g.state.version).ok and g._equipment(lock.id).is_empty() and g._equipment(strap.id).is_empty() and not g._equipment(other.id).is_empty() and g.state.energy==before.energy-candidate.cost,"PLATE STRAIN one paid hit removes root and own band only")
+  t.check(not g.dispatch(g.command(candidate.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"PLATE STRAIN stale candidate rolls back resources and equipment")
+  t.check(g.dispatch(g.command(candidate.payload,g.state.version),g.state.version).ok and g._equipment(lock.id).is_empty() and g._equipment(strap.id).is_empty() and not g._equipment(other.id).is_empty() and g.state.energy==before.energy-candidate.cost,"PLATE STRAIN one paid hit removes root and own band only")
  var g=Game.new(42)
  g.RelicEffects.gain(g,"cursed_plate_lock")
  var cursed=g.state.special_equipment.filter(D.is_cursed_plate)[0]
@@ -229,7 +229,7 @@ static func pleasure_and_battery(t) -> void:
  var pressure=g.state.pressure
  t.check(t.action(g,"attack",{"type":"heavy"}).ok and g.state.pressure==pressure+6,"SPECIAL a multi-energy action triggers each energy-paid effect only once")
  var stale=t.find_action(g,"end");var before=g.state.duplicate(true)
- t.check(not g.dispatch(stale.id,g.state.version-1).ok and g.state==before,"SPECIAL stale command causes no pleasure pulse or state change")
+ t.check(not g.dispatch(g.command(stale.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"SPECIAL stale command causes no pleasure pulse or state change")
 
 static func climax_slip(t) -> void:
  for pair in [["urethral_rod_low",3.0],["urethral_rod_medium",2.0],["urethral_rod_high",1.0]]:
@@ -239,9 +239,9 @@ static func climax_slip(t) -> void:
   g.state.pressure=99
   var choice=t.find_action(g,"attack",{"type":"heavy"})
   var before=g.export_snapshot()
-  t.check(not g.dispatch(choice.id,g.state.version-1).ok and g.export_snapshot()==before,"CLIMAX SLIP stale card leaves urethral and neighbouring equipment unchanged: "+pair[0])
+  t.check(not g.dispatch(g.command(choice.payload,g.state.version-1),g.state.version-1).ok and g.export_snapshot()==before,"CLIMAX SLIP stale card leaves urethral and neighbouring equipment unchanged: "+pair[0])
   var durability=rod.durability
-  t.check(g.dispatch(choice.id,g.state.version).ok and is_equal_approx(g._equipment(rod.id).durability,durability-pair[1]) and g._equipment(neighbour.id).durability==neighbour.durability,"CLIMAX SLIP formal climax applies 6 minus tier 2 minus grade only to urethral rod: "+pair[0])
+  t.check(g.dispatch(g.command(choice.payload,g.state.version),g.state.version).ok and is_equal_approx(g._equipment(rod.id).durability,durability-pair[1]) and g._equipment(neighbour.id).durability==neighbour.durability,"CLIMAX SLIP formal climax applies 6 minus tier 2 minus grade only to urethral rod: "+pair[0])
   var records=g.state.logs.filter(func(log):return log.data.has("climax_slip"))
   t.check(records.size()==1 and records[0].data.climax_slip.tightness==2 and records[0].data.climax_slip.grade==rod.grade and records[0].data.climax_slip.damage==pair[1] and records[0].text.contains("固定滑脱伤害"),"CLIMAX SLIP structured mechanical log preserves formula and actual damage: "+pair[0])
  var g=Game.new(42)
@@ -340,7 +340,7 @@ static func cup_reinforcements(t) -> void:
  var cut_action=t.find_action(g,"card",{"uid":cut_card.uid,"target":cut_strap.id,"free":false})
  var cut_before=g.export_snapshot()
  t.check(cut_action.valid and cut_action.payload.get("preview",{}).get("damage",-1)==0 and cut_action.payload.get("tool_bonus",{}).get("damage",-1)==g.Tools.TYPES.saw.damage,"CUP BAND real card candidate previews only installed-tool cutting damage: "+str(cut_action))
- t.check(g.dispatch(cut_action.id,g.state.version).ok,"CUP BAND real card submission cuts the component")
+ t.check(g.dispatch(g.command(cut_action.payload,g.state.version),g.state.version).ok,"CUP BAND real card submission cuts the component")
  cup=g._equipment(cup.id);saw=g._item(saw.id)
  var magic_after_cut=g.escape_preview(cup,"magic_slip",20)
  t.check(not cup.is_empty() and g._equipment(cut_strap.id).is_empty(),"CUP BAND fully cutting the component preserves only its owner")
@@ -383,7 +383,7 @@ static func manual_insertables(t) -> void:
    var restraint=g.add_fixture(slot,4)
    var before=g.export_snapshot()
    direct=t.find_action(g,"manual",{"target":egg.id})
-   t.check(not direct.valid and not g.dispatch(direct.id,g.state.version).ok and g.export_snapshot()==before,"SPECIAL direct removal blocked atomically by "+slot)
+   t.check(not direct.valid and not g.dispatch(g.command(direct.payload,g.state.version),g.state.version).ok and g.export_snapshot()==before,"SPECIAL direct removal blocked atomically by "+slot)
    restraint.durability=0;g._cleanup()
   var energy=g.state.energy
   t.check(t.action(g,"manual",{"target":egg.id}).ok and g._equipment(egg.id).is_empty() and g.state.energy==energy-1 and g._equipment(kept.id)==kept,"SPECIAL removal costs one action and preserves unrelated root")
@@ -406,7 +406,7 @@ static func registry_paths(t) -> void:
   var card=t.hand_card(g,"strain")
   var candidate=t.find_action(g,"card",{"uid":card.uid,"target":target.id,"free":false})
   if candidate.valid:
-   t.check(g.dispatch(candidate.id,g.state.version).ok,"SPECIAL registered target uses formal damage path "+type)
+   t.check(g.dispatch(g.command(candidate.payload,g.state.version),g.state.version).ok,"SPECIAL registered target uses formal damage path "+type)
 
 static func environment_classes(t) -> void:
  var g=Game.new(42);g.state.equipment=[];g.state.items=[]

@@ -49,7 +49,7 @@ static func run(t) -> void:
   else:
    var before=JSON.stringify(g.state)
    t.check(not manual.valid and manual.reason.contains("不能徒手"),"TEMPLATE structural manual rejection "+template)
-   t.check(not g.dispatch(manual.id,g.state.version).ok and JSON.stringify(g.state)==before,"TEMPLATE blocked manual is atomic "+template)
+   t.check(not g.dispatch(g.command(manual.payload,g.state.version),g.state.version).ok and JSON.stringify(g.state)==before,"TEMPLATE blocked manual is atomic "+template)
    var card=t.hand_card(g,"slip")
    t.check(t.action(g,"card",{"uid":card.uid,"target":target.id}).ok and g._equipment(target.id).is_empty(),"TEMPLATE actual slip still works "+template)
 
@@ -131,7 +131,7 @@ static func run(t) -> void:
  var cut=t.find_action(g,"item_use",{"item":shard.id,"target":plastic.id})
  before=JSON.stringify(g.state)
  t.check(not cut.valid and cut.reason.contains("塑料"),"TOOL stone explicitly cannot cut plastic")
- t.check(not g.dispatch(cut.id,g.state.version).ok and JSON.stringify(g.state)==before,"TOOL incompatible attempt consumes no uses")
+ t.check(not g.dispatch(g.command(cut.payload,g.state.version),g.state.version).ok and JSON.stringify(g.state)==before,"TOOL incompatible attempt consumes no uses")
  t.check(t.action(g,"item_use",{"item":saw.id,"target":plastic.id}).ok and g._equipment(plastic.id).durability==1 and g._item(saw.id).uses==1 and g.state.energy==3,"TOOL saw cuts plastic through shared zero-energy action")
  t.check(g.state.encounter==0 and g.state.reward_count==0 and g.state.rest_left==6 and g.get_view().route.is_empty(),"PRACTICE no fake battle, rewards or route")
  for i in range(6): t.action(g,"end")
@@ -217,10 +217,10 @@ static func release_projection(t) -> void:
  g.state.sure_cast=true
  c=g.get_view().candidates.filter(func(action):return action.payload.kind=="card" and action.payload.uid==card.uid and action.payload.get("target","")==collar.id and not action.payload.free)[0]
  t.check(c.valid and c.release_preview.headline=="已上锁 → 已开锁" and not c.release_preview.headline.contains("耐久"),"RELEASE lock-only equipment shows lock outcome without fake durability")
- t.check(g.dispatch(c.id,g.state.version).ok and not g._equipment(collar.id).locked,"RELEASE original unlock transaction still commits")
+ t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and not g._equipment(collar.id).locked,"RELEASE original unlock transaction still commits")
  c=g.get_view().candidates.filter(func(action):return action.payload.kind=="manual" and action.payload.target==collar.id)[0]
  t.check(c.valid and c.release_preview.headline=="整件取下","RELEASE unlocked collar uses categorical removal preview")
- t.check(g.dispatch(c.id,g.state.version).ok and g._equipment(collar.id).is_empty(),"RELEASE categorical removal matches the actual lifecycle")
+ t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g._equipment(collar.id).is_empty(),"RELEASE categorical removal matches the actual lifecycle")
 
 static func precise_positions(t) -> void:
  var g=Game.new(42)

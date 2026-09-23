@@ -175,9 +175,9 @@ static func run(t) -> void:
  for value in invalid:
   t.check(not g.restore_snapshot(value).ok and g.export_snapshot()==original,"EXP bad spatial snapshot rolls back")
  c=t.find_action(g,"prison",{"action":"explore","site":"place_1"})
- t.check(not g.dispatch(c.id,g.state.version-1).ok and g.export_snapshot()==original,"EXP stale destination fully atomic")
+ t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.export_snapshot()==original,"EXP stale destination fully atomic")
  g.state.mana=101;before=g.export_snapshot()
- t.check(not g.dispatch(c.id,g.state.version).ok and g.export_snapshot()==before,"EXP failed final validation rolls back position discovery rng and costs")
+ t.check(not g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.export_snapshot()==before,"EXP failed final validation rolls back position discovery rng and costs")
 
 static func distance_and_warning(t) -> void:
  var g=fresh();var original=Space.view(g)

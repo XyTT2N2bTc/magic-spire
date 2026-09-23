@@ -326,7 +326,7 @@ static func real_border(t) -> void:
  t.check(not toggle.is_empty(),"IMPACT BORDER the charge-all toggle is a real candidate")
  if toggle.is_empty(): return
  var charge_before=ui.game.state.charge
- ui._submit(toggle[0])
+ ui.command_router.emit(String(toggle[0].payload.get("kind","")),toggle[0])
  layer=ui.impact_feedback
  t.check(is_instance_valid(layer) and ui.game.state.charge==charge_before and layer.last_impact.get("border_kind","")=="charge","IMPACT BORDER the committed toggle changes no amount and still lights the border")
  if not is_instance_valid(layer): return

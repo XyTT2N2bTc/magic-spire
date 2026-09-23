@@ -154,7 +154,7 @@ static func departure_fixture(phase: String):
  if phase=="event":
   preload("res://tests/event_cases.gd").arrive(g,"smuggled_mana_potions")
   var choice=g.candidates().filter(func(c):return c.payload.get("choice","")=="credit")[0]
-  g.dispatch(choice.id,g.state.version)
+  g.dispatch(g.command(choice.payload,g.state.version),g.state.version)
  elif phase in ["shop","treasure"]: g.Services.start(g)
  elif phase=="rest": g._start_rest();g._begin_rest()
  else:
@@ -164,7 +164,7 @@ static func departure_fixture(phase: String):
    g._discard_end();g._finish_preparation()
    while g.carried_items()>g.item_capacity():
     var discard=g.candidates().filter(func(c):return c.payload.kind=="item_discard" and c.valid)[0]
-    g.dispatch(discard.id,g.state.version)
+    g.dispatch(g.command(discard.payload,g.state.version),g.state.version)
  return g
 
 static func merged_departure_cases(t) -> void:
@@ -179,14 +179,14 @@ static func merged_departure_cases(t) -> void:
   var projected=g.get_view().route.filter(func(r):return r.id==target)[0]
   t.check(projected.status=="available" and projected.entry_reason=="" and g.export_snapshot()==before,"DEPART route availability is read only before leaving: "+phase)
   t.check(not t.action(g,"depart",{"room":"entrance"}).ok and not t.action(g,"depart",{"room":"exit"}).ok and g.export_snapshot()==before,"DEPART invalid route cannot discard cards or finish room: "+phase)
-  t.check(twin.dispatch(exit_action.id,twin.state.version).ok and t.action(twin,"depart",{"room":target}).ok,"DEPART original two-command reference remains valid: "+phase)
-  t.check(g.dispatch(departures[0].id,before.version).ok and g.state.phase=="travel" and g.state.journey.target==target,"DEPART one click completes room and starts chosen journey: "+phase)
+  t.check(twin.dispatch(twin.command(exit_action.payload,twin.state.version),twin.state.version).ok and t.action(twin,"depart",{"room":target}).ok,"DEPART original two-command reference remains valid: "+phase)
+  t.check(g.dispatch(g.command(departures[0].payload,before.version),before.version).ok and g.state.phase=="travel" and g.state.journey.target==target,"DEPART one click completes room and starts chosen journey: "+phase)
   t.check(g.state.version==before.version+1 and g.state.travel_turns==before.travel_turns and g.state.completed_rooms.has(before.room),"DEPART combined operation commits once without an extra turn: "+phase)
   var combined=g.export_snapshot();var split=twin.export_snapshot()
   for key in ["version","logs"]: combined.erase(key);split.erase(key)
   t.check(combined==split,"DEPART preserves original rewards, cleanup, powers, cards, items, resources and RNG: "+phase)
   var after=g.export_snapshot()
-  t.check(not g.dispatch(departures[0].id,before.version).ok and g.export_snapshot()==after,"DEPART repeated stale click cannot repeat cleanup or journey: "+phase)
+  t.check(not g.dispatch(g.command(departures[0].payload,before.version),before.version).ok and g.export_snapshot()==after,"DEPART repeated stale click cannot repeat cleanup or journey: "+phase)
  var g=departure_fixture("prepare")
  for i in range(4): g._gain_tool("shard")
  var target=g.room_data(g.state.room).next[0]
@@ -221,7 +221,7 @@ static func route_contract_cases(t) -> void:
  g.state.journey.target=unrelated.id
  before=g.export_snapshot()
  var blocked=t.find_action(g,"travel_step")
- t.check(not blocked.valid and blocked.reason.contains("没有地图连线") and not g.dispatch(blocked.id,g.state.version).ok and g.export_snapshot()==before,"ROUTE invalidated edge blocks travel before time pressure or passive changes")
+ t.check(not blocked.valid and blocked.reason.contains("没有地图连线") and not g.dispatch(g.command(blocked.payload,g.state.version),g.state.version).ok and g.export_snapshot()==before,"ROUTE invalidated edge blocks travel before time pressure or passive changes")
  var restored=Game.new(7)
  t.check(not restored.restore_snapshot(before).ok and restored.restore_snapshot(valid_save).ok,"ROUTE restore rejects off-route journey and accepts real edge")
 

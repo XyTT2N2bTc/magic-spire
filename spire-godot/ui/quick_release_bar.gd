@@ -202,7 +202,7 @@ static func build(ui, container: Control, width: float) -> void:
   button.accept_card=func(data):return candidate(ui,id,data).get("valid",false)
   button.receive_card=func(data):
    var c=candidate(ui,id,data)
-   if not c.is_empty() and c.valid: ui.call_deferred("_submit",c,int(data.version))
+   if not c.is_empty() and c.valid: ui.command_router.emit_deferred(String(c.payload.get("kind","")),c,int(data.version))
   update_tile(ui,button,id,selected_data(ui))
  var tools=ui._button(message(ui,"tools","道具使用"),func():ui._open_drawer("show_items"),ui.GOLD)
  tools.name="QuickReleaseTools"

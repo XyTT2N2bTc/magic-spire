@@ -38,6 +38,21 @@ static func unchanged(t, before: Dictionary, after: Dictionary, label: String) -
  t.check(after.backup==before.backup and after.backup_time==before.backup_time,"SAVE "+label+" leaves the backup file bytes and mtime untouched")
 
 # 正例：真实公开命令（先取候选再 dispatch）；命中 checkpoint 时按 UI 的规则写盘。
+# docs/spec/candidate-removal.md §5 G3（批 R2，写盘时机部分）：拒绝的指令不命名 checkpoint，也不触发写盘。
+static func g3_reject_never_writes(t) -> void:
+ var g=Game.new(42)
+ var store=store_for("g3-reject")
+ var before=stamp(store,"main")
+ var candidate=t.find_action(g,"end",{},true)
+ var version=g.state.version
+ var stale=g.dispatch(g.command(candidate.payload,version-1),version-1)
+ t.check(not stale.ok and not stale.has("checkpoint"),"SAVE a stale command names no checkpoint")
+ var forged=g.dispatch({"kind":"no_such_command","params":{},"expected_version":version},version)
+ t.check(not forged.ok and not forged.has("checkpoint"),"SAVE a refused shape names no checkpoint")
+ var bogus=g.dispatch({"kind":"end","params":{"uid":"probe"},"expected_version":version},version)
+ t.check(not bogus.ok and not bogus.has("checkpoint"),"SAVE an illegal parameter names no checkpoint")
+ unchanged(t,before,stamp(store,"main"),"a refused command")
+
 static func submit(t, g, store, kind: String, extra: Dictionary={}) -> Dictionary:
  var candidate=t.find_action(g,kind,extra,true)
  if not candidate.valid:
@@ -46,7 +61,7 @@ static func submit(t, g, store, kind: String, extra: Dictionary={}) -> Dictionar
  return submit_candidate(t,g,store,candidate)
 
 static func submit_candidate(t, g, store, candidate: Dictionary) -> Dictionary:
- var result=g.dispatch(candidate.id,g.state.version)
+ var result=g.dispatch(g.command(candidate.payload,g.state.version),g.state.version)
  t.check(result.ok,"SAVE the committed command succeeds: "+str(result.get("error","")))
  if result.ok and String(result.get("checkpoint",""))!="":
   t.check(store.write_game(g).ok,"SAVE the named fixed point writes the scene start")
@@ -61,7 +76,7 @@ static func submit_sample(t, g, store, label: String, kind: String, extra: Dicti
  return sample_candidate(t,g,store,candidate,label,writes_before)
 
 static func sample_candidate(t, g, store, candidate: Dictionary, label: String, writes_before: int=0) -> Dictionary:
- var result=g.dispatch(candidate.id,g.state.version)
+ var result=g.dispatch(g.command(candidate.payload,g.state.version),g.state.version)
  if result.ok and String(result.get("checkpoint",""))!="": store.write_game(g)
  t.check(result.ok,"SAVE the "+label+" sample commits: "+str(result.get("error","")))
  t.check(String(result.get("checkpoint",""))=="","SAVE the "+label+" sample names no checkpoint: "+str(result.get("checkpoint","")))
@@ -359,7 +374,7 @@ static func save_backup_holds_previous_fixed_point(t) -> void:
  t.check(resumed.restore_snapshot(recovered.snapshot).ok,"SAVE the recovered fixed point A resumes through the formal entry")
  t.check(resumed.candidates().any(func(c):return c.valid),"SAVE the recovered fixed point A offers a legal command")
  var next=resumed.candidates().filter(func(c):return c.valid)[0]
- t.check(resumed.dispatch(next.id,resumed.state.version).ok,"SAVE the recovered fixed point A continues through a real command")
+ t.check(resumed.dispatch(resumed.command(next.payload,resumed.state.version),resumed.state.version).ok,"SAVE the recovered fixed point A continues through a real command")
 
 # docs/spec/save-fixed-points.md「证据入口」：固定点写盘不得改变失败文案、格式校验、read_slot 回退与 summary 语义。
 static func save_fixed_point_preserves_failure_and_format_contract(t) -> void:
@@ -679,6 +694,7 @@ static func transition_log_never_reaches_state_or_view(t) -> void:
  t.check(resumed.restore_snapshot(saved).ok,"SAVE a fresh run accepts the captured save")
  t.check(arch.transition_delta(resumed,restart_log).is_empty() and not JSON.stringify(resumed.export_snapshot()).contains("battle_end_"),"SAVE restoring a save logs no transition and carries no log")
 static func run(t) -> void:
+ g3_reject_never_writes(t)
  initial_seed_is_fixed_at_run_start(t)
  initial_seed_survives_round_trip(t)
  legacy_save_without_initial_seed_backfills(t)
@@ -716,7 +732,7 @@ static func run(t) -> void:
   roundtrip(t,sample,"practice "+kind)
  g=Game.new(42)
  var stale=g.candidates()[0];var version=g.state.version;var snapshot=g.export_snapshot()
- t.check(g.restore_snapshot(snapshot).ok and not g.dispatch(stale.id,version).ok,"SAVE old drag version invalid after in-place restore")
+ t.check(g.restore_snapshot(snapshot).ok and not g.dispatch(g.command(stale.payload,version),version).ok,"SAVE old drag version invalid after in-place restore")
  for i in range(4): t.action(g,"end")
  h=roundtrip(t,g,"reward")
  step_both(t,g,h,"reward",{"type":g.state.reward_options[0]})

@@ -172,7 +172,7 @@ static func run(t) -> void:
    if c.is_empty():
     report.result="no_candidate";break
    report.steps.append({"phase":v.phase,"room":v.room_name,"round":v.round,"kind":c.payload.kind,"payload":c.payload,"energy":v.energy,"mana":v.mana,"label":c.label})
-   var result=g.dispatch(c.id,v.version)
+   var result=g.dispatch(g.command(c.payload,v.version),v.version)
    t.check(result.ok,"NORMAL %s #%d %s" % [setup[1],i,c.label])
    if not result.ok:
     report.result=result.error;break

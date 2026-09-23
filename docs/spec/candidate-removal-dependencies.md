@@ -46,6 +46,7 @@
 | `ui/reward_screen.gd` | R2 六处直连改 `emit` | 同上 |
 | `ui/relic_bundle_screen.gd` | R2 四处直连改 `emit` | 同上 |
 | `ui/shop_screen.gd` | R2 五处直连改 `emit` | 同上 |
+| `ui/shell/body_sidebar.gd` | R2 一处延迟直连改 `emit`（`call_deferred("_submit",…)` 形态，不在契约 §1.1 的 A 表内；见下行说明） | 拖放接收语义不变 |
 | 新 UI 文件（工作名 command_router，**未落地**，实现期定名） | R2 新增：指令路由（`emit`＋分类转发表） | 须先过 Q1 提案；不得 preload core |
 | 新 UI 文件（工作名 command_routes，**未落地**，实现期定名） | R2 新增：分类子路由（每类指令一条装配） | 同上 |
 
@@ -84,6 +85,8 @@
 - core／data 不 preload ui；`ui/` 内只有 `ui/main.gd` 允许 preload core；两个新 UI 文件不得 preload core。
 - 新增边只允许 `docs/spec/candidate-removal.md` 第 2.1 节的 T1–T5；**同批立新边即删旧边**；
   任何时刻每条边只有一条对应路径。
+- 提交面复算口径：契约 §1.1 的 A 表用 `rg '_submit\('` 复算，不匹配 `call_deferred("_submit",…)` 形态；
+  `ui/shell/body_sidebar.gd` 的延迟直连因此未进 A 表，但属同一收敛面（R2 已改 `emit`，见上行）。
 - 不新增第三方依赖、不新增运行时钩子、生产源码不带计数器／计时钩子、不新增存档字段与随机域。
 
 ## 禁止项

@@ -15,7 +15,7 @@ static func run(t) -> void:
  await t.open_menu();await Click.press(t,"ReturnHome")
  t.check(ui.show_home and ui.game.export_snapshot()==saved and not ui.map_auto_travel,"HOME returning pauses navigation without changing game")
  var legal=ui.view.candidates.filter(func(c):return c.valid)
- if not legal.is_empty(): ui._submit(legal[0])
+ if not legal.is_empty(): ui.command_router.emit(String(legal[0].payload.get("kind","")),legal[0])
  t.check(ui.game.export_snapshot()==saved,"HOME hidden gameplay submissions cannot advance the run")
  await Click.press(t,"HomeContinue")
  t.check(not ui.show_home and preload("res://tests/persistence_cases.gd").same(ui.game.state,saved),"HOME same-session continue restores the scene checkpoint")
@@ -50,7 +50,7 @@ static func service_resume(t) -> void:
   g.Services.start(g)
   if kind=="shop":
    var offer=g.candidates().filter(func(c):return c.group=="service" and c.valid)[0]
-   t.check(g.dispatch(offer.id,g.state.version).ok,"HOME shop fixture includes already-purchased stock")
+   t.check(g.dispatch(g.command(offer.payload,g.state.version),g.state.version).ok,"HOME shop fixture includes already-purchased stock")
   t.check(store.write_game(g).ok,"HOME service-room progress saved")
   var before=g.restart_snapshot()
   var bytes=FileAccess.get_file_as_string(store.path("tower"))

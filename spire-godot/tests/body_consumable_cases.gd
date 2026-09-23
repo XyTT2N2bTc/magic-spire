@@ -25,7 +25,7 @@ static func run(t) -> void:
  var stale=t.find_action(g,"item_use",{"item":id,"target":"hands"})
  t.check(t.action(g,"item_use",{"item":id,"target":"feet"}).ok and g._item(id).is_empty(),"OIL third use removes empty bottle and can coat a second group")
  var current=g.export_snapshot()
- t.check(not g.dispatch(stale.id,saved.version).ok and g.state==current,"OIL stale group selection rolls back without adding a coating")
+ t.check(not g.dispatch(g.command(stale.payload,saved.version),saved.version).ok and g.state==current,"OIL stale group selection rolls back without adding a coating")
  var feet=g._install_template("rope","foot",16,16,false,"fixture",2)
  var toes=g._install_template("cord","toes",16,16,false,"fixture",2)
  t.check(not g.escape_preview(feet,"slip",4).immune and not g.escape_preview(toes,"slip",4).immune,"OIL feet group covers foot and toes including later additions")

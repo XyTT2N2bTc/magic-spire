@@ -9,7 +9,7 @@ static func run(t) -> void:
  var end=ui.actions.find("flow",{"kind":"end"})
  if end.is_empty(): end=ui.view.candidates.filter(func(c):return c.payload.kind=="end")[0]
  ui.feedback_duration=0.2
- ui._submit(end)
+ ui.command_router.emit(String(end.payload.get("kind","")),end)
  var committed=ui.game.export_snapshot()
  var presenter=ui.enemy_feedback
  t.check(is_instance_valid(presenter),"FEEDBACK enemy operation opens presentation")
@@ -19,7 +19,7 @@ static func run(t) -> void:
  t.check(presenter.current.enemy_id==steps[0].enemy_id and presenter.detail.text!="","FEEDBACK first enemy and actual result immediately readable")
  t.check(not presenter.highlights.is_empty(),"FEEDBACK active enemy and affected body have visual anchors")
  var next=ui.view.candidates.filter(func(c):return c.valid)[0]
- ui._submit(next)
+ ui.command_router.emit(String(next.payload.get("kind","")),next)
  t.check(ui.game.export_snapshot()==committed,"FEEDBACK clicks cannot submit gameplay during presentation")
  await t.capture("ui-100-enemy-action.png")
  await t.frames()
@@ -27,7 +27,7 @@ static func run(t) -> void:
  t.check(Feedback.steps(ui.view,ui.view).is_empty(),"FEEDBACK re-render/save snapshot cannot replay history")
  before=ui.view
  end=ui.view.candidates.filter(func(c):return c.payload.kind=="end")[0]
- ui._submit(end)
+ ui.command_router.emit(String(end.payload.get("kind","")),end)
  committed=ui.game.export_snapshot()
  presenter=ui.enemy_feedback
  if is_instance_valid(presenter):
@@ -39,7 +39,7 @@ static func run(t) -> void:
  for e in ui.game.state.enemies: e.stage=3;e.intent=ui.game._plan(e)
  ui.render();before=ui.view
  end=ui.view.candidates.filter(func(c):return c.payload.kind=="end")[0]
- ui._submit(end)
+ ui.command_router.emit(String(end.payload.get("kind","")),end)
  steps=Feedback.steps(before,ui.view)
  t.check(not steps.is_empty() and steps.all(func(step):return step.kind=="unseen"),"FEEDBACK blind preparation does not leak its action kind")
  ui.restart(43)
@@ -49,7 +49,7 @@ static func run(t) -> void:
  var a=ui.game.add_fixture("thigh",4);var b=ui.game.add_fixture("forearm",4)
  ui.game.state.enemies[0].intent={"kind":"guard_sequence","priority":false,"delayed":false,"text":"连续上锁","operations":[{"kind":"lock","target":a.id,"text":"上锁","delayed":false},{"kind":"lock","target":b.id,"text":"上锁","delayed":false}]}
  ui.render();before=ui.view
- ui._submit(ui.view.candidates.filter(func(c):return c.payload.kind=="end")[0])
+ ui.command_router.emit(String(ui.view.candidates.filter(func(c):return c.payload.kind=="end")[0].payload.get("kind","")),ui.view.candidates.filter(func(c):return c.payload.kind=="end")[0])
  steps=Feedback.steps(before,ui.view)
  t.check(steps.size()==2 and steps[0].enemy_id==steps[1].enemy_id and steps[0].key!=steps[1].key,"FEEDBACK guard's two operations retain separate sequence positions")
  t.check(steps[0].slots==["thigh"] and steps[1].slots==["forearm"],"FEEDBACK each operation points to its actual affected body part")
@@ -57,7 +57,7 @@ static func run(t) -> void:
  # One formal batch must highlight every actual installation, not only its first log.
  await t.start_practice("Practice_trader_solo")
  before=ui.view
- ui._submit(ui.view.candidates.filter(func(c):return c.payload.kind=="end")[0])
+ ui.command_router.emit(String(ui.view.candidates.filter(func(c):return c.payload.kind=="end")[0].payload.get("kind","")),ui.view.candidates.filter(func(c):return c.payload.kind=="end")[0])
  steps=Feedback.steps(before,ui.view)
  var expected=[]
  for log in ui.view.logs.slice(before.logs.size()):

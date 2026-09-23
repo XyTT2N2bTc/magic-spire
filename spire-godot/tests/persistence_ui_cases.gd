@@ -86,7 +86,7 @@ static func run(t) -> void:
  await t.flip(ui.view.hand[0].uid)
  ui.render();await t.frames()
  t.check(FileAccess.get_file_as_string(store.path("tower"))==file_before,"SAVE UI flipping and rendering never write save")
- var c=ui.view.candidates[0];ui._submit(c,ui.view.version-1);await t.frames()
+ var c=ui.view.candidates[0];ui.command_router.emit(String(c.payload.get("kind","")),c,ui.view.version-1);await t.frames()
  t.check(FileAccess.get_file_as_string(store.path("tower"))==file_before and store.writes==writes,"SAVE UI rejected stale action never overwrites save")
  await boot(t,store);ui=t.ui
  var disk=store.read_slot("tower")

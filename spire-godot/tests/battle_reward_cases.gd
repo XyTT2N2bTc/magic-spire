@@ -140,7 +140,7 @@ static func prepare_end_fixture(t, entry: Dictionary):
  g._finish_battle()
  for candidate in g.candidates():
   if candidate.payload.kind=="reward" and candidate.payload.get("type","")=="skip":
-   g.dispatch(candidate.id,g.state.version)
+   g.dispatch(g.command(candidate.payload,g.state.version),g.state.version)
    break
  t.check(g.state.phase=="prepare","TRANSITION PREPARE reward skip entered preparation: "+String(g.state.phase))
  if entry.packed:
@@ -167,9 +167,9 @@ static func run(t) -> void:
   for category in order:
    var pick=t.find_action(g,"reward",{"category":category})
    var version=g.state.version
-   t.check(g.dispatch(pick.id,version).ok and g.state.phase=="reward" and g.state.reward_claimed[category]==pick.payload.type,"LOOT independent pickup stays on reward screen "+category)
+   t.check(g.dispatch(g.command(pick.payload,version),version).ok and g.state.phase=="reward" and g.state.reward_claimed[category]==pick.payload.type,"LOOT independent pickup stays on reward screen "+category)
    var after=g.export_snapshot()
-   t.check(not g.dispatch(pick.id,version).ok and not t.action(g,"reward",{"category":category}).ok and g.state==after,"LOOT stale and duplicate pickup cannot grant another reward "+category)
+   t.check(not g.dispatch(g.command(pick.payload,version),version).ok and not t.action(g,"reward",{"category":category}).ok and g.state==after,"LOOT stale and duplicate pickup cannot grant another reward "+category)
    t.check(g.get_view().battle_rewards.filter(func(row):return row.category==category)[0].claimed and g.state.rng==rng and g.state.reward_options==offered,"LOOT claimed projection and frozen random result "+category)
   t.check(g.state.deck.size()==deck+1 and g.state.items.size()==items+1 and g.state.relics.size()==relics+1,"LOOT all categories grant exactly once in either order")
   t.check(t.action(g,"reward",{"type":"skip"}).ok and g.state.phase=="prepare" and g.get_view().battle_rewards.is_empty(),"LOOT continue enters preparation only after acknowledgement")
@@ -202,10 +202,10 @@ static func boss_flask(t) -> void:
   for amount in [-1,79,81]:
    var bad=before.duplicate(true);bad.battle_flask_drop=amount
    t.check(not g.restore_snapshot(bad).ok and g.state==before,"BOSS FLASK invalid saved amount rejects without mutation")
-  t.check(g.dispatch(pick.id,before.version).ok and g.state.flask_mana==217.5,"BOSS FLASK claim adds full eighty above player mana maximum")
+  t.check(g.dispatch(g.command(pick.payload,before.version),before.version).ok and g.state.flask_mana==217.5,"BOSS FLASK claim adds full eighty above player mana maximum")
   t.check(g.state.mana==before.mana and g.state.temporary_mana==before.temporary_mana and g.state.flask_deposits==before.flask_deposits and g.state.tick==before.tick and g.state.energy==before.energy and g.state.rng==before.rng and g.state.deck==before.deck and g.state.relics==before.relics,"BOSS FLASK claim only changes flask and reward receipt, costs no resources or turn")
   var after=g.export_snapshot()
-  t.check(not g.dispatch(pick.id,before.version).ok and not t.action(g,"reward",{"category":"flask"}).ok and g.state==after,"BOSS FLASK duplicate and stale claims roll back")
+  t.check(not g.dispatch(g.command(pick.payload,before.version),before.version).ok and not t.action(g,"reward",{"category":"flask"}).ok and g.state==after,"BOSS FLASK duplicate and stale claims roll back")
   var restored=Save.roundtrip(t,g,"claimed Boss flask reward")
   t.check(restored!=null and not t.action(restored,"reward",{"category":"flask"}).ok,"BOSS FLASK save preserves claimed receipt")
   t.check(g.restore_snapshot(before).ok,"BOSS FLASK pending reward restores")
@@ -223,9 +223,9 @@ static func skip_rewards(t) -> void:
    var skip=t.find_action(g,"reward_skip",{"category":category})
    var preview=g.export_snapshot();var panel=g.get_view().reward_panel
    t.check(panel.active and panel.rows.any(func(row):return row.category==category and row.skip_id==skip.id) and g.state==preview,"SKIP reward projection exposes the formal per-category skip without mutation")
-   t.check(g.dispatch(skip.id,g.state.version).ok and g.state.phase=="reward" and g.state.reward_claimed[category]=="skip","SKIP settles one category without leaving the reward screen")
+   t.check(g.dispatch(g.command(skip.payload,g.state.version),g.state.version).ok and g.state.phase=="reward" and g.state.reward_claimed[category]=="skip","SKIP settles one category without leaving the reward screen")
    var settled=g.export_snapshot()
-   t.check(not g.dispatch(skip.id,g.state.version-1).ok and not t.action(g,"reward_skip",{"category":category}).ok and not t.action(g,"reward",{"category":category}).ok and g.state==settled,"SKIP stale, repeated and later claims reject atomically")
+   t.check(not g.dispatch(g.command(skip.payload,g.state.version-1),g.state.version-1).ok and not t.action(g,"reward_skip",{"category":category}).ok and not t.action(g,"reward",{"category":category}).ok and g.state==settled,"SKIP stale, repeated and later claims reject atomically")
    var restored=Game.new(2)
    t.check(restored.restore_snapshot(settled).ok and restored.state.reward_claimed==g.state.reward_claimed and restored.get_view().battle_rewards.any(func(row):return row.category==category and row.skipped),"SKIP current snapshots preserve skipped cards and normal or Boss relics")
   t.check(g.state.deck==before.deck and g.state.relics==before.relics and g.state.items==before.items and g.state.mana==before.mana and g.state.flask_mana==before.flask_mana and g.state.rng==before.rng and g.state.tick==before.tick,"SKIP no cards, relic effects, costs, random draws or turns are granted")
@@ -244,10 +244,10 @@ static func magnifying_glass(t) -> void:
  var offered=g.state.reward_options.duplicate();var random=g.state.rng.duplicate(true)
  var pickup=t.find_action(g,"reward",{"category":"relic"})
  var version=g.state.version
- t.check(g.dispatch(pickup.id,version).ok and "magnifying_glass" in g.state.relics,"LENS formal rare relic pickup succeeds")
+ t.check(g.dispatch(g.command(pickup.payload,version),version).ok and "magnifying_glass" in g.state.relics,"LENS formal rare relic pickup succeeds")
  t.check(offered.size()==3 and g.state.reward_options==offered and g.state.rng==random,"LENS same window keeps its three frozen cards without drawing random numbers")
  var snapshot=g.export_snapshot()
- t.check(not g.dispatch(pickup.id,version).ok and g.state==snapshot,"LENS stale pickup rejects without changing rewards")
+ t.check(not g.dispatch(g.command(pickup.payload,version),version).ok and g.state==snapshot,"LENS stale pickup rejects without changing rewards")
  Save.roundtrip(t,g,"lens acquired after three-card reward froze")
  var count=g.state.deck.size()
  t.check(t.action(g,"reward",{"category":"card","type":offered[-1]}).ok and g.state.deck.size()==count+1 and g.state.deck[-1].type==offered[-1],"LENS original choices still grant exactly the selected card")

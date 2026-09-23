@@ -72,7 +72,7 @@ static func run(t) -> void:
  t.check(g.state.relic_pending.is_empty(),"DITTO both trigger limits prevent double payout")
  g=fixture("great_wand");g.state.mana=30;g.state.relic_counters.ditto=4;g.state.relic_counters.great_wand=2
  var c=t.find_action(g,"relic_discharge",{"relic":"ditto"})
- t.check(c.valid and g.dispatch(c.id,g.state.version).ok and g.state.mana==34 and g.state.relic_counters.great_wand==2 and g.state.relic_counters.ditto==0,"DITTO formal manual discharge only consumes selected source")
+ t.check(c.valid and g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.mana==34 and g.state.relic_counters.great_wand==2 and g.state.relic_counters.ditto==0,"DITTO formal manual discharge only consumes selected source")
  var row=g.RelicEffects.view(g).filter(func(r):return r.id=="ditto")[0]
  t.check(row.icon=="great_wand" and row.name.contains("百变怪") and row.counter.value==0,"DITTO live projection exposes form and its own counter")
  for form in pool:

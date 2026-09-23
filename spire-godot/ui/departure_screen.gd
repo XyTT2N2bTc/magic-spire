@@ -21,7 +21,7 @@ static func build(ui) -> void:
    var entry=panel.entries[i];var choice=ui.actions.by_id[entry.action_id]
    var card=preload("res://data/encyclopedia.gd").card(entry.type)
    card.uid=entry.uid if entry.uid!="" else "departure_"+entry.type
-   var button=ui._card(card,Rect2((i%5)*242,floori(i/5.0)*352,224,330),func():ui._submit(choice),0,contents,false,true)
+   var button=ui._card(card,Rect2((i%5)*242,floori(i/5.0)*352,224,330),func():ui.command_router.emit(String(choice.payload.get("kind","")),choice),0,contents,false,true)
    button.disabled=not entry.valid;button.name="DepartureCard_"+str(i)
    ui.candidate_buttons[choice.id]=button
   return
@@ -31,12 +31,12 @@ static func build(ui) -> void:
  for entry in panel.entries:
   var choice=ui.actions.by_id[entry.action_id]
   if entry.op in ["skip","finish"]:
-   var button=ui._button(entry.label,func():ui._submit(choice),ui.GOLD)
+   var button=ui._button(entry.label,func():ui.command_router.emit(String(choice.payload.get("kind","")),choice),ui.GOLD)
    button.name="DepartureContinue";ui._place(button,Rect2(650,750 if option_count==5 else 692,300,54),root)
    ui.candidate_buttons[choice.id]=button
    continue
   var color=ui.GOLD if index in [2,3] else ui.CYAN
-  var button=ui._button("",func():ui._submit(choice),color);button.disabled=not entry.valid
+  var button=ui._button("",func():ui.command_router.emit(String(choice.payload.get("kind","")),choice),color);button.disabled=not entry.valid
   button.name="DepartureOption_"+str(index)
   if index==4:
    ui._place(button,Rect2(start_x+3*352,636,324,98),root)

@@ -19,9 +19,9 @@ static func run(t) -> void:
  var choices=g.candidates().filter(func(c):return c.payload.get("uid","")==card.uid)
  t.check(choices.size()==1 and choices[0].valid and choices[0].cost==1 and choices[0].payload.self_target,"CURSE panic has one targetless one-energy candidate")
  var before=g.export_snapshot()
- t.check(not g.dispatch(choices[0].id,g.state.version-1).ok and g.state==before,"CURSE stale play cannot spend or exhaust")
+ t.check(not g.dispatch(g.command(choices[0].payload,g.state.version-1),g.state.version-1).ok and g.state==before,"CURSE stale play cannot spend or exhaust")
  g.state.energy=0;before=g.export_snapshot()
- t.check(not g.dispatch(choices[0].id,g.state.version).ok and g.state==before,"CURSE unaffordable play leaves everything unchanged")
+ t.check(not g.dispatch(g.command(choices[0].payload,g.state.version),g.state.version).ok and g.state==before,"CURSE unaffordable play leaves everything unchanged")
  g.state.energy=3
  var equipment=JSON.stringify(g.state.equipment);var tick=g.state.tick;var mana=g.state.mana
  t.check(t.action(g,"card",{"uid":card.uid}).ok and g.state.energy==2 and g.state.exhaust.any(func(c):return c.uid==card.uid),"CURSE panic pays once and exhausts on play")
@@ -88,7 +88,7 @@ static func run(t) -> void:
  var mark_view=g.get_view()
  t.check(mark_view.statuses.any(func(status):return status.id=="hand_energy_pressure" and status.value.contains("4")),"CURSE lewd mark exposes its current paid-energy pressure in status view")
  var mark_before=g.export_snapshot()
- t.check(not g.dispatch("missing",g.state.version).ok and g.state==mark_before and g.state.pressure==0,"CURSE rejected action never triggers lewd mark")
+ t.check(not g.dispatch(g.command({"kind":"card","uid":"missing"},g.state.version),g.state.version).ok and g.state==mark_before and g.state.pressure==0,"CURSE rejected action never triggers lewd mark")
  t.check(t.action(g,"card",{"uid":paid.uid}).ok and g.state.pressure==4,"CURSE one-energy action triggers one lewd-mark gain after commit")
 
  g=Game.new(42);mark=give(g,"lewd_mark");give(g,"lewd_mark");var target=g.add_fixture("ankle",10);paid=give(g,"tear")

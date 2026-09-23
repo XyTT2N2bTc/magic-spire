@@ -178,8 +178,101 @@ static func copy_missing_key_never_crashes(t) -> void:
  t.check(ui.projection_misses.any(func(entry):return entry.point=="card_entry" and entry.key.begins_with(card.type)),"COPY deleted card key is recomputed through the single entry and recorded: "+str(ui.projection_misses))
  t.check(ui.game.export_snapshot()==before,"COPY missing-key rendering never changes state or random cursors")
 
+# docs/spec/candidate-removal.md §5 G3（批 R2）：拒绝语义不变。三类拒绝（陈旧版本／形状不合法／判定不通过）
+# 与五预检各一例，文案逐字、失败全回滚；真实窗口、真实输入，不绕过 UI 入口。
+static func g3_reject_probes(g) -> Array:
+ return [
+  {"name":"Consumables.validate_buffs","break":func():g.state.body_buffs=[{"type":"not_a_tool","group":"torso"}],
+   "restore":func():g.state.body_buffs=[]},
+  {"name":"Binding.state_issue","break":func():
+   if g.state.equipment.is_empty(): g.add_fixture("wrist",7,10)
+   g.state.equipment[0].binding={"kind":"no_such_binding"},
+   "restore":func():g.state.equipment[0].erase("binding")},
+  {"name":"SpecialEquipment.validate","break":func():
+   g.state.special_equipment=[{"id":"probe","type":"not_a_special"}],
+   "restore":func():g.state.special_equipment=[]},
+  {"name":"Cards.validate","break":func():g.state.evasion=-1,
+   "restore":func():g.state.evasion=0},
+  {"name":"RelicEffects.validate","break":func():g.state.cursed_plate_released="probe",
+   "restore":func():g.state.cursed_plate_released=false},
+ ]
+
+static func submit_reject_semantics_unchanged(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames()
+ var g=ui.game
+ var usable=ui.view.candidates.filter(func(c):return c.valid)
+ t.check(not usable.is_empty(),"REJECT fixture exposes a usable command")
+ if usable.is_empty(): return
+ var version=ui.view.version
+ var before=g.export_snapshot()
+ # 1) 陈旧 expected_version
+ var stale=g.dispatch(g.command(usable[0].payload,version-1),version-1)
+ t.check(not stale.ok and String(stale.error)=="状态已更新，请重新选择行动。" and g.export_snapshot()==before,"REJECT stale expected_version keeps its verbatim text and rolls back")
+ # 2) 当前状态不可提交的指令形状（表外 kind／键面外参数）
+ var unknown=g.dispatch({"kind":"no_such_command","params":{},"expected_version":version},version)
+ t.check(not unknown.ok and String(unknown.error)=="该行动已经失效，请重新选择。" and g.export_snapshot()==before,"REJECT an unknown kind keeps its verbatim text and rolls back")
+ var forged=g.dispatch({"kind":"end","params":{"label":"probe"},"expected_version":version},version)
+ t.check(not forged.ok and String(forged.error)=="该行动已经失效，请重新选择。" and g.export_snapshot()==before,"REJECT a parameter outside the declared face keeps its verbatim text and rolls back")
+ # 3) 判定不通过：判定 reason 原文
+ var blocked=ui.view.candidates.filter(func(c):return not c.valid and c.reason!="")
+ if not blocked.is_empty():
+  var rejected=g.dispatch(g.command(blocked[0].payload,version),version)
+  t.check(not rejected.ok and String(rejected.error)==String(blocked[0].reason) and g.export_snapshot()==before,"REJECT a blocked command returns the determination reason verbatim and rolls back")
+ # 4) 五预检各一例失败：error 逐字等于该预检文本，失败后全回滚
+ for probe in g3_reject_probes(g):
+  probe["break"].call()
+  var expected=""
+  match String(probe.name):
+   "Consumables.validate_buffs": expected=g.Consumables.validate_buffs(g,g.state.body_buffs)
+   "Binding.state_issue": expected=g.Binding.state_issue(g)
+   "SpecialEquipment.validate": expected=g.SpecialEquipment.validate(g.state.special_equipment)
+   "Cards.validate": expected=g.Cards.validate(g)
+   "RelicEffects.validate": expected=g.RelicEffects.validate(g)
+  var frozen=g.export_snapshot()
+  var refused=g.dispatch(g.command(usable[0].payload,g.state.version),g.state.version)
+  t.check(expected!="" and not refused.ok and String(refused.error)==expected and g.export_snapshot()==frozen,"REJECT precheck keeps its verbatim text and rolls back: "+String(probe.name)+" error="+str(refused.get("error","")))
+  probe["restore"].call()
+
+# docs/spec/candidate-removal.md §5 G8（批 R2）：接管路径不变。真实演示入口、真实输入；
+# 只有已选步骤可提交，其余显示同一文案；手动输入被接管锁阻挡；换局后旧步骤不提交。
+static func takeover_path_unchanged(t) -> void:
+ var ui=t.ui
+ await t.start_practice("StartDoubaoPractice")
+ t.check(ui.view.practice_kind=="doubao" and ui.view.phase=="battle" and ui._takeover_locked(),"TAKEOVER the real practice entry starts the locked takeover")
+ var banner=ui.find_child("FirstTurnControlBanner",true,false)
+ t.check(banner!=null and banner.text=="豆包接管中","TAKEOVER the banner keeps its text")
+ var rows=ui.view.candidates
+ var automated=rows.filter(func(c):return c.get("automated",false))
+ var blocked=rows.filter(func(c):return String(c.get("reason",""))=="豆包接管中")
+ var still_open=blocked.filter(func(c):c.valid)
+ t.check(automated.size()==1 and not blocked.is_empty() and still_open.is_empty(),"TAKEOVER only the selected step is committable and the rest keep the same reason: automated="+str(automated.size())+" blocked="+str(blocked.size())+" open="+str(still_open.map(func(c):return [c.payload,c.valid])))
+ if automated.is_empty() or blocked.is_empty(): return
+ # 手动输入被挡：真实点击被挡行动 + 同一入口不带接管标记
+ var before=ui.game.export_snapshot()
+ var button=ui.candidate_buttons.get(blocked[0].id)
+ if button!=null:
+  var point=button.get_global_rect().get_center()
+  await t.move_mouse(point);await t.mouse_button(point,MOUSE_BUTTON_LEFT,true);await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
+  await t.frames()
+ t.check(ui.game.export_snapshot()==before,"TAKEOVER a manual click on a blocked step changes nothing")
+ ui.command_router.emit(String(blocked[0].payload.get("kind","")),blocked[0],ui.view.version)
+ t.check(ui.game.export_snapshot()==before,"TAKEOVER a manual command without the takeover flag is refused by the lock")
+ # 只有已选步骤可提交，且经同一入口（takeover 参数语义不变）
+ var version=ui.view.version
+ var outcome=ui.command_router.emit(String(automated[0].payload.get("kind","")),automated[0],version,true)
+ t.check(outcome.submitted and ui.view.version>version,"TAKEOVER the selected step commits through the single entry")
+ # 返回首页后旧步骤不提交（首页守卫与接管锁都在同一入口上）
+ ui._return_home();await t.frames()
+ var home_before=ui.game.export_snapshot()
+ ui.command_router.emit(String(automated[0].payload.get("kind","")),automated[0],version)
+ t.check(ui.show_home and ui.game.export_snapshot()==home_before,"TAKEOVER a previous step cannot commit after returning home")
+ ui.restart(42);await t.frames()
+
 static func run(t) -> void:
  await portrait_snapshot_boundary(t)
+ await submit_reject_semantics_unchanged(t)
+ await takeover_path_unchanged(t)
  await portrait_composite_boundary(t)
  await copy_missing_key_never_crashes(t)
  var ui=t.ui

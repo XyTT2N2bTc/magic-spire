@@ -168,7 +168,7 @@ static func run(t) -> void:
  await tap(t,KEY_ESCAPE)
  ui.restart(42,true,"shop");await t.frames()
  var offer=ui.actions.select("service",{"op":"take","payment":"self"}).filter(func(item):return item.valid)[0]
- ui._submit(offer);await t.frames();before=ui.game.export_snapshot()
+ ui.command_router.emit(String(offer.payload.get("kind","")),offer);await t.frames();before=ui.game.export_snapshot()
  t.check(ui.find_child("ShopPaymentPerformance",true,false)!=null,"KEYS shop purchase opens a real payment modal")
  await tap(t,KEY_M);await tap(t,KEY_I);await tap(t,KEY_ESCAPE)
  t.check(not ui.show_route and not ui.show_items and not ui.show_menu and ui.game.state==before,"KEYS payment modal blocks background navigation and Escape")

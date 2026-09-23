@@ -17,13 +17,13 @@ static func exercise(t,g,label: String,mounted: bool=false) -> void:
  var choice=choices[0]
  g.get_view()
  t.check(g.state==before,"DISCARD queries preserve state in "+label)
- t.check(not g.dispatch(choice.id,g.state.version-1).ok and g.state==before,"DISCARD stale request is atomic in "+label)
- var result=g.dispatch(choice.id,g.state.version)
+ t.check(not g.dispatch(g.command(choice.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"DISCARD stale request is atomic in "+label)
+ var result=g.dispatch(g.command(choice.payload,g.state.version),g.state.version)
  t.check(result.ok and g._item(item.id).is_empty() and g._item(other.id)==other,"DISCARD only chosen physical item removed in "+label+str(result.get("error","")))
  for key in ["phase","room","energy","mana","temporary_mana","flask_mana","flask_deposits","pressure","tick","round","rng","combat","prison","card_chain","room_event"]:
   t.check(g.state[key]==before[key],"DISCARD preserves "+key+" in "+label)
  var after=g.export_snapshot()
- t.check(not g.dispatch(choice.id,g.state.version).ok and g.state==after,"DISCARD repeated request cannot remove another item in "+label)
+ t.check(not g.dispatch(g.command(choice.payload,g.state.version),g.state.version).ok and g.state==after,"DISCARD repeated request cannot remove another item in "+label)
 
 static func run(t) -> void:
  var g=Real.new(42)
@@ -33,7 +33,7 @@ static func run(t) -> void:
  t.check(not destinations.is_empty(),"DISCARD map offers a real travel destination")
  if destinations.is_empty(): return
  var destination=destinations[0]
- t.check(g.dispatch(destination.id,g.state.version).ok,"DISCARD setup real travel")
+ t.check(g.dispatch(g.command(destination.payload,g.state.version),g.state.version).ok,"DISCARD setup real travel")
  exercise(t,g,"travel")
  g=Game.new(42);exercise(t,g,"battle",true)
  g=Rewards.setup();exercise(t,g,"preparation")
@@ -62,4 +62,4 @@ static func run(t) -> void:
  t.check(Rewards.play(t,g,card,"wrist",targets[0].id).ok and not g.state.card_chain.is_empty(),"DISCARD setup pending multi-hit choice")
  exercise(t,g,"multi-hit choice")
  var next=g.candidates().filter(func(c):return c.payload.kind=="chain" and c.valid)[0]
- t.check(g.dispatch(next.id,g.state.version).ok and g.state.card_chain.is_empty(),"DISCARD original multi-hit action still completes")
+ t.check(g.dispatch(g.command(next.payload,g.state.version),g.state.version).ok and g.state.card_chain.is_empty(),"DISCARD original multi-hit action still completes")

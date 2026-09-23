@@ -90,7 +90,7 @@ func refresh() -> void:
   var button=existing.get(card.physical_uid)
   if button==null:
    var choice=selection_candidates.get(card.physical_uid,{})
-   var select=Callable() if choice.is_empty() else func():host._submit(choice)
+   var select=Callable() if choice.is_empty() else func():host.command_router.emit(String(choice.payload.get("kind","")),choice)
    button=host._display_card(card.type,grid,select,"deck_"+card.physical_uid,Vector2(210,278),card.physical_uid,true,card)
    if not choice.is_empty():
     button.disabled=not choice.valid

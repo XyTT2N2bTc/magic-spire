@@ -67,14 +67,14 @@ flowchart LR
   View --> Bottom[main._bottom_controls]
   Body --> Frame[铺满左侧的三个面板]
   Bottom --> Frame
-  Frame --> Input[原有候选及版本提交入口]
+  Frame --> Input[指令路由与版本提交入口]
 ```
 
 几何只由原场景及底栏编排写入；本调整不新增状态、候选、判定或规则写入点。
 
 - `ui/shell/game_layout.tscn` 保留背景及当前使用的立绘；`header.tscn` 与 `body_sidebar.tscn`
   承载顶栏、身体栏静态布局；`ui/elements/` 中的 arena、enemy_group、equipment_portrait 场景管理角色展示。
-- 主界面继续负责正式候选提交和页面编排。
+- 主界面继续负责正式提交（指令路由）和页面编排。
 
 ### 界面状态（纯 UI，不进 GameState／存档）
 

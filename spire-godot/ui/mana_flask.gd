@@ -24,7 +24,7 @@ static func build(ui) -> void:
   var choice=ui.actions.find("flask",{"op":op})
   if choice.is_empty(): continue
   var label="存入" if op=="deposit" else "取出"
-  var button=ui._button(label,func():ui._submit(choice),ui.CYAN)
+  var button=ui._button(label,func():ui.command_router.emit(String(choice.payload.get("kind","")),choice),ui.CYAN)
   button.name="FlaskDeposit" if op=="deposit" else "FlaskWithdraw"
   button.disabled=not choice.valid;button.tooltip_text=ui.detail_of(choice) if choice.valid else choice.reason
   button.add_theme_font_size_override("font_size",13);button.custom_minimum_size.y=28

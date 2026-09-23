@@ -97,9 +97,9 @@ static func mana_cap_pickups(t) -> void:
   for mana in [40,100]:
    g=Game.new(42);g._finish_battle();g.state.battle_relic_drop=id;g.state.mana=mana
    var claim=t.find_action(g,"reward",{"category":"relic"});var version=g.state.version
-   t.check(g.dispatch(claim.id,version).ok and g.state.mana_max==100+amount and g.state.mana==mana+amount,"CAP PICKUP increases cap before recovery: "+id+" at "+str(mana))
+   t.check(g.dispatch(g.command(claim.payload,version),version).ok and g.state.mana_max==100+amount and g.state.mana==mana+amount,"CAP PICKUP increases cap before recovery: "+id+" at "+str(mana))
    var before=g.export_snapshot();var view=g.get_view();g.RelicEffects.gain(g,id)
-   t.check(view.mana_max==100+amount and view.mana==mana+amount and g.state==before and not g.dispatch(claim.id,version).ok and g.state==before,"CAP PICKUP projection, duplicate and stale claim cannot reapply: "+id)
+   t.check(view.mana_max==100+amount and view.mana==mana+amount and g.state==before and not g.dispatch(g.command(claim.payload,version),version).ok and g.state==before,"CAP PICKUP projection, duplicate and stale claim cannot reapply: "+id)
    t.action(g,"reward",{"type":"skip"})
    t.check(g.state.mana_max==100+amount and g.state.mana==mana+amount,"CAP PICKUP later session does not repeat effect: "+id)
 
@@ -122,9 +122,9 @@ static func spicy_rice_noodles(t) -> void:
   t.check(t.action(g,"end").ok and g.state.charge==3,"NOODLES ordinary turn does not repeat opening: "+phase)
  g=Game.new(42);g.state.relics=[id];g._finish_battle()
  var choice=t.find_action(g,"reward",{"type":"skip"});var version=g.state.version
- t.check(g.dispatch(choice.id,version).ok and g.state.phase=="prepare" and g.state.charge==0,"NOODLES preparation does not trigger another opening")
+ t.check(g.dispatch(g.command(choice.payload,version),version).ok and g.state.phase=="prepare" and g.state.charge==0,"NOODLES preparation does not trigger another opening")
  var before=g.export_snapshot();g.get_view();g.candidates()
- t.check(g.state==before and not g.dispatch(choice.id,version).ok and g.state==before,"NOODLES viewing and stale transition cannot duplicate stacks")
+ t.check(g.state==before and not g.dispatch(g.command(choice.payload,version),version).ok and g.state==before,"NOODLES viewing and stale transition cannot duplicate stacks")
  t.check(not g.state.logs.any(func(log):return log.data.get("relic_trigger",{}).get("id","")==id),"NOODLES no duplicate opening feedback during preparation")
  g=Game.new(80,true,"prison_test");g.state.relics=[id];g.state.charge=2;g.state.prison.left=1
  var serial=g.state.combat.serial
@@ -154,9 +154,9 @@ static func kings_gift(t) -> void:
  g=Game.new(42);g.state.relics=[id];g.state.round=7;g.state.enemies=[]
  g._append_enemies([{"type":"belt","grade":1},{"type":"drone","grade":1}])
  var end=t.find_action(g,"end");var version=g.state.version;var rewards=g.state.reward_count
- t.check(g.dispatch(end.id,version).ok and g.state.phase=="reward" and g.state.enemies.all(func(e):return e.gone) and g.state.reward_count==rewards+1,"KING full-team defeat immediately awards one battle completion")
+ t.check(g.dispatch(g.command(end.payload,version),version).ok and g.state.phase=="reward" and g.state.enemies.all(func(e):return e.gone) and g.state.reward_count==rewards+1,"KING full-team defeat immediately awards one battle completion")
  before=g.export_snapshot()
- t.check(not g.dispatch(end.id,version).ok and g.state==before,"KING stale ending cannot repeat damage or rewards")
+ t.check(not g.dispatch(g.command(end.payload,version),version).ok and g.state==before,"KING stale ending cannot repeat damage or rewards")
  g._start_battle()
  t.check(g.state.round==1 and not g.RelicEffects.used(g,id) and g.RelicEffects.counter(g,id).value==1,"KING new battle resets the existing round and trigger scope")
  # Both threshold and death splits use ordinary enemy handling; newborns are outside the volley.
@@ -216,10 +216,10 @@ static func small_gem(t) -> void:
  g=Game.new(42);g.RelicEffects.gain(g,"small_gem");g._finish_battle()
  var log_start=g.state.logs.size()
  var choice=t.find_action(g,"reward",{"type":"skip"});var version=g.state.version
- t.check(g.dispatch(choice.id,version).ok and g.state.phase=="prepare" and g.state.energy==3,"GEM preparation does not repeat opening energy")
+ t.check(g.dispatch(g.command(choice.payload,version),version).ok and g.state.phase=="prepare" and g.state.energy==3,"GEM preparation does not repeat opening energy")
  var before=g.export_snapshot();var shown=g.get_view()
  t.check(shown.relics.any(func(r):return r.id=="small_gem" and r.detail.contains("额外获得1能量")) and g.state==before,"GEM description and views are read-only")
- t.check(not g.dispatch(choice.id,version).ok and g.state==before,"GEM stale transition cannot award again")
+ t.check(not g.dispatch(g.command(choice.payload,version),version).ok and g.state==before,"GEM stale transition cannot award again")
  t.check(not g.state.logs.slice(log_start).any(func(log):return log.data.get("relic_trigger",{}).get("id","")=="small_gem"),"GEM no opening gain is emitted for preparation")
 
 static func desire_cube(t) -> void:
@@ -273,9 +273,9 @@ static func periodic_energy(t) -> void:
  g._finish_battle()
  t.check(g.state.relic_counters.happy_fa==2 and g.state.energy==3,"FA progress survives actual combat end")
  var choice=t.find_action(g,"reward",{"type":"skip"});var version=g.state.version
- t.check(g.dispatch(choice.id,version).ok and g.state.phase=="prepare" and g.state.energy==4 and g.state.relic_counters.happy_fa==0,"FA third turn in next session grants one immediate energy and wraps")
+ t.check(g.dispatch(g.command(choice.payload,version),version).ok and g.state.phase=="prepare" and g.state.energy==4 and g.state.relic_counters.happy_fa==0,"FA third turn in next session grants one immediate energy and wraps")
  before=g.export_snapshot()
- t.check(not g.dispatch(choice.id,version).ok and g.state==before,"FA stale transition cannot advance counter or duplicate energy")
+ t.check(not g.dispatch(g.command(choice.payload,version),version).ok and g.state==before,"FA stale transition cannot advance counter or duplicate energy")
  t.check(g.state.logs.any(func(log):return log.get("data",{}).get("relic_trigger",{}).get("id","")=="happy_fa" and log.text.contains("获得1能量")),"FA real energy proc emits named feedback")
  for phase in ["battle","prepare","rest","prison"]:
   g.state.phase=phase;g.state.relic_counters.happy_fa=2;g.state.combat.energy=2;g.state.next_energy=1
@@ -312,7 +312,7 @@ static func casting_manual(t) -> void:
  g._install_assembly("wrap","left","fixture",1,1)
  var choice=t.find_action(g,"card",{"uid":card.uid,"target":target.id})
  var before=g.export_snapshot()
- t.check(not choice.valid and choice.reason.contains("双手") and not g.dispatch(choice.id,g.state.version).ok and g.state==before,"MANUAL default requires both complete hands and blocked play spends nothing")
+ t.check(not choice.valid and choice.reason.contains("双手") and not g.dispatch(g.command(choice.payload,g.state.version),g.state.version).ok and g.state==before,"MANUAL default requires both complete hands and blocked play spends nothing")
  var fire=t.find_action(g,"attack",{"type":"fireball"})
  t.check(fire.valid and fire.payload.damage==g.B.FIREBALL,"MANUAL single free hand without relic keeps mouth-only fireball damage")
  var excluded=g.Relics.REWARDS.filter(func(id):return id!="casting_manual")
@@ -325,10 +325,10 @@ static func casting_manual(t) -> void:
  t.check(choice.valid and fire.payload.damage==g.B.FIREBALL_ASSISTED,"MANUAL one intact hand unlocks spell qualification and fireball gestures")
  var twin=preload("res://tests/persistence_cases.gd").roundtrip(t,g,"casting manual")
  if twin!=null: t.check(t.find_action(twin,"attack",{"type":"fireball"}).payload.damage==g.B.FIREBALL_ASSISTED and t.find_action(twin,"card",{"uid":card.uid,"target":target.id}).valid,"MANUAL restored relic uses the same body qualification")
- t.check(g.dispatch(choice.id,g.state.version).ok and not g._equipment(target.id).locked,"MANUAL actual hand spell works with one wrapped hand")
+ t.check(g.dispatch(g.command(choice.payload,g.state.version),g.state.version).ok and not g._equipment(target.id).locked,"MANUAL actual hand spell works with one wrapped hand")
  fire=t.find_action(g,"attack",{"type":"fireball"})
  var hp=g._enemy(fire.payload.enemy).hp
- t.check(g.dispatch(fire.id,g.state.version).ok and g._enemy(fire.payload.enemy).hp==hp-fire.payload.damage,"MANUAL actual fireball applies the gesture bonus")
+ t.check(g.dispatch(g.command(fire.payload,g.state.version),g.state.version).ok and g._enemy(fire.payload.enemy).hp==hp-fire.payload.damage,"MANUAL actual fireball applies the gesture bonus")
  var palm=g._install_template("fine_belt","palm",4,10,false,"fixture")
  fire=t.find_action(g,"attack",{"type":"fireball"})
  t.check(not palm.is_empty() and g.hand_cast_reason()!="" and fire.payload.damage==g.B.FIREBALL,"MANUAL free fingers without a free palm do not qualify")
@@ -390,7 +390,7 @@ static func combat(t) -> void:
  var energy=g.state.energy
  t.check(t.action(g,"card",{"uid":card.uid,"target":"self","free":false}).ok and g.state.energy==energy+3 and g.state.mana==40,"RELIC actual fixed mana exchange triggers earring as well as card energy")
  var before=JSON.stringify(g.state)
- t.check(not g.dispatch("missing",g.state.version).ok and JSON.stringify(g.state)==before,"RELIC invalid command grants no resources or progress")
+ t.check(not g.dispatch(g.command({"kind":"card","uid":"missing"},g.state.version),g.state.version).ok and JSON.stringify(g.state)==before,"RELIC invalid command grants no resources or progress")
  for phase in ["map","travel","event","inspection"]:
   g.state.phase=phase;g.RelicEffects.mana_lost(g,40)
  t.check(g.state.combat.mana_spent==10 and g.state.energy==energy+3,"RELIC non-card phases never accumulate mana loss")

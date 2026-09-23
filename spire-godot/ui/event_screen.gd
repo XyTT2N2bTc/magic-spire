@@ -84,7 +84,7 @@ static func selector_button(ui, parent: Node, id: String, label: String, kind: S
 
 static func action(ui, parent: Node, c: Dictionary, version: int=-1, show_detail: bool=true) -> Button:
  var fee=(" · %s能量" % c.cost if c.cost>0 else "")+(" · %s魔力" % c.mana if c.mana>0 else "")
- var button=ui._button(c.label+fee,func():ui._submit(c,version),ui.RED if c.risk!="" else ui.GOLD)
+ var button=ui._button(c.label+fee,func():ui.command_router.emit(String(c.payload.get("kind","")),c,version),ui.RED if c.risk!="" else ui.GOLD)
  button.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;button.custom_minimum_size.y=42;button.disabled=not c.valid
  parent.add_child(button);ui.candidate_buttons[c.id]=button
  var secondary_reason=not c.valid and c.get("reason_surface","")=="secondary"
@@ -115,7 +115,7 @@ static func drawer(ui) -> void:
   var selected={} if matches.is_empty() else matches[0].selected
   if selection.kind=="card":
    var type=selected.type if not selected.is_empty() else c.payload.type
-   var face=ui._display_card(type,tile,func():ui._submit(c,selection.version),"event_"+c.id,Vector2(216,286))
+   var face=ui._display_card(type,tile,func():ui.command_router.emit(String(c.payload.get("kind","")),c,selection.version),"event_"+c.id,Vector2(216,286))
    face.disabled=not c.valid;face.set_meta("physical_uid",selected.get("id",""));ui.candidate_buttons[c.id]=face
    tile.add_child(ui._label(c.label,16,ui.GOLD))
    if shared_detail=="" or not c.valid: tile.add_child(ui._label(c.detail if c.valid else c.reason,14,ui.MUTED if c.valid else ui.RED))
@@ -182,7 +182,7 @@ static func multi_restraint_selector(ui, content: VBoxContainer, grid: GridConta
     if not candidates.is_empty(): matched=candidates[0]
     break
  var confirm_action=func():
-  if not matched.is_empty(): ui._submit(matched,selection.version)
+  if not matched.is_empty(): ui.command_router.emit(String(matched.payload.get("kind","")),matched,selection.version)
  var confirm=ui._button("解除所选拘束具",confirm_action,ui.GOLD)
  confirm.name="EventConfirmSelection";confirm.disabled=matched.is_empty() or not matched.valid;content.add_child(confirm)
  if not matched.is_empty(): ui.candidate_buttons[matched.id]=confirm

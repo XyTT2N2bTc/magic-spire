@@ -18,7 +18,7 @@ func check(ok: bool, message: String) -> void:
 
 func action(g, kind: String, extra: Dictionary = {}) -> Dictionary:
  var c=find_action(g,kind,extra,true)
- if c.valid: return g.dispatch(c.id,g.state.version)
+ if c.valid: return g.dispatch(g.command(c.payload,g.state.version),g.state.version)
  return {"ok":false, "error":"测试没有找到动作：" + kind}
 
 func seed_values(id: String) -> Array:
@@ -81,10 +81,10 @@ func _core_cases() -> void:
  g.get_view()
  g.candidates()
  check(JSON.stringify(g.state) == before, "TC-REPLAY-0001 previews do not mutate")
- check(not g.dispatch("not-real", g.state.version).ok, "TC-CORE-0002 reject forged candidate")
+ check(not g.dispatch(g.command({"kind":"card","uid":"not-real"},g.state.version),g.state.version).ok, "TC-CORE-0002 reject forged candidate")
  check(JSON.stringify(g.state) == before, "TC-CORE-0002 rejection atomic")
  var c = g.candidates()[0]
- check(not g.dispatch(c.id, g.state.version - 1).ok, "TC-CORE-0003 reject stale version")
+ check(not g.dispatch(g.command(c.payload,g.state.version - 1),g.state.version - 1).ok, "TC-CORE-0003 reject stale version")
  check(JSON.stringify(g.state) == before, "TC-CORE-0003 stale unchanged")
  check(g.tier(4.0,10.0) == 1 and g.tier(8.0,10.0) == 2, "TC-RESTRAINT-0001 thresholds")
  check(is_equal_approx(g.lower_durability(9.0,10.0),6.0), "TC-RESTRAINT-0002 proportional downgrade")
@@ -196,7 +196,7 @@ func _more_tests() -> void:
  var unavailable=find_action(g,"card",{"uid":card.uid,"slot":"eyes"})
  var before=JSON.stringify(g.state)
  check(not unavailable.valid and not unavailable.payload.free,"TC-CARD-0003 no route does not mean free")
- check(not g.dispatch(unavailable.id,g.state.version).ok and JSON.stringify(g.state)==before,"TC-CARD-0003 disabled rejection atomic")
+ check(not g.dispatch(g.command(unavailable.payload,g.state.version),g.state.version).ok and JSON.stringify(g.state)==before,"TC-CARD-0003 disabled rejection atomic")
  check(g.escape_preview(e,"slip",5).reason=="","TC-CARD-0003 eyes allow slip")
  g.add_fixture("mouth",4)
  card=hand_card(g,"ease")
@@ -350,7 +350,7 @@ func _rest_tests() -> void:
  var tool_card=hand_card(g,"strain")
  var tool_action=find_action(g,"card",{"uid":tool_card.uid,"target":target.id})
  var card_damage=tool_action.payload.preview.damage
- check(g.dispatch(tool_action.id,g.state.version).ok,"TOOL installed cut requires a card")
+ check(g.dispatch(g.command(tool_action.payload,g.state.version),g.state.version).ok,"TOOL installed cut requires a card")
  check(is_equal_approx(g._equipment(target.id).durability,10-card_damage-5) and g._equipment(target.id).locked and g._item(item.id).uses==2 and g.state.energy==1,"TOOL fixed bonus ignores lock and tightness")
  tool_card=hand_card(g,"strain")
  check(action(g,"card",{"uid":tool_card.uid,"target":target.id}).ok and g._equipment(target.id).is_empty(),"TOOL next card removes target")
@@ -467,7 +467,7 @@ func finish_room(g) -> void:
    var next=preload("res://tests/route_driver.gd").event_action(g.candidates())
    check(not next.is_empty(),"ROUTE event has an available step, including events without refusal")
    if next.is_empty(): break
-   check(g.dispatch(next.id,g.state.version).ok,"ROUTE submits the event's real step and cost")
+   check(g.dispatch(g.command(next.payload,g.state.version),g.state.version).ok,"ROUTE submits the event's real step and cost")
   check(g.state.phase!="event","ROUTE event resolves before travel")
  var guard=0
  while g.state.phase=="battle" and guard<30:
@@ -480,19 +480,19 @@ func finish_room(g) -> void:
    if attack.is_empty():
     check(action(g,"end").ok,"ROUTE exhausted usable attacks advance a real turn even with energy left")
     continue
-   check(g.dispatch(attack.id,g.state.version).ok,"ROUTE actual attack defeats persistent enemy fixture")
+   check(g.dispatch(g.command(attack.payload,g.state.version),g.state.version).ok,"ROUTE actual attack defeats persistent enemy fixture")
   else: action(g,"end")
  if g.state.phase=="reward":
   for category in ["item","relic"]:
    var pickup=find_action(g,"reward",{"category":category},true)
-   if pickup.has("id"): check(g.dispatch(pickup.id,g.state.version).ok,"ROUTE collects dropped loot through its real reward candidate")
+   if pickup.has("id"): check(g.dispatch(g.command(pickup.payload,g.state.version),g.state.version).ok,"ROUTE collects dropped loot through its real reward candidate")
   if not g.state.relic_bundle.is_empty():
    check(action(g,"relic_bundle",{"op":"finish"}).ok,"ROUTE resolves nested relic choices before continuing the parent reward")
   check(action(g,"reward",{"type":"skip"}).ok,"ROUTE continues the parent reward through its real command")
  for i in range(20):
   var preparation=preload("res://tests/route_driver.gd").prepare_action(g)
   if preparation.is_empty(): break
-  check(g.dispatch(preparation.id,g.state.version).ok,"ROUTE uses real preparation to clear mouth for later encounters")
+  check(g.dispatch(g.command(preparation.payload,g.state.version),g.state.version).ok,"ROUTE uses real preparation to clear mouth for later encounters")
  if g.state.phase=="prepare": action(g,"finish_prepare")
  finish_packing(g)
 
@@ -501,7 +501,7 @@ func finish_packing(g) -> void:
   var choice=preload("res://tests/route_driver.gd").packing_action(g)
   check(not choice.is_empty(),"ROUTE packing has a legal next action")
   if choice.is_empty(): return
-  var result=g.dispatch(choice.id,g.state.version)
+  var result=g.dispatch(g.command(choice.payload,g.state.version),g.state.version)
   check(result.ok,"ROUTE discards excess drops through the real packing action" if choice.payload.kind=="item_discard" else "ROUTE completes actual item packing before travel")
   if not result.ok: return
 
@@ -523,7 +523,7 @@ func _architecture_tests() -> void:
  strike.payload.damage=999
  strike.cost=0
  var hp=g._enemy("enemy_1").hp
- check(g.dispatch(strike.id,g.state.version).ok and is_equal_approx(g._enemy("enemy_1").hp,hp-damage),"VIEW modified display payload cannot override committed damage")
+ check(g.dispatch(g.command(strike.payload,g.state.version),g.state.version).ok and is_equal_approx(g._enemy("enemy_1").hp,hp-damage),"VIEW modified display payload cannot override committed damage")
  check(g.state.energy==2,"VIEW modified display cost cannot override resource charge")
  for phase in ["battle","prepare","rest"]:
   g=Game.new(42)
