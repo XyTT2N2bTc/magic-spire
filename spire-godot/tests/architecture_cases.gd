@@ -357,6 +357,8 @@ static func run(t) -> void:
  index_entry_parity(t)
  index_self_check_falls_back(t)
  copy_projection_masked_baseline(t)
+ single_eligibility_implementation(t)
+ behavior_baseline_equivalence(t)
  copy_single_entry_matches_projection(t)
  copy_route_bytes_unchanged(t)
  var images=preload("res://data/equipment_images.gd")
@@ -1161,6 +1163,300 @@ static func copy_candidate_detail_on_demand(t) -> void:
   played+=1
   break
  t.check(played==1 and g.state!=before,"COPY scenario 5 write path unaffected by on-demand detail")
+
+# docs/spec/candidate-removal.md §5 G6（批 R1）：行为基线等价。切片开始时用未改源码复算 26 个夹具单元
+# （0／12／26／44 件 × 战斗／整备／休息／商店／事件／监狱＋豆包接管，同种子 42）并逐路径比对通过
+# （1508 条路径，首个差异＝无；全量值与逐字段比对器在批 R1 的 build 目录 oracle 内，用完删除）。
+# 这里保留冻结的单元级记录：键集合必须与冻结路径逐一相符（R1 的 mask 为空），命名路径逐字段相等；
+# 不一致以复算值为准并记录，不得改基线迁就实现。
+const R1_RECORD_PATHS=["composites","energy","equipment","first_turn","first_turn_locked","first_turn_name","fixture","flask_mana","hand","items","links","logs","mana","mana_max","order","overloaded","phase","pieces","pieces_ok","post_phase","post_version","posture","pressure","reject_forged","reject_invalid","reject_stale","relics","rng","rng_total","round","rows","rows_labels","rows_payloads","rows_valid","rows_verdicts","snapshot","special","submit_checkpoint","submit_error","submit_keys","submit_kind","submit_ok","takeover_automated","takeover_blocked","takeover_reason","takeover_step","temporary_mana","tick","validate","validate_after","version","view","view_available","view_candidates","view_card_texts","view_hand","wall","wall_distance"]
+const R1_BASELINE={
+ "battle:0":{"rows_verdicts":"aedcb0675b24df473a98c3a28bc3f6bf","view":"f40ab34c6bca484c276364892c0561e1","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"3be5dc45ec07b61690681faf06edd849","rng":"69fe2877535b0ddfe95879adcd14cdff","record":"16127b9ab6e5a976fa557e722adbeab4"},
+ "battle:12":{"rows_verdicts":"ab4ece314aa036180ea32a705ed34226","view":"2f24f5b5a20edfeea42f09610e9fc2cb","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"c7b88242b8ba3611a5d09ce33bead959","rng":"69fe2877535b0ddfe95879adcd14cdff","record":"74e1aa14d69f27d7a0ddebe2f9e76496"},
+ "battle:26":{"rows_verdicts":"d80309647df35bef7c86728c26ca19f9","view":"fd85092b195a8ca5fccf71b52edef276","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"07d0cbf0effe193f53bdc6ec017d5a5f","rng":"1ffe4fa2490ef1b5801a9be4d5179a86","record":"22d4201ddaf1e807ede5cc9c1055fc13"},
+ "battle:44":{"rows_verdicts":"279b0a0a462ed16cd1bd788ee5a8f3b8","view":"acfb943a7453d9f25544377e4e5efccf","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"794b6db532fadb6182696a45026271fc","rng":"2ca204b40493eae8d1bcadd47154f364","record":"638bc2d08c601245ac16f7b88aae787e"},
+ "event:0":{"rows_verdicts":"f9d94b13926d4c2d9baaf1f685a4aa84","view":"fda761dc8558525830858f8353130b8a","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"魔瓶中没有魔力。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"6941a4d704f61d440f9396731c702673","rng":"6b6206a8bd7b425112c7c27da18cb61d","record":"d34b2844f6ee65f09dbbb093c06b3746"},
+ "event:12":{"rows_verdicts":"f9d94b13926d4c2d9baaf1f685a4aa84","view":"f8be00fe6579c23c59deb1819e059193","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"魔瓶中没有魔力。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"48c70955de62dbdbe7a1f88d4837338d","rng":"6b6206a8bd7b425112c7c27da18cb61d","record":"32f02ac38446c212f02a9838eea67c56"},
+ "event:26":{"rows_verdicts":"f9d94b13926d4c2d9baaf1f685a4aa84","view":"e4ec077ca048e394f281798705aaadf7","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"魔瓶中没有魔力。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"b33a156316591c3f6101056cdd4b7233","rng":"6b6206a8bd7b425112c7c27da18cb61d","record":"ffa20fc918c7f448319a49e91028b38a"},
+ "event:44":{"rows_verdicts":"f9d94b13926d4c2d9baaf1f685a4aa84","view":"2df49f7ff9977701d6caa9b87b18d016","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"魔瓶中没有魔力。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"ae47e07c5a43643445e5cc35979c265c","rng":"6b6206a8bd7b425112c7c27da18cb61d","record":"2b2306c02ec83bafaaf21d643d043f37"},
+ "prepare:0":{"rows_verdicts":"f3fffd5305b9d3882a7aab7fac4b396d","view":"b04553a3051d7c17d079c61705152acd","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"4fa1aed31afb5b15e68b3b8560f9a8d6","rng":"72f017d8c1a02a0462125f9f95b1234c","record":"9daeb8fd51a7baa6022510c3940eb1d4"},
+ "prepare:12":{"rows_verdicts":"4d73f39f03b388c679978d7858e655b0","view":"776d14bb68301527e513f3b113f7574e","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"d4d51b44474e4112743fec3f75b68490","rng":"72f017d8c1a02a0462125f9f95b1234c","record":"d0b66dd5736aa87e04800eb892a75d44"},
+ "prepare:26":{"rows_verdicts":"7d5172a58e1d157d12f858bf076c4555","view":"7fc74ecf66ea0b03ee6ef56d89c61d45","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"ac79ad945997d2be6911626e0a7af398","rng":"6466fd9d067695dfae7e509914f46446","record":"19af8460542440aa9daf85810012dfe2"},
+ "prepare:44":{"rows_verdicts":"f4cd97a736dfeb28659f1a39fe37be16","view":"75eaa97b00bad2eba8683d36760c5606","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"301d505530d6bb304fd9ccec23f99f0f","rng":"ee7475a559e2df34597d8af1a5faf748","record":"3a3306f254ba8ecbc89ed1df4959c90a"},
+ "prison:0":{"rows_verdicts":"dad9bd2cbe21b0962de7bc47c490287f","view":"682cc4c3be2baf1e423e184a47a8202b","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"243652b42d36a11b64a10806cc045956","rng":"c2ac01a230cee954c7f8af2f9320abd5","record":"56e1c4f7e3bd34642d9275f13a566629"},
+ "prison:12":{"rows_verdicts":"9e1405cbec45c720cae6fc3ecc883ef7","view":"433a9b89c0e5ea2bdedd48d28ef472fa","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"姿态必须依次经过坐姿，不能直接跨越。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"459628f527d12c367a827b19f27f03ba","rng":"c2ac01a230cee954c7f8af2f9320abd5","record":"c499bb613311c32e08be76affb5c92ae"},
+ "prison:26":{"rows_verdicts":"9c28aac2d94f44ae9f848a0d386e9b3b","view":"649b085814a6478e5bb16816db90d183","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"姿态必须依次经过坐姿，不能直接跨越。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"d53f72b58f580160887a72cc1ced3bd9","rng":"c2ac01a230cee954c7f8af2f9320abd5","record":"d812c759711e3c5c185d7e174cf7ea60"},
+ "prison:44":{"rows_verdicts":"baf64cc9644fe759ebdf8d8115e3dcc5","view":"11b46e6be1dadb832d4d60a64fe5c420","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"姿态必须依次经过坐姿，不能直接跨越。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"2dfc3408c3ae6554634760160e31d1d8","rng":"c2ac01a230cee954c7f8af2f9320abd5","record":"98bbb26eae5eb1ccfab0b12b20f0f521"},
+ "rest:0":{"rows_verdicts":"10adfad99c876ae2c41ef8bb672ab87d","view":"e6343a15027daabccb0b88cd609b24af","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"06d9621d27e89b558e5302c62738bba7","rng":"696657cdcc914fe3b6ce575b02d4a695","record":"b122e6783d6903ca6d37b3c93cf21609"},
+ "rest:12":{"rows_verdicts":"d130f92fbba25c6f8dca35f7f9112cf3","view":"ee9a33f39a28178c9eb15db3e089b737","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"15d4c0c5f7f9f325c3b6497a41e31bbb","rng":"696657cdcc914fe3b6ce575b02d4a695","record":"d64b444e352471ac9dac5fe97078860b"},
+ "rest:26":{"rows_verdicts":"152227659247381af3fe41aeee7d8ab6","view":"fbf1773fa2d292dccee41dcb74a25326","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"7a3cdf6e13641854d5080096106499d1","rng":"1d20f6070f294fadc1355c7c231c0b82","record":"7b4586dffe44e1e353bee3b6cebff6e5"},
+ "rest:44":{"rows_verdicts":"4e249f0c5cbe016cdfb6bb1fd1688494","view":"619cc695890d18a531a5d3dfa3080032","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"已经贴墙。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"c1d37cbf00cce35e2ed83c2df3b075d6","rng":"89896d136942b5f3cd60897741ce77c8","record":"3609c6dc39c4c8c0aa66589a484a1a76"},
+ "shop:0":{"rows_verdicts":"1ecdd866c95dcbcb0c5d8a5ee9140abf","view":"940ab425952944b7678757b7a496bf0d","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"需要20魔瓶魔力，当前只有0。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"7c895914d49611530754388f21cb7ba2","rng":"69fe2877535b0ddfe95879adcd14cdff","record":"578383355a79606b7b8ba20a3c27cd56"},
+ "shop:12":{"rows_verdicts":"333f9a3ab9b7bb09839d51ae8769c7f4","view":"e1f8a873c4e68ea6e12295cfa3949d84","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"需要20魔瓶魔力，当前只有0。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"f3511dfe416a54c4427b64e1f9ffe891","rng":"69fe2877535b0ddfe95879adcd14cdff","record":"8566ff61020b53c9e68dacfb94d56d2f"},
+ "shop:26":{"rows_verdicts":"fff70a1e263c15804273295bdb1a6421","view":"774e2162ff44ccc35a9ffbed381425db","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"需要20魔瓶魔力，当前只有0。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"d772baf528476018b5ff7e61359d081e","rng":"69fe2877535b0ddfe95879adcd14cdff","record":"2fc647ff1086ea3b084fa04aaa24f6b6"},
+ "shop:44":{"rows_verdicts":"c3db8cff9e34afefd64dc5c68772076f","view":"7a91e679e37270f829807b29341f00c1","first_turn":"44136fa355b3678a1146ad16f7e8649e","takeover_blocked":"0","reject_invalid":"需要20魔瓶魔力，当前只有0。","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"c1ed09ae0c65d0f7a9428436069d78a3","rng":"69fe2877535b0ddfe95879adcd14cdff","record":"9872ca3dfdb8cfcda3dea4e7e91dd1f7"},
+ "takeover:0":{"rows_verdicts":"8b88015972a0cb75906b9f82708ff9d9","view":"ac82b09ee0f2d09cbaf6af0681cfbeb9","first_turn":"1145a045952e2ed3581845b472d18e4c","takeover_blocked":"79","reject_invalid":"豆包接管中","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"df10e42ed0a5025904819f7305927378","rng":"40b94bbe37133bccfba7f40817336145","record":"b8667b9c010c2f63f30d41822f6dad5e"},
+ "takeover:12":{"rows_verdicts":"10af2bc0810bcd45acc17a3ee7bc5bdb","view":"cfb86e34755a5cba0cf0257a58413acd","first_turn":"78e416224ca7952eaab23886199830ab","takeover_blocked":"91","reject_invalid":"豆包接管中","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"3588a272324b5f9b7253b0cabf28cb13","rng":"40b94bbe37133bccfba7f40817336145","record":"eeab5ffe0658d190d5eaec674e1cc425"},
+}
+# R1 不删除任何记录键（候选行／view.candidates／提交身份 id 的删除在批 R5 才发生，届时 mask 显式声明）。
+const R1_MASK=[]
+
+const R1_TAKEOVER_COUNTS=[0,12]
+const R1_COUNTS=[0,12,26,44]
+const R1_PHASES=["battle","prepare","rest","shop","event","prison","takeover"]
+const R1_TEMPLATES=["","rope","belt","tape","cable_tie","fine_belt","eye_cloth","eye_tape","mouth_tape","gag"]
+
+static func r1_cells() -> Array:
+ var result=[]
+ for phase in R1_PHASES:
+  for count in R1_COUNTS:
+   if phase=="takeover" and count not in R1_TAKEOVER_COUNTS: continue
+   result.append([phase,count])
+ return result
+
+static func r1_install_equipment(g, count: int) -> void:
+ if count>=12:
+  for slot in g.B.SLOTS: g.add_fixture(slot,7,10)
+ if count>=26:
+  for slot in g.B.SLOTS: g.add_fixture(slot,7,10)
+  for slot in ["upper_arm","wrist","thigh"]: g.add_fixture(slot,7,10)
+ for layer in range(0,4):
+  for slot in g.B.SLOTS:
+   for template in R1_TEMPLATES:
+    if g.physical_pieces().size()>=count: return
+    g.add_fixture(slot,7,10,false,layer,template)
+
+static func r1_end_turn(g) -> void:
+ for c in g.candidates():
+  if c.payload.kind=="end" and c.valid:
+   g.dispatch(c.id,g.state.version)
+   return
+
+static func r1_build(phase: String, count: int):
+ var g=null
+ match phase:
+  "battle":
+   g=Game.new(42)
+  "takeover":
+   g=GameCore.new(42,true,"doubao")
+  "prepare":
+   g=Game.new(42)
+   var guard=0
+   while g.state.phase=="battle" and guard<12:
+    guard+=1
+    r1_end_turn(g)
+   for c in g.candidates():
+    if c.payload.kind=="reward" and c.payload.get("type","")=="skip" and c.valid:
+     g.dispatch(c.id,g.state.version)
+     break
+  "rest":
+   g=GameCore.new(42,true,"equipment")
+  "shop":
+   g=GameCore.new(42,true,"shop")
+  "event":
+   g=GameCore.new(42,true,"abandoned_storeroom")
+  "prison":
+   g=GameCore.new(42,true,"prison_test")
+ g.state.equipment.clear()
+ g.state.links.clear()
+ g.state.composites.clear()
+ if g.state.capture is Dictionary and g.state.capture.has("retained"):
+  g.state.capture.retained=[]
+  g.state.capture.baseline=[]
+  g.state.capture.links=[]
+ if count>0: r1_install_equipment(g,count)
+ return g
+
+static func r1_digest(value: String) -> String:
+ return value.sha256_text().substr(0,32)
+
+# 记录面与批 R1 oracle 的同名记录一致：标量转字符串、大块取摘要、路径名固定。
+static func r1_record(g, phase: String, count: int) -> Dictionary:
+ var out={}
+ out["fixture"]=phase+":"+str(count)
+ out["phase"]=str(g.state.phase)
+ out["pieces"]=str(g.physical_pieces().size())
+ out["pieces_ok"]=str(g.physical_pieces().size()==count and g.state.equipment.size()==count)
+ out["equipment"]=str(g.state.equipment.size())
+ out["links"]=str(g.state.links.size())
+ out["composites"]=str(g.state.composites.size())
+ out["special"]=str(g.state.special_equipment.size())
+ out["validate"]=str(g.validate())
+ out["version"]=str(g.state.version)
+ out["energy"]=str(g.state.energy)
+ out["mana"]=str(g.state.mana)
+ out["temporary_mana"]=str(g.state.temporary_mana)
+ out["mana_max"]=str(g.state.mana_max)
+ out["flask_mana"]=str(g.state.flask_mana)
+ out["pressure"]=str(g.state.pressure)
+ out["overloaded"]=str(g.state.overloaded)
+ out["posture"]=str(g.state.posture)
+ out["wall"]=str(g.state.wall)
+ out["wall_distance"]=str(g.state.wall_distance)
+ out["order"]=str(g.state.order)
+ out["round"]=str(g.state.round)
+ out["tick"]=str(g.state.tick)
+ out["hand"]=str(g.state.hand.size())
+ out["items"]=str(g.state.items.size())
+ out["relics"]=str(g.state.relics.size())
+ var rows=g.candidates()
+ var view=g.get_view()
+ out["rows"]=str(rows.size())
+ out["rows_valid"]=str(rows.filter(func(c):return c.valid).size())
+ out["rows_verdicts"]=r1_digest(JSON.stringify(rows.map(func(c):return [c.id,c.valid,c.reason,c.risk,c.cost,c.mana,c.mana_payment])))
+ out["rows_payloads"]=r1_digest(JSON.stringify(rows.map(func(c):return c.payload)))
+ out["rows_labels"]=r1_digest(JSON.stringify(rows.map(func(c):return c.label)))
+ out["view"]=r1_digest(JSON.stringify(view))
+ out["view_candidates"]=str(view.candidates.size())
+ out["view_card_texts"]=str(view.card_texts.size())
+ out["view_hand"]=str(view.hand.size())
+ out["view_available"]=r1_digest(JSON.stringify(view.hand.map(func(card):return [card.uid,card.availability])))
+ out["first_turn"]=r1_digest(JSON.stringify(view.get("first_turn_control",{})))
+ out["first_turn_name"]=str(view.get("first_turn_control",{}).get("name",""))
+ out["first_turn_locked"]=str(view.get("first_turn_control",{}).get("locked",false))
+ var blocked=rows.filter(func(c):return c.reason=="豆包接管中")
+ out["takeover_blocked"]=str(blocked.size())
+ out["takeover_reason"]="豆包接管中" if blocked.size()>0 else ""
+ var automated=rows.filter(func(c):return c.get("automated",false))
+ out["takeover_automated"]=str(automated.size())
+ out["takeover_step"]=r1_digest(JSON.stringify(automated.map(func(c):return c.payload)))
+ var version=int(g.state.version)
+ out["reject_forged"]=str(g.dispatch("forged_id",version).get("error",""))
+ var first_invalid={}
+ for c in rows:
+  if not c.valid: first_invalid=c;break
+ out["reject_invalid"]="<none>" if first_invalid.is_empty() else str(g.dispatch(first_invalid.id,version).get("error",""))
+ out["reject_stale"]="<none>" if rows.is_empty() else str(g.dispatch(rows[0].id,version-1).get("error",""))
+ var usable={}
+ for c in rows:
+  if c.valid: usable=c;break
+ if usable.is_empty():
+  out["submit_ok"]="<none>"
+  out["submit_error"]="<none>"
+  out["submit_kind"]="<none>"
+  out["submit_keys"]="<none>"
+  out["submit_checkpoint"]="<none>"
+ else:
+  var result=g.dispatch(usable.id,g.state.version)
+  out["submit_ok"]=str(result.ok)
+  out["submit_error"]=str(result.get("error",""))
+  out["submit_kind"]=str(usable.payload.get("kind",""))
+  out["submit_keys"]=r1_digest(JSON.stringify(result.keys()))
+  out["submit_checkpoint"]=str(result.get("checkpoint",""))
+ out["post_phase"]=str(g.state.phase)
+ out["post_version"]=str(g.state.version)
+ out["snapshot"]=r1_digest(JSON.stringify(g.export_snapshot()))
+ out["rng"]=r1_digest(JSON.stringify(g.state.rng))
+ out["rng_total"]=str(g.state.rng.values().reduce(func(a,b):return int(a)+int(b),0))
+ out["logs"]=str(g.state.logs.size())
+ out["validate_after"]=str(g.validate())
+ return out
+
+static func r1_record_digest(record: Dictionary) -> String:
+ var paths=record.keys()
+ paths.sort()
+ var lines=[]
+ for path in paths: lines.append(str(path)+"="+str(record[path]))
+ return r1_digest("\n".join(lines))
+
+static func behavior_baseline_equivalence(t) -> void:
+ var frozen_cells=R1_BASELINE.keys()
+ frozen_cells.sort()
+ var cells=r1_cells()
+ var expected=cells.map(func(cell):return "%s:%d" % [cell[0],cell[1]])
+ expected.sort()
+ t.check(expected==frozen_cells,"G6 behavior_baseline_equivalence: the fixture matrix matches the frozen baseline cells: "+str(expected)+" vs "+str(frozen_cells))
+ var declared=R1_RECORD_PATHS.duplicate()
+ declared.sort()
+ var path_problems=[]
+ var value_problems=[]
+ for cell in cells:
+  var phase=String(cell[0])
+  var count=int(cell[1])
+  var key="%s:%d" % [phase,count]
+  var record=r1_record(r1_build(phase,count),phase,count)
+  var paths=record.keys()
+  paths.sort()
+  if paths!=declared:
+   var extra=paths.filter(func(path):return not declared.has(path))
+   var missing=declared.filter(func(path):return not paths.has(path))
+   path_problems.append(key+" extra="+str(extra)+" missing="+str(missing))
+   continue
+  var frozen=R1_BASELINE.get(key,{})
+  for path in frozen:
+   if path=="record": continue
+   var current=str(record[path])
+   if current!=frozen[path]: value_problems.append(key+"."+path+" baseline="+frozen[path]+" current="+current)
+  var record_digest=r1_record_digest(record)
+  if record_digest!=frozen.get("record",""): value_problems.append(key+".<record> baseline="+str(frozen.get("record",""))+" current="+record_digest)
+  if str(record.pieces_ok)!="true": value_problems.append(key+".pieces_ok current="+str(record.pieces_ok))
+ var undeclared=R1_MASK.filter(func(path):return not declared.has(path))
+ t.check(path_problems.is_empty() and undeclared.is_empty(),"G6 behavior_baseline_equivalence: every cell keeps exactly the frozen record paths and the declared mask is empty: "+str(path_problems.slice(0,3)))
+ value_problems.sort()
+ t.check(value_problems.is_empty(),"G6 behavior_baseline_equivalence: every field equals the unmodified-source baseline; first difference "+str(value_problems.slice(0,3)))
+
+# docs/spec/candidate-removal.md §5 G4（批 R1）：写 valid／reason 的位置只有唯一判定一处。
+# 扫描面＝core/ 与 ui/ 的源码文本；写点＝字段赋值（.valid=／.reason=）与非读取式字典键（"valid":／"reason":）；
+# 读取式（x.valid／x.reason 作为值）不计。判定落点＝core/game.gd 的 eligibility／eligibility_takeover。
+const VERDICT_PRODUCERS={"core/game.gd":["eligibility","eligibility_takeover"]}
+
+static func verdict_write_scan() -> Dictionary:
+ var valid=RegEx.new()
+ valid.compile("(\\.valid\\s*=[^=])|(\"valid\"\\s*:\\s*(?!\\w+\\.valid))")
+ var reason=RegEx.new()
+ reason.compile("(\\.reason\\s*=[^=])|(\"reason\"\\s*:\\s*(?!\\w+\\.reason))")
+ var declaration=RegEx.new()
+ declaration.compile("^\\s*(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)")
+ var hits=[]
+ var functions={}
+ for root in ["res://core","res://ui"]:
+  for path in script_files(root):
+   var handle=FileAccess.open(path,FileAccess.READ)
+   if handle==null: continue
+   var lines=handle.get_as_text().split("\n")
+   var current="<file>"
+   for index in range(lines.size()):
+    var code=String(lines[index]).split("#")[0]
+    var declared=declaration.search(code)
+    if declared!=null: current=declared.get_string(1)
+    var writes_valid=valid.search(code)!=null
+    var writes_reason=reason.search(code)!=null
+    if not writes_valid and not writes_reason: continue
+    var relative=path.trim_prefix("res://")
+    hits.append({"file":relative,"function":current,"line":index+1,"valid":writes_valid,"reason":writes_reason,"text":code.strip_edges()})
+    if not functions.has(relative): functions[relative]={}
+    var row=functions[relative].get(current,{"valid":false,"reason":false})
+    row.valid=row.valid or writes_valid
+    row.reason=row.reason or writes_reason
+    functions[relative][current]=row
+ return {"hits":hits,"functions":functions}
+
+static func verdict_site(hit: Dictionary) -> String:
+ return String(hit.file)+"::"+String(hit.function)+":"+str(hit.line)+" "+String(hit.text)
+
+static func single_eligibility_implementation(t) -> void:
+ var scan=verdict_write_scan()
+ # 1) valid 键只由判定产出：其它位置的写点即红（第二份判定／接管路径自写）。
+ var stray_valid=scan.hits.filter(func(hit):return hit.valid and not VERDICT_PRODUCERS.get(hit.file,[]).has(hit.function))
+ t.check(stray_valid.is_empty(),"G4 single_eligibility_implementation: valid is written only by the declared determination: "+str(stray_valid.map(func(hit):return verdict_site(hit))))
+ # 2) 判定落点自身在位，且两个入口都产出 valid 与 reason（删掉判定即红）。
+ var missing_production=[]
+ for file in VERDICT_PRODUCERS:
+  for function in VERDICT_PRODUCERS[file]:
+   var row=scan.functions.get(file,{}).get(function,{})
+   if not row.get("valid",false) or not row.get("reason",false): missing_production.append(file+"::"+function)
+ t.check(missing_production.is_empty(),"G4 single_eligibility_implementation: every declared determination entry produces both valid and reason: "+str(missing_production))
+ # 3) 同一函数同时产出 valid 与 reason 的第二实现即红。
+ var second=[]
+ for file in scan.functions:
+  for function in scan.functions[file]:
+   var row=scan.functions[file][function]
+   if row.valid and row.reason and not VERDICT_PRODUCERS.get(file,[]).has(function): second.append(file+"::"+function)
+ t.check(second.is_empty(),"G4 single_eligibility_implementation: no second verdict producer: "+str(second))
+ # 4) UI 与接管路径所在文件不得自写判定（销 DUP2）。
+ var ui_writes=scan.hits.filter(func(hit):return String(hit.file).begins_with("ui/"))
+ var takeover_writes=scan.hits.filter(func(hit):return String(hit.file)=="core/first_turn_control.gd")
+ t.check(ui_writes.is_empty() and takeover_writes.is_empty(),"G4 single_eligibility_implementation: ui/ and the takeover path only consume the determination: ui="+str(ui_writes.map(func(hit):return verdict_site(hit)))+" takeover="+str(takeover_writes.map(func(hit):return verdict_site(hit))))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.candidates():

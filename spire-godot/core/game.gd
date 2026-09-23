@@ -1903,10 +1903,11 @@ func _pay_mana(payment: Dictionary) -> void:
  for field in payment: state[field]-=payment[field]
  RelicEffects.mana_lost(self,payment.mana,payment.temporary_mana)
 
-func _candidate(out: Array, payload: Dictionary, label: String, copy, cost: int = 0, mana: float = 0.0, reason: String = "", risk: String = "", group: String = "action") -> void:
- # B3（docs/ondemand-copy.md §1.5）：card 目标候选组不再预生成 detail，显示时经 candidate_detail 现算。
- var on_demand=String(payload.get("kind",""))=="card"
- var detail="" if on_demand else CopyRouter.text(self,copy)
+# 唯一合法性判定（docs/spec/candidate-removal.md §2.1 N4；批 R1 落地，工作名 eligibility）。
+# 全仓唯一产出 valid／reason 的位置：行工厂 _candidate 与接管路径都只消费本函数结果，不再自写判定字段。
+# 输入＝指令形状 payload＋行参数（cost／mana／reason／risk）＋当前状态；分支顺序与文案与抽出前逐字相同。
+# extra_traction 不是行字段，供 detail 组装复用同一次计算。
+func eligibility(payload: Dictionary, cost: int, mana: float, reason: String, risk: String) -> Dictionary:
  if payload.kind=="end" and Character.Expansion.end_reason(self)!="": reason=Character.Expansion.end_reason(self)
  var lock_target=_equipment(payload.get("target",""))
  if Equipment.lock_only(lock_target):
@@ -1932,18 +1933,28 @@ func _candidate(out: Array, payload: Dictionary, label: String, copy, cost: int 
  var balance=state.flask_mana if flask else state.mana
  var required=payment.flask_mana if flask else payment.mana
  if reason == "" and balance < required: reason = "需要%s%s，当前只有%s。" % [number(required),"魔瓶魔力" if flask else "魔力",number(balance)]
- var detail_text="" if on_demand else _candidate_detail(detail,payload,extra_traction,payment)
+ return {"cost":cost,"mana":mana,"mana_payment":payment,"valid":reason=="","reason":reason,"risk":risk,"extra_traction":extra_traction}
+
+# 接管锁定的资格结论（销 DUP2，docs/spec/candidate-removal.md §2.3）：判定内读接管状态，返回与旧实现
+# 逐字相同的文案；未锁定时返回空字典（调用方 merge 后行不变）。接管路径只决定哪一条是本次步骤。
+func eligibility_takeover() -> Dictionary:
+ if not FirstTurnControl.active(self): return {}
+ return {"valid":false,"reason":"豆包接管中"}
+
+func _candidate(out: Array, payload: Dictionary, label: String, copy, cost: int = 0, mana: float = 0.0, reason: String = "", risk: String = "", group: String = "action") -> void:
+ # B3（docs/ondemand-copy.md §1.5）：card 目标候选组不再预生成 detail，显示时经 candidate_detail 现算。
+ var on_demand=String(payload.get("kind",""))=="card"
+ var detail="" if on_demand else CopyRouter.text(self,copy)
+ var verdict=eligibility(payload,cost,mana,reason,risk)
+ var detail_text="" if on_demand else _candidate_detail(detail,payload,int(verdict.extra_traction),verdict.mana_payment)
  var row={}
  row.id=JSON.stringify(payload).sha256_text().substr(0,24)
  row.payload=payload
  row.label=label
  if not on_demand: row.detail=detail_text
- row.cost=cost
- row.mana=mana
- row.mana_payment=payment
- row.valid=reason==""
- row.reason=reason
- row.risk=risk
+ # 行的判定字段整体来自唯一判定（本文件不出现第二处 valid／reason 写点）；extra_traction 只是 detail 输入。
+ row.merge(verdict)
+ row.erase("extra_traction")
  row.group=group
  out.append(row)
 

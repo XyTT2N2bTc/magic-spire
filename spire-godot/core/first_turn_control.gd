@@ -99,10 +99,12 @@ static func select(g, candidates: Array) -> Array:
   selected=finish[0]
  var result=[_tag(selected,d)]
  # Keep the full layout available to the presenter, but only the chosen command can commit.
+ # The blocked verdict comes from the single eligibility determination (docs/spec/candidate-removal.md
+ # DUP2); this file never writes valid／reason itself.
  for c in candidates:
   if c.id==selected.id: continue
   var blocked=c.duplicate(true)
-  blocked.valid=false;blocked.reason="豆包接管中"
+  blocked.merge(g.eligibility_takeover(),true)
   result.append(blocked)
  return result
 
