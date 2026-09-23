@@ -552,6 +552,25 @@ static func breath_control(t) -> void:
  await preload("res://tests/curse_ui_cases.gd").click_card(t,chosen.uid)
  t.check(ui.game.state.exhaust.any(func(x):return x.uid==chosen.uid) and ui.game._equipment(target.id).durability<70 and ui.game.state.energy==1,"BREATH UI equipment drag then hand click completes one formal action")
 
+ # 快捷解除区域选中时的牌面点击（原 A45 分支）：与其他已解析行走同一条改道 —— 先选要消耗的手牌。
+ # 两件拘束具使唯一装备面（A24）不再命中，本块只观测快捷解除分支。
+ ui.restart(42);await t.frames();ui.game._discard_end()
+ var quick=preload("res://ui/quick_release_bar.gd")
+ var quick_target=ui.game.add_fixture("wrist",70,100);ui.game.add_fixture("ankle",70,100)
+ var quick_source=Cards.give(ui.game,"breath_control");var quick_chosen=Cards.give(ui.game,"sensitive");Cards.give(ui.game,"sensitive")
+ ui.render();await t.frames()
+ if ui.card_faces.get(quick_source.uid,false): await t.flip(quick_source.uid)
+ await Click.press(t,ui.find_child("ActionRailToggle",true,false));await t.frames()
+ await Click.press(t,ui.find_child("QuickRelease_region_upper",true,false));await t.frames()
+ await Click.press(t,ui.find_child("QuickRelease_region_upper",true,false));await t.frames()
+ t.check(ui.quick_release_open and ui.quick_release_region=="region_upper" and not ui.show_body and quick.equipment_at(ui,"region_upper").id==quick_target.id,"BREATH UI quick-release fixture holds the wrist target with details closed")
+ var quick_before=ui.game.export_snapshot()
+ await preload("res://tests/curse_ui_cases.gd").click_card(t,quick_source.uid)
+ t.check(ui._selecting_hand() and ui.game.export_snapshot()==quick_before and ui.player_pick_data.target==quick_target.id,"BREATH UI quick-release card click opens native hand selection without payment")
+ if not ui._selecting_hand(): return
+ await preload("res://tests/curse_ui_cases.gd").click_card(t,quick_chosen.uid)
+ t.check(ui.game.state.exhaust.any(func(x):return x.uid==quick_chosen.uid) and ui.game._equipment(quick_target.id).durability<70 and ui.game.state.energy==1 and not ui._selecting_hand(),"BREATH UI quick-release then picked hand click submits once with the chosen card")
+
 static func ready_to_strike(t) -> void:
  var ui=t.ui
  for free in [false,true]:

@@ -36,14 +36,27 @@ static func _battle(host, source: Dictionary, expected_version: int) -> Dictiona
  if source.has("payload"): return _resolved_card(host,source,expected_version)
  return _card_intent(host,source,expected_version)
 
-# 已解析的显示行（原 A1–A39 的提交路径）：提交前只保留改动前的 A40 改道——有效、非自动接管步骤、
-# 带 hand_uid 且非自身目标时先选要消耗的手牌；其余按该行原样装箱（无效行由 dispatch 给出判定 reason）。
+# 已解析的显示行（原 A1–A39 的提交路径）：提交前只保留改动前的 A40 改道（见 _hand_or_box）。
+# 行自身的判定结论（valid／automated）由调用方读出后作为来源事实传入，本文件不写该结论。
 static func _resolved_card(host, source: Dictionary, expected_version: int) -> Dictionary:
- var payload=source.payload
- if bool(source.get("valid",false)) and not bool(source.get("automated",false)) and payload.has("hand_uid") and not bool(payload.get("self_target",false)) and not host.selecting_hand():
+ return _hand_or_box(host,source.payload,bool(source.get("valid",false)),bool(source.get("automated",false)),expected_version)
+
+# 带 hand_uid 的卡牌行的唯一路径（原提交前改道链的 A40 项，R2 收敛时漏在意图链）：行有效、
+# 非自动接管步骤、带 hand_uid 且非自身目标、且未在选择中时先选要消耗的手牌并返回 HANDLED；
+# 其余按该行原样装箱（无效行由 dispatch 给出判定 reason）。条件只此一份。
+# row_valid／row_automated 是行来源的事实，由调用方按来源给出（判定结论的读取，不是第二判定）：
+# 显示行读行自身的结论；意图链的 seam 只在行有效时交出 payload（无效行已由 seam 提示），
+# 且自动接管步骤只经已解析的显示行走本接口（automated 判定不丢失）。
+static func _hand_or_box(host, payload: Dictionary, row_valid: bool, row_automated: bool, expected_version: int) -> Dictionary:
+ if row_valid and not row_automated and payload.has("hand_uid") and not bool(payload.get("self_target",false)) and not host.selecting_hand():
   host.open_hand_selection(payload,expected_version)
   return HANDLED
  return _box(host,payload,expected_version)
+
+# 意图链的已解析行（自由面／快捷解除／唯一装备）：seam 与行查询只在行有效时交出 payload
+# （无效行已提示），故此处按「有效、非自动接管」的来源事实上转改道。
+static func _seam_card(host, payload: Dictionary, expected_version: int) -> Dictionary:
+ return _hand_or_box(host,payload,true,false,expected_version)
 
 # 待解析的卡牌意图（原 A22／A24／A41–A45 的改道链并入此处）：与改动前的解析顺序逐条对齐
 # （手牌选择 → 自身目标 → 单面提示 → 自由面 → 快捷解除 → 唯一装备）。
@@ -63,20 +76,20 @@ static func _card_intent(host, source: Dictionary, expected_version: int) -> Dic
   return _box(host,self_card.payload,expected_version)
  # 单面卡面（点击链）：只有原文提示，没有可提交的形状
  if clicked and host.single_face_notice(uid): return HANDLED
- # 自由面（原 A43／A44 改道）：解析到具体自由部位
+ # 自由面（原 A43／A44 改道）：解析到具体自由部位；该 seam 只在行有效时返回 payload（无效时已提示）
  if host.card_is_free(uid,free):
   var free_card=host.free_card_source(source,expected_version)
   if free_card.is_empty(): return HANDLED
-  return _box(host,free_card,expected_version)
- # 快捷解除（原 A45 改道）：按选中的拘束具区域取行
+  return _seam_card(host,free_card,expected_version)
+ # 快捷解除（原 A45 改道）：按选中的拘束具区域取行；该 seam 同理只在行有效时返回 payload
  if clicked and host.quick_release_open and host.quick_release_region!="":
   var quick=host.quick_release_source(source,expected_version)
   if quick.is_empty(): return HANDLED
-  return _box(host,quick,expected_version)
- # 唯一装备面（原 A24）：该牌只有一处可落点时直接落点
+  return _seam_card(host,quick,expected_version)
+ # 唯一装备面（原 A24）：该牌只有一处可落点时直接落点（带 hand_uid 时先选要消耗的手牌）
  if clicked:
   var single=host.single_restraint_source(uid)
   if not single.is_empty():
-   if bool(single.valid): return _box(host,single.payload,expected_version)
+   if bool(single.valid): return _seam_card(host,single.payload,expected_version)
    host.selected_slot=String(single.payload.get("slot",""))
  return {}
