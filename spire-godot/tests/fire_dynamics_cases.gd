@@ -15,7 +15,7 @@ static func run(t) -> void:
   t.check(is_equal_approx(g.cast_view(g.Cards.cast_profile(g,"fireball")).chance,sample[1]),"DYNAMICS independent addition and upper cap")
  g._install_template("mouth_band","mouth",24.0,24.0,false,"fixture",3,0)
  var view=g.get_view()
- var shot=view.candidates.filter(func(c):return c.payload.kind=="attack" and c.payload.type=="fireball")[0]
+ var shot=view.display_facts.filter(func(c):return c.payload.kind=="attack" and c.payload.type=="fireball")[0]
  t.check(shot.valid and shot.casting.percent=="30%" and shot.casting.formula.contains("倍率之后") and g.cast_view(g.Cards.cast_profile(g,"ease")).chance==0,"DYNAMICS additive term follows zero mouth multiplier; other spells unchanged")
  t.check(play(t,g,"fire_mastery",false).ok and is_equal_approx(g.cast_view(g.Cards.cast_profile(g,"fireball")).chance,0.55),"DYNAMICS body exemption and chance addition coexist")
  t.check(play(t,g,"fire_dynamics",true).ok and g.Cards.spell_power(g,"fireball").all_enemies,"DYNAMICS both faces coexist")

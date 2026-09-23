@@ -22,7 +22,7 @@ static func run(t) -> void:
  var g=setup(t,true);g.state.pressure=75
  t.check(g.state.powers[0].power_cast_count==0 and is_equal_approx(g.cast_view().chance,0.25),"PRACTICED activation does not count itself")
  var card=Cards.give(g,"strain");var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"PRACTICED queries and stale actions do not grow chance")
  t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.powers[0].power_cast_count==1 and is_equal_approx(g.cast_view().chance,0.28),"PRACTICED successful card adds three percentage points after multipliers")
  g.state.powers[0].power_cast_count=40
@@ -61,7 +61,7 @@ static func traction(t) -> void:
    if failed: force_failure(g,type)
    var c=t.find_action(g,"card",{"uid":card.uid,"free":type=="ease"})
    var before=g.export_snapshot();var start=g.state.logs.size()
-   t.check(c.valid and g.candidate_detail(c).contains("额外牵扯"),"TRACTION zero-cost and paid magic candidates explain extra pulse")
+   t.check(c.valid and g.candidate_detail(c).contains("额外牵扯"),"TRACTION zero-cost and paid magic facts explain extra pulse")
    t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g._magic_failed==failed,"TRACTION commits successful and failed magic cards")
    t.check(is_equal_approx(g.state.pressure,before.pressure+4*(2 if c.cost>0 else 1)) and g.state.energy==before.energy-c.cost,"TRACTION one extra one-energy pulse without extra payment")
    t.check(g.state.logs.slice(start).filter(func(x):return x.data.has("traction")).size()==1,"TRACTION extra pulse logged once per card")

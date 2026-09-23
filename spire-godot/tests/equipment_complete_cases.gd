@@ -76,7 +76,7 @@ static func run(t) -> void:
   t.check(links_match and correct_phase,"CATALOG links and entry phase match declared layout or formal intake "+id)
   var before=JSON.stringify(g.state)
   var view=g.get_view()
-  t.check(JSON.stringify(g.state)==before and view.practice_kind==id and view.candidates.size()>0,"CATALOG projection and actual actions "+id)
+  t.check(JSON.stringify(g.state)==before and view.practice_kind==id and view.display_facts.size()>0,"CATALOG projection and actual actions "+id)
  for template in E.TEMPLATES:
   var definition=E.TEMPLATES[template]
   if definition.slots.is_empty(): continue

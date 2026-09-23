@@ -31,7 +31,7 @@ static func plate_payment(t) -> void:
  var stale=t.find_action(g,"service",{"op":"release","target":wrist.id,"payment":"flask"})
  g.RelicEffects.gain(g,"cursed_plate_lock")
  var before=g.export_snapshot()
- var releases=g.candidates().filter(func(c):return c.payload.kind=="service" and c.payload.op=="release")
+ var releases=g.command_facts().filter(func(c):return c.payload.kind=="service" and c.payload.op=="release")
  t.check(releases.size()>=4 and releases.all(func(c):return not c.valid) and g.Services.release_jobs(g).all(func(job):return job.reason==g.Services.ShopCopy.CURSED_PLATE_SERVICE_REASON),"SHOP CURSED PLATE blocks every release target and both payment sources")
  for c in releases:
   t.check(not g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state==before,"SHOP CURSED PLATE denied release never pays or removes equipment")
@@ -48,7 +48,7 @@ static func run(t) -> void:
   var before=g.export_snapshot()
   var c=t.find_action(g,"service",{"op":"release","target":target.id})
   t.check(c.valid and c.cost==0 and c.mana==(30 if locked else 20),"SHOP RELEASE ordinary exact quote with blocked player hands")
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   t.check(g.export_snapshot()==before,"SHOP RELEASE quote never mutates")
   t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g._equipment(target.id).is_empty(),"SHOP RELEASE complete ordinary removal")
   t.check(g._equipment(wrist.id)==wrist and g.state.mana==100-c.mana,"SHOP RELEASE unrelated equipment preserved and exact payment")

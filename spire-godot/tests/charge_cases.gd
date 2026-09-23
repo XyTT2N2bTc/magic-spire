@@ -9,7 +9,7 @@ static func toggle(t,g) -> Dictionary:
 
 static func run(t) -> void:
  var g=Game.new(42)
- t.check(g.candidates().all(func(c):return c.payload.kind!="status_toggle"),"CHARGE no mode action without stacks")
+ t.check(g.command_facts().all(func(c):return c.payload.kind!="status_toggle"),"CHARGE no mode action without stacks")
  gain(g,7)
  var before=g.export_snapshot()
  var stale=t.find_action(g,"attack",{"type":"strike","form":0,"enemy":g.state.enemies[0].id})

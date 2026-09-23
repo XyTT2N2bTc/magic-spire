@@ -22,7 +22,7 @@ static func run(t) -> void:
     var multiplier=(0.75 if owned else 0.5) if enemy_type!="rope" else 1.0
     var expected=c.payload.damage*multiplier
     t.check(c.valid and c.brief==g.number(expected)+(" × 2" if form==1 else "")+" 伤害","SCRAP single and multi-hit previews use target armor: "+str([owned,enemy_type,form]))
-    var before=g.export_snapshot();g.get_view();g.candidates()
+    var before=g.export_snapshot();g.get_view();g.command_facts()
     t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"SCRAP preview and stale submission cannot change enemy health or relic state")
     t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and is_equal_approx(g._enemy(id).hp,hp-expected*c.payload.hits),"SCRAP real physical hit agrees with preview: "+str([owned,enemy_type,form]))
  g=fixture();var hp={}

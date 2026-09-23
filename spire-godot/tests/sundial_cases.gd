@@ -46,8 +46,8 @@ static func run(t) -> void:
  g=fixture();g.state.hand.append_array(g.state.exhaust.slice(0,g.B.HAND_LIMIT-1));g.state.exhaust=g.state.exhaust.slice(g.B.HAND_LIMIT-1);g._draw(2)
  t.check(progress(g)==1 and g.state.hand.size()==g.B.HAND_LIMIT,"SUNDIAL hand filling after first draw suppresses the empty second shuffle")
  g=fixture();g.state.relic_counters.sundial=2
- var before=g.export_snapshot();g.get_view();g.candidates()
- t.check(g.state==before,"SUNDIAL view and candidates do not advance count or RNG")
+ var before=g.export_snapshot();g.get_view();g.command_facts()
+ t.check(g.state==before,"SUNDIAL view and facts do not advance count or RNG")
  var twin=Game.new(42)
  t.check(twin.restore_snapshot(before).ok and progress(twin)==2,"SUNDIAL save restores cross-battle progress")
  for bad_value in [-1,3,1.5]:

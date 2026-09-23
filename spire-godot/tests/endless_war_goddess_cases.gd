@@ -58,10 +58,10 @@ static func restrain(g) -> void:
 
 static func original_attacks(t,g) -> void:
  restrain(g)
- var before=g.export_snapshot();var choices=g.candidates().filter(func(c):return c.payload.kind=="attack" and c.payload.get("enemy","")==g.state.enemies[0].id)
+ var before=g.export_snapshot();var choices=g.command_facts().filter(func(c):return c.payload.kind=="attack" and c.payload.get("enemy","")==g.state.enemies[0].id)
  t.check(choices.size()==13 and choices.all(func(c):return c.valid) and g.state==before,"WAR GODDESS all original forms remain usable lying and heavily restrained; preview is read only")
  var kicks=choices.filter(func(c):return c.payload.type=="kick")
- t.check(kicks.map(func(c):return c.label)==["正义飞踢","横扫","站着踢","连续踢！","并拢飞踢","并腿蹬击","坐姿踢击","坐着踢"],"WAR GODDESS right-click candidates include every posture and bound kick form")
+ t.check(kicks.map(func(c):return c.label)==["正义飞踢","横扫","站着踢","连续踢！","并拢飞踢","并腿蹬击","坐姿踢击","坐着踢"],"WAR GODDESS right-click facts include every posture and bound kick form")
  var fire=t.find_action(g,"attack",{"type":"fireball","enemy":g.state.enemies[0].id})
  t.check(g.cast_view(g.Cards.cast_profile(g,"fireball")).chance==1 and fire.payload.damage==g.B.FIREBALL_ASSISTED,"WAR GODDESS fireball ignores mouth and hand restraints plus pressure")
  var normal=Cards.give(g,"mana_invocation")
@@ -78,7 +78,7 @@ static func original_attacks(t,g) -> void:
 
 static func witch_attacks(t,g) -> void:
  restrain(g);g.state.witch_charges.legs=4
- var choices=g.candidates().filter(func(c):return c.payload.kind=="attack" and c.payload.enemy==g.state.enemies[0].id)
+ var choices=g.command_facts().filter(func(c):return c.payload.kind=="attack" and c.payload.enemy==g.state.enemies[0].id)
  t.check(choices.size()==8 and choices.all(func(c):return c.valid and c.casting.chance==1),"WAR GODDESS all witch preparation and release actions ignore restraint and pressure")
  for part in ["hand","mouth","mind","legs"]:
   t.check(t.action(g,"attack",{"type":"witch_"+part,"form":1}).ok and not t.find_action(g,"attack",{"type":"witch_"+part,"form":1},false).valid,"WAR GODDESS witch release keeps once-per-part limit: "+part)

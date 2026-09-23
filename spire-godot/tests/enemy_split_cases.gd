@@ -8,7 +8,7 @@ static func run(t) -> void:
  t.check(g.state.phase=="battle" and g.state.enemies[0].hp==48 and g.Enemies.TYPES.rope_mass.strength==3,"MASS playable strong individual with independent strength")
  var book=preload("res://data/encyclopedia.gd").entries().filter(func(e):return e.category=="enemies" and e.id=="rope_mass")[0]
  t.check(book.group=="强怪" and book.text.contains("分裂") and not book.text.contains("强度"),"MASS encyclopedia shows actual behavior without backend strength")
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before and g._enemy(id).intent.kind=="charge","MASS preparation preview is readonly")
  var twin=Save.roundtrip(t,g,"mass charge")
  Save.step_both(t,g,twin,"end")

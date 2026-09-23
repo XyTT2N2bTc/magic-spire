@@ -28,7 +28,7 @@ static func evasion(t) -> void:
  var g=setup();Give.play(t,g,"light_as_swallow",true)
  var control=setup();Give.play(t,control,"light_as_swallow",true);control.state.evasion=0
  var spec={"pool":"ordinary","templates":["rope"],"grade":1,"tier":2,"count":3}
- var before=g.export_snapshot();g.Application.can_apply(g,spec,"enemy");g.get_view();g.candidates()
+ var before=g.export_snapshot();g.Application.can_apply(g,spec,"enemy");g.get_view();g.command_facts()
  t.check(g.state==before,"SWALLOW application and UI queries preserve evasion and randomness")
  var result=g.Application.execute(g,spec,"enemy")
  var once=spec.duplicate();once.count=1

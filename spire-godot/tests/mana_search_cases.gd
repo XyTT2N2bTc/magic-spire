@@ -14,7 +14,7 @@ static func run(t) -> void:
  var g=arranged(["strain","ease","brace","wildfire_descent","slip"])
  var card=Give.give(g,"mana_search")
  var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(c.valid and c.cost==1 and c.mana==0 and g.Cards.Rules.SPECS.mana_search.rarity=="common" and "mana_search" in g.Cards.Rules.COMMON and not g.B.CARD_TRAITS.has("mana_search"),"SEARCH common one-energy skill, no exhaust or spell payment")
  t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"SEARCH query and stale command are atomic")
  var result=g.dispatch(g.command(c.payload,g.state.version),g.state.version)

@@ -26,7 +26,7 @@ static func strain(t) -> void:
  var before=g.export_snapshot();var choices=Splash.select(g,c.payload)
  t.check(c.payload.preview.face_value==14 and choices.size()==2 and choices.all(func(x):return x.preview.base==7 and x.preview.bonus==0 and x.preview.charge==0 and x.preview.assist.bonus==0 and x.preview.environment_true==0),"SPLASH halves the grown face plus strength and charge exactly once, excluding hands and wall")
  t.check(choices.any(func(x):return x.target==locked.id and x.preview.lock_multiplier==0.5) and choices.all(func(x):return x.preview.divisor>1),"SPLASH each recipient keeps its own lock and stack multipliers")
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"SPLASH preview and stale commit preserve state and all random streams")
  t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok,"SPLASH strain commits through original candidate")
  t.check(is_equal_approx(g._equipment(main.id).durability,80-c.payload.preview.damage),"SPLASH primary damage does not double count the displayed bonuses")

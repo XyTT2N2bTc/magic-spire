@@ -492,7 +492,7 @@ static func run(t) -> void:
  t.check("example_spare_pocket" in g.Relics.REWARDS and "example_soft_belt" in g.Enemies.TYPES.belt.install_pool,"PACK sources join real reward and enemy pools")
 
  g=Game.new(42);Events.arrive(g,"example_travel_cache")
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before,"PACK imported event previews do not mutate state/RNG")
  var c=t.find_action(g,"event",{"action":"choose","choice":"take_tool"})
  t.check(c.valid and c.detail.contains("支付5") and c.detail.contains("备用口袋"),"PACK all costs/rewards projected before choosing")

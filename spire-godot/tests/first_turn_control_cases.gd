@@ -3,7 +3,7 @@ const Game=preload("res://tests/game_fixture.gd")
 const Cards=preload("res://tests/curse_cases.gd")
 
 static func next(g) -> Dictionary:
- var choices=g.candidates().filter(func(c):return c.get("automated",false))
+ var choices=g.command_facts().filter(func(c):return c.get("automated",false))
  return choices[0] if not choices.is_empty() else {}
 
 static func enter(t, phase: String, mode: int=0, character: String="original"):
@@ -26,7 +26,7 @@ static func run(t) -> void:
    t.check(not t.action(g,"relic_toggle",{"relic":"doubao"}).ok and g.state==frozen,"CONTROL combat-like phases still reject toggles atomically: "+phase)
    var tick=g.state.tick
    t.check(next(g).is_empty() and not g.get_view().first_turn_control.locked,"CONTROL DeepSeek never supplies an automatic command")
-   var before=g.export_snapshot();g.get_view();g.candidates()
+   var before=g.export_snapshot();g.get_view();g.command_facts()
    t.check(g.state==before,"CONTROL queries do not consume resources")
    var restored=Game.new(9)
    t.check(restored.restore_snapshot(before).ok and restored.state.energy==0 and next(restored).is_empty(),"CONTROL zero-energy first turn survives restore without skipping")

@@ -11,6 +11,7 @@ extends RefCounted
 # 装配返回三种结果：
 #  {kind, params, expected_version}＝可提交指令；{"handled":true}＝已改道或已给提示（不再提交）；{}＝未解析。
 const HANDLED={"handled":true}
+const Queries=preload("res://ui/target_queries.gd")
 
 # 分类子路由的装配入口（指令路由 ROUTES 的每个值都在此处有一条实现）。
 static func assemble(route: String, host, source: Dictionary, expected_version: int) -> Dictionary:
@@ -68,7 +69,7 @@ static func _card_intent(host, source: Dictionary, expected_version: int) -> Dic
  if host.selecting_hand() and source.has("hand_uid"):
   return _box(host,host.hand_selection_source(String(source.get("hand_uid",""))),expected_version)
  # 自身目标牌（原 A41／A42 改道）：带 hand_uid 时先选要消耗的手牌
- var self_card=host.actions.find("card",{"uid":uid,"self_target":true,"free":free})
+ var self_card=Queries.find(host.view,"card",{"uid":uid,"self_target":true,"free":free})
  if not self_card.is_empty():
   if bool(self_card.valid) and String(self_card.payload.get("hand_uid",""))!="":
    host.open_hand_selection(self_card.payload,expected_version)

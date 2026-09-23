@@ -19,7 +19,7 @@ static func run(t) -> void:
   var before=g.export_snapshot()
   var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
   t.check(c.valid and c.cost==x and c.payload.x==x,"SELF BIND free legal grade sums for X="+str(x))
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   t.check(g.export_snapshot()==before,"SELF BIND preview changes no resources, random streams, cards or equipment")
   t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.export_snapshot()==before,"SELF BIND stale submission is atomic")
   t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok,"SELF BIND free executes through dispatch")

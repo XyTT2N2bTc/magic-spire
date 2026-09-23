@@ -29,7 +29,7 @@ static func run(t) -> void:
  t.check(g.state.relics.count("rolling_log")==1 and g.state.relic_seen.count("rolling_log")==1,"LOG one owned icon and one seen entry regardless of quantity")
  for key in ["energy","mana","mana_max","flask_mana","strength","dexterity","pressure","charge","tick"]:
   t.check(g.state[key]==before[key],"LOG pickup does not change gameplay resource: "+key)
- var frozen=g.export_snapshot();g.get_view();g.candidates()
+ var frozen=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==frozen and g.RelicEffects.validate(g)=="","LOG quantity view is read-only and runtime-valid")
  t.check(t.action(g,"end").ok and g.state.relic_counters.rolling_log==3,"LOG quantity survives turns without ticking")
  # Real elite reward flow permits another copy even when already owned.

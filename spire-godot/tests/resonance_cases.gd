@@ -45,7 +45,7 @@ static func run(t) -> void:
  t.check(g.state.evasion==0 and g.state.powers.size()==2,"RESONANCE free activation does not immediately evade")
  for enemy in g.state.enemies: enemy.intent.delayed=true
  t.check(t.action(g,"end").ok and g.state.evasion==2,"RESONANCE next turn gains one evasion per copy")
- before=g.export_snapshot();g.get_view();g.candidates()
+ before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before,"RESONANCE rendering cannot grant evasion or change mana")
 
  for enemy in g.state.enemies: enemy.intent.delayed=true

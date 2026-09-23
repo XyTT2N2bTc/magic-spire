@@ -40,7 +40,7 @@ static func run(t) -> void:
  f=setup();g=f.g;card=f.card;target=f.target
  g.state.phase="rest"
  t.check(t.find_action(g,"card",{"uid":card.uid,"target":target.id,"free":true},true).valid,"CONCENTRATION second bound face remains usable in rest")
- g.state.equipment.clear();var options=g.candidates().filter(func(c):return c.payload.get("uid","")==card.uid)
+ g.state.equipment.clear();var options=g.command_facts().filter(func(c):return c.payload.get("uid","")==card.uid)
  t.check(options.is_empty() and not g.get_view().hand.filter(func(c):return c.uid==card.uid)[0].availability.free.usable,"CONCENTRATION neither bound face offers an empty body target")
  f=setup();g=f.g;card=f.card;target=f.target
  target.durability=target.maximum

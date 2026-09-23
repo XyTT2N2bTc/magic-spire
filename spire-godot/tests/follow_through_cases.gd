@@ -37,7 +37,7 @@ static func run(t) -> void:
  var peer=piece(g,"thigh","thigh_root",99,100)
  card=Give.give(g,TYPE);var c=t.find_action(g,"card",{"uid":card.uid,"target":target.id})
  t.check(g.candidate_detail(c).contains("全身合法目标") and not g.candidate_detail(c).contains("不跨"),"FOLLOW super strain target detail agrees with full-body keyword and behavior")
- before=g.export_snapshot();g.get_view();g.candidates()
+ before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"FOLLOW previews and stale submission preserve complete state and RNG")
  g.state.energy=2;before=g.export_snapshot()
  t.check(not t.action(g,"card",{"uid":card.uid,"target":target.id}).ok and g.state==before,"FOLLOW insufficient three-energy payment refuses atomically")

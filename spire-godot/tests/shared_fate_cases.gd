@@ -9,7 +9,7 @@ static func run(t) -> void:
    g.state.temporary_mana=15;g.add_fixture("wrist",8);g.add_fixture("ankle",8)
    var card=Give.give(g,"shared_fate")
    var action=t.find_action(g,"card",{"uid":card.uid,"free":free})
-   var before=g.export_snapshot();g.get_view();g.candidates()
+   var before=g.export_snapshot();g.get_view();g.command_facts()
    t.check(action.valid and action.cost==0 and action.mana==0 and g.state==before,"FATE both faces are readonly, zero cost and have no body requirement")
    t.check(not g.dispatch(g.command(action.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"FATE rejected stale play preserves resources and card")
    var average=(values[0]+values[1])/2.0

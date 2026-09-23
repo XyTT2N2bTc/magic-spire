@@ -412,7 +412,7 @@ static func interrupt_contract(t) -> void:
    t.check(candidate.valid and candidate.payload.interrupt and g.dispatch(g.command(candidate.payload,g.state.version),g.state.version).ok,"IRON INTERRUPT real character attack commits "+str([witch,stage]))
    iron=enemy(g,"iron_man")
    t.check(iron.intent.kind==kind and iron.intent.delayed and iron.stage==stage,"IRON INTERRUPT post-action capture observation preserves delayed intent "+str([witch,stage]))
-   var before=g.export_snapshot();g.get_view();g.candidates()
+   var before=g.export_snapshot();g.get_view();g.command_facts()
    t.check(g.state==before,"IRON INTERRUPT projections preserve delayed intent and random state")
    var twin=Save.roundtrip(t,g,"iron interrupted action "+str([witch,stage]))
    t.check(twin!=null and enemy(twin,"iron_man").intent.delayed,"IRON INTERRUPT save retains delayed action")

@@ -11,7 +11,7 @@ static func run(t) -> void:
  var g=fresh();var shot=t.find_action(g,"attack",{"type":"fireball"})
  var before=g.export_snapshot();var random=g.state.rng.magic
  t.check(shot.valid and g.cast_view(g.Cards.cast_profile(g,"fireball")).chance==1,"CRYSTAL first paid cast previews guaranteed success")
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(g.state==before and not g.dispatch(g.command(shot.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"CRYSTAL preview and rejected cast preserve opportunity and payment")
  t.check(g.dispatch(g.command(shot.payload,g.state.version),g.state.version).ok and not g._magic_failed and g.state.rng.magic==random and g.state.mana==before.mana-shot.mana and g.RelicEffects.used(g,"ember_crystal"),"CRYSTAL first paid cast succeeds at full cost without rolling")
  t.check(g.cast_view(g.Cards.cast_profile(g,"fireball")).chance<1,"CRYSTAL second cast returns to ordinary success chance")

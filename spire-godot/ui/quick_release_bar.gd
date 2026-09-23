@@ -1,7 +1,7 @@
 extends RefCounted
 const Queries=preload("res://ui/target_queries.gd")
 
-# UI selection only. Targets, damage and availability always come from current candidates.
+# UI selection only. Targets, damage and availability always come from the current display facts.
 const ORDER=["region_head","region_upper","region_intimate","region_lower"]
 const SLOT_ACTIONS=["strike","kick","heavy","fireball"]
 const ARROW_WIDTH=28.0
@@ -52,7 +52,7 @@ static func _selection(ui, region_id: String, with_equipment: bool=true) -> Dict
 
 static func _usable_targets(ui) -> Dictionary:
  var usable={}
- for c in Queries.group_facts(ui.view,"card"):
+ for c in Queries.facts(ui.view,"card"):
   if c.valid and c.payload.get("mode","")=="strain" and c.payload.free==ui.card_faces.get(c.payload.uid,false):usable[c.payload.target]=true
  return usable
 
@@ -74,7 +74,7 @@ static func equipment_at(ui, region_id: String) -> Dictionary:
  return _selection(ui,region_id).equipment
 
 static func idle_candidate(ui, body: Dictionary, target: String) -> Dictionary:
- var offers=Queries.group_facts(ui.view,"card").filter(func(c):return c.payload.get("mode","") in MODES and c.payload.target==target and body.targets.has(target) and c.payload.free==ui.card_faces.get(c.payload.uid,false))
+ var offers=Queries.facts(ui.view,"card").filter(func(c):return c.payload.get("mode","") in MODES and c.payload.target==target and body.targets.has(target) and c.payload.free==ui.card_faces.get(c.payload.uid,false))
  return first(offers)
 
 static func candidate(ui, region_id: String, data: Dictionary) -> Dictionary:

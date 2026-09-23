@@ -77,7 +77,7 @@ static func slip_mana(t) -> void:
  g._install_special("negative_plate_lock_catheter_medium","special_2_a",2)
  g.state.mana=30;g.state.relics=["mana_earring"]
  g.Pressure.gain(g,120,"测试来源",true,["special_2_a"])
- var before=g.export_snapshot();var view=g.get_view();g.candidates()
+ var before=g.export_snapshot();var view=g.get_view();g.command_facts()
  var status=view.statuses.filter(func(entry):return entry.id=="slip_ejaculation")
  t.check(g.state==before and status.size()==1 and JSON.stringify(status[0]).contains("魔力") and JSON.stringify(status[0]).contains("10"),"SLIP MANA readonly status describes deferred loss")
  g._begin_player_turn()
@@ -139,7 +139,7 @@ static func catalog_and_projection(t) -> void:
  t.check(D.slot_name("special_2_a")=="柱身" and D.slot_name("special_2_d")=="马眼" and D.slot_name("special_3_b")=="后庭","SPECIAL concrete subslots use anatomical names")
  var before=g.state.duplicate(true)
  groups[4].items[0].equipment[0].name="altered"
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(g.state==before,"SPECIAL view and candidate projection are read-only")
  for slot in D.slots():
   t.check(g._install_template("rope",slot,4,10,false,"test").is_empty(),"SPECIAL ordinary restraint factory rejects reserved slot "+slot)
@@ -189,7 +189,7 @@ static func capacity_and_composites(t) -> void:
  t.check(g._install_special("shaft_ring_high","special_2_a").is_empty() and g.state==before,"SPECIAL same family cannot be duplicated even when a slot has room")
  t.check(g._install_special("forced_milking_cup_high","special_2_a").is_empty() and g.state==before,"SPECIAL composite install rejects atomically when any covered slot is full")
  var card=t.hand_card(g,"strain")
- var choices=g.candidates().filter(func(c):return c.payload.get("uid","")==card.uid and c.payload.get("target","")==cup.id)
+ var choices=g.command_facts().filter(func(c):return c.payload.get("uid","")==card.uid and c.payload.get("target","")==cup.id)
  t.check(choices.size()==1,"SPECIAL a multi-slot physical root creates one card target, not one per covered slot")
  var saved=g.export_snapshot();var restored=Game.new(17)
  t.check(restored.restore_snapshot(saved).ok and restored.state.special_equipment==g.state.special_equipment,"SPECIAL composite coverage and independent durability survive save restore")
@@ -286,14 +286,14 @@ static func escape_routes(t) -> void:
  var card=t.hand_card(g,"strain")
  var candidate=t.find_action(g,"card",{"uid":card.uid,"target":nipple.id,"free":false})
  t.check(candidate.valid and not candidate.payload.tool_bonus.is_empty(),"SPECIAL installed sharp tool remains an existing card-damage passive, not a separate removal action")
- t.check(not g.candidates().any(func(c):return c.payload.kind=="item_use" and c.payload.get("target","")==nipple.id),"SPECIAL carried tools never create a direct cutting action for sex toys")
+ t.check(not g.command_facts().any(func(c):return c.payload.kind=="item_use" and c.payload.get("target","")==nipple.id),"SPECIAL carried tools never create a direct cutting action for sex toys")
 
  g=Game.new(42,true,"special_equipment")
  var rod=g.state.special_equipment.filter(func(item):return item.type=="urethral_rod_medium")[0]
  g.add_fixture("wrist",8)
  preview=g.escape_preview(rod,"strain",5)
  t.check(preview.reason=="" and preview.damage>0,"SPECIAL rest-room hook opens the urethral rod card route when the height can contact it")
- t.check(not g.candidates().any(func(c):return c.payload.kind=="hook" and c.payload.get("target","")==rod.id),"SPECIAL hook remains a card prerequisite and never becomes a separate direct action")
+ t.check(not g.command_facts().any(func(c):return c.payload.kind=="hook" and c.payload.get("target","")==rod.id),"SPECIAL hook remains a card prerequisite and never becomes a separate direct action")
 
 static func cup_reinforcements(t) -> void:
  var medium=D.TYPES.urethral_full_cup_medium
@@ -400,7 +400,7 @@ static func registry_paths(t) -> void:
   t.check(not target.is_empty() and g.validate()=="","SPECIAL every registered type installs through factory "+type)
   if target.is_empty(): continue
   var before=g.export_snapshot()
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   for mode in ["strain","slip","magic_slip"]: g.escape_preview(target,mode,5)
   t.check(g.export_snapshot()==before,"SPECIAL complete registry preview does not mutate or access ordinary template "+type)
   var card=t.hand_card(g,"strain")

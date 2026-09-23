@@ -17,7 +17,7 @@ static func run(t) -> void:
  for free in [false,true]:
   var g=Game.new(42);g._discard_end();var card=Cards.give(g,"wildfire_descent")
   var c=t.find_action(g,"card",{"uid":card.uid,"free":free})
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(c.valid and c.cost==1 and c.mana==10 and g.Cards.cast_profile(g,card.type).parts==["mouth"] and g.state==before,"WILDFIRE either face costs one energy and ten base mana with mouth casting")
   t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"WILDFIRE stale activation preserves payment and physical card")
   g.state.mana=9;before=g.export_snapshot()

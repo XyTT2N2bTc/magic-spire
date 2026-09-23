@@ -1,5 +1,6 @@
 extends RefCounted
 const Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
+const Queries=preload("res://ui/target_queries.gd")
 
 static func run(t) -> void:
  var ui=t.ui
@@ -211,16 +212,16 @@ static func seed_chip(t) -> void:
  t.check(chip.text=="已复制","ROUTE seed chip copies the labelled identity: the chip shows the copy caption right after the click")
  await t.create_timer(1.3).timeout
  t.check(chip.text.contains("初始种子 %d" % identity) and ui.seed_copied_until==0,"ROUTE seed chip copies the labelled identity: the caption returns after 1.2 s")
- t.check(ui.game.export_snapshot()==before and ui.game.state.logs.size()==logs and ui.view.version==before.version,"ROUTE seed chip is not part of rules, candidates or randomness: clicking changes no state, log or version")
- t.check(preload("res://tests/persistence_cases.gd").text_at(file)==file_bytes and preload("res://tests/persistence_cases.gd").modified(file)==file_time,"ROUTE seed chip is not part of rules, candidates or randomness: the click never writes the save")
+ t.check(ui.game.export_snapshot()==before and ui.game.state.logs.size()==logs and ui.view.version==before.version,"ROUTE seed chip is not part of rules, facts or randomness: clicking changes no state, log or version")
+ t.check(preload("res://tests/persistence_cases.gd").text_at(file)==file_bytes and preload("res://tests/persistence_cases.gd").modified(file)==file_time,"ROUTE seed chip is not part of rules, facts or randomness: the click never writes the save")
 
  preload("res://tests/demo_exit_cases.gd").exit_fixture(ui.game)
  ui.show_route=false
  ui.render(ui.game.get_view());await t.frames()
- var continuation=ui.actions.select("demo_exit").filter(func(c):return c.payload.kind=="demo_continue")
+ var continuation=Queries.select(ui.view,"demo_exit").filter(func(c):return c.payload.kind=="demo_continue")
  t.check(continuation.size()==1 and continuation[0].valid and ui.candidate_buttons.has(continuation[0].id),"ROUTE seed chip follows a rebuilt tower: the exit screen offers the real continuation")
  if not continuation.is_empty() and ui.candidate_buttons.has(continuation[0].id):
-  await Pointer.press(t,ui.candidate_buttons[continuation[0].id])
+  await Pointer.press(t,ui.candidate_buttons[String(continuation[0].get("key",""))])
   await t.frames()
   chip=ui.find_child("SeedChip",true,false)
   t.check(ui.view.tower_generation==1 and int(ui.view.initial_seed)==identity,"ROUTE seed chip follows a rebuilt tower: the run rebuilt its tower on the same identity")
@@ -309,7 +310,7 @@ static func review_is_read_only(t) -> void:
  t.check(await fresh_route_screen(t),"ROUTE run review fixture enters the real map")
  var store=ui.saves
  var before=ui.game.export_snapshot()
- var candidates=ui.view.candidates.duplicate(true)
+ var facts=ui.view.display_facts.duplicate(true)
  var version=ui.view.version
  var stamp=preload("res://tests/persistence_cases.gd").stamp(store,"tower")
  await open_review(t)
@@ -318,7 +319,7 @@ static func review_is_read_only(t) -> void:
  content_scroll.scroll_vertical=int(content_scroll.get_v_scroll_bar().max_value);await t.frames()
  var scrolled=content_scroll.scroll_vertical
  content_scroll.scroll_vertical=0;await t.frames()
- t.check(scrolled>0,"ROUTE run review is not part of rules, candidates or randomness: the panel content scrolls to the deck block")
+ t.check(scrolled>0,"ROUTE run review is not part of rules, facts or randomness: the panel content scrolls to the deck block")
  var costs=ui.find_child("DeckCostFilter",true,false)
  costs.select(2);costs.item_selected.emit(2);await t.frames()
  costs.select(0);costs.item_selected.emit(0);await t.frames()
@@ -331,8 +332,8 @@ static func review_is_read_only(t) -> void:
  await t.mouse_button(point+Vector2(40,-16),MOUSE_BUTTON_RIGHT,false)
  await Pointer.press(t,ui.find_child("RunReviewCopy",true,false))
  preload("res://tests/persistence_cases.gd").unchanged(t,stamp,preload("res://tests/persistence_cases.gd").stamp(store,"tower"),"run review in-panel interaction")
- t.check(ui.view.version==version and ui.view.candidates==candidates and ui.game.export_snapshot()==before,"ROUTE run review is not part of rules, candidates or randomness")
- t.check(graph.strokes.is_empty(),"ROUTE run review is not part of rules, candidates or randomness: the review map keeps no pencil stroke")
+ t.check(ui.view.version==version and ui.view.display_facts==facts and ui.game.export_snapshot()==before,"ROUTE run review is not part of rules, facts or randomness")
+ t.check(graph.strokes.is_empty(),"ROUTE run review is not part of rules, facts or randomness: the review map keeps no pencil stroke")
 
 # 场景 B｜在回顾屏点地图节点不出发（本片最重要的反例）。
 static func review_node_click_never_departs(t) -> void:
@@ -439,10 +440,10 @@ static func review_identity_reuses_report(t) -> void:
  preload("res://tests/demo_exit_cases.gd").exit_fixture(ui.game)
  ui.show_route=false
  ui.render(ui.game.get_view());await t.frames()
- var continuation=ui.actions.select("demo_exit").filter(func(c):return c.payload.kind=="demo_continue")
+ var continuation=Queries.select(ui.view,"demo_exit").filter(func(c):return c.payload.kind=="demo_continue")
  t.check(continuation.size()==1 and continuation[0].valid and ui.candidate_buttons.has(continuation[0].id),"ROUTE run review identity reuses the run report text: the exit screen offers the real continuation")
  if continuation.is_empty() or not ui.candidate_buttons.has(continuation[0].id): return
- await Pointer.press(t,ui.candidate_buttons[continuation[0].id])
+ await Pointer.press(t,ui.candidate_buttons[String(continuation[0].get("key",""))])
  await t.frames()
  t.check(ui.view.tower_generation==generation+1,"ROUTE run review identity reuses the run report text: the run rebuilt its tower")
  await open_review(t)
@@ -541,7 +542,7 @@ static func review_copy_shares_the_chip(t) -> void:
  var copy=ui.find_child("RunReviewCopy",true,false)
  var chip=ui.find_child("SeedChip",true,false)
  var before=ui.game.export_snapshot()
- var candidates=ui.view.candidates.duplicate(true)
+ var facts=ui.view.display_facts.duplicate(true)
  var version=ui.view.version
  var stamp=preload("res://tests/persistence_cases.gd").stamp(store,"tower")
  t.check(copy!=null and chip!=null,"ROUTE run review copy shares the chip display state: both views are on screen")
@@ -550,7 +551,7 @@ static func review_copy_shares_the_chip(t) -> void:
  t.check(DisplayServer.get_name()!="headless" and copied==ui.seed_report_text(),"ROUTE run review copy shares the chip display state: the panel button copies the labelled identity")
  t.check(ui.seed_copied_until>Time.get_ticks_msec() and chip.text==ui._text("ui.map.seed_copied","已复制") and copy.text==ui._text("ui.map.seed_copied","已复制"),"ROUTE run review copy shares the chip display state: both views show the copy caption in the same window")
  preload("res://tests/persistence_cases.gd").unchanged(t,stamp,preload("res://tests/persistence_cases.gd").stamp(store,"tower"),"run review copy")
- t.check(ui.view.version==version and ui.view.candidates==candidates and ui.game.export_snapshot()==before,"ROUTE run review copy shares the chip display state: the click changes no rules, candidate or save")
+ t.check(ui.view.version==version and ui.view.display_facts==facts and ui.game.export_snapshot()==before,"ROUTE run review copy shares the chip display state: the click changes no rules, candidate or save")
  await t.create_timer(1.3).timeout
  t.check(chip.text==ui._seed_chip_text() and copy.text==ui._text("ui.run_review.copy","复制本局标识") and ui.seed_copied_until==0,"ROUTE run review copy shares the chip display state: both views restore together after 1.2 s")
  await Pointer.press(t,copy)

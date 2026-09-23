@@ -43,7 +43,7 @@ static func run(t) -> void:
    var attack=Basic.attack(t,g,move[0],move[1])
    t.check(attack.valid and g.state.posture==pose,"KIP next leg move ignores pose without moving the player: "+str(move))
    t.check(not Basic.attack(t,g,"strike",0).valid,"KIP does not relax arm-only posture requirement")
-   before=g.export_snapshot();g.get_view();g.candidates()
+   before=g.export_snapshot();g.get_view();g.command_facts()
    t.check(g.state==before,"KIP previews cannot consume the next-attack effect")
    t.check(g.dispatch(g.command(attack.payload,g.state.version),g.state.version).ok and "kip_up_free" not in g.state.card_buffs and g.state.posture==pose,"KIP full multi-hit or all-target action consumes effect once without standing")
    if g.state.phase=="battle": t.check(not Basic.attack(t,g,"heavy",0).valid,"KIP posture requirement returns after the attack")

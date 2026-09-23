@@ -30,7 +30,7 @@ static func run(t) -> void:
  var target=g.add_fixture("wrist",80,100,true);g._gain_tool("shard");item=g.state.items[0].id
  t.check(g.InstalledTools.select(g,target,"strain").is_empty(),"FRIEND carried cutter originally has no passive")
  grant(g)
- var before=g.export_snapshot();var view=g.get_view();g.candidates()
+ var before=g.export_snapshot();var view=g.get_view();g.command_facts()
  t.check(g.state==before and view.items[0].installed and view.items[0].mount=="触手固定" and view.items[0].contact_text.contains("全身"),"FRIEND virtual fixing is a read-only projection")
  t.check(not t.find_action(g,"item_install",{"item":item}).valid and not t.find_action(g,"item_use",{"item":item,"target":target.id}).valid,"FRIEND fixed carry follows passive rather than direct cutting")
  var c=t.find_action(g,"card",{"uid":t.hand_card(g,"strain").uid,"target":target.id,"free":false})

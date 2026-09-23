@@ -17,7 +17,7 @@ static func pleasure_extractor(t) -> void:
  g=Game.new(42);g.state.relics=[];g.state.flask_mana=7;g.state.mana=50;g.state.temporary_mana=3;g.state.flask_deposits=2
  g.RelicEffects.gain(g,"pleasure_extractor")
  t.check(g.state.flask_mana==7 and g.Relics.TYPES.pleasure_extractor.rarity=="uncommon","EXTRACTOR uncommon pickup grants no immediate mana")
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before,"EXTRACTOR queries never trigger the reward")
  P.gain(g,99,"fixture",true)
  t.check(g.state.flask_mana==7,"EXTRACTOR pressure below the threshold gives no mana")
@@ -94,7 +94,7 @@ static func cloak(t) -> void:
  g.state.mana=0;g.state.temporary_mana=0
  card=Rewards.give(t,g,"mana_surge")
  t.check(t.action(g,"card",{"uid":card.uid,"free":false}).ok and g.state.mana==0,"CLOAK zero-mana discounted card is playable without generating mana")
- var attacks=[];g._attack_candidates(attacks)
+ var attacks=g.attack_facts()
  t.check(attacks.filter(func(c):return c.payload.type=="fireball").all(func(c):return c.mana==g._mana_cost(g.B.SPELL_COST)),"CLOAK basic fireball is not a card and keeps its mana cost")
  var PrisonCases=preload("res://tests/prison_cases.gd")
  g=PrisonCases.intake(t);PrisonCases.clear_fixture(g)

@@ -62,7 +62,7 @@ static func progression(t) -> void:
  t.check(Give.play(t,g,"hannya_1",false).ok and g.Cards.Hannya.level(g)==2 and g.state.mana==mana and g.state.deck.size()==size+2 and g.state.discard.back().type=="good_soup","HANNYA lower card converts only to soup without downgrade")
  var card=Give.give(g,"hannya_2");var c=t.find_action(g,"card",{"uid":card.uid,"free":false});var before=g.export_snapshot()
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"HANNYA stale candidate cannot spend, exhaust, advance or generate")
- g.get_view();g.candidates();t.check(g.state==before,"HANNYA projections do not claim rewards or consume RNG")
+ g.get_view();g.command_facts();t.check(g.state==before,"HANNYA projections do not claim rewards or consume RNG")
  g.state.card_buffs.append("hannya_level_1")
  t.check(g.validate()!="","HANNYA snapshot rejects multiple simultaneous levels")
  g=setup();g.Cards.grant_buff(g,"echo_cast_bound")

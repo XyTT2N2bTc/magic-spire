@@ -169,10 +169,9 @@ func advance() -> void:
  if _current(token,version): await _step(c,token,version)
  if token==generation: busy=false
 
-# 步骤按钮定位：R3 域（行动／姿态／墙面／底栏）按显示键注册；R5 域的魔瓶按钮仍按行身份键注册（过渡）。
+# 步骤按钮定位：全部显示点都按显示键（candidate_buttons 的唯一注册键面）取用。
 static func _candidate_button(host, c: Dictionary) -> Control:
- var button=host.candidate_buttons.get(host.display_key(c.payload))
- return button if button!=null else host.candidate_buttons.get(c.id)
+ return host.candidate_buttons.get(String(c.get("key","")))
 
 func _step(c: Dictionary, token: int, version: int) -> void:
  var p=c.payload
@@ -195,7 +194,7 @@ func _step(c: Dictionary, token: int, version: int) -> void:
  if p.get("enemy","")!="": target=host.actor_targets.get(p.enemy)
  elif p.get("hand_uid","")!="": target=host.card_buttons.get(p.hand_uid)
  elif p.get("target","")!="" and p.get("slot","")!="":
-  var data={"card_uid":p.uid,"free":p.get("free",false),"version":version} if p.has("uid") else {"candidate_ids":[c.id],"version":version}
+  var data={"card_uid":p.uid,"free":p.get("free",false),"version":version} if p.has("uid") else {"fact_keys":[String(c.get("key",""))],"version":version}
   var region=host._body_at(p.slot)
   var groups=host.view.body_regions.filter(func(body):return body.id==region.id or body.members.any(func(member):return member.id==region.id))
   if not groups.is_empty() and groups[0].id not in host.expanded_body_regions:
@@ -203,7 +202,7 @@ func _step(c: Dictionary, token: int, version: int) -> void:
    await get_tree().process_frame
   host._show_drop_targets(region.id,data,true)
   await get_tree().process_frame
-  target=host.drop_targets.get(c.id)
+  target=host.drop_targets.get(String(c.get("key","")))
  elif p.get("target","")=="guard_bind": target=host.actor_targets.get("guard_bind")
  elif p.kind in ["card","prison"]: target=host.actor_targets.get("hero")
  if is_instance_valid(target) and target!=source: await _point(target)

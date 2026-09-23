@@ -17,7 +17,7 @@ static func run(t) -> void:
  for slot in ["thigh","calf","ankle","foot","toes","wrist","upper_arm","eyes"]:
   var fixture=Game.new(42);fixture._discard_end();fixture.state.wall="normal"
   var item=fixture.add_fixture(slot,6);var copy=Cards.give(fixture,TYPE)
-  var valid=fixture.candidates().any(func(action):return action.payload.get("uid")==copy.uid and action.payload.get("target")==item.id and action.valid)
+  var valid=fixture.command_facts().any(func(action):return action.payload.get("uid")==copy.uid and action.payload.get("target")==item.id and action.valid)
   t.check(valid==(slot in fixture.B.LEG_SLOTS),"CROSS target selection uses actual leg region: "+slot)
   if slot not in fixture.B.LEG_SLOTS:
    var frozen=fixture.export_snapshot()

@@ -32,7 +32,7 @@ static func run(t) -> void:
  t.check(not root.is_empty() and Assist.preview(g,target).hands==["right"] and g.escape_preview(target,"strain",5).damage==6,"ASSIST independent left wrap leaves only right-hand bonus")
  var wrap=root.components[0]
  t.check(Assist.preview(g,wrap).hands==["right"],"ASSIST other hand can assist exposed wrap, wrapped hand cannot assist itself")
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before,"ASSIST preview never mutates state or RNG")
  var card=t.hand_card(g,"strain");var c=t.find_action(g,"card",{"uid":card.uid,"target":target.id})
  t.check(g.candidate_detail(c).contains("右手辅助＋1") and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"ASSIST candidate explains side and rejects stale version atomically")
@@ -110,7 +110,7 @@ static func run(t) -> void:
  t.check(result.reasons.any(func(r):return r.side=="right" and r.code=="fingers_blocked"),"ASSIST finger condition wins over palm condition")
  g._gain_tool("shard")
  t.check(not t.find_action(g,"item_use",{"item":g.state.items.back().id,"target":target.id}).valid,"ASSIST half assistance does not enable handheld cutting")
- before=g.export_snapshot();g.get_view();g.candidates()
+ before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before,"ASSIST fractional preview remains read-only")
  card=t.hand_card(g,"strain");c=t.find_action(g,"card",{"uid":card.uid,"target":target.id})
  t.check(g.candidate_detail(c).contains("＋0.5") and c.payload.preview.assist.bonus==0.5,"ASSIST candidate exposes exact half contribution")

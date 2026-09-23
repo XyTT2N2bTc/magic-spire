@@ -17,7 +17,7 @@ static func run(t) -> void:
  var profile={"parts":["hand"],"multiplier":1.0}
  var route=g.cast_view(profile)
  var before=g.export_snapshot()
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(route.reason=="" and route.source_part=="toes" and route.chance==0.25 and g.state==before,"SECRET best legal toe route shares pressure curve and preview is readonly")
  var bound=toes(g)
  g.state.sure_cast=true

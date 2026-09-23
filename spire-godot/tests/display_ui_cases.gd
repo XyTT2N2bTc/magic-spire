@@ -64,29 +64,42 @@ static func r3_point_key(g, payload: Dictionary) -> String:
  var kind=String(payload.get("kind",""))
  return kind+"|"+JSON.stringify(g.command_params(kind,payload)).sha256_text().substr(0,8)
 
+# 判定参考（docs/spec/candidate-removal.md §2.1 P2）：唯一判定对同一显示点输入的重算。原始输入来自
+# core/game.gd::command_facts（未合并判定的事实），投影来自 view.display_facts；接管锁定的显示点在接管期内
+# 的结论由接管锁给出（G8 覆盖面），此处按其锁结论核对。
+static func r3_determination_mismatches(g, view: Dictionary, groups: Array) -> Array:
+ var queries=preload("res://ui/target_queries.gd")
+ var raw={}
+ for f in g._fact_source(): raw[g.shape_key(f.payload)]=f
+ var lock=g.eligibility_takeover()
+ var chosen=""
+ for f in view.display_facts:
+  if bool(f.get("automated",false)): chosen=String(queries.fact_key(f))
+ var mismatches=[]
+ for group in groups:
+  for f in queries.facts(view,group):
+   var key=g.shape_key(f.payload)
+   var source=raw.get(key,{})
+   if source.is_empty():
+    mismatches.append("no source fact for "+key)
+    continue
+   var verdict=g.eligibility(source.payload,source.get("cost",0),source.get("mana",0.0),String(source.get("source_reason","")),String(source.get("risk","")))
+   if not lock.is_empty() and String(queries.fact_key(f))!=chosen: verdict=lock
+   for field in ["valid","reason","risk","cost","mana"]:
+    if f.get(field)!=verdict.get(field): mismatches.append(key+"."+field+" fact="+str(f.get(field))+" determination="+str(verdict.get(field)))
+   if JSON.stringify(f.get("mana_payment",{}))!=JSON.stringify(verdict.get("mana_payment",{})): mismatches.append(key+".mana_payment fact="+JSON.stringify(f.get("mana_payment",{}))+" determination="+JSON.stringify(verdict.get("mana_payment",{})))
+ return mismatches
+
 static func display_facts_match_determination(t) -> void:
+ var queries=preload("res://ui/target_queries.gd")
  for cell in R3_G5_CELLS:
   var name="%s:%d" % [cell[0],cell[1]]
   var g=Cases.r1_build(cell[0],cell[1])
   var view=g.get_view()
-  var rows={}
-  for c in view.candidates: rows[g.shape_key(c.payload)]=c
   var points={}
-  var mismatches=[]
-  for group in ["actions","flow","postures","wall_moves","surrender","cards"]:
-   var entries=view.display_facts.get(group,{})
-   if not (entries is Array): entries=[] if entries.is_empty() else [entries]
-   for f in entries:
-    var key=g.shape_key(f.payload)
-    var row=rows.get(key,{})
-    if row.is_empty():
-     mismatches.append("no determination row for "+key)
-     continue
-    for field in ["valid","reason","risk","cost","mana"]:
-     if f.get(field)!=row.get(field): mismatches.append(key+"."+field+" fact="+str(f.get(field))+" determination="+str(row.get(field)))
-    if JSON.stringify(f.get("mana_payment",{}))!=JSON.stringify(row.get("mana_payment",{})): mismatches.append(key+".mana_payment fact="+JSON.stringify(f.get("mana_payment",{}))+" determination="+JSON.stringify(row.get("mana_payment",{})))
-    if group=="cards": continue
-    points[r3_point_key(g,f.payload)]=r3_point_fields(f)
+  var mismatches=r3_determination_mismatches(g,view,["attack","pressure","flow","surrender","posture","wall_move","card","prison"])
+  for group in ["attack","pressure","flow","surrender","posture","wall_move"]:
+   for f in queries.facts(view,group): points[r3_point_key(g,f.payload)]=r3_point_fields(f)
   for card in view.hand:
    points["hand|"+String(card.uid)]=[JSON.stringify(card.availability),String(card.bound),String(card.free),String(card.cost)]
   t.check(mismatches.is_empty(),"G5 display_facts_match_determination: every display fact equals the single determination for the same shape ("+name+"): "+str(mismatches.slice(0,3)))
@@ -101,6 +114,7 @@ static func display_facts_match_determination(t) -> void:
 
 # docs/spec/candidate-removal.md §5 G5（批 R4 的装备／快捷解除／拖放／道具域）。
 # 夹具与 R3 相同，并补上商店／事件／监狱（该节 Given 的其余阶段）。文本基线在未改源码上复算后冻结。
+# 冻结基线的前缀（View 键名）；事实组名由 R4_POINT_GROUPS 声明。
 const R4_FACT_GROUPS=["equipment","hooks","items","chain","retain"]
 const R4_G5_CELLS=[["battle",0],["battle",12],["battle",26],["battle",44],["prepare",0],["prepare",12],["prepare",26],["prepare",44],["rest",0],["rest",12],["rest",26],["rest",44],["shop",0],["shop",12],["shop",26],["shop",44],["event",0],["event",12],["event",26],["event",44],["prison",0],["prison",12],["prison",26],["prison",44]]
 const R4_G5_BASELINE={
@@ -115,18 +129,19 @@ const R4_ROW_FREE_FUNCTIONS={
  "res://ui/main.gd":["_equipment_actions","_attack_drop_candidate","_item_details","_door_candidate","_free_player_candidate","_hook_drawer","_guard_bind_card_candidate","_chain_screen"],
 }
 
+# R4 点面：View 键名（冻结基线的前缀）→ 事实组名（事实自带的 group 字段）。
+const R4_POINT_GROUPS=[["equipment","manual"],["hooks","hook"],["items","item"],["chain","chain"],["retain","retain"]]
+
 static func r4_entries(view: Dictionary, group: String) -> Array:
- var entries=view.display_facts.get(group,[])
- if entries is Array: return entries
- return [] if entries.is_empty() else [entries]
+ return preload("res://ui/target_queries.gd").facts(view,group)
 
 static func r4_points(g, view: Dictionary) -> Dictionary:
  var queries=preload("res://ui/target_queries.gd")
  var points={}
- for group in R4_FACT_GROUPS:
-  for f in r4_entries(view,group):
-   points[group+"|"+r3_point_key(g,f.payload)]=r3_point_fields(f)
- for f in r4_entries(view,"cards"):
+ for pair in R4_POINT_GROUPS:
+  for f in r4_entries(view,pair[1]):
+   points[pair[0]+"|"+r3_point_key(g,f.payload)]=r3_point_fields(f)
+ for f in r4_entries(view,"card"):
   if not (String(f.payload.get("mode","")) in queries.RELEASE_MODES): continue
   points["release|"+r3_point_key(g,f.payload)]=[String(f.label),str(f.valid),String(f.reason),str(f.cost),str(f.mana)]
  for item in view.items:
@@ -142,24 +157,7 @@ static func r4_digest(points: Dictionary) -> String:
 
 static func r4_fact_mismatches(g, view: Dictionary) -> Array:
  var queries=preload("res://ui/target_queries.gd")
- var rows={}
- for c in view.candidates: rows[g.shape_key(c.payload)]=c
- var mismatches=[]
- var groups=R4_FACT_GROUPS.duplicate()
- groups.append("cards")
- for group in groups:
-  for f in r4_entries(view,group):
-   if group=="cards" and not (String(f.payload.get("mode","")) in queries.RELEASE_MODES): continue
-   var key=g.shape_key(f.payload)
-   var row=rows.get(key,{})
-   if row.is_empty():
-    mismatches.append("no determination row for "+key)
-    continue
-   if queries.fact_id(f)!=String(row.id): mismatches.append(key+" id fact="+queries.fact_id(f)+" row="+String(row.id))
-   for field in ["valid","reason","risk","cost","mana","label"]:
-    if f.get(field)!=row.get(field): mismatches.append(key+"."+field+" fact="+str(f.get(field))+" determination="+str(row.get(field)))
-   if JSON.stringify(f.get("mana_payment",{}))!=JSON.stringify(row.get("mana_payment",{})): mismatches.append(key+".mana_payment")
-   if JSON.stringify(f.get("release_preview",{}))!=JSON.stringify(row.get("release_preview",{})): mismatches.append(key+".release_preview")
+ var mismatches=r3_determination_mismatches(g,view,["manual","hook","item","chain","retain","card","service","event","prison","route","reward","relic","flask","status_toggle","rest_service","departure","demo_exit"])
  return mismatches
 
 static func r4_display_points_do_not_read_rows(t) -> void:
@@ -188,7 +186,7 @@ static func r4_display_points_do_not_read_rows(t) -> void:
   if body.contains("ui.actions") or body.contains(".actions.select") or body.contains(".actions.find"): offenders.append(path)
  var queries=FileAccess.open("res://ui/target_queries.gd",FileAccess.READ)
  var query_text="" if queries==null else queries.get_as_text()
- if query_text.contains(".by_id") or query_text.contains("ActionIndex"): offenders.append("ui/target_queries.gd row index")
+ if query_text.contains(".by_id") or query_text.contains("Action"+"Index"): offenders.append("ui/target_queries.gd row index")
  t.check(offenders.is_empty(),"G5 display_facts_match_determination: R4 display points read display facts instead of candidate rows: "+str(offenders.slice(0,4)))
 
 static func r4_display_facts_match_determination(t) -> void:
@@ -251,7 +249,7 @@ static func portrait_composite_boundary(t) -> void:
   var exposed=ui.view.duplicate(true)
   var retained=Portrait.snapshot(exposed)
   exposed.composite_portrait_layers.clear();exposed.body_coverage.clear();exposed.bodies[0].occupied=not exposed.bodies[0].occupied
-  t.check(retained==Portrait.snapshot(ui.view) and not retained.has("candidates") and ui.game.export_snapshot()==before,"DISPLAY retained appearance is detached from mutable input and does not retain gameplay candidates: "+practice)
+  t.check(retained==Portrait.snapshot(ui.view) and not retained.has("facts") and ui.game.export_snapshot()==before,"DISPLAY retained appearance is detached from mutable input and does not retain gameplay facts: "+practice)
  ui.display_settings.fixed_hero_portrait=saved_fixed;ui.restart(42);await t.frames()
 
 static func portrait_refresh(t) -> void:
@@ -399,7 +397,7 @@ static func submit_reject_semantics_unchanged(t) -> void:
  var ui=t.ui
  ui.restart(42);await t.frames()
  var g=ui.game
- var usable=ui.view.candidates.filter(func(c):return c.valid)
+ var usable=ui.view.display_facts.filter(func(c):return c.valid)
  t.check(not usable.is_empty(),"REJECT fixture exposes a usable command")
  if usable.is_empty(): return
  var version=ui.view.version
@@ -413,7 +411,7 @@ static func submit_reject_semantics_unchanged(t) -> void:
  var forged=g.dispatch({"kind":"end","params":{"label":"probe"},"expected_version":version},version)
  t.check(not forged.ok and String(forged.error)=="该行动已经失效，请重新选择。" and g.export_snapshot()==before,"REJECT a parameter outside the declared face keeps its verbatim text and rolls back")
  # 3) 判定不通过：判定 reason 原文
- var blocked=ui.view.candidates.filter(func(c):return not c.valid and c.reason!="")
+ var blocked=ui.view.display_facts.filter(func(c):return not c.valid and c.reason!="")
  if not blocked.is_empty():
   var rejected=g.dispatch(g.command(blocked[0].payload,version),version)
   t.check(not rejected.ok and String(rejected.error)==String(blocked[0].reason) and g.export_snapshot()==before,"REJECT a blocked command returns the determination reason verbatim and rolls back")
@@ -440,7 +438,7 @@ static func takeover_path_unchanged(t) -> void:
  t.check(ui.view.practice_kind=="doubao" and ui.view.phase=="battle" and ui._takeover_locked(),"TAKEOVER the real practice entry starts the locked takeover")
  var banner=ui.find_child("FirstTurnControlBanner",true,false)
  t.check(banner!=null and banner.text=="豆包接管中","TAKEOVER the banner keeps its text")
- var rows=ui.view.candidates
+ var rows=ui.view.display_facts
  var automated=rows.filter(func(c):return c.get("automated",false))
  var blocked=rows.filter(func(c):return String(c.get("reason",""))=="豆包接管中")
  var still_open=blocked.filter(func(c):c.valid)
@@ -448,7 +446,7 @@ static func takeover_path_unchanged(t) -> void:
  if automated.is_empty() or blocked.is_empty(): return
  # 手动输入被挡：真实点击被挡行动 + 同一入口不带接管标记
  var before=ui.game.export_snapshot()
- var button=ui.candidate_buttons.get(blocked[0].id)
+ var button=ui.candidate_buttons.get(String(blocked[0].get("key","")))
  if button!=null:
   var point=button.get_global_rect().get_center()
   await t.move_mouse(point);await t.mouse_button(point,MOUSE_BUTTON_LEFT,true);await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
@@ -467,11 +465,57 @@ static func takeover_path_unchanged(t) -> void:
  t.check(ui.show_home and ui.game.export_snapshot()==home_before,"TAKEOVER a previous step cannot commit after returning home")
  ui.restart(42);await t.frames()
 
+# docs/spec/candidate-removal.md §5 G5（批 R5 的服务／事件／监狱／路线／奖励／出发域）：夹具矩阵同 R4，
+# 另按真实阶段补奖励／路线／出发／demo 四个夹具。文本基线由 G6 的 facts_text 摘要承担（全显示点），
+# 这里承担「每个显示点的可用／原因／风险／费用＝唯一判定对同一形状的输出」的逐字段相等与域覆盖。
+const R5_G5_GROUPS=["attack","pressure","flow","surrender","posture","wall_move","card","prison","manual","hook","item","chain","retain","relic","flask","status_toggle","service","event","reward","rest_service","route","departure","demo_exit"]
+const R5_G5_REQUIRED={"shop":"service","event":"event","prison":"prison","battle":"attack","prepare":"flow","rest":"flow"}
+
+static func r5_group_counts(view: Dictionary) -> Dictionary:
+ var counts={}
+ for f in view.display_facts:
+  var group=String(f.get("group","action"))
+  counts[group]=int(counts.get(group,0))+1
+ return counts
+
+static func r5_cell_problems(g, name: String, required: Array=[]) -> Array:
+ var view=g.get_view()
+ var problems=r3_determination_mismatches(g,view,R5_G5_GROUPS)
+ if not problems.is_empty(): problems=[name+": "+str(problems.slice(0,2))]
+ var counts=r5_group_counts(view)
+ for group in required:
+  if int(counts.get(group,0))<=0: problems.append(name+" missing "+String(group))
+ return problems
+
+static func r5_display_facts_match_determination(t) -> void:
+ var problems=[]
+ for cell in R4_G5_CELLS:
+  var name="%s:%d" % [cell[0],cell[1]]
+  problems.append_array(r5_cell_problems(Cases.r1_build(cell[0],cell[1]),name,[String(R5_G5_REQUIRED.get(cell[0],"attack"))]))
+ # 奖励阶段：真实战斗胜利后停在奖励屏。
+ var reward=Cases.r1_build("battle",12)
+ reward._finish_battle("victory")
+ problems.append_array(r5_cell_problems(reward,"reward stage",["reward"]))
+ # 路线阶段：领完奖励并结束整备后进入塔图（route 显示点与 depart 事实）。
+ var route=Cases.r1_build("prepare",12)
+ problems.append_array(r5_cell_problems(route,"route stage",["route"]))
+ # 出发阶段：新局的出狱起点选择（departure 显示点；其事实组名为 reward／flow，按 kind 核对到达）。
+ var departure=preload("res://core/game.gd").new(42)
+ var departure_problems=r5_cell_problems(departure,"departure stage",[])
+ if not departure.get_view().display_facts.any(func(f):return String(f.payload.get("kind",""))=="departure"): departure_problems.append("departure stage missing departure facts")
+ problems.append_array(departure_problems)
+ # demo 出口：真实通关夹具的显示点。
+ var demo=preload("res://tests/game_fixture.gd").new(42)
+ preload("res://tests/demo_exit_cases.gd").exit_fixture(demo)
+ problems.append_array(r5_cell_problems(demo,"demo stage",["demo_exit"]))
+ t.check(problems.is_empty(),"G5 display_facts_match_determination: every R5 display domain equals the single determination and is really reached: "+str(problems.slice(0,3)))
+
 static func run(t) -> void:
  r3_display_points_do_not_read_rows(t)
  display_facts_match_determination(t)
  r4_display_points_do_not_read_rows(t)
  r4_display_facts_match_determination(t)
+ r5_display_facts_match_determination(t)
  await portrait_snapshot_boundary(t)
  await submit_reject_semantics_unchanged(t)
  await takeover_path_unchanged(t)

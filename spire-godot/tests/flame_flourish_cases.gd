@@ -9,11 +9,11 @@ static func run(t) -> void:
  g.state.energy=10
  var enemy=g.state.enemies[0]
  var target=g.add_fixture("thigh",60.0,60.0,true)
- t.check(g.BasicAttacks.usage(g,"fireball").limit==2 and not g.candidates().any(func(c):return c.payload.get("target","")==target.id and c.payload.kind=="attack"),"FLAME default two casts and no equipment spell before ability")
+ t.check(g.BasicAttacks.usage(g,"fireball").limit==2 and not g.command_facts().any(func(c):return c.payload.get("target","")==target.id and c.payload.kind=="attack"),"FLAME default two casts and no equipment spell before ability")
  t.check(Cards.cast(t,g,"flame_flourish",false).ok and g.state.energy==9 and g.state.mana==100,"FLAME uncommon one-energy ability activates without mana or casting")
  var c=t.find_action(g,"attack",{"target":target.id})
  var before=g.export_snapshot()
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(c.valid and c.payload.damage==g.BasicAttacks.fireball_damage(g)/2 and c.payload.damage_type=="magic" and g.state==before,"FLAME locked equipment preview uses half current fireball without state changes")
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"FLAME stale cast preserves payment, durability and uses")
  g.state.charge=2

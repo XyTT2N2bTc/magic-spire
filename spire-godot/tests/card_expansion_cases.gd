@@ -79,7 +79,7 @@ static func run(t) -> void:
 
  g=Game.new(42);target=g.add_fixture("upper_arm",8);g.add_fixture("wrist",8)
  copy=give(t,g,"strong_elbow")
- var choices=g.candidates().filter(func(a):return a.payload.get("uid","")==copy.uid and not a.payload.free)
+ var choices=g.command_facts().filter(func(a):return a.payload.get("uid","")==copy.uid and not a.payload.free)
  t.check(not choices.is_empty() and choices.all(func(a):return a.payload.slot in ["upper_arm","forearm"]),"ELBOW bound target scope is upper arm and forearm only")
  var hand_size=g.state.hand.size()
  c=t.find_action(g,"card",{"uid":copy.uid,"target":target.id})

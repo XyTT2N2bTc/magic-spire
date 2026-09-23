@@ -10,7 +10,6 @@ const RouteMap=preload("res://ui/route_map.gd")
 const RunReview=preload("res://ui/run_review.gd")
 const DropTarget=preload("res://ui/drop_target.gd")
 const DragTargets=preload("res://ui/drag_targets.gd")
-const ActionIndex=preload("res://ui/action_index.gd")
 const TargetQueries=preload("res://ui/target_queries.gd")
 const CommandRouter=preload("res://ui/command_router.gd")
 const Backdrop=preload("res://ui/dungeon_backdrop.gd")
@@ -18,6 +17,7 @@ const Palette=preload("res://ui/visual_theme.gd")
 const OVERLOAD_COLOR=Palette.OVERLOAD
 const CombatFeedback=preload("res://ui/combat_feedback.gd")
 const ImpactFeedback=preload("res://ui/impact_feedback.gd")
+const Queries=preload("res://ui/target_queries.gd")
 const SaveStore=preload("res://core/save_store.gd")
 var saves=SaveStore.new()
 var persistence_enabled=true
@@ -33,7 +33,6 @@ var show_home=true
 var session_started=false
 var show_options=false
 var save_summaries={}
-var actions: RefCounted
 const GOLD=Palette.GOLD
 const CYAN=Palette.CYAN
 const TEXT=Palette.TEXT
@@ -66,7 +65,7 @@ var view: Dictionary
 var projection_misses: Array=[]
 var layout: Control
 var drawer_layer: Control
-var drawer_base_candidates={}
+var drawer_base_buttons={}
 var building_drawer=false
 var quick_release_open=false
 var quick_release_region=""
@@ -399,7 +398,7 @@ func _bar(value: float, maximum: float, color: Color) -> ProgressBar:
 
 func render(snapshot: Dictionary={}) -> void:
  # The old controls still reference the previous View here. Rebuild the quick bar
- # after replacing View/ActionIndex instead of querying old targets against a new game.
+ # after replacing the View instead of querying old targets against a new game.
  DragTargets.clear(self,false)
  _hide_term()
  view=game.get_view() if snapshot.is_empty() else snapshot
@@ -412,10 +411,9 @@ func render(snapshot: Dictionary={}) -> void:
   if card_draw_serials.get(card.uid,-1)!=card.draw_serial:
    card_draw_serials[card.uid]=card.draw_serial
    card_faces[card.uid]=card.draw_free
- actions=ActionIndex.new(view.candidates)
  var alive=view.enemies.filter(func(e):return not e.gone)
  if not alive.is_empty() and not alive.any(func(e):return e.id==selected_enemy): selected_enemy=alive[0].id
- drawer_layer=null;drawer_base_candidates.clear()
+ drawer_layer=null;drawer_base_buttons.clear()
  candidate_buttons.clear(); card_buttons.clear(); body_buttons.clear()
  actor_targets.clear()
  if not is_instance_valid(layout):
@@ -492,7 +490,7 @@ func _release_candidate_controls(root: Control) -> void:
   var button=candidate_buttons[key]
   if not is_instance_valid(button) or root.is_ancestor_of(button):
    candidate_buttons.erase(key)
-   var previous=drawer_base_candidates.get(key)
+   var previous=drawer_base_buttons.get(key)
    if is_instance_valid(previous) and previous.is_inside_tree(): candidate_buttons[key]=previous
 
 # Information panels own only their overlay. Keep the scene, hand, focus and map alive.
@@ -501,7 +499,7 @@ func _refresh_drawers() -> void:
  if is_instance_valid(drawer_layer):
   _release_candidate_controls(drawer_layer)
   drawer_layer.hide();layout.remove_child(drawer_layer);drawer_layer.queue_free()
- drawer_base_candidates=candidate_buttons.duplicate()
+ drawer_base_buttons=candidate_buttons.duplicate()
  drawer_layer=Control.new();drawer_layer.name="InformationLayer"
  drawer_layer.mouse_filter=Control.MOUSE_FILTER_IGNORE
  layout.add_child(drawer_layer)
@@ -570,8 +568,8 @@ func _relic_row() -> void:
   shortcut.mouse_entered.connect(func():icon.modulate=Color("ffe6ad");_show_term(shortcut,entry))
   shortcut.mouse_exited.connect(func():icon.modulate=Color.WHITE;_hide_term())
   shortcut.focus_entered.connect(func():_show_term(shortcut,entry));shortcut.focus_exited.connect(_hide_term)
-  var choice=actions.find("relic",{"kind":"relic_discharge","relic":relic.id})
-  if choice.is_empty(): choice=actions.find("relic",{"kind":"relic_toggle","relic":relic.id})
+  var choice=TargetQueries.find(view,"relic",{"kind":"relic_discharge","relic":relic.id})
+  if choice.is_empty(): choice=TargetQueries.find(view,"relic",{"kind":"relic_toggle","relic":relic.id})
   if not choice.is_empty():
    shortcut.gui_input.connect(func(event):
     if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
@@ -604,7 +602,7 @@ func _status_control(status: Dictionary, compact: bool) -> Button:
  button.mouse_entered.connect(func():_show_term(button,entry));button.mouse_exited.connect(_hide_term)
  button.focus_entered.connect(func():_show_term(button,entry));button.focus_exited.connect(_hide_term)
  if status.get("toggle",false):
-  var choice=actions.find("status_toggle",{"status":status.id})
+  var choice=TargetQueries.find(view,"status_toggle",{"status":status.id})
   if not choice.is_empty():
    button.gui_input.connect(func(event):
     if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
@@ -727,13 +725,13 @@ func _build_action_rail() -> void:
   if quick_release_open:
    preload("res://ui/quick_release_bar.gd").build(self,container,218.6)
    return
-  var attack_choices=view.display_facts.actions.filter(func(c):return String(c.payload.get("kind",""))=="attack" and String(c.payload.get("enemy",""))==selected_enemy)
+  var attack_choices=TargetQueries.facts(view,"attack").filter(func(c):return String(c.payload.get("kind",""))=="attack" and String(c.payload.get("enemy",""))==selected_enemy)
   for type in attack_forms.keys():
    var forms=attack_choices.filter(func(c):return c.payload.type==type).map(func(c):return c.payload.form)
    if not forms.is_empty() and attack_forms[type] not in forms: attack_forms[type]=forms[0]
   var offers=attack_choices.filter(func(c):return c.payload.form==attack_forms.get(c.payload.type,0))
   if view.phase!="battle":
-   var spells=view.display_facts.actions.filter(func(c):return String(c.payload.get("kind",""))=="attack" and String(c.payload.get("type",""))=="fireball" and String(c.payload.get("enemy",""))=="")
+   var spells=TargetQueries.facts(view,"attack").filter(func(c):return String(c.payload.get("kind",""))=="attack" and String(c.payload.get("type",""))=="fireball" and String(c.payload.get("enemy",""))=="")
    var spell=preload("res://ui/quick_release_bar.gd").first(spells)
    offers=[] if spell.is_empty() else [spell]
   var heavy_index=-1;var kick_index=-1
@@ -743,7 +741,7 @@ func _build_action_rail() -> void:
   if heavy_index>=0 and kick_index>=0:
    var heavy=offers[heavy_index]
    offers[heavy_index]=offers[kick_index];offers[kick_index]=heavy
-  offers.append_array(view.display_facts.actions.filter(func(c):return String(c.payload.get("kind",""))=="calm"))
+  offers.append_array(TargetQueries.facts(view,"pressure").filter(func(c):return String(c.payload.get("kind",""))=="calm"))
   var width=218.6
   if view.phase!="battle":
    _place(_label(preload("res://ui/quick_release_bar.gd").message(self,"exploration","切换至快捷挣脱栏，可对选中的拘束具使用解除牌，也可使用已安装道具。"),15,MUTED),Rect2(402,565,650,38),container)
@@ -784,7 +782,7 @@ func _build_action_rail() -> void:
 
 
 
-# Action tiles share the original candidates, tooltips and drag receiver.
+# Action tiles share the display facts, tooltips and drag receiver.
 func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: String, tags: String, can_flip: bool) -> Button:
  var accent=CYAN if c.payload.kind=="calm" or c.has("casting") else GOLD
  var btn=_button("",func():
@@ -875,13 +873,13 @@ func _basic_action_reason(c: Dictionary) -> String:
  return short.get(c.reason,c.reason.trim_suffix("。"))
 
 func _posture_layout(count: int) -> Dictionary:
- var with_move=view.phase=="battle" and not view.display_facts.wall_moves.filter(func(c):return String(c.payload.get("direction",""))=="toward").is_empty()
+ var with_move=view.phase=="battle" and not TargetQueries.facts(view,"wall_move").filter(func(c):return String(c.payload.get("direction",""))=="toward").is_empty()
  var rows=count+(1 if with_move else 0)
  var stride=minf(48.0,100.0/maxi(1,rows)) if with_move else 48.0
  return {"top":725-rows*stride,"stride":stride,"with_move":with_move}
 
 func _posture_controls() -> void:
- var choices=view.display_facts.postures.filter(func(c):return c.payload.adjacent)
+ var choices=TargetQueries.facts(view,"posture").filter(func(c):return c.payload.adjacent)
  if choices.is_empty(): return
  var ordinary=choices.filter(func(c):return not c.payload.wall)
  var placement=_posture_layout(ordinary.size())
@@ -898,7 +896,7 @@ func _posture_controls() -> void:
   btn.custom_minimum_size.y=placement.stride-4
   btn.name="Posture_"+c.payload.dest+("_wall" if c.payload.wall else "")
   # 拖放身份＝显示键（形状）；R5 域的行身份键仍可用（过渡）。
-  btn.drag_payload={"self_action_id":display_key(c.payload),"version":view.version}
+  btn.drag_payload={"self_action_key":display_key(c.payload),"version":view.version}
   btn.drag_label=c.label
   btn.add_theme_font_size_override("font_size",10 if placement.stride<48 else 12)
   btn.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
@@ -1207,7 +1205,7 @@ func _bottom_controls(include_tools: bool=true) -> void:
  _place(draw_button,Rect2(161,835,198,42))
  var discard_button=_button("弃牌堆\n%d" % view.discard_count,func():_open_drawer("show_deck","discard"));discard_button.name="DiscardPileButton"
  _place(discard_button,Rect2(1327,786,82,70))
- for c in view.display_facts.flow:
+ for c in TargetQueries.facts(view,"flow"):
   var b=_button(c.label,func(): command_router.emit(String(c.payload.get("kind","")),c),CYAN if c.payload.kind=="end" else GOLD)
   _place(b,Rect2(1424,735 if c.payload.kind=="end" else 837,155,90 if c.payload.kind=="end" else 38))
   candidate_buttons[display_key(c.payload)]=b
@@ -1220,7 +1218,7 @@ func _bottom_controls(include_tools: bool=true) -> void:
     seal.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;seal.stretch_mode=TextureRect.STRETCH_SCALE
     seal.mouse_filter=Control.MOUSE_FILTER_IGNORE
     _place(seal,Rect2(0,0,155,90),b)
- var surrender=view.display_facts.surrender
+ var surrender=TargetQueries.find(view,"surrender")
  if not surrender.is_empty():
   var button=_button("确定要投降吗" if surrender_version==view.version else "投降",func():pass,RED)
   button.name="SurrenderButton";button.add_theme_font_size_override("font_size",16)
@@ -1251,11 +1249,11 @@ func _resource_meter(id: String, rect: Rect2, value: float, maximum: float, colo
  _place(number_label,Rect2(rect.position+Vector2(0,(rect.size.y-22)/2),Vector2(rect.size.x,22)))
 
 func _wall_controls() -> void:
- var choices=view.display_facts.wall_moves.filter(func(action):return String(action.payload.get("direction",""))=="toward")
+ var choices=TargetQueries.facts(view,"wall_move").filter(func(action):return String(action.payload.get("direction",""))=="toward")
  if choices.is_empty(): return
  var c=choices[0]
  var text="向墙移动 · %d格 / %d能量" % [c.payload.distance,c.cost] if c.payload.distance>0 else "向墙移动 · 距墙0格"
- var placement=_posture_layout(view.display_facts.postures.filter(func(action):return action.payload.adjacent and not action.payload.wall).size())
+ var placement=_posture_layout(TargetQueries.facts(view,"posture").filter(func(action):return action.payload.adjacent and not action.payload.wall).size())
  if not c.valid and (c.payload.distance>0 or not view.guard_bind.is_empty()):
   text=c.reason if placement.with_move and placement.stride<48 else text+"\n"+c.reason
  var btn=_button(text,func():command_router.emit(String(c.payload.get("kind","")),c),GOLD)
@@ -1306,7 +1304,7 @@ func _body_details() -> void:
  var content=_scroll(v)
  if view.pending_retain:
   content.add_child(_label("还可保留%d张，保留至下回合结束" % view.retain_left,16,CYAN))
-  for c in TargetQueries.group_facts(view,"retain"): _action_row(content,c)
+  for c in TargetQueries.facts(view,"retain"): _action_row(content,c)
  elif selected_card!="" and view.hand.any(func(c):return c.uid==selected_card):
   var card=view.hand.filter(func(c):return c.uid==selected_card)[0]
   content.add_child(_label(card.name,22,CYAN))
@@ -1316,7 +1314,7 @@ func _body_details() -> void:
    content.add_child(HSeparator.new())
   var choices=_body_card_actions(selected_slot,selected_card)
   var single=_single_body_card_action(selected_slot,selected_card)
-  if not single.is_empty(): selected_candidate=TargetQueries.fact_id(single)
+  if not single.is_empty(): selected_candidate=TargetQueries.fact_key(single)
   for c in choices:
    if c.payload.free==card_faces.get(selected_card,false): _card_target(content,c,not single.is_empty(),v)
    elif not choices.any(func(other):return other.payload.free==card_faces.get(selected_card,false)):
@@ -1370,7 +1368,7 @@ func _equipment_tile(parent: Node, e: Dictionary, location: String="", expanded:
   if c.valid and c.payload.after==0.0:
    var release=_button("一键解除 · %d能量" % c.cost,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN)
    release.name="QuickRelease_"+e.id
-   box.add_child(release);candidate_buttons[TargetQueries.fact_id(c)]=release
+   box.add_child(release);candidate_buttons[TargetQueries.fact_key(c)]=release
  var details=VBoxContainer.new();details.name="EquipmentActions";details.visible=expanded
  var toggle=_button("收起详情 −" if expanded else "查看详情 ＋",func():pass,MUTED)
  toggle.pressed.connect(func():
@@ -1395,7 +1393,7 @@ func _equipment_actions(details: VBoxContainer, e: Dictionary) -> void:
  details.add_child(more);details.add_child(description)
  for c in TargetQueries.select(view,"attack",{"target":e.id}):
   _action_row(details,c)
-  candidate_buttons[TargetQueries.fact_id(c)].name="EquipmentSpell_"+e.id
+  candidate_buttons[TargetQueries.fact_key(c)].name="EquipmentSpell_"+e.id
  for c in TargetQueries.select(view,"manual",{"target":e.id}):
   if not c.valid or c.payload.after!=0.0: _action_row(details,c)
  _localize_controls(details)
@@ -1425,7 +1423,7 @@ func _action_row(parent: Node,c: Dictionary,label: String="") -> void:
   var choices=view.hand.filter(func(card):return card.uid==c.payload.uid)
   if not choices.is_empty():
    var face=_display_card(choices[0].type,parent,func():command_router.emit(String(c.payload.get("kind","")),c),"retain_"+c.payload.uid)
-   face.disabled=not c.valid;candidate_buttons[TargetQueries.fact_id(c)]=face
+   face.disabled=not c.valid;candidate_buttons[TargetQueries.fact_key(c)]=face
    return
  var fee=str(c.cost)+"能量"+(" / "+game.number(c.mana)+"魔力" if c.mana>0 else "")
  if c.payload.kind=="service": fee=game.number(c.mana)+("魔瓶魔力" if c.payload.get("payment","")=="flask" else "魔力") if c.mana>0 else "免费"
@@ -1434,13 +1432,13 @@ func _action_row(parent: Node,c: Dictionary,label: String="") -> void:
  if targeted: DragTargets.source(self,b,c)
  b.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
  b.disabled=not c.valid
- parent.add_child(b); candidate_buttons[TargetQueries.fact_id(c)]=b
+ parent.add_child(b); candidate_buttons[TargetQueries.fact_key(c)]=b
  if c.has("release_preview") and c.valid: preload("res://ui/release_details.gd").preview(self,parent,c)
  else: parent.add_child(_label(detail_of(c) if c.valid else c.reason,14,MUTED if c.valid else RED))
  if c.risk!="" and c.valid: parent.add_child(_label(c.risk,13,RED))
 
 func _card_target(parent: Node,c: Dictionary, automatic: bool=false, footer: Node=null) -> void:
- var key=TargetQueries.fact_id(c)
+ var key=TargetQueries.fact_key(c)
  if automatic:
   parent.add_child(_label(c.label,16,CYAN if c.valid else MUTED))
  else:
@@ -1471,7 +1469,7 @@ func _practice_screen() -> void:
  v.add_child(_label(view.practice_hint,18,CYAN))
  if view.phase=="pack":
   v.add_child(_label("随身道具超出容量，请先在道具栏使用或放下多余工具。",18,RED))
-  for c in actions.select("flow"): _action_row(v,c)
+  for c in TargetQueries.facts(view,"flow"): _action_row(v,c)
  elif view.phase=="rest": v.add_child(_button("返回练习",func(): show_route=false; render(view),CYAN))
  if view.phase=="cleared":
   v.add_child(_button("再次练习",func(): restart(view.seed,true,view.practice_kind)))
@@ -1507,7 +1505,7 @@ func _capture_screen() -> void:
  right.add_child(_label("警戒度 %d　·　没收道具 %d件　·　榨取魔力 %s" % [view.security,view.capture.confiscated,game.number(climax.get("mana_lost",0.0))],15,MUTED))
  right.add_child(HSeparator.new())
  var options=VBoxContainer.new();options.name="PrisonIntakeChoices";options.add_theme_constant_override("separation",8);right.add_child(options)
- for c in actions.select("prison"): preload("res://ui/event_screen.gd").action(self,options,c)
+ for c in TargetQueries.facts(view,"prison"): preload("res://ui/event_screen.gd").action(self,options,c)
  if view.practice:
   left.add_child(_button("再次挑战",func(): restart(view.seed,true,view.practice_kind),CYAN))
  else:
@@ -1522,7 +1520,7 @@ func _inspection_screen() -> void:
    flow.add_child(_label("整理随身道具",29,GOLD))
    flow.add_child(_label("反抗战后的整备结束。先使用或放弃超出容量的工具，再返回牢房；巡视继续暂停。",20))
    flow.add_child(_button("打开道具栏",func():_open_drawer("show_items"),CYAN))
-   for c in actions.select("flow"): _action_row(flow,c)
+   for c in TargetQueries.facts(view,"flow"): _action_row(flow,c)
   else:
    flow.add_child(_label("本次逃脱失败",29,RED))
    flow.add_child(_label("监狱警戒度已经达到5，普通逃脱流程结束。",21))
@@ -1552,7 +1550,7 @@ func _inspection_screen() -> void:
  v.add_child(_label(p.sentence,15,MUTED))
  v.add_child(HSeparator.new())
  var options=VBoxContainer.new();options.name="PrisonInspectionChoices";options.add_theme_constant_override("separation",8);v.add_child(options)
- for c in actions.select("prison"): EventScreen.action(self,options,c)
+ for c in TargetQueries.facts(view,"prison"): EventScreen.action(self,options,c)
 
 func _prison_controls() -> void:
  var p=view.prison
@@ -1587,22 +1585,22 @@ func _prison_controls() -> void:
   if site.has("installed"): box.add_child(_label("%s · 剩余%d次" % [site.installed.mount,site.installed.uses],13,CYAN))
   var row=HBoxContainer.new();box.add_child(row)
   if not p.space.blind and not site.here:
-   var c=actions.find("prison",{"action":"explore","site":site.id})
+   var c=TargetQueries.find(view,"prison",{"action":"explore","site":site.id})
    if not c.is_empty():
-    var go=_button("前往",func():command_router.emit(String(c.payload.get("kind","")),c),CYAN);go.disabled=not c.valid;go.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(go);candidate_buttons[c.id]=go
+    var go=_button("前往",func():command_router.emit(String(c.payload.get("kind","")),c),CYAN);go.disabled=not c.valid;go.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(go);candidate_buttons[c.key]=go
   if not site.interaction.is_empty():
    var inspect=_button("查看 ›",func():prison_detail=site.id;render(view),GOLD)
    inspect.name="InspectPrison_"+site.id;inspect.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(inspect)
   if site.get("wall_warning","")!="": box.add_child(_label(site.wall_warning,13,RED))
  if p.space.blind:
   var directions=GridContainer.new();directions.columns=2;scroll.add_child(directions)
-  for c in actions.select("prison",{"action":"explore"}):
+  for c in TargetQueries.select(view,"prison",{"action":"explore"}):
    var choice=VBoxContainer.new();choice.size_flags_horizontal=Control.SIZE_EXPAND_FILL;directions.add_child(choice)
-   var b=_button(c.label,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN);b.disabled=not c.valid;b.size_flags_horizontal=Control.SIZE_EXPAND_FILL;choice.add_child(b);candidate_buttons[c.id]=b
+   var b=_button(c.label,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN);b.disabled=not c.valid;b.size_flags_horizontal=Control.SIZE_EXPAND_FILL;choice.add_child(b);candidate_buttons[c.key]=b
    if c.payload.wall_warning!="": choice.add_child(_label(c.payload.wall_warning,13,RED))
  # Common movement limitations appear once, instead of after every destination.
  var reasons=[]
- for c in actions.select("prison",{"action":"explore"}):
+ for c in TargetQueries.select(view,"prison",{"action":"explore"}):
   if not c.valid and c.reason!="已经在这里。" and c.reason not in reasons: reasons.append(c.reason)
  if not reasons.is_empty(): v.add_child(_label("\n".join(reasons),13,RED))
 
@@ -1659,7 +1657,7 @@ func _prison_location_details(parent: Node,site: Dictionary) -> void:
   scroll.add_child(_label(item.contact_text,13,CYAN))
   scroll.add_child(_label(item.passive_text,15,CYAN))
  var selected_actions=[]
- for c in view.candidates:
+ for c in view.display_facts:
   var matches=(kind=="door" and ((c.payload.kind=="prison" and c.payload.action in ["key","door_exit","unlock"]) or (c.payload.kind=="item_use" and c.payload.target=="prison_door"))) or (kind=="vent" and c.payload.kind=="prison" and c.payload.action in ["vent_kick","vent_exit"]) or (kind=="item" and c.payload.get("item","")==site.interaction.item)
   if matches and c.payload.kind!="item_install": selected_actions.append(c)
  for c in selected_actions:
@@ -1678,7 +1676,7 @@ func _compact_action(parent: Node,c: Dictionary,caption: String="",show_free_cos
  var button=_button(label,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN,targeted)
  if targeted: DragTargets.source(self,button,c)
  button.disabled=not c.valid;button.tooltip_text=detail_of(c) if c.valid else c.reason
- parent.add_child(button);candidate_buttons[TargetQueries.fact_id(c)]=button
+ parent.add_child(button);candidate_buttons[TargetQueries.fact_key(c)]=button
  if not c.valid: parent.add_child(_label(c.reason,13,RED))
  elif c.risk!="": parent.add_child(_label(c.risk,13,RED))
  elif c.payload.kind in ["item_install","item_retrieve"]: parent.add_child(_label(detail_of(c),13,CYAN))
@@ -1749,8 +1747,8 @@ func _route_screen() -> void:
  graph.set_process_input(not DRAWERS.any(func(field):return get(field)))
  _restore_map_scroll.call_deferred(scroll,graph,map_scroll_value)
  # Map nodes are the existing departure controls, with the same candidate/version checks.
- for c in actions.select("route",{"kind":"depart"}):
-  candidate_buttons[c.id]=graph.buttons[c.payload.room]
+ for c in TargetQueries.select(view,"route",{"kind":"depart"}):
+  candidate_buttons[c.key]=graph.buttons[c.payload.room]
  var right=VBoxContainer.new();right.name="RouteMessages";right.custom_minimum_size.x=220;row.add_child(right)
  for room in view.route:
   if room.icon=="boss":
@@ -1767,7 +1765,7 @@ func _route_screen() -> void:
  if view.phase=="travel":
   right.add_child(_label("%s · %d / %d回合" % [view.journey.mode,view.journey.total-view.journey.remaining,view.journey.total],14,CYAN))
   right.add_child(_bar(view.journey.total-view.journey.remaining,view.journey.total,CYAN))
- elif actions.select("route",{"kind":"depart"}).any(func(c):return c.valid): right.add_child(_label("%s · 每段%d回合" % [view.movement.mode,view.movement.turns],14,CYAN))
+ elif TargetQueries.select(view,"route",{"kind":"depart"}).any(func(c):return c.valid): right.add_child(_label("%s · 每段%d回合" % [view.movement.mode,view.movement.turns],14,CYAN))
  elif view.phase=="cleared": right.add_child(_label("当前阶段完成",20,CYAN))
  var content=_scroll(right)
  var messages=content.get_parent() as ScrollContainer
@@ -1780,17 +1778,17 @@ func _route_screen() -> void:
  _restore_travel_messages.call_deferred(messages,offset)
  if notice!="": right.add_child(_label(notice,14,MUTED))
  if view.phase=="travel":
-  var step=actions.find("route",{"kind":"travel_step"})
+  var step=TargetQueries.find(view,"route",{"kind":"travel_step"})
   if not step.is_empty():
    var controls=HBoxContainer.new();right.add_child(controls)
    var advance=_button("前进一回合",func():command_router.emit(String(step.payload.get("kind","")),step),CYAN)
-   advance.name="TravelStep";advance.disabled=not step.valid;controls.add_child(advance);candidate_buttons[step.id]=advance
+   advance.name="TravelStep";advance.disabled=not step.valid;controls.add_child(advance);candidate_buttons[step.key]=advance
    if not step.valid: right.add_child(_label(step.reason,14,RED))
    var toggle=_button("暂停" if map_auto_travel else "自动前进",func():map_auto_travel=not map_auto_travel;render(view),CYAN)
    toggle.name="TravelToggle";controls.add_child(toggle)
   _queue_map_step()
  elif view.phase=="pack":
-  for c in actions.select("flow"): _action_row(right,c)
+  for c in TargetQueries.facts(view,"flow"): _action_row(right,c)
  var navigation=GridContainer.new();navigation.columns=2;right.add_child(navigation)
  var overview=_button("详细路线" if map_overview else "地图总览",func():map_overview=not map_overview; map_scroll_value=-1; render(view),CYAN)
  overview.name="MapOverview";navigation.add_child(overview)
@@ -1814,7 +1812,7 @@ func _route_screen() -> void:
 
 func _select_route_room(id: String) -> void:
  route_focus=id
- var candidate=actions.find("route",{"kind":"depart","room":id})
+ var candidate=TargetQueries.find(view,"route",{"kind":"depart","room":id})
  if not candidate.is_empty() and candidate.valid:
   map_auto_travel=true
   command_router.emit(String(candidate.payload.get("kind","")),candidate)
@@ -1836,7 +1834,7 @@ func _queue_map_step() -> void:
  if not map_auto_travel or view.phase!="travel": return
  if view.version!=observed_version:
   _queue_map_step();return
- var step=actions.find("route",{"kind":"travel_step"})
+ var step=TargetQueries.find(view,"route",{"kind":"travel_step"})
  if not step.is_empty() and step.valid and not view.pressure.overloaded: command_router.emit(String(step.payload.get("kind","")),step)
  else: map_auto_travel=false
 
@@ -2071,7 +2069,7 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
  surrender_version=-1
  if show_home or is_instance_valid(enemy_feedback): return
  # 显示数据（M-V）：形状 → 当前状态下那条行动的派生字段；不参与提交复核。
- var row=game.command_row(cmd)
+ var row=game.command_fact(cmd)
  var payload=row.get("payload",{}) if not row.is_empty() else {}
  var kind=String(cmd.get("kind",""))
  var previous=view
@@ -2129,7 +2127,7 @@ func _demo_exit_screen() -> void:
  var column=VBoxContainer.new();column.add_theme_constant_override("separation",24);panel.add_child(column)
  var title=_label("感谢游玩这次demo",36,GOLD);title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;column.add_child(title)
  var subtitle=_label("第%s阶段完成" % ["一","二","三"][view.demo_cycle],22,CYAN);subtitle.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;column.add_child(subtitle)
- for c in actions.select("demo_exit"):
+ for c in TargetQueries.facts(view,"demo_exit"):
   _action_row(column,c)
  if RunReview.can_open(view.route):
   var review=_button(RunReview.title_text(self),func():_open_drawer("show_run_review"),CYAN)
@@ -2339,7 +2337,7 @@ func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false
   target.accept_card=func(incoming): return reason=="" and incoming==data and incoming.version==view.version
   target.receive_card=func(incoming): command_router.emit_deferred(String(c.payload.get("kind","")),c,int(incoming.version))
   targets.add_child(card)
-  drop_targets[TargetQueries.fact_id(c)]=target
+  drop_targets[TargetQueries.fact_key(c)]=target
   count+=1
  var rows=mini(3,maxi(1,ceili(count/float(columns))))
  drop_panel.size=Vector2(mini(columns,maxi(1,count))*80+20+(16 if count>columns*rows else 0),rows*90+16)
@@ -2410,14 +2408,14 @@ func _activate_guard_bind_target() -> void:
 
 # 姿态拖放的显示事实解析（姿态域，R3；批 R4 去掉行身份回落）：按钮按显示键（形状）携带。
 func _self_action(data: Dictionary) -> Dictionary:
- var key=String(data.get("self_action_id",""))
- for f in view.display_facts.postures:
+ var key=String(data.get("self_action_key",""))
+ for f in TargetQueries.facts(view,"posture"):
   if display_key(f.payload)==key: return f
  return {}
 
 func _can_drop_on_player(data: Dictionary) -> bool:
  if data.get("version",-1)!=view.version: return false
- if data.has("self_action_id"):
+ if data.has("self_action_key"):
   var c=_self_action(data)
   return not c.is_empty() and String(c.payload.get("kind",""))=="posture" and c.valid
  var self_card=TargetQueries.find(view,"card",{"uid":data.get("card_uid",""),"self_target":true,"free":data.get("free",false)})
@@ -2432,7 +2430,7 @@ func _player_drag_preview(data: Dictionary) -> void:
  if data.get("version",-1)!=view.version:
   _drag_rejection(actor_targets.hero,"行动已失效，请重新选择。")
   return
- if data.has("self_action_id"):
+ if data.has("self_action_key"):
   var c=_self_action(data)
   _drag_rejection(actor_targets.hero,"行动已失效，请重新选择。" if c.is_empty() else ("" if c.valid else c.reason))
   return
@@ -2449,7 +2447,7 @@ func _player_drag_preview(data: Dictionary) -> void:
 func _receive_player_drop(data: Dictionary) -> void:
  if not _can_drop_on_player(data): return
  if command_router.emit("card",{"kind":"card","uid":data.get("card_uid",""),"free":data.get("free",false)},int(data.version)).handled: return
- if data.has("self_action_id"):
+ if data.has("self_action_key"):
   var row=_self_action(data)
   if not row.is_empty(): command_router.emit(String(row.payload.get("kind","")),row,int(data.version))
   return
@@ -2567,7 +2565,7 @@ func _selecting_hand() -> bool:
 
 # 手牌选择态的显示读取（手牌域，R3）：从手牌显示事实里按形状取该组合，不再取候选行。
 func _hand_choice(uid: String) -> Dictionary:
- for f in view.display_facts.cards:
+ for f in TargetQueries.facts(view,"card"):
   var p=f.payload
   if String(p.get("kind",""))!="card": continue
   if String(p.get("uid",""))!=String(player_pick_data.get("card_uid","")): continue
@@ -2604,7 +2602,7 @@ func _hook_drawer() -> void:
  var v=_drawer_shell(view.hook_location+" · 剩余%d次" % view.hook_uses,Rect2(650,150,870,560))
  var content=_scroll(v)
  content.add_child(_label(view.hook_environment_name+" · "+view.hook_contact,14,CYAN))
- var targets=TargetQueries.group_facts(view,"hook")
+ var targets=TargetQueries.facts(view,"hook")
  for c in targets: _action_row(content,c)
  if targets.is_empty(): content.add_child(_label("当前没有需要处理的装备。",17,MUTED))
 
@@ -2734,7 +2732,7 @@ func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
     var button=_button(group.name,func():command_router.emit(String(c.payload.get("kind","")),c),CYAN)
     button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
     button.name="ToolSlot_"+group.id;button.disabled=not c.valid
-    grid.add_child(button);candidate_buttons[TargetQueries.fact_id(c)]=button
+    grid.add_child(button);candidate_buttons[TargetQueries.fact_key(c)]=button
     if not c.valid: button.tooltip_text=c.reason
   else:
    for c in item_actions:
@@ -2742,11 +2740,11 @@ func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
  elif not selected.installed and not usage_actions.is_empty():
   right.add_child(_label("选择使用位置",16,GOLD))
   for group in selected.target_groups:
-   var button=_button(group.name+" · %d个目标" % group.candidates.size(),func():selected_item_slot=group.id if selected_item_slot!=group.id else "";_refresh_item_details(),CYAN)
+   var button=_button(group.name+" · %d个目标" % group.keys.size(),func():selected_item_slot=group.id if selected_item_slot!=group.id else "";_refresh_item_details(),CYAN)
    button.name="ToolSlot_"+group.id;right.add_child(button)
    if selected_item_slot==group.id:
-    for id in group.candidates:
-     var matches=item_actions.filter(func(c):return TargetQueries.fact_id(c)==id)
+    for key in group.keys:
+     var matches=item_actions.filter(func(c):return TargetQueries.fact_key(c)==key)
      if not matches.is_empty(): _tool_target_card(right,matches[0])
   if selected.target_groups.is_empty():
    for reason in selected.unavailable_reasons: right.add_child(_label(reason,14,RED))
@@ -2770,7 +2768,7 @@ func _item_details(right: VBoxContainer, footer: HBoxContainer) -> void:
   if c.payload.kind=="item_discard":
    var discard=_button("丢弃",func():command_router.emit(String(c.payload.get("kind","")),c),MUTED);discard.name="ItemDiscard";discard.custom_minimum_size=Vector2(90,32)
    discard.add_theme_font_size_override("font_size",14);discard.tooltip_text="丢弃后无法取回。";discard.disabled=not c.valid
-   footer.add_child(discard);candidate_buttons[TargetQueries.fact_id(c)]=discard
+   footer.add_child(discard);candidate_buttons[TargetQueries.fact_key(c)]=discard
 
 func _options_drawer() -> void:
  var content=_drawer_shell(_text("ui.settings.title","设置"),Rect2(390,110,820,700) if options_tab=="keys" else Rect2(550,145,500,590))
@@ -2921,7 +2919,7 @@ func _chain_screen() -> void:
  var content=_scroll(panel)
  content.add_child(_label(view.card_chain.name+(" · 选择要消耗的牌" if view.card_chain.get("selection",false) else " · 选择下一段目标"),24,GOLD))
  content.add_child(_label("费用已支付，选择下一段目标。",16,CYAN))
- for c in TargetQueries.group_facts(view,"chain"): _action_row(content,c)
+ for c in TargetQueries.facts(view,"chain"): _action_row(content,c)
 
 func _service_screen() -> void:
  var shop=ShopScreen.new();shop.ui=self;shop.name="RoomServicePanel";shop.size=Vector2(1552,790)

@@ -207,7 +207,7 @@ static func opening_fallback(t) -> void:
   var outside=R.install(g,R.request("upper_arm",1,1,"upper_arm_top"))
   var saved_outside=outside.duplicate(true)
   var before=g.export_snapshot()
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   var end=t.find_action(g,"end")
   t.check(g.export_snapshot()==before and not g.dispatch(g.command(end.payload,g.state.version-1),g.state.version-1).ok and g.export_snapshot()==before,"GUARD opening preview and stale submission leave all equipment and random state unchanged")
   t.check(t.action(g,"end").ok,"GUARD full-slot opening uses the formal enemy turn")

@@ -34,7 +34,7 @@ static func run(t) -> void:
  var c=t.find_action(g,"card",{"uid":card.uid,"free":false})
  var before=g.export_snapshot()
  t.check(c.valid and c.cost==1 and c.mana==0 and c.payload.self_target,"POWER self-target one-energy candidate")
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"POWER preview and stale submission preserve state")
  g.state.energy=0;before=g.export_snapshot()
  t.check(not t.action(g,"card",{"uid":card.uid,"free":false}).ok and g.state==before,"POWER insufficient energy refuses atomically")
@@ -98,7 +98,7 @@ static func stacking(t) -> void:
    for copy in range(2):
     var card=helper.give(g,type)
     var c=t.find_action(g,"card",{"uid":card.uid,"free":free})
-    var before=g.export_snapshot();g.get_view();g.candidates()
+    var before=g.export_snapshot();g.get_view();g.command_facts()
     t.check(c.valid and g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"STACK read-only and stale copy "+type)
     t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok,"STACK repeated paid activation "+type)
    var id=g.Cards.Rules.SPECS[type].self_faces["free" if free else "bound"].buff
@@ -164,7 +164,7 @@ static func reuse_fail(t,g,type: String="fireball", free: bool=false) -> Diction
   c=t.find_action(g,"card",{"uid":card.uid,"free":free})
  preload("res://tests/practiced_cases.gd").force_failure(g,type)
  var before=g.export_snapshot()
- g.get_view();g.candidates();g.Cards.failure_outcome(g,c)
+ g.get_view();g.command_facts();g.Cards.failure_outcome(g,c)
  t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"MASTERY previews and stale attempts do not consume quota")
  t.check(c.valid and g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g._magic_failed,"MASTERY real failed cast "+type)
  return {"before":before,"candidate":c,"spell":g.state.logs.filter(func(row):return row.data.has("spell")).back().data.spell}

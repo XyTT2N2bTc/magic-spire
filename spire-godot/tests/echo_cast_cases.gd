@@ -14,7 +14,7 @@ static func run(t) -> void:
  var g=game();g.state.enemies[0].hp=200;g.state.enemies[0].max_hp=200
  t.check(g.Cards.Rules.SPECS.echo_cast.rarity=="uncommon" and "echo_cast" in g.Cards.Rules.UNCOMMON and g.Cards.Rules.SPECS.fire_control.rarity=="uncommon" and not g.B.CARD_TRAITS.has("echo_cast"),"ECHO replay and control are uncommon with replay not exhausting")
  var card=Cards.give(g,"echo_cast");var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(c.valid and c.cost==1 and c.mana==0 and before==g.state,"ECHO one energy no casting preview is read only")
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and before==g.state,"ECHO stale activation is atomic")
  t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.discard.any(func(v):return v.uid==card.uid) and "echo_cast_free" in g.state.card_buffs,"ECHO free face arms and discards normally")

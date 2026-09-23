@@ -9,7 +9,7 @@ static func run(t) -> void:
  var g=Game.new(42);g._discard_end()
  var card=Cards.give(g,"fire_control")
  var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before and c.valid and c.cost==1 and c.mana==0,"CONTROL free skill preview is one energy without casting")
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"CONTROL stale play rejects without permanent gain")
  t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.energy==2 and g.state.spell_base_bonuses.fireball==1 and g.state.exhaust.any(func(e):return e.uid==card.uid),"CONTROL free face adds permanent damage and exhausts physical card")

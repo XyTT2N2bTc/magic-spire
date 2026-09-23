@@ -25,7 +25,7 @@ static func run(t) -> void:
   g.state.posture="stand";g.state.mana=40;g.state.flask_mana=20
   g._gain_tool("mana_potion");var item=g.state.items.back().id
   var before=g.export_snapshot()
-  var actions=g.candidates().filter(func(c):return c.payload.kind=="item_use" and c.payload.get("item","")==item)
+  var actions=g.command_facts().filter(func(c):return c.payload.kind=="item_use" and c.payload.get("item","")==item)
   t.check(actions.size()==1 and actions[0].valid==(phase!="battle"),"RECOVERY one potion candidate with correct phase restrictions: "+phase)
   var withdrawal=t.find_action(g,"flask",{"op":"withdraw"})
   t.check(withdrawal.valid==(phase!="battle"),"RECOVERY flask matches potion body exemption: "+phase)

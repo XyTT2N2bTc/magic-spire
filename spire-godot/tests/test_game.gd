@@ -79,11 +79,11 @@ func _core_cases() -> void:
  check(g.state.deck.size() == 10, "TC-CORE-0001 ten cards")
  var before = JSON.stringify(g.state)
  g.get_view()
- g.candidates()
+ g.command_facts()
  check(JSON.stringify(g.state) == before, "TC-REPLAY-0001 previews do not mutate")
  check(not g.dispatch(g.command({"kind":"card","uid":"not-real"},g.state.version),g.state.version).ok, "TC-CORE-0002 reject forged candidate")
  check(JSON.stringify(g.state) == before, "TC-CORE-0002 rejection atomic")
- var c = g.candidates()[0]
+ var c = g.command_facts()[0]
  check(not g.dispatch(g.command(c.payload,g.state.version - 1),g.state.version - 1).ok, "TC-CORE-0003 reject stale version")
  check(JSON.stringify(g.state) == before, "TC-CORE-0003 stale unchanged")
  check(g.tier(4.0,10.0) == 1 and g.tier(8.0,10.0) == 2, "TC-RESTRAINT-0001 thresholds")
@@ -299,7 +299,7 @@ func _rest_tests() -> void:
  g.state.mana=43
  var exhausted=g.state.hand.pop_back()
  g.state.exhaust.append(exhausted)
- for c in g.candidates():
+ for c in g.command_facts():
   if c.group=="card" and c.payload.free: check(not c.valid,"REST all free branches blocked")
  for i in range(6): check(action(g,"end").ok,"REST finite turn advances")
  check(g.state.phase=="map" and g.state.rest_left==0 and g.state.mana==43,"REST exactly six turns without battle-ending recovery")
@@ -452,7 +452,7 @@ func _route_tests() -> void:
    finish_packing(g)
   var outcome={"branch":branch,"phase":g.state.phase,"room":g.state.room,"round":g.state.round,"mana":g.state.mana,"energy":g.state.energy,"posture":g.state.posture,"rooms":g.state.completed_rooms.size(),"encounters":g.state.encounter,"rewards":g.state.reward_count,"enemies":g.state.enemies.map(func(e):return {"type":e.type,"hp":e.hp,"gone":e.gone,"stage":e.stage})}
   check(g.state.phase=="cleared" and g.state.reward_count==g.state.encounter and g.state.encounter+g.state.completed_rooms.filter(func(id):return g.room_data(id).kind=="event").size()>=8,"ROUTE long run completes with one reward per fight "+JSON.stringify(outcome))
-  check(g.state.completed_rooms.size()==17 and g.candidates().all(func(c):return c.payload.kind in ["demo_end","demo_continue","item_discard"]),"ROUTE no repeat rewards or rooms including summit")
+  check(g.state.completed_rooms.size()==17 and g.command_facts().all(func(c):return c.payload.kind in ["demo_end","demo_continue","item_discard"]),"ROUTE no repeat rewards or rooms including summit")
   check(g.validate()=="","ROUTE final state valid")
 
 func finish_room(g) -> void:
@@ -464,7 +464,7 @@ func finish_room(g) -> void:
  if g.state.phase=="event":
   for step in range(30):
    if g.state.phase!="event": break
-   var next=preload("res://tests/route_driver.gd").event_action(g.candidates())
+   var next=preload("res://tests/route_driver.gd").event_action(g.command_facts())
    check(not next.is_empty(),"ROUTE event has an available step, including events without refusal")
    if next.is_empty(): break
    check(g.dispatch(g.command(next.payload,g.state.version),g.state.version).ok,"ROUTE submits the event's real step and cost")
@@ -506,7 +506,7 @@ func finish_packing(g) -> void:
   if not result.ok: return
 
 func find_action(g, kind: String, extra: Dictionary = {}, usable_only: bool=false) -> Dictionary:
- for c in g.candidates():
+ for c in g.command_facts():
   if c.payload.kind!=kind or (usable_only and not c.valid): continue
   var matches=true
   for k in extra:

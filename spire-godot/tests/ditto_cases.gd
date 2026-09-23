@@ -26,7 +26,7 @@ static func run(t) -> void:
  t.check("ditto" in g.Relics.shop_pool() and "ditto" not in g.Relics.REWARDS,"DITTO shop exclusive pool")
  t.check(g.state.relics==["ditto"] and g.state.ditto_form=="rolling_log" and g.RelicEffects.validate(g)=="","DITTO rolling log remains a form, not physical ownership")
  var before=g.export_snapshot()
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(g.state==before,"DITTO read projections do not reroll")
  var twin=Game.new(99)
  t.check(twin.restore_snapshot(before).ok and twin.state.ditto_form=="rolling_log","DITTO save restores selected form")

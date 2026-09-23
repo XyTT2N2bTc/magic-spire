@@ -13,7 +13,7 @@ static func fresh():
 static func activate(t,g,free: bool) -> Dictionary:
  var card=Cards.give(g,TYPE)
  var c=t.find_action(g,"card",{"uid":card.uid,"free":free})
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(c.valid and c.cost==(2 if free else 1) and c.mana==0 and g.state==before,"EMBRACE both face costs and read-only preview")
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"EMBRACE stale activation rejects atomically")
  t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.energy==before.energy-c.cost and g.state.powers.any(func(p):return p.uid==card.uid),"EMBRACE formal activation moves one card into persistent ability zone")
@@ -43,7 +43,7 @@ static func run(t) -> void:
  t.check(not root.is_empty() and root.components.size()>1 and pending(g)==2,"EMBRACE ordinary plus multi-component assembly each count once")
  var current=pending(g);ordinary.durability=8;g._refresh_equipment(ordinary)
  t.check(pending(g)==current and g.state.draw_serial==serial,"EMBRACE plain reinforcement and repaired durability do not count as new equipment")
- before=g.export_snapshot();g.get_view();g.candidates()
+ before=g.export_snapshot();g.get_view();g.command_facts()
  var status=g.get_view().statuses.filter(func(row):return row.id=="power_"+BOUND)[0]
  t.check(g.state==before and status.badge=="2" and status.value=="下回合抽牌＋2" and status.duration=="本场整备结束","EMBRACE pending count lives on the persistent status icon")
  var twin=Save.roundtrip(t,g,"embrace pending draws")

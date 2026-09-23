@@ -4,7 +4,7 @@ static func return_to_map(t) -> void:
  var ui=t.ui;var g=ui.game
  g._finish_battle()
  for i in range(30):
-  var choices=g.candidates()
+  var choices=g.command_facts()
   var automatic=choices.filter(func(c):return c.get("automated",false))
   var wanted=automatic if not automatic.is_empty() else choices.filter(func(c):return (c.payload.kind=="reward" and c.payload.type=="skip") or c.payload.kind=="finish_prepare")
   if wanted.is_empty(): break

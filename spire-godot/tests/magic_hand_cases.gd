@@ -18,7 +18,7 @@ static func run(t) -> void:
  for amount in [10.0,8.0,4.0,1.0]:
   var g=fresh();var target=g.add_fixture("wrist",amount)
   var card=Give.give(g,TYPE);var c=t.find_action(g,"card",{"uid":card.uid,"target":target.id,"free":false})
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(c.valid and c.cost==1 and c.mana==20 and TYPE in g.Cards.Rules.UNCOMMON and g.Cards.Rules.definition_reason(g.Cards.Rules.SPECS[TYPE])=="" and g.state==before,"HAND uncommon targeted mouth spell costs one energy and twenty mana with readonly preview")
   t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"HAND stale card refuses all loosening and payment")
   var result=g.dispatch(g.command(c.payload,g.state.version),g.state.version);var hits=Follow.hits(g)
@@ -79,7 +79,7 @@ static func free_attacks(t) -> void:
     var equipment=g.state.equipment.duplicate(true)
     var c=Attack.attack(t,g,attack,form);var before=g.export_snapshot()
     t.check(g.level("arms")>=3 and c.valid and c.payload.damage==free_offer.payload.damage and c.payload.hits==free_offer.payload.hits,"HAND fully restrained physical attack matches free-state damage including strength and charge")
-    g.candidates();g.get_view()
+    g.command_facts();g.get_view()
     t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"HAND readonly and stale requests do not spend charges")
     t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.card_buff_uses.get("magic_hand_free")==1 and g._enemy(enemy.id).hp==300-c.payload.damage*c.payload.hits and g.state.equipment==equipment,"HAND whole multi-hit attack spends one use and leaves equipment unchanged")
     var row=g.get_view().statuses.filter(func(s):return s.id=="power_magic_hand_free")
@@ -128,7 +128,7 @@ static func fallback_priority(t) -> void:
   g=fresh();g.state.rng.card_target=seed_value;g.state.sure_cast=true
   target=g.add_fixture("thigh",4);var mouth=g.add_fixture("mouth",1)
   finger=g.add_fixture("fingers",4,10,false,0,"cord");eye=g.add_fixture("eyes",4)
-  var before=g.export_snapshot();g.candidates();g.get_view()
+  var before=g.export_snapshot();g.command_facts();g.get_view()
   t.check(g.state==before,"SUPER preview never chooses a random fallback")
   t.check(use(t,g,target).ok,"SUPER fallback batch commits")
   var hits=Follow.hits(g)

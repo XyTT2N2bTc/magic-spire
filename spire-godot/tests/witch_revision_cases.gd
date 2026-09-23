@@ -24,7 +24,7 @@ static func run(t) -> void:
  t.check(g.Character.reward_member(g,"witch_binding_lure","witch") and not g.Character.reward_member(g,"witch_binding_lure","original"),"INDUCTION reward eligibility is witch-exclusive")
  Base.play(t,g,"witch_binding_lure");Base.play(t,g,"witch_binding_lure",true);Base.play(t,g,"witch_binding_lure",true)
  t.check(g.state.card_buffs.count("witch_induction_hand")==1 and "witch_induction_mouth" in g.state.card_buffs,"INDUCTION faces coexist and repeated same face does not multiply redirects")
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before and not g.dispatch(g.command({"kind":"card","uid":"missing"},g.state.version),g.state.version).ok and g.state==before,"INDUCTION preview and rejected command leave state and random stream intact")
  var mouth={"kind":"install","template":"mouth_band","slot":"mouth","grade":2,"tier":3,"variant":0}
  g.state.witch_charges.hand=4;g.state.witch_charges.mouth=4
@@ -115,7 +115,7 @@ static func _card_revision(t) -> void:
  var restored=Save.roundtrip(t,g,"circle preparation")
  if restored!=null: t.check(t.find_action(restored,"attack",{"type":"witch_hand","form":0}).mana==0,"CIRCLE power survives save restore")
  g=Base.fresh();Base.play(t,g,"witch_magic_circle")
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before and g.state.card_buff_uses.witch_circle_skills==3,"CIRCLE previews preserve charge count")
  t.check(Base.play(t,g,"witch_magic_circle",true).ok and g.state.card_buff_uses.witch_circle_skills==3,"CIRCLE ability face does not spend skill discount")
  t.check(Base.play(t,g,"witch_mana_transfer",true).ok and g.state.card_buff_uses.witch_circle_skills==3,"CIRCLE magic face of mixed card does not spend skill discount")
@@ -156,7 +156,7 @@ static func _presentation(t) -> void:
  g.state.enemies.clear();g._finish_battle()
  t.check(not g.get_view().end_turn_locked,"WITCH end lock visual clears after victory")
  g=preload("res://tests/game_fixture.gd").new(42,true,"prison_test",true,false,25,false,false,"witch")
- t.check(not g.candidates().any(func(c):return c.payload.kind=="attack" and c.payload.type=="fireball"),"WITCH prison offers no original-character fireball")
+ t.check(not g.command_facts().any(func(c):return c.payload.kind=="attack" and c.payload.type=="fireball"),"WITCH prison offers no original-character fireball")
 
 static func _boundaries(t) -> void:
  var g=Base.fresh()

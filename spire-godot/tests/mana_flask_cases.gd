@@ -4,17 +4,17 @@ const Game=preload("res://tests/game_fixture.gd")
 static func shop(g) -> bool:
  preload("res://tests/service_cases.gd").arrive(g,"shop")
  var id=g.room_data(g.state.room).next.filter(func(next):return g.room_data(next).kind=="shop")[0]
- var departure=g.candidates().filter(func(c):return c.payload.kind=="depart" and c.payload.room==id)[0]
+ var departure=g.command_facts().filter(func(c):return c.payload.kind=="depart" and c.payload.room==id)[0]
  if not g.dispatch(g.command(departure.payload,g.state.version),g.state.version).ok: return false
  while g.state.phase=="travel":
-  var step=g.candidates().filter(func(c):return c.payload.kind=="travel_step")[0]
+  var step=g.command_facts().filter(func(c):return c.payload.kind=="travel_step")[0]
   if not g.dispatch(g.command(step.payload,g.state.version),g.state.version).ok: return false
  return g.state.phase=="shop"
 
 static func run(t) -> void:
  var g=Game.new(42);g.state.relics.append("mana_earring")
  var before=g.export_snapshot();var pick=t.find_action(g,"flask",{"op":"deposit"})
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(g.state==before,"FLASK preview never moves mana or spends deposit uses")
  t.check(g.dispatch(g.command(pick.payload,g.state.version),g.state.version).ok and g.state.mana==90 and g.state.flask_mana==10 and g.state.flask_deposits==1,"FLASK deposit transfers ten")
  var committed=g.export_snapshot()

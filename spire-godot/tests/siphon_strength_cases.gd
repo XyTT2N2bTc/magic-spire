@@ -17,7 +17,7 @@ static func run(t) -> void:
   var before=g.export_snapshot()
   t.check(c.valid and c.cost==1 and c.mana==0 and g.Cards.Rules.SPECS[TYPE].casting.parts==["hand"] and TYPE in g.Cards.Rules.RARE and TYPE not in g.Cards.Rules.UNCOMMON,"SIPHON STRENGTH rare one-energy hand spell needs no mana")
   t.check(g.Cards.Rules.SPECS[TYPE].rarity=="rare" and preload("res://data/encyclopedia.gd").card(TYPE).rarity=="rare" and g.get_view().hand.filter(func(row):return row.uid==source.uid)[0].rarity=="rare","SIPHON STRENGTH runtime card and encyclopedia share rare rarity")
-  t.check(g.candidates().filter(func(a):return a.payload.get("uid","")==source.uid).size()==2 and not c.payload.has("hand_uid") and g.state==before,"SIPHON STRENGTH one candidate per face with no manual selection")
+  t.check(g.command_facts().filter(func(a):return a.payload.get("uid","")==source.uid).size()==2 and not c.payload.has("hand_uid") and g.state==before,"SIPHON STRENGTH one candidate per face with no manual selection")
   t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"SIPHON STRENGTH stale play rolls back every zone and resource")
   var result=g.dispatch(g.command(c.payload,g.state.version),g.state.version)
   t.check(result.ok and g.state.energy==2 and g.state.mana==(50 if free else 20) and g.state.charge==(0 if free else 5),"SIPHON STRENGTH free rewards three magic cards; bound rewards five nonmagic cards")

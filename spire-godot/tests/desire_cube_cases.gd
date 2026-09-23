@@ -17,7 +17,7 @@ static func opening(t) -> void:
   var initial=g.Departure.initial_relic(g)
   var before=g.export_snapshot()
   var choice=t.find_action(g,"departure",{"op":"choose","option":TYPE})
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   t.check(g.export_snapshot()==before,"DESIRE opening previews preserve resources and RNG: "+role)
   t.check(g.dispatch(g.command(choice.payload,g.state.version),g.state.version).ok and initial not in g.state.relics and g.state.relics==[TYPE] and g.state.pressure==50 and g.state.deck.size()==before.deck.size() and g.state.hand.is_empty(),"DESIRE fixed opening replaces starter and basic card without boss bonus: "+role)
   before=g.export_snapshot();g.RelicEffects.gain(g,TYPE)

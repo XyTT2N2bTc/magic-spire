@@ -10,6 +10,7 @@ var _equipment_index_issues: Array=[]
 var copy_router_failures: Array=[]
 
 # 指令形状的键面真源（docs/spec/candidate-removal.md §3.3；N3 指令形状＝{kind, params, expected_version}）。
+# 显示事实（core/game.gd::display_fact 的输出）与该形状一一对应：同一 (kind, params) 只有一条事实。
 # 值＝该 kind 的 params 键与默认值：键面只用稳定 ID（template／type／id／uid／slot／target…），
 # 显示与派生字段（label／detail／brief／reason／risk／cost／mana／preview／after／hits／damage…）不进键面。
 # 本表是闭集：新增 kind 必须先回填契约 §3.3 再实现；dispatch 的形状与参数合法性复核按本表判定。
@@ -87,15 +88,17 @@ func command_issue(cmd: Dictionary) -> String:
   if not declared.has(key) or typeof(params[key])!=typeof(declared[key]): return "该行动已经失效，请重新选择。"
  return ""
 
-# 指令形状 → 当前状态下那条已复核的行动（唯一判定经行工厂给出）。形状与 params 相等的行恰有一条；
-# 无命中即失效。不再使用按提交身份 id 的取行复核（销 B2）。
-func command_row(cmd: Dictionary) -> Dictionary:
+# 指令形状 → 当前状态下该显示点的投影事实（T4 后半：唯一判定经显示事实给出）。形状与 params 相等的
+# 事实恰有一条；无命中即失效。不再有按提交身份 id 的取行复核（销 B2／DUP3）。
+func command_fact(cmd: Dictionary) -> Dictionary:
  var kind=String(cmd.get("kind",""))
  var params=command_params(kind,cmd.get("params",{}))
- for c in candidates():
-  if String(c.payload.get("kind",""))!=kind: continue
-  if command_params(kind,c.payload)==params: return c
- return {}
+ var found={}
+ for f in command_facts():
+  if String(f.payload.get("kind",""))!=kind: continue
+  if command_params(kind,f.payload)==params:
+   found=f;break
+ return found
 
 # A read batch owns its indexes; commands and subsequent views never reuse them.
 # Speculative installation replaces state, so it must use live queries instead.
@@ -2038,7 +2041,7 @@ func _fact_verdict(f: Dictionary) -> Dictionary:
 # 事实 → 判定＋detail 的唯一组装（行与投影显示事实共用；两处都不写 valid／reason，只 merge 判定结论）。
 func _fact_core(f: Dictionary) -> Dictionary:
  var payload: Dictionary=f.payload
- # B3（docs/ondemand-copy.md §1.5）：card 目标候选组不再预生成 detail，显示时经 candidate_detail 现算。
+ # B3（docs/ondemand-copy.md §1.5）：card 目标显示点不再预生成 detail，显示时经 candidate_detail 现算。
  var on_demand=String(payload.get("kind",""))=="card"
  var verdict=_fact_verdict(f)
  var core={}
@@ -2048,6 +2051,8 @@ func _fact_core(f: Dictionary) -> Dictionary:
  # 判定字段整体来自唯一判定（本文件不出现第二处 valid／reason 写点）；extra_traction 只是 detail 输入。
  core.merge(verdict)
  core.erase("extra_traction")
+ # 接管步骤的唯一选择结果随事实投影（提交侧经 FirstTurnControl.commit 消费），不构成第二份结论。
+ if f.has("control_next"): core.control_next=f.control_next
  return core
 
 # 事实的唯一构造点：source_reason＝该显示点的结构原因（唯一判定的输入，不是资格结论）；判定结论 reason 由
@@ -2057,31 +2062,21 @@ func _fact(payload: Dictionary, label: String, copy, cost, mana, reason: String,
  fact.source_reason=reason
  return fact
 
-# 事实 → 候选行（唯一的行构造入口）：行＝判定＋detail＋提交身份 id＋该显示点的显示字段。
-# 事实里带显示字段时（brief／brief_tags／casting／body_part）行照抄，显示文本只有一份来源。
-const FACT_DISPLAY_FIELDS=["brief","brief_tags","casting","body_part"]
-
-func _fact_row(out: Array, f: Dictionary) -> void:
- var row=_fact_core(f)
- row.id=JSON.stringify(f.payload).sha256_text().substr(0,24)
- for key in FACT_DISPLAY_FIELDS:
-  if f.has(key): row[key]=f[key]
- row.group=String(f.get("group","action"))
- out.append(row)
-
-func _candidate(out: Array, payload: Dictionary, label: String, copy, cost: int = 0, mana: float = 0.0, reason: String = "", risk: String = "", group: String = "action") -> void:
- _fact_row(out,_fact(payload,label,copy,cost,mana,reason,risk,group))
+# 事实里带显示字段时（brief／brief_tags／casting／body_part 与 reason_scope／reason_surface／copy_context）
+# 照抄：显示文本与显示侧元数据只有一份来源，投影不另算。
+const FACT_DISPLAY_FIELDS=["brief","brief_tags","casting","body_part","reason_scope","reason_surface","copy_context"]
 
 # 事实 → 投影显示事实（docs/spec/candidate-removal.md §2.1 T5／T8；显示侧的唯一取值入口）：
-# 与行同一事实、同一判定、同一 detail 组装；不带提交身份 id，带该显示点的显示字段。
+# 事实＋唯一判定＋detail 组装；不含提交身份 id；带该显示点的显示字段与显示点身份 key（形状键）。
 func display_fact(f: Dictionary) -> Dictionary:
  var fact=_fact_core(f)
  # 结构原因（判定输入）：手牌可用性按「结构上可解」优先取资源短缺文案，语义与改动前一致。
  fact.source_reason=String(f.get("source_reason",""))
  for key in FACT_DISPLAY_FIELDS:
   if f.has(key): fact[key]=f[key]
- # 行组名（显示侧按组取事实的键面；与行的 group 同值，不引入第二套命名）。
+ # 组名（显示侧按组取事实的键面）与显示点身份（形状键）都只在这里写一次。
  fact.group=String(f.get("group","action"))
+ fact.key=shape_key(fact.payload)
  return fact
 
 # 候选 detail 的唯一组装点（docs/ondemand-copy.md §1.5／§11.2）：eager 路径与候选只读入口共用，
@@ -2096,7 +2091,7 @@ func _candidate_detail(base: String, payload: Dictionary, extra_traction: int, p
  if payment.temporary_mana>0: detail+="\n临时魔力抵扣%s点，自身魔力支付%s点。" % [number(payment.temporary_mana),number(payment.mana)]
  return detail
 
-# card 目标候选的基础文案（core/card_effects.gd 的 target_candidate／candidates 原表达式），
+# card 目标候选的基础文案（core/card_effects.gd 的 target_candidate／facts 原表达式），
 # 供候选只读入口在 detail 缺失时按 payload 现算；其余组始终保持预生成 detail。
 func _candidate_base_detail(payload: Dictionary) -> String:
  return Cards.target_detail(self,{"payload":payload})
@@ -2259,10 +2254,43 @@ func candidate_detail(candidate: Dictionary) -> String:
  if payload.get("kind","")!="card": return ""
  return _candidate_detail(_candidate_base_detail(payload),payload,Cards.magic_card_traction(self,payload),_mana_payment(payload,float(candidate.get("mana",0.0))))
 
-func candidates() -> Array:
+# 全部指令显示事实的唯一来源（docs/spec/candidate-removal.md §2.1 T5／T8；批 R5）：按阶段／域产出显示点事实。
+# 投影、提交复核与接管选择都只经本函数取得事实；行载体（行表／行工厂／行索引）已删除，无第二份物化。
+func _fact_source() -> Array:
+ var facts: Array=[]
+ if not state.relic_bundle.is_empty():
+  facts.append_array(RelicBundle.facts(self))
+  facts.append_array(Consumables.noncombat_facts(self,facts))
+  facts.append_array(ManaFlask.facts(self,true))
+  return facts
+ if state.phase=="departure":
+  facts.append_array(Departure.facts(self))
+  facts.append_array(Consumables.noncombat_facts(self,facts))
+  facts.append_array(ManaFlask.facts(self,true))
+  return facts
+ if not command_domain_ready(): return facts
+ facts.append_array(_phase_facts())
+ facts.append_array(Consumables.noncombat_facts(self,facts))
+ facts.append_array(_route_facts(facts))
+ var surrender=surrender_fact()
+ if not surrender.is_empty(): facts.append(surrender)
+ facts.append_array(item_discard_facts())
+ facts.append_array(ManaFlask.facts(self))
+ facts.append_array(RelicEffects.facts(self))
+ facts.append_array(Cards.toggle_facts(self))
+ if state.charge>0 and not state.overloaded and state.phase not in ["cleared","prison_end"]:
+  var toggle_args={"charge_all":state.charge_all}
+  facts.append(_fact({"kind":"status_toggle","status":"charge","enabled":not state.charge_all},"切换为普通蓄力" if state.charge_all else "切换为全量蓄力",{"kind":"game.status_toggle","args":toggle_args,"fallback":copy_status_toggle(self,toggle_args)},0,0.0,"","","status_toggle"))
+ return facts
+
+# 投影事实（唯一出口，T8）：事实源 → 唯一判定与 detail 组装（display_fact）→ 接管标注（唯一选择结果）。
+# core/game_view.gd::build 的 view.display_facts 与本文件 command_fact 共用本列表，不再各算一份。
+func command_facts() -> Array:
+ # 读取批次：事实源与投影只在一个批次内物化一次（与改动前的候选表读取同一批次语义）。
  var previous=_begin_equipment_read()
- var result=_build_candidates()
- result=FirstTurnControl.select(self,result)
+ var facts: Array=[]
+ for f in _fact_source(): facts.append(display_fact(f))
+ var result=FirstTurnControl.select(self,facts)
  _equipment_read=previous
  return result
 
@@ -2283,115 +2311,84 @@ func live_card_text_set(cards: Array) -> Dictionary:
 func live_card_text(type: String, uid: String = "") -> Dictionary:
  return Cards.text_entry(self,type,uid)
 
-func _build_candidates() -> Array:
- if not state.relic_bundle.is_empty():
-  var bundled=RelicBundle.candidates(self)
-  Consumables.noncombat_candidates(self,bundled)
-  ManaFlask.candidates(self,bundled,true)
-  return bundled
- if state.phase=="departure":
-  var starting=Departure.candidates(self)
-  Consumables.noncombat_candidates(self,starting)
-  ManaFlask.candidates(self,starting,true)
-  return starting
- if not command_domain_ready(): return []
- var out=_phase_candidates()
- Consumables.noncombat_candidates(self,out)
- _route_candidates(out)
- var surrender=surrender_fact()
- if not surrender.is_empty(): _fact_row(out,surrender)
- for f in item_discard_facts(): _fact_row(out,f)
- ManaFlask.candidates(self,out)
- RelicEffects.candidates(self,out)
- Cards.toggle_candidates(self,out)
- if state.charge>0 and not state.overloaded and state.phase not in ["cleared","prison_end"]:
-  var toggle_args={"charge_all":state.charge_all}
-  _candidate(out,{"kind":"status_toggle","status":"charge","enabled":not state.charge_all},"切换为普通蓄力" if state.charge_all else "切换为全量蓄力",{"kind":"game.status_toggle","args":toggle_args,"fallback":copy_status_toggle(self,toggle_args)},0,0,"","","status_toggle")
- return out
-
-func _phase_candidates() -> Array:
+# 阶段与行动显示事实（command_facts 的阶段分支）：早退分支与改动前的行路径逐条对应。
+func _phase_facts() -> Array:
  var out: Array = []
  if state.phase=="rest_choice":
-  _candidate(out,{"kind":"rest_rare"},"随机获得1张稀有卡 · 扣除%d回合" % B.REST_CARD_TURNS.rare,{"kind":"game.rest_rare","args":{},"fallback":copy_rest_rare(self,{})},0,0,"休息回合不足。" if state.rest_left<B.REST_CARD_TURNS.rare else "","","rest_service")
+  out.append(_fact({"kind":"rest_rare"},"随机获得1张稀有卡 · 扣除%d回合" % B.REST_CARD_TURNS.rare,{"kind":"game.rest_rare","args":{},"fallback":copy_rest_rare(self,{})},0,0.0,"休息回合不足。" if state.rest_left<B.REST_CARD_TURNS.rare else "","","rest_service"))
   for type in state.rest_cards:
    var rarity=Cards.Rules.SPECS[type].rarity
    var turns=B.REST_CARD_TURNS[rarity]
    var rest_args={"count":state.rest_cards.size(),"rarity":rarity,"turns":turns}
-   _candidate(out,{"kind":"rest_card","type":type},"领取「"+B.CARD_NAMES[type]+"」 · 扣除%d回合" % turns,{"kind":"game.rest_card","args":rest_args,"fallback":copy_rest_card(self,rest_args)},0,0,"休息回合不足。" if state.rest_left<turns else "","","rest_service")
-  _candidate(out,{"kind":"rest_flask"},"魔瓶补充%d魔力 · 扣除%d回合" % [B.REST_FLASK_MANA,B.REST_FLASK_TURNS],{"kind":"game.rest_flask","args":{},"fallback":copy_rest_flask(self,{})},0,0,"休息回合不足。" if state.rest_left<B.REST_FLASK_TURNS else "","","rest_service")
+   out.append(_fact({"kind":"rest_card","type":type},"领取「"+B.CARD_NAMES[type]+"」 · 扣除%d回合" % turns,{"kind":"game.rest_card","args":rest_args,"fallback":copy_rest_card(self,rest_args)},0,0.0,"休息回合不足。" if state.rest_left<turns else "","","rest_service"))
+  out.append(_fact({"kind":"rest_flask"},"魔瓶补充%d魔力 · 扣除%d回合" % [B.REST_FLASK_MANA,B.REST_FLASK_TURNS],{"kind":"game.rest_flask","args":{},"fallback":copy_rest_flask(self,{})},0,0.0,"休息回合不足。" if state.rest_left<B.REST_FLASK_TURNS else "","","rest_service"))
   var begin_args={"left":state.rest_left}
-  _candidate(out,{"kind":"rest_begin"},"跳过奖励，直接休息",{"kind":"game.rest_begin","args":begin_args,"fallback":copy_rest_begin(self,begin_args)},0,0,"","","rest_service")
+  out.append(_fact({"kind":"rest_begin"},"跳过奖励，直接休息",{"kind":"game.rest_begin","args":begin_args,"fallback":copy_rest_begin(self,begin_args)},0,0.0,"","","rest_service"))
   return out
  if state.phase in ["shop","treasure"]:
-  Services.candidates(self,out)
-  return out
+  return Services.facts(self)
  if state.phase=="event":
-  Events.candidates(self,out)
-  return out
+  return Events.facts(self)
  if state.phase in ["captured","inspection"]:
-  Prison.candidates(self,out)
-  return out
+  return Prison.facts(self)
  if state.phase=="prison_end": return out
  if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES:
   var climax_args={"battle":state.phase=="battle","first":state.order=="first"}
-  _candidate(out,{"kind":"end"},"继续 · 高潮后缓一缓",{"kind":"game.end_climax","args":climax_args,"fallback":copy_end_climax(self,climax_args)},0,0,"","","flow")
+  out.append(_fact({"kind":"end"},"继续 · 高潮后缓一缓",{"kind":"game.end_climax","args":climax_args,"fallback":copy_end_climax(self,climax_args)},0,0.0,"","","flow"))
   return out
  if not state.card_chain.is_empty():
-  Cards.continuation(self,out)
-  return out
+  return Cards.chain_display_facts(self)
  if state.pending_retain:
-  for f in retain_facts(): _fact_row(out,f)
-  return out
+  return retain_facts()
  if state.phase == "reward":
   if Events.active_item_rewards(self):
    for row in Events.item_reward_rows(self):
     if row.claimed: continue
     var full_reason="随身道具栏已满，无法拾取这件道具。" if carried_items()>=item_capacity() else ""
-    _candidate(out,{"kind":"reward","category":"item","type":row.type,"reward_id":row.id},"领取「"+Tools.TYPES[row.type].name+"」",{"kind":"game.reward_item","args":{},"fallback":copy_reward_item(self,{})},0,0,full_reason,"","reward")
-   _candidate(out,{"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_item_skip","args":{},"fallback":copy_reward_item_skip(self,{})},0,0,"","","reward")
+    out.append(_fact({"kind":"reward","category":"item","type":row.type,"reward_id":row.id},"领取「"+Tools.TYPES[row.type].name+"」",{"kind":"game.reward_item","args":{},"fallback":copy_reward_item(self,{})},0,0.0,full_reason,"","reward"))
+   out.append(_fact({"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_item_skip","args":{},"fallback":copy_reward_item_skip(self,{})},0,0.0,"","","reward"))
    return out
   if not state.reward_claimed.has("card"):
    for type in state.reward_options:
-    _candidate(out,{"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",{"kind":"card.two_face","args":{"type":type},"fallback":CopyRouter.two_face(self,type)},0,0,"","","reward")
+    out.append(_fact({"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",{"kind":"card.two_face","args":{"type":type},"fallback":CopyRouter.two_face(self,type)},0,0.0,"","","reward"))
   if state.battle_flask_drop>0 and not state.reward_claimed.has("flask"):
-   _candidate(out,{"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,{"kind":"game.reward_flask","args":{},"fallback":copy_reward_flask(self,{})},0,0,"","","reward")
+   out.append(_fact({"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,{"kind":"game.reward_flask","args":{},"fallback":copy_reward_flask(self,{})},0,0.0,"","","reward"))
   for category in ["item","relic"]:
    var type=state.battle_item_drop if category=="item" else state.battle_relic_drop
    if type=="" or state.reward_claimed.has(category): continue
    var title=Tools.TYPES[type].name if category=="item" else Relics.TYPES[type].name
    var other_args={"category":category,"type":type}
-   _candidate(out,{"kind":"reward","category":category,"type":type},"领取「"+title+"」",{"kind":"game.reward_other","args":other_args,"fallback":copy_reward_other(self,other_args)},0,0,"","","reward")
+   out.append(_fact({"kind":"reward","category":category,"type":type},"领取「"+title+"」",{"kind":"game.reward_other","args":other_args,"fallback":copy_reward_other(self,other_args)},0,0.0,"","","reward"))
   if not state.reward_claimed.has("relic"):
    for type in state.boss_relic_options:
-    _candidate(out,{"kind":"reward","category":"relic","type":type},"选择「"+Relics.TYPES[type].name+"」",{"kind":"game.reward_relic","args":{"type":type},"fallback":copy_reward_relic(self,{"type":type})},0,0,RelicEffects.gain_reason(self,type),"","reward")
+    out.append(_fact({"kind":"reward","category":"relic","type":type},"选择「"+Relics.TYPES[type].name+"」",{"kind":"game.reward_relic","args":{"type":type},"fallback":copy_reward_relic(self,{"type":type})},0,0.0,RelicEffects.gain_reason(self,type),"","reward"))
   for category in ["card","relic"]:
    var offered=not state.reward_options.is_empty() if category=="card" else (state.battle_relic_drop!="" or not state.boss_relic_options.is_empty())
    if offered and not state.reward_claimed.has(category):
-    _candidate(out,{"kind":"reward_skip","category":category},"跳过",{"kind":"game.reward_skip_category","args":{"category":category},"fallback":copy_reward_skip_category(self,{"category":category})},0,0,"","","reward")
-  _candidate(out,{"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_skip","args":{},"fallback":copy_reward_skip(self,{})},0,0,"","","reward")
+    out.append(_fact({"kind":"reward_skip","category":category},"跳过",{"kind":"game.reward_skip_category","args":{"category":category},"fallback":copy_reward_skip_category(self,{"category":category})},0,0.0,"","","reward"))
+  out.append(_fact({"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_skip","args":{},"fallback":copy_reward_skip(self,{})},0,0.0,"","","reward"))
   return out
  if state.phase == "map": return out
  if state.phase == "travel":
   var step_args={"remaining":state.journey.remaining}
-  _candidate(out,{"kind":"travel_step"},"继续前进 · 1回合",{"kind":"game.travel_step","args":step_args,"fallback":copy_travel_step(self,step_args)},0,0,travel_route_reason(),SlipMotion.hint(),"route")
+  out.append(_fact({"kind":"travel_step"},"继续前进 · 1回合",{"kind":"game.travel_step","args":step_args,"fallback":copy_travel_step(self,step_args)},0,0.0,travel_route_reason(),SlipMotion.hint(),"route"))
   return out
  if state.phase == "cleared":
-  DemoExit.candidates(self,out)
-  return out
+  return DemoExit.facts(self)
  if state.phase == "pack":
-  _item_candidates(out)
-  for f in flow_facts(): _fact_row(out,f)
+  out.append_array(item_action_facts())
+  out.append_array(flow_facts())
   return out
- _wall_move_candidates(out)
- _posture_candidates(out)
- _attack_candidates(out)
- _equipment_spell_candidates(out)
- for card in state.hand: _card_candidates(out,card)
- _manual_candidates(out)
- _item_candidates(out)
- if state.phase=="rest": _rest_candidates(out)
- if state.phase=="prison": Prison.candidates(self,out)
- for f in flow_facts(): _fact_row(out,f)
+ out.append_array(wall_move_facts())
+ out.append_array(posture_facts())
+ out.append_array(attack_facts())
+ out.append_array(equipment_spell_facts())
+ for card in state.hand: out.append_array(Cards.card_facts(self,card))
+ out.append_array(manual_facts())
+ out.append_array(item_action_facts())
+ if state.phase=="rest": out.append_array(hook_facts())
+ if state.phase=="prison": out.append_array(Prison.facts(self))
+ out.append_array(flow_facts())
  return out
 
 # Position is saved once per encounter; previews only read it.
@@ -2429,7 +2426,7 @@ func wall_view() -> Dictionary:
 
 # ==== 显示事实的唯一来源（docs/spec/candidate-removal.md §2.1 T5／T8；批 R3）====
 # 事实＝显示点的指令形状＋行参数（cost／mana／reason／risk）＋显示字段（brief／brief_tags／casting／body_part）。
-# 行构建（_fact_row）与投影显示事实（display_fact）共用同一份事实与同一判定：同一形状只有一条路径。
+# 投影显示事实（display_fact）是事实的唯一出口：同一份事实与同一判定，同一形状只有一条路径。
 # 键面：payload／label／copy／cost／mana／reason／risk／group／brief／brief_tags／casting／body_part／verdict（可选）。
 
 # 基础行动块（墙面／姿态／攻击／装备法术／底栏）的产出条件（唯一来源）：这些阶段或状态不产出基础行动行。
@@ -2449,7 +2446,7 @@ func _attack_fact_display(f: Dictionary) -> Dictionary:
   f["body_part"]="脚趾" if part=="toes" else Cards.Rules.CAST_PART_NAMES[part]
  return f
 
-# 墙面移动（墙面域）：行与显示事实的唯一来源。
+# 墙面移动（墙面域）：显示事实的唯一来源。
 func wall_move_facts() -> Array:
  var facts=[]
  if not base_action_block(): return facts
@@ -2470,10 +2467,7 @@ func wall_move_facts() -> Array:
   facts.append(_fact({"kind":"wall_move","direction":direction,"distance":distance,"after":after},label,{"kind":"game.wall_move","args":move_args,"fallback":copy_wall_move(self,move_args)},profile.cost,0.0,reason,SlipMotion.hint(),"wall_move"))
  return facts
 
-func _wall_move_candidates(out: Array) -> void:
- for f in wall_move_facts(): _fact_row(out,f)
-
-# 姿态（姿态域）：行与显示事实的唯一来源。
+# 姿态（姿态域）：显示事实的唯一来源。
 func posture_facts() -> Array:
  var facts=[]
  if not base_action_block(): return facts
@@ -2498,10 +2492,7 @@ func posture_facts() -> Array:
    facts.append(_fact({"kind":"posture","dest":dest,"wall":true,"adjacent":true},"贴墙站起" if dest=="stand" else "贴墙坐起",{"kind":"game.posture_wall","args":wall_posture_args,"fallback":copy_posture_wall(self,wall_posture_args)},maxi(0,cost-blind_cost-1)+blind_cost,0.0,"","","posture"))
  return facts
 
-func _posture_candidates(out: Array) -> void:
- for f in posture_facts(): _fact_row(out,f)
-
-# 底栏（flow 组）与深呼吸（pressure 组）：行与显示事实的唯一来源；行序与改动前一致。
+# 底栏（flow 组）与深呼吸（pressure 组）：显示事实的唯一来源；产出顺序与改动前一致。
 func flow_facts() -> Array:
  var facts=[]
  if state.phase=="pack":
@@ -2551,7 +2542,7 @@ func kick_profile(variant: Dictionary={}) -> Dictionary:
  if justice and leg_level>BasicAttacks.TYPES.kick[2].postures.stand.max_level: reason="正义飞踢需要双腿活动自由。"
  return {"label":label,"cost":cost,"damage":damage,"reason":reason,"fall":bound,"interrupt":infused_justice or (not justice and (posture=="stand" or not bound)),"cooldown_turns":0 if justice and not infused_justice else spec.cooldown_turns}
 
-# 基础攻击（行动域）：行与显示事实的唯一来源。角色2（巫女）的攻击事实由 core/witch_character.gd::attack_facts 给出。
+# 基础攻击（行动域）：显示事实的唯一来源。角色2（巫女）的攻击事实由 core/witch_character.gd::attack_facts 给出。
 func attack_facts() -> Array:
  var facts=[]
  if not base_action_block() or state.phase!="battle": return facts
@@ -2562,9 +2553,6 @@ func attack_facts() -> Array:
    for form in range(BasicAttacks.forms(self,type).size()):
     facts.append(_attack_offer_fact(e,type,form))
  return facts
-
-func _attack_candidates(out: Array) -> void:
- for f in attack_facts(): _fact_row(out,f)
 
 func _attack_offer_fact(e: Dictionary, type: String, form: int) -> Dictionary:
  var spec=BasicAttacks.forms(self,type)[form]
@@ -2646,7 +2634,7 @@ func _attack_offer_fact(e: Dictionary, type: String, form: int) -> Dictionary:
  fact.brief_tags=" · ".join(tags)
  return fact
 
-# 装备自解火球（行动域，非战斗阶段）：行与显示事实的唯一来源。
+# 装备自解火球（行动域，非战斗阶段）：显示事实的唯一来源。
 func equipment_spell_facts() -> Array:
  var facts=[]
  if not base_action_block(): return facts
@@ -2668,14 +2656,7 @@ func equipment_spell_facts() -> Array:
   facts.append(fact)
  return facts
 
-func _equipment_spell_candidates(out: Array) -> void:
- for f in equipment_spell_facts(): _fact_row(out,f)
-
-
-func _card_candidates(out: Array, card: Dictionary) -> void:
- Cards.candidates(self,out,card)
-
-# Reachable only on the default tail of _phase_candidates (after the early returns).
+# Reachable only on the default tail of _phase_facts (after the early returns).
 func command_tail() -> bool:
  if not command_domain_ready(): return false
  if state.phase in ITEM_ABSENT_PHASES or state.phase=="pack": return false
@@ -2683,13 +2664,13 @@ func command_tail() -> bool:
  if not state.card_chain.is_empty() or state.pending_retain: return false
  return true
 
-# Chain rows exist only when _phase_candidates reaches the chain return, before reward and the action tail.
+# Chain facts exist only when _phase_facts reaches the chain return, before reward and the action tail.
 func chain_rows_active() -> bool:
  if not command_domain_ready() or state.card_chain.is_empty(): return false
  if state.phase in ["rest_choice","shop","treasure","event","captured","inspection","prison_end"]: return false
  return not (state.overloaded and state.phase in RelicEffects.COMBAT_PHASES)
 
-# 装备操作（装备域，批 R4）：行与显示事实的唯一来源（docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 装备操作（装备域，批 R4 起、R5 收口）：显示事实的唯一来源（docs/spec/candidate-removal.md §2.1 T5／T8）。
 func manual_facts() -> Array:
  var facts=[]
  if not command_tail(): return facts
@@ -2714,10 +2695,7 @@ func manual_facts() -> Array:
   facts.append(_fact({"kind":"manual","target":target.id,"after":0.0},"直接取出",{"kind":"game.manual_retrieve","args":{"name":target.name},"fallback":copy_manual_retrieve(self,{"name":target.name})},1,0.0,special_reason,"","manual"))
  return facts
 
-func _manual_candidates(out: Array) -> void:
- for f in manual_facts(): _fact_row(out,f)
-
-# 挂钩（装备域，批 R4）：行与显示事实的唯一来源；只在休息阶段产出。
+# 挂钩（装备域，批 R4 起、R5 收口）：显示事实的唯一来源；只在休息阶段产出。
 func hook_facts() -> Array:
  var facts=[]
  if state.phase!="rest" or not command_tail(): return facts
@@ -2735,9 +2713,6 @@ func hook_facts() -> Array:
   facts.append(_fact({"kind":"hook","target":target.id,"after":after},"挂钩 · "+_equipment_name(target),{"kind":"game.hook","args":hook_args,"fallback":copy_hook(self,hook_args)},0,0.0,reason,"","hook"))
  return facts
 
-func _rest_candidates(out: Array) -> void:
- for f in hook_facts(): _fact_row(out,f)
-
 func item_capacity() -> int:
  return 3+int(state.departure.get("capacity_bonus",0))+int(relic_value("capacity"))-(1 if level("arms")>=3 or occupied("fingers") else 0)-(1 if level("legs")>=3 else 0)
 
@@ -2749,10 +2724,7 @@ func _item(id: String) -> Dictionary:
   if item.id==id: return item
  return {}
 
-func _item_candidates(out: Array) -> void:
- for f in item_action_facts(): _fact_row(out,f)
-
-# 道具域（批 R4）：显示事实的唯一来源；行路径（_phase_candidates 的 pack／默认可行动分支）由本函数派生。
+# 道具域（批 R4 起、R5 收口）：显示事实的唯一来源；pack 与默认可行动分支由本函数派生。
 # 每件道具的可用操作（与执行分支的可用性一一对应）。
 func item_action_facts() -> Array:
  var facts=[]
@@ -2793,19 +2765,19 @@ func item_action_facts() -> Array:
    facts.append(_fact({"kind":"item_retrieve","item":item.id,"mount":"carry","operator":operators[0] if not operators.is_empty() else ""},"取回工具",{"kind":"game.item_retrieve","args":retrieve_args,"fallback":copy_item_retrieve(self,retrieve_args)},0,0.0,Tools.retrieve_reason(self,item),"","item"))
  return facts
 
-# 丢弃（道具域）：每件道具一条；守卫与 _build_candidates 的守卫（departure／relic bundle 分支与两处校验）一致。
+# 丢弃（道具域）：每件道具一条；守卫与 command_facts 的守卫（departure／relic bundle 分支与两处校验）一致。
 func item_discard_facts() -> Array:
  var facts=[]
  for item in state.items:
   facts.append(_fact({"kind":"item_discard","item":item.id},"丢弃"+Tools.TYPES[item.type].name,{"kind":"game.item_discard","args":{},"fallback":copy_item_discard(self,{})},0,0.0,"","","item"))
  return facts
 
-# 指令域的公共前置（绑定状态与特殊装备校验，_build_candidates 的入口守卫）：显示事实的域构建器复用同一守卫，
+# 指令域的公共前置（绑定状态与特殊装备校验，command_facts 的入口守卫）：显示事实的域构建器复用同一守卫，
 # 不再各自重写条件。
 func command_domain_ready() -> bool:
  return Binding.state_issue(self)=="" and SpecialEquipment.validate(state.get("special_equipment"))==""
 
-# 道具操作块参与的阶段（＝_phase_candidates 的非早退分支）：早退分支（休息选择／商店／宝箱／事件／捕获／
+# 道具操作块参与的阶段（＝_phase_facts 的非早退分支）：早退分支（休息选择／商店／宝箱／事件／捕获／
 # 巡视／监狱结束／地图／旅途／通关／奖励）与高潮／连锁／保留期不产出道具操作事实，只留非战斗可用道具与丢弃行。
 const ITEM_ABSENT_PHASES=["rest_choice","shop","treasure","event","captured","inspection","prison_end","map","travel","cleared","reward"]
 
@@ -2815,8 +2787,8 @@ func item_action_block() -> bool:
  if not state.card_chain.is_empty(): return false
  return not state.pending_retain
 
-# 道具域显示事实（批 R4；T5／T8）：与行路径同源——同一批事实构建器 + 同一分支守卫（item_action_block 与
-# _build_candidates 的入口守卫）。旧行路径：relic bundle／departure 分支只留非战斗道具；其余阶段先取操作事实，
+# 道具域显示事实（批 R4 起、R5 收口；T5／T8）：同一批事实构建器 + 同一分支守卫（item_action_block 与
+# command_facts 的入口守卫）。分支面：relic bundle／departure 分支只留非战斗道具；其余阶段先取操作事实，
 # 再用非战斗块补齐，最后每件道具一条丢弃行。
 func item_facts() -> Array:
  var facts: Array=[]
@@ -2829,7 +2801,7 @@ func item_facts() -> Array:
  facts.append_array(item_discard_facts())
  return facts
 
-# 保留选择（整备域）：行与显示事实的唯一来源；只在保留期产出。
+# 保留选择（整备域）：显示事实的唯一来源；只在保留期产出。
 func retain_facts() -> Array:
  var facts=[]
  if not command_domain_ready() or not state.pending_retain: return facts
@@ -2856,10 +2828,10 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  if pending_issue!="": return {"ok":false,"error":pending_issue}
  var relic_issue=RelicEffects.validate(self)
  if relic_issue!="": return {"ok":false,"error":relic_issue}
- # T4 复核：指令形状＋参数合法性（不判定资格），随后由形状取回该条已复核的行动（唯一判定在行工厂内）。
+ # T4 复核：指令形状＋参数合法性（不判定资格），随后由形状取回该显示点的投影事实（唯一判定在事实出口内）。
  var shape_issue=command_issue(cmd)
  if shape_issue!="": return {"ok":false,"error":shape_issue}
- var chosen=command_row(cmd)
+ var chosen=command_fact(cmd)
  if chosen.is_empty(): return {"ok":false,"error":"该行动已经失效，请重新选择。"}
  if not chosen.valid: return {"ok":false,"error":chosen.reason}
  var extra_traction=Cards.magic_card_traction(self,chosen.payload)
@@ -3464,26 +3436,31 @@ func _route_exit_candidate(choices: Array) -> Dictionary:
  if state.phase=="event" and state.room_event.get("prepare_pending",false): return {}
  for c in choices:
   var p=c.payload
-  if p.kind in ["finish_prepare","finish_rest","finish_pack"] or (p.kind=="service" and p.op=="leave") or (p.kind=="event" and p.action=="leave"): return c
+  if p.kind in ["finish_prepare","finish_rest","finish_pack"] or (p.kind=="service" and p.op=="leave") or (p.kind=="event" and p.action=="leave"):
+   # 出口事实按需投影（调用方可能传事实源）：判定结论与 detail 由唯一判定给出，行载体已删除。
+   return c if c.has("valid") else display_fact(c)
  return {}
 
-func _route_candidates(out: Array) -> void:
- var exit_action=_route_exit_candidate(out)
- if state.phase!="map" and exit_action.is_empty(): return
+# 路线显示事实（路线域；批 R5）：exit_action＝本条指令域内已产出的出口事实（与改动前的行扫描同一输入）。
+func _route_facts(choices: Array) -> Array:
+ var out: Array=[]
+ var exit_action=_route_exit_candidate(choices)
+ if state.phase!="map" and exit_action.is_empty(): return out
  var profile=movement_profile()
  var destinations=state.rooms.filter(func(room):return Prison.start_room(room)).map(func(room):return room.id) if state.tower_start_pending else room_data(state.room).next
  for id in destinations:
   if state.completed_rooms.has(id): continue
   var room=room_data(id)
   var depart_args={"mode":profile.mode,"turns":profile.turns,"room_id":id,"phase":state.phase,"tower_start":state.tower_start_pending}
-  _candidate(out,{"kind":"depart","room":id},("从这里开始 · " if state.tower_start_pending else "前往")+room.name,{"kind":"game.depart","args":depart_args,"fallback":copy_depart(self,depart_args)},0,0,room_entry_reason(room,exit_action),SlipMotion.hint(),"route")
+  out.append(_fact({"kind":"depart","room":id},("从这里开始 · " if state.tower_start_pending else "前往")+room.name,{"kind":"game.depart","args":depart_args,"fallback":copy_depart(self,depart_args)},0,0.0,room_entry_reason(room,exit_action),SlipMotion.hint(),"route"))
+ return out
 
 func room_entry_reason(room: Dictionary, exit_action: Variant=null) -> String:
  if state.tower_start_pending:
   return "" if state.phase=="map" and Prison.start_room(room) else "出狱起点只能选择第10—11层的非休息、非宝箱区域。"
  if room.is_empty(): return "这个房间不在当前塔图中。"
  if state.phase=="travel": return "正在前往已选房间，抵达后才能选择新路线。"
- if exit_action==null: exit_action=_route_exit_candidate(_phase_candidates()) if state.phase!="map" else {}
+ if exit_action==null: exit_action=_route_exit_candidate(_phase_facts()) if state.phase!="map" else {}
  if state.phase in ["battle","reward","prepare","rest","rest_choice","pack","event","shop","treasure"] and exit_action.is_empty(): return "先完成当前房间的战斗、奖励或整备，再选择前进路线。"
  if not exit_action.is_empty():
   if not exit_action.valid: return exit_action.reason
@@ -3499,7 +3476,7 @@ func room_entry_reason(room: Dictionary, exit_action: Variant=null) -> String:
 
 func _depart(c: Dictionary) -> String:
  if state.phase!="map":
-  var exit_action=_route_exit_candidate(_phase_candidates())
+  var exit_action=_route_exit_candidate(_phase_facts())
   if exit_action.is_empty() or not exit_action.valid: return "当前房间还有未完成的事项，不能离开。"
   var issue=""
   match exit_action.payload.kind:
@@ -3561,7 +3538,7 @@ func _arrive_room() -> void:
 func route_view(choices: Variant=null) -> Array:
  var result: Array=[]
  var current=room_data(state.room)
- var exit_action=_route_exit_candidate(_phase_candidates() if choices==null else choices)
+ var exit_action=_route_exit_candidate(_phase_facts() if choices==null else choices)
  for room in state.rooms:
   var status="ahead"
   if state.completed_rooms.has(room.id): status="completed"
@@ -3767,7 +3744,7 @@ func restore_snapshot(saved: Dictionary) -> Dictionary:
  var loaded_capture: Dictionary=state.get("capture",{})
  loaded_capture.erase("terminal_equipment")
  issue=validate()
- if issue=="" and not state.card_chain.is_empty() and Cards.chain_candidates(self).is_empty(): issue="连续卡牌已没有可继续的目标。"
+ if issue=="" and not state.card_chain.is_empty() and Cards.chain_facts(self).is_empty(): issue="连续卡牌已没有可继续的目标。"
  if issue=="" and state.pending_retain and (state.overloaded or not state.hand.any(func(card):return Cards.can_select_retain(self,card))): issue="保留手牌选择已没有合法目标。"
  if issue!="":
   state=previous

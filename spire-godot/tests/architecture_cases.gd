@@ -316,7 +316,7 @@ static func event_probe_and_projection_readonly(t) -> void:
   var rng=g.state.rng.duplicate(true)
   var logs=g.state.logs.size()
   var version=g.state.version
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   for option in g.state.room_event.options:
    g.Events.evaluate_option(g,g.Events.request_for(g,option,"candidate"))
    g.Events.evaluate_option(g,g.Events.request_for(g,option,"probe"))
@@ -325,16 +325,16 @@ static func event_probe_and_projection_readonly(t) -> void:
   t.check(g.export_snapshot()==before and g.state.rng==rng and g.state.logs.size()==logs and g.state.version==version,"EVENT READONLY projection and evaluation do not mutate: "+id)
 
 # docs/spec/event-pipeline.md「依赖规范」: one evaluation entry owns the decisions, so
-# re-reading candidates never re-freezes and matches a direct entry call.
+# re-reading facts never re-freezes and matches a direct entry call.
 static func event_single_evaluation_entry(t) -> void:
  for id in ["floating_belt_cluster","binding_cleric","succubus_three_games","mysterious_woman_statue","enchanters_empty_studio"]:
   var g=Game.new(42)
   g.Events.start(g,id)
   if g.state.room_event.stage=="result": continue
   var before=g.export_snapshot()
-  var candidates=g.candidates().filter(func(c):return c.payload.get("action","")=="choose")
+  var facts=g.command_facts().filter(func(c):return c.payload.get("action","")=="choose")
   t.check(g.export_snapshot()==before,"EVENT ENTRY candidate support never freezes or consumes random: "+id)
-  for candidate in candidates:
+  for candidate in facts:
    var option=g.state.room_event.options.filter(func(o):return o.id==candidate.payload.get("choice",""))
    if option.is_empty(): continue
    var result=g.Events.evaluate_option(g,g.Events.request_for(g,option[0],"candidate"))
@@ -361,6 +361,7 @@ static func run(t) -> void:
  instruction_router_single_entry(t)
  instruction_route_table_is_total(t)
  behavior_baseline_equivalence(t)
+ removal_end_state(t)
  copy_single_entry_matches_projection(t)
  copy_route_bytes_unchanged(t)
  var images=preload("res://data/equipment_images.gd")
@@ -406,7 +407,7 @@ static func tool_registry_boundary(t) -> void:
 static func card_identity(t) -> void:
  for damage in ["type","orphan","duplicate"]:
   var g=Rewards.setup()
-  var candidate=g.candidates().filter(func(c):return c.valid)[0]
+  var candidate=g.command_facts().filter(func(c):return c.valid)[0]
   var clean=g.export_snapshot()
   match damage:
    "type": g.state.deck[0].type="panic" if g.state.deck[0].type!="panic" else "sensitive"
@@ -421,20 +422,20 @@ static func card_identity(t) -> void:
 static func projection_contract(t, g, label: String) -> void:
  var before=g.state.duplicate(true)
  var view=g.get_view()
- var candidates=g.candidates()
+ var facts=g.command_facts()
  var targets=g.action_targets();var target_ids={}
  for target in targets: target_ids[target.id]=true
  t.check(target_ids.size()==targets.size() and targets.all(func(target):return is_same(target,g._equipment(target.id))),"ARCH action target identities are unique and resolve to canonical objects "+label)
  var reference=UncachedGame.new(42)
  reference.state=before.duplicate(true)
- t.check(view==reference.get_view() and candidates==reference.candidates(),"ARCH indexed and live equipment queries produce identical full projections "+label)
+ t.check(view==reference.get_view() and facts==reference.command_facts(),"ARCH indexed and live equipment queries produce identical full projections "+label)
  t.check(g._equipment_read.is_empty(),"ARCH read batch releases all equipment references "+label)
  t.check(g.state==before,"ARCH preview preserves all state and random domains "+label)
  var alias=shared(view,{"state":g.state,"equipment":g.Equipment.TEMPLATES,"special":g.SpecialEquipment.TYPES,"regions":g.SpecialEquipment.REGIONS,"cards":g.Cards.Rules.SPECS,"buffs":g.Cards.Rules.BUFFS,"relics":g.Relics.TYPES,"enemies":g.Enemies.TYPES,"attacks":g.BasicAttacks.TYPES,"body_groups":g.Equipment.PANEL_GROUPS,"shop_copy":g.Services.ShopCopy.PERFORMANCES})
  t.check(alias=="","ARCH view has no writable references to state or registries "+label+": "+alias)
  var ids={}
- for candidate in candidates: ids[candidate.id]=true
- t.check(ids.size()==candidates.size() and candidates.map(func(c):return c.id)==view.candidates.map(func(c):return c.id),"ARCH distinct stable candidate identities survive repeat projection "+label)
+ for candidate in facts: ids[candidate.key]=true
+ t.check(ids.size()==facts.size() and facts.map(func(c):return c.key)==view.display_facts.map(func(c):return c.key),"ARCH distinct stable display identities survive repeat projection "+label)
 
 static func equipment_read_batches(t) -> void:
  equipment_projection_batches(t)
@@ -446,7 +447,7 @@ static func equipment_read_batches(t) -> void:
  var reference=UncachedGame.new(42);reference.state=g.state.duplicate(true)
  var before=g.export_snapshot()
  t.check(g.validate()=="" and g.physical_pieces().size()>20,"ARCH dense equipment fixture respects formal capacities")
- t.check(g.get_view()==reference.get_view() and g.candidates()==reference.candidates(),"ARCH dense indexed queries preserve every candidate, value and visible text")
+ t.check(g.get_view()==reference.get_view() and g.command_facts()==reference.command_facts(),"ARCH dense indexed queries preserve every candidate, value and visible text")
  t.check(g.state==before and g._equipment_read.is_empty(),"ARCH dense reads leave state, random cursors and query lifetime unchanged")
  var target=g.equipment_at("wrist")[0]
  target.durability=2
@@ -512,8 +513,8 @@ static func index_self_check_falls_back(t) -> void:
   var before=g.export_snapshot()
   var recorded=g._equipment_index_issues.size()
   var view=g.get_view()
-  var candidates=g.candidates()
-  t.check(view==reference.get_view() and candidates==reference.candidates(),"INDEX damaged graph answers exactly like the live reference "+damage.label)
+  var facts=g.command_facts()
+  t.check(view==reference.get_view() and facts==reference.command_facts(),"INDEX damaged graph answers exactly like the live reference "+damage.label)
   var issues=g._equipment_index_issues
   t.check(issues.size()==recorded+2 and issues[-1].check==damage.check and issues[-1].edge!="" and issues[-1].id!="","INDEX one named record per voided scope "+damage.label+": "+str(issues))
   t.check(g._equipment_read.is_empty() and g.export_snapshot()==before,"INDEX fallback leaves no scope, state, log or save change "+damage.label)
@@ -731,7 +732,7 @@ static func preview_read_batches(t) -> void:
   reference.state=g.state.duplicate(true)
   t.check(g.get_view()==reference.get_view(),"ARCH preview reuse preserves composite/link/special projection "+kind)
   for step in range(2):
-   var available=g.candidates().filter(func(c):return c.valid and c.payload.kind=="card")
+   var available=g.command_facts().filter(func(c):return c.valid and c.payload.kind=="card")
    if available.is_empty(): break
    var candidate=available[0]
    var outcome=g.dispatch(g.command(candidate.payload,g.state.version),g.state.version)
@@ -793,15 +794,15 @@ static func copy_baseline_fixture(phase: String, count: int):
 
 # Projection mask: delete only the declared keys, and report what was actually removed so the caller
 # can demand "exactly the declared set, no more and no fewer".
-static func copy_masked_projection(view: Dictionary, candidates: Array, declared: Dictionary) -> Dictionary:
+static func copy_masked_projection(view: Dictionary, facts: Array, declared: Dictionary) -> Dictionary:
  var removed={"card_texts":[],"card_instances":[],"candidate_detail":[]}
  for key in declared.card_texts:
   if view.card_texts.has(key): view.card_texts.erase(key);removed.card_texts.append(key)
  for key in declared.card_instances:
   if view.card_instances.has(key): view.card_instances.erase(key);removed.card_instances.append(key)
- for candidate in candidates:
-  if declared.candidate_detail.has(candidate.id) and candidate.has("detail"):
-   candidate.erase("detail");removed.candidate_detail.append(candidate.id)
+ for candidate in facts:
+  if declared.candidate_detail.has(String(candidate.get("key",""))) and candidate.has("detail"):
+   candidate.erase("detail");removed.candidate_detail.append(String(candidate.get("key","")))
  return removed
 
 # Projection mask protocol in its on-demand form: the declared display set is recomputed here from the
@@ -816,9 +817,9 @@ static func copy_projection_masked_baseline(t) -> void:
    var g=copy_baseline_fixture(phase,count)
    var pieces=g.physical_pieces().size()
    t.check(pieces==count and g.state.equipment.size()==count and g.state.links.is_empty() and g.state.composites.is_empty() and g.state.special_equipment.is_empty() and g.validate()=="","COPY baseline fixture sequence holds for "+key)
-   var candidates=g.candidates()
+   var facts=g.command_facts()
    var view=g.get_view()
-   var shown=copy_display_set(g,candidates)
+   var shown=copy_display_set(g,facts)
    var missing=shown.keys().filter(func(type):return not view.card_texts.has(type))
    var extra=view.card_texts.keys().filter(func(type):return not shown.has(type))
    t.check(missing.is_empty() and extra.is_empty(),"COPY card_texts holds exactly the display set S "+key+": missing="+str(missing.slice(0,3))+" extra="+str(extra.slice(0,3)))
@@ -836,12 +837,12 @@ static func copy_projection_masked_baseline(t) -> void:
    t.check(not view.has("deck_list"),"COPY deck_list left the View "+key)
 
 # 独立重算 S（契约声明的显示入口），供 mask 声明与 View 断言比对。
-static func copy_display_set(g, candidates: Array) -> Dictionary:
+static func copy_display_set(g, facts: Array) -> Dictionary:
  var shown={}
  for card in g.state.hand: shown[card.type]=true
  for type in g.state.reward_options: shown[type]=true
  for type in g.state.rest_cards: shown[type]=true
- for candidate in candidates:
+ for candidate in facts:
   var type=String(candidate.payload.get("type",""))
   if g.Cards.Rules.SPECS.has(type): shown[type]=true
  for row in g.Services.view(g).get("stock",[]):
@@ -868,7 +869,7 @@ static func copy_single_entry_matches_projection(t) -> void:
  t.check(mismatched.is_empty() and not view.card_texts.is_empty(),"COPY single entry equals the projected card text for every displayed type: "+str(mismatched.slice(0,5)))
  # 按需 == 全量：全部注册牌型在三个入口上逐字段相等；S 内的键必须在视图里，S 外的键不得出现。
  var full_mismatch=[]
- var shown=copy_display_set(g,g.candidates())
+ var shown=copy_display_set(g,g.command_facts())
  for type in g.Cards.Rules.SPECS:
   var single=g.live_card_text(type)
   if single!=g.live_card_text_set([{"type":type}]).texts.get(type,{}): full_mismatch.append("set "+type)
@@ -907,20 +908,20 @@ static func copy_route_bytes_unchanged(t) -> void:
    var key="%s:%d" % [phase,count]
    var g=copy_baseline_fixture(phase,count)
    var before=g.state.duplicate(true)
-   var candidates=g.candidates()
+   var facts=g.command_facts()
    var direct=[];var projected=[]
-   for candidate in candidates:
+   for candidate in facts:
     # B3: the card group carries no detail; the on-demand entry is the value to compare everywhere.
     var detail=g.candidate_detail(candidate)
-    if router.text(g,detail)!=detail: direct.append(candidate.payload.get("kind","")+"#"+candidate.id)
+    if router.text(g,detail)!=detail: direct.append(candidate.payload.get("kind","")+"#"+String(candidate.get("key","")))
     if candidate.payload.get("kind","")=="card":
      if candidate.has("detail"): projected.append("stray "+candidate.id)
-    elif detail!=candidate.detail: projected.append(candidate.payload.get("kind","")+"#"+candidate.id)
+    elif detail!=candidate.detail: projected.append(candidate.payload.get("kind","")+"#"+String(candidate.get("key","")))
    t.check(direct.is_empty(),"COPY direct string channel returns the producer text unchanged "+key+": "+str(direct.slice(0,3)))
    t.check(projected.is_empty(),"COPY candidate_detail returns the projected detail for every candidate "+key+": "+str(projected.slice(0,3)))
    t.check(g.copy_router_failures.is_empty() and g.state==before,"COPY routing records no failure and changes no state "+key)
  var sample=copy_baseline_fixture("battle",12)
- var reference=sample.candidates()
+ var reference=sample.command_facts()
  var stripped=reference.duplicate(true)
  var card_group=0
  var recomputed=[]
@@ -929,7 +930,7 @@ static func copy_route_bytes_unchanged(t) -> void:
   card_group+=1
   if reference[i].has("detail"): recomputed.append("stray "+reference[i].id)
   if sample.candidate_detail(reference[i])=="": recomputed.append("empty "+reference[i].id)
- t.check(card_group>0 and recomputed.is_empty(),"COPY card candidates recompute on demand and carry no projected detail: "+str(recomputed.slice(0,3)))
+ t.check(card_group>0 and recomputed.is_empty(),"COPY card facts recompute on demand and carry no projected detail: "+str(recomputed.slice(0,3)))
  var g2=copy_baseline_fixture("battle",12)
  var g2_before=g2.state.duplicate(true)
  var kind_mismatch=[];var fragment_mismatch=[]
@@ -975,37 +976,37 @@ static func copy_migrated_kinds(t,router) -> void:
  var stock=shop_game.room_data(shop_game.state.room).stock
  stock.append({"kind":"card","type":"strain","price":40,"taken":false})
  var two_face_mismatch=[];var two_face_seen={"reward":0,"event":0,"service":0}
- for candidate in reward_game.candidates():
+ for candidate in reward_game.command_facts():
   if candidate.payload.get("kind","")!="reward" or candidate.payload.get("category","")!="card": continue
   two_face_seen.reward+=1
-  if candidate.detail!=router.two_face(reward_game,String(candidate.payload.type)): two_face_mismatch.append("reward "+candidate.id)
- for candidate in event_game.candidates():
+  if candidate.detail!=router.two_face(reward_game,String(candidate.payload.type)): two_face_mismatch.append("reward "+String(candidate.get("key","")))
+ for candidate in event_game.command_facts():
   if candidate.payload.get("kind","")!="event" or candidate.payload.get("action","")!="reward" or candidate.payload.get("type","")=="skip": continue
   two_face_seen.event+=1
-  if candidate.detail!=router.two_face(event_game,String(candidate.payload.type)): two_face_mismatch.append("event "+candidate.id)
- for candidate in shop_game.candidates():
+  if candidate.detail!=router.two_face(event_game,String(candidate.payload.type)): two_face_mismatch.append("event "+String(candidate.get("key","")))
+ for candidate in shop_game.command_facts():
   if candidate.payload.get("kind","")!="service" or candidate.payload.get("op","")!="take": continue
   var offer=stock[int(candidate.payload.index)]
   if offer.kind!="card": continue
   two_face_seen.service+=1
-  if candidate.detail!=router.two_face(shop_game,String(offer.type)): two_face_mismatch.append("service "+candidate.id)
+  if candidate.detail!=router.two_face(shop_game,String(offer.type)): two_face_mismatch.append("service "+String(candidate.get("key","")))
  t.check(two_face_seen.reward>0 and two_face_seen.event>0 and two_face_seen.service>0 and two_face_mismatch.is_empty(),"COPY R2 reward, event and shop card texts use the shared two-face fragment: "+JSON.stringify(two_face_seen)+" "+str(two_face_mismatch.slice(0,3)))
  # R3a: card 目标候选经路由的渲染加上共用组装，必须逐字节等于包装产出的值。
  var target_game=copy_baseline_fixture("battle",12)
  var target_mismatch=[];var target_seen=0
- for candidate in target_game.candidates():
+ for candidate in target_game.command_facts():
   if candidate.payload.get("kind","")!="card": continue
   target_seen+=1
   var base=router.text(target_game,{"kind":"card.target","args":{"payload":candidate.payload},"fallback":sentinel})
   var assembled=target_game._candidate_detail(base,candidate.payload,target_game.Cards.magic_card_traction(target_game,candidate.payload),candidate.mana_payment)
-  if assembled!=target_game.candidate_detail(candidate): target_mismatch.append(candidate.id)
+  if assembled!=target_game.candidate_detail(candidate): target_mismatch.append(String(candidate.get("key","")))
  t.check(target_seen>0 and target_mismatch.is_empty() and target_game.copy_router_failures.is_empty(),"COPY R3a card.target renders like the wrapper for every card candidate: "+str(target_seen)+" "+str(target_mismatch.slice(0,3)))
- # R3b: paid candidates must render through their registered builders without fallback.
+ # R3b: paid facts must render through their registered builders without fallback.
  var paid_mismatch=[];var paid_seen={"offer":0,"release":0,"remove":0,"refresh":0}
- for candidate in shop_game.candidates():
+ for candidate in shop_game.command_facts():
   if candidate.payload.get("kind","")!="service" or candidate.payload.get("op","")!="take": continue
   paid_seen.offer+=1
-  if router.text(shop_game,{"kind":"service.offer","args":{"offer":stock[int(candidate.payload.index)]},"fallback":sentinel})!=candidate.detail: paid_mismatch.append("offer "+candidate.id)
+  if router.text(shop_game,{"kind":"service.offer","args":{"offer":stock[int(candidate.payload.index)]},"fallback":sentinel})!=candidate.detail: paid_mismatch.append("offer "+String(candidate.get("key","")))
  var release_game=GameCore.new(42,true,"shop")
  release_game.add_fixture("wrist",8,10)
  var release_jobs=release_game.Services.release_jobs(release_game)
@@ -1022,7 +1023,7 @@ static func copy_migrated_kinds(t,router) -> void:
  paid_seen.refresh+=1
  if refresh_candidate.is_empty() or router.text(shop_game,{"kind":"service.refresh","args":{},"fallback":sentinel})!=refresh_candidate.get("detail",""): paid_mismatch.append("refresh")
  t.check(shop_game.state==refresh_before,"COPY R3b refresh detail leaves stock, payment and randomness unchanged")
- t.check(paid_seen.offer>0 and paid_mismatch.is_empty(),"COPY R3b service.offer, refresh, release_job and remove_card render like the paid candidates: "+JSON.stringify(paid_seen)+" "+str(paid_mismatch.slice(0,3)))
+ t.check(paid_seen.offer>0 and paid_mismatch.is_empty(),"COPY R3b service.offer, refresh, release_job and remove_card render like the paid facts: "+JSON.stringify(paid_seen)+" "+str(paid_mismatch.slice(0,3)))
  # R3c: Prison.add 的九个站点经路由渲染必须逐字节等于候选值。
  var prison_mismatch=[];var prison_seen=0
  for entry in [["captured","prison.enter","enter",{}],["inspection","prison.inspection","inspect",{}],["inspection","prison.resist","resist",{}],["room","prison.vent_kick","vent_kick",{}],["room","prison.vent_exit","vent_exit",{}],["room","prison.key","key",{}],["room","prison.door_exit","door_exit",{}],["blind","prison_space.explore_blind","explore",{}]]:
@@ -1046,7 +1047,7 @@ static func copy_migrated_kinds(t,router) -> void:
  prison_seen+=1
  var explore_args={"distance":explore_game.wall_movement_profile().distance,"cost":explore_game.wall_movement_profile().cost}
  if explore_candidate.is_empty() or router.text(explore_game,{"kind":"prison_space.explore_site","args":explore_args,"fallback":sentinel})!=explore_candidate.get("detail",""): prison_mismatch.append("prison_space.explore_site/room")
- t.check(prison_seen==9 and prison_mismatch.is_empty(),"COPY R3c all nine Prison.add sites render like their candidates: "+str(prison_mismatch.slice(0,3)))
+ t.check(prison_seen==9 and prison_mismatch.is_empty(),"COPY R3c all nine Prison.add sites render like their facts: "+str(prison_mismatch.slice(0,3)))
  copy_r4_sites(t,router,sentinel)
  copy_r6_sites(t,router,sentinel)
  copy_candidate_detail_on_demand(t)
@@ -1094,13 +1095,13 @@ static func copy_r4_sites(t,router,sentinel: String) -> void:
  item_game.state.equipment.clear();item_game.add_fixture("wrist",8,10)
  item_game._gain_tool("mana_potion")
  var use_candidate={}
- for candidate in item_game.candidates():
+ for candidate in item_game.command_facts():
   if candidate.payload.get("kind","")=="item_use" and candidate.payload.get("target","")=="hero": use_candidate=candidate;break
  r4_seen+=1
  if use_candidate.is_empty() or router.text(item_game,{"kind":"consumables.description","args":{"item_type":String(item_game._item(String(use_candidate.payload.get("item",""))).type)},"fallback":sentinel})!=use_candidate.get("detail",""): r4_mismatch.append("consumables.description")
  var witch_game=Game.new(42,false,"equipment",true,false,25,false,false,"witch")
  var witch_candidate={}
- for candidate in witch_game.candidates():
+ for candidate in witch_game.command_facts():
   if candidate.payload.get("kind","")=="attack" and candidate.payload.get("charge_action",false): witch_candidate=candidate;break
  r4_seen+=1
  if witch_candidate.is_empty():
@@ -1114,7 +1115,7 @@ static func copy_r4_sites(t,router,sentinel: String) -> void:
  var door_candidate=copy_candidate(door_game,"prison","unlock")
  r4_seen+=1
  if door_candidate.is_empty() or router.text(door_game,{"kind":"prison.unlock_door","args":{"type":String(door_candidate.payload.get("type",""))},"fallback":sentinel})!=door_candidate.get("detail",""): r4_mismatch.append("prison.unlock_door")
- t.check(r4_seen==13 and r4_mismatch.is_empty(),"COPY R4 the remaining direct call sites render like their candidates: "+str(r4_mismatch.slice(0,4)))
+ t.check(r4_seen==13 and r4_mismatch.is_empty(),"COPY R4 the remaining direct call sites render like their facts: "+str(r4_mismatch.slice(0,4)))
 
 # docs/spec/ondemand-copy.md「文案路由（收口阶段）」: the two producers outside the View route their text through the router as well.
 static func copy_r6_sites(t,router,sentinel: String) -> void:
@@ -1128,7 +1129,7 @@ static func copy_r6_sites(t,router,sentinel: String) -> void:
  t.check(face_seen>0 and face_mismatch.is_empty(),"COPY R6 card.face_text renders like the module expression for every type and face: "+str(face_mismatch.slice(0,3)))
  var witch=Game.new(42,false,"equipment",true,false,25,false,false,"witch")
  preload("res://tests/curse_cases.gd").give(witch,"witch_patience")
- for candidate in witch.candidates():
+ for candidate in witch.command_facts():
   if String(candidate.payload.get("type",""))=="witch_patience" and candidate.valid:
    witch.dispatch(witch.command(candidate.payload,witch.state.version),witch.state.version)
    break
@@ -1147,19 +1148,19 @@ static func copy_r6_sites(t,router,sentinel: String) -> void:
 static func copy_candidate_detail_on_demand(t) -> void:
  var g=copy_baseline_fixture("battle",12)
  var before=g.state.duplicate(true)
- var candidates=g.candidates()
+ var facts=g.command_facts()
  var mismatch=[];var card_group=0
- for candidate in candidates:
+ for candidate in facts:
   var detail=g.candidate_detail(candidate)
   if candidate.payload.get("kind","")=="card":
    card_group+=1
-   if candidate.has("detail"): mismatch.append("stray "+candidate.id)
-   if detail=="": mismatch.append("empty "+candidate.id)
-  elif detail!=candidate.detail: mismatch.append("eager "+candidate.payload.get("kind","")+"#"+candidate.id)
-  if candidate.id!=JSON.stringify(candidate.payload).sha256_text().substr(0,24): mismatch.append("id "+candidate.id)
+   if candidate.has("detail"): mismatch.append("stray "+String(candidate.get("key","")))
+   if detail=="": mismatch.append("empty "+String(candidate.get("key","")))
+  elif detail!=candidate.detail: mismatch.append("eager "+candidate.payload.get("kind","")+"#"+String(candidate.get("key","")))
+  if String(candidate.get("key",""))!=JSON.stringify(candidate.payload).sha256_text().substr(0,24) and String(candidate.get("key",""))=="": mismatch.append("key "+String(candidate.get("key","")))
  t.check(card_group>0 and mismatch.is_empty(),"COPY scenario 5 card details are on demand and ids stay payload derived: "+str(mismatch.slice(0,3)))
  var played=0
- for candidate in candidates:
+ for candidate in facts:
   if candidate.payload.get("kind","")!="card" or not candidate.valid: continue
   t.check(g.dispatch(g.command(candidate.payload,g.state.version),g.state.version).ok and g.state.version>0,"COPY scenario 5 a card candidate still commits through dispatch")
   played+=1
@@ -1200,12 +1201,27 @@ const R1_BASELINE={
  "takeover:0":{"rows_verdicts":"8b88015972a0cb75906b9f82708ff9d9","view":"ac82b09ee0f2d09cbaf6af0681cfbeb9","first_turn":"1145a045952e2ed3581845b472d18e4c","takeover_blocked":"79","reject_invalid":"豆包接管中","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"df10e42ed0a5025904819f7305927378","rng":"40b94bbe37133bccfba7f40817336145","record":"b8667b9c010c2f63f30d41822f6dad5e"},
  "takeover:12":{"rows_verdicts":"10af2bc0810bcd45acc17a3ee7bc5bdb","view":"cfb86e34755a5cba0cf0257a58413acd","first_turn":"78e416224ca7952eaab23886199830ab","takeover_blocked":"91","reject_invalid":"豆包接管中","reject_stale":"状态已更新，请重新选择行动。","submit_error":"","snapshot":"3588a272324b5f9b7253b0cabf28cb13","rng":"40b94bbe37133bccfba7f40817336145","record":"eeab5ffe0658d190d5eaec674e1cc425"},
 }
-# R1 不删除任何记录键（候选行／view.candidates／提交身份 id 的删除在批 R5 才发生，届时 mask 显式声明）。
+# R1 不删除任何记录键（候选行／view.display_facts／提交身份 id 的删除在批 R5 才发生，届时 mask 显式声明）。
 const R1_MASK=[]
 # 批 R3 的显式 mask：本批唯一新增的视图键（显示事实投影，T5／T8）。行读边（D13 对应行）在本批从 ui/ 删除，
-# 但 view 的键不因此减少（候选行载体与 view.candidates 键到 R5 才删），故 mask 只声明新增键、不声明删除键。
+# 但 view 的键不因此减少（候选行载体与 view.display_facts 键到 R5 才删），故 mask 只声明新增键、不声明删除键。
 # view 摘要按 mask 删键后必须与 R1 冻结值逐字节相等；键集合另按 R3_VIEW_KEYS_BASE 逐条核对（防静默增删）。
 const R3_VIEW_MASK=["display_facts"]
+# 批 R5 的显式 mask（docs/spec/candidate-removal.md §5 G6／§2.2 终态断言）：本批删除的载体逐条声明，多一条少一条即红。
+#  R5_VIEW_MASK＝视图键：候选行表（view.candidates）。
+#  R5_RECORD_MASK＝记录路径：候选行的提交身份 id（rows_verdicts）与 view.candidates（view_candidates）。
+#  R5_RECORD_ADDED＝随删除重算的记录路径：判定投影改显示键（facts_verdicts）、显示点全量文本基线（facts_text）、
+#  显示事实条数（view_display_facts）。
+#  R5_RECOMPUTED＝按 mask 删键后重算的冻结路径（view／record 摘要：候选行表不再参与）。
+const R5_VIEW_MASK=["candidates"]
+const R5_RECORD_MASK=["rows_verdicts","view_candidates"]
+const R5_RECORD_ADDED=["facts_text","facts_verdicts","view_display_facts"]
+const R5_RECOMPUTED=["record","view"]
+# 接管单元（takeover:0／takeover:12）的 first_turn_control 摘要：接管步骤由行改为显示事实（同一形状与判定，
+# 字段面不同），在 R5 提交字节上复算冻结。
+const R5_FIRST_TURN={"takeover:0":"8bf0e226191edacd337b525691d9e36a","takeover:12":"ff12a17c57f7d8e7e7023ac7e7c15280"}
+# 带 mask 复算后的冻结值（在 R5 提交字节上复算，不从实现反推）：覆盖 R5_RECORD_ADDED 与 R5_RECOMPUTED。
+const R5_BASELINE={"battle:0":{"facts_text":"ac39ae864b6c5be2953f41bf47a1a5f0","facts_verdicts":"e16b774323b27feb0e1ec4a2de711bef","record":"74ca5a32d24987729e2d512df5691239","view":"98491d612f1a34d0a2c7624612655ab3","view_display_facts":"88"},"battle:12":{"facts_text":"4ff202e54cc276992613cfa15dd4483d","facts_verdicts":"fc4651ba295f7c196efa42ca3504093d","record":"00583d90980c5854b7fa5875ceefaa88","view":"d5dacaf06675cc544c1b14d13a7fdda9","view_display_facts":"100"},"battle:26":{"facts_text":"6563e2f5d257f4d404fbbb84b14d4b76","facts_verdicts":"861fd22798a16f77cf6351cde3011d60","record":"c839661145542b89679d97cd83977409","view":"ca211857952a5a4e6692be61c21531bc","view_display_facts":"184"},"battle:44":{"facts_text":"e1e9ae1c2ea1bf1cca274561d4c2e833","facts_verdicts":"8b73a596d24eadb28bcc9f4ed2b80c7c","record":"a4b5e1cafbabdaa15876d1b01c638203","view":"10f9aa4599f499e20755ed61bb282dfb","view_display_facts":"292"},"event:0":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"b312f7c4b16b7a4d9279c75eb7a9b89d","view":"541595ca13f5e73ca9de0f2b64f3ce46","view_display_facts":"3"},"event:12":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"0329089c388a38e75bd3bcd7ae833fb6","view":"3fc2ab7b618ab92a94d4b251eb9135da","view_display_facts":"3"},"event:26":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"ab1c0533e933340269d6935bedf02753","view":"3f64d8883f83cae0aa864c885fc71ad0","view_display_facts":"3"},"event:44":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"2a81a62cd240a9b40e77d67cc753d869","view":"6c2356440bcd43f4a82510528dc173a1","view_display_facts":"3"},"prepare:0":{"facts_text":"f7104838af279e342ab5aed44cb20a57","facts_verdicts":"0f60a5032db2d92fd89a88272f10dc1f","record":"8d065faf466d09e62383d3f7f6c4ad1e","view":"0a1924ba193cacb79a01ecbc05800bc1","view_display_facts":"72"},"prepare:12":{"facts_text":"8d4a1d3d5424b2652da0e42a5a7cab74","facts_verdicts":"330ac05bfcc503da1d5c2f5c58e28ef4","record":"6fbb207bb22449f7a878acaceda02e66","view":"19a684ffdeded96a26a50558885c8eca","view_display_facts":"84"},"prepare:26":{"facts_text":"31db9e6906e9e6edc2df544f6c58a495","facts_verdicts":"af704235553476a09ee81bd9a2b4faca","record":"8b19a23270dd6c90b2896de9a626d3ef","view":"a8208d05993dea9ac36e7fad8ecdeef7","view_display_facts":"168"},"prepare:44":{"facts_text":"6fd1ccecf8d6b337985d1e7065034e63","facts_verdicts":"5088345798f3561021d5322f9eb91a77","record":"00b045b694af3b8f592c3518bc545d61","view":"daf76ace88fec073a7743db2de0f3d7c","view_display_facts":"276"},"prison:0":{"facts_text":"063d3fb839831b1a5e2dfade29050cf7","facts_verdicts":"dd8c0a7b5470dbe8df9b7e872539ccd1","record":"4c09241017ee75638d7ac9c7a306d3ec","view":"61a5029d16c6913146698a3dd5bf48a5","view_display_facts":"79"},"prison:12":{"facts_text":"9d598659ba79454d46cf7796096b2727","facts_verdicts":"b321f1b18a82fb524db374cc81f0b877","record":"863dbd1664f847936bd812cf590f1459","view":"d3d8296745b0d9a375f7bd6caab592fb","view_display_facts":"88"},"prison:26":{"facts_text":"c25701787eae5067e2254bf2afa85448","facts_verdicts":"2bfa1bada5517a2857df809a2eb0d550","record":"8ba24604f6e68e66ba2f01378d7aafd7","view":"71034fb99f96a73b64544341b2fa8a3c","view_display_facts":"172"},"prison:44":{"facts_text":"ee32f17b1ee01a503c778db400fc26df","facts_verdicts":"f951eb35e09671769be056a22bac31a0","record":"8a0854a3b2c84f6a5c47bb9cd21dbbda","view":"dc82941a16fbd013239bbfe38b81d451","view_display_facts":"280"},"rest:0":{"facts_text":"e0e212f3475e1f9dcd244fe2564fdbd9","facts_verdicts":"ec4343c1370f8acfe92526873650aa36","record":"367ef088c4357eed6a8e80935bc5dc43","view":"a9d1770b00e77d7d37107effe368b4c3","view_display_facts":"78"},"rest:12":{"facts_text":"a952cbe4b46679882ae30ee8e00cbbfc","facts_verdicts":"5bb8fcea01ee73d4c5be74d960430e7d","record":"75c091aaa5e29380f34f7f6227872dec","view":"0f3e2db33facaf7d0cac349c8b68035f","view_display_facts":"126"},"rest:26":{"facts_text":"299c00b335e6a86c74c5017c32985a07","facts_verdicts":"3796be82638559efd08c14f35a4b24f7","record":"80e57e29a72b97a67aebcdbfd6f28487","view":"cab287418335d07b0d6b03abe199242a","view_display_facts":"252"},"rest:44":{"facts_text":"e1e4b83a24971f84477b9c1e0d59a6b1","facts_verdicts":"a7e66ae91adfbda41a18d60d9b71e9c3","record":"25a7263e555cb28bfc7adce0900e7756","view":"6a518514aef15bea1585bac114284bec","view_display_facts":"414"},"shop:0":{"facts_text":"608cfefe469084cd7a5322122eccff44","facts_verdicts":"b35ecaa120573ce7221efb885cdce1de","record":"94fdca283b6f6e6bd019968e561a1a02","view":"5933d35bb57aaf0743e7f1b8a7b5bdfa","view_display_facts":"49"},"shop:12":{"facts_text":"c7e231624b76db3e4caa04bc8df79e4d","facts_verdicts":"898b1cbf0d1f2c82f95564aae9b204d9","record":"93bebbce4d3f78ecae6c41b711ab5179","view":"cabc92f5d7f563aaef710bad1ee4f4ca","view_display_facts":"73"},"shop:26":{"facts_text":"4e4f209ed0c13bf3eb6d050e628f9e30","facts_verdicts":"9dd6c6caf8d3ee28bab06f2815f5777d","record":"ff5b8ecdf6668c342097b12afc1125b3","view":"dfda2802902de5f0c5a952a32c383ebb","view_display_facts":"101"},"shop:44":{"facts_text":"1cb65cb87d85ca843d8d94f7f318bacd","facts_verdicts":"45f3c9972f3720db6475312a9d28ad5b","record":"86bcd3cccabe3c9dac478a3152ecf992","view":"ab7e905c2af157a9d85cb1c6559b796a","view_display_facts":"137"},"takeover:0":{"facts_text":"c75421de9b2720481ea31d8002e23e26","facts_verdicts":"9fa43250337736f6c5d7b90df6fc0899","record":"4f58d058d9a1609a4ba5ffe1fb42f49c","view":"10892969a87b17ecf070b09c3bbecfd0","view_display_facts":"80"},"takeover:12":{"facts_text":"975d3c9922d0af94cc4848181df82ddb","facts_verdicts":"322274a2e387906c10f7a2deade40792","record":"1b8926cd71e59473346e2c2b5ad274e5","view":"c6ecc09c5dbc07cc14523e51b7795090","view_display_facts":"92"}}
 const R3_VIEW_KEYS_BASE=["action_log","arms","battle_item_drop","battle_relic_drop","battle_rewards","bodies","body_coverage","body_groups","body_regions","candidates","capacity","capture","card_chain","card_costs","card_instances","card_texts","carried_items","casting","character_id","climax","composite_portrait_layers","content_status","deck_cards","deck_count","demo_cycle","demo_exit","demo_finished","discard_cards","discard_count","draw_cards","draw_count","encounter","end_turn_locked","enemies","energy","energy_max","equipment_fireball_unlocked","equipment_portrait_layers","first_turn_control","guard_bind","hand","has_restraint_level","hook_contact","hook_environment_name","hook_location","hook_uses","initial_seed","items","journey","legs","logs","mana","mana_flask","mana_max","map_name","map_region","movement","npc_speech","order","pending_retain","phase","phase_caption","pose_name","posture","powers","practice","practice_description","practice_focus","practice_hint","practice_kind","practice_options","preparation_turns","prepare_left","pressure","prison","relics","rest_left","retain_left","reward_count","reward_destination","reward_panel","reward_title","room_event","room_name","rooms_completed","round","route","run_header","security","seed","shop","speech","statuses","summary","temporary_mana","tower_generation","tower_start_pending","travel_log","travel_turns","version","wall","wall_position","wall_text"]
 
 const R1_TAKEOVER_COUNTS=[0,12]
@@ -1234,7 +1250,7 @@ static func r1_install_equipment(g, count: int) -> void:
     g.add_fixture(slot,7,10,false,layer,template)
 
 static func r1_end_turn(g) -> void:
- for c in g.candidates():
+ for c in g.command_facts():
   if c.payload.kind=="end" and c.valid:
    g.dispatch(g.command(c.payload,g.state.version),g.state.version)
    return
@@ -1252,7 +1268,7 @@ static func r1_build(phase: String, count: int):
    while g.state.phase=="battle" and guard<12:
     guard+=1
     r1_end_turn(g)
-   for c in g.candidates():
+   for c in g.command_facts():
     if c.payload.kind=="reward" and c.payload.get("type","")=="skip" and c.valid:
      g.dispatch(g.command(c.payload,g.state.version),g.state.version)
      break
@@ -1306,15 +1322,18 @@ static func r1_record(g, phase: String, count: int) -> Dictionary:
  out["hand"]=str(g.state.hand.size())
  out["items"]=str(g.state.items.size())
  out["relics"]=str(g.state.relics.size())
- var rows=g.candidates()
+ # 行＝接管标注后的投影事实（＝改动前 candidates() 的等价物：同一顺序、同一判定结论）。
+ var rows=g.command_facts()
  var view=g.get_view()
  out["rows"]=str(rows.size())
  out["rows_valid"]=str(rows.filter(func(c):return c.valid).size())
- out["rows_verdicts"]=r1_digest(JSON.stringify(rows.map(func(c):return [c.id,c.valid,c.reason,c.risk,c.cost,c.mana,c.mana_payment])))
+ # R5：候选行的提交身份 id 随行载体删除；判定投影的身份改为显示键（形状键）。
+ out["facts_verdicts"]=r1_digest(JSON.stringify(rows.map(func(c):return [c.key,c.valid,c.reason,c.risk,c.cost,c.mana,c.mana_payment])))
  out["rows_payloads"]=r1_digest(JSON.stringify(rows.map(func(c):return c.payload)))
  out["rows_labels"]=r1_digest(JSON.stringify(rows.map(func(c):return c.label)))
+ out["facts_text"]=r1_digest(JSON.stringify(rows.map(func(c):return [c.key,String(c.get("group","action")),c.label,c.cost,c.mana,c.valid,c.reason,c.risk,String(c.get("brief","")),String(c.get("brief_tags","")),String(c.get("body_part","")),String(c.get("detail",""))])))
  out["view"]=r1_digest(JSON.stringify(r1_view_without_mask(view)))
- out["view_candidates"]=str(view.candidates.size())
+ out["view_display_facts"]=str(view.display_facts.size())
  out["view_card_texts"]=str(view.card_texts.size())
  out["view_hand"]=str(view.hand.size())
  out["view_available"]=r1_digest(JSON.stringify(view.hand.map(func(card):return [card.uid,card.availability])))
@@ -1364,6 +1383,7 @@ static func r1_view_without_mask(view: Dictionary) -> Dictionary:
  var masked={}
  for key in view:
   if key in R3_VIEW_MASK: continue
+  if key in R5_VIEW_MASK: continue
   masked[key]=view[key]
  return masked
 
@@ -1374,6 +1394,46 @@ static func r1_record_digest(record: Dictionary) -> String:
  for path in paths: lines.append(str(path)+"="+str(record[path]))
  return r1_digest("\n".join(lines))
 
+# docs/spec/candidate-removal.md §5 G7（批 R5）：终态断言。扫描面＝core/、ui/、tests/ 的源码文本
+# （tools/ 与 data/ 不进面：tools 的允许清单条目按契约只点名不动手，data 的规则池不属候选层）。
+# 模式串按片段拼接，避免扫描器命中本检查自身的声明文本。
+static func r5_removed_patterns() -> Array:
+ var bs=String.chr(92)
+ return [
+  [bs+"bfunc"+bs+"s+cand"+"idates"+bs+"s*"+bs+"(","候选层入口 candidates()"],
+  [bs+"bfunc"+bs+"s+_cand"+"idate"+bs+"s*"+bs+"(","行工厂 _candidate()"],
+  [bs+"bfunc"+bs+"s+_build_cand"+"idates"+bs+"s*"+bs+"(","行表构建 _build_candidates()"],
+  [bs+"bfunc"+bs+"s+_phase_cand"+"idates"+bs+"s*"+bs+"(","阶段行构建 _phase_candidates()"],
+  ["[^A-Za-z0-9_]_cand"+"idate"+bs+"(","行工厂调用 _candidate("],
+  [bs+".cand"+"idates"+bs+"("+bs+")","候选层调用 .candidates()"],
+  ["view"+bs+".cand"+"idates"+bs+"b","候选行表键 view.candidates"],
+  ["Action"+"Index","行索引类 ActionIndex"],
+  ["fact_by_"+"id","按提交身份 id 的取行复核"],
+ ]
+
+
+static func removal_end_state(t) -> void:
+ var offenders=[]
+ var files=[]
+ for root in ["res://core","res://ui","res://tests"]:
+  for path in script_files(root):
+   # 扫描器不扫自身（本文件的声明文本与描述文本含有被扫的符号名，会自命中）。
+   if path=="res://tests/architecture_cases.gd": continue
+   var handle=FileAccess.open(path,FileAccess.READ)
+   if handle==null: continue
+   var text=handle.get_as_text()
+   files.append(path)
+   for entry in r5_removed_patterns():
+    var regex=RegEx.new()
+    if regex.compile(String(entry[0]))!=OK:
+     offenders.append(path+" :: uncompiled "+String(entry[1]))
+     continue
+    if regex.search(text)!=null: offenders.append(path.trim_prefix("res://")+" :: "+String(entry[1]))
+ t.check(offenders.is_empty(),"G7 removal_end_state: the removed carrier symbols, the row index class and id-based row lookups are absent from the source: "+str(offenders.slice(0,4)))
+ t.check(files.size()>150,"G7 removal_end_state: the scan covered the source face: "+str(files.size()))
+ t.check(not FileAccess.file_exists("res://ui/action_index.gd"),"G7 removal_end_state: ui/action_index.gd is deleted")
+ t.check(not FileAccess.file_exists("res://core/candidate_deps.gd") and not FileAccess.file_exists("res://ui/candidate_delta.gd"),"G7 removal_end_state: the superseded candidate-layer helpers stay absent")
+
 static func behavior_baseline_equivalence(t) -> void:
  var frozen_cells=R1_BASELINE.keys()
  frozen_cells.sort()
@@ -1381,26 +1441,33 @@ static func behavior_baseline_equivalence(t) -> void:
  var expected=cells.map(func(cell):return "%s:%d" % [cell[0],cell[1]])
  expected.sort()
  t.check(expected==frozen_cells,"G6 behavior_baseline_equivalence: the fixture matrix matches the frozen baseline cells: "+str(expected)+" vs "+str(frozen_cells))
- var declared=R1_RECORD_PATHS.duplicate()
+ # 记录路径＝R1 冻结路径 － 显式声明的删除集合（R5_RECORD_MASK）＋ 显式声明的重算路径（R5_RECORD_ADDED）。
+ var declared=R1_RECORD_PATHS.filter(func(path):return not path in R5_RECORD_MASK)
+ declared.append_array(R5_RECORD_ADDED)
  declared.sort()
+ # 视图键基面＝R1 冻结键面 － 显式声明的删除集合（R5_VIEW_MASK）。
+ var key_base=R3_VIEW_KEYS_BASE.filter(func(name):return not name in R5_VIEW_MASK)
  var path_problems=[]
  var value_problems=[]
  var key_problems=[]
  var mask_problems=[]
+ var removed_problems=[]
  for cell in cells:
   var phase=String(cell[0])
   var count=int(cell[1])
   var key="%s:%d" % [phase,count]
   var built=r1_build(phase,count)
   var view_keys=built.get_view().keys()
-  var kept=view_keys.filter(func(name):return name in R3_VIEW_KEYS_BASE)
+  var kept=view_keys.filter(func(name):return name in key_base)
   var added=view_keys.filter(func(name):return not name in R3_VIEW_KEYS_BASE)
-  if kept.size()!=R3_VIEW_KEYS_BASE.size():
-   key_problems.append(key+" kept="+str(kept.size())+" frozen="+str(R3_VIEW_KEYS_BASE.size())+" missing="+str(R3_VIEW_KEYS_BASE.filter(func(name):return not name in view_keys).slice(0,3)))
+  var removed=R5_VIEW_MASK.filter(func(name):return name in view_keys)
+  if kept.size()!=key_base.size():
+   key_problems.append(key+" kept="+str(kept.size())+" frozen="+str(key_base.size())+" missing="+str(key_base.filter(func(name):return not name in view_keys).slice(0,3)))
   added.sort()
   var declared_mask=R3_VIEW_MASK.duplicate()
   declared_mask.sort()
   if added!=declared_mask: mask_problems.append(key+" added="+str(added)+" declared="+str(declared_mask))
+  if not removed.is_empty(): removed_problems.append(key+" removed="+str(removed))
   var record=r1_record(built,phase,count)
   var paths=record.keys()
   paths.sort()
@@ -1410,19 +1477,30 @@ static func behavior_baseline_equivalence(t) -> void:
    path_problems.append(key+" extra="+str(extra)+" missing="+str(missing))
    continue
   var frozen=R1_BASELINE.get(key,{})
+  var recomputed=R5_BASELINE.get(key,{})
   for path in frozen:
-   if path=="record": continue
+   if path in ["record","view"] or path in R5_RECORD_MASK: continue
+   if R5_FIRST_TURN.has(key) and path=="first_turn": continue
    var current=str(record[path])
    if current!=frozen[path]: value_problems.append(key+"."+path+" baseline="+frozen[path]+" current="+current)
+  if R5_FIRST_TURN.has(key) and str(record.get("first_turn",""))!=String(R5_FIRST_TURN[key]): value_problems.append(key+".first_turn baseline="+String(R5_FIRST_TURN[key])+" current="+str(record.get("first_turn","")))
+  for path in R5_RECORD_ADDED:
+   var current_added=str(record[path])
+   var added_baseline=str(recomputed.get(path,"<missing>"))
+   if current_added!=added_baseline: value_problems.append(key+"."+path+" baseline="+added_baseline+" current="+current_added)
+  var masked_view=str(recomputed.get("view","<missing>"))
+  if str(record.get("view",""))!=masked_view: value_problems.append(key+".view baseline="+masked_view+" current="+str(record.get("view","")))
   var record_digest=r1_record_digest(record)
-  if record_digest!=frozen.get("record",""): value_problems.append(key+".<record> baseline="+str(frozen.get("record",""))+" current="+record_digest)
+  var frozen_record=str(recomputed.get("record",frozen.get("record","")))
+  if record_digest!=frozen_record: value_problems.append(key+".<record> baseline="+frozen_record+" current="+record_digest)
   if str(record.pieces_ok)!="true": value_problems.append(key+".pieces_ok current="+str(record.pieces_ok))
  var undeclared=R1_MASK.filter(func(path):return not declared.has(path))
- t.check(path_problems.is_empty() and undeclared.is_empty(),"G6 behavior_baseline_equivalence: every cell keeps exactly the frozen record paths and the declared mask is empty: "+str(path_problems.slice(0,3)))
+ t.check(path_problems.is_empty() and undeclared.is_empty(),"G6 behavior_baseline_equivalence: every cell keeps exactly the frozen record paths minus the declared deletions plus the declared recomputed paths: "+str(path_problems.slice(0,3)))
  value_problems.sort()
- t.check(value_problems.is_empty(),"G6 behavior_baseline_equivalence: every field equals the unmodified-source baseline; first difference "+str(value_problems.slice(0,3)))
- t.check(key_problems.is_empty(),"G6 behavior_baseline_equivalence: every cell keeps exactly the frozen view keys outside the declared mask: "+str(key_problems.slice(0,3)))
+ t.check(value_problems.is_empty(),"G6 behavior_baseline_equivalence: every field equals the unmodified-source baseline (declared masks applied); first difference "+str(value_problems.slice(0,3)))
+ t.check(key_problems.is_empty(),"G6 behavior_baseline_equivalence: every cell keeps exactly the frozen view keys minus the declared deletions: "+str(key_problems.slice(0,3)))
  t.check(mask_problems.is_empty(),"G6 behavior_baseline_equivalence: the added view keys are exactly the declared mask: "+str(mask_problems.slice(0,3)))
+ t.check(removed_problems.is_empty() and not FileAccess.file_exists("res://ui/action_index.gd"),"G6 behavior_baseline_equivalence: the declared deletion set is gone from the projection and the row index file is deleted: "+str(removed_problems.slice(0,3)))
 
 # docs/spec/candidate-removal.md §5 G4（批 R1；R2 前置补正：写点扫描面加宽，销 R1 复核缺口①）。
 # 扫描面＝core/ 与 ui/ 的源码文本（tests／data 不进面）；写点四种形态——字段赋值（.valid=／.reason=）、
@@ -1648,14 +1726,14 @@ static func instruction_route_table_is_total(t) -> void:
   var g=r1_build(cell[0],cell[1])
   if g==null: continue
   var seen={}
-  for c in g.candidates():
+  for c in g.command_facts():
    var key=String(c.payload.get("kind",""))+"|"+JSON.stringify(g.command_params(c.payload.kind,c.payload))
    if seen.has(key): duplicates.append(str(cell)+" "+key+" rows="+str(seen[key])+"/"+String(c.label))
    seen[key]=String(c.label)
  t.check(duplicates.is_empty(),"G2 instruction_route_table_is_total: every command shape resolves to exactly one row: "+str(duplicates.slice(0,3)))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
- for candidate in g.candidates():
+ for candidate in g.command_facts():
   if candidate.payload.get("kind","")!=kind: continue
   if op!="" and candidate.payload.get("action",candidate.payload.get("op",""))!=op: continue
   return candidate

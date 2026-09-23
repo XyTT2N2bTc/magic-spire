@@ -12,7 +12,7 @@ static func run(t) -> void:
   var c=t.find_action(g,"card",{"uid":source.uid,"free":free,"hand_uid":chosen.uid})
   var before=g.export_snapshot()
   t.check(c.valid and c.cost==1 and c.mana==10 and TYPE in g.Cards.Rules.COMMON and g.Cards.Rules.SPECS[TYPE].casting.parts==["mouth"],"READY common mouth spell selects an exact other physical hand card on either face")
-  t.check(g.Cards.Rules.distinct_faces(TYPE) and g.candidates().filter(func(x):return x.payload.get("uid","")==source.uid).size()==4 and g.state==before,"READY two distinct faces expose two physical targets each without mutation")
+  t.check(g.Cards.Rules.distinct_faces(TYPE) and g.command_facts().filter(func(x):return x.payload.get("uid","")==source.uid).size()==4 and g.state==before,"READY two distinct faces expose two physical targets each without mutation")
   t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"READY stale selection rejects before costs or exhaustion")
   var result=g.dispatch(g.command(c.payload,g.state.version),g.state.version)
   t.check(result.ok and g.state.energy==2 and g.state.mana==90 and g.state.charge==(0 if free else 3),"READY successful spell pays once and grants the selected face effect")

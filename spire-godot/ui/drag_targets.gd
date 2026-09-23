@@ -3,10 +3,10 @@ const Queries=preload("res://ui/target_queries.gd")
 
 # Presentation only: every target is an existing display fact of this view/version.
 static func choices(ui, data: Dictionary) -> Array:
- return candidates(ui,data).filter(func(c):return c.valid)
+ return offers(ui,data).filter(func(c):return c.valid)
 
-static func candidates(ui, data: Dictionary) -> Array:
- return Queries.payload_candidates(ui.view,data,ui.view.version)
+static func offers(ui, data: Dictionary) -> Array:
+ return Queries.drag_facts(ui.view,data,ui.view.version)
 
 static func targeted(c: Dictionary) -> bool:
  return c.payload.get("target","")!="" and c.payload.kind in ["item_use","hook","chain","release","attack"]
@@ -66,7 +66,7 @@ static func begin(ui, data: Dictionary) -> void:
    hands[p.hand_uid]=c
   elif p.has("enemy") and ui.actor_targets.has(p.enemy): actors[p.enemy]=c
   elif p.get("target","")=="guard_bind": actors.guard_bind=c
-  elif p.get("self_target",false) or data.has("self_action_id") or (p.kind=="card" and ui._card_is_free(p.uid,p.get("free",false))): actors.hero=c
+  elif p.get("self_target",false) or data.has("self_action_key") or (p.kind=="card" and ui._card_is_free(p.uid,p.get("free",false))): actors.hero=c
  for id in actors:
   if not ui.actor_targets.has(id): continue
   var actor=ui.actor_targets[id];var c=actors[id]

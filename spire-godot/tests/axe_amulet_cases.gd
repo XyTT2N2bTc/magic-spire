@@ -19,7 +19,7 @@ static func run(t) -> void:
   g._start_battle()
   t.check(g.state.mana==40+scenario.gain and triggers(g).size()==(1 if scenario.gain>0 else 0),"AXE entry uses final encounter rank and boss precedence: "+str(scenario))
   t.check(g.state.flask_mana==flask and g.state.temporary_mana==temporary,"AXE entry restores personal mana only")
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(g.state==before,"AXE read-only queries cannot retrigger recovery")
   g._start_round()
   t.check(triggers(g).size()==(1 if scenario.gain>0 else 0),"AXE later rounds do not count as room entry")

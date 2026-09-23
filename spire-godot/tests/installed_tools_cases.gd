@@ -41,7 +41,7 @@ static func run(t) -> void:
  var tool=g.state.items[0];tool.mount="hand_wall"
  var card=t.hand_card(g,"strain");var c=t.find_action(g,"card",{"uid":card.uid,"target":target.id})
  t.check(c.valid and c.payload.tool_bonus.damage==5 and g.candidate_detail(c).contains("固定切割"),"PASSIVE preview includes fixed tool contribution")
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.export_snapshot()==before,"PASSIVE previews do not spend charges or randomness")
  t.check(not t.find_action(g,"item_use",{"item":tool.id,"target":target.id}).valid,"PASSIVE mounted cutter has no active use")
  var expected=8-c.payload.preview.damage-5

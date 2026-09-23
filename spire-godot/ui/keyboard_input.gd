@@ -145,7 +145,7 @@ func selection_data() -> Dictionary:
 func cycle(direction: int) -> void:
  if choices.is_empty(): return
  choice_index=posmod(choice_index+direction,choices.size())
- if selection.kind=="card": host.selected_candidate=Queries.fact_id(choices[choice_index])
+ if selection.kind=="card": host.selected_candidate=Queries.fact_key(choices[choice_index])
  draw_targets()
 
 func target_name(c: Dictionary) -> String:
@@ -264,7 +264,7 @@ func cancel() -> void:
 func _index_of_selected() -> int:
  var key=String(host.selected_candidate)
  for i in choices.size():
-  if Queries.fact_id(choices[i])==key: return i
+  if Queries.fact_key(choices[i])==key: return i
  return -1
 
 func clear(release_keys: bool=false) -> void:

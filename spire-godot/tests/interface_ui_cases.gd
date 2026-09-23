@@ -1,4 +1,5 @@
 extends RefCounted
+const Queries=preload("res://ui/target_queries.gd")
 
 static func feedback(t) -> void:
  var ui=t.ui;ui.restart(42);await t.frames()
@@ -497,8 +498,8 @@ static func posture_controls(t) -> void:
  var wall=ui.find_child("Posture_stand_wall",true,false).get_global_rect()
  var normal=ui.find_child("Posture_stand",true,false).get_global_rect()
  t.check(wall.position.x>normal.position.x and wall.position.y==normal.position.y,"POSTURE wall option sits to the right of the matching ordinary choice")
- var wall_action=ui.actions.find("posture",{"dest":"stand","wall":true})
- var normal_action=ui.actions.find("posture",{"dest":"stand","wall":false})
+ var wall_action=Queries.find(ui.view,"posture",{"dest":"stand","wall":true})
+ var normal_action=Queries.find(ui.view,"posture",{"dest":"stand","wall":false})
  t.check(ui.find_child("Posture_stand_wall",true,false).text.contains(str(wall_action.cost)+"能量") and ui.find_child("Posture_stand",true,false).text.contains(str(normal_action.cost)+"能量") and wall_action.cost<normal_action.cost,"POSTURE both actual costs make the wall discount visible without hover")
  await t.capture("ui-86-posture-choices-seated.png")
  await press(t,"Posture_lie")

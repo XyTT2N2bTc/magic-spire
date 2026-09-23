@@ -10,7 +10,7 @@ static func run(t) -> void:
  var g=Game.new(42)
  g.Cards.apply_effects(g,[{"op":"reserve_mana","amount":201}],{})
  t.check(g.state.temporary_mana==1005 and g.state.mana==100 and g.validate()=="","TEMP each stack grants five to an uncapped independent pool")
- var c=fire(t,g);var before=g.export_snapshot();g.get_view();g.candidates()
+ var c=fire(t,g);var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(c.valid and c.mana==10 and c.mana_payment.temporary_mana==10 and c.mana_payment.mana==0 and before==g.state,"TEMP candidate and view show gross cost and split payment without mutation")
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and before==g.state,"TEMP stale payment leaves both pools unchanged")
  g.state.relics.append("mana_earring")
@@ -60,7 +60,7 @@ static func unlock_preparation(t) -> void:
   var g=Game.new(42);g.state.pressure=pressure;g.state.mana=40;g.state.temporary_mana=7.5
   var card=t.grant_fixture_card(g,"unlock")
   var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(c.valid and c.cost==1 and c.mana==0 and g.state==before,"UNLOCK preparation previews two stacks with original one-energy cost and no mana cost")
   t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"UNLOCK stale preparation rejects without resource changes")
   t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.temporary_mana==17.5 and g.state.mana==40 and g.state.energy==before.energy-1 and g.state.rng==before.rng,"UNLOCK two preparation stacks add ten temporary points without casting even at high pressure")

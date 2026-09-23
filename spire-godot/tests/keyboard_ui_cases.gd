@@ -1,6 +1,7 @@
 extends RefCounted
 const Click=preload("res://tests/interface_ui_cases.gd")
 const Settings=preload("res://ui/key_bindings.gd")
+const Queries=preload("res://ui/target_queries.gd")
 
 static func key(t, code: int, down: bool=true, shift: bool=false, echo: bool=false) -> void:
  var event=InputEventKey.new();event.keycode=code;event.pressed=down;event.shift_pressed=shift;event.echo=echo
@@ -103,11 +104,11 @@ static func run(t) -> void:
  await tap(t,KEY_1)
  t.check(input.choices.size()>=2 and ui.body_buttons.values().any(func(button):return button.get_meta("target_selectable",false)),"KEYS restraint card reuses the shared legal targets and body highlighting")
  var queries=preload("res://ui/target_queries.gd")
- var initial=queries.fact_id(input.choices[input.choice_index])
+ var initial=queries.fact_key(input.choices[input.choice_index])
  await tap(t,KEY_TAB)
- t.check(queries.fact_id(input.choices[input.choice_index])!=initial and ui.game.state==before,"KEYS Tab cycles a target without submitting")
+ t.check(queries.fact_key(input.choices[input.choice_index])!=initial and ui.game.state==before,"KEYS Tab cycles a target without submitting")
  await tap(t,KEY_TAB,true)
- t.check(queries.fact_id(input.choices[input.choice_index])==initial,"KEYS Shift Tab returns to the previous target")
+ t.check(queries.fact_key(input.choices[input.choice_index])==initial,"KEYS Shift Tab returns to the previous target")
  c=input.choices[input.choice_index]
  var ankle=ui.body_buttons.ankle.get_global_rect().get_center()
  await t.move_mouse(ankle);await t.mouse_button(ankle,MOUSE_BUTTON_LEFT,true);await t.mouse_button(ankle,MOUSE_BUTTON_LEFT,false)
@@ -168,7 +169,7 @@ static func run(t) -> void:
  t.check(ui.show_deck and ui.game.state==before and input.selection.is_empty(),"KEYS focused text entry never invokes game shortcuts")
  await tap(t,KEY_ESCAPE)
  ui.restart(42,true,"shop");await t.frames()
- var offer=ui.actions.select("service",{"op":"take","payment":"self"}).filter(func(item):return item.valid)[0]
+ var offer=Queries.select(ui.view,"service",{"op":"take","payment":"self"}).filter(func(item):return item.valid)[0]
  ui.command_router.emit(String(offer.payload.get("kind","")),offer);await t.frames();before=ui.game.export_snapshot()
  t.check(ui.find_child("ShopPaymentPerformance",true,false)!=null,"KEYS shop purchase opens a real payment modal")
  await tap(t,KEY_M);await tap(t,KEY_I);await tap(t,KEY_ESCAPE)

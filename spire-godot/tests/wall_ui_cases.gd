@@ -1,5 +1,6 @@
 extends RefCounted
 const Pointer=preload("res://tests/target_sidebar_ui_cases.gd")
+const Queries=preload("res://ui/target_queries.gd")
 
 static func run(t) -> void:
  var ui=t.ui
@@ -21,7 +22,7 @@ static func run(t) -> void:
  t.check(movement.position.y>ui.find_child("BasicActionRail",true,false).get_global_rect().end.y and movement.end.y<=posture_panel.get_global_rect().position.y and posture_panel.get_children().all(func(control):return control.get_global_rect().end.y<=725),"WALL UI seated alternatives compact without covering the rail or end-turn control")
  await Pointer.press(t,ui.find_child("Posture_stand_wall",true,false))
  t.check(ui.view.posture=="stand" and ui.view.round==before and ui.view.energy==2,"WALL UI ascent allows further actions")
- var away=ui.actions.select("wall_move",{"direction":"away"})[0]
+ var away=Queries.select(ui.view,"wall_move",{"direction":"away"})[0]
  ui.game.dispatch(ui.game.command(away.payload,ui.view.version),ui.view.version);ui.render();await t.frames()
  await Pointer.press(t,ui.find_child("Posture_sit",true,false))
  t.check(not ui.view.wall_position.at_wall and ui.find_child("Posture_stand_wall",true,false)==null,"WALL UI leaving removes wall-only option")
@@ -39,11 +40,11 @@ static func run(t) -> void:
   await t.mouse_button(t.card_point(card.uid),MOUSE_BUTTON_RIGHT,false)
  await t.start_drag(card.uid,"neck")
  var choices=ui._body_card_actions("neck",card.uid).filter(func(c):return c.valid and not c.payload.free)
- t.check(not choices.is_empty(),"BODY shoulder drag reuses valid formal card candidates")
+ t.check(not choices.is_empty(),"BODY shoulder drag reuses valid formal card facts")
  if not choices.is_empty():
   var id=choices[0].payload.target
   var durability=ui.game._equipment(id).durability
-  var index=await t.reveal_drop_target(choices[0].id)
+  var index=await t.reveal_drop_target(choices[0].key)
   await t.release_target(index)
   t.check(ui.game._equipment(id).is_empty() or ui.game._equipment(id).durability<durability,"BODY real drag to shoulder damages the selected component")
  await t.inspect_body("thigh")
@@ -59,8 +60,8 @@ static func run(t) -> void:
  install_scroll.ensure_control_visible(install_menu);await t.frames()
  if ui.selected_item_slot!="@install": await Pointer.press(t,install_menu)
  t.check(t.visible_text(ui.find_child("InformationDrawer",true,false)).contains("可用部位：嘴部"),"MOUTH UI announces actual mouth installation route")
- var install=ui.actions.find("item",{"kind":"item_install","item":item.id,"mount":"foot_wall"})
- t.check(ui.candidate_buttons[install.id].text.begins_with(install.label) and not t.visible_text(ui.find_child("InformationDrawer",true,false)).contains("低位"),"MOUTH UI compact installation uses the formal location label instead of a second height label")
+ var install=Queries.find(ui.view,"item",{"kind":"item_install","item":item.id,"mount":"foot_wall"})
+ t.check(ui.candidate_buttons[install.key].text.begins_with(install.label) and not t.visible_text(ui.find_child("InformationDrawer",true,false)).contains("低位"),"MOUTH UI compact installation uses the formal location label instead of a second height label")
  await t.capture("ui-tool-installation-options.png")
  t.check(await t.click("item_install",{"item":item.id,"mount":"foot_wall"}),"MOUTH UI existing item button installs using free mouth")
  await t.close_information()

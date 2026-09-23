@@ -33,8 +33,8 @@ static func run(t) -> void:
  var view=g.get_view().shop
  for row in view.stock:
   t.check(row.price==original_stock[row.index].price/2.0 and room.stock[row.index].price==original_stock[row.index].price,"MEMBERSHIP immediate half-price projection preserves original inventory price")
- for c in g.candidates().filter(func(c):return c.payload.kind=="service" and c.payload.op=="take"):
-  t.check(c.mana==original_stock[c.payload.index].price/2.0,"MEMBERSHIP both payment candidates match displayed discounted goods")
+ for c in g.command_facts().filter(func(c):return c.payload.kind=="service" and c.payload.op=="take"):
+  t.check(c.mana==original_stock[c.payload.index].price/2.0,"MEMBERSHIP both payment facts match displayed discounted goods")
  var first_card=room.stock.filter(func(row):return row.kind=="card")[0]
  g.state.mana=first_card.price/2.0-0.01
  before=g.export_snapshot()
@@ -59,7 +59,7 @@ static func run(t) -> void:
  t.check(g.state.logs.any(func(log):return log.data.get("shop_card_removal",{}).get("price",-1)==25),"MEMBERSHIP removal log records actual discounted payment")
  var restored=Game.new(42)
  t.check(restored.restore_snapshot(g.export_snapshot()).ok and restored.get_view().shop.stock==g.get_view().shop.stock,"MEMBERSHIP snapshot preserves discount without compounding saved prices")
- before=g.export_snapshot();g.get_view();g.candidates()
+ before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before and g.validate()=="","MEMBERSHIP repeated previews preserve state and RNG")
  var entry=preload("res://data/encyclopedia.gd").entries().filter(func(e):return e.category=="relics" and e.id==TYPE)[0]
  t.check(entry.group=="商店限定" and entry.rarity=="rare" and entry.text.contains("五折"),"MEMBERSHIP encyclopedia states source, rarity and discount")

@@ -49,7 +49,7 @@ static func zero_energy_fireball(t) -> void:
  var g=Game.new(42);g.state.energy=0
  var target=g.state.enemies[0];target.hp=100;target.max_hp=100
  var c=attack(t,g,"fireball",0);var before=g.export_snapshot()
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(not c.valid and c.cost==1 and not g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state==before,"FIREBALL first use requires one energy and rejected previews cannot consume it")
  g.state.energy=1
  for used in range(2):
@@ -106,7 +106,7 @@ static func continuous_kick(t) -> void:
   g.state.enemies[0].hp=200;g.state.enemies[0].max_hp=200
   var before=g.export_snapshot();var c=attack(t,g,"kick",3)
   t.check(c.valid==(energy>=1) and c.cost==energy and c.payload.x==energy and c.payload.hits==energy+1 and c.payload.damage==3 and c.payload.fall==(energy>=3),"CONTINUOUS KICK X boundary controls cost hit count and fall")
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"CONTINUOUS KICK previews and stale submissions preserve all state")
   if energy==0:
    t.check(c.reason.contains("至少需要1") and not g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state==before,"CONTINUOUS KICK zero energy cannot buy the bonus hit")
@@ -249,7 +249,7 @@ static func body_part_projection(t) -> void:
  var view=g.get_view()
  var expected={"strike":"双臂","heavy":"双臂／双腿","kick":"双腿","fireball":"嘴部"}
  for type in expected:
-  var offers=view.candidates.filter(func(c):return c.payload.kind=="attack" and c.payload.type==type)
+  var offers=view.display_facts.filter(func(c):return c.payload.kind=="attack" and c.payload.type==type)
   t.check(not offers.is_empty() and offers.all(func(c):return c.body_part==expected[type]),"BASIC body-part projection follows every attack form "+type)
- var calm=view.candidates.filter(func(c):return c.payload.kind=="calm")[0]
+ var calm=view.display_facts.filter(func(c):return c.payload.kind=="calm")[0]
  t.check(calm.body_part=="嘴部" and calm.brief.contains(g.number(g.Pressure.calm(g).reduction)) and g.state==before,"BASIC breathing body and compact effect projection are read-only")

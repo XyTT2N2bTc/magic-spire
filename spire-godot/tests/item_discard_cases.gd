@@ -11,7 +11,7 @@ static func exercise(t,g,label: String,mounted: bool=false) -> void:
   if g.state.room=="prison": item.prison_position=g.Prison.Space.attachment_position(g)
  g._gain_tool("mana_potion");var other=g.state.items.back().duplicate(true)
  var before=g.export_snapshot()
- var choices=g.candidates().filter(func(c):return c.payload.kind=="item_discard" and c.payload.item==item.id)
+ var choices=g.command_facts().filter(func(c):return c.payload.kind=="item_discard" and c.payload.item==item.id)
  t.check(choices.size()==1 and choices[0].valid and choices[0].cost==0 and choices[0].mana==0,"DISCARD one free candidate in "+label)
  if choices.is_empty(): return
  var choice=choices[0]
@@ -29,7 +29,7 @@ static func run(t) -> void:
  var g=Real.new(42)
  t.check(t.action(g,"departure",{"op":"skip"}).ok and g.state.phase=="map","DISCARD enter real map after the opening choice")
  exercise(t,g,"map")
- var destinations=g.candidates().filter(func(c):return c.payload.kind=="depart" and c.valid)
+ var destinations=g.command_facts().filter(func(c):return c.payload.kind=="depart" and c.valid)
  t.check(not destinations.is_empty(),"DISCARD map offers a real travel destination")
  if destinations.is_empty(): return
  var destination=destinations[0]
@@ -61,5 +61,5 @@ static func run(t) -> void:
  var card=Rewards.give(t,g,"double_unlock")
  t.check(Rewards.play(t,g,card,"wrist",targets[0].id).ok and not g.state.card_chain.is_empty(),"DISCARD setup pending multi-hit choice")
  exercise(t,g,"multi-hit choice")
- var next=g.candidates().filter(func(c):return c.payload.kind=="chain" and c.valid)[0]
+ var next=g.command_facts().filter(func(c):return c.payload.kind=="chain" and c.valid)[0]
  t.check(g.dispatch(g.command(next.payload,g.state.version),g.state.version).ok and g.state.card_chain.is_empty(),"DISCARD original multi-hit action still completes")

@@ -43,7 +43,7 @@ static func run(t) -> void:
  var g=fresh();var e=piece(g,"thigh_root");var id=e.id
  g.state.dexterity=1;g.state.charge=2
  var state=JSON.stringify(g.state)
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(JSON.stringify(g.state)==state,"MOTION readonly previews do not choose targets")
  var c=t.find_action(g,"wall_move",{"direction":"toward"})
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and JSON.stringify(g.state)==state,"MOTION stale input changes nothing")

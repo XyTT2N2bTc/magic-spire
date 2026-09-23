@@ -24,7 +24,7 @@ static func run(t) -> void:
   var c=t.find_action(g,"card",{"uid":source.uid,"free":false})
   var text=g.Cards.metadata(g,TYPE,source.uid).face_effects.bound
   t.check(g.Cards.occupied_body_count(g)==count and text.contains("抽%d张牌" % int(count/2)) and text.contains("X＝%d" % count),"BIND SEARCH live card and count cover floor boundary "+str(count))
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   t.check(g.export_snapshot()==before,"BIND SEARCH preview never advances random or changes resources")
   t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.export_snapshot()==before,"BIND SEARCH stale play rolls back fully")
   t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.hand.size()==int(count/2) and g.state.energy==19 and g.state.mana==90,"BIND SEARCH bound dispatch draws exact floor and pays once")

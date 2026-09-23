@@ -12,7 +12,7 @@ static func run(t) -> void:
  t.check(g.state.enemies.map(func(e):return e.hp)==hp and g.state.powers[0].power_progress==2,"OPENER two skills do not trigger")
  t.check(Cards.play(t,g,"mana_invocation",true).ok and Cards.play(t,g,"panic",false).ok,"OPENER magic and curse played normally")
  t.check(g.state.powers[0].power_progress==2,"OPENER excludes magic and curse types")
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before and g.Cards.progress_text(g,"letter_opener_free")=="2／3张","OPENER count is read-only projection")
  var skill=Cards.give(g,"slip");var c=t.find_action(g,"card",{"uid":skill.uid,"free":true})
  before=g.export_snapshot()

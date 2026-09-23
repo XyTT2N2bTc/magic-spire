@@ -62,10 +62,7 @@ static func reason(g, type: String) -> String:
   if g.state.sure_cast: return "本场战斗已有一次必定成功的施法尚未使用。"
  return ""
 
-static func candidates(g, out: Array, item: Dictionary) -> void:
- for f in use_facts(g,item): g._fact_row(out,f)
-
-# 道具使用事实（道具域，批 R4）：行与显示事实的唯一来源（docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 道具使用事实（道具域，批 R4 起、R5 收口）：显示事实的唯一来源（docs/spec/candidate-removal.md §2.1 T5／T8）。
 static func use_facts(g, item: Dictionary) -> Array:
  var facts=[]
  var spec=Tools.TYPES[item.type]
@@ -76,12 +73,8 @@ static func use_facts(g, item: Dictionary) -> Array:
   facts.append(g._fact({"kind":"item_use","item":item.id,"target":target.id},label,{"kind":"consumables.description","args":use_args,"fallback":description_detail(g,use_args)},0,0.0,reason(g,item.type),"","item"))
  return facts
 
-# 行路径：非战斗可用道具的候选行由同一事实派生（build_candidates 的两次调用点）。
-static func noncombat_candidates(g, out: Array) -> void:
- for f in noncombat_facts(g,out): g._fact_row(out,f)
-
-# 非战斗可用道具的事实（道具域，批 R4）：existing＝已产出的候选（行或事实），用于「同一道具只留一条使用行」
-# 的去重——与改动前的行扫描语义一致。
+# 非战斗可用道具的事实（道具域，批 R4 起、R5 收口）：existing＝已产出的显示事实，用于「同一道具只留
+# 一条使用点」的去重——与改动前的行扫描语义一致。
 static func noncombat_facts(g, existing: Array) -> Array:
  var facts=[]
  for item in g.state.items:

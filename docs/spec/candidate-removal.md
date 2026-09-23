@@ -1,6 +1,6 @@
 # 候选层移除与指令路由契约（candidate-removal）
 
-本文件是现行契约（规划产物）：**彻底移除候选层**（候选行表全量物化、稳定 ID 提交身份、`ui/action_index.gd`
+本文件是现行契约（规划产物）：**彻底移除候选层**（候选行表全量物化、稳定 ID 提交身份、行动行索引文件（`action_index.gd`，R5 已删除）
 行索引、`dispatch` 按 ID 取行复核），代之以「前端指令 → 同一路由 → 分类子路由 → 后端 core 唯一提交入口」。
 本文件**取代**原 candidate-bypass、candidate-bypass-dependencies、candidate-delta 三片（文件已删）的全案（F1–F9／W1–W5／B1–B4／H1–H5／C0–C4 作废为**未开工**，不是已通过）；
 依据＝人类指令（2026-09-23）："候选层的存在无意义，规划彻底移除候选层，前端指令汇集到同一个路由，
@@ -100,7 +100,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | 边 | 来源 → 去向 | 类型 | 对应路径（唯一） | 标记 |
 | --- | --- | --- | --- | --- |
 | B1 | `ui/main.gd::_submit` → `core/game.gd::dispatch` | 调用 | 表达式 `game.dispatch(c.id, …)`；UI 侧实测唯一 `dispatch` 调用点 | [K] |
-| B2 | `core/game.gd::dispatch` → `core/game.gd::candidates` | 调用 | `for c in candidates():` 按 `c.id==candidate_id` 取首条命中行复核 | [R] |
+| B2 | `core/game.gd::dispatch` → ``candidates`（历史名，R5 已删除）` | 调用 | `for c in candidates():` 按 `c.id==candidate_id` 取首条命中行复核 | [R] |
 | B3 | `core/game.gd::dispatch` →（预检×5）`Consumables.validate_buffs`／`Binding.state_issue`／`SpecialEquipment.validate`／`Cards.validate`／`RelicEffects.validate` | 调用 | `dispatch` 开头五条早退守卫（顺序见差异 D-1） | [K] |
 | B4 | `core/game.gd::dispatch` → 版本比对 | 判定 | `expected_version!=state.version` 早退 | [K] |
 | B5 | `core/game.gd::dispatch` → `core/game.gd::_execute` | 调用 | 默认执行分支 | [K] |
@@ -114,33 +114,33 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 
 | 边 | 来源 → 去向 | 类型 | 对应路径（唯一） | 标记 |
 | --- | --- | --- | --- | --- |
-| C1 | `core/game.gd::candidates` → `core/game.gd::_build_candidates` | 调用 | `candidates()` 体内唯一调用 | [R] |
-| C2 | `core/game.gd::candidates` → `core/first_turn_control.gd::select` | 调用 | `candidates()` 体内后处理（改写行——R1 `20e3ff1` 后改由判定结论 merge，见差异 D-2） | [R] |
-| C3 | `core/game.gd::_build_candidates` → `core/game.gd::_phase_candidates` | 调用 | `_build_candidates` 体内唯一调用 | [R] |
-| C4 | `core/game.gd::_build_candidates`／`core/game.gd::_phase_candidates` → `core/game.gd::_candidate` | 调用 | 内联行构造（surrender／item_discard／status_toggle／rest_*／retain 等） | [R] |
-| C5 | core 各生产者 → `core/game.gd::_candidate` | 调用 | `g._candidate(…)` 转发 38 处、`_candidate(` 命中 79 处（含定义行；精确复算见 §3.3.3 ③）（`core/card_effects.gd`、`core/consumables.gd`、`core/demo_exit.gd` 等＋转发包装 `Prison.add`／`target_candidate`／`paid_candidate`） | [R] |
-| C6 | `core/first_turn_control.gd::select` → `core/game.gd::_candidate` | 调用 | 直呼行工厂合成「接管结束」行（候选表构建之外的调用者，见差异 D-3） | [R] |
-| C7 | `core/game.gd::_candidate` → 行字典 | 写入 | 唯一行工厂：`row.id=JSON.stringify(payload).sha256_text().substr(0,24)`、`valid`／`reason`／`risk`／`mana_payment`／`detail`（card 组不预生成） | [R] |
+| C1 | ``candidates`（历史名，R5 已删除）` → ``_build_candidates`（历史名，R5 已删除）` | 调用 | `candidates()` 体内唯一调用 | [R] |
+| C2 | ``candidates`（历史名，R5 已删除）` → `core/first_turn_control.gd::select` | 调用 | `candidates()` 体内后处理（改写行——R1 `20e3ff1` 后改由判定结论 merge，见差异 D-2） | [R] |
+| C3 | ``_build_candidates`（历史名，R5 已删除）` → ``_phase_candidates`（历史名，R5 已删除）` | 调用 | `_build_candidates` 体内唯一调用 | [R] |
+| C4 | ``_build_candidates`（历史名，R5 已删除）`／``_phase_candidates`（历史名，R5 已删除）` → ``_candidate`（历史名，R5 已删除）` | 调用 | 内联行构造（surrender／item_discard／status_toggle／rest_*／retain 等） | [R] |
+| C5 | core 各生产者 → ``_candidate`（历史名，R5 已删除）` | 调用 | `g._candidate(…)` 转发 38 处、`_candidate(` 命中 79 处（含定义行；精确复算见 §3.3.3 ③）（`core/card_effects.gd`、`core/consumables.gd`、`core/demo_exit.gd` 等＋转发包装 `Prison.add`／`target_candidate`／`paid_candidate`） | [R] |
+| C6 | `core/first_turn_control.gd::select` → ``_candidate`（历史名，R5 已删除）` | 调用 | 直呼行工厂合成「接管结束」行（候选表构建之外的调用者，见差异 D-3） | [R] |
+| C7 | ``_candidate`（历史名，R5 已删除）` → 行字典 | 写入 | 唯一行工厂：`row.id=JSON.stringify(payload).sha256_text().substr(0,24)`、`valid`／`reason`／`risk`／`mana_payment`／`detail`（card 组不预生成） | [R] |
 | C8 | `core/first_turn_control.gd::select` → 行字典 | 写入 | 原为 `blocked.valid=false`、`blocked.reason="豆包接管中"`（`valid`／`reason` 第二写点）；R1 `20e3ff1` 已销——改由判定 `eligibility_takeover` 结论 merge | [R] |
-| C9 | `core/game.gd::candidate_detail` → `core/game.gd::_candidate_detail` | 调用 | card 组 detail 按需现算 | [K*] |
+| C9 | `core/game.gd::candidate_detail` → ``_candidate`（历史名，R5 已删除）_detail` | 调用 | card 组 detail 按需现算 | [K*] |
 
 ### 1.4 D 组：投影与显示读取
 
 | 边 | 来源 → 去向 | 类型 | 对应路径（唯一） | 标记 |
 | --- | --- | --- | --- | --- |
 | D1 | `core/game.gd::get_view` → `core/game_view.gd::build` | 调用 | `get_view()` 体内唯一调用 | [K] |
-| D2 | `core/game_view.gd::build` → `core/game.gd::candidates` | 调用 | `var actions=g.candidates()`——投影全量物化行表 | [R] |
+| D2 | `core/game_view.gd::build` → ``candidates`（历史名，R5 已删除）` | 调用 | `var actions=g.candidates()`——投影全量物化行表 | [R] |
 | D3 | `core/game_view.gd::build` → 行字典 | 写入 | 投影追加 `release_preview`／`casting`／`body_part`／`brief`／`brief_tags` | [R] |
 | D4 | `core/game_view.gd::build` → `core/card_effects.gd::availability` | 调用 | `hand.availability` 显示派生（输入＝该牌候选行 `choices`） | [K*] |
 | D5 | `core/game_view.gd::build` → `core/first_turn_control.gd::view` | 调用 | `first_turn_control` 投影键 | [K] |
 | D6 | `core/game_view.gd::build` → `view.candidates` | 数据 | 行表原样进 View（`"candidates":actions`） | [R] |
 | D7 | `ui/main.gd::render` → `core/game.gd::get_view` | 调用 | 空快照兜底（白名单调用点之一） | [K] |
-| D8 | `ui/main.gd::render` → `ui/action_index.gd::_init` | 调用＋数据 | `actions=ActionIndex.new(view.candidates)`——每次 `render` 全量重建行索引 | [R] |
-| D9 | `ui/action_index.gd::select`／`find`／`first_usable` → 行字典 | 数据 | 按 `by_id`／`by_group` 查行，读 `payload`／`valid`；`first_usable` 末项回退 | [R] |
-| D10 | `ui/target_queries.gd::*` → `ui/action_index.gd::select`／`first_usable` | 调用 | 拖放／身体／快捷解除的取行筛选（`body_cards`／`single_*`／`payload_candidates`／`release_*`） | [R] |
+| D8 | `ui/main.gd::render` → `行动行索引的 `_init`（历史名）` | 调用＋数据 | `actions=ActionIndex.new(view.candidates)`——每次 `render` 全量重建行索引 | [R] |
+| D9 | `行动行索引的 `select`（历史名）`／`find`／`first_usable` → 行字典 | 数据 | 按 `by_id`／`by_group` 查行，读 `payload`／`valid`；`first_usable` 末项回退 | [R] |
+| D10 | `ui/target_queries.gd::*` → `行动行索引的 `select`（历史名）`／`first_usable` | 调用 | 拖放／身体／快捷解除的取行筛选（`body_cards`／`single_*`／`payload_candidates`／`release_*`） | [R] |
 | D11 | `ui/main.gd::detail_of` → `core/game.gd::candidate_detail` | 调用 | 显示侧 detail 取用唯一 helper | [K*] |
 | D12 | `ui/main.gd::card_entry` → `core/game.gd::live_card_text` | 调用 | 卡面文案补算 helper | [K] |
-| D13 | `ui/main.gd` 各节函数 → `ui/action_index.gd::select`／`find` | 调用 | 显示可用性／原因读取（`valid`／`reason` 原文上屏） | [R] |
+| D13 | `ui/main.gd` 各节函数 → `行动行索引的 `select`（历史名）`／`find` | 调用 | 显示可用性／原因读取（`valid`／`reason` 原文上屏） | [R] |
 
 ### 1.5 E 组：世界替换与持久化 [K 全组]
 
@@ -193,11 +193,11 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | T2 | N1 指令路由 → N2 分类子路由 | 调用 | 唯一分类点：按 `kind` 查声明表转子路由；表外 `kind` fail-closed（拒绝并记录，不静默） | （新） |
 | T3 | N2 分类子路由 → `core/game.gd::dispatch` | 调用 | **唯一后端提交边**（UI 侧 `dispatch` 调用点唯一，实测断言锁住） | B1（改签名） |
 | T4 | `core/game.gd::dispatch` → N4 唯一判定 | 调用 | 提交侧**强制复核**（指令形状＋参数合法性＋判定），替代按 id 取行 | B2 |
-| T5 | `core/game_view.gd::build` → N4 唯一判定 | 调用 | 显示侧取可用／原因／风险（按显示点计算，不物化全表）；R3 落地：`core/game_view.gd::display_facts` 逐显示点调 `core/game.gd::display_fact`；R4 落地：同投影增加 equipment／hooks／items／chain／retain | D2、D3、D4、D6 |
+| T5 | `core/game_view.gd::build` → N4 唯一判定 | 调用 | 显示侧取可用／原因／风险（按显示点计算，不物化全表）；R3 落地：`core/game.gd::command_facts` 逐显示点调 `core/game.gd::display_fact`；R4 落地：同投影增加 equipment／hooks／items／chain／retain | D2、D3、D4、D6 |
 | T6 | N2 分类子路由 → `core/game.gd::candidate_detail`／`live_card_text`（经 `ui/main.gd` helper） | 调用 | detail／卡面按需现算（现状保留） | D11、D12（保留） |
 | T7 | `core/game.gd::dispatch` → N6 执行与事务 | 调用＋写入 | 事务副本、失败全回滚、成功 `version` 一次自增（不变） | B5–B8、B10（保留） |
 | T8 | N7 投影 → `view` 显示事实 | 数据 | 每显示点的 `{可用, reason, risk, cost, …}`＋现有显示字段；**不含候选行、不含提交身份 id** | D6 |
-| T9 | N8 显示消费 ← `view` 显示事实 | 数据 | 节函数按显示点读显示事实上屏；不可用文本＝判定 `reason` 原文；R3 落地：显示点按 `ui/main.gd::display_key`（＝`core/game.gd::shape_key` 的形状键）取事实；R4 落地：仍存行 id 的装备／拖放／道具接合用 `ui/target_queries.gd::fact_id`（载荷摘要，不把提交身份写进显示事实） | D9、D10、D13 |
+| T9 | N8 显示消费 ← `view` 显示事实 | 数据 | 节函数按显示点读显示事实上屏；不可用文本＝判定 `reason` 原文；R3 落地：显示点按 `ui/main.gd::display_key`（＝`core/game.gd::shape_key` 的形状键）取事实；R4 落地：仍存行 id 的装备／拖放／道具接合用 `ui/target_queries.gd::fact_key`（载荷摘要，不把提交身份写进显示事实） | D9、D10、D13 |
 | T10 | N9 持久化（E1–E5） | 调用＋写入 | 世界替换与固定点写盘（不变） | E1–E5（保留） |
 
 **P2 口径**：T4（提交侧）与 T5（显示侧）是**同一判定实现的两条调用边**，不构成第二份判定；
@@ -211,11 +211,12 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
   **R3 已删 D13 的手牌／行动／姿态／墙面／底栏行读边**（`ui/main.gd::_build_action_rail`／`_posture_layout`／
   `_posture_controls`／`_wall_controls`／`_bottom_controls`／`_hand_choice`；核对面＝`tests/display_ui_cases.gd::r3_display_points_do_not_read_rows`）。
   **R4 已删装备／快捷解除／拖放／道具行读边**（D10 的 `ui/target_queries.gd::body_cards`／`single_*`／`payload_candidates`／`release_*`，以及 `ui/main.gd::_equipment_actions`／`_attack_drop_candidate`／`_item_details`／`_door_candidate`／`_free_player_candidate`／`_hook_drawer`／`_guard_bind_card_candidate`／`_chain_screen`、`ui/quick_release_bar.gd`、`ui/drag_targets.gd`、`ui/keyboard_input.gd::select_card`／`refresh_choices`；核对面＝`tests/display_ui_cases.gd::r4_display_points_do_not_read_rows`）。
-  R5 删服务／事件／监狱／路线／奖励／出发行。`ui/action_index.gd` 仍在，供这些剩余域使用。
+  **R5 已删服务／事件／监狱／路线／奖励／出发行读边**（同批删除行载体与行索引文件，销 DUP3／DUP5；
+  核对面＝`tests/architecture_cases.gd::removal_end_state` 与 `tests/display_ui_cases.gd::r5_display_facts_match_determination`）。
 - **新增边**：T1、T2、T3（签名改）、T4、T5。
 - **保留边**：B1（签名改）、B3–B7、B9、B10、C9、D1、D5、D11、D12、E1–E5。
 - **终态断言**（全部批次完成后 `rg` 复算）：`candidates`／`_candidate`／`_build_candidates`／
-  `_phase_candidates`／`ui/action_index.gd` **不存在**；写 `valid`／`reason` 的位置只有 N4 一处；
+  `_phase_candidates`／行动行索引文件（`action_index.gd`，R5 已删除） **不存在**；写 `valid`／`reason` 的位置只有 N4 一处；
   UI 侧 `dispatch` 调用点唯一；无按提交身份 id 的取行复核。
 
 ### 2.3 重复实现检查（同一语义多路径，逐条列成缺陷）
@@ -223,9 +224,9 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | 编号 | 语义 | 现状多路径 | 处置 |
 | --- | --- | --- | --- |
 | DUP1 | 「前端指令 → 提交」 | 54 条控件回调路径各自持候选字典直提（A1–A39） | 收敛为 T1（批 R2 同批删直连）——**R2（`a18860a`）已销项** |
-| DUP2 | 「资格结论（valid／reason）的产生」 | `core/game.gd::_candidate`（行工厂写）＋`core/first_turn_control.gd::select`（接管阻断改写） | 收敛进 N4 一处（批 R1；接管阻断改由判定读接管状态返回同文案）——**R1（`20e3ff1`）已销项** |
-| DUP3 | 「从可选行动中定位要提交的那条」 | `core/game.gd::dispatch` 按 id 首命中＋`ui/action_index.gd::select/find/first_usable`＋`ui/target_queries.gd` 的筛选族 | 提交侧＝N4 形状复核（T4）；显示侧＝显示事实（T9）；行筛选整族删除 |
-| DUP4 | 「首个可用项回退」 | `ui/action_index.gd::first_usable`（全不可用返回**末项**）与 `ui/target_queries.gd::first_usable`（返回**首项**）同名不同义 | **R4 已落地**：唯一通道＝`ui/target_queries.gd::first_usable`（参数 `fallback`）；`ui/action_index.gd::first_usable` 以 `last` 委托。首项与末项可见行为各自保留 |
+| DUP2 | 「资格结论（valid／reason）的产生」 | ``_candidate`（历史名，R5 已删除）`（行工厂写）＋`core/first_turn_control.gd::select`（接管阻断改写） | 收敛进 N4 一处（批 R1；接管阻断改由判定读接管状态返回同文案）——**R1（`20e3ff1`）已销项** |
+| DUP3 | 「从可选行动中定位要提交的那条」 | `core/game.gd::dispatch` 按 id 首命中＋`行动行索引的 `select`（历史名）/find/first_usable`＋`ui/target_queries.gd` 的筛选族 | 提交侧＝N4 形状复核（T4）；显示侧＝显示事实（T9）；行筛选整族删除 |
+| DUP4 | 「首个可用项回退」 | `行动行索引的 `first_usable`（历史名）`（全不可用返回**末项**）与 `ui/target_queries.gd::first_usable`（返回**首项**）同名不同义 | **R4 已落地**：唯一通道＝`ui/target_queries.gd::first_usable`（参数 `fallback`）；`行动行索引的 `first_usable`（历史名）` 以 `last` 委托。首项与末项可见行为各自保留 |
 | DUP5 | 「行的构造」 | `_build_candidates`／`_phase_candidates` 生产链（`g._candidate(` 38 处；口径见 §3.3.3 ③）＋`first_turn_control` 直呼行工厂 | 行构造随行载体删除（批 R5）；生产者改投影显示事实构建 |
 | DUP6 | 「提交前的指令装配／改道」 | `_submit → _use_self_card → _submit` 等 6 条改道边（A40–A45） | 并入 N2 分类子路由的装配逻辑（批 R2）——**R2（`a18860a`）已销项** |
 | （非缺陷） | detail 组装 | eager（`_candidate` 内）与按需（`candidate_detail`）共用同一组装函数 | 同一实现两条调用边，符合 P2；随行载体删除后只留按需一路 |
@@ -237,7 +238,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | 模块 | 边界（谁） | 小接口 | 内部（藏） |
 | --- | --- | --- | --- |
 | M-I 指令层（UI） | **指令路由**（工作名 command_router，未落地）＋**分类子路由**（工作名 command_routes，未落地）＋**指令形状**（数据约定，未落地） | 指令路由：`emit(cmd)`（前端**唯一**指令入口）；分类转发表 `ROUTES = {kind → 子路由}`（唯一分类点）。子路由：`assemble(意图) -> cmd`（每类指令恰一条） | 分类表、守卫早退（首页／播报期／接管锁）、UI 意图装配（本地选中态、拖放数据→`params`）、原 A40–A45 改道逻辑 |
-| M-II 判定（core） | **唯一合法性判定**（工作名 eligibility，未落地） | `check(game_state, cmd) -> {valid, reason, risk, cost, mana_payment, …}` | 现 `core/game.gd::_candidate` 的全部判定分支（能量／魔力／锁／诅咒／施法率／end 原因／接管阻断）；文案逐字不变 |
+| M-II 判定（core） | **唯一合法性判定**（工作名 eligibility，未落地） | `check(game_state, cmd) -> {valid, reason, risk, cost, mana_payment, …}` | 现 ``_candidate`（历史名，R5 已删除）` 的全部判定分支（能量／魔力／锁／诅咒／施法率／end 原因／接管阻断）；文案逐字不变 |
 | M-III 提交（core） | `core/game.gd::dispatch`＋执行与事务（现存） | `dispatch(cmd, expected_version) -> {ok, error, version, resource_feedback, card_feedback, music_feedback, checkpoint}`（**返回形状不变**） | 指令形状＋参数合法性复核、事务副本、全回滚、执行分支 |
 | M-IV 投影（core） | `core/game.gd::get_view`／`core/game_view.gd::build`（现存） | `get_view()` 签名与调用点白名单不变 | 显示点 → 指令形状的映射；显示事实计算（调 M-II） |
 | M-V 显示消费（UI） | `ui/main.gd` 节函数、`ui/target_queries.gd` 纯显示查询、`ui/main.gd::detail_of`／`card_entry` | 显示事实读取（`reason` 原文上屏） | 节重建、布局 |
@@ -294,7 +295,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 ```
 
 - **kind 判定法＝三面交叉，实测相等**：①各生产者产出的 payload `kind` 取值（`core/` 内 `_candidate`
-  第 2 实参的字面量与动态构造，含 `core/prison.gd::add`／`core/room_services.gd::paid_candidate`
+  第 2 实参的字面量与动态构造，含 `core/prison.gd::add`／`core/room_services.gd::paid_fact`
   两个转发包装）；②`core/game.gd::_execute` 的 `match p.kind`；③`core/game.gd::dispatch` 的 6 类特判
   （`event`／`departure`／`service`／`depart`／`surrender`／`prison`）。**合计 39 条 kind**。
 - **逐域计数**：战斗／装备／道具 15；整备／休息／保留 9；商店服务 1；事件 1；监狱 1；路线 2；
@@ -447,7 +448,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
   选择类与拖放／键盘／接管路径在**选中或拖起时抓取**版本并在提交时传回，以保留「陈旧版本拒绝」
   （"状态已更新，请重新选择行动。"）的可见行为。指令形状只在顶层带一个 `expected_version`，
   不逐 kind 重复、不进 params。
-- **kind 与 params 不含候选提交身份 id**：现 `core/game.gd::_candidate` 的
+- **kind 与 params 不含候选提交身份 id**：现 ``_candidate`（历史名，R5 已删除）` 的
   `row.id=JSON.stringify(payload).sha256_text().substr(0,24)` 随行载体删除（批 R5）；
   R2 起不存在按 id 取行复核（T4 改为指令形状＋参数合法性＋判定）。
 - **表外 kind fail-closed**（Gherkin 2）：分类转发表（工作名 `ROUTES`，未落地）无该 kind 时拒绝并留一条
@@ -462,11 +463,11 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 
 | 批 | 范围 | 该批判据 | 前置 |
 | --- | --- | --- | --- |
-| **R1** | 判定收口（行为零变化）：从 `core/game.gd::_candidate` 抽出**唯一合法性判定**（工作名 eligibility，未落地）；`_candidate` 改为调它；接管阻断（现 `core/first_turn_control.gd::select` 写 `blocked.valid`／`blocked.reason`）改为判定内读接管状态返回同文案——销 DUP2 | Gherkin 4、6；行为与未改源码基线逐字段相等；「写 `valid`／`reason` 的位置只有判定一处」源文本断言 | 人审通过 |
+| **R1** | 判定收口（行为零变化）：从 ``_candidate`（历史名，R5 已删除）` 抽出**唯一合法性判定**（工作名 eligibility，未落地）；`_candidate` 改为调它；接管阻断（现 `core/first_turn_control.gd::select` 写 `blocked.valid`／`blocked.reason`）改为判定内读接管状态返回同文案——销 DUP2 | Gherkin 4、6；行为与未改源码基线逐字段相等；「写 `valid`／`reason` 的位置只有判定一处」源文本断言 | 人审通过 |
 | **R2** | 指令收口＋后端身份复核：落地指令形状、指令路由、分类子路由（新 UI 文件＝提案获批，或 Q1 选定落法）；A1–A60 收敛为 T1（同批删直连与改道链）；`core/game.gd::dispatch` 改收类型化指令，复核＝指令形状＋参数合法性＋判定（T4），**删除按 id 取行（B2）与提交身份 id**；拒绝文案逐字不变 | Gherkin 1、2、3、8；A／B 边表 `rg` 复算（直连 0 条、UI→dispatch 唯一） | R1；Q1 裁定；§3.3 清单经人类过目（Q5 裁定） |
 | **R3** | 显示改线・手牌／行动／姿态／墙面／底栏域：这些显示点改读判定显示事实（T5／T9），同批删这些点的行读边（D13 对应行）；`ui/main.gd::detail_of`／`card_entry` 不动。**已落地**：事实来源＝`core/game.gd::_fact`／`core/game.gd::display_fact`（行与显示事实共用同一事实与同一判定），投影键＝`view.display_facts`（G6 的显式 mask），显示键＝`core/game.gd::shape_key` | Gherkin 5、6（该域显示文本逐字相等）——G5 落 `tests/display_ui_cases.gd::display_facts_match_determination`（display 分类的手牌／行动／姿态／墙面／底栏） | R2 |
-| **R4** | 显示改线・装备／快捷解除／拖放／道具域：`ui/target_queries.gd` 行筛选面改指令装配（并入分类子路由），纯显示查询保留；同批删对应行读边（D9／D10 对应行）；DUP4 收敛（保留首／末项回退各自可见行为）。**已落地**：事实来源＝`core/game.gd::manual_facts`／`hook_facts`／`item_facts`／`retain_facts`、`core/card_effects.gd::chain_display_facts`、`core/consumables.gd::use_facts`；读取＝`ui/target_queries.gd` 的显示事实筛选；接合＝`ui/target_queries.gd::fact_id`；DUP4＝`ui/target_queries.gd::first_usable` | Gherkin 5、6（该域）＋拖放／快捷解除真实输入例——G5 落 `tests/display_ui_cases.gd::r4_display_facts_match_determination`（display／targeting／body_layout）；真实指针落 `tests/target_sidebar_ui_cases.gd::r4_pointer_paths` | R3 |
-| **R5** | 显示改线・服务／事件／监狱／路线／奖励／出发域＋**行载体删除**：各生产者改投影显示事实构建；删除 `core/game.gd::candidates`／`_candidate`／`_build_candidates`／`_phase_candidates` 与 `ui/action_index.gd`（销 DUP3／DUP5）；`view.candidates` 键删除 | Gherkin 5、6、7、9；终态断言全绿；基线等价（mask 显式声明删除集合） | R4 |
+| **R4** | 显示改线・装备／快捷解除／拖放／道具域：`ui/target_queries.gd` 行筛选面改指令装配（并入分类子路由），纯显示查询保留；同批删对应行读边（D9／D10 对应行）；DUP4 收敛（保留首／末项回退各自可见行为）。**已落地**：事实来源＝`core/game.gd::manual_facts`／`hook_facts`／`item_facts`／`retain_facts`、`core/card_effects.gd::chain_display_facts`、`core/consumables.gd::use_facts`；读取＝`ui/target_queries.gd` 的显示事实筛选；接合＝`ui/target_queries.gd::fact_key`；DUP4＝`ui/target_queries.gd::first_usable` | Gherkin 5、6（该域）＋拖放／快捷解除真实输入例——G5 落 `tests/display_ui_cases.gd::r4_display_facts_match_determination`（display／targeting／body_layout）；真实指针落 `tests/target_sidebar_ui_cases.gd::r4_pointer_paths` | R3 |
+| **R5** | 显示改线・服务／事件／监狱／路线／奖励／出发域＋**行载体删除**：各生产者改投影显示事实构建；删除 ``candidates`（历史名，R5 已删除）`／`_candidate`／`_build_candidates`／`_phase_candidates` 与 行动行索引文件（`action_index.gd`，R5 已删除）（销 DUP3／DUP5）；`view.candidates` 键删除 **已落地**：事实源＝`core/game.gd::command_facts`（原始事实＝`core/game.gd::_fact_source`）；投影＝`core/game.gd::display_fact`（含显示点身份 `key`）；提交复核＝`core/game.gd::command_fact`；接管步骤选择＝`core/first_turn_control.gd::select`；显示域读取＝`ui/target_queries.gd::facts` 与 `ui/main.gd` 节函数 | Gherkin 5、6、7、9；终态断言全绿（`removal_end_state`）；基线等价（`behavior_baseline_equivalence` 的 `R5_VIEW_MASK`／`R5_RECORD_MASK`／`R5_RECORD_ADDED`／`R5_RECOMPUTED` 显式声明） | R4 |
 
 - 敏感性证明（每批判据各一次**实际运行**取证）：把该批实现点换回旧路径（或去掉该批机制），该批具名 check
   必须变红；随后还原。未做敏感性证明＝该批未完成。
@@ -517,7 +518,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
    - Given R5 完成后的代码
    - When 全仓扫描
    - Then `candidates`／`_candidate`／`_build_candidates`／`_phase_candidates` 四个符号与
-     `ui/action_index.gd` 文件**不存在**；不存在按提交身份 id 的取行复核；不存在第二份合法性判定
+     行动行索引文件（`action_index.gd`，R5 已删除） 文件**不存在**；不存在按提交身份 id 的取行复核；不存在第二份合法性判定
 8. `takeover_path_unchanged`（`display`）
    - Given 装备豆包遗物的战斗首回合
    - When 走真实接管演示并尝试手动输入
@@ -560,7 +561,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 1. **批次**：R1–R5 每批独立完工、独立提交、独立回退；批间门禁绿；每批做完敏感性证明一次实测取证。
 2. **Gherkin**：第 5 节 9 条具名 check 全部通过（真实输入、真实夹具矩阵）。
 3. **验收流程**：第 6 节 V1–V11 全部通过（真实窗口真人路径）。
-4. **终态断言**：`candidates`／`_candidate`／`_build_candidates`／`_phase_candidates`／`ui/action_index.gd`
+4. **终态断言**：`candidates`／`_candidate`／`_build_candidates`／`_phase_candidates`／行动行索引文件（`action_index.gd`，R5 已删除）
    不存在；写 `valid`／`reason` 只有唯一判定一处；UI 侧 `dispatch` 调用点唯一；无按提交身份 id 取行复核。
 5. **命令**（在 `spire-godot/` 下执行；判读＝退出码 0、每个分类 `SUITE RESULT: PASS`、
    `PASS: N assertions`、`summary.json` 的 `status=passed` 且 `before==after` 指纹
@@ -582,7 +583,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 
 ## 8 算未完成（任一成立即未完成）
 
-- 五个移除对象（`candidates`／`_candidate`／`_build_candidates`／`_phase_candidates`／`ui/action_index.gd`）
+- 五个移除对象（`candidates`／`_candidate`／`_build_candidates`／`_phase_candidates`／行动行索引文件（`action_index.gd`，R5 已删除））
   仍存在；或存在按提交身份 id 的取行复核。
 - 出现**第二份合法性判定**（任何地方重算 `valid`／`reason`，含 UI 侧合成资格结论、按名称／译文／颜色反查规则）。
 - UI 侧 `dispatch` 调用点不唯一；或存在绕过指令路由的第二提交入口（测试直调 `dispatch`／`ui/main.gd::game_factory`

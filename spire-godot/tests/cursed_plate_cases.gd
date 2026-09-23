@@ -13,8 +13,8 @@ static func run(t) -> void:
  g._apply_equipment_damage(lock,999,"magic_slip");g._apply_manual_release(lock,0);g._cleanup()
  t.check(lock==original and g.escape_preview(lock,"magic_slip",999,[],false,true).damage==0,"CURSED PLATE rejects manual, area and slip removal")
  t.check(g.Tools.unlock_reason(g,lock).contains("专属钥匙"),"CURSED PLATE ordinary tools report dedicated key requirement")
- t.check(g.candidates().filter(func(c):return c.payload.get("target","")==lock.id).all(func(c):return not c.valid and c.reason.contains("专属钥匙")),"CURSED PLATE all targeted actions are blocked")
- var blocked=g.candidates().filter(func(c):return c.payload.get("target","")==lock.id)
+ t.check(g.command_facts().filter(func(c):return c.payload.get("target","")==lock.id).all(func(c):return not c.valid and c.reason.contains("专属钥匙")),"CURSED PLATE all targeted actions are blocked")
+ var blocked=g.command_facts().filter(func(c):return c.payload.get("target","")==lock.id)
  if not blocked.is_empty():
   var unchanged=g.export_snapshot()
   t.check(not g.dispatch(g.command(blocked[0].payload,g.state.version),g.state.version).ok and g.state==unchanged,"CURSED PLATE invalid submit changes no resources, logs or equipment")

@@ -13,7 +13,7 @@ static func run(t) -> void:
   distances[g.state.wall_distance]=true
   t.check(g.state.wall_distance in [1,2,3,4] and not g.at_wall() and g._wall_bonus()==0,"WALL battle starts away without environment bonus")
   var before=g.export_snapshot()
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   t.check(g.state==before and g.state.rng.position==1,"WALL preview never rerolls initial position")
   var twin=Game.new(seed_value,true,"guard")
   t.check(twin.state.wall_distance==g.state.wall_distance,"WALL seeded initial distance is reproducible")
@@ -22,7 +22,7 @@ static func run(t) -> void:
  g.state.wall_distance=3
  var equipment=g.add_fixture("thigh",4)
  var damage=g.escape_preview(equipment,"strain",5).damage
- # Fixture setups set inputs; all movement uses real candidates and payment.
+ # Fixture setups set inputs; all movement uses real facts and payment.
  g.state.equipment.clear()
  var before=g.export_snapshot()
  var c=t.find_action(g,"wall_move",{"direction":"toward"})
@@ -59,7 +59,7 @@ static func run(t) -> void:
  g.state.wall_distance=0
  t.check(t.action(g,"item_install",{"item":item.id,"mount":"hand_wall"}).ok,"WALL actual tool can be mounted adjacent")
  g.state.wall_distance=1
- t.check(not t.find_action(g,"item_retrieve",{"item":item.id}).valid and g.candidates().filter(func(a):return a.payload.kind=="item_use" and a.payload.item==item.id).all(func(a):return not a.valid),"WALL mounted use and retrieval gated after leaving")
+ t.check(not t.find_action(g,"item_retrieve",{"item":item.id}).valid and g.command_facts().filter(func(a):return a.payload.kind=="item_use" and a.payload.item==item.id).all(func(a):return not a.valid),"WALL mounted use and retrieval gated after leaving")
  t.check(g.state.items.any(func(i):return i.id==item.id and i.mount=="hand_wall"),"WALL leaving does not delete installed tool")
  g.state.wall_distance=0
  t.check(t.find_action(g,"item_retrieve",{"item":item.id}).valid,"WALL return restores tool interaction")

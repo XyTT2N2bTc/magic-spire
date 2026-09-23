@@ -48,7 +48,7 @@ static func requirements(t) -> void:
 static func free_face(t) -> void:
  var g=setup();activate(t,g,true)
  var card=Cards.give(g,"ease");var c=t.find_action(g,"card",{"uid":card.uid,"free":true})
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(c.valid and c.cost==0 and g.Cards.text_entry(g,"ease").face_costs.free=="0" and g.state==before,"FORMATION immediate discount agrees with candidate and card face without mutating queries")
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"FORMATION stale request cannot consume the buff")
  t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.energy==before.energy and g.Cards.energy_cost(g,"ease",true)==1,"FORMATION one-energy card actually pays zero then loses discount")

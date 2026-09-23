@@ -28,7 +28,7 @@ static func run(t) -> void:
  for type in ["focus","tear","chain","peel","double_unlock"]:
   g=setup();var card=give(t,g,type)
   var before=JSON.stringify(g.state)
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   t.check(JSON.stringify(g.state)==before,"REWARD new card preview is readonly "+type)
   var energy=g.state.energy;var mana=g.state.mana;var hands=g.state.hand.size()
   t.check(play(t,g,card,"thigh").ok and g.state.energy==energy-g.Cards.Rules.SPECS[type].cost and g.state.mana==mana,"REWARD free branch pays listed energy only "+type)

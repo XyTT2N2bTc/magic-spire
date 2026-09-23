@@ -15,7 +15,7 @@ static func run(t) -> void:
   g.add_fixture("ankle",4);g.add_fixture("mouth",10)
   var card=Give.give(g,"siphon")
   var c=t.find_action(g,"card",{"uid":card.uid,"free":false})
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(c.valid and c.cost==0 and c.mana==0 and not g.Cards.uses_magic(c.payload) and g.state==before,"SIPHON bound face has no leg, mouth or casting gate and preview is read-only")
   t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state.mana==mini(mana+5,100) and g.state.energy==0 and g.state.rng.magic==before.rng.magic and g.state.hand.size()==before.hand.size()-1,"SIPHON bound restores five up to cap without draw or cast roll")
   t.check(g.state.discard.any(func(x):return x.uid==card.uid) and not g.state.exhaust.any(func(x):return x.uid==card.uid),"SIPHON successful bound use discards normally")

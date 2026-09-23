@@ -6,7 +6,7 @@ const ShopCopy=preload("res://data/shop_copy.gd")
 static func previous_tower_shop(t):
  var g=Game.new(37)
  g.state.room="floor_10_4";g.Services.start(g)
- var buy=g.candidates().filter(func(c):return c.valid and c.payload.kind=="service" and c.payload.op=="take" and c.payload.payment=="self")[0]
+ var buy=g.command_facts().filter(func(c):return c.valid and c.payload.kind=="service" and c.payload.op=="take" and c.payload.payment=="self")[0]
  t.check(g.dispatch(g.command(buy.payload,g.state.version),g.state.version).ok and not g.get_view().shop.performance.is_empty(),"SHOP reentry fixture commits real payment in the old tower")
  return g
 
@@ -73,7 +73,7 @@ static func rest_choice(t) -> void:
  var room_before=room_game.export_snapshot()
  var description=room_game.room_description(room_game.room_data("rest"))
  t.check(description.contains("扣3回合随机获得1张稀有卡") and description.contains("扣3回合选择1张罕见卡") and description.contains("扣3回合补充50魔瓶魔力") and description.contains("跳过奖励"),"REST map description matches all current reward choices and their actual costs")
- t.check(room_game.state==room_before,"REST room description leaves resources, candidates and random state unchanged")
+ t.check(room_game.state==room_before,"REST room description leaves resources, facts and random state unchanged")
  var observed=[]
  for seed_value in range(8):
   var sample=Game.new(seed_value);sample.state.room="rest";sample._start_rest()
@@ -97,7 +97,7 @@ static func rest_choice(t) -> void:
   g._start_rest()
   t.check(g.state.phase=="rest_choice" and g.state.rest_left==6 and g.state.tick==tick and g.state.combat.serial==serial and g.state.charge==0,"REST choice precedes opening effects")
   t.check(g.state.rest_cards.size()==3 and g.state.rest_cards.all(func(id):return g.Cards.Rules.SPECS[id].rarity=="uncommon") and g.state.rest_cards.all(func(id):return g.state.rest_cards.count(id)==1) and g.state.rare_offset==offset,"REST freezes only three distinct uncommon cards without altering rarity progression")
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(before==g.state and not t.find_action(g,"end").valid and not t.find_action(g,"rest_tool").valid,"REST selection does not tick or offer old services")
   var absent=g.Cards.Rules.REWARDS.filter(func(id):return g.Cards.Rules.SPECS[id].rarity=="rare" and id not in g.state.rest_cards)[0]
   t.check(not t.action(g,"rest_card",{"type":absent}).ok and g.state==before,"REST cannot claim an unoffered rare card")
@@ -140,7 +140,7 @@ static func flyer(t) -> void:
    t.check(t.action(g,"travel_step").ok,"FLYER real travel commits")
   var amount=1020 if kind=="shop" else 1000
   t.check(g.state.flask_mana==amount and g.state.mana==61 and g.state.energy==0,"FLYER only shop entry adds uncapped flask mana")
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(g.state==before and not g.dispatch(g.command(stale.payload,stale.version),stale.version).ok and g.state==before,"FLYER view and stale arrival cannot duplicate grant")
   g.state.flask_deposits=2
   g.Services.start(g)
@@ -170,7 +170,7 @@ static func removal_prices(t) -> void:
   var field="mana" if payment=="self" else "flask_mana"
   g.state.mana=100;g.state.flask_mana=100;g.state.temporary_mana=100;g.state[field]=price-0.5
   var payload={"op":"remove","uid":uid,"payment":payment}
-  var c=t.find_action(g,"service",payload);var before=g.export_snapshot();g.get_view();g.candidates()
+  var c=t.find_action(g,"service",payload);var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(c.mana==price and g.get_view().shop.remove_price==price and not c.valid and not g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state==before,"REMOVE progressive price is shared and insufficient selected balance cannot mix or increase count")
   g.state[field]=price;c=t.find_action(g,"service",payload);before=g.export_snapshot()
   t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"REMOVE stale selection cannot pay or raise future price")
@@ -190,7 +190,7 @@ static func refresh_stock(t) -> void:
  g.state.relics.append_array(["flyer","mana_earring"])
  g.state.mana=49.5;g.state.flask_mana=500.0;g.state.temporary_mana=1000.0
  var before=g.export_snapshot();var refresh=t.find_action(g,"service",{"op":"refresh","payment":"self"},false)
- g.get_view();g.candidates()
+ g.get_view();g.command_facts()
  t.check(refresh.mana==50 and not refresh.valid and not g.dispatch(g.command(refresh.payload,g.state.version),g.state.version).ok and g.state==before,"REFRESH insufficient payment and previews preserve stock, count and RNG without mixing sources")
  g.state.mana=50.0;refresh=t.find_action(g,"service",{"op":"refresh","payment":"self"});before=g.export_snapshot()
  t.check(not g.dispatch(g.command(refresh.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"REFRESH stale request rejects before payment")
@@ -232,7 +232,7 @@ static func refresh_stock(t) -> void:
  t.check(not t.action(fresh,"service",{"op":"refresh","payment":"self"}).ok and fresh.state==before,"REFRESH flat lock blocks own payment")
  t.check(t.action(fresh,"service",{"op":"refresh","payment":"flask"}).ok and fresh.state.flask_mana==25,"REFRESH flat lock permits bottle payment")
  var chest=Game.new(42);chest.state.room=chest.state.rooms.filter(func(r):return r.kind=="treasure")[0].id;chest.Services.start(chest)
- t.check(not chest.candidates().any(func(c):return c.payload.kind=="service" and c.payload.op=="refresh"),"REFRESH absent from treasure")
+ t.check(not chest.command_facts().any(func(c):return c.payload.kind=="service" and c.payload.op=="refresh"),"REFRESH absent from treasure")
 
 static func treasure_with_plate(t) -> void:
  var g=Game.new(42)
@@ -302,7 +302,7 @@ static func run(t) -> void:
   t.check(t.action(g,"depart",{"room":id}).ok,"SERVICE enters real adjacent "+kind)
   while g.state.phase=="travel":t.action(g,"travel_step")
   t.check(g.state.phase==kind and g.state.energy==0 and g.state.mana==100 and g.state.reward_count==0,"SERVICE arrival grants no turn or battle recovery")
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(g.export_snapshot()==before,"SERVICE views never reroll stock")
   var twin=Game.new(3)
   t.check(twin.restore_snapshot(before).ok,"SERVICE stock restores through real snapshot validation")

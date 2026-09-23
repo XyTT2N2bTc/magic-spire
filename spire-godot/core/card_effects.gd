@@ -13,14 +13,17 @@ static func active_buffs(g, include_disabled: bool=false) -> Array:
   if id not in result: result.append(id)
  return result
 
-static func toggle_candidates(g, out: Array) -> void:
- if g.state.overloaded or g.state.phase in ["cleared","prison_end"]: return
+# 状态开关的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md §2.1 T5／T8）。
+static func toggle_facts(g) -> Array:
+ var out=[]
+ if g.state.overloaded or g.state.phase in ["cleared","prison_end"]: return out
  for card in g.state.powers:
   var id=Rules.SPECS[card.type].self_faces[card.power_face].buff
   if not Rules.BUFFS[id].get("toggleable",false): continue
   var enabled=not card.get("power_enabled",true)
   var args={"power_name":Rules.BUFFS[id].name,"enabled":enabled}
-  g._candidate(out,{"kind":"status_toggle","status":"power_"+id,"uid":card.uid,"enabled":enabled},("开启" if enabled else "关闭")+args.power_name,{"kind":"game.status_toggle","args":args,"fallback":g.copy_status_toggle(g,args)},0,0,"","","status_toggle")
+  out.append(g._fact({"kind":"status_toggle","status":"power_"+id,"uid":card.uid,"enabled":enabled},("开启" if enabled else "关闭")+args.power_name,{"kind":"game.status_toggle","args":args,"fallback":g.copy_status_toggle(g,args)},0,0.0,"","","status_toggle"))
+ return out
 
 static func toggle_power(g, p: Dictionary) -> void:
  for card in g.state.powers:
@@ -670,7 +673,7 @@ static func replace_permanent(g, uid: String, type: String) -> void:
   for card in g.state[zone]:
    if card.uid==uid: card.type=type
 
-# Capture eligibility is shared by orientation, candidates and commit checks.
+# Capture eligibility is shared by orientation, display facts and commit checks.
 static func can_target_bind(type: String) -> bool:
  var spec=Rules.SPECS[type]
  return spec.mode=="lower" or (Rules.damage(type) and (not spec.has("target_slots") or spec.has("witch_training_stage")))
@@ -954,9 +957,6 @@ static func card_facts(g, card: Dictionary) -> Array:
     if spec.has("bound_modes"): label=Rules.face_name(card.type,p.free)+" · "+g._equipment_name(target)
     facts.append_array(target_facts(g,p,label,cost,mana,risk))
  return facts
-
-static func candidates(g, out: Array, card: Dictionary) -> void:
- for f in card_facts(g,card): g._fact_row(out,f)
 
 static func can_select_retain(g, card: Dictionary) -> bool:
  return card.retain_until<0 and not g.B.CARD_TRAITS.get(card.type,{}).get("retain",false)
@@ -1275,11 +1275,6 @@ static func follow_through_facts(g) -> Array:
    out.append(g._fact(p,("超级顺延 · " if whole_body else "顺延 · ")+g._equipment_name(target),detail(g,p),0,0.0,"","","chain"))
  return out
 
-static func follow_through_candidates(g) -> Array:
- var out=[]
- for f in follow_through_facts(g): g._fact_row(out,f)
- return out
-
 static func selection_cards(g, exclude_uid: String="") -> Array:
  var cards=[]
  for zone in ["draw","hand","discard"]:
@@ -1334,21 +1329,13 @@ static func chain_stop_fact(g) -> Dictionary:
  if g.state.card_chain.is_empty() or g.state.card_chain.mode!="unlock": return {}
  return g._fact({"kind":"chain","action":"stop","type":g.state.card_chain.type,"free":false,"mode":"unlock"},"结束连续开锁","保留已完成效果与已支付费用。",0,0.0,"","","chain")
 
-# 连锁显示事实（批 R4）：与行路径同源——连锁继续事实＋收尾行。
+# 连锁显示事实（批 R4 起、R5 收口）：连锁继续事实＋收尾事实（显示侧唯一来源）。
 static func chain_display_facts(g) -> Array:
  if not g.chain_rows_active(): return []
  var out=chain_facts(g)
  var stop=chain_stop_fact(g)
  if not stop.is_empty(): out.append(stop)
  return out
-
-static func chain_candidates(g) -> Array:
- var out=[]
- for f in chain_facts(g): g._fact_row(out,f)
- return out
-
-static func continuation(g, out: Array) -> void:
- for f in chain_display_facts(g): g._fact_row(out,f)
 
 static func continue_card(g, p: Dictionary) -> void:
  if p.action=="select_exhaust":
@@ -1383,7 +1370,7 @@ static func finish_chain(g) -> void:
 static func normalize(g) -> void:
  # Recompute after cleanup, never reuse first-hit targets or damage.
  while not g.state.card_chain.is_empty():
-  var choices=chain_candidates(g)
+  var choices=chain_facts(g)
   if choices.is_empty():
    finish_chain(g)
    g._emit("event","没有可继续处理的目标，连续行动结束。")

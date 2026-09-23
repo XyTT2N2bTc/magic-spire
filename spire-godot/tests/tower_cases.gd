@@ -153,7 +153,7 @@ static func departure_fixture(phase: String):
  g.state.room=g.state.rooms.filter(func(r):return r.kind==kind and not r.next.is_empty())[0].id
  if phase=="event":
   preload("res://tests/event_cases.gd").arrive(g,"smuggled_mana_potions")
-  var choice=g.candidates().filter(func(c):return c.payload.get("choice","")=="credit")[0]
+  var choice=g.command_facts().filter(func(c):return c.payload.get("choice","")=="credit")[0]
   g.dispatch(g.command(choice.payload,g.state.version),g.state.version)
  elif phase in ["shop","treasure"]: g.Services.start(g)
  elif phase=="rest": g._start_rest();g._begin_rest()
@@ -163,7 +163,7 @@ static func departure_fixture(phase: String):
    for i in range(4): g._gain_tool("shard")
    g._discard_end();g._finish_preparation()
    while g.carried_items()>g.item_capacity():
-    var discard=g.candidates().filter(func(c):return c.payload.kind=="item_discard" and c.valid)[0]
+    var discard=g.command_facts().filter(func(c):return c.payload.kind=="item_discard" and c.valid)[0]
     g.dispatch(g.command(discard.payload,g.state.version),g.state.version)
  return g
 
@@ -173,8 +173,8 @@ static func merged_departure_cases(t) -> void:
   var target=g.room_data(g.state.room).next[0]
   var before=g.export_snapshot()
   var twin=Game.new(42);twin.state=before.duplicate(true)
-  var exit_action=g._route_exit_candidate(g._phase_candidates())
-  var departures=g.candidates().filter(func(c):return c.payload.kind=="depart" and c.payload.room==target)
+  var exit_action=g._route_exit_candidate(g._phase_facts())
+  var departures=g.command_facts().filter(func(c):return c.payload.kind=="depart" and c.payload.room==target)
   t.check(g.state.phase==phase and not exit_action.is_empty() and departures.size()==1 and departures[0].valid,"DEPART finished room offers one-step outgoing node: "+phase)
   var projected=g.get_view().route.filter(func(r):return r.id==target)[0]
   t.check(projected.status=="available" and projected.entry_reason=="" and g.export_snapshot()==before,"DEPART route availability is read only before leaving: "+phase)
@@ -201,7 +201,7 @@ static func merged_departure_cases(t) -> void:
  before=g.export_snapshot()
  t.check(not t.action(g,"depart",{"room":target}).ok and g.export_snapshot()==before,"DEPART event victory still enters its preparation before route departure")
  g=Game.new(42,true);g._start_preparation()
- t.check(not g.candidates().any(func(c):return c.payload.kind=="depart"),"DEPART practice does not become a tower shortcut")
+ t.check(not g.command_facts().any(func(c):return c.payload.kind=="depart"),"DEPART practice does not become a tower shortcut")
 
 static func route_contract_cases(t) -> void:
  var g=Game.new(42)
@@ -210,7 +210,7 @@ static func route_contract_cases(t) -> void:
  var view=g.route_view()
  var current=view.filter(func(r):return r.id==source.id)[0]
  var allowed=current.paths.filter(func(p):return p.status=="available").map(func(p):return p.to)
- var choices=g.candidates().filter(func(c):return c.payload.kind=="depart" and c.valid).map(func(c):return c.payload.room)
+ var choices=g.command_facts().filter(func(c):return c.payload.kind=="depart" and c.valid).map(func(c):return c.payload.room)
  t.check(allowed==choices and view.filter(func(r):return r.status=="available").all(func(r):return r.id in allowed),"ROUTE visible active lines exactly match formal departures")
  var unrelated=g.state.rooms.filter(func(r):return r.floor==source.floor+1 and r.id not in source.next)[0]
  var before=g.export_snapshot()

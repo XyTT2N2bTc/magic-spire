@@ -129,7 +129,7 @@ static func precise_tool_projection(t) -> void:
  var before=g.export_snapshot()
  var c=t.find_action(g,"item_use",{"item":fixture.tool,"target":fixture.link})
  var item=g.get_view().items.filter(func(i):return i.id==fixture.tool)[0]
- t.check(c.valid and item.target_groups.any(func(group):return group.id=="thigh" and c.id in group.candidates),"CONTACT exposed knee link remains selectable despite unrelated covered thigh root")
+ t.check(c.valid and item.target_groups.any(func(group):return group.id=="thigh" and String(c.get("key","")) in group.keys),"CONTACT exposed knee link remains selectable despite unrelated covered thigh root")
  t.check(g.export_snapshot()==before,"CONTACT candidate and position projection preserve state, logs and random counters")
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.export_snapshot()==before,"CONTACT stale projected link action rejects atomically")
  t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g._equipment(fixture.link).durability==3 and g._item(fixture.tool).uses==2 and g.state.energy==before.energy,"CONTACT projected link cut spends one use and only damages shared rope")
@@ -137,7 +137,7 @@ static func precise_tool_projection(t) -> void:
  before=g.export_snapshot()
  c=t.find_action(g,"item_use",{"item":fixture.tool,"target":fixture.link})
  item=g.get_view().items.filter(func(i):return i.id==fixture.tool)[0]
- t.check(not c.valid and c.reason.contains("外层") and not item.target_groups.any(func(group):return c.id in group.candidates),"CONTACT covered precise knee cannot borrow another exposed point on the same component")
+ t.check(not c.valid and c.reason.contains("外层") and not item.target_groups.any(func(group):return String(c.get("key","")) in group.keys),"CONTACT covered precise knee cannot borrow another exposed point on the same component")
  t.check(not g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.export_snapshot()==before,"CONTACT covered link rejection preserves tool, equipment and resources")
 
 static func run(t) -> void:
@@ -154,7 +154,7 @@ static func run(t) -> void:
  t.check(g.validate()=="" and g.state.encounter==0 and g.state.rest_left==6,"LINK practice uses legal factory and rest flow")
  t.check(g.equipment_at("ankle").size()==1 and g.links_at("ankle").size()==1 and g.level("legs")==2,"LINK does not count as a second regional restraint")
  var before=JSON.stringify(g.state)
- g.get_view(); g.candidates()
+ g.get_view(); g.command_facts()
  t.check(JSON.stringify(g.state)==before,"LINK previews preserve ids, resources and randomness")
  var view=g.get_view()
  var ankle=view.bodies.filter(func(body):return body.id=="ankle")[0]
@@ -303,7 +303,7 @@ static func crotch_anchor_cases(t) -> void:
   var view=g.get_view()
   var special=view.body_groups.filter(func(b):return b.id=="special_3")[0]
   t.check(special.count==1 and special.links.size()==2 and special.targets.has(lower.id) and g.equipment_at("wrist").size()==1 and g.equipment_at("thigh").size()==1,"CROTCH LINK shared targets without phantom limb occupancy")
-  t.check(g.export_snapshot()==before,"CROTCH LINK projection and candidates preserve state")
+  t.check(g.export_snapshot()==before,"CROTCH LINK projection and facts preserve state")
   for pair in [[wrist.id,crotch.id],[calf.id,crotch.id],[crotch.id,crotch.id],[lower.id,crotch.id]]:
    t.check(g._install_link(pair[0],pair[1],8,"fixture").is_empty() and g.export_snapshot()==before,"CROTCH LINK duplicate, remote, self and rope anchors reject atomically")
   t.check(g._install_link(calf.id,crotch.id,8,"fixture",1,[],["thigh","special_3_a"]).is_empty() and g.export_snapshot()==before,"CROTCH LINK cannot forge contact on another region")
@@ -384,5 +384,5 @@ static func regional_cases(t) -> void:
  before=g.export_snapshot()
  t.check(g._install_link(band.id,third.id,8,"fixture").is_empty() and g._install_link(band.id,own.id,8,"fixture").is_empty() and g.export_snapshot()==before,"REGIONAL component shares quota and cannot invent same-root internal ropes")
  var missing=at(g,"mid_calf")
- var candidates=g.EquipmentOffers.links(g,1)
- t.check(candidates.all(func(o):return o.rank==1 and o.contact_points.size()==2 and g.Links.adjacent(o.contact_points[0],o.contact_points[1])) and g.export_snapshot()!=before,"REGIONAL enemy candidates use precise adjacency at third priority")
+ var facts=g.EquipmentOffers.links(g,1)
+ t.check(facts.all(func(o):return o.rank==1 and o.contact_points.size()==2 and g.Links.adjacent(o.contact_points[0],o.contact_points[1])) and g.export_snapshot()!=before,"REGIONAL enemy facts use precise adjacency at third priority")

@@ -70,7 +70,7 @@ static func run(t) -> void:
  travel(t,g,"exit")
  t.check(g.state.phase=="cleared" and g.state.reward_count==rewards and g.state.mana==mana and g.state.pressure==17 and not g._equipment(marker.id).is_empty(),"PROGRESSION exit completes climb without extra reward/heal or clearing restraints")
  before=JSON.stringify(g.state)
- t.check(g.candidates().filter(func(c):return c.payload.kind!="item_discard").size()==2 and not t.action(g,"reward",{"type":g.state.reward_options[0]}).ok and JSON.stringify(g.state)==before,"PROGRESSION exit choices cannot replay rewards")
+ t.check(g.command_facts().filter(func(c):return c.payload.kind!="item_discard").size()==2 and not t.action(g,"reward",{"type":g.state.reward_options[0]}).ok and JSON.stringify(g.state)==before,"PROGRESSION exit choices cannot replay rewards")
 
  # A hand-edited/invalid travel state cannot bypass the prerequisite at arrival either.
  g=Game.new(42)

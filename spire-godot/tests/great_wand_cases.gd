@@ -16,7 +16,7 @@ static func run(t) -> void:
  t.check(not c.valid and not g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.state==before,"WAND zero points cannot create a free action")
  for n in range(14):
   t.check(Cards.play(t,g,"strain",true).ok and g.state.relic_counters.great_wand==n+1 and g.state.mana==40,"WAND each successful skill adds exactly one point without early recovery")
- before=g.export_snapshot();g.get_view();g.candidates()
+ before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before and g.RelicEffects.counter(g,"great_wand").value==14,"WAND queries and counter view cannot mutate progress")
  c=t.find_action(g,"relic_discharge",{"relic":"great_wand"})
  t.check(not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"WAND stale exchange leaves counter and mana intact")
@@ -55,4 +55,4 @@ static func run(t) -> void:
   var saved=g.export_snapshot();saved.relic_counters.great_wand=invalid;before=g.export_snapshot()
   t.check(not g.restore_snapshot(saved).ok and g.state==before,"WAND malformed or unsettled counter is rejected on restore")
  g.state.relic_counters.great_wand=2;g.state.relics.erase("great_wand")
- t.check(g.RelicEffects.validate(g)!="" and not g.candidates().any(func(x):return x.payload.kind=="relic_discharge"),"WAND no owned relic means no action and no valid counter")
+ t.check(g.RelicEffects.validate(g)!="" and not g.command_facts().any(func(x):return x.payload.kind=="relic_discharge"),"WAND no owned relic means no action and no valid counter")

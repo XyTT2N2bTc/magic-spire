@@ -26,7 +26,7 @@ static func run(t) -> void:
   var card=t.hand_card(g,"ease")
   g.state.pressure=75
   var chosen=t.find_action(g,"card",{"uid":card.uid,"target":e.id})
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(g.state==before and not g.dispatch(g.command(chosen.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"CAST preview and stale dispatch consume no RNG or payment")
   var restored=Game.new(0);t.check(restored.restore_snapshot(before).ok,"CAST save restore")
   t.check(g.dispatch(g.command(chosen.payload,g.state.version),g.state.version).ok and restored.dispatch(restored.command(chosen.payload,restored.state.version),restored.state.version).ok,"CAST real action commits even when spell fails")
@@ -153,7 +153,7 @@ static func failure_refunds(t) -> void:
    var rng=g.state.rng.magic
    while g._random_index("magic",g.B.CAST_ROLL_STEPS)<g.cast_view(g.Cards.cast_profile(g,type)).winning_rolls: rng=g.state.rng.magic
    g.state.rng.magic=rng
-   var before=g.export_snapshot();g.get_view();g.candidates()
+   var before=g.export_snapshot();g.get_view();g.command_facts()
    t.check(c.valid and g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"REFUND preview and stale request preserve resources "+type)
    var result=g.dispatch(g.command(c.payload,g.state.version),g.state.version)
    t.check(result.ok and g._magic_failed and is_equal_approx(g.state.mana,before.mana-c.mana_payment.mana*0.5) and is_equal_approx(g.state.temporary_mana,before.temporary_mana-c.mana_payment.temporary_mana*0.5),"REFUND half actual payment returns to each original pool "+type+str(temporary))
@@ -234,7 +234,7 @@ static func body_routes(t) -> void:
  shown=g.get_view().hand.filter(func(e):return e.uid==card.uid)[0]
  t.check(shown.casting.part=="hand" and shown.casting.chance==0.25,"ROUTE chooses highest chance instead of penalized mouth")
  t.check(g.cast_view({"parts":["mouth","hand"],"multiplier":1.0}).part=="hand","ROUTE higher chance wins regardless of configured order")
- before=g.export_snapshot();g.get_view();g.candidates()
+ before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before,"ROUTE choosing paths does not mutate state or consume randomness")
  g=Game.new(42);g.add_fixture("fingers",4)
  target=g.add_fixture("ankle",8,10,true)

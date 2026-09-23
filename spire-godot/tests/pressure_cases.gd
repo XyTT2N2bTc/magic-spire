@@ -9,7 +9,7 @@ static func overload_charge(t) -> void:
  for pair in [[0,0],[1,0],[2,1],[3,1],[5,2],[8,4]]:
   for all_charge in [false,true]:
    var g=Game.new(42);g.state.charge=pair[0];g.state.charge_all=all_charge and pair[0]>0
-   var before=g.export_snapshot();g.get_view();g.candidates()
+   var before=g.export_snapshot();g.get_view();g.command_facts()
    t.check(g.state==before,"CLIMAX CHARGE queries cannot consume stacks")
    P.gain(g,99,"fixture",true)
    t.check(g.state.charge==pair[0],"CLIMAX CHARGE below threshold leaves stacks unchanged")
@@ -139,7 +139,7 @@ static func free_cooling(t) -> void:
    target.locked=false;g._apply_manual_release(target,0.0)
   g._cleanup();g.state.pressure_sources=[];g.state.relics=[];g.state.pressure=10
   for enemy in g.state.enemies: enemy.intent.delayed=true
-  var before=g.export_snapshot();g.get_view();g.candidates()
+  var before=g.export_snapshot();g.get_view();g.command_facts()
   t.check(g.state==before and not g.dispatch(g.command({"kind":"card","uid":"missing"},g.state.version),g.state.version).ok and g.state==before,"FREE COOLING queries and refused actions do not advance time")
   t.check(t.action(g,"end").ok and g.state.pressure==8,"FREE COOLING actual turn lowers two exactly once: "+phase)
  for kind in ["eyes","mouth","wrist","special","composite"]:
@@ -260,7 +260,7 @@ static func run(t) -> void:
  t.check(t.action(g,"card",{"uid":card.uid,"slot":"wrist","target":belt}).ok and g.state.overloaded and g.state.pressure==10 and g.state.mana==80,"PRESSURE second strain immediately overloads with remainder")
  var climax_view=g.get_view()
  t.check(climax_view.climax.cue=="climax.narration.normal" and climax_view.climax.text.begins_with("你的") and climax_view.speech.cue=="hero.climax.normal.clear","PRESSURE committed climax projects second-person narration separately from spoken dialogue")
- t.check(g.state.energy==0 and g.state.hand.is_empty() and g.candidates().filter(func(c):return c.payload.kind not in ["flask","item_discard"]).size()==1 and g.candidates()[0].payload.kind=="end","PRESSURE no card, ordinary tool, posture or early exit after interruption")
+ t.check(g.state.energy==0 and g.state.hand.is_empty() and g.command_facts().filter(func(c):return c.payload.kind not in ["flask","item_discard"]).size()==1 and g.command_facts()[0].payload.kind=="end","PRESSURE no card, ordinary tool, posture or early exit after interruption")
  old=JSON.stringify(g.state)
  t.check(not g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and JSON.stringify(g.state)==old,"PRESSURE interrupted card cannot be submitted again")
  t.check(t.action(g,"end").ok and g.state.pressure==35 and g.state.energy==2 and g.state.rest_left==5 and not g.state.overloaded,"PRESSURE finish interrupted rest once, end pulse once and apply next penalty once")
@@ -350,7 +350,7 @@ static func formal_sources(t) -> void:
  var Save=preload("res://tests/persistence_cases.gd")
  var g=Game.new(42)
  var before=g.state.duplicate(true)
- g.get_view();g.candidates();g.EquipmentOffers.options(g)
+ g.get_view();g.command_facts();g.EquipmentOffers.options(g)
  t.check(g.state==before,"SOURCE view and generation probes are read-only")
  var restored
  g=Game.new(42,true,"guard")
@@ -375,7 +375,7 @@ static func climax_card_practice(t) -> void:
  t.check(g.state.charge==4 and g.state.charge_all,"CLIMAX CHARGE real card grants one charge before halving eight to four")
  t.check(result.ok and g.state.overloaded and g.state.overload_total==1 and g.state.overload_count==1 and g.state.pressure==5,"CLIMAX PRACTICE paid card triggers the existing special equipment and one formal climax")
  t.check(g.state.energy==0 and g.state.mana==before.mana-g.B.OVERLOAD_MANA and g.state.overload_energy==g.B.OVERLOAD_ENERGY and g.state.special_equipment[0].type=="urethral_rod_low","CLIMAX PRACTICE uses normal interruption, mana loss, weakness and keeps the real equipment")
- var actions=g.candidates().filter(func(candidate):return candidate.payload.kind not in ["flask","item_discard"])
+ var actions=g.command_facts().filter(func(candidate):return candidate.payload.kind not in ["flask","item_discard"])
  t.check(actions.size()==2 and actions.any(func(c):return c.payload.kind=="end") and actions.any(func(c):return c.payload.kind=="surrender") and result.get("music_feedback",[]).is_empty(),"CLIMAX PRACTICE keeps continue and surrender while ordinary actions stay blocked")
  var normal=Game.new(42)
  t.check(normal.state.pressure==0 and normal.state.special_equipment.is_empty(),"CLIMAX PRACTICE setup never enters a normal run")
@@ -443,7 +443,7 @@ static func forced_loop_exit(t) -> void:
   var stages=g.state.enemies.map(func(enemy):return enemy.stage)
   t.check(t.action(g,"end").ok and g.state.round==round_before+1 and g.state.overloaded and g.state.energy==0,"FEEDBACK continue advances a new round and reproduces repeated interruption")
   t.check(g.state.enemies[0].stage==stages[0]+1 and g.state.enemies[1].stage==stages[1]+1,"FEEDBACK each enemy acts once per continued round")
- var exits=g.candidates().filter(func(c):return c.payload.kind=="surrender")
+ var exits=g.command_facts().filter(func(c):return c.payload.kind=="surrender")
  t.check(exits.size()==1 and exits[0].valid,"FEEDBACK interrupted battle keeps its formal surrender exit")
  if not exits.is_empty():
   var before=g.export_snapshot();var exit=exits[0]

@@ -17,7 +17,7 @@ static func run(t) -> void:
  var excluded=g.Relics.REWARDS.filter(func(id):return id!="lucidity_necklace")
  var pool=Game.new(42);pool.state.relics=[]
  t.check(preload("res://tests/rolling_log_cases.gd").offer_tier(pool,"rare",excluded)=="lucidity_necklace","NECKLACE shared rare pool offers the relic")
- var before=g.export_snapshot();g.get_view();g.candidates()
+ var before=g.export_snapshot();g.get_view();g.command_facts()
  t.check(g.state==before,"NECKLACE previews leave pending draw unchanged")
  g.Pressure.gain(g,99,"fixture",true)
  t.check(pending(g)==0,"NECKLACE subthreshold pressure never queues cards")

@@ -286,4 +286,4 @@ departure: core/game.gd.new(42)               # 出货开局，departure 相位
   （仅加作用域进出或改内部取数），并在既有 `tests/*_cases.gd` 追加具名 check；不新增文件、不新增第三方依赖、
   不新建看板或流程文件，不新增计时钩子／计数器到生产源码。
 - 不新增「每次调用都跑全图遍历」的路径：全图遍历只允许出现在作用域入口的建表里，每次作用域一次。
-- 不新增 UI 可见行为、文案、动画；不改 `present`／`render`／`commit`、`ui/action_index.gd`、`ui/target_queries.gd`。
+- 不新增 UI 可见行为、文案、动画；不改 `present`／`render`／`commit`、`ui/target_queries.gd`（行动行索引文件已在批 R5 删除）。

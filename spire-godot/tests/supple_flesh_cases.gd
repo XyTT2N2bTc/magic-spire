@@ -14,7 +14,7 @@ static func run(t) -> void:
   g=fresh();g.state.energy=0
   var card=Give.give(g,Type);var c=t.find_action(g,"card",{"uid":card.uid,"free":free});var before=g.export_snapshot()
   t.check(c.valid and c.cost==0 and c.mana==0 and not rules.face_casts(Type,free) and not rules.exhausts(Type,free,g.B.CARD_TRAITS.get(Type,{})) and not rules.unique_face(Type,free),"SUPPLE both faces cost no resources and are repeatable non-exhausting skills")
-  g.get_view();g.candidates()
+  g.get_view();g.command_facts()
   t.check(g.state==before and not g.dispatch(g.command(c.payload,g.state.version-1),g.state.version-1).ok and g.state==before,"SUPPLE queries and stale requests grant no attributes")
   t.check(g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok and g.RelicEffects.attribute(g,"strength")== (2 if free else 0) and g.RelicEffects.attribute(g,"dexterity")== (0 if free else 4) and g.state.energy==0 and g.state.mana==before.mana and g.state.rng.magic==before.rng.magic and g.state.discard.any(func(item):return item.uid==card.uid),"SUPPLE zero-energy play grants the correct temporary attribute and discards")
   t.check(Give.play(t,g,Type,free).ok and g.RelicEffects.attribute(g,"strength")== (4 if free else 0) and g.RelicEffects.attribute(g,"dexterity")== (0 if free else 8),"SUPPLE repeated same-face cards stack the exact attribute")
