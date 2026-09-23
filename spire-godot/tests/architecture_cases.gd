@@ -1509,9 +1509,10 @@ static func single_eligibility_implementation(t) -> void:
 
 # docs/spec/candidate-removal.md §5 G1／G2（批 R2）：指令路由单入口＋分类表全量。
 # kind 全集与逐域＝契约 §3.3.1（39 条）；本表是核对面，不是第二真源（真源是 ui/command_router.gd 的 ROUTES）。
+# 域列与 ROUTES 逐条相等（R2 复核低项：end／calm／surrender 曾与 ROUTES 不一致且未被断言使用）。
 const COMMAND_KINDS={
  "card":"battle","chain":"battle","attack":"battle","status_toggle":"battle","posture":"battle",
- "wall_move":"battle","manual":"battle","hook":"battle","end":"battle","calm":"battle","surrender":"battle",
+ "wall_move":"battle","manual":"battle","hook":"battle","end":"flow","calm":"battle","surrender":"flow",
  "item_use":"item","item_install":"item","item_retrieve":"item","item_discard":"item",
  "finish_prepare":"flow","finish_rest":"flow","finish_pack":"flow","retain":"flow","retain_skip":"flow",
  "rest_rare":"rest","rest_card":"rest","rest_flask":"rest","rest_begin":"rest",
@@ -1590,6 +1591,11 @@ static func instruction_route_table_is_total(t) -> void:
  for kind in routes:
   if not COMMAND_KINDS.has(kind): extra.append(kind)
  t.check(missing.is_empty() and extra.is_empty() and routes.size()==COMMAND_KINDS.size(),"G2 instruction_route_table_is_total: the table holds exactly the 39 declared kinds: missing="+str(missing)+" extra="+str(extra)+" size="+str(routes.size()))
+ # 1b) 夹具域列与真源 ROUTES 逐条相等（夹具守卫：防域列再次漂移而无人察觉）。
+ var drifted=[]
+ for kind in COMMAND_KINDS:
+  if routes.has(kind) and String(routes[kind])!=String(COMMAND_KINDS[kind]): drifted.append(kind+" fixture="+String(COMMAND_KINDS[kind])+" routes="+String(routes[kind]))
+ t.check(drifted.is_empty(),"G2 instruction_route_table_is_total: the fixture domain column matches the route table: "+str(drifted))
  # 2) 每个 kind 恰有一条子路由，且子路由名在 command_routes.gd 有实现。
  var branches=command_route_branches()
  var dangling=[];var used=[]

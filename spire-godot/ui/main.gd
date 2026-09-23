@@ -2470,10 +2470,6 @@ func hand_selection_source(uid: String) -> Dictionary:
  var choice=_hand_choice(uid)
  return choice.payload if not choice.is_empty() else {}
 
-# 形状 → 显示行：与提交侧同一投影（core 的 command_row），只用于改道门的判定结论。
-func card_row_by_shape(source: Dictionary, expected_version: int) -> Dictionary:
- return game.command_row(game.command(source,expected_version))
-
 # 单面卡面的原文提示（点击链）：命中即给出提示并重绘，没有可提交的形状。
 func single_face_notice(uid: String) -> bool:
  var card=view.hand.filter(func(c):return c.uid==uid)
