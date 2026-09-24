@@ -192,7 +192,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 | T1 | 各 UI 指令来源（A1–A39、A46–A60 的来源符号）→ N1 指令路由 | 调用 | **唯一前端指令入口**：控件回调只 `emit(类型化指令)`，不持候选字典、不直接提交 | A1–A60 |
 | T2 | N1 指令路由 → N2 分类子路由 | 调用 | 唯一分类点：按 `kind` 查声明表转子路由；表外 `kind` fail-closed（拒绝并记录，不静默） | （新） |
 | T3 | N2 分类子路由 → `core/game.gd::dispatch` | 调用 | **唯一后端提交边**（UI 侧 `dispatch` 调用点唯一，实测断言锁住） | B1（改签名） |
-| T4 | `core/game.gd::dispatch` → N4 唯一判定 | 调用 | 提交侧**强制复核**（指令形状＋参数合法性＋判定），替代按 id 取行 | B2 |
+| T4 | `core/game.gd::dispatch` → N4 唯一判定 | 调用 | 提交侧**强制复核**（指令形状＋参数合法性＋判定）；`core/game.gd::command_fact` 经 kind 调该生产者，不经全表 | B2 |
 | T5 | `core/game_view.gd::build` → N4 唯一判定 | 调用 | 显示侧取可用／原因／风险（按显示点计算，不物化全表）；R3 落地：`core/game.gd::command_facts` 逐显示点调 `core/game.gd::display_fact`；R4 落地：同投影增加 equipment／hooks／items／chain／retain | D2、D3、D4、D6 |
 | T6 | N2 分类子路由 → `core/game.gd::candidate_detail`／`live_card_text`（经 `ui/main.gd` helper） | 调用 | detail／卡面按需现算（现状保留） | D11、D12（保留） |
 | T7 | `core/game.gd::dispatch` → N6 执行与事务 | 调用＋写入 | 事务副本、失败全回滚、成功 `version` 一次自增（不变） | B5–B8、B10（保留） |

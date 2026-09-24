@@ -89,16 +89,83 @@ func command_issue(cmd: Dictionary) -> String:
  return ""
 
 # 指令形状 → 当前状态下该显示点的投影事实（T4 后半：唯一判定经显示事实给出）。形状与 params 相等的
-# 事实恰有一条；无命中即失效。不再有按提交身份 id 的取行复核（销 B2／DUP3）。
+# 事实恰有一条；无命中即失效。按 kind 只调该生产者再 display_fact，不经 command_facts 全表（销 B2／DUP3）。
+# 未接线 kind 仍走 _fact_source；禁止对子集跑 FirstTurnControl.select。
 func command_fact(cmd: Dictionary) -> Dictionary:
  var kind=String(cmd.get("kind",""))
  var params=command_params(kind,cmd.get("params",{}))
- var found={}
- for f in command_facts():
-  if String(f.payload.get("kind",""))!=kind: continue
-  if command_params(kind,f.payload)==params:
-   found=f;break
+ var previous=_begin_equipment_read()
+ var found=_command_fact_row(kind,params)
+ _equipment_read=previous
  return found
+
+# select 只吃全表：接管期回全表查找；可行动期按 kind 调该生产者。不对子集再跑 select。
+func _command_fact_row(kind: String, params: Dictionary) -> Dictionary:
+ if FirstTurnControl.active(self):
+  for f in command_facts():
+   if String(f.payload.get("kind",""))!=kind: continue
+   if command_params(kind,f.payload)==params: return f
+  return {}
+ var found={}
+ for f in _kind_facts(kind,params):
+  if String(f.payload.get("kind",""))!=kind: continue
+  var row=display_fact(f)
+  if command_params(kind,row.payload)==params:
+   found=row;break
+ return found
+
+# T4 查找的运作层：已接线 kind 只跑 _fact_source／_phase_facts 里该生产者；kind 不在 COMMAND_KEYS → 空。
+func _kind_facts(kind: String, params: Dictionary) -> Array:
+ match kind:
+  "flask": return _flask_kind_facts()
+  "attack":
+   if String(params.get("target",""))!="": return _fact_source()
+   return attack_facts() if _phase_action_tail() else []
+  "item_discard": return item_discard_facts() if _fact_source_domain() else []
+  "item_use": return _item_use_kind_facts(params)
+  "end","calm","finish_prepare","finish_rest","finish_pack": return _flow_kind_facts(kind)
+  "posture": return posture_facts() if _phase_action_tail() else []
+  "wall_move": return wall_move_facts() if _phase_action_tail() else []
+  "status_toggle": return _status_toggle_facts() if _fact_source_domain() else []
+  "relic_toggle","relic_discharge": return RelicEffects.facts(self) if _fact_source_domain() else []
+  "surrender":
+   if not _fact_source_domain(): return []
+   var row=surrender_fact()
+   return [] if row.is_empty() else [row]
+  _: return _fact_source() if COMMAND_KEYS.has(kind) else []
+
+func _fact_source_domain() -> bool:
+ return state.relic_bundle.is_empty() and state.phase!="departure" and command_domain_ready()
+
+# _phase_facts 默认行动尾（墙面／姿态／攻击／底栏）：早退分支不跑这些生产者。
+func _phase_action_tail() -> bool:
+ if not _fact_source_domain(): return false
+ if state.phase in ["rest_choice","shop","treasure","event","captured","inspection","prison_end"]: return false
+ if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES: return false
+ if not state.card_chain.is_empty() or state.pending_retain: return false
+ if state.phase in ["reward","map","travel","cleared","pack"]: return false
+ return true
+
+func _flask_kind_facts() -> Array:
+ if not state.relic_bundle.is_empty() or state.phase=="departure": return ManaFlask.facts(self,true)
+ return ManaFlask.facts(self) if command_domain_ready() else []
+
+func _flow_kind_facts(kind: String) -> Array:
+ if not _fact_source_domain(): return []
+ if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES: return _phase_facts() if kind=="end" else []
+ if state.phase=="pack" or _phase_action_tail(): return flow_facts()
+ return []
+
+func _item_use_kind_facts(params: Dictionary) -> Array:
+ var item=_item(String(params.get("item","")))
+ if item.is_empty(): return []
+ var op=Tools.operation(item.type)
+ if op not in ["buff","escape"]: return _fact_source()
+ if not state.relic_bundle.is_empty() or state.phase=="departure":
+  return Consumables.use_facts(self,item) if op=="buff" and Consumables.outside_battle(self,item.type) else []
+ if not command_domain_ready(): return []
+ if item_action_block(): return item_action_facts(item.id)
+ return Consumables.use_facts(self,item) if op=="buff" and Consumables.outside_battle(self,item.type) else []
 
 # A read batch owns its indexes; commands and subsequent views never reuse them.
 # Speculative installation replaces state, so it must use live queries instead.
@@ -2277,14 +2344,19 @@ func _fact_source() -> Array:
  facts.append_array(item_discard_facts())
  facts.append_array(ManaFlask.facts(self))
  facts.append_array(RelicEffects.facts(self))
- facts.append_array(Cards.toggle_facts(self))
+ facts.append_array(_status_toggle_facts())
+ return facts
+
+# 状态开关（蓄力切换＋可切换能力）：显示事实的唯一来源；_fact_source 与 command_fact 共用。
+func _status_toggle_facts() -> Array:
+ var facts=Cards.toggle_facts(self)
  if state.charge>0 and not state.overloaded and state.phase not in ["cleared","prison_end"]:
   var toggle_args={"charge_all":state.charge_all}
   facts.append(_fact({"kind":"status_toggle","status":"charge","enabled":not state.charge_all},"切换为普通蓄力" if state.charge_all else "切换为全量蓄力",{"kind":"game.status_toggle","args":toggle_args,"fallback":copy_status_toggle(self,toggle_args)},0,0.0,"","","status_toggle"))
  return facts
 
 # 投影事实（唯一出口，T8）：事实源 → 唯一判定与 detail 组装（display_fact）→ 接管标注（唯一选择结果）。
-# core/game_view.gd::build 的 view.display_facts 与本文件 command_fact 共用本列表，不再各算一份。
+# core/game_view.gd::build 的 view.display_facts 来自本列表；command_fact 经 kind 调该生产者，不经本列表。
 func command_facts() -> Array:
  # 读取批次：事实源与投影只在一个批次内物化一次（与改动前的候选表读取同一批次语义）。
  var previous=_begin_equipment_read()
@@ -2726,9 +2798,10 @@ func _item(id: String) -> Dictionary:
 
 # 道具域（批 R4 起、R5 收口）：显示事实的唯一来源；pack 与默认可行动分支由本函数派生。
 # 每件道具的可用操作（与执行分支的可用性一一对应）。
-func item_action_facts() -> Array:
+func item_action_facts(item_id: String="") -> Array:
  var facts=[]
  for item in state.items:
+  if item_id!="" and item.id!=item_id: continue
   var spec=Tools.TYPES[item.type]
   if Tools.operation(item.type)=="buff":
    facts.append_array(Consumables.use_facts(self,item))

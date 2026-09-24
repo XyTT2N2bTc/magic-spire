@@ -360,6 +360,7 @@ static func run(t) -> void:
  single_eligibility_implementation(t)
  instruction_router_single_entry(t)
  instruction_route_table_is_total(t)
+ command_fact_kind_lookup(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -1731,6 +1732,95 @@ static func instruction_route_table_is_total(t) -> void:
    if seen.has(key): duplicates.append(str(cell)+" "+key+" rows="+str(seen[key])+"/"+String(c.label))
    seen[key]=String(c.label)
  t.check(duplicates.is_empty(),"G2 instruction_route_table_is_total: every command shape resolves to exactly one row: "+str(duplicates.slice(0,3)))
+
+const T4_WIRED_KINDS=["flask","attack","item_discard","item_use","end","calm","finish_prepare","finish_rest","finish_pack","posture","wall_move","status_toggle","relic_toggle","relic_discharge","surrender"]
+const T4_EQUIVALENCE_CELLS=[["battle",0],["battle",12],["battle",26],["battle",44],["prepare",0],["rest",0]]
+
+static func t4_wired_row(g, fact: Dictionary) -> bool:
+ var kind=String(fact.payload.get("kind",""))
+ if kind not in T4_WIRED_KINDS: return false
+ if kind=="attack" and String(fact.payload.get("target",""))!="": return false
+ if kind=="item_use":
+  var item=g._item(String(fact.payload.get("item","")))
+  if item.is_empty(): return false
+  return g.Tools.operation(item.type) in ["buff","escape"]
+ return true
+
+static func t4_median(samples: Array) -> int:
+ var ordered=samples.duplicate()
+ ordered.sort()
+ return int(ordered[int(ordered.size()/2)])
+
+static func t4_dense_51():
+ var g=r1_build("battle",80)
+ var added=0
+ for e in g.state.equipment:
+  if added>=3: break
+  if g.Shoulders.install(g,e,"rope",3,"fixture"): added+=1
+ return g
+
+static func t4_extract_command_fact_body() -> String:
+ var handle=FileAccess.open("res://core/game.gd",FileAccess.READ)
+ if handle==null: return ""
+ var source=handle.get_as_text()
+ var start=source.find("func command_fact(")
+ if start<0: return ""
+ var rest=source.substr(start)
+ var nxt=rest.find("\nfunc ",1)
+ var body=rest if nxt<0 else rest.substr(0,nxt)
+ var code=""
+ for line in body.split("\n"): code+=String(line).split("#")[0]+"\n"
+ return code
+
+# docs/spec/candidate-removal.md T4：command_fact 经 kind 调该生产者，不经全表。
+static func command_fact_kind_lookup(t) -> void:
+ var compared=0
+ for cell in T4_EQUIVALENCE_CELLS:
+  var g=r1_build(cell[0],cell[1])
+  var key="%s:%d" % [cell[0],cell[1]]
+  var facts=g.command_facts()
+  var view=g.get_view()
+  t.check(facts.size()==int(R5_BASELINE[key].view_display_facts),"T4 command_facts count matches the pre-slice snapshot "+key+" have="+str(facts.size())+" want="+str(R5_BASELINE[key].view_display_facts))
+  t.check(view.display_facts.size()==facts.size(),"T4 get_view display_facts count stays aligned with command_facts "+key)
+  for fact in facts:
+   if not t4_wired_row(g,fact): continue
+   var found=g.command_fact(g.command(fact.payload,g.state.version))
+   t.check(found==fact,"T4 command_fact matches the full-table row kind="+String(fact.payload.kind)+" key="+String(fact.get("key",""))+" fixture="+key)
+   compared+=1
+ t.check(compared>0,"T4 command_fact compared wired rows against the full table")
+ var miss=r1_build("battle",0)
+ t.check(miss.command_fact({"kind":"flask","params":{"op":"no_such"},"expected_version":miss.state.version}).is_empty(),"T4 command_fact miss is an empty dictionary")
+ var body=t4_extract_command_fact_body()
+ t.check(body!="" and body.find("command_facts(")<0,"T4 command_fact does not scan command_facts(); turning this off still leaves the row-equality checks")
+ var dense=t4_dense_51()
+ t.check(dense.physical_pieces().size()==51 and dense.validate()=="","T4 51-piece lookup fixture")
+ var table=dense.command_facts()
+ var flask_cmd={}
+ var attack_cmd={}
+ for fact in table:
+  if flask_cmd.is_empty() and String(fact.payload.get("kind",""))=="flask": flask_cmd=dense.command(fact.payload,dense.state.version)
+  if attack_cmd.is_empty() and String(fact.payload.get("kind",""))=="attack" and String(fact.payload.get("target",""))=="": attack_cmd=dense.command(fact.payload,dense.state.version)
+  if not flask_cmd.is_empty() and not attack_cmd.is_empty(): break
+ t.check(not flask_cmd.is_empty() and not attack_cmd.is_empty(),"T4 51-piece fixture exposes flask and attack commands")
+ dense.command_fact(flask_cmd)
+ dense.command_fact(attack_cmd)
+ var flask_samples=[];var attack_samples=[];var table_samples=[]
+ for i in range(7):
+  var a=Time.get_ticks_usec()
+  dense.command_fact(flask_cmd)
+  flask_samples.append(Time.get_ticks_usec()-a)
+  a=Time.get_ticks_usec()
+  dense.command_fact(attack_cmd)
+  attack_samples.append(Time.get_ticks_usec()-a)
+ for i in range(3):
+  var a=Time.get_ticks_usec()
+  dense.command_facts()
+  table_samples.append(Time.get_ticks_usec()-a)
+ var flask_med=t4_median(flask_samples)
+ var attack_med=t4_median(attack_samples)
+ var table_med=t4_median(table_samples)
+ print("T4 LOOKUP MEDIAN flask_us=%d attack_us=%d command_facts_us=%d pieces=51" % [flask_med,attack_med,table_med])
+ t.check(flask_med*3<table_med,"T4 flask command_fact still scans the full table if this timing assertion fails flask_us="+str(flask_med)+" command_facts_us="+str(table_med))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.command_facts():
