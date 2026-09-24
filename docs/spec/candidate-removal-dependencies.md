@@ -13,7 +13,7 @@
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
-| `core/game.gd` | R1 抽唯一合法性判定（工作名 eligibility，未落地）；R2 `core/game.gd::dispatch` 改收类型化指令（形状＋参数合法性复核），删按 id 取行；R3 显示事实来源（`core/game.gd::_fact`／`core/game.gd::display_fact`／`core/game.gd::shape_key` 与行动／姿态／墙面／底栏的事实构建器）；R4 装备／道具／保留事实（`core/game.gd::manual_facts`／`core/game.gd::hook_facts`／`core/game.gd::item_facts`／`core/game.gd::item_action_facts`／`core/game.gd::item_discard_facts`／`core/game.gd::retain_facts`，阶段守卫 `core/game.gd::command_domain_ready`／`core/game.gd::command_tail`／`core/game.gd::chain_rows_active`）；R5 已删四个行载体符号（`candidates`／`_candidate`／`_build_candidates`／`_phase_candidates`，历史名）并新增事实出口（`core/game.gd::command_facts`／`core/game.gd::display_fact`／`core/game.gd::command_fact`） | 五条预检（Consumables／Binding／SpecialEquipment／Cards／RelicEffects）的顺序与 `error` 文案、事务副本与全回滚、`version` 成功一次自增、执行分支、`get_view` 调用点白名单语义逐字不变 |
+| `core/game.gd` | R1 抽唯一合法性判定（工作名 eligibility，未落地）；R2 `core/game.gd::dispatch` 改收类型化指令（形状＋参数合法性复核），删按 id 取行；R3 显示事实来源（`core/game.gd::_fact`／`core/game.gd::display_fact`／`core/game.gd::shape_key` 与行动／姿态／墙面／底栏的事实构建器）；R4 装备／道具／保留事实（`core/game.gd::manual_facts`／`core/game.gd::hook_facts`／`core/game.gd::item_facts`／`core/game.gd::item_action_facts`／`core/game.gd::item_discard_facts`／`core/game.gd::retain_facts`，阶段守卫 `core/game.gd::command_domain_ready`／`core/game.gd::command_tail`／`core/game.gd::chain_rows_active`）；R5 已删四个行载体符号（`candidates`／`_candidate`／`_build_candidates`／`_phase_candidates`，历史名）并新增事实出口（`core/game.gd::command_facts`／`core/game.gd::display_fact`／`core/game.gd::command_fact`）；T4 已落地：`core/game.gd::command_fact` 经 kind 调该生产者（`core/game.gd::_kind_facts`），不经 `command_facts` 全表；未接线 kind 仍走 `_fact_source`；接管期仍全表 `select` | 五条预检（Consumables／Binding／SpecialEquipment／Cards／RelicEffects）的顺序与 `error` 文案、事务副本与全回滚、`version` 成功一次自增、执行分支、`get_view` 调用点白名单语义逐字不变；T4 未接线 kind 与接管全表路径保持 |
 | `core/game_view.gd` | R3–R5 显示点改经唯一判定取显示事实（T5；R3 落地：新增 `view.display_facts` 键（R5 起＝扁平显示事实表，来源 `core/game.gd::command_facts`；R4 落地同键下的 equipment／hooks／items／chain／retain）；不再物化行表；已删 `view.candidates` 键 | `core/game_view.gd::build` 签名；显示字段**值**（availability／原因／风险／费用等）逐字段不变；只读 |
 | `core/first_turn_control.gd` | R1 接管阻断并入判定（不再写 `valid`／`reason`）；`select` 不再直呼行工厂；R5 行构建面删除 | `begin_turn`／`commit`／`view`／`validate` 语义；"豆包接管中"文案；`control_next` 事务内消费与回滚不变 |
 | `core/card_effects.gd` | R3 `availability` 改消费判定结果，卡牌事实 `core/card_effects.gd::card_facts`／`core/card_effects.gd::target_facts`（手牌域）；R4 连锁事实 `core/card_effects.gd::chain_facts`／`core/card_effects.gd::chain_stop_fact`／`core/card_effects.gd::chain_display_facts`；R5 行生产改显示事实构建 | availability 显示语义与文本不变 |
@@ -65,7 +65,7 @@
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
-| `tests/architecture_cases.gd` | 新增 G1／G2／G4／G6／G7（`docs/spec/candidate-removal.md` 第 5 节）＋旧提交面调用形态迁移 | 既有断言语义不删不弱 |
+| `tests/architecture_cases.gd` | 新增 G1／G2／G4／G6／G7（`docs/spec/candidate-removal.md` 第 5 节）＋旧提交面调用形态迁移；T4 `tests/architecture_cases.gd::command_fact_kind_lookup`（经 kind 命中行 ≡ 全表同形状；无过滤全表不变；flask 若仍走全表则红） | 既有断言语义不删不弱 |
 | `tests/display_ui_cases.gd` | 新增 G3／G5／G8＋调用形态迁移 | 同上 |
 | `tests/persistence_cases.gd` | 新增 G3（写盘时机部分）／G9＋调用形态迁移 | 存档隔离断言不变 |
 | `tests/target_sidebar_ui_cases.gd` | 新增 G5（拖放／目标）＋调用形态迁移；R5 补正：`tests/target_sidebar_ui_cases.gd::unavailable_body_hint` 结束时复位 scaled layout（与 `tests/body_layout_ui_cases.gd` 同形） | 真实输入助手用法不变 |

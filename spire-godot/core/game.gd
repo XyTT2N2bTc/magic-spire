@@ -137,14 +137,9 @@ func _kind_facts(kind: String, params: Dictionary) -> Array:
 func _fact_source_domain() -> bool:
  return state.relic_bundle.is_empty() and state.phase!="departure" and command_domain_ready()
 
-# _phase_facts 默认行动尾（墙面／姿态／攻击／底栏）：早退分支不跑这些生产者。
+# _phase_facts 默认行动尾（墙面／姿态／攻击／底栏）：域就绪且 command_tail（早退分支不跑这些生产者）。
 func _phase_action_tail() -> bool:
- if not _fact_source_domain(): return false
- if state.phase in ["rest_choice","shop","treasure","event","captured","inspection","prison_end"]: return false
- if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES: return false
- if not state.card_chain.is_empty() or state.pending_retain: return false
- if state.phase in ["reward","map","travel","cleared","pack"]: return false
- return true
+ return _fact_source_domain() and command_tail()
 
 func _flask_kind_facts() -> Array:
  if not state.relic_bundle.is_empty() or state.phase=="departure": return ManaFlask.facts(self,true)
@@ -2322,7 +2317,7 @@ func candidate_detail(candidate: Dictionary) -> String:
  return _candidate_detail(_candidate_base_detail(payload),payload,Cards.magic_card_traction(self,payload),_mana_payment(payload,float(candidate.get("mana",0.0))))
 
 # 全部指令显示事实的唯一来源（docs/spec/candidate-removal.md §2.1 T5／T8；批 R5）：按阶段／域产出显示点事实。
-# 投影、提交复核与接管选择都只经本函数取得事实；行载体（行表／行工厂／行索引）已删除，无第二份物化。
+# 投影与接管选择经 command_facts 取本列表；command_fact 已接线 kind 经 _kind_facts 调该生产者，未接线 kind 仍走本函数。行载体已删除，无第二份物化。
 func _fact_source() -> Array:
  var facts: Array=[]
  if not state.relic_bundle.is_empty():
@@ -2797,7 +2792,7 @@ func _item(id: String) -> Dictionary:
  return {}
 
 # 道具域（批 R4 起、R5 收口）：显示事实的唯一来源；pack 与默认可行动分支由本函数派生。
-# 每件道具的可用操作（与执行分支的可用性一一对应）。
+# 每件道具的可用操作（与执行分支的可用性一一对应）。item_id 非空时只产该件。
 func item_action_facts(item_id: String="") -> Array:
  var facts=[]
  for item in state.items:
