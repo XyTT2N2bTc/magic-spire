@@ -555,7 +555,7 @@ static func shake_pixels(t) -> void:
  var enemy=ui.view.enemies.filter(func(e):return not e.gone)[0]
  var strike=Queries.find(ui.view,"attack",{"type":"strike","form":0,"enemy":enemy.id})
  t.check(not strike.is_empty() and strike.valid,"IMPACT SHAKE PIXELS the battle fixture exposes a real strike candidate")
- var button=ui.candidate_buttons.get(strike.get("id","")) if not strike.is_empty() else null
+ var button=ui.candidate_buttons.get(Queries.fact_key(strike)) if not strike.is_empty() else null
  t.check(button!=null,"IMPACT SHAKE PIXELS the strike candidate has a real button")
  if button==null: return
  var origin=ui.layout.position

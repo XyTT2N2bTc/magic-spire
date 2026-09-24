@@ -82,7 +82,8 @@ static func third_kick(t) -> void:
  t.check(ui.attack_forms.kick==2 and t.visible_text(button).contains("坐着踢") and ui.find_child("BasicAttackDetail_kick",true,false).text=="6 伤害","KICK UI current third form automatically updates after posture change")
  t.check(await t.click("attack",{"type":"kick","form":2,"enemy":ui.selected_enemy}),"KICK UI ordinary sitting kick remains reusable after standing kick")
  ui.game.add_fixture("ankle",4);ui.game.add_fixture("foot",4);ui.render();await t.frames()
- t.check(ui.find_child("BasicAttackDetail_kick",true,false).text=="2.4 伤害","KICK UI level-three sitting preview reads shared damage")
+ var preview=Queries.find(ui.view,"attack",{"type":"kick","form":2,"enemy":ui.selected_enemy})
+ t.check(preview.valid and is_equal_approx(preview.payload.damage,3.6) and ui.find_child("BasicAttackDetail_kick",true,false).text=="3.6 伤害","KICK UI level-three sitting preview reads shared damage")
  for slot in ["thigh","calf","toes"]: ui.game.add_fixture(slot,4)
  ui.render();await t.frames()
  t.check(ui.find_child("BasicAttack_kick",true,false).disabled and t.visible_text(ui.find_child("BasicAttack_kick",true,false)).contains("4级"),"KICK UI full leg restraint shows specific disabled reason")
@@ -154,7 +155,7 @@ static func check_alignment(t, button: Button) -> void:
  var detail=button.get_node("BasicAttackDetail_"+button.drag_payload.action_type)
  var meta=button.get_node("BasicAttackMeta")
  var energy=button.get_node("BasicActionEnergy")
- var candidate=t.Queries.find(ui.view,"attack",{"type":button.drag_payload.action_type,"form":button.drag_payload.form,"enemy":t.ui.selected_enemy})
+ var candidate=Queries.find(t.ui.view,"attack",{"type":button.drag_payload.action_type,"form":button.drag_payload.form,"enemy":t.ui.selected_enemy})
  t.check(energy.get_node("EnergyCost").get_global_rect().get_center().distance_to(energy.get_global_rect().get_center())<0.5,"BASIC UI available energy numeral is centered")
  t.check(energy.get_node("EnergyCost").text==str(candidate.cost) and energy.texture!=null and meta.text.contains(candidate.body_part) and not meta.text.contains("能量"),"BASIC UI left energy medallion replaces cost text and metadata identifies the body part")
  t.check(title.get_theme_font_size("font_size")>=10 and title.get_theme_font_size("font_size")<=16 and detail.get_theme_font_size("font_size")==title.get_theme_font_size("font_size") and meta.get_theme_font_size("font_size")>=12,"BASIC UI action name and damage share an adaptive readable font")
@@ -222,7 +223,7 @@ static func quick_selection_refresh(t) -> void:
  var data={"card_uid":uid,"free":false,"version":ui.view.version}
  var c=quick.candidate(ui,"region_upper",data)
  quick.refresh(ui,data)
- t.check(c.valid and c.payload.target==palm.id and button.get_meta("target_selectable") and Queries.fact_by_key(ui.view,c.id)==c,"QUICK REFRESH highlight and selected target use the original candidate")
+ t.check(c.valid and c.payload.target==palm.id and button.get_meta("target_selectable") and Queries.fact_by_key(ui.view,Queries.fact_key(c))==c,"QUICK REFRESH highlight and selected target use the original candidate")
  ui.card_faces[uid]=true;var free=data.duplicate();free.free=true
  quick.refresh(ui,free)
  t.check(not button.get_meta("target_selectable") and button.get_meta("target_id")==palm.id and quick.candidate(ui,"region_upper",free).is_empty(),"QUICK REFRESH same-version face change cannot reuse the bound-face action or change target")

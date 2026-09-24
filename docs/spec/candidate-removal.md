@@ -168,9 +168,9 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 节点约定：**未落地**符号只写工作名并注明「未落地」，不写 `文件::符号` 锚点；落地名以实现批为准，
 改名须改本契约。现存符号沿用第 1 节锚点。
 
-- N1 **指令路由**（工作名 command_router，**未落地**；落点＝新 UI 文件提案，实现期定名）：前端**唯一指令入口**；
-  接收类型化指令，持有「分类 → 子路由」声明表（唯一分类点）。
-- N2 **分类子路由**（工作名 per-kind route，**未落地**；落点＝新 UI 文件提案或按类拆分，实现期定名）：
+- N1 **指令路由**（`ui/command_router.gd`，R2 落地）：前端**唯一指令入口**；
+  接收类型化指令，持有「分类 → 子路由」声明表（唯一分类点，`ROUTES`）。
+- N2 **分类子路由**（`ui/command_routes.gd`，R2 落地）：
   每类指令一条子路由，把 UI 意图（点击、键盘、触屏、拖放、自动接管）**装配**为类型化指令并做 UI 级
   前置（版本取值、本地选中态解析）；**不判定资格**。
 - N3 **类型化指令**（数据形状，未落地）：`{kind: String, params: Dictionary, expected_version: int}`；
@@ -237,7 +237,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 
 | 模块 | 边界（谁） | 小接口 | 内部（藏） |
 | --- | --- | --- | --- |
-| M-I 指令层（UI） | **指令路由**（工作名 command_router，未落地）＋**分类子路由**（工作名 command_routes，未落地）＋**指令形状**（数据约定，未落地） | 指令路由：`emit(cmd)`（前端**唯一**指令入口）；分类转发表 `ROUTES = {kind → 子路由}`（唯一分类点）。子路由：`assemble(意图) -> cmd`（每类指令恰一条） | 分类表、守卫早退（首页／播报期／接管锁）、UI 意图装配（本地选中态、拖放数据→`params`）、原 A40–A45 改道逻辑 |
+| M-I 指令层（UI） | **指令路由**（`ui/command_router.gd`，R2 落地）＋**分类子路由**（`ui/command_routes.gd`，R2 落地）＋**指令形状**（数据约定，未落地） | 指令路由：`emit(cmd)`（前端**唯一**指令入口）；分类转发表 `ROUTES = {kind → 子路由}`（唯一分类点）。子路由：`assemble(意图) -> cmd`（每类指令恰一条） | 分类表、守卫早退（首页／播报期／接管锁）、UI 意图装配（本地选中态、拖放数据→`params`）、原 A40–A45 改道逻辑 |
 | M-II 判定（core） | **唯一合法性判定**（工作名 eligibility，未落地） | `check(game_state, cmd) -> {valid, reason, risk, cost, mana_payment, …}` | 现 ``_candidate`（历史名，R5 已删除）` 的全部判定分支（能量／魔力／锁／诅咒／施法率／end 原因／接管阻断）；文案逐字不变 |
 | M-III 提交（core） | `core/game.gd::dispatch`＋执行与事务（现存） | `dispatch(cmd, expected_version) -> {ok, error, version, resource_feedback, card_feedback, music_feedback, checkpoint}`（**返回形状不变**） | 指令形状＋参数合法性复核、事务副本、全回滚、执行分支 |
 | M-IV 投影（core） | `core/game.gd::get_view`／`core/game_view.gd::build`（现存） | `get_view()` 签名与调用点白名单不变 | 显示点 → 指令形状的映射；显示事实计算（调 M-II） |
@@ -253,11 +253,10 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
   （现行规则）。指令路由与分类子路由**不得** preload core；提交执行段留在 `ui/main.gd`
   （即 `ui/main.gd::_submit` 的改造形态或改名后的同位符号，实现期定名），子路由**经该段**触
   `core/game.gd::dispatch`——T3 的「唯一后端提交边」指该段到 `dispatch` 的唯一调用点（断言锁住）。
-- **指令路由／子路由落在哪一层**：UI 层 M-I。是否需新文件＝**提案**：
-  候选落法一（推荐）＝新增两个 UI 文件（指令路由、分类子路由；工作名 command_router／command_routes，
-  **未落地**，实现期定名，按 `docs/spec/response-pipeline.md` 的授权边界「默认不新增 UI 文件，先向协调者
-  提案」走审批）；候选落法二＝不新增文件、在 `ui/main.gd` 内立指令段（文件继续膨胀，与「大文件按职责拆」
-  冲突）。两案均待协调者裁定，见第 9 节 Q1。
+- **指令路由／子路由落在哪一层**：UI 层 M-I，落法一已落地（Q1 提名两案中的新增文件案）：
+  新增 `ui/command_router.gd`（指令路由）与 `ui/command_routes.gd`（分类子路由），按
+  `docs/spec/response-pipeline.md` 的授权边界「默认不新增 UI 文件，先向协调者提案」走审批。落法二
+  （不新增文件、在 `ui/main.gd` 内立指令段）随两文件落地作废。
 - **Deep Module 口径**：调用方（控件回调）只见 `emit(cmd)`；判定调用方只见 `check(...)`；
   `dispatch` 调用方只见返回字典。内部杂乱（改道、守卫、判定分支、装配）全部藏在小接口后。
 - **同名方法去重义务**：装配、分类、判定、提交各只允许一条实现路径（第 2.3 节 DUP 表逐条销项）；
@@ -451,7 +450,7 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
 - **kind 与 params 不含候选提交身份 id**：现 ``_candidate`（历史名，R5 已删除）` 的
   `row.id=JSON.stringify(payload).sha256_text().substr(0,24)` 随行载体删除（批 R5）；
   R2 起不存在按 id 取行复核（T4 改为指令形状＋参数合法性＋判定）。
-- **表外 kind fail-closed**（Gherkin 2）：分类转发表（工作名 `ROUTES`，未落地）无该 kind 时拒绝并留一条
+- **表外 kind fail-closed**（Gherkin 2）：分类转发表（`ui/command_router.gd` 的 `ROUTES`，R2 落地）无该 kind 时拒绝并留一条
   记录，不静默放行、不崩。**本表是闭集**：新增 kind 必须先回填本节再实现。
 - **显示点只提供稳定 ID**：params 键不得用译文、名称、颜色或图片；显示侧现用的 `label`／`detail`／
   `brief`／`reason`／`risk`／`cost`／`mana` 均不进 params（由唯一判定与显示事实给出）。
@@ -568,11 +567,16 @@ rg -o '_submit\(' ui/ --glob '*.gd'                               # 55（54 提�
    （`source_changed` 不算通过）、引擎错误日志 0 行）：
 
 ```powershell
-& tools/check.ps1 -Suite architecture,persistence -Impact -TimeoutSeconds 900
-& tools/check.ps1 -UIOnly -UISuite display,interface,targeting,body_layout,touch,card_power -TimeoutSeconds 900
+& tools/check.ps1 -Suite architecture,persistence -Impact -TimeoutSeconds 1200
+& tools/check.ps1 -UIOnly -UISuite all -KeepGoing -TimeoutSeconds 3600
 & tools/check.ps1 -Suite runner -VerifyRunner
 & tools/check-docs.ps1
 ```
+
+- 窗口门禁取**全量分类**（`-UISuite all`）：本片显示改线逐文件触及绝大多数窗口分类（含
+  `basic_attacks`／`services`／`route`／`events`——R5 补正的解析错与运行时 `Invalid access` 正落在这些
+  分类），点名子集会让未点名的迁移面无人复算。`-KeepGoing` 只用于一轮内取全逐分类结果，
+  末轮判读仍是「每个分类 `SUITE RESULT: PASS`」。
 
 6. **独立审查**：实现完成后由独立子代理（新会话）按本契约边界审查通过；实现者不自审。
 7. **记录**：`docs/record/changelog.md`、`docs/record/verification.md` 各按「日期＋域＋命令＋结果＋未跑项」

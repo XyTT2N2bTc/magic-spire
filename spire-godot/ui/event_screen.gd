@@ -116,7 +116,7 @@ static func drawer(ui) -> void:
   var selected={} if matches.is_empty() else matches[0].selected
   if selection.kind=="card":
    var type=selected.type if not selected.is_empty() else c.payload.type
-   var face=ui._display_card(type,tile,func():ui.command_router.emit(String(c.payload.get("kind","")),c,selection.version),"event_"+c.id,Vector2(216,286))
+   var face=ui._display_card(type,tile,func():ui.command_router.emit(String(c.payload.get("kind","")),c,selection.version),"event_"+Queries.fact_key(c),Vector2(216,286))
    face.disabled=not c.valid;face.set_meta("physical_uid",selected.get("id",""));ui.candidate_buttons[c.key]=face
    tile.add_child(ui._label(c.label,16,ui.GOLD))
    if shared_detail=="" or not c.valid: tile.add_child(ui._label(c.detail if c.valid else c.reason,14,ui.MUTED if c.valid else ui.RED))

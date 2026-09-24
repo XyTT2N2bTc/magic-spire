@@ -9,7 +9,7 @@
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、`tools/`、`build/`）
 均相对 `spire-godot/`；`docs/` 相对仓库根。
 
-## 允许改动（核心面，14 文件）
+## 允许改动（核心面，20 文件）
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
@@ -27,12 +27,19 @@
 | `core/prison.gd` | R3 牢门解锁事实 `core/prison.gd::unlock_facts`（手牌可用性输入）；R5 行生产转发改显示事实构建 | 同上 |
 | `core/mana_flask.gd` | R5 行生产转发改显示事实构建 | 同上 |
 | `core/departure.gd` | R5 行生产转发改显示事实构建 | 同上 |
+| `core/card_rewards.gd` | R5 局部改名（历史名 `candidates` → `tier_pool`） | 稀有度推进、权重与随机域不变 |
+| `core/card_splash.gd` | R5 局部改名（历史名 `candidates` → `pool`） | 波及目标选择与文案不变 |
+| `core/equipment_application.gd` | R5 局部改名（历史名 `candidates` → `requests`） | 替换计划与比较值不变 |
+| `core/guard.gd` | R5 局部改名（历史名 `candidates` → `pool`） | 捕缚生成与随机域不变 |
+| `core/prison_space.gd` | R5 行生产转发改显示事实构建（原 `candidates(g,out)`（历史名，R5 已删除）改为 `core/prison_space.gd::facts`） | 探索项语义与文案不变 |
+| `core/status_view.gd` | R5 形参改名（`actions` → `facts`） | 道具可用性判定不变 |
 
-## 允许改动（UI 面，16＋2 文件）
+## 允许改动（UI 面，20＋2 文件）
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
-| `ui/main.gd` | R2 A1–A60 直连与改道（A40–A45）收敛为 `emit`；`ui/main.gd::_submit` 改造为路由执行段（Q4 定名）；R3 显示改线（显示键 `ui/main.gd::display_key`；姿态拖放身份改形状键）；R4 显示改线（`ui/main.gd::_equipment_actions`／`ui/main.gd::_attack_drop_candidate`／`ui/main.gd::_item_details`／`ui/main.gd::_door_candidate`／`ui/main.gd::_free_player_candidate`／`ui/main.gd::_hook_drawer`／`ui/main.gd::_guard_bind_card_candidate`／`ui/main.gd::_chain_screen`，与显示点接合用 `ui/target_queries.gd::fact_key`（事实自带的形状键）） | 唯一提交执行段；`ui/main.gd::render` 空快照取投影；checkpoint 非空才写盘；选择类点击零提交零写盘 |
+| `ui/main.gd` | R2 A1–A60 直连与改道（A40–A45）收敛为 `emit`；`ui/main.gd::_submit` 改造为路由执行段（Q4 定名）；R3 显示改线（显示键 `ui/main.gd::display_key`；姿态拖放身份改形状键）；R4 显示改线（`ui/main.gd::_equipment_actions`／`ui/main.gd::_attack_drop_candidate`／`ui/main.gd::_item_details`／`ui/main.gd::_door_candidate`／`ui/main.gd::_free_player_candidate`／`ui/main.gd::_hook_drawer`／`ui/main.gd::_guard_bind_card_candidate`／`ui/main.gd::_chain_screen`，与显示点接合用 `ui/target_queries.gd::fact_key`（事实自带的形状键））；R5 补正：`ui/main.gd::_reset_interface` 复位 `layout` 变换（测试夹具隔离；生产路径本就不改 scale／position）；R5 关账：`ui/main.gd::_relic_row` 的 RelicStrip／RelicRow 空白 `MOUSE_FILTER_IGNORE`，遗物图标仍可悬停 | 唯一提交执行段；`ui/main.gd::render` 空快照取投影；checkpoint 非空才写盘；选择类点击零提交零写盘；不把 scale 写回 `_reset_interface` |
+| `ui/release_details.gd` | R5 关账：`ui/release_details.gd::equipment_header` 紧凑默认面画出非空 `card_status`（不在 `_equipment_actions` 另画；遗留外带不双份） | 预览与锁具行语义不变 |
 | 行动行索引文件（`action_index.gd`，R5 已删除） | R4 末项回退曾委托 `ui/target_queries.gd::first_usable`；R5 **整文件删除**（末项回退语义由该函数的 `fallback="last"` 承载） | 文件不存在属终态断言之一（`tests/architecture_cases.gd::removal_end_state`） |
 | `ui/target_queries.gd` | R4 行筛选面（`ui/target_queries.gd::drag_facts`（R5 改名，原 `payload_candidates`）／`release_*`／`ui/target_queries.gd::body_cards`／`single_*`）改读 `view.display_facts`；DUP4 唯一通道＝`ui/target_queries.gd::first_usable`（`fallback` 声明首项或末项）；纯显示查询（`ui/target_queries.gd::body_at`／`ui/target_queries.gd::equipment_entries`）保留 | 纯显示查询语义不变；首项与末项回退不合并；不持游戏、控件、跨刷新缓存 |
 | `ui/quick_release_bar.gd` | R4 行取用改指令装配 | 格内显示字段与不可用原因原文不变 |
@@ -47,8 +54,12 @@
 | `ui/relic_bundle_screen.gd` | R2 四处直连改 `emit` | 同上 |
 | `ui/shop_screen.gd` | R2 五处直连改 `emit` | 同上 |
 | `ui/shell/body_sidebar.gd` | R2 一处延迟直连改 `emit`（`call_deferred("_submit",…)` 形态，不在契约 §1.1 的 A 表内；见下行说明） | 拖放接收语义不变 |
-| 新 UI 文件（工作名 command_router，**未落地**，实现期定名） | R2 新增：指令路由（`emit`＋分类转发表） | 须先过 Q1 提案；不得 preload core |
-| 新 UI 文件（工作名 command_routes，**未落地**，实现期定名） | R2 新增：分类子路由（每类指令一条装配） | 同上 |
+| `ui/arena.gd` | R5 注释改口径（候选 → 显示事实） | 立绘快照语义不变 |
+| `ui/drop_target.gd` | R5 拖放身份键改名（`self_action_id` → `self_action_key`，与 `ui/target_queries.gd::drag_facts` 的键面一致） | 拖放接收语义不变 |
+| `ui/impact_feedback.gd` | R5 注释改口径 | 只读反馈层语义不变 |
+| `ui/localization.gd` | R5 注释改口径 | 本地化语义不变 |
+| `ui/command_router.gd` | R2 落地（`a18860a`）：指令路由（`ui/command_router.gd::emit`／`ui/command_router.gd::emit_deferred` 前端唯一指令入口＋分类转发表 `ROUTES`） | 不得 preload core |
+| `ui/command_routes.gd` | R2 落地（`a18860a`）：分类子路由（`ui/command_routes.gd::assemble`，每类指令一条装配）；R5 自身目标取事实改经 `ui/command_routes.gd::_card_intent` 的 `ui/target_queries.gd::find` | 不得 preload core |
 
 ## 允许改动（测试与工具面）
 
@@ -57,7 +68,7 @@
 | `tests/architecture_cases.gd` | 新增 G1／G2／G4／G6／G7（`docs/spec/candidate-removal.md` 第 5 节）＋旧提交面调用形态迁移 | 既有断言语义不删不弱 |
 | `tests/display_ui_cases.gd` | 新增 G3／G5／G8＋调用形态迁移 | 同上 |
 | `tests/persistence_cases.gd` | 新增 G3（写盘时机部分）／G9＋调用形态迁移 | 存档隔离断言不变 |
-| `tests/target_sidebar_ui_cases.gd` | 新增 G5（拖放／目标）＋调用形态迁移 | 真实输入助手用法不变 |
+| `tests/target_sidebar_ui_cases.gd` | 新增 G5（拖放／目标）＋调用形态迁移；R5 补正：`tests/target_sidebar_ui_cases.gd::unavailable_body_hint` 结束时复位 scaled layout（与 `tests/body_layout_ui_cases.gd` 同形） | 真实输入助手用法不变 |
 | `tests/body_layout_ui_cases.gd` | 新增 G5（装备／快捷解除／身体栏）＋调用形态迁移 | 同上 |
 | `tests/ui_smoke.gd` | `tests/ui_smoke.gd::_index_boundary_tests` 四条**不删不放松**；"ui.actions 已按新状态重建"一语随行索引删除改为等价显示事实断言（波及项，须人类批准）＋调用形态迁移 | 锁定语义不变 |
 | `tests/` 其余迁移面（逐文件清单见文末，183 文件） | 旧提交面调用形态迁移（`dispatch` 指令形态、`candidates()` 行断言→显示事实／判定断言、`ui.actions`／ActionIndex→新显示读取） | 期望值与断言语义不变 |
@@ -82,7 +93,7 @@
 
 ## 允许的依赖方向
 
-- core／data 不 preload ui；`ui/` 内只有 `ui/main.gd` 允许 preload core；两个新 UI 文件不得 preload core。
+- core／data 不 preload ui；`ui/` 内只有 `ui/main.gd` 允许 preload core；`ui/command_router.gd`／`ui/command_routes.gd` 不得 preload core。
 - 新增边只允许 `docs/spec/candidate-removal.md` 第 2.1 节的 T1–T5；**同批立新边即删旧边**；
   任何时刻每条边只有一条对应路径。
 - 提交面复算口径：契约 §1.1 的 A 表用 `rg '_submit\('` 复算，不匹配 `call_deferred("_submit",…)` 形态；

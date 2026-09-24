@@ -58,7 +58,7 @@ static func run(t) -> void:
  t.check(t.ui.find_child("BodyEquipmentPanel",true,false)==null and t.ui.find_child("MainMana",true,false)==null and t.ui.find_child("ManaFlask",true,false).position.y<150,"SHOP merchant is unobstructed and flask stays available in header")
  await t.capture("ui-shopkeeper-new.png")
  await shop_presentation(t)
- var practice_offer=t.Queries.select(ui.view,"service").filter(func(c):return c.payload.get("op","")=="take" and c.payload.get("payment","")=="self" and c.valid)[0]
+ var practice_offer=Queries.select(t.ui.view,"service").filter(func(c):return c.payload.get("op","")=="take" and c.payload.get("payment","")=="self" and c.valid)[0]
  var practice_mana=t.ui.game.state.mana
  await Pointer.press(t,t.ui.candidate_buttons[practice_offer.key])
  t.check(t.ui.game.state.mana<practice_mana and t.ui.view.shop.stock[practice_offer.payload.index].taken,"SHOP test entry purchases via formal stock and payment")

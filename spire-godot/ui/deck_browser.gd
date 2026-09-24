@@ -106,6 +106,6 @@ func refresh() -> void:
   button.set_meta("printed_cost",numeric_cost(card))
  for child in existing.values():
   var choice=selection_choices.get(child.get_meta("physical_uid"),{})
-  if not choice.is_empty(): host.candidate_buttons.erase(choice.id)
+  if not choice.is_empty(): host.candidate_buttons.erase(choice.key)
   grid.remove_child(child);child.queue_free()
  scroll.scroll_vertical=0

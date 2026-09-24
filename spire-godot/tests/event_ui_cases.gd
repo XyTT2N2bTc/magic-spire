@@ -45,7 +45,7 @@ static func open_selection(t, id: String) -> void:
  t.check(t.ui.show_event_selection and t.ui.find_child("EventSelectionGrid",true,false)!=null,"EVENT UI native click opens secondary selection")
 
 static func event_button_count(ui) -> int:
- var ids=Queries.select(ui.view,"event").map(func(candidate):return candidate.id)
+ var ids=Queries.select(ui.view,"event").map(func(candidate):return Queries.fact_key(candidate))
  return ui.candidate_buttons.keys().filter(func(id):return id in ids).size()
 
 static func run(t) -> void:
@@ -348,7 +348,7 @@ static func run(t) -> void:
  t.check(await t.click("event",{"action":"choose","choice":"continue"}) and ui.view.room_event.stage=="wager_restraint","EVENT UI no-restraint player reaches round two from the existing Continue action")
  await press(t,ui.find_child("EventContinue",true,false))
  var fallback=ui.view.display_facts.filter(func(c):return c.payload.get("choice","")=="wager_without_restraint")
- t.check(fallback.size()==1 and fallback[0].valid and ui.candidate_buttons.has(fallback[0].id),"EVENT UI replaces the empty equipment picker with an enabled fallback")
+ t.check(fallback.size()==1 and fallback[0].valid and ui.candidate_buttons.has(String(fallback[0].get("key",""))),"EVENT UI replaces the empty equipment picker with an enabled fallback")
  var fallback_text=t.visible_text(ui.find_child("EventChoices",true,false))
  t.check(fallback_text.contains("直接翻牌") and fallback_text.contains("失败1/2") and fallback_text.contains("添加拘束具") and not fallback_text.contains("这一阶段没有能够执行的选项"),"EVENT UI compact fallback still previews the actual loss and remains playable")
  await press(t,ui.candidate_buttons[String(fallback[0].get("key",""))])

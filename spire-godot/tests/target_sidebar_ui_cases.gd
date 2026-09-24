@@ -421,4 +421,5 @@ static func unavailable_body_hint(t) -> void:
   t.check(ui.drop_panel==null and is_instance_valid(ui.term_popup),"TARGET returning to unavailable region removes previous legal strip and restores reason")
   await t.mouse_button(ui.body_buttons[unavailable[0].id].get_global_rect().get_center(),MOUSE_BUTTON_LEFT,false)
   t.check(ui.game.export_snapshot()==before and ui.drop_panel==null and ui.drop_targets.is_empty() and (not is_instance_valid(ui.term_popup) or not ui.term_popup.has_meta("drag_reason")),"TARGET rejected drop clears hints without spending cards, energy, turns or RNG")
+ ui.layout.scale=Vector2.ONE;ui.layout.position=Vector2.ZERO
  ui.restart(42);await t.frames()

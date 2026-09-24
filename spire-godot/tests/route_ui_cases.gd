@@ -219,9 +219,10 @@ static func seed_chip(t) -> void:
  ui.show_route=false
  ui.render(ui.game.get_view());await t.frames()
  var continuation=Queries.select(ui.view,"demo_exit").filter(func(c):return c.payload.kind=="demo_continue")
- t.check(continuation.size()==1 and continuation[0].valid and ui.candidate_buttons.has(continuation[0].id),"ROUTE seed chip follows a rebuilt tower: the exit screen offers the real continuation")
- if not continuation.is_empty() and ui.candidate_buttons.has(continuation[0].id):
-  await Pointer.press(t,ui.candidate_buttons[String(continuation[0].get("key",""))])
+ var continuation_key=String(continuation[0].get("key","")) if not continuation.is_empty() else ""
+ t.check(continuation.size()==1 and continuation[0].valid and ui.candidate_buttons.has(continuation_key),"ROUTE seed chip follows a rebuilt tower: the exit screen offers the real continuation")
+ if not continuation.is_empty() and ui.candidate_buttons.has(continuation_key):
+  await Pointer.press(t,ui.candidate_buttons[continuation_key])
   await t.frames()
   chip=ui.find_child("SeedChip",true,false)
   t.check(ui.view.tower_generation==1 and int(ui.view.initial_seed)==identity,"ROUTE seed chip follows a rebuilt tower: the run rebuilt its tower on the same identity")
@@ -441,9 +442,10 @@ static func review_identity_reuses_report(t) -> void:
  ui.show_route=false
  ui.render(ui.game.get_view());await t.frames()
  var continuation=Queries.select(ui.view,"demo_exit").filter(func(c):return c.payload.kind=="demo_continue")
- t.check(continuation.size()==1 and continuation[0].valid and ui.candidate_buttons.has(continuation[0].id),"ROUTE run review identity reuses the run report text: the exit screen offers the real continuation")
- if continuation.is_empty() or not ui.candidate_buttons.has(continuation[0].id): return
- await Pointer.press(t,ui.candidate_buttons[String(continuation[0].get("key",""))])
+ var continuation_key=String(continuation[0].get("key","")) if not continuation.is_empty() else ""
+ t.check(continuation.size()==1 and continuation[0].valid and ui.candidate_buttons.has(continuation_key),"ROUTE run review identity reuses the run report text: the exit screen offers the real continuation")
+ if continuation.is_empty() or not ui.candidate_buttons.has(continuation_key): return
+ await Pointer.press(t,ui.candidate_buttons[continuation_key])
  await t.frames()
  t.check(ui.view.tower_generation==generation+1,"ROUTE run review identity reuses the run report text: the run rebuilt its tower")
  await open_review(t)

@@ -9,7 +9,7 @@ static func run(t) -> void:
  var card=Give.give(ui.game,"siphon");ui.card_faces[card.uid]=false
  ui.render();await t.frames()
  var face=ui.card_buttons[card.uid]
- t.check(t.visible_text(face).contains("汲取") and face.rarity=="common" and t.visible_text(face.get_node("CardMana/Mana_gain")).strip_edges()=="+5" and Queries.find(ui.view,"card",{"uid":card.uid,"free":false}).cost==0,"SIPHON UI bound face displays name rarity zero energy and five mana")
+ t.check(t.visible_text(face).contains("汲取") and face.rarity=="uncommon" and t.visible_text(face.get_node("CardMana/Mana_gain")).strip_edges()=="+5" and Queries.find(ui.view,"card",{"uid":card.uid,"free":false}).cost==0,"SIPHON UI bound face displays name rarity zero energy and five mana")
  var before=ui.game.export_snapshot();await t.flip(card.uid)
  face=ui.card_buttons[card.uid]
  var row=ui.view.hand.filter(func(x):return x.uid==card.uid)[0]

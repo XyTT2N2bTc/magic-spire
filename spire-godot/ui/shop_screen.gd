@@ -179,7 +179,7 @@ static func services(ui, parent: VBoxContainer) -> void:
    var jobs=ui.view.shop.release_jobs.filter(func(j):return j.id==c.payload.target)
    if not jobs.is_empty(): body.add_child(ui._label(jobs[0].location,14,ui.CYAN))
   ui._action_row(body,c)
-  var action=ui.candidate_buttons.get(c.id)
+  var action=ui.candidate_buttons.get(c.key)
   if is_instance_valid(action): action.mouse_entered.connect(func():ui._shop_chatter(_chatter_pool(ui,c)))
 
 static func payment_overlay(ui) -> void:

@@ -160,7 +160,7 @@ func click(kind: String, extra: Dictionary={}, settle_feedback: bool=true) -> bo
   for k in extra:
    if c.payload.get(k)!=extra[k]: matches=false
   if matches and candidate_button(c)==null and ui.view.reward_panel.active:
-   var rows=ui.view.battle_rewards.filter(func(row):return c.id in row.action_keys)
+   var rows=ui.view.battle_rewards.filter(func(row):return Queries.fact_key(c) in row.action_keys)
    if not rows.is_empty():
     var row=rows[0]
     var opener=ui.find_child("Reward_"+row.category+("_"+row.id if row.id!="" else ""),true,false)
@@ -171,7 +171,7 @@ func click(kind: String, extra: Dictionary={}, settle_feedback: bool=true) -> bo
    elif c.payload.action=="reward" and c.payload.get("type","")!="skip": await preload("res://tests/event_ui_cases.gd").open_selection(self,"reward")
   if matches and kind=="item_use" and candidate_button(c)==null:
    var item=ui.view.items.filter(func(i):return i.id==c.payload.item)[0]
-   var groups=item.target_groups.filter(func(group):return c.id in group.keys)
+   var groups=item.target_groups.filter(func(group):return Queries.fact_key(c) in group.keys)
    if not groups.is_empty():
     ui.selected_item=item.id;ui.selected_item_slot=""
     if ui.show_items: ui.render(ui.view)

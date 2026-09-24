@@ -553,8 +553,11 @@ func _relic_row() -> void:
  if view.relics.is_empty(): return
  var strip=ScrollContainer.new();strip.name="RelicStrip"
  strip.vertical_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+ strip.mouse_filter=Control.MOUSE_FILTER_IGNORE
  _place(strip,Rect2(405,78,1013,56))
- var icons=HBoxContainer.new();icons.name="RelicRow";icons.add_theme_constant_override("separation",8);strip.add_child(icons)
+ var icons=HBoxContainer.new();icons.name="RelicRow";icons.add_theme_constant_override("separation",8)
+ icons.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ strip.add_child(icons)
  for relic in view.relics:
   var shortcut=Control.new();shortcut.name="RelicShortcut_"+relic.id
   shortcut.custom_minimum_size=Vector2(40,40);shortcut.focus_mode=Control.FOCUS_ALL

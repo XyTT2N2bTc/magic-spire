@@ -136,7 +136,7 @@ static func flyer(t) -> void:
   var stale={}
   while g.state.phase=="travel":
    var c=t.find_action(g,"travel_step")
-   stale={"id":c.id,"version":g.state.version}
+   stale={"payload":c.payload,"version":g.state.version}
    t.check(t.action(g,"travel_step").ok,"FLYER real travel commits")
   var amount=1020 if kind=="shop" else 1000
   t.check(g.state.flask_mana==amount and g.state.mana==61 and g.state.energy==0,"FLYER only shop entry adds uncapped flask mana")

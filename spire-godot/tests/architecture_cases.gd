@@ -915,7 +915,7 @@ static func copy_route_bytes_unchanged(t) -> void:
     var detail=g.candidate_detail(candidate)
     if router.text(g,detail)!=detail: direct.append(candidate.payload.get("kind","")+"#"+String(candidate.get("key","")))
     if candidate.payload.get("kind","")=="card":
-     if candidate.has("detail"): projected.append("stray "+candidate.id)
+     if candidate.has("detail"): projected.append("stray "+String(candidate.get("key","")))
     elif detail!=candidate.detail: projected.append(candidate.payload.get("kind","")+"#"+String(candidate.get("key","")))
    t.check(direct.is_empty(),"COPY direct string channel returns the producer text unchanged "+key+": "+str(direct.slice(0,3)))
    t.check(projected.is_empty(),"COPY candidate_detail returns the projected detail for every candidate "+key+": "+str(projected.slice(0,3)))
@@ -928,8 +928,8 @@ static func copy_route_bytes_unchanged(t) -> void:
  for i in range(stripped.size()):
   if reference[i].payload.get("kind","")!="card": continue
   card_group+=1
-  if reference[i].has("detail"): recomputed.append("stray "+reference[i].id)
-  if sample.candidate_detail(reference[i])=="": recomputed.append("empty "+reference[i].id)
+  if reference[i].has("detail"): recomputed.append("stray "+String(reference[i].get("key","")))
+  if sample.candidate_detail(reference[i])=="": recomputed.append("empty "+String(reference[i].get("key","")))
  t.check(card_group>0 and recomputed.is_empty(),"COPY card facts recompute on demand and carry no projected detail: "+str(recomputed.slice(0,3)))
  var g2=copy_baseline_fixture("battle",12)
  var g2_before=g2.state.duplicate(true)
