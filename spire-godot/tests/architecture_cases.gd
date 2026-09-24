@@ -270,6 +270,13 @@ class IndexCountingGame extends "res://tests/game_fixture.gd":
   physical_builds+=1
   return super._materialize_physical_points(pieces)
 
+# Test-side counter: production card_facts must not call Game.targets_at for undeclared slots.
+class TargetsAtCountingGame extends "res://tests/game_fixture.gd":
+ var targets_at_slots=[]
+ func targets_at(slot: String) -> Array:
+  targets_at_slots.append(slot)
+  return super.targets_at(slot)
+
 static func containers(value, path: String, out: Array) -> void:
  if value is Dictionary:
   out.append({"value":value,"path":path})
@@ -361,6 +368,7 @@ static func run(t) -> void:
  instruction_router_single_entry(t)
  instruction_route_table_is_total(t)
  command_fact_kind_lookup(t)
+ card_facts_declared_slots(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -1925,6 +1933,66 @@ static func command_fact_kind_lookup(t) -> void:
  var table_med=t4_median(table_samples)
  print("T4 LOOKUP MEDIAN flask_us=%d attack_us=%d command_facts_us=%d pieces=51" % [flask_med,attack_med,table_med])
  t.check(flask_med*3<table_med,"T4 flask command_fact still scans the full table if this timing assertion fails flask_us="+str(flask_med)+" command_facts_us="+str(table_med))
+
+# Pre-cut card_facts slot walk: union B.SLOTS then skip undeclared occupied before target_payload.
+static func card_facts_union_slot_oracle(g, card: Dictionary) -> Array:
+ var facts=[]
+ var spec=g.Cards.Rules.SPECS[card.type]
+ var cards=g.Cards
+ var assist_profiles=g.HandAssist.profiles(g)
+ var seen_special=[]
+ var face_costs={}
+ var face_payments={}
+ var slots=g.B.SLOTS+["neck","shoulder"]+g.SpecialEquipment.slots()
+ for slot in spec.get("target_slots",[]):
+  if slot not in slots: slots.append(slot)
+ for slot in slots:
+  var targets=g.targets_at(slot)
+  if slot in ["neck","shoulder"] or slot in g.SpecialEquipment.slots():
+   if targets.is_empty(): continue
+  elif targets.is_empty(): targets=[{}]
+  elif slot!="shoulder" and not g.occupied(slot): targets.append({})
+  for target in targets:
+   if target.is_empty() and spec.has("bound_modes"): continue
+   if not target.is_empty() and spec.has("target_slots") and slot not in spec.target_slots: continue
+   if not target.is_empty() and g.SpecialEquipment.is_special(target):
+    if target.id in seen_special: continue
+    seen_special.append(target.id)
+   for second in ([false,true] if spec.has("bound_modes") else [false]):
+    var p=cards.target_payload(g,card.type,slot,target,assist_profiles,card.uid,second)
+    if p.free and spec.has("free_slots"): continue
+    p.kind="card";p.uid=card.uid
+    if not face_costs.has(p.free):
+     face_costs[p.free]=cards.energy_cost(g,card.type,p.free)
+     face_payments[p.free]=cards.face_mana(g,card.type,p.free)
+    var cost=face_costs[p.free]
+    var mana=face_payments[p.free]
+    var risk=("三档免疫普通滑脱，仅造成%s点墙面真实伤害。" % g.number(p.preview.environment_true) if p.preview.get("environment_true",0)>0 else "三档免疫普通滑脱：本次伤害为0，仍消耗能量与卡牌。") if p.has("preview") and p.preview.immune else ""
+    var label="自由 · "+g.B.SLOT_NAMES[slot] if cards.Rules.free_effect(card.type,p.free) else "解除 · "+g._equipment_name(target)
+    if cards.Rules.free_effect(card.type,p.free) and slot in ["palm","fingers"] and not g.equipment_at(slot).is_empty(): label="自由 · "+("右" if g.hand_blocked(slot,"left") else "左")+g.B.SLOT_NAMES[slot]
+    if spec.has("bound_modes"): label=cards.Rules.face_name(card.type,p.free)+" · "+g._equipment_name(target)
+    facts.append_array(cards.target_facts(g,p,label,cost,mana,risk))
+ return facts
+
+# card_facts_declared_slots: declared-slot cards do not query undeclared occupancy via targets_at.
+static func card_facts_declared_slots(t) -> void:
+ var g=TargetsAtCountingGame.new(42)
+ t.check(g.state.phase=="battle","card_facts_declared_slots: battle fixture")
+ g.state.equipment.clear()
+ g.state.links.clear()
+ g.state.composites.clear()
+ var undeclared=g.add_fixture("ankle",40,100)
+ g.add_fixture("upper_arm",40,100)
+ var card=Rewards.give(t,g,"strong_elbow")
+ var spec=g.Cards.Rules.SPECS[card.type]
+ t.check(spec.has("target_slots") and "ankle" not in spec.target_slots and "upper_arm" in spec.target_slots,"card_facts_declared_slots: strong_elbow declares arms not ankle")
+ var before=card_facts_union_slot_oracle(g,card)
+ g.targets_at_slots.clear()
+ var facts=g.Cards.card_facts(g,card)
+ t.check(not facts.any(func(f):return String(f.payload.get("target",""))==undeclared.id),"card_facts_declared_slots: no release row for undeclared occupied id")
+ t.check(facts==before,"card_facts_declared_slots: facts equal the pre-cut union-then-skip rows field-for-field")
+ var undeclared_queries=g.targets_at_slots.filter(func(slot):return slot not in spec.target_slots)
+ t.check(undeclared_queries.is_empty(),"card_facts_declared_slots: targets_at on undeclared slots is 0 have="+str(undeclared_queries))
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.command_facts():
