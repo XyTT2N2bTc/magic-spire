@@ -1504,3 +1504,8 @@ flowchart LR
 
 - 域：依赖表与源码对齐。`docs/spec/candidate-removal-dependencies.md` 的 `ui/main.gd` 允许列删掉「`_reset_interface` 复位 layout」；复位仍只在 `tests/target_sidebar_ui_cases.gd::unavailable_body_hint` 末行。未改产品代码。`check-docs.ps1` PASS（35／2394／allowlist 6）。未重跑 Godot（不为说明文件重跑 UI-all）。产品门禁仍以 `a1144d6` 指纹 `930F16A1…CD5886` 为准。
 - 说明：同会话 grok 子代理审查不算本片正式独立审查。muse xhigh／space-bunny max 的 OpenCode worktree 双审在本条写入时尚未回。未推送。
+
+## 2026-09-24｜R5 补正 OpenCode 双审回（对象 `a1144d6`）
+
+- muse xhigh：`No findings.` 报告 `build/r5-review-muse-report.md`。bunny max：P0 相符；P1 **F1** 依赖表误写 `_reset_interface` 复位 layout。报告 `build/r5-review-bunny-report.md`。对照 `build/r5-review-comparison.md`。
+- F1 已由清洁者 `4818a10` 按 bunny 修正要求闭合，不再派实现者。未推送。

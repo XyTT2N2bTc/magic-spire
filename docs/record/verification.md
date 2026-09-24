@@ -3144,3 +3144,10 @@ flowchart LR
 - 域：`docs/spec/candidate-removal-dependencies.md`。清洁者提交：允许列不再声称 `_reset_interface` 复位 layout，与源码及「必须保持」一致。未改 `ui/`／`tests/` 产品字节。
 - `check-docs.ps1` PASS（35 文档／2394 引用／allowlist 6）。未跑 Godot。上一节残留的依赖表字面不一致已由本提交闭合。
 - 未跑：OpenCode muse／bunny 双审结论（worktree 仍在跑）；V1–V11；推送／打包。同会话 grok `No findings` 不作正式独立审查。
+
+## 2026-09-24｜R5 补正 OpenCode 双审（对象 `a1144d6`）
+
+- 域：同 R5 补正。muse xhigh worktree 与 space-bunny max worktree，同一派单、只读、未重跑 3600s UI-all。
+- muse：`No findings.`（`build/r5-review-muse-report.md`）。bunny：P0 无 finding；P1 F1＝依赖表允许列声称 `_reset_interface` 复位 layout，而 `a1144d6` 的 `_reset_interface` 无 scale／position 写入（`build/r5-review-bunny-report.md`）。
+- F1 已由 `4818a10` 闭合。对照 `build/r5-review-comparison.md`。同会话 grok 审查不作正式结论。
+- 未跑：V1–V11；`-Suite all`；打包／推送。
