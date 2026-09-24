@@ -65,7 +65,7 @@
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
-| `tests/architecture_cases.gd` | 新增 G1／G2／G4／G6／G7（`docs/spec/candidate-removal.md` 第 5 节）＋旧提交面调用形态迁移；T4 `tests/architecture_cases.gd::command_fact_kind_lookup`（经 kind 命中行 ≡ 全表同形状；无过滤全表不变；flask 若仍走全表则红） | 既有断言语义不删不弱 |
+| `tests/architecture_cases.gd` | 新增 G1／G2／G4／G6／G7（`docs/spec/candidate-removal.md` 第 5 节）＋旧提交面调用形态迁移；T4 `tests/architecture_cases.gd::command_fact_kind_lookup`（经 kind 命中行 ≡ 全表同形状；无过滤全表不变；flask 若仍走全表则红）；查找边真源＝`tests/architecture_cases.gd::PIPELINE_LOOKUP_EDGES`，`command_fact_kind_lookup` 调用 `tests/architecture_cases.gd::pipeline_lookup_inspect` | 既有断言语义不删不弱 |
 | `tests/display_ui_cases.gd` | 新增 G3／G5／G8＋调用形态迁移 | 同上 |
 | `tests/persistence_cases.gd` | 新增 G3（写盘时机部分）／G9＋调用形态迁移 | 存档隔离断言不变 |
 | `tests/target_sidebar_ui_cases.gd` | 新增 G5（拖放／目标）＋调用形态迁移；R5 补正：`tests/target_sidebar_ui_cases.gd::unavailable_body_hint` 结束时复位 scaled layout（与 `tests/body_layout_ui_cases.gd` 同形） | 真实输入助手用法不变 |

@@ -1759,11 +1759,23 @@ static func t4_dense_51():
   if g.Shoulders.install(g,e,"rope",3,"fixture"): added+=1
  return g
 
-static func t4_extract_command_fact_body() -> String:
+# Bounded lookup adjacency. Producer names stay out of the table (consume T4_WIRED_KINDS + _kind_facts arms).
+const PIPELINE_LOOKUP_FUNCS=["command_fact","_command_fact_row","_kind_facts","command_facts"]
+const PIPELINE_LOOKUP_EDGES=[
+ {"id":"L-wired","from":"core/game.gd::command_fact","to":"core/game.gd::display_fact","type":"call","path":"nontakeover _command_fact_row -> _kind_facts -> match-arm producer -> display_fact"},
+ {"id":"L-unwired","from":"core/game.gd::command_fact","to":"core/game.gd::_fact_source","type":"call","path":"_kind_facts _: arm: COMMAND_KEYS.has(kind) then _fact_source() else []"},
+ {"id":"L-table","from":"core/game.gd::command_facts","to":"core/game.gd::_fact_source","type":"call","path":"command_facts for-loop: _fact_source() then display_fact"},
+]
+
+static func pipeline_lookup_edges() -> Array:
+ return PIPELINE_LOOKUP_EDGES.duplicate()
+
+static func pipeline_lookup_func_body(name: String) -> String:
+ if name not in PIPELINE_LOOKUP_FUNCS: return ""
  var handle=FileAccess.open("res://core/game.gd",FileAccess.READ)
  if handle==null: return ""
  var source=handle.get_as_text()
- var start=source.find("func command_fact(")
+ var start=source.find("func "+name+"(")
  if start<0: return ""
  var rest=source.substr(start)
  var nxt=rest.find("\nfunc ",1)
@@ -1772,8 +1784,91 @@ static func t4_extract_command_fact_body() -> String:
  for line in body.split("\n"): code+=String(line).split("#")[0]+"\n"
  return code
 
+static func t4_extract_command_fact_body() -> String:
+ return pipeline_lookup_func_body("command_fact")
+
+static func pipeline_lookup_call_count(body: String, name: String) -> int:
+ var needle=name+"("
+ var count=0
+ var from=0
+ while true:
+  var at=body.find(needle,from)
+  if at<0: break
+  count+=1
+  from=at+needle.length()
+ return count
+
+static func pipeline_lookup_nontakeover_row(body: String) -> String:
+ var in_takeover=false
+ var out=""
+ for line in body.split("\n"):
+  var text=String(line)
+  if text.find("FirstTurnControl.active")>=0:
+   in_takeover=true
+   continue
+  if in_takeover:
+   if text.strip_edges()=="": continue
+   if text.begins_with("  "): continue
+   in_takeover=false
+  out+=text+"\n"
+ return out
+
+static func pipeline_lookup_default_arm(body: String) -> String:
+ var at=body.find("  _:")
+ if at<0: return ""
+ return body.substr(at)
+
+static func pipeline_lookup_inspect(t) -> void:
+ var edges=pipeline_lookup_edges()
+ t.check(edges.size()==3,"pipeline_lookup_inspect: PIPELINE_LOOKUP_EDGES is exactly three lookup edges have="+str(edges.size()))
+ var by_id={}
+ var signatures=[]
+ for edge in edges:
+  var id=String(edge.get("id",""))
+  var signature=String(edge.get("from",""))+" -> "+String(edge.get("to",""))+" / "+String(edge.get("type",""))
+  t.check(id!="" and not by_id.has(id) and signature not in signatures,"pipeline_lookup_inspect: L-wired, L-unwired, and L-table must be distinct id/from/to: "+id+" "+signature)
+  by_id[id]=edge
+  signatures.append(signature)
+ t.check(by_id.has("L-wired") and by_id.has("L-unwired") and by_id.has("L-table"),"pipeline_lookup_inspect: table ids are L-wired / L-unwired / L-table")
+ t.check(String(by_id["L-wired"].from)=="core/game.gd::command_fact" and String(by_id["L-wired"].to)=="core/game.gd::display_fact" and String(by_id["L-wired"].type)=="call","pipeline_lookup_inspect: L-wired is command_fact -> display_fact")
+ t.check(String(by_id["L-unwired"].from)=="core/game.gd::command_fact" and String(by_id["L-unwired"].to)=="core/game.gd::_fact_source" and String(by_id["L-unwired"].type)=="call","pipeline_lookup_inspect: L-unwired is command_fact -> _fact_source")
+ t.check(String(by_id["L-table"].from)=="core/game.gd::command_facts" and String(by_id["L-table"].to)=="core/game.gd::_fact_source" and String(by_id["L-table"].type)=="call","pipeline_lookup_inspect: L-table is command_facts -> _fact_source, from is not command_fact")
+ var bodies={}
+ for name in PIPELINE_LOOKUP_FUNCS:
+  bodies[name]=pipeline_lookup_func_body(name)
+  t.check(not String(bodies[name]).strip_edges().is_empty(),"pipeline_lookup_inspect: extracted body is non-empty for "+name)
+ var command_fact_body=bodies["command_fact"]
+ t.check(pipeline_lookup_call_count(command_fact_body,"command_facts")==0,"pipeline_lookup_inspect: command_fact body has no command_facts(")
+ t.check(pipeline_lookup_call_count(command_fact_body,"_command_fact_row")==1 and pipeline_lookup_call_count(command_fact_body,"display_fact")==0 and pipeline_lookup_call_count(command_fact_body,"_fact_source")==0,"pipeline_lookup_inspect: L-wired unique path starts at exactly one _command_fact_row(")
+ var nontakeover=pipeline_lookup_nontakeover_row(bodies["_command_fact_row"])
+ t.check(not nontakeover.strip_edges().is_empty() and pipeline_lookup_call_count(nontakeover,"_kind_facts")==1 and pipeline_lookup_call_count(nontakeover,"display_fact")==1,"pipeline_lookup_inspect: nontakeover _command_fact_row has _kind_facts( and display_fact(")
+ t.check(pipeline_lookup_call_count(nontakeover,"_fact_source")==0 and pipeline_lookup_call_count(nontakeover,"command_facts")==0,"pipeline_lookup_inspect: nontakeover _command_fact_row is a single path (no _fact_source( / command_facts()")
+ var kind_body=bodies["_kind_facts"]
+ var cut=kind_body.find("  _:")
+ t.check(cut>=0,"pipeline_lookup_inspect: _kind_facts has a _: arm")
+ var match_part=kind_body.substr(0,cut) if cut>=0 else kind_body
+ var missing_arms=[]
+ for kind in T4_WIRED_KINDS:
+  if match_part.find('"'+kind+'"')<0: missing_arms.append(kind)
+  if not GameCore.COMMAND_KEYS.has(kind): missing_arms.append(kind+"!COMMAND_KEYS")
+ t.check(missing_arms.is_empty(),"pipeline_lookup_inspect: every T4_WIRED_KINDS kind has a match arm and is in COMMAND_KEYS: "+str(missing_arms))
+ var default_arm=pipeline_lookup_default_arm(kind_body)
+ t.check(pipeline_lookup_call_count(default_arm,"_fact_source")==1 and default_arm.find("COMMAND_KEYS.has(")>=0,"pipeline_lookup_inspect: _: arm is COMMAND_KEYS.has(kind) then _fact_source()")
+ var unwired_keys=0
+ for kind in GameCore.COMMAND_KEYS:
+  if kind in T4_WIRED_KINDS: continue
+  unwired_keys+=1
+ t.check(unwired_keys>0,"pipeline_lookup_inspect: COMMAND_KEYS has kinds that take the _: arm")
+ var table_body=bodies["command_facts"]
+ t.check(pipeline_lookup_call_count(table_body,"_fact_source")==1 and pipeline_lookup_call_count(table_body,"display_fact")==1,"pipeline_lookup_inspect: command_facts body has _fact_source( and display_fact(")
+ var p2_t4={"id":"T4","from":"core/game.gd::dispatch","to":"core/game.gd::eligibility","type":"call"}
+ var p2_t5={"id":"T5","from":"core/game_view.gd::build","to":"core/game.gd::eligibility","type":"call"}
+ t.check(String(p2_t4.to)=="core/game.gd::eligibility" and String(p2_t5.to)=="core/game.gd::eligibility" and String(p2_t4.from)!=String(p2_t5.from),"pipeline_lookup_inspect: P2 declares T4/T5 call edges to eligibility")
+ t.check(VERDICT_PRODUCERS.get("core/game.gd",[]).has("eligibility"),"pipeline_lookup_inspect: P2 write sites stay on G4 VERDICT_PRODUCERS (no second write scan)")
+
 # docs/spec/candidate-removal.md T4：command_fact 经 kind 调该生产者，不经全表。
 static func command_fact_kind_lookup(t) -> void:
+ pipeline_lookup_inspect(t)
  var compared=0
  for cell in T4_EQUIVALENCE_CELLS:
   var g=r1_build(cell[0],cell[1])

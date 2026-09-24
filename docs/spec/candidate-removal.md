@@ -203,6 +203,8 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 **P2 口径**：T4（提交侧）与 T5（显示侧）是**同一判定实现的两条调用边**，不构成第二份判定；
 任何第三条判定路径（重算 `valid`／`reason` 的第二实现）即缺陷。
 
+查找边真源＝`tests/architecture_cases.gd::PIPELINE_LOOKUP_EDGES`（机读表）；检查入口＝`tests/architecture_cases.gd::pipeline_lookup_inspect`（由 `tests/architecture_cases.gd::command_fact_kind_lookup` 调用）。本契约不复制该表。
+
 ### 2.2 增删边清单
 
 - **删边（随对应增边同批删除）**：A1–A60（54 条直连＋6 条改道链，收敛为 T1）、B2（按 id 取行复核）、
