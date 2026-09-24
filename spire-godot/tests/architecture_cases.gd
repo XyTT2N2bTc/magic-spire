@@ -1759,16 +1759,23 @@ static func t4_dense_51():
   if g.Shoulders.install(g,e,"rope",3,"fixture"): added+=1
  return g
 
-# Bounded lookup adjacency. Producer names stay out of the table (consume T4_WIRED_KINDS + _kind_facts arms).
 const PIPELINE_LOOKUP_FUNCS=["command_fact","_command_fact_row","_kind_facts","command_facts"]
 const PIPELINE_LOOKUP_EDGES=[
  {"id":"L-wired","from":"core/game.gd::command_fact","to":"core/game.gd::display_fact","type":"call","path":"nontakeover _command_fact_row -> _kind_facts -> match-arm producer -> display_fact"},
  {"id":"L-unwired","from":"core/game.gd::command_fact","to":"core/game.gd::_fact_source","type":"call","path":"_kind_facts _: arm: COMMAND_KEYS.has(kind) then _fact_source() else []"},
  {"id":"L-table","from":"core/game.gd::command_facts","to":"core/game.gd::_fact_source","type":"call","path":"command_facts for-loop: _fact_source() then display_fact"},
 ]
+const PIPELINE_P2_EDGES=[
+ {"id":"T4","from":"core/game.gd::dispatch","to":"core/game.gd::eligibility","type":"call"},
+ {"id":"T5","from":"core/game_view.gd::build","to":"core/game.gd::eligibility","type":"call"},
+]
 
 static func pipeline_lookup_edges() -> Array:
  return PIPELINE_LOOKUP_EDGES.duplicate()
+
+static func pipeline_lookup_func_name(anchor: String) -> String:
+ var parts=String(anchor).split("::")
+ return "" if parts.is_empty() else String(parts[parts.size()-1])
 
 static func pipeline_lookup_func_body(name: String) -> String:
  if name not in PIPELINE_LOOKUP_FUNCS: return ""
@@ -1783,9 +1790,6 @@ static func pipeline_lookup_func_body(name: String) -> String:
  var code=""
  for line in body.split("\n"): code+=String(line).split("#")[0]+"\n"
  return code
-
-static func t4_extract_command_fact_body() -> String:
- return pipeline_lookup_func_body("command_fact")
 
 static func pipeline_lookup_call_count(body: String, name: String) -> int:
  var needle=name+"("
@@ -1825,45 +1829,50 @@ static func pipeline_lookup_inspect(t) -> void:
  var signatures=[]
  for edge in edges:
   var id=String(edge.get("id",""))
+  var from_fn=pipeline_lookup_func_name(edge.get("from",""))
   var signature=String(edge.get("from",""))+" -> "+String(edge.get("to",""))+" / "+String(edge.get("type",""))
   t.check(id!="" and not by_id.has(id) and signature not in signatures,"pipeline_lookup_inspect: L-wired, L-unwired, and L-table must be distinct id/from/to: "+id+" "+signature)
+  t.check(String(edge.get("type",""))=="call" and from_fn in PIPELINE_LOOKUP_FUNCS,"pipeline_lookup_inspect: lookup edge is a call from an extracted func: "+id+" "+from_fn)
   by_id[id]=edge
   signatures.append(signature)
  t.check(by_id.has("L-wired") and by_id.has("L-unwired") and by_id.has("L-table"),"pipeline_lookup_inspect: table ids are L-wired / L-unwired / L-table")
- t.check(String(by_id["L-wired"].from)=="core/game.gd::command_fact" and String(by_id["L-wired"].to)=="core/game.gd::display_fact" and String(by_id["L-wired"].type)=="call","pipeline_lookup_inspect: L-wired is command_fact -> display_fact")
- t.check(String(by_id["L-unwired"].from)=="core/game.gd::command_fact" and String(by_id["L-unwired"].to)=="core/game.gd::_fact_source" and String(by_id["L-unwired"].type)=="call","pipeline_lookup_inspect: L-unwired is command_fact -> _fact_source")
- t.check(String(by_id["L-table"].from)=="core/game.gd::command_facts" and String(by_id["L-table"].to)=="core/game.gd::_fact_source" and String(by_id["L-table"].type)=="call","pipeline_lookup_inspect: L-table is command_facts -> _fact_source, from is not command_fact")
  var bodies={}
  for name in PIPELINE_LOOKUP_FUNCS:
   bodies[name]=pipeline_lookup_func_body(name)
   t.check(not String(bodies[name]).strip_edges().is_empty(),"pipeline_lookup_inspect: extracted body is non-empty for "+name)
  var command_fact_body=bodies["command_fact"]
+ var wired_to=pipeline_lookup_func_name(by_id["L-wired"].to)
+ var unwired_to=pipeline_lookup_func_name(by_id["L-unwired"].to)
+ var table_to=pipeline_lookup_func_name(by_id["L-table"].to)
  t.check(pipeline_lookup_call_count(command_fact_body,"command_facts")==0,"pipeline_lookup_inspect: command_fact body has no command_facts(")
- t.check(pipeline_lookup_call_count(command_fact_body,"_command_fact_row")==1 and pipeline_lookup_call_count(command_fact_body,"display_fact")==0 and pipeline_lookup_call_count(command_fact_body,"_fact_source")==0,"pipeline_lookup_inspect: L-wired unique path starts at exactly one _command_fact_row(")
+ t.check(pipeline_lookup_call_count(command_fact_body,"_command_fact_row")==1 and pipeline_lookup_call_count(command_fact_body,wired_to)==0 and pipeline_lookup_call_count(command_fact_body,unwired_to)==0,"pipeline_lookup_inspect: L-wired unique path starts at exactly one _command_fact_row(")
  var nontakeover=pipeline_lookup_nontakeover_row(bodies["_command_fact_row"])
- t.check(not nontakeover.strip_edges().is_empty() and pipeline_lookup_call_count(nontakeover,"_kind_facts")==1 and pipeline_lookup_call_count(nontakeover,"display_fact")==1,"pipeline_lookup_inspect: nontakeover _command_fact_row has _kind_facts( and display_fact(")
- t.check(pipeline_lookup_call_count(nontakeover,"_fact_source")==0 and pipeline_lookup_call_count(nontakeover,"command_facts")==0,"pipeline_lookup_inspect: nontakeover _command_fact_row is a single path (no _fact_source( / command_facts()")
+ t.check(not nontakeover.strip_edges().is_empty() and pipeline_lookup_call_count(nontakeover,"_kind_facts")==1 and pipeline_lookup_call_count(nontakeover,wired_to)==1,"pipeline_lookup_inspect: nontakeover _command_fact_row has _kind_facts( and display_fact(")
+ t.check(pipeline_lookup_call_count(nontakeover,unwired_to)==0 and pipeline_lookup_call_count(nontakeover,"command_facts")==0,"pipeline_lookup_inspect: nontakeover _command_fact_row is a single path (no _fact_source( / command_facts()")
  var kind_body=bodies["_kind_facts"]
- var cut=kind_body.find("  _:")
- t.check(cut>=0,"pipeline_lookup_inspect: _kind_facts has a _: arm")
- var match_part=kind_body.substr(0,cut) if cut>=0 else kind_body
+ var default_arm=pipeline_lookup_default_arm(kind_body)
+ t.check(not default_arm.is_empty(),"pipeline_lookup_inspect: _kind_facts has a _: arm")
+ var match_part=kind_body.trim_suffix(default_arm) if not default_arm.is_empty() else kind_body
  var missing_arms=[]
  for kind in T4_WIRED_KINDS:
   if match_part.find('"'+kind+'"')<0: missing_arms.append(kind)
   if not GameCore.COMMAND_KEYS.has(kind): missing_arms.append(kind+"!COMMAND_KEYS")
  t.check(missing_arms.is_empty(),"pipeline_lookup_inspect: every T4_WIRED_KINDS kind has a match arm and is in COMMAND_KEYS: "+str(missing_arms))
- var default_arm=pipeline_lookup_default_arm(kind_body)
- t.check(pipeline_lookup_call_count(default_arm,"_fact_source")==1 and default_arm.find("COMMAND_KEYS.has(")>=0,"pipeline_lookup_inspect: _: arm is COMMAND_KEYS.has(kind) then _fact_source()")
+ t.check(pipeline_lookup_call_count(default_arm,unwired_to)==1 and default_arm.find("COMMAND_KEYS.has(")>=0,"pipeline_lookup_inspect: _: arm is COMMAND_KEYS.has(kind) then _fact_source()")
  var unwired_keys=0
  for kind in GameCore.COMMAND_KEYS:
   if kind in T4_WIRED_KINDS: continue
   unwired_keys+=1
  t.check(unwired_keys>0,"pipeline_lookup_inspect: COMMAND_KEYS has kinds that take the _: arm")
  var table_body=bodies["command_facts"]
- t.check(pipeline_lookup_call_count(table_body,"_fact_source")==1 and pipeline_lookup_call_count(table_body,"display_fact")==1,"pipeline_lookup_inspect: command_facts body has _fact_source( and display_fact(")
- var p2_t4={"id":"T4","from":"core/game.gd::dispatch","to":"core/game.gd::eligibility","type":"call"}
- var p2_t5={"id":"T5","from":"core/game_view.gd::build","to":"core/game.gd::eligibility","type":"call"}
- t.check(String(p2_t4.to)=="core/game.gd::eligibility" and String(p2_t5.to)=="core/game.gd::eligibility" and String(p2_t4.from)!=String(p2_t5.from),"pipeline_lookup_inspect: P2 declares T4/T5 call edges to eligibility")
+ t.check(pipeline_lookup_func_name(by_id["L-table"].from)!="command_fact" and pipeline_lookup_call_count(table_body,table_to)==1 and pipeline_lookup_call_count(table_body,"display_fact")==1,"pipeline_lookup_inspect: command_facts body has _fact_source( and display_fact(")
+ var p2_ids=[]
+ var p2_froms=[]
+ for edge in PIPELINE_P2_EDGES:
+  p2_ids.append(String(edge.get("id","")))
+  p2_froms.append(String(edge.get("from","")))
+  t.check(String(edge.get("to",""))=="core/game.gd::eligibility" and String(edge.get("type",""))=="call","pipeline_lookup_inspect: P2 call edge to=eligibility: "+String(edge.get("id","")))
+ t.check(PIPELINE_P2_EDGES.size()==2 and p2_ids.has("T4") and p2_ids.has("T5") and p2_froms.size()==2 and p2_froms[0]!=p2_froms[1],"pipeline_lookup_inspect: P2 declares T4/T5 call edges to eligibility")
  t.check(VERDICT_PRODUCERS.get("core/game.gd",[]).has("eligibility"),"pipeline_lookup_inspect: P2 write sites stay on G4 VERDICT_PRODUCERS (no second write scan)")
 
 # docs/spec/candidate-removal.md T4：command_fact 经 kind 调该生产者，不经全表。
@@ -1885,8 +1894,8 @@ static func command_fact_kind_lookup(t) -> void:
  t.check(compared>0,"T4 command_fact compared wired rows against the full table")
  var miss=r1_build("battle",0)
  t.check(miss.command_fact({"kind":"flask","params":{"op":"no_such"},"expected_version":miss.state.version}).is_empty(),"T4 command_fact miss is an empty dictionary")
- var body=t4_extract_command_fact_body()
- t.check(body!="" and body.find("command_facts(")<0,"T4 command_fact does not scan command_facts(); turning this off still leaves the row-equality checks")
+ var body=pipeline_lookup_func_body("command_fact")
+ t.check(body!="" and pipeline_lookup_call_count(body,"command_facts")==0,"T4 command_fact does not scan command_facts(); turning this off still leaves the row-equality checks")
  var dense=t4_dense_51()
  t.check(dense.physical_pieces().size()==51 and dense.validate()=="","T4 51-piece lookup fixture")
  var table=dense.command_facts()
