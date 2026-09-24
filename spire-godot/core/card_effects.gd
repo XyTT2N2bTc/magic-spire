@@ -931,21 +931,20 @@ static func card_facts(g, card: Dictionary) -> Array:
  for slot in spec.get("target_slots",[]):
   if slot not in slots: slots.append(slot)
  for slot in slots:
-  var query=not spec.has("target_slots") or slot in spec.target_slots
+  var special=slot in ["neck","shoulder"] or slot in g.SpecialEquipment.slots()
+  var declared=not spec.has("target_slots") or slot in spec.target_slots
   var targets
-  if query:
+  if not declared:
+   if special or spec.has("bound_modes") or g.occupied(slot): continue
+   targets=[{}]
+  else:
    targets=g.targets_at(slot)
-   if slot in ["neck","shoulder"] or slot in g.SpecialEquipment.slots():
+   if special:
     if targets.is_empty(): continue
    elif targets.is_empty(): targets=[{}]
    elif slot!="shoulder" and not g.occupied(slot): targets.append({})
-  else:
-   if slot in ["neck","shoulder"] or slot in g.SpecialEquipment.slots(): continue
-   if spec.has("bound_modes") or g.occupied(slot): continue
-   targets=[{}]
   for target in targets:
    if target.is_empty() and spec.has("bound_modes"): continue
-   if not target.is_empty() and spec.has("target_slots") and slot not in spec.target_slots: continue
    if not target.is_empty() and g.SpecialEquipment.is_special(target):
     if target.id in seen_special: continue
     seen_special.append(target.id)
