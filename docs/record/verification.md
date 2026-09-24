@@ -3131,3 +3131,10 @@ flowchart LR
 - 提交前 ListOnly：`20260924T094958646-3976`，`status=plan`，指纹仍 `930F16A1…CD5886`（`SOURCE CHANGED` 未出现）。
 - 敏感性：`tests/basic_attack_ui_cases.gd::third_kick` 字面改 `"2.4 伤害"` → `20260924T094728959-41708` `basic_attacks` FAIL；还原 `"3.6 伤害"` → `20260924T094839774-19728` PASS，指纹回到 `930F16A1…CD5886`。
 - 未跑（未验证）：独立审查结论（派单 `build/r5-review-brief.md`，本条写入时未回）；V1–V11 真人验收；`-Suite all` 规则全量（本片 DoD 是 architecture,persistence Impact，不是规则 all）；Android 真机；打包／发版／推送。不把 `-ListOnly` 当通过。
+
+## 2026-09-24｜R5 补正独立审查（对象 `a1144d6`）
+
+- 域：同上一节 R5 补正。只读审查（新会话），报告 `build/r5-review-report.md`。未改源码、未重跑 3600s UI-all；对照既有运行号与 `git diff 7f4065e a1144d6`。
+- 结论：`No findings.` 指定修法未越权（无第二套 InstalledTools、未弱化断言、未把 scale 写回 `_reset_interface`、未改 `LEG_CAST`／历史卷）。声称门禁运行号、断言数、指纹 `930F16A1…CD5886`、`failed=[]`／`unrun=[]` 与日志相符。
+- 残留（不作缺陷）：V1–V11；`-Suite all`；依赖表 `ui/main.gd` 行「允许改动」仍写 layout 复位进 `_reset_interface`，与「必须保持：不把 scale 写回」及源码（复位在 targeting 测试末行）字面不一致——代码遵守必须保持。
+- 未跑：推送、打包、发版、真人验收。

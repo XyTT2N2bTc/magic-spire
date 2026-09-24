@@ -1495,3 +1495,7 @@ flowchart LR
 - 干净 HEAD 对照（stash 掉未提交 leftover）：`20260924T082258017-50428` 上 `shoulder`／`torso_binding`／`wall`／`intent` 已全红，四条不是本片 15 文件引入。随后按人裁定修：`ui/release_details.gd::equipment_header` 画出非空 `card_status`（无法挣扎／×0.5／独立连接耐久；不再只给 lock_only／special）；`tests/wall_ui_cases.gd` 安装后先 `ActionRailToggle` 再量 `InstalledTools` 几何（不在动作页再建栏），HEIGHT 改钉正式 `mount_label`、仍禁「高位」；`ui/main.gd::_relic_row` 的 `RelicStrip`／`RelicRow` 空白 `MOUSE_FILTER_IGNORE`。`_reset_interface` 未写回 scale；targeting 测试末行复位保留。
 - 检查（提交前 ListOnly `20260924T094958646-3976` 与门禁同指纹 `930F16A19873309180257FC1EB9403108CA33631F22C2BC2E8BE9C3DC7CD5886`）：规则 `architecture,persistence -Impact` `20260924T090804005-38740` PASS 21060；四套隔离 `20260924T091308877-38740` PASS；`-UIOnly -UISuite all -KeepGoing -TimeoutSeconds 3600` `20260924T091416176-44124` PASS 6901、`failed=[]`／`unrun=[]`；VerifyRunner `20260924T094649313-28740`（pwsh 7）PASS；docs 35／2393／allowlist 6。敏感性：字面改回 `"2.4 伤害"` 红 `20260924T094728959-41708`（`basic_attacks` FAIL）→ 还原绿 `20260924T094839774-19728`。契约 DoD 窗口命令改为全量 3600s。
 - 独立审查派单在记录写入时发出，结论未回。未跑：V1–V11 真人验收、`-Suite all` 规则全量、打包发布、推送。未打标签、未改版本号。
+
+## 2026-09-24｜R5 补正独立审查回（对象 `a1144d6`）
+
+- 只读审查 `No findings.` 报告 `build/r5-review-report.md`。门禁声称与日志相符。未推送、未打标签、未改版本号。
