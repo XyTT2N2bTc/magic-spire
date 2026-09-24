@@ -3118,3 +3118,16 @@ flowchart LR
 - **既有红更新**：①`interface` 序列红经 `-RerunFailed` 可复绿（登记口径更新）；②`basic_attacks::KICK UI level-three sitting preview reads shared damage`（`tests/basic_attack_ui_cases.gd:84`，UI 套件）未变。
 - 未跑（未验证）：R5 终态与 G7；V1–V11 真人验收；`-Suite all` 全量回归；打包发布。
 - 产物：两份审查报告 `build/review-r4-*-report.md`、对比 `build/r4-review-comparison.md`、派单 `build/r4-review-brief.md` **保留待人类过目**；实现者与审查心跳随本条登记清理（审查运行目录随各自临时 worktree 删除，运行号身份留存）。
+
+## 2026-09-24｜候选层移除 R5 补正（分支 `seed-chip-save-upload`，commit `a1144d6`）
+
+- 域：显示事实键（`Queries.fact_key`）、踢击预览字面、装备详情 `card_status`、遗物条命中、墙面安装快捷页与高度短标；契约 `docs/spec/candidate-removal.md` §7.5。相对 `7f4065e`（R5 删除行载体本体）。`ui/main.gd::_reset_interface` 相对该父提交无 scale 改动。
+- 对照（证明四条红不是未提交 leftover 引入）：干净 HEAD 隔离 `20260924T082258017-50428`，`shoulder`／`torso_binding`／`wall`／`intent` 全 FAIL。脏树诊断隔离 `20260924T075431782-26284` 同红项。
+- 规则门：`& tools/check.ps1 -Suite architecture,persistence -Impact -TimeoutSeconds 1200` → `20260924T090804005-38740`，`status=passed`，`PASS: 21060 assertions`，`before==after==930F16A19873309180257FC1EB9403108CA33631F22C2BC2E8BE9C3DC7CD5886`。
+- 窗口隔离：`& tools/check.ps1 -UIOnly -UISuite shoulder,torso_binding,wall,intent -KeepGoing -TimeoutSeconds 600` → `20260924T091308877-38740` PASS。
+- 窗口全量：`& tools/check.ps1 -UIOnly -UISuite all -KeepGoing -TimeoutSeconds 3600` → `20260924T091416176-44124`，`status=passed`，`UI PASS: 6901 assertions`，`failed=[]`，`unrun=[]`，同指纹。含 `siphon`／`installed_tools`／`basic_attacks`／`targeting`／`interface`／`impact_feedback`／`normal_play`。
+- 文档门：同次 UI-all 摘要 docs `status=passed`，35 文档／2393 引用／allowlist 6；独立 `check-docs.ps1` 随 ListOnly／规则门复跑。
+- runner：`& tools/check.ps1 -Suite runner -VerifyRunner` → `20260924T094649313-28740`，`status=passed`，`verify_runner=true`，同指纹（pwsh 7；PS 5.1 曾把探针 throw 打成假红，不计入通过）。
+- 提交前 ListOnly：`20260924T094958646-3976`，`status=plan`，指纹仍 `930F16A1…CD5886`（`SOURCE CHANGED` 未出现）。
+- 敏感性：`tests/basic_attack_ui_cases.gd::third_kick` 字面改 `"2.4 伤害"` → `20260924T094728959-41708` `basic_attacks` FAIL；还原 `"3.6 伤害"` → `20260924T094839774-19728` PASS，指纹回到 `930F16A1…CD5886`。
+- 未跑（未验证）：独立审查结论（派单 `build/r5-review-brief.md`，本条写入时未回）；V1–V11 真人验收；`-Suite all` 规则全量（本片 DoD 是 architecture,persistence Impact，不是规则 all）；Android 真机；打包／发版／推送。不把 `-ListOnly` 当通过。

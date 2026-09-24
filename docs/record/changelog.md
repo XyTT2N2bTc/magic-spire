@@ -1487,3 +1487,11 @@ flowchart LR
 - 检查：UI 六套件门 `20260923T162644324-56872`＋runner `20260923T163218114-35848`＋还原绿轮 `20260923T164035134-28352` 均在最终字节指纹 `E2E8F241C3FE…`；**规则门覆盖缺口**（实现者引用的规则门跑在旧指纹 `5CA93EAF…`，其后仍有修复）由独立审查补跑闭合——`20260923T165257850-6948` passed、`before==after==E2E8F241C3FE…`。
 - 双匿名模型并行审查（同一派单、各自临时 worktree、同对象）：`space-bunny-free`（max）与 `muse-spark-1.3-contributor-free`（xhigh）**P0–P5 全过、零假阳性**；协调者抽查主树可验断言逐条相符。bunny ~15 分钟（证据最硬：还原附 SHA、边界最干净）；muse ~34 分钟（多做：UI 六套件＋runner、披露指纹口径差与 `.import` 副产物；一处轻微口径不精）。对比报告 `build/r4-review-comparison.md`。新事实：`interface` 序列红经 `-RerunFailed` 可复绿。
 - 低项/未跑：`_self_action` 的 `actions.by_id` 回落与 `_takeover_step` 读行 `automated` 留 R5；V1–V11 真人验收、全量回归、打包发布未跑。仅源码、测试、文档与记录（记录为协调者写），未推送、未打标签、未改版本号。
+
+## 2026-09-24｜候选层移除 R5 补正：fact-key 收口与 UI-all 四条红（分支 `seed-chip-save-upload`，commit `a1144d6`）
+
+- 域：R5 行载体删除后的显示键残留与窗口全量；契约 [候选层移除](../spec/candidate-removal.md) §7.5／依赖表。代码提交相对 `7f4065e`（R5 本体此前未单独登记本卷）。
+- 显示键：事件／商店／牌堆与多套测试由 `.id` 改 `Queries.fact_key`／`key`（含 UI-all 中途发现的 `impact_feedback`）；`siphon` UI 稀有度与 `SPECS.siphon`／`siphon_cases` 对齐为 `uncommon`；`third_kick` 同时钉共享判定 `3.6` 与字面 `"3.6 伤害"`（v0.18.2 `BODY_DAMAGE` 表，3 级坐踢 6×0.6；旧期望 `"2.4 伤害"` 作废）。
+- 干净 HEAD 对照（stash 掉未提交 leftover）：`20260924T082258017-50428` 上 `shoulder`／`torso_binding`／`wall`／`intent` 已全红，四条不是本片 15 文件引入。随后按人裁定修：`ui/release_details.gd::equipment_header` 画出非空 `card_status`（无法挣扎／×0.5／独立连接耐久；不再只给 lock_only／special）；`tests/wall_ui_cases.gd` 安装后先 `ActionRailToggle` 再量 `InstalledTools` 几何（不在动作页再建栏），HEIGHT 改钉正式 `mount_label`、仍禁「高位」；`ui/main.gd::_relic_row` 的 `RelicStrip`／`RelicRow` 空白 `MOUSE_FILTER_IGNORE`。`_reset_interface` 未写回 scale；targeting 测试末行复位保留。
+- 检查（提交前 ListOnly `20260924T094958646-3976` 与门禁同指纹 `930F16A19873309180257FC1EB9403108CA33631F22C2BC2E8BE9C3DC7CD5886`）：规则 `architecture,persistence -Impact` `20260924T090804005-38740` PASS 21060；四套隔离 `20260924T091308877-38740` PASS；`-UIOnly -UISuite all -KeepGoing -TimeoutSeconds 3600` `20260924T091416176-44124` PASS 6901、`failed=[]`／`unrun=[]`；VerifyRunner `20260924T094649313-28740`（pwsh 7）PASS；docs 35／2393／allowlist 6。敏感性：字面改回 `"2.4 伤害"` 红 `20260924T094728959-41708`（`basic_attacks` FAIL）→ 还原绿 `20260924T094839774-19728`。契约 DoD 窗口命令改为全量 3600s。
+- 独立审查派单在记录写入时发出，结论未回。未跑：V1–V11 真人验收、`-Suite all` 规则全量、打包发布、推送。未打标签、未改版本号。
