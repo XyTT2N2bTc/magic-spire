@@ -1,9 +1,8 @@
-# 规划者报告：card_facts 无声明槽
+# 规划者报告：装备目标公开判空
 
-- 域：`core/card_effects.gd::card_facts`，无 `target_slots` 的 `strain`／`slip`／`lower` 普通槽查询。
-- 状态：`needs-human-review`，阻塞；未实施、未派工、未写 `docs/spec`。
-- 切分：预期单一 `card_facts` 槽循环消费现有 Game 查询，事实逐字段相等且自由面空槽事实保留；详见 `spire-godot/build/card-undeclared-slice-extract.md`。
-- 证据：`docs/spec/equipment-query-seam.md` 的 `occupied` 只问实体件/手侧双占，`targets_at` 还含链接、连接、复合覆盖；`occupied=false` 不可安全免查，现有接口没有已证实的廉价完整判空。
-- 决定请求：协调者请人审新增统一判空接口/依赖边、改定更窄可证剪枝域，或取消本刀；旧护栏草案不得实施。
-- 检查状态：仅静态契约核对；Godot、architecture、档 2、UI 验收均未验证，不宣称通过。
-- 范围：提取物与计划待办；无产品代码、测试、打包、发布或推送改动。
+- 域：`core/game.gd::targets_at`／拟议 `has_targets_at`，普通／肩／特殊槽、live 与只读作用域；不含 `card_facts`。
+- 状态：协调者记录人审选项 ①；已规划未实现。契约 `spire-godot/build/has-targets-slice-extract.md`，依据 `docs/spec/equipment-query-seam.md` 与阻塞提取物 `spire-godot/build/card-undeclared-slice-extract.md`。
+- 切分：Game 同一目标来源路径产完整数组与早停 bool；无新消费者／写点／依赖边。复制过滤或先调 `targets_at` 均不合格，无法共享时 `needs-human-review` 停止。
+- Gherkin：`tests/architecture_cases.gd::has_targets_at_parity`（待实现），覆盖空槽、实体、链接、连接、复合、肩／特殊、手侧及失效来源，live／scope 等价和不调用 `targets_at`。
+- 完成：architecture 具名场景及受影响既有套件通过、单路径独立审查、清洁与档 2 敏感性；验收 none（未有玩家路径）。
+- 检查证据：仅 HEAD `1ee2085` 静态读取接口契约、`Game.targets_at` 与已有夹具；Godot／测试／审查／清洁／加固均未验证，不报告通过；无产品源码、`docs/spec`、打包、发布或 push。
