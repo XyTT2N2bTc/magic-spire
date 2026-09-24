@@ -1509,3 +1509,8 @@ flowchart LR
 
 - muse xhigh：`No findings.` 报告 `build/r5-review-muse-report.md`。bunny max：P0 相符；P1 **F1** 依赖表误写 `_reset_interface` 复位 layout。报告 `build/r5-review-bunny-report.md`。对照 `build/r5-review-comparison.md`。
 - F1 已由清洁者 `4818a10` 按 bunny 修正要求闭合，不再派实现者。未推送。
+
+## 2026-09-24｜R5 候选层活痕迹双扫（HEAD `3129037`）
+
+- muse xhigh 与 space-bunny max 只读 `rg`／读文件，无 Godot。源码面两边均为 **No live traces.** 报告 `build/muse-candidate-trace-report.md`、`build/bunny-candidate-trace-report.md`，对照 `build/r5-trace-comparison.md`。
+- 现行文档仍有旧接口字面（spec §10 已点名若干；并集另含 `run-review.md`／`card-terms.md`／`game-design.md`／`input-controls.md`／`equipment-design.md`）。未改这些文件（须人批准）。未推送。

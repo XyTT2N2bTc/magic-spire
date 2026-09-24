@@ -3151,3 +3151,10 @@ flowchart LR
 - muse：`No findings.`（`build/r5-review-muse-report.md`）。bunny：P0 无 finding；P1 F1＝依赖表允许列声称 `_reset_interface` 复位 layout，而 `a1144d6` 的 `_reset_interface` 无 scale／position 写入（`build/r5-review-bunny-report.md`）。
 - F1 已由 `4818a10` 闭合。对照 `build/r5-review-comparison.md`。同会话 grok 审查不作正式结论。
 - 未跑：V1–V11；`-Suite all`；打包／推送。
+
+## 2026-09-24｜R5 候选层活痕迹双扫（HEAD `3129037`）
+
+- 域：终态五符号、`view.candidates`、按 id 取行、UI `dispatch` 唯一性。muse／bunny 分离 worktree，无 Godot。
+- 源码：两边 **No live traces.**（`build/muse-candidate-trace-report.md`、`build/bunny-candidate-trace-report.md`）。
+- 文档：现行 spec／design 仍有 `ActionIndex`／`candidates()`／`candidate_id` 字面。并集见 `build/r5-trace-comparison.md`。未改文档。
+- 未跑：V1–V11；文档统一改写（待人批准）；推送。
