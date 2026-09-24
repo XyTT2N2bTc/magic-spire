@@ -3138,3 +3138,9 @@ flowchart LR
 - 结论：`No findings.` 指定修法未越权（无第二套 InstalledTools、未弱化断言、未把 scale 写回 `_reset_interface`、未改 `LEG_CAST`／历史卷）。声称门禁运行号、断言数、指纹 `930F16A1…CD5886`、`failed=[]`／`unrun=[]` 与日志相符。
 - 残留（不作缺陷）：V1–V11；`-Suite all`；依赖表 `ui/main.gd` 行「允许改动」仍写 layout 复位进 `_reset_interface`，与「必须保持：不把 scale 写回」及源码（复位在 targeting 测试末行）字面不一致——代码遵守必须保持。
 - 未跑：推送、打包、发版、真人验收。
+
+## 2026-09-24｜R5 补正清洁（commit `4818a10`）
+
+- 域：`docs/spec/candidate-removal-dependencies.md`。清洁者提交：允许列不再声称 `_reset_interface` 复位 layout，与源码及「必须保持」一致。未改 `ui/`／`tests/` 产品字节。
+- `check-docs.ps1` PASS（35 文档／2394 引用／allowlist 6）。未跑 Godot。上一节残留的依赖表字面不一致已由本提交闭合。
+- 未跑：OpenCode muse／bunny 双审结论（worktree 仍在跑）；V1–V11；推送／打包。同会话 grok `No findings` 不作正式独立审查。

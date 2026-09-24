@@ -1499,3 +1499,8 @@ flowchart LR
 ## 2026-09-24｜R5 补正独立审查回（对象 `a1144d6`）
 
 - 只读审查 `No findings.` 报告 `build/r5-review-report.md`。门禁声称与日志相符。未推送、未打标签、未改版本号。
+
+## 2026-09-24｜R5 补正清洁（commit `4818a10`）
+
+- 域：依赖表与源码对齐。`docs/spec/candidate-removal-dependencies.md` 的 `ui/main.gd` 允许列删掉「`_reset_interface` 复位 layout」；复位仍只在 `tests/target_sidebar_ui_cases.gd::unavailable_body_hint` 末行。未改产品代码。`check-docs.ps1` PASS（35／2394／allowlist 6）。未重跑 Godot（不为说明文件重跑 UI-all）。产品门禁仍以 `a1144d6` 指纹 `930F16A1…CD5886` 为准。
+- 说明：同会话 grok 子代理审查不算本片正式独立审查。muse xhigh／space-bunny max 的 OpenCode worktree 双审在本条写入时尚未回。未推送。
