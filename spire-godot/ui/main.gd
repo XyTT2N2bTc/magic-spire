@@ -812,7 +812,34 @@ func _fixed_actions() -> void:
  if view.phase=="prison": _prison_controls()
  _build_action_rail()
 
+var _action_key=[]
+
+func _action_presentation_key() -> Array:
+ var attacks=[]
+ for c in TargetQueries.facts(view,"attack"):
+  if String(c.payload.get("kind",""))!="attack": continue
+  if String(c.payload.get("enemy",""))!=String(selected_enemy): continue
+  attacks.append(_action_fact_slice(c))
+ var calms=[]
+ for c in TargetQueries.facts(view,"pressure"):
+  if String(c.payload.get("kind",""))!="calm": continue
+  calms.append(_action_fact_slice(c))
+ return [String(view.phase),String(selected_enemy),attack_forms.duplicate(true),bool(quick_release_open),attacks,calms]
+
+func _action_fact_slice(c: Dictionary) -> Array:
+ var casting=c.get("casting",{})
+ return [TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,String(c.label),String(c.get("body_part","")),casting.duplicate(true) if casting is Dictionary else casting,String(c.get("brief","")),String(c.risk)]
+
+func _action_key_hit(key) -> bool:
+ if _action_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var rails=layout.find_children("AttackActions","",true,false)
+ return rails.size()==1 and rails[0].is_inside_tree()
+
 func _build_action_rail() -> void:
+ if _action_key_hit(_action_presentation_key()):
+  return
+ _remove_local_panel("AttackActions")
  if view.phase in ["battle","prepare","rest","prison"]:
   var container=Control.new();container.name="AttackActions";container.mouse_filter=Control.MOUSE_FILTER_IGNORE
   _place(container,Rect2(0,0,1600,900))
@@ -824,6 +851,7 @@ func _build_action_rail() -> void:
   _place(switcher,Rect2(1530,556,39,60),container)
   if quick_release_open:
    preload("res://ui/quick_release_bar.gd").build(self,container,218.6)
+   _action_key=_action_presentation_key()
    return
   var attack_choices=TargetQueries.facts(view,"attack").filter(func(c):return String(c.payload.get("kind",""))=="attack" and String(c.payload.get("enemy",""))==selected_enemy)
   for type in attack_forms.keys():
@@ -879,8 +907,7 @@ func _build_action_rail() -> void:
        attack_forms[c.payload.type]=(c.payload.form+1)%alternatives.size()
        btn.accept_event();render(view))
    else: btn.name="DeepBreath"
-
-
+ _action_key=_action_presentation_key()
 
 # Action tiles share the display facts, tooltips and drag receiver.
 func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: String, tags: String, can_flip: bool) -> Button:
