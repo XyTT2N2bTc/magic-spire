@@ -648,13 +648,14 @@ static func _link_slot_without_equipment(g) -> String:
   if g.equipment_at(slot).is_empty() and not g.links_at(slot).is_empty(): return slot
  return ""
 
-static func _composite_contact_outside_equipment(g, jacket) -> Dictionary:
+static func _composite_contact_outside_equipment(g, jacket) -> Array:
  var coverage=g.Composites.definition(jacket).coverage
+ var result=[]
  for slot in coverage:
   var hosted=ids_for(g.equipment_at(slot))
   for e in jacket.components:
-   if not hosted.has(e.id): return {"slot":slot,"id":e.id}
- return {}
+   if not hosted.has(e.id): result.append({"slot":slot,"id":e.id})
+ return result
 
 static func _check_has_targets_at_once(t, g, label: String, early_slot: String="") -> Dictionary:
  var slots=_has_targets_slots(g)
@@ -762,13 +763,17 @@ static func has_targets_at_parity(t) -> void:
  _check_has_targets_at_modes(t,jacket_g,"active jacket","upper_arm")
  var outside=_composite_contact_outside_equipment(jacket_g,jacket)
  t.check(not outside.is_empty(),"has_targets_at_parity: composite contact outside equipment_at")
- if not outside.is_empty():
-  t.check(jacket_g.has_targets_at(outside.slot) and ids_for(jacket_g.targets_at(outside.slot)).has(outside.id),"has_targets_at_parity: composite contact id in targets_at "+outside.slot)
+ var sleeve=jacket.components.filter(func(e):return e.part=="sleeves")
+ var hem=jacket.components.filter(func(e):return e.part=="hem")
+ t.check(not sleeve.is_empty() and outside.any(func(c):return c.id==sleeve[0].id),"has_targets_at_parity: sleeves contact outside equipment_at")
+ t.check(not hem.is_empty() and outside.any(func(c):return c.id==hem[0].id),"has_targets_at_parity: hem contact outside equipment_at")
+ for contact in outside:
+  t.check(jacket_g.has_targets_at(contact.slot) and ids_for(jacket_g.targets_at(contact.slot)).has(contact.id),"has_targets_at_parity: composite contact id in targets_at "+contact.slot+" "+str(contact.id))
  var jacket_body=jacket.components.filter(func(e):return e.part=="body")[0]
  jacket_body.durability=0
  t.check(not jacket_g.Composites.active(jacket),"has_targets_at_parity: disabled jacket inactive")
- if not outside.is_empty():
-  t.check(not jacket_g.has_targets_at(outside.slot),"has_targets_at_parity: disabled jacket slot follows composite "+outside.slot)
+ for contact in outside:
+  t.check(not jacket_g.has_targets_at(contact.slot),"has_targets_at_parity: disabled jacket slot follows composite "+contact.slot)
  _check_has_targets_at_modes(t,jacket_g,"disabled jacket")
  var sh=TargetWalkCountingGame.new(42)
  _clear_gear(sh)
