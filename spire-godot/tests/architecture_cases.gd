@@ -648,11 +648,12 @@ static func _link_slot_without_equipment(g) -> String:
   if g.equipment_at(slot).is_empty() and not g.links_at(slot).is_empty(): return slot
  return ""
 
-static func _composite_contact_outside_equipment(g) -> Dictionary:
- for slot in g.B.SLOTS:
+static func _composite_contact_outside_equipment(g, jacket) -> Dictionary:
+ var coverage=g.Composites.definition(jacket).coverage
+ for slot in coverage:
   var hosted=ids_for(g.equipment_at(slot))
-  for e in g.targets_at(slot):
-   if e.has("root_id") and not hosted.has(e.id): return {"slot":slot,"id":e.id}
+  for e in jacket.components:
+   if not hosted.has(e.id): return {"slot":slot,"id":e.id}
  return {}
 
 static func _check_has_targets_at_once(t, g, label: String, early_slot: String="") -> Dictionary:
@@ -759,7 +760,7 @@ static func has_targets_at_parity(t) -> void:
  var jacket=jacket_g._install_assembly("jacket","standard","fixture",2,2)
  t.check(not jacket.is_empty() and jacket_g.Composites.active(jacket),"has_targets_at_parity: jacket composite fixture")
  _check_has_targets_at_modes(t,jacket_g,"active jacket","upper_arm")
- var outside=_composite_contact_outside_equipment(jacket_g)
+ var outside=_composite_contact_outside_equipment(jacket_g,jacket)
  t.check(not outside.is_empty(),"has_targets_at_parity: composite contact outside equipment_at")
  if not outside.is_empty():
   t.check(jacket_g.has_targets_at(outside.slot) and ids_for(jacket_g.targets_at(outside.slot)).has(outside.id),"has_targets_at_parity: composite contact id in targets_at "+outside.slot)
