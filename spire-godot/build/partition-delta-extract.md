@@ -21,9 +21,24 @@
 ## Gherkin：`present_routes_body_bar_or_full`（一个可观察行为）
 
 Given `tests/display_ui_cases.gd`，`ui.restart(42)` 后 `render(ui.view)`（战斗页，header／body 已建）。测试侧 `GetViewCountingGame`（或等价包装，生产无计数器）接到 `ui.game` 后再 `render(ui.view)` 一次，记下 `get_view` 基线。钉 `GameHeader` 实例、`ui.body_buttons.wrist`（或同页稳定 `BodySlot_*`）、一处 `BodyRegionContent_*` 的 `scroll_vertical`（可按 `sidebar_refresh` 把 `BodyEquipmentPanel.size.y` 压到可滚）。Oracle＝`body_sidebar._presentation_key(ui)`；快照／`state.rng`。不调 `_submit`。
-When 依次：① `present(["body_bar"])` 空 snapshot、View 未改；② `present(["*"])`；③ `present(["not_a_section"])`；④ 只改 `ui.view` 上一处键内显示字段（如某 `body_regions.members` 的 `count`，不 `dispatch`）再 `present(["body_bar"])`；⑤ `present(["body_bar"], snapshot)` 传入当前 View 的非空副本。每步 `await t.frames`。
-Then ① `GameHeader` 与身体按钮实例 id、滚动不变，`get_view` 计数＝基线。②与③ `GameHeader` 实例被替换（全量走了 `begin_frame`），`get_view` 仍＝基线。④ header 实例与③之后相同；身体按钮实例已换且可见件数与改后 View 一致；`get_view` 仍＝基线。⑤ `get_view` 仍＝基线，`ui.view` 即传入 snapshot。全程 `export_snapshot()`／随机游标不变。不得用生产计数器；不得把 `render()` 空 snapshot 的 `get_view` 算进 present 义务。本场景不是契约场景 3 全表。
+When 依次：① `present(["body_bar"])` 空 snapshot、View 未改；② `present(["*"])`；③ `present(["not_a_section"])`；④ 只改 `ui.view` 上一处键内显示字段（如某 `body_regions.members` 的 `count`，不 `dispatch`）再 `present(["body_bar"])`；⑤ `present(["body_bar"], snapshot)` 传入当前 View 的非空副本。每步 `await t.frames`，每步记下该步之前的 `GameHeader` 实例。
+Then ① `GameHeader` 与身体按钮实例 id、滚动不变，`get_view` 计数＝基线。②与③ 各相对该步之前的 `GameHeader` 实例被替换（全量走了 `begin_frame`），`get_view` 仍＝基线。④ header 实例等于③之后的那个（不再全量）；身体按钮实例已换且可见件数与改后 View 一致；`get_view` 仍＝基线。⑤ `get_view` 仍＝基线，`ui.view` 即传入 snapshot。全程 `export_snapshot()`／随机游标不变。不得用生产计数器；不得把 `render()` 空 snapshot 的 `get_view` 算进 present 义务。本场景不是契约场景 3 全表。
 
 ## 验收流程
 
 UI 验收 **none**：本刀不改 `_submit`，玩家路径仍整树 `render`；画面刷新范围不变。不派验收者。
+
+## 完成定义及档 2（尚未执行）
+
+- 实现者交 `present`、节名枚举与上述场景；独立新会话审查者只核对本域源码／测试与本契约；清洁者核对：无第二套刷新管线、无新 UI 文件、无 `_submit` 改接、`body_bar` 键仍只在 `_presentation_key`、依赖面 ⊆ 允许面。本刀不写 `docs/spec`。
+- 实现者在 `spire-godot/` 运行 `& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900`。通过＝退出码 0、`SUITE RESULT: display PASS`、完成标记、`summary.json` 的 `status=passed` 且指纹未变。未运行、`source_changed`、场景未注册进 `display_ui_cases.run`、或 `present` 空 snapshot 仍 `get_view`＝未完成。既有 `sidebar_refresh` 不得变红。不改 `body_sidebar.gd` 则不借 body_layout 旧绿宣称本域通过，也不必扩跑。
+- 档 2（选定加固者，独立实现／清洁后）。栈档 2 的内容包不适用（未改 packs）。规则 headless 无法观察节点实例：本刀敏感性在 display 窗口套件上跑，命令同上。变异须红：①`present(["not_a_section"])` 或 `["*"]` 不走全量（`GameHeader` 实例保留）；②`present(["body_bar"])` 键命中仍重建该节（身体按钮实例被换）；③生产源码出现重建／`get_view` 计数器。原版绿；变异复原后重跑本域。不能靠静态搜索替代①②的行为敏感性。缺工具或失败＝未通过，不算不适用。
+- 无打包、发布、push。
+
+## 非目标
+
+T4／T5；`card_facts`；`keyword_ids`；新 CSS／样式引擎；窗口输入队列；提交路径去重（已否）；`commit` 拆分；`present_rejection`；把 `_submit` 改接到 `present`；场景 1–9 一次落地；其余节的键计算与局部重建；兜底清单（phase／locale／显示设置等）除本刀已写的未知／`["*"]`／缺项／layout 空／View 空；恢复 `ActionIndex`。
+
+## 风险假设
+
+`layout.begin_frame` 释放 `GameHeader` 而保留 `layout.body`，故全量 vs `body_bar` 局部可用 header 实例区分，不必生产计数器。`configure` 既有键命中早退对 `present` 调用的 `layout.body_sidebar` 仍然成立。若局部路径不调 `begin_frame` 时 `end_frame` 会误删 hero／body／敌人，停工交回，不新开 `present` 文件迁就。
