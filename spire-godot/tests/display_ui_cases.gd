@@ -344,6 +344,96 @@ static func sidebar_refresh(t) -> void:
  panel.size.y=512;await t.frames(5)
  t.check(panel.find_child("BodyRegionContent_region_upper",true,false).size.y>scroll_height,"DISPLAY resized body panel recalculates its visible region")
 
+class GetViewCountingGame extends "res://tests/game_fixture.gd":
+ var get_view_calls=0
+ func get_view() -> Dictionary:
+  get_view_calls+=1
+  return super.get_view()
+
+static func present_visible_slot_names(ui) -> Array:
+ var names=[]
+ for node in ui.find_children("BodySlot_*","",true,false):
+  if node.is_visible_in_tree(): names.append(String(node.name))
+ names.sort()
+ return names
+
+static func present_expected_slot_names(ui) -> Array:
+ var names=[]
+ for region in ui.view.body_regions:
+  if region.id not in ui.expanded_body_regions: continue
+  for body in region.members:
+   names.append("BodySlot_"+String(body.id))
+ names.sort()
+ return names
+
+static func present_routes_body_bar_or_full(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames(8)
+ ui.selected_slot="region_upper";ui.show_body=true;ui.render(ui.view);await t.frames(5)
+ t.check(String(ui.view.phase)=="battle" and ui.find_child("GameHeader",true,false)!=null and is_instance_valid(ui.layout) and is_instance_valid(ui.layout.body),"DISPLAY present fixture is a battle page with header and body")
+ var panel=ui.find_child("BodyEquipmentPanel",true,false)
+ panel.size.y=300;await t.frames(5)
+ var scroll=panel.find_child("BodyRegionContent_region_upper",true,false)
+ scroll.scroll_vertical=40;await t.frames(3)
+ t.check(scroll.scroll_vertical>0,"DISPLAY present fixture has real scrollable overflow")
+ var counting=GetViewCountingGame.new(42,false,"equipment",false)
+ t.check(counting.restore_snapshot(ui.game.export_snapshot()).ok,"DISPLAY present counting wrapper restores the live run")
+ ui.game=counting
+ ui.render(ui.view);await t.frames(3)
+ var baseline=counting.get_view_calls
+ var before=ui.game.export_snapshot()
+ var before_rng=ui.game.state.rng.duplicate(true)
+ panel=ui.find_child("BodyEquipmentPanel",true,false)
+ panel.size.y=300;await t.frames(5)
+ scroll=panel.find_child("BodyRegionContent_region_upper",true,false)
+ scroll.scroll_vertical=40;await t.frames(3)
+ var header=ui.find_child("GameHeader",true,false)
+ var wrist=ui.body_buttons.wrist
+ var offset=scroll.scroll_vertical
+ t.check(offset>0 and is_instance_valid(header) and is_instance_valid(wrist),"DISPLAY present baseline has header, wrist control, and overflow")
+ ui.layout.body._presentation_key(ui)
+ ui.present(["body_bar"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header,"DISPLAY present body_bar keeps GameHeader")
+ t.check(ui.body_buttons.wrist==wrist,"DISPLAY present body_bar keeps wrist instance")
+ t.check(panel.find_child("BodyRegionContent_region_upper",true,false).scroll_vertical==offset,"DISPLAY present body_bar keeps region scroll")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present body_bar does not call get_view")
+ t.check(is_instance_valid(ui.layout.hero) and ui.layout.hero.visible and is_instance_valid(ui.layout.body),"DISPLAY present body_bar end_frame keeps hero and body")
+ t.check(ui.layout.enemies.values().all(func(group):return is_instance_valid(group)),"DISPLAY present body_bar end_frame keeps enemies")
+ var header_before_star=ui.find_child("GameHeader",true,false)
+ ui.present(["*"]);await t.frames()
+ var header_after_star=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_star) and header_after_star.get_instance_id()!=header_before_star.get_instance_id(),"DISPLAY present * replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present * does not call get_view")
+ var header_before_unknown=ui.find_child("GameHeader",true,false)
+ ui.present(["not_a_section"]);await t.frames()
+ var header_after_unknown=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_unknown) and header_after_unknown.get_instance_id()!=header_before_unknown.get_instance_id(),"DISPLAY present unknown section replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present unknown section does not call get_view")
+ var header_after_full=header_after_unknown
+ var wrist_before_mutation=ui.body_buttons.wrist
+ var mutated=null
+ for region in ui.view.body_regions:
+  if region.id!="region_upper": continue
+  for body in region.members:
+   mutated=body;break
+  if mutated!=null: break
+ t.check(mutated!=null,"DISPLAY present mutation target exists on the expanded region")
+ var new_count=int(mutated.count)+7
+ mutated.count=new_count
+ var expected=present_expected_slot_names(ui)
+ ui.present(["body_bar"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_full,"DISPLAY present body_bar after a key change keeps GameHeader")
+ t.check(ui.body_buttons.wrist.get_instance_id()!=wrist_before_mutation.get_instance_id(),"DISPLAY present body_bar rebuilds body buttons when the presentation key changes")
+ t.check(present_visible_slot_names(ui)==expected,"DISPLAY present body_bar visible slots match the mutated view")
+ t.check(not mutated.occupied or String(ui.body_buttons[mutated.id].text).contains(str(new_count)),"DISPLAY present body_bar shows the mutated member count")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present body_bar after a key change does not call get_view")
+ var snap=ui.view.duplicate(true)
+ ui.present(["body_bar"],snap);await t.frames()
+ t.check(counting.get_view_calls==baseline,"DISPLAY present body_bar snapshot does not call get_view")
+ t.check(is_same(ui.view,snap),"DISPLAY present replaces view with the given snapshot")
+ t.check(ui.game.export_snapshot()==before,"DISPLAY present does not mutate export_snapshot")
+ t.check(ui.game.state.rng==before_rng,"DISPLAY present does not mutate random cursors")
+
 # docs/spec/ondemand-copy.md「证据入口」: the body detail section resolves the card face through
 # the single display entry, so a deleted card_texts key must recompute the same text and leave a
 # named record instead of raising or silently blanking.
@@ -523,6 +613,7 @@ static func run(t) -> void:
  await copy_missing_key_never_crashes(t)
  var ui=t.ui
  await sidebar_refresh(t)
+ await present_routes_body_bar_or_full(t)
  await portrait_refresh(t)
  var backdrop=ui.find_child("MoonlitGallery",true,false)
  var static_draws=[0]
