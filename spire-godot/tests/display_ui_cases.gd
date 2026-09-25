@@ -444,6 +444,12 @@ static func present_hand_live_count(ui, uid: String) -> int:
   if is_instance_valid(node) and node.is_inside_tree(): n+=1
  return n
 
+static func present_named_live_count(ui, node_name: String) -> int:
+ var n=0
+ for node in ui.find_children(node_name,"",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n
+
 static func present_routes_header_or_full(t) -> void:
  var ui=t.ui
  ui.restart(42);await t.frames(8)
@@ -791,6 +797,103 @@ static func present_routes_actions_or_full(t) -> void:
  ui.present(["actions"],snap);await t.frames()
  t.check(counting.get_view_calls==baseline,"DISPLAY present actions snapshot does not call get_view")
  t.check(is_same(ui.view,snap),"DISPLAY present actions replaces view with the given snapshot")
+ t.check(ui.game.export_snapshot()==before,"DISPLAY present does not mutate export_snapshot")
+ t.check(ui.game.state.rng==before_rng,"DISPLAY present does not mutate random cursors")
+
+static func present_routes_posture_or_full(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ t.check(String(ui.view.phase)=="battle" and not ui.show_route and ui.find_child("GameHeader",true,false)!=null and not bool(ui.view.pressure.overloaded),"DISPLAY posture fixture is a battle page with GameHeader")
+ t.check(ui.find_child("PostureChoices",true,false)!=null and ui.find_child("Posture_sit",true,false)!=null,"DISPLAY posture fixture has PostureChoices and Posture_sit")
+ var counting=GetViewCountingGame.new(42,false,"equipment",false)
+ t.check(counting.restore_snapshot(ui.game.export_snapshot()).ok,"DISPLAY posture counting wrapper restores the live run")
+ ui.game=counting
+ ui.render(ui.view);await t.frames(3)
+ var baseline=counting.get_view_calls
+ var before=ui.game.export_snapshot()
+ var before_rng=ui.game.state.rng.duplicate(true)
+ var header=ui.find_child("GameHeader",true,false)
+ var relics=ui.find_children("RelicStrip","",true,false)
+ var relic=relics[0] if not relics.is_empty() else null
+ var rail=ui.find_child("AttackActions",true,false)
+ var choices=ui.find_child("PostureChoices",true,false)
+ var sit=ui.find_child("Posture_sit",true,false)
+ var wall=ui.find_child("WallMove_toward",true,false)
+ var end_button=ui.find_child("EndTurnButton",true,false)
+ var wrist=ui.body_buttons.get("wrist")
+ t.check(is_instance_valid(header) and is_instance_valid(choices) and is_instance_valid(sit),"DISPLAY posture baseline has header, PostureChoices, and Posture_sit")
+ ui.present(["posture"]);await t.frames()
+ ui.present(["posture"]);await t.frames()
+ t.check(ui.find_child("PostureChoices",true,false)==choices,"DISPLAY present posture keeps PostureChoices on key hit")
+ t.check(present_named_live_count(ui,"PostureChoices")==1,"DISPLAY present posture keeps a single PostureChoices")
+ t.check(ui.find_child("Posture_sit",true,false)==sit,"DISPLAY present posture keeps Posture_sit instance")
+ t.check(present_named_live_count(ui,"Posture_sit")==1,"DISPLAY present posture keeps a single Posture_sit")
+ t.check(wall==null or ui.find_child("WallMove_toward",true,false)==wall,"DISPLAY present posture keeps WallMove_toward instance when present")
+ t.check(wall==null or present_named_live_count(ui,"WallMove_toward")==1,"DISPLAY present posture keeps a single WallMove_toward when present")
+ t.check(ui.find_child("GameHeader",true,false)==header,"DISPLAY present posture keeps GameHeader")
+ t.check(relic==null or ui.find_child("RelicStrip",true,false)==relic,"DISPLAY present posture keeps RelicStrip instance when present")
+ t.check(rail==null or ui.find_child("AttackActions",true,false)==rail,"DISPLAY present posture keeps AttackActions instance when present")
+ t.check(end_button==null or ui.find_child("EndTurnButton",true,false)==end_button,"DISPLAY present posture keeps EndTurnButton instance when present")
+ t.check(wrist==null or ui.body_buttons.wrist==wrist,"DISPLAY present posture keeps wrist instance")
+ t.check(is_instance_valid(ui.layout.hero) and ui.layout.hero.visible and is_instance_valid(ui.layout.body),"DISPLAY present posture keeps hero and body")
+ t.check(ui.layout.enemies.values().all(func(group):return is_instance_valid(group)),"DISPLAY present posture keeps enemies")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present posture does not call get_view")
+ var header_before_star=ui.find_child("GameHeader",true,false)
+ ui.present(["*"]);await t.frames()
+ var header_after_star=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_star) and header_after_star.get_instance_id()!=header_before_star.get_instance_id(),"DISPLAY present * replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present * does not call get_view")
+ var header_before_unknown=ui.find_child("GameHeader",true,false)
+ ui.present(["not_a_section"]);await t.frames()
+ var header_after_unknown=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_unknown) and header_after_unknown.get_instance_id()!=header_before_unknown.get_instance_id(),"DISPLAY present unknown section replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present unknown section does not call get_view")
+ var header_after_full=header_after_unknown
+ var end_after_full=ui.find_child("EndTurnButton",true,false)
+ var choices_before_mutation=ui.find_child("PostureChoices",true,false)
+ var probe=null
+ for fact in ui.view.display_facts:
+  if String(fact.get("group",""))=="posture" and bool(fact.payload.get("adjacent",false)) and String(fact.payload.get("dest",""))=="sit" and not bool(fact.payload.get("wall",false)):
+   probe=fact
+   break
+ t.check(probe!=null,"DISPLAY posture mutation target exists")
+ probe.cost=99
+ ui.present(["posture"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_full,"DISPLAY present posture after a key change keeps GameHeader")
+ var choices_after_mutation=ui.find_child("PostureChoices",true,false)
+ t.check(is_instance_valid(choices_after_mutation) and choices_after_mutation.get_instance_id()!=choices_before_mutation.get_instance_id(),"DISPLAY present posture rebuilds PostureChoices when the presentation key changes")
+ sit=ui.find_child("Posture_sit",true,false)
+ t.check(sit!=null and String(sit.text).contains("99"),"DISPLAY present posture shows the mutated sit cost")
+ t.check(present_named_live_count(ui,"PostureChoices")==1,"DISPLAY present posture after a key change keeps a single PostureChoices")
+ t.check(end_after_full==null or ui.find_child("EndTurnButton",true,false)==end_after_full,"DISPLAY present posture after a key change keeps EndTurnButton")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present posture after a key change does not call get_view")
+ var header_after_mutation=ui.find_child("GameHeader",true,false)
+ var choices_after_posture_mutation=ui.find_child("PostureChoices",true,false)
+ ui.present(["header"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present header still keeps GameHeader")
+ t.check(ui.find_child("PostureChoices",true,false)==choices_after_posture_mutation,"DISPLAY present header does not replace PostureChoices")
+ ui.present(["body_bar"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present body_bar still keeps GameHeader")
+ t.check(ui.find_child("PostureChoices",true,false)==choices_after_posture_mutation,"DISPLAY present body_bar does not replace PostureChoices")
+ ui.present(["relics"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present relics still keeps GameHeader")
+ t.check(ui.find_child("PostureChoices",true,false)==choices_after_posture_mutation,"DISPLAY present relics does not replace PostureChoices")
+ ui.present(["hand"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present hand still keeps GameHeader")
+ t.check(ui.find_child("PostureChoices",true,false)==choices_after_posture_mutation,"DISPLAY present hand does not replace PostureChoices")
+ ui.present(["actions"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present actions still keeps GameHeader")
+ t.check(ui.find_child("PostureChoices",true,false)==choices_after_posture_mutation,"DISPLAY present actions does not replace PostureChoices")
+ var header_before_resources=ui.find_child("GameHeader",true,false)
+ ui.present(["resources"]);await t.frames()
+ var header_after_resources=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_resources) and header_after_resources.get_instance_id()!=header_before_resources.get_instance_id(),"DISPLAY present resources replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present resources does not call get_view")
+ var snap=ui.view.duplicate(true)
+ ui.present(["posture"],snap);await t.frames()
+ t.check(counting.get_view_calls==baseline,"DISPLAY present posture snapshot does not call get_view")
+ t.check(is_same(ui.view,snap),"DISPLAY present posture replaces view with the given snapshot")
  t.check(ui.game.export_snapshot()==before,"DISPLAY present does not mutate export_snapshot")
  t.check(ui.game.state.rng==before_rng,"DISPLAY present does not mutate random cursors")
 
