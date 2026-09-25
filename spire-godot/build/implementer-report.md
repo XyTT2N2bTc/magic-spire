@@ -1,29 +1,33 @@
-# Implementer report: has_targets_at shared walk
+# Implementer report: bunny P2 source isolation
 
-Domain: `core/game.gd::has_targets_at` shares `_visit_targets_at` with `targets_at`. HEAD started at `4ca2e11`. Worktree only.
+Domain: `tests/architecture_cases.gd::has_targets_at_parity`. Worktree only. HEAD started at `01726ed`. Production `_visit_targets_at` unchanged.
 
-## Shared walk
-Succeeded. One visitor: shoulder / special / ordinary sources and filters defined once. `targets_at` collects; `has_targets_at` returns on first hit and does not call `targets_at` or assemble the full target array. No copied filters; no coverage-guard fallback.
+## Source isolation
+Landed. Public-query true/ID assertions (not the shared-walk oracle alone):
+- Hand: one-sided palm/fingers id in `targets_at`; `occupied` stays false
+- Link: slot with empty `equipment_at` and nonempty `links_at`; live true; dead that slot false
+- Composite: jacket contact id not in `equipment_at(slot)` but in `targets_at`; `has_targets_at` true; disable follows composite
+- Shoulder: `has_targets_at("shoulder")` true, `equipment_at` empty, hit `Equipment.is_shoulder`
+- Special: slot true; id in `state.special_equipment` / `links_at`
+- Connection: `Binding.connections` id in `targets_at`, not in host `equipment_at`
+
+Existing parity kept (predicate does not call `targets_at`; bool equals precomputed oracle; snapshot/rng/order; live/scope/fallback).
 
 ## Commits (no push)
-- `6842565` checkpoint(implementer): share per-slot target walk for has_targets_at
-- `496c639` checkpoint(implementer): add has_targets_at_parity Gherkin
-- `adf21f8` checkpoint(implementer): record has_targets_at on the query seam
-- (this) implementer-report.md
+- `f35dfc8` checkpoint(implementer): isolate has_targets_at source assertions
+- (this) `spire-godot/build/implementer-report.md`
 
 ## Check
-- Command: `spire-godot/` `$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'; & tools/check.ps1 -Suite architecture -TimeoutSeconds 600`
+- `spire-godot/` `$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'; & tools/check.ps1 -Suite architecture -TimeoutSeconds 600`
 - Exit: 0
 - `SUITE RESULT: architecture PASS`
-- `PASS: 3344 assertions`
-- Summary: `spire-godot/build/checks/20260925T041527905-35836/summary.json`
-- summary.status: `passed` (before==after fingerprint; not `source_changed`)
+- `PASS: 3863 assertions`
+- Summary: `spire-godot/build/checks/20260925T044053270-7484/summary.json`
+- summary.status: `passed` (before==after; not `source_changed`)
 - docs: PASS (35 docs, 2412 refs)
 
-## Gherkin
-`tests/architecture_cases.gd::has_targets_at_parity`: empty; one-sided palm/fingers (`occupied=false`); live link / glove composite / shoulder / special / crotch-link / linked torso binding; dead link; disabled composite; live, scope, invalid-index live fallback; first-hit skips `_composite_roots`/`links_at`; oracle from `targets_at` then counters cleared.
-
 ## Unverified
-- Not run: equipment / composites / links / shoulder / torso_binding suites
-- Not this slice: `card_facts` consume, T4/T5/delta/TERMS/UI, hardener mutations
+- Not run: equipment / composites / links / shoulder / torso_binding
+- Not this slice: card_facts, composites 2/96, hardener 档 2 mutants, UI
 - Not claimed clean or hardened
+- Count file: `tests/architecture_cases.gd` 2195 lines
