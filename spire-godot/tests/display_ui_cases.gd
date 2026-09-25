@@ -391,8 +391,9 @@ static func present_routes_body_bar_or_full(t) -> void:
  var wrist=ui.body_buttons.wrist
  var offset=scroll.scroll_vertical
  t.check(offset>0 and is_instance_valid(header) and is_instance_valid(wrist),"DISPLAY present baseline has header, wrist control, and overflow")
- ui.layout.body._presentation_key(ui)
+ var oracle=ui.layout.body._presentation_key(ui)
  ui.present(["body_bar"]);await t.frames()
+ t.check(ui.layout.body._presentation_key(ui)==oracle,"DISPLAY present body_bar keeps the body presentation key")
  t.check(ui.find_child("GameHeader",true,false)==header,"DISPLAY present body_bar keeps GameHeader")
  t.check(ui.body_buttons.wrist==wrist,"DISPLAY present body_bar keeps wrist instance")
  t.check(panel.find_child("BodyRegionContent_region_upper",true,false).scroll_vertical==offset,"DISPLAY present body_bar keeps region scroll")
