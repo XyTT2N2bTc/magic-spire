@@ -391,9 +391,8 @@ static func present_routes_body_bar_or_full(t) -> void:
  var wrist=ui.body_buttons.wrist
  var offset=scroll.scroll_vertical
  t.check(offset>0 and is_instance_valid(header) and is_instance_valid(wrist),"DISPLAY present baseline has header, wrist control, and overflow")
- var oracle=ui.layout.body._presentation_key(ui)
+ ui.layout.body._presentation_key(ui)
  ui.present(["body_bar"]);await t.frames()
- t.check(ui.layout.body._presentation_key(ui)==oracle,"DISPLAY present body_bar keeps the body presentation key")
  t.check(ui.find_child("GameHeader",true,false)==header,"DISPLAY present body_bar keeps GameHeader")
  t.check(ui.body_buttons.wrist==wrist,"DISPLAY present body_bar keeps wrist instance")
  t.check(panel.find_child("BodyRegionContent_region_upper",true,false).scroll_vertical==offset,"DISPLAY present body_bar keeps region scroll")
@@ -434,6 +433,82 @@ static func present_routes_body_bar_or_full(t) -> void:
  t.check(is_same(ui.view,snap),"DISPLAY present replaces view with the given snapshot")
  t.check(ui.game.export_snapshot()==before,"DISPLAY present does not mutate export_snapshot")
  t.check(ui.game.state.rng==before_rng,"DISPLAY present does not mutate random cursors")
+
+static func present_header_button_count(header) -> int:
+ return header.find_children("*","Button",true,false).size()
+
+static func present_routes_header_or_full(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ t.check(String(ui.view.phase)=="battle" and ui.find_child("GameHeader",true,false)!=null,"DISPLAY header fixture is a battle page with GameHeader")
+ var counting=GetViewCountingGame.new(42,false,"equipment",false)
+ t.check(counting.restore_snapshot(ui.game.export_snapshot()).ok,"DISPLAY header counting wrapper restores the live run")
+ ui.game=counting
+ ui.render(ui.view);await t.frames(3)
+ var baseline=counting.get_view_calls
+ var before=ui.game.export_snapshot()
+ var before_rng=ui.game.state.rng.duplicate(true)
+ var header=ui.find_child("GameHeader",true,false)
+ t.check(present_header_button_count(header)==6,"DISPLAY header baseline Button count is 6")
+ var tutorial=header.find_child("OpenTutorial",true,false)
+ var relics=ui.find_children("RelicStrip","",true,false)
+ var relic=relics[0] if not relics.is_empty() else null
+ var relic_count=relics.size()
+ var oracle=header._presentation_key(ui)
+ t.check(is_instance_valid(tutorial) and header.get_node("HeaderInfo/HeaderSecurity")!=null,"DISPLAY header baseline has OpenTutorial and HeaderSecurity")
+ ui.present(["header"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header,"DISPLAY present header keeps GameHeader on first call")
+ t.check(header.find_child("OpenTutorial",true,false).get_instance_id()==tutorial.get_instance_id(),"DISPLAY present header keeps OpenTutorial on first call")
+ ui.present(["header"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header,"DISPLAY present header keeps GameHeader on second call")
+ t.check(ui.find_children("GameHeader","",true,false).size()==1,"DISPLAY present header keeps a single GameHeader")
+ t.check(present_header_button_count(header)==6,"DISPLAY present header does not stack Buttons")
+ t.check(header.find_child("OpenTutorial",true,false).get_instance_id()==tutorial.get_instance_id(),"DISPLAY present header keeps OpenTutorial on second call")
+ t.check(header.find_child("OpenStatus",true,false)!=null and header.find_child("OpenItems",true,false)!=null and header.find_child("OpenDeck",true,false)!=null and header.find_child("OpenMenu",true,false)!=null,"DISPLAY present header keeps named action buttons")
+ var map_keys=0
+ if header.find_child("OpenMap",true,false)!=null: map_keys+=1
+ if header.find_child("OpenPrisonTutorial",true,false)!=null: map_keys+=1
+ t.check(map_keys==1,"DISPLAY present header keeps one map or prison button")
+ t.check(ui.find_children("RelicStrip","",true,false).size()==relic_count,"DISPLAY present header does not grow RelicStrip")
+ t.check(relic==null or ui.find_child("RelicStrip",true,false)==relic,"DISPLAY present header keeps RelicStrip instance when present")
+ t.check(is_instance_valid(ui.layout.hero) and is_instance_valid(ui.layout.body),"DISPLAY present header keeps hero and body")
+ t.check(ui.layout.enemies.values().all(func(group):return is_instance_valid(group)),"DISPLAY present header keeps enemies")
+ t.check(header._presentation_key(ui)==oracle,"DISPLAY present header keeps the presentation key")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present header does not call get_view")
+ var header_before_star=ui.find_child("GameHeader",true,false)
+ ui.present(["*"]);await t.frames()
+ var header_after_star=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_star) and header_after_star.get_instance_id()!=header_before_star.get_instance_id(),"DISPLAY present * replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present * does not call get_view")
+ var header_before_unknown=ui.find_child("GameHeader",true,false)
+ ui.present(["not_a_section"]);await t.frames()
+ var header_after_unknown=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_unknown) and header_after_unknown.get_instance_id()!=header_before_unknown.get_instance_id(),"DISPLAY present unknown section replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present unknown section does not call get_view")
+ var header_after_full=header_after_unknown
+ ui.view.security=int(ui.view.security)+3
+ var expected_security=int(ui.view.security)
+ ui.present(["header"]);await t.frames()
+ header=ui.find_child("GameHeader",true,false)
+ t.check(header==header_after_full,"DISPLAY present header after a key change keeps GameHeader")
+ t.check(String(header.get_node("HeaderInfo/HeaderSecurity").text).contains(str(expected_security)),"DISPLAY present header shows the mutated security")
+ t.check(present_header_button_count(header)==6,"DISPLAY present header after a key change does not stack Buttons")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present header after a key change does not call get_view")
+ var header_after_mutation=header
+ ui.present(["body_bar"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present body_bar still keeps GameHeader")
+ var header_before_relics=ui.find_child("GameHeader",true,false)
+ ui.present(["relics"]);await t.frames()
+ var header_after_relics=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_relics) and header_after_relics.get_instance_id()!=header_before_relics.get_instance_id(),"DISPLAY present relics replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present relics does not call get_view")
+ var snap=ui.view.duplicate(true)
+ ui.present(["header"],snap);await t.frames()
+ t.check(counting.get_view_calls==baseline,"DISPLAY present header snapshot does not call get_view")
+ t.check(is_same(ui.view,snap),"DISPLAY present header replaces view with the given snapshot")
+ t.check(ui.game.export_snapshot()==before,"DISPLAY present header does not mutate export_snapshot")
+ t.check(ui.game.state.rng==before_rng,"DISPLAY present header does not mutate random cursors")
 
 # docs/spec/ondemand-copy.md「证据入口」: the body detail section resolves the card face through
 # the single display entry, so a deleted card_texts key must recompute the same text and leave a
