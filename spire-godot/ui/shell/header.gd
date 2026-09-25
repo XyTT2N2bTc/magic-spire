@@ -1,6 +1,39 @@
 extends Control
 
+var _key=[]
+
+func _presentation_key(ui) -> Array:
+ var view=ui.view
+ return [
+  String(view.run_header.location),
+  String(view.run_header.turn),
+  String(view.run_header.order),
+  bool(view.run_header.last),
+  int(view.security),
+  String(view.wall),
+  int(view.wall_position.distance),
+  bool(view.pressure.overloaded),
+  int(view.carried_items),
+  int(view.capacity),
+  int(view.deck_count),
+  bool(view.prison.get("active",false)),
+  String(view.phase),
+  bool(view.practice),
+  bool(ui.show_route),
+  bool(ui.save_failed),
+  String(ui.localization.locale),
+ ]
+
+func _clear_header_buttons() -> void:
+ for child in get_children():
+  if not (child is Button): continue
+  remove_child(child)
+  child.queue_free()
+
 func configure(ui) -> void:
+ var next=_presentation_key(ui)
+ if _key==next:
+  return
  var view=ui.view
  $Trim.color=ui.GOLD.darkened(0.62)
  var info_style=ui._style(Color("121e27"),Color("35424a"),9);info_style.shadow_size=0
@@ -14,6 +47,7 @@ func configure(ui) -> void:
   var label=get_node("HeaderInfo/"+entry[0])
   label.text=entry[1];label.add_theme_color_override("font_color",entry[2])
  $HeaderInfo/WallPosition.visible=view.wall!="none"
+ _clear_header_buttons()
  var book=ui._button("教程书",func():ui._open_tutorial(),ui.GOLD)
  book.name="OpenTutorial"
  for state in ["normal","hover","pressed"]:
@@ -39,3 +73,4 @@ func configure(ui) -> void:
  ui._place(map,Rect2(1294,12,118,38),self)
  var menu=ui._button("菜单 !" if ui.save_failed else "菜单 ≡",func():ui._open_drawer("show_menu"),ui.RED if ui.save_failed else ui.MUTED)
  menu.name="OpenMenu";ui._place(menu,Rect2(1428,12,136,38),self)
+ _key=next
