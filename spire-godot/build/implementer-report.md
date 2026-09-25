@@ -1,3 +1,43 @@
+# 实现者报告：闭合 relics 审查 FAIL（bunny P1/P2）
+
+域：`ui/main.gd::_relic_row` 重建宿主与 0-or-1 早退；`tests/display_ui_cases.gd::present_routes_relics_or_full` 的 `body_bar` 条带断言。非清洁／非加固。未改 `_submit`／`PRESENT_SECTIONS`／`present(dirty: Array=…)` 签名／header／layout／relic_icon／`body_sidebar._presentation_key`。无新 UI 文件。未写 `docs/spec`。
+
+起步 HEAD：`6afce9a`（清洁者）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`70d299c`。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3015 行）：P1 键未命中重建时记下原 `RelicStrip` 父容器与 position／size／`custom_minimum_size`／size_flags，新条挂回该宿主，不默认 `_place` 到 layout `(405,78,1013,56)`。P2 早退仅当键命中且条数＝0（空 `view.relics`）或 1（非空）；多条清再建，空视图有条则卸载。
+- `spire-godot/tests/display_ui_cases.gd`（903 行）：`present(["body_bar"])` 步断言 `RelicStrip` 实例＝`strip_after_mutation` 且件数＝1。同场景钉：异父双条折叠为 1；地图宿主重建保留 parent／position／size_flags；空视图 leftover 卸载。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文第三刀结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本修复只改 `_relic_row` 早退与挂载，未拆文件。
+
+检查点：
+- `70d299c` `checkpoint(implementer): preserve RelicStrip host and 0-or-1 early-exit`
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 342 assertions`（`check-ui.log`：UI SUITE display 342 assertions, 123800 ms）
+- `summary.json` `status=passed`，`before`＝`after`＝`CE7DA483E38C11E086C1A0EB9315884800E451F825B866B9CF66C53CE99A21B7`
+- 日志：`spire-godot/build/checks/20260925T113346952-20352/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）。
+
+---
+
 # 实现者报告：present(dirty) 第三刀 relics
 
 域：`ui/main.gd` M3 展示调度（`present` 加 `["relics"]` 局部）与 `_relic_row` 键＋早退＋不叠条。非清洁／非加固。
