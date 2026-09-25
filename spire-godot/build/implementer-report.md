@@ -15,14 +15,15 @@ Existing parity kept (predicate does not call `targets_at`; bool equals precompu
 
 ## Commits (no push)
 - `f35dfc8` checkpoint(implementer): isolate has_targets_at source assertions
-- (this) `spire-godot/build/implementer-report.md`
+- `b018388` checkpoint(implementer): record source-isolation architecture evidence
+- (this) pin check summary path
 
 ## Check
 - `spire-godot/` `$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'; & tools/check.ps1 -Suite architecture -TimeoutSeconds 600`
 - Exit: 0
 - `SUITE RESULT: architecture PASS`
 - `PASS: 3863 assertions`
-- Summary: `spire-godot/build/checks/20260925T044053270-7484/summary.json`
+- Summary: `spire-godot/build/checks/20260925T044115855-28356/summary.json`
 - summary.status: `passed` (before==after; not `source_changed`)
 - docs: PASS (35 docs, 2412 refs)
 
