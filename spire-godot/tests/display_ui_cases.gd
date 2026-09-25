@@ -597,10 +597,15 @@ static func present_routes_relics_or_full(t) -> void:
  live.custom_minimum_size=Vector2(0,48)
  live.size_flags_horizontal=Control.SIZE_EXPAND_FILL
  live.position=Vector2.ZERO
+ var map_scroll=ScrollContainer.new();map_scroll.name="TowerMapScroll"
+ host.add_child(map_scroll)
+ t.check(live.get_index()==0 and host.get_child(1)==map_scroll,"DISPLAY relics host fixture has RelicStrip then TowerMapScroll")
  ui.view.relics[0].counter={"text":"host-probe","detail":"host probe"}
  ui.present(["relics"]);await t.frames()
  var rebuilt=ui.find_child("RelicStrip",true,false)
  t.check(is_instance_valid(rebuilt) and rebuilt.get_parent()==host,"DISPLAY present relics rebuild keeps RelicStrip parent")
+ t.check(rebuilt.get_index()==0,"DISPLAY present relics rebuild keeps RelicStrip at child index 0")
+ t.check(host.get_child_count()>1 and host.get_child(1)==map_scroll,"DISPLAY present relics rebuild keeps TowerMapScroll as the next sibling")
  t.check(rebuilt.position==Vector2.ZERO,"DISPLAY present relics rebuild keeps RelicStrip position")
  t.check(rebuilt.size_flags_horizontal==Control.SIZE_EXPAND_FILL,"DISPLAY present relics rebuild keeps RelicStrip size flags")
  t.check(ui.find_children("RelicStrip","",true,false).size()==1,"DISPLAY present relics rebuild under host keeps a single RelicStrip")
