@@ -490,18 +490,20 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _present_needs_full_render (predicate), render (full fallback), header.configure
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local),
 # _build_action_rail (["actions"] local), _refresh_posture_section (["posture"]
-# local) and layout.body_sidebar (["body_bar"] local). header.configure reads
-# header._presentation_key; _relic_row reads _relic_presentation_key, _hand
-# reads _hand_presentation_key, _build_action_rail reads
-# _action_presentation_key, and _refresh_posture_section / _posture_controls
-# read _posture_presentation_key in this file (hit early-return, miss rebuild
+# local), _refresh_resource_section (["resources"] local) and layout.body_sidebar
+# (["body_bar"] local). header.configure reads header._presentation_key;
+# _relic_row reads _relic_presentation_key, _hand reads _hand_presentation_key,
+# _build_action_rail reads _action_presentation_key, _refresh_posture_section /
+# _posture_controls read _posture_presentation_key, and _refresh_resource_section
+# reads _resource_presentation_key in this file (hit early-return, miss rebuild
 # then save). _present_needs_full_render probes GameHeader existence for header,
 # view.pressure.overloaded only for ["hand"], non-battle / quick_release_open /
 # _selecting_hand / card_chain / reward_panel.active only for ["actions"], and
-# non-battle / show_route only for ["posture"]; render and layout.body_sidebar
-# are boundary leaves here.
+# non-battle / show_route only for ["posture"] and ["resources"]; render and
+# layout.body_sidebar are boundary leaves here. present does not call
+# _bottom_controls, _wall_controls, _posture_controls, or mana_flask.build.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","layout.body_sidebar"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","layout.body_sidebar"],
  "_present_needs_full_render":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
@@ -515,13 +517,16 @@ const PRESENT_ADJACENCY={
  "_wall_controls":[],
  "_posture_controls":["_posture_presentation_key"],
  "_posture_presentation_key":[],
+ "_refresh_resource_section":["_resource_presentation_key","_build_resource_bar"],
+ "_build_resource_bar":["_resource_presentation_key"],
+ "_resource_presentation_key":[],
  "layout.body_sidebar":[],
  "render":[],
 }
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)):
+ if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)):
   render(next)
   return
  DragTargets.clear(self,false)
@@ -537,6 +542,8 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
   _build_action_rail()
  elif String(dirty[0])=="posture":
   _refresh_posture_section()
+ elif String(dirty[0])=="resources":
+  _refresh_resource_section()
  else:
   layout.body_sidebar(self)
  layout.end_frame()
@@ -556,6 +563,8 @@ func _present_needs_full_render(dirty: Array) -> bool:
  if section=="actions":
   return String(view.phase)!="battle" or quick_release_open or _selecting_hand() or not view.card_chain.is_empty() or bool(view.reward_panel.active)
  if section=="posture":
+  return String(view.phase)!="battle" or show_route
+ if section=="resources":
   return String(view.phase)!="battle" or show_route
  return section!="body_bar" and section!="relics"
 
@@ -1431,7 +1440,72 @@ func _climax_narration() -> void:
  var text=str(view.climax.get("text",""))
  var body=_label(text,16,TEXT);body.name="ClimaxNarrationText";body.visible=text!="";column.add_child(body)
 
-func _bottom_controls(include_tools: bool=true) -> void:
+var _resource_key=[]
+
+func _resource_presentation_key() -> Array:
+ var bind=[]
+ if view.guard_bind.is_empty():
+  bind=[true]
+ else:
+  bind=[false,view.guard_bind.value,view.guard_bind.maximum,String(view.guard_bind.get("detail",""))]
+ return [view.energy,view.mana,view.temporary_mana,view.mana_max,view.pressure.value,view.pressure.maximum,bind,view.powers.size(),view.draw_count,view.discard_count,String(view.phase),surrender_version]
+
+func _resource_live_count(node_name: String) -> int:
+ var n=0
+ if not is_instance_valid(layout): return 0
+ for node in layout.find_children(node_name,"",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n
+
+func _resource_key_hit(key) -> bool:
+ if _resource_key!=key: return false
+ if not is_instance_valid(layout): return false
+ for node_name in ["MainResourcePanel","ResourceToolsPanel","EnergyMedallion","EnergyValue","DrawPileButton","DiscardPileButton","OpenPowers"]:
+  if _resource_live_count(node_name)!=1: return false
+ var ends=layout.find_children("EndTurnButton","",true,false)
+ if ends.size()>1: return false
+ if not ends.is_empty():
+  if not ends[0].is_inside_tree() or end_button!=ends[0]: return false
+ for node_name in ["SurrenderButton","ManaFlask","MainGuardBind","SidebarGuardBindTarget"]:
+  if _resource_live_count(node_name)>1: return false
+ for c in TargetQueries.facts(view,"flow"):
+  var node_name="EndTurnButton" if String(c.payload.kind)=="end" else "FlowButton_"+String(c.payload.kind)
+  var nodes=layout.find_children(node_name,"",true,false)
+  if nodes.size()!=1 or not nodes[0].is_inside_tree(): return false
+  if candidate_buttons.get(display_key(c.payload))!=nodes[0]: return false
+ return true
+
+func _unload_resource_direct(node: Node) -> void:
+ if not is_instance_valid(node): return
+ if node==end_button: end_button=null
+ for key in candidate_buttons.keys():
+  var button=candidate_buttons[key]
+  if not is_instance_valid(button) or button==node or node.is_ancestor_of(button):
+   candidate_buttons.erase(key)
+ var owner=node.get_parent()
+ if owner!=null: owner.remove_child(node)
+ node.queue_free()
+
+func _unload_resource_section() -> void:
+ if not is_instance_valid(layout): return
+ var named=["MainResourcePanel","ResourceToolsPanel","ManaFlask","EnergyMedallion","OpenPowers","DrawPileButton","DiscardPileButton","EndTurnButton","SurrenderButton","SidebarGuardBindTarget","ResourceTurnDivider"]
+ var doomed=[]
+ for node in layout.get_children():
+  var n=String(node.name)
+  if n in named or n.begins_with("MainOverload") or n.begins_with("MainMana") or n.begins_with("MainGuardBind") or n.begins_with("FlowButton_"):
+   doomed.append(node)
+ for node in doomed:
+  _unload_resource_direct(node)
+ if not is_instance_valid(end_button): end_button=null
+
+func _refresh_resource_section() -> void:
+ var key=_resource_presentation_key()
+ if _resource_key_hit(key):
+  return
+ _unload_resource_section()
+ _build_resource_bar(true)
+
+func _build_resource_bar(include_tools: bool=true) -> void:
  var has_turn_controls=not show_route and view.phase in ["battle","prepare","rest","prison"]
  var resource_back=Panel.new();resource_back.mouse_filter=Control.MOUSE_FILTER_IGNORE
  resource_back.name="MainResourcePanel"
@@ -1445,7 +1519,7 @@ func _bottom_controls(include_tools: bool=true) -> void:
   tool_back.name="ResourceToolsPanel"
   _place(tool_back,Rect2(0,699,375,201))
  if has_turn_controls:
-  var divider=ColorRect.new();divider.color=Color("35464b");divider.mouse_filter=Control.MOUSE_FILTER_IGNORE
+  var divider=ColorRect.new();divider.name="ResourceTurnDivider";divider.color=Color("35464b");divider.mouse_filter=Control.MOUSE_FILTER_IGNORE
   _place(divider,Rect2(160,781,199,1))
  var meters=[
   {"id":"MainOverload","label":"快感","value":view.pressure.value,"maximum":view.pressure.maximum,"color":OVERLOAD_COLOR},
@@ -1466,7 +1540,9 @@ func _bottom_controls(include_tools: bool=true) -> void:
  var mana_bar=find_child("MainMana",true,false)
  mana_bar.mouse_filter=Control.MOUSE_FILTER_STOP;mana_bar.tooltip_text="嘴部施法成功率 · "+view.casting.percent+"\n临时魔力优先抵扣法术和卡牌耗魔，不受上限限制；不能存瓶或购物，本场结束清空。"
  if include_tools: preload("res://ui/mana_flask.gd").build(self)
- if not has_turn_controls: return
+ if not has_turn_controls:
+  _resource_key=_resource_presentation_key()
+  return
  var orb=TextureRect.new();orb.name="EnergyMedallion";orb.mouse_filter=Control.MOUSE_FILTER_PASS
  orb.tooltip_text="能量上限：%d。每回合恢复至上限，再结算额外能量与惩罚。" % view.energy_max
  orb.texture=preload("res://assets/ui/energy-medallion.svg");orb.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;orb.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -1494,6 +1570,8 @@ func _bottom_controls(include_tools: bool=true) -> void:
     seal.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;seal.stretch_mode=TextureRect.STRETCH_SCALE
     seal.mouse_filter=Control.MOUSE_FILTER_IGNORE
     _place(seal,Rect2(0,0,155,90),b)
+  else:
+   b.name="FlowButton_"+String(c.payload.kind)
  var surrender=TargetQueries.find(view,"surrender")
  if not surrender.is_empty():
   var button=_button("确定要投降吗" if surrender_version==view.version else "投降",func():pass,RED)
@@ -1506,8 +1584,13 @@ func _bottom_controls(include_tools: bool=true) -> void:
    else:
     surrender_version=view.version;button.text="确定要投降吗")
   _place(button,Rect2(1424,833,155,44))
- _wall_controls()
- _posture_controls()
+ _resource_key=_resource_presentation_key()
+
+func _bottom_controls(include_tools: bool=true) -> void:
+ _build_resource_bar(include_tools)
+ if not show_route and view.phase in ["battle","prepare","rest","prison"]:
+  _wall_controls()
+  _posture_controls()
 
 func _resource_meter(id: String, rect: Rect2, value: float, maximum: float, color: Color, caption: String="") -> void:
  if caption!="":
