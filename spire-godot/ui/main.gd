@@ -1213,12 +1213,83 @@ func _refresh_body_details() -> void:
  if not _selecting_hand() and (show_body or selected_card!="" or view.pending_retain): _body_details()
  if selected_card!="" and not _selecting_hand(): DragTargets.focus_bodies(self,{"card_uid":selected_card,"free":card_faces.get(selected_card,false),"version":view.version})
 
+var _hand_key=[]
+
+func _hand_presentation_key() -> Array:
+ var cards=[]
+ var texts=view.get("card_texts",{})
+ var instances=view.get("card_instances",{})
+ for card in view.hand:
+  var uid=String(card.uid)
+  var row=card.duplicate(true)
+  var type_text=texts.get(String(card.type),{})
+  if type_text is Dictionary: row.merge(type_text.duplicate(true),true)
+  var inst=instances.get(String(card.get("physical_uid",uid)),{})
+  if inst is Dictionary: row.merge(inst.duplicate(true),true)
+  var availability=row.get("availability",{})
+  var faces={}
+  for field in ["face_names","face_effects","face_keywords","face_mana","face_costs","face_type_names","face_warnings","face_requirements"]:
+   if row.has(field): faces[field]=row[field].duplicate(true) if row[field] is Dictionary or row[field] is Array else row[field]
+  var extra={}
+  for field in ["name","rarity","rarity_name","type_name","cost","free_faces","retained"]:
+   if row.has(field): extra[field]=row[field].duplicate(true) if row[field] is Dictionary or row[field] is Array else row[field]
+  var free_av=availability.get("free",{}) if availability is Dictionary else {}
+  var bound_av=availability.get("bound",{}) if availability is Dictionary else {}
+  cards.append([uid,String(card.type),card.get("draw_serial",0),bool(card.get("draw_free",false)),bool(row.get("single_face",false)),_hand_availability_slice(free_av),_hand_availability_slice(bound_av),faces,extra,bool(card_faces.get(uid,false))])
+ var pending=[]
+ if is_instance_valid(card_motion): pending=card_motion.pending_draws.keys()
+ pending=pending.duplicate();pending.sort()
+ return [cards,String(selected_card),_selecting_hand(),pending]
+
+func _hand_availability_slice(row) -> Array:
+ if not (row is Dictionary): return [true,false,""]
+ return [bool(row.get("usable",true)),bool(row.get("dim",false)),String(row.get("text",""))]
+
+func _hand_key_hit(key) -> bool:
+ if _hand_key!=key: return false
+ if not find_children("ClimaxNarration","",true,false).is_empty(): return false
+ if view.hand.is_empty():
+  return card_buttons.is_empty() and find_children("HandCard_*","",true,false).is_empty() and find_children("EmptyHand","",true,false).size()==1
+ if not find_children("EmptyHand","",true,false).is_empty(): return false
+ if card_buttons.size()!=view.hand.size(): return false
+ for card in view.hand:
+  var uid=String(card.uid)
+  var button=card_buttons.get(uid)
+  if not is_instance_valid(button) or not button.is_inside_tree(): return false
+  if find_children("HandCard_"+uid,"",true,false).size()!=1: return false
+ return true
+
+func _unload_hand_section() -> void:
+ for uid in card_buttons.keys():
+  var button=card_buttons[uid]
+  if is_instance_valid(button):
+   var stale=[]
+   for key in candidate_buttons.keys():
+    if candidate_buttons[key]==button: stale.append(key)
+   for key in stale: candidate_buttons.erase(key)
+   var owner=button.get_parent()
+   if owner!=null: owner.remove_child(button)
+   button.queue_free()
+ card_buttons.clear()
+ for node in find_children("HandCard_*","",true,false)+find_children("EmptyHand","",true,false)+find_children("ClimaxNarration","",true,false):
+  if not is_instance_valid(node): continue
+  var owner=node.get_parent()
+  if owner!=null: owner.remove_child(node)
+  node.queue_free()
+
 func _hand() -> void:
+ var key=_hand_presentation_key()
+ if _hand_key_hit(key):
+  return
+ _unload_hand_section()
  if view.pressure.overloaded:
   _climax_narration()
+  _hand_key=key
   return
  if view.hand.is_empty():
-  _place(_label("手牌已用完",19,MUTED),Rect2(570,749,780,45))
+  var empty=_label("手牌已用完",19,MUTED);empty.name="EmptyHand"
+  _place(empty,Rect2(570,749,780,45))
+  _hand_key=key
   return
  var count=view.hand.size()
  var dimensions=CardFace.dimensions(252)
@@ -1229,6 +1300,7 @@ func _hand() -> void:
   var mid=float(i)-float(count-1)/2
   var y=630+absf(mid)*4
   var b=_card(card,Rect2(Vector2(start+i*step,y),dimensions),func(): _activate_card(card.uid),mid*0.018)
+  b.name="HandCard_"+String(card.uid)
   card_buttons[card.uid]=b
   if _selecting_hand():
    var choice=_hand_choice(card.uid)
@@ -1237,6 +1309,7 @@ func _hand() -> void:
    b.set_meta("hand_selectable",not b.disabled);b.queue_redraw()
    if not choice.is_empty(): candidate_buttons[display_key(choice.payload)]=b
   if is_instance_valid(card_motion) and card_motion.pending_draws.has(card.uid): b.hide()
+ _hand_key=key
 
 func _climax_narration() -> void:
  var panel=_panel(Rect2(530,636,790,138));panel.name="ClimaxNarration"
