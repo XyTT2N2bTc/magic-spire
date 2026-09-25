@@ -31,6 +31,7 @@
 | `targets_at("shoulder")` | `physical_pieces()` | `Equipment.is_shoulder(e)` ∧ `e.durability>0`；**不走 coverage**（含复合肩带 `glove_strap` 与 `shoulder_host` 件） | 新数组 | 权威实例 |
 | `targets_at(特殊槽)` | `state.special_equipment` → `links_at(slot)` | 特殊件：`SpecialEquipment.occupies(e,slot)`，**无耐久过滤**；绳：`durability>0` ∧ `slot in link.slots` | 新数组 | 权威实例 |
 | `targets_at(普通槽)` | `equipment_at(slot)` → 覆盖该槽且活跃的复合组件（`slot in Composites.definition(root).coverage` ∧ `Composites.active(root)`，排除 `is_shoulder`，按**引用**去重）→ `links_at(slot)` → `Binding.connections(self)` 中 `e.slot==slot` | 同左 | 新数组 | 权威实例 |
+| `has_targets_at(slot)` | 与同槽 `targets_at` 同一按槽来源路径（普通／`shoulder`／特殊槽；live 与 scope） | 同 `targets_at`；命中即止，不组装全量数组，不调用 `targets_at` | bool | — |
 | `links_at(slot)` | `state.links` | `durability>0` ∧ `slot in link.slots` | 新数组 | 权威实例 |
 | `link_anchors()` | `physical_pieces()` → `state.special_equipment` | 特殊件：`Links.is_crotch_anchor`，**无耐久过滤** | 新数组 | 权威实例 |
 | `equipment_targets()` | `physical_pieces()` → `state.links` | 无（**链接不看耐久**） | 新数组 | 权威实例 |
