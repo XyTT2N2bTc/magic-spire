@@ -643,6 +643,18 @@ static func _clear_gear(g) -> void:
  g.state.links.clear()
  g.state.special_equipment.clear()
 
+static func _link_slot_without_equipment(g) -> String:
+ for slot in g.B.SLOTS:
+  if g.equipment_at(slot).is_empty() and not g.links_at(slot).is_empty(): return slot
+ return ""
+
+static func _composite_contact_outside_equipment(g) -> Dictionary:
+ for slot in g.B.SLOTS:
+  var hosted=ids_for(g.equipment_at(slot))
+  for e in g.targets_at(slot):
+   if e.has("root_id") and not hosted.has(e.id): return {"slot":slot,"id":e.id}
+ return {}
+
 static func _check_has_targets_at_once(t, g, label: String, early_slot: String="") -> Dictionary:
  var slots=_has_targets_slots(g)
  var snap=g.export_snapshot()
@@ -694,14 +706,18 @@ static func has_targets_at_parity(t) -> void:
   t.check(empty.targets_at(slot).is_empty(),"has_targets_at_parity: empty fixture oracle is empty "+slot)
  var palm=TargetWalkCountingGame.new(42)
  _clear_gear(palm)
- palm.add_fixture("palm",4,10).side="left"
+ var palm_piece=palm.add_fixture("palm",4,10)
+ palm_piece.side="left"
  _check_has_targets_at_modes(t,palm,"one-sided palm","palm")
  t.check(not palm.occupied("palm"),"has_targets_at_parity: one-sided palm occupied stays false")
+ t.check(palm.has_targets_at("palm") and ids_for(palm.targets_at("palm")).has(palm_piece.id),"has_targets_at_parity: one-sided palm id in targets_at")
  var fingers=TargetWalkCountingGame.new(42)
  _clear_gear(fingers)
- fingers.add_fixture("fingers",4,10).side="left"
+ var fingers_piece=fingers.add_fixture("fingers",4,10)
+ fingers_piece.side="left"
  _check_has_targets_at_modes(t,fingers,"one-sided fingers","fingers")
  t.check(not fingers.occupied("fingers"),"has_targets_at_parity: one-sided fingers occupied stays false")
+ t.check(fingers.has_targets_at("fingers") and ids_for(fingers.targets_at("fingers")).has(fingers_piece.id),"has_targets_at_parity: one-sided fingers id in targets_at")
  var link_g=TargetWalkCountingGame.new(42)
  _clear_gear(link_g)
  var root=link_g._install_assembly("leg","upper","fixture",2,2)
@@ -710,6 +726,22 @@ static func has_targets_at_parity(t) -> void:
  var rope=link_g._install_link(body.id,band.id,8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
  t.check(not rope.is_empty(),"has_targets_at_parity: live link fixture")
  _check_has_targets_at_modes(t,link_g,"live link","thigh")
+ var link_only=TargetWalkCountingGame.new(42)
+ _clear_gear(link_only)
+ var only_root=link_only._install_assembly("leg","upper","fixture",2,2)
+ var only_body=only_root.components.filter(func(e):return e.part=="body")[0]
+ var only_band=link_only._install_template("rope",link_only.Links.point_slot("below_knee"),8,10,false,"fixture",1,-1,0,"below_knee")
+ var only_rope=link_only._install_link(only_body.id,only_band.id,8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+ t.check(not only_rope.is_empty(),"has_targets_at_parity: link-only fixture")
+ for slot in ["thigh","calf"]:
+  for e in link_only.equipment_at(slot): e.durability=0
+ var link_slot=_link_slot_without_equipment(link_only)
+ t.check(link_slot!="","has_targets_at_parity: live link covers empty equipment_at")
+ if link_slot!="":
+  t.check(link_only.has_targets_at(link_slot) and ids_for(link_only.links_at(link_slot)).has(only_rope.id),"has_targets_at_parity: live link covers empty equipment_at "+link_slot)
+  t.check(ids_for(link_only.targets_at(link_slot)).has(only_rope.id),"has_targets_at_parity: live link id in targets_at "+link_slot)
+  only_rope.durability=0
+  t.check(not link_only.has_targets_at(link_slot) and link_only.links_at(link_slot).is_empty(),"has_targets_at_parity: dead link empty equipment_at is false "+link_slot)
  rope.durability=0
  _check_has_targets_at_modes(t,link_g,"dead link","thigh")
  t.check(link_g.links_at("thigh").is_empty() and link_g.links_at("calf").is_empty(),"has_targets_at_parity: dead link leaves links_at")
@@ -722,19 +754,43 @@ static func has_targets_at_parity(t) -> void:
  glove_body.durability=0
  t.check(not glove_g.Composites.active(glove),"has_targets_at_parity: disabled composite inactive")
  _check_has_targets_at_modes(t,glove_g,"disabled composite")
+ var jacket_g=TargetWalkCountingGame.new(42)
+ _clear_gear(jacket_g)
+ var jacket=jacket_g._install_assembly("jacket","standard","fixture",2,2)
+ t.check(not jacket.is_empty() and jacket_g.Composites.active(jacket),"has_targets_at_parity: jacket composite fixture")
+ _check_has_targets_at_modes(t,jacket_g,"active jacket","upper_arm")
+ var outside=_composite_contact_outside_equipment(jacket_g)
+ t.check(not outside.is_empty(),"has_targets_at_parity: composite contact outside equipment_at")
+ if not outside.is_empty():
+  t.check(jacket_g.has_targets_at(outside.slot) and ids_for(jacket_g.targets_at(outside.slot)).has(outside.id),"has_targets_at_parity: composite contact id in targets_at "+outside.slot)
+ var jacket_body=jacket.components.filter(func(e):return e.part=="body")[0]
+ jacket_body.durability=0
+ t.check(not jacket_g.Composites.active(jacket),"has_targets_at_parity: disabled jacket inactive")
+ if not outside.is_empty():
+  t.check(not jacket_g.has_targets_at(outside.slot),"has_targets_at_parity: disabled jacket slot follows composite "+outside.slot)
+ _check_has_targets_at_modes(t,jacket_g,"disabled jacket")
  var sh=TargetWalkCountingGame.new(42)
  _clear_gear(sh)
  sh._install_template("rope","upper_arm",sh.Equipment.maximum(2),sh.Equipment.maximum(2),false,"fixture",2)
  _check_has_targets_at_modes(t,sh,"shoulder")
+ t.check(sh.has_targets_at("shoulder") and sh.equipment_at("shoulder").is_empty(),"has_targets_at_parity: shoulder has targets without equipment_at")
+ t.check(sh.targets_at("shoulder").any(func(e):return sh.Equipment.is_shoulder(e)),"has_targets_at_parity: shoulder hit is_shoulder")
  var sp=TargetWalkCountingGame.new(42)
  _clear_gear(sp)
- t.check(not sp._install_special("nipple_clamp_low","special_1_a").is_empty(),"has_targets_at_parity: special fixture")
+ var clamp=sp._install_special("nipple_clamp_low","special_1_a")
+ t.check(not clamp.is_empty(),"has_targets_at_parity: special fixture")
  _check_has_targets_at_modes(t,sp,"special")
+ var special_slots=sp.SpecialEquipment.occupied_slots(clamp)
+ t.check(not special_slots.is_empty() and special_slots.all(func(slot):return sp.has_targets_at(slot)),"has_targets_at_parity: special slot has targets")
+ t.check(not special_slots.is_empty() and ids_for(sp.state.special_equipment).has(clamp.id) and ids_for(sp.targets_at(special_slots[0])).has(clamp.id),"has_targets_at_parity: special id in special_equipment and targets_at")
  var crotch_g=TargetWalkCountingGame.new(42)
  _clear_gear(crotch_g)
  var crotch=crotch_g._install_special("crotch_rope_low","special_3_a")
- t.check(not crotch.is_empty() and not crotch_g._install_link(crotch.id,crotch_g.add_fixture("wrist",8).id,8,"fixture").is_empty(),"has_targets_at_parity: crotch link fixture")
+ var crotch_link=crotch_g._install_link(crotch.id,crotch_g.add_fixture("wrist",8).id,8,"fixture")
+ t.check(not crotch.is_empty() and not crotch_link.is_empty(),"has_targets_at_parity: crotch link fixture")
  _check_has_targets_at_modes(t,crotch_g,"crotch link","wrist")
+ t.check(crotch_g.has_targets_at("special_3_a") and (ids_for(crotch_g.state.special_equipment).has(crotch.id) or ids_for(crotch_g.links_at("special_3_a")).has(crotch_link.id)),"has_targets_at_parity: special slot from special_equipment or links_at")
+ t.check(ids_for(crotch_g.targets_at("special_3_a")).has(crotch.id),"has_targets_at_parity: crotch special id in targets_at")
  var bind_g=null
  for seed in range(1,100):
   var candidate=TargetWalkCountingGame.new(seed,true,"torso_binding")
@@ -743,7 +799,14 @@ static func has_targets_at_parity(t) -> void:
    break
  t.check(bind_g!=null,"has_targets_at_parity: linked torso binding fixture")
  if bind_g!=null:
-  _check_has_targets_at_modes(t,bind_g,"connection",bind_g.state.equipment[0].slot)
+  var host=bind_g.state.equipment[0]
+  _check_has_targets_at_modes(t,bind_g,"connection",host.slot)
+  var conns=bind_g.Binding.connections(bind_g)
+  t.check(not conns.is_empty(),"has_targets_at_parity: Binding.connections contribute")
+  if not conns.is_empty():
+   var conn=conns[0]
+   t.check(bind_g.has_targets_at(conn.slot) and ids_for(bind_g.targets_at(conn.slot)).has(conn.id),"has_targets_at_parity: connection id in targets_at "+conn.slot)
+   t.check(not ids_for(bind_g.equipment_at(conn.slot)).has(conn.id),"has_targets_at_parity: connection not from equipment_at "+conn.slot)
 
 # docs/spec/equipment-query-seam.md「证据入口」: every declared outer entry opens and releases its own scope and answers
 # exactly like the index-off reference; entries that swap state still leave no scope behind.
