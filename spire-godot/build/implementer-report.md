@@ -1,3 +1,52 @@
+# 实现者报告：present(dirty) 第九刀 body_details
+
+域：`ui/main.gd` M3 展示调度（`present` 加 `["body_details"]` 局部）与 `_body_details` 共享键＋早退＋不叠窗。非清洁／非加固。
+
+起步 HEAD：`bc0e95e`（规划者第九刀契约）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`637a2ee`。无 `needs-human-review`。未停工交回。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3438 行）：`present(["body_details"])` 有独立分支，只调 `_refresh_body_details_section`（薄包：键命中早退；未命中 `_remove_local_panel("EquipmentDetails")` 再 `_body_details`；选牌且非选牌态时按现行口径 `DragTargets.focus_bodies`），**不**落入 `else` 的 `layout.body_sidebar`。`["header"]`／`["body_bar"]`／`["relics"]`／`["hand"]`／`["actions"]`／`["posture"]`／`["resources"]`／`["show_log"]` 仍局部。未知／`["*"]`／其它已声明名仍全量 `render(view)`，禁止再 `get_view`。`_body_details_presentation_key` 与 `_body_details_key` 紧挨 `_body_details`；薄函数与 `_body_details` 共用该键，无第二套。键字段＝本地 `selected_slot`／`selected_card`／`selected_candidate`／`show_body`／`quick_release_open`、`view.pending_retain` 布尔、`view.guard_bind.is_empty()` 布尔、`card_faces` uid→bool 副本、相关候选（`_body_equipment_entries`＋members 同一批 id 的 manual／attack `select`；`selected_card!=""` 时另含 guard_bind `find`、`_body_card_actions` 各条、`_single_body_card_action` 可空）；每条用事实 `key`＋`valid`／`reason`／`cost`／`preview`。`version`／`quick_release_inspected`／`phase`／`retain_left`／装备外观／`severity`／`label`／`mana`／`risk`／`payload.*`／locale／`player_pick` 不进键。`_present_needs_full_render`：**仅** `["body_details"]` 且 `_selecting_hand()`／关窗／`quick_release_open`／非 battle／`pending_retain` → 全量；`present` 对 snapshot 的 `next` 同检。不得把这些扩到 header／body_bar／relics／hand／actions／posture／resources／show_log。`PRESENT_ADJACENCY` 与源同步（`present` 增 `_refresh_body_details_section`，其读本文件键函数并调 `_body_details`；`present` 直调不含 `_body_drawer`／`_refresh_body_details`／`_equipment_tile`／`_action_row`／`_card_target`／`release_details`／`quick_release_bar`）。签名仍是 `present(dirty: Array=["*"], snapshot: Dictionary={})`。未改 `_submit`。局部路径未调 `_body_drawer`／既有 `_refresh_body_details`／`layout.body_sidebar`／`_header`／`header.configure`／`_relic_row`／`_hand`／`_fixed_actions`／`_build_action_rail`／`_bottom_controls`／`_refresh_resource_section`／`_wall_controls`／`_posture_controls`／`_refresh_posture_section`／`_refresh_log_section`／`_log_drawer`／`_refresh_drawers`／`_open_drawer`／`_hand_target_picker`／`_player_picker`／`_battle_scene`／`begin_frame`、未清空 `layout.used`、未直调 `_equipment_tile`／`_action_row`／`_card_target`／`release_details.*`／`quick_release_bar.*`。未改 `header.tscn`／`header.gd`／`body_sidebar.gd`／`game_layout.gd`／`release_details.gd`／`target_queries.gd`／`quick_release_bar.gd`／`header._presentation_key`／`body_sidebar._presentation_key`／`_relic_presentation_key`／`_hand_presentation_key`／`_action_presentation_key`／`_posture_presentation_key`／`_resource_presentation_key`／`_log_presentation_key`。无新 UI 文件。无 core／data。无 `docs/spec`。选牌态／关窗／快捷挣脱／非战斗／保留手牌详情本刀不局部。
+- `spire-godot/tests/display_ui_cases.gd`（1518 行）：`present_routes_body_details_or_full` 已在 `run` 里接在 `present_routes_show_log_or_full` 之后。`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full`／`present_routes_show_log_or_full` 的「已声明非局部」步由 `["body_details"]` 改为 `["pickers"]`。测试侧 `GetViewCountingGame`。生产无计数器。⑫ `present(["show_log"])` 须走既有局部路由，夹具在详情已建后 `_open_drawer("show_log")`（第八刀关闭态仍全量，本刀未改该条件）。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本刀只加薄路由与详情节早退，未拆文件。
+
+检查点：
+- `30b7857` `checkpoint(implementer): add present body_details routing`
+- `637a2ee` `checkpoint(implementer): add present_routes_body_details_or_full`
+
+## 叠窗
+
+不叠。键命中早退只在卸栏／建模之前一次（`_refresh_body_details_section`，**不**写进 `_body_details` 本体），且要求树上活 `EquipmentDetails` 件数＝1，该窗上 `CloseEquipmentDetails`／`EquipmentTutorial` 各 1 且仍是该窗子孙。禁止只凭缓存键、窗已被 `begin_frame` 释放仍早退。键未命中先 `_remove_local_panel("EquipmentDetails")`，保留 `BodyEquipmentPanel`／身体栏／其它已局部节。`_place` 父节点为 `layout`。全量 `_body_drawer`→`_body_details` 不在此卸窗（`begin_frame` 已释放），仍在 `_body_details` 末写回键（空装备／空选牌也写）。既有 `_refresh_body_details` 的 `clear(self)` 语义未改。无活 `EquipmentDetails` 且本路径条件已满足时本路径创建，不改走全量。场景断言 `EquipmentDetails`／`CloseEquipmentDetails` 件数＝1。套件绿。
+
+## 表外全量
+
+只让 `["body_details"]` 在 `_selecting_hand()`／关窗／`quick_release_open`／非 battle／`pending_retain` 时走全量。`header`／`body_bar`／`relics`／`hand`／`actions`／`posture`／`resources`／`show_log` 的全量条件未改。局部 `["body_details"]` 因而从不在选牌态／关窗／快捷挣脱／非战斗／保留手牌分支建详情，从不顺手 `body_sidebar`。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 629 assertions`（`check-ui.log`：UI SUITE display 629 assertions, 71.50s）
+- `summary.json` `status=passed`，`before`＝`after`＝`0CFDC67557269E5DB039984CC7E3D2D1A0B282F7FDCC3934949AE53A7E384CE5`
+- 日志：`spire-godot/build/checks/20260925T181007388-10416/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full`／`present_routes_show_log_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）、双审。未停工交回。无 `needs-human-review`。
+
+---
+
 # 实现者报告：present(dirty) 第八刀 show_log
 
 域：`ui/main.gd` M3 展示调度（`present` 加 `["show_log"]` 局部）与 `_log_drawer` 共享键＋早退＋不叠窗。非清洁／非加固。
