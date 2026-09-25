@@ -385,6 +385,7 @@ static func run(t) -> void:
  instruction_route_table_is_total(t)
  command_fact_kind_lookup(t)
  card_facts_declared_slots(t)
+ card_facts_consumes_has_targets_at(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -2192,6 +2193,116 @@ static func card_facts_declared_slots(t) -> void:
  t.check(facts==before,"card_facts_declared_slots: facts equal the pre-cut union-then-skip rows field-for-field")
  var undeclared_queries=g.targets_at_slots.filter(func(slot):return slot not in spec.target_slots)
  t.check(undeclared_queries.is_empty(),"card_facts_declared_slots: targets_at on undeclared slots is 0 have="+str(undeclared_queries))
+
+# card_facts_consumes_has_targets_at: declared slots ask has_targets_at before targets_at; empty slots skip collect.
+static func _card_facts_consume_slots(g, spec: Dictionary) -> Array:
+ var slots=g.B.SLOTS+["neck","shoulder"]+g.SpecialEquipment.slots()
+ for slot in spec.get("target_slots",[]):
+  if slot not in slots: slots.append(slot)
+ return slots
+
+static func _assert_card_facts_consumes_has_targets_at(t, g, card: Dictionary, label: String, expected_ids: Array=[]) -> void:
+ var spec=g.Cards.Rules.SPECS[card.type]
+ t.check(not spec.has("target_slots"),"card_facts_consumes_has_targets_at: no target_slots "+label+" "+card.type)
+ var snap=g.export_snapshot()
+ var rng=g.state.rng.duplicate(true)
+ var oracle=card_facts_union_slot_oracle(g,card)
+ t.check(g.export_snapshot()==snap and g.state.rng==rng,"card_facts_consumes_has_targets_at: oracle frozen "+label+" "+card.type)
+ g.targets_at_slots.clear()
+ var facts=g.Cards.card_facts(g,card)
+ t.check(facts==oracle,"card_facts_consumes_has_targets_at: facts equal oracle "+label+" "+card.type)
+ var queried=g.targets_at_slots.duplicate()
+ for slot in _card_facts_consume_slots(g,spec):
+  if g.has_targets_at(slot):
+   t.check(queried.has(slot),"card_facts_consumes_has_targets_at: occupied slot still queries targets_at "+label+" "+card.type+" "+slot)
+  else:
+   t.check(not queried.has(slot),"card_facts_consumes_has_targets_at: empty slot does not query targets_at "+label+" "+card.type+" "+slot+" have="+str(queried))
+ for id in expected_ids:
+  t.check(facts.any(func(f):return String(f.payload.get("target",""))==id),"card_facts_consumes_has_targets_at: facts contain id "+label+" "+card.type+" "+str(id))
+ t.check(g.export_snapshot()==snap and g.state.rng==rng,"card_facts_consumes_has_targets_at: snapshot and rng frozen "+label+" "+card.type)
+
+static func _check_card_facts_consumes_cards(t, g, label: String, expected_ids: Array=[]) -> void:
+ t.check(g.state.phase=="battle" or g.state.practice,"card_facts_consumes_has_targets_at: battle or practice fixture "+label)
+ var strain=Rewards.give(t,g,"strain")
+ var slip=Rewards.give(t,g,"slip")
+ _assert_card_facts_consumes_has_targets_at(t,g,strain,label,expected_ids)
+ _assert_card_facts_consumes_has_targets_at(t,g,slip,label,expected_ids)
+
+static func card_facts_consumes_has_targets_at(t) -> void:
+ var empty=TargetsAtCountingGame.new(42)
+ t.check(empty.state.phase=="battle","card_facts_consumes_has_targets_at: battle fixture")
+ _clear_gear(empty)
+ _check_card_facts_consumes_cards(t,empty,"empty")
+ var empty_strain=empty.state.hand.filter(func(c):return c.type=="strain")[0]
+ var empty_facts=empty.Cards.card_facts(empty,empty_strain)
+ t.check(empty_facts.any(func(f):return String(f.payload.get("target",""))==""),"card_facts_consumes_has_targets_at: empty ordinary slot free face")
+ var palm=TargetsAtCountingGame.new(42)
+ _clear_gear(palm)
+ var palm_piece=palm.add_fixture("palm",4,10)
+ palm_piece.side="left"
+ t.check(not palm.occupied("palm"),"card_facts_consumes_has_targets_at: one-sided palm occupied stays false")
+ _check_card_facts_consumes_cards(t,palm,"one-sided palm",[palm_piece.id])
+ t.check(not palm.occupied("palm"),"card_facts_consumes_has_targets_at: one-sided palm occupied after facts")
+ var fingers=TargetsAtCountingGame.new(42)
+ _clear_gear(fingers)
+ var fingers_piece=fingers.add_fixture("fingers",4,10)
+ fingers_piece.side="left"
+ t.check(not fingers.occupied("fingers"),"card_facts_consumes_has_targets_at: one-sided fingers occupied stays false")
+ _check_card_facts_consumes_cards(t,fingers,"one-sided fingers",[fingers_piece.id])
+ t.check(not fingers.occupied("fingers"),"card_facts_consumes_has_targets_at: one-sided fingers occupied after facts")
+ var link_only=TargetsAtCountingGame.new(42)
+ _clear_gear(link_only)
+ var only_root=link_only._install_assembly("leg","upper","fixture",2,2)
+ var only_body=only_root.components.filter(func(e):return e.part=="body")[0]
+ var only_band=link_only._install_template("rope",link_only.Links.point_slot("below_knee"),8,10,false,"fixture",1,-1,0,"below_knee")
+ var only_rope=link_only._install_link(only_body.id,only_band.id,8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+ t.check(not only_rope.is_empty(),"card_facts_consumes_has_targets_at: live link fixture")
+ for slot in ["thigh","calf"]:
+  for e in link_only.equipment_at(slot): e.durability=0
+ var link_slot=_link_slot_without_equipment(link_only)
+ t.check(link_slot!="","card_facts_consumes_has_targets_at: live link covers empty equipment_at")
+ _check_card_facts_consumes_cards(t,link_only,"live link",[only_rope.id])
+ only_rope.durability=0
+ t.check(link_slot=="" or not link_only.has_targets_at(link_slot),"card_facts_consumes_has_targets_at: dead link empty equipment_at is false")
+ _check_card_facts_consumes_cards(t,link_only,"dead link")
+ var glove_g=TargetsAtCountingGame.new(42)
+ _clear_gear(glove_g)
+ var glove=glove_g._install_assembly("glove","short","fixture",2,2)
+ t.check(not glove.is_empty() and glove_g.Composites.active(glove),"card_facts_consumes_has_targets_at: active composite fixture")
+ var glove_ids=ids_for(glove.components)
+ _check_card_facts_consumes_cards(t,glove_g,"active composite",glove_ids)
+ var glove_body=glove.components.filter(func(e):return e.part=="body")[0]
+ glove_body.durability=0
+ t.check(not glove_g.Composites.active(glove),"card_facts_consumes_has_targets_at: disabled composite inactive")
+ _check_card_facts_consumes_cards(t,glove_g,"disabled composite")
+ var jacket_g=TargetsAtCountingGame.new(42)
+ _clear_gear(jacket_g)
+ var jacket=jacket_g._install_assembly("jacket","standard","fixture",2,2)
+ t.check(not jacket.is_empty() and jacket_g.Composites.active(jacket),"card_facts_consumes_has_targets_at: jacket composite fixture")
+ var outside=_composite_contact_outside_equipment(jacket_g,jacket)
+ t.check(not outside.is_empty(),"card_facts_consumes_has_targets_at: composite contact outside equipment_at")
+ var contact_ids=[]
+ for contact in outside:
+  if contact.id not in contact_ids: contact_ids.append(contact.id)
+ _check_card_facts_consumes_cards(t,jacket_g,"active jacket",contact_ids)
+ var jacket_body=jacket.components.filter(func(e):return e.part=="body")[0]
+ jacket_body.durability=0
+ t.check(not jacket_g.Composites.active(jacket),"card_facts_consumes_has_targets_at: disabled jacket inactive")
+ _check_card_facts_consumes_cards(t,jacket_g,"disabled jacket")
+ var bind_g=null
+ for seed in range(1,100):
+  var candidate=TargetsAtCountingGame.new(seed,true,"torso_binding")
+  if candidate.state.equipment[0].binding.kind=="linked":
+   bind_g=candidate
+   break
+ t.check(bind_g!=null,"card_facts_consumes_has_targets_at: linked torso binding fixture")
+ if bind_g!=null:
+  var conns=bind_g.Binding.connections(bind_g)
+  t.check(not conns.is_empty(),"card_facts_consumes_has_targets_at: Binding.connections contribute")
+  var conn_ids=[]
+  for conn in conns:
+   if conn.id not in conn_ids: conn_ids.append(conn.id)
+  _check_card_facts_consumes_cards(t,bind_g,"connection",conn_ids)
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.command_facts():

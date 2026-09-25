@@ -938,11 +938,12 @@ static func card_facts(g, card: Dictionary) -> Array:
    if special or spec.has("bound_modes") or g.occupied(slot): continue
    targets=[{}]
   else:
-   targets=g.targets_at(slot)
-   if special:
-    if targets.is_empty(): continue
-   elif targets.is_empty(): targets=[{}]
-   elif slot!="shoulder" and not g.occupied(slot): targets.append({})
+   if not g.has_targets_at(slot):
+    if special: continue
+    targets=[{}]
+   else:
+    targets=g.targets_at(slot)
+    if not special and slot!="shoulder" and not g.occupied(slot): targets.append({})
   for target in targets:
    if target.is_empty() and spec.has("bound_modes"): continue
    if not target.is_empty() and g.SpecialEquipment.is_special(target):
