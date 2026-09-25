@@ -485,6 +485,27 @@ func render(snapshot: Dictionary={}) -> void:
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
  _localize_controls(layout)
 
+const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","posture","resources","show_log","body_bar","body_details","pickers","speech","notice","drawers","page","scene_instances"]
+
+func present(dirty: Array[String]=["*"], snapshot: Dictionary={}) -> void:
+ var next=view if snapshot.is_empty() else snapshot
+ if _present_needs_full_render(dirty):
+  render(next)
+  return
+ DragTargets.clear(self,false)
+ _hide_term()
+ if not snapshot.is_empty(): view=snapshot
+ layout.body_sidebar(self)
+ layout.end_frame()
+ if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
+ _localize_controls(layout)
+
+func _present_needs_full_render(dirty: Array[String]) -> bool:
+ if not is_instance_valid(layout) or view.is_empty() or dirty.size()!=1:
+  return true
+ var section=dirty[0]
+ return section=="*" or not PRESENT_SECTIONS.has(section) or section!="body_bar"
+
 func _release_candidate_controls(root: Control) -> void:
  for key in candidate_buttons.keys():
   var button=candidate_buttons[key]
