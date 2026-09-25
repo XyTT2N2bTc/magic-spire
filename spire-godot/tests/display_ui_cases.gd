@@ -1081,6 +1081,7 @@ static func run(t) -> void:
  await present_routes_relics_or_full(t)
  await present_routes_hand_or_full(t)
  await present_routes_actions_or_full(t)
+ await present_routes_posture_or_full(t)
  await portrait_refresh(t)
  var backdrop=ui.find_child("MoonlitGallery",true,false)
  var static_draws=[0]
