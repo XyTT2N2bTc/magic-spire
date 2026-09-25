@@ -495,7 +495,10 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  DragTargets.clear(self,false)
  _hide_term()
  if not snapshot.is_empty(): view=snapshot
- layout.body_sidebar(self)
+ if String(dirty[0])=="header":
+  layout.get_node("GameHeader").configure(self)
+ else:
+  layout.body_sidebar(self)
  layout.end_frame()
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
  _localize_controls(layout)
@@ -504,7 +507,11 @@ func _present_needs_full_render(dirty: Array) -> bool:
  if not is_instance_valid(layout) or view.is_empty() or dirty.size()!=1:
   return true
  var section=String(dirty[0])
- return section=="*" or not PRESENT_SECTIONS.has(section) or section!="body_bar"
+ if section=="*" or not PRESENT_SECTIONS.has(section):
+  return true
+ if section=="header":
+  return not is_instance_valid(layout.get_node_or_null("GameHeader"))
+ return section!="body_bar"
 
 func _release_candidate_controls(root: Control) -> void:
  for key in candidate_buttons.keys():
