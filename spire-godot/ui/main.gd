@@ -489,17 +489,19 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # Declared present adjacency (direct calls, stable symbols only): present routes to
 # _present_needs_full_render (predicate), render (full fallback), header.configure
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local),
-# _build_action_rail (["actions"] local) and layout.body_sidebar (["body_bar"]
-# local). header.configure reads header._presentation_key; _relic_row reads
-# _relic_presentation_key, _hand reads _hand_presentation_key and
-# _build_action_rail reads _action_presentation_key in this file (hit
-# early-return, miss rebuild then save). _present_needs_full_render probes
-# GameHeader existence for header, view.pressure.overloaded only for ["hand"],
-# and non-battle / quick_release_open / _selecting_hand / card_chain /
-# reward_panel.active only for ["actions"]; render and layout.body_sidebar are
-# boundary leaves here.
+# _build_action_rail (["actions"] local), _refresh_posture_section (["posture"]
+# local) and layout.body_sidebar (["body_bar"] local). header.configure reads
+# header._presentation_key; _relic_row reads _relic_presentation_key, _hand
+# reads _hand_presentation_key, _build_action_rail reads
+# _action_presentation_key, and _refresh_posture_section / _posture_controls
+# read _posture_presentation_key in this file (hit early-return, miss rebuild
+# then save). _present_needs_full_render probes GameHeader existence for header,
+# view.pressure.overloaded only for ["hand"], non-battle / quick_release_open /
+# _selecting_hand / card_chain / reward_panel.active only for ["actions"], and
+# non-battle / show_route only for ["posture"]; render and layout.body_sidebar
+# are boundary leaves here.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","layout.body_sidebar"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","layout.body_sidebar"],
  "_present_needs_full_render":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
@@ -509,13 +511,17 @@ const PRESENT_ADJACENCY={
  "_hand_presentation_key":[],
  "_build_action_rail":["_action_presentation_key"],
  "_action_presentation_key":[],
+ "_refresh_posture_section":["_posture_presentation_key","_wall_controls","_posture_controls"],
+ "_wall_controls":[],
+ "_posture_controls":["_posture_presentation_key"],
+ "_posture_presentation_key":[],
  "layout.body_sidebar":[],
  "render":[],
 }
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))):
+ if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)):
   render(next)
   return
  DragTargets.clear(self,false)
@@ -529,6 +535,8 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
   _hand()
  elif String(dirty[0])=="actions":
   _build_action_rail()
+ elif String(dirty[0])=="posture":
+  _refresh_posture_section()
  else:
   layout.body_sidebar(self)
  layout.end_frame()
@@ -547,6 +555,8 @@ func _present_needs_full_render(dirty: Array) -> bool:
   return not is_instance_valid(layout.get_node_or_null("GameHeader"))
  if section=="actions":
   return String(view.phase)!="battle" or quick_release_open or _selecting_hand() or not view.card_chain.is_empty() or bool(view.reward_panel.active)
+ if section=="posture":
+  return String(view.phase)!="battle" or show_route
  return section!="body_bar" and section!="relics"
 
 func _release_candidate_controls(root: Control) -> void:
