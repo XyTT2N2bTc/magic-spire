@@ -1,30 +1,30 @@
-# Implementer report: card_facts consumes has_targets_at
+# Implementer report: keyword_ids stable IDs
 
-Domain: `core/card_effects.gd::card_facts` asks `Game.has_targets_at` before `targets_at` on declared slots. HEAD started at `6294f19`. Worktree `C:\1\magic-spire-wt-card-facts-consume` only. Predicate consumption landed.
+Domain: `data/card_text.gd::keyword_ids` extracted from the existing `keywords()` TERMS-key collection; `keywords()` calls it then looks up `TERMS`. HEAD started at `0f8eea0`. Worktree `C:\1\magic-spire-wt-keyword-deps` only. `keyword_ids` landed.
 
-## Predicate consumption
-Landed. Declared empty slots follow the old empty-slot rules (special / shoulder / special slots `continue`; ordinary `targets=[{}]`) and do not call `targets_at`. Slots with targets still collect via `targets_at`; `occupied` only appends `{}` when a slot has targets, is not shoulder, and is not full. No copied `_visit_targets_at` filters; `has_targets_at` is not implemented as `targets_at(slot).is_empty()`. Shared walk in `core/game.gd` unchanged. Production source has no counter.
+## Extraction
+Landed. Same SPECS / face / trait walk as today's `keywords()`, then first-occurrence unique TERMS keys. `keywords()` does not walk SPECS again. No `id` on `face_keywords` or TERMS entries. `TERMS` name/detail strings unchanged. `const TERMS` became `static var TERMS` so the Gherkin can mutate `.name` and restore (Godot 4.7 freezes `const` dictionaries). Slots still `SPECS.get("target_slots", [])`; mode still `Rules.face_mode`. No `card_facts` / `game.gd` walk / UI change.
 
 ## Commits (no push)
-- `2ee7bc7` checkpoint(implementer): consume has_targets_at in card_facts
+- `d921ab6` checkpoint(implementer): extract keyword_ids from keywords
 - (this) `spire-godot/build/implementer-report.md`
 
 ## Check
-- Command: `spire-godot/` `$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'; & tools/check.ps1 -Suite architecture -TimeoutSeconds 600`
+- Command: `spire-godot/` `$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'; & tools/check.ps1 -Suite card_power -TimeoutSeconds 600`
 - Exit: 0
-- `SUITE RESULT: architecture PASS`
-- `PASS: 4429 assertions`
-- Summary: `spire-godot/build/checks/20260925T055947199-28432/summary.json`
+- `SUITE RESULT: card_power PASS`
+- `PASS: 2295 assertions`
+- Summary: `spire-godot/build/checks/20260925T064606091-5292/summary.json`
 - summary.status: `passed` (before==after fingerprint; not `source_changed`)
 - docs: PASS (35 docs, 2412 refs)
 
-First import-only attempt failed (`20260925T055704112-5024`, font `.fontdata` missing in a fresh worktree `.godot`). After engine import, `*.import` restored and two untracked `*.uid` files deleted; they were not committed.
+First import-only attempt failed (`20260925T064205022-12076`, font `.fontdata` missing in a fresh worktree `.godot`). After engine import, `*.import` restored and two untracked `*.uid` files deleted; they were not committed. A TERMS-const mutate parse/runtime fail (`20260925T064327924-39996`, `20260925T064452659-31440`) is not a pass.
 
 ## Gherkin
-`tests/architecture_cases.gd::card_facts_consumes_has_targets_at` (registered in `run`): `TargetsAtCountingGame.new(42)` battle empty; one-sided palm/fingers (`occupied=false`, piece id in facts); live link covering empty `equipment_at`; dead link; active glove composite; disabled composite; jacket contacts outside `equipment_at`; disabled jacket; linked torso-binding connections (practice factory, same as `has_targets_at_parity`). Cards: `strain` and `slip` (no `target_slots`). Oracle=`card_facts_union_slot_oracle` via `targets_at`. Empty slots absent from `targets_at_slots`; occupied slots still counted; snapshot/rng frozen. `card_facts_declared_slots` stayed in the same architecture PASS.
+`tests/card_text_cases.gd::card_keyword_deps_stable_ids` (registered in `run`): `Game.new(42)` `B.CARD_TRAITS`; pins `strain` / `slip` / `crossed_legs` / `strong_elbow` / `magic_hand` / `pot_of_greed` / `mana_search`. ids are TERMS keys in `keywords()` order; no `id` on keyword dicts; strain bound has `"strain"`, no slots, mode `"strain"`; crossed_legs slots `FOLLOW_THROUGH_REGIONS.legs`; strong_elbow `["upper_arm","forearm"]`; magic_hand bound has `"follow_through"` with display `超级顺延`; pot both faces `"exhaust"` and `face_keywords==[Text.TERMS.exhaust]`; mana_search `"search"`. After TERMS name mutate, ids/slots/mode unchanged; snapshot/rng frozen. Oracle does not use `term.name` / `requirements()` / `SLOT_NAMES` as ids. Existing TERMS/COPY assertions stayed green in the same card_power PASS.
 
 ## Unverified
-- Not run: equipment / composites / links / torso_binding suites; hardener mutations
-- Not this slice: `docs/spec` dependency write, T4/T5/delta/TERMS/UI
+- Not run: architecture / UI / hardener mutations
+- Not this slice: `docs/spec`, `card_facts` consuming `keyword_ids`, T4/T5/delta
 - Not claimed clean or hardened
-- Size and ESM: not in project AGENTS.md. Touched counts: `core/card_effects.gd` 1456 lines; `tests/architecture_cases.gd` 2211 lines
+- Size and ESM: not in project AGENTS.md. Touched counts: `data/card_text.gd` 176 lines; `tests/card_text_cases.gd` 176 lines
