@@ -570,6 +570,8 @@ static func present_routes_relics_or_full(t) -> void:
  var header_after_header=ui.find_child("GameHeader",true,false)
  ui.present(["body_bar"]);await t.frames()
  t.check(ui.find_child("GameHeader",true,false)==header_after_header,"DISPLAY present body_bar still keeps GameHeader")
+ t.check(ui.find_child("RelicStrip",true,false)==strip_after_mutation,"DISPLAY present body_bar does not replace RelicStrip")
+ t.check(ui.find_children("RelicStrip","",true,false).size()==1,"DISPLAY present body_bar keeps a single RelicStrip")
  var header_before_hand=ui.find_child("GameHeader",true,false)
  ui.present(["hand"]);await t.frames()
  var header_after_hand=ui.find_child("GameHeader",true,false)
@@ -582,6 +584,26 @@ static func present_routes_relics_or_full(t) -> void:
  t.check(ui.game.export_snapshot()==before,"DISPLAY present relics does not mutate export_snapshot")
  t.check(ui.game.state.rng==before_rng,"DISPLAY present relics does not mutate random cursors")
  t.check(not ui.find_children("RelicStrip","",true,false).is_empty(),"DISPLAY relics snapshot path still has a RelicStrip")
+ var extra_host=Control.new();ui.layout.add_child(extra_host)
+ var extra=ScrollContainer.new();extra.name="RelicStrip"
+ extra_host.add_child(extra)
+ t.check(ui.find_children("RelicStrip","",true,false).size()==2,"DISPLAY relics duplicate RelicStrip fixture has two strips")
+ ui.present(["relics"]);await t.frames()
+ t.check(ui.find_children("RelicStrip","",true,false).size()==1,"DISPLAY present relics collapses extra RelicStrip to one")
+ var host=VBoxContainer.new();host.name="RouteMapColumn"
+ ui.layout.add_child(host)
+ var live=ui.find_child("RelicStrip",true,false)
+ live.reparent(host)
+ live.custom_minimum_size=Vector2(0,48)
+ live.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+ live.position=Vector2.ZERO
+ ui.view.relics[0].counter={"text":"host-probe","detail":"host probe"}
+ ui.present(["relics"]);await t.frames()
+ var rebuilt=ui.find_child("RelicStrip",true,false)
+ t.check(is_instance_valid(rebuilt) and rebuilt.get_parent()==host,"DISPLAY present relics rebuild keeps RelicStrip parent")
+ t.check(rebuilt.position==Vector2.ZERO,"DISPLAY present relics rebuild keeps RelicStrip position")
+ t.check(rebuilt.size_flags_horizontal==Control.SIZE_EXPAND_FILL,"DISPLAY present relics rebuild keeps RelicStrip size flags")
+ t.check(ui.find_children("RelicStrip","",true,false).size()==1,"DISPLAY present relics rebuild under host keeps a single RelicStrip")
  var header_before_empty=ui.find_child("GameHeader",true,false)
  ui.view.relics=[]
  ui.present(["relics"]);await t.frames()
@@ -590,6 +612,12 @@ static func present_routes_relics_or_full(t) -> void:
  t.check(counting.get_view_calls==baseline,"DISPLAY present relics empty unload does not call get_view")
  t.check(ui.game.export_snapshot()==before,"DISPLAY present relics empty unload does not mutate export_snapshot")
  t.check(ui.game.state.rng==before_rng,"DISPLAY present relics empty unload does not mutate random cursors")
+ var leftover=ScrollContainer.new();leftover.name="RelicStrip"
+ ui.layout.add_child(leftover)
+ t.check(ui.find_children("RelicStrip","",true,false).size()==1,"DISPLAY relics leftover RelicStrip fixture has one strip")
+ ui.present(["relics"]);await t.frames()
+ t.check(ui.find_children("RelicStrip","",true,false).is_empty(),"DISPLAY present relics unloads leftover RelicStrip when view relics stay empty")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present relics leftover unload does not call get_view")
 
 # docs/spec/ondemand-copy.md「证据入口」: the body detail section resolves the card face through
 # the single display entry, so a deleted card_texts key must recompute the same text and leave a

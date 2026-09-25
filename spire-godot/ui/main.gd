@@ -609,10 +609,21 @@ func _relic_row() -> void:
  var key=_relic_presentation_key()
  var strips=[]
  if is_instance_valid(layout): strips=layout.find_children("RelicStrip","",true,false)
- if _relic_key==key and (view.relics.is_empty() or not strips.is_empty()):
+ if _relic_key==key and strips.size()==(0 if view.relics.is_empty() else 1):
   return
+ var host: Control=null
+ var host_rect=Rect2(405,78,1013,56)
+ var host_min_size=Vector2.ZERO
+ var host_h=Control.SIZE_FILL
+ var host_v=Control.SIZE_FILL
  for existing in strips:
   if not is_instance_valid(existing): continue
+  if host==null and existing.get_parent() is Control:
+   host=existing.get_parent()
+   host_rect=Rect2(existing.position,existing.size)
+   host_min_size=existing.custom_minimum_size
+   host_h=existing.size_flags_horizontal
+   host_v=existing.size_flags_vertical
   var owner=existing.get_parent()
   if owner!=null: owner.remove_child(existing)
   existing.queue_free()
@@ -622,7 +633,13 @@ func _relic_row() -> void:
  var strip=ScrollContainer.new();strip.name="RelicStrip"
  strip.vertical_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
  strip.mouse_filter=Control.MOUSE_FILTER_IGNORE
- _place(strip,Rect2(405,78,1013,56))
+ if is_instance_valid(host):
+  _place(strip,host_rect,host)
+  strip.custom_minimum_size=host_min_size
+  strip.size_flags_horizontal=host_h
+  strip.size_flags_vertical=host_v
+ else:
+  _place(strip,Rect2(405,78,1013,56))
  var icons=HBoxContainer.new();icons.name="RelicRow";icons.add_theme_constant_override("separation",8)
  icons.mouse_filter=Control.MOUSE_FILTER_IGNORE
  strip.add_child(icons)
