@@ -22,7 +22,7 @@
 
 Given `tests/display_ui_cases.gd`，`ui.restart(42)` 后 `render(ui.view)`（战斗页，header／body 已建）。测试侧 `GetViewCountingGame`（或等价包装，生产无计数器）接到 `ui.game` 后再 `render(ui.view)` 一次，记下 `get_view` 基线。钉 `GameHeader` 实例、`ui.body_buttons.wrist`（或同页稳定 `BodySlot_*`）、一处 `BodyRegionContent_*` 的 `scroll_vertical`（可按 `sidebar_refresh` 把 `BodyEquipmentPanel.size.y` 压到可滚）。Oracle＝`body_sidebar._presentation_key(ui)`；快照／`state.rng`。不调 `_submit`。
 When 依次：① `present(["body_bar"])` 空 snapshot、View 未改；② `present(["*"])`；③ `present(["not_a_section"])`；④ 只改 `ui.view` 上一处键内显示字段（如某 `body_regions.members` 的 `count`，不 `dispatch`）再 `present(["body_bar"])`；⑤ `present(["body_bar"], snapshot)` 传入当前 View 的非空副本。每步 `await t.frames`。
-Then ① `GameHeader` 与身体按钮实例 id、滚动不变，`get_view` 计数＝基线。②与③ `GameHeader` 实例被替换（全量走了 `begin_frame`），`get_view` 仍＝基线。④ header 实例仍是①的那个；身体按钮实例已换且可见件数与改后 View 一致；`get_view` 仍＝基线。⑤ `get_view` 仍＝基线，`ui.view` 即传入 snapshot。全程 `export_snapshot()`／随机游标不变。不得用生产计数器；不得把 `render()` 空 snapshot 的 `get_view` 算进 present 义务。本场景不是契约场景 3 全表。
+Then ① `GameHeader` 与身体按钮实例 id、滚动不变，`get_view` 计数＝基线。②与③ `GameHeader` 实例被替换（全量走了 `begin_frame`），`get_view` 仍＝基线。④ header 实例与③之后相同；身体按钮实例已换且可见件数与改后 View 一致；`get_view` 仍＝基线。⑤ `get_view` 仍＝基线，`ui.view` 即传入 snapshot。全程 `export_snapshot()`／随机游标不变。不得用生产计数器；不得把 `render()` 空 snapshot 的 `get_view` 算进 present 义务。本场景不是契约场景 3 全表。
 
 ## 验收流程
 
