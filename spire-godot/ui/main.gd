@@ -1014,9 +1014,65 @@ func _posture_layout(count: int) -> Dictionary:
  var stride=minf(48.0,100.0/maxi(1,rows)) if with_move else 48.0
  return {"top":725-rows*stride,"stride":stride,"with_move":with_move}
 
+var _posture_key=[]
+
+func _posture_presentation_key() -> Array:
+ var postures=[]
+ for c in TargetQueries.facts(view,"posture"):
+  if not c.payload.adjacent: continue
+  postures.append([TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,bool(c.payload.adjacent),bool(c.payload.wall)])
+ var toward=[]
+ for c in TargetQueries.facts(view,"wall_move"):
+  if String(c.payload.get("direction",""))!="toward": continue
+  toward.append([TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,c.payload.distance])
+ return [String(view.posture),bool(view.guard_bind.is_empty()),postures,toward]
+
+func _posture_key_hit(key) -> bool:
+ if _posture_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var adjacent=TargetQueries.facts(view,"posture").filter(func(c):return c.payload.adjacent)
+ var toward=TargetQueries.facts(view,"wall_move").filter(func(c):return String(c.payload.get("direction",""))=="toward")
+ var choices=layout.find_children("PostureChoices","",true,false)
+ if adjacent.is_empty():
+  if not choices.is_empty(): return false
+ else:
+  if choices.size()!=1 or not choices[0].is_inside_tree(): return false
+ var walls=layout.find_children("WallMove_toward","",true,false)
+ if toward.is_empty():
+  if not walls.is_empty(): return false
+ else:
+  if walls.size()!=1 or not walls[0].is_inside_tree(): return false
+ for c in adjacent:
+  var node_name="Posture_"+String(c.payload.dest)+("_wall" if c.payload.wall else "")
+  var nodes=layout.find_children(node_name,"",true,false)
+  if nodes.size()!=1 or not nodes[0].is_inside_tree(): return false
+  if candidate_buttons.get(display_key(c.payload))!=nodes[0]: return false
+ for c in toward:
+  if candidate_buttons.get(display_key(c.payload))!=walls[0]: return false
+ return true
+
+func _unload_posture_section() -> void:
+ if not is_instance_valid(layout): return
+ _remove_local_panel("PostureChoices")
+ var wall=layout.get_node_or_null("WallMove_toward")
+ if wall==null: return
+ for key in candidate_buttons.keys():
+  if candidate_buttons[key]==wall: candidate_buttons.erase(key)
+ _remove_local_panel("WallMove_toward")
+
+func _refresh_posture_section() -> void:
+ var key=_posture_presentation_key()
+ if _posture_key_hit(key):
+  return
+ _unload_posture_section()
+ _wall_controls()
+ _posture_controls()
+
 func _posture_controls() -> void:
  var choices=TargetQueries.facts(view,"posture").filter(func(c):return c.payload.adjacent)
- if choices.is_empty(): return
+ if choices.is_empty():
+  _posture_key=_posture_presentation_key()
+  return
  var ordinary=choices.filter(func(c):return not c.payload.wall)
  var placement=_posture_layout(ordinary.size())
  var container=Control.new();container.name="PostureChoices"
@@ -1043,6 +1099,7 @@ func _posture_controls() -> void:
   btn.disabled=not c.valid;btn.tooltip_text=detail_of(c) if c.valid else c.reason
   _place(btn,Rect2(128 if c.payload.wall else 0,index*placement.stride,121 if has_wall else 249,placement.stride-4),container)
   candidate_buttons[display_key(c.payload)]=btn
+ _posture_key=_posture_presentation_key()
 
 # 显示边界的唯一卡面取用点（docs/ondemand-copy.md §3）：命中投影即用，未命中经 §1.4 单条入口补算并记录。
 func card_entry(type: String, uid: String="") -> Dictionary:
