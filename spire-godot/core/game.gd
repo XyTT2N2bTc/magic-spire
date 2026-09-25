@@ -1096,15 +1096,48 @@ func action_targets() -> Array:
  return equipment_targets()+state.special_equipment+Binding.connections(self)
 
 func targets_at(slot: String) -> Array:
- if slot=="shoulder": return physical_pieces().filter(func(e):return Equipment.is_shoulder(e) and e.durability>0)
- if slot in SpecialEquipment.slots(): return state.special_equipment.filter(func(e):return SpecialEquipment.occupies(e,slot))+links_at(slot)
- var targets=equipment_at(slot)
+ var targets=[]
+ _visit_targets_at(slot,targets,false)
+ return targets
+
+func has_targets_at(slot: String) -> bool:
+ return _visit_targets_at(slot,[],true)
+
+# Filters live only here. stop_on_first returns on the first hit and does not collect later sources.
+func _visit_targets_at(slot: String, found: Array, stop_on_first: bool) -> bool:
+ if slot=="shoulder":
+  for e in physical_pieces():
+   if Equipment.is_shoulder(e) and e.durability>0:
+    if stop_on_first: return true
+    found.append(e)
+  return false
+ if slot in SpecialEquipment.slots():
+  for e in state.special_equipment:
+   if SpecialEquipment.occupies(e,slot):
+    if stop_on_first: return true
+    found.append(e)
+  for e in links_at(slot):
+   if stop_on_first: return true
+   found.append(e)
+  return false
+ for e in equipment_at(slot):
+  if stop_on_first: return true
+  found.append(e)
  for root in _composite_roots():
   if slot in Composites.definition(root).coverage and Composites.active(root):
    for e in root.components:
-    if not Equipment.is_shoulder(e) and not targets.has(e): targets.append(e)
+    if Equipment.is_shoulder(e) or found.has(e): continue
+    if stop_on_first: return true
+    found.append(e)
+ for e in links_at(slot):
+  if stop_on_first: return true
+  found.append(e)
  var connections=_equipment_read.connections.duplicate() if _equipment_read_active() else Binding.connections(self)
- return targets+links_at(slot)+connections.filter(func(e):return e.slot==slot)
+ for e in connections:
+  if e.slot==slot:
+   if stop_on_first: return true
+   found.append(e)
+ return false
 
 func _composite(id: String) -> Dictionary:
  if _equipment_read_active(): return _equipment_read.roots.get(id,{})
