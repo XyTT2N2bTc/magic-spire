@@ -479,7 +479,7 @@ func render(snapshot: Dictionary={}) -> void:
  _refresh_drawers()
  if view.phase=="shop" and not show_route: ShopScreen.payment_overlay(self)
  if notice!="" and actor_targets.has("hero"):
-  _show_term(actor_targets.hero,{"label":"","detail":notice})
+  _refresh_notice_section()
  _takeover_banner()
  layout.end_frame()
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
@@ -493,7 +493,9 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # local), _refresh_resource_section (["resources"] local), _refresh_log_section
 # (["show_log"] local), _refresh_body_details_section (["body_details"] local),
 # _refresh_picker_section (["pickers"] local), _refresh_speech_section (["speech"]
-# local) and layout.body_sidebar (["body_bar"] local).
+# local), _refresh_notice_section (["notice"] local) and layout.body_sidebar
+# (["body_bar"] local). present local ["notice"] skips the prefix _hide_term;
+# other local sections still hide first.
 # header.configure reads header._presentation_key; _relic_row reads
 # _relic_presentation_key, _hand reads _hand_presentation_key,
 # _build_action_rail reads _action_presentation_key, _refresh_posture_section /
@@ -501,17 +503,21 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # reads _resource_presentation_key, _refresh_log_section / _log_drawer read
 # _log_presentation_key, _refresh_body_details_section / _body_details read
 # _body_details_presentation_key, _refresh_picker_section / _hand_target_picker
-# read _picker_presentation_key, and _refresh_speech_section / _speech_bubble
-# read _speech_presentation_key in this file (hit early-return, miss rebuild then save).
+# read _picker_presentation_key, _refresh_speech_section / _speech_bubble
+# read _speech_presentation_key, and _refresh_notice_section reads
+# _notice_presentation_key then _show_term in this file (hit early-return,
+# miss _hide_term then rebuild then save).
 # _present_needs_full_render probes GameHeader existence for header,
 # view.pressure.overloaded only for ["hand"], non-battle / quick_release_open /
 # _selecting_hand / card_chain / reward_panel.active only for ["actions"],
 # non-battle / show_route only for ["posture"] and ["resources"],
 # not show_log / show_home only for ["show_log"], _selecting_hand /
 # closed details / quick_release_open / non-battle / pending_retain only for
-# ["body_details"], not _selecting_hand only for ["pickers"], and empty speech /
+# ["body_details"], not _selecting_hand only for ["pickers"], empty speech /
 # show_home / show_route / non-battle / takeover lock / suppressed hero id /
-# nonempty npc_speech only for ["speech"]; render and
+# nonempty npc_speech only for ["speech"], and empty notice / missing or
+# invalid hero / show_home / show_route / non-battle / touch finger with
+# details blocked only for ["notice"]; render, _show_term, and
 # layout.body_sidebar are boundary leaves here.
 # present does not call _bottom_controls, _wall_controls, _posture_controls,
 # mana_flask.build, _refresh_drawers, _open_drawer, _close_drawers,
@@ -519,9 +525,10 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _action_row, _card_target, release_details, quick_release_bar,
 # _player_picker, _clear_player_picker, open_hand_selection,
 # _npc_speech_bubble, _skip_hero_speech, _battle_scene, _shop_chatter,
-# _dismiss_speech, or _speech_visible.
+# _dismiss_speech, _speech_visible, _show_term, _drag_rejection,
+# _card_tooltip, or _takeover_banner.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","layout.body_sidebar"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","layout.body_sidebar"],
  "_present_needs_full_render":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
@@ -550,17 +557,21 @@ const PRESENT_ADJACENCY={
  "_refresh_speech_section":["_speech_presentation_key","_speech_bubble"],
  "_speech_bubble":["_speech_presentation_key"],
  "_speech_presentation_key":[],
+ "_refresh_notice_section":["_notice_presentation_key","_show_term"],
+ "_notice_presentation_key":[],
+ "_show_term":[],
  "layout.body_sidebar":[],
  "render":[],
 }
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)) or (dirty.size()==1 and String(dirty[0])=="body_details" and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.size()==1 and String(dirty[0])=="pickers" and not _selecting_hand()) or (dirty.size()==1 and String(dirty[0])=="speech" and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())):
+ if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)) or (dirty.size()==1 and String(dirty[0])=="body_details" and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.size()==1 and String(dirty[0])=="pickers" and not _selecting_hand()) or (dirty.size()==1 and String(dirty[0])=="speech" and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())) or (dirty.size()==1 and String(dirty[0])=="notice" and (notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed))):
   render(next)
   return
  DragTargets.clear(self,false)
- _hide_term()
+ if String(dirty[0])!="notice":
+  _hide_term()
  if not snapshot.is_empty(): view=snapshot
  if String(dirty[0])=="header":
   layout.get_node("GameHeader").configure(self)
@@ -582,6 +593,8 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
   _refresh_picker_section()
  elif String(dirty[0])=="speech":
   _refresh_speech_section()
+ elif String(dirty[0])=="notice":
+  _refresh_notice_section()
  else:
   layout.body_sidebar(self)
  layout.end_frame()
@@ -613,6 +626,8 @@ func _present_needs_full_render(dirty: Array) -> bool:
  if section=="speech":
   var speech=view.get("speech",{})
   return speech.is_empty() or show_home or show_route or String(view.phase)!="battle" or _takeover_locked() or suppressed_hero_speech_id=="hero:"+str(speech.get("id","")) or not view.get("npc_speech",{}).is_empty()
+ if section=="notice":
+  return notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(view.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed)
  return section!="body_bar" and section!="relics"
 
 func _release_candidate_controls(root: Control) -> void:
@@ -2504,6 +2519,42 @@ func _position_term(anchor: Rect2) -> void:
  if is_instance_valid(drop_panel) and is_instance_valid(term_anchor) and drop_panel.is_ancestor_of(term_anchor): x=drop_panel.position.x+drop_panel.size.x+10
  if x+term_popup.size.x>1580: x=anchor.position.x-term_popup.size.x-12
  term_popup.position=Vector2(clampf(x,20,maxf(20,1580-term_popup.size.x)),clampf(anchor.position.y,74,maxf(74,886-term_popup.size.y)))
+
+var _notice_key=[]
+
+func _notice_presentation_key() -> Array:
+ return [String(notice),bool(actor_targets.has("hero"))]
+
+func _notice_key_hit(key) -> bool:
+ if _notice_key!=key: return false
+ if not is_instance_valid(layout) or not is_instance_valid(term_popup): return false
+ if String(term_popup.name)!="TermExplanation": return false
+ if not term_popup.is_inside_tree() or not layout.is_ancestor_of(term_popup): return false
+ var live=0
+ for node in layout.find_children("TermExplanation","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree() and String(node.name)=="TermExplanation": live+=1
+ if live!=1: return false
+ if not actor_targets.has("hero"): return false
+ var hero=actor_targets.hero
+ if not is_instance_valid(hero) or not is_instance_valid(term_anchor) or term_anchor!=hero: return false
+ if term_popup.has_meta("drag_reason"): return false
+ var text=""
+ var pending: Array=[term_popup]
+ while not pending.is_empty():
+  var node=pending.pop_back()
+  if node is Control and not node.is_visible_in_tree(): continue
+  if node is Label: text+=String(node.text)
+  for child in node.get_children(): pending.append(child)
+ return text.contains(String(notice))
+
+func _refresh_notice_section() -> void:
+ var key=_notice_presentation_key()
+ if _notice_key_hit(key):
+  return
+ _hide_term()
+ _show_term(actor_targets.hero,{"label":"","detail":notice})
+ if is_instance_valid(term_popup) and String(term_popup.name)=="TermExplanation":
+  _notice_key=_notice_presentation_key()
 
 var _speech_key=[]
 
