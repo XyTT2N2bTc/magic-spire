@@ -490,20 +490,24 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _present_needs_full_render (predicate), render (full fallback), header.configure
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local),
 # _build_action_rail (["actions"] local), _refresh_posture_section (["posture"]
-# local), _refresh_resource_section (["resources"] local) and layout.body_sidebar
-# (["body_bar"] local). header.configure reads header._presentation_key;
-# _relic_row reads _relic_presentation_key, _hand reads _hand_presentation_key,
+# local), _refresh_resource_section (["resources"] local), _refresh_log_section
+# (["show_log"] local) and layout.body_sidebar (["body_bar"] local).
+# header.configure reads header._presentation_key; _relic_row reads
+# _relic_presentation_key, _hand reads _hand_presentation_key,
 # _build_action_rail reads _action_presentation_key, _refresh_posture_section /
-# _posture_controls read _posture_presentation_key, and _refresh_resource_section
-# reads _resource_presentation_key in this file (hit early-return, miss rebuild
-# then save). _present_needs_full_render probes GameHeader existence for header,
+# _posture_controls read _posture_presentation_key, _refresh_resource_section
+# reads _resource_presentation_key, and _refresh_log_section / _log_drawer read
+# _log_presentation_key in this file (hit early-return, miss rebuild then save).
+# _present_needs_full_render probes GameHeader existence for header,
 # view.pressure.overloaded only for ["hand"], non-battle / quick_release_open /
-# _selecting_hand / card_chain / reward_panel.active only for ["actions"], and
-# non-battle / show_route only for ["posture"] and ["resources"]; render and
+# _selecting_hand / card_chain / reward_panel.active only for ["actions"],
+# non-battle / show_route only for ["posture"] and ["resources"], and
+# not show_log / show_home only for ["show_log"]; render and
 # layout.body_sidebar are boundary leaves here. present does not call
-# _bottom_controls, _wall_controls, _posture_controls, or mana_flask.build.
+# _bottom_controls, _wall_controls, _posture_controls, mana_flask.build,
+# _refresh_drawers, _open_drawer, _close_drawers, or _drawer_shell.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","layout.body_sidebar"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","layout.body_sidebar"],
  "_present_needs_full_render":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
@@ -520,13 +524,16 @@ const PRESENT_ADJACENCY={
  "_refresh_resource_section":["_resource_presentation_key","_build_resource_bar"],
  "_build_resource_bar":["_resource_presentation_key"],
  "_resource_presentation_key":[],
+ "_refresh_log_section":["_log_presentation_key","_log_drawer"],
+ "_log_drawer":["_log_presentation_key"],
+ "_log_presentation_key":[],
  "layout.body_sidebar":[],
  "render":[],
 }
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)):
+ if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)):
   render(next)
   return
  DragTargets.clear(self,false)
@@ -544,6 +551,8 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
   _refresh_posture_section()
  elif String(dirty[0])=="resources":
   _refresh_resource_section()
+ elif String(dirty[0])=="show_log":
+  _refresh_log_section()
  else:
   layout.body_sidebar(self)
  layout.end_frame()
@@ -566,6 +575,8 @@ func _present_needs_full_render(dirty: Array) -> bool:
   return String(view.phase)!="battle" or show_route
  if section=="resources":
   return String(view.phase)!="battle" or show_route
+ if section=="show_log":
+  return not show_log or show_home
  return section!="body_bar" and section!="relics"
 
 func _release_candidate_controls(root: Control) -> void:
@@ -2246,6 +2257,72 @@ func _restore_map_scroll(scroll: ScrollContainer, graph: Control, offset: int) -
  map_scroll_value=scroll.scroll_vertical
  scroll.get_v_scroll_bar().value_changed.connect(func(value):map_scroll_value=int(value))
 
+var _log_key=[]
+
+func _log_presentation_key() -> Array:
+ var action=[]
+ for note in view.action_log:
+  action.append([String(note.actor),note.round,String(note.text)])
+ var logs=[]
+ for i in range(view.logs.size()-1,maxi(-1,view.logs.size()-45),-1):
+  var e=view.logs[i]
+  logs.append([String(e.kind),String(e.text)])
+ return [action,logs]
+
+func _log_live_count(root: Node, node_name: String) -> int:
+ var n=0
+ if not is_instance_valid(root): return 0
+ for node in root.find_children(node_name,"",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n
+
+func _log_key_hit(key) -> bool:
+ if _log_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var live=[]
+ for node in layout.find_children("InformationLayer","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if live.size()!=1: return false
+ var layer=live[0]
+ for node_name in ["InformationDrawer","DismissDrawer","LogBackToMenu","LogDetails","LogDetailRows"]:
+  if _log_live_count(layer,node_name)!=1: return false
+ return true
+
+func _ensure_log_layer() -> void:
+ if not is_instance_valid(layout): return
+ var live=[]
+ for node in layout.find_children("InformationLayer","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if not live.is_empty():
+  if is_instance_valid(drawer_layer) and live.has(drawer_layer): return
+  drawer_layer=live[0]
+  return
+ drawer_layer=Control.new();drawer_layer.name="InformationLayer"
+ drawer_layer.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ layout.add_child(drawer_layer)
+ drawer_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+func _unload_log_shell() -> void:
+ if not is_instance_valid(drawer_layer): return
+ var doomed=[]
+ for node in drawer_layer.get_children():
+  var n=String(node.name)
+  if n=="DismissDrawer" or n=="InformationDrawer": doomed.append(node)
+ for node in doomed:
+  if node is Control: _release_candidate_controls(node)
+  drawer_layer.remove_child(node)
+  node.queue_free()
+
+func _refresh_log_section() -> void:
+ var key=_log_presentation_key()
+ if _log_key_hit(key):
+  return
+ _ensure_log_layer()
+ _unload_log_shell()
+ building_drawer=true
+ _log_drawer()
+ building_drawer=false
+
 func _log_drawer() -> void:
  var v=_drawer_shell("行动日志",Rect2(650,150,870,560))
  var back=_button("返回菜单",func():_open_drawer("show_menu"),MUTED);back.name="LogBackToMenu";v.add_child(back)
@@ -2262,6 +2339,7 @@ func _log_drawer() -> void:
  for i in range(view.logs.size()-1,maxi(-1,view.logs.size()-45),-1):
   var e=view.logs[i]
   details.add_child(_label(("计算 · " if e.kind=="mechanical" else "")+e.text,14,MUTED))
+ _log_key=_log_presentation_key()
 
 func _hide_term() -> void:
  if is_instance_valid(term_popup):
