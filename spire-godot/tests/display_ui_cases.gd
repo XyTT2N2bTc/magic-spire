@@ -438,6 +438,12 @@ static func present_routes_body_bar_or_full(t) -> void:
 static func present_header_button_count(header) -> int:
  return header.find_children("*","Button",true,false).size()
 
+static func present_hand_live_count(ui, uid: String) -> int:
+ var n=0
+ for node in ui.find_children("HandCard_"+String(uid),"",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n
+
 static func present_routes_header_or_full(t) -> void:
  var ui=t.ui
  ui.restart(42);await t.frames(8)
@@ -499,11 +505,11 @@ static func present_routes_header_or_full(t) -> void:
  var header_after_mutation=header
  ui.present(["body_bar"]);await t.frames()
  t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present body_bar still keeps GameHeader")
- var header_before_hand=ui.find_child("GameHeader",true,false)
- ui.present(["hand"]);await t.frames()
- var header_after_hand=ui.find_child("GameHeader",true,false)
- t.check(is_instance_valid(header_after_hand) and header_after_hand.get_instance_id()!=header_before_hand.get_instance_id(),"DISPLAY present hand replaces GameHeader")
- t.check(counting.get_view_calls==baseline,"DISPLAY present hand does not call get_view")
+ var header_before_actions=ui.find_child("GameHeader",true,false)
+ ui.present(["actions"]);await t.frames()
+ var header_after_actions=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_actions) and header_after_actions.get_instance_id()!=header_before_actions.get_instance_id(),"DISPLAY present actions replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present actions does not call get_view")
  var snap=ui.view.duplicate(true)
  ui.present(["header"],snap);await t.frames()
  t.check(counting.get_view_calls==baseline,"DISPLAY present header snapshot does not call get_view")
@@ -572,11 +578,11 @@ static func present_routes_relics_or_full(t) -> void:
  t.check(ui.find_child("GameHeader",true,false)==header_after_header,"DISPLAY present body_bar still keeps GameHeader")
  t.check(ui.find_child("RelicStrip",true,false)==strip_after_mutation,"DISPLAY present body_bar does not replace RelicStrip")
  t.check(ui.find_children("RelicStrip","",true,false).size()==1,"DISPLAY present body_bar keeps a single RelicStrip")
- var header_before_hand=ui.find_child("GameHeader",true,false)
- ui.present(["hand"]);await t.frames()
- var header_after_hand=ui.find_child("GameHeader",true,false)
- t.check(is_instance_valid(header_after_hand) and header_after_hand.get_instance_id()!=header_before_hand.get_instance_id(),"DISPLAY present hand replaces GameHeader")
- t.check(counting.get_view_calls==baseline,"DISPLAY present hand does not call get_view")
+ var header_before_actions=ui.find_child("GameHeader",true,false)
+ ui.present(["actions"]);await t.frames()
+ var header_after_actions=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_actions) and header_after_actions.get_instance_id()!=header_before_actions.get_instance_id(),"DISPLAY present actions replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present actions does not call get_view")
  var snap=ui.view.duplicate(true)
  ui.present(["relics"],snap);await t.frames()
  t.check(counting.get_view_calls==baseline,"DISPLAY present relics snapshot does not call get_view")
@@ -623,6 +629,82 @@ static func present_routes_relics_or_full(t) -> void:
  ui.present(["relics"]);await t.frames()
  t.check(ui.find_children("RelicStrip","",true,false).is_empty(),"DISPLAY present relics unloads leftover RelicStrip when view relics stay empty")
  t.check(counting.get_view_calls==baseline,"DISPLAY present relics leftover unload does not call get_view")
+
+static func present_routes_hand_or_full(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ t.check(String(ui.view.phase)=="battle" and ui.find_child("GameHeader",true,false)!=null and not ui.view.hand.is_empty() and not bool(ui.view.pressure.overloaded),"DISPLAY hand fixture is a battle page with a non-empty non-overloaded hand")
+ var first_uid=String(ui.view.hand[0].uid)
+ var counting=GetViewCountingGame.new(42,false,"equipment",false)
+ t.check(counting.restore_snapshot(ui.game.export_snapshot()).ok,"DISPLAY hand counting wrapper restores the live run")
+ ui.game=counting
+ ui.render(ui.view);await t.frames(3)
+ var baseline=counting.get_view_calls
+ var before=ui.game.export_snapshot()
+ var before_rng=ui.game.state.rng.duplicate(true)
+ var header=ui.find_child("GameHeader",true,false)
+ var relics=ui.find_children("RelicStrip","",true,false)
+ var relic=relics[0] if not relics.is_empty() else null
+ var first_card=ui.card_buttons.get(first_uid)
+ var wrist=ui.body_buttons.get("wrist")
+ t.check(is_instance_valid(header) and is_instance_valid(first_card),"DISPLAY hand baseline has GameHeader and first card button")
+ ui.present(["hand"]);await t.frames()
+ ui.present(["hand"]);await t.frames()
+ t.check(ui.card_buttons.get(first_uid)==first_card,"DISPLAY present hand keeps first card instance")
+ t.check(present_hand_live_count(ui,first_uid)==1,"DISPLAY present hand keeps one live button per uid")
+ t.check(ui.card_buttons.size()==ui.view.hand.size(),"DISPLAY present hand card_buttons keys match hand size")
+ t.check(ui.find_child("GameHeader",true,false)==header,"DISPLAY present hand keeps GameHeader")
+ t.check(relic==null or ui.find_child("RelicStrip",true,false)==relic,"DISPLAY present hand keeps RelicStrip instance when present")
+ t.check(wrist==null or ui.body_buttons.wrist==wrist,"DISPLAY present hand keeps wrist instance")
+ t.check(is_instance_valid(ui.layout.hero) and ui.layout.hero.visible and is_instance_valid(ui.layout.body),"DISPLAY present hand keeps hero and body")
+ t.check(ui.layout.enemies.values().all(func(group):return is_instance_valid(group)),"DISPLAY present hand keeps enemies")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present hand does not call get_view")
+ var header_before_star=ui.find_child("GameHeader",true,false)
+ ui.present(["*"]);await t.frames()
+ var header_after_star=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_star) and header_after_star.get_instance_id()!=header_before_star.get_instance_id(),"DISPLAY present * replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present * does not call get_view")
+ var header_before_unknown=ui.find_child("GameHeader",true,false)
+ ui.present(["not_a_section"]);await t.frames()
+ var header_after_unknown=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_unknown) and header_after_unknown.get_instance_id()!=header_before_unknown.get_instance_id(),"DISPLAY present unknown section replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present unknown section does not call get_view")
+ var header_after_full=header_after_unknown
+ var card_before_mutation=ui.card_buttons.get(first_uid)
+ var face="free" if bool(ui.card_faces.get(first_uid,false)) else "bound"
+ var av=ui.view.hand[0].availability[face]
+ av.text="probe-hand";av.usable=false;av.dim=true
+ ui.present(["hand"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_full,"DISPLAY present hand after a key change keeps GameHeader")
+ var card_after_mutation=ui.card_buttons.get(first_uid)
+ t.check(is_instance_valid(card_after_mutation) and card_after_mutation.get_instance_id()!=card_before_mutation.get_instance_id(),"DISPLAY present hand rebuilds the card when the presentation key changes")
+ var availability=card_after_mutation.find_child("CardAvailability",true,false)
+ t.check(availability!=null and String(availability.text).contains("probe-hand"),"DISPLAY present hand shows the mutated availability")
+ t.check(present_hand_live_count(ui,first_uid)==1,"DISPLAY present hand after a key change keeps one live button per uid")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present hand after a key change does not call get_view")
+ var header_after_mutation=ui.find_child("GameHeader",true,false)
+ var card_after_hand_mutation=ui.card_buttons.get(first_uid)
+ ui.present(["header"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present header still keeps GameHeader")
+ t.check(ui.card_buttons.get(first_uid)==card_after_hand_mutation,"DISPLAY present header does not replace the hand card")
+ ui.present(["body_bar"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present body_bar still keeps GameHeader")
+ t.check(ui.card_buttons.get(first_uid)==card_after_hand_mutation,"DISPLAY present body_bar does not replace the hand card")
+ ui.present(["relics"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header_after_mutation,"DISPLAY present relics still keeps GameHeader")
+ t.check(ui.card_buttons.get(first_uid)==card_after_hand_mutation,"DISPLAY present relics does not replace the hand card")
+ var header_before_actions=ui.find_child("GameHeader",true,false)
+ ui.present(["actions"]);await t.frames()
+ var header_after_actions=ui.find_child("GameHeader",true,false)
+ t.check(is_instance_valid(header_after_actions) and header_after_actions.get_instance_id()!=header_before_actions.get_instance_id(),"DISPLAY present actions replaces GameHeader")
+ t.check(counting.get_view_calls==baseline,"DISPLAY present actions does not call get_view")
+ var snap=ui.view.duplicate(true)
+ ui.present(["hand"],snap);await t.frames()
+ t.check(counting.get_view_calls==baseline,"DISPLAY present hand snapshot does not call get_view")
+ t.check(is_same(ui.view,snap),"DISPLAY present hand replaces view with the given snapshot")
+ t.check(ui.game.export_snapshot()==before,"DISPLAY present does not mutate export_snapshot")
+ t.check(ui.game.state.rng==before_rng,"DISPLAY present does not mutate random cursors")
 
 # docs/spec/ondemand-copy.md「证据入口」: the body detail section resolves the card face through
 # the single display entry, so a deleted card_texts key must recompute the same text and leave a
