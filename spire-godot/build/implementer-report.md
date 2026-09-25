@@ -1,3 +1,52 @@
+# 实现者报告：present(dirty) 第十二刀 notice
+
+域：`ui/main.gd` M3 展示调度（`present` 加 `["notice"]` 局部）与全量末尾 notice 入口共享键＋早退＋不叠泡。非清洁／非加固。
+
+起步 HEAD：`d70c531`（规划者第十二刀契约）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`7e490eb`。无 `needs-human-review`。未停工交回。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3567 行）：`present(["notice"])` 有独立分支，只调 `_refresh_notice_section`（薄包：键命中早退；未命中 `_hide_term` 再 `_show_term(actor_targets.hero,{"label":"","detail":notice})`），**不**落入 `else` 的 `layout.body_sidebar`。局部 `["notice"]` 跳过 `present` 前缀 `_hide_term`；其它已局部节前缀仍 `_hide_term`。`["header"]`／`["body_bar"]`／`["relics"]`／`["hand"]`／`["actions"]`／`["posture"]`／`["resources"]`／`["show_log"]`／`["body_details"]`／`["pickers"]`／`["speech"]` 仍局部。未知／`["*"]`／其它已声明名仍全量 `render(view)`，禁止再 `get_view`。`_notice_presentation_key` 与 `_notice_key` 紧挨 `_refresh_notice_section`（notice 重建入口旁）；薄函数与全量末尾共用该键，无第二套。键字段＝本地 `notice` 字符串与 `bool(actor_targets.has("hero"))`。`version`／`terms`／`drag_reason`／`touch_input`／`save_notice`／locale／`label`／hero Control／`term_popup`／`term_anchor`／`show_home`／`show_route`／顶层 `phase` 不进键。未写入 `_show_term`／`_hide_term`／`_position_term`／`_label` 本体。`_present_needs_full_render`：**仅** `["notice"]` 且空 notice／无或无效或不在树的 hero／`show_home`／`show_route`／非 battle／触屏 `finger>=0 and not details_allowed` → 全量；`present` 对 snapshot 的 `next` 同检（`phase` 用 `next.phase`）。不得把这些扩到 header／body_bar／relics／hand／actions／posture／resources／show_log／body_details／pickers／speech，亦未删既有节的全量条件。`PRESENT_ADJACENCY` 与源同步（`present` 增 `_refresh_notice_section`，其读本文件键函数并调 `_show_term`；`present` 直调不含 `_show_term`／`_battle_scene`／`_drag_rejection`／`_card_tooltip`／`_refresh_drawers`／`_takeover_banner`）。签名仍是 `present(dirty: Array=["*"], snapshot: Dictionary={})`。未改 `_submit`。局部路径未调 `_battle_scene`／`_npc_speech_bubble`／`_speech_bubble`／`_card_tooltip`／`_drag_rejection`／`_takeover_banner`／`_refresh_drawers`／`_open_drawer`／`_header`／`header.configure`／`_relic_row`／`layout.body_sidebar`／`_hand`／`_fixed_actions`／`_build_action_rail`／`_bottom_controls`／`_refresh_resource_section`／`_wall_controls`／`_posture_controls`／`_refresh_posture_section`／`_refresh_log_section`／`_log_drawer`／`_body_details`／`_refresh_body_details_section`／`_hand_target_picker`／`_player_picker`／`_refresh_picker_section`／`_refresh_speech_section`／`begin_frame`、未清空 `layout.used`、未建 `terms` 盒／`drag_reason`／`ShopPaymentNotice`／`save_notice`、未 instantiate `header.tscn`、未直调 `_guard_portrait`／`Arena.*`／`command_router.emit`。未改 `header.tscn`／`header.gd`／`body_sidebar.gd`／`game_layout.gd`／`first_turn_presenter.gd`／`command_routes.gd`／`command_router.gd`／`touch_input.gd`／`header._presentation_key`／`body_sidebar._presentation_key`／`_relic_presentation_key`／`_hand_presentation_key`／`_action_presentation_key`／`_posture_presentation_key`／`_resource_presentation_key`／`_log_presentation_key`／`_body_details_presentation_key`／`_picker_presentation_key`／`_speech_presentation_key`。无新 UI 文件。无 core／data。无 `docs/spec`。空 notice／无 hero／非战斗页／触屏抑制本刀全量。
+- `spire-godot/tests/display_ui_cases.gd`（1850 行）：`present_routes_notice_or_full` 已在 `run` 里接在 `present_routes_speech_or_full` 之后。`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full`／`present_routes_show_log_or_full`／`present_routes_body_details_or_full`／`present_routes_pickers_or_full`／`present_routes_speech_or_full` 的「已声明非局部」步由 `["notice"]` 改为 `["drawers"]`。本场景不测 `present(["body_details"])`／`present(["pickers"])` 的仍局部。测试侧 `GetViewCountingGame`。生产无计数器。夹具先注入 `ui.notice` 并 `render(ui.view)` 建泡，再 `_open_drawer("show_log")`；另注入非空 `view.speech`，使 ⑬ `present(["speech"])` 仍走既有局部（空对白全量条件未删）。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本刀只加薄路由与 notice 早退，未拆文件。
+
+检查点：
+- `74fa9c1` `checkpoint(implementer): add present notice routing`
+- `7e490eb` `checkpoint(implementer): add present_routes_notice_or_full`
+
+## 叠泡
+
+不叠。键命中早退只在卸泡／建模之前一次（`_refresh_notice_section`，**不**写进 `_show_term` 本体），且要求 `term_popup` 有效、名为 `TermExplanation`（不得是 `ClosingTermExplanation`）、在树且是 `layout` 子孙，树上活 `TermExplanation` 件数＝1，`term_anchor` 仍是当前 `actor_targets.hero`，可见文本含当前 `notice`，无 `drag_reason` meta。禁止只凭缓存键、泡已被 `_hide_term` 释放仍早退。键未命中先 `_hide_term`（不得只用 `_remove_local_panel` 留下悬空 `term_popup`／`term_anchor`）。禁止卸 `GameHeader`／`HeroSpeechGroup`／`NpcSpeechGroup`／`InformationLayer`／身体栏。然后 `_show_term(actor_targets.hero,{"label":"","detail":notice})`，`_place` 父节点为 `layout`。全量 `render` 起手已 `_hide_term`，经同一薄函数重建后写回键。空 notice／无 hero／触屏早退本刀不写本键。禁止卸泡前预调 `_show_term`。无活 `TermExplanation` 且本路径条件已满足时本路径创建，不改走全量。场景断言活 `TermExplanation` 件数＝1。套件绿。
+
+## 表外全量
+
+只让 `["notice"]` 在空 notice／无或无效或不在树的 hero／`show_home`／`show_route`／非 battle／触屏 `finger>=0 and not details_allowed` 时走全量。`header`／`body_bar`／`relics`／`hand`／`actions`／`posture`／`resources`／`show_log`／`body_details`／`pickers`／`speech` 的全量条件未改。局部 `["notice"]` 因而从不在空提示／无 hero／非战斗页／触屏抑制下建 `TermExplanation`，从不写 `terms` 盒／`drag_reason`／`ShopPaymentNotice`／`save_notice`。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 792 assertions`（`check-ui.log`：UI SUITE display 792 assertions, 74.46s）
+- `summary.json` `status=passed`，`before`＝`after`＝`40C6F91A547916DA6A199640C9A00FE09C4799D2398D1D7B722B7B95C456F2CA`
+- 日志：`spire-godot/build/checks/20260925T190433406-42160/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full`／`present_routes_show_log_or_full`／`present_routes_body_details_or_full`／`present_routes_pickers_or_full`／`present_routes_speech_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）、双审。未停工交回。无 `needs-human-review`。
+
+---
+
 # 实现者报告：present(dirty) 第十一刀 speech
 
 域：`ui/main.gd` M3 展示调度（`present` 加 `["speech"]` 局部）与 `_speech_bubble` 共享键＋早退＋不叠组。非清洁／非加固。
