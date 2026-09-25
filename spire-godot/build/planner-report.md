@@ -1,8 +1,9 @@
-# 规划者报告：present(dirty) 第二刀 scene_instances
+# 规划者报告：present(dirty) 第二刀 header
 
-checkpoint(planner): 汇总第二刀阻塞
+checkpoint(planner): specify present header second slice
 
-- 域：`ui/main.gd::present` 下一节 `scene_instances`（节键表：`layout.hero_portrait`／`enemy_group`／`body_sidebar`，外观由 arena／`equipment_portrait`／`body_sidebar` 自身比对）。不改 `_submit`。不拆 `commit`／`present_rejection`。不重做 `body_bar`。
-- 状态：**needs-human-review；停止**。搜键：`header.configure` 无键；drawer 无早退；`card_faces` 非节键。仅 `scene_instances` 有既有外观早退，但 `game_layout.enemy_group` 复用时剥掉 `_battle_scene` 挂上的 page 子节点；避开则须新键字段集、或 M3 越过 M5 的新边、或改 M5。契约 `spire-godot/build/partition-delta-2-extract.md`（未覆写第一刀提取物）。起始 HEAD `6d788f0` 静态读取；未实现、未跑 Godot。
-- 切分：未批准前允许实现面为空。未知／`["*"]` 仍须全量的档 2 口径保留为待决，不注册新 Gherkin。验收 UI **none**。
-- 检查证据：仅静态读取 `present`／`header.configure`／`_refresh_drawers`／`_hand`／`arena`／`equipment_portrait`／`game_layout.enemy_group`；Godot／测试／审查／清洁／加固均未验证，不报告通过；无产品源码、打包、发布或 push。
+- 域：`ui/main.gd::present` 加 `["header"]` 局部；键＋早退在 `ui/shell/header.gd::configure`。保留 `body_bar` 路由。不拆 `commit`。不接 `present_rejection`。不改 `_submit`。
+- 状态：**needs-human-review no**。协调者已记录通宵计划审阅选①；给 `header.configure` 建键并早退＝落地节键表 `header` 行，不是新模块、不是新允许边。契约 `spire-godot/build/partition-delta-2-extract.md`。起步 HEAD `9cb5754` 静态读取；未实现、未跑 Godot。
+- 切分：`["header"]` 找已有 `GameHeader` 再 `configure`，不得二次 instantiate、不得 `_relic_row`、不得 `begin_frame`。键 ⊆ 节键表 header 行且覆盖 configure 实读字段（含 locale／`show_route`／`save_failed`）；`version` 不进键；`main.gd` 不复制第二套键。再 `configure` 不得叠 `OpenTutorial` 等。未知／`["*"]`／缺项／其余已声明名仍全量。
+- Gherkin：`tests/display_ui_cases.gd::present_routes_header_or_full`（待实现）。验收 UI **none**。档 2：键命中 header 实例保留；未知／`["*"]` 全量；叠按钮须红；生产无计数器。
+- 检查证据：仅静态读取 `present`／`_header`／`header.configure`／节键表；Godot／测试／审查／清洁／加固均未验证，不报告通过；无产品源码、打包、发布或 push。

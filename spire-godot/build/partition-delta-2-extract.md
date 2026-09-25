@@ -1,45 +1,47 @@
-# 规划者契约：present(dirty) 第二刀（scene_instances）
+# 规划者契约：present(dirty) 第二刀（header）
 
-checkpoint(planner): 搜既有节键／早退，选定下一节
+状态：可交协调者派实现者；**无新模块、无新允许边**，不标 `needs-human-review`。协调者已记录通宵计划审阅选①：给 `header.configure` 建键并早退＝落地 `docs/spec/response-pipeline.md` 节键表 `header` 行已写字段集，不是新模块、不是新 CSS。「既有节键」＝规格已写字段，不是代码里已有 `_presentation_key`。HEAD 起步 `9cb5754`。域：`ui/main.gd::present` 加 `["header"]` 局部；键只在 `ui/shell/header.gd`。保留第一刀 `body_bar` 路由。不拆 `commit`、不接 `present_rejection`、不改 `_submit`。不铺其余节。不新写 CSS。本刀不写 `docs/spec`。
 
-状态：**needs-human-review；停止，不派实现者**。通宵仍只授权落地既有节键／`present(dirty)`，不新写 CSS。第一刀已落地，勿重做：`present`＋`PRESENT_SECTIONS`；仅 `["body_bar"]` 局部走 `layout.body_sidebar`／`_presentation_key`；`["*"]`／未知／其它已声明名全量 `render(view)` 且不 `get_view`。`_submit` 仍整树 `render`。本刀只规划下一节，不铺剩余 14 节，不拆 `commit`／`present_rejection`，不把 `_submit` 改接到 `present`。HEAD `6d788f0` 静态切片，未实现、未运行。域：`ui/main.gd::present` 对节 `scene_instances` 的局部路由；对照 `docs/spec/response-pipeline.md` 节键表。
+checkpoint(planner): specify present header second slice
 
-## 已有入口（搜键／早退；不建第二套刷新管线）
+## 已有入口（扩展 present，不建第二套刷新管线）
 
-- 现行 `present`：`_present_needs_full_render` 仅当 `dirty==["body_bar"]` 且 layout／view 可用才局部；否则 `render(next)`。局部序仍是 `DragTargets.clear` → `_hide_term` → View 同步 → `layout.body_sidebar` → `end_frame` → `refresh_hints` → `_localize_controls`。无 `begin_frame`。
-- `header`：`_header` 每次 `header.tscn.instantiate` 再 `header.configure`。`configure` **无键、无早退**，每次新建教程／状态／道具／卡组／地图／菜单按钮。节键表字段（`run_header` location/turn/order/last、`security`、`wall`、`wall_position.distance`、`pressure.overloaded`、`carried_items`、`capacity`、`deck_count`、`prison.active`、`phase`、`practice`、`show_route`、`save_failed`、locale）**未实现为键**。
-- `drawers`：`_refresh_drawers` 每次 `queue_free` `drawer_layer` 再建。无节键早退。
-- `hand`／`body_details`：`card_faces` 是本地翻面态（缓存与失效键允许项），不是节键。`_hand` 每次新建牌钮。`_refresh_card_face` 只就地刷一张牌面，不能当 `present(["hand"])` 键命中跳过。
-- `relics`／`actions`／`posture`／`resources`／`show_log`／`pickers`／`speech`／`notice`／`page`：重建入口均无显示键早退。
-- `scene_instances`（本节）：`game_layout.hero_portrait`／`enemy_group`／`body_sidebar` 按实例／`enemy.id` 复用；`arena.configure_hero`／`configure_enemy` 与 `equipment_portrait.configure` 用 `appearance==next_appearance` 早退。`body_sidebar._presentation_key` 已属 `body_bar`，本刀不重做。管线非目标含「不改 arena 立绘重画」。
+- `present`／`PRESENT_SECTIONS`／`_present_needs_full_render` 已落地：仅 `["body_bar"]` 局部 → `layout.body_sidebar`；`["*"]`／缺项／未知／其它已声明名 → 全量 `render(当前 view)`，禁止再 `get_view`。局部固定序：`DragTargets.clear(self,false)` → `_hide_term` → View 同步 → 节 → `layout.end_frame()` → `keyboard_input.refresh_hints`（`call_deferred`）→ `_localize_controls`。局部不得 `begin_frame`，不得清空 `layout.used`。
+- `_header()` 每次 instantiate `header.tscn` 再 `configure`，并顺手 `_relic_row()`。`header.configure` 无键、无早退；每次 `_place` 新按钮（`OpenTutorial`／`OpenStatus`／`OpenItems`／`OpenDeck`／`OpenMap` 或 `OpenPrisonTutorial`／`OpenMenu`）。就地再 `configure` 会叠按钮。
+- 节键表 `header` 行（键内容真源）：`run_header`(location/turn/order/last)、`security`、`wall`、`wall_position.distance`、`pressure.overloaded`、`carried_items`、`capacity`、`deck_count`、`prison.active`、`phase`、`practice`、`show_route`、`save_failed`、locale。`version` 不进键。
 
-## 切分与阻塞（新键或新边）
+## 切分、接口和依赖
 
-checkpoint(planner): scene_instances 无法无新键／新边落地
+- 只扩展既有 M3 `present`：`["header"]` 局部；`["body_bar"]` 仍局部；未知／`["*"]`／缺项／其余已声明名仍全量 `render(view)`（非空当前 View，禁止再 `get_view`）。`dirty.size()!=1` 仍全量。局部不得 `begin_frame`。
+- `["header"]` 局部：在已有 `GameHeader` 上调 `configure`。不得再 instantiate `header.tscn`；不得调 `_relic_row`；不得顺手 `layout.body_sidebar` 或其它节重建。无 `GameHeader`／layout 空／View 空 → 全量。允许改 `present`／`_present_needs_full_render`；若复用 `_header` 必须让局部路径不二次 instantiate、不跑 `_relic_row`。
+- 键只在 `header.gd`（可与 body 同名 `_presentation_key`）；`main.gd` 不得复制第二套 header 键。键＝纯数据副本（Array／Dictionary／基础类型），不存旧 View／候选／装备图／节点引用。
+- 键字段必须覆盖 `header.configure` **实际读取**的 View／本地态，且 ⊆ 节键表 `header` 行：`run_header.location`／`turn`／`order`／`last`、`security`、`wall`、`wall_position.distance`、`pressure.overloaded`、`carried_items`、`capacity`、`deck_count`、`prison.active`（与 `view.prison.get("active",false)` 同义）、`phase`、`practice`、`show_route`、`save_failed`、locale。locale：configure 不调 `display`，但 present／render 固定序末尾 `_localize_controls`；locale 进键。`version` 禁止。configure 新读显示字段必须同批进键，且仍 ⊆ 该行。
+- 键命中：早退，保留 `GameHeader` 与已有具名按钮实例；不得叠按钮。键未命中：就地更新该节（标签＋按钮）；已有 `OpenTutorial` 等须复用或先清再建模；再 `configure` 后每种具名按钮件数＝1（地图键为 `OpenMap` 与 `OpenPrisonTutorial` 合计 1）。不得把叠按钮当跳过。
+- 允许实现面：`spire-godot/ui/main.gd` 的 `present` 路由（含 `_present_needs_full_render`）；`spire-godot/ui/shell/header.gd` 键＋早退＋不叠按钮；`spire-godot/tests/display_ui_cases.gd` 单个具名场景／`run` 注册。不得改 `_submit`／`commit`／`present_rejection`、不得改 `body_sidebar._presentation_key` 字段集、不得改 `header.tscn`／`game_layout.gd`／core／data。测试可对 `get_view` 做计数包装；生产源码不带计数器。
+- 允许方向：仍 M3→M5（`_header`／`header.configure`）与既有 M3→M1.refresh_hints；测试 → `main.present`／`render`。**不新增**模块、运行时依赖、存档／schema、`present` 文件、`main`→core 新边、UI 文件。若实现仍要新模块／新 UI 文件／新允许边 → `needs-human-review` 并停下。
+- `main.gd` 已超行数线；本刀只加薄路由，**不**为凑行数拆新模块。Godot 无 Size and ESM。
 
-- 拟议边界：只把 `present` 局部名单从 `body_bar` 扩到 `scene_instances`（仍同一 `present`，无新 UI 文件）。`["scene_instances"]` 走固定动作序后调既有 `layout.hero_portrait`／对存活敌人 `layout.enemy_group`／`layout.body_sidebar`，再 `end_frame`。未知／`["*"]`／缺项／其它已声明名仍全量 `render(view)`，禁止 `get_view`。不改 `_submit`。
-- 不允许的捷径：`layout.enemy_group` 在复用分组时**先删掉 art 以外的子节点**（`_battle_scene` 挂在分组上的意图图标、选敌钮、血条、状态条、投放接收区）。局部调用会剥掉 `page` 节节点，即使 `configure_enemy` 外观命中早退。`hero_portrait` 不剥这些；问题在 `enemy_group`。
-- 避开剥节则必须择一，均超出本切分微调：
-  1. **新建键字段集**（在 `present`／`main` 复制 arena 外观键，命中则不调 `enemy_group`）；或给 `header.configure`／其它无键节新建表行键。
-  2. **新允许边**：`main.present` 直调 `arena.configure_hero`／`configure_enemy`，绕过 `game_layout.enemy_group`（M3 越过 M5）。
-  3. 改 `game_layout.enemy_group` 不再剥子节点（改 M5；且碰 arena 重画非目标）。
-- 因此标复杂计划：`needs-human-review`。切分认可不够。不写依赖规约、不派实现者。
+## Gherkin：`present_routes_header_or_full`（一个可观察行为）
 
-## 待协调者交人审的决定
+Given `tests/display_ui_cases.gd`，`ui.restart(42)` 后 `render(ui.view)`（战斗页，`GameHeader` 已建）。测试侧 `GetViewCountingGame`（或等价包装，生产无计数器）接到 `ui.game` 后再 `render(ui.view)` 一次，记下 `get_view` 基线、`GameHeader` 实例、`OpenTutorial`（及同节其它具名按钮）件数、`ui.body_buttons.wrist`（若有）、`RelicStrip` 件数／实例（0 或 1）、快照／`state.rng`。不调 `_submit`。
+When 依次：① `present(["header"])` 空 snapshot、View／`show_route`／`save_failed`／locale 未改，再立刻第二次 `present(["header"])`；② `present(["*"])`；③ `present(["not_a_section"])`；④ 只改 `ui.view` 上一处键内显示字段（如 `security`，不 `dispatch`）再 `present(["header"])`；⑤ `present(["body_bar"])`；⑥ `present(["relics"])`（已声明、本刀非局部）；⑦ `present(["header"], snapshot)` 传入当前 View 的非空副本。每步 `await t.frames`，每步记下该步之前的 `GameHeader` 实例。
+Then ① `GameHeader` 实例保留、树内恰 1 个 `GameHeader`；`OpenTutorial`／`OpenStatus`／`OpenItems`／`OpenDeck`／`OpenMenu` 各 1；`OpenMap`＋`OpenPrisonTutorial` 合计 1；`RelicStrip` 件数不增（有则实例不变）；wrist／hero／body／敌人仍有效；`get_view`＝基线。②与③ 各相对该步之前的 `GameHeader` 被替换（全量走了 `begin_frame`），`get_view` 仍＝基线。④ header 实例等于③之后的那个（不再全量）；`HeaderSecurity`（或所改字段对应控件）可见文本与改后 View 一致；具名按钮件数仍各 1（不得叠）。⑤ `GameHeader` 等于④之后的那个（`body_bar` 路由仍局部）。⑥ `GameHeader` 被替换（其余已声明名仍全量）。⑦ `get_view` 仍＝基线，`ui.view` 即传入 snapshot。全程 `export_snapshot()`／随机游标不变。不得用生产计数器；不得把 `render()` 空 snapshot 的 `get_view` 算进 present 义务。既有 `present_routes_body_bar_or_full`／`sidebar_refresh` 不得红。本场景不是契约场景 3 全表。
 
-择一后重新规划：①批准 `scene_instances` 的新键字段集（或改 M5／新边）并重写本刀契约；②改下一节为 `header`（须批准 `header.configure` 新键字段集，覆盖节键表该行）；③取消本刀。禁止无新键就把 `present(["scene_instances"])` 接到 `enemy_group`。禁止一次铺剩余 14 节。
+## 验收流程
 
-## Gherkin／验收／完成定义（待决，不是本次通过）
+UI 验收 **none**：本刀不改 `_submit`，玩家路径仍整树 `render`；画面刷新范围不变。不派验收者。
 
-- 拟定 Gherkin 位置 `tests/display_ui_cases.gd`：Given 战斗页已 `render(view)`，钉 `HeroArt`／一处 `EnemyGroup_*` 实例、`GameHeader`、意图图标仍在分组下；测试侧 `GetViewCountingGame`。When `present(["scene_instances"])` 外观未变；`present(["*"])`／`present(["not_a_section"])`；改一处外观键内字段（如 `view.posture` 或敌人 `gone`，不 `dispatch`）再 `present(["scene_instances"])`。Then 键命中：header 与 hero／enemy 实例保留，分组下 page 子节点仍在，`get_view` 不变；`["*"]`／未知替换 `GameHeader`；键未命中：header 保留，该节外观与 View 一致。判据依赖上节人审选项，**暂不注册可运行场景**。
-- UI 验收 **none**（玩家路径仍 `_submit`→整树 `render`）。若人审选剥节方案则画面会变，须另写验收——当前不派验收者。
-- 完成定义：协调者记录切分**及**复杂计划人审后，才写依赖规约、才派实现者。档 2 预选仍为 display 窗口：该节键命中须跳过重建；未知／`["*"]` 仍全量；生产无计数器。现在 Godot／审查／清洁／加固均未验证。
-- 允许实现面：未批准前 **空**。不得改 `_submit`／`commit`／`present_rejection`、不得新 UI 文件、不得改 core／data、不得改 `body_sidebar._presentation_key` 字段集。
+## 完成定义及档 2（尚未执行）
+
+- 实现者交 `present` 的 `header` 局部路由、`header.gd` 键＋早退＋不叠按钮、上述场景；独立新会话审查者只核对本域源码／测试与本契约；清洁者核对：无第二套刷新管线、无新 UI 文件、无 `_submit` 改接、header 键只在 `header.gd`、`body_bar` 键仍只在 `_presentation_key`、依赖面 ⊆ 允许面。本刀不写 `docs/spec`。
+- 实现者在 `spire-godot/` 运行 `& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900`。通过＝退出码 0、`SUITE RESULT: display PASS`、完成标记、`summary.json` 的 `status=passed` 且指纹未变。未运行、`source_changed`、场景未注册进 `display_ui_cases.run`、或 `present` 空 snapshot 仍 `get_view`＝未完成。既有 `present_routes_body_bar_or_full`／`sidebar_refresh` 不得变红。不改 `body_sidebar.gd` 则不借 body_layout 旧绿宣称本域通过，也不必扩跑。
+- 档 2（选定加固者，独立实现／清洁后）。栈档 2：规则套件＋内容包。内容包不适用（未改 packs）。规则 headless 无法观察节点实例／按钮件数：本刀敏感性在 display 窗口套件上跑，命令同上。变异须红：①`present(["not_a_section"])` 或 `["*"]` 不走全量（`GameHeader` 实例保留）；②`present(["header"])` 键命中仍重建该节（`GameHeader` 被换，或具名按钮实例在未改键时被换）；③再 `configure` 叠按钮（同名 `OpenTutorial` 等件数＞1）；④生产源码出现重建／`get_view` 计数器。原版绿；变异复原后重跑本域。不能靠静态搜索替代①②③的行为敏感性。缺工具或失败＝未通过，不算不适用。
+- 无打包、发布、push。
 
 ## 非目标
 
-其余 13 节的键与局部重建；T4／T5；`card_facts`；`keyword_ids`；新 CSS／样式引擎；窗口输入队列；提交路径去重；`commit` 拆分；`present_rejection`；`_submit` 改接 `present`；场景 1–9 一次落地；恢复 `ActionIndex`；改 arena 立绘重画。
+其余已声明节一次落地；`commit` 拆分；`present_rejection`；把 `_submit` 改接到 `present`；新 CSS／样式引擎；T4／T5；`card_facts`；`keyword_ids`；窗口输入队列；恢复 `ActionIndex`；改 `header.tscn`／`game_layout.gd`；改 `body_sidebar` 键字段集。
 
 ## 风险假设
 
-`begin_frame` 仍会拆掉 `GameHeader`，故全量 vs 局部仍可用 header 实例区分。第一刀 `end_frame` 依赖上次 `render` 残留的 `used`。若人审批准直调 `configure_*`，须重审 M3→M5 边界，不在未批时扩边。
+`layout.begin_frame` 仍释放 `GameHeader`，全量 vs 局部仍可用 header 实例区分。局部路径仍不得 `begin_frame`、不得清空 `layout.used`。`_header()` 现顺手 `_relic_row()`：局部若走 `_header` 且未拆遗物，会叠 `RelicStrip`。键未覆盖 configure 已读字段时，早退会留下过期标签／按钮文案／闭包。若实现要新 UI 文件或新允许边，停工交回，不新开 `present` 文件迁就。
