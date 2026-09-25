@@ -1,3 +1,54 @@
+# 实现者报告：present(dirty) 第四刀 hand
+
+域：`ui/main.gd` M3 展示调度（`present` 加 `["hand"]` 局部）与 `_hand` 键＋早退＋不叠牌。非清洁／非加固。
+
+起步 HEAD：`5a74a21`（规划者 report）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`7488672`。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3099 行）：`present(["hand"])` 局部只调 `_hand`；`["header"]`／`["body_bar"]`／`["relics"]` 仍局部。未知／`["*"]`／其它已声明名仍全量 `render(view)`，禁止再 `get_view`。`_hand_presentation_key` 与 `_hand_key` 紧挨 `_hand`。键字段＝每张 uid／type／draw_serial／draw_free／single_face／availability(free／bound 的 usable／dim／text)／合并 card_texts 与 card_instances 后 `_card`／`_refresh_card_face` 已读的 face_* 及对应条目显示字段、当前手牌 uid 的 `card_faces`、`selected_card`、`_selecting_hand()` 布尔、`card_motion.pending_draws` uid 集合。`version`／`display_facts`／`climax`／`pressure.overloaded`／locale 不进键。`_present_needs_full_render`：**仅** `["hand"]` 且 `view.pressure.overloaded` → 全量；不得把 overloaded 扩到 header／body_bar／relics。`PRESENT_ADJACENCY` 与源同步（`present` 增 `_hand`，`_hand` 读本文件键函数）。签名仍是 `present(dirty: Array=["*"], snapshot: Dictionary={})`。未改 `_submit`。局部路径未调 `_header`／`header.configure`／`_relic_row`／`layout.body_sidebar`／`begin_frame`、未清空 `layout.used`。未改 `header.tscn`／`header.gd`／`game_layout.gd`／`card_face.gd`／`card_motion.gd`／`body_sidebar._presentation_key`／`_relic_presentation_key`。无新 UI 文件。无 core／data。无 `docs/spec`。
+- `spire-godot/tests/display_ui_cases.gd`（991 行）：`present_routes_hand_or_full` 已在 `run` 里接在 `present_routes_relics_or_full` 之后。`present_routes_header_or_full` 与 `present_routes_relics_or_full` 的「已声明非局部」步由 `["hand"]` 改为 `["actions"]`。测试侧 `GetViewCountingGame`。生产无计数器。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本刀只加薄路由与 `_hand` 早退，未拆文件。
+
+检查点：
+- `8df029a` `checkpoint(implementer): add hand presentation key`
+- `3b65276` `checkpoint(implementer): add present hand routing`
+- `e024d79` `checkpoint(implementer): add present_routes_hand_or_full`
+- `7488672` `checkpoint(implementer): register present_routes_hand_or_full`
+
+## 叠牌
+
+不叠。键命中早退且要求该 uid 按钮仍在树上、件数＝1、`card_buttons` 键数＝手牌张数；键未命中先卸手牌按钮／空牌标签／误留 `ClimaxNarration` 再按非高潮逻辑建模。空 `view.hand` 卸已有按钮并至多保留 1 个 `EmptyHand`。全量 `_battle_scene`→`_hand` 仍写回键（`begin_frame` 释放后即使键相同也重建）。活按钮名为 `HandCard_<uid>`。场景断言每 uid 件数＝1。套件绿。
+
+## overloaded
+
+只让 `["hand"]` 走全量。`header`／`body_bar`／`relics` 的全量条件未改；局部 `["hand"]` 因 overloaded 已改道全量而不走 `_climax_narration`。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 378 assertions`（`check-ui.log`：UI SUITE display 378 assertions, 49319 ms）
+- `summary.json` `status=passed`，`before`＝`after`＝`E617CD6CBD5FE8E5C7620C6C7F8EB7E181B56622D74836E94C93A2686B1C01FB`
+- 日志：`spire-godot/build/checks/20260925T130728951-40492/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）。
+
+---
+
 # 实现者报告：闭合 relics sibling 顺序 P1（bunny）
 
 域：`ui/main.gd::_relic_row` 重建后 `move_child` 恢复原 sibling 位；`tests/display_ui_cases.gd::present_routes_relics_or_full` 的 `RouteMapColumn` 夹具含 `TowerMapScroll`。非清洁／非加固。未改 `_place` 全局语义、`_submit`、`header.gd`／`game_layout.gd`／`relic_icon.gd`。无新 UI 文件。未写 `docs/spec`。
