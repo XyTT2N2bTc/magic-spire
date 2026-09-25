@@ -591,8 +591,29 @@ func _header() -> void:
  header.configure(self)
  _relic_row()
 
+var _relic_key=[]
+
+func _relic_presentation_key() -> Array:
+ var rows=[]
+ for relic in view.relics:
+  var counter=relic.counter.duplicate(true) if relic.counter is Dictionary else relic.counter
+  rows.append([String(relic.id),String(relic.name),String(relic.detail),counter,String(relic.current),relic.rarity])
+ return [rows,String(localization.locale)]
+
 func _relic_row() -> void:
- if view.relics.is_empty(): return
+ var key=_relic_presentation_key()
+ var strips=[]
+ if is_instance_valid(layout): strips=layout.find_children("RelicStrip","",true,false)
+ if _relic_key==key and (view.relics.is_empty() or not strips.is_empty()):
+  return
+ for existing in strips:
+  if not is_instance_valid(existing): continue
+  var owner=existing.get_parent()
+  if owner!=null: owner.remove_child(existing)
+  existing.queue_free()
+ if view.relics.is_empty():
+  _relic_key=key
+  return
  var strip=ScrollContainer.new();strip.name="RelicStrip"
  strip.vertical_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
  strip.mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -619,6 +640,7 @@ func _relic_row() -> void:
    shortcut.gui_input.connect(func(event):
     if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
      shortcut.accept_event();_hide_term();command_router.emit(String(choice.payload.get("kind","")),choice))
+ _relic_key=key
 
 func _status_tooltip(status: Dictionary) -> Dictionary:
  return {"label":status.name+" · "+status.value,"detail":status.detail+"\n\n来源："+status.source+"\n持续："+status.duration}
