@@ -1,3 +1,52 @@
+# 实现者报告：present(dirty) 第八刀 show_log
+
+域：`ui/main.gd` M3 展示调度（`present` 加 `["show_log"]` 局部）与 `_log_drawer` 共享键＋早退＋不叠窗。非清洁／非加固。
+
+起步 HEAD：`6a71539`（规划者第八刀契约）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树脏文档。本报告提交前源码 HEAD：`43e51ec`。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3363 行）：`present(["show_log"])` 有独立分支，只调 `_refresh_log_section`（薄包；键命中早退，未命中卸壳后 `_log_drawer`），**不**落入 `else` 的 `layout.body_sidebar`。`["header"]`／`["body_bar"]`／`["relics"]`／`["hand"]`／`["actions"]`／`["posture"]`／`["resources"]` 仍局部。未知／`["*"]`／缺项／其余已声明名仍全量 `render(view)`，禁止再 `get_view`。`_log_presentation_key` 与 `_log_key` 紧挨 `_log_drawer`；薄函数与 `_log_drawer` 共用该键，无第二套。键字段＝`action_log` 各条 `actor`／`round`／`text`（空数组也进键）、`logs` 按现行切片（`size()-1` 降到 `maxi(-1,size()-45)`）各条 `kind`／`text`。`version`／`show_log`／`show_home`／其它 `DRAWERS`／`travel_log`／locale／`LogDetails` 展开态／`id`／`cue`／`data`／logs 行 `phase`／`round` 不进键。`_present_needs_full_render`：**仅** `["show_log"]` 且 `not show_log` 或 `show_home` → 全量；`present` 对 snapshot 的 `next` 同检（标志为 UI 字段）。不得把这些扩到 header／body_bar／relics／hand／actions／posture／resources。`PRESENT_ADJACENCY` 与源同步（`present` 增 `_refresh_log_section`，其读本文件键函数并调 `_log_drawer`；`present` 直调不含 `_refresh_drawers`／`_open_drawer`／`_close_drawers`／`_drawer_shell`）。签名仍是 `present(dirty: Array=["*"], snapshot: Dictionary={})`。未改 `_submit`。局部路径未调 `_refresh_drawers`／`_open_drawer`／`_close_drawers`／其它 `_*_drawer`／`_bottom_controls`／`_refresh_resource_section`／`_wall_controls`／`_posture_controls`／`_refresh_posture_section`／`_fixed_actions`／`_build_action_rail`／`_header`／`header.configure`／`_relic_row`／`layout.body_sidebar`／`_hand`／`_body_details`／`begin_frame`、未直调 `_drawer_shell`、未清空 `layout.used`。未改 `header.tscn`／`header.gd`／`game_layout.gd`／`_drawer_shell` 公共几何／`header._presentation_key`／`body_sidebar._presentation_key`／`_relic_presentation_key`／`_hand_presentation_key`／`_action_presentation_key`／`_posture_presentation_key`／`_resource_presentation_key`。无新 UI 文件。无 core／data。无 `docs/spec`。主页／关闭态日志本刀不局部。
+- `spire-godot/tests/display_ui_cases.gd`（1399 行）：`present_routes_show_log_or_full` 已在 `run` 里接在 `present_routes_resources_or_full` 之后。`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full` 的「已声明非局部」步由 `["show_log"]` 改为 `["body_details"]`。测试侧 `GetViewCountingGame`。生产无计数器。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本刀只加薄路由与日志节早退，未拆文件。
+
+检查点：
+- `c499f65` `checkpoint(implementer): add present show_log routing`
+- `43e51ec` `checkpoint(implementer): add present_routes_show_log_or_full`
+
+## 叠窗
+
+不叠。键命中早退只在卸栏／建模之前一次（`_refresh_log_section`，**不**写进 `_log_drawer` 本体），且要求树上活 `InformationLayer` 件数＝1，该层上 `InformationDrawer`／`DismissDrawer`／`LogBackToMenu`／`LogDetails`／`LogDetailRows` 各 1 且仍是该层子孙。禁止只凭缓存键、层已被 `begin_frame` 释放仍早退。键未命中先卸该层上 `DismissDrawer`／`InformationDrawer`（含子树），并清这些写入的 `candidate_buttons`；**保留** `InformationLayer` 实例。然后 `building_drawer=true` 调 `_log_drawer`（父节点＝`drawer_layer`），再清 `building_drawer`。禁止只卸 `InformationDrawer`。全量 `_refresh_drawers`→`_log_drawer` 不在此卸栏，仍在 `_log_drawer` 末写回键（空 `action_log`／空 `logs` 也写）。无活层且 `show_log` 且非 `show_home` 时本路径按现行口径建 `InformationLayer` 再 `_log_drawer`，不改走 `_refresh_drawers`。场景断言层／窗／返回菜单件数＝1。套件绿。
+
+## 表外全量
+
+只让 `["show_log"]` 在 `not show_log` 或 `show_home` 时走全量。`header`／`body_bar`／`relics`／`hand`／`actions`／`posture`／`resources` 的全量条件未改。局部 `["show_log"]` 因而从不在抽屉关闭时建日志窗、从不在主页建日志窗、从不重建菜单／牌堆／其它抽屉。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 573 assertions`（`check-ui.log`：UI SUITE display 573 assertions, 54382 ms）
+- `summary.json` `status=passed`，`before`＝`after`＝`2CD2726EE6BE2B194A3344CDB522F5D0C59CA5D0FFF33DFB2BD421A0A9D057CC`
+- 日志：`spire-godot/build/checks/20260925T174941527-20160/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）、双审。未停工交回。无 `needs-human-review`。
+
+---
+
 # 实现者报告：present(dirty) 第七刀 resources
 
 域：`ui/main.gd` M3 展示调度（`present` 加 `["resources"]` 局部）与 `_bottom_controls` 在墙／姿之前的资源／能量／牌堆／flow／surrender／魔瓶段共享键＋早退＋不叠栏。非清洁／非加固。
