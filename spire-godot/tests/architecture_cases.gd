@@ -277,6 +277,21 @@ class TargetsAtCountingGame extends "res://tests/game_fixture.gd":
   targets_at_slots.append(slot)
   return super.targets_at(slot)
 
+# Test-side later-source counters for has_targets_at early-exit; production has none.
+class TargetWalkCountingGame extends TargetsAtCountingGame:
+ var composite_root_calls=0
+ var links_at_calls=0
+ func _composite_roots() -> Array:
+  composite_root_calls+=1
+  return super._composite_roots()
+ func links_at(slot: String) -> Array:
+  links_at_calls+=1
+  return super.links_at(slot)
+ func reset_walk_counts() -> void:
+  targets_at_slots.clear()
+  composite_root_calls=0
+  links_at_calls=0
+
 static func containers(value, path: String, out: Array) -> void:
  if value is Dictionary:
   out.append({"value":value,"path":path})
@@ -361,6 +376,7 @@ static func run(t) -> void:
  index_materializes_once_per_scope(t)
  index_id_edge_parity(t)
  index_predicate_parity(t)
+ has_targets_at_parity(t)
  index_entry_parity(t)
  index_self_check_falls_back(t)
  copy_projection_masked_baseline(t)
@@ -614,6 +630,120 @@ static func index_predicate_parity(t) -> void:
  t.check(doubled!="" and doubled==dense_reference._capacity_issue(dense_reference.physical_pieces()+dense_reference.state.equipment.duplicate()),"INDEX non-authoritative capacity argument keeps its live reason text: "+doubled)
  t.check(dense.capacity_used("wrist")==dense_reference.capacity_used("wrist") and dense.occupied("wrist") and dense.hand_blocked("wrist","left"),"INDEX dense counts and presence match the live path")
  dense._equipment_read=dense_scope
+
+static func _has_targets_slots(g) -> Array:
+ var slots=g.B.SLOTS.duplicate()
+ slots.append("shoulder")
+ slots.append_array(g.SpecialEquipment.slots())
+ return slots
+
+static func _clear_gear(g) -> void:
+ g.state.equipment.clear()
+ g.state.composites.clear()
+ g.state.links.clear()
+ g.state.special_equipment.clear()
+
+static func _check_has_targets_at_once(t, g, label: String, early_slot: String="") -> Dictionary:
+ var slots=_has_targets_slots(g)
+ var snap=g.export_snapshot()
+ var rng=g.state.rng.duplicate(true)
+ var baselines={}
+ for slot in slots:
+  baselines[slot]=g.targets_at(slot)
+ var oracles={}
+ for slot in slots:
+  oracles[slot]=not baselines[slot].is_empty()
+ var predicted={}
+ for slot in slots:
+  g.reset_walk_counts()
+  predicted[slot]=g.has_targets_at(slot)
+  t.check(g.targets_at_slots.is_empty(),"has_targets_at_parity: predicate does not call targets_at "+label+" "+slot)
+  t.check(predicted[slot]==oracles[slot],"has_targets_at_parity: bool equals oracle "+label+" "+slot+" have="+str(predicted[slot])+" oracle="+str(oracles[slot]))
+  if slot==early_slot:
+   t.check(g.composite_root_calls==0 and g.links_at_calls==0,"has_targets_at_parity: first hit skips later sources "+label+" "+slot+" roots="+str(g.composite_root_calls)+" links="+str(g.links_at_calls))
+  var after=g.targets_at(slot)
+  t.check(after==baselines[slot] and ids_for(after)==ids_for(baselines[slot]),"has_targets_at_parity: targets_at order and ids unchanged "+label+" "+slot)
+  for i in range(after.size()):
+   t.check(is_same(after[i],baselines[slot][i]),"has_targets_at_parity: targets_at instance identity "+label+" "+slot)
+ t.check(g.export_snapshot()==snap and g.state.rng==rng,"has_targets_at_parity: snapshot and rng frozen "+label)
+ return predicted
+
+static func _check_has_targets_at_modes(t, g, label: String, early_slot: String="") -> void:
+ var live=_check_has_targets_at_once(t,g,label+"/live",early_slot)
+ var snap=g.export_snapshot()
+ var previous=g._begin_equipment_read()
+ var scoped=_check_has_targets_at_once(t,g,label+"/scope",early_slot)
+ for slot in live:
+  t.check(live[slot]==scoped[slot],"has_targets_at_parity: live equals scope "+label+" "+slot)
+ g._equipment_read=previous
+ t.check(g._equipment_read.is_empty() and g.export_snapshot()==snap,"has_targets_at_parity: scope released "+label)
+ var invalid_previous=g._begin_equipment_read()
+ g._equipment_read.invalid=true
+ var fallback=_check_has_targets_at_once(t,g,label+"/invalid-fallback",early_slot)
+ for slot in live:
+  t.check(live[slot]==fallback[slot],"has_targets_at_parity: invalid index live fallback "+label+" "+slot)
+ g._equipment_read=invalid_previous
+ t.check(g._equipment_read.is_empty(),"has_targets_at_parity: invalid fallback released "+label)
+
+# docs/spec/equipment-query-seam.md: has_targets_at shares the targets_at per-slot walk.
+static func has_targets_at_parity(t) -> void:
+ var empty=TargetWalkCountingGame.new(42)
+ _clear_gear(empty)
+ _check_has_targets_at_modes(t,empty,"empty")
+ for slot in _has_targets_slots(empty):
+  t.check(empty.targets_at(slot).is_empty(),"has_targets_at_parity: empty fixture oracle is empty "+slot)
+ var palm=TargetWalkCountingGame.new(42)
+ _clear_gear(palm)
+ palm.add_fixture("palm",4,10).side="left"
+ _check_has_targets_at_modes(t,palm,"one-sided palm","palm")
+ t.check(not palm.occupied("palm"),"has_targets_at_parity: one-sided palm occupied stays false")
+ var fingers=TargetWalkCountingGame.new(42)
+ _clear_gear(fingers)
+ fingers.add_fixture("fingers",4,10).side="left"
+ _check_has_targets_at_modes(t,fingers,"one-sided fingers","fingers")
+ t.check(not fingers.occupied("fingers"),"has_targets_at_parity: one-sided fingers occupied stays false")
+ var link_g=TargetWalkCountingGame.new(42)
+ _clear_gear(link_g)
+ var root=link_g._install_assembly("leg","upper","fixture",2,2)
+ var body=root.components.filter(func(e):return e.part=="body")[0]
+ var band=link_g._install_template("rope",link_g.Links.point_slot("below_knee"),8,10,false,"fixture",1,-1,0,"below_knee")
+ var rope=link_g._install_link(body.id,band.id,8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+ t.check(not rope.is_empty(),"has_targets_at_parity: live link fixture")
+ _check_has_targets_at_modes(t,link_g,"live link","thigh")
+ rope.durability=0
+ _check_has_targets_at_modes(t,link_g,"dead link","thigh")
+ t.check(link_g.links_at("thigh").is_empty() and link_g.links_at("calf").is_empty(),"has_targets_at_parity: dead link leaves links_at")
+ var glove_g=TargetWalkCountingGame.new(42)
+ _clear_gear(glove_g)
+ var glove=glove_g._install_assembly("glove","short","fixture",2,2)
+ t.check(not glove.is_empty() and glove_g.Composites.active(glove),"has_targets_at_parity: active composite fixture")
+ _check_has_targets_at_modes(t,glove_g,"active composite","upper_arm")
+ var glove_body=glove.components.filter(func(e):return e.part=="body")[0]
+ glove_body.durability=0
+ t.check(not glove_g.Composites.active(glove),"has_targets_at_parity: disabled composite inactive")
+ _check_has_targets_at_modes(t,glove_g,"disabled composite")
+ var sh=TargetWalkCountingGame.new(42)
+ _clear_gear(sh)
+ sh._install_template("rope","upper_arm",sh.Equipment.maximum(2),sh.Equipment.maximum(2),false,"fixture",2)
+ _check_has_targets_at_modes(t,sh,"shoulder")
+ var sp=TargetWalkCountingGame.new(42)
+ _clear_gear(sp)
+ t.check(not sp._install_special("nipple_clamp_low","special_1_a").is_empty(),"has_targets_at_parity: special fixture")
+ _check_has_targets_at_modes(t,sp,"special")
+ var crotch_g=TargetWalkCountingGame.new(42)
+ _clear_gear(crotch_g)
+ var crotch=crotch_g._install_special("crotch_rope_low","special_3_a")
+ t.check(not crotch.is_empty() and not crotch_g._install_link(crotch.id,crotch_g.add_fixture("wrist",8).id,8,"fixture").is_empty(),"has_targets_at_parity: crotch link fixture")
+ _check_has_targets_at_modes(t,crotch_g,"crotch link","wrist")
+ var bind_g=null
+ for seed in range(1,100):
+  var candidate=TargetWalkCountingGame.new(seed,true,"torso_binding")
+  if candidate.state.equipment[0].binding.kind=="linked":
+   bind_g=candidate
+   break
+ t.check(bind_g!=null,"has_targets_at_parity: linked torso binding fixture")
+ if bind_g!=null:
+  _check_has_targets_at_modes(t,bind_g,"connection",bind_g.state.equipment[0].slot)
 
 # docs/spec/equipment-query-seam.md「证据入口」: every declared outer entry opens and releases its own scope and answers
 # exactly like the index-off reference; entries that swap state still leave no scope behind.
