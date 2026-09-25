@@ -616,10 +616,12 @@ func _relic_row() -> void:
  var host_min_size=Vector2.ZERO
  var host_h=Control.SIZE_FILL
  var host_v=Control.SIZE_FILL
+ var host_index=0
  for existing in strips:
   if not is_instance_valid(existing): continue
   if host==null and existing.get_parent() is Control:
    host=existing.get_parent()
+   host_index=existing.get_index()
    host_rect=Rect2(existing.position,existing.size)
    host_min_size=existing.custom_minimum_size
    host_h=existing.size_flags_horizontal
@@ -635,6 +637,7 @@ func _relic_row() -> void:
  strip.mouse_filter=Control.MOUSE_FILTER_IGNORE
  if is_instance_valid(host):
   _place(strip,host_rect,host)
+  host.move_child(strip,host_index)
   strip.custom_minimum_size=host_min_size
   strip.size_flags_horizontal=host_h
   strip.size_flags_vertical=host_v
