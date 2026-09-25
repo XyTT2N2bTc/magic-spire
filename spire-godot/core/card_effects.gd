@@ -923,6 +923,16 @@ static func card_facts(g, card: Dictionary) -> Array:
    bind.kind="card";bind.uid=card.uid
    var mana=face_mana(g,card.type,second)
    facts.append_array(target_facts(g,bind,"冲开捕缚 · %s伤害" % g.number(bind.preview.damage),energy_cost(g,card.type),mana))
+ var bound_ids=g.B.keyword_ids(card.type,false)
+ var free_ids=g.B.keyword_ids(card.type,true)
+ var bound_mode=Rules.face_mode(card.type,false)
+ var free_mode=Rules.face_mode(card.type,true)
+ var collect_keys=["strain","slip","magic_slip","lower","unlock","follow_through"]
+ var need_slots=spec.has("target_slots")
+ if bound_mode in collect_keys and bound_mode in bound_ids: need_slots=true
+ if free_mode in collect_keys and free_mode in free_ids: need_slots=true
+ if "follow_through" in bound_ids or "follow_through" in free_ids: need_slots=true
+ if not need_slots: return facts
  var assist_profiles=g.HandAssist.profiles(g)
  var seen_special=[]
  var face_costs={}
