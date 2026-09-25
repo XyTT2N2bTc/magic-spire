@@ -386,6 +386,7 @@ static func run(t) -> void:
  command_fact_kind_lookup(t)
  card_facts_declared_slots(t)
  card_facts_consumes_has_targets_at(t)
+ card_facts_keyword_min_query(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -2303,6 +2304,133 @@ static func card_facts_consumes_has_targets_at(t) -> void:
   for conn in conns:
    if conn.id not in conn_ids: conn_ids.append(conn.id)
   _check_card_facts_consumes_cards(t,bind_g,"connection",conn_ids)
+
+# Pre-cut card_facts own-face rows for self_faces / single_face (no slot walk).
+static func card_facts_own_face_oracle(g, card: Dictionary) -> Array:
+ var facts=[]
+ var spec=g.Cards.Rules.SPECS[card.type]
+ var cards=g.Cards
+ if spec.has("self_faces"):
+  for side in ["bound","free"]:
+   var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":side=="free","mode":spec.mode,"self_target":true}
+   if spec.get("x_cost",false): p.x=cards.energy_cost(g,card.type,side=="free")
+   var choices=[p]
+   if spec.self_faces[side].get("exhaust_hand",false):
+    choices=[]
+    for chosen in g.state.hand:
+     if chosen.uid==card.uid: continue
+     var selection=p.duplicate();selection.hand_uid=chosen.uid;choices.append(selection)
+    if choices.is_empty():
+     p.hand_uid="";choices.append(p)
+   for choice in choices:
+    var face_label=cards.Rules.face_name(card.type,choice.free)+"面" if spec.has("bound_modes") else ("自由面" if choice.free else "挣脱面")
+    facts.append(g._fact(choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+face_label,{"kind":"card.target","args":{"payload":choice}},cards.energy_cost(g,card.type,choice.free),cards.face_mana(g,card.type,choice.free),cards.reason(g,choice),"","card"))
+  return facts
+ if cards.Rules.single_face(card.type):
+  var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":false,"mode":spec.mode,"self_target":true}
+  facts.append(g._fact(p,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":p}},cards.energy_cost(g,card.type),0.0,cards.reason(g,p),"","card"))
+ return facts
+
+# card_facts_keyword_min_query: slot collect is gated by keyword_ids ∩ equipment-collect keys, not term.name.
+static func card_facts_keyword_min_query(t) -> void:
+ var collect_keys=["strain","slip","magic_slip","lower","unlock","follow_through"]
+ var empty=TargetsAtCountingGame.new(42)
+ t.check(empty.state.phase=="battle","card_facts_keyword_min_query: battle fixture")
+ _clear_gear(empty)
+ var strain=Rewards.give(t,empty,"strain")
+ t.check(not empty.Cards.Rules.SPECS[strain.type].has("target_slots"),"card_facts_keyword_min_query: strain has no target_slots")
+ t.check("strain" in empty.B.keyword_ids(strain.type,false),"card_facts_keyword_min_query: strain bound ids contain strain")
+ var empty_snap=empty.export_snapshot()
+ var empty_rng=empty.state.rng.duplicate(true)
+ var empty_oracle=card_facts_union_slot_oracle(empty,strain)
+ t.check(empty.export_snapshot()==empty_snap and empty.state.rng==empty_rng,"card_facts_keyword_min_query: empty strain oracle frozen")
+ empty.targets_at_slots.clear()
+ var empty_facts=empty.Cards.card_facts(empty,strain)
+ t.check(empty.targets_at_slots.is_empty(),"card_facts_keyword_min_query: empty strain does not query targets_at")
+ t.check(empty_facts.any(func(f):return String(f.payload.get("target",""))==""),"card_facts_keyword_min_query: empty ordinary slot free face")
+ t.check(empty_facts==empty_oracle,"card_facts_keyword_min_query: empty strain facts equal oracle")
+ t.check(empty.export_snapshot()==empty_snap and empty.state.rng==empty_rng,"card_facts_keyword_min_query: empty strain snapshot rng")
+ var palm=TargetsAtCountingGame.new(42)
+ _clear_gear(palm)
+ var palm_piece=palm.add_fixture("palm",4,10)
+ palm_piece.side="left"
+ t.check(not palm.occupied("palm"),"card_facts_keyword_min_query: one-sided palm occupied stays false")
+ var palm_strain=Rewards.give(t,palm,"strain")
+ var palm_snap=palm.export_snapshot()
+ var palm_rng=palm.state.rng.duplicate(true)
+ var palm_oracle=card_facts_union_slot_oracle(palm,palm_strain)
+ t.check(palm.export_snapshot()==palm_snap and palm.state.rng==palm_rng,"card_facts_keyword_min_query: palm oracle frozen")
+ palm.targets_at_slots.clear()
+ var palm_facts=palm.Cards.card_facts(palm,palm_strain)
+ var palm_slots=palm.targets_at_slots.duplicate()
+ t.check(palm_slots.has("palm"),"card_facts_keyword_min_query: one-sided palm still queries targets_at")
+ t.check(palm_facts.any(func(f):return String(f.payload.get("target",""))==palm_piece.id),"card_facts_keyword_min_query: facts contain palm piece")
+ t.check(palm_facts==palm_oracle,"card_facts_keyword_min_query: palm strain facts equal oracle")
+ t.check(palm.export_snapshot()==palm_snap and palm.state.rng==palm_rng,"card_facts_keyword_min_query: palm snapshot rng")
+ var elbow=TargetsAtCountingGame.new(42)
+ t.check(elbow.state.phase=="battle","card_facts_keyword_min_query: elbow battle fixture")
+ _clear_gear(elbow)
+ var undeclared=elbow.add_fixture("ankle",40,100)
+ elbow.add_fixture("upper_arm",40,100)
+ var elbow_card=Rewards.give(t,elbow,"strong_elbow")
+ var elbow_spec=elbow.Cards.Rules.SPECS[elbow_card.type]
+ t.check(elbow_spec.has("target_slots") and "ankle" not in elbow_spec.target_slots and "upper_arm" in elbow_spec.target_slots,"card_facts_keyword_min_query: strong_elbow declares arms not ankle")
+ var elbow_snap=elbow.export_snapshot()
+ var elbow_rng=elbow.state.rng.duplicate(true)
+ var elbow_oracle=card_facts_union_slot_oracle(elbow,elbow_card)
+ t.check(elbow.export_snapshot()==elbow_snap and elbow.state.rng==elbow_rng,"card_facts_keyword_min_query: elbow oracle frozen")
+ elbow.targets_at_slots.clear()
+ var elbow_facts=elbow.Cards.card_facts(elbow,elbow_card)
+ var elbow_slots=elbow.targets_at_slots.duplicate()
+ t.check(elbow_slots.all(func(slot):return slot in elbow_spec.target_slots),"card_facts_keyword_min_query: strong_elbow targets_at stays in target_slots have="+str(elbow_slots))
+ t.check(not elbow_facts.any(func(f):return String(f.payload.get("target",""))==undeclared.id),"card_facts_keyword_min_query: no release row for undeclared occupied id")
+ t.check(elbow_facts==elbow_oracle,"card_facts_keyword_min_query: strong_elbow facts equal oracle")
+ t.check(elbow.export_snapshot()==elbow_snap and elbow.state.rng==elbow_rng,"card_facts_keyword_min_query: elbow snapshot rng")
+ var occupied=TargetsAtCountingGame.new(42)
+ t.check(occupied.state.phase=="battle","card_facts_keyword_min_query: occupied battle fixture")
+ _clear_gear(occupied)
+ for slot in occupied.B.SLOTS: occupied.add_fixture(slot,7,10)
+ var pot=Rewards.give(t,occupied,"pot_of_greed")
+ var search=Rewards.give(t,occupied,"mana_search")
+ for type in ["pot_of_greed","mana_search"]:
+  t.check(not occupied.Cards.Rules.SPECS[type].has("target_slots"),"card_facts_keyword_min_query: no target_slots "+type)
+  var ids=occupied.B.keyword_ids(type,false)+occupied.B.keyword_ids(type,true)
+  t.check(ids.all(func(id):return id not in collect_keys),"card_facts_keyword_min_query: ids omit equipment-collect keys "+type+" have="+str(ids))
+ var occupied_snap=occupied.export_snapshot()
+ var occupied_rng=occupied.state.rng.duplicate(true)
+ var pot_oracle=card_facts_own_face_oracle(occupied,pot)
+ var search_oracle=card_facts_own_face_oracle(occupied,search)
+ t.check(occupied.export_snapshot()==occupied_snap and occupied.state.rng==occupied_rng,"card_facts_keyword_min_query: occupied oracle frozen")
+ occupied.targets_at_slots.clear()
+ var pot_facts=occupied.Cards.card_facts(occupied,pot)
+ t.check(occupied.targets_at_slots.is_empty(),"card_facts_keyword_min_query: pot_of_greed does not query targets_at on occupied")
+ t.check(pot_facts==pot_oracle,"card_facts_keyword_min_query: pot_of_greed facts equal own-face oracle")
+ t.check(pot_facts.all(func(f):return String(f.payload.get("target",""))=="self"),"card_facts_keyword_min_query: pot_of_greed has no slot release or free-slot rows")
+ occupied.targets_at_slots.clear()
+ var search_facts=occupied.Cards.card_facts(occupied,search)
+ t.check(occupied.targets_at_slots.is_empty(),"card_facts_keyword_min_query: mana_search does not query targets_at on occupied")
+ t.check(search_facts==search_oracle,"card_facts_keyword_min_query: mana_search facts equal own-face oracle")
+ t.check(search_facts.all(func(f):return String(f.payload.get("target",""))=="self"),"card_facts_keyword_min_query: mana_search has no slot release or free-slot rows")
+ t.check(occupied.export_snapshot()==occupied_snap and occupied.state.rng==occupied_rng,"card_facts_keyword_min_query: occupied snapshot rng")
+ var terms=preload("res://data/card_text.gd").TERMS
+ var original_name=terms.strain.name
+ terms.strain.name="__mutated_strain__"
+ empty.targets_at_slots.clear()
+ empty.Cards.card_facts(empty,strain)
+ var mutated_empty=empty.targets_at_slots.duplicate()
+ palm.targets_at_slots.clear()
+ palm.Cards.card_facts(palm,palm_strain)
+ var mutated_palm=palm.targets_at_slots.duplicate()
+ elbow.targets_at_slots.clear()
+ elbow.Cards.card_facts(elbow,elbow_card)
+ var mutated_elbow=elbow.targets_at_slots.duplicate()
+ occupied.targets_at_slots.clear()
+ occupied.Cards.card_facts(occupied,pot)
+ occupied.Cards.card_facts(occupied,search)
+ var mutated_occupied=occupied.targets_at_slots.duplicate()
+ terms.strain.name=original_name
+ t.check(mutated_empty.is_empty() and mutated_palm==palm_slots and mutated_elbow==elbow_slots and mutated_occupied.is_empty(),"card_facts_keyword_min_query: collect set unchanged after TERMS.strain.name mutate")
+ t.check(empty.export_snapshot()==empty_snap and empty.state.rng==empty_rng and palm.export_snapshot()==palm_snap and palm.state.rng==palm_rng and elbow.export_snapshot()==elbow_snap and elbow.state.rng==elbow_rng and occupied.export_snapshot()==occupied_snap and occupied.state.rng==occupied_rng,"card_facts_keyword_min_query: snapshot rng after TERMS mutate")
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.command_facts():
