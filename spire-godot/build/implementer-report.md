@@ -1,3 +1,56 @@
+# 实现者报告：present(dirty) 第五刀 actions
+
+域：`ui/main.gd` M3 展示调度（`present` 加 `["actions"]` 局部）与 `_build_action_rail` 键＋早退＋不叠栏。非清洁／非加固。
+
+起步 HEAD：`06045f8`（规划者第五刀契约）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`4e496c1`。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3135 行）：`present(["actions"])` 局部只调 `_build_action_rail`；`["header"]`／`["body_bar"]`／`["relics"]`／`["hand"]` 仍局部。未知／`["*"]`／其它已声明名仍全量 `render(view)`，禁止再 `get_view`。`_action_presentation_key` 与 `_action_key` 紧挨 `_build_action_rail`。键字段＝`phase`／`selected_enemy`／`attack_forms` 副本／`quick_release_open`、attack 且 `payload.kind=="attack"` 且 `payload.enemy==selected_enemy` 的子集、pressure 且 `payload.kind=="calm"` 的子集；每条用 `TargetQueries.fact_key`＋`valid`／`reason`／`cost`／`label`／`body_part`／`casting`／`brief`／`risk`。`version`／`flow`／`surrender`／`character_id`／`equipment_fireball_unlocked`／`brief_tags`／`mana`／`detail`／`payload.type|form|witch_action`／locale 不进键。`_present_needs_full_render`：**仅** `["actions"]` 且非 battle／`quick_release_open`／`_selecting_hand()`／`card_chain` 非空／`reward_panel.active` → 全量；`present` 对 snapshot 的 `next` 同检。不得把这些扩到 header／body_bar／relics／hand。`PRESENT_ADJACENCY` 与源同步（`present` 增 `_build_action_rail`，`_build_action_rail` 读本文件键函数）。签名仍是 `present(dirty: Array=["*"], snapshot: Dictionary={})`。未改 `_submit`。局部路径未调 `_fixed_actions`／`quick_release_bar.build`／`toggle`／`_rest_controls`／`_prison_controls`／`_header`／`header.configure`／`_relic_row`／`layout.body_sidebar`／`_hand`／`begin_frame`、未清空 `layout.used`。未改 `header.tscn`／`header.gd`／`game_layout.gd`／`quick_release_bar.gd`／`target_queries.gd`／`body_sidebar._presentation_key`／`_relic_presentation_key`／`_hand_presentation_key`。无新 UI 文件。无 core／data。无 `docs/spec`。
+- `spire-godot/tests/display_ui_cases.gd`（1080 行）：`present_routes_actions_or_full` 已在 `run` 里接在 `present_routes_hand_or_full` 之后。`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full` 的「已声明非局部」步由 `["actions"]` 改为 `["posture"]`。测试侧 `GetViewCountingGame`。生产无计数器。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本刀只加薄路由与 `_build_action_rail` 早退，未拆文件。
+
+检查点：
+- `c3e8f37` `checkpoint(implementer): add action presentation key`
+- `70fc828` `checkpoint(implementer): add present actions routing`
+- `6824a5b` `checkpoint(implementer): add present_routes_actions_or_full`
+- `4e496c1` `checkpoint(implementer): register present_routes_actions_or_full`
+
+## 叠栏
+
+不叠。键命中早退且要求树上 `AttackActions` 件数＝1；键未命中先 `_remove_local_panel("AttackActions")` 再按现行战斗＋非快捷挣脱逻辑建模。全量 `_fixed_actions`→`_build_action_rail` 仍写回键（`begin_frame` 释放后即使键相同也重建）。无活栏且本刀局部条件成立时本函数创建栏，不改走全量。场景断言 `AttackActions`／`DeepBreath`／`ActionRailToggle` 件数＝1。套件绿。
+
+## 表外全量
+
+只让 `["actions"]` 在非 battle／快捷挣脱开／选牌／`card_chain` 非空／奖励面板 active 时走全量。`header`／`body_bar`／`relics`／`hand` 的全量条件未改。局部 `["actions"]` 因上述条件已改道全量，不走快捷挣脱栏、不建探索火球空钮、不顺手 page 控件。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 418 assertions`（`check-ui.log`：UI SUITE display 418 assertions, 63.25s）
+- `summary.json` `status=passed`，`before`＝`after`＝`C0A343E7ABE447FD376B2D238F59CE22E7CAD17A0C0BD2178C51FE9E345861BF`
+- 日志：`spire-godot/build/checks/20260925T165700025-28696/`
+
+先有一轮 import 因工作树缺 `.fontdata` 失败（`20260925T165545911-34176`，`status=failed`，display 未跑）。补齐导入缓存后重跑上列命令通过。未提交 `*.import`／`.uid`。
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`sidebar_refresh` 同套件未红。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）。未停工交回。无 `needs-human-review`。
+
+---
+
 # 实现者报告：present(dirty) 第四刀 hand
 
 域：`ui/main.gd` M3 展示调度（`present` 加 `["hand"]` 局部）与 `_hand` 键＋早退＋不叠牌。非清洁／非加固。
