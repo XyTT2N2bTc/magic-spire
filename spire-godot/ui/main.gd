@@ -271,6 +271,11 @@ func _drawer_shell(title: String, rect: Rect2, tone: Color=CYAN) -> VBoxContaine
  content.add_child(HSeparator.new())
  return content
 
+var _drawer_key=[]
+
+func _drawer_presentation_key() -> Array:
+ return [bool(save_failed),bool(view.get("demo_finished",false))]
+
 func _menu_drawer() -> void:
  var content=_drawer_shell("游戏菜单",Rect2(1090,78,474,474))
  var save=_button("存档异常 · 查看" if save_failed else "存档 / 继续",_open_saves,RED if save_failed else CYAN)
@@ -282,6 +287,29 @@ func _menu_drawer() -> void:
  var restart_button=_button("重开 / 练习",func():_open_drawer("show_settings"));restart_button.name="OpenRestart";content.add_child(restart_button)
  var options=_button(_text("ui.settings.title","设置"),func():_open_drawer("show_options"));options.name="OpenOptions";content.add_child(options)
  var home=_button("返回主页",_return_home,CYAN);home.name="ReturnHome";content.add_child(home)
+ _drawer_key=_drawer_presentation_key()
+
+func _drawer_key_hit(key) -> bool:
+ if _drawer_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var live=[]
+ for node in layout.find_children("InformationLayer","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if live.size()!=1: return false
+ var layer=live[0]
+ for node_name in ["InformationDrawer","DismissDrawer","CloseDrawer","OpenSaves","QuickSL","OpenLog","OpenRestart","OpenOptions","ReturnHome"]:
+  if _log_live_count(layer,node_name)!=1: return false
+ return true
+
+func _refresh_drawer_section() -> void:
+ var key=_drawer_presentation_key()
+ if _drawer_key_hit(key):
+  return
+ _ensure_log_layer()
+ _unload_log_shell()
+ building_drawer=true
+ _menu_drawer()
+ building_drawer=false
 
 func _open_tutorial(category: String="") -> void:
  tutorial_category=category
@@ -493,9 +521,10 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # local), _refresh_resource_section (["resources"] local), _refresh_log_section
 # (["show_log"] local), _refresh_body_details_section (["body_details"] local),
 # _refresh_picker_section (["pickers"] local), _refresh_speech_section (["speech"]
-# local), _refresh_notice_section (["notice"] local) and layout.body_sidebar
-# (["body_bar"] local). present local ["notice"] skips the prefix _hide_term;
-# other local sections still hide first.
+# local), _refresh_notice_section (["notice"] local), _refresh_drawer_section
+# (["drawers"] local) and layout.body_sidebar (["body_bar"] local). present
+# local ["notice"] skips the prefix _hide_term; other local sections still hide
+# first.
 # header.configure reads header._presentation_key; _relic_row reads
 # _relic_presentation_key, _hand reads _hand_presentation_key,
 # _build_action_rail reads _action_presentation_key, _refresh_posture_section /
@@ -504,9 +533,11 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _log_presentation_key, _refresh_body_details_section / _body_details read
 # _body_details_presentation_key, _refresh_picker_section / _hand_target_picker
 # read _picker_presentation_key, _refresh_speech_section / _speech_bubble
-# read _speech_presentation_key, and _refresh_notice_section reads
+# read _speech_presentation_key, _refresh_notice_section reads
 # _notice_presentation_key then _show_term in this file (hit early-return,
-# miss _hide_term then rebuild then save).
+# miss _hide_term then rebuild then save), and _refresh_drawer_section /
+# _menu_drawer read _drawer_presentation_key (hit early-return, miss unload
+# shells then rebuild then save).
 # _present_needs_full_render probes GameHeader existence for header,
 # view.pressure.overloaded only for ["hand"], non-battle / quick_release_open /
 # _selecting_hand / card_chain / reward_panel.active only for ["actions"],
@@ -515,10 +546,11 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # closed details / quick_release_open / non-battle / pending_retain only for
 # ["body_details"], not _selecting_hand only for ["pickers"], empty speech /
 # show_home / show_route / non-battle / takeover lock / suppressed hero id /
-# nonempty npc_speech only for ["speech"], and empty notice / missing or
+# nonempty npc_speech only for ["speech"], empty notice / missing or
 # invalid hero / show_home / show_route / non-battle / touch finger with
-# details blocked only for ["notice"]; render, _show_term, and
-# layout.body_sidebar are boundary leaves here.
+# details blocked only for ["notice"], and not show_menu / show_home /
+# show_route / non-battle / other DRAWERS only for ["drawers"]; render,
+# _show_term, and layout.body_sidebar are boundary leaves here.
 # present does not call _bottom_controls, _wall_controls, _posture_controls,
 # mana_flask.build, _refresh_drawers, _open_drawer, _close_drawers,
 # _drawer_shell, _body_drawer, _refresh_body_details, _equipment_tile,
@@ -528,7 +560,7 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _dismiss_speech, _speech_visible, _show_term, _drag_rejection,
 # _card_tooltip, or _takeover_banner.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","layout.body_sidebar"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","layout.body_sidebar"],
  "_present_needs_full_render":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
@@ -560,13 +592,16 @@ const PRESENT_ADJACENCY={
  "_refresh_notice_section":["_notice_presentation_key","_show_term"],
  "_notice_presentation_key":[],
  "_show_term":[],
+ "_refresh_drawer_section":["_drawer_presentation_key","_menu_drawer"],
+ "_menu_drawer":["_drawer_presentation_key"],
+ "_drawer_presentation_key":[],
  "layout.body_sidebar":[],
  "render":[],
 }
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)) or (dirty.size()==1 and String(dirty[0])=="body_details" and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.size()==1 and String(dirty[0])=="pickers" and not _selecting_hand()) or (dirty.size()==1 and String(dirty[0])=="speech" and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())) or (dirty.size()==1 and String(dirty[0])=="notice" and (notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed))):
+ if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)) or (dirty.size()==1 and String(dirty[0])=="body_details" and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.size()==1 and String(dirty[0])=="pickers" and not _selecting_hand()) or (dirty.size()==1 and String(dirty[0])=="speech" and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())) or (dirty.size()==1 and String(dirty[0])=="notice" and (notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed))) or (dirty.size()==1 and String(dirty[0])=="drawers" and (not show_menu or show_home or show_route or String(next.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field))))):
   render(next)
   return
  DragTargets.clear(self,false)
@@ -595,6 +630,8 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
   _refresh_speech_section()
  elif String(dirty[0])=="notice":
   _refresh_notice_section()
+ elif String(dirty[0])=="drawers":
+  _refresh_drawer_section()
  else:
   layout.body_sidebar(self)
  layout.end_frame()
@@ -628,6 +665,8 @@ func _present_needs_full_render(dirty: Array) -> bool:
   return speech.is_empty() or show_home or show_route or String(view.phase)!="battle" or _takeover_locked() or suppressed_hero_speech_id=="hero:"+str(speech.get("id","")) or not view.get("npc_speech",{}).is_empty()
  if section=="notice":
   return notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(view.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed)
+ if section=="drawers":
+  return not show_menu or show_home or show_route or String(view.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field)))
  return section!="body_bar" and section!="relics"
 
 func _release_candidate_controls(root: Control) -> void:
