@@ -488,15 +488,18 @@ func render(snapshot: Dictionary={}) -> void:
 const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","posture","resources","show_log","body_bar","body_details","pickers","speech","notice","drawers","page","scene_instances"]
 # Declared present adjacency (direct calls, stable symbols only): present routes to
 # _present_needs_full_render (predicate), render (full fallback), header.configure
-# (["header"] local) and layout.body_sidebar (["body_bar"] local); only
-# header.configure reads header._presentation_key (hit early-return, miss rebuild
-# then save). _present_needs_full_render only probes GameHeader existence without
-# calling configure; render and layout.body_sidebar are boundary leaves here.
+# (["header"] local), _relic_row (["relics"] local) and layout.body_sidebar
+# (["body_bar"] local). header.configure reads header._presentation_key; _relic_row
+# reads _relic_presentation_key in this file (hit early-return, miss rebuild then
+# save). _present_needs_full_render only probes GameHeader existence for header
+# without calling configure; render and layout.body_sidebar are boundary leaves here.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","layout.body_sidebar"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","layout.body_sidebar"],
  "_present_needs_full_render":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
+ "_relic_row":["_relic_presentation_key"],
+ "_relic_presentation_key":[],
  "layout.body_sidebar":[],
  "render":[],
 }
@@ -511,6 +514,8 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  if not snapshot.is_empty(): view=snapshot
  if String(dirty[0])=="header":
   layout.get_node("GameHeader").configure(self)
+ elif String(dirty[0])=="relics":
+  _relic_row()
  else:
   layout.body_sidebar(self)
  layout.end_frame()
@@ -525,7 +530,7 @@ func _present_needs_full_render(dirty: Array) -> bool:
   return true
  if section=="header":
   return not is_instance_valid(layout.get_node_or_null("GameHeader"))
- return section!="body_bar"
+ return section!="body_bar" and section!="relics"
 
 func _release_candidate_controls(root: Control) -> void:
  for key in candidate_buttons.keys():
