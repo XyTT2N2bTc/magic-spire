@@ -1,3 +1,48 @@
+# 实现者报告：闭合 relics sibling 顺序 P1（bunny）
+
+域：`ui/main.gd::_relic_row` 重建后 `move_child` 恢复原 sibling 位；`tests/display_ui_cases.gd::present_routes_relics_or_full` 的 `RouteMapColumn` 夹具含 `TowerMapScroll`。非清洁／非加固。未改 `_place` 全局语义、`_submit`、`header.gd`／`game_layout.gd`／`relic_icon.gd`。无新 UI 文件。未写 `docs/spec`。
+
+起步 HEAD：`8916dac`。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`c0d9396`。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3018 行）：`_relic_row` 释放前记下首个有效 `RelicStrip` 的 `get_index()`；`_place` 挂回原 host 后 `host.move_child(strip, host_index)`，使条仍在 `TowerMapScroll` 之上。`_place` 仍只 `add_child`＋写 rect，语义未改。
+- `spire-godot/tests/display_ui_cases.gd`（908 行）：`RouteMapColumn` 夹具先有条、后加名为 `TowerMapScroll` 的 sibling；键未命中重建后断言条 `get_index()==0` 且 `TowerMapScroll` 仍是下一 sibling。空 VBox 不再算过。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本修复只加 index 记录与 `move_child`，未拆文件。
+
+检查点：
+- `5905982` `checkpoint(implementer): restore RelicStrip sibling index after host rebuild`
+- `c0d9396` `checkpoint(implementer): assert RouteMapColumn RelicStrip stays above TowerMapScroll`
+
+## 顺序怎么恢复
+
+键未命中时先记下首个有效条的 `get_index()`，再 `remove_child`＋`queue_free`。新条 `_place` 到已保存 host 后立刻 `host.move_child(strip, host_index)`。真实 `RouteMapColumn` 先 reparent 条再 `add_child(TowerMapScroll)`；重建后条仍在 index 0。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 345 assertions`（`check-ui.log`：UI SUITE display 345 assertions, 46914 ms）
+- `summary.json` `status=passed`，`before`＝`after`＝`541B167B9C87FC5BEC454376EDD108B8DE0623FA23981441811A506C2E029A05`
+- 日志：`spire-godot/build/checks/20260925T115456474-34716/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）。
+
+---
+
 # 实现者报告：闭合 relics 审查 FAIL（bunny P1/P2）
 
 域：`ui/main.gd::_relic_row` 重建宿主与 0-or-1 早退；`tests/display_ui_cases.gd::present_routes_relics_or_full` 的 `body_bar` 条带断言。非清洁／非加固。未改 `_submit`／`PRESENT_SECTIONS`／`present(dirty: Array=…)` 签名／header／layout／relic_icon／`body_sidebar._presentation_key`。无新 UI 文件。未写 `docs/spec`。
