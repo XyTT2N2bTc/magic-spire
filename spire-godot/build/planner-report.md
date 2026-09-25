@@ -1,7 +1,8 @@
-# 规划者报告：present(dirty) 第一刀
+# 规划者报告：present(dirty) 第二刀 scene_instances
 
-- 域：`ui/main.gd` M3 增加 `present(dirty, snapshot)`；仅 `body_bar` 局部走既有 `layout.body_sidebar`／`_presentation_key`。不改 `_submit`，不做 `commit`／`present_rejection`。
-- 状态：可交协调者；**不** `needs-human-review`（无新模块、无新允许边；通宵已授权落地既有 present／节键）。契约 `spire-godot/build/partition-delta-extract.md`。对照 `docs/spec/response-pipeline.md` 接缝 B／节键表与现行 `render`／`_submit`。HEAD 规划起点 `12c8191` 静态读取；未实现、未跑 Godot。
-- 切分：节名枚举声明全表；未知／`["*"]`／未局部路由的已声明名 → `render(view)` 全量；仅 `["body_bar"]` 不 `begin_frame`。禁止第二套刷新管线与独立 present 文件。
-- Gherkin：`tests/display_ui_cases.gd::present_routes_body_bar_or_full`（待实现）。验收 UI **none**。档 2：未知／`["*"]` 不换 header；键命中仍重建 body_bar；生产带计数器 → 须红。
-- 检查证据：仅静态读取 `render`／`_submit`／`body_sidebar` 键；Godot／测试／审查／清洁／加固均未验证，不报告通过；无产品源码、打包、发布或 push。
+checkpoint(planner): 汇总第二刀阻塞
+
+- 域：`ui/main.gd::present` 下一节 `scene_instances`（节键表：`layout.hero_portrait`／`enemy_group`／`body_sidebar`，外观由 arena／`equipment_portrait`／`body_sidebar` 自身比对）。不改 `_submit`。不拆 `commit`／`present_rejection`。不重做 `body_bar`。
+- 状态：**needs-human-review；停止**。搜键：`header.configure` 无键；drawer 无早退；`card_faces` 非节键。仅 `scene_instances` 有既有外观早退，但 `game_layout.enemy_group` 复用时剥掉 `_battle_scene` 挂上的 page 子节点；避开则须新键字段集、或 M3 越过 M5 的新边、或改 M5。契约 `spire-godot/build/partition-delta-2-extract.md`（未覆写第一刀提取物）。起始 HEAD `6d788f0` 静态读取；未实现、未跑 Godot。
+- 切分：未批准前允许实现面为空。未知／`["*"]` 仍须全量的档 2 口径保留为待决，不注册新 Gherkin。验收 UI **none**。
+- 检查证据：仅静态读取 `present`／`header.configure`／`_refresh_drawers`／`_hand`／`arena`／`equipment_portrait`／`game_layout.enemy_group`；Godot／测试／审查／清洁／加固均未验证，不报告通过；无产品源码、打包、发布或 push。
