@@ -772,6 +772,7 @@ static func run(t) -> void:
  await sidebar_refresh(t)
  await present_routes_body_bar_or_full(t)
  await present_routes_header_or_full(t)
+ await present_routes_relics_or_full(t)
  await portrait_refresh(t)
  var backdrop=ui.find_child("MoonlitGallery",true,false)
  var static_draws=[0]
