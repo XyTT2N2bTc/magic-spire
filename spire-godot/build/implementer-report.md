@@ -1,3 +1,52 @@
+# 实现者报告：present(dirty) 第十三刀 drawers
+
+域：`ui/main.gd` M3 展示调度（`present` 加 `["drawers"]` 局部）与 `_menu_drawer` 共享键＋早退＋不叠窗。非清洁／非加固。
+
+起步 HEAD：`a0eb9e6`（规划者第十三刀契约）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`6557f6f`。无 `needs-human-review`。未停工交回。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3606 行）：`present(["drawers"])` 有独立分支，只调 `_refresh_drawer_section`（薄包：键命中早退；未命中 `_ensure_log_layer` 后卸 `DismissDrawer`／`InformationDrawer`，`building_drawer=true` 再 `_menu_drawer`），**不**落入 `else` 的 `layout.body_sidebar`。`["header"]`／`["body_bar"]`／`["relics"]`／`["hand"]`／`["actions"]`／`["posture"]`／`["resources"]`／`["show_log"]`／`["body_details"]`／`["pickers"]`／`["speech"]`／`["notice"]` 仍局部。未知／`["*"]`／其它已声明名仍全量 `render(view)`，禁止再 `get_view`。`_drawer_presentation_key` 与 `_drawer_key` 紧挨 `_menu_drawer`；薄函数与 `_menu_drawer` 共用该键，无第二套。键字段＝本地 `save_failed` 布尔、`view.demo_finished` 布尔（缺项按现行假）。`version`／其它 `DRAWERS`／`show_menu`／`show_home`／`deck_zone`／牌堆投影／`status_filter`／`selected_item`／locale 不进键。未写入 `_menu_drawer` 本体早退。`_present_needs_full_render`：**仅** `["drawers"]` 且 `not show_menu`／`show_home`／`show_route`／非 battle／`DRAWERS` 中除 `show_menu` 外任一为真 → 全量；`present` 对 snapshot 的 `next` 同检（`phase` 用 `next.phase`）。不得把这些扩到 header／body_bar／relics／hand／actions／posture／resources／show_log／body_details／pickers／speech／notice，亦未删既有节的全量条件。`PRESENT_ADJACENCY` 与源同步（`present` 增 `_refresh_drawer_section`，其读本文件键函数并调 `_menu_drawer`；`present` 直调不含 `_refresh_drawers`／`_open_drawer`／`_close_drawers`／`_drawer_shell`／`_deck_drawer`／`_log_drawer`／`deck_browser`／`RunReview.drawer`／`_battle_scene`）。签名仍是 `present(dirty: Array=["*"], snapshot: Dictionary={})`。未改 `_submit`。局部路径未调 `_refresh_drawers`／`_open_drawer`／`_close_drawers`／其它 `_*_drawer`／`deck_browser`／`RunReview.drawer`／`_header`／`header.configure`／`_relic_row`／`layout.body_sidebar`／`_hand`／`_fixed_actions`／`_build_action_rail`／`_bottom_controls`／`_refresh_resource_section`／`_wall_controls`／`_posture_controls`／`_refresh_posture_section`／`_refresh_log_section`／`_body_details`／`_refresh_body_details_section`／`_hand_target_picker`／`_player_picker`／`_refresh_picker_section`／`_refresh_speech_section`／`_refresh_notice_section`／`_battle_scene`／`begin_frame`、未清空 `layout.used`、未直调 `_drawer_shell`、未 instantiate `header.tscn`／`deck_browser.gd`、未 `command_router.emit`。未改 `header.tscn`／`header.gd`／`body_sidebar.gd`／`game_layout.gd`／`deck_browser.gd`／`first_turn_presenter.gd`／`command_routes.gd`／`command_router.gd`／`touch_input.gd`／`header._presentation_key`／`body_sidebar._presentation_key`／`_relic_presentation_key`／`_hand_presentation_key`／`_action_presentation_key`／`_posture_presentation_key`／`_resource_presentation_key`／`_log_presentation_key`／`_body_details_presentation_key`／`_picker_presentation_key`／`_speech_presentation_key`／`_notice_presentation_key`。无新 UI 文件。无 core／data。无 `docs/spec`。关菜单／主页／其它抽屉／非战斗页本刀全量。
+- `spire-godot/tests/display_ui_cases.gd`（1963 行）：`present_routes_drawers_or_full` 已在 `run` 里接在 `present_routes_notice_or_full` 之后。`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full`／`present_routes_show_log_or_full`／`present_routes_body_details_or_full`／`present_routes_pickers_or_full`／`present_routes_speech_or_full`／`present_routes_notice_or_full` 的「已声明非局部」步由 `["drawers"]` 改为 `["page"]`。本场景不测 `present(["show_log"])`／`present(["body_details"])`／`present(["pickers"])`／`present(["speech"])`／`present(["notice"])` 的仍局部。测试侧 `GetViewCountingGame`。生产无计数器。夹具 `_open_drawer("show_menu")`（不点存档／快速SL／日志／重开／设置／返回主页／关闭／遮罩）。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本刀只加薄路由与菜单早退，未拆文件。
+
+检查点：
+- `5356b66` `checkpoint(implementer): add present drawers routing`
+- `6557f6f` `checkpoint(implementer): add present_routes_drawers_or_full`
+
+## 叠窗
+
+不叠。键命中早退只在卸窗／建模之前一次（`_refresh_drawer_section`，**不**写进 `_menu_drawer` 本体），且要求树上活 `InformationLayer` 件数＝1，该层上 `InformationDrawer`／`DismissDrawer`／`CloseDrawer`／`OpenSaves`／`QuickSL`／`OpenLog`／`OpenRestart`／`OpenOptions`／`ReturnHome` 各 1 且仍是该层子孙。禁止只凭缓存键、层已被 `begin_frame` 释放仍早退。键未命中先卸该层上 `DismissDrawer`／`InformationDrawer`（含子树），保留 `InformationLayer` 实例；`building_drawer=true` 时壳父节点＝`drawer_layer`。禁止只卸 `InformationDrawer`。禁止卸 `GameHeader`／`HeroSpeechGroup`／`TermExplanation`／身体栏。无活层且本路径条件已满足时按现行口径建 `InformationLayer` 再 `_menu_drawer`，不改走 `_refresh_drawers`。全量 `_refresh_drawers`→`_menu_drawer` 不在此卸窗（已毁层），仍在实际建窗之后写回键。关闭态／主页／其它抽屉／非战斗早退本刀不写本键。禁止卸窗前预调 `_menu_drawer`。场景断言活 `InformationDrawer`／`DismissDrawer`／`OpenSaves` 件数＝1。套件绿。
+
+## 表外全量
+
+只让 `["drawers"]` 在 `not show_menu`／`show_home`／`show_route`／非 battle／其它 `DRAWERS` 任一为真时走全量。`header`／`body_bar`／`relics`／`hand`／`actions`／`posture`／`resources`／`show_log`／`body_details`／`pickers`／`speech`／`notice` 的全量条件未改。局部 `["drawers"]` 因而从不在菜单关闭／主页／其它抽屉已开／非战斗页建菜单窗，从不建 `DeckBrowser`／`StatusGrid`／`InventoryList`／`LogBackToMenu`／`ShopkeeperSpeech`。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 851 assertions`（`check-ui.log`：UI SUITE display 851 assertions, 75.89s）
+- `summary.json` `status=passed`，`before`＝`after`＝`01FE7FCEF9AD6724F08179D787E32E336FCC133DA653299C6812C1859A4AD3A9`
+- 日志：`spire-godot/build/checks/20260925T191800846-18840/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full`／`present_routes_show_log_or_full`／`present_routes_body_details_or_full`／`present_routes_pickers_or_full`／`present_routes_speech_or_full`／`present_routes_notice_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）、双审。未停工交回。无 `needs-human-review`。
+
+---
+
 # 实现者报告：present(dirty) 第十二刀 notice
 
 域：`ui/main.gd` M3 展示调度（`present` 加 `["notice"]` 局部）与全量末尾 notice 入口共享键＋早退＋不叠泡。非清洁／非加固。
