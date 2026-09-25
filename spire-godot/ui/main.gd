@@ -486,6 +486,20 @@ func render(snapshot: Dictionary={}) -> void:
  _localize_controls(layout)
 
 const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","posture","resources","show_log","body_bar","body_details","pickers","speech","notice","drawers","page","scene_instances"]
+# Declared present adjacency (direct calls, stable symbols only): present routes to
+# _present_needs_full_render (predicate), render (full fallback), header.configure
+# (["header"] local) and layout.body_sidebar (["body_bar"] local); only
+# header.configure reads header._presentation_key (hit early-return, miss rebuild
+# then save). _present_needs_full_render only probes GameHeader existence without
+# calling configure; render and layout.body_sidebar are boundary leaves here.
+const PRESENT_ADJACENCY={
+ "present":["_present_needs_full_render","render","header.configure","layout.body_sidebar"],
+ "_present_needs_full_render":[],
+ "header.configure":["header._presentation_key"],
+ "header._presentation_key":[],
+ "layout.body_sidebar":[],
+ "render":[],
+}
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
