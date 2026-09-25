@@ -1,3 +1,54 @@
+# 实现者报告：present(dirty) 第六刀 posture
+
+域：`ui/main.gd` M3 展示调度（`present` 加 `["posture"]` 局部）与 `_wall_controls`／`_posture_controls` 共享键＋早退＋不叠栏。非清洁／非加固。
+
+起步 HEAD：`2a6f192`（规划者第六刀契约）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`a829daf`。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3202 行）：`present(["posture"])` 局部只调 `_refresh_posture_section`（先 `_wall_controls` 再 `_posture_controls`）；`["header"]`／`["body_bar"]`／`["relics"]`／`["hand"]`／`["actions"]` 仍局部。未知／`["*"]`／其它已声明名仍全量 `render(view)`，禁止再 `get_view`。`_posture_presentation_key` 与 `_posture_key` 紧挨 `_posture_controls`；`_wall_controls` 共用该键，无第二套。键字段＝`view.posture`／`guard_bind.is_empty` 布尔、posture 且 `payload.adjacent` 的子集、wall_move 且 `direction=="toward"` 的子集；每条用 `TargetQueries.fact_key`＋`valid`／`reason`／`cost`，姿态条另含 `adjacent`／`wall`，toward 条另含 `distance`。`phase`／`show_route`／`label`／`detail`／`payload.after`／away／非 adjacent 姿态事实／`flow`／`surrender`／能量／抽弃牌／locale／`version` 不进键。`_present_needs_full_render`：**仅** `["posture"]` 且 `next.phase!="battle"` 或 `show_route` → 全量；`present` 对 snapshot 的 `next` 同检。不得把这些扩到 header／body_bar／relics／hand／actions。`PRESENT_ADJACENCY` 与源同步（`present` 增 `_refresh_posture_section`，其调 `_wall_controls`／`_posture_controls`，后二者读本文件键函数）。签名仍是 `present(dirty: Array=["*"], snapshot: Dictionary={})`。未改 `_submit`。局部路径未调 `_bottom_controls`／`_fixed_actions`／`_build_action_rail`／`_hand`／`_header`／`header.configure`／`_relic_row`／`layout.body_sidebar`／`begin_frame`、未清空 `layout.used`。未改 `header.tscn`／`header.gd`／`game_layout.gd`／`target_queries.gd`／`body_sidebar._presentation_key`／`_relic_presentation_key`／`_hand_presentation_key`／`_action_presentation_key`。无新 UI 文件。无 core／data。无 `docs/spec`。prepare／rest／prison 姿态本刀不局部。
+- `spire-godot/tests/display_ui_cases.gd`（1184 行）：`present_routes_posture_or_full` 已在 `run` 里接在 `present_routes_actions_or_full` 之后。`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full` 的「已声明非局部」步由 `["posture"]` 改为 `["resources"]`。测试侧 `GetViewCountingGame`。生产无计数器。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本刀只加薄路由与姿态节早退，未拆文件。
+
+检查点：
+- `7e34835` `checkpoint(implementer): add posture presentation key`
+- `a214ac8` `checkpoint(implementer): add present posture routing`
+- `b8e37cc` `checkpoint(implementer): add present_routes_posture_or_full`
+- `a829daf` `checkpoint(implementer): register present_routes_posture_or_full`
+
+## 叠栏
+
+不叠。键命中早退只在 `_refresh_posture_section` 二者之前一次，且要求树上 `PostureChoices` 件数＝相邻非空时 1 否则 0、`WallMove_toward` 件数＝toward 非空时 1 否则 0、同名 `Posture_*` 仍在、`candidate_buttons` 仍指向这些实例。禁止只凭缓存键、钮已被 `begin_frame` 释放仍早退。键未命中先卸 `PostureChoices` 与 `WallMove_toward`（墙钮是 layout 直子，另清其 `candidate_buttons`），再 `_wall_controls`→`_posture_controls`。`_wall_controls`／`_posture_controls` 各自不 miss 卸二者。写键只在 `_posture_controls` 跑完之后（空相邻也写）。全量 `_bottom_controls` 不在此卸栏，仍写回键。无活栏且相邻／toward 非空时本路径创建，不改走全量。场景断言 `PostureChoices`／`Posture_sit` 件数＝1。套件绿。
+
+## 表外全量
+
+只让 `["posture"]` 在 `phase!="battle"` 或 `show_route` 时走全量。`header`／`body_bar`／`relics`／`hand`／`actions` 的全量条件未改。局部 `["posture"]` 因而从不走探索／休息／监狱栏、从不在地图 overlay 上建姿／墙钮。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 463 assertions`（`check-ui.log`：UI SUITE display 463 assertions, 52793 ms）
+- `summary.json` `status=passed`，`before`＝`after`＝`C9C5DD12F84C2831237DFAB9A5676EAD49B731C15E595D97E4DB73AEB03681A8`
+- 日志：`spire-godot/build/checks/20260925T171500158-1008/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）。未停工交回。无 `needs-human-review`。
+
+---
+
 # 实现者报告：present(dirty) 第五刀 actions
 
 域：`ui/main.gd` M3 展示调度（`present` 加 `["actions"]` 局部）与 `_build_action_rail` 键＋早退＋不叠栏。非清洁／非加固。
