@@ -74,7 +74,34 @@ static func battle_display_set(g, facts: Array) -> Dictionary:
    if g.Cards.Rules.SPECS.has(type): shown[type]=true
  return shown
 
+static func card_text_func_body(name: String) -> String:
+ var handle=FileAccess.open("res://data/card_text.gd",FileAccess.READ)
+ if handle==null: return ""
+ var source=handle.get_as_text()
+ var start=source.find("func "+name+"(")
+ if start<0: return ""
+ var rest=source.substr(start)
+ var nxt=rest.find("func ",1)
+ var body=rest if nxt<0 else rest.substr(0,nxt)
+ var code=""
+ for line in body.split("\n"): code+=String(line).split("#")[0]+"\n"
+ return code
+
+static func card_text_func_call_count(body: String, name: String) -> int:
+ var needle=name+"("
+ var count=0
+ var from=0
+ while true:
+  var at=body.find(needle,from)
+  if at<0: break
+  count+=1
+  from=at+needle.length()
+ return count
+
 static func card_keyword_deps_stable_ids(t) -> void:
+ var keywords_body=card_text_func_body("keywords")
+ t.check(keywords_body!="" and card_text_func_call_count(keywords_body,"keyword_ids")==1,"DEPS keywords() calls keyword_ids exactly once")
+ t.check(keywords_body.find("_effect_terms(")<0 and keywords_body.find("_buff_terms(")<0 and keywords_body.find("unique_face(")<0 and keywords_body.find("Rules.exhausts(")<0 and keywords_body.find("ids.append")<0,"DEPS keywords() has no second SPECS/effect collector")
  var Rules=Text.Rules
  var g=Game.new(42)
  var traits=g.B.CARD_TRAITS
