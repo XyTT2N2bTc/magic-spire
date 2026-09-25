@@ -37,9 +37,9 @@ $env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console
 
 - 退出码 0
 - `SUITE RESULT: display PASS`
-- `UI PASS: 629 assertions`（`check-ui.log`：UI SUITE display 629 assertions, 71.50s）
+- `UI PASS: 629 assertions`（`check-ui.log`：UI SUITE display 629 assertions, 58043 ms）
 - `summary.json` `status=passed`，`before`＝`after`＝`0CFDC67557269E5DB039984CC7E3D2D1A0B282F7FDCC3934949AE53A7E384CE5`
-- 日志：`spire-godot/build/checks/20260925T181007388-10416/`
+- 日志：`spire-godot/build/checks/20260925T181114639-27984/`
 
 `present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full`／`present_routes_show_log_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
 
