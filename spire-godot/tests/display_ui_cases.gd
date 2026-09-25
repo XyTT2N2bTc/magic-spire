@@ -472,7 +472,7 @@ static func present_routes_header_or_full(t) -> void:
  t.check(map_keys==1,"DISPLAY present header keeps one map or prison button")
  t.check(ui.find_children("RelicStrip","",true,false).size()==relic_count,"DISPLAY present header does not grow RelicStrip")
  t.check(relic==null or ui.find_child("RelicStrip",true,false)==relic,"DISPLAY present header keeps RelicStrip instance when present")
- t.check(is_instance_valid(ui.layout.hero) and is_instance_valid(ui.layout.body),"DISPLAY present header keeps hero and body")
+ t.check(is_instance_valid(ui.layout.hero) and ui.layout.hero.visible and is_instance_valid(ui.layout.body),"DISPLAY present header keeps hero and body")
  t.check(ui.layout.enemies.values().all(func(group):return is_instance_valid(group)),"DISPLAY present header keeps enemies")
  t.check(header._presentation_key(ui)==oracle,"DISPLAY present header keeps the presentation key")
  t.check(counting.get_view_calls==baseline,"DISPLAY present header does not call get_view")
@@ -690,6 +690,7 @@ static func run(t) -> void:
  var ui=t.ui
  await sidebar_refresh(t)
  await present_routes_body_bar_or_full(t)
+ await present_routes_header_or_full(t)
  await portrait_refresh(t)
  var backdrop=ui.find_child("MoonlitGallery",true,false)
  var static_draws=[0]
