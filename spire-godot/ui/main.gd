@@ -491,28 +491,31 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local),
 # _build_action_rail (["actions"] local), _refresh_posture_section (["posture"]
 # local), _refresh_resource_section (["resources"] local), _refresh_log_section
-# (["show_log"] local), _refresh_body_details_section (["body_details"] local)
-# and layout.body_sidebar (["body_bar"] local).
+# (["show_log"] local), _refresh_body_details_section (["body_details"] local),
+# _refresh_picker_section (["pickers"] local) and layout.body_sidebar (["body_bar"] local).
 # header.configure reads header._presentation_key; _relic_row reads
 # _relic_presentation_key, _hand reads _hand_presentation_key,
 # _build_action_rail reads _action_presentation_key, _refresh_posture_section /
 # _posture_controls read _posture_presentation_key, _refresh_resource_section
 # reads _resource_presentation_key, _refresh_log_section / _log_drawer read
-# _log_presentation_key, and _refresh_body_details_section / _body_details read
-# _body_details_presentation_key in this file (hit early-return, miss rebuild then save).
+# _log_presentation_key, _refresh_body_details_section / _body_details read
+# _body_details_presentation_key, and _refresh_picker_section / _hand_target_picker
+# read _picker_presentation_key in this file (hit early-return, miss rebuild then save).
 # _present_needs_full_render probes GameHeader existence for header,
 # view.pressure.overloaded only for ["hand"], non-battle / quick_release_open /
 # _selecting_hand / card_chain / reward_panel.active only for ["actions"],
 # non-battle / show_route only for ["posture"] and ["resources"],
-# not show_log / show_home only for ["show_log"], and _selecting_hand /
+# not show_log / show_home only for ["show_log"], _selecting_hand /
 # closed details / quick_release_open / non-battle / pending_retain only for
-# ["body_details"]; render and layout.body_sidebar are boundary leaves here.
+# ["body_details"], and not _selecting_hand only for ["pickers"]; render and
+# layout.body_sidebar are boundary leaves here.
 # present does not call _bottom_controls, _wall_controls, _posture_controls,
 # mana_flask.build, _refresh_drawers, _open_drawer, _close_drawers,
 # _drawer_shell, _body_drawer, _refresh_body_details, _equipment_tile,
-# _action_row, _card_target, release_details, or quick_release_bar.
+# _action_row, _card_target, release_details, quick_release_bar,
+# _player_picker, _clear_player_picker, or open_hand_selection.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","layout.body_sidebar"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","layout.body_sidebar"],
  "_present_needs_full_render":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
@@ -535,13 +538,16 @@ const PRESENT_ADJACENCY={
  "_refresh_body_details_section":["_body_details_presentation_key","_body_details"],
  "_body_details":["_body_details_presentation_key"],
  "_body_details_presentation_key":[],
+ "_refresh_picker_section":["_picker_presentation_key","_hand_target_picker"],
+ "_hand_target_picker":["_picker_presentation_key"],
+ "_picker_presentation_key":[],
  "layout.body_sidebar":[],
  "render":[],
 }
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)) or (dirty.size()==1 and String(dirty[0])=="body_details" and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))):
+ if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)) or (dirty.size()==1 and String(dirty[0])=="body_details" and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.size()==1 and String(dirty[0])=="pickers" and not _selecting_hand()):
   render(next)
   return
  DragTargets.clear(self,false)
@@ -563,6 +569,8 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
   _refresh_log_section()
  elif String(dirty[0])=="body_details":
   _refresh_body_details_section()
+ elif String(dirty[0])=="pickers":
+  _refresh_picker_section()
  else:
   layout.body_sidebar(self)
  layout.end_frame()
@@ -589,6 +597,8 @@ func _present_needs_full_render(dirty: Array) -> bool:
   return not show_log or show_home
  if section=="body_details":
   return _selecting_hand() or not (show_body or selected_card!="" or bool(view.pending_retain)) or quick_release_open or String(view.phase)!="battle" or bool(view.pending_retain)
+ if section=="pickers":
+  return not _selecting_hand()
  return section!="body_bar" and section!="relics"
 
 func _release_candidate_controls(root: Control) -> void:
@@ -3088,12 +3098,37 @@ func _hand_choice(uid: String) -> Dictionary:
   return f
  return {}
 
+var _picker_key=[]
+
+func _picker_presentation_key() -> Array:
+ return [bool(player_pick),bool(player_pick_data.get("hand_selection",false)),String(player_pick_data.get("card_uid","")),bool(player_pick_data.get("free",false)),String(player_pick_data.get("target","")),String(player_pick_data.get("slot",""))]
+
+func _picker_key_hit(key) -> bool:
+ if _picker_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var live=[]
+ for node in layout.find_children("HandSelectionBar","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if live.size()!=1: return false
+ var n=0
+ for node in live[0].find_children("HandTargetCancel","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n==1
+
+func _refresh_picker_section() -> void:
+ var key=_picker_presentation_key()
+ if _picker_key_hit(key):
+  return
+ _remove_local_panel("HandSelectionBar")
+ _hand_target_picker()
+
 func _hand_target_picker() -> void:
  var panel=_panel(Rect2(560,564,770,48));panel.name="HandSelectionBar"
  var row=HBoxContainer.new();panel.add_child(row)
  var label=_label("选择一张手牌消耗",19,CYAN);label.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(label)
  var cancel=_button("取消",func():_clear_player_picker();selected_card="";render(view),MUTED)
  cancel.name="HandTargetCancel";cancel.custom_minimum_size=Vector2(90,30);row.add_child(cancel)
+ _picker_key=_picker_presentation_key()
 
 func _clear_player_picker() -> void:
  player_pick=false
