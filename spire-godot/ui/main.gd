@@ -491,23 +491,28 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local),
 # _build_action_rail (["actions"] local), _refresh_posture_section (["posture"]
 # local), _refresh_resource_section (["resources"] local), _refresh_log_section
-# (["show_log"] local) and layout.body_sidebar (["body_bar"] local).
+# (["show_log"] local), _refresh_body_details_section (["body_details"] local)
+# and layout.body_sidebar (["body_bar"] local).
 # header.configure reads header._presentation_key; _relic_row reads
 # _relic_presentation_key, _hand reads _hand_presentation_key,
 # _build_action_rail reads _action_presentation_key, _refresh_posture_section /
 # _posture_controls read _posture_presentation_key, _refresh_resource_section
-# reads _resource_presentation_key, and _refresh_log_section / _log_drawer read
-# _log_presentation_key in this file (hit early-return, miss rebuild then save).
+# reads _resource_presentation_key, _refresh_log_section / _log_drawer read
+# _log_presentation_key, and _refresh_body_details_section / _body_details read
+# _body_details_presentation_key in this file (hit early-return, miss rebuild then save).
 # _present_needs_full_render probes GameHeader existence for header,
 # view.pressure.overloaded only for ["hand"], non-battle / quick_release_open /
 # _selecting_hand / card_chain / reward_panel.active only for ["actions"],
-# non-battle / show_route only for ["posture"] and ["resources"], and
-# not show_log / show_home only for ["show_log"]; render and
-# layout.body_sidebar are boundary leaves here. present does not call
-# _bottom_controls, _wall_controls, _posture_controls, mana_flask.build,
-# _refresh_drawers, _open_drawer, _close_drawers, or _drawer_shell.
+# non-battle / show_route only for ["posture"] and ["resources"],
+# not show_log / show_home only for ["show_log"], and _selecting_hand /
+# closed details / quick_release_open / non-battle / pending_retain only for
+# ["body_details"]; render and layout.body_sidebar are boundary leaves here.
+# present does not call _bottom_controls, _wall_controls, _posture_controls,
+# mana_flask.build, _refresh_drawers, _open_drawer, _close_drawers,
+# _drawer_shell, _body_drawer, _refresh_body_details, _equipment_tile,
+# _action_row, _card_target, release_details, or quick_release_bar.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","layout.body_sidebar"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","layout.body_sidebar"],
  "_present_needs_full_render":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
@@ -527,13 +532,16 @@ const PRESENT_ADJACENCY={
  "_refresh_log_section":["_log_presentation_key","_log_drawer"],
  "_log_drawer":["_log_presentation_key"],
  "_log_presentation_key":[],
+ "_refresh_body_details_section":["_body_details_presentation_key","_body_details"],
+ "_body_details":["_body_details_presentation_key"],
+ "_body_details_presentation_key":[],
  "layout.body_sidebar":[],
  "render":[],
 }
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)):
+ if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)) or (dirty.size()==1 and String(dirty[0])=="body_details" and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))):
   render(next)
   return
  DragTargets.clear(self,false)
@@ -553,6 +561,8 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
   _refresh_resource_section()
  elif String(dirty[0])=="show_log":
   _refresh_log_section()
+ elif String(dirty[0])=="body_details":
+  _refresh_body_details_section()
  else:
   layout.body_sidebar(self)
  layout.end_frame()
@@ -577,6 +587,8 @@ func _present_needs_full_render(dirty: Array) -> bool:
   return String(view.phase)!="battle" or show_route
  if section=="show_log":
   return not show_log or show_home
+ if section=="body_details":
+  return _selecting_hand() or not (show_body or selected_card!="" or bool(view.pending_retain)) or quick_release_open or String(view.phase)!="battle" or bool(view.pending_retain)
  return section!="body_bar" and section!="relics"
 
 func _release_candidate_controls(root: Control) -> void:
@@ -1659,6 +1671,68 @@ func _single_body_card_action(slot: String, uid: String) -> Dictionary:
 func _single_restraint_card_action(uid: String) -> Dictionary:
  return TargetQueries.single_equipment_card(view,view.body_groups,uid,card_faces.get(uid,false))
 
+var _body_details_key=[]
+
+func _body_details_candidate_slice(c: Dictionary) -> Array:
+ var preview={}
+ if c.has("release_preview"):
+  var raw=c.release_preview
+  preview=raw.duplicate(true) if raw is Dictionary or raw is Array else raw
+ return [TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,preview]
+
+func _body_details_presentation_key() -> Array:
+ var faces={}
+ for uid in card_faces:
+  faces[String(uid)]=bool(card_faces[uid])
+ var candidates=[]
+ var body=_body_at(selected_slot)
+ var members=body.get("members",[body])
+ var shown={}
+ for member in members:
+  var entries=_body_equipment_entries(member)
+  var fresh=entries.keys().filter(func(id):return not shown.has(id))
+  for id in fresh:
+   shown[id]=true
+   for c in TargetQueries.select(view,"manual",{"target":id}):
+    candidates.append(_body_details_candidate_slice(c))
+   for c in TargetQueries.select(view,"attack",{"target":id}):
+    candidates.append(_body_details_candidate_slice(c))
+ if selected_card!="":
+  var bind=TargetQueries.find(view,"card",{"uid":selected_card,"target":"guard_bind","free":card_faces.get(selected_card,false)})
+  if not bind.is_empty(): candidates.append(_body_details_candidate_slice(bind))
+  for c in _body_card_actions(selected_slot,selected_card):
+   candidates.append(_body_details_candidate_slice(c))
+  var single=_single_body_card_action(selected_slot,selected_card)
+  if not single.is_empty(): candidates.append(_body_details_candidate_slice(single))
+ return [String(selected_slot),String(selected_card),String(selected_candidate),bool(show_body),bool(view.pending_retain),bool(quick_release_open),bool(view.guard_bind.is_empty()),faces,candidates]
+
+func _body_details_live_count(root: Node, node_name: String) -> int:
+ var n=0
+ if not is_instance_valid(root): return 0
+ for node in root.find_children(node_name,"",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n
+
+func _body_details_key_hit(key) -> bool:
+ if _body_details_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var live=[]
+ for node in layout.find_children("EquipmentDetails","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if live.size()!=1: return false
+ var panel=live[0]
+ for node_name in ["CloseEquipmentDetails","EquipmentTutorial"]:
+  if _body_details_live_count(panel,node_name)!=1: return false
+ return true
+
+func _refresh_body_details_section() -> void:
+ var key=_body_details_presentation_key()
+ if _body_details_key_hit(key):
+  return
+ _remove_local_panel("EquipmentDetails")
+ _body_details()
+ if selected_card!="" and not _selecting_hand(): DragTargets.focus_bodies(self,{"card_uid":selected_card,"free":card_faces.get(selected_card,false),"version":view.version})
+
 func _body_details() -> void:
  var compact=selected_card!="" and not _single_body_card_action(selected_slot,selected_card).is_empty() and view.guard_bind.is_empty()
  var sidebar=find_child("BodyEquipmentPanel",true,false)
@@ -1712,6 +1786,7 @@ func _body_details() -> void:
     _equipment_tile(grid,entry.equipment,"、".join(entry.locations),(entries.size()==1 and members.size()==1) or (quick_release_open and id==quick_release_inspected))
   if not free_names.is_empty(): content.add_child(_label("自由："+"、".join(free_names),12,MUTED))
   if view.phase=="rest": content.add_child(_label("休息房只能使用卡牌拘束效果。",13,CYAN))
+ _body_details_key=_body_details_presentation_key()
 
 func _equipment_grid(parent: Node) -> GridContainer:
  var grid=GridContainer.new();grid.columns=1
