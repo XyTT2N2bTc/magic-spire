@@ -1,1 +1,2 @@
-2026-09-25T17:40+10 planner heartbeat: scoped render/_submit/body_sidebar keys at HEAD 12c8191; no product code, Godot, or push.
+planner heartbeat: scoped read of render/_submit/section rebuilds and body_sidebar keys at HEAD 12c8191; no Godot run.
+planner heartbeat: wrote split/interface/allowed-deps unit; no product code, docs/spec, Godot, or push.
