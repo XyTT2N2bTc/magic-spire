@@ -1,3 +1,52 @@
+# 实现者报告：present(dirty) 第七刀 resources
+
+域：`ui/main.gd` M3 展示调度（`present` 加 `["resources"]` 局部）与 `_bottom_controls` 在墙／姿之前的资源／能量／牌堆／flow／surrender／魔瓶段共享键＋早退＋不叠栏。非清洁／非加固。
+
+起步 HEAD：`81c45bc`（规划者第七刀契约）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`ec698ae`。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3285 行）：`present(["resources"])` 有独立分支，只调 `_refresh_resource_section`（卸栏后 `_build_resource_bar(true)`），**不**落入 `else` 的 `layout.body_sidebar`。`["header"]`／`["body_bar"]`／`["relics"]`／`["hand"]`／`["actions"]`／`["posture"]` 仍局部。未知／`["*"]`／其它已声明名仍全量 `render(view)`，禁止再 `get_view`。`_resource_presentation_key` 与 `_resource_key` 紧挨 `_bottom_controls`；`_build_resource_bar` 与薄函数共用该键，无第二套。键字段＝`energy`／`mana`／`temporary_mana`／`mana_max`、`pressure.value`／`.maximum`、`guard_bind.is_empty` 布尔（有捕缚时另含 `value`／`maximum`／`detail`）、`powers.size()`、`draw_count`／`discard_count`、`phase`、本地 `surrender_version`。`version`／`show_route`／`mana_flask.*`／`casting.percent`／`energy_max`／`end_turn_locked`／flow／surrender 候选细字段／locale／`Hero*`／`include_tools` 不进键。`_present_needs_full_render`：**仅** `["resources"]` 且 `next.phase!="battle"` 或 `show_route` → 全量；`present` 对 snapshot 的 `next` 同检。不得把这些扩到 header／body_bar／relics／hand／actions／posture。`PRESENT_ADJACENCY` 与源同步（`present` 增 `_refresh_resource_section`，其读本文件键函数并调 `_build_resource_bar`；`present` 直调不含 `_wall_controls`／`_posture_controls`／`mana_flask.build`／完整 `_bottom_controls`）。签名仍是 `present(dirty: Array=["*"], snapshot: Dictionary={})`。未改 `_submit`。局部路径未调 `_bottom_controls`／`_wall_controls`／`_posture_controls`／`_refresh_posture_section`／`mana_flask.build`／`_fixed_actions`／`_build_action_rail`／`_rest_controls`／`_prison_controls`／`_header`／`header.configure`／`_relic_row`／`layout.body_sidebar`／`_hand`／`begin_frame`、未清空 `layout.used`。未改 `header.tscn`／`header.gd`／`game_layout.gd`／`mana_flask.gd`／`target_queries.gd`／`header._presentation_key`／`body_sidebar._presentation_key`／`_relic_presentation_key`／`_hand_presentation_key`／`_action_presentation_key`／`_posture_presentation_key`。无新 UI 文件。无 core／data。无 `docs/spec`。prepare／rest／prison／shop 底栏本刀不局部。
+- `spire-godot/tests/display_ui_cases.gd`（1291 行）：`present_routes_resources_or_full` 已在 `run` 里接在 `present_routes_posture_or_full` 之后。`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full` 的「已声明非局部」步由 `["resources"]` 改为 `["show_log"]`。测试侧 `GetViewCountingGame`。生产无计数器。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本刀只加薄路由与资源节早退，未拆文件。
+
+检查点：
+- `0e042d6` `checkpoint(implementer): add present resources routing`
+- `ec698ae` `checkpoint(implementer): add present_routes_resources_or_full`
+
+## 叠栏
+
+不叠。键命中早退只在卸栏／建模之前一次，且要求树上 `MainResourcePanel`／`ResourceToolsPanel`／`EnergyMedallion`／`EnergyValue`／`DrawPileButton`／`DiscardPileButton`／`OpenPowers` 件数＝1；`EndTurnButton` 有则 1 且 `end_button` 仍指向该实例；有则 `SurrenderButton`／`ManaFlask`／`MainGuardBind`／`SidebarGuardBindTarget` 件数不超过 1；本节写入的 flow `candidate_buttons` 仍指向这些实例。禁止只凭缓存键、钮已被 `begin_frame` 释放仍早退。键未命中先卸 layout 上本节全部直子（`MainResourcePanel`／`ResourceToolsPanel`／`ManaFlask`／`EnergyMedallion`／`OpenPowers`／牌堆钮／`EndTurnButton`／`SurrenderButton`／计量／捕缚目标／`ResourceTurnDivider`／`FlowButton_*`），`end_button` 在 `EndTurnButton` 被卸后置空。然后按现行战斗＋非 `show_route`＋`include_tools=true` 建模，不调墙／姿。禁止只卸 `MainResourcePanel`。全量 `_bottom_controls` 不在此卸栏，仍在墙／姿之前写回键。无活 `MainResourcePanel` 时本路径创建，不改走全量。场景断言 `MainResourcePanel`／`EnergyMedallion`／`EndTurnButton` 件数＝1。套件绿。
+
+## 表外全量
+
+只让 `["resources"]` 在 `phase!="battle"` 或 `show_route` 时走全量。`header`／`body_bar`／`relics`／`hand`／`actions`／`posture` 的全量条件未改。局部 `["resources"]` 因而从不走商店关栏口径、从不在地图 overlay 上建底栏、prepare／rest／prison 底栏本刀不局部。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 517 assertions`（`check-ui.log`：UI SUITE display 517 assertions, 51963 ms）
+- `summary.json` `status=passed`，`before`＝`after`＝`F6263394B346384E486C02E86069B7F71CF150470CDD63A021DFBF40834554DD`
+- 日志：`spire-godot/build/checks/20260925T173252793-17128/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）。未停工交回。无 `needs-human-review`。
+
+---
+
 # 实现者报告：present(dirty) 第六刀 posture
 
 域：`ui/main.gd` M3 展示调度（`present` 加 `["posture"]` 局部）与 `_wall_controls`／`_posture_controls` 共享键＋早退＋不叠栏。非清洁／非加固。
