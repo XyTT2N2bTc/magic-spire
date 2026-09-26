@@ -147,28 +147,31 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 `reward_panel.active` 或 `demo_end` 或 `pressure.overloaded` 或 `view.card_chain` 非空或
 首次战斗教程触发。
 
-### 待实现：节键表（节名同时是 `dirty` 元素）
+### 既有节键表（节名同时是 `dirty` 元素）
 
 键只用"当次 View 投影 ＋ 本地 UI 态"的纯数据副本（Array／Dictionary／基础类型）；
 **`version` 不进键**；键必须覆盖该节渲染实际读取的 View 字段（新增 `view.<field>` 读取必须同批进键）。
 
-| 节 | 重建入口 | 键内容 |
+`PRESENT_SECTIONS` 声明顺序，`ui/main.gd::_submit_presentation_keys` 只聚合下列既有键，不复制字段集。
+表中没有文件前缀的函数位于 `ui/main.gd`；叶实例按自己的键决定是否重建。
+
+| 节 | `present` 的局部入口 | 键真源 |
 | --- | --- | --- |
-| `header` | `_header` → `header.configure` | `run_header`(location/turn/order/last)、`security`、`wall`、`wall_position.distance`、`pressure.overloaded`、`carried_items`、`capacity`、`deck_count`、`prison.active`、`phase`、`practice`、`show_route`、`save_failed`、locale |
-| `relics` | `_relic_row` | `relics`(id/name/detail/counter/current/rarity)、locale |
-| `hand` | `_hand` | `hand`(uid/type/draw_serial/draw_free/single_face/availability/face_*)、对应 `card_texts` 项、`card_instances`、`card_faces[uid]`、`selected_card`、`_selecting_hand()`、`card_motion.pending_draws` |
-| `actions` | `_fixed_actions`／`_build_action_rail` | `phase`、`selected_enemy`、`attack_forms`、`quick_release_open`、候选子集(attack/pressure/flow/surrender)的 id/valid/reason/cost/label/body_part/casting/brief/risk |
-| `posture` | `_posture_controls`／`_wall_controls` | `posture`、候选子集(posture/wall_move) 的 id/valid/reason/cost/distance/adjacent/wall、`guard_bind.is_empty` |
-| `resources` | `_bottom_controls` | `energy`、`mana`、`temporary_mana`、`mana_max`、`pressure`、`guard_bind`、`powers.size`、`draw_count`、`discard_count`、`phase`、`surrender_version` |
-| `show_log`（共享抽屉） | `_log_drawer` | `action_log`、`logs`；入口及只读约定见[界面契约](release-interface.md#行动日志) |
-| `body_bar` | `body_sidebar.configure` | 既有 `_presentation_key`：`size.y`、locale、选中部位、展开顺序、每区域 members 显示字段；命中时保留按钮与滚动 |
-| `body_details` | `_body_details`／`_equipment_tile`／`_action_row`／`_card_target` | `selected_slot`、`selected_card`、`selected_candidate`、`show_body`、`pending_retain`、`quick_release_open`、`guard_bind.is_empty`、`card_faces`、相关候选子集 id/valid/reason/cost/preview |
-| `pickers` | `_player_picker`／`_hand_target_picker` | `player_pick`、`player_pick_data`、`hand` 相关项、候选子集(card/hand_uid) |
-| `speech` | `_speech_bubble`／`_npc_speech_bubble` | `speech`／`npc_speech`(id/text/phase/cue)、locale、本地 `speech_id/deadline` |
-| `notice` | `_show_term(actor_targets.hero, …)` | `notice`、`actor_targets.has("hero")`；依赖 hero 接收区存在 |
-| `drawers` | `_refresh_drawers` ＋ 各构建器 | `DRAWERS` 标志、`deck_zone`、`status_filter`、`selected_item`、`show_shop_service` 等本地态＋各自投影、locale |
-| `page` | `_route_screen`／`_rewards`／`_service_screen`／`_event_screen`／`_prison_controls`／`_capture_screen`／`_inspection_screen`／`_practice_screen`／`_demo_exit_screen`／`_battle_scene` | `phase` 及其实际读取字段；结构变化一律走兜底清单 |
-| `scene_instances` | `layout.hero_portrait`／`enemy_group`／`body_sidebar` | 外观字段由 arena／`equipment_portrait`／`body_sidebar` 自身比对 |
+| `header` | `header.configure` | `ui/shell/header.gd::_presentation_key` |
+| `relics` | `_relic_row` | `_relic_presentation_key` |
+| `hand` | `_hand` | `_hand_presentation_key` |
+| `actions` | `_build_action_rail` | `_action_presentation_key` |
+| `posture` | `_refresh_posture_section` | `_posture_presentation_key` |
+| `resources` | `_refresh_resource_section` | `_resource_presentation_key` |
+| `show_log`（共享抽屉） | `_refresh_log_section` | `_log_presentation_key`；只读约定见[界面契约](release-interface.md#行动日志) |
+| `body_bar` | `layout.body_sidebar` | `ui/shell/body_sidebar.gd::_presentation_key` |
+| `body_details` | `_refresh_body_details_section` | `_body_details_presentation_key` |
+| `pickers` | `_refresh_picker_section` | `_picker_presentation_key` |
+| `speech` | `_refresh_speech_section` | `_speech_presentation_key` |
+| `notice` | `_refresh_notice_section` | `_notice_presentation_key` |
+| `drawers` | `_refresh_drawer_section` | `_drawer_presentation_key` |
+| `page` | 无，始终全量 `render` | 无局部键，不进入提交脏集 |
+| `scene_instances` | `_refresh_scene_instances_section` | 无 main 键；外观由既有 arena／`equipment_portrait` 叶实例比对 |
 
 节键计算的成本同样要进测量（见"证据入口"），不得默认"算键几乎免费"。
 
