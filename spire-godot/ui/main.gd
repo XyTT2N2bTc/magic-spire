@@ -609,77 +609,80 @@ const PRESENT_ADJACENCY={
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.size()==1 and String(dirty[0])=="hand" and bool(next.pressure.overloaded)) or (dirty.size()==1 and String(dirty[0])=="actions" and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.size()==1 and String(dirty[0])=="posture" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="resources" and (String(next.phase)!="battle" or show_route)) or (dirty.size()==1 and String(dirty[0])=="show_log" and (not show_log or show_home)) or (dirty.size()==1 and String(dirty[0])=="body_details" and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.size()==1 and String(dirty[0])=="pickers" and not _selecting_hand()) or (dirty.size()==1 and String(dirty[0])=="speech" and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())) or (dirty.size()==1 and String(dirty[0])=="notice" and (notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed))) or (dirty.size()==1 and String(dirty[0])=="drawers" and (not show_menu or show_home or show_route or String(next.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field))))) or (dirty.size()==1 and String(dirty[0])=="scene_instances" and _scene_instances_need_full(next)):
+ if _present_needs_full_render(dirty) or (dirty.has("hand") and bool(next.pressure.overloaded)) or (dirty.has("actions") and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.has("posture") and (String(next.phase)!="battle" or show_route)) or (dirty.has("resources") and (String(next.phase)!="battle" or show_route)) or (dirty.has("show_log") and (not show_log or show_home)) or (dirty.has("body_details") and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.has("pickers") and not _selecting_hand()) or (dirty.has("speech") and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())) or (dirty.has("notice") and (notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed))) or (dirty.has("drawers") and (not show_menu or show_home or show_route or String(next.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field))))) or (dirty.has("scene_instances") and _scene_instances_need_full(next)):
   render(next)
   return
  DragTargets.clear(self,false)
- if String(dirty[0])!="notice":
+ if dirty.size()!=1 or String(dirty[0])!="notice":
   _hide_term()
  if not snapshot.is_empty(): view=snapshot
- if String(dirty[0])=="header":
-  layout.get_node("GameHeader").configure(self)
- elif String(dirty[0])=="relics":
-  _relic_row()
- elif String(dirty[0])=="hand":
-  _hand()
- elif String(dirty[0])=="actions":
-  _build_action_rail()
- elif String(dirty[0])=="posture":
-  _refresh_posture_section()
- elif String(dirty[0])=="resources":
-  _refresh_resource_section()
- elif String(dirty[0])=="show_log":
-  _refresh_log_section()
- elif String(dirty[0])=="body_details":
-  _refresh_body_details_section()
- elif String(dirty[0])=="pickers":
-  _refresh_picker_section()
- elif String(dirty[0])=="speech":
-  _refresh_speech_section()
- elif String(dirty[0])=="notice":
-  _refresh_notice_section()
- elif String(dirty[0])=="drawers":
-  _refresh_drawer_section()
- elif String(dirty[0])=="scene_instances":
-  _refresh_scene_instances_section()
- else:
-  layout.body_sidebar(self)
+ for section in PRESENT_SECTIONS:
+  if not dirty.has(section): continue
+  if section=="header":
+   layout.get_node("GameHeader").configure(self)
+  elif section=="relics":
+   _relic_row()
+  elif section=="hand":
+   _hand()
+  elif section=="actions":
+   _build_action_rail()
+  elif section=="posture":
+   _refresh_posture_section()
+  elif section=="resources":
+   _refresh_resource_section()
+  elif section=="show_log":
+   _refresh_log_section()
+  elif section=="body_details":
+   _refresh_body_details_section()
+  elif section=="pickers":
+   _refresh_picker_section()
+  elif section=="speech":
+   _refresh_speech_section()
+  elif section=="notice":
+   _refresh_notice_section()
+  elif section=="drawers":
+   _refresh_drawer_section()
+  elif section=="scene_instances":
+   _refresh_scene_instances_section()
+  elif section=="body_bar":
+   layout.body_sidebar(self)
  layout.end_frame()
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
  _localize_controls(layout)
 
 func _present_needs_full_render(dirty: Array) -> bool:
- if not is_instance_valid(layout) or view.is_empty() or dirty.size()!=1:
+ if not is_instance_valid(layout) or view.is_empty() or dirty.is_empty():
   return true
- var section=String(dirty[0])
- if section=="*" or not PRESENT_SECTIONS.has(section):
-  return true
- if section=="hand":
-  return bool(view.pressure.overloaded)
- if section=="header":
-  return not is_instance_valid(layout.get_node_or_null("GameHeader"))
- if section=="actions":
-  return String(view.phase)!="battle" or quick_release_open or _selecting_hand() or not view.card_chain.is_empty() or bool(view.reward_panel.active)
- if section=="posture":
-  return String(view.phase)!="battle" or show_route
- if section=="resources":
-  return String(view.phase)!="battle" or show_route
- if section=="show_log":
-  return not show_log or show_home
- if section=="body_details":
-  return _selecting_hand() or not (show_body or selected_card!="" or bool(view.pending_retain)) or quick_release_open or String(view.phase)!="battle" or bool(view.pending_retain)
- if section=="pickers":
-  return not _selecting_hand()
- if section=="speech":
-  var speech=view.get("speech",{})
-  return speech.is_empty() or show_home or show_route or String(view.phase)!="battle" or _takeover_locked() or suppressed_hero_speech_id=="hero:"+str(speech.get("id","")) or not view.get("npc_speech",{}).is_empty()
- if section=="notice":
-  return notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(view.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed)
- if section=="drawers":
-  return not show_menu or show_home or show_route or String(view.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field)))
- if section=="scene_instances":
-  return _scene_instances_need_full(view)
- return section!="body_bar" and section!="relics"
+ for value in dirty:
+  var section=String(value)
+  if section=="*" or section=="page" or not PRESENT_SECTIONS.has(section):
+   return true
+  if section=="hand":
+   if bool(view.pressure.overloaded): return true
+  if section=="header":
+   if not is_instance_valid(layout.get_node_or_null("GameHeader")): return true
+  if section=="actions":
+   if String(view.phase)!="battle" or quick_release_open or _selecting_hand() or not view.card_chain.is_empty() or bool(view.reward_panel.active): return true
+  if section=="posture":
+   if String(view.phase)!="battle" or show_route: return true
+  if section=="resources":
+   if String(view.phase)!="battle" or show_route: return true
+  if section=="show_log":
+   if not show_log or show_home: return true
+  if section=="body_details":
+   if _selecting_hand() or not (show_body or selected_card!="" or bool(view.pending_retain)) or quick_release_open or String(view.phase)!="battle" or bool(view.pending_retain): return true
+  if section=="pickers":
+   if not _selecting_hand(): return true
+  if section=="speech":
+   var speech=view.get("speech",{})
+   if speech.is_empty() or show_home or show_route or String(view.phase)!="battle" or _takeover_locked() or suppressed_hero_speech_id=="hero:"+str(speech.get("id","")) or not view.get("npc_speech",{}).is_empty(): return true
+  if section=="notice":
+   if notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(view.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed): return true
+  if section=="drawers":
+   if not show_menu or show_home or show_route or String(view.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field))): return true
+  if section=="scene_instances":
+   if _scene_instances_need_full(view): return true
+ return false
 
 func _scene_instances_need_full(source: Dictionary) -> bool:
  if show_home or show_route or String(source.get("phase",""))!="battle":
@@ -2753,6 +2756,36 @@ func _shop_chatter(pool: Array) -> void:
  body.text=line;bubble.show();speech_group=bubble
  speech_deadline=Time.get_ticks_msec()+5000
 
+# Submission compares existing section keys; no command-kind invalidation table.
+func _submit_presentation_keys() -> Dictionary:
+ if not is_instance_valid(layout) or view.is_empty(): return {}
+ var header=layout.get_node_or_null("GameHeader")
+ if not is_instance_valid(header): return {}
+ return {
+  "header":header._presentation_key(self), "relics":_relic_presentation_key(),
+  "hand":_hand_presentation_key(), "actions":_action_presentation_key(),
+  "posture":_posture_presentation_key(), "resources":_resource_presentation_key(),
+  "show_log":_log_presentation_key(), "body_bar":layout.body._presentation_key(self) if is_instance_valid(layout.body) else [],
+  "body_details":_body_details_presentation_key(), "pickers":_picker_presentation_key(),
+  "speech":_speech_presentation_key(), "notice":_notice_presentation_key(),
+  "drawers":_drawer_presentation_key(),
+ }
+
+func _submit_dirty(before: Dictionary, succeeded: bool) -> Array:
+ var after=_submit_presentation_keys()
+ if before.is_empty() or after.is_empty(): return []
+ var dirty=[]
+ for section in PRESENT_SECTIONS:
+  if section=="scene_instances":
+   if succeeded: dirty.append(section)
+   continue
+  if not before.has(section) or before[section]==after[section]: continue
+  # Only absent optional sections are omitted; structural fallbacks remain.
+  if section in ["show_log","pickers","body_details","speech","drawers"] and _present_needs_full_render([section]): continue
+  if section=="notice" and notice=="": continue
+  dirty.append(section)
+ return dirty
+
 func _submit(cmd: Dictionary, takeover: bool=false) -> void:
  # 提交执行段（docs/spec/candidate-removal.md §3.1 M-III 的 UI 侧落点）：只由指令路由调用。
  if _takeover_locked() and not takeover: return
@@ -2763,6 +2796,7 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
  var payload=row.get("payload",{}) if not row.is_empty() else {}
  var kind=String(cmd.get("kind",""))
  var previous=view
+ var previous_keys=_submit_presentation_keys() if String(previous.get("phase",""))=="battle" else {}
  var previous_cards=preload("res://ui/card_motion.gd").positions(self)
  var feedback_anchor=Vector2(560,250)
  if actor_targets.has("hero"):
@@ -2790,7 +2824,14 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
    # Climax owns the interruption presentation. Never cover it with the
    # general-purpose character-status drawer, even if that drawer was open.
    _close_drawers()
- render(updated)
+ var dirty=[]
+ if String(previous.get("phase",""))=="battle" and String(updated.phase)=="battle" and not previous_keys.is_empty():
+  view=updated
+  dirty=_submit_dirty(previous_keys,result.ok)
+ if not dirty.is_empty():
+  present(dirty,updated)
+ else:
+  render(updated)
  if takeover and is_instance_valid(takeover_presenter): takeover_presenter.outcome(result,previous,updated,payload)
  if result.ok and kind=="demo_end":
   _return_home()
