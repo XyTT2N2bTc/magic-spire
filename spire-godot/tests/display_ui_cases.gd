@@ -446,6 +446,46 @@ static func submit_presents_local_dirty_or_full(t) -> void:
  ui.command_router.emit(String(flows[0].payload.kind),flows[0],version);await t.frames()
  t.check(ui.view.version>version and ui.find_child("GameHeader",true,false).get_instance_id()!=old_header,"SUBMIT PRESENT non-battle submission rebuilds the page")
 
+# Given mounted overlays, when a legal battle attack submits, then those overlays unmount.
+static func submit_unmounts_closed_overlay_sections(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ t.check(ui.view.phase=="battle" and not ui.show_home and not ui.show_route and not ui.show_log and not ui.view.pressure.overloaded and not ui._takeover_locked() and ui.find_child("GameHeader",true,false)!=null,"SUBMIT UNMOUNT hand fixture is a mounted battle")
+ var counting=SubmitCountingGame.new(42,false,"equipment",false)
+ t.check(counting.restore_snapshot(ui.game.export_snapshot()).ok,"SUBMIT UNMOUNT hand counting game restores the live run")
+ ui.game=counting
+ ui.render(counting.get_view());await t.frames()
+ t.check(not ui.view.hand.is_empty(),"SUBMIT UNMOUNT hand fixture has a card")
+ ui.open_hand_selection({"uid":ui.view.hand[0].uid,"free":false,"target":"","slot":""},ui.view.version);await t.frames()
+ t.check(ui._selecting_hand() and ui.find_child("HandSelectionBar",true,false)!=null and ui.find_child("HandTargetCancel",true,false)!=null,"SUBMIT UNMOUNT opens HandSelectionBar before the attack")
+ var baseline=counting.get_view_calls
+ var usable=ui.view.display_facts.filter(func(c):return c.valid and c.payload.get("kind","")=="attack" and c.payload.get("enemy","")!="")
+ t.check(not usable.is_empty(),"SUBMIT UNMOUNT hand fixture has a valid enemy attack")
+ if usable.is_empty(): return
+ ui.command_router.emit("attack",usable[0].duplicate(true),ui.view.version);await t.frames()
+ t.check(ui.find_child("HandSelectionBar",true,false)==null and ui.find_child("HandTargetCancel",true,false)==null,"SUBMIT UNMOUNT attack removes HandSelectionBar and HandTargetCancel")
+ t.check(present_named_live_count(ui,"HandSelectionBar")==0 and present_named_live_count(ui,"HandTargetCancel")==0,"SUBMIT UNMOUNT attack leaves no live hand overlay")
+ t.check(counting.get_view_calls==baseline+1,"SUBMIT UNMOUNT hand attack fetches exactly one view")
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ t.check(ui.view.phase=="battle" and not ui.show_home and not ui.show_route and not ui.show_log and not ui.view.pressure.overloaded and not ui._takeover_locked() and ui.find_child("GameHeader",true,false)!=null,"SUBMIT UNMOUNT details fixture is a mounted battle")
+ counting=SubmitCountingGame.new(42,false,"equipment",false)
+ t.check(counting.restore_snapshot(ui.game.export_snapshot()).ok,"SUBMIT UNMOUNT details counting game restores the live run")
+ ui.game=counting
+ ui.render(counting.get_view());await t.frames()
+ ui.selected_slot="wrist";ui.show_body=true;ui.selected_card="";ui.selected_candidate=""
+ ui.render(ui.view);await t.frames()
+ t.check(ui.find_child("EquipmentDetails",true,false)!=null and ui.find_child("CloseEquipmentDetails",true,false)!=null,"SUBMIT UNMOUNT opens EquipmentDetails before the attack")
+ baseline=counting.get_view_calls
+ usable=ui.view.display_facts.filter(func(c):return c.valid and c.payload.get("kind","")=="attack" and c.payload.get("enemy","")!="")
+ t.check(not usable.is_empty(),"SUBMIT UNMOUNT details fixture has a valid enemy attack")
+ if usable.is_empty(): return
+ ui.command_router.emit("attack",usable[0].duplicate(true),ui.view.version);await t.frames()
+ t.check(ui.find_child("EquipmentDetails",true,false)==null and ui.find_child("CloseEquipmentDetails",true,false)==null,"SUBMIT UNMOUNT attack removes EquipmentDetails and CloseEquipmentDetails")
+ t.check(present_named_live_count(ui,"EquipmentDetails")==0 and present_named_live_count(ui,"CloseEquipmentDetails")==0,"SUBMIT UNMOUNT attack leaves no live equipment details")
+ t.check(counting.get_view_calls==baseline+1,"SUBMIT UNMOUNT details attack fetches exactly one view")
+
 static func present_visible_slot_names(ui) -> Array:
  var names=[]
  for node in ui.find_children("BodySlot_*","",true,false):
@@ -2061,6 +2101,7 @@ static func run(t) -> void:
  await portrait_snapshot_boundary(t)
  await submit_reject_semantics_unchanged(t)
  await submit_presents_local_dirty_or_full(t)
+ await submit_unmounts_closed_overlay_sections(t)
  await takeover_path_unchanged(t)
  await portrait_composite_boundary(t)
  await copy_missing_key_never_crashes(t)
