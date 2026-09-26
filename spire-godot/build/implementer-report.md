@@ -1,3 +1,52 @@
+# 实现者报告：present(dirty) 第十五刀 scene_instances
+
+域：`ui/main.gd` M3 展示调度（`present` 加 `["scene_instances"]` 局部）。叶外观比对仍在 arena／`equipment_portrait`；本刀无 `main.gd` 第二套外观键。非清洁／非加固。
+
+起步 HEAD：`151e95b`（规划者第十五刀契约）。分支 `worker/partition-delta`。未 push。未碰其它工作树或 `C:\1\magic-spire` 主树。本报告提交前源码 HEAD：`21a03f6`。无 `needs-human-review`。未停工交回。第十四刀 `page` 已闭合全量（`42b7276`），本刀未实现 page。
+
+## 改动文件
+
+- `spire-godot/ui/main.gd`（3641 行）：`present(["scene_instances"])` 有独立分支，只调 `_refresh_scene_instances_section`（薄函数：`layout.hero_portrait(view,fixed,HERO_STAGE_RECT)`；对每个 `not gone` 且组仍有效的敌人调 `group.get_child(0).configure_enemy(e,display_settings)`；对 `layout.body` 上 `Canvas/EquipmentPortrait` 调 `configure(view,fixed)`），**不**落入 `else` 的 `layout.body_sidebar`。`["header"]`／`["body_bar"]`／`["relics"]`／`["hand"]`／`["actions"]`／`["posture"]`／`["resources"]`／`["show_log"]`／`["body_details"]`／`["pickers"]`／`["speech"]`／`["notice"]`／`["drawers"]` 仍局部。`["page"]`／未知／`["*"]`／缺项仍全量 `render(view)`，禁止再 `get_view`。无 `_scene_presentation_key`。外观命中由叶 `configure`／`configure_hero`／`configure_enemy` 早退。`_present_needs_full_render`：**仅** `["scene_instances"]` 且 `show_home`／`show_route`／非 battle／`layout.hero` 无效或不在树／`layout.body` 无效或不在树或无 `Canvas/EquipmentPortrait`／任一 `not gone` 敌人缺有效组或立绘子节点 → 全量；`present` 对 snapshot 的 `next` 同检（`phase`／`enemies` 用 `next`，缺项按现行假／空）。不得把这些扩到 header／body_bar／relics／hand／actions／posture／resources／show_log／body_details／pickers／speech／notice／drawers，亦未删既有节的全量条件。`PRESENT_ADJACENCY` 与源同步（`present` 增 `_scene_instances_need_full`／`_refresh_scene_instances_section`；薄函数直调 `layout.hero_portrait`／`configure_enemy`／`EquipmentPortrait.configure`；`present` 直调不含 `_battle_scene`／`layout.enemy_group`／`layout.body_sidebar`／`_status_strip`／`_actor_drop_area`）。签名仍是 `present(dirty: Array=["*"], snapshot: Dictionary={})`。未改 `_submit`。局部路径未调 `_battle_scene`／`layout.enemy_group`／`layout.body_sidebar`／`_header`／`header.configure`／`_relic_row`／`_hand`／`_fixed_actions`／`_build_action_rail`／`_bottom_controls`／`_refresh_resource_section`／`_wall_controls`／`_posture_controls`／`_refresh_posture_section`／`_refresh_log_section`／`_log_drawer`／`_refresh_drawers`／`_open_drawer`／`_refresh_drawer_section`／`_body_details`／`_refresh_body_details_section`／`_hand_target_picker`／`_player_picker`／`_refresh_picker_section`／`_refresh_speech_section`／`_npc_speech_bubble`／`_speech_bubble`／`_refresh_notice_section`／`_show_term`／`_status_strip`／`_resource_meter`／`_actor_drop_area`／`begin_frame`、未清空 `layout.used`、未 instantiate `header.tscn`／`arena.tscn`／`enemy_group.tscn`／`body_sidebar.tscn`、未 `command_router.emit`。未改 `header.tscn`／`header.gd`／`body_sidebar.gd`／`game_layout.gd`／`arena.gd`／`equipment_portrait.gd`／`first_turn_presenter.gd`／`command_routes.gd`／`command_router.gd`／`touch_input.gd`／`header._presentation_key`／`body_sidebar._presentation_key`／`_relic_presentation_key`／`_hand_presentation_key`／`_action_presentation_key`／`_posture_presentation_key`／`_resource_presentation_key`／`_log_presentation_key`／`_body_details_presentation_key`／`_picker_presentation_key`／`_speech_presentation_key`／`_notice_presentation_key`／`_drawer_presentation_key`／`enemy_group` 清子节点／`begin_frame` 保留集。无新 UI 文件。无 core／data。无 `docs/spec`。主页／路线／非战斗／缺实例本刀全量。
+- `spire-godot/tests/display_ui_cases.gd`（2085 行）：`present_routes_scene_instances_or_full` 已在 `run` 里接在 `present_routes_drawers_or_full` 之后。既有 `present_routes_*` 的 `present(["page"])` 全量步未改。本场景不测 `present(["show_log"])`／`present(["body_details"])`／`present(["pickers"])`／`present(["speech"])`／`present(["notice"])`／`present(["drawers"])` 的「仍局部」。测试侧 `GetViewCountingGame`。生产无计数器。④ 只改 `ui.view.equipment_portrait_layers` 副本并 `append("slice_probe_layer")`。
+- `spire-godot/build/implementer-report.md`（本文件，`git add -f`；保留后文既有结论）
+
+Godot 无 Size and ESM。`main.gd` 本就超长；本刀只加薄路由，未拆文件。
+
+检查点：
+- `8d6bdea` `checkpoint(implementer): add present scene_instances routing`
+- `21a03f6` `checkpoint(implementer): add present_routes_scene_instances_or_full`
+
+## 立绘与 overlay
+
+不叠。局部不调 `_battle_scene`／`layout.enemy_group`／`layout.body_sidebar`。`hero_portrait` 复用 `HeroArt`；敌人组走既有 `configure_enemy`，不走 `enemy_group` 清 overlay。身体栏只调栏内 `EquipmentPortrait.configure`。键未命中叶就地更新外观，不卸 `GameHeader`／`InformationLayer`／`HeroSpeechGroup`／身体槽位按钮／`IntentIcon_*`／`EnemySelect_*`。树上活 `HeroArt` 件数＝1。禁止只凭 main 缓存、实例已被 `begin_frame` 释放仍当局部成功。禁止为凑命中预调 `_battle_scene`／`enemy_group`。场景断言活 `HeroArt` 件数＝1，④ 后 `IntentIcon_*` 件数不变。套件绿。
+
+## 表外全量
+
+只让 `["scene_instances"]` 在 `show_home`／`show_route`／非 battle／缺 `layout.hero`／缺 `layout.body` 或栏内立绘／任一在场敌人缺有效组或立绘子节点时走全量。`header`／`body_bar`／`relics`／`hand`／`actions`／`posture`／`resources`／`show_log`／`body_details`／`pickers`／`speech`／`notice`／`drawers` 的全量条件未改。局部 `["scene_instances"]` 因而从不在主页／路线／非战斗页建 `HeroArt`／敌人组，从不走 `enemy_group` 清 overlay，从不重建身体槽位。节表在本刀之后已尽（`page` 已闭合全量，其余已局部）。
+
+## 检查
+
+在 `spire-godot/`：
+
+```
+$env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+& tools/check.ps1 -UIOnly -UISuite display -TimeoutSeconds 900
+```
+
+通过（本会话实测）：
+
+- 退出码 0
+- `SUITE RESULT: display PASS`
+- `UI PASS: 908 assertions`（`check-ui.log`：UI SUITE display 908 assertions, 77.50s）
+- `summary.json` `status=passed`，`before`＝`after`＝`4D73FDF83AA6C950693CE097DAF72F0701EDBE543A7FF9549DB2573421B2AA5E`
+- 日志：`spire-godot/build/checks/20260926T002914430-36644/`
+
+`present_routes_body_bar_or_full`／`present_routes_header_or_full`／`present_routes_relics_or_full`／`present_routes_hand_or_full`／`present_routes_actions_or_full`／`present_routes_posture_or_full`／`present_routes_resources_or_full`／`present_routes_show_log_or_full`／`present_routes_body_details_or_full`／`present_routes_pickers_or_full`／`present_routes_speech_or_full`／`present_routes_notice_or_full`／`present_routes_drawers_or_full`／`sidebar_refresh` 同套件未红。未提交 `*.import`／`.uid`。
+
+未跑：规则套件、其它 UI 套件、打包、加固变异、验收（本刀 UI 验收 none）、双审。未停工交回。无 `needs-human-review`。未改 `_submit`。
+
+---
+
 # 实现者报告：present(dirty) 第十三刀 drawers
 
 域：`ui/main.gd` M3 展示调度（`present` 加 `["drawers"]` 局部）与 `_menu_drawer` 共享键＋早退＋不叠窗。非清洁／非加固。
