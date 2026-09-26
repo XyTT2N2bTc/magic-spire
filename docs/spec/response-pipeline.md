@@ -196,8 +196,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 `_submit` 的脏集唯一来源是 `_submit_presentation_keys` 提交前后读取的既有键；不按指令 `kind` 维护脏表。
 缺 `GameHeader`、layout 无效或 View 为空时不算键，直接全量；只有前后均为 battle 才使用局部候选。
 成功战斗提交额外加入 `scene_instances`，外观判断仍交给叶实例；失败不因它无 main 键而加入。
-候选中只过滤既有未挂载／空节谓词命中的 `show_log`／`pickers`／`body_details`／`speech`／`drawers`，以及空 `notice`；
-其余结构性全量条件保留。过滤后为空则全量，非空局部集交给 `present` 再作既有全量判定。
+过滤只按提交前既有谓词去掉已未挂载的 `show_log`／`pickers`／`body_details`／`speech`／`drawers`；本次提交卸载的节留在 dirty，由 `present` 既有全量谓词拆除。空 `notice` 仍从候选去掉，清空靠多节路径前缀 `_hide_term`。其余结构性全量条件保留。过滤后为空则全量，非空局部集交给 `present` 再作既有全量判定。
 
 ```mermaid
 flowchart LR
