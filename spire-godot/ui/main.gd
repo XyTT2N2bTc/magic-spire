@@ -2771,7 +2771,7 @@ func _submit_presentation_keys() -> Dictionary:
   "drawers":_drawer_presentation_key(),
  }
 
-func _submit_dirty(before: Dictionary, succeeded: bool) -> Array:
+func _submit_dirty(before: Dictionary, succeeded: bool, absent: Dictionary) -> Array:
  var after=_submit_presentation_keys()
  if before.is_empty() or after.is_empty(): return []
  var dirty=[]
@@ -2780,8 +2780,8 @@ func _submit_dirty(before: Dictionary, succeeded: bool) -> Array:
    if succeeded: dirty.append(section)
    continue
   if not before.has(section) or before[section]==after[section]: continue
-  # Only absent optional sections are omitted; structural fallbacks remain.
-  if section in ["show_log","pickers","body_details","speech","drawers"] and _present_needs_full_render([section]): continue
+  # Omit optional overlays already unmounted before submit; structural fallbacks remain.
+  if section in ["show_log","pickers","body_details","speech","drawers"] and absent.get(section,false): continue
   if section=="notice" and notice=="": continue
   dirty.append(section)
  return dirty
@@ -2790,6 +2790,10 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
  # 提交执行段（docs/spec/candidate-removal.md §3.1 M-III 的 UI 侧落点）：只由指令路由调用。
  if _takeover_locked() and not takeover: return
  var previous_keys=_submit_presentation_keys() if not show_home and not is_instance_valid(enemy_feedback) and String(view.get("phase",""))=="battle" else {}
+ var previous_absent={}
+ if not previous_keys.is_empty():
+  for section in ["show_log","pickers","body_details","speech","drawers"]:
+   previous_absent[section]=_present_needs_full_render([section])
  surrender_version=-1
  if show_home or is_instance_valid(enemy_feedback): return
  # 显示数据（M-V）：形状 → 当前状态下那条行动的派生字段；不参与提交复核。
@@ -2827,7 +2831,7 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
  var dirty=[]
  if String(previous.get("phase",""))=="battle" and String(updated.phase)=="battle" and not previous_keys.is_empty():
   view=updated
-  dirty=_submit_dirty(previous_keys,result.ok)
+  dirty=_submit_dirty(previous_keys,result.ok,previous_absent)
  if not dirty.is_empty():
   present(dirty,updated)
  else:
