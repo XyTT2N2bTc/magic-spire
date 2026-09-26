@@ -3158,3 +3158,59 @@ flowchart LR
 - 源码：两边 **No live traces.**（`build/muse-candidate-trace-report.md`、`build/bunny-candidate-trace-report.md`）。
 - 文档：现行 spec／design 仍有 `ActionIndex`／`candidates()`／`candidate_id` 字面。并集见 `build/r5-trace-comparison.md`。未改文档。
 - 未跑：V1–V11；文档统一改写（待人批准）；推送。
+
+## 2026-09-24｜R5 只读投影／事实表配对测量（对照 `831c1b7` → `09d722d`）
+
+- 域：`core/game.gd::candidates`（旧）／`command_facts`（新）与两侧 `get_view`；可选 headless `ui/main.gd::render`。契约 [候选层移除](../spec/candidate-removal.md) 第 6 节测量口径／P5。未改产品字节。
+- 口径：同机、两侧 worktree 按夹具旧→新交替；2 热身不计 + 15 有效配对；配对比值＝逐对（新/旧）中位。种子 42，正式工厂，夹具 0／12／29 件均 `validate()==""`，读后快照相等。不与 `equipment-performance.md` 2026-09-14 绝对毫秒拼接。
+- 结果：事实条数 88／100／202 两侧相同。事实配对比值 0.994／0.961／0.913；`get_view` 0.754／0.659／0.608。密夹具 UI 渲染配对比值 0.806。详情与表见 [equipment-performance.md](equipment-performance.md) 同日节；JSON `spire-godot/build/r5-stress-20260924/paired.json`。
+- 毫秒只报告，不是完成判据，不宣称 R5 因提速完工。测量日志引擎错误 0；worktree 首次导入字体缓存 ERROR 8 行（第二次 0）。
+- 未跑：V1–V11；`-Suite all`；真窗口／29 件 UI 渲染；打包／推送。
+
+## 2026-09-24｜R5 密集夹具 ≥50 配对测量（对照 `831c1b7` → `09d722d`）
+
+- 域：同上节。人类裁定 26／29 太少。未改产品字节。
+- 夹具：空 0；`r1_install_equipment(44)` 两侧 44。同一循环 80／100 均停在 45 件普通装备；3 个大臂宿主三档自动肩带 +6＝51。`validate()==""`，读后快照相等。不与 0／12／29 或 2026-09-14 绝对毫秒拼接。
+- 结果：事实条数 88／292／344 两侧相同。事实配对比值 0.959／0.906／0.920；`get_view` 0.701／0.623／0.662。51 件 UI 渲染配对比值 0.735。表见 [equipment-performance.md](equipment-performance.md) 同日密节；JSON `spire-godot/build/r5-stress-20260924/paired-dense.json`。
+- 毫秒只报告，不是完成判据。测量日志引擎错误 0；首次导入字体缓存 ERROR 8 行。
+- 未跑：V1–V11；真窗口；打包／推送。
+
+## 2026-09-24｜T4 command_fact 按 kind 生产者查找（commit `b3c2731`）
+
+- 域：`core/game.gd::command_fact`；契约 [候选层移除](../spec/candidate-removal.md) T4。接线 flask／attack（无自解目标）／item_discard／buff-escape item_use／flow／posture／wall_move／status_toggle／relic_toggle·discharge／surrender。未接线 kind 仍 `_fact_source`。接管仍全表 `select`。
+- 检查：`architecture` `20260924T121448379-46068` PASS 687 断言、docs PASS。实现者报告 `spire-godot/build/t4-fact-prune-report.md`。
+- 51 件中位（只报告，不当完成）：flask 329µs，attack 2848µs，全表 `command_facts` 68873µs。
+- 独立审查：`No findings.`（`spire-godot/build/t4-review-report.md`，worktree `b3c2731`）。残留：等价只单向、未接线 kind 仍扫 `_fact_source`、T5／UI 未跑——不当本片缺陷。
+- 清洁：`6a1daee` `_phase_action_tail` 复用 `command_tail`；architecture `20260924T125126110-31452` PASS 687。复杂度／依赖方向检查器未建。独立审查：`No findings.`（`spire-godot/build/t4-cleaner-review-report.md`）。
+- 加固档 2：三变异均红（flask 全表 `20260924T125751962-25036`；命中行不等 `20260924T125950542-3764`；全表条数 `20260924T130331744-20096`）；关掉耗时后 ①② 仍红。还原 `20260924T130419784-51824` architecture PASS 687。无产品修复。报告 `spire-godot/build/t4-hardener-report.md`。
+- 未跑：T5；出牌词条剪枝；分区 delta；UI 套件；推送。
+
+## 2026-09-25｜人认可 `pipeline_lookup_graph` 切分
+
+- 依据＝人「先这样」。提取物 `spire-godot/build/pipeline-graph-slice-extract.md`。产品 `core/`／`ui/` 零改。词条槽仍挡住。
+
+## 2026-09-25｜`pipeline_lookup_graph` 实现（commit `2d75b47`）
+
+- 域：`tests/architecture_cases.gd::pipeline_lookup_inspect`；真源 `PIPELINE_LOOKUP_EDGES`（L-wired／L-unwired／L-table）。契约指针见 [候选层移除](../spec/candidate-removal.md) §2.1。
+- 检查：`architecture` `20260924T141520627-44672` PASS 710 断言、docs PASS。报告 `spire-godot/build/pipeline-graph-impl-report.md`。
+- 独立审查：`No findings.`（`spire-godot/build/pipeline-graph-review-report.md`）。残留：P2 声明自证、抽函数体是子串计数、档 2 变异未在该次证据里——不当本片缺陷。
+- 清洁：`50e4c37` inspect 消费边表；architecture `20260924T142457890-6640` PASS 712。独立审查：`No findings.`（`spire-godot/build/pipeline-graph-cleaner-review-report.md`）。
+- 加固档 2：四变异均红（另加 `_fact_source` `20260924T143033198-26092`；L-table 去源 `20260924T143504278-18980`；flask 全表 `20260924T143630496-49428`；G4 多写点 `20260924T143741390-40376`）；关掉耗时后 ①②④ 仍红。还原 `20260924T143928122-53588` architecture PASS 712。无产品修复。报告 `spire-godot/build/pipeline-graph-hardener-report.md`。
+- 未跑：T1–T3；其余 T；装备查询图；词条槽；UI 套件；推送。本刀收口完成。未推送。
+
+## 2026-09-25｜人认可 `card_facts_declared_slots` 切分
+
+- 依据＝人「继续」。提取物 `spire-godot/build/card-specs-slice-extract.md`。
+
+## 2026-09-25｜`card_facts_declared_slots` 实现（commit `3b88ece`）
+
+- 域：`core/card_effects.gd::card_facts`。有 `target_slots` 不对表外槽 `targets_at`。事实与本刀前相等。
+- 检查：`architecture` `20260924T145132714-53204` PASS 717、docs PASS。报告 `spire-godot/build/card-slots-impl-report.md`。
+- 独立审查：`No findings.`（`spire-godot/build/card-slots-review-report.md`）。
+- 清洁：`614f683` 槽走查去重；architecture `20260924T145840409-6220` PASS 717。独立审查：`No findings.`（`spire-godot/build/card-slots-cleaner-review-report.md`）。
+- 加固档 2：仍并全身再查未声明槽 `20260924T150434814-57380` 红；关掉计数并改行 `20260924T150537381-50620` 红（该次 `source_changed`，以 check-rules 断言为准）；漏自由面空槽 `20260924T150651349-21852` 红。还原 `20260924T150736483-37732` architecture PASS 717。无产品修复。报告 `spire-godot/build/card-slots-hardener-report.md`。心跳记有并行 Godot 串扰运行号，不当本刀结论。
+- 未跑：T4 接线 card；T5；delta；UI 套件；推送。本刀收口完成。未推送。
+
+## 2026-09-25｜下一刀规划（无 target_slots 全身扫描）
+
+- 依据＝人「继续」。规划者经 Codex ark／`gpt-6-sol`／high。切分认可前不派实现者。

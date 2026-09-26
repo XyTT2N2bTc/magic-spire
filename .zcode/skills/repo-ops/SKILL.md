@@ -1,9 +1,9 @@
 ---
 name: repo-ops
 description: >-
-  本仓（magic-spire）的命令与操作流程：分类检查门禁、内容包校验、引擎定位与启动、
-  打包与发布入口。要在本仓跑检查、启动或打包，或问"命令是什么/怎么验证"时使用。
-  AGENTS.md 只写规范；本文件写操作。
+  本仓（magic-spire）的命令与操作流程：分类检查门禁、职能工作树、内容包校验、
+  引擎定位与启动、打包与发布入口。要在本仓跑检查、加工作树、启动或打包，
+  或问"命令是什么/怎么验证"时使用。AGENTS.md 只写规范；本文件写操作。
 ---
 
 # 本仓命令与操作流程
@@ -30,6 +30,22 @@ git diff --stat
 git diff --check
 git diff --name-only
 ```
+
+## 工作树
+
+主检出保持 `C:\1\magic-spire`。职能树（实现／清洁／审查／加固／PR 清洁枝）**只**加在 `C:\1\tmp\`，目录名 `magic-spire-wt-<slice>`。禁止 `C:\1\magic-spire-wt-*`。
+
+```powershell
+New-Item -ItemType Directory -Force -Path C:\1\tmp | Out-Null
+git worktree add C:\1\tmp\magic-spire-wt-<slice> -b worker/<slice> HEAD   # 新枝
+git worktree add C:\1\tmp\magic-spire-wt-<slice> worker/<slice>           # 已有枝
+git worktree add --detach C:\1\tmp\magic-spire-wt-<slice>-review <commit> # 只读审查钉
+git worktree move <old> C:\1\tmp\magic-spire-wt-<slice>
+git worktree remove --force C:\1\tmp\magic-spire-wt-<slice>
+git worktree list
+```
+
+切片结束后拆树，枝按是否还要用再删。不要把工作树放进仓库内的 `tmp/`（嵌套 worktree 会被拒绝）。
 
 ## spire-godot（Godot 模块）
 

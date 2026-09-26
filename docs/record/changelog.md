@@ -1514,3 +1514,23 @@ flowchart LR
 
 - muse xhigh 与 space-bunny max 只读 `rg`／读文件，无 Godot。源码面两边均为 **No live traces.** 报告 `build/muse-candidate-trace-report.md`、`build/bunny-candidate-trace-report.md`，对照 `build/r5-trace-comparison.md`。
 - 现行文档仍有旧接口字面（spec §10 已点名若干；并集另含 `run-review.md`／`card-terms.md`／`game-design.md`／`input-controls.md`／`equipment-design.md`）。未改这些文件（须人批准）。未推送。
+
+## 2026-09-24｜R5 只读投影／事实表配对测量（`831c1b7` → `09d722d`）
+
+- 同机 2 热身＋15 配对；空／密／叠 0／12／29 件。事实条数两侧 88／100／202。事实配对比值 0.994／0.961／0.913；`get_view` 0.754／0.659／0.608；密夹具 headless 渲染 0.806。毫秒只报告（P5），不是完成判据。记录见 [equipment-performance.md](equipment-performance.md)／[verification.md](verification.md)。未改产品、未推送。
+
+## 2026-09-24｜R5 密集夹具 ≥50 配对测量（`831c1b7` → `09d722d`）
+
+- 官方 44；普通装备循环上限 45；三档大臂自动肩带 +6＝51。事实配对比值 0.959／0.906／0.920；`get_view` 0.701／0.623／0.662；51 件 headless 渲染 0.735。毫秒只报告。记录见 [equipment-performance.md](equipment-performance.md)。未改产品、未推送。
+
+## 2026-09-24｜T4 command_fact 按 kind 查找（`b3c2731`）
+
+- `command_fact` 经 kind 调现有生产者，不经全表。architecture 687。独立审查 `No findings.`（`b3c2731` 与清洁 `6a1daee`）。加固档 2 三变异红、还原再绿。51 件中位只报告。未推送。
+
+## 2026-09-25｜查找边机读表（`2d75b47`）
+
+- `PIPELINE_LOOKUP_EDGES`＋`pipeline_lookup_inspect`。architecture 710／清洁后 712。独立审查 `No findings.`（含清洁 `50e4c37`）。加固档 2 四变异红、还原再绿。产品零改。未推送。
+
+## 2026-09-25｜未声明槽不查询（`3b88ece`）
+
+- 有 `target_slots` 的牌不对表外槽 `targets_at`。architecture 717。独立审查 `No findings.`（含清洁 `614f683`）。加固档 2 三变异红、还原再绿。未推送。
