@@ -254,6 +254,12 @@ class IndexCountingGame extends "res://tests/game_fixture.gd":
  var id_builds=0
  var capacity_builds=0
  var physical_builds=0
+ var target_builds=0
+ var query_targets_builds=0
+ var physical_queries=0
+ var equipment_at_queries=0
+ var composite_root_queries=0
+ var links_at_queries=0
  func _materialize_physical_pieces() -> Array:
   piece_builds+=1
   return super._materialize_physical_pieces()
@@ -269,6 +275,52 @@ class IndexCountingGame extends "res://tests/game_fixture.gd":
  func _materialize_physical_points(pieces: Array) -> Dictionary:
   physical_builds+=1
   return super._materialize_physical_points(pieces)
+ func _materialize_slot_target_edge() -> Dictionary:
+  target_builds+=1
+  return super._materialize_slot_target_edge()
+ func _query_targets_at(slot: String) -> Array:
+  query_targets_builds+=1
+  return super._query_targets_at(slot)
+ func physical_pieces() -> Array:
+  physical_queries+=1
+  return super.physical_pieces()
+ func equipment_at(slot: String) -> Array:
+  equipment_at_queries+=1
+  return super.equipment_at(slot)
+ func _composite_roots() -> Array:
+  composite_root_queries+=1
+  return super._composite_roots()
+ func links_at(slot: String) -> Array:
+  links_at_queries+=1
+  return super.links_at(slot)
+
+static func index_target_slots(g) -> Array:
+ var keys={"missing_slot":true}
+ for slot in g.B.SLOT_NAMES.keys(): keys[slot]=true
+ for slot in g.B.SLOTS: keys[slot]=true
+ keys["shoulder"]=true
+ for slot in g.SpecialEquipment.slots(): keys[slot]=true
+ for e in g.state.equipment:
+  for slot in g.Equipment.coverage(e): keys[slot]=true
+  if e.has("shoulders"):
+   for piece in e.shoulders.pieces:
+    for slot in g.Equipment.coverage(piece): keys[slot]=true
+ for root in g.state.composites:
+  for slot in g.Composites.definition(root).coverage: keys[slot]=true
+  for e in root.components:
+   for slot in g.Equipment.coverage(e): keys[slot]=true
+ for link in g.state.links:
+  for slot in link.slots: keys[slot]=true
+ for e in g.Binding.connections(g):
+  var slot=str(e.get("slot",""))
+  if slot!="": keys[slot]=true
+ if g._equipment_read_active() and g._equipment_read.has("slot_targets"):
+  for slot in g._equipment_read.slot_targets.keys(): keys[slot]=true
+  if g._equipment_read.has("slots"):
+   for slot in g._equipment_read.slots.keys(): keys[slot]=true
+  if g._equipment_read.has("links"):
+   for slot in g._equipment_read.links.keys(): keys[slot]=true
+ return keys.keys()
 
 # Test-side counter: production card_facts must not call Game.targets_at for undeclared slots.
 class TargetsAtCountingGame extends "res://tests/game_fixture.gd":
@@ -483,8 +535,22 @@ static func index_materializes_once_per_scope(t) -> void:
  # Count only this window: earlier read-only entries (plan/offer/contact calls) legitimately
  # opened and released scopes of their own during construction.
  g.piece_builds=0;g.slot_builds=0;g.id_builds=0;g.capacity_builds=0;g.physical_builds=0
+ g.target_builds=0;g.query_targets_builds=0
+ g.physical_queries=0;g.equipment_at_queries=0;g.composite_root_queries=0;g.links_at_queries=0
  var previous=g._begin_equipment_read()
- t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1 and g.capacity_builds==1 and g.physical_builds==1,"INDEX entry materializes the piece set and every edge once per scope")
+ t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1 and g.capacity_builds==1 and g.physical_builds==1 and g.target_builds==1,"INDEX entry materializes the piece set and every edge once per scope")
+ var query_targets_builds=g.query_targets_builds
+ var physical_queries=g.physical_queries
+ var equipment_at_queries=g.equipment_at_queries
+ var composite_root_queries=g.composite_root_queries
+ var links_at_queries=g.links_at_queries
+ var slots=index_target_slots(g)
+ for step in range(2):
+  for slot in slots: g.targets_at(slot)
+ t.check(g.target_builds==1 and g.query_targets_builds==query_targets_builds and g.physical_queries==physical_queries and g.equipment_at_queries==equipment_at_queries and g.composite_root_queries==composite_root_queries and g.links_at_queries==links_at_queries,"INDEX repeated targets_at queries inside one scope never rebuild or reassemble the slot-target edge")
+ for slot in slots:
+  g.targets_at(slot);g.equipment_at(slot);g.occupied(slot)
+ t.check(g.slot_builds==1 and g.piece_builds==1,"INDEX equipment_at and occupied stay on the slot edge")
  for slot in g.B.SLOTS: g.equipment_at(slot)
  for step in range(3): g.physical_pieces()
  var ids=g.physical_pieces().map(func(e):return e.id)
@@ -494,16 +560,22 @@ static func index_materializes_once_per_scope(t) -> void:
  t.check(g.piece_builds==1 and g.slot_builds==1 and g.id_builds==1 and g.capacity_builds==1 and g.physical_builds==1,"INDEX repeated slot, id and point queries inside one scope never rebuild an edge")
  var members=g.equipment_at("wrist");members.clear();members.append({})
  t.check(not g.equipment_at("wrist").is_empty(),"INDEX clearing a materialized slot answer cannot corrupt the edge")
+ var listed=g.targets_at("wrist")
+ var listed_size=listed.size()
+ listed.sort_custom(func(a,b):return str(a.get("id",""))<str(b.get("id","")))
+ listed.clear();listed.append({})
+ t.check(g.targets_at("wrist").size()==listed_size and not g.equipment_at("wrist").is_empty(),"INDEX clearing a materialized targets_at answer cannot corrupt later slot or target queries")
  var built=g.piece_builds;var slot_builds=g.slot_builds;var id_builds=g.id_builds
  var capacity_builds=g.capacity_builds;var physical_builds=g.physical_builds
+ var target_builds=g.target_builds
  g._equipment_read=previous
  t.check(g._equipment_read.is_empty(),"INDEX read scope releases its materialized edges")
  for step in range(3):
-  g.equipment_at("wrist");g.physical_pieces()
+  g.equipment_at("wrist");g.physical_pieces();g.targets_at("wrist")
  for id in ids: g._equipment(id)
  for slot in g.B.SLOTS: g.capacity_used(slot)
  for point in g.Equipment.ANATOMY: g._point_count(point)
- t.check(g.piece_builds==built and g.slot_builds==slot_builds and g.id_builds==id_builds and g.capacity_builds==capacity_builds and g.physical_builds==physical_builds,"INDEX queries without a scope never build an edge table")
+ t.check(g.piece_builds==built and g.slot_builds==slot_builds and g.id_builds==id_builds and g.capacity_builds==capacity_builds and g.physical_builds==physical_builds and g.target_builds==target_builds,"INDEX queries without a scope never build an edge table")
  t.check(g.export_snapshot()==before,"INDEX materialization leaves state, logs and random cursors unchanged")
 
 # docs/spec/equipment-query-seam.md「证据入口」: an inconsistent graph voids the whole scope, records one named issue

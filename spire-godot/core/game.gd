@@ -193,6 +193,7 @@ func _build_equipment_read_index() -> void:
  _equipment_read.anchors=_materialize_anchor_list()
  _equipment_read.targets=_materialize_equipment_targets()
  _equipment_read.connections=_materialize_connection_edge()
+ _equipment_read.slot_targets=_materialize_slot_target_edge()
  _equipment_read.actions=_materialize_action_targets()
  _equipment_read.ids=_materialize_id_edge()
  _equipment_read.capacity_points=_materialize_capacity_points(pieces)
@@ -218,6 +219,23 @@ func _materialize_equipment_targets() -> Array:
 # The helper's own scan over state.equipment runs once per scope instead of once per list query.
 func _materialize_connection_edge() -> Array:
  return Binding.connections(self)
+
+# One slot-target projection per scope over the key universe. Must not call targets_at:
+# the table is not open for queries until this edge is stored.
+func _materialize_slot_target_edge() -> Dictionary:
+ var keys={}
+ for slot in B.SLOT_NAMES.keys(): keys[slot]=true
+ for slot in B.SLOTS: keys[slot]=true
+ for slot in _equipment_read.slots.keys(): keys[slot]=true
+ for slot in _equipment_read.links.keys(): keys[slot]=true
+ keys["shoulder"]=true
+ for slot in SpecialEquipment.slots(): keys[slot]=true
+ for e in _equipment_read.connections: keys[e.slot]=true
+ for root in _equipment_read.roots.values():
+  for slot in Composites.definition(root).coverage: keys[slot]=true
+ var slot_targets={}
+ for slot in keys.keys(): slot_targets[slot]=_query_targets_at(slot)
+ return slot_targets
 
 func _materialize_action_targets() -> Array:
  return _equipment_read.targets.duplicate()+state.special_equipment+_equipment_read.connections.duplicate()
@@ -1096,6 +1114,12 @@ func action_targets() -> Array:
  return equipment_targets()+state.special_equipment+Binding.connections(self)
 
 func targets_at(slot: String) -> Array:
+ if _equipment_read_active(): return _equipment_read.slot_targets.get(slot,[]).duplicate()
+ return _query_targets_at(slot)
+
+# Three-way assembly for targets_at. Reads sibling edges when a scope is active; does not
+# read the slot-target edge or call targets_at.
+func _query_targets_at(slot: String) -> Array:
  if slot=="shoulder": return physical_pieces().filter(func(e):return Equipment.is_shoulder(e) and e.durability>0)
  if slot in SpecialEquipment.slots(): return state.special_equipment.filter(func(e):return SpecialEquipment.occupies(e,slot))+links_at(slot)
  var targets=equipment_at(slot)

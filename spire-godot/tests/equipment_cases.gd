@@ -26,6 +26,7 @@ static func run(t) -> void:
  precise_positions(t)
  eye_capacity(t)
  index_slot_edge_parity(t)
+ index_targets_edge_parity(t)
  index_predicate_parity(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")
@@ -202,6 +203,47 @@ static func index_slot_edge_parity(t) -> void:
  var hosts=plain.state.equipment.filter(func(e):return e.has("shoulders"))
  t.check(hosts.size()==1 and plain.physical_pieces().size()==plain.state.equipment.size()+hosts[0].shoulders.pieces.size(),"INDEX piece set is equipment plus host shoulder pieces")
  plain._equipment_read=plain_scope
+
+# docs/spec/equipment-query-seam.md「证据入口」: the materialized slot-target edge answers exactly like the live
+# path, including shoulder pieces that stay off the slot edge and zero-durability specials.
+static func index_targets_edge_parity(t) -> void:
+ var cases=[]
+ for kind in ["plain","component","shoulder"]: cases.append({"label":kind,"game":index_fixture(kind)})
+ for kind in ["component_links","shoulder_links","special_equipment","torso_binding"]: cases.append({"label":kind,"game":Game.new(42,true,kind)})
+ for entry in cases:
+  var g=entry.game
+  if entry.label=="special_equipment":
+   t.check(not g.state.special_equipment.is_empty(),"INDEX special fixture has a special piece "+entry.label)
+   if not g.state.special_equipment.is_empty(): g.state.special_equipment[0].durability=0
+  var reference=Arch.UncachedGame.new(42);reference.state=g.state.duplicate(true)
+  var before=g.export_snapshot()
+  var previous=g._begin_equipment_read()
+  var slots=Arch.index_target_slots(g)
+  var parity=true
+  for slot in slots:
+   var here=g.targets_at(slot)
+   var expected=reference.targets_at(slot)
+   parity=parity and here==expected and here.map(func(e):return e.id)==expected.map(func(e):return e.id)
+   parity=parity and g.equipment_at(slot)==reference.equipment_at(slot) and g.occupied(slot)==reference.occupied(slot)
+  var straps=g.physical_pieces().filter(func(e):return g.Equipment.is_shoulder(e) and e.durability>0)
+  if not straps.is_empty():
+   parity=parity and not g.targets_at("shoulder").is_empty() and g.equipment_at("shoulder").is_empty()
+  for e in g.physical_pieces().filter(func(e):return g.Equipment.is_shoulder(e)):
+   parity=parity and (e.durability<=0 or g.targets_at("shoulder").has(e))
+   for slot in slots:
+    if slot=="shoulder": continue
+    parity=parity and not g.targets_at(slot).has(e)
+  if entry.label=="special_equipment" and not g.state.special_equipment.is_empty():
+   var dead=g.state.special_equipment[0]
+   for slot in g.SpecialEquipment.occupied_slots(dead): parity=parity and g.targets_at(slot).has(dead)
+  t.check(parity,"INDEX targets edge parity with the live path "+entry.label)
+  t.check(g.export_snapshot()==before,"INDEX targets edge read changes no state "+entry.label)
+  g._equipment_read=previous
+  t.check(g._equipment_read.is_empty(),"INDEX targets edge read releases its materialized index "+entry.label)
+  var live=true
+  for slot in slots:
+   live=live and g.targets_at(slot)==reference.targets_at(slot) and g.targets_at(slot).map(func(e):return e.id)==reference.targets_at(slot).map(func(e):return e.id)
+  t.check(live,"INDEX targets_at outside a scope stays live "+entry.label)
 
 static func release_projection(t) -> void:
  var g=Game.new(42);g.state.equipment.clear();g._discard_end();g.state.wall="normal"
