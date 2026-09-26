@@ -380,7 +380,9 @@ static func submit_presents_local_dirty_or_full(t) -> void:
  var counting=SubmitCountingGame.new(42,false,"equipment",false)
  t.check(counting.restore_snapshot(ui.game.export_snapshot()).ok,"SUBMIT PRESENT counting game restores the live run")
  ui.game=counting
- ui.render(ui.view);await t.frames()
+ # Restore advances version; synchronize once before measuring submissions.
+ ui.render(counting.get_view());await t.frames()
+ t.check(ui.view.version==counting.state.version,"SUBMIT PRESENT counting baseline uses the restored version")
  var baseline=counting.get_view_calls
  var before=counting.export_snapshot()
  var before_rng=counting.state.rng.duplicate(true)
