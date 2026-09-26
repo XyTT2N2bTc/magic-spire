@@ -350,6 +350,100 @@ class GetViewCountingGame extends "res://tests/game_fixture.gd":
   get_view_calls+=1
   return super.get_view()
 
+class SubmitCountingGame extends GetViewCountingGame:
+ var last_result={}
+ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
+  last_result=super.dispatch(cmd,expected_version)
+  return last_result
+
+class SubmitSaveProbe extends RefCounted:
+ var writes=0
+ func write_game(_game, _replace=false, _drawings={}) -> Dictionary:
+  writes+=1
+  return {"ok":true,"message":""}
+
+class SubmitFeedbackProbe extends "res://ui/resource_feedback.gd":
+ var calls=0
+ var presented_version=-1
+ func enqueue(events: Array, point: Vector2, instant_fields: Array=[]) -> void:
+  calls+=1
+  presented_version=host.view.version
+  super.enqueue(events,point,instant_fields)
+
+# Given a mounted battle, when local/full presentation and real submissions run,
+# then node identity, committed projection, and success-only side effects agree.
+static func submit_presents_local_dirty_or_full(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ t.check(ui.view.phase=="battle" and not ui.show_home and not ui.show_route and not ui.show_log and not ui.view.pressure.overloaded and not ui._takeover_locked() and not ui._selecting_hand() and ui.notice=="","SUBMIT PRESENT fixture is an ordinary mounted battle")
+ var counting=SubmitCountingGame.new(42,false,"equipment",false)
+ t.check(counting.restore_snapshot(ui.game.export_snapshot()).ok,"SUBMIT PRESENT counting game restores the live run")
+ ui.game=counting
+ ui.render(ui.view);await t.frames()
+ var baseline=counting.get_view_calls
+ var before=counting.export_snapshot()
+ var before_rng=counting.state.rng.duplicate(true)
+ var header=ui.find_child("GameHeader",true,false)
+ var hero=ui.find_child("HeroArt",true,false)
+ var resources=ui.find_child("MainResourcePanel",true,false)
+ var attacks=ui.find_child("AttackActions",true,false)
+ ui.present(["header","resources"]);await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header and ui.find_child("HeroArt",true,false)==hero,"SUBMIT PRESENT two local sections preserve header and hero")
+ t.check((resources==null or ui.find_child("MainResourcePanel",true,false)==resources) and (attacks==null or ui.find_child("AttackActions",true,false)==attacks),"SUBMIT PRESENT unchanged resource and attack panels retain identity")
+ t.check(counting.get_view_calls==baseline,"SUBMIT PRESENT local sections do not fetch a view")
+ for dirty in [["*"],["header","not_a_section"],["page"]]:
+  var old_header=ui.find_child("GameHeader",true,false).get_instance_id()
+  ui.present(dirty);await t.frames()
+  t.check(ui.find_child("GameHeader",true,false).get_instance_id()!=old_header,"SUBMIT PRESENT explicit full fallback replaces header: "+str(dirty))
+  t.check(counting.get_view_calls==baseline,"SUBMIT PRESENT full fallback uses current view: "+str(dirty))
+ t.check(counting.export_snapshot()==before and counting.state.rng==before_rng,"SUBMIT PRESENT read-only presentation preserves snapshot and RNG")
+ var usable=ui.view.display_facts.filter(func(c):return c.valid and c.payload.get("kind","")=="attack" and c.payload.get("enemy","")!="")
+ t.check(not usable.is_empty(),"SUBMIT PRESENT fixture has a valid enemy attack")
+ if usable.is_empty(): return
+ var attack=usable[0].duplicate(true)
+ var version=ui.view.version
+ var energy=ui.view.energy
+ header=ui.find_child("GameHeader",true,false)
+ hero=ui.find_child("HeroArt",true,false)
+ var old_saves=ui.saves
+ var old_persistence=ui.persistence_enabled
+ var save_probe=SubmitSaveProbe.new()
+ ui.saves=save_probe;ui.persistence_enabled=true
+ if is_instance_valid(ui.resource_feedback):
+  ui.remove_child(ui.resource_feedback);ui.resource_feedback.queue_free()
+ var feedback=SubmitFeedbackProbe.new();feedback.host=ui;ui.add_child(feedback);ui.resource_feedback=feedback
+ var outcome=ui.command_router.emit("attack",attack,version)
+ t.check(outcome.submitted and counting.last_result.ok and feedback.calls==1 and feedback.presented_version==ui.view.version and ui.view.version>version,"SUBMIT PRESENT success feedback runs after the committed view is presented")
+ await t.frames()
+ t.check(ui.find_child("GameHeader",true,false)==header and ui.find_child("HeroArt",true,false)==hero and present_named_live_count(ui,"HeroArt")==1,"SUBMIT PRESENT battle attack preserves header and the single hero")
+ var energy_label=ui.find_child("EnergyValue",true,false)
+ t.check(ui.view.energy<energy and ui.view.energy==counting.state.energy and energy_label!=null and String(energy_label.text)==ui.game.number(ui.view.energy),"SUBMIT PRESENT attack payment appears in EnergyValue and committed view")
+ t.check(counting.get_view_calls==baseline+1 and counting.export_snapshot()!=before and ui.view.version==counting.state.version,"SUBMIT PRESENT attack advances snapshot with exactly one get_view")
+ var committed=counting.export_snapshot()
+ var committed_rng=counting.state.rng.duplicate(true)
+ var writes=save_probe.writes
+ var feedback_calls=feedback.calls
+ var damage_nodes=ui.find_children("DamageFeedback","",true,false).map(func(node):return node.get_instance_id())
+ outcome=ui.command_router.emit("attack",attack,version)
+ t.check(outcome.submitted and not counting.last_result.ok and String(counting.last_result.get("checkpoint",""))=="" and save_probe.writes==writes,"SUBMIT PRESENT stale rejection has no checkpoint and does not save")
+ t.check(feedback.calls==feedback_calls and ui.find_children("DamageFeedback","",true,false).all(func(node):return node.get_instance_id() in damage_nodes),"SUBMIT PRESENT stale rejection creates no success feedback")
+ await t.frames()
+ t.check(counting.export_snapshot()==committed and counting.state.rng==committed_rng,"SUBMIT PRESENT stale rejection preserves snapshot and RNG")
+ t.check(ui.notice!="" and ui.notice.contains("状态已更新，请重新选择行动。") and ui.notice.contains(String(counting.last_result.error)),"SUBMIT PRESENT stale rejection keeps the verbatim reason")
+ t.check(ui.find_child("GameHeader",true,false)==header and counting.get_view_calls==baseline+2,"SUBMIT PRESENT stale rejection preserves header and fetches exactly one view")
+ ui.saves=old_saves;ui.persistence_enabled=old_persistence
+ ui.restart(42);await t.frames()
+ await t.start_practice("StartEquipmentPractice")
+ t.check(ui.view.phase!="battle","SUBMIT PRESENT practice reaches a non-battle page")
+ var flows=ui.view.display_facts.filter(func(c):return c.valid and c.payload.get("kind","") in ["end","finish_rest"])
+ t.check(not flows.is_empty(),"SUBMIT PRESENT non-battle fixture has a legal flow")
+ if flows.is_empty(): return
+ var old_header=ui.find_child("GameHeader",true,false).get_instance_id()
+ version=ui.view.version
+ ui.command_router.emit(String(flows[0].payload.kind),flows[0],version);await t.frames()
+ t.check(ui.view.version>version and ui.find_child("GameHeader",true,false).get_instance_id()!=old_header,"SUBMIT PRESENT non-battle submission rebuilds the page")
+
 static func present_visible_slot_names(ui) -> Array:
  var names=[]
  for node in ui.find_children("BodySlot_*","",true,false):
@@ -1964,6 +2058,7 @@ static func run(t) -> void:
  r5_display_facts_match_determination(t)
  await portrait_snapshot_boundary(t)
  await submit_reject_semantics_unchanged(t)
+ await submit_presents_local_dirty_or_full(t)
  await takeover_path_unchanged(t)
  await portrait_composite_boundary(t)
  await copy_missing_key_never_crashes(t)
