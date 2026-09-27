@@ -1,1 +1,0 @@
-cleaner heartbeat: walked _visit_targets_at single path, empty-found dedup, no copied filters, no production counters, Game dep direction intact at HEAD ab898b3; no code change, no Godot rerun, report written.
