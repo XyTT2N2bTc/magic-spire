@@ -277,6 +277,21 @@ class TargetsAtCountingGame extends "res://tests/game_fixture.gd":
   targets_at_slots.append(slot)
   return super.targets_at(slot)
 
+# Test-side later-source counters for has_targets_at early-exit; production has none.
+class TargetWalkCountingGame extends TargetsAtCountingGame:
+ var composite_root_calls=0
+ var links_at_calls=0
+ func _composite_roots() -> Array:
+  composite_root_calls+=1
+  return super._composite_roots()
+ func links_at(slot: String) -> Array:
+  links_at_calls+=1
+  return super.links_at(slot)
+ func reset_walk_counts() -> void:
+  targets_at_slots.clear()
+  composite_root_calls=0
+  links_at_calls=0
+
 static func containers(value, path: String, out: Array) -> void:
  if value is Dictionary:
   out.append({"value":value,"path":path})
@@ -361,6 +376,7 @@ static func run(t) -> void:
  index_materializes_once_per_scope(t)
  index_id_edge_parity(t)
  index_predicate_parity(t)
+ has_targets_at_parity(t)
  index_entry_parity(t)
  index_self_check_falls_back(t)
  copy_projection_masked_baseline(t)
@@ -369,6 +385,8 @@ static func run(t) -> void:
  instruction_route_table_is_total(t)
  command_fact_kind_lookup(t)
  card_facts_declared_slots(t)
+ card_facts_consumes_has_targets_at(t)
+ card_facts_keyword_min_query(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -614,6 +632,189 @@ static func index_predicate_parity(t) -> void:
  t.check(doubled!="" and doubled==dense_reference._capacity_issue(dense_reference.physical_pieces()+dense_reference.state.equipment.duplicate()),"INDEX non-authoritative capacity argument keeps its live reason text: "+doubled)
  t.check(dense.capacity_used("wrist")==dense_reference.capacity_used("wrist") and dense.occupied("wrist") and dense.hand_blocked("wrist","left"),"INDEX dense counts and presence match the live path")
  dense._equipment_read=dense_scope
+
+static func _has_targets_slots(g) -> Array:
+ var slots=g.B.SLOTS.duplicate()
+ slots.append("shoulder")
+ slots.append_array(g.SpecialEquipment.slots())
+ return slots
+
+static func _clear_gear(g) -> void:
+ g.state.equipment.clear()
+ g.state.composites.clear()
+ g.state.links.clear()
+ g.state.special_equipment.clear()
+
+static func _link_slot_without_equipment(g) -> String:
+ for slot in g.B.SLOTS:
+  if g.equipment_at(slot).is_empty() and not g.links_at(slot).is_empty(): return slot
+ return ""
+
+static func _composite_contact_outside_equipment(g, jacket) -> Array:
+ var coverage=g.Composites.definition(jacket).coverage
+ var result=[]
+ for slot in coverage:
+  var hosted=ids_for(g.equipment_at(slot))
+  for e in jacket.components:
+   if not hosted.has(e.id): result.append({"slot":slot,"id":e.id})
+ return result
+
+static func _check_has_targets_at_once(t, g, label: String, early_slot: String="") -> Dictionary:
+ var slots=_has_targets_slots(g)
+ var snap=g.export_snapshot()
+ var rng=g.state.rng.duplicate(true)
+ var baselines={}
+ for slot in slots:
+  baselines[slot]=g.targets_at(slot)
+ var oracles={}
+ for slot in slots:
+  oracles[slot]=not baselines[slot].is_empty()
+ var predicted={}
+ for slot in slots:
+  g.reset_walk_counts()
+  predicted[slot]=g.has_targets_at(slot)
+  t.check(g.targets_at_slots.is_empty(),"has_targets_at_parity: predicate does not call targets_at "+label+" "+slot)
+  t.check(predicted[slot]==oracles[slot],"has_targets_at_parity: bool equals oracle "+label+" "+slot+" have="+str(predicted[slot])+" oracle="+str(oracles[slot]))
+  if slot==early_slot:
+   t.check(g.composite_root_calls==0 and g.links_at_calls==0,"has_targets_at_parity: first hit skips later sources "+label+" "+slot+" roots="+str(g.composite_root_calls)+" links="+str(g.links_at_calls))
+  var after=g.targets_at(slot)
+  t.check(after==baselines[slot] and ids_for(after)==ids_for(baselines[slot]),"has_targets_at_parity: targets_at order and ids unchanged "+label+" "+slot)
+  for i in range(after.size()):
+   t.check(is_same(after[i],baselines[slot][i]),"has_targets_at_parity: targets_at instance identity "+label+" "+slot)
+ t.check(g.export_snapshot()==snap and g.state.rng==rng,"has_targets_at_parity: snapshot and rng frozen "+label)
+ return predicted
+
+static func _check_has_targets_at_modes(t, g, label: String, early_slot: String="") -> void:
+ var live=_check_has_targets_at_once(t,g,label+"/live",early_slot)
+ var snap=g.export_snapshot()
+ var previous=g._begin_equipment_read()
+ var scoped=_check_has_targets_at_once(t,g,label+"/scope",early_slot)
+ for slot in live:
+  t.check(live[slot]==scoped[slot],"has_targets_at_parity: live equals scope "+label+" "+slot)
+ g._equipment_read=previous
+ t.check(g._equipment_read.is_empty() and g.export_snapshot()==snap,"has_targets_at_parity: scope released "+label)
+ var invalid_previous=g._begin_equipment_read()
+ g._equipment_read.invalid=true
+ var fallback=_check_has_targets_at_once(t,g,label+"/invalid-fallback",early_slot)
+ for slot in live:
+  t.check(live[slot]==fallback[slot],"has_targets_at_parity: invalid index live fallback "+label+" "+slot)
+ g._equipment_read=invalid_previous
+ t.check(g._equipment_read.is_empty(),"has_targets_at_parity: invalid fallback released "+label)
+
+# docs/spec/equipment-query-seam.md: has_targets_at shares the targets_at per-slot walk.
+static func has_targets_at_parity(t) -> void:
+ var empty=TargetWalkCountingGame.new(42)
+ _clear_gear(empty)
+ _check_has_targets_at_modes(t,empty,"empty")
+ for slot in _has_targets_slots(empty):
+  t.check(empty.targets_at(slot).is_empty(),"has_targets_at_parity: empty fixture oracle is empty "+slot)
+ var palm=TargetWalkCountingGame.new(42)
+ _clear_gear(palm)
+ var palm_piece=palm.add_fixture("palm",4,10)
+ palm_piece.side="left"
+ _check_has_targets_at_modes(t,palm,"one-sided palm","palm")
+ t.check(not palm.occupied("palm"),"has_targets_at_parity: one-sided palm occupied stays false")
+ t.check(palm.has_targets_at("palm") and ids_for(palm.targets_at("palm")).has(palm_piece.id),"has_targets_at_parity: one-sided palm id in targets_at")
+ var fingers=TargetWalkCountingGame.new(42)
+ _clear_gear(fingers)
+ var fingers_piece=fingers.add_fixture("fingers",4,10)
+ fingers_piece.side="left"
+ _check_has_targets_at_modes(t,fingers,"one-sided fingers","fingers")
+ t.check(not fingers.occupied("fingers"),"has_targets_at_parity: one-sided fingers occupied stays false")
+ t.check(fingers.has_targets_at("fingers") and ids_for(fingers.targets_at("fingers")).has(fingers_piece.id),"has_targets_at_parity: one-sided fingers id in targets_at")
+ var link_g=TargetWalkCountingGame.new(42)
+ _clear_gear(link_g)
+ var root=link_g._install_assembly("leg","upper","fixture",2,2)
+ var body=root.components.filter(func(e):return e.part=="body")[0]
+ var band=link_g._install_template("rope",link_g.Links.point_slot("below_knee"),8,10,false,"fixture",1,-1,0,"below_knee")
+ var rope=link_g._install_link(body.id,band.id,8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+ t.check(not rope.is_empty(),"has_targets_at_parity: live link fixture")
+ _check_has_targets_at_modes(t,link_g,"live link","thigh")
+ var link_only=TargetWalkCountingGame.new(42)
+ _clear_gear(link_only)
+ var only_root=link_only._install_assembly("leg","upper","fixture",2,2)
+ var only_body=only_root.components.filter(func(e):return e.part=="body")[0]
+ var only_band=link_only._install_template("rope",link_only.Links.point_slot("below_knee"),8,10,false,"fixture",1,-1,0,"below_knee")
+ var only_rope=link_only._install_link(only_body.id,only_band.id,8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+ t.check(not only_rope.is_empty(),"has_targets_at_parity: link-only fixture")
+ for slot in ["thigh","calf"]:
+  for e in link_only.equipment_at(slot): e.durability=0
+ var link_slot=_link_slot_without_equipment(link_only)
+ t.check(link_slot!="","has_targets_at_parity: live link covers empty equipment_at")
+ if link_slot!="":
+  t.check(link_only.has_targets_at(link_slot) and ids_for(link_only.links_at(link_slot)).has(only_rope.id),"has_targets_at_parity: live link covers empty equipment_at "+link_slot)
+  t.check(ids_for(link_only.targets_at(link_slot)).has(only_rope.id),"has_targets_at_parity: live link id in targets_at "+link_slot)
+  only_rope.durability=0
+  t.check(not link_only.has_targets_at(link_slot) and link_only.links_at(link_slot).is_empty(),"has_targets_at_parity: dead link empty equipment_at is false "+link_slot)
+ rope.durability=0
+ _check_has_targets_at_modes(t,link_g,"dead link","thigh")
+ t.check(link_g.links_at("thigh").is_empty() and link_g.links_at("calf").is_empty(),"has_targets_at_parity: dead link leaves links_at")
+ var glove_g=TargetWalkCountingGame.new(42)
+ _clear_gear(glove_g)
+ var glove=glove_g._install_assembly("glove","short","fixture",2,2)
+ t.check(not glove.is_empty() and glove_g.Composites.active(glove),"has_targets_at_parity: active composite fixture")
+ _check_has_targets_at_modes(t,glove_g,"active composite","upper_arm")
+ var glove_body=glove.components.filter(func(e):return e.part=="body")[0]
+ glove_body.durability=0
+ t.check(not glove_g.Composites.active(glove),"has_targets_at_parity: disabled composite inactive")
+ _check_has_targets_at_modes(t,glove_g,"disabled composite")
+ var jacket_g=TargetWalkCountingGame.new(42)
+ _clear_gear(jacket_g)
+ var jacket=jacket_g._install_assembly("jacket","standard","fixture",2,2)
+ t.check(not jacket.is_empty() and jacket_g.Composites.active(jacket),"has_targets_at_parity: jacket composite fixture")
+ _check_has_targets_at_modes(t,jacket_g,"active jacket","upper_arm")
+ var outside=_composite_contact_outside_equipment(jacket_g,jacket)
+ t.check(not outside.is_empty(),"has_targets_at_parity: composite contact outside equipment_at")
+ var sleeve=jacket.components.filter(func(e):return e.part=="sleeves")
+ var hem=jacket.components.filter(func(e):return e.part=="hem")
+ t.check(not sleeve.is_empty() and outside.any(func(c):return c.id==sleeve[0].id),"has_targets_at_parity: sleeves contact outside equipment_at")
+ t.check(not hem.is_empty() and outside.any(func(c):return c.id==hem[0].id),"has_targets_at_parity: hem contact outside equipment_at")
+ for contact in outside:
+  t.check(jacket_g.has_targets_at(contact.slot) and ids_for(jacket_g.targets_at(contact.slot)).has(contact.id),"has_targets_at_parity: composite contact id in targets_at "+contact.slot+" "+str(contact.id))
+ var jacket_body=jacket.components.filter(func(e):return e.part=="body")[0]
+ jacket_body.durability=0
+ t.check(not jacket_g.Composites.active(jacket),"has_targets_at_parity: disabled jacket inactive")
+ for contact in outside:
+  t.check(not jacket_g.has_targets_at(contact.slot),"has_targets_at_parity: disabled jacket slot follows composite "+contact.slot)
+ _check_has_targets_at_modes(t,jacket_g,"disabled jacket")
+ var sh=TargetWalkCountingGame.new(42)
+ _clear_gear(sh)
+ sh._install_template("rope","upper_arm",sh.Equipment.maximum(2),sh.Equipment.maximum(2),false,"fixture",2)
+ _check_has_targets_at_modes(t,sh,"shoulder")
+ t.check(sh.has_targets_at("shoulder") and sh.equipment_at("shoulder").is_empty(),"has_targets_at_parity: shoulder has targets without equipment_at")
+ t.check(sh.targets_at("shoulder").any(func(e):return sh.Equipment.is_shoulder(e)),"has_targets_at_parity: shoulder hit is_shoulder")
+ var sp=TargetWalkCountingGame.new(42)
+ _clear_gear(sp)
+ var clamp=sp._install_special("nipple_clamp_low","special_1_a")
+ t.check(not clamp.is_empty(),"has_targets_at_parity: special fixture")
+ _check_has_targets_at_modes(t,sp,"special")
+ var special_slots=sp.SpecialEquipment.occupied_slots(clamp)
+ t.check(not special_slots.is_empty() and special_slots.all(func(slot):return sp.has_targets_at(slot)),"has_targets_at_parity: special slot has targets")
+ t.check(not special_slots.is_empty() and ids_for(sp.state.special_equipment).has(clamp.id) and ids_for(sp.targets_at(special_slots[0])).has(clamp.id),"has_targets_at_parity: special id in special_equipment and targets_at")
+ var crotch_g=TargetWalkCountingGame.new(42)
+ _clear_gear(crotch_g)
+ var crotch=crotch_g._install_special("crotch_rope_low","special_3_a")
+ var crotch_link=crotch_g._install_link(crotch.id,crotch_g.add_fixture("wrist",8).id,8,"fixture")
+ t.check(not crotch.is_empty() and not crotch_link.is_empty(),"has_targets_at_parity: crotch link fixture")
+ _check_has_targets_at_modes(t,crotch_g,"crotch link","wrist")
+ t.check(crotch_g.has_targets_at("special_3_a") and (ids_for(crotch_g.state.special_equipment).has(crotch.id) or ids_for(crotch_g.links_at("special_3_a")).has(crotch_link.id)),"has_targets_at_parity: special slot from special_equipment or links_at")
+ t.check(ids_for(crotch_g.targets_at("special_3_a")).has(crotch.id),"has_targets_at_parity: crotch special id in targets_at")
+ var bind_g=null
+ for seed in range(1,100):
+  var candidate=TargetWalkCountingGame.new(seed,true,"torso_binding")
+  if candidate.state.equipment[0].binding.kind=="linked":
+   bind_g=candidate
+   break
+ t.check(bind_g!=null,"has_targets_at_parity: linked torso binding fixture")
+ if bind_g!=null:
+  var host=bind_g.state.equipment[0]
+  _check_has_targets_at_modes(t,bind_g,"connection",host.slot)
+  var conns=bind_g.Binding.connections(bind_g)
+  t.check(not conns.is_empty(),"has_targets_at_parity: Binding.connections contribute")
+  if not conns.is_empty():
+   var conn=conns[0]
+   t.check(bind_g.has_targets_at(conn.slot) and ids_for(bind_g.targets_at(conn.slot)).has(conn.id),"has_targets_at_parity: connection id in targets_at "+conn.slot)
+   t.check(not ids_for(bind_g.equipment_at(conn.slot)).has(conn.id),"has_targets_at_parity: connection not from equipment_at "+conn.slot)
 
 # docs/spec/equipment-query-seam.md「证据入口」: every declared outer entry opens and releases its own scope and answers
 # exactly like the index-off reference; entries that swap state still leave no scope behind.
@@ -1993,6 +2194,243 @@ static func card_facts_declared_slots(t) -> void:
  t.check(facts==before,"card_facts_declared_slots: facts equal the pre-cut union-then-skip rows field-for-field")
  var undeclared_queries=g.targets_at_slots.filter(func(slot):return slot not in spec.target_slots)
  t.check(undeclared_queries.is_empty(),"card_facts_declared_slots: targets_at on undeclared slots is 0 have="+str(undeclared_queries))
+
+# card_facts_consumes_has_targets_at: declared slots ask has_targets_at before targets_at; empty slots skip collect.
+static func _card_facts_consume_slots(g, spec: Dictionary) -> Array:
+ var slots=g.B.SLOTS+["neck","shoulder"]+g.SpecialEquipment.slots()
+ for slot in spec.get("target_slots",[]):
+  if slot not in slots: slots.append(slot)
+ return slots
+
+static func _assert_card_facts_consumes_has_targets_at(t, g, card: Dictionary, label: String, expected_ids: Array=[]) -> void:
+ var spec=g.Cards.Rules.SPECS[card.type]
+ t.check(not spec.has("target_slots"),"card_facts_consumes_has_targets_at: no target_slots "+label+" "+card.type)
+ var snap=g.export_snapshot()
+ var rng=g.state.rng.duplicate(true)
+ var oracle=card_facts_union_slot_oracle(g,card)
+ t.check(g.export_snapshot()==snap and g.state.rng==rng,"card_facts_consumes_has_targets_at: oracle frozen "+label+" "+card.type)
+ g.targets_at_slots.clear()
+ var facts=g.Cards.card_facts(g,card)
+ t.check(facts==oracle,"card_facts_consumes_has_targets_at: facts equal oracle "+label+" "+card.type)
+ var queried=g.targets_at_slots.duplicate()
+ for slot in _card_facts_consume_slots(g,spec):
+  if g.has_targets_at(slot):
+   t.check(queried.has(slot),"card_facts_consumes_has_targets_at: occupied slot still queries targets_at "+label+" "+card.type+" "+slot)
+  else:
+   t.check(not queried.has(slot),"card_facts_consumes_has_targets_at: empty slot does not query targets_at "+label+" "+card.type+" "+slot+" have="+str(queried))
+ for id in expected_ids:
+  t.check(facts.any(func(f):return String(f.payload.get("target",""))==id),"card_facts_consumes_has_targets_at: facts contain id "+label+" "+card.type+" "+str(id))
+ t.check(g.export_snapshot()==snap and g.state.rng==rng,"card_facts_consumes_has_targets_at: snapshot and rng frozen "+label+" "+card.type)
+
+static func _check_card_facts_consumes_cards(t, g, label: String, expected_ids: Array=[]) -> void:
+ t.check(g.state.phase=="battle" or g.state.practice,"card_facts_consumes_has_targets_at: battle or practice fixture "+label)
+ var strain=Rewards.give(t,g,"strain")
+ var slip=Rewards.give(t,g,"slip")
+ _assert_card_facts_consumes_has_targets_at(t,g,strain,label,expected_ids)
+ _assert_card_facts_consumes_has_targets_at(t,g,slip,label,expected_ids)
+
+static func card_facts_consumes_has_targets_at(t) -> void:
+ var empty=TargetsAtCountingGame.new(42)
+ t.check(empty.state.phase=="battle","card_facts_consumes_has_targets_at: battle fixture")
+ _clear_gear(empty)
+ _check_card_facts_consumes_cards(t,empty,"empty")
+ var empty_strain=empty.state.hand.filter(func(c):return c.type=="strain")[0]
+ var empty_facts=empty.Cards.card_facts(empty,empty_strain)
+ t.check(empty_facts.any(func(f):return String(f.payload.get("target",""))==""),"card_facts_consumes_has_targets_at: empty ordinary slot free face")
+ var palm=TargetsAtCountingGame.new(42)
+ _clear_gear(palm)
+ var palm_piece=palm.add_fixture("palm",4,10)
+ palm_piece.side="left"
+ t.check(not palm.occupied("palm"),"card_facts_consumes_has_targets_at: one-sided palm occupied stays false")
+ _check_card_facts_consumes_cards(t,palm,"one-sided palm",[palm_piece.id])
+ t.check(not palm.occupied("palm"),"card_facts_consumes_has_targets_at: one-sided palm occupied after facts")
+ var fingers=TargetsAtCountingGame.new(42)
+ _clear_gear(fingers)
+ var fingers_piece=fingers.add_fixture("fingers",4,10)
+ fingers_piece.side="left"
+ t.check(not fingers.occupied("fingers"),"card_facts_consumes_has_targets_at: one-sided fingers occupied stays false")
+ _check_card_facts_consumes_cards(t,fingers,"one-sided fingers",[fingers_piece.id])
+ t.check(not fingers.occupied("fingers"),"card_facts_consumes_has_targets_at: one-sided fingers occupied after facts")
+ var link_only=TargetsAtCountingGame.new(42)
+ _clear_gear(link_only)
+ var only_root=link_only._install_assembly("leg","upper","fixture",2,2)
+ var only_body=only_root.components.filter(func(e):return e.part=="body")[0]
+ var only_band=link_only._install_template("rope",link_only.Links.point_slot("below_knee"),8,10,false,"fixture",1,-1,0,"below_knee")
+ var only_rope=link_only._install_link(only_body.id,only_band.id,8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+ t.check(not only_rope.is_empty(),"card_facts_consumes_has_targets_at: live link fixture")
+ for slot in ["thigh","calf"]:
+  for e in link_only.equipment_at(slot): e.durability=0
+ var link_slot=_link_slot_without_equipment(link_only)
+ t.check(link_slot!="","card_facts_consumes_has_targets_at: live link covers empty equipment_at")
+ _check_card_facts_consumes_cards(t,link_only,"live link",[only_rope.id])
+ only_rope.durability=0
+ t.check(link_slot=="" or not link_only.has_targets_at(link_slot),"card_facts_consumes_has_targets_at: dead link empty equipment_at is false")
+ _check_card_facts_consumes_cards(t,link_only,"dead link")
+ var glove_g=TargetsAtCountingGame.new(42)
+ _clear_gear(glove_g)
+ var glove=glove_g._install_assembly("glove","short","fixture",2,2)
+ t.check(not glove.is_empty() and glove_g.Composites.active(glove),"card_facts_consumes_has_targets_at: active composite fixture")
+ var glove_ids=ids_for(glove.components)
+ _check_card_facts_consumes_cards(t,glove_g,"active composite",glove_ids)
+ var glove_body=glove.components.filter(func(e):return e.part=="body")[0]
+ glove_body.durability=0
+ t.check(not glove_g.Composites.active(glove),"card_facts_consumes_has_targets_at: disabled composite inactive")
+ _check_card_facts_consumes_cards(t,glove_g,"disabled composite")
+ var jacket_g=TargetsAtCountingGame.new(42)
+ _clear_gear(jacket_g)
+ var jacket=jacket_g._install_assembly("jacket","standard","fixture",2,2)
+ t.check(not jacket.is_empty() and jacket_g.Composites.active(jacket),"card_facts_consumes_has_targets_at: jacket composite fixture")
+ var outside=_composite_contact_outside_equipment(jacket_g,jacket)
+ t.check(not outside.is_empty(),"card_facts_consumes_has_targets_at: composite contact outside equipment_at")
+ var contact_ids=[]
+ for contact in outside:
+  if contact.id not in contact_ids: contact_ids.append(contact.id)
+ _check_card_facts_consumes_cards(t,jacket_g,"active jacket",contact_ids)
+ var jacket_body=jacket.components.filter(func(e):return e.part=="body")[0]
+ jacket_body.durability=0
+ t.check(not jacket_g.Composites.active(jacket),"card_facts_consumes_has_targets_at: disabled jacket inactive")
+ _check_card_facts_consumes_cards(t,jacket_g,"disabled jacket")
+ var bind_g=null
+ for seed in range(1,100):
+  var candidate=TargetsAtCountingGame.new(seed,true,"torso_binding")
+  if candidate.state.equipment[0].binding.kind=="linked":
+   bind_g=candidate
+   break
+ t.check(bind_g!=null,"card_facts_consumes_has_targets_at: linked torso binding fixture")
+ if bind_g!=null:
+  var conns=bind_g.Binding.connections(bind_g)
+  t.check(not conns.is_empty(),"card_facts_consumes_has_targets_at: Binding.connections contribute")
+  var conn_ids=[]
+  for conn in conns:
+   if conn.id not in conn_ids: conn_ids.append(conn.id)
+  _check_card_facts_consumes_cards(t,bind_g,"connection",conn_ids)
+
+# Pre-cut card_facts own-face rows for self_faces / single_face (no slot walk).
+static func card_facts_own_face_oracle(g, card: Dictionary) -> Array:
+ var facts=[]
+ var spec=g.Cards.Rules.SPECS[card.type]
+ var cards=g.Cards
+ if spec.has("self_faces"):
+  for side in ["bound","free"]:
+   var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":side=="free","mode":spec.mode,"self_target":true}
+   if spec.get("x_cost",false): p.x=cards.energy_cost(g,card.type,side=="free")
+   var choices=[p]
+   if spec.self_faces[side].get("exhaust_hand",false):
+    choices=[]
+    for chosen in g.state.hand:
+     if chosen.uid==card.uid: continue
+     var selection=p.duplicate();selection.hand_uid=chosen.uid;choices.append(selection)
+    if choices.is_empty():
+     p.hand_uid="";choices.append(p)
+   for choice in choices:
+    var face_label=cards.Rules.face_name(card.type,choice.free)+"面" if spec.has("bound_modes") else ("自由面" if choice.free else "挣脱面")
+    facts.append(g._fact(choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+face_label,{"kind":"card.target","args":{"payload":choice}},cards.energy_cost(g,card.type,choice.free),cards.face_mana(g,card.type,choice.free),cards.reason(g,choice),"","card"))
+  return facts
+ if cards.Rules.single_face(card.type):
+  var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":false,"mode":spec.mode,"self_target":true}
+  facts.append(g._fact(p,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":p}},cards.energy_cost(g,card.type),0.0,cards.reason(g,p),"","card"))
+ return facts
+
+# card_facts_keyword_min_query: slot collect is gated by keyword_ids ∩ equipment-collect keys, not term.name.
+static func card_facts_keyword_min_query(t) -> void:
+ var collect_keys=["strain","slip","magic_slip","lower","unlock","follow_through"]
+ var empty=TargetsAtCountingGame.new(42)
+ t.check(empty.state.phase=="battle","card_facts_keyword_min_query: battle fixture")
+ _clear_gear(empty)
+ var strain=Rewards.give(t,empty,"strain")
+ t.check(not empty.Cards.Rules.SPECS[strain.type].has("target_slots"),"card_facts_keyword_min_query: strain has no target_slots")
+ t.check("strain" in empty.B.keyword_ids(strain.type,false),"card_facts_keyword_min_query: strain bound ids contain strain")
+ var empty_snap=empty.export_snapshot()
+ var empty_rng=empty.state.rng.duplicate(true)
+ var empty_oracle=card_facts_union_slot_oracle(empty,strain)
+ t.check(empty.export_snapshot()==empty_snap and empty.state.rng==empty_rng,"card_facts_keyword_min_query: empty strain oracle frozen")
+ empty.targets_at_slots.clear()
+ var empty_facts=empty.Cards.card_facts(empty,strain)
+ t.check(empty.targets_at_slots.is_empty(),"card_facts_keyword_min_query: empty strain does not query targets_at")
+ t.check(empty_facts.any(func(f):return String(f.payload.get("target",""))==""),"card_facts_keyword_min_query: empty ordinary slot free face")
+ t.check(empty_facts==empty_oracle,"card_facts_keyword_min_query: empty strain facts equal oracle")
+ t.check(empty.export_snapshot()==empty_snap and empty.state.rng==empty_rng,"card_facts_keyword_min_query: empty strain snapshot rng")
+ var palm=TargetsAtCountingGame.new(42)
+ _clear_gear(palm)
+ var palm_piece=palm.add_fixture("palm",4,10)
+ palm_piece.side="left"
+ t.check(not palm.occupied("palm"),"card_facts_keyword_min_query: one-sided palm occupied stays false")
+ var palm_strain=Rewards.give(t,palm,"strain")
+ var palm_snap=palm.export_snapshot()
+ var palm_rng=palm.state.rng.duplicate(true)
+ var palm_oracle=card_facts_union_slot_oracle(palm,palm_strain)
+ t.check(palm.export_snapshot()==palm_snap and palm.state.rng==palm_rng,"card_facts_keyword_min_query: palm oracle frozen")
+ palm.targets_at_slots.clear()
+ var palm_facts=palm.Cards.card_facts(palm,palm_strain)
+ var palm_slots=palm.targets_at_slots.duplicate()
+ t.check(palm_slots.has("palm"),"card_facts_keyword_min_query: one-sided palm still queries targets_at")
+ t.check(palm_facts.any(func(f):return String(f.payload.get("target",""))==palm_piece.id),"card_facts_keyword_min_query: facts contain palm piece")
+ t.check(palm_facts==palm_oracle,"card_facts_keyword_min_query: palm strain facts equal oracle")
+ t.check(palm.export_snapshot()==palm_snap and palm.state.rng==palm_rng,"card_facts_keyword_min_query: palm snapshot rng")
+ var elbow=TargetsAtCountingGame.new(42)
+ t.check(elbow.state.phase=="battle","card_facts_keyword_min_query: elbow battle fixture")
+ _clear_gear(elbow)
+ var undeclared=elbow.add_fixture("ankle",40,100)
+ elbow.add_fixture("upper_arm",40,100)
+ var elbow_card=Rewards.give(t,elbow,"strong_elbow")
+ var elbow_spec=elbow.Cards.Rules.SPECS[elbow_card.type]
+ t.check(elbow_spec.has("target_slots") and "ankle" not in elbow_spec.target_slots and "upper_arm" in elbow_spec.target_slots,"card_facts_keyword_min_query: strong_elbow declares arms not ankle")
+ var elbow_snap=elbow.export_snapshot()
+ var elbow_rng=elbow.state.rng.duplicate(true)
+ var elbow_oracle=card_facts_union_slot_oracle(elbow,elbow_card)
+ t.check(elbow.export_snapshot()==elbow_snap and elbow.state.rng==elbow_rng,"card_facts_keyword_min_query: elbow oracle frozen")
+ elbow.targets_at_slots.clear()
+ var elbow_facts=elbow.Cards.card_facts(elbow,elbow_card)
+ var elbow_slots=elbow.targets_at_slots.duplicate()
+ t.check(elbow_slots.all(func(slot):return slot in elbow_spec.target_slots),"card_facts_keyword_min_query: strong_elbow targets_at stays in target_slots have="+str(elbow_slots))
+ t.check(not elbow_facts.any(func(f):return String(f.payload.get("target",""))==undeclared.id),"card_facts_keyword_min_query: no release row for undeclared occupied id")
+ t.check(elbow_facts==elbow_oracle,"card_facts_keyword_min_query: strong_elbow facts equal oracle")
+ t.check(elbow.export_snapshot()==elbow_snap and elbow.state.rng==elbow_rng,"card_facts_keyword_min_query: elbow snapshot rng")
+ var occupied=TargetsAtCountingGame.new(42)
+ t.check(occupied.state.phase=="battle","card_facts_keyword_min_query: occupied battle fixture")
+ _clear_gear(occupied)
+ for slot in occupied.B.SLOTS: occupied.add_fixture(slot,7,10)
+ var pot=Rewards.give(t,occupied,"pot_of_greed")
+ var search=Rewards.give(t,occupied,"mana_search")
+ for type in ["pot_of_greed","mana_search"]:
+  t.check(not occupied.Cards.Rules.SPECS[type].has("target_slots"),"card_facts_keyword_min_query: no target_slots "+type)
+  var ids=occupied.B.keyword_ids(type,false)+occupied.B.keyword_ids(type,true)
+  t.check(ids.all(func(id):return id not in collect_keys),"card_facts_keyword_min_query: ids omit equipment-collect keys "+type+" have="+str(ids))
+ var occupied_snap=occupied.export_snapshot()
+ var occupied_rng=occupied.state.rng.duplicate(true)
+ var pot_oracle=card_facts_own_face_oracle(occupied,pot)
+ var search_oracle=card_facts_own_face_oracle(occupied,search)
+ t.check(occupied.export_snapshot()==occupied_snap and occupied.state.rng==occupied_rng,"card_facts_keyword_min_query: occupied oracle frozen")
+ occupied.targets_at_slots.clear()
+ var pot_facts=occupied.Cards.card_facts(occupied,pot)
+ t.check(occupied.targets_at_slots.is_empty(),"card_facts_keyword_min_query: pot_of_greed does not query targets_at on occupied")
+ t.check(pot_facts==pot_oracle,"card_facts_keyword_min_query: pot_of_greed facts equal own-face oracle")
+ t.check(pot_facts.all(func(f):return String(f.payload.get("target",""))=="self"),"card_facts_keyword_min_query: pot_of_greed has no slot release or free-slot rows")
+ occupied.targets_at_slots.clear()
+ var search_facts=occupied.Cards.card_facts(occupied,search)
+ t.check(occupied.targets_at_slots.is_empty(),"card_facts_keyword_min_query: mana_search does not query targets_at on occupied")
+ t.check(search_facts==search_oracle,"card_facts_keyword_min_query: mana_search facts equal own-face oracle")
+ t.check(search_facts.all(func(f):return String(f.payload.get("target",""))=="self"),"card_facts_keyword_min_query: mana_search has no slot release or free-slot rows")
+ t.check(occupied.export_snapshot()==occupied_snap and occupied.state.rng==occupied_rng,"card_facts_keyword_min_query: occupied snapshot rng")
+ var terms=preload("res://data/card_text.gd").TERMS
+ var original_name=terms.strain.name
+ terms.strain.name="__mutated_strain__"
+ empty.targets_at_slots.clear()
+ empty.Cards.card_facts(empty,strain)
+ var mutated_empty=empty.targets_at_slots.duplicate()
+ palm.targets_at_slots.clear()
+ palm.Cards.card_facts(palm,palm_strain)
+ var mutated_palm=palm.targets_at_slots.duplicate()
+ elbow.targets_at_slots.clear()
+ elbow.Cards.card_facts(elbow,elbow_card)
+ var mutated_elbow=elbow.targets_at_slots.duplicate()
+ occupied.targets_at_slots.clear()
+ occupied.Cards.card_facts(occupied,pot)
+ occupied.Cards.card_facts(occupied,search)
+ var mutated_occupied=occupied.targets_at_slots.duplicate()
+ terms.strain.name=original_name
+ t.check(mutated_empty.is_empty() and mutated_palm==palm_slots and mutated_elbow==elbow_slots and mutated_occupied.is_empty(),"card_facts_keyword_min_query: collect set unchanged after TERMS.strain.name mutate")
+ t.check(empty.export_snapshot()==empty_snap and empty.state.rng==empty_rng and palm.export_snapshot()==palm_snap and palm.state.rng==palm_rng and elbow.export_snapshot()==elbow_snap and elbow.state.rng==elbow_rng and occupied.export_snapshot()==occupied_snap and occupied.state.rng==occupied_rng,"card_facts_keyword_min_query: snapshot rng after TERMS mutate")
 
 static func copy_candidate(g, kind: String, op: String) -> Dictionary:
  for candidate in g.command_facts():
