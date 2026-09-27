@@ -169,7 +169,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 | `pickers` | `_refresh_picker_section` | `_picker_presentation_key` |
 | `speech` | `_refresh_speech_section` | `_speech_presentation_key` |
 | `notice` | `_refresh_notice_section` | `_notice_presentation_key` |
-| `drawers` | `_refresh_drawer_section` | `_drawer_presentation_key` |
+| `drawers` | `_refresh_drawer_section`（按当前打开的抽屉重建：`show_menu` → `_menu_drawer`，`show_items` → `_items_drawer`） | `_drawer_presentation_key`：菜单面（存档异常、本局结束）＋道具抽屉内容（道具行、选中与说明态、选中道具的候选切片、身体目标）；只读约定见[界面契约](release-interface.md#行动日志) |
 | `page` | 无，始终全量 `render` | 无局部键，不进入提交脏集 |
 | `scene_instances` | `_refresh_scene_instances_section` | 无统一节键；外观由既有 arena／`equipment_portrait` 叶实例比对；英雄与各敌人的状态图标条由 `_status_strip` 按 owner 键（`_status_keys`）比对，命中则跳过，条缺失或该 owner 的状态列表变化只重建该 owner；存活敌人的名字按钮（`EnemySelect_*`）、血条（`EnemyHp_*`）、HP 文本（`EnemyHpValue_*`）与意图图标（`IntentIcon_*`）由 `_sync_enemy_stage` 按名复用并原地更新，图标另按自身条目键（`_intent_icon_keys`）增删，按钮另按名字／标记键（`_enemy_select_keys`）；`gone` 敌人的整槽由 `_release_enemy_stage` 释放（局部路径不重建 `layout.used`，帧无法识别该释放） |
 
@@ -200,7 +200,9 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 成功战斗提交额外加入 `scene_instances`：外观交给叶实例，英雄与存活敌人的状态图标条交给 `_status_strip`，
 存活敌人的名条／血条／HP 文本／意图图标交给 `_sync_enemy_stage`、`gone` 敌人的整槽交给 `_release_enemy_stage`；
 失败不因它无统一节键而加入。
-过滤只按提交前既有谓词去掉已未挂载的 `show_log`／`pickers`／`body_details`／`speech`／`drawers`；本次提交卸载的节留在 dirty，由 `present` 既有全量谓词拆除。空 `notice` 仍从候选去掉，清空靠多节路径前缀 `_hide_term`。其余结构性全量条件保留。过滤后为空则全量，非空局部集交给 `present` 再作既有全量判定。
+过滤只按提交前既有谓词去掉已未挂载的 `show_log`／`pickers`／`body_details`／`drawers`；`speech` 不进这条过滤——
+提交引入一条新台词正是该节负责挂载的形态，空台词／接管锁定／已被跳过的台词仍由 `present` 的既有谓词兜底为全量。
+本次提交卸载的节留在 dirty，由 `present` 既有全量谓词拆除。空 `notice` 仍从候选去掉，清空靠多节路径前缀 `_hide_term`。其余结构性全量条件保留。过滤后为空则全量，非空局部集交给 `present` 再作既有全量判定。
 
 ```mermaid
 flowchart LR

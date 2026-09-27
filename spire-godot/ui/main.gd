@@ -274,8 +274,19 @@ func _drawer_shell(title: String, rect: Rect2, tone: Color=CYAN) -> VBoxContaine
 
 var _drawer_key=[]
 
+# The open drawer's content is part of this section's key: the menu face (save state,
+# finished run) and, while the item drawer is open, every field `_items_drawer` renders
+# (item rows, selection and help state, and the selected item's candidate slice plus the
+# body targets its equipment cards read).
 func _drawer_presentation_key() -> Array:
- return [bool(save_failed),bool(view.get("demo_finished",false))]
+ var items=[]
+ for item in view.items: items.append(item.duplicate(true))
+ var item_facts=[]
+ for c in TargetQueries.select(view,"item",{"item":selected_item}):
+  item_facts.append([TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,c.mana,String(c.label),String(c.get("detail","")),String(c.risk),String(c.payload.kind),String(c.payload.get("target",""))])
+ var bodies=[]
+ for body in view.body_groups: bodies.append([String(body.id),body.get("targets",{}).duplicate(true)])
+ return [bool(save_failed),bool(view.get("demo_finished",false)),bool(show_items),String(selected_item),String(selected_item_slot),bool(item_help),int(view.carried_items),view.capacity,items,item_facts,bodies]
 
 func _menu_drawer() -> void:
  var content=_drawer_shell("游戏菜单",Rect2(1090,78,474,474))
@@ -288,7 +299,6 @@ func _menu_drawer() -> void:
  var restart_button=_button("重开 / 练习",func():_open_drawer("show_settings"));restart_button.name="OpenRestart";content.add_child(restart_button)
  var options=_button(_text("ui.settings.title","设置"),func():_open_drawer("show_options"));options.name="OpenOptions";content.add_child(options)
  var home=_button("返回主页",_return_home,CYAN);home.name="ReturnHome";content.add_child(home)
- _drawer_key=_drawer_presentation_key()
 
 func _drawer_key_hit(key) -> bool:
  if _drawer_key!=key: return false
@@ -298,7 +308,14 @@ func _drawer_key_hit(key) -> bool:
   if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
  if live.size()!=1: return false
  var layer=live[0]
- for node_name in ["InformationDrawer","DismissDrawer","CloseDrawer","OpenSaves","QuickSL","OpenLog","OpenRestart","OpenOptions","ReturnHome"]:
+ var expected=["InformationDrawer","DismissDrawer","CloseDrawer"]
+ if show_items:
+  if not view.items.is_empty(): expected.append_array(["InventoryList","InventoryDetail","InventoryFooter","ItemHelpToggle"])
+ elif show_menu:
+  expected.append_array(["OpenSaves","QuickSL","OpenLog","OpenRestart","OpenOptions","ReturnHome"])
+ else:
+  return false
+ for node_name in expected:
   if _log_live_count(layer,node_name)!=1: return false
  return true
 
@@ -309,8 +326,10 @@ func _refresh_drawer_section() -> void:
  _ensure_log_layer()
  _unload_log_shell()
  building_drawer=true
- _menu_drawer()
+ if show_items: _items_drawer()
+ else: _menu_drawer()
  building_drawer=false
+ _drawer_key=_drawer_presentation_key()
 
 func _open_tutorial(category: String="") -> void:
  tutorial_category=category
@@ -553,7 +572,7 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # show_home / show_route / non-battle / takeover lock / suppressed hero id /
 # nonempty npc_speech only for ["speech"], empty notice / missing or
 # invalid hero / show_home / show_route / non-battle / touch finger with
-# details blocked only for ["notice"], not show_menu / show_home /
+# details blocked only for ["notice"], neither show_menu nor show_items / show_home /
 # show_route / non-battle / other DRAWERS only for ["drawers"], and
 # show_home / show_route / non-battle / missing hero, body portrait, or
 # living enemy group only for ["scene_instances"]; render, _show_term,
@@ -632,7 +651,7 @@ const PRESENT_ADJACENCY={
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.has("hand") and bool(next.pressure.overloaded)) or (dirty.has("actions") and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.has("posture") and (String(next.phase)!="battle" or show_route)) or (dirty.has("resources") and (String(next.phase)!="battle" or show_route)) or (dirty.has("show_log") and (not show_log or show_home)) or (dirty.has("body_details") and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.has("pickers") and not _selecting_hand()) or (dirty.has("speech") and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())) or (dirty.has("notice") and (notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed))) or (dirty.has("drawers") and (not show_menu or show_home or show_route or String(next.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field))))) or (dirty.has("scene_instances") and _scene_instances_need_full(next)):
+ if _present_needs_full_render(dirty) or (dirty.has("hand") and bool(next.pressure.overloaded)) or (dirty.has("actions") and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.has("posture") and (String(next.phase)!="battle" or show_route)) or (dirty.has("resources") and (String(next.phase)!="battle" or show_route)) or (dirty.has("show_log") and (not show_log or show_home)) or (dirty.has("body_details") and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.has("pickers") and not _selecting_hand()) or (dirty.has("speech") and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())) or (dirty.has("notice") and (notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed))) or (dirty.has("drawers") and (not (show_menu or show_items) or show_home or show_route or String(next.phase)!="battle" or DRAWERS.any(func(field):return field not in ["show_menu","show_items"] and bool(get(field))))) or (dirty.has("scene_instances") and _scene_instances_need_full(next)):
   render(next)
   return
  DragTargets.clear(self,false)
@@ -702,7 +721,7 @@ func _present_needs_full_render(dirty: Array) -> bool:
   if section=="notice":
    if notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(view.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed): return true
   if section=="drawers":
-   if not show_menu or show_home or show_route or String(view.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field))): return true
+   if not (show_menu or show_items) or show_home or show_route or String(view.phase)!="battle" or DRAWERS.any(func(field):return field not in ["show_menu","show_items"] and bool(get(field))): return true
   if section=="scene_instances":
    if _scene_instances_need_full(view): return true
  return false
@@ -781,6 +800,7 @@ func _refresh_drawers() -> void:
    var title={"release":"拘束解除","remove":"删牌服务","discard":"整理道具"}[shop_service_mode]
    ShopScreen.services(self,_drawer_shell(title,Rect2(450,150,805,600),GOLD))
  building_drawer=false
+ _drawer_key=_drawer_presentation_key()
  _localize_controls(drawer_layer)
 
 func _localize_controls(root: Node) -> void:
@@ -2988,7 +3008,10 @@ func _submit_dirty(before: Dictionary, succeeded: bool, absent: Dictionary) -> A
    continue
   if not before.has(section) or before[section]==after[section]: continue
   # Omit optional overlays already unmounted before submit; structural fallbacks remain.
-  if section in ["show_log","pickers","body_details","speech","drawers"] and absent.get(section,false): continue
+  # `speech` is deliberately absent from this list: a submit that introduces a speech is
+  # exactly what its section mounts, while an emptied, locked or suppressed speech still
+  # falls back to the full render through present's own predicate.
+  if section in ["show_log","pickers","body_details","drawers"] and absent.get(section,false): continue
   if section=="notice" and notice=="": continue
   dirty.append(section)
  return dirty
@@ -2999,7 +3022,7 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
  var previous_keys=_submit_presentation_keys() if not show_home and not is_instance_valid(enemy_feedback) and String(view.get("phase",""))=="battle" else {}
  var previous_absent={}
  if not previous_keys.is_empty():
-  for section in ["show_log","pickers","body_details","speech","drawers"]:
+  for section in ["show_log","pickers","body_details","drawers"]:
    previous_absent[section]=_present_needs_full_render([section])
  surrender_version=-1
  if show_home or is_instance_valid(enemy_feedback): return
@@ -3195,7 +3218,14 @@ func _notification(what: int) -> void:
 func _begin_target_drag() -> void:
  if not get_viewport().gui_is_dragging(): return
  var data=get_viewport().gui_get_drag_data()
- if data is Dictionary: DragTargets.begin(self,data)
+ if data is Dictionary:
+  # The payload was stamped when its button was built, and a local refresh can keep that
+  # button alive across a version bump, which would refuse this fresh drag at the drop
+  # (the receiver compares the payload against the live view). The candidates for this
+  # drag are resolved from the current View right here, so restamp the freshness field:
+  # the guard then refuses exactly the case it is for, a state change during the drag.
+  if data.has("version"): data["version"]=view.version
+  DragTargets.begin(self,data)
 
 func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false) -> void:
  if not body_buttons.has(slot): return
