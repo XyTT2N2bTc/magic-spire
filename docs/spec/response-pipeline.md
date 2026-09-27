@@ -5,9 +5,10 @@
 函数名与稳定 ID 是锚点；本文件不写行号，也不写执行结果：通过／失败／未执行与红集一律登记
 `docs/record/verification.md`。
 
-实现状态：现行 UI 入口是 `_submit` 与 `render`，尚无 `commit`、`present`、`present_rejection` 或通用脏节表。
-下文标为「待实现」的接缝 B、节键表、输入域与具名检查是保留的设计目标，不是可调用 API 或已通过的证据；
-其落地状态也见 `docs/record/proposals/refactor-direction.md` 的 P3。本次整合只增加提交后的瞬时反馈，不实施该刷新重构。
+实现状态：现行 UI 入口是 `_submit`、`present` 与 `render`。提交前后均为战斗时，`_submit` 比较既有节键，
+非空局部脏集交给 `present(dirty, updated)`；空集、战斗外及进出战斗交给 `render(updated)`。
+`present` 已支持多节局部刷新及各节既有全量兜底。`commit`、`present_rejection`、同版本被拒零 `get_view`
+仍未实施；下文标为「待实现」的接口与具名检查是设计目标，不是可调用 API 或已通过的证据。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、
 `tools/`、`build/`）均相对 `spire-godot/`；`docs/` 相对仓库根。
@@ -38,7 +39,7 @@
 | M1 输入适配 | `ui/keyboard_input.gd`、`ui/touch_input.gd` | `handle(event) -> bool`；触摸只合成既有鼠标事件 | 键位表、选择状态机、长按阈值、弹窗桥 |
 | M1a 自动接管展示 | `ui/first_turn_presenter.gd` | `sync`／`advance`／`outcome`；经指令路由 `emit` 进同一提交入口（takeover 标记不变） | 台词、模拟鼠标、动画等待与过期任务取消；只读 View，不选规则动作、不支付 |
 | M2 提交 | `ui/main.gd` 的 `_submit`（指令路由的执行段） | `_submit(cmd: Dictionary, takeover=false) -> void`（`expected_version` 随指令携带） | 分流、守卫、反馈编排 |
-| M3 展示调度 | `ui/main.gd` 的 `render` 与 `_refresh_drawers` | `render(snapshot={})`；`_refresh_drawers()` | 页面重建、抽屉局部刷新；身体栏和立绘沿自身显示键复用 |
+| M3 展示调度 | `ui/main.gd` 的 `present`、`render` 与 `_refresh_drawers` | `present(dirty: Array=["*"], snapshot={})`；`render(snapshot={})`；`_refresh_drawers()` | 多节局部刷新、页面重建、抽屉局部刷新；身体栏和立绘沿自身显示键复用 |
 | M4 只读查询 | `ui/target_queries.gd` | `facts`／`select`／`find`／`first_usable`／`fact_by_key`（static、只读一个 View 的显示事实表） | 组取用、首／末拒绝原因选择（行索引文件已在批 R5 删除） |
 | M5 静态场景与实例 | `ui/shell/game_layout.gd`、`ui/shell/body_sidebar.gd` | `begin_frame`／`hero_portrait`／`enemy_group`／`body_sidebar`／`end_frame`；`configure`／`_presentation_key`／`expand_applied` | 场景节点、按外观比对、展开预算、滚动 |
 | M6 提交后反馈 | `card_motion.gd`、`resource_feedback.gd`、`combat_feedback.gd`、`enemy_feedback.gd`、`impact_feedback.gd` | `positions`／`enqueue`／`play`／`consume`／`finish` | 补间、队列、播报分页与高亮；瞬时层单帧合并与淡出包络 |
@@ -84,10 +85,10 @@
 | `body_sidebar._presentation_key(ui) -> Array` | 纯显示字段键（高度、locale、选中部位、展开顺序、各区域 members 显示字段） | 加固门禁与节键比对 | 只渲染事实：绝不保存旧 View／候选／装备图；新增显示字段必须同批进键 |
 | `body_sidebar.expand_applied(ui, before, after)` | 两个 View；比较 `body_regions.targets` 的物理 ID 新增 | 只在提交 ok 分支且 phase 命中时 | 同件加固／降档不展开；非战斗与失败不展开；不选装备不派发 |
 | `keyboard_input.handle(event) -> bool` | 返回是否已处理；内部可能调 `host._submit`／`host._activate_card` | `main._input` 与 PopupMenu 桥 | host 成员名与语义在本管线内冻结（`view`／`actions`／`card_buttons`／`card_faces`／`attack_forms`／`_submit`／`_activate_card`／`render`／`_show_term`／`_hide_term`／`_panel`／`_label`／`_button`／`_open_drawer`／`_close_drawers`／`DRAWERS`／`modal_region`／`quick_release_*`）；android 直接返回 false；不新增 `dispatch` |
-| `keyboard_input.refresh_hints()` | 幂等重建按钮角标 | `render` 末尾（`call_deferred`） | 只读 view 与 settings；无游戏副作用 |
+| `keyboard_input.refresh_hints()` | 幂等重建按钮角标 | `render` 与 `present` 局部末尾（均 `call_deferred`） | 只读 view 与 settings；无游戏副作用 |
 | `touch_input` | 把触摸合成鼠标事件推入 viewport（含 PopupMenu 独立视口桥） | 引擎输入；`_ready` 由 main 挂载 | 不直接调提交／规则；长按阈值与取消路径不提交；UI 侧不得假设存在触摸专用入口 |
 | `card_motion.positions(ui) -> Dictionary` | 抓取当前手牌按钮位置／角度／牌面 | `_submit` 在 `dispatch` 前 | 只读；不改状态；不推进随机 |
-| `card_motion.enqueue(events, before)` | core 的 `card_feedback` 事件＋提交前快照 | `_submit` ok 分支，且 `render` 之后 | 幽灵卡不持有牌、不挡输入；`pending_draws` 隐藏新抽牌按钮的规则必须被 `render` 的手牌节尊重 |
+| `card_motion.enqueue(events, before)` | core 的 `card_feedback` 事件＋提交前快照 | `_submit` ok 分支，且展示更新（`present` 或 `render`）之后 | 幽灵卡不持有牌、不挡输入；`pending_draws` 隐藏新抽牌按钮的规则必须被手牌节尊重 |
 | `resource_feedback.enqueue(events, point, instant_fields)` | core 的 `resource_feedback` 事件＋锚点 | `_submit` ok 分支 | 只消费已提交差值；`show_home` 时自毁 |
 | `combat_feedback.play(ui, before, payload)` | 提交前 View＋已提交 payload | `_submit` ok 分支 | 只用可见前后差分（HP／日志／装备耐久）；不预测、不改伤害／意图／资源／时机 |
 | `impact_feedback.play(events, payload, snapshot) -> void` | `events` 为 `dispatch` 返回的 `resource_feedback` 事件（可为空数组）；`payload` 为本次已提交候选的载荷；`snapshot` 为提交后 View（只读 `snapshot.pressure.value`／`.maximum` 与 `snapshot.mana_max`）。同一次提交一次调用：层内部按字段求和合并，不逐事件重播。效果族由已提交事实唯一决定：`pressure` 净涨出滤镜、`charge`／`next_energy` 净涨出黄边框、`mana`／`temporary_mana`／`witch_focus` 任一净变化（Δ≠0）出蓝边框、载荷 `kind=="calm"` 出白边框（同提交多族命中按白＞黄＞蓝取一，仍只出一条边框）、攻击／挣扎／滑脱载荷出震动。蓝边框分加减两变体：Δ>0 走 gain（短促上冲后淡出、边带更宽），Δ<0 走 loss（即刻峰值、退得更慢、边带更窄），两变体同一色 token 且峰值按该字段自身参考尺度的归一化 Δ 的绝对值 缩放（mana 用提交后 View 的 `mana_max`，临时魔力／精神集中用各自保留上限），不设最小增量门槛；施法失败因净损失自动落在 loss 变体，无需额外标志 | `_submit` ok 分支（经 `ui/main.gd` 的节内助手按 `will_play` 预判后才创建节点） | 只消费已提交数据：不读 `state`／`state.logs`，不预测、不改数值／候选／存档／随机；无效果可播时 `play` 是空操作；层内所有节点 `MOUSE_FILTER_IGNORE`，无 `_process`，一次性 Tween 结束后 `hide()` 并 `set_process(false)`；震动位移的是承载内容的 `main.gd` GameLayout，结束时按记录原点精确复位 |
@@ -108,66 +109,69 @@
   `architecture_cases.projection_contract` 覆盖自动接管、手动零能量首回合与双面能力开关的状态／注册表引用隔离。
   `runner_cases.ownership` 同时扫描分类模块与规则／UI 根入口的 `.run(t)` 和 `.run(self)`，避免内联入口重复执行已注册专项；共享运行器故障探针不作为玩法用例归属。
 
-### 待实现：接缝 B 的 `commit`／`present`／`present_rejection`
+### 接缝 B：既有 `present` 与待实现的 `commit`／`present_rejection`
 
-以下是尚未实施的接口设计。`ui/main.gd` 当前只有 `_submit`（整树 `render(view)`），不能调用以下函数；
-未来实施时才把提交与落地拆成三个接口，届时 `_submit` 可实现为 `commit` 的薄别名。
+`ui/main.gd` 的 `_submit` 仍是唯一提交执行段，展示交给既有 `present` 或 `render`。
+以下仅 `present` 已可调用；`commit`／`present_rejection` 是待实现设计，本次接线没有新增这两个符号。
 
 ```gdscript
 func commit(c: Dictionary, expected_version: int = -1) -> Dictionary
 # 返回 {"ok":bool, "error":String, "view":Dictionary, "dirty":Array[String], "blocked":bool}
 
-func present(dirty: Array[String] = ["*"], snapshot: Dictionary = {}) -> void
+func present(dirty: Array = ["*"], snapshot: Dictionary = {}) -> void
 
 func present_rejection(reason: String, source: String, dirty: Array[String]) -> void
 ```
 
-- `commit`：M2 内唯一 `dispatch` 点。`view` 是"提交后 UI 应当展示的 View"（版本不等时是本次
+- 待实现 `commit`：M2 内唯一 `dispatch` 点。`view` 是"提交后 UI 应当展示的 View"（版本不等时是本次
   `get_view()` 的结果，相等时是调用前的 `ui.view`），**不是"每次都必须重新投影"**；
   `view` 被替换时 `ui.actions` 必须与它同一批原子替换。`dirty` 由节键比对产生，只在本次调用内计算，
   元素来自下表节枚举。`blocked=true`：`show_home` 或 `enemy_feedback` 有效，未 dispatch、
   未 get_view、`dirty=[]`、`view` 为当前 view。
-- `present`：只重建 `dirty` 列出的节；`["*"]`、缺项、未知节名 → 全量兜底重建。
-  `snapshot` 非空则原子替换 View＋`ActionIndex`；为空则用当前 `ui.view`；
-  **禁止 `present` 在非空 snapshot 下再调 `get_view`**；`render(snapshot)` 兼容入口保留
-  "空 snapshot 才 `get_view`"的语义。每次 `present` 的固定动作顺序：
-  `DragTargets.clear(self,false)` → `_hide_term` → View 同步 → 节键比对 → 重建脏节 →
+- 既有 `present`：按 `PRESENT_SECTIONS` 顺序各处理一次 `dirty` 内的局部节；空集、含 `*`／`page`／未知节名
+  或任一节既有全量谓词成立 → `render(当前或传入的 View)`。不以脏集多于一节作为全量条件。
+  `snapshot` 非空则原子替换 `view`；为空则用当前 `ui.view`；两条路径均不额外 `get_view`。
+  `render(snapshot)` 保留"空 snapshot 才 `get_view`"的语义。局部路径不 `begin_frame`、不清空 `layout.used`，固定顺序为：
+  `DragTargets.clear(self,false)` → `_hide_term`（仅 notice 单节跳过）→ View 同步 → 节键比对 → 重建脏节 →
   `layout.end_frame()` → `keyboard_input.refresh_hints`（`call_deferred`）→ `_localize_controls`。
-- `present_rejection`：7 处拒绝分支（下表 6 处选择类＋提交被拒）的**唯一**呈现入口，不得各自实现。
+- 待实现 `present_rejection`：7 处拒绝分支（下表 6 处选择类＋提交被拒）的**唯一**呈现入口，不得各自实现。
   载荷至少三项：`reason`（当次从候选／View 读出的原文，不得另造文案）、`source`
   （`mouse`／`keyboard`／`touch`）、`dirty`（该次的脏集上界）。入口内**不得** `dispatch`／
   `get_view`／`_save_progress`、不得做超出该脏集的重建、不得每帧调用；不新增 Godot `signal`，
   不建空节点或空函数占位。本管线不实现任何反馈消费者；将来若要加反馈只准挂在此处。
 
-`present` 的兜底条件（任一成立即整树重建，必须显式判据，不得靠"没键就重画"隐式实现）：
+待实现的全局兜底目标（不是当前所有节共同的全量谓词；现有各节谓词见 `ui/main.gd::_present_needs_full_render` 与 `present`）：
 `phase` 变化 · `show_home` 进入／离开 · `show_route` 切换 · locale 变化 ·
 显示设置变化（`fixed_hero_portrait`、`art_changed`、字号类）· `layout` 未实例化 · View 为空 ·
 传入 snapshot 的 `version` 小于当前 `view.version` · 节键缺失或未知 ·
 `reward_panel.active` 或 `demo_end` 或 `pressure.overloaded` 或 `view.card_chain` 非空或
 首次战斗教程触发。
 
-### 待实现：节键表（节名同时是 `dirty` 元素）
+### 既有节键表（节名同时是 `dirty` 元素）
 
 键只用"当次 View 投影 ＋ 本地 UI 态"的纯数据副本（Array／Dictionary／基础类型）；
 **`version` 不进键**；键必须覆盖该节渲染实际读取的 View 字段（新增 `view.<field>` 读取必须同批进键）。
 
-| 节 | 重建入口 | 键内容 |
+`PRESENT_SECTIONS` 声明顺序，`ui/main.gd::_submit_presentation_keys` 只聚合下列既有键，不复制字段集。
+表中没有文件前缀的函数位于 `ui/main.gd`；叶实例按自己的键决定是否重建。
+
+| 节 | `present` 的局部入口 | 键真源 |
 | --- | --- | --- |
-| `header` | `_header` → `header.configure` | `run_header`(location/turn/order/last)、`security`、`wall`、`wall_position.distance`、`pressure.overloaded`、`carried_items`、`capacity`、`deck_count`、`prison.active`、`phase`、`practice`、`show_route`、`save_failed`、locale |
-| `relics` | `_relic_row` | `relics`(id/name/detail/counter/current/rarity)、locale |
-| `hand` | `_hand` | `hand`(uid/type/draw_serial/draw_free/single_face/availability/face_*)、对应 `card_texts` 项、`card_instances`、`card_faces[uid]`、`selected_card`、`_selecting_hand()`、`card_motion.pending_draws` |
-| `actions` | `_fixed_actions`／`_build_action_rail` | `phase`、`selected_enemy`、`attack_forms`、`quick_release_open`、候选子集(attack/pressure/flow/surrender)的 id/valid/reason/cost/label/body_part/casting/brief/risk |
-| `posture` | `_posture_controls`／`_wall_controls` | `posture`、候选子集(posture/wall_move) 的 id/valid/reason/cost/distance/adjacent/wall、`guard_bind.is_empty` |
-| `resources` | `_bottom_controls` | `energy`、`mana`、`temporary_mana`、`mana_max`、`pressure`、`guard_bind`、`powers.size`、`draw_count`、`discard_count`、`phase`、`surrender_version` |
-| `show_log`（共享抽屉） | `_log_drawer` | `action_log`、`logs`；入口及只读约定见[界面契约](release-interface.md#行动日志) |
-| `body_bar` | `body_sidebar.configure` | 既有 `_presentation_key`：`size.y`、locale、选中部位、展开顺序、每区域 members 显示字段；命中时保留按钮与滚动 |
-| `body_details` | `_body_details`／`_equipment_tile`／`_action_row`／`_card_target` | `selected_slot`、`selected_card`、`selected_candidate`、`show_body`、`pending_retain`、`quick_release_open`、`guard_bind.is_empty`、`card_faces`、相关候选子集 id/valid/reason/cost/preview |
-| `pickers` | `_player_picker`／`_hand_target_picker` | `player_pick`、`player_pick_data`、`hand` 相关项、候选子集(card/hand_uid) |
-| `speech` | `_speech_bubble`／`_npc_speech_bubble` | `speech`／`npc_speech`(id/text/phase/cue)、locale、本地 `speech_id/deadline` |
-| `notice` | `_show_term(actor_targets.hero, …)` | `notice`、`actor_targets.has("hero")`；依赖 hero 接收区存在 |
-| `drawers` | `_refresh_drawers` ＋ 各构建器 | `DRAWERS` 标志、`deck_zone`、`status_filter`、`selected_item`、`show_shop_service` 等本地态＋各自投影、locale |
-| `page` | `_route_screen`／`_rewards`／`_service_screen`／`_event_screen`／`_prison_controls`／`_capture_screen`／`_inspection_screen`／`_practice_screen`／`_demo_exit_screen`／`_battle_scene` | `phase` 及其实际读取字段；结构变化一律走兜底清单 |
-| `scene_instances` | `layout.hero_portrait`／`enemy_group`／`body_sidebar` | 外观字段由 arena／`equipment_portrait`／`body_sidebar` 自身比对 |
+| `header` | `header.configure` | `ui/shell/header.gd::_presentation_key` |
+| `relics` | `_relic_row` | `_relic_presentation_key` |
+| `hand` | `_hand` | `_hand_presentation_key` |
+| `actions` | `_build_action_rail` | `_action_presentation_key` |
+| `posture` | `_refresh_posture_section` | `_posture_presentation_key` |
+| `resources` | `_refresh_resource_section` | `_resource_presentation_key` |
+| `show_log`（共享抽屉） | `_refresh_log_section` | `_log_presentation_key`；只读约定见[界面契约](release-interface.md#行动日志) |
+| `body_bar` | `layout.body_sidebar` | `ui/shell/body_sidebar.gd::_presentation_key` |
+| `body_details` | `_refresh_body_details_section` | `_body_details_presentation_key` |
+| `pickers` | `_refresh_picker_section` | `_picker_presentation_key` |
+| `speech` | `_refresh_speech_section` | `_speech_presentation_key` |
+| `notice` | `_refresh_notice_section` | `_notice_presentation_key` |
+| `drawers` | `_refresh_drawer_section` | `_drawer_presentation_key` |
+| `page` | 无，始终全量 `render` | 无局部键，不进入提交脏集 |
+| `scene_instances` | `_refresh_scene_instances_section` | 无 main 键；外观由既有 arena／`equipment_portrait` 叶实例比对 |
 
 节键计算的成本同样要进测量（见"证据入口"），不得默认"算键几乎免费"。
 
@@ -186,8 +190,23 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 
 ## 输入域
 
-现行入口为 `_submit(cmd, takeover=false)`（经指令路由）与 `render(snapshot={})`。本节中 `commit`／`present`／
-`present_rejection` 及下方脏集表均为待实现设计；不能据它们推断当前界面已经采用局部拒绝刷新。
+现行入口为 `_submit(cmd, takeover=false)`（经指令路由）、`present(dirty: Array=["*"], snapshot={})` 与 `render(snapshot={})`。
+本节中仅 `commit`／`present_rejection` 及其拒绝脏集上界表为待实现设计；不能据它们推断已经实现同版本拒绝零重算。
+
+`_submit` 的脏集唯一来源是 `_submit_presentation_keys` 提交前后读取的既有键；不按指令 `kind` 维护脏表。
+缺 `GameHeader`、layout 无效或 View 为空时不算键，直接全量；只有前后均为 battle 才使用局部候选。
+成功战斗提交额外加入 `scene_instances`，外观判断仍交给叶实例；失败不因它无 main 键而加入。
+过滤只按提交前既有谓词去掉已未挂载的 `show_log`／`pickers`／`body_details`／`speech`／`drawers`；本次提交卸载的节留在 dirty，由 `present` 既有全量谓词拆除。空 `notice` 仍从候选去掉，清空靠多节路径前缀 `_hide_term`。其余结构性全量条件保留。过滤后为空则全量，非空局部集交给 `present` 再作既有全量判定。
+
+```mermaid
+flowchart LR
+  A[_submit 读取前键] --> B[dispatch 与 get_view]
+  B --> C[notice 与既有成功 UI 状态更新]
+  C --> D[战斗内读取后键并过滤候选]
+  D --> E[present 或 render]
+  C -->|战斗外或进出战斗| E
+  E --> F[仅成功提交播放反馈]
+```
 
 - `dispatch`：`cmd` 是**类型化指令**（`kind`＋`params`，只用稳定 ID，不含候选提交身份 id）；
   形状与键面由 core 的声明表复核，形状无对应行动只会被 core 拒绝，不得由 UI 预判；
@@ -200,7 +219,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
   资格判定来源：载荷／事件与当前 View 不一致时按"照实表现已提交结果"处理，不做规则推演、不重算、不拒绝。
   蓝族只消费**合并后的净增量**：被受理但施法失败（`ok=true`）的 receipt 是"先扣后返还"，逐事件重播会把返还事件当成上涨；真正被拒的提交（`ok=false`）不播放反馈。
   变体只由该净增量的符号决定（Δ>0 gain／Δ<0 loss），强度只由按字段参考尺度归一化的 Δ 的绝对值 决定，没有阈值分支。
-- `present`：`dirty` 元素必须来自节键表节名或 `["*"]`；未知／缺项按全量兜底处理。
+- `present`：`dirty` 元素来自 `PRESENT_SECTIONS`，非空局部集允许多节；空集、`*`、`page`、未知节按全量兜底处理。
 - `present_rejection`：`dirty` 必须等于下表列出的脏集上界，不得扩大：
 
 | 入口 | 触发 | 脏集上界 |
@@ -223,7 +242,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 ## 失败语义
 
 现行 `_submit`：主页或敌人播报中直接返回；其余提交在 `dispatch` 后无论成功或被拒都会重新 `get_view`，
-设置 `notice` 并调用 `render(updated)` 同步 View。只有成功提交才进入反馈分支，
+设置 `notice` 并调用 `present(dirty, updated)` 或 `render(updated)` 同步 View。只有成功提交才进入反馈分支，
 只有成功结果的 `checkpoint` 非空才自动写盘。选择类拒绝继续沿各自既有提示入口，不存在统一 `present_rejection`。
 下方「同版本零重算」「只刷新 notice」「统一拒绝入口」是待实现目标，不能作为当前源码已经满足的契约。
 

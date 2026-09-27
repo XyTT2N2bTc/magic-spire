@@ -271,6 +271,11 @@ func _drawer_shell(title: String, rect: Rect2, tone: Color=CYAN) -> VBoxContaine
  content.add_child(HSeparator.new())
  return content
 
+var _drawer_key=[]
+
+func _drawer_presentation_key() -> Array:
+ return [bool(save_failed),bool(view.get("demo_finished",false))]
+
 func _menu_drawer() -> void:
  var content=_drawer_shell("游戏菜单",Rect2(1090,78,474,474))
  var save=_button("存档异常 · 查看" if save_failed else "存档 / 继续",_open_saves,RED if save_failed else CYAN)
@@ -282,6 +287,29 @@ func _menu_drawer() -> void:
  var restart_button=_button("重开 / 练习",func():_open_drawer("show_settings"));restart_button.name="OpenRestart";content.add_child(restart_button)
  var options=_button(_text("ui.settings.title","设置"),func():_open_drawer("show_options"));options.name="OpenOptions";content.add_child(options)
  var home=_button("返回主页",_return_home,CYAN);home.name="ReturnHome";content.add_child(home)
+ _drawer_key=_drawer_presentation_key()
+
+func _drawer_key_hit(key) -> bool:
+ if _drawer_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var live=[]
+ for node in layout.find_children("InformationLayer","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if live.size()!=1: return false
+ var layer=live[0]
+ for node_name in ["InformationDrawer","DismissDrawer","CloseDrawer","OpenSaves","QuickSL","OpenLog","OpenRestart","OpenOptions","ReturnHome"]:
+  if _log_live_count(layer,node_name)!=1: return false
+ return true
+
+func _refresh_drawer_section() -> void:
+ var key=_drawer_presentation_key()
+ if _drawer_key_hit(key):
+  return
+ _ensure_log_layer()
+ _unload_log_shell()
+ building_drawer=true
+ _menu_drawer()
+ building_drawer=false
 
 func _open_tutorial(category: String="") -> void:
  tutorial_category=category
@@ -479,11 +507,205 @@ func render(snapshot: Dictionary={}) -> void:
  _refresh_drawers()
  if view.phase=="shop" and not show_route: ShopScreen.payment_overlay(self)
  if notice!="" and actor_targets.has("hero"):
-  _show_term(actor_targets.hero,{"label":"","detail":notice})
+  _refresh_notice_section()
  _takeover_banner()
  layout.end_frame()
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
  _localize_controls(layout)
+
+const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","posture","resources","show_log","body_bar","body_details","pickers","speech","notice","drawers","page","scene_instances"]
+# Declared present adjacency (direct calls, stable symbols only): present routes to
+# _present_needs_full_render (predicate), render (full fallback), header.configure
+# (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local),
+# _build_action_rail (["actions"] local), _refresh_posture_section (["posture"]
+# local), _refresh_resource_section (["resources"] local), _refresh_log_section
+# (["show_log"] local), _refresh_body_details_section (["body_details"] local),
+# _refresh_picker_section (["pickers"] local), _refresh_speech_section (["speech"]
+# local), _refresh_notice_section (["notice"] local), _refresh_drawer_section
+# (["drawers"] local), _refresh_scene_instances_section (["scene_instances"]
+# local; calls layout.hero_portrait, existing-group configure_enemy, and
+# EquipmentPortrait.configure) and layout.body_sidebar (["body_bar"] local).
+# header.configure reads header._presentation_key; _relic_row reads
+# _relic_presentation_key, _hand reads _hand_presentation_key,
+# _build_action_rail reads _action_presentation_key, _refresh_posture_section /
+# _posture_controls read _posture_presentation_key, _refresh_resource_section
+# reads _resource_presentation_key, _refresh_log_section / _log_drawer read
+# _log_presentation_key, _refresh_body_details_section / _body_details read
+# _body_details_presentation_key, _refresh_picker_section / _hand_target_picker
+# read _picker_presentation_key, _refresh_speech_section / _speech_bubble
+# read _speech_presentation_key, _refresh_notice_section reads
+# _notice_presentation_key then _show_term in this file (hit early-return,
+# miss _hide_term then rebuild then save), and _refresh_drawer_section /
+# _menu_drawer read _drawer_presentation_key (hit early-return, miss unload
+# shells then rebuild then save).
+# _present_needs_full_render probes GameHeader existence for header,
+# view.pressure.overloaded only for ["hand"], non-battle / quick_release_open /
+# _selecting_hand / card_chain / reward_panel.active only for ["actions"],
+# non-battle / show_route only for ["posture"] and ["resources"],
+# not show_log / show_home only for ["show_log"], _selecting_hand /
+# closed details / quick_release_open / non-battle / pending_retain only for
+# ["body_details"], not _selecting_hand only for ["pickers"], empty speech /
+# show_home / show_route / non-battle / takeover lock / suppressed hero id /
+# nonempty npc_speech only for ["speech"], empty notice / missing or
+# invalid hero / show_home / show_route / non-battle / touch finger with
+# details blocked only for ["notice"], not show_menu / show_home /
+# show_route / non-battle / other DRAWERS only for ["drawers"], and
+# show_home / show_route / non-battle / missing hero, body portrait, or
+# living enemy group only for ["scene_instances"]; render, _show_term,
+# layout.body_sidebar, and layout.hero_portrait are boundary leaves here.
+# present does not call _bottom_controls, _wall_controls, _posture_controls,
+# mana_flask.build, _refresh_drawers, _open_drawer, _close_drawers,
+# _drawer_shell, _body_drawer, _refresh_body_details, _equipment_tile,
+# _action_row, _card_target, release_details, quick_release_bar,
+# _player_picker, _clear_player_picker, open_hand_selection,
+# _npc_speech_bubble, _skip_hero_speech, _battle_scene, layout.enemy_group,
+# _status_strip, _resource_meter, _actor_drop_area, _shop_chatter,
+# _dismiss_speech, _speech_visible, _show_term, _drag_rejection,
+# _card_tooltip, or _takeover_banner.
+const PRESENT_ADJACENCY={
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","_scene_instances_need_full","_refresh_scene_instances_section","layout.body_sidebar"],
+ "_present_needs_full_render":["_scene_instances_need_full"],
+ "_scene_instances_need_full":[],
+ "_refresh_scene_instances_section":["layout.hero_portrait","configure_enemy","EquipmentPortrait.configure"],
+ "layout.hero_portrait":[],
+ "configure_enemy":[],
+ "EquipmentPortrait.configure":[],
+ "header.configure":["header._presentation_key"],
+ "header._presentation_key":[],
+ "_relic_row":["_relic_presentation_key"],
+ "_relic_presentation_key":[],
+ "_hand":["_hand_presentation_key"],
+ "_hand_presentation_key":[],
+ "_build_action_rail":["_action_presentation_key"],
+ "_action_presentation_key":[],
+ "_refresh_posture_section":["_posture_presentation_key","_wall_controls","_posture_controls"],
+ "_wall_controls":[],
+ "_posture_controls":["_posture_presentation_key"],
+ "_posture_presentation_key":[],
+ "_refresh_resource_section":["_resource_presentation_key","_build_resource_bar"],
+ "_build_resource_bar":["_resource_presentation_key"],
+ "_resource_presentation_key":[],
+ "_refresh_log_section":["_log_presentation_key","_log_drawer"],
+ "_log_drawer":["_log_presentation_key"],
+ "_log_presentation_key":[],
+ "_refresh_body_details_section":["_body_details_presentation_key","_body_details"],
+ "_body_details":["_body_details_presentation_key"],
+ "_body_details_presentation_key":[],
+ "_refresh_picker_section":["_picker_presentation_key","_hand_target_picker"],
+ "_hand_target_picker":["_picker_presentation_key"],
+ "_picker_presentation_key":[],
+ "_refresh_speech_section":["_speech_presentation_key","_speech_bubble"],
+ "_speech_bubble":["_speech_presentation_key"],
+ "_speech_presentation_key":[],
+ "_refresh_notice_section":["_notice_presentation_key","_show_term"],
+ "_notice_presentation_key":[],
+ "_show_term":[],
+ "_refresh_drawer_section":["_drawer_presentation_key","_menu_drawer"],
+ "_menu_drawer":["_drawer_presentation_key"],
+ "_drawer_presentation_key":[],
+ "layout.body_sidebar":[],
+ "render":[],
+}
+
+func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
+ var next=view if snapshot.is_empty() else snapshot
+ if _present_needs_full_render(dirty) or (dirty.has("hand") and bool(next.pressure.overloaded)) or (dirty.has("actions") and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.has("posture") and (String(next.phase)!="battle" or show_route)) or (dirty.has("resources") and (String(next.phase)!="battle" or show_route)) or (dirty.has("show_log") and (not show_log or show_home)) or (dirty.has("body_details") and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.has("pickers") and not _selecting_hand()) or (dirty.has("speech") and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())) or (dirty.has("notice") and (notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed))) or (dirty.has("drawers") and (not show_menu or show_home or show_route or String(next.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field))))) or (dirty.has("scene_instances") and _scene_instances_need_full(next)):
+  render(next)
+  return
+ DragTargets.clear(self,false)
+ if dirty.size()!=1 or String(dirty[0])!="notice":
+  _hide_term()
+ if not snapshot.is_empty(): view=snapshot
+ for section in PRESENT_SECTIONS:
+  if not dirty.has(section): continue
+  if section=="header":
+   layout.get_node("GameHeader").configure(self)
+  elif section=="relics":
+   _relic_row()
+  elif section=="hand":
+   _hand()
+  elif section=="actions":
+   _build_action_rail()
+  elif section=="posture":
+   _refresh_posture_section()
+  elif section=="resources":
+   _refresh_resource_section()
+  elif section=="show_log":
+   _refresh_log_section()
+  elif section=="body_details":
+   _refresh_body_details_section()
+  elif section=="pickers":
+   _refresh_picker_section()
+  elif section=="speech":
+   _refresh_speech_section()
+  elif section=="notice":
+   _refresh_notice_section()
+  elif section=="drawers":
+   _refresh_drawer_section()
+  elif section=="scene_instances":
+   _refresh_scene_instances_section()
+  elif section=="body_bar":
+   layout.body_sidebar(self)
+ layout.end_frame()
+ if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
+ _localize_controls(layout)
+
+func _present_needs_full_render(dirty: Array) -> bool:
+ if not is_instance_valid(layout) or view.is_empty() or dirty.is_empty():
+  return true
+ for value in dirty:
+  var section=String(value)
+  if section=="*" or section=="page" or not PRESENT_SECTIONS.has(section):
+   return true
+  if section=="hand":
+   if bool(view.pressure.overloaded): return true
+  if section=="header":
+   if not is_instance_valid(layout.get_node_or_null("GameHeader")): return true
+  if section=="actions":
+   if String(view.phase)!="battle" or quick_release_open or _selecting_hand() or not view.card_chain.is_empty() or bool(view.reward_panel.active): return true
+  if section=="posture":
+   if String(view.phase)!="battle" or show_route: return true
+  if section=="resources":
+   if String(view.phase)!="battle" or show_route: return true
+  if section=="show_log":
+   if not show_log or show_home: return true
+  if section=="body_details":
+   if _selecting_hand() or not (show_body or selected_card!="" or bool(view.pending_retain)) or quick_release_open or String(view.phase)!="battle" or bool(view.pending_retain): return true
+  if section=="pickers":
+   if not _selecting_hand(): return true
+  if section=="speech":
+   var speech=view.get("speech",{})
+   if speech.is_empty() or show_home or show_route or String(view.phase)!="battle" or _takeover_locked() or suppressed_hero_speech_id=="hero:"+str(speech.get("id","")) or not view.get("npc_speech",{}).is_empty(): return true
+  if section=="notice":
+   if notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(view.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed): return true
+  if section=="drawers":
+   if not show_menu or show_home or show_route or String(view.phase)!="battle" or DRAWERS.any(func(field):return field!="show_menu" and bool(get(field))): return true
+  if section=="scene_instances":
+   if _scene_instances_need_full(view): return true
+ return false
+
+func _scene_instances_need_full(source: Dictionary) -> bool:
+ if show_home or show_route or String(source.get("phase",""))!="battle":
+  return true
+ if not is_instance_valid(layout.hero) or not layout.hero.is_inside_tree():
+  return true
+ if not is_instance_valid(layout.body) or not layout.body.is_inside_tree() or layout.body.get_node_or_null("Canvas/EquipmentPortrait")==null:
+  return true
+ for e in source.get("enemies",[]):
+  if bool(e.get("gone",false)): continue
+  var group=layout.enemies.get(e.get("id",""))
+  if not is_instance_valid(group) or group.get_child_count()<1: return true
+ return false
+
+func _refresh_scene_instances_section() -> void:
+ var fixed=EquipmentPortrait.uses_fixed_portrait(view,display_settings.fixed_hero_portrait)
+ layout.hero_portrait(view,fixed,HERO_STAGE_RECT)
+ for e in view.get("enemies",[]):
+  if bool(e.get("gone",false)): continue
+  var group=layout.enemies.get(e.get("id",""))
+  if not is_instance_valid(group): continue
+  group.get_child(0).configure_enemy(e,display_settings)
+ layout.body.get_node("Canvas/EquipmentPortrait").configure(view,fixed)
 
 func _release_candidate_controls(root: Control) -> void:
  for key in candidate_buttons.keys():
@@ -549,12 +771,53 @@ func _header() -> void:
  header.configure(self)
  _relic_row()
 
+var _relic_key=[]
+
+func _relic_presentation_key() -> Array:
+ var rows=[]
+ for relic in view.relics:
+  var counter=relic.counter.duplicate(true) if relic.counter is Dictionary else relic.counter
+  rows.append([String(relic.id),String(relic.name),String(relic.detail),counter,String(relic.current),relic.rarity])
+ return [rows,String(localization.locale)]
+
 func _relic_row() -> void:
- if view.relics.is_empty(): return
+ var key=_relic_presentation_key()
+ var strips=[]
+ if is_instance_valid(layout): strips=layout.find_children("RelicStrip","",true,false)
+ if _relic_key==key and strips.size()==(0 if view.relics.is_empty() else 1):
+  return
+ var host: Control=null
+ var host_rect=Rect2(405,78,1013,56)
+ var host_min_size=Vector2.ZERO
+ var host_h=Control.SIZE_FILL
+ var host_v=Control.SIZE_FILL
+ var host_index=0
+ for existing in strips:
+  if not is_instance_valid(existing): continue
+  if host==null and existing.get_parent() is Control:
+   host=existing.get_parent()
+   host_index=existing.get_index()
+   host_rect=Rect2(existing.position,existing.size)
+   host_min_size=existing.custom_minimum_size
+   host_h=existing.size_flags_horizontal
+   host_v=existing.size_flags_vertical
+  var owner=existing.get_parent()
+  if owner!=null: owner.remove_child(existing)
+  existing.queue_free()
+ if view.relics.is_empty():
+  _relic_key=key
+  return
  var strip=ScrollContainer.new();strip.name="RelicStrip"
  strip.vertical_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
  strip.mouse_filter=Control.MOUSE_FILTER_IGNORE
- _place(strip,Rect2(405,78,1013,56))
+ if is_instance_valid(host):
+  _place(strip,host_rect,host)
+  host.move_child(strip,host_index)
+  strip.custom_minimum_size=host_min_size
+  strip.size_flags_horizontal=host_h
+  strip.size_flags_vertical=host_v
+ else:
+  _place(strip,Rect2(405,78,1013,56))
  var icons=HBoxContainer.new();icons.name="RelicRow";icons.add_theme_constant_override("separation",8)
  icons.mouse_filter=Control.MOUSE_FILTER_IGNORE
  strip.add_child(icons)
@@ -577,6 +840,7 @@ func _relic_row() -> void:
    shortcut.gui_input.connect(func(event):
     if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
      shortcut.accept_event();_hide_term();command_router.emit(String(choice.payload.get("kind","")),choice))
+ _relic_key=key
 
 func _status_tooltip(status: Dictionary) -> Dictionary:
  return {"label":status.name+" · "+status.value,"detail":status.detail+"\n\n来源："+status.source+"\n持续："+status.duration}
@@ -715,7 +979,34 @@ func _fixed_actions() -> void:
  if view.phase=="prison": _prison_controls()
  _build_action_rail()
 
+var _action_key=[]
+
+func _action_presentation_key() -> Array:
+ var attacks=[]
+ for c in TargetQueries.facts(view,"attack"):
+  if String(c.payload.get("kind",""))!="attack": continue
+  if String(c.payload.get("enemy",""))!=String(selected_enemy): continue
+  attacks.append(_action_fact_slice(c))
+ var calms=[]
+ for c in TargetQueries.facts(view,"pressure"):
+  if String(c.payload.get("kind",""))!="calm": continue
+  calms.append(_action_fact_slice(c))
+ return [String(view.phase),String(selected_enemy),attack_forms.duplicate(true),bool(quick_release_open),attacks,calms]
+
+func _action_fact_slice(c: Dictionary) -> Array:
+ var casting=c.get("casting",{})
+ return [TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,String(c.label),String(c.get("body_part","")),casting.duplicate(true) if casting is Dictionary else casting,String(c.get("brief","")),String(c.risk)]
+
+func _action_key_hit(key) -> bool:
+ if _action_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var rails=layout.find_children("AttackActions","",true,false)
+ return rails.size()==1 and rails[0].is_inside_tree()
+
 func _build_action_rail() -> void:
+ if _action_key_hit(_action_presentation_key()):
+  return
+ _remove_local_panel("AttackActions")
  if view.phase in ["battle","prepare","rest","prison"]:
   var container=Control.new();container.name="AttackActions";container.mouse_filter=Control.MOUSE_FILTER_IGNORE
   _place(container,Rect2(0,0,1600,900))
@@ -727,6 +1018,7 @@ func _build_action_rail() -> void:
   _place(switcher,Rect2(1530,556,39,60),container)
   if quick_release_open:
    preload("res://ui/quick_release_bar.gd").build(self,container,218.6)
+   _action_key=_action_presentation_key()
    return
   var attack_choices=TargetQueries.facts(view,"attack").filter(func(c):return String(c.payload.get("kind",""))=="attack" and String(c.payload.get("enemy",""))==selected_enemy)
   for type in attack_forms.keys():
@@ -782,8 +1074,7 @@ func _build_action_rail() -> void:
        attack_forms[c.payload.type]=(c.payload.form+1)%alternatives.size()
        btn.accept_event();render(view))
    else: btn.name="DeepBreath"
-
-
+ _action_key=_action_presentation_key()
 
 # Action tiles share the display facts, tooltips and drag receiver.
 func _basic_action_tile(c: Dictionary, rect: Rect2, parent: Control, summary: String, tags: String, can_flip: bool) -> Button:
@@ -881,9 +1172,65 @@ func _posture_layout(count: int) -> Dictionary:
  var stride=minf(48.0,100.0/maxi(1,rows)) if with_move else 48.0
  return {"top":725-rows*stride,"stride":stride,"with_move":with_move}
 
+var _posture_key=[]
+
+func _posture_presentation_key() -> Array:
+ var postures=[]
+ for c in TargetQueries.facts(view,"posture"):
+  if not c.payload.adjacent: continue
+  postures.append([TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,bool(c.payload.adjacent),bool(c.payload.wall)])
+ var toward=[]
+ for c in TargetQueries.facts(view,"wall_move"):
+  if String(c.payload.get("direction",""))!="toward": continue
+  toward.append([TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,c.payload.distance])
+ return [String(view.posture),bool(view.guard_bind.is_empty()),postures,toward]
+
+func _posture_key_hit(key) -> bool:
+ if _posture_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var adjacent=TargetQueries.facts(view,"posture").filter(func(c):return c.payload.adjacent)
+ var toward=TargetQueries.facts(view,"wall_move").filter(func(c):return String(c.payload.get("direction",""))=="toward")
+ var choices=layout.find_children("PostureChoices","",true,false)
+ if adjacent.is_empty():
+  if not choices.is_empty(): return false
+ else:
+  if choices.size()!=1 or not choices[0].is_inside_tree(): return false
+ var walls=layout.find_children("WallMove_toward","",true,false)
+ if toward.is_empty():
+  if not walls.is_empty(): return false
+ else:
+  if walls.size()!=1 or not walls[0].is_inside_tree(): return false
+ for c in adjacent:
+  var node_name="Posture_"+String(c.payload.dest)+("_wall" if c.payload.wall else "")
+  var nodes=layout.find_children(node_name,"",true,false)
+  if nodes.size()!=1 or not nodes[0].is_inside_tree(): return false
+  if candidate_buttons.get(display_key(c.payload))!=nodes[0]: return false
+ for c in toward:
+  if candidate_buttons.get(display_key(c.payload))!=walls[0]: return false
+ return true
+
+func _unload_posture_section() -> void:
+ if not is_instance_valid(layout): return
+ _remove_local_panel("PostureChoices")
+ var wall=layout.get_node_or_null("WallMove_toward")
+ if wall==null: return
+ for key in candidate_buttons.keys():
+  if candidate_buttons[key]==wall: candidate_buttons.erase(key)
+ _remove_local_panel("WallMove_toward")
+
+func _refresh_posture_section() -> void:
+ var key=_posture_presentation_key()
+ if _posture_key_hit(key):
+  return
+ _unload_posture_section()
+ _wall_controls()
+ _posture_controls()
+
 func _posture_controls() -> void:
  var choices=TargetQueries.facts(view,"posture").filter(func(c):return c.payload.adjacent)
- if choices.is_empty(): return
+ if choices.is_empty():
+  _posture_key=_posture_presentation_key()
+  return
  var ordinary=choices.filter(func(c):return not c.payload.wall)
  var placement=_posture_layout(ordinary.size())
  var container=Control.new();container.name="PostureChoices"
@@ -910,6 +1257,7 @@ func _posture_controls() -> void:
   btn.disabled=not c.valid;btn.tooltip_text=detail_of(c) if c.valid else c.reason
   _place(btn,Rect2(128 if c.payload.wall else 0,index*placement.stride,121 if has_wall else 249,placement.stride-4),container)
   candidate_buttons[display_key(c.payload)]=btn
+ _posture_key=_posture_presentation_key()
 
 # 显示边界的唯一卡面取用点（docs/ondemand-copy.md §3）：命中投影即用，未命中经 §1.4 单条入口补算并记录。
 func card_entry(type: String, uid: String="") -> Dictionary:
@@ -1124,12 +1472,83 @@ func _refresh_body_details() -> void:
  if not _selecting_hand() and (show_body or selected_card!="" or view.pending_retain): _body_details()
  if selected_card!="" and not _selecting_hand(): DragTargets.focus_bodies(self,{"card_uid":selected_card,"free":card_faces.get(selected_card,false),"version":view.version})
 
+var _hand_key=[]
+
+func _hand_presentation_key() -> Array:
+ var cards=[]
+ var texts=view.get("card_texts",{})
+ var instances=view.get("card_instances",{})
+ for card in view.hand:
+  var uid=String(card.uid)
+  var row=card.duplicate(true)
+  var type_text=texts.get(String(card.type),{})
+  if type_text is Dictionary: row.merge(type_text.duplicate(true),true)
+  var inst=instances.get(String(card.get("physical_uid",uid)),{})
+  if inst is Dictionary: row.merge(inst.duplicate(true),true)
+  var availability=row.get("availability",{})
+  var faces={}
+  for field in ["face_names","face_effects","face_keywords","face_mana","face_costs","face_type_names","face_warnings","face_requirements"]:
+   if row.has(field): faces[field]=row[field].duplicate(true) if row[field] is Dictionary or row[field] is Array else row[field]
+  var extra={}
+  for field in ["name","rarity","rarity_name","type_name","cost","free_faces","retained"]:
+   if row.has(field): extra[field]=row[field].duplicate(true) if row[field] is Dictionary or row[field] is Array else row[field]
+  var free_av=availability.get("free",{}) if availability is Dictionary else {}
+  var bound_av=availability.get("bound",{}) if availability is Dictionary else {}
+  cards.append([uid,String(card.type),card.get("draw_serial",0),bool(card.get("draw_free",false)),bool(row.get("single_face",false)),_hand_availability_slice(free_av),_hand_availability_slice(bound_av),faces,extra,bool(card_faces.get(uid,false))])
+ var pending=[]
+ if is_instance_valid(card_motion): pending=card_motion.pending_draws.keys()
+ pending=pending.duplicate();pending.sort()
+ return [cards,String(selected_card),_selecting_hand(),pending]
+
+func _hand_availability_slice(row) -> Array:
+ if not (row is Dictionary): return [true,false,""]
+ return [bool(row.get("usable",true)),bool(row.get("dim",false)),String(row.get("text",""))]
+
+func _hand_key_hit(key) -> bool:
+ if _hand_key!=key: return false
+ if not find_children("ClimaxNarration","",true,false).is_empty(): return false
+ if view.hand.is_empty():
+  return card_buttons.is_empty() and find_children("HandCard_*","",true,false).is_empty() and find_children("EmptyHand","",true,false).size()==1
+ if not find_children("EmptyHand","",true,false).is_empty(): return false
+ if card_buttons.size()!=view.hand.size(): return false
+ for card in view.hand:
+  var uid=String(card.uid)
+  var button=card_buttons.get(uid)
+  if not is_instance_valid(button) or not button.is_inside_tree(): return false
+  if find_children("HandCard_"+uid,"",true,false).size()!=1: return false
+ return true
+
+func _unload_hand_section() -> void:
+ for uid in card_buttons.keys():
+  var button=card_buttons[uid]
+  if is_instance_valid(button):
+   var stale=[]
+   for key in candidate_buttons.keys():
+    if candidate_buttons[key]==button: stale.append(key)
+   for key in stale: candidate_buttons.erase(key)
+   var owner=button.get_parent()
+   if owner!=null: owner.remove_child(button)
+   button.queue_free()
+ card_buttons.clear()
+ for node in find_children("HandCard_*","",true,false)+find_children("EmptyHand","",true,false)+find_children("ClimaxNarration","",true,false):
+  if not is_instance_valid(node): continue
+  var owner=node.get_parent()
+  if owner!=null: owner.remove_child(node)
+  node.queue_free()
+
 func _hand() -> void:
+ var key=_hand_presentation_key()
+ if _hand_key_hit(key):
+  return
+ _unload_hand_section()
  if view.pressure.overloaded:
   _climax_narration()
+  _hand_key=key
   return
  if view.hand.is_empty():
-  _place(_label("手牌已用完",19,MUTED),Rect2(570,749,780,45))
+  var empty=_label("手牌已用完",19,MUTED);empty.name="EmptyHand"
+  _place(empty,Rect2(570,749,780,45))
+  _hand_key=key
   return
  var count=view.hand.size()
  var dimensions=CardFace.dimensions(252)
@@ -1140,6 +1559,7 @@ func _hand() -> void:
   var mid=float(i)-float(count-1)/2
   var y=630+absf(mid)*4
   var b=_card(card,Rect2(Vector2(start+i*step,y),dimensions),func(): _activate_card(card.uid),mid*0.018)
+  b.name="HandCard_"+String(card.uid)
   card_buttons[card.uid]=b
   if _selecting_hand():
    var choice=_hand_choice(card.uid)
@@ -1148,6 +1568,7 @@ func _hand() -> void:
    b.set_meta("hand_selectable",not b.disabled);b.queue_redraw()
    if not choice.is_empty(): candidate_buttons[display_key(choice.payload)]=b
   if is_instance_valid(card_motion) and card_motion.pending_draws.has(card.uid): b.hide()
+ _hand_key=key
 
 func _climax_narration() -> void:
  var panel=_panel(Rect2(530,636,790,138));panel.name="ClimaxNarration"
@@ -1158,7 +1579,72 @@ func _climax_narration() -> void:
  var text=str(view.climax.get("text",""))
  var body=_label(text,16,TEXT);body.name="ClimaxNarrationText";body.visible=text!="";column.add_child(body)
 
-func _bottom_controls(include_tools: bool=true) -> void:
+var _resource_key=[]
+
+func _resource_presentation_key() -> Array:
+ var bind=[]
+ if view.guard_bind.is_empty():
+  bind=[true]
+ else:
+  bind=[false,view.guard_bind.value,view.guard_bind.maximum,String(view.guard_bind.get("detail",""))]
+ return [view.energy,view.mana,view.temporary_mana,view.mana_max,view.pressure.value,view.pressure.maximum,bind,view.powers.size(),view.draw_count,view.discard_count,String(view.phase),surrender_version]
+
+func _resource_live_count(node_name: String) -> int:
+ var n=0
+ if not is_instance_valid(layout): return 0
+ for node in layout.find_children(node_name,"",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n
+
+func _resource_key_hit(key) -> bool:
+ if _resource_key!=key: return false
+ if not is_instance_valid(layout): return false
+ for node_name in ["MainResourcePanel","ResourceToolsPanel","EnergyMedallion","EnergyValue","DrawPileButton","DiscardPileButton","OpenPowers"]:
+  if _resource_live_count(node_name)!=1: return false
+ var ends=layout.find_children("EndTurnButton","",true,false)
+ if ends.size()>1: return false
+ if not ends.is_empty():
+  if not ends[0].is_inside_tree() or end_button!=ends[0]: return false
+ for node_name in ["SurrenderButton","ManaFlask","MainGuardBind","SidebarGuardBindTarget"]:
+  if _resource_live_count(node_name)>1: return false
+ for c in TargetQueries.facts(view,"flow"):
+  var node_name="EndTurnButton" if String(c.payload.kind)=="end" else "FlowButton_"+String(c.payload.kind)
+  var nodes=layout.find_children(node_name,"",true,false)
+  if nodes.size()!=1 or not nodes[0].is_inside_tree(): return false
+  if candidate_buttons.get(display_key(c.payload))!=nodes[0]: return false
+ return true
+
+func _unload_resource_direct(node: Node) -> void:
+ if not is_instance_valid(node): return
+ if node==end_button: end_button=null
+ for key in candidate_buttons.keys():
+  var button=candidate_buttons[key]
+  if not is_instance_valid(button) or button==node or node.is_ancestor_of(button):
+   candidate_buttons.erase(key)
+ var owner=node.get_parent()
+ if owner!=null: owner.remove_child(node)
+ node.queue_free()
+
+func _unload_resource_section() -> void:
+ if not is_instance_valid(layout): return
+ var named=["MainResourcePanel","ResourceToolsPanel","ManaFlask","EnergyMedallion","OpenPowers","DrawPileButton","DiscardPileButton","EndTurnButton","SurrenderButton","SidebarGuardBindTarget","ResourceTurnDivider"]
+ var doomed=[]
+ for node in layout.get_children():
+  var n=String(node.name)
+  if n in named or n.begins_with("MainOverload") or n.begins_with("MainMana") or n.begins_with("MainGuardBind") or n.begins_with("FlowButton_"):
+   doomed.append(node)
+ for node in doomed:
+  _unload_resource_direct(node)
+ if not is_instance_valid(end_button): end_button=null
+
+func _refresh_resource_section() -> void:
+ var key=_resource_presentation_key()
+ if _resource_key_hit(key):
+  return
+ _unload_resource_section()
+ _build_resource_bar(true)
+
+func _build_resource_bar(include_tools: bool=true) -> void:
  var has_turn_controls=not show_route and view.phase in ["battle","prepare","rest","prison"]
  var resource_back=Panel.new();resource_back.mouse_filter=Control.MOUSE_FILTER_IGNORE
  resource_back.name="MainResourcePanel"
@@ -1172,7 +1658,7 @@ func _bottom_controls(include_tools: bool=true) -> void:
   tool_back.name="ResourceToolsPanel"
   _place(tool_back,Rect2(0,699,375,201))
  if has_turn_controls:
-  var divider=ColorRect.new();divider.color=Color("35464b");divider.mouse_filter=Control.MOUSE_FILTER_IGNORE
+  var divider=ColorRect.new();divider.name="ResourceTurnDivider";divider.color=Color("35464b");divider.mouse_filter=Control.MOUSE_FILTER_IGNORE
   _place(divider,Rect2(160,781,199,1))
  var meters=[
   {"id":"MainOverload","label":"快感","value":view.pressure.value,"maximum":view.pressure.maximum,"color":OVERLOAD_COLOR},
@@ -1193,7 +1679,9 @@ func _bottom_controls(include_tools: bool=true) -> void:
  var mana_bar=find_child("MainMana",true,false)
  mana_bar.mouse_filter=Control.MOUSE_FILTER_STOP;mana_bar.tooltip_text="嘴部施法成功率 · "+view.casting.percent+"\n临时魔力优先抵扣法术和卡牌耗魔，不受上限限制；不能存瓶或购物，本场结束清空。"
  if include_tools: preload("res://ui/mana_flask.gd").build(self)
- if not has_turn_controls: return
+ if not has_turn_controls:
+  _resource_key=_resource_presentation_key()
+  return
  var orb=TextureRect.new();orb.name="EnergyMedallion";orb.mouse_filter=Control.MOUSE_FILTER_PASS
  orb.tooltip_text="能量上限：%d。每回合恢复至上限，再结算额外能量与惩罚。" % view.energy_max
  orb.texture=preload("res://assets/ui/energy-medallion.svg");orb.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;orb.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -1221,6 +1709,8 @@ func _bottom_controls(include_tools: bool=true) -> void:
     seal.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;seal.stretch_mode=TextureRect.STRETCH_SCALE
     seal.mouse_filter=Control.MOUSE_FILTER_IGNORE
     _place(seal,Rect2(0,0,155,90),b)
+  else:
+   b.name="FlowButton_"+String(c.payload.kind)
  var surrender=TargetQueries.find(view,"surrender")
  if not surrender.is_empty():
   var button=_button("确定要投降吗" if surrender_version==view.version else "投降",func():pass,RED)
@@ -1233,8 +1723,13 @@ func _bottom_controls(include_tools: bool=true) -> void:
    else:
     surrender_version=view.version;button.text="确定要投降吗")
   _place(button,Rect2(1424,833,155,44))
- _wall_controls()
- _posture_controls()
+ _resource_key=_resource_presentation_key()
+
+func _bottom_controls(include_tools: bool=true) -> void:
+ _build_resource_bar(include_tools)
+ if not show_route and view.phase in ["battle","prepare","rest","prison"]:
+  _wall_controls()
+  _posture_controls()
 
 func _resource_meter(id: String, rect: Rect2, value: float, maximum: float, color: Color, caption: String="") -> void:
  if caption!="":
@@ -1292,6 +1787,68 @@ func _single_body_card_action(slot: String, uid: String) -> Dictionary:
 func _single_restraint_card_action(uid: String) -> Dictionary:
  return TargetQueries.single_equipment_card(view,view.body_groups,uid,card_faces.get(uid,false))
 
+var _body_details_key=[]
+
+func _body_details_candidate_slice(c: Dictionary) -> Array:
+ var preview={}
+ if c.has("release_preview"):
+  var raw=c.release_preview
+  preview=raw.duplicate(true) if raw is Dictionary or raw is Array else raw
+ return [TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,preview]
+
+func _body_details_presentation_key() -> Array:
+ var faces={}
+ for uid in card_faces:
+  faces[String(uid)]=bool(card_faces[uid])
+ var candidates=[]
+ var body=_body_at(selected_slot)
+ var members=body.get("members",[body])
+ var shown={}
+ for member in members:
+  var entries=_body_equipment_entries(member)
+  var fresh=entries.keys().filter(func(id):return not shown.has(id))
+  for id in fresh:
+   shown[id]=true
+   for c in TargetQueries.select(view,"manual",{"target":id}):
+    candidates.append(_body_details_candidate_slice(c))
+   for c in TargetQueries.select(view,"attack",{"target":id}):
+    candidates.append(_body_details_candidate_slice(c))
+ if selected_card!="":
+  var bind=TargetQueries.find(view,"card",{"uid":selected_card,"target":"guard_bind","free":card_faces.get(selected_card,false)})
+  if not bind.is_empty(): candidates.append(_body_details_candidate_slice(bind))
+  for c in _body_card_actions(selected_slot,selected_card):
+   candidates.append(_body_details_candidate_slice(c))
+  var single=_single_body_card_action(selected_slot,selected_card)
+  if not single.is_empty(): candidates.append(_body_details_candidate_slice(single))
+ return [String(selected_slot),String(selected_card),String(selected_candidate),bool(show_body),bool(view.pending_retain),bool(quick_release_open),bool(view.guard_bind.is_empty()),faces,candidates]
+
+func _body_details_live_count(root: Node, node_name: String) -> int:
+ var n=0
+ if not is_instance_valid(root): return 0
+ for node in root.find_children(node_name,"",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n
+
+func _body_details_key_hit(key) -> bool:
+ if _body_details_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var live=[]
+ for node in layout.find_children("EquipmentDetails","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if live.size()!=1: return false
+ var panel=live[0]
+ for node_name in ["CloseEquipmentDetails","EquipmentTutorial"]:
+  if _body_details_live_count(panel,node_name)!=1: return false
+ return true
+
+func _refresh_body_details_section() -> void:
+ var key=_body_details_presentation_key()
+ if _body_details_key_hit(key):
+  return
+ _remove_local_panel("EquipmentDetails")
+ _body_details()
+ if selected_card!="" and not _selecting_hand(): DragTargets.focus_bodies(self,{"card_uid":selected_card,"free":card_faces.get(selected_card,false),"version":view.version})
+
 func _body_details() -> void:
  var compact=selected_card!="" and not _single_body_card_action(selected_slot,selected_card).is_empty() and view.guard_bind.is_empty()
  var sidebar=find_child("BodyEquipmentPanel",true,false)
@@ -1345,6 +1902,7 @@ func _body_details() -> void:
     _equipment_tile(grid,entry.equipment,"、".join(entry.locations),(entries.size()==1 and members.size()==1) or (quick_release_open and id==quick_release_inspected))
   if not free_names.is_empty(): content.add_child(_label("自由："+"、".join(free_names),12,MUTED))
   if view.phase=="rest": content.add_child(_label("休息房只能使用卡牌拘束效果。",13,CYAN))
+ _body_details_key=_body_details_presentation_key()
 
 func _equipment_grid(parent: Node) -> GridContainer:
  var grid=GridContainer.new();grid.columns=1
@@ -1890,6 +2448,72 @@ func _restore_map_scroll(scroll: ScrollContainer, graph: Control, offset: int) -
  map_scroll_value=scroll.scroll_vertical
  scroll.get_v_scroll_bar().value_changed.connect(func(value):map_scroll_value=int(value))
 
+var _log_key=[]
+
+func _log_presentation_key() -> Array:
+ var action=[]
+ for note in view.action_log:
+  action.append([String(note.actor),note.round,String(note.text)])
+ var logs=[]
+ for i in range(view.logs.size()-1,maxi(-1,view.logs.size()-45),-1):
+  var e=view.logs[i]
+  logs.append([String(e.kind),String(e.text)])
+ return [action,logs]
+
+func _log_live_count(root: Node, node_name: String) -> int:
+ var n=0
+ if not is_instance_valid(root): return 0
+ for node in root.find_children(node_name,"",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n
+
+func _log_key_hit(key) -> bool:
+ if _log_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var live=[]
+ for node in layout.find_children("InformationLayer","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if live.size()!=1: return false
+ var layer=live[0]
+ for node_name in ["InformationDrawer","DismissDrawer","LogBackToMenu","LogDetails","LogDetailRows"]:
+  if _log_live_count(layer,node_name)!=1: return false
+ return true
+
+func _ensure_log_layer() -> void:
+ if not is_instance_valid(layout): return
+ var live=[]
+ for node in layout.find_children("InformationLayer","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if not live.is_empty():
+  if is_instance_valid(drawer_layer) and live.has(drawer_layer): return
+  drawer_layer=live[0]
+  return
+ drawer_layer=Control.new();drawer_layer.name="InformationLayer"
+ drawer_layer.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ layout.add_child(drawer_layer)
+ drawer_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+func _unload_log_shell() -> void:
+ if not is_instance_valid(drawer_layer): return
+ var doomed=[]
+ for node in drawer_layer.get_children():
+  var n=String(node.name)
+  if n=="DismissDrawer" or n=="InformationDrawer": doomed.append(node)
+ for node in doomed:
+  if node is Control: _release_candidate_controls(node)
+  drawer_layer.remove_child(node)
+  node.queue_free()
+
+func _refresh_log_section() -> void:
+ var key=_log_presentation_key()
+ if _log_key_hit(key):
+  return
+ _ensure_log_layer()
+ _unload_log_shell()
+ building_drawer=true
+ _log_drawer()
+ building_drawer=false
+
 func _log_drawer() -> void:
  var v=_drawer_shell("行动日志",Rect2(650,150,870,560))
  var back=_button("返回菜单",func():_open_drawer("show_menu"),MUTED);back.name="LogBackToMenu";v.add_child(back)
@@ -1906,6 +2530,7 @@ func _log_drawer() -> void:
  for i in range(view.logs.size()-1,maxi(-1,view.logs.size()-45),-1):
   var e=view.logs[i]
   details.add_child(_label(("计算 · " if e.kind=="mechanical" else "")+e.text,14,MUTED))
+ _log_key=_log_presentation_key()
 
 func _hide_term() -> void:
  if is_instance_valid(term_popup):
@@ -1972,6 +2597,70 @@ func _position_term(anchor: Rect2) -> void:
  if x+term_popup.size.x>1580: x=anchor.position.x-term_popup.size.x-12
  term_popup.position=Vector2(clampf(x,20,maxf(20,1580-term_popup.size.x)),clampf(anchor.position.y,74,maxf(74,886-term_popup.size.y)))
 
+var _notice_key=[]
+
+func _notice_presentation_key() -> Array:
+ return [String(notice),bool(actor_targets.has("hero"))]
+
+func _notice_key_hit(key) -> bool:
+ if _notice_key!=key: return false
+ if not is_instance_valid(layout) or not is_instance_valid(term_popup): return false
+ if String(term_popup.name)!="TermExplanation": return false
+ if not term_popup.is_inside_tree() or not layout.is_ancestor_of(term_popup): return false
+ var live=0
+ for node in layout.find_children("TermExplanation","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree() and String(node.name)=="TermExplanation": live+=1
+ if live!=1: return false
+ if not actor_targets.has("hero"): return false
+ var hero=actor_targets.hero
+ if not is_instance_valid(hero) or not is_instance_valid(term_anchor) or term_anchor!=hero: return false
+ if term_popup.has_meta("drag_reason"): return false
+ var text=""
+ var pending: Array=[term_popup]
+ while not pending.is_empty():
+  var node=pending.pop_back()
+  if node is Control and not node.is_visible_in_tree(): continue
+  if node is Label: text+=String(node.text)
+  for child in node.get_children(): pending.append(child)
+ return text.contains(String(notice))
+
+func _refresh_notice_section() -> void:
+ var key=_notice_presentation_key()
+ if _notice_key_hit(key):
+  return
+ _hide_term()
+ _show_term(actor_targets.hero,{"label":"","detail":notice})
+ if is_instance_valid(term_popup) and String(term_popup.name)=="TermExplanation":
+  _notice_key=_notice_presentation_key()
+
+var _speech_key=[]
+
+func _speech_presentation_key() -> Array:
+ var speech=view.get("speech",{})
+ return [str(speech.get("id","")),str(speech.get("text","")),String(speech_id),int(speech_deadline)]
+
+func _speech_key_hit(key) -> bool:
+ if _speech_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var groups=[]
+ for node in layout.find_children("HeroSpeechGroup","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): groups.append(node)
+ if groups.size()!=1: return false
+ var speeches=0
+ var texts=0
+ for node in groups[0].find_children("HeroSpeech","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): speeches+=1
+ for node in groups[0].find_children("HeroSpeechText","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): texts+=1
+ return speeches==1 and texts==1
+
+func _refresh_speech_section() -> void:
+ var key=_speech_presentation_key()
+ if _speech_key_hit(key):
+  return
+ _remove_local_panel("HeroSpeechGroup")
+ _speech_bubble()
+
 func _speech_bubble(point_to_hero: bool=true) -> void:
  if view.speech.is_empty(): return
  if _takeover_locked():
@@ -1994,6 +2683,7 @@ func _speech_bubble(point_to_hero: bool=true) -> void:
   var center=HERO_STAGE_RECT.get_center().x
   var tail=Polygon2D.new();tail.polygon=PackedVector2Array([Vector2(center-8,177),Vector2(center+8,177),Vector2(center,192)]);tail.color=Color(0.055,0.09,0.135,0.97);speech_group.add_child(tail)
  _ignore_mouse(speech_group)
+ _speech_key=_speech_presentation_key()
 
 func _guard_portrait(visual: String, minimum: Vector2) -> TextureRect:
  var portrait=TextureRect.new();portrait.name="PrisonGuardPortrait";portrait.custom_minimum_size=minimum
@@ -2066,9 +2756,44 @@ func _shop_chatter(pool: Array) -> void:
  body.text=line;bubble.show();speech_group=bubble
  speech_deadline=Time.get_ticks_msec()+5000
 
+# Submission compares existing section keys; no command-kind invalidation table.
+func _submit_presentation_keys() -> Dictionary:
+ if not is_instance_valid(layout) or view.is_empty(): return {}
+ var header=layout.get_node_or_null("GameHeader")
+ if not is_instance_valid(header): return {}
+ return {
+  "header":header._presentation_key(self), "relics":_relic_presentation_key(),
+  "hand":_hand_presentation_key(), "actions":_action_presentation_key(),
+  "posture":_posture_presentation_key(), "resources":_resource_presentation_key(),
+  "show_log":_log_presentation_key(), "body_bar":layout.body._presentation_key(self) if is_instance_valid(layout.body) else [],
+  "body_details":_body_details_presentation_key(), "pickers":_picker_presentation_key(),
+  "speech":_speech_presentation_key(), "notice":_notice_presentation_key(),
+  "drawers":_drawer_presentation_key(),
+ }
+
+func _submit_dirty(before: Dictionary, succeeded: bool, absent: Dictionary) -> Array:
+ var after=_submit_presentation_keys()
+ if before.is_empty() or after.is_empty(): return []
+ var dirty=[]
+ for section in PRESENT_SECTIONS:
+  if section=="scene_instances":
+   if succeeded: dirty.append(section)
+   continue
+  if not before.has(section) or before[section]==after[section]: continue
+  # Omit optional overlays already unmounted before submit; structural fallbacks remain.
+  if section in ["show_log","pickers","body_details","speech","drawers"] and absent.get(section,false): continue
+  if section=="notice" and notice=="": continue
+  dirty.append(section)
+ return dirty
+
 func _submit(cmd: Dictionary, takeover: bool=false) -> void:
  # 提交执行段（docs/spec/candidate-removal.md §3.1 M-III 的 UI 侧落点）：只由指令路由调用。
  if _takeover_locked() and not takeover: return
+ var previous_keys=_submit_presentation_keys() if not show_home and not is_instance_valid(enemy_feedback) and String(view.get("phase",""))=="battle" else {}
+ var previous_absent={}
+ if not previous_keys.is_empty():
+  for section in ["show_log","pickers","body_details","speech","drawers"]:
+   previous_absent[section]=_present_needs_full_render([section])
  surrender_version=-1
  if show_home or is_instance_valid(enemy_feedback): return
  # 显示数据（M-V）：形状 → 当前状态下那条行动的派生字段；不参与提交复核。
@@ -2103,7 +2828,14 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
    # Climax owns the interruption presentation. Never cover it with the
    # general-purpose character-status drawer, even if that drawer was open.
    _close_drawers()
- render(updated)
+ var dirty=[]
+ if String(previous.get("phase",""))=="battle" and String(updated.phase)=="battle" and not previous_keys.is_empty():
+  view=updated
+  dirty=_submit_dirty(previous_keys,result.ok,previous_absent)
+ if not dirty.is_empty():
+  present(dirty,updated)
+ else:
+  render(updated)
  if takeover and is_instance_valid(takeover_presenter): takeover_presenter.outcome(result,previous,updated,payload)
  if result.ok and kind=="demo_end":
   _return_home()
@@ -2579,12 +3311,37 @@ func _hand_choice(uid: String) -> Dictionary:
   return f
  return {}
 
+var _picker_key=[]
+
+func _picker_presentation_key() -> Array:
+ return [bool(player_pick),bool(player_pick_data.get("hand_selection",false)),String(player_pick_data.get("card_uid","")),bool(player_pick_data.get("free",false)),String(player_pick_data.get("target","")),String(player_pick_data.get("slot",""))]
+
+func _picker_key_hit(key) -> bool:
+ if _picker_key!=key: return false
+ if not is_instance_valid(layout): return false
+ var live=[]
+ for node in layout.find_children("HandSelectionBar","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): live.append(node)
+ if live.size()!=1: return false
+ var n=0
+ for node in live[0].find_children("HandTargetCancel","",true,false):
+  if is_instance_valid(node) and node.is_inside_tree(): n+=1
+ return n==1
+
+func _refresh_picker_section() -> void:
+ var key=_picker_presentation_key()
+ if _picker_key_hit(key):
+  return
+ _remove_local_panel("HandSelectionBar")
+ _hand_target_picker()
+
 func _hand_target_picker() -> void:
  var panel=_panel(Rect2(560,564,770,48));panel.name="HandSelectionBar"
  var row=HBoxContainer.new();panel.add_child(row)
  var label=_label("选择一张手牌消耗",19,CYAN);label.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(label)
  var cancel=_button("取消",func():_clear_player_picker();selected_card="";render(view),MUTED)
  cancel.name="HandTargetCancel";cancel.custom_minimum_size=Vector2(90,30);row.add_child(cancel)
+ _picker_key=_picker_presentation_key()
 
 func _clear_player_picker() -> void:
  player_pick=false
