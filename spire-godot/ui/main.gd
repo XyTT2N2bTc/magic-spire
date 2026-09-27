@@ -42,6 +42,7 @@ const INK=Palette.INK
 const ENEMY_STAGE_LEFT=788.0
 const ENEMY_STAGE_WIDTH=780.0
 const ENEMY_GROUP_WIDTH=280.0
+const ENEMY_STATUS_RECT=Rect2((ENEMY_GROUP_WIDTH-226.0)/2.0,498,226,51)
 const HERO_STAGE_RECT=Rect2(442.1,170.5,295.8,331.5)
 const HERO_STATUS_RECT=Rect2(386,196,52,306)
 
@@ -435,10 +436,7 @@ func render(snapshot: Dictionary={}) -> void:
  if not view.reward_panel.active or view.battle_rewards.any(func(entry):return entry.category=="card" and entry.claimed): show_reward_cards=false
  if not view.reward_panel.active or view.battle_rewards.any(func(entry):return entry.category=="relic" and entry.claimed): show_reward_relics=false
  if show_event_selection and (view.phase!="event" or event_selection.get("version",-1)!=view.version): show_event_selection=false
- for card in view.hand:
-  if card_draw_serials.get(card.uid,-1)!=card.draw_serial:
-   card_draw_serials[card.uid]=card.draw_serial
-   card_faces[card.uid]=card.draw_free
+ _sync_card_faces()
  var alive=view.enemies.filter(func(e):return not e.gone)
  if not alive.is_empty() and not alive.any(func(e):return e.id==selected_enemy): selected_enemy=alive[0].id
  drawer_layer=null;drawer_base_buttons.clear()
@@ -518,13 +516,16 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _present_needs_full_render (predicate), render (full fallback), header.configure
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local),
 # _build_action_rail (["actions"] local), _refresh_posture_section (["posture"]
-# local), _refresh_resource_section (["resources"] local), _refresh_log_section
+# local), _refresh_resource_section (["resources"] local; it also calls
+# _sync_hero_bind_meter, the one routine that builds and updates the hero-stage
+# capture meter, its drop target and the casting-chance offset), _refresh_log_section
 # (["show_log"] local), _refresh_body_details_section (["body_details"] local),
 # _refresh_picker_section (["pickers"] local), _refresh_speech_section (["speech"]
 # local), _refresh_notice_section (["notice"] local), _refresh_drawer_section
 # (["drawers"] local), _refresh_scene_instances_section (["scene_instances"]
-# local; calls layout.hero_portrait, existing-group configure_enemy, and
-# EquipmentPortrait.configure) and layout.body_sidebar (["body_bar"] local).
+# local; calls layout.hero_portrait, existing-group configure_enemy,
+# _status_strip per owner, and EquipmentPortrait.configure) and
+# layout.body_sidebar (["body_bar"] local).
 # header.configure reads header._presentation_key; _relic_row reads
 # _relic_presentation_key, _hand reads _hand_presentation_key,
 # _build_action_rail reads _action_presentation_key, _refresh_posture_section /
@@ -559,14 +560,16 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _action_row, _card_target, release_details, quick_release_bar,
 # _player_picker, _clear_player_picker, open_hand_selection,
 # _npc_speech_bubble, _skip_hero_speech, _battle_scene, layout.enemy_group,
-# _status_strip, _resource_meter, _actor_drop_area, _shop_chatter,
+# _shop_chatter,
 # _dismiss_speech, _speech_visible, _show_term, _drag_rejection,
 # _card_tooltip, or _takeover_banner.
 const PRESENT_ADJACENCY={
  "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","_scene_instances_need_full","_refresh_scene_instances_section","layout.body_sidebar"],
  "_present_needs_full_render":["_scene_instances_need_full"],
  "_scene_instances_need_full":[],
- "_refresh_scene_instances_section":["layout.hero_portrait","configure_enemy","EquipmentPortrait.configure"],
+ "_refresh_scene_instances_section":["layout.hero_portrait","configure_enemy","_status_strip","EquipmentPortrait.configure"],
+ "_status_strip":["_status_control","_unload_resource_direct"],
+ "_status_control":[],
  "layout.hero_portrait":[],
  "configure_enemy":[],
  "EquipmentPortrait.configure":[],
@@ -582,9 +585,15 @@ const PRESENT_ADJACENCY={
  "_wall_controls":[],
  "_posture_controls":["_posture_presentation_key"],
  "_posture_presentation_key":[],
- "_refresh_resource_section":["_resource_presentation_key","_build_resource_bar"],
+ "_refresh_resource_section":["_resource_presentation_key","_build_resource_bar","_sync_hero_bind_meter"],
  "_build_resource_bar":["_resource_presentation_key"],
  "_resource_presentation_key":[],
+ "_sync_hero_bind_meter":["_stage_control","_resource_meter","_guard_bind_drop_target","_unload_resource_direct"],
+ "_stage_control":[],
+ "_resource_meter":[],
+ "_guard_bind_drop_target":["_actor_drop_area"],
+ "_actor_drop_area":[],
+ "_unload_resource_direct":[],
  "_refresh_log_section":["_log_presentation_key","_log_drawer"],
  "_log_drawer":["_log_presentation_key"],
  "_log_presentation_key":[],
@@ -700,11 +709,13 @@ func _scene_instances_need_full(source: Dictionary) -> bool:
 func _refresh_scene_instances_section() -> void:
  var fixed=EquipmentPortrait.uses_fixed_portrait(view,display_settings.fixed_hero_portrait)
  layout.hero_portrait(view,fixed,HERO_STAGE_RECT)
+ _status_strip("hero",HERO_STATUS_RECT,null,true)
  for e in view.get("enemies",[]):
   if bool(e.get("gone",false)): continue
   var group=layout.enemies.get(e.get("id",""))
   if not is_instance_valid(group): continue
   group.get_child(0).configure_enemy(e,display_settings)
+  _status_strip(String(e.get("id","")),ENEMY_STATUS_RECT,group)
  layout.body.get_node("Canvas/EquipmentPortrait").configure(view,fixed)
 
 func _release_candidate_controls(root: Control) -> void:
@@ -882,13 +893,25 @@ func _status_control(status: Dictionary, compact: bool) -> Button:
   else: _refresh_drawers())
  return button
 
+var _status_keys={}
+
+# One routine owns each owner's status strip for both the full battle scene and the
+# local ["scene_instances"] refresh: the stored key skips untouched strips, a missing
+# strip (cleared by begin_frame) or a changed status list rebuilds this owner only,
+# and an emptied list removes its strip.
 func _status_strip(owner: String, rect: Rect2, parent: Control=null, vertical: bool=false) -> void:
+ var host=layout if parent==null else parent
  var entries=view.statuses.filter(func(e):return e.active and e.owner==owner)
+ var key=entries.duplicate(true)
+ var strip=host.find_child("StatusStrip_"+owner,true,false) if is_instance_valid(host) else null
+ if is_instance_valid(strip) and strip.is_inside_tree() and _status_keys.get(owner,[])==key: return
+ _status_keys[owner]=key
+ if is_instance_valid(strip): _unload_resource_direct(strip)
  if entries.is_empty(): return
- var strip=ScrollContainer.new();strip.name="StatusStrip_"+owner
+ strip=ScrollContainer.new();strip.name="StatusStrip_"+owner
  strip.vertical_scroll_mode=ScrollContainer.SCROLL_MODE_AUTO if vertical else ScrollContainer.SCROLL_MODE_DISABLED
  strip.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED if vertical else ScrollContainer.SCROLL_MODE_AUTO
- _place(strip,rect,layout if parent==null else parent)
+ _place(strip,rect,parent)
  var row: BoxContainer=VBoxContainer.new() if vertical else HBoxContainer.new()
  row.add_theme_constant_override("separation",4);strip.add_child(row)
  for entry in entries: row.add_child(_status_control(entry,true))
@@ -905,14 +928,7 @@ func _battle_scene() -> void:
  var meter_x=HERO_STAGE_RECT.get_center().x-80
  _resource_meter("HeroOverload",Rect2(meter_x,502,160,13),view.pressure.value,view.pressure.maximum,OVERLOAD_COLOR)
  _resource_meter("HeroMana",Rect2(meter_x,520,160,13),view.mana,view.mana_max,CYAN)
- if not view.guard_bind.is_empty():
-  var bind_label=_place(_label("捕缚",11,RED),Rect2(meter_x-40,537,40,15));bind_label.name="HeroGuardBindCaption"
-  _resource_meter("HeroGuardBind",Rect2(meter_x,538,160,13),view.guard_bind.value,view.guard_bind.maximum,RED)
-  var bind_target=_guard_bind_drop_target(Rect2(meter_x-40,535,200,19),"GuardBindTarget")
-  actor_targets["guard_bind"]=bind_target
- var cast_label=_label("嘴部施法成功率 "+view.casting.percent,11,CYAN)
- cast_label.name="HeroCastingChance";cast_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
- _place(cast_label,Rect2(meter_x+183 if not view.guard_bind.is_empty() else meter_x-10,537 if not view.guard_bind.is_empty() else 533,180,14))
+ _sync_hero_bind_meter()
  _speech_bubble()
  var living=view.enemies.filter(func(e):return not e.gone)
  # Presentation order only; combat and target IDs retain their original order.
@@ -956,7 +972,51 @@ func _battle_scene() -> void:
   var hp=_label("%s / %s" % [game.number(e.hp),game.number(e.maximum)],14,TEXT)
   hp.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
   _place(hp,Rect2(x,473,226,24),group)
-  _status_strip(e.id,Rect2(x,498,226,51),group)
+  _status_strip(e.id,ENEMY_STATUS_RECT,group)
+
+func _stage_control(node_name: String) -> Control:
+ if not is_instance_valid(layout): return null
+ var node=layout.find_child(node_name,true,false)
+ if not is_instance_valid(node) or node.is_queued_for_deletion() or not node.is_inside_tree(): return null
+ return node
+
+# The hero-stage capture meter, its drop receiver, and the casting-chance label whose
+# offset follows the meter's presence. One routine owns create/update/remove for both
+# the full _battle_scene and the ["resources"] local refresh, whose key already carries
+# view.guard_bind; live nodes are reused by name so a refresh never replaces a
+# receiver, and an emptied bind removes its meter and target (docs/spec/response-pipeline.md).
+func _sync_hero_bind_meter() -> void:
+ var meter_x=HERO_STAGE_RECT.get_center().x-80
+ var bind=view.guard_bind
+ if bind.is_empty():
+  var stale_target=_stage_control("GuardBindTarget")
+  if is_instance_valid(stale_target) and actor_targets.get("guard_bind")==stale_target: actor_targets.erase("guard_bind")
+  for node in [_stage_control("HeroGuardBindCaption"),_stage_control("HeroGuardBind"),_stage_control("HeroGuardBindValue"),stale_target]:
+   if is_instance_valid(node): _unload_resource_direct(node)
+ else:
+  var caption=_stage_control("HeroGuardBindCaption")
+  if not is_instance_valid(caption):
+   var caption_label=_place(_label("捕缚",11,RED),Rect2(meter_x-40,537,40,15));caption_label.name="HeroGuardBindCaption"
+  var bar=_stage_control("HeroGuardBind")
+  if not is_instance_valid(bar):
+   _resource_meter("HeroGuardBind",Rect2(meter_x,538,160,13),bind.value,bind.maximum,RED)
+  else:
+   bar.max_value=bind.maximum;bar.value=bind.value
+   var value=_stage_control("HeroGuardBindValue")
+   if is_instance_valid(value): value.text="%s/%s" % [game.number(bind.value),game.number(bind.maximum)]
+  var target=_stage_control("GuardBindTarget")
+  if not is_instance_valid(target): target=_guard_bind_drop_target(Rect2(meter_x-40,535,200,19),"GuardBindTarget")
+  else: target.tooltip_text=bind.detail
+  actor_targets["guard_bind"]=target
+ var cast=_stage_control("HeroCastingChance")
+ var cast_rect=Rect2(meter_x+183,537,180,14) if not bind.is_empty() else Rect2(meter_x-10,533,180,14)
+ if not is_instance_valid(cast):
+  cast=_label("嘴部施法成功率 "+view.casting.percent,11,CYAN)
+  cast.name="HeroCastingChance";cast.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+  _place(cast,cast_rect)
+ else:
+  cast.text=localization.display("嘴部施法成功率 "+view.casting.percent)
+  cast.position=cast_rect.position
 
 func _select_enemy(enemy_id: String) -> void:
  if not view.enemies.any(func(e):return e.id==enemy_id and not e.gone): return
@@ -1536,7 +1596,17 @@ func _unload_hand_section() -> void:
   if owner!=null: owner.remove_child(node)
   node.queue_free()
 
+# A newly drawn card shows the face it was dealt on. render and the local hand
+# section share this one sync; without it a local refresh keeps the face of the
+# previous draw (stale free/bound) because nothing else writes card_faces.
+func _sync_card_faces() -> void:
+ for card in view.hand:
+  if card_draw_serials.get(card.uid,-1)!=card.draw_serial:
+   card_draw_serials[card.uid]=card.draw_serial
+   card_faces[card.uid]=card.draw_free
+
 func _hand() -> void:
+ _sync_card_faces()
  var key=_hand_presentation_key()
  if _hand_key_hit(key):
   return
@@ -1643,6 +1713,9 @@ func _refresh_resource_section() -> void:
   return
  _unload_resource_section()
  _build_resource_bar(true)
+ # Hero-stage meters stay outside the sidebar unload set; the same routine the full
+ # battle scene calls keeps them current instead of a second creation site.
+ _sync_hero_bind_meter()
 
 func _build_resource_bar(include_tools: bool=true) -> void:
  var has_turn_controls=not show_route and view.phase in ["battle","prepare","rest","prison"]
