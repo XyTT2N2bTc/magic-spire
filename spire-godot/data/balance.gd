@@ -221,3 +221,6 @@ static func keyword_ids(type: String, free: bool) -> Array:
 
 static func slot_target_ids() -> Array:
  return preload("res://data/card_text.gd").SLOT_TARGET_IDS
+
+static func card_collects_slots(card_type: String) -> bool:
+ return preload("res://data/card_text.gd").collects_slots(card_type,CARD_TRAITS.get(card_type,{}),preload("res://data/card_rules.gd").SPECS[card_type].has("target_slots"))

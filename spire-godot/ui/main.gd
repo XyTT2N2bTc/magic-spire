@@ -276,17 +276,23 @@ var _drawer_key=[]
 
 # The open drawer's content is part of this section's key: the menu face (save state,
 # finished run) and, while the item drawer is open, every field `_items_drawer` renders
-# (item rows, selection and help state, and the selected item's candidate slice plus the
-# body targets its equipment cards read).
+# (item rows, selection and help state, the selected item's candidate slice, and the body
+# groups or equipment rows those candidates reach - `_item_details` names the group by
+# `view.body_groups` id/name and `_tool_target_card` reads the target's entry, so only the
+# reached entries are keyed instead of every body's whole target map).
 func _drawer_presentation_key() -> Array:
  var items=[]
  for item in view.items: items.append(item.duplicate(true))
  var item_facts=[]
+ var reachable={}
  for c in TargetQueries.select(view,"item",{"item":selected_item}):
   item_facts.append([TargetQueries.fact_key(c),bool(c.valid),String(c.reason),c.cost,c.mana,String(c.label),String(c.get("detail","")),String(c.risk),String(c.payload.kind),String(c.payload.get("target",""))])
- var bodies=[]
- for body in view.body_groups: bodies.append([String(body.id),body.get("targets",{}).duplicate(true)])
- return [bool(save_failed),bool(view.get("demo_finished",false)),bool(show_items),String(selected_item),String(selected_item_slot),bool(item_help),int(view.carried_items),view.capacity,items,item_facts,bodies]
+  var target=String(c.payload.get("target",""))
+  if target=="" or reachable.has(target): continue
+  for body in view.body_groups:
+   if String(body.id)==target: reachable[target]=[true,String(body.name)];break
+   if body.targets.has(target): reachable[target]=[false,body.targets[target].duplicate(true)];break
+ return [bool(save_failed),bool(view.get("demo_finished",false)),bool(show_items),String(selected_item),String(selected_item_slot),bool(item_help),int(view.carried_items),view.capacity,items,item_facts,reachable]
 
 func _menu_drawer() -> void:
  var content=_drawer_shell("游戏菜单",Rect2(1090,78,474,474))
@@ -526,6 +532,7 @@ func render(snapshot: Dictionary={}) -> void:
  if notice!="" and actor_targets.has("hero"):
   _refresh_notice_section()
  _takeover_banner()
+ _sync_drag_versions()
  layout.end_frame()
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
  _localize_controls(layout)
@@ -590,13 +597,16 @@ const PRESENT_ADJACENCY={
  "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","_scene_instances_need_full","_refresh_scene_instances_section","layout.body_sidebar"],
  "_present_needs_full_render":["_scene_instances_need_full"],
  "_scene_instances_need_full":[],
- "_refresh_scene_instances_section":["layout.hero_portrait","configure_enemy","_status_strip","_sync_enemy_stage","_release_enemy_stage","EquipmentPortrait.configure"],
- "_sync_enemy_stage":["_sync_enemy_select","_sync_enemy_intent_icons"],
+ "_refresh_scene_instances_section":["layout.hero_portrait","_place_enemy_row","_enemy_row","configure_enemy","_status_strip","_sync_enemy_stage","_release_enemy_stage","EquipmentPortrait.configure"],
+ "_enemy_row":[],
+ "_place_enemy_row":[],
+ "_sync_enemy_stage":["_sync_enemy_select","_sync_enemy_intent_icons","_enemy_hp_text"],
+ "_enemy_hp_text":[],
  "_sync_enemy_select":["_configure_enemy_drop"],
  "_sync_enemy_intent_icons":["_intent_icon_rect","_unload_stage_node","_show_term"],
- "_release_enemy_stage":["_unload_resource_direct"],
+ "_release_enemy_stage":[],
  "_unload_stage_node":[],
- "_configure_enemy_drop":[],
+ "_configure_enemy_drop":["_attack_drop_candidate"],
  "_status_strip":["_status_control","_unload_resource_direct"],
  "_status_control":[],
  "layout.hero_portrait":[],
@@ -608,6 +618,7 @@ const PRESENT_ADJACENCY={
  "_relic_presentation_key":[],
  "_hand":["_sync_card_faces","_hand_presentation_key"],
  "_sync_card_faces":[],
+ "_sync_drag_versions":[],
  "_hand_presentation_key":[],
  "_build_action_rail":["_action_presentation_key"],
  "_action_presentation_key":[],
@@ -642,8 +653,8 @@ const PRESENT_ADJACENCY={
  "_refresh_notice_section":["_notice_presentation_key","_show_term"],
  "_notice_presentation_key":[],
  "_show_term":[],
- "_refresh_drawer_section":["_drawer_presentation_key","_menu_drawer"],
- "_menu_drawer":["_drawer_presentation_key"],
+ "_refresh_drawer_section":["_drawer_presentation_key","_menu_drawer","_items_drawer"],
+ "_menu_drawer":[],
  "_drawer_presentation_key":[],
  "layout.body_sidebar":[],
  "render":[],
@@ -688,6 +699,7 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
    _refresh_scene_instances_section()
   elif section=="body_bar":
    layout.body_sidebar(self)
+ _sync_drag_versions()
  layout.end_frame()
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
  _localize_controls(layout)
@@ -743,6 +755,7 @@ func _refresh_scene_instances_section() -> void:
  var fixed=EquipmentPortrait.uses_fixed_portrait(view,display_settings.fixed_hero_portrait)
  layout.hero_portrait(view,fixed,HERO_STAGE_RECT)
  _status_strip("hero",HERO_STATUS_RECT,null,true)
+ _place_enemy_row(_enemy_row())
  for e in view.get("enemies",[]):
   var id=String(e.get("id",""))
   var group=layout.enemies.get(id)
@@ -954,6 +967,26 @@ func _status_strip(owner: String, rect: Rect2, parent: Control=null, vertical: b
  row.add_theme_constant_override("separation",4);strip.add_child(row)
  for entry in entries: row.add_child(_status_control(entry,true))
 
+# Living enemies in presentation order; combat and target IDs retain their original order.
+func _enemy_row() -> Array:
+ var living=view.enemies.filter(func(e):return not e.gone)
+ return living.filter(func(e):return e.template=="iron_drone")+living.filter(func(e):return e.template not in ["puppeteer","iron_man","iron_drone"])+living.filter(func(e):return e.template in ["puppeteer","iron_man"])
+
+# One routine owns the row geometry (fit scale, row width, start and each group's position
+# and scale) for the full battle page and the ["scene_instances"] local refresh, so a kill
+# re-centers the survivors instead of leaving the previous row in place
+# (docs/spec/response-pipeline.md「scene_instances」).
+func _place_enemy_row(living: Array) -> void:
+ var enemy_count=living.size()
+ var enemy_scale=minf(1.0,ENEMY_STAGE_WIDTH/(ENEMY_GROUP_WIDTH*maxi(1,enemy_count)))
+ var enemy_row_width=enemy_count*ENEMY_GROUP_WIDTH*enemy_scale
+ var enemy_row_start=ENEMY_STAGE_LEFT+(ENEMY_STAGE_WIDTH-enemy_row_width)/2.0
+ for i in range(enemy_count):
+  var group=layout.enemies.get(String(living[i].get("id","")))
+  if not is_instance_valid(group): continue
+  group.position=Vector2(enemy_row_start+i*ENEMY_GROUP_WIDTH*enemy_scale,497.0*(1.0-enemy_scale))
+  group.scale=Vector2.ONE*enemy_scale
+
 func _battle_scene() -> void:
  layout.hero_portrait(view,EquipmentPortrait.uses_fixed_portrait(view,display_settings.fixed_hero_portrait),HERO_STAGE_RECT)
  var hero_target=_actor_drop_area(HERO_STAGE_RECT.grow_individual(-38,0,-38,0))
@@ -965,19 +998,12 @@ func _battle_scene() -> void:
  _status_strip("hero",HERO_STATUS_RECT,null,true)
  _sync_hero_stage_meters()
  _speech_bubble()
- var living=view.enemies.filter(func(e):return not e.gone)
- # Presentation order only; combat and target IDs retain their original order.
- living=living.filter(func(e):return e.template=="iron_drone")+living.filter(func(e):return e.template not in ["puppeteer","iron_man","iron_drone"])+living.filter(func(e):return e.template in ["puppeteer","iron_man"])
- var enemy_count=living.size()
- var enemy_scale=minf(1.0,ENEMY_STAGE_WIDTH/(ENEMY_GROUP_WIDTH*maxi(1,enemy_count)))
- var enemy_row_width=enemy_count*ENEMY_GROUP_WIDTH*enemy_scale
- var enemy_row_start=ENEMY_STAGE_LEFT+(ENEMY_STAGE_WIDTH-enemy_row_width)/2.0
- for i in range(enemy_count):
-  var e=living[i]
-  var group=layout.enemy_group(e,display_settings)
-  var screen_x=enemy_row_start+i*ENEMY_GROUP_WIDTH*enemy_scale
-  group.position=Vector2(screen_x,497.0*(1.0-enemy_scale))
-  group.scale=Vector2.ONE*enemy_scale
+ var living=_enemy_row()
+ for e in living: layout.enemy_group(e,display_settings)
+ _place_enemy_row(living)
+ for e in living:
+  var group=layout.enemies.get(String(e.get("id","")))
+  if not is_instance_valid(group): continue
   var x=(ENEMY_GROUP_WIDTH-226.0)/2.0
   var guard=e.type in ["guard","six_bind","puppeteer","iron_man"]
   var picture=group.get_child(0)
@@ -1023,7 +1049,7 @@ func _sync_hero_stage_meters() -> void:
   else:
    bar.max_value=bind.maximum;bar.value=bind.value
    var value=_stage_control("HeroGuardBindValue")
-   if is_instance_valid(value): value.text="%s/%s" % [game.number(bind.value),game.number(bind.maximum)]
+   if is_instance_valid(value): value.text=_meter_value_text("HeroGuardBind",bind.value,bind.maximum)
   var target=_stage_control("GuardBindTarget")
   if not is_instance_valid(target): target=_guard_bind_drop_target(Rect2(meter_x-40,535,200,19),"GuardBindTarget")
   else: target.tooltip_text=bind.detail
@@ -1174,13 +1200,12 @@ func _select_enemy(enemy_id: String) -> void:
  _clear_drop_targets();_clear_player_picker();_refresh_body_details()
  for card in card_buttons.values():
   card.chosen=false;card.queue_redraw()
+ # The name bars go through the same routine the stage sections use, so a selection click
+ # and a local refresh apply one text expression, tone and disabled flag in one place.
  for enemy in view.enemies:
-  var button=layout.find_child("EnemySelect_"+enemy.id,true,false)
-  if button==null: continue
-  var color=CYAN if selected_enemy==enemy.id else GOLD
-  button.text=("◇ " if selected_enemy==enemy.id and not enemy.gone else "")+enemy.name
-  button.add_theme_stylebox_override("normal",_style(Color("1b2b39"),color.darkened(0.25)))
-  button.add_theme_stylebox_override("hover",_style(Color("2b4553"),color))
+  if bool(enemy.get("gone",false)): continue
+  var group=layout.enemies.get(String(enemy.get("id","")))
+  if is_instance_valid(group): _sync_enemy_select(enemy,group,(ENEMY_GROUP_WIDTH-226.0)/2.0)
  _remove_local_panel("AttackActions")
  if view.phase=="battle" and view.card_chain.is_empty(): _fixed_actions()
 
@@ -1754,6 +1779,21 @@ func _sync_card_faces() -> void:
   if card_draw_serials.get(card.uid,-1)!=card.draw_serial:
    card_draw_serials[card.uid]=card.draw_serial
    card_faces[card.uid]=card.draw_free
+
+# Every live drag source carries the version of the View it was built from, and a section
+# key hit keeps its buttons across a version bump, so the display refreshes that field for
+# all of them after each presentation (the same in-place style _refresh_card_face uses for
+# the free face). A drag started afterwards therefore carries the current version, while a
+# stale payload - set by hand, or overtaken by a state change during the drag - still fails
+# the drop guards, which compare the payload against the live View
+# (docs/spec/release-interface.md「共享目标查询」).
+func _sync_drag_versions() -> void:
+ for button in card_buttons.values()+candidate_buttons.values():
+  if not is_instance_valid(button): continue
+  var payload=button.get("drag_payload")
+  if not (payload is Dictionary) or payload.is_empty(): continue
+  payload["version"]=view.version
+  button.set("drag_payload",payload)
 
 func _hand() -> void:
  _sync_card_faces()
@@ -3218,14 +3258,7 @@ func _notification(what: int) -> void:
 func _begin_target_drag() -> void:
  if not get_viewport().gui_is_dragging(): return
  var data=get_viewport().gui_get_drag_data()
- if data is Dictionary:
-  # The payload was stamped when its button was built, and a local refresh can keep that
-  # button alive across a version bump, which would refuse this fresh drag at the drop
-  # (the receiver compares the payload against the live view). The candidates for this
-  # drag are resolved from the current View right here, so restamp the freshness field:
-  # the guard then refuses exactly the case it is for, a state change during the drag.
-  if data.has("version"): data["version"]=view.version
-  DragTargets.begin(self,data)
+ if data is Dictionary: DragTargets.begin(self,data)
 
 func _show_drop_targets(slot: String, data: Dictionary, click_to_use: bool=false) -> void:
  if not body_buttons.has(slot): return

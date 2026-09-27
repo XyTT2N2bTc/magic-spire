@@ -45,6 +45,23 @@ static var TERMS={
 # declaration, kept beside TERMS; consumers only read it.
 const SLOT_TARGET_IDS=["strain","slip","magic_slip","lower","unlock","follow_through"]
 
+# The one keyword id that forces per-slot collection from either face even when the face
+# mode is not itself an equipment operation.
+const FOLLOW_THROUGH_ID="follow_through"
+
+# Whether a card's candidates must be collected per slot: its declarer lists target_slots,
+# a face mode resolves equipment, or the follow-through keyword sits on either face. The
+# keyword ids and this rule live here; core only calls it (core/card_effects.gd::card_facts).
+static func collects_slots(card_type: String, traits: Dictionary, has_target_slots: bool) -> bool:
+ if has_target_slots: return true
+ var bound_ids=keyword_ids(card_type,false,traits)
+ var free_ids=keyword_ids(card_type,true,traits)
+ var bound_mode=Rules.face_mode(card_type,false)
+ var free_mode=Rules.face_mode(card_type,true)
+ if bound_mode in SLOT_TARGET_IDS and bound_mode in bound_ids: return true
+ if free_mode in SLOT_TARGET_IDS and free_mode in free_ids: return true
+ return FOLLOW_THROUGH_ID in bound_ids or FOLLOW_THROUGH_ID in free_ids
+
 static func requirements(type: String, free: bool, names: Dictionary) -> Array:
  var spec=Rules.SPECS[type]
  var result=[]

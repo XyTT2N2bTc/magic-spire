@@ -132,7 +132,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
   或任一节既有全量谓词成立 → `render(当前或传入的 View)`。不以脏集多于一节作为全量条件。
   `snapshot` 非空则原子替换 `view`；为空则用当前 `ui.view`；两条路径均不额外 `get_view`。
   `render(snapshot)` 保留"空 snapshot 才 `get_view`"的语义。局部路径不 `begin_frame`、不清空 `layout.used`，固定顺序为：
-  `DragTargets.clear(self,false)` → `_hide_term`（仅 notice 单节跳过）→ View 同步 → 节键比对 → 重建脏节 →
+  `DragTargets.clear(self,false)` → `_hide_term`（仅 notice 单节跳过）→ View 同步 → 节键比对 → 重建脏节 → `_sync_drag_versions`（保活拖放源的载荷版本追平当前 View）→
   `layout.end_frame()` → `keyboard_input.refresh_hints`（`call_deferred`）→ `_localize_controls`。
 - 待实现 `present_rejection`：7 处拒绝分支（下表 6 处选择类＋提交被拒）的**唯一**呈现入口，不得各自实现。
   载荷至少三项：`reason`（当次从候选／View 读出的原文，不得另造文案）、`source`
@@ -169,9 +169,9 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 | `pickers` | `_refresh_picker_section` | `_picker_presentation_key` |
 | `speech` | `_refresh_speech_section` | `_speech_presentation_key` |
 | `notice` | `_refresh_notice_section` | `_notice_presentation_key` |
-| `drawers` | `_refresh_drawer_section`（按当前打开的抽屉重建：`show_menu` → `_menu_drawer`，`show_items` → `_items_drawer`） | `_drawer_presentation_key`：菜单面（存档异常、本局结束）＋道具抽屉内容（道具行、选中与说明态、选中道具的候选切片、身体目标）；只读约定见[界面契约](release-interface.md#行动日志) |
+| `drawers` | `_refresh_drawer_section`（按当前打开的抽屉重建：`show_menu` → `_menu_drawer`，`show_items` → `_items_drawer`） | `_drawer_presentation_key`：菜单面（存档异常、本局结束）＋道具抽屉内容（道具行、选中与说明态、选中道具的候选切片、这些候选触达的身体组名或装备行）；只读约定见[界面契约](release-interface.md#行动日志) |
 | `page` | 无，始终全量 `render` | 无局部键，不进入提交脏集 |
-| `scene_instances` | `_refresh_scene_instances_section` | 无统一节键；外观由既有 arena／`equipment_portrait` 叶实例比对；英雄与各敌人的状态图标条由 `_status_strip` 按 owner 键（`_status_keys`）比对，命中则跳过，条缺失或该 owner 的状态列表变化只重建该 owner；存活敌人的名字按钮（`EnemySelect_*`）、血条（`EnemyHp_*`）、HP 文本（`EnemyHpValue_*`）与意图图标（`IntentIcon_*`）由 `_sync_enemy_stage` 按名复用并原地更新，图标另按自身条目键（`_intent_icon_keys`）增删，按钮另按名字／标记键（`_enemy_select_keys`）；`gone` 敌人的整槽由 `_release_enemy_stage` 释放（局部路径不重建 `layout.used`，帧无法识别该释放） |
+| `scene_instances` | `_refresh_scene_instances_section`（另经 `_enemy_row`＋`_place_enemy_row` 维护存活敌人的展示顺序与整行几何：契合缩放、行宽、起点与各组的位移／缩放，全量与局部同一例程，击杀后剩余敌人就地重排） | 无统一节键；外观由既有 arena／`equipment_portrait` 叶实例比对；英雄与各敌人的状态图标条由 `_status_strip` 按 owner 键（`_status_keys`）比对，命中则跳过，条缺失或该 owner 的状态列表变化只重建该 owner；存活敌人的名字按钮（`EnemySelect_*`）、血条（`EnemyHp_*`）、HP 文本（`EnemyHpValue_*`）与意图图标（`IntentIcon_*`）由 `_sync_enemy_stage` 按名复用并原地更新，图标另按自身条目键（`_intent_icon_keys`）增删，按钮另按名字／标记键（`_enemy_select_keys`）；`gone` 敌人的整槽由 `_release_enemy_stage` 释放（局部路径不重建 `layout.used`，帧无法识别该释放） |
 
 节键计算的成本同样要进测量（见"证据入口"），不得默认"算键几乎免费"。
 
