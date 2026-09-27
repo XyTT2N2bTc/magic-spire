@@ -3214,3 +3214,9 @@ flowchart LR
 ## 2026-09-25｜下一刀规划（无 target_slots 全身扫描）
 
 - 依据＝人「继续」。规划者经 Codex ark／`gpt-6-sol`／high。切分认可前不派实现者。
+
+## 2026-09-26｜targets_at 查表 vs UncachedGame 配对测量（HEAD `78ab96d`）
+
+- 域：`core/game.gd::targets_at`。测量记录见 [equipment-performance.md · targets_at 查表 vs UncachedGame · 2026-09-26](equipment-performance.md)。
+- 命令（`spire-godot/`，`GODOT_BIN=C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe`）：`--headless --path . --script res://build/equipment-index-targets-20260926/bench.gd`。夹具实际 0／12／29 件，均合法；2 热身＋15 有效配对；`export_snapshot`／`get_view`／`command_facts`／各槽 `targets_at` id 序列两侧相等；引擎错误 0（无 SCRIPT ERROR）。JSON：`spire-godot/build/equipment-index-targets-20260926/paired.json`。毫秒只写入性能卷，不是完成判据。
+- 未跑：UI／窗口；`equipment_complete`；`-Suite all`；安卓真机；push。未改 `core/`／`tests/` 产品字节，未改 `docs/spec/`。
