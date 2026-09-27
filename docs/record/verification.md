@@ -3271,3 +3271,10 @@ flowchart LR
 - 未跑：`-Suite all` 完整回归；窗口其余分类（`casting`／`touch`／`keyboard`／`route`／`body_layout`／`targeting`／`composites`／`baseline`／`equipment_complete` 等）；`composites` 既有 2 条基线红未复跑；`-Exhaustive` 只用于 `normal_play`；`installed_tools`／`action_copy` 早停后其模块内后续断言未执行；安卓真机；打包／推送。
 - 过程：调试期在 `tests/display_ui_cases.gd` 临时加过 3 条 `print` 与临时探针，均已移除（`git diff` 内不含 `print(`／`SENSITIVITY PROBE`）；`core/game.gd` 的变异与还原逐字节一致（`git diff` 空）；`-Import` 生成的 `*.import` 已按路径还原、`ui/command_router.gd.uid`／`ui/command_routes.gd.uid` 已删除、`spire-godot/tmp/` 探针目录已删；`build/` 不入库。
 - 日志位置：`spire-godot/build/checks/<运行号>/`（本 worker 工作树内）。未 push、未打包、版本未动。
+
+## 2026-09-27｜补记：`collect_keys` 归位后的卡片域覆盖（枝 `worker/stage-sync`，commit `ebf884b`）
+
+- 域：`data/card_text.gd::SLOT_TARGET_IDS`／`data/balance.gd::slot_target_ids()`／`core/card_effects.gd::card_facts`（承诺零行为变化）。
+- 命令（`spire-godot/`，`GODOT_BIN=…console.exe`）：`& tools/check.ps1 -Suite card_power,content,casting -KeepGoing -TimeoutSeconds 900` → 运行号 `20260927T131621014-19444`：`card_power PASS`／`content PASS`／`casting PASS`，`PASS: 3500 assertions`，docs PASS（35 文档／2487 引用——含 `-Suite casting` 未再拉宽 docs 之外的范围），exit 0。
+- 该跑在冻结源（`git status` 干净、提交后未改文件）上执行，`before==after`；补上门禁原本未覆盖的卡片文本／内容分类，`architecture`（含 `card_facts_keyword_min_query`）已在 `20260927T125226213-3404` PASS。
+- 未跑：`equipment`／`equipment_complete`（只在 item 3 的变异探针里跑过，非冻结源结论）；`data/`／`core/` 其余分类；`-Suite all`。
