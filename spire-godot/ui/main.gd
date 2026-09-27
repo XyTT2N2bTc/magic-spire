@@ -554,7 +554,8 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # (["drawers"] local), _refresh_scene_instances_section (["scene_instances"]
 # local; calls layout.hero_portrait, existing-group configure_enemy,
 # _status_strip per owner, _sync_enemy_stage for each living enemy,
-# _release_enemy_stage for each gone one, and EquipmentPortrait.configure) and
+# _release_enemy_stage for each gone one, _enemy_row / _place_enemy_row for the
+# row order and geometry, and EquipmentPortrait.configure) and
 # layout.body_sidebar (["body_bar"] local).
 # header.configure reads header._presentation_key; _relic_row reads
 # _relic_presentation_key, _hand reads _hand_presentation_key,
@@ -566,9 +567,9 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # read _picker_presentation_key, _refresh_speech_section / _speech_bubble
 # read _speech_presentation_key, _refresh_notice_section reads
 # _notice_presentation_key then _show_term in this file (hit early-return,
-# miss _hide_term then rebuild then save), and _refresh_drawer_section /
-# _menu_drawer read _drawer_presentation_key (hit early-return, miss unload
-# shells then rebuild then save).
+# miss _hide_term then rebuild then save), and _refresh_drawer_section reads
+# _drawer_presentation_key (hit early-return, miss unload shells then rebuild
+# then save) then rebuilds the open drawer through _menu_drawer / _items_drawer.
 # _present_needs_full_render probes GameHeader existence for header,
 # view.pressure.overloaded only for ["hand"], non-battle / quick_release_open /
 # _selecting_hand / card_chain / reward_panel.active only for ["actions"],
@@ -594,7 +595,7 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _dismiss_speech, _speech_visible, _show_term, _drag_rejection,
 # _card_tooltip, or _takeover_banner.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","_scene_instances_need_full","_refresh_scene_instances_section","layout.body_sidebar"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","_scene_instances_need_full","_refresh_scene_instances_section","_sync_drag_versions","layout.body_sidebar"],
  "_present_needs_full_render":["_scene_instances_need_full"],
  "_scene_instances_need_full":[],
  "_refresh_scene_instances_section":["layout.hero_portrait","_place_enemy_row","_enemy_row","configure_enemy","_status_strip","_sync_enemy_stage","_release_enemy_stage","EquipmentPortrait.configure"],
@@ -629,12 +630,12 @@ const PRESENT_ADJACENCY={
  "_refresh_resource_section":["_resource_presentation_key","_build_resource_bar","_sync_hero_stage_meters"],
  "_build_resource_bar":["_resource_presentation_key"],
  "_resource_presentation_key":[],
- "_sync_hero_stage_meters":["_stage_control","_resource_meter","_sync_stage_meter","_guard_bind_drop_target","_unload_resource_direct","_hero_casting_text"],
+ "_sync_hero_stage_meters":["_stage_control","_resource_meter","_sync_stage_meter","_meter_value_text","_guard_bind_drop_target","_unload_resource_direct","_hero_casting_text"],
  "_sync_stage_meter":["_stage_control","_resource_meter","_meter_value_text"],
  "_hero_casting_text":[],
  "_meter_value_text":[],
  "_stage_control":[],
- "_resource_meter":[],
+ "_resource_meter":["_meter_value_text"],
  "_guard_bind_drop_target":["_actor_drop_area"],
  "_actor_drop_area":[],
  "_unload_resource_direct":[],

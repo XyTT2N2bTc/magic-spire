@@ -2003,11 +2003,29 @@ static func present_syncs_battle_stage_widgets(t) -> void:
   var other_select=other_group.get_node_or_null("EnemySelect_"+other) if is_instance_valid(other_group) else null
   t.check(other_select==null or not String(other_select.text).begins_with("◇ "),"DISPLAY present scene_instances clears the mark on the enemy that lost the selection")
  var keeper=living[1] if living.size()>1 else null
+ var keeper_before=Vector2.INF
+ if keeper!=null:
+  var keeper_group=ui.layout.enemies.get(String(keeper.id))
+  if is_instance_valid(keeper_group): keeper_before=keeper_group.position
  enemy.gone=true
  ui.present(["scene_instances"]);await t.frames()
  t.check(not ui.layout.enemies.has(enemy_id) and ui.find_child("EnemyGroup_"+enemy_id,true,false)==null,"DISPLAY present scene_instances releases a gone enemy's stage slot")
  t.check(not ui.actor_targets.has(enemy_id),"DISPLAY present scene_instances drops the gone enemy's actor target")
  t.check(keeper==null or is_instance_valid(ui.layout.enemies.get(String(keeper.id))),"DISPLAY present scene_instances keeps a living enemy's group")
+ # The surviving row is re-laid out, not left in the pre-kill geometry.
+ var order=ui._enemy_row()
+ var row_scale=minf(1.0,ui.ENEMY_STAGE_WIDTH/(ui.ENEMY_GROUP_WIDTH*maxi(1,order.size())))
+ var row_width=order.size()*ui.ENEMY_GROUP_WIDTH*row_scale
+ var row_start=ui.ENEMY_STAGE_LEFT+(ui.ENEMY_STAGE_WIDTH-row_width)/2.0
+ var misplaced=[]
+ var moved=false
+ for i in range(order.size()):
+  var placed=ui.layout.enemies.get(String(order[i].get("id","")))
+  if not is_instance_valid(placed): misplaced.append(String(order[i].get("id",""))+":missing");continue
+  var want=Vector2(row_start+i*ui.ENEMY_GROUP_WIDTH*row_scale,497.0*(1.0-row_scale))
+  if not placed.position.is_equal_approx(want) or not placed.scale.is_equal_approx(Vector2.ONE*row_scale): misplaced.append(String(order[i].get("id",""))+"@"+str(placed.position)+"/"+str(placed.scale))
+  if keeper!=null and placed==ui.layout.enemies.get(String(keeper.id)) and not placed.position.is_equal_approx(keeper_before): moved=true
+ t.check(misplaced.is_empty() and (keeper==null or moved),"DISPLAY present scene_instances re-lays out the surviving row after a kill have="+str(misplaced.slice(0,2)))
  # (c) the defect's own trigger: a successful battle submission lands both stages on the
  # committed View through the local sections.
  ui.restart(42);await t.frames(8)
