@@ -162,7 +162,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 | `hand` | `_hand`（先 `_sync_card_faces` 把本次抽牌的面同步进 `card_faces`） | `_hand_presentation_key` |
 | `actions` | `_build_action_rail` | `_action_presentation_key` |
 | `posture` | `_refresh_posture_section` | `_posture_presentation_key` |
-| `resources` | `_refresh_resource_section`（另经 `_sync_hero_bind_meter` 维护英雄舞台捕缚米表、其拖放接收器与施法标签偏移） | `_resource_presentation_key` |
+| `resources` | `_refresh_resource_section`（另经 `_sync_hero_stage_meters` 维护英雄舞台快感／魔力／捕缚米表、捕缚拖放接收器与施法标签偏移：米表与数值标签按名复用、原地更新，缺件才建） | `_resource_presentation_key`（含 `view.casting.percent`，施法标签由该节读出） |
 | `show_log`（共享抽屉） | `_refresh_log_section` | `_log_presentation_key`；只读约定见[界面契约](release-interface.md#行动日志) |
 | `body_bar` | `layout.body_sidebar` | `ui/shell/body_sidebar.gd::_presentation_key` |
 | `body_details` | `_refresh_body_details_section` | `_body_details_presentation_key` |
@@ -171,7 +171,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 | `notice` | `_refresh_notice_section` | `_notice_presentation_key` |
 | `drawers` | `_refresh_drawer_section` | `_drawer_presentation_key` |
 | `page` | 无，始终全量 `render` | 无局部键，不进入提交脏集 |
-| `scene_instances` | `_refresh_scene_instances_section` | 无统一节键；外观由既有 arena／`equipment_portrait` 叶实例比对；英雄与各敌人的状态图标条由 `_status_strip` 按 owner 键（`_status_keys`）比对，命中则跳过，条缺失或该 owner 的状态列表变化只重建该 owner |
+| `scene_instances` | `_refresh_scene_instances_section` | 无统一节键；外观由既有 arena／`equipment_portrait` 叶实例比对；英雄与各敌人的状态图标条由 `_status_strip` 按 owner 键（`_status_keys`）比对，命中则跳过，条缺失或该 owner 的状态列表变化只重建该 owner；存活敌人的名字按钮（`EnemySelect_*`）、血条（`EnemyHp_*`）、HP 文本（`EnemyHpValue_*`）与意图图标（`IntentIcon_*`）由 `_sync_enemy_stage` 按名复用并原地更新，图标另按自身条目键（`_intent_icon_keys`）增删，按钮另按名字／标记键（`_enemy_select_keys`）；`gone` 敌人的整槽由 `_release_enemy_stage` 释放（局部路径不重建 `layout.used`，帧无法识别该释放） |
 
 节键计算的成本同样要进测量（见"证据入口"），不得默认"算键几乎免费"。
 
@@ -180,7 +180,9 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 允许（只读显示口径）：core 只读调用内的装备显示行复用与 `face_texts` 合批；
 `body_sidebar._slots_key`／`_button_index`（显示字段键＋稳定部位 ID → 按钮索引）；
 `card_faces`／`card_draw_serials`（本地翻面／抽牌显示态）、`map_drawings`（界面备注，随本局保存）；
-节键本身（当次 View 投影＋本地 UI 态的纯数据副本，含 `_status_keys` 的按 owner 状态列表副本）。
+节键本身（当次 View 投影＋本地 UI 态的纯数据副本，含 `_status_keys` 的按 owner 状态列表副本、
+`_intent_icon_keys` 的按图标名字条目副本与 `_enemy_select_keys` 的名字／选中／离场副本——
+三者都只在显示态与当次 View 一致时命中，条目或字段变化即重建该件）。
 
 禁止：用 `version` 当键或当缓存版本号（`version` 不单调，`restore_snapshot` 后可回退，进键会误命中）；
 用译文、颜色、名称、图片识别玩法对象；把投影结果当规则判定来源（UI 不得自行推断资格或作废范围）。
@@ -195,7 +197,8 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 
 `_submit` 的脏集唯一来源是 `_submit_presentation_keys` 提交前后读取的既有键；不按指令 `kind` 维护脏表。
 缺 `GameHeader`、layout 无效或 View 为空时不算键，直接全量；只有前后均为 battle 才使用局部候选。
-成功战斗提交额外加入 `scene_instances`：外观交给叶实例，英雄与存活敌人的状态图标条交给 `_status_strip`；
+成功战斗提交额外加入 `scene_instances`：外观交给叶实例，英雄与存活敌人的状态图标条交给 `_status_strip`，
+存活敌人的名条／血条／HP 文本／意图图标交给 `_sync_enemy_stage`、`gone` 敌人的整槽交给 `_release_enemy_stage`；
 失败不因它无统一节键而加入。
 过滤只按提交前既有谓词去掉已未挂载的 `show_log`／`pickers`／`body_details`／`speech`／`drawers`；本次提交卸载的节留在 dirty，由 `present` 既有全量谓词拆除。空 `notice` 仍从候选去掉，清空靠多节路径前缀 `_hide_term`。其余结构性全量条件保留。过滤后为空则全量，非空局部集交给 `present` 再作既有全量判定。
 

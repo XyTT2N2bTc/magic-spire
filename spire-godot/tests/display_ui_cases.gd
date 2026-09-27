@@ -1926,6 +1926,119 @@ static func present_routes_scene_instances_or_full(t) -> void:
  t.check(ui.game.export_snapshot()==before,"DISPLAY present scene_instances does not mutate export_snapshot")
  t.check(ui.game.state.rng==before_rng,"DISPLAY present scene_instances does not mutate random cursors")
 
+# docs/spec/response-pipeline.md「resources」／「scene_instances」: a successful battle
+# submission refreshes through the local sections, so the hero-stage meters and every
+# enemy's stage widgets must follow the committed View without a full page rebuild.
+static func present_syncs_battle_stage_widgets(t) -> void:
+ var ui=t.ui
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ t.check(String(ui.view.phase)=="battle" and not ui.show_home and not ui.show_route,"DISPLAY present stage_widgets fixture is an ordinary battle page")
+ var overload=ui.find_child("HeroOverload",true,false)
+ var mana=ui.find_child("HeroMana",true,false)
+ var overload_value=ui.find_child("HeroOverloadValue",true,false)
+ var mana_value=ui.find_child("HeroManaValue",true,false)
+ t.check(is_instance_valid(overload) and is_instance_valid(mana) and is_instance_valid(overload_value) and is_instance_valid(mana_value),"DISPLAY present stage_widgets baseline has both hero-stage meters and labels")
+ if not (is_instance_valid(overload) and is_instance_valid(mana) and is_instance_valid(overload_value) and is_instance_valid(mana_value)): return
+ # (a) hero-stage meters follow a changed View through the ["resources"] section.
+ var pressure_before=float(overload.value)
+ var mana_before=float(mana.value)
+ ui.view.pressure.value=maxf(0.0,float(ui.view.pressure.maximum)-13.0)
+ ui.view.mana=float(ui.view.mana_max)-3.0
+ ui.view.temporary_mana=4.0
+ t.check(not is_equal_approx(pressure_before,float(ui.view.pressure.value)) and not is_equal_approx(mana_before,float(ui.view.mana)),"DISPLAY present stage_widgets fixture moves both hero-stage meters away from their displayed values")
+ var header=ui.find_child("GameHeader",true,false)
+ ui.present(["resources"]);await t.frames()
+ t.check(ui.find_child("HeroOverload",true,false)==overload and ui.find_child("HeroMana",true,false)==mana,"DISPLAY present resources keeps the hero-stage meter instances")
+ t.check(ui.find_child("HeroOverloadValue",true,false)==overload_value and ui.find_child("HeroManaValue",true,false)==mana_value,"DISPLAY present resources keeps the hero-stage meter labels")
+ t.check(present_named_live_count(ui,"HeroOverload")==1 and present_named_live_count(ui,"HeroMana")==1,"DISPLAY present resources keeps a single hero-stage meter pair")
+ t.check(is_equal_approx(overload.value,float(ui.view.pressure.value)) and is_equal_approx(overload.max_value,float(ui.view.pressure.maximum)),"DISPLAY present resources syncs the hero overload meter value and maximum")
+ t.check(String(overload_value.text)=="%s/%s" % [ui.game.number(ui.view.pressure.value),ui.game.number(ui.view.pressure.maximum)],"DISPLAY present resources syncs the hero overload label")
+ t.check(is_equal_approx(mana.value,float(ui.view.mana)) and is_equal_approx(mana.max_value,float(ui.view.mana_max)),"DISPLAY present resources syncs the hero mana meter value and maximum have="+str(mana.value)+"/"+str(mana.max_value)+" view="+str(ui.view.mana)+"/"+str(ui.view.mana_max))
+ t.check(String(mana_value.text)==("%s/%s · 临时%s" % [ui.game.number(ui.view.mana),ui.game.number(ui.view.mana_max),ui.game.number(ui.view.temporary_mana)]),"DISPLAY present resources syncs the hero mana label with the temporary pool have="+String(mana_value.text))
+ t.check(ui.find_child("GameHeader",true,false)==header,"DISPLAY present resources keeps GameHeader while syncing the hero-stage meters")
+ ui.view.pressure.value=maxf(0.0,float(ui.view.pressure.value)-5.0)
+ ui.view.temporary_mana=0.0
+ ui.present(["resources"]);await t.frames()
+ t.check(ui.find_child("HeroOverload",true,false)==overload and is_equal_approx(overload.value,float(ui.view.pressure.value)),"DISPLAY present resources updates the same hero overload meter on the next value change")
+ t.check(String(ui.find_child("HeroManaValue",true,false).text)==("%s/%s" % [ui.game.number(ui.view.mana),ui.game.number(ui.view.mana_max)]),"DISPLAY present resources drops the temporary pool from the hero mana label")
+ ui.present(["resources"]);await t.frames()
+ t.check(ui.find_child("HeroOverload",true,false)==overload and ui.find_child("HeroMana",true,false)==mana,"DISPLAY present resources keeps the hero-stage meters on a key hit")
+ # (b) enemy-stage widgets follow a changed View through the ["scene_instances"] section.
+ var living=ui.view.enemies.filter(func(e):return not e.gone)
+ t.check(not living.is_empty(),"DISPLAY present stage_widgets fixture has a living enemy")
+ if living.is_empty(): return
+ var enemy=living[0]
+ var enemy_id=String(enemy.id)
+ var group=ui.layout.enemies.get(enemy_id)
+ var bar=group.get_node_or_null("EnemyHp_"+enemy_id) if is_instance_valid(group) else null
+ var hp=group.get_node_or_null("EnemyHpValue_"+enemy_id) if is_instance_valid(group) else null
+ var select=group.get_node_or_null("EnemySelect_"+enemy_id) if is_instance_valid(group) else null
+ t.check(is_instance_valid(group) and is_instance_valid(bar) and is_instance_valid(hp) and is_instance_valid(select),"DISPLAY present stage_widgets baseline has the enemy group, health bar, health text and name button")
+ if not (is_instance_valid(group) and is_instance_valid(bar) and is_instance_valid(hp) and is_instance_valid(select)): return
+ var other=""
+ for e in living:
+  if String(e.id)!=enemy_id: other=String(e.id)
+ ui.selected_enemy=other if other!="" else enemy_id
+ enemy.hp=float(enemy.hp)-9.0
+ enemy.intent_icons=[{"kind":"delayed","label":"","detail":"敌人的行动已被打断","caption":""}]
+ ui.present(["scene_instances"]);await t.frames()
+ t.check(ui.layout.enemies.get(enemy_id)==group and group.get_node_or_null("EnemyHp_"+enemy_id)==bar and group.get_node_or_null("EnemyHpValue_"+enemy_id)==hp and group.get_node_or_null("EnemySelect_"+enemy_id)==select,"DISPLAY present scene_instances keeps the enemy group and its stage widget instances")
+ t.check(is_equal_approx(bar.value,float(enemy.hp)) and is_equal_approx(bar.max_value,float(enemy.maximum)),"DISPLAY present scene_instances syncs the enemy health bar")
+ t.check(String(hp.text)=="%s / %s" % [ui.game.number(enemy.hp),ui.game.number(enemy.maximum)],"DISPLAY present scene_instances syncs the enemy health text")
+ t.check(not String(select.text).begins_with("◇ ") and String(select.text).contains(String(enemy.name)),"DISPLAY present scene_instances clears the mark on an unselected enemy")
+ t.check(present_named_live_count(ui,"IntentIcon_"+enemy_id+"_*")==1 and present_named_live_count(ui,"IntentIcon_"+enemy_id+"_delayed")==1,"DISPLAY present scene_instances replaces the intent icon set with the View list")
+ var icon=group.get_node_or_null("IntentIcon_"+enemy_id+"_delayed")
+ t.check(is_instance_valid(icon),"DISPLAY present scene_instances builds the icon of the current View list")
+ if is_instance_valid(icon):
+  await t.move_mouse(icon.get_global_rect().get_center());await t.frames()
+  var popup=ui.find_child("TermExplanation",true,false)
+  t.check(popup!=null and t.visible_text(popup).strip_edges()=="敌人的行动已被打断","DISPLAY present scene_instances wires hover on a replaced intent icon")
+  await t.move_mouse(Vector2(700,510));await t.frames()
+ ui.selected_enemy=enemy_id
+ ui.present(["scene_instances"]);await t.frames()
+ t.check(String(select.text).begins_with("◇ ") and String(select.text).contains(String(enemy.name)) and not select.disabled,"DISPLAY present scene_instances marks the selected enemy and keeps it selectable")
+ if other!="":
+  var other_group=ui.layout.enemies.get(other)
+  var other_select=other_group.get_node_or_null("EnemySelect_"+other) if is_instance_valid(other_group) else null
+  t.check(other_select==null or not String(other_select.text).begins_with("◇ "),"DISPLAY present scene_instances clears the mark on the enemy that lost the selection")
+ var keeper=living[1] if living.size()>1 else null
+ enemy.gone=true
+ ui.present(["scene_instances"]);await t.frames()
+ t.check(not ui.layout.enemies.has(enemy_id) and ui.find_child("EnemyGroup_"+enemy_id,true,false)==null,"DISPLAY present scene_instances releases a gone enemy's stage slot")
+ t.check(not ui.actor_targets.has(enemy_id),"DISPLAY present scene_instances drops the gone enemy's actor target")
+ t.check(keeper==null or is_instance_valid(ui.layout.enemies.get(String(keeper.id))),"DISPLAY present scene_instances keeps a living enemy's group")
+ # (c) the defect's own trigger: a successful battle submission lands both stages on the
+ # committed View through the local sections.
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var counting=SubmitCountingGame.new(42,false,"equipment",false)
+ t.check(counting.restore_snapshot(ui.game.export_snapshot()).ok,"DISPLAY present stage_widgets counting game restores the live run")
+ ui.game=counting
+ ui.render(counting.get_view());await t.frames(3)
+ var usable=ui.view.display_facts.filter(func(c):return c.valid and String(c.payload.get("kind",""))=="attack" and String(c.payload.get("enemy",""))!="")
+ t.check(not usable.is_empty(),"DISPLAY present stage_widgets battle fixture has a valid attack")
+ if usable.is_empty(): return
+ var attack=usable[0].duplicate(true)
+ var target_id=String(attack.payload.enemy)
+ for row in counting.state.enemies:
+  if String(row.id)==target_id: row.hp=float(row.max_hp)
+ ui.render(counting.get_view());await t.frames(3)
+ var baseline=counting.get_view_calls
+ var header_before=ui.find_child("GameHeader",true,false)
+ var hp_before=float(ui.view.enemies.filter(func(e):return String(e.id)==target_id)[0].hp)
+ ui.command_router.emit("attack",attack,ui.view.version);await t.frames()
+ var committed=ui.view.enemies.filter(func(e):return String(e.id)==target_id)[0]
+ t.check(bool(counting.last_result.get("ok",false)) and String(ui.view.phase)=="battle" and float(committed.hp)<hp_before,"DISPLAY present stage_widgets real attack lowers the committed enemy hp on a battle page")
+ t.check(counting.get_view_calls==baseline+1 and ui.find_child("GameHeader",true,false)==header_before,"DISPLAY present stage_widgets real attack refreshes through the local sections without a full page rebuild")
+ var committed_group=ui.layout.enemies.get(target_id)
+ var committed_bar=committed_group.get_node_or_null("EnemyHp_"+target_id) if is_instance_valid(committed_group) else null
+ var committed_text=committed_group.get_node_or_null("EnemyHpValue_"+target_id) if is_instance_valid(committed_group) else null
+ t.check(is_instance_valid(committed_bar) and is_equal_approx(committed_bar.value,float(committed.hp)) and is_equal_approx(committed_bar.max_value,float(committed.maximum)),"DISPLAY present stage_widgets real attack leaves the enemy health bar on the committed view")
+ t.check(is_instance_valid(committed_text) and String(committed_text.text)=="%s / %s" % [ui.game.number(committed.hp),ui.game.number(committed.maximum)],"DISPLAY present stage_widgets real attack leaves the enemy health text on the committed view")
+ var committed_overload=ui.find_child("HeroOverload",true,false)
+ t.check(is_instance_valid(committed_overload) and is_equal_approx(committed_overload.value,float(ui.view.pressure.value)) and is_equal_approx(committed_overload.max_value,float(ui.view.pressure.maximum)),"DISPLAY present stage_widgets real attack leaves the hero overload meter on the committed view")
+
 # docs/spec/ondemand-copy.md「证据入口」: the body detail section resolves the card face through
 # the single display entry, so a deleted card_texts key must recompute the same text and leave a
 # named record instead of raising or silently blanking.
@@ -2121,6 +2234,7 @@ static func run(t) -> void:
  await present_routes_notice_or_full(t)
  await present_routes_drawers_or_full(t)
  await present_routes_scene_instances_or_full(t)
+ await present_syncs_battle_stage_widgets(t)
  await portrait_refresh(t)
  var backdrop=ui.find_child("MoonlitGallery",true,false)
  var static_draws=[0]

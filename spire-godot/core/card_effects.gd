@@ -927,7 +927,7 @@ static func card_facts(g, card: Dictionary) -> Array:
  var free_ids=g.B.keyword_ids(card.type,true)
  var bound_mode=Rules.face_mode(card.type,false)
  var free_mode=Rules.face_mode(card.type,true)
- var collect_keys=["strain","slip","magic_slip","lower","unlock","follow_through"]
+ var collect_keys=g.B.slot_target_ids()
  var need_slots=spec.has("target_slots")
  if bound_mode in collect_keys and bound_mode in bound_ids: need_slots=true
  if free_mode in collect_keys and free_mode in free_ids: need_slots=true

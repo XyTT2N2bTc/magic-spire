@@ -77,8 +77,12 @@
 ### `targets_at` 与 `has_targets_at` 路径（邻接表）
 
 本域声称一条按槽走查、无第二套公开入口、作用域内查询不扫权威容器。边＝稳定符号。
-行为检查器＝具名 `INDEX targets edge parity`、`has_targets_at_parity` 与 `index_materializes_once_per_scope`
-（关掉查表分流须让前两条之一变红）。
+行为检查器＝具名 `INDEX targets edge parity`、`has_targets_at_parity` 与 `index_materializes_once_per_scope`；
+三条的敏感性各不相同：前两条比对**返回值**——关掉查表分流后，作用域内的 `targets_at`／`has_targets_at`
+回落到同一条按槽走查（作用域内仍只读同一 `_equipment_read`），结果与状态逐项相同，故这两条**仍绿**
+（2026-09-27 实测：删掉两处分流后 `equipment` 分类 PASS、`architecture` 分类里 `has_targets_at_parity` 无红，
+只红 `index_materializes_once_per_scope` 的重复查询计数——测试侧计数落在 `tests/architecture_cases.gd` 的
+`IndexCountingGame`，作用域内每次查询都会让它的 `walk_calls` 上涨）。想让前两条红，须改走查本身的过滤条件、顺序或返回类型，或在作用域内改走 live 来源。
 
 | 边 | 来源 → 去向 | 类型 | 对应路径（唯一） |
 | --- | --- | --- | --- |

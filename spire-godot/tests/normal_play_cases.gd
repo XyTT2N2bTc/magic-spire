@@ -121,7 +121,7 @@ static func score(v: Dictionary, c: Dictionary, style: String, navigation: Dicti
 static func run(t) -> void:
  var resist={"valid":true,"payload":{"kind":"prison","action":"resist"}}
  var escape={"valid":true,"payload":{"kind":"prison","action":"door_exit"}}
- var visible={"phase":"inspection","prison":{"checks":1},"facts":[resist,escape]}
+ var visible={"phase":"inspection","prison":{"checks":1},"display_facts":[resist,escape]}
  t.check(score(visible,resist,"cautious")<0,"NORMAL repeated-inspection fallback does not immediately abandon the first escape attempt")
  visible.prison.checks=2
  var before=visible.duplicate(true)
@@ -129,7 +129,7 @@ static func run(t) -> void:
  t.check(visible==before,"NORMAL policy reads the visible projection without modifying it")
  var surrender={"valid":true,"payload":{"kind":"surrender"}}
  var end={"valid":true,"payload":{"kind":"end"}}
- var battle={"phase":"battle","round":29,"facts":[surrender,end]}
+ var battle={"phase":"battle","round":29,"display_facts":[surrender,end]}
  t.check(choose(battle)==end,"NORMAL repeating battle still plays before the visible round bound")
  battle.round=30;before=battle.duplicate(true)
  t.check(choose(battle)==surrender and battle==before,"NORMAL bounded battle fallback selects the real surrender without changing the view")
@@ -138,7 +138,7 @@ static func run(t) -> void:
  var north={"valid":true,"payload":{"kind":"prison","action":"explore","direction":"north"}}
  var east={"valid":true,"payload":{"kind":"prison","action":"explore","direction":"east"}}
  var west={"valid":false,"payload":{"kind":"prison","action":"explore","direction":"west"}}
- var blind={"phase":"prison","security":1,"prison":{"space":{"sites":[]},"vent_hits":0,"vent_total":3},"facts":[north,east,west,end]}
+ var blind={"phase":"prison","security":1,"prison":{"space":{"sites":[]},"vent_hits":0,"vent_total":3},"display_facts":[north,east,west,end]}
  var navigation={};before=blind.duplicate(true)
  t.check(choose(blind,"cautious",navigation)==north and navigation.is_empty() and blind==before,"NORMAL blind exploration uses legal visible directions without changing the view or remembering an uncommitted action")
  remember(blind,north,navigation);north.valid=false

@@ -39,6 +39,12 @@ static var TERMS={
  "upper_clear":{"name":"各部位紧度＝0","detail":"头部、颈肩、双臂双手均无拘束。"}
 }
 
+# Keyword ids whose face resolves against real equipment instances: a card whose keyword ids
+# contain any of them needs one candidate per occupied or declared slot
+# (core/card_effects.gd::card_facts gates its per-slot collection on this set). Single
+# declaration, kept beside TERMS; consumers only read it.
+const SLOT_TARGET_IDS=["strain","slip","magic_slip","lower","unlock","follow_through"]
+
 static func requirements(type: String, free: bool, names: Dictionary) -> Array:
  var spec=Rules.SPECS[type]
  var result=[]

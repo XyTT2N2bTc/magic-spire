@@ -218,3 +218,6 @@ static func card_metadata(type: String, mana_costs: Dictionary={}, base: Variant
 
 static func keyword_ids(type: String, free: bool) -> Array:
  return preload("res://data/card_text.gd").keyword_ids(type,free,CARD_TRAITS.get(type,{}))
+
+static func slot_target_ids() -> Array:
+ return preload("res://data/card_text.gd").SLOT_TARGET_IDS
