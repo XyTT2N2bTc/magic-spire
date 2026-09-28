@@ -13,16 +13,7 @@ description: >-
 
 ## 仓库根
 
-**开工前先查上游是否已吸收我们的 PR**（作者习惯选择性吸收后自己发版，被吸收的旧分支继续叠提交会立刻冲突）：
-
-```powershell
-git fetch origin main
-git log --oneline origin/main -8                 # 找 "Release … with PRn integration" 之类
-gh pr list --repo h13942080472-prog/magic-spire --state all
-git log --oneline HEAD..origin/main              # 差多少
-```
-
-已吸收时：把**尚未被吸收的增量** cherry-pick／rebase 到最新 `origin/main`（丢掉被取代的中间提交），重跑受影响门禁后再推；同时关闭已被吸收的 PR 并附去向说明。实例：2026-09-19，v0.17.2（`79c499a`）吸收 #4／#5 后，剩余的 5 个提交 rebase 成 `prison-cell-baseline`（PR #6）。
+先检查工作区差异；纯本地维护不例行联网查询 PR：
 
 ```powershell
 git status --short
@@ -31,21 +22,31 @@ git diff --check
 git diff --name-only
 ```
 
-## 工作树
-
-主检出保持 `C:\1\magic-spire`。职能树（实现／清洁／审查／加固／PR 清洁枝）**只**加在 `C:\1\tmp\`，目录名 `magic-spire-wt-<slice>`。禁止 `C:\1\magic-spire-wt-*`。
+**集成 PR、同步上游、准备推送或继续旧 PR 分支时**，再检查上游是否已吸收该分支：
 
 ```powershell
-New-Item -ItemType Directory -Force -Path C:\1\tmp | Out-Null
-git worktree add C:\1\tmp\magic-spire-wt-<slice> -b worker/<slice> HEAD   # 新枝
-git worktree add C:\1\tmp\magic-spire-wt-<slice> worker/<slice>           # 已有枝
-git worktree add --detach C:\1\tmp\magic-spire-wt-<slice>-review <commit> # 只读审查钉
-git worktree move <old> C:\1\tmp\magic-spire-wt-<slice>
-git worktree remove --force C:\1\tmp\magic-spire-wt-<slice>
+git fetch origin main
+git log --oneline origin/main -8
+git log --oneline HEAD..origin/main
+```
+
+先核对实际远端与分支；上例适用于本仓的 `origin/main`。需要 PR 状态时用已连接的 GitHub 工具或可用的 `gh pr list`，不为本地检查安装额外工具。
+已吸收时：保留工作区在途修改，只将**尚未被吸收的增量**集成到最新上游并跑受影响门禁；不强推或覆盖远端提交。
+关闭 PR 或向他人发送说明遵循当前任务授权，不作为每次维护的附带操作。
+
+## 工作树
+
+主检出以实际仓库位置为准；职能树放在主检出目录外的专用临时目录，分支使用 `codex/` 前缀。
+
+```powershell
+$repoRoot = git rev-parse --show-toplevel
+$worktreeRoot = Join-Path (Split-Path -Parent $repoRoot) 'tmp'
+New-Item -ItemType Directory -Force -Path $worktreeRoot | Out-Null
+git worktree add (Join-Path $worktreeRoot 'magic-spire-wt-<slice>') -b codex/<slice> HEAD
 git worktree list
 ```
 
-切片结束后拆树，枝按是否还要用再删。不要把工作树放进仓库内的 `tmp/`（嵌套 worktree 会被拒绝）。
+任务结束后按需清理；删除工作树前确认其改动与证据已保留，不使用强制删除跳过未提交检查。
 
 ## spire-godot（Godot 模块）
 
@@ -73,12 +74,13 @@ git worktree list
 - 规则类文档引用门禁 `spire-godot/tools/check-docs.ps1`：现在是 `tools/check.ps1` 的**独立阶段**（先用引擎无关的它开路，有自己的 `DOCS RESULT: PASS|FAIL` 结果行与 `summary.json` 的 `docs` 字段，失败即整轮失败），也可单跑做局部核对；改 `docs/spec`／`docs/design`／`docs/guide`／根 `AGENTS.md`／`.zcode/skills` 后必跑（或随主门禁带上）。检查点名路径存在、`文件::符号` 锚点已声明、本地 md 链接可达，并打印允许清单条数；扫描范围与排除理由的唯一声明在 `tools/doc-scan-scope.ps1`，`-ListTokens` 逐条打印。这些规则类文档同时在源码指纹内：改动它们会触发 `SOURCE CHANGED`。
 - 引擎与启动：`tools/find-godot.ps1` 提供 `Find-SpireGodot`（`GODOT_BIN` → `godot`／`godot4` → `%USERPROFILE%\Downloads` 顺序探测），`tools/launch.ps1` 启动游戏。
 - 打包输出默认写到仓库根 `outputs/`（`package.ps1 -OutputRoot` 可覆盖）；打包入口 `tools/package.ps1`、`tools/package-android.ps1`，成品检查 `tools/check-package.ps1`、`tools/check-android-package.ps1`；先读 `docs/spec/packaging.md`，不以旧发布说明代替当前脚本。
-- **打包脚本必须用 PowerShell 7**（`pwsh`）：`package.ps1`／`package-android.ps1` 用 `[IO.Path]::GetRelativePath`，`powershell.exe` 是 5.1、没有该方法，第一段就抛 `MethodNotFound`。2026-09-17 实测。
-- **`GODOT_BIN` 必须指向 `*_console.exe`**（如 `Godot_v4.7.2-stable_win64_console.exe`）：`find-godot.ps1 -Console` 在无匹配时不报错而是**回退返回 GUI 版 exe**；Windows GUI 子系统进程被 PowerShell 启动后不等待、`$LASTEXITCODE` 为空，于是导出其实成功也会报 `Export failed (exit=)`，并留下只含 `紧缚尖塔.exe`／`.pck` 的**不完整暂存目录**（脚本拒绝覆盖，重跑前须手工删除该目录）。2026-09-17 实测。
-- **打包的环境前置**：Godot 导出模板须装在 `%APPDATA%\Godot\export_templates\<引擎版本>\`，否则 `--export-release` 报"未找到导出模板"；引擎版本须与 `docs/spec/packaging.md` 记录一致（v0.11–v0.17 都为 **4.7.2**）——`find-godot.ps1` 不校验版本，本机版本不符时打出的包与既有发布口径不符，须在交付说明里写明。
+- **打包脚本必须用 PowerShell 7**（`pwsh`）：`package.ps1`／`package-android.ps1` 使用 `[IO.Path]::GetRelativePath`，Windows PowerShell 5.1 不支持。
+- **Windows 打包的 `GODOT_BIN` 指向 `*_console.exe`**：`find-godot.ps1 -Console` 无匹配时可能回退到 GUI 版，导致退出码缺失与不完整暂存目录；启动前核对返回路径。失败后保留证据，重试使用新 `BuildId`，不为重试强制删除旧目录。
+- **打包的环境前置**：Godot 导出模板须装在 `%APPDATA%\Godot\export_templates\<引擎版本>\`；引擎版本与 `docs/spec/packaging.md` 的当前契约一致。`find-godot.ps1` 不校验版本，存在偏差时先处理，不能将不同环境的产物宣称为已按约验收。
 - **打包读取的输入**（改动前先确认仍在原位）：模块根 `基础操作教学.txt`（随包分发）、`docs/record/release-notes/release-v<版本>.txt`（作为包内 `版本更新内容.txt`）与 `docs/record/release-notes/release-android-v<版本>.txt`、`spire-godot/packaging/licenses/GODOT-LICENSE.txt`／`GODOT-COPYRIGHT.txt`、`assets/vendor/CREDITS.md`、`assets/fonts/OFL`、仓库根 `LICENSE`／`ASSET_RIGHTS.md`／`版本更新内容.txt`。玩家面副本与启动器另存于仓库根 `release/`（`基础操作教学.txt`、`开始游戏.cmd`、`开始游戏.vbs`；从 `release/` 启动时回退找 `../spire-godot/tools/launch.ps1`）。
 
 ## 产物与清理
 
 - 计时脚本、基准数据、验收补充脚本等一次性产物放已忽略的 `spire-godot/build/`，
-  不入库、不进运行时（见根 `AGENTS.md`「禁区」）；摘要登记到 `docs/record/verification.md` 后清理原始目录。
+  不入库、不进运行时（见根 `AGENTS.md`「禁区」）。摘要登记后保留本批复核需要的原始证据；
+  清理时确认不再被当前验收引用，避免记录刚写完就失去证据。

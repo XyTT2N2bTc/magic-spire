@@ -1,13 +1,13 @@
 # 候选层移除与指令路由契约（candidate-removal）
 
-本文件是现行契约（规划产物）：**彻底移除候选层**（候选行表全量物化、稳定 ID 提交身份、行动行索引文件（`action_index.gd`，R5 已删除）
+本文件是指令路由与候选层移除的契约：**彻底移除候选层**（候选行表全量物化、稳定 ID 提交身份、行动行索引文件（`action_index.gd`，R5 已删除）
 行索引、`dispatch` 按 ID 取行复核），代之以「前端指令 → 同一路由 → 分类子路由 → 后端 core 唯一提交入口」。
 本文件**取代**原 candidate-bypass、candidate-bypass-dependencies、candidate-delta 三片（文件已删）的全案（F1–F9／W1–W5／B1–B4／H1–H5／C0–C4 作废为**未开工**，不是已通过）；
 依据＝人类指令（2026-09-23）："候选层的存在无意义，规划彻底移除候选层，前端指令汇集到同一个路由，
 分类发到子路由，子路由再发到后端"＋"行动前先建管线表，用邻接表储存，根据建的表做修改，每条边有且仅有一条
 对应路径，确保同一个方法没有重复实现"。
 
-**状态：`needs-human-review`**——人审通过（协调者记录）前，实现者不得开工。本文件不写执行结果；
+**实现状态**：指令路由、按指令判定与显示事实查询已落地，旧候选构建器及行动行索引已删除。第 1 节为迁移前测绘，现行通道见第 2、3 节；各批完成与未验证范围见验证记录。本文件不写执行结果；
 通过／失败／未执行只登记 `docs/record/verification.md`。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、`tools/`、`build/`）
@@ -173,7 +173,7 @@ A 组每条边＝一条对应路径（同函数内两条提交分支已拆成两
 - N2 **分类子路由**（`ui/command_routes.gd`，R2 落地）：
   每类指令一条子路由，把 UI 意图（点击、键盘、触屏、拖放、自动接管）**装配**为类型化指令并做 UI 级
   前置（版本取值、本地选中态解析）；**不判定资格**。
-- N3 **类型化指令**（数据形状，未落地）：`{kind: String, params: Dictionary, expected_version: int}`；
+- N3 **类型化指令**（数据形状）：`{kind: String, params: Dictionary, expected_version: int}`；
   `kind`／`params` 只用稳定 ID（template/type/id/uid/slot/target…），不用译文、名称、颜色、图片。
 - N4 **唯一合法性判定**（工作名 eligibility，未落地）：输入＝指令形状＋当前状态，输出＝
   `{valid, reason, risk, cost, mana_payment, …}`（文案逐字沿用现状）；**全仓唯一一份判定实现**。

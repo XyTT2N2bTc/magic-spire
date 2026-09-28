@@ -157,12 +157,28 @@ static func feedback_save(t) -> void:
  report._completed(HTTPRequest.RESULT_SUCCESS,200,PackedStringArray(),JSON.stringify({"ok":true,"id":report.draft.id}).to_utf8_buffer());await t.frames()
  t.check(not report.busy and report.message.contains("提交成功"),"FEEDBACK old service schema submits without the save: the report still reaches the old service")
 
- for failure in ["timeout","status","json"]:
+ for redirect_status in [302,303]:
+  new_draft.call();report.review();await t.frames()
+  requests.clear()
+  report.submit();await t.frames()
+  report._completed(HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED,redirect_status,PackedStringArray(["Location: https://script.googleusercontent.com/macros/echo?schema=test"]),PackedByteArray())
+  t.check(report.probing and requests.size()==2 and requests[-1].method==HTTPClient.METHOD_GET and requests[-1].body=="","FEEDBACK schema redirect remains a body-free GET probe: "+str(redirect_status))
+  report._completed(HTTPRequest.RESULT_SUCCESS,200,PackedStringArray(),JSON.stringify({"service":"spire-feedback","schema":2}).to_utf8_buffer());await t.frames()
+  var redirected=posted.call(2)
+  t.check(redirected is Dictionary and redirected.has("save") and requests[-1].url==report.endpoint() and report.response_redirects==0,"FEEDBACK redirected schema permits attachment only on the original endpoint and resets the receipt redirect budget")
+  report._completed(HTTPRequest.RESULT_SUCCESS,200,PackedStringArray(),JSON.stringify({"ok":true,"id":report.draft.id}).to_utf8_buffer());await t.frames()
+  t.check(not report.busy and ui.game.export_snapshot()==before,"FEEDBACK redirected schema completes without changing gameplay")
+
+ for failure in ["timeout","status","json","redirect_host","redirect_limit"]:
   new_draft.call();report.review();await t.frames()
   requests.clear()
   report.submit();await t.frames()
   if failure=="timeout": report._completed(HTTPRequest.RESULT_TIMEOUT,0,PackedStringArray(),PackedByteArray())
   elif failure=="status": report._completed(HTTPRequest.RESULT_SUCCESS,500,PackedStringArray(),PackedByteArray())
+  elif failure=="redirect_host": report._completed(HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED,302,PackedStringArray(["Location: https://untrusted.invalid/schema"]),PackedByteArray())
+  elif failure=="redirect_limit":
+   report.response_redirects=4
+   report._completed(HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED,302,PackedStringArray(["Location: https://script.googleusercontent.com/macros/echo?schema=test"]),PackedByteArray())
   else: report._completed(HTTPRequest.RESULT_SUCCESS,200,PackedStringArray(),"{bad".to_utf8_buffer())
   await t.frames()
   var degraded=posted.call(1)

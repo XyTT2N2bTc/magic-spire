@@ -88,9 +88,11 @@ static func run(t) -> void:
  var c=t.find_action(g,"card",{"uid":card.uid,"target":body.id,"slot":"wrist"})
  var old_version=g.state.version
  var energy=g.state.energy
+ var intent=g.command(c.payload,old_version)
  g.state.charge=1
- t.check(g.dispatch(g.command(c.payload,old_version),old_version).ok==false,"COMPOSITE changed charge invalidates old damage candidate even without version fixture update")
- t.check(play(t,g,"strain",body.id,"wrist").ok and g.state.composites.is_empty() and g.state.energy==energy-1 and g.state.charge==0,"COMPOSITE body hit from wrist removes full root, consumes one card, energy and charge")
+ var recalculated=g.command_fact(intent)
+ t.check(recalculated.valid and recalculated.payload!=c.payload and g.command(recalculated.payload,old_version)==intent,"COMPOSITE charge recalculates derived damage without changing the stable command intent")
+ t.check(g.dispatch(intent,old_version).ok and g.state.composites.is_empty() and g.state.energy==energy-1 and g.state.charge==0 and not g.state.hand.any(func(value):return value.uid==card.uid),"COMPOSITE body hit from wrist removes full root, consumes one card, energy and charge")
  var before=JSON.stringify(g.state)
  t.check(not g.dispatch(g.command(c.payload,old_version),old_version).ok and JSON.stringify(g.state)==before,"COMPOSITE stale removed component cannot be reused")
  t.check(g.level("arms")==0 and g.item_capacity()==3,"COMPOSITE release restores ability and capacity in same commit")

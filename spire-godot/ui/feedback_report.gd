@@ -323,14 +323,8 @@ func _send_request(url: String, method: int, body: String="") -> int:
 
 func _completed(result: int, status: int, headers: PackedStringArray, body: PackedByteArray) -> void:
  if not busy: return
- # The schema probe answered: only a well-formed version document with schema>=2 may carry
- # the save; anything else (non-200, timeout, bad JSON) degrades without blocking the submit.
- if probing:
-  probing=false;save_probed=true
-  save_declined=not _service_supports_save(result,status,body)
-  _send_report(endpoint())
-  return
- # Apps Script receipts are a separate GET; never forward the report to a redirect.
+ # Apps Script schema documents and receipts share body-free, bounded GET redirects.
+ # Never forward the report or its attachment to a redirect.
  if result in [HTTPRequest.RESULT_SUCCESS,HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED] and status in [302,303] and response_redirects<4:
   for header in headers:
    if not header.to_lower().begins_with("location:"): continue
@@ -339,6 +333,13 @@ func _completed(result: int, status: int, headers: PackedStringArray, body: Pack
     response_redirects+=1
     if _send_request(location,HTTPClient.METHOD_GET)==OK: return
    break
+ # Only the final schema response can authorize an attachment; failed or refused
+ # probe redirects degrade to a plain report. Receipts get their own redirect budget.
+ if probing:
+  probing=false;save_probed=true;response_redirects=0
+  save_declined=not _service_supports_save(result,status,body)
+  _send_report(endpoint())
+  return
  var reply=JSON.parse_string(body.get_string_from_utf8()) if result==HTTPRequest.RESULT_SUCCESS and status==200 else null
  # A missing redirect response does not imply the email failed. Query once by ID.
  if reply==null and not checking_receipt and endpoint().begins_with("https://script.google.com/macros/s/"):
