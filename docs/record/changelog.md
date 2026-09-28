@@ -1542,3 +1542,11 @@ flowchart LR
 - 契约同步：`docs/spec/response-pipeline.md`（`hand` 节键行、面缓存与失效规则、场景 3 的 `hand` 限定、每卡键成本句）、`docs/spec/release-interface.md`（翻面切换到该面已缓存的词条与条件）、根 `AGENTS.md` 文档入口表加 `docs/spec/hand-refresh-dependencies.md`。
 - 唯一被改写的既有断言＝`DISPLAY present hand rebuilds the card when the presentation key changes` → `…keeps the card and rewrites its values…`（反向而不删）；新增 `tests/display_ui_cases.gd::present_hand_incremental`（P1–P3／N1–N5／E1–E10 与源文本判据）与 `tests/interface_ui_cases.gd::card_face_incremental`（setter 幂等、同 kind 撞名索引、真尺寸变、画风就地换图、悬停详情读 `fit_text` 结果）。
 - 验证：13 分类 UI 门 `20260928T065101211-31212`（3443 断言）、`architecture` `20260928T070508397-34364`、`check-docs.ps1` PASS、`runner -VerifyRunner` `20260928T070552510-23932`；计数、键成本逐档与 5 条敏感性运行号见[验证记录](verification.md)。仅源码与文档，未推送、未打标签、未改版本号、未打包。
+
+## 2026-09-28 手牌增量刷新补记：挂载去重、pending 断言、配对耗时与剩余敏感性
+
+- `ui/main.gd::_hand_mount_card` 在挂载后把 `_card` 刚应用过的那份面切片直接登记为“已应用”，去掉挂载后的第二次整面重写（整手替换提交里 `_refresh_card_face` 调用 20→15、`_hand_face_slice` 25→20）。
+- `tests/display_ui_cases.gd` 的 E2（结束回合同提交）追加 pending 断言：pending 抽牌期间按钮不可见且实例不变、本地刷新后仍不变、动画结束后同一实例可见。
+- 配对耗时（§D 口径，旧侧 `ec60197` 基础探针／新侧本树基础＋hand 包装，驱动逐字相同，同机同窗口 1600×900、种子 42、2 热身＋15 配对、旧新交替、电源方案 Silent）：`sections.hand` 值变 **0.137**、纯重排 **0.122**（均 ≤0.5 达标）；出牌 1.133／结束回合 1.177／保留卡＋结束回合 1.125（**未达标，如实记录**）；同场景 `submit_total_us` 0.882／0.973／0.995。7 配对复核同上（值变 0.118／重排 0.086／出牌 1.244／结束回合 1.076／增删同提交 0.876）。
+- 剩余敏感性：整行重建（`20260928T083849551-41880`）、键删 `chosen`（`20260928T084050468-28584`）、去掉重排幂等守卫（探针计数 0→1）、pending 可见性丢弃（`20260928T090211341-22060`）、键混 View 级切片（key-cost 探针字节随件数增长）全部红；`type` 边界与手牌路径回读 `view.card_texts` 两行未取得指定敏感性，原因与替代口径见[验证记录](verification.md)。
+- 门禁：UI 13 分类 `20260928T090935751-21888`（3446 断言）、`architecture` `20260928T092617514-41500`、docs PASS、`runner -VerifyRunner` `20260928T092652269-2980`；指纹 `026FB832A514C0C3…`。未推送、未打标签、未打包。

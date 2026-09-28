@@ -2608,8 +2608,23 @@ static func present_hand_incremental(t) -> void:
  t.check(ui.view.hand.any(func(c):return String(c.uid)==kept_uid) and ui.view.hand.any(func(c):return String(c.uid)==discarded_uid),"DISPLAY hand refresh combo fixture holds the retained and the discarded card")
  var combo_before=present_hand_rows(ui)
  var combo_version=ui.view.version
- t.check(await t.click("end"),"DISPLAY hand refresh combo fixture submits the end turn")
- await t.frames(6)
+ t.check(await t.click("end",{},false),"DISPLAY hand refresh combo fixture submits the end turn without settling")
+ await t.frames(2,false)
+ var pending_uid=""
+ if is_instance_valid(ui.card_motion):
+  for key in ui.card_motion.pending_draws: pending_uid=String(key)
+ t.check(pending_uid!="" and ui.card_buttons.has(pending_uid) and not ui.card_buttons[pending_uid].visible,"DISPLAY hand refresh hides the pending draw while it animates: "+pending_uid)
+ var pending_id=ui.card_buttons[pending_uid].get_instance_id() if ui.card_buttons.has(pending_uid) else 0
+ if ui.card_buttons.has(pending_uid):
+  for card in ui.view.hand:
+   if String(card.uid)==pending_uid:
+    var pending_face="free" if bool(ui.card_faces.get(pending_uid,false)) else "bound"
+    card.availability[pending_face].text="pending-probe"
+  ui.present(["hand"])
+  await t.frames(2,false)
+ t.check(ui.card_buttons.has(pending_uid) and ui.card_buttons[pending_uid].get_instance_id()==pending_id and not ui.card_buttons[pending_uid].visible,"DISPLAY hand refresh keeps the pending draw instance across a local refresh")
+ await t.frames(20)
+ t.check(ui.card_buttons.has(pending_uid) and ui.card_buttons[pending_uid].get_instance_id()==pending_id and ui.card_buttons[pending_uid].visible,"DISPLAY hand refresh shows the pending draw after the animation on the same instance")
  var combo_new=ui.card_buttons.keys().filter(func(key):return not combo_before.has(String(key)))
  var combo_gone=combo_before.keys().filter(func(key):return not ui.card_buttons.has(String(key)))
  var combo_touched=present_hand_rows(ui).keys().filter(func(key):return combo_before.has(String(key)) and present_hand_row(ui.card_buttons[key]).id!=combo_before[key].id)

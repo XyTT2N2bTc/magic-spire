@@ -1875,7 +1875,9 @@ func _hand_mount_card(uid: String, row) -> void:
  var button=_card(data,Rect2(Vector2.ZERO,Vector2.ZERO),func(): _activate_card(uid),0.0,null,true,true,true,data)
  button.name="HandCard_"+uid
  card_buttons[uid]=button
- _hand_cards[uid]={"button_id":button.get_instance_id(),"key":key,"data":data,"sides":{}}
+ # `_card` 已按同一份值切片应用过该面：把这份切片直接登记成"已应用"，避免挂载后再整面重写一次。
+ var side="free" if bool(card_faces.get(uid,false)) else "bound"
+ _hand_cards[uid]={"button_id":button.get_instance_id(),"key":key,"data":data,"sides":{side:_hand_face_slice(data,side)},"side":side}
  _hand_apply_card(uid,data,key)
 
 # 逐卡值更新的唯一写入点（步骤 1）：先按每卡窄键的数据部分判定该卡两面值切片是否要重建
