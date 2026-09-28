@@ -314,6 +314,8 @@ func _write_mana(node: Control, entry: Array, unit: float, compact: bool) -> boo
   style=StyleBoxFlat.new()
   node.add_theme_stylebox_override("panel",style)
   changed=true
+ var detail=_display(entry[2])
+ if node.tooltip_text!=detail: node.tooltip_text=detail;changed=true
  var bg=Color("29233e") if kind=="temporary" else Color("143542")
  if style.bg_color!=bg: style.bg_color=bg;changed=true
  if style.border_color!=MANA_COLORS[kind]: style.border_color=MANA_COLORS[kind];changed=true

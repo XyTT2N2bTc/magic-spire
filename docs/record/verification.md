@@ -3355,3 +3355,14 @@ flowchart LR
   - `render` 不清 `_hand_cards`／`_hand_layout`（`plan.md` §6 失效规则 5 的字面要求）；实际由 `button_id` 守卫＋该次 `_hand` 的 added／removed 对账兜底，`response-pipeline.md` 缓存段⑤即按此写。`render` 不在本片允许改动面，故不动。
   - 每次挂载构造同一面切片两次（`_card`→`_refresh_card_face` 一次、`_hand_mount_card` 登记一次），`set_art` 在 `effect_free` 变时取纹理两次：都是被固定签名的 `_refresh_card_face` 与既有 `effect_free` setter 造成的重复取用，实现者补记的运行计数已如实登记，本次不改。
 - 未跑：`-Suite all` 完整回归；窗口其余分类（route／home／pressure／enemies／guard／baseline／normal_play 等）；配对耗时与 §G 敏感性矩阵（清洁轮只做结构等价改写，未重跑探针）；安卓真机；打包、标签、推送。
+
+## 2026-09-28｜清洁者五项裁定的落地：徽章 tooltip 修复与登记（枝 `worker/hand-refresh`，清洁者 `0710ded` 之后）
+
+- 域：`ui/card_face.gd::_write_mana`（非 pressure 分支补写／刷新 `tooltip_text`）、`ui/main.gd::_card` 的预合并信号注释、`docs/spec/hand-refresh-dependencies.md`（`_card` 行的信号说明）、`tests/interface_ui_cases.gd`（两条 tooltip 断言）。行为只改一处（新建与复用徽章都写 tooltip）。
+- ① **修（真缺陷，本片引入）**：非 `pressure` 分支原先不写 `tooltip_text` ⇒ 新建徽章无 tooltip、复用徽章留着上一条目的旧 tooltip。现两条路径都写／刷新，`tooltip_text == _display(entry[2])`。**断言**：`FACE SETTER set_mana writes every badge tooltip from its entry detail`／`…refreshes a reused badge tooltip`（落 `tests/interface_ui_cases.gd::card_face_incremental`，新建与复用各一条）。**敏感性**：临时去掉该写入 → `20260928T100206216-34068`，两条断言红（`…:  / `、`…: `，即徽章 tooltip 为空／陈旧），已逐字节还原（`git diff --stat ui/card_face.gd` = 2 insertions）。同一次变异跑另有一条**无关邻断**红 `MENU native click opens secondary actions`（干净跑 `20260928T095916021-36092` 该分类 PASS，判为与该变异无关的偶发，记录在案）。
+- ② **登记（接受现状）**：`render` 不清 `_hand_cards`／`_hand_layout`。**清表非必需，守卫是机制**：全量路径后成员必为新，`button_id` 守卫使旧条目失效、该次 `_hand` 的增删对账（`removed = (registered ∪ cached) − members`）把离行条目释放；契约⑤即按此写。无需改动。
+- ③ **登记为下一刀候选（不在本片修）**：①每次挂载同一面切片被构造两次（`_card`→`_refresh_card_face` 内一次、`_hand_mount_card` 登记一次）；②`set_art` 在 `effect_free` 变时取纹理两次（属性 setter 的 `_art_changed` 一次、`set_art` 的 `_apply_art_texture` 一次）。两者是成本项，与 S3–S5"整手替换略慢"直接相关（见上一节的配对表）；下一刀可让 `_card` 把已构造的切片回传或接受预构造切片。
+- ④ **接受并登记**：`chosen`／`modulate` 在手牌路径由 `_refresh_card_face` 与 `_hand_apply_card` 各写一次（值一致、后写覆盖；合并需要改签名，不做）。行为无差。
+- ⑤ **接受并写明**：`ui/main.gd::_card` 以 `merged.is_empty()` 作「有没有预合并数据」的信号——契约只允许加一个可选参数，这是唯一可用信号；手牌调用方（`_hand_mount_card`）显式传参，其余调用方不传，不靠默认值或数据形状推断（与计划 A1 同向）。已在 `_card` 处注释与 `docs/spec/hand-refresh-dependencies.md` 的 `_card` 行写明。
+- 门禁（`0710ded`＋本次修复，串行、每条后 `Get-Process Godot*` = 0）：`-UIOnly -UISuite display,interface -KeepGoing -TimeoutSeconds 1800` → `20260928T095916021-36092`：`display PASS`＋`interface PASS`，`UI PASS: 1530 assertions`，同一命令内的 docs 阶段 PASS（36 文档／2594 引用／allowlist 6）；`-Suite architecture -Impact` → `20260928T100309545-34216`：`architecture PASS`，4468 断言；`tools/check-docs.ps1` 单跑 → PASS（36 文档／2594 引用／allowlist 6）。
+- 未跑：`-Suite all`；UI 其余 11 分类（本刀只改了卡面徽章 tooltip 与两处注释／契约文本，`-UIOnly -UISuite display,interface` 之外的分类未重跑；上一节的全 13 分类跑对应改动前的 `f408238`）；`runner -VerifyRunner`（规则与测试器未改）；安卓真机；打包、标签、推送。

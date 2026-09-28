@@ -1556,6 +1556,8 @@ func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0,
  rect.position.x+=(rect.size.x-dimensions.x)/2
  rect.size=dimensions
  # 手牌路径显式传入 `_hand_card_data` 的合并结果（唯一数据构造点）；其余调用方逐字保持既有合并分支。
+ # 契约只允许加一个可选参数，故以 `merged.is_empty()` 作「有没有预合并数据」的信号——手牌路径显式传参、
+ # 其余调用方不传（计划 A1：不得靠 `hand_interaction` 默认值或数据形状推断）。
  if merged.is_empty():
   card=card.duplicate()
   if live_state:

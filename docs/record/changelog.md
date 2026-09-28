@@ -1557,3 +1557,9 @@ flowchart LR
 - `ui/main.gd`：`_hand_apply_card` 的 `dim` 改读该面值切片（删掉从原始数据二次计算及其 `is Dictionary` 守卫）；`_hand_reset_row` 只清行态节点（`EmptyHand`／`ClimaxNarration`），删掉与 `_hand_release_card` 重复的 `HandCard_*` 整行销毁路径；`_hand_place_row` 的角度只算一次；`_hand_card_key`／`_hand_face_slice`／`_hand_row_plan`／`_hand_apply_card` 去掉对自产行键的过宽形状守卫（形状由唯一生产者 `_hand_presentation_key` 保证）。
 - 邻接表与契约对账：`PRESENT_ADJACENCY` 删除不存在的 `_hand_row_hit` 行、`_hand` 补 `_hand_key_hit`、`_hand_mount_card` 补 `_hand_face_slice`、`_hand_apply_card` 补 `_selecting_hand`（表头注释同步）；`docs/spec/hand-refresh-dependencies.md`／`docs/spec/response-pipeline.md` 的幻影符号 `_hand_row_hit` 改写为保留名 `_hand_key_hit`，新增面清单的 `_tag_slot` 改为 `_write_tags`；允许改动表逐文件对账未超面。
 - 门禁（串行，每条前 `Get-Process Godot*` 为 0；指纹 `BA1DED3716EEA7DB…`）：UI 13 分类 `20260928T094132487-33672`（`UI PASS: 3446 assertions`）、`architecture -Impact` `20260928T095220916-33896`（4468 断言）、`check-docs.ps1` PASS（36 文档／2594 引用）、`runner -VerifyRunner` `20260928T095312129-26556`（541 断言＋7 条负例）。与实现者最后一轮的断言计数逐项相同。未推送、未打标签、未打包。
+
+## 2026-09-28 清洁者裁定落地：徽章 tooltip 修复与四项登记
+
+- 修 `ui/card_face.gd::_write_mana` 非 `pressure` 分支不写 `tooltip_text`（新建徽章无 tooltip、复用徽章留旧 tooltip）；两条 tooltip 断言落 `tests/interface_ui_cases.gd::card_face_incremental`，敏感性 `20260928T100206216-34068` 两条红。
+- 登记：①`render` 不清 `_hand_cards`／`_hand_layout`——清表非必需、`button_id` 守卫＋增删对账是机制；②下一刀候选：挂载时同一面切片构造两次、`set_art` 在 `effect_free` 变时取纹理两次（与整手替换场景略慢相关）；③`chosen`／`modulate` 各写两次（值一致、不合并）；④`_card` 以 `merged.is_empty()` 作预合并信号（契约只允许一个可选参数，手牌调用方显式传参），已在源码注释与依赖规约写明。
+- 门禁：`display,interface` `20260928T095916021-36092`（1530 断言）、`architecture -Impact` `20260928T100309545-34216`（4468）、`check-docs.ps1` PASS（2594 引用）。未推送、未打标签、未打包。
