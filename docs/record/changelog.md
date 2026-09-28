@@ -1550,3 +1550,10 @@ flowchart LR
 - 配对耗时（§D 口径，旧侧 `ec60197` 基础探针／新侧本树基础＋hand 包装，驱动逐字相同，同机同窗口 1600×900、种子 42、2 热身＋15 配对、旧新交替、电源方案 Silent）：`sections.hand` 值变 **0.137**、纯重排 **0.122**（均 ≤0.5 达标）；出牌 1.133／结束回合 1.177／保留卡＋结束回合 1.125（**未达标，如实记录**）；同场景 `submit_total_us` 0.882／0.973／0.995。7 配对复核同上（值变 0.118／重排 0.086／出牌 1.244／结束回合 1.076／增删同提交 0.876）。
 - 剩余敏感性：整行重建（`20260928T083849551-41880`）、键删 `chosen`（`20260928T084050468-28584`）、去掉重排幂等守卫（探针计数 0→1）、pending 可见性丢弃（`20260928T090211341-22060`）、键混 View 级切片（key-cost 探针字节随件数增长）全部红；`type` 边界与手牌路径回读 `view.card_texts` 两行未取得指定敏感性，原因与替代口径见[验证记录](verification.md)。
 - 门禁：UI 13 分类 `20260928T090935751-21888`（3446 断言）、`architecture` `20260928T092617514-41500`、docs PASS、`runner -VerifyRunner` `20260928T092652269-2980`；指纹 `026FB832A514C0C3…`。未推送、未打标签、未打包。
+
+## 2026-09-28 手牌卡增量刷新：清洁者结构与契约对账（枝 `worker/hand-refresh`）
+
+- 结构清洁（行为不变；未改任何断言）：`ui/card_face.gd` 的词条／条件两组标签写入合并为唯一路径 `_write_tags`（样式差异作参数，删除 `_tag_slot` 的重复循环），`set_mana` 的可见性单次求值，`set_availability` 去掉空串三元分支。
+- `ui/main.gd`：`_hand_apply_card` 的 `dim` 改读该面值切片（删掉从原始数据二次计算及其 `is Dictionary` 守卫）；`_hand_reset_row` 只清行态节点（`EmptyHand`／`ClimaxNarration`），删掉与 `_hand_release_card` 重复的 `HandCard_*` 整行销毁路径；`_hand_place_row` 的角度只算一次；`_hand_card_key`／`_hand_face_slice`／`_hand_row_plan`／`_hand_apply_card` 去掉对自产行键的过宽形状守卫（形状由唯一生产者 `_hand_presentation_key` 保证）。
+- 邻接表与契约对账：`PRESENT_ADJACENCY` 删除不存在的 `_hand_row_hit` 行、`_hand` 补 `_hand_key_hit`、`_hand_mount_card` 补 `_hand_face_slice`、`_hand_apply_card` 补 `_selecting_hand`（表头注释同步）；`docs/spec/hand-refresh-dependencies.md`／`docs/spec/response-pipeline.md` 的幻影符号 `_hand_row_hit` 改写为保留名 `_hand_key_hit`，新增面清单的 `_tag_slot` 改为 `_write_tags`；允许改动表逐文件对账未超面。
+- 门禁（串行，每条前 `Get-Process Godot*` 为 0；指纹 `BA1DED3716EEA7DB…`）：UI 13 分类 `20260928T094132487-33672`（`UI PASS: 3446 assertions`）、`architecture -Impact` `20260928T095220916-33896`（4468 断言）、`check-docs.ps1` PASS（36 文档／2594 引用）、`runner -VerifyRunner` `20260928T095312129-26556`（541 断言＋7 条负例）。与实现者最后一轮的断言计数逐项相同。未推送、未打标签、未打包。

@@ -217,12 +217,36 @@ func _content_slot(label_name: String, text: String, font_size: int, color: Colo
  if want>=0 and node.get_index()!=want: content.move_child(node,want);changed=true
  return changed
 
-# 词条／条件标签槽：按位置复用（第 i 个标签写第 i 条），多余项从组尾出树入池。
-func _tag_slot(group: Node, bucket: String, index: int) -> Label:
- if index<group.get_child_count():
-  var seat=group.get_child(index)
-  if seat is Label: return seat
- return _take(bucket) as Label
+# 词条／条件标签组的唯一写入路径：第 i 条写第 i 个槽（槽存在即复用，否则取池中备用，最后才新建），
+# 多余项从组尾出树入池；组可见性跟随非空；有变才请求一次延迟布局。
+# 两个 setter 只给样式差异：词条金色且不拆字换行，条件蓝色且右对齐。
+func _write_tags(group_name: String, bucket: String, list: Array, color: Color, wrap_off: bool, right_aligned: bool) -> void:
+ var group=get_node_or_null(group_name)
+ if group==null: return
+ var font_size=roundi(11*text_scale())
+ var changed=false
+ for index in range(list.size()):
+  var label=null
+  if index<group.get_child_count():
+   var seat=group.get_child(index)
+   if seat is Label: label=seat
+  if label==null: label=_take(bucket) as Label
+  if label==null:
+   label=_new_label("",font_size,color)
+   group.add_child(label)
+   changed=true
+  if label.get_parent()!=group: group.add_child(label)
+  var shown=_shown(list[index])
+  if String(label.text)!=shown: label.text=shown;changed=true
+  if label.get_theme_font_size("font_size")!=font_size: label.add_theme_font_size_override("font_size",font_size);changed=true
+  if label.get_theme_color("font_color")!=color: label.add_theme_color_override("font_color",color);changed=true
+  if wrap_off and label.autowrap_mode!=TextServer.AUTOWRAP_OFF: label.autowrap_mode=TextServer.AUTOWRAP_OFF;changed=true
+  if right_aligned and label.horizontal_alignment!=HORIZONTAL_ALIGNMENT_RIGHT: label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT;changed=true
+ while group.get_child_count()>list.size():
+  _park(bucket,group.get_child(group.get_child_count()-1));changed=true
+ var wanted=not list.is_empty()
+ if group.visible!=wanted: group.visible=wanted;changed=true
+ if changed: _request_fit()
 
 # 魔力徽章槽：以位置为主、kind 只作匹配提示（同 kind 可有多条）。位置不符时先在组内
 # 按位置顺序找同 kind 的节点并前移，再取池中同 kind 的备用节点，最后才新建。
@@ -325,8 +349,9 @@ func set_mana(entries: Array) -> void:
   group.add_theme_constant_override("separation",3)
   group.mouse_filter=Control.MOUSE_FILTER_IGNORE
   add_child(group)
- var changed=group.visible!=(not entries.is_empty())
- group.visible=not entries.is_empty()
+ var wanted=not entries.is_empty()
+ var changed=group.visible!=wanted
+ group.visible=wanted
  for index in range(entries.size()):
   var badge=_mana_slot(group,index,String(entries[index][0]))
   if badge.get_parent()!=group: group.add_child(badge)
@@ -359,54 +384,13 @@ func set_warning(text: String) -> void:
  if _content_slot("CardWarning",_shown(text),14,Palette.RED): _request_fit()
 
 func set_availability(text: String) -> void:
- if _content_slot("CardAvailability",_shown(text) if text!="" else "",11,Palette.TEXT): _request_fit()
+ if _content_slot("CardAvailability",_shown(text),11,Palette.TEXT): _request_fit()
 
 func set_keywords(list: Array) -> void:
- var group=get_node_or_null("CardKeywords")
- if group==null: return
- var font_size=roundi(11*text_scale())
- var changed=false
- for index in range(list.size()):
-  var label=_tag_slot(group,"keyword",index)
-  if label==null:
-   label=_new_label("",font_size,Palette.GOLD)
-   label.autowrap_mode=TextServer.AUTOWRAP_OFF
-   group.add_child(label)
-   changed=true
-  if label.get_parent()!=group: group.add_child(label)
-  var shown=_shown(list[index])
-  if String(label.text)!=shown: label.text=shown;changed=true
-  if label.get_theme_font_size("font_size")!=font_size: label.add_theme_font_size_override("font_size",font_size);changed=true
-  if label.get_theme_color("font_color")!=Palette.GOLD: label.add_theme_color_override("font_color",Palette.GOLD);changed=true
-  if label.autowrap_mode!=TextServer.AUTOWRAP_OFF: label.autowrap_mode=TextServer.AUTOWRAP_OFF;changed=true
- while group.get_child_count()>list.size():
-  _park("keyword",group.get_child(group.get_child_count()-1));changed=true
- var wanted=not list.is_empty()
- if group.visible!=wanted: group.visible=wanted;changed=true
- if changed: _request_fit()
+ _write_tags("CardKeywords","keyword",list,Palette.GOLD,true,false)
 
 func set_requirements(list: Array) -> void:
- var group=get_node_or_null("CardRequirements")
- if group==null: return
- var font_size=roundi(11*text_scale())
- var changed=false
- for index in range(list.size()):
-  var label=_tag_slot(group,"requirement",index)
-  if label==null:
-   label=_new_label("",font_size,Palette.CYAN)
-   group.add_child(label)
-   changed=true
-  if label.get_parent()!=group: group.add_child(label)
-  var shown=_shown(list[index])
-  if String(label.text)!=shown: label.text=shown;changed=true
-  if label.get_theme_font_size("font_size")!=font_size: label.add_theme_font_size_override("font_size",font_size);changed=true
-  if label.get_theme_color("font_color")!=Palette.CYAN: label.add_theme_color_override("font_color",Palette.CYAN);changed=true
-  if label.horizontal_alignment!=HORIZONTAL_ALIGNMENT_RIGHT: label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT;changed=true
- while group.get_child_count()>list.size():
-  _park("requirement",group.get_child(group.get_child_count()-1));changed=true
- var wanted=not list.is_empty()
- if group.visible!=wanted: group.visible=wanted;changed=true
- if changed: _request_fit()
+ _write_tags("CardRequirements","requirement",list,Palette.CYAN,false,true)
 
 # 纹理不缓存：每次都按当前画风现取，画风变（`_art_changed`）与换面共用同一条取纹理路径。
 func _apply_art_texture() -> void:

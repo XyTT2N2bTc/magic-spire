@@ -543,7 +543,7 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local; it also
 # calls _sync_card_faces, the one routine that moves a new draw's face into card_faces
 # for both render and this section, then runs the fixed order _hand_presentation_key /
-# _hand_row_hit / _hand_row_plan / _hand_reset_row / _hand_apply_card /
+# _hand_key_hit / _hand_row_plan / _hand_reset_row / _hand_apply_card /
 # _hand_release_card / _hand_mount_card / _hand_place_row: key first, per-card values,
 # member add/remove (removal first), geometry last), _build_action_rail (["actions"] local),
 # _refresh_posture_section (["posture"]
@@ -620,14 +620,13 @@ const PRESENT_ADJACENCY={
  "header._presentation_key":[],
  "_relic_row":["_relic_presentation_key"],
  "_relic_presentation_key":[],
- "_hand":["_sync_card_faces","_hand_presentation_key","_hand_row_hit","_hand_row_plan","_hand_reset_row","_hand_apply_card","_hand_release_card","_hand_mount_card","_hand_place_row"],
- "_hand_row_hit":[],
+ "_hand":["_sync_card_faces","_hand_presentation_key","_hand_key_hit","_hand_row_plan","_hand_reset_row","_hand_apply_card","_hand_release_card","_hand_mount_card","_hand_place_row"],
  "_hand_row_plan":["_hand_card_data"],
  "_hand_reset_row":["_unload_hand_section","_climax_narration","_label","_place"],
  "_unload_hand_section":["_hand_release_card"],
  "_hand_release_card":[],
- "_hand_mount_card":["_hand_card_data","_hand_card_key","_hand_apply_card","_card"],
- "_hand_apply_card":["_hand_face_slice","_hand_choice","display_key","_refresh_card_face"],
+ "_hand_mount_card":["_hand_card_data","_hand_card_key","_hand_face_slice","_hand_apply_card","_card"],
+ "_hand_apply_card":["_hand_face_slice","_selecting_hand","_hand_choice","display_key","_refresh_card_face"],
  "_hand_card_key":["card_entry","_hand_availability_slice","_selecting_hand","_hand_choice"],
  "_hand_card_data":["card_entry"],
  "_hand_face_slice":["CardFace.separate_keywords"],
@@ -1668,7 +1667,7 @@ func _refresh_card_face(button: Button, card: Dictionary) -> void:
  button.set_availability(String(values.availability))
  button.set_keywords(values.keywords)
  button.set_requirements(values.requirements)
- if values.has("dim"): button.modulate=Color(0.55,0.55,0.55,1) if bool(values.dim) else Color.WHITE
+ button.modulate=Color(0.55,0.55,0.55,1) if bool(values.dim) else Color.WHITE
  var text_area=button.get_node("CardText")
  text_area.scroll_vertical=0
  _ignore_mouse(text_area.get_node("Content"))
@@ -1740,7 +1739,7 @@ func _hand_card_key(row) -> Array:
   var mana=[]
   for item in entry.get("face_mana",row.get("face_mana",{})).get(side,[]):
    mana.append([String(item.get("kind","")),String(item.get("text","")),String(item.get("detail",""))])
-  var face_cast=castings.get(side,{}) if castings is Dictionary else {}
+  var face_cast=castings.get(side,{})
   faces[side]=[
    String(entry.get("face_names",row.get("face_names",{})).get(side,"")),
    bool(entry.get("free_faces",row.get("free_faces",{})).get(side,false)),
@@ -1753,7 +1752,7 @@ func _hand_card_key(row) -> Array:
    String(entry.get("face_effects",row.get("face_effects",{})).get(side,"")),
    bool(entry.get("cast_faces",row.get("cast_faces",{})).get(side,false)),
    String(face_cast.get("percent","")),String(face_cast.get("formula","")),
-   _hand_availability_slice(availability.get(side,{}) if availability is Dictionary else {}),
+   _hand_availability_slice(availability.get(side,{})),
   ]
  var casting=entry.get("casting",row.get("casting",{}))
  var selection=[]
@@ -1767,7 +1766,7 @@ func _hand_card_key(row) -> Array:
   String(entry.get("rarity",row.get("rarity",""))),String(entry.get("rarity_name",row.get("rarity_name",""))),
   String(entry.get("type_name",row.get("type_name",""))),
   int(row.get("draw_serial",0)),String(entry.get("note",row.get("note",""))),
-  [String(casting.get("percent","")),String(casting.get("formula",""))] if casting is Dictionary else [],
+  [String(casting.get("percent","")),String(casting.get("formula",""))],
   faces.bound,faces.free,String(selected_card)==uid,
   is_instance_valid(card_motion) and card_motion.pending_draws.has(uid),selection,String(localization.locale),
  ]
@@ -1792,7 +1791,7 @@ func _hand_face_slice(data: Dictionary, side: String) -> Dictionary:
  for item in data.get("face_mana",{}).get(side,[]):
   mana.append([String(item.get("kind","")),String(item.get("text","")),String(item.get("detail",""))])
  var availability=data.get("availability",{})
- var face_availability=availability.get(side,{}) if availability is Dictionary else {}
+ var face_availability=availability.get(side,{})
  var usable=bool(face_availability.get("usable",true))
  var slice={
   "rarity":String(data.get("rarity","")),
@@ -1809,9 +1808,8 @@ func _hand_face_slice(data: Dictionary, side: String) -> Dictionary:
   "keywords":copy.keywords,
   "requirements":Array(data.get("face_requirements",{}).get(side,[])).duplicate(),
  }
- if availability is Dictionary:
-  slice["availability"]="" if usable else String(face_availability.get("text",""))
-  slice["dim"]=bool(face_availability.get("dim",false))
+ slice["availability"]="" if usable else String(face_availability.get("text",""))
+ slice["dim"]=bool(face_availability.get("dim",false))
  return slice
 
 # 节键真源（门禁与提交脏集共用）：[locale, 行态, 顺序, pending, {uid: 每卡窄键}]。
@@ -1891,7 +1889,7 @@ func _hand_apply_card(uid: String, data: Dictionary, key: Array) -> void:
  if int(entry.get("button_id",0))!=button.get_instance_id(): return
  var sides=entry.get("sides",{})
  var stored=entry.get("key",[])
- if stored.size()==2 and key.size()==2 and stored[0]!=key[0]: sides={}
+ if stored[0]!=key[0]: sides={}
  var side="free" if bool(card_faces.get(uid,false)) else "bound"
  var applied=String(entry.get("side",""))
  var previous=sides.get(applied) if applied!="" else null
@@ -1903,7 +1901,7 @@ func _hand_apply_card(uid: String, data: Dictionary, key: Array) -> void:
  sides[side]=target
  entry["sides"]=sides
  entry["side"]=side
- entry["key"]=[key[0] if key.size()>0 else [],int(bool(card_faces.get(uid,false)))]
+ entry["key"]=[key[0],int(bool(card_faces.get(uid,false)))]
  entry["data"]=data
  var selecting=_selecting_hand()
  var choice=_hand_choice(uid) if selecting else {}
@@ -1923,18 +1921,20 @@ func _hand_apply_card(uid: String, data: Dictionary, key: Array) -> void:
  else:
   var payload={"card_uid":uid,"free":bool(card_faces.get(uid,false)),"version":view.version}
   if button.drag_payload.get("card_uid","")!=uid or bool(button.drag_payload.get("free",false))!=bool(payload.free) or int(button.drag_payload.get("version",-1))!=int(payload.version): button.drag_payload=payload
- var dim=bool(data.get("availability",{}).get(side,{}).get("dim",false)) if data.get("availability",{}) is Dictionary else false
+ # `dim` 只从本面值切片读（唯一构造点），不再从原始数据二次计算。
+ var dim=bool(target.get("dim",false))
  var tint=Color(0.45,0.45,0.45,1) if selecting and not selectable else (Color(0.55,0.55,0.55,1) if dim else Color.WHITE)
  if button.modulate!=tint: button.modulate=tint
  var hidden=is_instance_valid(card_motion) and card_motion.pending_draws.has(uid)
  if button.visible==hidden: button.visible=not hidden
 
 # 纯数据 diff 的唯一计算点（步骤 0）：只比投影与本地显示态，不读节点文本、不读 `game.state`。
+# `row` 是 `_hand_presentation_key` 的行键（唯一生产者），形状按该函数返回值直接取用。
 func _hand_row_plan(row) -> Dictionary:
- var keys=row[4] if row.size()>4 and row[4] is Dictionary else {}
- var order=row[2] if row.size()>2 and row[2] is Array else []
- var state=String(row[1]) if row.size()>1 else "cards"
- var previous=String(_hand_key[1]) if _hand_key is Array and _hand_key.size()>1 else ""
+ var keys=row[4]
+ var order=row[2]
+ var state=String(row[1])
+ var previous=String(_hand_key[1]) if _hand_key.size()>1 else ""
  var registered={}
  var broken=[]
  for uid in card_buttons.keys():
@@ -1956,7 +1956,7 @@ func _hand_row_plan(row) -> Dictionary:
   # 边界 ②：牌型变（同 uid 换 type）只重建该 uid，不提供 `CardFace.symbol` 的原地变更。
   var cached=entry.key
   var fresh=keys.get(uid,[])
-  if cached.size()==2 and fresh.size()==2 and String(cached[0][1])!=String(fresh[0][1]):
+  if String(cached[0][1])!=String(fresh[0][1]):
    broken.append(uid)
    continue
   if cached!=fresh: changed.append(uid)
@@ -1980,12 +1980,13 @@ func _hand_row_plan(row) -> Dictionary:
  else: row_broken=climax_nodes!=1 or empty_nodes>0 or not card_buttons.is_empty()
  return {"changed":changed,"removed":removed,"added":added,"broken":broken,"data":data,"keys":keys,"rows":rows,"order":order,"row_state":state,"row_reset":state!=previous or row_broken,"layout_changed":order!=_hand_layout or not added.is_empty() or not removed.is_empty()}
 
-# 行态（cards／empty／climax）的唯一切换点：行态变了才逐卡释放，再清行态节点并按目标行态挂起；
+# 行态（cards／empty／climax）的唯一切换点：行态变了才先逐卡释放（`_unload_hand_section` 经
+# `_hand_release_card`，卡的节点销毁只有这一条路径），再清行态节点并按目标行态挂起；
 # 目标仍是 cards 时只清残留行态节点，不动存活成员（失灵修复不得退回整行重建）。
 func _hand_reset_row(state: String) -> void:
- var previous=String(_hand_key[1]) if _hand_key is Array and _hand_key.size()>1 else ""
+ var previous=String(_hand_key[1]) if _hand_key.size()>1 else ""
  if previous!=state: _unload_hand_section()
- for node in find_children("HandCard_*","",true,false)+find_children("EmptyHand","",true,false)+find_children("ClimaxNarration","",true,false):
+ for node in find_children("EmptyHand","",true,false)+find_children("ClimaxNarration","",true,false):
   if not is_instance_valid(node): continue
   var owner=node.get_parent()
   if owner!=null: owner.remove_child(node)
@@ -2051,12 +2052,13 @@ func _hand_place_row(order) -> void:
   var button=card_buttons.get(String(order[index]))
   if not is_instance_valid(button): continue
   var mid=float(index)-float(count-1)/2
+  var angle=mid*0.018
   if button.size!=dimensions: button.size=dimensions
   button.position=Vector2(start+index*step,630+absf(mid)*4)
   button.home=button.position
   button.pivot_offset=Vector2(dimensions.x/2,dimensions.y)
-  button.resting_angle=mid*0.018
-  button.rotation=mid*0.018
+  button.resting_angle=angle
+  button.rotation=angle
  _hand_layout=order.duplicate()
 
 func _climax_narration() -> void:

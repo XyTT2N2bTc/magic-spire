@@ -9,29 +9,29 @@
 均相对 `spire-godot/`；`docs/` 相对仓库根。
 
 本片新增的私有例程与卡面 setter：`ui/main.gd` 的 `_hand_card_key`／`_hand_card_data`／`_hand_face_slice`／
-`_hand_apply_card`／`_hand_mount_card`／`_hand_release_card`／`_hand_place_row`／`_hand_row_hit`／
-`_hand_row_plan`／`_hand_reset_row` 与成员 `_hand_cards`／`_hand_layout`；`ui/card_face.gd` 的
+`_hand_apply_card`／`_hand_mount_card`／`_hand_release_card`／`_hand_place_row`／
+`_hand_row_plan`／`_hand_reset_row` 与成员 `_hand_cards`／`_hand_layout`（幂等守卫是保留名 `_hand_key_hit`）；`ui/card_face.gd` 的
 `set_title`／`set_cost`／`set_classification`／`set_effect`／`set_warning`／`set_availability`／
 `set_keywords`／`set_requirements`／`set_art`、改写 `set_mana`，以及为"唯一写入路径＋节点复用"所必需的私有助手
 `ui/card_face.gd` 的 `_shown`／`_new_label`／`_take`／`_park`／`_exit_tree`／`_request_fit`／`_content_slot`／
-`_tag_slot`／`_mana_slot`／`_write_mana`／`_apply_art_texture` 与成员 `text_overflow`／`_fit_pending`／`_spare`／
+`_write_tags`／`_mana_slot`／`_write_mana`／`_apply_art_texture` 与成员 `text_overflow`／`_fit_pending`／`_spare`／
 `CONTENT_SLOTS`。这些符号在落地前不写成 `文件::符号` 锚点形式（文档门禁只校验已声明符号）；落地后如需在契约里点名，按既有写法补锚。
 
 ## 允许改动
 
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
-| `ui/main.gd::_hand` | 改为**固定顺序**：拦截（`_hand_presentation_key` ＋ `_hand_row_hit`／`_hand_row_plan` 纯数据 diff）→ 逐卡（`_hand_apply_card`）→ 成员增删（`_hand_release_card` 先、`_hand_mount_card` 后）→ 重排（`_hand_place_row`，几何/顺序未变不调用）；行态（`cards`／`empty`／`climax`）经 `_hand_reset_row` | `card_buttons` 与 `view.hand` 一一对应；`_hand_key` 是唯一保存点；命中路径零 `_hand_card_data` 调用；不 `dispatch`／不 `get_view`／不读不写 `game.state`；行几何公式与常量（`CardFace.dimensions(252)`、`746.0`、`850.0`、`630`、`0.018`）不变 |
+| `ui/main.gd::_hand` | 改为**固定顺序**：拦截（`_hand_presentation_key` ＋ `_hand_key_hit`／`_hand_row_plan` 纯数据 diff）→ 逐卡（`_hand_apply_card`）→ 成员增删（`_hand_release_card` 先、`_hand_mount_card` 后）→ 重排（`_hand_place_row`，几何/顺序未变不调用）；行态（`cards`／`empty`／`climax`）经 `_hand_reset_row` | `card_buttons` 与 `view.hand` 一一对应；`_hand_key` 是唯一保存点；命中路径零 `_hand_card_data` 调用；不 `dispatch`／不 `get_view`／不读不写 `game.state`；行几何公式与常量（`CardFace.dimensions(252)`、`746.0`、`850.0`、`630`、`0.018`）不变 |
 | `ui/main.gd::_hand_presentation_key` | 名字与「节键真源」地位保留；体改为行键：`[locale, row_state, order(uid 数组), pending(uid 数组), {uid: 每卡窄键}]`，不再逐卡 `duplicate(true)` | 覆盖该节渲染实际读取的全部 View 字段与本地显示态（含 `selected_card`／选择态／`card_faces`／pending）；`version` 不进键；每卡窄键只含该卡自身透传字段，不含 `view.card_costs` 与任何 View 级切片 |
 | `ui/main.gd::_hand_key_hit` | 保留为幂等守卫：键相等 ＋ 成员集／每 uid 单节点／行态节点数一致 | 不得变成"什么变了"的判据；失灵只报该 uid 需删＋增（或行态切换），**不得整行重建** |
-| `ui/main.gd`（本片唯一新增面） | `_hand_card_key`／`_hand_card_data`／`_hand_face_slice`（每面值切片的唯一构造点）／`_hand_apply_card`／`_hand_mount_card`／`_hand_release_card`／`_hand_place_row`／`_hand_row_hit`／`_hand_row_plan`／`_hand_reset_row`；`_hand_cards`（每卡缓存：`button_id`＋每卡窄键＋数据＋两面切片＋已应用面）、`_hand_layout`（行几何键） | 输入只有 `view.hand` 行／`card_entry` 结果／纯数据／uid；不读节点文本、不读 `game.state`；每语义一个入口（建卡只经 `_hand_mount_card`、释放只经 `_hand_release_card`、位置只经 `_hand_place_row`、面值只经 `ui/main.gd::_refresh_card_face` 的组合 setter）；不新增公开接口 |
+| `ui/main.gd`（本片唯一新增面） | `_hand_card_key`／`_hand_card_data`／`_hand_face_slice`（每面值切片的唯一构造点）／`_hand_apply_card`／`_hand_mount_card`／`_hand_release_card`／`_hand_place_row`／`_hand_row_plan`／`_hand_reset_row`；`_hand_cards`（每卡缓存：`button_id`＋每卡窄键＋数据＋两面切片＋已应用面）、`_hand_layout`（行几何键） | 输入只有 `view.hand` 行／`card_entry` 结果／纯数据／uid；不读节点文本、不读 `game.state`；每语义一个入口（建卡只经 `_hand_mount_card`、节点销毁只经 `_hand_release_card`、位置只经 `_hand_place_row`、面值只经 `ui/main.gd::_refresh_card_face` 的组合 setter）；不新增公开接口 |
 | `ui/main.gd::_card` | 加一个可选参数（预合并数据，手牌路径传入 `_hand_card_data` 结果）以复用唯一数据构造 | `hand_interaction`／`lift`／`live_state` 语义不变；非手牌调用方（`ui/main.gd::_display_card`、`ui/card_motion.gd`）的既有合并分支**逐字不变** |
 | `ui/main.gd::_refresh_card_face` | 体改为调用 `ui/card_face.gd` 新 setter 的组合（仍是「全字段应用」入口）；翻面接线改为按 uid 读当前数据（`_hand_cards[uid]`），不再捕获构建期 `card` 字典；悬停重入改为延迟调用（与 `fit_text` 同一帧内先布局后重入） | 名字／签名不变；卡面节点写入只在 `ui/card_face.gd` 的 setter 里（不得留第二份实现）；卡面结构不新增嵌套（见下「必须保持」的节点直接子级） |
 | `ui/main.gd::_card_tooltip` | 正文溢出判据改读 `ui/card_face.gd` 的 `text_overflow`（`fit_text` 的结果），不再读 `Content.size`（就地更新后节点尺寸要等引擎排序趟） | 其余行集合、词条框、锚点与显示条件逐字不变 |
 | `ui/main.gd::_card` | 新增可选预合并数据参数（第 9 个，手牌路径显式传 `_hand_card_data` 结果） | 非手牌调用方（`_display_card`／`card_motion`）逐字不传该参数，既有合并分支逐字不变 |
 | `ui/main.gd::_sync_card_faces`／`card_faces`／`card_draw_serials` | 离行 uid 的键改由 `_hand_release_card` 删除（`ui/main.gd::_receive_player_drop` 的写面路径不变） | 面状态仍是 `card_faces` 单一份；`_sync_card_faces` 仍是「新抽牌面→`card_faces`」的唯一例程；`ui/card_motion.gd` 的临时 display 键（`display_motion_*`）不在清理范围 |
 | `ui/main.gd::PRESENT_ADJACENCY` 与表头注释 | `_hand` 行补本片新例程；保留 `_hand → _sync_card_faces`／`_hand_presentation_key` | 只按实现体声明真实直接调用，不加假边；其余节的行不改 |
-| `ui/card_face.gd` | 新增原地更新 setter（每字段一个，值相同即早退）：标题／费用／分类／正文／警告／可用性／词条／条件／art；改写 `ui/card_face.gd::set_mana` 为**按位置／kind 复用**徽章节点与 `StyleBoxFlat`（只改文本、tooltip、字号、`bg_color`／`border_color`；条目数或 kind 变才增删；入参为该面的扁平条目 `[kind, text, detail]`，同 kind 撞名以位置为主、kind 作匹配提示、首个该 kind 保持原名）；多余内容节点出树入池（`_spare`，按槽名／kind 分区）而不是销毁，翻回已应用过的面复用同一实例；`text_overflow` 记录 `fit_text` 的正文溢出结果 | `CardIllustration`／`CardHeader`／`CardTitle`／`CardCost`／`CardMana`（含 `Mana_<kind>`）／`CardText`（含 `Content`、`CardClassification`／`CardEffect`／`CardWarning`／`CardAvailability`）／`CardKeywords`／`CardRequirements` 必须仍是按钮的**直接子节点**且名字不变；`ui/card_face.gd::separate_keywords`／`ui/card_face.gd::dimensions`／`ui/card_face.gd::text_scale`／`ui/card_face.gd::flip_requested`／`ui/card_face.gd::_get_drag_data` 语义不变；不新增 `_process`／tween／第二套节点树 |
+| `ui/card_face.gd` | 新增原地更新 setter（每字段一个，值相同即早退）：标题／费用／分类／正文／警告／可用性／词条／条件／art；改写 `ui/card_face.gd::set_mana` 为**按位置／kind 复用**徽章节点与 `StyleBoxFlat`（只改文本、tooltip、字号、`bg_color`／`border_color`；条目数或 kind 变才增删；入参为该面的扁平条目 `[kind, text, detail]`，同 kind 撞名以位置为主、kind 作匹配提示、首个该 kind 保持原名）；多余内容节点出树入池（`_spare`，按槽名／kind 分区）而不是销毁，翻回已应用过的面复用同一实例；词条与条件共用一条标签组写入路径（`ui/card_face.gd::_write_tags`，样式差异作参数）；`text_overflow` 记录 `fit_text` 的正文溢出结果 | `CardIllustration`／`CardHeader`／`CardTitle`／`CardCost`／`CardMana`（含 `Mana_<kind>`）／`CardText`（含 `Content`、`CardClassification`／`CardEffect`／`CardWarning`／`CardAvailability`）／`CardKeywords`／`CardRequirements` 必须仍是按钮的**直接子节点**且名字不变；`ui/card_face.gd::separate_keywords`／`ui/card_face.gd::dimensions`／`ui/card_face.gd::text_scale`／`ui/card_face.gd::flip_requested`／`ui/card_face.gd::_get_drag_data` 语义不变；不新增 `_process`／tween／第二套节点树 |
 | `ui/card_motion.gd` | **零改动** | `ui/card_motion.gd::positions`／`ui/card_motion.gd::enqueue`／`ui/card_motion.gd::clear` 与 `pending_draws` 的隐藏/显示语义不变（本片把 pending 只当 `visible` 值字段） |
 | `tests/display_ui_cases.gd` | 新增 `static func present_hand_incremental(t)`（P1–P3／N1–N5／E1–E10 的具名 check，含实例 id 集合差助手 `present_hand_nodes`／`present_hand_styles` 与源文本判据）；改写 `DISPLAY present hand rebuilds the card when the presentation key changes` 一条 | 其余既有断言不删不改；`present_routes_hand_or_full` 的 `get_view` 计数断言不放宽；不新增分类文件、不改 `tests/ui_smoke.gd` 的 `UI_MODULES` |
 | `tests/interface_ui_cases.gd` | 新增卡面 setter 逐字段幂等与布局重算断言（含 N3 的真尺寸分支） | 既有卡面布局／卡图扫描（`get_node` 路径、`CardMana` 子节点数＝该面条目数、`art_bottom` 比例、滚动可达性）不删不改 |
