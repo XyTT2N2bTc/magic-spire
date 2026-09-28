@@ -3304,3 +3304,29 @@ flowchart LR
 - 过程：临时探针（键成本、拖拽诊断）均已移除；`*.import`／`*.uid`／`build/` 未入库。
 - 未跑：`-Suite all` 完整回归；窗口其余分类（`casting`／`touch`／`keyboard`／`route`／`body_layout`／`composites`／`baseline` 等）；安卓真机；打包／推送。收尾（只动注释／契约／记录＋一条新断言）：①记录里那条红跑运行号更正为 `20260927T144748632-56464`；②`PRESENT_ADJACENCY` 补 `present → _sync_drag_versions`、`_sync_hero_stage_meters`／`_resource_meter` → `_meter_value_text`，表头删掉「`_menu_drawer` 读 `_drawer_presentation_key`」的不实句、并在 `scene_instances` 枚举里点名 `_enemy_row`／`_place_enemy_row`；③`release-interface.md` 的拒绝提示改为两句原文（「目标已离场或行动已失效。」／「行动已失效，请重新选择。」），覆盖面写全为 `card_buttons`＋`candidate_buttons`；④新增几何断言「局部路径击杀后剩余敌人重排」——绿 `20260927T154455876-57212`（display PASS 987 断言），敏感性：临时去掉 `_refresh_scene_instances_section` 的 `_place_enemy_row(_enemy_row())` → 运行号 `20260927T154638554-51676` 该断言红（`have=["enemy_2@(1178.0, 0.0)/(1.0, 1.0)"]`，幸存者留在双敌行位而未回到单人位 1038），已还原。
 - 每帧成本：`_sync_drag_versions` 在每次 `present`／`render` 各跑一遍 O(存活拖放源) 的写循环（只改一个字段，无分配、无节点重建；只在 `card_buttons`＋`candidate_buttons` 上循环，对局内量级为手牌＋当前行动／体态瓦片）。残留：`_sync_drag_versions` 只覆盖手牌卡面与 `candidate_buttons`（快捷解除栏／身体栏／商店／卡组浏览等模块自建的 `DropTarget` 未纳入，若日后出现「版本自增后拖拽被拒」的症状，先在那些模块补同一例程）。
+
+## 2026-09-28｜手牌卡增量刷新：固定顺序、每卡窄键、面切片缓存（枝 `worker/hand-refresh`，实现者）
+
+- 域：`spire-godot/ui/main.gd`（手牌节 `_hand`／`_hand_presentation_key`／`_hand_key_hit`／`_hand_card_key`／`_hand_card_data`／`_hand_face_slice`／`_hand_apply_card`／`_hand_mount_card`／`_hand_release_card`／`_hand_place_row`／`_hand_row_plan`／`_hand_reset_row`／`_hand_cards`／`_hand_layout`／`_card`／`_refresh_card_face`／`_card_tooltip`／`PRESENT_ADJACENCY`）与 `spire-godot/ui/card_face.gd`（原地更新 setter、`set_mana` 按位置／kind 复用、`text_overflow`）；契约 `docs/spec/response-pipeline.md`／`docs/spec/release-interface.md`／`docs/spec/hand-refresh-dependencies.md`／根 `AGENTS.md`；测试 `tests/display_ui_cases.gd::present_hand_incremental`（P1–P3／N1–N5／E1–E10）与 `tests/interface_ui_cases.gd::card_face_incremental`。唯一被改写的既有断言：`DISPLAY present hand rebuilds the card when the presentation key changes` → `…keeps the card and rewrites its values…`（反向而不删，判据＝同 uid 实例 id 不变＋`CardAvailability` 等于新值＋该卡子树零增删）。
+- 门禁（`spire-godot/`，`GODOT_BIN=…Godot_v4.7.2-stable_win64_console.exe`；**串行**执行，每条跑完确认 `Get-Process Godot*` 为 0）：
+  - `& tools/check.ps1 -UIOnly -UISuite display,interface,body_layout,card_power,targeting,keyboard,touch,localization,hand_assist,encyclopedia,casting,rewards,services -KeepGoing -TimeoutSeconds 1800` → 运行号 `20260928T065101211-31212`：13／13 分类 PASS，`UI PASS: 3443 assertions`，`summary.json` `status=passed`、`before==after=372CC9FBA0E0AB42F7A9EC9CC7987070EB9CF648451D5BFF9F3D1C8ED4A1497F`、`failed=[]`、`unrun=[]`、exit 0。（载荷分类列表外另加 `casting,rewards,services`：`set_mana` 改写的外溢面取证，审查要求。）
+  - `& tools/check.ps1 -Suite architecture -Impact -TimeoutSeconds 900` → `20260928T070508397-34364`：`architecture PASS`，`PASS: 4468 assertions`，同一指纹。
+  - `& tools/check-docs.ps1` → `DOCS PASS: 36 rule-class document(s), 2592 reference(s) checked, allowlist 6 entrie(s)`，exit 0（引擎无关，无独立运行号；同一文件的 `docs` 阶段在三条门禁里均为 passed）。
+  - `& tools/check.ps1 -Suite runner -VerifyRunner` → `20260928T070552510-23932`：`runner PASS`（541 断言）＋7 条负例探针（范围拒绝／脚本错误／超时／失败停止与续跑）全绿。
+- 三套计数（测试侧实例 id 集合差，真窗口、真实点击／拖拽；生产源码无计数器）：
+  - 值变（P1）与纯重排（P3）＝卡面重建 0／整行重建 0／创建 0／销毁 0；P3 的第二次 `present` 位置、实例与子树全同（零写入）。
+  - 翻面（P2）＝按钮与八个直接子节点实例 id 不变、未变魔力条目的徽章节点与 `panel` 样式资源实例 id 不变、翻回零增删、`_hand_cards[uid].sides` 的两面切片对象被复用（`is_same`）。
+  - 出牌／行矩变（N1／N3）＝只释放该 uid，存活卡实例与子树零增删、位置与 `home` 等于新张数几何槽位。
+  - 出牌＋抽牌同提交（E2，结束回合同提交）＝被删 uid 全释放、新 uid 全新建、保留卡实例不变、`_hand_cards` 与手牌对齐。
+  - 清空／从空恢复（E5）＝`EmptyHand` 恰 1／恰 0，`card_faces`／`card_draw_serials`／`_hand_cards` 不含离行 uid；过载行态（S8）＝`ClimaxNarration` 恰 1、卡行与缓存清空，随后恢复。
+  - 满手牌（E6）＝10 张零增删且槽位等式成立；`draw_serial` 变而面不变（E7）＝零写入；无关显示设置（E4）＝零动作、零 `get_view`；`type` 变（N2）＝只重建该 uid。
+  - 现状基线：整行重建＝1（出牌／抽牌／值变场景），`hand` 节中位 13.0 ms——见 `C:\1\tmp\hand-refresh-plan\plan.md` §12 与 `docs/record/equipment-performance.md` 的口径。
+- 子键逐档（`build/probe-hand/key_cost.gd`，headless 同机、200 次／档；探针已删）：`tests/architecture_cases.gd::r1_build("battle",N)`，N＝0／12／26／44 → 每卡键中位 **16／16／18／17 µs**，整行键中位 **91／91／104／92 µs**，每卡切片字节 **436／436／436／436**（非法术卡逐档持平）。整行键字节 2584／2684／2684／2789：增量只来自两张法术卡的 `face_casting`／`availability` 文本随装备变长（magic_slip 670→793、ease 556→638 字节，≈+2.9 字节／件），不是键随件数扇出；时间不随件数增长（对照记录：`_drawer_presentation_key` 1／10／30 件为 44／136／198 µs）。
+- 敏感性（逐条：临时改源码 → 定向分类 → 指定断言红 → 逐字节还原并复核 `git` 指纹回 `372CC9FB…`）：
+  - ①`_hand_apply_card` 改为「释放＋重建该卡」→ `20260928T070624507-28560`：P1／P2／P3 的实例 id、八子级与零增删断言红。
+  - ②每卡键删 `locale` → `20260928T070832853-25952`：E3 的「切回中文」断言红（前向切英文由 `_localize_controls` 兜底，反向无兜底）。
+  - ③`set_mana` 每次新建 `StyleBoxFlat` → `20260928T071043504-23032`：徽章节点与 `panel` 样式资源实例 id 断言红。
+  - ④`_card_tooltip` 溢出判据改回 `Content.size.y` → `20260928T071147829-29028`：悬停详情行集合断言红（审查 D10 时序缺口的守卫）。
+  - ⑤`_hand_release_card` 不清 `card_faces`／`card_draw_serials`／`_hand_cards` → `20260928T071250019-26808`：四表一致性两条红（N1／E5）。
+- 未跑：`-Suite all` 完整回归；窗口其余分类（`route`／`home`／`pressure`／`enemies`／`guard`／`baseline`／`normal_play` 等）；**配对耗时**（`build/present-cost` 口径的 §D 阈值）——未建旧侧基线探针，故本片不报逐对比值，只有结构计数与键成本判据；§G 其余行（`_hand_mount_card` 整行重建、每卡键删 `chosen`、`_hand_place_row` 幂等守卫去掉、`type` 原地变更、pending 可见性走重建、手牌路径回读 `view.card_texts`、每卡键混入 View 级切片、删除步骤 3 的几何键比较）未逐条跑（每条各需一次临时改源码＋定向分类；`chosen` 与 `type` 的断言落点已在 `present_hand_incremental`）；安卓真机、打包、推送。
+- 过程：探针与计时脚本只在 `build/probe-hand/`（登记后已删）；`*.import`／`*.uid`／`build/` 未入库。一条孤儿探针曾在源码带补丁时留下 display 跑 `20260928T063931003-28048`：**作废**（非冻结源；补丁已逐字节还原，指纹复核回冻结值）。

@@ -542,7 +542,10 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _present_needs_full_render (predicate), render (full fallback), header.configure
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local; it also
 # calls _sync_card_faces, the one routine that moves a new draw's face into card_faces
-# for both render and this section), _build_action_rail (["actions"] local),
+# for both render and this section, then runs the fixed order _hand_presentation_key /
+# _hand_row_hit / _hand_row_plan / _hand_reset_row / _hand_apply_card /
+# _hand_release_card / _hand_mount_card / _hand_place_row: key first, per-card values,
+# member add/remove (removal first), geometry last), _build_action_rail (["actions"] local),
 # _refresh_posture_section (["posture"]
 # local), _refresh_resource_section (["resources"] local; it also calls
 # _sync_hero_stage_meters, the one routine that builds and updates the hero-stage
@@ -617,7 +620,22 @@ const PRESENT_ADJACENCY={
  "header._presentation_key":[],
  "_relic_row":["_relic_presentation_key"],
  "_relic_presentation_key":[],
- "_hand":["_sync_card_faces","_hand_presentation_key"],
+ "_hand":["_sync_card_faces","_hand_presentation_key","_hand_row_hit","_hand_row_plan","_hand_reset_row","_hand_apply_card","_hand_release_card","_hand_mount_card","_hand_place_row"],
+ "_hand_row_hit":[],
+ "_hand_row_plan":["_hand_card_data"],
+ "_hand_reset_row":["_unload_hand_section","_climax_narration","_label","_place"],
+ "_unload_hand_section":["_hand_release_card"],
+ "_hand_release_card":[],
+ "_hand_mount_card":["_hand_card_data","_hand_card_key","_hand_apply_card","_card"],
+ "_hand_apply_card":["_hand_face_slice","_hand_choice","display_key","_refresh_card_face"],
+ "_hand_card_key":["card_entry","_hand_availability_slice","_selecting_hand","_hand_choice"],
+ "_hand_card_data":["card_entry"],
+ "_hand_face_slice":["CardFace.separate_keywords"],
+ "_hand_place_row":[],
+ "_card":["_place","_label","_refresh_card_face","_hand_apply_card","_clear_player_picker","_clear_drop_targets","_refresh_body_details"],
+ "_refresh_card_face":["_hand_face_slice","_ignore_mouse","_card_tooltip"],
+ "_ignore_mouse":[],
+ "_card_tooltip":["_show_term","_hide_term"],
  "_sync_card_faces":[],
  "_sync_drag_versions":[],
  "_hand_presentation_key":[],
@@ -1534,14 +1552,18 @@ func _record_projection_miss(point: String, key: String) -> void:
   if entry.point==point and entry.key==key and entry.view_version==version: return
  projection_misses.append({"point":point,"key":key,"view_version":version})
 
-func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0, parent: Node=null, hand_interaction: bool=true, lift: bool=true, live_state: bool=true) -> Button:
+func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0, parent: Node=null, hand_interaction: bool=true, lift: bool=true, live_state: bool=true, merged: Dictionary={}) -> Button:
  var dimensions=CardFace.dimensions(rect.size.y)
  rect.position.x+=(rect.size.x-dimensions.x)/2
  rect.size=dimensions
- card=card.duplicate()
- if live_state:
-  card.merge(view.card_texts.get(card.type,{}),true)
-  card.merge(view.get("card_instances",{}).get(card.get("physical_uid",card.uid),{}),true)
+ # 手牌路径显式传入 `_hand_card_data` 的合并结果（唯一数据构造点）；其余调用方逐字保持既有合并分支。
+ if merged.is_empty():
+  card=card.duplicate()
+  if live_state:
+   card.merge(view.card_texts.get(card.type,{}),true)
+   card.merge(view.get("card_instances",{}).get(card.get("physical_uid",card.uid),{}),true)
+ else:
+  card=merged
  var button=CardFace.new()
  button.art_settings=display_settings
  button.localize=localization.display
@@ -1571,7 +1593,10 @@ func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0,
   card_faces[card.uid]=not card_faces.get(card.uid,false)
   player_pick=false
   selected_candidate=""
-  _refresh_card_face(button,card)
+  # 手牌卡按 uid 读当前数据与键（不再用构建期副本）；面切换走同一条逐卡应用路径。
+  var live=_hand_cards.get(String(card.uid),{})
+  if hand_interaction and not live.is_empty(): _hand_apply_card(String(card.uid),live.data,live.key)
+  else: _refresh_card_face(button,card)
   if hand_interaction:
    _clear_player_picker();_clear_drop_targets()
    _refresh_body_details())
@@ -1622,55 +1647,38 @@ func _display_card(type: String, parent: Node, fn: Callable=Callable(), key: Str
  button.name="DisplayCard_"+key
  return button
 
+# 卡面字段的唯一写入组合（保留名字与签名）：全部经 ui/card_face.gd 的原地 setter，
+# 每个 setter 值相同即早退 ⇒ 只写差字段；节点写入不得在这里写第二份实现。
 func _refresh_card_face(button: Button, card: Dictionary) -> void:
  button.free_face=card_faces.get(card.uid,false)
  var side="free" if button.free_face else "bound"
- button.effect_free=card.free_faces[side];button.face_name=card.face_names[side]
- button.set_mana(card.face_mana[side])
- button.get_node("CardCost").text=card.get("face_costs",{}).get("free" if button.free_face else "bound",card.cost)
- button.chosen=selected_card==card.uid
+ var values=_hand_face_slice(card,side)
+ button.rarity=String(values.rarity)
+ button.single_face=bool(values.single_face)
+ button.face_name=String(values.face_name)
+ button.chosen=bool(values.chosen)
  if not button.drag_payload.is_empty(): button.drag_payload.free=button.free_face
+ button.set_art(String(card.type),bool(values.effect_free))
+ button.set_title(String(values.title))
+ button.set_cost(String(values.cost))
+ button.set_mana(values.mana)
+ button.set_classification(String(values.classification))
+ button.set_effect(String(values.effect))
+ button.set_warning(String(values.warning))
+ button.set_availability(String(values.availability))
+ button.set_keywords(values.keywords)
+ button.set_requirements(values.requirements)
+ if values.has("dim"): button.modulate=Color(0.55,0.55,0.55,1) if bool(values.dim) else Color.WHITE
  var text_area=button.get_node("CardText")
  text_area.scroll_vertical=0
- var textbox=text_area.get_node("Content")
- for child in textbox.get_children():
-  textbox.remove_child(child);child.queue_free()
- var classification=_label(card.get("face_type_names",{}).get(side,card.type_name)+" · "+card.rarity_name+("" if card.single_face else (" · "+card.face_names[side])),11,button.RARITY_COLORS[card.rarity])
- classification.name="CardClassification";textbox.add_child(classification)
- var warning=card.get("face_warnings",{}).get(side,"")
- var copy=CardFace.separate_keywords(card.face_effects[side].replace(warning,"") if warning!="" else card.face_effects[side],card.face_keywords[side])
- if card.get("retained",false) and "保留" not in copy.keywords: copy.keywords.append("保留")
- var keywords=button.get_node("CardKeywords")
- for child in keywords.get_children():
-  keywords.remove_child(child);child.queue_free()
- for keyword in copy.keywords:
-  var tag=_label(keyword,roundi(11*button.text_scale()),GOLD);tag.autowrap_mode=TextServer.AUTOWRAP_OFF
-  keywords.add_child(tag)
- keywords.visible=not copy.keywords.is_empty()
- var body=_label(copy.body,14,TEXT)
- body.visible=body.text!=""
- body.name="CardEffect";textbox.add_child(body)
- if warning!="":
-  var warning_label=_label(warning,14,RED);warning_label.name="CardWarning";textbox.add_child(warning_label)
- var requirements=button.get_node("CardRequirements")
- for child in requirements.get_children():
-  requirements.remove_child(child);child.queue_free()
- for text in card.face_requirements[side]:
-  var requirement=_label(text,11,CYAN)
-  requirement.name="CardRequirement";requirement.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
-  requirements.add_child(requirement)
- requirements.visible=requirements.get_child_count()>0
- _ignore_mouse(requirements)
- if card.has("availability"):
-  var availability=card.availability.free if button.free_face else card.availability.bound
-  button.modulate=Color(0.55,0.55,0.55,1) if availability.dim else Color.WHITE
-  if not availability.usable and availability.text!="":
-   var status=_label(availability.text,11,TEXT)
-   status.name="CardAvailability";textbox.add_child(status)
- _ignore_mouse(textbox)
- button.fit_text.call_deferred()
+ _ignore_mouse(text_area.get_node("Content"))
+ _ignore_mouse(button.get_node("CardRequirements"))
  button.queue_redraw()
- if term_anchor==button or button.has_focus() or button.get_global_rect().has_point(get_global_mouse_position()): _card_tooltip(button,card)
+ if term_anchor==button or button.has_focus() or button.get_global_rect().has_point(get_global_mouse_position()):
+  # 悬停重入与各 setter 的 `fit_text` 同为延迟调用，且入队更晚 ⇒ 详情读到的是本次值算完的
+  # 溢出判据（`button.text_overflow`），不是上一面的布局结果；按钮若在同帧被释放则跳过。
+  (func():
+   if is_instance_valid(button): _card_tooltip(button,card)).call_deferred()
 
 func _card_tooltip(button: Button, card: Dictionary) -> void:
  var side="free" if button.free_face else "bound"
@@ -1679,7 +1687,9 @@ func _card_tooltip(button: Button, card: Dictionary) -> void:
  var text_area=button.get_node("CardText")
  var content=text_area.get_node("Content")
  var keyboard_details=is_instance_valid(keyboard_input) and keyboard_input.selection.get("uid","")==card.uid
- if content.size.y>text_area.size.y or keyboard_details or (is_instance_valid(touch_input) and touch_input.held and touch_input.details_allowed):
+ # 溢出判据读 `ui/card_face.gd::fit_text` 的结果（`text_overflow`），不读 `Content.size`：
+ # 就地更新后节点尺寸要等引擎排序趟，会读到上一次布局的高度。
+ if button.text_overflow or keyboard_details or (is_instance_valid(touch_input) and touch_input.held and touch_input.details_allowed):
   for label in content.get_children():
    if label.visible and label.name!="CardClassification": lines.append(label.text)
   for label in button.get_node("CardRequirements").get_children(): lines.append(label.text)
@@ -1709,68 +1719,283 @@ func _refresh_body_details() -> void:
  if selected_card!="" and not _selecting_hand(): DragTargets.focus_bodies(self,{"card_uid":selected_card,"free":card_faces.get(selected_card,false),"version":view.version})
 
 var _hand_key=[]
+# 每卡缓存：uid → {button_id, key=[数据部分, 面选择位], data, sides={面: 值切片}, side=已应用面}。
+# `button_id` 是唯一防"跨按钮实例复用旧切片"的守卫；离行 uid 由 `_hand_release_card` 删除。
+var _hand_cards={}
+# 行几何键（`_hand_place_row` 的唯一写入点写入）：顺序与张数未变时重排步一次都不调用。
+var _hand_layout=[]
 
+# 每卡窄键的唯一计算点：`view.hand` 行 ∪ `card_entry(type,uid)` ∪ 本地显示态（`card_faces`／选择态／
+# pending）∪ locale。不整行深拷贝、不读节点、不读 View 级切片（候选／身体／装备／`card_costs`）；
+# 字段取值与 `_hand_card_data` 同一先后（entry 覆盖 row），键与值不会两处取数。
+# 返回 [数据部分, 面选择位]：翻面只动后一位，数据部分不变 ⇒ 该卡的值切片不重建（裁定 2 判据 ③）。
+func _hand_card_key(row) -> Array:
+ var uid=String(row.uid)
+ var type=String(row.type)
+ var entry=card_entry(type,uid)
+ var availability=row.get("availability",{})
+ var castings=entry.get("face_casting",row.get("face_casting",{}))
+ var faces={}
+ for side in ["bound","free"]:
+  var mana=[]
+  for item in entry.get("face_mana",row.get("face_mana",{})).get(side,[]):
+   mana.append([String(item.get("kind","")),String(item.get("text","")),String(item.get("detail",""))])
+  var face_cast=castings.get(side,{}) if castings is Dictionary else {}
+  faces[side]=[
+   String(entry.get("face_names",row.get("face_names",{})).get(side,"")),
+   bool(entry.get("free_faces",row.get("free_faces",{})).get(side,false)),
+   String(entry.get("face_costs",row.get("face_costs",{})).get(side,row.get("cost",""))),
+   mana,
+   String(entry.get("face_type_names",row.get("face_type_names",{})).get(side,row.get("type_name",""))),
+   String(entry.get("face_warnings",row.get("face_warnings",{})).get(side,"")),
+   Array(entry.get("face_keywords",row.get("face_keywords",{})).get(side,[])).duplicate(),
+   Array(entry.get("face_requirements",row.get("face_requirements",{})).get(side,[])).duplicate(),
+   String(entry.get("face_effects",row.get("face_effects",{})).get(side,"")),
+   bool(entry.get("cast_faces",row.get("cast_faces",{})).get(side,false)),
+   String(face_cast.get("percent","")),String(face_cast.get("formula","")),
+   _hand_availability_slice(availability.get(side,{}) if availability is Dictionary else {}),
+  ]
+ var casting=entry.get("casting",row.get("casting",{}))
+ var selection=[]
+ if _selecting_hand():
+  var choice=_hand_choice(uid)
+  selection=[choice.is_empty(),not choice.is_empty() and bool(choice.get("valid",false))]
+ var input=[
+  uid,type,String(entry.get("name",row.get("name",""))),String(row.get("cost","")),
+  bool(entry.get("single_face",row.get("single_face",false))),bool(entry.get("retained",row.get("retained",false))),
+  bool(entry.get("unplayable",row.get("unplayable",false))),
+  String(entry.get("rarity",row.get("rarity",""))),String(entry.get("rarity_name",row.get("rarity_name",""))),
+  String(entry.get("type_name",row.get("type_name",""))),
+  int(row.get("draw_serial",0)),String(entry.get("note",row.get("note",""))),
+  [String(casting.get("percent","")),String(casting.get("formula",""))] if casting is Dictionary else [],
+  faces.bound,faces.free,String(selected_card)==uid,
+  is_instance_valid(card_motion) and card_motion.pending_draws.has(uid),selection,String(localization.locale),
+ ]
+ return [input,int(bool(card_faces.get(uid,false)))]
+
+# 手牌卡数据的唯一构造点：行切片 ⊕ `card_entry(type,uid)`（与 `_card` 的既有合并先后一致）。
+func _hand_card_data(row) -> Dictionary:
+ var data=row.duplicate()
+ data.merge(card_entry(String(row.type),String(row.uid)),true)
+ return data
+
+# 每面值切片的唯一构造点（裁定 2 的"每 (card, side) 值切片"）：只读合并数据，
+# 不读节点、不读 View 级切片；写进节点的取值都在这里定一次。
+func _hand_face_slice(data: Dictionary, side: String) -> Dictionary:
+ var names=data.get("face_names",{})
+ var warning=String(data.get("face_warnings",{}).get(side,""))
+ var effect=String(data.get("face_effects",{}).get(side,""))
+ var keywords=data.get("face_keywords",{}).get(side,[])
+ var copy=CardFace.separate_keywords(effect.replace(warning,"") if warning!="" else effect,keywords)
+ if bool(data.get("retained",false)) and "保留" not in copy.keywords: copy.keywords.append("保留")
+ var mana=[]
+ for item in data.get("face_mana",{}).get(side,[]):
+  mana.append([String(item.get("kind","")),String(item.get("text","")),String(item.get("detail",""))])
+ var availability=data.get("availability",{})
+ var face_availability=availability.get(side,{}) if availability is Dictionary else {}
+ var usable=bool(face_availability.get("usable",true))
+ var slice={
+  "rarity":String(data.get("rarity","")),
+  "single_face":bool(data.get("single_face",false)),
+  "chosen":String(selected_card)==String(data.get("uid","")),
+  "effect_free":bool(data.get("free_faces",{}).get(side,false)),
+  "face_name":String(names.get(side,"")),
+  "title":String(data.get("name","")),
+  "cost":String(data.get("face_costs",{}).get(side,data.get("cost",""))),
+  "mana":mana,
+  "classification":String(data.get("face_type_names",{}).get(side,data.get("type_name","")))+" · "+String(data.get("rarity_name",""))+("" if bool(data.get("single_face",false)) else (" · "+String(names.get(side,"")))),
+  "effect":String(copy.body),
+  "warning":warning,
+  "keywords":copy.keywords,
+  "requirements":Array(data.get("face_requirements",{}).get(side,[])).duplicate(),
+ }
+ if availability is Dictionary:
+  slice["availability"]="" if usable else String(face_availability.get("text",""))
+  slice["dim"]=bool(face_availability.get("dim",false))
+ return slice
+
+# 节键真源（门禁与提交脏集共用）：[locale, 行态, 顺序, pending, {uid: 每卡窄键}]。
+# 每卡窄键覆盖该卡渲染实际读取的全部透传字段与本地显示态；`version` 不进键。
 func _hand_presentation_key() -> Array:
- var cards=[]
- var texts=view.get("card_texts",{})
- var instances=view.get("card_instances",{})
- for card in view.hand:
-  var uid=String(card.uid)
-  var row=card.duplicate(true)
-  var type_text=texts.get(String(card.type),{})
-  if type_text is Dictionary: row.merge(type_text.duplicate(true),true)
-  var inst=instances.get(String(card.get("physical_uid",uid)),{})
-  if inst is Dictionary: row.merge(inst.duplicate(true),true)
-  var availability=row.get("availability",{})
-  var faces={}
-  for field in ["face_names","face_effects","face_keywords","face_mana","face_costs","face_type_names","face_warnings","face_requirements"]:
-   if row.has(field): faces[field]=row[field].duplicate(true) if row[field] is Dictionary or row[field] is Array else row[field]
-  var extra={}
-  for field in ["name","rarity","rarity_name","type_name","cost","free_faces","retained"]:
-   if row.has(field): extra[field]=row[field].duplicate(true) if row[field] is Dictionary or row[field] is Array else row[field]
-  var free_av=availability.get("free",{}) if availability is Dictionary else {}
-  var bound_av=availability.get("bound",{}) if availability is Dictionary else {}
-  cards.append([uid,String(card.type),card.get("draw_serial",0),bool(card.get("draw_free",false)),bool(row.get("single_face",false)),_hand_availability_slice(free_av),_hand_availability_slice(bound_av),faces,extra,bool(card_faces.get(uid,false))])
+ var cards={}
+ var order=[]
  var pending=[]
  if is_instance_valid(card_motion): pending=card_motion.pending_draws.keys()
  pending=pending.duplicate();pending.sort()
- return [cards,String(selected_card),_selecting_hand(),pending]
+ for row in view.hand:
+  var uid=String(row.uid)
+  order.append(uid)
+  cards[uid]=_hand_card_key(row)
+ var state="climax" if bool(view.pressure.overloaded) else ("empty" if view.hand.is_empty() else "cards")
+ return [String(localization.locale),state,order,pending,cards]
 
 func _hand_availability_slice(row) -> Array:
  if not (row is Dictionary): return [true,false,""]
  return [bool(row.get("usable",true)),bool(row.get("dim",false)),String(row.get("text",""))]
 
+# 幂等守卫：键相等 ＋ 成员集／每 uid 单节点／该 uid 缓存与活按钮相符 ＋ 行态节点数一致。
+# 它只回答"能不能零动作"，不回答"什么变了"（变化由 `_hand_row_plan` 的纯数据 diff 判定）。
 func _hand_key_hit(key) -> bool:
  if _hand_key!=key: return false
  if not find_children("ClimaxNarration","",true,false).is_empty(): return false
  if view.hand.is_empty():
-  return card_buttons.is_empty() and find_children("HandCard_*","",true,false).is_empty() and find_children("EmptyHand","",true,false).size()==1
+  return card_buttons.is_empty() and _hand_cards.is_empty() and find_children("HandCard_*","",true,false).is_empty() and find_children("EmptyHand","",true,false).size()==1
  if not find_children("EmptyHand","",true,false).is_empty(): return false
  if card_buttons.size()!=view.hand.size(): return false
  for card in view.hand:
   var uid=String(card.uid)
   var button=card_buttons.get(uid)
   if not is_instance_valid(button) or not button.is_inside_tree(): return false
+  var entry=_hand_cards.get(uid,{})
+  if entry.is_empty() or int(entry.get("button_id",0))!=button.get_instance_id(): return false
   if find_children("HandCard_"+uid,"",true,false).size()!=1: return false
  return true
 
-func _unload_hand_section() -> void:
+# 释放的唯一入口：一次性清 `card_buttons`／`candidate_buttons`（含该按钮的键）／`card_faces`／
+# `card_draw_serials`／`_hand_cards` 中该 uid 的记录，再释放节点。
+func _hand_release_card(uid: String) -> void:
+ var button=card_buttons.get(uid)
+ card_buttons.erase(uid)
+ if button!=null:
+  for key in candidate_buttons.keys():
+   if candidate_buttons[key]==button: candidate_buttons.erase(key)
+ card_faces.erase(uid)
+ card_draw_serials.erase(uid)
+ _hand_cards.erase(uid)
+ if not is_instance_valid(button): return
+ var owner=button.get_parent()
+ if owner!=null: owner.remove_child(button)
+ button.queue_free()
+
+# 建卡的唯一入口（步骤 2）：数据与键都取自同一条行（唯一数据构造点），登记进 `card_buttons`
+# 与每卡缓存；行矩由步骤 3 的 `_hand_place_row` 写（几何只在那一个地方算）。
+func _hand_mount_card(uid: String, row) -> void:
+ var data=_hand_card_data(row)
+ var key=_hand_card_key(row)
+ var button=_card(data,Rect2(Vector2.ZERO,Vector2.ZERO),func(): _activate_card(uid),0.0,null,true,true,true,data)
+ button.name="HandCard_"+uid
+ card_buttons[uid]=button
+ _hand_cards[uid]={"button_id":button.get_instance_id(),"key":key,"data":data,"sides":{}}
+ _hand_apply_card(uid,data,key)
+
+# 逐卡值更新的唯一写入点（步骤 1）：先按每卡窄键的数据部分判定该卡两面值切片是否要重建
+# （裁定 2 判据 ③：数据部分不变则切片不重建、翻回已应用过的面零写入），需要时经
+# `_refresh_card_face` 走同一份"全字段组合"（各 setter 值相同即早退，只写差字段），
+# 随后写选择态／pending 这些卡级值字段。不读节点文本、不读 `game.state`。
+func _hand_apply_card(uid: String, data: Dictionary, key: Array) -> void:
+ var entry=_hand_cards.get(uid,{})
+ var button=card_buttons.get(uid)
+ if entry.is_empty() or not is_instance_valid(button): return
+ if int(entry.get("button_id",0))!=button.get_instance_id(): return
+ var sides=entry.get("sides",{})
+ var stored=entry.get("key",[])
+ if stored.size()==2 and key.size()==2 and stored[0]!=key[0]: sides={}
+ var side="free" if bool(card_faces.get(uid,false)) else "bound"
+ var applied=String(entry.get("side",""))
+ var previous=sides.get(applied) if applied!="" else null
+ var target=sides.get(side)
+ if target==null: target=_hand_face_slice(data,side)
+ # 面切换（换面本身必须写 `free_face`）或该面值切片与已应用的不同 ⇒ 走同一份全字段组合；
+ # 只有"键变但值没变"（如同一面重抽的 draw_serial）才一个 setter 都不调。
+ if applied!=side or previous==null or previous!=target: _refresh_card_face(button,data)
+ sides[side]=target
+ entry["sides"]=sides
+ entry["side"]=side
+ entry["key"]=[key[0] if key.size()>0 else [],int(bool(card_faces.get(uid,false)))]
+ entry["data"]=data
+ var selecting=_selecting_hand()
+ var choice=_hand_choice(uid) if selecting else {}
+ var selectable=selecting and not choice.is_empty() and bool(choice.get("valid",false))
+ if not selecting:
+  for candidate in candidate_buttons.keys():
+   if candidate_buttons[candidate]==button: candidate_buttons.erase(candidate)
+ elif not choice.is_empty():
+  candidate_buttons[display_key(choice.payload)]=button
+ if button.get_meta("hand_selectable",false)!=selectable: button.set_meta("hand_selectable",selectable)
+ if button.disabled!=(selecting and not selectable): button.disabled=selecting and not selectable
+ var chosen=selectable if selecting else String(selected_card)==uid
+ if button.chosen!=chosen: button.chosen=chosen;button.queue_redraw()
+ var unique=not uid.begins_with("reward_")
+ if selecting or bool(data.get("unplayable",false)) or not unique:
+  if not button.drag_payload.is_empty(): button.drag_payload={}
+ else:
+  var payload={"card_uid":uid,"free":bool(card_faces.get(uid,false)),"version":view.version}
+  if button.drag_payload.get("card_uid","")!=uid or bool(button.drag_payload.get("free",false))!=bool(payload.free) or int(button.drag_payload.get("version",-1))!=int(payload.version): button.drag_payload=payload
+ var dim=bool(data.get("availability",{}).get(side,{}).get("dim",false)) if data.get("availability",{}) is Dictionary else false
+ var tint=Color(0.45,0.45,0.45,1) if selecting and not selectable else (Color(0.55,0.55,0.55,1) if dim else Color.WHITE)
+ if button.modulate!=tint: button.modulate=tint
+ var hidden=is_instance_valid(card_motion) and card_motion.pending_draws.has(uid)
+ if button.visible==hidden: button.visible=not hidden
+
+# 纯数据 diff 的唯一计算点（步骤 0）：只比投影与本地显示态，不读节点文本、不读 `game.state`。
+func _hand_row_plan(row) -> Dictionary:
+ var keys=row[4] if row.size()>4 and row[4] is Dictionary else {}
+ var order=row[2] if row.size()>2 and row[2] is Array else []
+ var state=String(row[1]) if row.size()>1 else "cards"
+ var previous=String(_hand_key[1]) if _hand_key is Array and _hand_key.size()>1 else ""
+ var registered={}
+ var broken=[]
  for uid in card_buttons.keys():
   var button=card_buttons[uid]
-  if is_instance_valid(button):
-   var stale=[]
-   for key in candidate_buttons.keys():
-    if candidate_buttons[key]==button: stale.append(key)
-   for key in stale: candidate_buttons.erase(key)
-   var owner=button.get_parent()
-   if owner!=null: owner.remove_child(button)
-   button.queue_free()
- card_buttons.clear()
+  if not is_instance_valid(button) or not button.is_inside_tree() or find_children("HandCard_"+String(uid),"",true,false).size()!=1:
+   broken.append(String(uid));continue
+  registered[String(uid)]=button
+ var members={}
+ var rows={}
+ for card in view.hand:
+  var uid=String(card.uid)
+  members[uid]=true
+  rows[uid]=card
+ var changed=[]
+ for uid in members:
+  if not registered.has(uid) or broken.has(uid): continue
+  var entry=_hand_cards.get(uid,{})
+  if not entry.has("key"): changed.append(uid);continue
+  # 边界 ②：牌型变（同 uid 换 type）只重建该 uid，不提供 `CardFace.symbol` 的原地变更。
+  var cached=entry.key
+  var fresh=keys.get(uid,[])
+  if cached.size()==2 and fresh.size()==2 and String(cached[0][1])!=String(fresh[0][1]):
+   broken.append(uid)
+   continue
+  if cached!=fresh: changed.append(uid)
+ var removed=[]
+ for uid in registered.keys()+_hand_cards.keys():
+  if not members.has(String(uid)) and not removed.has(String(uid)): removed.append(String(uid))
+ for uid in broken:
+  if not removed.has(uid): removed.append(uid)
+ var added=[]
+ for uid in members:
+  if not registered.has(uid): added.append(uid)
+ for uid in broken:
+  if not added.has(uid): added.append(uid)
+ var data={}
+ for uid in changed: data[uid]=_hand_card_data(rows[uid])
+ var empty_nodes=find_children("EmptyHand","",true,false).size()
+ var climax_nodes=find_children("ClimaxNarration","",true,false).size()
+ var row_broken=false
+ if state=="cards": row_broken=empty_nodes>0 or climax_nodes>0
+ elif state=="empty": row_broken=empty_nodes!=1 or climax_nodes>0 or not card_buttons.is_empty()
+ else: row_broken=climax_nodes!=1 or empty_nodes>0 or not card_buttons.is_empty()
+ return {"changed":changed,"removed":removed,"added":added,"broken":broken,"data":data,"keys":keys,"rows":rows,"order":order,"row_state":state,"row_reset":state!=previous or row_broken,"layout_changed":order!=_hand_layout or not added.is_empty() or not removed.is_empty()}
+
+# 行态（cards／empty／climax）的唯一切换点：行态变了才逐卡释放，再清行态节点并按目标行态挂起；
+# 目标仍是 cards 时只清残留行态节点，不动存活成员（失灵修复不得退回整行重建）。
+func _hand_reset_row(state: String) -> void:
+ var previous=String(_hand_key[1]) if _hand_key is Array and _hand_key.size()>1 else ""
+ if previous!=state: _unload_hand_section()
  for node in find_children("HandCard_*","",true,false)+find_children("EmptyHand","",true,false)+find_children("ClimaxNarration","",true,false):
   if not is_instance_valid(node): continue
   var owner=node.get_parent()
   if owner!=null: owner.remove_child(node)
   node.queue_free()
+ if state=="empty":
+  var empty=_label("手牌已用完",19,MUTED);empty.name="EmptyHand"
+  _place(empty,Rect2(570,749,780,45))
+ elif state=="climax": _climax_narration()
+ _hand_layout=[]
+
+func _unload_hand_section() -> void:
+ for uid in _hand_cards.keys()+card_buttons.keys(): _hand_release_card(String(uid))
 
 # A newly drawn card shows the face it was dealt on. render and the local hand
 # section share this one sync; without it a local refresh keeps the face of the
@@ -1796,40 +2021,41 @@ func _sync_drag_versions() -> void:
   payload["version"]=view.version
   button.set("drag_payload",payload)
 
+# 手牌行的唯一例程（`present` 局部路径与 `render` 全量路径共用）。固定顺序：
+# 拦截（行键＋纯数据 diff）→ 逐卡值更新 → 成员增删（先删后增）→ 重排（几何/顺序未变则零调用）。
 func _hand() -> void:
  _sync_card_faces()
  var key=_hand_presentation_key()
- if _hand_key_hit(key):
-  return
- _unload_hand_section()
- if view.pressure.overloaded:
-  _climax_narration()
-  _hand_key=key
-  return
- if view.hand.is_empty():
-  var empty=_label("手牌已用完",19,MUTED);empty.name="EmptyHand"
-  _place(empty,Rect2(570,749,780,45))
-  _hand_key=key
-  return
- var count=view.hand.size()
+ if _hand_key_hit(key): return
+ var plan=_hand_row_plan(key)
+ if plan.row_reset:
+  _hand_reset_row(String(plan.row_state))
+  if String(plan.row_state)!="cards":
+   _hand_key=key
+   return
+ for uid in plan.changed: _hand_apply_card(String(uid),plan.data[uid],plan.keys[uid])
+ for uid in plan.removed: _hand_release_card(String(uid))
+ for uid in plan.added: _hand_mount_card(String(uid),plan.rows[uid])
+ if plan.layout_changed: _hand_place_row(plan.order)
+ _hand_key=key
+
+# 行几何与位置的唯一写入点：顺序／张数／（常量）卡面尺寸未变 ⇒ 调用方连这一步都不走。
+func _hand_place_row(order) -> void:
  var dimensions=CardFace.dimensions(252)
+ var count=order.size()
  var step=minf(dimensions.x+8,746.0/maxi(1,count-1))
  var start=850.0-(float(count-1)*step+dimensions.x)/2
- for i in range(count):
-  var card=view.hand[i]
-  var mid=float(i)-float(count-1)/2
-  var y=630+absf(mid)*4
-  var b=_card(card,Rect2(Vector2(start+i*step,y),dimensions),func(): _activate_card(card.uid),mid*0.018)
-  b.name="HandCard_"+String(card.uid)
-  card_buttons[card.uid]=b
-  if _selecting_hand():
-   var choice=_hand_choice(card.uid)
-   b.drag_payload={};b.disabled=choice.is_empty() or not choice.valid
-   b.chosen=not b.disabled;b.modulate=Color(0.45,0.45,0.45,1) if b.disabled else Color.WHITE
-   b.set_meta("hand_selectable",not b.disabled);b.queue_redraw()
-   if not choice.is_empty(): candidate_buttons[display_key(choice.payload)]=b
-  if is_instance_valid(card_motion) and card_motion.pending_draws.has(card.uid): b.hide()
- _hand_key=key
+ for index in range(count):
+  var button=card_buttons.get(String(order[index]))
+  if not is_instance_valid(button): continue
+  var mid=float(index)-float(count-1)/2
+  if button.size!=dimensions: button.size=dimensions
+  button.position=Vector2(start+index*step,630+absf(mid)*4)
+  button.home=button.position
+  button.pivot_offset=Vector2(dimensions.x/2,dimensions.y)
+  button.resting_angle=mid*0.018
+  button.rotation=mid*0.018
+ _hand_layout=order.duplicate()
 
 func _climax_narration() -> void:
  var panel=_panel(Rect2(530,636,790,138));panel.name="ClimaxNarration"

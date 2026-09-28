@@ -169,6 +169,7 @@
 | 固定点存档 | docs/spec/save-fixed-points.md |
 | 本局种子标识与查看复制 | docs/spec/seed-identity.md |
 | 本片依赖约束（cleaner 核对） | docs/spec/seed-feedback-dependencies.md |
+| 手牌卡增量刷新（cleaner 核对） | docs/spec/hand-refresh-dependencies.md |
 | 本局回顾（战报面板） | docs/spec/run-review.md |
 | 本局回顾依赖约束（cleaner 核对） | docs/spec/run-review-dependencies.md |
 | 卡面词条悬停显示 | docs/spec/card-terms.md |

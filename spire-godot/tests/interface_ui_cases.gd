@@ -269,11 +269,140 @@ static func press(t, name: String) -> void:
  await t.mouse_button(point,MOUSE_BUTTON_LEFT,true)
  await t.mouse_button(point,MOUSE_BUTTON_LEFT,false)
 
+# ---- 卡面原地更新 setter（hand refresh，本片）：逐字段幂等、布局重算与真尺寸变 ----
+
+static func face_nodes(face) -> Dictionary:
+ var out={}
+ if face==null or not is_instance_valid(face): return out
+ var pending: Array=[face]
+ while not pending.is_empty():
+  var node=pending.pop_back()
+  out[node.get_instance_id()]=String(node.name)
+  for child in node.get_children(): pending.append(child)
+ return out
+
+static func face_children(face) -> Dictionary:
+ var out={}
+ for child in face.get_children(): out[String(child.name)]=child.get_instance_id()
+ return out
+
+static func face_badges(face) -> Array:
+ var out=[]
+ var group=face.get_node_or_null("CardMana")
+ if group==null: return out
+ for badge in group.get_children():
+  out.append([String(badge.name),badge.get_instance_id(),badge.get_theme_stylebox("panel").get_instance_id() if badge.has_theme_stylebox_override("panel") else 0])
+ return out
+
+static func card_face_incremental(t) -> void:
+ var ui=t.ui
+ var data=preload("res://data/encyclopedia.gd").card("magic_slip")
+ data.uid="setter_probe_magic_slip"
+ var face=ui._card(data,Rect2(-2000,-2000,184,252),func():pass,0,ui.layout,false,false)
+ face.lift_on_hover=false
+ ui.card_faces[data.uid]=false
+ ui._refresh_card_face(face,data)
+ face.fit_text()
+ await t.frames()
+ var base_nodes=face_nodes(face)
+ var base_children=face_children(face)
+ var base_labels=[]
+ for label in face.get_node("CardText/Content").get_children(): base_labels.append([String(label.name),String(label.text),label.visible])
+ t.check(base_children.size()==8 and base_children.has("CardIllustration") and base_children.has("CardText") and base_children.has("CardMana"),"FACE SETTER probe keeps the eight direct children: "+str(base_children.keys()))
+ var art_before=face.art_bottom
+ var title_before=String(face.get_node("CardTitle").text)
+ ui._refresh_card_face(face,data)
+ face.fit_text()
+ await t.frames()
+ var labels_again=[]
+ for label in face.get_node("CardText/Content").get_children(): labels_again.append([String(label.name),String(label.text),label.visible])
+ t.check(face_nodes(face)==base_nodes,"FACE SETTER reapplying the same values creates and destroys nothing")
+ t.check(labels_again==base_labels and String(face.get_node("CardTitle").text)==title_before and is_equal_approx(face.art_bottom,art_before),"FACE SETTER reapplying the same values rewrites no text and no geometry")
+ var cost=String(face.get_node("CardCost").text)
+ face.set_cost("8")
+ t.check(String(face.get_node("CardCost").text)=="8","FACE SETTER set_cost writes the new cost in place")
+ face.set_cost("8")
+ t.check(face_nodes(face)==base_nodes,"FACE SETTER set_cost with the same value keeps every node")
+ face.set_cost(cost)
+ face.set_title("原地标题")
+ t.check(String(face.get_node("CardTitle").text).contains("原地标题"),"FACE SETTER set_title rewrites the header in place")
+ face.set_title("原地标题")
+ t.check(face_nodes(face)==base_nodes,"FACE SETTER set_title with the same value keeps every node")
+ face.set_effect("短正文。")
+ face.fit_text()
+ t.check(String(face.get_node("CardText/Content/CardEffect").text)=="短正文。","FACE SETTER set_effect rewrites the body in place")
+ face.set_effect("")
+ face.fit_text()
+ t.check(not face.text_overflow,"FACE SETTER emptying the body clears the recorded overflow")
+ face.set_effect("使用前请确认目标。\n".repeat(12))
+ face.fit_text()
+ t.check(face.text_overflow,"FACE SETTER growing the body records the overflow from fit_text")
+ t.check(face_nodes(face)==base_nodes,"FACE SETTER body changes keep every node")
+ ui._card_tooltip(face,data)
+ var popup=ui.find_child("TermExplanation",true,false)
+ t.check(popup!=null and t.visible_text(popup).contains("使用前请确认目标"),"FACE SETTER hover detail lists the overflowing body from the fitted layout")
+ ui._hide_term()
+ t.check(face_nodes(face)==base_nodes and ui.find_child("TermExplanation",true,false)==null,"FACE SETTER hover detail leaves the card structure untouched")
+ face.set_warning("警告探针")
+ face.fit_text()
+ t.check(String(face.get_node("CardText/Content/CardWarning").text)=="警告探针","FACE SETTER set_warning mounts the warning in place")
+ face.set_warning("")
+ t.check(face.get_node("CardText/Content").get_node_or_null("CardWarning")==null,"FACE SETTER clearing the warning takes it out of the tree")
+ face.set_availability("可用性探针")
+ t.check(String(face.get_node("CardText/Content/CardAvailability").text)=="可用性探针","FACE SETTER set_availability mounts the availability line in place")
+ face.set_availability("")
+ t.check(face.get_node("CardText/Content").get_node_or_null("CardAvailability")==null,"FACE SETTER clearing the availability takes it out of the tree")
+ face.set_keywords(["第一个词条","第二个词条"])
+ t.check(face.get_node("CardKeywords").get_child_count()==2 and String(face.get_node("CardKeywords").get_child(0).text)=="第一个词条","FACE SETTER set_keywords reuses the tag seats")
+ var keyword_nodes=face_nodes(face)
+ face.set_keywords(["第一个词条","第二个词条"])
+ t.check(face_nodes(face)==keyword_nodes,"FACE SETTER set_keywords with the same values keeps every tag")
+ face.set_keywords(["第一个词条"])
+ t.check(face.get_node("CardKeywords").get_child_count()==1,"FACE SETTER set_keywords drops the surplus tag from the tree")
+ face.set_keywords(["第一个词条","第二个词条"])
+ t.check(face_nodes(face)==keyword_nodes,"FACE SETTER set_keywords reuses the parked tag instance")
+ face.set_requirements(["条件一","条件二"])
+ t.check(face.get_node("CardRequirements").get_child_count()==2 and face.get_node("CardRequirements").get_child(0).horizontal_alignment==HORIZONTAL_ALIGNMENT_RIGHT,"FACE SETTER set_requirements writes right aligned lines")
+ face.set_requirements([])
+ t.check(face.get_node("CardRequirements").get_child_count()==0 and not face.get_node("CardRequirements").visible,"FACE SETTER set_requirements empties the group without touching the card")
+ var badges=face.get_node("CardMana")
+ face.set_mana([["cost","−1","甲。"],["cost","−2","乙。"]])
+ t.check(badges.get_child_count()==2 and String(badges.get_child(0).name)=="Mana_cost","FACE SETTER set_mana keeps the first badge of a kind on its plain name: "+str(badges.get_children().map(func(node):return String(node.name))))
+ var kept_badge=badges.get_child(0)
+ var kept_style=kept_badge.get_theme_stylebox("panel").get_instance_id()
+ face.set_mana([["cost","−2","乙。"]])
+ t.check(badges.get_child_count()==1,"FACE SETTER set_mana drops the surplus badge from the tree")
+ face.set_mana([["cost","−1","甲。"],["cost","−2","乙。"]])
+ t.check(badges.get_child_count()==2 and badges.get_child(0)==kept_badge and badges.get_child(0).get_theme_stylebox("panel").get_instance_id()==kept_style,"FACE SETTER set_mana reuses the same badge node and StyleBox")
+ face.set_mana([["cost","−1","甲。"],["temporary","+3","丙。"]])
+ t.check(badges.get_child_count()==2 and String(badges.get_child(1).name)=="Mana_temporary" and badges.get_child(1).get_theme_stylebox("panel")!=null,"FACE SETTER set_mana rewrites a badge kind in place: "+str(face_badges(face)))
+ face.set_mana([["temporary","+3","丙。"],["cost","−1","甲。"]])
+ t.check(String(badges.get_child(0).name)=="Mana_temporary" and String(badges.get_child(1).name)=="Mana_cost","FACE SETTER set_mana follows the entry order with kind matched seats: "+str(badges.get_children().map(func(node):return String(node.name))))
+ ui._refresh_card_face(face,data)
+ face.set_size(Vector2(158,252))
+ face.fit_text()
+ await t.frames()
+ var sized_nodes=face_nodes(face)
+ var expected=Array(data.face_mana.bound)
+ face.set_size(Vector2(181,290))
+ await t.frames()
+ t.check(face_nodes(face)==sized_nodes,"FACE SETTER real size change creates and destroys nothing")
+ t.check(is_equal_approx(face.art_bottom-6,face.size.y*2/3) and face.get_node("CardText").get_rect().end.y<=face.size.y,"FACE SETTER real size change refits the art and the body")
+ t.check(face.get_node("CardMana").get_child_count()==expected.size() and Rect2(Vector2.ZERO,face.size).encloses(face.get_node("CardText").get_rect()),"FACE SETTER real size change keeps one badge per entry inside the card")
+ var texture_before=face.get_node("CardIllustration").texture
+ ui.display_settings.set_art_style("cards","magic_slip","test")
+ t.check(face.get_node("CardIllustration").texture==preload("res://ui/card_face.gd").ILLUSTRATIONS.get("magic_slip") and face_nodes(face)==sized_nodes,"FACE SETTER art style change swaps the texture in place")
+ ui.display_settings.set_art_style("cards","magic_slip","formal")
+ t.check(face.get_node("CardIllustration").texture==texture_before,"FACE SETTER art style change restores the formal texture")
+ ui.card_faces.erase(data.uid)
+ face.free()
+
 static func run(t) -> void:
  await feedback(t)
  await feedback_save(t)
  await run_header(t)
  await card_illustrations(t)
+ await card_face_incremental(t)
  await deck_browser(t)
  await deck_sorting(t)
  await pile_browsers(t)

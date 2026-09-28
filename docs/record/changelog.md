@@ -1534,3 +1534,11 @@ flowchart LR
 ## 2026-09-25｜未声明槽不查询（`3b88ece`）
 
 - 有 `target_slots` 的牌不对表外槽 `targets_at`。architecture 717。独立审查 `No findings.`（含清洁 `614f683`）。加固档 2 三变异红、还原再绿。未推送。
+
+## 2026-09-28 手牌卡增量刷新：固定顺序、每卡窄键、面切片缓存（枝 `worker/hand-refresh`）
+
+- `ui/main.gd` 的手牌节改为**唯一固定顺序**：拦截（行键＋纯数据 diff）→ 逐卡值更新 → 成员增删（先删后增；行态经 `_hand_reset_row`）→ 幂等重排（几何／顺序未变则连 `_hand_place_row` 都不调用）；`render` 全量路径仍经 `_hand`。行键＝`[locale, 行态, 顺序, pending, {uid: 每卡窄键}]`，每卡窄键（`_hand_card_key`）只读该卡自身透传字段与本地显示态（不整行深拷贝、不含 `card_costs` 等 View 级切片、`version` 不进键）；`_hand_cards` 按 `button_id` 守卫缓存每卡数据与两面值切片，失效规则写进契约。一致性守卫失灵只修该 uid（删＋增）或切行态，不退回整行重建。
+- `ui/card_face.gd` 新增原地更新 setter（标题／费用／分类／正文／警告／可用性／词条／条件／art，值相同即早退）；`set_mana` 改为按位置／kind 复用徽章与 `StyleBoxFlat`（同 kind 撞名以位置为主、kind 作匹配提示，首个该 kind 保持原名）；多余内容节点出树入池，翻回已应用过的面复用同一实例；`text_overflow` 记录 `fit_text` 的正文溢出结果，悬停详情改为延迟重入并读该结果（不再读尚未重排的 `Content.size`）。
+- 契约同步：`docs/spec/response-pipeline.md`（`hand` 节键行、面缓存与失效规则、场景 3 的 `hand` 限定、每卡键成本句）、`docs/spec/release-interface.md`（翻面切换到该面已缓存的词条与条件）、根 `AGENTS.md` 文档入口表加 `docs/spec/hand-refresh-dependencies.md`。
+- 唯一被改写的既有断言＝`DISPLAY present hand rebuilds the card when the presentation key changes` → `…keeps the card and rewrites its values…`（反向而不删）；新增 `tests/display_ui_cases.gd::present_hand_incremental`（P1–P3／N1–N5／E1–E10 与源文本判据）与 `tests/interface_ui_cases.gd::card_face_incremental`（setter 幂等、同 kind 撞名索引、真尺寸变、画风就地换图、悬停详情读 `fit_text` 结果）。
+- 验证：13 分类 UI 门 `20260928T065101211-31212`（3443 断言）、`architecture` `20260928T070508397-34364`、`check-docs.ps1` PASS、`runner -VerifyRunner` `20260928T070552510-23932`；计数、键成本逐档与 5 条敏感性运行号见[验证记录](verification.md)。仅源码与文档，未推送、未打标签、未改版本号、未打包。

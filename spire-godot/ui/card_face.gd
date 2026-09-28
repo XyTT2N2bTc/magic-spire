@@ -132,6 +132,15 @@ var localize: Callable
 var lift_on_hover=true
 const ART_HEIGHT_RATIO=2.0/3.0
 var art_bottom=174.0
+# 正文溢出＝`fit_text` 的结果（唯一写入点）；悬停详情读它，不读 `Content.size`：
+# 容器尺寸要等引擎的排序趟，直接读节点会拿到尚未按当前值重算的高度。
+var text_overflow=false
+var _fit_pending=false
+# Content 的固定槽序：分类／正文／警告／可用性。按槽序写、按槽序复用，tooltip 行序才稳定。
+const CONTENT_SLOTS=["CardClassification","CardEffect","CardWarning","CardAvailability"]
+# 出树但未销毁的备用节点（按槽名／kind 分区）：多余内容先入池再复用，
+# 避免"翻面 free 掉另一面的标签、翻回再新建"破坏同一面的实例集合。
+var _spare: Dictionary={}
 
 const MANA_COLORS={"cost":Color("8dd6ef"),"gain":Color("80e0c5"),"temporary":Color("c4a0ef")}
 
@@ -142,51 +151,276 @@ func _display(value: Variant) -> String:
  var text=str(value)
  return str(localize.call(text)) if localize.is_valid() else text
 
+# 玩家可见文案与 ui/main.gd::_label 同一口径（本地化后再做安卓输入提示替换）。
+func _shown(value: Variant) -> String:
+ var text=_display(value)
+ return text.replace("右键","长按") if OS.has_feature("android") else text
+
+func _new_label(text: String, font_size: int, color: Color) -> Label:
+ var label=Label.new()
+ label.text=text
+ label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+ label.add_theme_font_size_override("font_size",font_size)
+ label.add_theme_color_override("font_color",color)
+ return label
+
+func _take(bucket: String) -> Node:
+ var pool=_spare.get(bucket,[])
+ return pool.pop_back() if not pool.is_empty() else null
+
+func _park(bucket: String, node: Node) -> void:
+ var owner=node.get_parent()
+ if owner!=null: owner.remove_child(node)
+ if not _spare.has(bucket): _spare[bucket]=[]
+ _spare[bucket].append(node)
+
+func _exit_tree() -> void:
+ for bucket in _spare:
+  for node in _spare[bucket]:
+   if is_instance_valid(node): node.queue_free()
+ _spare={}
+
+# 每卡每帧至多一次延迟布局：同批 setter 只请求一次，值没变则一次都不请求。
+func _request_fit() -> void:
+ if _fit_pending: return
+ _fit_pending=true
+ fit_text.call_deferred()
+
+# Content 槽：同名标签保持在固定槽序上；缺件先取自池、再新建。
+# 条件槽（警告／可用性）文本为空即出树入池；常驻槽（`always`，分类／正文）保持挂载只切可见性。
+func _content_slot(label_name: String, text: String, font_size: int, color: Color, always: bool=false) -> bool:
+ var area=get_node_or_null("CardText")
+ var content=area.get_node_or_null("Content") if area!=null else null
+ if content==null: return false
+ var node=null
+ for child in content.get_children():
+  if String(child.name)==label_name: node=child;break
+ if text=="" and not always:
+  if node==null: return false
+  _park("content_"+label_name,node)
+  return true
+ var changed=false
+ if node==null:
+  node=_take("content_"+label_name) as Label
+  if node==null:
+   node=_new_label("",font_size,color)
+   node.name=label_name
+  content.add_child(node)
+  changed=true
+ if String(node.text)!=text: node.text=text;changed=true
+ if node.get_theme_font_size("font_size")!=font_size: node.add_theme_font_size_override("font_size",font_size);changed=true
+ if node.get_theme_color("font_color")!=color: node.add_theme_color_override("font_color",color);changed=true
+ var wanted=text!=""
+ if node.visible!=wanted: node.visible=wanted;changed=true
+ # 固定槽序：目标槽位还没被前序标签占满时落在末尾（前序槽是后加的，`move_child` 不接受越界位置）。
+ var want=mini(CONTENT_SLOTS.find(label_name),content.get_child_count()-1)
+ if want>=0 and node.get_index()!=want: content.move_child(node,want);changed=true
+ return changed
+
+# 词条／条件标签槽：按位置复用（第 i 个标签写第 i 条），多余项从组尾出树入池。
+func _tag_slot(group: Node, bucket: String, index: int) -> Label:
+ if index<group.get_child_count():
+  var seat=group.get_child(index)
+  if seat is Label: return seat
+ return _take(bucket) as Label
+
+# 魔力徽章槽：以位置为主、kind 只作匹配提示（同 kind 可有多条）。位置不符时先在组内
+# 按位置顺序找同 kind 的节点并前移，再取池中同 kind 的备用节点，最后才新建。
+func _mana_slot(group: Node, index: int, kind: String) -> Control:
+ var children=group.get_children()
+ if index<children.size() and String(children[index].get_meta("mana_kind",""))==kind: return children[index]
+ for other in range(index+1,children.size()):
+  if String(children[other].get_meta("mana_kind",""))==kind:
+   var node=children[other]
+   group.move_child(node,index)
+   return node
+ var pooled=_take("mana_"+kind) as Control
+ if pooled!=null: return pooled
+ var badge=Control.new() if kind=="pressure" else PanelContainer.new()
+ badge.name="Mana_"+kind
+ badge.set_meta("mana_kind",kind)
+ badge.mouse_filter=Control.MOUSE_FILTER_IGNORE
+ return badge
+
+func _write_mana(node: Control, entry: Array, unit: float, compact: bool) -> bool:
+ var kind=String(entry[0])
+ var changed=false
+ if kind=="pressure":
+  var art=null
+  var amount=null
+  for child in node.get_children():
+   if child is Label: amount=child
+   elif child is TextureRect: art=child
+  if art==null:
+   art=TextureRect.new()
+   art.texture=preload("res://assets/ui/cards/pressure_heart.svg")
+   art.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+   art.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+   art.mouse_filter=Control.MOUSE_FILTER_IGNORE
+   node.add_child(art);art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+   changed=true
+  if amount==null:
+   amount=Label.new()
+   amount.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+   amount.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+   amount.add_theme_color_override("font_color",Color("fff3fa"))
+   amount.mouse_filter=Control.MOUSE_FILTER_IGNORE
+   node.add_child(amount);amount.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+   changed=true
+  if String(amount.text)!=String(entry[1]): amount.text=entry[1];changed=true
+  var size=Vector2(42,36)*unit
+  if node.custom_minimum_size!=size: node.custom_minimum_size=size;changed=true
+  var heart_font=roundi(16*text_scale())
+  if amount.get_theme_font_size("font_size")!=heart_font: amount.add_theme_font_size_override("font_size",heart_font);changed=true
+  var detail=_display(entry[2])
+  if node.tooltip_text!=detail: node.tooltip_text=detail;changed=true
+  return changed
+ var label=null
+ for child in node.get_children():
+  if child is Label: label=child
+ if label==null:
+  label=Label.new()
+  label.mouse_filter=Control.MOUSE_FILTER_IGNORE
+  label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+  label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
+  node.add_child(label)
+  changed=true
+ var style=node.get_theme_stylebox("panel") if node.has_theme_stylebox_override("panel") else null
+ if not (style is StyleBoxFlat):
+  style=StyleBoxFlat.new()
+  node.add_theme_stylebox_override("panel",style)
+  changed=true
+ var bg=Color("29233e") if kind=="temporary" else Color("143542")
+ if style.bg_color!=bg: style.bg_color=bg;changed=true
+ if style.border_color!=MANA_COLORS[kind]: style.border_color=MANA_COLORS[kind];changed=true
+ var radius=roundi((7 if kind=="temporary" else 18)*unit)
+ if style.corner_radius_top_left!=radius:
+  style.set_border_width_all(2)
+  style.set_corner_radius_all(radius)
+  changed=true
+ var margin=(4 if compact else 6)*unit
+ if not is_equal_approx(style.content_margin_left,margin):
+  style.content_margin_left=margin;style.content_margin_right=margin
+  changed=true
+ var shown=_display(entry[1])
+ if String(label.text)!=shown: label.text=shown;changed=true
+ if label.get_theme_color("font_color")!=MANA_COLORS[kind]: label.add_theme_color_override("font_color",MANA_COLORS[kind]);changed=true
+ var font=label.get_theme_font("font")
+ var font_size=17 if compact else roundi(21*text_scale())
+ while font_size>roundi(13*unit) and font.get_string_size(label.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>49*unit: font_size-=1
+ if label.get_theme_font_size("font_size")!=font_size: label.add_theme_font_size_override("font_size",font_size);changed=true
+ var badge_size=Vector2(32 if compact else 38,36)*unit
+ if node.custom_minimum_size!=badge_size: node.custom_minimum_size=badge_size;changed=true
+ return changed
+
+# 魔力徽章按位置／kind 复用：条目数或 kind 变才增删，已存在的徽章节点与它的 `panel`
+# 样式资源实例保持不变（翻回已应用过的面零增删、不新建 `StyleBox`）。
+# `entries` 是值切片里的扁平条目 `[kind, text, detail]`（唯一取用点是 `ui/main.gd::_refresh_card_face`）。
 func set_mana(entries: Array) -> void:
  var unit=text_scale()
+ var compact=size.x<180
  var group=get_node_or_null("CardMana")
  if group==null:
   group=HBoxContainer.new();group.name="CardMana"
   group.add_theme_constant_override("separation",3)
   group.mouse_filter=Control.MOUSE_FILTER_IGNORE
   add_child(group)
- for child in group.get_children(): group.remove_child(child);child.queue_free()
+ var changed=group.visible!=(not entries.is_empty())
  group.visible=not entries.is_empty()
- for entry in entries:
-  if entry.kind=="pressure":
-   var heart=Control.new();heart.name="Mana_pressure"
-   heart.custom_minimum_size=Vector2(42,36)*unit;heart.mouse_filter=Control.MOUSE_FILTER_IGNORE
-   heart.tooltip_text=_display(entry.detail)
-   var art=TextureRect.new();art.texture=preload("res://assets/ui/cards/pressure_heart.svg")
-   art.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;art.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-   art.mouse_filter=Control.MOUSE_FILTER_IGNORE;heart.add_child(art);art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-   var amount=Label.new();amount.text=entry.text
-   amount.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;amount.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
-   amount.add_theme_font_size_override("font_size",roundi(16*text_scale()));amount.add_theme_color_override("font_color",Color("fff3fa"))
-   amount.mouse_filter=Control.MOUSE_FILTER_IGNORE;heart.add_child(amount);amount.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-   group.add_child(heart)
-   continue
-  var badge=PanelContainer.new();badge.name="Mana_"+entry.kind
-  badge.mouse_filter=Control.MOUSE_FILTER_IGNORE
-  badge.tooltip_text=_display(entry.detail)
-  var style=StyleBoxFlat.new()
-  style.bg_color=Color("29233e") if entry.kind=="temporary" else Color("143542")
-  style.border_color=MANA_COLORS[entry.kind]
-  style.set_border_width_all(2);style.set_corner_radius_all(roundi((7 if entry.kind=="temporary" else 18)*unit))
-  var compact=size.x<180
-  style.content_margin_left=(4 if compact else 6)*unit;style.content_margin_right=style.content_margin_left
-  badge.add_theme_stylebox_override("panel",style)
-  var label=Label.new();label.text=_display(entry.text)
-  label.mouse_filter=Control.MOUSE_FILTER_IGNORE
-  label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;label.vertical_alignment=VERTICAL_ALIGNMENT_CENTER
-  label.add_theme_color_override("font_color",MANA_COLORS[entry.kind])
-  var font=label.get_theme_font("font")
-  var font_size=17 if compact else roundi(21*text_scale())
-  while font_size>roundi(13*unit) and font.get_string_size(label.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>49*unit: font_size-=1
-  label.add_theme_font_size_override("font_size",font_size)
-  badge.custom_minimum_size=Vector2(32 if compact else 38,36)*unit
-  badge.add_child(label);group.add_child(badge)
+ for index in range(entries.size()):
+  var badge=_mana_slot(group,index,String(entries[index][0]))
+  if badge.get_parent()!=group: group.add_child(badge)
+  if badge.get_index()!=index: group.move_child(badge,index)
+  changed=_write_mana(badge,entries[index],unit,compact) or changed
+ while group.get_child_count()>entries.size():
+  var extra=group.get_child(group.get_child_count()-1)
+  _park("mana_"+String(extra.get_meta("mana_kind","")),extra)
+  changed=true
+ if changed: _layout_header()
+
+func set_title(text: String) -> void:
+ if display_name==text: return
+ display_name=text
  _layout_header()
+
+func set_cost(text: String) -> void:
+ var label=get_node_or_null("CardCost")
+ if label==null or String(label.text)==text: return
+ label.text=text
+ _layout_header()
+
+func set_classification(text: String) -> void:
+ if _content_slot("CardClassification",_shown(text),11,RARITY_COLORS[rarity],true): _request_fit()
+
+func set_effect(text: String) -> void:
+ if _content_slot("CardEffect",_shown(text),14,Palette.TEXT,true): _request_fit()
+
+func set_warning(text: String) -> void:
+ if _content_slot("CardWarning",_shown(text),14,Palette.RED): _request_fit()
+
+func set_availability(text: String) -> void:
+ if _content_slot("CardAvailability",_shown(text) if text!="" else "",11,Palette.TEXT): _request_fit()
+
+func set_keywords(list: Array) -> void:
+ var group=get_node_or_null("CardKeywords")
+ if group==null: return
+ var font_size=roundi(11*text_scale())
+ var changed=false
+ for index in range(list.size()):
+  var label=_tag_slot(group,"keyword",index)
+  if label==null:
+   label=_new_label("",font_size,Palette.GOLD)
+   label.autowrap_mode=TextServer.AUTOWRAP_OFF
+   group.add_child(label)
+   changed=true
+  if label.get_parent()!=group: group.add_child(label)
+  var shown=_shown(list[index])
+  if String(label.text)!=shown: label.text=shown;changed=true
+  if label.get_theme_font_size("font_size")!=font_size: label.add_theme_font_size_override("font_size",font_size);changed=true
+  if label.get_theme_color("font_color")!=Palette.GOLD: label.add_theme_color_override("font_color",Palette.GOLD);changed=true
+  if label.autowrap_mode!=TextServer.AUTOWRAP_OFF: label.autowrap_mode=TextServer.AUTOWRAP_OFF;changed=true
+ while group.get_child_count()>list.size():
+  _park("keyword",group.get_child(group.get_child_count()-1));changed=true
+ var wanted=not list.is_empty()
+ if group.visible!=wanted: group.visible=wanted;changed=true
+ if changed: _request_fit()
+
+func set_requirements(list: Array) -> void:
+ var group=get_node_or_null("CardRequirements")
+ if group==null: return
+ var font_size=roundi(11*text_scale())
+ var changed=false
+ for index in range(list.size()):
+  var label=_tag_slot(group,"requirement",index)
+  if label==null:
+   label=_new_label("",font_size,Palette.CYAN)
+   group.add_child(label)
+   changed=true
+  if label.get_parent()!=group: group.add_child(label)
+  var shown=_shown(list[index])
+  if String(label.text)!=shown: label.text=shown;changed=true
+  if label.get_theme_font_size("font_size")!=font_size: label.add_theme_font_size_override("font_size",font_size);changed=true
+  if label.get_theme_color("font_color")!=Palette.CYAN: label.add_theme_color_override("font_color",Palette.CYAN);changed=true
+  if label.horizontal_alignment!=HORIZONTAL_ALIGNMENT_RIGHT: label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT;changed=true
+ while group.get_child_count()>list.size():
+  _park("requirement",group.get_child(group.get_child_count()-1));changed=true
+ var wanted=not list.is_empty()
+ if group.visible!=wanted: group.visible=wanted;changed=true
+ if changed: _request_fit()
+
+# 纹理不缓存：每次都按当前画风现取，画风变（`_art_changed`）与换面共用同一条取纹理路径。
+func _apply_art_texture() -> void:
+ if not has_node("CardIllustration"): return
+ var texture=null if art_settings==null else art_settings.art_texture("cards",symbol,effect_free)
+ if texture==null: texture=ILLUSTRATIONS.get(preload("res://data/card_rules.gd").SPECS.get(symbol,{}).get("art_type",symbol))
+ $CardIllustration.texture=texture
+
+func set_art(symbol_value: String, free_effect: bool) -> void:
+ var layout_changed=symbol!=symbol_value or effect_free!=free_effect
+ symbol=symbol_value
+ effect_free=free_effect
+ _apply_art_texture()
+ if layout_changed: _layout_art()
 
 func _layout_header() -> void:
  var title=get_node_or_null("CardTitle")
@@ -238,6 +472,7 @@ func _layout_art() -> void:
  queue_redraw()
 
 func fit_text() -> void:
+ _fit_pending=false
  _layout_header()
  _layout_art()
  var area=get_node_or_null("CardText")
@@ -273,6 +508,9 @@ func fit_text() -> void:
   if requirement_width>0 and not side_by_side: footer.position.y=bottom-footer.size.y
   bottom=minf(bottom,footer.position.y-4)
  area.size=Vector2(size.x-24,maxf(1,bottom-area.position.y))
+ # 溢出判据的唯一写入点：读刚算完的可见高度与正文的最小高度（容器尺寸当帧未必已排序）。
+ var content=area.get_node_or_null("Content")
+ text_overflow=content!=null and content.get_combined_minimum_size().y>area.size.y
  for label in area.get_node("Content").get_children():
   var base_size=12 if label.name=="CardEffect" else (14 if label.name=="CardWarning" else 11)
   label.add_theme_font_size_override("font_size",roundi(base_size*text_scale()))
@@ -332,8 +570,7 @@ func _ready() -> void:
 
 func _art_changed(category: String, id: String) -> void:
  if category!="cards" or id!=symbol: return
- var texture=art_settings.art_texture(category,id,effect_free)
- $CardIllustration.texture=texture if texture!=null else ILLUSTRATIONS.get(preload("res://data/card_rules.gd").SPECS.get(symbol,{}).get("art_type",symbol))
+ _apply_art_texture()
 
 func _hover(raised: bool) -> void:
  if not lift_on_hover: return
