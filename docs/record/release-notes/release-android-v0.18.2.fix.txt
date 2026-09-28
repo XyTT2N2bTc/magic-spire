@@ -1,0 +1,5 @@
+紧缚尖塔demo v0.18.2.fix · Android
+
+本次仅更新源码，尚未生成或验收 Android 安装包。
+未来发布时须递增 version/code 并沿用原发布签名；版本说明见“版本更新内容.txt”。
+支持范围与打包流程见 docs/spec/packaging.md；安卓真机验收仍待进行。

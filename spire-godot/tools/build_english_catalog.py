@@ -1553,7 +1553,7 @@ MANUAL.update({
     "佩戴／替换特殊装备 · 补满电量": "Equip / replace special equipment · Fully recharge",
     "捕缚只允许保持%s，先解除捕缚。": "Capture only permits {p0}; break Capture first.",
     "的捕缚系统失灵，本回合停在原地。": "'s Capture System fails, leaving it idle this turn.",
-    "紧缚尖塔demo v0.18.2": "Bound Spire Demo v0.18.2",
+    "紧缚尖塔demo v0.18.2.fix": "Bound Spire Demo v0.18.2.fix",
     "能力牌的首张魔法剩余次数不正确。": "Invalid remaining first-spell uses for this Power card.",
     "这张能力没有对应的累计资源效果。": "This Power has no matching accumulated-resource effect.",
     "施加%d件%s%d档皮革拘束具%s": "Apply {p0} {p1} tier-{p2} leather restraints{p3}",

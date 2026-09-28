@@ -8,7 +8,7 @@ $gameDirectory = Split-Path -Parent $PSScriptRoot
 Assert-SpirePacksRoot -GameDirectory $gameDirectory -Expected 'res://content/packs'
 $docsDirectory = Join-Path (Split-Path -Parent $gameDirectory) 'docs'
 $projectText = Get-Content -LiteralPath (Join-Path $gameDirectory 'project.godot') -Raw
-$versionMatch = [regex]::Match($projectText, '(?m)^config/version="([0-9]+\.[0-9]+(?:\.[0-9]+)?)"')
+$versionMatch = [regex]::Match($projectText, '(?m)^config/version="([0-9]+\.[0-9]+(?:\.[0-9]+)?(?:\.fix)?)"')
 if (-not $versionMatch.Success) { throw 'Project version is missing or invalid.' }
 $packageVersion = $versionMatch.Groups[1].Value
 if (-not $BuildId) { $BuildId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmss') }
