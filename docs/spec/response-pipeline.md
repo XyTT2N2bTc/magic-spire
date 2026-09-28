@@ -184,7 +184,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 `card_faces`／`card_draw_serials`（本地翻面／抽牌显示态）、`map_drawings`（界面备注，随本局保存）；
 `ui/main.gd::_hand_cards`（每卡缓存：`button_id` ＋ 每卡窄键 ＋ 合并数据 ＋ 每面**已应用值切片** ＋ 已应用面）。失效规则（逐条可证）：
 ①每卡窄键的**数据部分**变（透传字段／`availability`／选择态／pending／locale）⇒ 该 uid 两面切片作废，下次应用重建；
-②面选择位变（翻面）不作废切片，按已缓存的另一面切片重写同一批节点；
+②面选择位变（翻面）不作废切片：已缓存的另一面切片被原样交给 `ui/main.gd::_refresh_card_face` 重写同一批节点（每个 (card, side) 切片至多构造一次）；
 ③画风变（`display_settings.art_changed`）不作废切片，纹理经 `ui/card_face.gd::_apply_art_texture` 每次现取；
 ④按钮实例变（`button_id` 不符）或 uid 离行 ⇒ 条目丢弃（`_hand_release_card` 删，`button_id` 守卫兜底）；
 ⑤全量 `render` 后成员必为新 ⇒ 条目经 ④ 失效，由该次 `_hand` 重建；

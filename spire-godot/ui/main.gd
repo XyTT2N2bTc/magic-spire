@@ -621,14 +621,16 @@ const PRESENT_ADJACENCY={
  "_relic_row":["_relic_presentation_key"],
  "_relic_presentation_key":[],
  "_hand":["_sync_card_faces","_hand_presentation_key","_hand_key_hit","_hand_row_plan","_hand_reset_row","_hand_apply_card","_hand_release_card","_hand_mount_card","_hand_place_row"],
- "_hand_row_plan":["_hand_card_data"],
+ "_hand_row_plan":["_hand_card_data","_hand_node_counts"],
  "_hand_reset_row":["_unload_hand_section","_climax_narration","_label","_place"],
  "_unload_hand_section":["_hand_release_card"],
  "_hand_release_card":[],
- "_hand_mount_card":["_hand_card_data","_hand_card_key","_hand_face_slice","_hand_apply_card","_card"],
+ "_hand_mount_card":["_hand_card_data","_hand_card_key","_hand_face_slice","_hand_apply_card","_card","_activate_card"],
  "_hand_apply_card":["_hand_face_slice","_selecting_hand","_hand_choice","display_key","_refresh_card_face"],
  "_hand_card_key":["card_entry","_hand_availability_slice","_selecting_hand","_hand_choice"],
  "_hand_card_data":["card_entry"],
+ "_hand_node_counts":[],
+ "_hand_key_hit":["_hand_node_counts"],
  "_hand_face_slice":["CardFace.separate_keywords"],
  "_hand_place_row":[],
  "_card":["_place","_label","_refresh_card_face","_hand_apply_card","_clear_player_picker","_clear_drop_targets","_refresh_body_details"],
@@ -637,7 +639,7 @@ const PRESENT_ADJACENCY={
  "_card_tooltip":["_show_term","_hide_term"],
  "_sync_card_faces":[],
  "_sync_drag_versions":[],
- "_hand_presentation_key":[],
+ "_hand_presentation_key":["_hand_card_key"],
  "_build_action_rail":["_action_presentation_key"],
  "_action_presentation_key":[],
  "_refresh_posture_section":["_posture_presentation_key","_wall_controls","_posture_controls"],
@@ -1557,7 +1559,8 @@ func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0,
  rect.size=dimensions
  # 手牌路径显式传入 `_hand_card_data` 的合并结果（唯一数据构造点）；其余调用方逐字保持既有合并分支。
  # 契约只允许加一个可选参数，故以 `merged.is_empty()` 作「有没有预合并数据」的信号——手牌路径显式传参、
- # 其余调用方不传（计划 A1：不得靠 `hand_interaction` 默认值或数据形状推断）。
+ # 其余调用方不传（计划 A1：不得靠 `hand_interaction` 默认值或数据形状推断）。它同时表示"这一张的面值
+ # 由 `_hand_mount_card` 经唯一入口 `_refresh_card_face`（带预构造切片）应用一次"，手牌路径不在此重复应用。
  if merged.is_empty():
   card=card.duplicate()
   if live_state:
@@ -1623,10 +1626,15 @@ func _card(card: Dictionary, rect: Rect2, fn: Callable, rotation_value: float=0,
  requirements.add_theme_constant_override("separation",1)
  requirements.minimum_size_changed.connect(func(): button.fit_text.call_deferred())
  button.add_child(requirements)
- _refresh_card_face(button,card)
- button.mouse_entered.connect(func():_card_tooltip(button,card))
+ # 悬停／聚焦详情读**当前**数据：手牌卡经 `_hand_cards[uid].data` 取（与翻面闭包同一入口），
+ # 其余调用方仍读构建期 `card`。`_hand_apply_card` 每次都换入新的合并字典，构建期快照会过期。
+ var hover_entry=func() -> Dictionary:
+  var live=_hand_cards.get(String(card.uid),{})
+  return live.get("data",card) if hand_interaction and not live.is_empty() else card
+ if merged.is_empty(): _refresh_card_face(button,card)
+ button.mouse_entered.connect(func():_card_tooltip(button,hover_entry.call()))
  button.mouse_exited.connect(_hide_term)
- button.focus_entered.connect(func():_card_tooltip(button,card))
+ button.focus_entered.connect(func():_card_tooltip(button,hover_entry.call()))
  button.focus_exited.connect(_hide_term)
  _ignore_mouse(textbox)
  return button
@@ -1650,10 +1658,12 @@ func _display_card(type: String, parent: Node, fn: Callable=Callable(), key: Str
 
 # 卡面字段的唯一写入组合（保留名字与签名）：全部经 ui/card_face.gd 的原地 setter，
 # 每个 setter 值相同即早退 ⇒ 只写差字段；节点写入不得在这里写第二份实现。
-func _refresh_card_face(button: Button, card: Dictionary) -> void:
+func _refresh_card_face(button: Button, card: Dictionary, prepared: Dictionary={}) -> void:
  button.free_face=card_faces.get(card.uid,false)
  var side="free" if button.free_face else "bound"
- var values=_hand_face_slice(card,side)
+ # 预构造切片由调用方（`_hand_mount_card`／`_hand_apply_card`）传入，必须对应当前这一面；
+ # 不传时在此现构造（非手牌调用方与既有直调路径逐字不变）。
+ var values=prepared if not prepared.is_empty() else _hand_face_slice(card,side)
  button.rarity=String(values.rarity)
  button.single_face=bool(values.single_face)
  button.face_name=String(values.face_name)
@@ -1835,11 +1845,21 @@ func _hand_availability_slice(row) -> Array:
 
 # 幂等守卫：键相等 ＋ 成员集／每 uid 单节点／该 uid 缓存与活按钮相符 ＋ 行态节点数一致。
 # 它只回答"能不能零动作"，不回答"什么变了"（变化由 `_hand_row_plan` 的纯数据 diff 判定）。
+# 一次整树扫描得到"每个 `HandCard_<uid>` 名字的活节点数"：逐 uid 单独 `find_children` 会被手牌张数
+# 放大成每提交 N 次全树遍历（命中路径与计划路径都读它）；"每 uid 单节点"的守卫语义不变。
+func _hand_node_counts() -> Dictionary:
+ var counts={}
+ for node in find_children("HandCard_*","",true,false):
+  var name=String(node.name)
+  counts[name]=int(counts.get(name,0))+1
+ return counts
+
 func _hand_key_hit(key) -> bool:
  if _hand_key!=key: return false
  if not find_children("ClimaxNarration","",true,false).is_empty(): return false
+ var counts=_hand_node_counts()
  if view.hand.is_empty():
-  return card_buttons.is_empty() and _hand_cards.is_empty() and find_children("HandCard_*","",true,false).is_empty() and find_children("EmptyHand","",true,false).size()==1
+  return card_buttons.is_empty() and _hand_cards.is_empty() and counts.is_empty() and find_children("EmptyHand","",true,false).size()==1
  if not find_children("EmptyHand","",true,false).is_empty(): return false
  if card_buttons.size()!=view.hand.size(): return false
  for card in view.hand:
@@ -1848,7 +1868,7 @@ func _hand_key_hit(key) -> bool:
   if not is_instance_valid(button) or not button.is_inside_tree(): return false
   var entry=_hand_cards.get(uid,{})
   if entry.is_empty() or int(entry.get("button_id",0))!=button.get_instance_id(): return false
-  if find_children("HandCard_"+uid,"",true,false).size()!=1: return false
+  if int(counts.get("HandCard_"+uid,0))!=1: return false
  return true
 
 # 释放的唯一入口：一次性清 `card_buttons`／`candidate_buttons`（含该按钮的键）／`card_faces`／
@@ -1856,9 +1876,10 @@ func _hand_key_hit(key) -> bool:
 func _hand_release_card(uid: String) -> void:
  var button=card_buttons.get(uid)
  card_buttons.erase(uid)
- if button!=null:
-  for key in candidate_buttons.keys():
-   if candidate_buttons[key]==button: candidate_buttons.erase(key)
+ # 清理不放在 `button!=null` 守卫内：按钮可能已被外部释放（同一引用比较仍成立），
+ # 否则 `candidate_buttons` 会留下指向失效节点的悬空条目。
+ for key in candidate_buttons.keys():
+  if candidate_buttons[key]==button: candidate_buttons.erase(key)
  card_faces.erase(uid)
  card_draw_serials.erase(uid)
  _hand_cards.erase(uid)
@@ -1870,21 +1891,24 @@ func _hand_release_card(uid: String) -> void:
 # 建卡的唯一入口（步骤 2）：数据与键都取自同一条行（唯一数据构造点），登记进 `card_buttons`
 # 与每卡缓存；行矩由步骤 3 的 `_hand_place_row` 写（几何只在那一个地方算）。
 func _hand_mount_card(uid: String, row) -> void:
+ if not (row is Dictionary) or row.is_empty(): return
  var data=_hand_card_data(row)
  var key=_hand_card_key(row)
+ var side="free" if bool(card_faces.get(uid,false)) else "bound"
+ # (A)③：该面的值切片只在这里构造一次，经 `_hand_apply_card` 的预构造参数交给唯一的面应用入口
+ # （`_card` 对手牌路径不再自行应用面值，见其注释）。
+ var slice=_hand_face_slice(data,side)
  var button=_card(data,Rect2(Vector2.ZERO,Vector2.ZERO),func(): _activate_card(uid),0.0,null,true,true,true,data)
  button.name="HandCard_"+uid
  card_buttons[uid]=button
- # `_card` 已按同一份值切片应用过该面：把这份切片直接登记成"已应用"，避免挂载后再整面重写一次。
- var side="free" if bool(card_faces.get(uid,false)) else "bound"
- _hand_cards[uid]={"button_id":button.get_instance_id(),"key":key,"data":data,"sides":{side:_hand_face_slice(data,side)},"side":side}
- _hand_apply_card(uid,data,key)
+ _hand_cards[uid]={"button_id":button.get_instance_id(),"key":key,"data":data,"sides":{},"side":""}
+ _hand_apply_card(uid,data,key,slice)
 
 # 逐卡值更新的唯一写入点（步骤 1）：先按每卡窄键的数据部分判定该卡两面值切片是否要重建
 # （裁定 2 判据 ③：数据部分不变则切片不重建、翻回已应用过的面零写入），需要时经
 # `_refresh_card_face` 走同一份"全字段组合"（各 setter 值相同即早退，只写差字段），
 # 随后写选择态／pending 这些卡级值字段。不读节点文本、不读 `game.state`。
-func _hand_apply_card(uid: String, data: Dictionary, key: Array) -> void:
+func _hand_apply_card(uid: String, data: Dictionary, key: Array, prepared: Dictionary={}) -> void:
  var entry=_hand_cards.get(uid,{})
  var button=card_buttons.get(uid)
  if entry.is_empty() or not is_instance_valid(button): return
@@ -1896,10 +1920,12 @@ func _hand_apply_card(uid: String, data: Dictionary, key: Array) -> void:
  var applied=String(entry.get("side",""))
  var previous=sides.get(applied) if applied!="" else null
  var target=sides.get(side)
- if target==null: target=_hand_face_slice(data,side)
- # 面切换（换面本身必须写 `free_face`）或该面值切片与已应用的不同 ⇒ 走同一份全字段组合；
- # 只有"键变但值没变"（如同一面重抽的 draw_serial）才一个 setter 都不调。
- if applied!=side or previous==null or previous!=target: _refresh_card_face(button,data)
+ if target==null: target=prepared if not prepared.is_empty() else _hand_face_slice(data,side)
+ # 面切换（换面本身必须写 `free_face`）或该面还没有已应用切片（挂载、数据部分变后缓存作废）⇒
+ # 走同一份全字段组合，并把这份切片交给它（`_refresh_card_face` 的预构造参数）——每个
+ # (card, side) 的值切片因此只构造一次。值没变的提交（如同一面重抽的 `draw_serial`）仍会走这一次
+ # 组合，由各 setter 值相同即早退实现**零节点写**；本片判据是零节点增删，不是零 setter 调用。
+ if applied!=side or previous==null: _refresh_card_face(button,data,target)
  sides[side]=target
  entry["sides"]=sides
  entry["side"]=side
@@ -1925,7 +1951,8 @@ func _hand_apply_card(uid: String, data: Dictionary, key: Array) -> void:
   if button.drag_payload.get("card_uid","")!=uid or bool(button.drag_payload.get("free",false))!=bool(payload.free) or int(button.drag_payload.get("version",-1))!=int(payload.version): button.drag_payload=payload
  # `dim` 只从本面值切片读（唯一构造点），不再从原始数据二次计算。
  var dim=bool(target.get("dim",false))
- var tint=Color(0.45,0.45,0.45,1) if selecting and not selectable else (Color(0.55,0.55,0.55,1) if dim else Color.WHITE)
+ # 选择态沿用本片之前的规则：可选中＝纯白（不看 `dim`），不可选中＝0.45；只有非选择态按 `dim` 暗显。
+ var tint=Color(0.45,0.45,0.45,1) if selecting and not selectable else (Color(0.55,0.55,0.55,1) if dim and not selecting else Color.WHITE)
  if button.modulate!=tint: button.modulate=tint
  var hidden=is_instance_valid(card_motion) and card_motion.pending_draws.has(uid)
  if button.visible==hidden: button.visible=not hidden
@@ -1937,11 +1964,12 @@ func _hand_row_plan(row) -> Dictionary:
  var order=row[2]
  var state=String(row[1])
  var previous=String(_hand_key[1]) if _hand_key.size()>1 else ""
+ var counts=_hand_node_counts()
  var registered={}
  var broken=[]
  for uid in card_buttons.keys():
   var button=card_buttons[uid]
-  if not is_instance_valid(button) or not button.is_inside_tree() or find_children("HandCard_"+String(uid),"",true,false).size()!=1:
+  if not is_instance_valid(button) or not button.is_inside_tree() or int(counts.get("HandCard_"+String(uid),0))!=1:
    broken.append(String(uid));continue
   registered[String(uid)]=button
  var members={}
@@ -1970,8 +1998,10 @@ func _hand_row_plan(row) -> Dictionary:
  var added=[]
  for uid in members:
   if not registered.has(uid): added.append(uid)
+ # 只有成员才会被挂载：`broken` 里的非成员（按钮被外部释放且已离行）只进 `removed`，
+ # 否则 `_hand_mount_card(uid,rows[uid])` 会拿到 null 行。
  for uid in broken:
-  if not added.has(uid): added.append(uid)
+  if members.has(uid) and not added.has(uid): added.append(uid)
  var data={}
  for uid in changed: data[uid]=_hand_card_data(rows[uid])
  var empty_nodes=find_children("EmptyHand","",true,false).size()
@@ -2039,7 +2069,13 @@ func _hand() -> void:
    _hand_key=key
    return
  for uid in plan.changed: _hand_apply_card(String(uid),plan.data[uid],plan.keys[uid])
+ # 同行内"删＋增"（守卫修复／牌型变）保留该卡已显示的面：释放会擦 `card_faces`，
+ # 故在释放前取值、在挂载前回填（挂载按 `card_faces` 定面）。
+ var kept_faces={}
+ for uid in plan.broken: kept_faces[String(uid)]=bool(card_faces.get(String(uid),false))
  for uid in plan.removed: _hand_release_card(String(uid))
+ for uid in plan.added:
+  if kept_faces.has(String(uid)): card_faces[String(uid)]=kept_faces[String(uid)]
  for uid in plan.added: _hand_mount_card(String(uid),plan.rows[uid])
  if plan.layout_changed: _hand_place_row(plan.order)
  _hand_key=key

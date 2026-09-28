@@ -1563,3 +1563,15 @@ flowchart LR
 - 修 `ui/card_face.gd::_write_mana` 非 `pressure` 分支不写 `tooltip_text`（新建徽章无 tooltip、复用徽章留旧 tooltip）；两条 tooltip 断言落 `tests/interface_ui_cases.gd::card_face_incremental`，敏感性 `20260928T100206216-34068` 两条红。
 - 登记：①`render` 不清 `_hand_cards`／`_hand_layout`——清表非必需、`button_id` 守卫＋增删对账是机制；②下一刀候选：挂载时同一面切片构造两次、`set_art` 在 `effect_free` 变时取纹理两次（与整手替换场景略慢相关）；③`chosen`／`modulate` 各写两次（值一致、不合并）；④`_card` 以 `merged.is_empty()` 作预合并信号（契约只允许一个可选参数，手牌调用方显式传参），已在源码注释与依赖规约写明。
 - 门禁：`display,interface` `20260928T095916021-36092`（1530 断言）、`architecture -Impact` `20260928T100309545-34216`（4468）、`check-docs.ps1` PASS（2594 引用）。未推送、未打标签、未打包。
+
+## 2026-09-28 bunny 双审 FAIL 处置：悬停详情读当前值、崩溃路径与重挂保面、切片一次构造
+
+- 阻断 1.1：`ui/main.gd::_card` 的悬停／聚焦闭包改按 uid 读 `_hand_cards[uid].data`（与翻面闭包同一入口），弹层不再停在挂载快照；新断言＋敏感性 `20260928T105612161-41864`。
+- 2.6：`added` 只收 `view.hand` 成员、`_hand_mount_card` 加 row 早退（原会以 null 行崩）；敏感性 `20260928T104607931-36936`。
+- 2.7：同行"删＋增"在释放前记面、挂载前回填（守卫修复与牌型变不再翻回正面）；敏感性 `20260928T104159295-27084`。
+- 2.8：`candidate_buttons` 清理移出 `button!=null` 守卫（外部释放不再留悬空条目）；敏感性 `20260928T104404419-35480`。
+- 2.9：选择态 `modulate` 恢复"可选中＝纯白（不看 `dim`）"；记录④措辞改正（值不总一致）。
+- 2.1：`ui/main.gd::_refresh_card_face` 加可选 `prepared` 切片，挂载／翻面各只构造一次；契约与缓存段同步。
+- 2.5：新增 `ui/main.gd::_hand_node_counts`（一次整树扫描分组），去掉每 uid 扫描；S3–S5 归因补记。
+- 2.2／2.3／2.4／2.10：删死条件、E7 让 View 行 `draw_serial` 真变、E8 改为前后实例与子级比较、邻接表补两行。
+- 门禁：`display,interface,casting` `20260928T105825255-40644`（1598 断言）、`architecture -Impact` `20260928T110126098-40012`（4468）、docs PASS（2632 引用）、`runner -VerifyRunner` `20260928T110204840-34036`。未推送、未打标签、未打包。
