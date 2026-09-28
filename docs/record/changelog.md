@@ -1575,3 +1575,9 @@ flowchart LR
 - 2.5：新增 `ui/main.gd::_hand_node_counts`（一次整树扫描分组），去掉每 uid 扫描；S3–S5 归因补记。
 - 2.2／2.3／2.4／2.10：删死条件、E7 让 View 行 `draw_serial` 真变、E8 改为前后实例与子级比较、邻接表补两行。
 - 门禁：`display,interface,casting` `20260928T105825255-40644`（1598 断言）、`architecture -Impact` `20260928T110126098-40012`（4468）、docs PASS（2632 引用）、`runner -VerifyRunner` `20260928T110204840-34036`。未推送、未打标签、未打包。
+
+## 2026-09-28 记录文本收口（第二轮双审 PASS 后）：判据措辞、证据性质与下一刀候选
+
+- `verification.md` 收口：①(A)③ 的"值切片至多构造一次"写明**计数未由测试断言、由构造点枚举＋调用图确立**（生产源码禁计数器，不是门禁证据）；②键成本措辞记为"已核为该措辞（上一提交即已逐字如此）"，不再写成改写；③`_card(` 调用点的源文本判据补"限 `ui/main.gd`"；④2.9 的选择态 `modulate` 写明"**无断言覆盖、靠人审**"并登记下一轮补「选择态＋`dim` ⇒ 纯白」断言；⑤登记 `ui/main.gd::PRESENT_ADJACENCY` 的 `_card` 行缺 `_card_tooltip`／`_ignore_mouse` 两条边（**本轮之前就缺**）。
+- 下一刀候选清单更新：`ui/main.gd::_hand_node_counts` 在守卫未命中路径仍扫两遍（命中路径一次）；选择态 tint 断言；`_card` 邻接边补全；`ui/card_face.gd::set_art` 在 `effect_free` 变时取纹理两次（挂载重复构造切片一项已按 (A)③ 修掉）。
+- 本轮只改记录文本，未改代码、未改断言；门禁：`tools/check-docs.ps1`（引擎无关）。
