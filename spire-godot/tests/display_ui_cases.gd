@@ -814,15 +814,18 @@ static func present_routes_hand_or_full(t) -> void:
  t.check(counting.get_view_calls==baseline,"DISPLAY present unknown section does not call get_view")
  var header_after_full=header_after_unknown
  var card_before_mutation=ui.card_buttons.get(first_uid)
+ if bool(ui.card_faces.get(first_uid,false)): await t.flip(first_uid)
  var face="free" if bool(ui.card_faces.get(first_uid,false)) else "bound"
+ var subtree_before=present_hand_nodes(card_before_mutation)
  var av=ui.view.hand[0].availability[face]
  av.text="probe-hand";av.usable=false;av.dim=true
  ui.present(["hand"]);await t.frames()
  t.check(ui.find_child("GameHeader",true,false)==header_after_full,"DISPLAY present hand after a key change keeps GameHeader")
  var card_after_mutation=ui.card_buttons.get(first_uid)
- t.check(is_instance_valid(card_after_mutation) and card_after_mutation.get_instance_id()!=card_before_mutation.get_instance_id(),"DISPLAY present hand rebuilds the card when the presentation key changes")
+ t.check(is_instance_valid(card_after_mutation) and card_after_mutation.get_instance_id()==card_before_mutation.get_instance_id(),"DISPLAY present hand keeps the card and rewrites its values when the presentation key changes")
  var availability=card_after_mutation.find_child("CardAvailability",true,false)
  t.check(availability!=null and String(availability.text).contains("probe-hand"),"DISPLAY present hand shows the mutated availability")
+ t.check(present_hand_nodes(card_after_mutation)==subtree_before,"DISPLAY present hand rewrites the key-changed card in place with zero create and zero destroy: "+str(present_hand_lost(present_hand_nodes(card_after_mutation),subtree_before)))
  t.check(present_hand_live_count(ui,first_uid)==1,"DISPLAY present hand after a key change keeps one live button per uid")
  t.check(counting.get_view_calls==baseline,"DISPLAY present hand after a key change does not call get_view")
  var header_after_mutation=ui.find_child("GameHeader",true,false)
@@ -2223,6 +2226,561 @@ static func r5_display_facts_match_determination(t) -> void:
  problems.append_array(r5_cell_problems(demo,"demo stage",["demo_exit"]))
  t.check(problems.is_empty(),"G5 display_facts_match_determination: every R5 display domain equals the single determination and is really reached: "+str(problems.slice(0,3)))
 
+# ---- 手牌卡增量刷新（hand refresh，本片）：计数只用测试侧实例 id 集合差，不新增生产计数器 ----
+
+# 某卡子树（该 uid 的手牌按钮及其全部后代）的实例 id 集合。
+static func present_hand_nodes(button) -> Dictionary:
+ var out={}
+ if button==null or not is_instance_valid(button): return out
+ var pending: Array=[button]
+ while not pending.is_empty():
+  var node=pending.pop_back()
+  out[node.get_instance_id()]=String(node.name)
+  for child in node.get_children(): pending.append(child)
+ return out
+
+# 每个魔力徽章的 `panel` 样式资源实例 id（按名＋位置），用于"不新建 StyleBox"判据。
+static func present_hand_styles(button) -> Dictionary:
+ var out={}
+ if button==null or not is_instance_valid(button): return out
+ var group=button.get_node_or_null("CardMana")
+ if group==null: return out
+ for badge in group.get_children():
+  if not badge.has_theme_stylebox_override("panel"): continue
+  out[String(badge.name)+"#"+str(badge.get_index())]=badge.get_theme_stylebox("panel").get_instance_id()
+ return out
+
+static func present_hand_children(button) -> Dictionary:
+ var out={}
+ if button==null or not is_instance_valid(button): return out
+ for child in button.get_children(): out[String(child.name)]=child.get_instance_id()
+ return out
+
+static func present_hand_lost(before: Dictionary, after: Dictionary) -> Array:
+ var out=[]
+ for id in before:
+  if not after.has(id): out.append(String(before[id]))
+ out.sort()
+ return out
+
+# 每张手牌按钮的判据行：实例 id、子树实例集合、徽章样式资源、八个直接子级、位置。
+static func present_hand_row(button) -> Dictionary:
+ return {"id":button.get_instance_id(),"nodes":present_hand_nodes(button),"styles":present_hand_styles(button),"children":present_hand_children(button),"position":button.position}
+
+static func present_hand_rows(ui) -> Dictionary:
+ var out={}
+ for uid in ui.card_buttons: out[String(uid)]=present_hand_row(ui.card_buttons[uid])
+ return out
+
+# 行几何（与 ui/main.gd::_hand_place_row 同一公式；测试侧独立复算，用于槽位断言）。
+static func present_hand_slot(index: int, count: int) -> Vector2:
+ var dimensions=preload("res://ui/card_face.gd").dimensions(252)
+ var step=minf(dimensions.x+8,746.0/maxi(1,count-1))
+ var start=850.0-(float(count-1)*step+dimensions.x)/2
+ var mid=float(index)-float(count-1)/2
+ return Vector2(start+index*step,630+absf(mid)*4)
+
+static func present_hand_seat(ui, uid: String) -> int:
+ for index in range(ui.view.hand.size()):
+  if String(ui.view.hand[index].uid)==uid: return index
+ return -1
+
+static func present_hand_given(ui, type: String, free: bool) -> Dictionary:
+ var card=preload("res://tests/curse_cases.gd").give(ui.game,type)
+ ui.card_faces[card.uid]=free
+ ui.view=ui.game.get_view()
+ ui.present(["hand"])
+ return card
+
+static func present_hand_incremental(t) -> void:
+ var ui=t.ui
+ var face_script=preload("res://ui/card_face.gd")
+ var Cards=preload("res://tests/curse_cases.gd")
+ var Click=preload("res://tests/curse_ui_cases.gd")
+ # ---------- P1 值变只改值 ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ t.check(String(ui.view.phase)=="battle" and ui.view.hand.size()>=3 and not bool(ui.view.pressure.overloaded),"DISPLAY hand refresh fixture is a battle page with a non-overloaded hand")
+ var uid=String(ui.view.hand[0].uid)
+ if bool(ui.card_faces.get(uid,false)): await t.flip(uid)
+ await t.move_mouse(Vector2(1100,90));await t.frames(30)
+ var reads=ui.game.view_reads
+ var before=ui.game.export_snapshot()
+ var faces_before=ui.card_faces.keys();faces_before.sort()
+ var base=present_hand_row(ui.card_buttons[uid])
+ var face="free" if bool(ui.card_faces.get(uid,false)) else "bound"
+ var availability=ui.view.hand[0].availability[face]
+ availability.text="probe-hand"
+ ui.present(["hand"]);await t.frames()
+ var after_key=present_hand_row(ui.card_buttons[uid])
+ var faces_after=ui.card_faces.keys();faces_after.sort()
+ t.check(after_key.id==base.id,"DISPLAY hand refresh value change keeps the card instance")
+ t.check(after_key.nodes==base.nodes,"DISPLAY hand refresh value change keeps the card subtree with zero create and zero destroy: "+str(present_hand_lost(after_key.nodes,base.nodes)))
+ t.check(after_key.children==base.children,"DISPLAY hand refresh value change keeps the eight direct children")
+ t.check(ui.card_buttons[uid].home==base.position and ui.card_buttons[uid].position==base.position and is_equal_approx(ui.card_buttons[uid].rotation,ui.card_buttons[uid].resting_angle),"DISPLAY hand refresh value change writes no position and keeps the resting angle: "+str(ui.card_buttons[uid].position)+" vs "+str(base.position))
+ t.check(String(ui.card_buttons[uid].find_child("CardAvailability",true,false).text).contains("probe-hand") and t.visible_text(ui.card_buttons[uid]).contains("probe-hand"),"DISPLAY hand refresh value change rewrites only its values")
+ t.check(ui.card_buttons.size()==ui.view.hand.size() and ui.game.view_reads==reads and faces_after==faces_before,"DISPLAY hand refresh value change keeps one button per uid without reprojecting")
+ t.check(ui.game.export_snapshot()==before and ui.card_buttons[uid].drag_payload.version==ui.view.version,"DISPLAY hand refresh value change does not change gameplay state")
+ ui.selected_card=uid
+ ui.present(["hand"]);await t.frames()
+ t.check(ui.card_buttons[uid].chosen and ui.card_buttons[uid].get_node("CardText").scroll_vertical==0,"DISPLAY hand refresh marks the selected card without rebuilding it")
+ ui.selected_card=""
+ ui.present(["hand"]);await t.frames()
+ t.check(not ui.card_buttons[uid].chosen and present_hand_row(ui.card_buttons[uid]).id==base.id,"DISPLAY hand refresh clears the selection mark when the submit drops it")
+ # ---------- P2 翻面不重建（含翻回零增删、切片至多构造一次） ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var flip_uid=""
+ for card in ui.view.hand:
+  if bool(card.single_face): continue
+  var bound_shape=[card.face_mana.bound.size(),card.face_keywords.bound.size(),card.face_requirements.bound.size()]
+  var free_shape=[card.face_mana.free.size(),card.face_keywords.free.size(),card.face_requirements.free.size()]
+  if bound_shape!=free_shape: flip_uid=String(card.uid);break
+ if flip_uid=="":
+  for card in ui.view.hand:
+   if not bool(card.single_face): flip_uid=String(card.uid);break
+ t.check(flip_uid!="","DISPLAY hand refresh flip fixture has a non-single-face hand card")
+ var reads_flip=ui.game.view_reads
+ var snapshot_flip=ui.game.export_snapshot()
+ var flip_base=present_hand_row(ui.card_buttons[flip_uid])
+ var flip_face=bool(ui.card_faces.get(flip_uid,false))
+ await t.flip(flip_uid)
+ var cached=ui._hand_cards[flip_uid].sides.duplicate()
+ var flip_type=""
+ for card in ui.view.hand:
+  if String(card.uid)==flip_uid: flip_type=String(card.type)
+ t.check(ui.card_buttons[flip_uid].get_instance_id()==flip_base.id and ui.card_buttons[flip_uid].free_face!=flip_face,"DISPLAY hand refresh flip keeps the card instance and switches the face")
+ t.check(present_hand_children(ui.card_buttons[flip_uid])==flip_base.children,"DISPLAY hand refresh flip keeps the eight direct children")
+ t.check(t.visible_text(ui.card_buttons[flip_uid]).contains(ui.game.Cards.face_text(ui.game,flip_type,not flip_face,flip_uid)),"DISPLAY hand refresh flip shows the current face copy")
+ t.check(cached.has("bound") and cached.has("free"),"DISPLAY hand refresh flip caches one slice per face")
+ await t.flip(flip_uid)
+ var flip_back=present_hand_row(ui.card_buttons[flip_uid])
+ t.check(flip_back.id==flip_base.id and flip_back.nodes==flip_base.nodes and flip_back.styles==flip_base.styles,"DISPLAY hand refresh flip back restores the same subtree and styles with zero create and zero destroy: "+str(present_hand_lost(flip_back.nodes,flip_base.nodes)))
+ t.check(is_same(cached.bound,ui._hand_cards[flip_uid].sides.bound) and is_same(cached.free,ui._hand_cards[flip_uid].sides.free),"DISPLAY hand refresh flip back reuses the cached face slices (at most one build per card and side)")
+ t.check(ui.game.view_reads==reads_flip and ui.game.export_snapshot()==snapshot_flip,"DISPLAY hand refresh flip does not reproject or change gameplay state")
+ # 两面同 kind 的魔力条目：只改文本，徽章节点与 `panel` 样式资源实例 id 不变。
+ var steady=present_hand_given(ui,"sensitive",false)
+ await t.frames()
+ var steady_before=present_hand_row(ui.card_buttons[steady.uid])
+ if not bool(ui.card_faces.get(steady.uid,false)): await t.flip(steady.uid)
+ var swap_before=present_hand_row(ui.card_buttons[steady.uid])
+ await t.flip(steady.uid)
+ var swap_after=present_hand_row(ui.card_buttons[steady.uid])
+ t.check(swap_after.id==swap_before.id and swap_after.styles==swap_before.styles,"DISPLAY hand refresh flip keeps unchanged mana badges and their panel styles: "+str(swap_before.styles)+" vs "+str(swap_after.styles))
+ t.check(not steady_before.nodes.is_empty() and swap_after != {} and swap_after.id==swap_before.id,"DISPLAY hand refresh keeps the given card instance across both faces")
+ # ---------- P3 顺序变仅重排（幂等） ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var order_before=ui.card_buttons.keys()
+ var rows_before=present_hand_rows(ui)
+ var ids_before={}
+ for key in rows_before: ids_before[key]=rows_before[key].id
+ ui.view.hand.reverse()
+ ui.present(["hand"]);await t.frames()
+ var rows_after=present_hand_rows(ui)
+ var instable=true
+ for key in rows_after: instable=instable and rows_after[key].id==ids_before[key]
+ var seat_ok=true
+ for index in range(ui.view.hand.size()):
+  var seat_uid=String(ui.view.hand[index].uid)
+  seat_ok=seat_ok and rows_after[seat_uid].position==present_hand_slot(index,ui.view.hand.size())
+ t.check(instable,"DISPLAY hand refresh reorder keeps every surviving card instance")
+ t.check(seat_ok,"DISPLAY hand refresh reorder swaps cards into the new row slots")
+ var created_reorder=0
+ for key in rows_after: created_reorder+=present_hand_lost(rows_after[key].nodes,rows_before[key].nodes).size()
+ t.check(created_reorder==0,"DISPLAY hand refresh reorder creates no node")
+ var settled=present_hand_rows(ui)
+ ui.present(["hand"]);await t.frames()
+ var rows_again=present_hand_rows(ui)
+ t.check(rows_again==settled,"DISPLAY hand refresh second present writes nothing (positions, instances and subtrees unchanged)")
+ t.check(order_before.size()==ui.card_buttons.size(),"DISPLAY hand refresh reorder keeps the row size")
+ # ---------- E7 draw_serial 变、面不变 ⇒ 零写入 ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var serial_uid=String(ui.view.hand[0].uid)
+ var serial_seat=present_hand_seat(ui,serial_uid)
+ var serial_face=bool(ui.card_faces.get(serial_uid,false))
+ var serial_row=present_hand_row(ui.card_buttons[serial_uid])
+ var serial_key=ui._hand_presentation_key()
+ ui.view.hand[serial_seat].draw_serial=int(ui.view.hand[serial_seat].get("draw_serial",0))+1
+ ui.present(["hand"]);await t.frames()
+ t.check(ui._hand_presentation_key()!=serial_key,"DISPLAY hand refresh moves the row key when only the draw serial changes")
+ t.check(bool(ui.card_faces.get(serial_uid,false))==serial_face and present_hand_row(ui.card_buttons[serial_uid])==serial_row,"DISPLAY hand refresh rewrites nothing when only the draw serial changes (the row key moved, the face slice did not)")
+ # ---------- E8 抽牌换面 ⇒ 值更新（不重建） ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var draw_uid=String(ui.view.hand[0].uid)
+ var draw_face=bool(ui.card_faces.get(draw_uid,false))
+ var draw_base=present_hand_row(ui.card_buttons[draw_uid])
+ var draw_key=ui._hand_presentation_key()
+ ui.card_draw_serials[draw_uid]=int(ui.card_draw_serials.get(draw_uid,0))-1
+ for index in range(ui.view.hand.size()):
+  if String(ui.view.hand[index].uid)==draw_uid: ui.view.hand[index].draw_free=not draw_face
+ ui.present(["hand"]);await t.frames()
+ var draw_after=present_hand_row(ui.card_buttons[draw_uid])
+ t.check(bool(ui.card_faces.get(draw_uid,false))!=draw_face and ui.card_buttons[draw_uid].free_face==bool(ui.card_faces.get(draw_uid,false)),"DISPLAY hand refresh applies a new draw face")
+ t.check(ui._hand_presentation_key()!=draw_key,"DISPLAY hand refresh moves the row key on a draw face change")
+ t.check(draw_after.id==draw_base.id and draw_after.children==draw_base.children,"DISPLAY hand refresh applies a new draw face without rebuilding the card: instance "+str(draw_after.id)+" vs "+str(draw_base.id))
+ # ---------- E4 与卡面无关的设置项变：零动作 ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var quiet_before=present_hand_rows(ui)
+ var reads_quiet=ui.game.view_reads
+ ui.display_settings.set_frame_limit(0)
+ ui.display_settings.set_vsync(false)
+ ui.present(["hand"]);await t.frames()
+ t.check(present_hand_rows(ui)==quiet_before,"DISPLAY hand refresh ignores unrelated display settings")
+ t.check(ui.game.view_reads==reads_quiet,"DISPLAY hand refresh ignores unrelated display settings without reprojecting")
+ ui.display_settings.set_frame_limit(60)
+ ui.display_settings.set_vsync(true)
+ # ---------- E3 语言切换的键覆盖（局部路径） ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var locale_uid=String(ui.view.hand[0].uid)
+ var locale_before=t.visible_text(ui.card_buttons[locale_uid])
+ ui.display_settings.set_locale("en_US")
+ ui.localization.set_locale("en_US")
+ ui.present(["hand"]);await t.frames()
+ var locale_en=t.visible_text(ui.card_buttons[locale_uid])
+ t.check(locale_en!=locale_before and not locale_en.contains("可用"),"DISPLAY hand refresh key covers the locale on a local path: "+locale_en.substr(0,60))
+ ui.display_settings.set_locale("zh_CN")
+ ui.localization.set_locale("zh_CN")
+ ui.present(["hand"]);await t.frames()
+ t.check(t.visible_text(ui.card_buttons[locale_uid])==locale_before,"DISPLAY hand refresh restores the Chinese copy after the local locale round trip")
+ # ---------- N5 语言切换（唯一入口的全量路径） ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var lang_uid=String(ui.view.hand[0].uid)
+ var lang_zh=t.visible_text(ui.card_buttons[lang_uid])
+ ui._set_language("en_US")
+ await t.frames()
+ t.check(ui.card_buttons.size()==ui.view.hand.size() and present_hand_live_count(ui,lang_uid)==1,"DISPLAY hand refresh follows a language switch with a complete row")
+ t.check(not t.visible_text(ui.card_buttons[lang_uid]).contains("拘束"),"DISPLAY hand refresh follows a language switch without stale card copy")
+ ui._set_language("zh_CN")
+ await t.frames()
+ t.check(t.visible_text(ui.card_buttons[lang_uid])==lang_zh,"DISPLAY hand refresh returns to the Chinese copy through the single entry")
+ # ---------- E1 同提交多字段变 ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var many_uid=String(ui.view.hand[2].uid)
+ if bool(ui.card_faces.get(many_uid,false)): await t.flip(many_uid)
+ var many_face="free" if bool(ui.card_faces.get(many_uid,false)) else "bound"
+ var many_base=present_hand_row(ui.card_buttons[many_uid])
+ var many_row=null
+ var many_type=""
+ for card in ui.view.hand:
+  if String(card.uid)==many_uid: many_row=card;many_type=String(card.type)
+ var many_sources=[ui.view.card_texts[many_type]]
+ if ui.view.card_instances.has(many_uid): many_sources.append(ui.view.card_instances[many_uid])
+ many_row.name="多字段探针"
+ many_row.cost="7"
+ many_row.availability[many_face].text="探针可用性"
+ many_row.availability[many_face].usable=false
+ var extra_mana=many_sources[0].face_mana[many_face]+[{"kind":"temporary","text":"+3","detail":"探针。"}]
+ var extra_keywords=Array(many_sources[0].face_keywords[many_face])+[{"name":"探针词条","detail":"探针。"}]
+ var extra_effect=String(many_sources[0].face_effects[many_face])+"附加探针。探针词条。"
+ for source in many_sources:
+  source.face_mana[many_face]=extra_mana
+  source.face_keywords[many_face]=extra_keywords
+  source.face_effects[many_face]=extra_effect
+  source.face_costs[many_face]="7"
+ ui.present(["hand"]);await t.frames()
+ var many_after=present_hand_row(ui.card_buttons[many_uid])
+ var many=ui.card_buttons[many_uid]
+ t.check(many_after.id==many_base.id and many_after.children==many_base.children,"DISPLAY hand refresh applies many field changes in one pass without rebuilding the face")
+ t.check(String(many.get_node("CardCost").text)=="7" and String(many.get_node("CardTitle").text).contains("多字段探针"),"DISPLAY hand refresh applies the title and cost in place")
+ t.check(many.get_node("CardMana").get_child_count()==extra_mana.size(),"DISPLAY hand refresh keeps one mana badge per entry: "+str(many.get_node("CardMana").get_child_count())+" vs "+str(extra_mana.size()))
+ var expected_tags=face_script.separate_keywords(extra_effect,extra_keywords)
+ var expected_tag_count=expected_tags.keywords.size()+(1 if bool(many_row.get("retained",false)) and "保留" not in expected_tags.keywords else 0)
+ t.check(many.get_node("CardKeywords").get_child_count()==expected_tag_count,"DISPLAY hand refresh keeps one keyword tag per entry: "+str(many.get_node("CardKeywords").get_child_count())+" vs "+str(expected_tag_count))
+ t.check(t.visible_text(many).contains("附加探针") and t.visible_text(many).contains("探针词条") and t.visible_text(many).contains("探针可用性"),"DISPLAY hand refresh shows every changed field")
+ t.check(many.get_node("CardText").get_rect().end.y<=many.size.y and many.get_node("CardTitle").get_rect().end.x<=many.size.x,"DISPLAY hand refresh lays the changed fields out once")
+ # ---------- E9 一致性守卫失灵只修一张 ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var broken_uid=String(ui.view.hand[1].uid)
+ if not bool(ui.card_faces.get(broken_uid,false)):
+  ui.card_faces[broken_uid]=true
+  ui.present(["hand"])
+  await t.frames()
+ t.check(bool(ui.card_faces.get(broken_uid,false)) and ui.card_buttons[broken_uid].free_face,"DISPLAY hand refresh broken-card fixture starts on the turned face")
+ var intact={}
+ for key in ui.card_buttons:
+  if String(key)!=broken_uid: intact[String(key)]=present_hand_row(ui.card_buttons[key])
+ # 选择态下登记的候选键 + 一条指向同一按钮的幽灵行：外部释放后都不得留下悬空条目。
+ ui.candidate_buttons["probe|"+broken_uid]=ui.card_buttons[broken_uid]
+ ui.card_buttons["card_ghost"]=ui.card_buttons[broken_uid]
+ ui.card_buttons[broken_uid].queue_free()
+ await t.frames(3)
+ var reads_broken=ui.game.view_reads
+ ui.present(["hand"]);await t.frames()
+ var intact_after=true
+ for key in intact: intact_after=intact_after and present_hand_row(ui.card_buttons[key])==intact[key]
+ t.check(ui.card_buttons.has(broken_uid) and is_instance_valid(ui.card_buttons[broken_uid]) and present_hand_live_count(ui,broken_uid)==1,"DISPLAY hand refresh repairs only the broken card")
+ t.check(ui.card_buttons[broken_uid].free_face and bool(ui.card_faces.get(broken_uid,false)),"DISPLAY hand refresh keeps the turned face across a same-row release and mount")
+ t.check(not ui.candidate_buttons.has("probe|"+broken_uid) and ui.candidate_buttons.values().all(func(button):return is_instance_valid(button)),"DISPLAY hand refresh drops the stale candidate entry of a released button")
+ t.check(not ui.card_buttons.has("card_ghost"),"DISPLAY hand refresh drops a non-member row without mounting it")
+ t.check(intact_after,"DISPLAY hand refresh repair leaves every other card untouched")
+ t.check(ui.game.view_reads==reads_broken and ui.card_buttons.size()==ui.view.hand.size(),"DISPLAY hand refresh repair does not reproject")
+ # ---------- E5 手牌清空与从空恢复 ----------
+ ui.restart(42);ui.game.state.equipment.clear();ui.game._discard_end()
+ ui.game.state.wall="normal"
+ ui.game.add_fixture("ankle",400,1000)
+ var last=Cards.give(ui.game,"strain")
+ ui.game.state.hand=[last]
+ ui.selected_slot="wrist"
+ ui.card_faces[last.uid]=false
+ ui.view=ui.game.get_view()
+ ui.render();await t.frames()
+ t.check(ui.view.hand.size()==1 and ui.card_buttons.has(last.uid),"DISPLAY hand refresh empty fixture starts with exactly one card")
+ await Click.click_card(t,last.uid);await t.frames()
+ t.check(ui.view.hand.is_empty() and ui.card_buttons.is_empty() and present_named_live_count(ui,"EmptyHand")==1,"DISPLAY hand refresh mounts the empty row when the last card leaves")
+ t.check(not ui.card_faces.has(last.uid) and not ui.card_draw_serials.has(last.uid) and not ui._hand_cards.has(last.uid),"DISPLAY hand refresh drops every per-uid table when the last card leaves")
+ t.check(present_named_live_count(ui,"HandCard_*")==0 and ui.find_children("HandCard_*","",true,false).is_empty(),"DISPLAY hand refresh leaves no live hand card when the row is empty")
+ var drawn=Cards.give(ui.game,"slip")
+ ui.card_faces[drawn.uid]=false
+ ui.view=ui.game.get_view()
+ ui.present(["hand"]);await t.frames()
+ t.check(present_named_live_count(ui,"EmptyHand")==0 and ui.card_buttons.has(drawn.uid) and present_hand_live_count(ui,drawn.uid)==1,"DISPLAY hand refresh unmounts the empty row when a card comes back")
+ var restored=present_hand_row(ui.card_buttons[drawn.uid])
+ ui.present(["hand"]);await t.frames()
+ t.check(present_hand_row(ui.card_buttons[drawn.uid])==restored,"DISPLAY hand refresh empty-to-card transition registers the row key")
+ # ---------- E6 满手牌 ----------
+ ui.restart(42);await t.frames(8)
+ ui.game.state.hand=[]
+ for index in range(10): ui.game._gain_card("strain" if index%2==0 else "slip",{},true)
+ ui.view=ui.game.get_view()
+ ui.render(ui.view);await t.frames()
+ var full_before=present_hand_rows(ui)
+ t.check(ui.view.hand.size()==10 and ui.card_buttons.size()==10,"DISPLAY hand refresh full-hand fixture holds ten cards")
+ var full_uid=String(ui.view.hand[0].uid)
+ var full_face="free" if bool(ui.card_faces.get(full_uid,false)) else "bound"
+ ui.view.hand[0].availability[full_face].text="满手牌探针"
+ ui.present(["hand"]);await t.frames()
+ var full_after=present_hand_rows(ui)
+ t.check(full_after[full_uid].nodes==full_before[full_uid].nodes,"DISPLAY hand refresh keeps a full hand stable on a value change")
+ var full_geometry=true
+ for index in range(ui.view.hand.size()):
+  full_geometry=full_geometry and full_after[String(ui.view.hand[index].uid)].position==present_hand_slot(index,ui.view.hand.size())
+ t.check(full_geometry,"DISPLAY hand refresh keeps the full-hand row geometry")
+ var full_positions={}
+ for key in full_after: full_positions[key]=full_after[key].position
+ ui.game._gain_card("ease",{},true)
+ ui.view=ui.game.get_view()
+ ui.present(["hand"]);await t.frames()
+ var capped=true
+ for key in ui.card_buttons: capped=capped and ui.card_buttons[key].position==full_positions.get(String(key),ui.card_buttons[key].position)
+ t.check(ui.view.hand.size()==10 and ui.card_buttons.size()==10 and capped,"DISPLAY hand refresh keeps ten cards and their positions when the draw is capped")
+ # ---------- N1／E2 出牌与抽牌同提交：只动涉及 uid ----------
+ ui.restart(42);ui.game.state.equipment.clear();ui.game._discard_end()
+ ui.game.state.wall="normal"
+ var ankle=ui.game.add_fixture("ankle",400,1000)
+ var playable=Cards.give(ui.game,"strain")
+ var play_uid=String(playable.uid)
+ ui.selected_slot="wrist"
+ ui.card_faces[play_uid]=false
+ ui.render();await t.frames()
+ t.check(ui.view.hand.any(func(c):return String(c.uid)==play_uid),"DISPLAY hand refresh play fixture holds the chosen card in the current view")
+ var survivors={}
+ for key in ui.card_buttons:
+  if String(key)!=play_uid: survivors[String(key)]=present_hand_row(ui.card_buttons[key])
+ var survivors_ids={}
+ for key in survivors: survivors_ids[key]=survivors[key].id
+ var reads_play=ui.game.view_reads
+ var version_play=ui.view.version
+ await Click.click_card(t,play_uid);await t.frames()
+ t.check(ui.view.version>version_play,"DISPLAY hand refresh play fixture commits the click: version "+str(version_play)+" -> "+str(ui.view.version))
+ t.check(not ui.card_buttons.has(play_uid),"DISPLAY hand refresh removes the played card and only it")
+ t.check(not ui.card_faces.has(play_uid) and not ui.card_draw_serials.has(play_uid) and not ui._hand_cards.has(play_uid),"DISPLAY hand refresh drops the played card from every per-uid table")
+ var untouched=true
+ var reused=0
+ for key in survivors:
+  var now=ui.card_buttons.get(key)
+  if now==null:
+   continue
+  if present_hand_row(now).id!=survivors_ids[key]: untouched=false
+  reused+=present_hand_lost(present_hand_nodes(now),survivors[key].nodes).size()
+ t.check(untouched and reused==0,"DISPLAY hand refresh keeps every surviving card instance and creates no node for them: "+str(reused))
+ t.check(ui.card_buttons.size()==ui.view.hand.size() and ui.game.view_reads>reads_play,"DISPLAY hand refresh keeps one button per remaining uid after the play")
+ t.check(ui._hand_cards.keys().size()==ui.view.hand.size() and ui.card_buttons.keys().all(func(key):return ui._hand_cards.has(String(key))),"DISPLAY hand refresh keeps every per-uid table aligned with the hand")
+ # ---------- 过载行态（S8：climax 面板替换整行，随后恢复） ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ ui.view.pressure.overloaded=true
+ ui.present(["hand"]);await t.frames()
+ t.check(present_named_live_count(ui,"ClimaxNarration")==1 and ui.card_buttons.is_empty() and ui._hand_cards.is_empty(),"DISPLAY hand refresh mounts the climax row when the pressure overloads")
+ t.check(ui.find_children("HandCard_*","",true,false).is_empty(),"DISPLAY hand refresh unmounts the card row on the climax row")
+ ui.view.pressure.overloaded=false
+ ui.present(["hand"]);await t.frames()
+ t.check(present_named_live_count(ui,"ClimaxNarration")==0 and ui.card_buttons.size()==ui.view.hand.size(),"DISPLAY hand refresh returns to the card row after the overload ends")
+ # ---------- 计数同提交（E2：出牌＋抽牌同一次提交） ----------
+ ui.restart(42);ui.game.state.equipment.clear();ui.game._discard_end()
+ ui.game.state.wall="normal"
+ ui.game.add_fixture("ankle",400,1000)
+ var kept_card=Cards.give(ui.game,"kip_up")
+ var discarded_card=Cards.give(ui.game,"strain")
+ var discarded_uid=String(discarded_card.uid)
+ var kept_uid=String(kept_card.uid)
+ ui.view=ui.game.get_view()
+ ui.render(ui.view);await t.frames()
+ t.check(ui.view.hand.any(func(c):return String(c.uid)==kept_uid) and ui.view.hand.any(func(c):return String(c.uid)==discarded_uid),"DISPLAY hand refresh combo fixture holds the retained and the discarded card")
+ var combo_before=present_hand_rows(ui)
+ var combo_version=ui.view.version
+ t.check(await t.click("end",{},false),"DISPLAY hand refresh combo fixture submits the end turn without settling")
+ await t.frames(2,false)
+ var pending_uid=""
+ if is_instance_valid(ui.card_motion):
+  for key in ui.card_motion.pending_draws: pending_uid=String(key)
+ t.check(pending_uid!="" and ui.card_buttons.has(pending_uid) and not ui.card_buttons[pending_uid].visible,"DISPLAY hand refresh hides the pending draw while it animates: "+pending_uid)
+ var pending_id=ui.card_buttons[pending_uid].get_instance_id() if ui.card_buttons.has(pending_uid) else 0
+ if ui.card_buttons.has(pending_uid):
+  for card in ui.view.hand:
+   if String(card.uid)==pending_uid:
+    var pending_face="free" if bool(ui.card_faces.get(pending_uid,false)) else "bound"
+    card.availability[pending_face].text="pending-probe"
+  ui.present(["hand"])
+  await t.frames(2,false)
+ t.check(ui.card_buttons.has(pending_uid) and ui.card_buttons[pending_uid].get_instance_id()==pending_id and not ui.card_buttons[pending_uid].visible,"DISPLAY hand refresh keeps the pending draw instance across a local refresh")
+ await t.frames(20)
+ t.check(ui.card_buttons.has(pending_uid) and ui.card_buttons[pending_uid].get_instance_id()==pending_id and ui.card_buttons[pending_uid].visible,"DISPLAY hand refresh shows the pending draw after the animation on the same instance")
+ var combo_new=ui.card_buttons.keys().filter(func(key):return not combo_before.has(String(key)))
+ var combo_gone=combo_before.keys().filter(func(key):return not ui.card_buttons.has(String(key)))
+ var combo_touched=present_hand_rows(ui).keys().filter(func(key):return combo_before.has(String(key)) and present_hand_row(ui.card_buttons[key]).id!=combo_before[key].id)
+ t.check(ui.view.version>combo_version and not combo_gone.is_empty() and not combo_new.is_empty(),"DISPLAY hand refresh handles a simultaneous remove and draw: gone="+str(combo_gone)+" new="+str(combo_new))
+ t.check(ui.card_buttons.has(kept_uid) and present_hand_row(ui.card_buttons[kept_uid]).id==combo_before[kept_uid].id,"DISPLAY hand refresh keeps the retained card instance across the end turn")
+ t.check(combo_touched.is_empty(),"DISPLAY hand refresh rebuilds no surviving card on a remove plus draw commit: "+str(combo_touched))
+ t.check(ui._hand_cards.keys().size()==ui.view.hand.size(),"DISPLAY hand refresh keeps the hand cache aligned after a remove plus draw commit")
+ # ---------- 悬停详情读当前数据（不是挂载快照） ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var hover_uid=""
+ var hover_seat=-1
+ for index in range(ui.view.hand.size()):
+  var hover_row=ui.view.hand[index]
+  var hover_side="free" if bool(ui.card_faces.get(String(hover_row.uid),false)) else "bound"
+  if bool(hover_row.get("cast_faces",{}).get(hover_side,false)):
+   hover_uid=String(hover_row.uid);hover_seat=index;break
+ t.check(hover_uid!="","DISPLAY hand refresh hover fixture has a spell hand card whose current face casts")
+ await t.move_mouse(Vector2(1100,90));await t.frames()
+ # 焦点与旧弹层都清掉：否则  的延迟重入会用当前数据补弹层，掩盖闭包路径。
+ ui.card_buttons[hover_uid].release_focus()
+ ui.get_viewport().gui_release_focus()
+ var hover_face="free" if bool(ui.card_faces.get(hover_uid,false)) else "bound"
+ var hover_type=String(ui.view.hand[hover_seat].type)
+ var hover_texts=ui.view.card_texts[hover_type]
+ # 整个 `face_casting`／`casting` 换成新字典：浅拷贝共享同一对象，只改内层字段会让挂载快照一起变，
+ # 那样就掩盖了闭包路径（本条的靶子）。
+ for source in [hover_texts,ui.view.card_instances.get(hover_uid,{})]:
+  if source.has("face_casting"):
+   var casting_faces={}
+   for face_key in source.face_casting:
+    var face_copy=(source.face_casting[face_key] as Dictionary).duplicate()
+    if String(face_key)==hover_face: face_copy.percent="0%"
+    casting_faces[face_key]=face_copy
+   source.face_casting=casting_faces
+  if source.has("casting"):
+   var profile_copy=(source.casting as Dictionary).duplicate()
+   profile_copy.percent="0%"
+   source.casting=profile_copy
+ ui.present(["hand"]);await t.frames()
+ await t.move_mouse(t.card_point(hover_uid));await t.frames()
+ t.check(ui.find_child("TermExplanation",true,false)!=null and t.visible_text(ui.term_popup).contains("施法成功率 · 0%"),"DISPLAY hand refresh keeps the hover detail on the current casting copy: "+t.visible_text(ui.term_popup).substr(0,80))
+ await t.move_mouse(Vector2(1100,90));await t.frames()
+ # ---------- E10 源文本判据：手牌行只有一条例程 ----------
+ present_hand_source_text(t)
+ # ---------- N2 type 变只重建该 uid ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var swap_uid=String(ui.view.hand[0].uid)
+ var keep_uid=String(ui.view.hand[1].uid)
+ var keep_row=present_hand_row(ui.card_buttons[keep_uid])
+ var swap_id=ui.card_buttons[swap_uid].get_instance_id()
+ if not bool(ui.card_faces.get(swap_uid,false)):
+  ui.card_faces[swap_uid]=true
+  ui.present(["hand"])
+  await t.frames()
+ ui.view.hand[0].type="concentration"
+ ui.view.hand[0].name="凝神"
+ ui.view.hand[0].cost="1"
+ ui.present(["hand"]);await t.frames()
+ t.check(ui.card_buttons.has(swap_uid) and ui.card_buttons[swap_uid].get_instance_id()!=swap_id,"DISPLAY hand refresh rebuilds exactly the card whose type changed")
+ t.check(present_hand_row(ui.card_buttons[keep_uid])==keep_row,"DISPLAY hand refresh type change leaves every other card untouched")
+ t.check(String(ui.card_buttons[swap_uid].symbol)=="concentration","DISPLAY hand refresh type change shows the new symbol")
+ t.check(ui.card_buttons[swap_uid].free_face and bool(ui.card_faces.get(swap_uid,false)),"DISPLAY hand refresh type change keeps the turned face across the rebuild")
+ # ---------- N3 行矩变（收窄口径：不重建） ----------
+ ui.restart(42);ui.game.state.equipment.clear();ui.game._discard_end()
+ ui.game.state.wall="normal"
+ ui.game.add_fixture("ankle",400,1000)
+ var retreat=Cards.give(ui.game,"strain")
+ ui.selected_slot="wrist"
+ ui.card_faces[String(retreat.uid)]=false
+ ui.render();await t.frames()
+ var count_before=ui.view.hand.size()
+ var row_before=present_hand_rows(ui)
+ await Click.click_card(t,String(retreat.uid));await t.frames()
+ t.check(ui.view.hand.size()==count_before-1,"DISPLAY hand refresh row geometry fixture removes exactly one card: "+str(count_before)+" -> "+str(ui.view.hand.size()))
+ var geometry_ok=true
+ var kept=0
+ for key in ui.card_buttons:
+  var index=present_hand_seat(ui,String(key))
+  if index<0: continue
+  kept+=1
+  geometry_ok=geometry_ok and ui.card_buttons[key].position==present_hand_slot(index,ui.view.hand.size())
+  geometry_ok=geometry_ok and ui.card_buttons[key].home==ui.card_buttons[key].position
+ t.check(kept==ui.view.hand.size() and geometry_ok,"DISPLAY hand refresh places row geometry in place after a member change")
+ var row_after=present_hand_rows(ui)
+ var row_rebuilt=[]
+ for key in row_after:
+  if row_before.has(key) and row_after[key].id!=row_before[key].id: row_rebuilt.append(key)
+ t.check(row_rebuilt.is_empty(),"DISPLAY hand refresh does not rebuild surviving cards when the row geometry changes: "+str(row_rebuilt))
+ # ---------- N4 卡面画风变：就地换图 ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var art_card=present_hand_given(ui,"strain",false)
+ await t.frames()
+ var art_uid=String(art_card.uid)
+ var art_row=present_hand_row(ui.card_buttons[art_uid])
+ var art_tex=ui.card_buttons[art_uid].get_node("CardIllustration").texture
+ ui.display_settings.set_art_style("cards","strain","test")
+ ui.present(["hand"]);await t.frames()
+ var fallback=ui.card_buttons[art_uid].get_node("CardIllustration").texture
+ t.check(ui.card_buttons[art_uid].get_instance_id()==art_row.id and present_hand_nodes(ui.card_buttons[art_uid])==art_row.nodes,"DISPLAY hand refresh swaps card art in place when the display style changes")
+ t.check(fallback!=art_tex and fallback==face_script.ILLUSTRATIONS.get("strain"),"DISPLAY hand refresh falls back to the built-in illustration for the test style")
+ ui.display_settings.set_art_style("cards","strain","formal")
+ ui.present(["hand"]);await t.frames()
+ t.check(ui.card_buttons[art_uid].get_node("CardIllustration").texture==art_tex,"DISPLAY hand refresh restores the formal illustration in place")
+
+# 源文本判据（裁定 9）：手牌行只有一条例程，建卡只有一个构造点。
+static func present_hand_source_text(t) -> void:
+ var handle=FileAccess.open("res://ui/main.gd",FileAccess.READ)
+ var declaration=RegEx.new()
+ var slash=String.chr(92)
+ declaration.compile("^"+slash+"s*func"+slash+"s+([A-Za-z_][A-Za-z0-9_]*)")
+ var bodies={}
+ var current=""
+ var text="" if handle==null else handle.get_as_text()
+ for line in text.split(String.chr(10)):
+  var code=String(line).split("#")[0]
+  var declared=declaration.search(code)
+  if declared!=null:
+   current=declared.get_string(1)
+   bodies[current]=""
+   continue
+  if current!="": bodies[current]=String(bodies[current])+code+String.chr(10)
+ t.check(bodies.has("render") and String(bodies["render"]).contains("_hand()"),"DISPLAY hand refresh keeps render on the single row routine")
+ var face_new=[]
+ for name in bodies:
+  if String(bodies[name]).contains("CardFace.new()"): face_new.append(name)
+ t.check(face_new==["_card"],"DISPLAY hand refresh keeps one card constructor: "+str(face_new))
+ var caller=RegEx.new()
+ caller.compile("(^|[^A-Za-z0-9_])_card"+slash+"(")
+ var callers=[]
+ for name in bodies:
+  if name=="_card": continue
+  if caller.search(String(bodies[name]))!=null: callers.append(name)
+ callers.sort()
+ t.check(callers==["_display_card","_hand_mount_card"],"DISPLAY hand refresh builds hand cards only through the member step: "+str(callers))
+
 static func run(t) -> void:
  r3_display_points_do_not_read_rows(t)
  display_facts_match_determination(t)
@@ -2242,6 +2800,7 @@ static func run(t) -> void:
  await present_routes_header_or_full(t)
  await present_routes_relics_or_full(t)
  await present_routes_hand_or_full(t)
+ await present_hand_incremental(t)
  await present_routes_actions_or_full(t)
  await present_routes_posture_or_full(t)
  await present_routes_resources_or_full(t)

@@ -1534,3 +1534,50 @@ flowchart LR
 ## 2026-09-25｜未声明槽不查询（`3b88ece`）
 
 - 有 `target_slots` 的牌不对表外槽 `targets_at`。architecture 717。独立审查 `No findings.`（含清洁 `614f683`）。加固档 2 三变异红、还原再绿。未推送。
+
+## 2026-09-28 手牌卡增量刷新：固定顺序、每卡窄键、面切片缓存（枝 `worker/hand-refresh`）
+
+- `ui/main.gd` 的手牌节改为**唯一固定顺序**：拦截（行键＋纯数据 diff）→ 逐卡值更新 → 成员增删（先删后增；行态经 `_hand_reset_row`）→ 幂等重排（几何／顺序未变则连 `_hand_place_row` 都不调用）；`render` 全量路径仍经 `_hand`。行键＝`[locale, 行态, 顺序, pending, {uid: 每卡窄键}]`，每卡窄键（`_hand_card_key`）只读该卡自身透传字段与本地显示态（不整行深拷贝、不含 `card_costs` 等 View 级切片、`version` 不进键）；`_hand_cards` 按 `button_id` 守卫缓存每卡数据与两面值切片，失效规则写进契约。一致性守卫失灵只修该 uid（删＋增）或切行态，不退回整行重建。
+- `ui/card_face.gd` 新增原地更新 setter（标题／费用／分类／正文／警告／可用性／词条／条件／art，值相同即早退）；`set_mana` 改为按位置／kind 复用徽章与 `StyleBoxFlat`（同 kind 撞名以位置为主、kind 作匹配提示，首个该 kind 保持原名）；多余内容节点出树入池，翻回已应用过的面复用同一实例；`text_overflow` 记录 `fit_text` 的正文溢出结果，悬停详情改为延迟重入并读该结果（不再读尚未重排的 `Content.size`）。
+- 契约同步：`docs/spec/response-pipeline.md`（`hand` 节键行、面缓存与失效规则、场景 3 的 `hand` 限定、每卡键成本句）、`docs/spec/release-interface.md`（翻面切换到该面已缓存的词条与条件）、根 `AGENTS.md` 文档入口表加 `docs/spec/hand-refresh-dependencies.md`。
+- 唯一被改写的既有断言＝`DISPLAY present hand rebuilds the card when the presentation key changes` → `…keeps the card and rewrites its values…`（反向而不删）；新增 `tests/display_ui_cases.gd::present_hand_incremental`（P1–P3／N1–N5／E1–E10 与源文本判据）与 `tests/interface_ui_cases.gd::card_face_incremental`（setter 幂等、同 kind 撞名索引、真尺寸变、画风就地换图、悬停详情读 `fit_text` 结果）。
+- 验证：13 分类 UI 门 `20260928T065101211-31212`（3443 断言）、`architecture` `20260928T070508397-34364`、`check-docs.ps1` PASS、`runner -VerifyRunner` `20260928T070552510-23932`；计数、键成本逐档与 5 条敏感性运行号见[验证记录](verification.md)。仅源码与文档，未推送、未打标签、未改版本号、未打包。
+
+## 2026-09-28 手牌增量刷新补记：挂载去重、pending 断言、配对耗时与剩余敏感性
+
+- `ui/main.gd::_hand_mount_card` 在挂载后把 `_card` 刚应用过的那份面切片直接登记为“已应用”，去掉挂载后的第二次整面重写（整手替换提交里 `_refresh_card_face` 调用 20→15、`_hand_face_slice` 25→20）。
+- `tests/display_ui_cases.gd` 的 E2（结束回合同提交）追加 pending 断言：pending 抽牌期间按钮不可见且实例不变、本地刷新后仍不变、动画结束后同一实例可见。
+- 配对耗时（§D 口径，旧侧 `ec60197` 基础探针／新侧本树基础＋hand 包装，驱动逐字相同，同机同窗口 1600×900、种子 42、2 热身＋15 配对、旧新交替、电源方案 Silent）：`sections.hand` 值变 **0.137**、纯重排 **0.122**（均 ≤0.5 达标）；出牌 1.133／结束回合 1.177／保留卡＋结束回合 1.125（**未达标，如实记录**）；同场景 `submit_total_us` 0.882／0.973／0.995。7 配对复核同上（值变 0.118／重排 0.086／出牌 1.244／结束回合 1.076／增删同提交 0.876）。
+- 剩余敏感性：整行重建（`20260928T083849551-41880`）、键删 `chosen`（`20260928T084050468-28584`）、去掉重排幂等守卫（探针计数 0→1）、pending 可见性丢弃（`20260928T090211341-22060`）、键混 View 级切片（key-cost 探针字节随件数增长）全部红；`type` 边界与手牌路径回读 `view.card_texts` 两行未取得指定敏感性，原因与替代口径见[验证记录](verification.md)。
+- 门禁：UI 13 分类 `20260928T090935751-21888`（3446 断言）、`architecture` `20260928T092617514-41500`、docs PASS、`runner -VerifyRunner` `20260928T092652269-2980`；指纹 `026FB832A514C0C3…`。未推送、未打标签、未打包。
+
+## 2026-09-28 手牌卡增量刷新：清洁者结构与契约对账（枝 `worker/hand-refresh`）
+
+- 结构清洁（行为不变；未改任何断言）：`ui/card_face.gd` 的词条／条件两组标签写入合并为唯一路径 `_write_tags`（样式差异作参数，删除 `_tag_slot` 的重复循环），`set_mana` 的可见性单次求值，`set_availability` 去掉空串三元分支。
+- `ui/main.gd`：`_hand_apply_card` 的 `dim` 改读该面值切片（删掉从原始数据二次计算及其 `is Dictionary` 守卫）；`_hand_reset_row` 只清行态节点（`EmptyHand`／`ClimaxNarration`），删掉与 `_hand_release_card` 重复的 `HandCard_*` 整行销毁路径；`_hand_place_row` 的角度只算一次；`_hand_card_key`／`_hand_face_slice`／`_hand_row_plan`／`_hand_apply_card` 去掉对自产行键的过宽形状守卫（形状由唯一生产者 `_hand_presentation_key` 保证）。
+- 邻接表与契约对账：`PRESENT_ADJACENCY` 删除不存在的 `_hand_row_hit` 行、`_hand` 补 `_hand_key_hit`、`_hand_mount_card` 补 `_hand_face_slice`、`_hand_apply_card` 补 `_selecting_hand`（表头注释同步）；`docs/spec/hand-refresh-dependencies.md`／`docs/spec/response-pipeline.md` 的幻影符号 `_hand_row_hit` 改写为保留名 `_hand_key_hit`，新增面清单的 `_tag_slot` 改为 `_write_tags`；允许改动表逐文件对账未超面。
+- 门禁（串行，每条前 `Get-Process Godot*` 为 0；指纹 `BA1DED3716EEA7DB…`）：UI 13 分类 `20260928T094132487-33672`（`UI PASS: 3446 assertions`）、`architecture -Impact` `20260928T095220916-33896`（4468 断言）、`check-docs.ps1` PASS（36 文档／2594 引用）、`runner -VerifyRunner` `20260928T095312129-26556`（541 断言＋7 条负例）。与实现者最后一轮的断言计数逐项相同。未推送、未打标签、未打包。
+
+## 2026-09-28 清洁者裁定落地：徽章 tooltip 修复与四项登记
+
+- 修 `ui/card_face.gd::_write_mana` 非 `pressure` 分支不写 `tooltip_text`（新建徽章无 tooltip、复用徽章留旧 tooltip）；两条 tooltip 断言落 `tests/interface_ui_cases.gd::card_face_incremental`，敏感性 `20260928T100206216-34068` 两条红。
+- 登记：①`render` 不清 `_hand_cards`／`_hand_layout`——清表非必需、`button_id` 守卫＋增删对账是机制；②下一刀候选：挂载时同一面切片构造两次、`set_art` 在 `effect_free` 变时取纹理两次（与整手替换场景略慢相关）；③`chosen`／`modulate` 各写两次（值一致、不合并）；④`_card` 以 `merged.is_empty()` 作预合并信号（契约只允许一个可选参数，手牌调用方显式传参），已在源码注释与依赖规约写明。
+- 门禁：`display,interface` `20260928T095916021-36092`（1530 断言）、`architecture -Impact` `20260928T100309545-34216`（4468）、`check-docs.ps1` PASS（2594 引用）。未推送、未打标签、未打包。
+
+## 2026-09-28 bunny 双审 FAIL 处置：悬停详情读当前值、崩溃路径与重挂保面、切片一次构造
+
+- 阻断 1.1：`ui/main.gd::_card` 的悬停／聚焦闭包改按 uid 读 `_hand_cards[uid].data`（与翻面闭包同一入口），弹层不再停在挂载快照；新断言＋敏感性 `20260928T105612161-41864`。
+- 2.6：`added` 只收 `view.hand` 成员、`_hand_mount_card` 加 row 早退（原会以 null 行崩）；敏感性 `20260928T104607931-36936`。
+- 2.7：同行"删＋增"在释放前记面、挂载前回填（守卫修复与牌型变不再翻回正面）；敏感性 `20260928T104159295-27084`。
+- 2.8：`candidate_buttons` 清理移出 `button!=null` 守卫（外部释放不再留悬空条目）；敏感性 `20260928T104404419-35480`。
+- 2.9：选择态 `modulate` 恢复"可选中＝纯白（不看 `dim`）"；记录④措辞改正（值不总一致）。
+- 2.1：`ui/main.gd::_refresh_card_face` 加可选 `prepared` 切片，挂载／翻面各只构造一次；契约与缓存段同步。
+- 2.5：新增 `ui/main.gd::_hand_node_counts`（一次整树扫描分组），去掉每 uid 扫描；S3–S5 归因补记。
+- 2.2／2.3／2.4／2.10：删死条件、E7 让 View 行 `draw_serial` 真变、E8 改为前后实例与子级比较、邻接表补两行。
+- 门禁：`display,interface,casting` `20260928T105825255-40644`（1598 断言）、`architecture -Impact` `20260928T110126098-40012`（4468）、docs PASS（2632 引用）、`runner -VerifyRunner` `20260928T110204840-34036`。未推送、未打标签、未打包。
+
+## 2026-09-28 记录文本收口（第二轮双审 PASS 后）：判据措辞、证据性质与下一刀候选
+
+- `verification.md` 收口：①(A)③ 的"值切片至多构造一次"写明**计数未由测试断言、由构造点枚举＋调用图确立**（生产源码禁计数器，不是门禁证据）；②键成本措辞记为"已核为该措辞（上一提交即已逐字如此）"，不再写成改写；③`_card(` 调用点的源文本判据补"限 `ui/main.gd`"；④2.9 的选择态 `modulate` 写明"**无断言覆盖、靠人审**"并登记下一轮补「选择态＋`dim` ⇒ 纯白」断言；⑤登记 `ui/main.gd::PRESENT_ADJACENCY` 的 `_card` 行缺 `_card_tooltip`／`_ignore_mouse` 两条边（**本轮之前就缺**）。
+- 下一刀候选清单更新：`ui/main.gd::_hand_node_counts` 在守卫未命中路径仍扫两遍（命中路径一次）；选择态 tint 断言；`_card` 邻接边补全；`ui/card_face.gd::set_art` 在 `effect_free` 变时取纹理两次（挂载重复构造切片一项已按 (A)③ 修掉）。
+- 本轮只改记录文本，未改代码、未改断言；门禁：`tools/check-docs.ps1`（引擎无关）。

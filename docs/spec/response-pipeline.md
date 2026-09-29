@@ -159,7 +159,7 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 | --- | --- | --- |
 | `header` | `header.configure` | `ui/shell/header.gd::_presentation_key` |
 | `relics` | `_relic_row` | `_relic_presentation_key` |
-| `hand` | `_hand`（先 `_sync_card_faces` 把本次抽牌的面同步进 `card_faces`） | `_hand_presentation_key` |
+| `hand` | `_hand`（先 `_sync_card_faces` 把本次抽牌的面同步进 `card_faces`，再按**固定顺序**：拦截（`_hand_presentation_key` ＋ `_hand_key_hit`／`_hand_row_plan` 的纯数据 diff）→ 逐卡值更新（`_hand_apply_card`）→ 成员增删（`_hand_release_card` 先、`_hand_mount_card` 后；行态同此步经 `_hand_reset_row`）→ 幂等重排（`_hand_place_row`，几何/顺序未变则连它都不调用）） | `_hand_presentation_key`：`[locale, 行态, 顺序(uid), pending(uid), {uid: 每卡窄键}]`；每卡窄键（`_hand_card_key`）只由该卡自身的透传字段、`availability`、面状态、选择态与 pending 组成，不整行深拷贝、不含 `view.card_costs` 等 View 级切片；`version` 不进键 |
 | `actions` | `_build_action_rail` | `_action_presentation_key` |
 | `posture` | `_refresh_posture_section` | `_posture_presentation_key` |
 | `resources` | `_refresh_resource_section`（另经 `_sync_hero_stage_meters` 维护英雄舞台快感／魔力／捕缚米表、捕缚拖放接收器与施法标签偏移：米表与数值标签按名复用、原地更新，缺件才建） | `_resource_presentation_key`（含 `view.casting.percent`，施法标签由该节读出） |
@@ -174,12 +174,20 @@ func present_rejection(reason: String, source: String, dirty: Array[String]) -> 
 | `scene_instances` | `_refresh_scene_instances_section`（另经 `_enemy_row`＋`_place_enemy_row` 维护存活敌人的展示顺序与整行几何：契合缩放、行宽、起点与各组的位移／缩放，全量与局部同一例程，击杀后剩余敌人就地重排） | 无统一节键；外观由既有 arena／`equipment_portrait` 叶实例比对；英雄与各敌人的状态图标条由 `_status_strip` 按 owner 键（`_status_keys`）比对，命中则跳过，条缺失或该 owner 的状态列表变化只重建该 owner；存活敌人的名字按钮（`EnemySelect_*`）、血条（`EnemyHp_*`）、HP 文本（`EnemyHpValue_*`）与意图图标（`IntentIcon_*`）由 `_sync_enemy_stage` 按名复用并原地更新，图标另按自身条目键（`_intent_icon_keys`）增删，按钮另按名字／标记键（`_enemy_select_keys`）；`gone` 敌人的整槽由 `_release_enemy_stage` 释放（局部路径不重建 `layout.used`，帧无法识别该释放） |
 
 节键计算的成本同样要进测量（见"证据入口"），不得默认"算键几乎免费"。
+`hand` 的每卡窄键（`ui/main.gd::_hand_card_key`）逐档（0／12／26／44 件）不得随装备件数增长：
+它只读该卡自身的透传字段与本地显示态，不读候选／身体／装备候选切片（反面证据：抽屉键曾随件数线性）。
 
 ### 缓存与失效键
 
 允许（只读显示口径）：core 只读调用内的装备显示行复用与 `face_texts` 合批；
 `body_sidebar._slots_key`／`_button_index`（显示字段键＋稳定部位 ID → 按钮索引）；
 `card_faces`／`card_draw_serials`（本地翻面／抽牌显示态）、`map_drawings`（界面备注，随本局保存）；
+`ui/main.gd::_hand_cards`（每卡缓存：`button_id` ＋ 每卡窄键 ＋ 合并数据 ＋ 每面**已应用值切片** ＋ 已应用面）。失效规则（逐条可证）：
+①每卡窄键的**数据部分**变（透传字段／`availability`／选择态／pending／locale）⇒ 该 uid 两面切片作废，下次应用重建；
+②面选择位变（翻面）不作废切片：已缓存的另一面切片被原样交给 `ui/main.gd::_refresh_card_face` 重写同一批节点（每个 (card, side) 切片至多构造一次）；
+③画风变（`display_settings.art_changed`）不作废切片，纹理经 `ui/card_face.gd::_apply_art_texture` 每次现取；
+④按钮实例变（`button_id` 不符）或 uid 离行 ⇒ 条目丢弃（`_hand_release_card` 删，`button_id` 守卫兜底）；
+⑤全量 `render` 后成员必为新 ⇒ 条目经 ④ 失效，由该次 `_hand` 重建；
 节键本身（当次 View 投影＋本地 UI 态的纯数据副本，含 `_status_keys` 的按 owner 状态列表副本、
 `_intent_icon_keys` 的按图标名字条目副本与 `_enemy_select_keys` 的名字／选中／离场副本——
 三者都只在显示态与当次 View 一致时命中，条目或字段变化即重建该件）。
@@ -297,7 +305,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | 1 | `selection_click_is_readonly` | 选择类点击的 `dispatch` 计数 0、`get_view` 计数不变、存档写入计数 0、`export_snapshot()` 与 `view.version` 不变、`ui.actions` 未被替换 | `tests/target_sidebar_ui_cases.gd`（`targeting`） |
 | 2 | `failed_submit_resyncs_and_presents_notice` | 陈旧提交后状态不变、`notice` 非空、`view` 追平、`ui.actions` 已替换、未写档、未触发反馈；反例（同版本失效候选）只刷新 `notice` 节且未调 `get_view` | `tests/display_ui_cases.gd`（`display`） |
-| 3 | `section_key_hit_skips_rebuild` | 键命中节实例 id／位置／滚动不变、重建计数 0；改一个键内字段后该节被替换且内容与 View 一致 | `tests/display_ui_cases.gd` |
+| 3 | `section_key_hit_skips_rebuild` | 键命中节实例 id／位置／滚动不变、重建计数 0；改一个键内字段后该节被替换且内容与 View 一致。`hand` 的限定：每卡键变时**该卡**按重建边界表处理——值变＝同 uid 实例原地重写该面值切片，牌型变＝只重建该 uid，绝不整节替换（`tests/display_ui_cases.gd::present_hand_incremental`） | `tests/display_ui_cases.gd` |
 | 4 | `phase_change_full_rebuild_fallback` | 跨 `phase` 走全量兜底（页面容器实例替换、旧候选按钮不残留、hero／敌人实例不重复）；同一 `phase` 内普通刷新不走全量 | `tests/interface_ui_cases.gd`（`interface`） |
 | 5 | `hand_node_identity_preserved` | 选择类点击与键命中的 `present` 后，同一 uid 的手牌按钮实例 id 与位置不变、卡面与 availability 与 View 一致、身体栏滚动保留 | `tests/body_layout_ui_cases.gd`（`body_layout`） |
 | 6 | `key_table_covers_read_fields` | 源文本断言：每个节点重建体读到的 `view.<field>` 是键字段的子集，缺失即失败并打印节名与字段名 | `tests/architecture_cases.gd`（`architecture`） |
