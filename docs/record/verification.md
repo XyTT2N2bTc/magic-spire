@@ -3365,3 +3365,13 @@ flowchart LR
 - 首次`20260928T124609227-54148`文档门禁将普通路径中的`.fix`截为扩展名；改用现有Markdown相对链接后复验通过。首次因同时改文档记为source_changed，不视为通过；上述冻结运行重跑完整原选范围。
 - 原审查者对版本消费者、打包路径、本地化及说明定点只读复核，无新增阻断。原主检出八文件逐一SHA256与准备备份一致，内容已整合；额外保留stash `530be148ea0d1fc373847e9daaf247319c69d18a`，不重复应用。
 - 未运行安装包验收、安卓真机、人工试玩或反馈部署；本批只同步源码。
+
+
+## 2026-10-02｜present 邻接表机械判据入表（补记）
+
+- 域：`spire-godot/ui/main.gd::PRESENT_ADJACENCY`、`spire-godot/tests/architecture_cases.gd::present_adjacency_graph_is_pinned`、`.zcode/skills/spire-docs/SKILL.md` 第五类「管线／邻接表」。源码依据 `5ed785f`。
+- 判据三条：声明边必须在父体内有直调；表内符号被已登记父直调必须登记；无死项（无幻符、无孤儿、无不可达）。判据外读跨文件父体仅 `header.configure`（其子 `header._presentation_key`）；外部边界 `layout.hero_portrait`／`layout.body_sidebar`／`configure_enemy`／`EquipmentPortrait.configure` 按属主文件存在性核对。无产品行为改动。
+- 运行（冻结于 `5ed785f`，前后指纹同为 `5574F0AE0269E10D61409FCFE4633474EB1302D11610A27E4FCC373395A80192`）：`20261002T080030763-14100`（architecture PASS 4474）、`20261002T080116217-42532`（runner PASS 541）。敏感性运行号：`20261002T075112837-53504`、`20261002T075208309-53512`、`20261002T075357601-30736`、`20261002T075500112-34832`、`20261002T075629416-5340`（照录）。`20261002T075722327-28468` 是 `-Import` 轮、指纹 `79B8D5CA948F680B260A77D21F4F7FC4198229FE8EB222DE9A49114813A5C897` 不等，不作冻结证据。
+- 双审（muse／bunny）均 PASS；三条应修在本批落地：①补本记录；②`_intent_icon_rect`／`_attack_drop_candidate`／`_items_drawer` 由仅作子改为各自 `[]` 行，表头写明「每个被声明的符号都必须有行」；③判据只校验已声明边，不拦新增节例程／删整行／整表掏空，评估后采 ②：在表头与 `spire-docs` 第五类写死覆盖边界（由评审负责），并登记完整性下限为后续项（`docs/record/proposals/present-adjacency-completeness-floor.md`）。评估依据：候选下限「已登记父在 `ui/main.gd` 的每个直调须入表或成子」实测牵出 80 个本地例程，仅 9 个在现有不入表名单（`_label`/`_place`/`_panel`/`_button`/`_style`/`_bar`/`_scroll`/`_text`/`_localize_controls`）内，余 71 个为构建／域例程（`render` 单独约 20 个），非小而稳定，故不设。
+- 本批增量复跑（新源码，前后指纹同为 `07EA7583B5ADBF08455CDD690DC575E611288EEA5578071B49E010648F05233E`）：`20261002T144103826-55716`（architecture PASS 4474）、`20261002T144147595-43320`（runner PASS 541，含 `-VerifyRunner` 六项负例探针）、`tools/check-docs.ps1`（35 规则文档 2521 引用，PASS）；exit 0。
+- 失败：无。未验证：`-Suite all` 完整回归、窗口其余分类、安卓真机、打包与发布。

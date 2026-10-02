@@ -549,6 +549,8 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 #    `layout.body_sidebar`, `layout.hero_portrait`, `configure_enemy`,
 #    `EquipmentPortrait.configure`). Each symbol must be a declared function in its owning
 #    file; a rename or deletion on either side must be done in the same batch as this table.
+#  - Every symbol named anywhere in the table must have its own row: a symbol that appears only
+#    as a child (e.g. a leaf) is a missing row, `"symbol":[...]` or `"symbol":[]` required.
 #  - Every edge is a direct call inside the parent body (including calls inside lambdas and
 #    chained `….child(`); all direct calls a registered parent makes to table symbols must be
 #    registered, and a symbol no registered parent calls directly is a dead entry.
@@ -562,6 +564,14 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 #    `_style`/`_bar`/`_scroll`/`_text`), frame chrome (`layout.begin_frame`/
 #    `layout.end_frame`/`_localize_controls`), and domain routines reached only by
 #    unregistered parents.
+#  - Coverage boundary (reviewer's responsibility, not guarded): the checks verify the edges
+#    that ARE declared, not that every present-pipeline routine IS declared. Adding a new
+#    section or stage routine without registering it, deleting a whole row, or emptying the
+#    table to `{"present":[]}` all leave the guard green. No completeness floor is added
+#    because "every declared `ui/main.gd` function a registered parent calls must be a table
+#    row or child" would flag ~80 local routines (render alone calls ~20) beyond the
+#    non-admitted names above - a large, churn-prone hand list. New declarations and whole-row
+#    removals are reviewed by hand (`.zcode/skills/spire-docs/SKILL.md`, fifth category).
 # Declared present adjacency (direct calls, stable symbols only): present routes to
 # _present_needs_full_render (predicate), render (full fallback), header.configure
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local; it also
@@ -630,9 +640,11 @@ const PRESENT_ADJACENCY={
  "_enemy_hp_text":[],
  "_sync_enemy_select":["_configure_enemy_drop"],
  "_sync_enemy_intent_icons":["_intent_icon_rect","_unload_stage_node","_show_term"],
+ "_intent_icon_rect":[],
  "_release_enemy_stage":[],
  "_unload_stage_node":[],
  "_configure_enemy_drop":["_attack_drop_candidate"],
+ "_attack_drop_candidate":[],
  "_status_strip":["_status_control","_unload_resource_direct"],
  "_status_control":["_show_term"],
  "layout.hero_portrait":[],
@@ -681,6 +693,7 @@ const PRESENT_ADJACENCY={
  "_show_term":[],
  "_refresh_drawer_section":["_drawer_presentation_key","_menu_drawer","_items_drawer"],
  "_menu_drawer":[],
+ "_items_drawer":[],
  "_drawer_presentation_key":[],
  "layout.body_sidebar":[],
  "render":["_hand","_refresh_notice_section","_sync_card_faces","_sync_drag_versions"],
