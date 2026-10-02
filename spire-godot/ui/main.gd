@@ -538,6 +538,30 @@ func render(snapshot: Dictionary={}) -> void:
  _localize_controls(layout)
 
 const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","posture","resources","show_log","body_bar","body_details","pickers","speech","notice","drawers","page","scene_instances"]
+# Declared present adjacency; guarded by
+# tests/architecture_cases.gd::present_adjacency_graph_is_pinned (three checks: a declared
+# edge must have a direct call in its parent body; a table symbol a registered parent calls
+# directly must be declared; no dead entry - no phantom symbol, no unreachable row).
+# Membership rule (the guard's premise):
+#  - Entering the table: stable symbols of the present pipeline - the section routines and
+#    their presentation-key routines, the stage/resource/enemy/drawer section routines in
+#    `ui/main.gd`, plus the external parents declared below (`header.configure`,
+#    `layout.body_sidebar`, `layout.hero_portrait`, `configure_enemy`,
+#    `EquipmentPortrait.configure`). Each symbol must be a declared function in its owning
+#    file; a rename or deletion on either side must be done in the same batch as this table.
+#  - Every edge is a direct call inside the parent body (including calls inside lambdas and
+#    chained `….child(`); all direct calls a registered parent makes to table symbols must be
+#    registered, and a symbol no registered parent calls directly is a dead entry.
+#  - Boundary leaves (declared with no children and never expanded): the external symbols
+#    `layout.hero_portrait`, `layout.body_sidebar`, `configure_enemy` and
+#    `EquipmentPortrait.configure` and, in this file, leaves that truly call no table symbol
+#    (e.g. `_show_term`). External symbols are resolved (existence-checked) in their owning
+#    file; of them only `header.configure` declares a child, so it is the only external body
+#    read for edge checking (`header.configure -> header._presentation_key`).
+#  - Not admitted: pure leaf construction helpers (`_label`/`_place`/`_panel`/`_button`/
+#    `_style`/`_bar`/`_scroll`/`_text`), frame chrome (`layout.begin_frame`/
+#    `layout.end_frame`/`_localize_controls`), and domain routines reached only by
+#    unregistered parents.
 # Declared present adjacency (direct calls, stable symbols only): present routes to
 # _present_needs_full_render (predicate), render (full fallback), header.configure
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local; it also
@@ -583,8 +607,9 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # details blocked only for ["notice"], neither show_menu nor show_items / show_home /
 # show_route / non-battle / other DRAWERS only for ["drawers"], and
 # show_home / show_route / non-battle / missing hero, body portrait, or
-# living enemy group only for ["scene_instances"]; render, _show_term,
-# layout.body_sidebar, and layout.hero_portrait are boundary leaves here.
+# living enemy group only for ["scene_instances"]. `_show_term`, `layout.body_sidebar`,
+# `layout.hero_portrait`, `configure_enemy` and `EquipmentPortrait.configure` are boundary
+# leaves here; `render` is expanded (it re-enters the shared section routines below).
 # present does not call _bottom_controls, _wall_controls, _posture_controls,
 # mana_flask.build, _refresh_drawers, _open_drawer, _close_drawers,
 # _drawer_shell, _body_drawer, _refresh_body_details, _equipment_tile,
@@ -609,26 +634,26 @@ const PRESENT_ADJACENCY={
  "_unload_stage_node":[],
  "_configure_enemy_drop":["_attack_drop_candidate"],
  "_status_strip":["_status_control","_unload_resource_direct"],
- "_status_control":[],
+ "_status_control":["_show_term"],
  "layout.hero_portrait":[],
  "configure_enemy":[],
  "EquipmentPortrait.configure":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
- "_relic_row":["_relic_presentation_key"],
+ "_relic_row":["_relic_presentation_key","_show_term"],
  "_relic_presentation_key":[],
  "_hand":["_sync_card_faces","_hand_presentation_key"],
  "_sync_card_faces":[],
  "_sync_drag_versions":[],
  "_hand_presentation_key":[],
- "_build_action_rail":["_action_presentation_key"],
+ "_build_action_rail":["_action_presentation_key","render"],
  "_action_presentation_key":[],
  "_refresh_posture_section":["_posture_presentation_key","_wall_controls","_posture_controls"],
  "_wall_controls":[],
  "_posture_controls":["_posture_presentation_key"],
  "_posture_presentation_key":[],
  "_refresh_resource_section":["_resource_presentation_key","_build_resource_bar","_sync_hero_stage_meters"],
- "_build_resource_bar":["_resource_presentation_key"],
+ "_build_resource_bar":["_resource_presentation_key","_guard_bind_drop_target","_resource_meter"],
  "_resource_presentation_key":[],
  "_sync_hero_stage_meters":["_stage_control","_resource_meter","_sync_stage_meter","_meter_value_text","_guard_bind_drop_target","_unload_resource_direct","_hero_casting_text"],
  "_sync_stage_meter":["_stage_control","_resource_meter","_meter_value_text"],
@@ -643,10 +668,10 @@ const PRESENT_ADJACENCY={
  "_log_drawer":["_log_presentation_key"],
  "_log_presentation_key":[],
  "_refresh_body_details_section":["_body_details_presentation_key","_body_details"],
- "_body_details":["_body_details_presentation_key"],
+ "_body_details":["_body_details_presentation_key","render"],
  "_body_details_presentation_key":[],
  "_refresh_picker_section":["_picker_presentation_key","_hand_target_picker"],
- "_hand_target_picker":["_picker_presentation_key"],
+ "_hand_target_picker":["_picker_presentation_key","render"],
  "_picker_presentation_key":[],
  "_refresh_speech_section":["_speech_presentation_key","_speech_bubble"],
  "_speech_bubble":["_speech_presentation_key"],
@@ -658,7 +683,7 @@ const PRESENT_ADJACENCY={
  "_menu_drawer":[],
  "_drawer_presentation_key":[],
  "layout.body_sidebar":[],
- "render":[],
+ "render":["_hand","_refresh_notice_section","_sync_card_faces","_sync_drag_versions"],
 }
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:

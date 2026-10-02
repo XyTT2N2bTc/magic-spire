@@ -29,7 +29,23 @@ description: >-
 
 ## 改动同步义务
 
-- 改代码或内容时，同步它点名的文档：文档入口表、依赖表（允许改动文件表）、本地化 key 表、设计真源。
+- 改代码或内容时，同步它点名的文档：文档入口表、依赖表（允许改动文件表）、本地化 key 表、设计真源、
+  **管线／邻接表**（第五类）。
+- **管线／邻接表**：声明"某入口按哪些边到达哪些子例程"的表，改实现路径、改节／例程名或改边时，
+  必须在**同一批**改动里同步该表，否则表与实现漂移而无人可查。现有三张：
+  - `spire-godot/ui/main.gd::PRESENT_ADJACENCY`（present 管线声明表）：入表口径见其表头注释，判据＝
+    `spire-godot/tests/architecture_cases.gd::present_adjacency_graph_is_pinned`（三条：声明边必须有直调、
+    表内符号被已登记父函数直调必须登记、无死项）。
+  - `docs/spec/candidate-removal.md` 的管线表（邻接表，第 1 节现状图与第 2 节目标图）：跨文件锚点、
+    含历史行与未落地行，**无整表机械判据**；其机读子集＝
+    `spire-godot/tests/architecture_cases.gd::PIPELINE_LOOKUP_EDGES`（检查入口
+    `spire-godot/tests/architecture_cases.gd::command_fact_kind_lookup`）与
+    `spire-godot/tests/architecture_cases.gd::instruction_router_single_entry`。改该表的边或锚点须同批核对这两处。
+  - `docs/spec/equipment-query-seam.md` 的邻接表（`targets_at`／`has_targets_at` 路径一节）：声明查询入口到
+    按槽走查的边与禁止边，**无整表机械判据**；其行为检查器＝
+    `spire-godot/tests/equipment_cases.gd::index_targets_edge_parity`、
+    `spire-godot/tests/architecture_cases.gd::has_targets_at_parity` 与
+    `spire-godot/tests/architecture_cases.gd::index_materializes_once_per_scope`。改该表的边或锚点须同批核对这三处。
 - 被取代的段落**改写为新事实或删除**；不要在新事实旁边留着旧事实当注释。
 
 ## 依赖表与允许改动表（`docs/spec/*-dependencies.md`）

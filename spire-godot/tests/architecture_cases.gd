@@ -211,6 +211,177 @@ static func content_pack_root_has_no_build_feature_branch(t) -> void:
   if handle!=null and handle.get_as_text().contains("content/packs"): strays.append(path)
  t.check(strays.is_empty(),"ARCH only core/content_catalog.gd computes a content packs path: "+str(strays))
 
+# The present pipeline adjacency table (ui/main.gd::PRESENT_ADJACENCY) is guarded here. Its
+# membership rule is the table header comment; this gate holds three mechanical checks:
+#  1. every declared edge has a direct call in its parent body;
+#  2. a table symbol a registered parent calls directly is declared;
+#  3. no dead entry: no phantom symbol, no orphan or unreachable row.
+# Parent bodies are read from ui/main.gd, except the external owners declared below (the only
+# cross-file parent body read is header.configure, for its header._presentation_key child).
+const PRESENT_SOURCE="res://ui/main.gd"
+const PRESENT_ROOT="present"
+# External boundary symbols: owner prefix (dotted symbol) or bare name -> source file.
+const PRESENT_EXTERNAL_OWNERS={
+ "header":"res://ui/shell/header.gd",
+ "layout":"res://ui/shell/game_layout.gd",
+ "EquipmentPortrait":"res://ui/equipment_portrait.gd",
+ "configure_enemy":"res://ui/arena.gd",
+}
+
+static func present_source_text(path: String) -> String:
+ var handle=FileAccess.open(path,FileAccess.READ)
+ return "" if handle==null else handle.get_as_text()
+
+# Top-level function bodies of one file: name -> body (comments kept; callers strip them).
+static func present_function_bodies(path: String) -> Dictionary:
+ var declaration=RegEx.new()
+ declaration.compile("^\\s*(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
+ var bodies={}
+ var current=""
+ var buffer=[]
+ for line in present_source_text(path).split("\n"):
+  var declared=declaration.search(line)
+  if declared!=null:
+   if current!="": bodies[current]="\n".join(buffer)
+   current=declared.get_string(1)
+   buffer=[]
+  elif current!="":
+   buffer.append(line)
+ if current!="": bodies[current]="\n".join(buffer)
+ return bodies
+
+static func present_code(body: String) -> String:
+ var lines=[]
+ for line in body.split("\n"): lines.append(String(line).split("#")[0])
+ return "\n".join(lines)
+
+# A direct call of `leaf`: bare `leaf(` or member `.leaf(`, not preceded by a word character or dot.
+static func present_called(body: String, leaf: String) -> bool:
+ var code=present_code(body)
+ var bare=RegEx.new()
+ bare.compile("(?:^|[^A-Za-z0-9_.])"+leaf+"\\s*\\(")
+ if bare.search(code)!=null: return true
+ var member=RegEx.new()
+ member.compile("\\."+leaf+"\\s*\\(")
+ return member.search(code)!=null
+
+# Parse the PRESENT_ADJACENCY literal straight from the source text (entry order preserved).
+static func present_adjacency_table() -> Dictionary:
+ var source=present_source_text(PRESENT_SOURCE)
+ var start=source.find("const PRESENT_ADJACENCY=")
+ if start<0: return {}
+ var open=source.find("{",start)
+ if open<0: return {}
+ var depth=0
+ var close=-1
+ for index in range(open,source.length()):
+  var character=source[index]
+  if character=="{": depth+=1
+  elif character=="}":
+   depth-=1
+   if depth==0:
+    close=index
+    break
+ if close<0: return {}
+ var literal=source.substr(open,close-open+1)
+ var entries={}
+ var entry=RegEx.new()
+ entry.compile("\"([^\"]+)\"\\s*:\\s*\\[([^\\]]*)\\]")
+ var child=RegEx.new()
+ child.compile("\"([^\"]+)\"")
+ for hit in entry.search_all(literal):
+  var children=[]
+  for item in child.search_all(hit.get_string(2)): children.append(item.get_string(1))
+  entries[hit.get_string(1)]=children
+ return entries
+
+# Resolve a table symbol to [bodies: Dictionary, leaf: String]; [] when its owner is undeclared.
+static func present_symbol_body(symbol: String, main_bodies: Dictionary, external: Dictionary) -> Array:
+ if symbol.contains("."):
+  var parts=symbol.split(".")
+  var owner=String(parts[0])
+  if not PRESENT_EXTERNAL_OWNERS.has(owner): return []
+  if not external.has(owner): external[owner]=present_function_bodies(String(PRESENT_EXTERNAL_OWNERS[owner]))
+  return [external[owner],String(parts[parts.size()-1])]
+ if PRESENT_EXTERNAL_OWNERS.has(symbol):
+  if not external.has(symbol): external[symbol]=present_function_bodies(String(PRESENT_EXTERNAL_OWNERS[symbol]))
+  return [external[symbol],symbol]
+ return [main_bodies,symbol]
+
+static func present_body_of(symbol: String, main_bodies: Dictionary, external: Dictionary) -> String:
+ var resolved=present_symbol_body(symbol,main_bodies,external)
+ if resolved.is_empty(): return ""
+ var bodies=resolved[0] as Dictionary
+ var leaf=String(resolved[1])
+ return "" if not bodies.has(leaf) else String(bodies[leaf])
+
+static func present_symbol_resolves(symbol: String, main_bodies: Dictionary, external: Dictionary) -> bool:
+ var resolved=present_symbol_body(symbol,main_bodies,external)
+ if resolved.is_empty(): return false
+ return (resolved[0] as Dictionary).has(String(resolved[1]))
+
+static func present_adjacency_graph_is_pinned(t) -> void:
+ var table=present_adjacency_table()
+ t.check(not table.is_empty(),"ARCH present_adjacency_graph_is_pinned: ui/main.gd::PRESENT_ADJACENCY is readable")
+ if table.is_empty(): return
+ var main_bodies=present_function_bodies(PRESENT_SOURCE)
+ var external={}
+ # 1) Every declared edge is a direct call in its parent body (lambdas and chained calls included).
+ var missing=[]
+ for parent in table:
+  var body=present_body_of(String(parent),main_bodies,external)
+  if body=="":
+   missing.append(String(parent)+" has no readable body")
+   continue
+  for child in table[parent]:
+   if not present_called(body,String(child).split(".")[-1]): missing.append(String(parent)+" -> "+String(child))
+ t.check(missing.is_empty(),"ARCH present_adjacency_graph_is_pinned: every declared edge has a direct call in its parent body: "+str(missing))
+ # 2) A table symbol a registered ui/main.gd parent calls directly must be declared.
+ var tracked=[]
+ for parent in table:
+  for symbol in table[parent]:
+   if not String(symbol).contains(".") and String(symbol) not in tracked: tracked.append(String(symbol))
+  if not String(parent).contains(".") and String(parent) not in tracked: tracked.append(String(parent))
+ var undeclared=[]
+ for parent in table:
+  if not main_bodies.has(parent): continue
+  var declared=[]
+  for child in table[parent]: declared.append(String(child).split(".")[-1])
+  for name in tracked:
+   if name==String(parent) or name in declared: continue
+   if present_called(String(main_bodies[parent]),name): undeclared.append(String(parent)+" calls "+name+"()")
+ t.check(undeclared.is_empty(),"ARCH present_adjacency_graph_is_pinned: a table symbol a registered parent calls directly is declared: "+str(undeclared))
+ # 3a) No orphan row: every row but the root has a declared incoming edge.
+ var incoming={}
+ for parent in table:
+  for child in table[parent]:
+   if not incoming.has(child): incoming[child]=[]
+   incoming[child].append(parent)
+ var orphan=[]
+ for key in table:
+  if String(key)!=PRESENT_ROOT and not incoming.has(key): orphan.append(String(key))
+ t.check(orphan.is_empty(),"ARCH present_adjacency_graph_is_pinned: every row but the root has an incoming edge: "+str(orphan))
+ # 3b) Every row is reachable from the root by declared edges.
+ var reached=[]
+ var pending=[PRESENT_ROOT]
+ while not pending.is_empty():
+  var node=String(pending.pop_back())
+  if node in reached: continue
+  reached.append(node)
+  for child in table.get(node,[]):
+   if String(child) not in reached: pending.append(String(child))
+ var unreachable=[]
+ for key in table:
+  if String(key) not in reached: unreachable.append(String(key))
+ t.check(unreachable.is_empty(),"ARCH present_adjacency_graph_is_pinned: every row is reachable from the root: "+str(unreachable))
+ # 3c) No phantom symbol: every key and child resolves to a declared function in its owning file.
+ var phantom=[]
+ for parent in table:
+  if not present_symbol_resolves(String(parent),main_bodies,external): phantom.append(String(parent))
+  for child in table[parent]:
+   if not present_symbol_resolves(String(child),main_bodies,external): phantom.append(String(parent)+" -> "+String(child))
+ t.check(phantom.is_empty(),"ARCH present_adjacency_graph_is_pinned: every table symbol resolves to a declared function: "+str(phantom))
+
 # docs/spec/event-pipeline.md「依赖规范」: nodes and options are reachable only through
 # definition／node／node_ids; legacy keys return empty instead of raising.
 static func event_definition_accessors_only(t) -> void:
@@ -417,6 +588,7 @@ static func event_single_evaluation_entry(t) -> void:
 static func run(t) -> void:
  event_dependency_edges_pinned(t)
  content_pack_root_has_no_build_feature_branch(t)
+ present_adjacency_graph_is_pinned(t)
  transition_write_sites_are_pinned(t)
  save_checkpoint_kinds_are_pinned(t)
  event_condition_kinds_share_one_declaration(t)
