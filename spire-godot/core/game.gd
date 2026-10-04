@@ -2681,15 +2681,22 @@ func kick_profile(variant: Dictionary={}) -> Dictionary:
  if justice and leg_level>BasicAttacks.TYPES.kick[2].postures.stand.max_level: reason="正义飞踢需要双腿活动自由。"
  return {"label":label,"cost":cost,"damage":damage,"reason":reason,"fall":bound,"interrupt":infused_justice or (not justice and (posture=="stand" or not bound)),"cooldown_turns":0 if justice and not infused_justice else spec.cooldown_turns}
 
+# 基础／巫女两家族的到达守卫（S2 补件 L1／L9）：转换前 core/game.gd::attack_facts 的
+# `base_action_block() and state.phase=="battle"` 逐条对应（_phase_action_tail 即尾段到达条件并隐含
+# 绑定／校验前置）。keys／build／member 三处共用本函数，阶段守卫不再各处各写一份：非战斗阶段这两家族
+# fail-closed，不得只靠「非战斗阶段没有存活敌人」的隐含前提。
+func _attack_battle_families_ready(g) -> bool:
+ return g._phase_action_tail() and String(g.state.phase)=="battle"
+
 # 攻击域 point 登记项（S2；接口契约见切片计划 §3 与 docs/spec/fact-lookup-dependencies.md）：keys 是该 kind
 # 候选键的唯一枚举实现（O3）。三家族与顺序＝转换前 attack_facts()（基础／巫女）++ equipment_spell_facts()
 # （装备自解）的表序，不得重排：表序与「重复归一化 params 收敛枚举序首条」都依赖它。守卫与转换前两条
-# 生产者逐条对应；_phase_action_tail() 即转换前 _phase_facts 尾段到达条件（并隐含 base_action_block 的
-# 绑定／校验前置），故不再重复。
+# 生产者逐条对应：基础／巫女经 _attack_battle_families_ready；装备自解＝非巫女＋factor>0＋target 在
+# action_targets（原循环的两个前置）。
 func attack_point_keys(g) -> Array:
  var keys=[]
  if not g._phase_action_tail(): return keys
- if String(g.state.phase)=="battle":
+ if _attack_battle_families_ready(g):
   if Character.active(g):
    for enemy in g.state.enemies:
     if enemy.gone: continue
@@ -2712,10 +2719,12 @@ func attack_point_keys(g) -> Array:
 
 # 攻击域 point 构造器（S2）：把 params 解析到具体家族的具体键，复用该家族既有单行构造；非成员返回 {}。
 # 只算请求的那一行：不调用 _fact_source()／attack_facts()／equipment_spell_facts()／attack_point_keys()。
+# 基础／巫女家族经 _attack_battle_families_ready（与 keys 同源守卫，S2 补件 L1），故非战斗阶段 fail-closed。
 func attack_point_fact(g, params: Dictionary) -> Dictionary:
  var p=g.command_params("attack",params)
  if not g._phase_action_tail(): return {}
  if String(p.get("target",""))!="": return g._equipment_point_fact(g,p)
+ if not _attack_battle_families_ready(g): return {}
  var enemy_id=String(p.get("enemy",""))
  var enemy={}
  for e in g.state.enemies:
@@ -2739,9 +2748,66 @@ func attack_point_fact(g, params: Dictionary) -> Dictionary:
  if row.is_empty(): return {}
  return row if g.command_params("attack",row.payload)==p else {}
 
-# 攻击域成员谓词（S2，plan §3 不变量 5）：与 attack_point_keys 的归一化集合等价，不成立即 false。
+# 攻击域成员谓词（S2；plan §3 不变量 5）：独立谓词＝守卫＋家族解析＋键面比对，不调用请求行的构造器
+# （不调 attack_point_fact／_attack_offer_fact／Character.attack_offer_fact／_equipment_spell_fact），
+# 故「过宽的 member 被 build 的返回内容掩盖」不成立，点查询只构造一次行。家族守卫与 attack_point_keys／
+# 转换前生产者逐条对应（S2 补件 L1／L9）；解析出的键面经同一 command_params 归一后与请求逐字段比对。
 func attack_point_member(g, params: Dictionary) -> bool:
- return not g.attack_point_fact(g,params).is_empty()
+ var p=g.command_params("attack",params)
+ if not g._phase_action_tail(): return false
+ if String(p.get("target",""))!="": return _equipment_point_member(g,p)
+ if not _attack_battle_families_ready(g): return false
+ var enemy_id=String(p.get("enemy",""))
+ var enemy={}
+ for e in g.state.enemies:
+  if e.gone or String(e.id)!=enemy_id: continue
+  enemy=e
+  break
+ if enemy.is_empty(): return false
+ var form=int(p.get("form",0))
+ if Character.active(g):
+  var part=String(p.get("part",""))
+  if part not in Character.PARTS or form<0 or form>1: return false
+  if String(p.get("type",""))!="witch_"+part: return false
+  return p==_witch_attack_point_key(g,enemy,part,form)
+ var type=String(p.get("type",""))
+ if not BasicAttacks.TYPES.has(type): return false
+ var forms=BasicAttacks.forms(g,type)
+ if form<0 or form>=forms.size(): return false
+ return p==_basic_attack_point_key(g,enemy,type,form,forms[form])
+
+# 基础攻击的归一化键面（member 用，不构造行）：与 _attack_offer_fact 的 payload 派生逐条对应——
+# all＝声明字段／火球术 spell_power／附件强制全体；x＝cost 仅当声明 x_cost（kick 无 postures 且非全体
+# 分支的 kick_profile 覆盖与构造器同源，不另写第二套公式）。
+func _basic_attack_point_key(g, enemy: Dictionary, type: String, form: int, spec: Dictionary) -> Dictionary:
+ var all_targets=bool(spec.get("all",false))
+ if type=="fireball": all_targets=bool(Cards.spell_power(g,type).get("all_enemies",false))
+ if not Cards.physical_attachment(g,type).is_empty(): all_targets=true
+ var x=0
+ if bool(spec.get("x_cost",false)):
+  var cost=BasicAttacks.energy_cost(g,type,form)
+  if type=="kick" and not spec.has("postures") and not bool(spec.get("all",false)): cost=int(g.kick_profile(spec).cost)
+  x=cost
+ return g.command_params("attack",{"kind":"attack","type":type,"form":form,"enemy":enemy.id,"all":all_targets,"target":"","x":x,"part":"","charge_action":false})
+
+# 巫女攻击的归一化键面（member 用）：all＝嘴部非预备的全体伤害；charge_action＝form==0（预备行）。
+func _witch_attack_point_key(g, enemy: Dictionary, part: String, form: int) -> Dictionary:
+ return g.command_params("attack",{"kind":"attack","type":"witch_"+part,"form":form,"enemy":enemy.id,"all":part=="mouth" and form==1,"target":"","x":0,"part":part,"charge_action":form==0})
+
+# 装备自解家族的成员判断（member 用）：守卫与 _equipment_point_fact 逐条对应（非巫女、factor>0、
+# target 在 action_targets），键面＝该族单行构造 payload 的归一化（除 target 外字段恒定）。
+func _equipment_point_member(g, p: Dictionary) -> bool:
+ if Character.active(g): return false
+ if float(Cards.spell_power(g,"fireball").get("equipment_damage_factor",0.0))<=0.0: return false
+ var target_id=String(p.get("target",""))
+ if _attack_point_release_target(g,target_id).is_empty(): return false
+ return p==g.command_params("attack",{"kind":"attack","type":"fireball","form":0,"enemy":"","all":false,"target":target_id,"x":0,"part":"","charge_action":false})
+
+# 自解目标按 id 解析（唯一实现）：_equipment_point_fact 与 _equipment_point_member 共用，不构造行。
+func _attack_point_release_target(g, target_id: String) -> Dictionary:
+ for target in g.action_targets():
+  if String(target.id)==target_id: return target
+ return {}
 
 # 卡牌域 point 登记面的 g 方法转发（S3）：枚举与构造的唯一实现在 core/card_effects.gd（登记项只存 g 上
 # 的方法名，见切片计划 §3），本三处不含第二套逻辑；行为与 core/card_effects.gd::card_point_* 同一实现。
@@ -2754,17 +2820,13 @@ func card_point_fact(g, params: Dictionary) -> Dictionary:
 func card_point_member(g, params: Dictionary) -> bool:
  return Cards.card_point_member(g,params)
 
-# 装备自解家族的 point 解析（S2）：按 target id 在该家族既有枚举（action_targets）里定位单一件并复用同一行构造。
+# 装备自解家族的 point 解析（S2）：按 target id 在该家族既有枚举（action_targets）里定位单一件并复用
+# 同一行构造；target 解析与 _equipment_point_member 共用 _attack_point_release_target（唯一实现）。
 func _equipment_point_fact(g, p: Dictionary) -> Dictionary:
  if Character.active(g): return {}
  var factor=float(Cards.spell_power(g,"fireball").get("equipment_damage_factor",0.0))
  if factor<=0.0: return {}
- var target_id=String(p.get("target",""))
- var found={}
- for target in g.action_targets():
-  if String(target.id)!=target_id: continue
-  found=target
-  break
+ var found=_attack_point_release_target(g,String(p.get("target","")))
  if found.is_empty(): return {}
  var row=g._equipment_spell_fact(found,factor,BasicAttacks.usage(g,"fireball"))
  return row if g.command_params("attack",row.payload)==p else {}

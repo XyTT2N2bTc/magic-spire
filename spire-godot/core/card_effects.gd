@@ -993,7 +993,7 @@ static func card_point_fact(g, params: Dictionary) -> Dictionary:
  var site=_card_point_site(g,params)
  if site.is_empty(): return {}
  var p=site.p
- var card=_hand_card(g,String(p.get("uid","")))
+ var card=g._card(String(p.get("uid","")))
  if card.is_empty(): return {}
  var spec=Rules.SPECS[card.type]
  var family=String(site.family)
@@ -1026,13 +1026,14 @@ static func card_point_member(g, params: Dictionary) -> bool:
  return not _card_point_site(g,params).is_empty()
 
 # 参数 → 该分支族的定位结果（site：family／p／choice／item）；非成员返回 {}。只做守卫、形状、槽位走查
-# 去重与 hand_uid 所属判断，不构造 preview 与行（bind／槽位的 preview 在构造行时才现算）。
+# 去重与 hand_uid 所属判断，不构造 preview 与行（bind／槽位的 preview 在构造行时才现算）。手牌定位经
+# core/game.gd::_card（唯一实现，S2 补件 R10 删除本模块的重复查找）。
 # 守卫与 card_facts 转换前到达条件对应：阶段＝_phase_facts 尾段（core/game.gd::_phase_action_tail）；
 # 家族与跳过条件全部来自 _card_point_sites（与候选键同一处），不得依赖隐含前提。
 static func _card_point_site(g, params: Dictionary) -> Dictionary:
  var p=g.command_params("card",params)
  if not g._phase_action_tail(): return {}
- var card=_hand_card(g,String(p.get("uid","")))
+ var card=g._card(String(p.get("uid","")))
  if card.is_empty() or String(p.get("type",""))!=String(card.type): return {}
  for site in _card_point_sites(g,card):
   var choice=_card_point_choice(g,site.base,bool(site.enabled),p)
@@ -1057,13 +1058,6 @@ static func _card_slot_fact(g, card: Dictionary, item: Dictionary, choice: Dicti
  if Rules.free_effect(card.type,choice.free) and slot in ["palm","fingers"] and not g.equipment_at(slot).is_empty(): label="自由 · "+("右" if g.hand_blocked(slot,"left") else "左")+g.B.SLOT_NAMES[slot]
  if spec.has("bound_modes"): label=Rules.face_name(card.type,choice.free)+" · "+g._equipment_name(target)
  return _target_fact(g,choice,label,energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),risk)
-
-# 以 uid 定位当前手牌（member 与 keys 的等价面：参数只在手牌内成立）。
-static func _hand_card(g, uid: String) -> Dictionary:
- if uid=="": return {}
- for card in g.state.hand:
-  if card.uid==uid: return card
- return {}
 
 # card 域 View 生产者（唯一）：行 = 同一枚举（该手牌切片）× 同一 build，行序、条数与每行字段与转换前
 # 逐字节相同。按卡取切片而非整手 keys：既有断言（card_facts_keyword_min_query 的 strong_elbow 槽位面）

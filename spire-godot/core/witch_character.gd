@@ -195,7 +195,8 @@ static func attack_detail(g, args: Dictionary) -> String:
 
 # 角色2 的基础攻击事实（行动域，docs/spec/candidate-removal.md「接口」T5／T8；批 R3）：行与显示事实的唯一来源。
 # brief 依赖本次判定的 mana_payment，故判定先算一次并随事实带走（同一实现、同一输入，不是第二份判定）。
-# S2 把循环体提为 attack_offer_fact（唯一单行构造）：point 登记项经 core/game.gd::attack_point_fact 复用同一函数。
+# S2 把循环体提为 attack_offer_fact（唯一单行构造）：point 登记项经 core/game.gd::attack_point_fact 复用同一
+# 函数；候选键枚举的唯一实现在 core/game.gd::attack_point_keys（S2 补件 L4：本模块不再保留第二份枚举）。
 static func attack_offer_fact(g, enemy: Dictionary, part: String, form: int) -> Dictionary:
  var n=int(g.state.witch_charges[part])
  var charge=form==0
@@ -231,15 +232,6 @@ static func attack_offer_fact(g, enemy: Dictionary, part: String, form: int) -> 
  fact.brief_tags=""
  fact.verdict=verdict
  return fact
-
-static func attack_facts(g) -> Array:
- var facts=[]
- for enemy in g.state.enemies:
-  if enemy.gone: continue
-  for part in PARTS:
-   for form in [0,1]:
-    facts.append(attack_offer_fact(g,enemy,part,form))
- return facts
 
 static func consume_buff(g, id: String) -> void:
  if id not in g.state.card_buffs: return

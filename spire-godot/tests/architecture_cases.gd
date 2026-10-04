@@ -653,6 +653,7 @@ static func run(t) -> void:
  fact_source_map_is_pinned(t)
  attack_fact_direct_lookup(t)
  attack_point_lookup_reads_one_row(t)
+ attack_point_rejects_nonbattle_families(t)
  card_fact_direct_lookup(t)
  card_point_lookup_reads_one_row(t)
  command_fact_kind_lookup(t)
@@ -2637,9 +2638,9 @@ static func attack_self_release_fixture(phase: String, count: int, game_class=nu
  return g
 
 # 显式重复夹具（acceptance §1.1 第 6 条）：把第二个存活敌人的 id 换成第一个的 id 并换成机械系类型，制造同
-# 归一化 params 的两条枚举项。合法夹具受 G2 唯一性约束不产生重复，故显式构造。注：build 是 params 的纯函数
-# （按 id 解析到首个对象），攻击域重复 params 必然收敛到同一行内容，故本夹具证明的是「点查询返回枚举序首条」
-# 而非内容可区分。
+# 归一化 params 的两条枚举项。合法夹具受 G2 唯一性约束不产生重复，故显式构造。本夹具只主张引用性性质
+# 「点查询返回枚举序首条」（不变量 6 的位置面）；内容面（首条与后续条可区分）在攻击域结构性不可达——
+# build 按 id 解析到首个对象、是 params 的纯函数，故不作内容收敛声明，distinct_duplicates 恒 0 也不作正面证据。
 static func attack_duplicate_params_fixture():
  var g=r1_build("battle",12)
  var source={}
@@ -2678,13 +2679,52 @@ static func attack_fact_direct_lookup(t) -> void:
  t.check(int(totals.duplicates)>0,"attack_fact_direct_lookup: the duplicate fixture enumerates duplicate normalized params: "+str(totals))
  print("ATTACK FACT LOOKUP fixtures=%d dir1_rows=%d dir2_mutations=%d keys=%d member=%d duplicates=%d distinct=%d families=%s" % [fixtures.size(),totals.dir1,totals.dir2,totals.keys,totals.member,totals.duplicates,totals.distinct_duplicates,str(families)])
 
-# C6（S2 出口判据②；gherkin S2-2）：point 形点查询只算一行——不调用 attack_facts()／equipment_spell_facts()／
-# _fact_source()／attack_point_keys()（源码文本＋运行期计数；计数子类在测试侧，生产源码不带计数器）。
+# C6（S2 出口判据②；gherkin S2-2；S2 补件 H4 扩展）：point 形点查询只算一行——不调用
+# attack_facts()／equipment_spell_facts()／_fact_source()／attack_point_keys()。源码文本判据不再只看两个
+# 函数体：逐个体扫被调单行 helper 白名单（名单写在测试内，改名／漏提取即红），并扫描间接调用形态
+# （g.call(／Callable(，二者会绕过子串判据）；member 另须独立于请求行的构造器。运行期计数仍由测试侧
+# 子类承担（生产源码不带计数器）。
+const ATTACK_POINT_WHOLE_TABLE_CALLS=["attack_facts(","equipment_spell_facts(","_fact_source(","attack_point_keys("]
+const ATTACK_POINT_INDIRECT_CALLS=[".call(","Callable("]
+const ATTACK_POINT_ROW_CONSTRUCTORS=["attack_point_fact(","_attack_offer_fact(","attack_offer_fact(","_equipment_spell_fact(","_equipment_point_fact("]
+# (file, style, name)：point 构造／谓词可到达的单行 helper（白名单）；每项的函数体都进整表生产者扫描。
+const ATTACK_POINT_HELPERS=[
+ ["res://core/game.gd","func","_attack_battle_families_ready"],
+ ["res://core/game.gd","func","_attack_point_release_target"],
+ ["res://core/game.gd","func","_equipment_point_member"],
+ ["res://core/game.gd","func","_equipment_point_fact"],
+ ["res://core/game.gd","func","_equipment_spell_fact"],
+ ["res://core/game.gd","func","_basic_attack_point_key"],
+ ["res://core/game.gd","func","_witch_attack_point_key"],
+ ["res://core/game.gd","func","_attack_offer_fact"],
+ ["res://core/game.gd","func","kick_profile"],
+ ["res://core/witch_character.gd","static","attack_offer_fact"],
+]
+
+static func attack_point_helper_body(file: String, style: String, name: String) -> String:
+ return source_static_func_body_code(file,name) if style=="static" else source_func_body_code(file,name)
+
 static func attack_point_lookup_reads_one_row(t) -> void:
  var builder=source_func_body_code("res://core/game.gd","attack_point_fact")
  var member=source_func_body_code("res://core/game.gd","attack_point_member")
- t.check(builder.find("attack_facts(")<0 and builder.find("equipment_spell_facts(")<0 and builder.find("_fact_source(")<0 and builder.find("attack_point_keys(")<0,"attack_point_lookup_reads_one_row: the point builder never calls a whole-table producer: "+builder)
- t.check(member.find("attack_facts(")<0 and member.find("equipment_spell_facts(")<0 and member.find("_fact_source(")<0 and member.find("attack_point_keys(")<0,"attack_point_lookup_reads_one_row: the member predicate never calls a whole-table producer: "+member)
+ t.check(not builder.strip_edges().is_empty() and not member.strip_edges().is_empty(),"attack_point_lookup_reads_one_row: both point bodies are extracted have_builder="+str(builder.length())+" have_member="+str(member.length()))
+ var bodies={"attack_point_fact":builder,"attack_point_member":member}
+ var missing=[]
+ for row in ATTACK_POINT_HELPERS:
+  var name=String(row[2])
+  var body=attack_point_helper_body(String(row[0]),String(row[1]),name)
+  bodies[name]=body
+  if body.strip_edges().is_empty(): missing.append(String(row[0])+"::"+name)
+ t.check(missing.is_empty(),"attack_point_lookup_reads_one_row: every whitelisted helper body is extracted (a rename must not silently empty the scan): "+str(missing))
+ for name in bodies:
+  var body=String(bodies[name])
+  for needle in ATTACK_POINT_WHOLE_TABLE_CALLS:
+   t.check(body.find(needle)<0,"attack_point_lookup_reads_one_row: "+name+" never calls the whole-table producer "+needle+": "+body)
+  for needle in ATTACK_POINT_INDIRECT_CALLS:
+   t.check(body.find(needle)<0,"attack_point_lookup_reads_one_row: "+name+" has no indirect call form "+needle+": "+body)
+ for needle in ATTACK_POINT_ROW_CONSTRUCTORS:
+  t.check(member.find(needle)<0,"attack_point_lookup_reads_one_row: the member predicate is independent of the row constructor "+needle+": "+member)
+ print("ATTACK POINT LOOKUP SOURCE SCAN bodies=%d helpers=%d whole_table_names=%d indirect_names=%d" % [bodies.size(),ATTACK_POINT_HELPERS.size(),ATTACK_POINT_WHOLE_TABLE_CALLS.size(),ATTACK_POINT_INDIRECT_CALLS.size()])
  var samples=[["battle:0",r1_build("battle",0,AttackLookupCountingGame)],["prepare:12+self_release",attack_self_release_fixture("prepare",12,AttackLookupCountingGame)],["witch:battle",AttackLookupCountingGame.new(42,false,"equipment",true,false,25,false,false,"witch")]]
  var compared=0
  for entry in samples:
@@ -2700,6 +2740,40 @@ static func attack_point_lookup_reads_one_row(t) -> void:
   t.check(found==row and g.attack_facts_calls==0 and g.equipment_spell_calls==0 and g.fact_source_calls==0,"attack_point_lookup_reads_one_row: one row is answered without a whole-table producer: "+String(entry[0]))
   compared+=1
  t.check(compared==samples.size(),"attack_point_lookup_reads_one_row: every family sample was compared have="+str(compared))
+
+# S2 补件（L1 判据；R8-4）：非战斗阶段＋存活敌人的负例——转换前 core/game.gd::attack_facts 的基础／巫女
+# 家族在 `state.phase!="battle"` 时 fail-closed（生产者为空），故点查询必须为空且该 params 不在该状态的表内
+# （同真同假）。夹具保留真实存活敌人并把阶段切到 prepare，并显式断言尾段到达条件成立：L1 的隐含前提
+# 「非战斗阶段没有存活敌人」被移除，删掉两家族的阶段守卫（_attack_battle_families_ready 的合取项）即红。
+static func attack_nonbattle_enemy_fixture():
+ var g=r1_build("battle",12)
+ g.state.phase="prepare"
+ return g
+
+static func attack_nonbattle_witch_fixture():
+ var g=Game.new(42,false,"equipment",true,false,25,false,false,"witch")
+ g.state.phase="prepare"
+ return g
+
+static func attack_point_rejects_nonbattle_families(t) -> void:
+ # 每例＝（家族，夹具，type，声明键补充）：巫女预备行（form 0）的 charge_action 声明为 true，其余键取声明默认值。
+ var cases=[["basic",attack_nonbattle_enemy_fixture(),"strike",{}],["witch",attack_nonbattle_witch_fixture(),"witch_hand",{"part":"hand","charge_action":true}]]
+ for entry in cases:
+  var family=String(entry[0])
+  var g=entry[1]
+  var living=g.state.enemies.filter(func(e):return not e.gone)
+  t.check(String(g.state.phase)!="battle" and g._phase_action_tail() and not living.is_empty(),"attack_point_rejects_nonbattle_families: the fixture is a non-battle phase with a living enemy and a reachable action tail "+family+" phase="+String(g.state.phase)+" living="+str(living.size()))
+  if living.is_empty(): continue
+  var params={"kind":"attack","type":String(entry[2]),"form":0,"enemy":living[0].id}
+  for key in entry[3]: params[key]=entry[3][key]
+  var normalized=g.command_params("attack",params)
+  var in_table=false
+  for row in g.command_facts():
+   if String(row.payload.get("kind",""))=="attack" and g.command_params("attack",row.payload)==normalized: in_table=true
+  var accepted=not g.command_fact(g.command(params,g.state.version)).is_empty()
+  var is_member=bool(g.attack_point_member(g,normalized))
+  t.check(not in_table and not accepted and not is_member,"attack_point_rejects_nonbattle_families: base and witch attacks are fail-closed outside battle "+family+" phase="+String(g.state.phase)+" in_table="+str(in_table)+" accepted="+str(accepted)+" member="+str(is_member))
+  print("ATTACK NONBATTLE POINT family=%s phase=%s living=%d in_table=%s accepted=%s member=%s" % [family,String(g.state.phase),living.size(),str(in_table),str(accepted),str(is_member)])
 
 # ==== S3 card 双向等价、分支覆盖与重复收敛（C3／C4／C6／C7；gherkin S3-1／S3-2／S3-3）====
 # 分支族夹具（gherkin S3-2）：把字段族代表卡型放进手牌。breath_control 顶层 exhaust_hand＋free_slots；
