@@ -660,6 +660,7 @@ static func run(t) -> void:
  single_fact_lookup_per_submit(t)
  rejected_submit_lookup_counts(t)
  submit_presented_fact_is_unchanged(t)
+ submit_key_face_rebaseline_self_proof(t)
  card_facts_declared_slots(t)
  card_facts_consumes_has_targets_at(t)
  card_facts_keyword_min_query(t)
@@ -3059,6 +3060,12 @@ static func command_fact_kind_lookup(t) -> void:
 const S5_SUBMIT_KEYS_BEFORE=["ok","version","resource_feedback","card_feedback","music_feedback","checkpoint","spell_failed"]
 const S5_SUBMIT_KEYS_AFTER=["ok","version","resource_feedback","card_feedback","music_feedback","checkpoint","spell_failed","fact"]
 const S5_REJECT_KEYS=["ok","error","fact"]
+# B2（切片收尾批）：S5 重算 `submit_keys` 的理由常驻可复跑。旧键面（`S5_SUBMIT_KEYS_BEFORE`）的摘要
+# 必须等于 S5 之前的冻结值，新键面（`S5_SUBMIT_KEYS_AFTER`）的摘要即重算后写进 `R5_BASELINE.<record>`
+# 的那一个值；两者都取自 S5 自证轮 `20261004T133011360-19112`（该轮打印的 `submit_keys` 与旧冻结
+# `<record>` 的推导，同法复核过：新键面摘要与该轮 `S5 REBASELINE submit_keys=` 逐字符相同）。
+const S5_SUBMIT_KEYS_BEFORE_DIGEST="93a45a7bba1ccfdae5f52a2e82831d5e"
+const S5_SUBMIT_KEYS_AFTER_DIGEST="5e6001580b5d714c2a081120d4019532"
 
 # 源码文本助手（S5 用；既有 pipeline_lookup_func_body 只覆盖 core/game.gd 的四个锚点）。
 static func source_func_text(path: String, name: String) -> String:
@@ -3136,9 +3143,10 @@ static func single_fact_lookup_per_submit(t) -> void:
    kinds[kind]=true
  t.check(submissions>=4 and kinds.has("end"),"S5 single_fact_lookup_per_submit: several real fixtures and kinds were sampled submits="+str(submissions)+" kinds="+str(kinds.keys()))
 
-# 失败路径（gherkin S5-1 第二场景）：陈旧 version／形状不合法／判定不通过 ≤1 次查询，拒绝文案逐字不变、
-# export_snapshot() 相等、失败结果不带判定行。期望文案取自冻结基线 R1_BASELINE 的 reject_stale／
-# reject_invalid 与形状复核既有文案，不由被测实现派生。
+# 失败路径（gherkin S5-1 第二场景）：陈旧 version／形状不合法／判定不通过各自按精确次数查询
+# （陈旧 version 0 次、形状不合法 0 次、判定不通过 1 次；B4 收尾批按冻结轮实测收紧，不再用 ≤1），
+# 拒绝文案逐字不变、export_snapshot() 相等、失败结果不带判定行。期望文案取自冻结基线 R1_BASELINE 的
+# reject_stale／reject_invalid 与形状复核既有文案，不由被测实现派生。
 static func rejected_submit_lookup_counts(t) -> void:
  for cell in [["battle",0],["prison",12]]:
   var key="%s:%d" % [cell[0],cell[1]]
@@ -3159,7 +3167,7 @@ static func rejected_submit_lookup_counts(t) -> void:
   var stale=g.dispatch(g.command(usable.payload,version-1),version-1)
   print("S5 REJECT stale fixture=%s command_fact=%d error=%s" % [key,g.fact_calls,str(stale.get("error",""))])
   t.check(not stale.ok and String(stale.get("error",""))==stale_text,"S5 rejected_submit_lookup_counts: stale version keeps the verbatim rejection "+key+" have="+str(stale.get("error","")))
-  t.check(g.fact_calls<=1 and g.export_snapshot()==before,"S5 rejected_submit_lookup_counts: stale rejection looks up at most once and leaves the snapshot equal "+key+" calls="+str(g.fact_calls))
+  t.check(g.fact_calls==0 and g.export_snapshot()==before,"S5 rejected_submit_lookup_counts: stale rejection performs no lookup and leaves the snapshot equal "+key+" calls="+str(g.fact_calls))
   t.check(stale.keys()==S5_REJECT_KEYS and stale.get("fact",{}).is_empty(),"S5 rejected_submit_lookup_counts: a rejection result carries an empty fact and the declared keys "+key+" have="+str(stale.keys()))
   # 形状不合法：未登记 kind 与声明外参数键都在形状复核早退，零次查询。
   g=r1_build(cell[0],cell[1],SubmitLookupCountingGame)
@@ -3178,7 +3186,7 @@ static func rejected_submit_lookup_counts(t) -> void:
   var judged=g.dispatch(g.command(invalid.payload,version),version)
   print("S5 REJECT invalid fixture=%s command_fact=%d error=%s" % [key,g.fact_calls,str(judged.get("error",""))])
   t.check(not judged.ok and String(judged.get("error",""))==invalid_text,"S5 rejected_submit_lookup_counts: an invalid row keeps the verbatim reason "+key+" have="+str(judged.get("error","")))
-  t.check(g.fact_calls<=1 and g.export_snapshot()==before,"S5 rejected_submit_lookup_counts: an invalid row looks up at most once and leaves the snapshot equal "+key+" calls="+str(g.fact_calls))
+  t.check(g.fact_calls==1 and g.export_snapshot()==before,"S5 rejected_submit_lookup_counts: an invalid row looks up exactly once and leaves the snapshot equal "+key+" calls="+str(g.fact_calls))
   t.check(judged.keys()==S5_REJECT_KEYS and judged.get("fact",{}).is_empty(),"S5 rejected_submit_lookup_counts: a judged rejection carries an empty fact "+key+" have="+str(judged.keys()))
 
 # C10（S5 出口判据②；gherkin S5-2）：ok 路径的呈现输入＝改动前提交前查询的结果（逐字段与逐字节）；
@@ -3220,6 +3228,16 @@ static func submit_presented_fact_is_unchanged(t) -> void:
  var uses_payload=RegEx.new()
  uses_payload.compile("\\b"+payload_param+"\\b")
  t.check(uses_payload.search(outcome_body)==null,"S5 submit_presented_fact_is_unchanged: first_turn_presenter.outcome never reads its fourth argument ("+payload_param+")")
+
+# B2（R6 第 9 条②）：G6 自证永久化——去掉 `fact` 的键面摘要 == S5 前的冻结值，使「S5 为何重算基线」
+# 随时可复跑自证，而不是只存在于已移除的一次性临时码日志里。期望侧字面常量见上方
+# `S5_SUBMIT_KEYS_*_DIGEST`，不由实现派生；`r1_digest` 与 `r1_record` 的 `submit_keys` 同一算法。
+static func submit_key_face_rebaseline_self_proof(t) -> void:
+ var before=r1_digest(JSON.stringify(S5_SUBMIT_KEYS_BEFORE))
+ var after=r1_digest(JSON.stringify(S5_SUBMIT_KEYS_AFTER))
+ print("S5 KEY FACE SELF PROOF before=%s after=%s" % [before,after])
+ t.check(before==S5_SUBMIT_KEYS_BEFORE_DIGEST,"S5 submit_key_face_rebaseline_self_proof: the pre-fact key face hashes to the pre-S5 frozen value have="+before+" want="+S5_SUBMIT_KEYS_BEFORE_DIGEST)
+ t.check(after==S5_SUBMIT_KEYS_AFTER_DIGEST,"S5 submit_key_face_rebaseline_self_proof: the post-fact key face hashes to the rebaselined value have="+after+" want="+S5_SUBMIT_KEYS_AFTER_DIGEST)
 
 # Pre-cut card_facts slot walk: union B.SLOTS then skip undeclared occupied before target_payload.
 static func card_facts_union_slot_oracle(g, card: Dictionary) -> Array:
