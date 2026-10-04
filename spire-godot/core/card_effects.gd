@@ -862,21 +862,29 @@ static func detail(g, p: Dictionary) -> String:
  if Rules.SPECS[p.type].get("follow_through",false): lower_text+="总计降紧%d档，目标解除后%s。" % [Rules.SPECS[p.type].hits,"超级顺延" if Rules.SPECS[p.type].get("follow_through_scope","region")=="body" else "顺延"]
  return lower_text
 
+# exhaust_hand 的手牌选择与回退（唯一实现）：未启用只回原 payload；启用时逐张「另一张当前手牌」复制，
+# 没有别的可消耗手牌时回退为不带选择（hand_uid 置空）。枚举、单行构造与点查询共用本函数，不得另写一份。
+static func _target_choices(g, p: Dictionary, enabled: bool) -> Array:
+ if not enabled: return [p]
+ var choices=[]
+ for card in g.state.hand:
+  if card.uid==p.uid: continue
+  var selected=p.duplicate();selected.hand_uid=card.uid;choices.append(selected)
+ if choices.is_empty():
+  p.hand_uid="";choices.append(p)
+ return choices
+
+# 单行构造（原 target_facts 的循环体）：point 构造与 View 生产者共用同一实现。
+static func _target_fact(g, choice: Dictionary, label: String, cost: int, mana: float, risk: String) -> Dictionary:
+ # B3（docs/ondemand-copy.md「按需的候选详情」）：descriptor 只留类别与参数，detail 由 Game.candidate_detail 现算。
+ return g._fact(choice,label,{"kind":"card.target","args":{"payload":choice}},cost,mana,reason(g,choice),risk,"card")
+
 # 卡牌事实（手牌域，docs/spec/candidate-removal.md「接口」T5／T8；批 R3）：行与显示事实的唯一来源。
 # 返回事实列表（payload／label／copy／cost／mana／reason／risk／group），判定与 detail 由 Game 的事实入口给出。
 static func target_facts(g, p: Dictionary, label: String, cost: int, mana: float, risk: String="") -> Array:
  var facts=[]
- var choices=[p]
- if Rules.SPECS[p.type].get("exhaust_hand",false):
-  choices=[]
-  for card in g.state.hand:
-   if card.uid==p.uid: continue
-   var selected=p.duplicate();selected.hand_uid=card.uid;choices.append(selected)
-  if choices.is_empty():
-   p.hand_uid="";choices.append(p)
- for choice in choices:
-  # B3（docs/ondemand-copy.md「按需的候选详情」）：descriptor 只留类别与参数，detail 由 Game.candidate_detail 现算。
-  facts.append(g._fact(choice,label,{"kind":"card.target","args":{"payload":choice}},cost,mana,reason(g,choice),risk,"card"))
+ for choice in _target_choices(g,p,Rules.SPECS[p.type].get("exhaust_hand",false)):
+  facts.append(_target_fact(g,choice,label,cost,mana,risk))
  return facts
 
 # R3（docs/ondemand-copy.md「文案路由（收口阶段）」）：转发包装的文案参数改走路由，签名与产出保持不变。
@@ -890,48 +898,64 @@ static func target_detail(g, args: Dictionary) -> String:
  if payload.get("hand_uid","")!="": text+="\n本次消耗「%s」。" % g.B.CARD_NAMES[g._card(payload.hand_uid).type]
  return text
 
-static func card_facts(g, card: Dictionary) -> Array:
- var facts=[]
- if g.B.CARD_TRAITS.get(card.type,{}).get("unplayable",false): return facts
+# card 域 point 登记项（S3；接口契约见切片计划 §3 与 docs/spec/fact-lookup-dependencies.md）：
+# core/card_effects.gd::card_point_keys 是该 kind 候选键的唯一枚举实现（O3），逐分支族复现转换前
+# core/card_effects.gd::card_facts 的枚举顺序与去重（不得重排、不得改变什么被跳过）：free_slots 前缀
+# （不早退）→ self_faces（早退）→ single_face（早退）→ 捕缚家族（has_bind 时）→ 槽位走查；
+# exhaust_hand 的选择展开由 core/card_effects.gd::_target_choices 唯一提供。
+static func card_point_keys(g) -> Array:
+ var keys=[]
+ if not g._phase_action_tail(): return keys
+ for card in g.state.hand:
+  keys.append_array(_card_point_card_keys(g,card))
+ return keys
+
+# 单张手牌的定位项序列（转换前 card_facts 的逐行分支，条件只写一处；preview 不在本函数构造）：
+# 每项＝{family, base, item, enabled}。base＝该族的声明面键（bind／槽位的 preview 在构造行时现算），
+# item 携带槽位项或 bind 的面别，enabled＝该族的选择展开开关。free_slots 为前缀（不早退），
+# self_faces／single_face 之后不再走捕缚与槽位。候选键、成员判断与点构造都从这里取，条件不另写。
+static func _card_point_sites(g, card: Dictionary) -> Array:
+ var sites=[]
+ if g.B.CARD_TRAITS.get(card.type,{}).get("unplayable",false): return sites
  var spec=Rules.SPECS[card.type]
  if spec.has("free_slots"):
-  var free_payload={"kind":"card","uid":card.uid,"type":card.type,"slot":spec.free_slots[0],"target":"","free":true,"mode":spec.mode}
-  facts.append_array(target_facts(g,free_payload,"自由 · "+g.B.CARD_NAMES[card.type],energy_cost(g,card.type,true),face_mana(g,card.type,true)))
+  sites.append({"family":"free_slots","base":{"kind":"card","uid":card.uid,"type":card.type,"slot":spec.free_slots[0],"target":"","free":true,"mode":spec.mode},"item":{},"enabled":spec.get("exhaust_hand",false)})
  if spec.has("self_faces"):
   for side in ["bound","free"]:
-   var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":side=="free","mode":spec.mode,"self_target":true}
-   if spec.get("x_cost",false): p.x=energy_cost(g,card.type,side=="free")
-   var choices=[p]
-   if spec.self_faces[side].get("exhaust_hand",false):
-    choices=[]
-    for chosen in g.state.hand:
-     if chosen.uid==card.uid: continue
-     var selection=p.duplicate();selection.hand_uid=chosen.uid;choices.append(selection)
-    if choices.is_empty():
-     p.hand_uid="";choices.append(p)
-   for choice in choices:
-    var face_label=Rules.face_name(card.type,choice.free)+"面" if spec.has("bound_modes") else ("自由面" if choice.free else "挣脱面")
-    facts.append(g._fact(choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+face_label,{"kind":"card.target","args":{"payload":choice}},energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),reason(g,choice),"","card"))
-  return facts
+   var base={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":side=="free","mode":spec.mode,"self_target":true}
+   if spec.get("x_cost",false): base.x=energy_cost(g,card.type,side=="free")
+   sites.append({"family":"self_faces","base":base,"item":{},"enabled":spec.self_faces[side].get("exhaust_hand",false)})
+  return sites
  if Rules.single_face(card.type):
-  var p={"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":false,"mode":spec.mode,"self_target":true}
-  facts.append(g._fact(p,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":p}},energy_cost(g,card.type),0.0,reason(g,p),"","card"))
-  return facts
+  sites.append({"family":"single_face","base":{"kind":"card","uid":card.uid,"type":card.type,"slot":"","target":"self","free":false,"mode":spec.mode,"self_target":true},"item":{},"enabled":false})
+  return sites
  if can_target_bind(card.type) and g.CaptureBind.has_bind(g):
   for second in ([false,true] if spec.has("bound_modes") else [false]):
-   var bind=bind_payload(g,card.type,card.uid,second)
-   bind.kind="card";bind.uid=card.uid
-   var mana=face_mana(g,card.type,second)
-   facts.append_array(target_facts(g,bind,"冲开捕缚 · %s伤害" % g.number(bind.preview.damage),energy_cost(g,card.type),mana))
- var need_slots=g.B.card_collects_slots(card.type)
- if not need_slots: return facts
- var assist_profiles=g.HandAssist.profiles(g)
- var seen_special=[]
- var face_costs={}
- var face_payments={}
+   sites.append({"family":"bind","base":{"kind":"card","uid":card.uid,"type":card.type,"slot":g.CaptureBind.BIND_TARGET,"target":g.CaptureBind.BIND_TARGET,"free":second,"mode":Rules.face_mode(card.type,second)},"item":{"second":second},"enabled":spec.get("exhaust_hand",false)})
+ for item in _card_slot_walk(g,card):
+  sites.append({"family":"slots","base":_card_slot_key(card,item),"item":item,"enabled":spec.get("exhaust_hand",false)})
+ return sites
+
+# 单张手牌的候选键切片（keys 与 card_facts 共用同一枚举实现，不存在第二套枚举）：切片并集＝整手 keys，
+# 顺序＝转换前 card_facts 逐卡取行的行序。
+static func _card_point_card_keys(g, card: Dictionary) -> Array:
+ var keys=[]
+ for site in _card_point_sites(g,card):
+  for choice in _target_choices(g,site.base,bool(site.enabled)):
+   keys.append(g.command_params("card",choice))
+ return keys
+
+# 槽位走查（原 card_facts 槽位遍历的唯一步骤表）：只产出「槽位＋目标＋面」定位项，不构造 preview 与行；
+# 跳过条件逐条保留（声明外槽位、特殊装备 seen_special 去重、空目标补位、bound_modes 无目标跳过、
+# 自由面与 free_slots 互斥）。keys 枚举与点构造共用本走查，不得另行复制。
+static func _card_slot_walk(g, card: Dictionary) -> Array:
+ var items=[]
+ if not g.B.card_collects_slots(card.type): return items
+ var spec=Rules.SPECS[card.type]
  var slots=g.B.SLOTS+["neck","shoulder"]+g.SpecialEquipment.slots()
  for slot in spec.get("target_slots",[]):
   if slot not in slots: slots.append(slot)
+ var seen_special=[]
  for slot in slots:
   var special=slot in ["neck","shoulder"] or slot in g.SpecialEquipment.slots()
   var declared=not spec.has("target_slots") or slot in spec.target_slots
@@ -952,19 +976,104 @@ static func card_facts(g, card: Dictionary) -> Array:
     if target.id in seen_special: continue
     seen_special.append(target.id)
    for second in ([false,true] if spec.has("bound_modes") else [false]):
-    var p=target_payload(g,card.type,slot,target,assist_profiles,card.uid,second)
-    if p.free and spec.has("free_slots"): continue
-    p.kind="card";p.uid=card.uid
-    if not face_costs.has(p.free):
-     face_costs[p.free]=energy_cost(g,card.type,p.free)
-     face_payments[p.free]=face_mana(g,card.type,p.free)
-    var cost=face_costs[p.free]
-    var mana=face_payments[p.free]
-    var risk=("三档免疫普通滑脱，仅造成%s点墙面真实伤害。" % g.number(p.preview.environment_true) if p.preview.get("environment_true",0)>0 else "三档免疫普通滑脱：本次伤害为0，仍消耗能量与卡牌。") if p.has("preview") and p.preview.immune else ""
-    var label="自由 · "+g.B.SLOT_NAMES[slot] if Rules.free_effect(card.type,p.free) else "解除 · "+g._equipment_name(target)
-    if Rules.free_effect(card.type,p.free) and slot in ["palm","fingers"] and not g.equipment_at(slot).is_empty(): label="自由 · "+("右" if g.hand_blocked(slot,"left") else "左")+g.B.SLOT_NAMES[slot]
-    if spec.has("bound_modes"): label=Rules.face_name(card.type,p.free)+" · "+g._equipment_name(target)
-    facts.append_array(target_facts(g,p,label,cost,mana,risk))
+    var free=second if spec.has("bound_modes") else target.is_empty()
+    if free and spec.has("free_slots"): continue
+    items.append({"slot":slot,"target":target,"second":second})
+ return items
+
+# 槽位定位项 → 候选键（字段面与 target_payload 的声明面一致；不构造 preview）。
+static func _card_slot_key(card: Dictionary, item: Dictionary) -> Dictionary:
+ var target=item.target
+ return {"kind":"card","uid":card.uid,"type":card.type,"slot":item.slot,"target":target.get("id",""),"free":(item.second if Rules.SPECS[card.type].has("bound_modes") else target.is_empty()),"mode":Rules.face_mode(card.type,item.second)}
+
+# card 域 point 构造器（S3）：把 params 解析到该分支族的唯一 payload，复用既有单行构造；非成员返回 {}。
+# 只算请求的那一行：不调用整表生产者（core/game.gd::_fact_source／core/card_effects.gd::card_facts）或
+# 该域整表枚举（core/card_effects.gd::card_point_keys），也不重复构造行（成员判断见 card_point_member）。
+static func card_point_fact(g, params: Dictionary) -> Dictionary:
+ var site=_card_point_site(g,params)
+ if site.is_empty(): return {}
+ var p=site.p
+ var card=_hand_card(g,String(p.get("uid","")))
+ if card.is_empty(): return {}
+ var spec=Rules.SPECS[card.type]
+ var family=String(site.family)
+ if family=="free_slots":
+  return _target_fact(g,site.choice,"自由 · "+g.B.CARD_NAMES[card.type],energy_cost(g,card.type,true),face_mana(g,card.type,true),"")
+ if family=="self_faces":
+  var face_label=Rules.face_name(card.type,site.choice.free)+"面" if spec.has("bound_modes") else ("自由面" if site.choice.free else "挣脱面")
+  return _target_fact(g,site.choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+face_label,energy_cost(g,card.type,site.choice.free),face_mana(g,card.type,site.choice.free),"")
+ if family=="single_face":
+  return g._fact(site.choice,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":site.choice}},energy_cost(g,card.type),0.0,reason(g,site.choice),"","card")
+ if family=="bind":
+  var second=bool(site.item.get("second",false))
+  var bind=bind_payload(g,card.type,card.uid,second)
+  bind.kind="card";bind.uid=card.uid
+  var choice=_card_point_choice(g,bind,spec.get("exhaust_hand",false),p)
+  if choice.is_empty(): return {}
+  return _target_fact(g,choice,"冲开捕缚 · %s伤害" % g.number(bind.preview.damage),energy_cost(g,card.type),face_mana(g,card.type,second),"")
+ var item=site.item
+ var payload=target_payload(g,card.type,item.slot,item.target,g.HandAssist.profiles(g),card.uid,item.second)
+ if payload.free and spec.has("free_slots"): return {}
+ payload.kind="card";payload.uid=card.uid
+ var choice=_card_point_choice(g,payload,spec.get("exhaust_hand",false),p)
+ if choice.is_empty(): return {}
+ return _card_slot_fact(g,card,item,choice)
+
+# card 域成员谓词（S3，plan §3 不变量 5）：独立谓词＝阶段守卫＋该分支族的候选键成员判断；不构造请求行
+# （不调用 g._fact／display_fact，也不调用 card_facts／card_point_keys）。与 card_point_fact 共用同一解析，
+# 故「过宽的 member 被 build 掩盖」不成立；点查询只构造一次行。
+static func card_point_member(g, params: Dictionary) -> bool:
+ return not _card_point_site(g,params).is_empty()
+
+# 参数 → 该分支族的定位结果（site：family／p／choice／item）；非成员返回 {}。只做守卫、形状、槽位走查
+# 去重与 hand_uid 所属判断，不构造 preview 与行（bind／槽位的 preview 在构造行时才现算）。
+# 守卫与 card_facts 转换前到达条件对应：阶段＝_phase_facts 尾段（core/game.gd::_phase_action_tail）；
+# 家族与跳过条件全部来自 _card_point_sites（与候选键同一处），不得依赖隐含前提。
+static func _card_point_site(g, params: Dictionary) -> Dictionary:
+ var p=g.command_params("card",params)
+ if not g._phase_action_tail(): return {}
+ var card=_hand_card(g,String(p.get("uid","")))
+ if card.is_empty() or String(p.get("type",""))!=String(card.type): return {}
+ for site in _card_point_sites(g,card):
+  var choice=_card_point_choice(g,site.base,bool(site.enabled),p)
+  if choice.is_empty(): continue
+  return {"family":site.family,"p":p,"choice":choice,"item":site.item}
+ return {}
+
+# 选择解析：只接受 _target_choices 会产出的 hand_uid，其余（含不存在的手牌）返回 {}；键面经
+# command_params 归一后与该族声明面逐字段比较。
+static func _card_point_choice(g, base: Dictionary, enabled: bool, p: Dictionary) -> Dictionary:
+ for choice in _target_choices(g,base,enabled):
+  if g.command_params("card",choice)==p: return choice
+ return {}
+
+# 槽位单行构造（原 card_facts 槽位循环体）：label／risk 与转换前逐字相同，cost／mana 同源现算。
+static func _card_slot_fact(g, card: Dictionary, item: Dictionary, choice: Dictionary) -> Dictionary:
+ var spec=Rules.SPECS[card.type]
+ var slot=String(item.slot)
+ var target=item.target
+ var risk=("三档免疫普通滑脱，仅造成%s点墙面真实伤害。" % g.number(choice.preview.environment_true) if choice.preview.get("environment_true",0)>0 else "三档免疫普通滑脱：本次伤害为0，仍消耗能量与卡牌。") if choice.has("preview") and choice.preview.immune else ""
+ var label="自由 · "+g.B.SLOT_NAMES[slot] if Rules.free_effect(card.type,choice.free) else "解除 · "+g._equipment_name(target)
+ if Rules.free_effect(card.type,choice.free) and slot in ["palm","fingers"] and not g.equipment_at(slot).is_empty(): label="自由 · "+("右" if g.hand_blocked(slot,"left") else "左")+g.B.SLOT_NAMES[slot]
+ if spec.has("bound_modes"): label=Rules.face_name(card.type,choice.free)+" · "+g._equipment_name(target)
+ return _target_fact(g,choice,label,energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),risk)
+
+# 以 uid 定位当前手牌（member 与 keys 的等价面：参数只在手牌内成立）。
+static func _hand_card(g, uid: String) -> Dictionary:
+ if uid=="": return {}
+ for card in g.state.hand:
+  if card.uid==uid: return card
+ return {}
+
+# card 域 View 生产者（唯一）：行 = 同一枚举（该手牌切片）× 同一 build，行序、条数与每行字段与转换前
+# 逐字节相同。按卡取切片而非整手 keys：既有断言（card_facts_keyword_min_query 的 strong_elbow 槽位面）
+# 要求按卡取行时不得查询其他手牌的槽位；切片与整手枚举共用 _card_point_card_keys 一处实现。
+static func card_facts(g, card: Dictionary) -> Array:
+ var facts=[]
+ for k in _card_point_card_keys(g,card):
+  var row=card_point_fact(g,k)
+  if row.is_empty(): continue
+  facts.append(row)
  return facts
 
 static func can_select_retain(g, card: Dictionary) -> bool:

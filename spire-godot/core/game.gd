@@ -2522,6 +2522,7 @@ func _phase_facts() -> Array:
  out.append_array(attack_facts())
  out.append_array(equipment_spell_facts())
  for card in state.hand: out.append_array(Cards.card_facts(self,card))
+ # S3：card 的槽位面按卡取行（逐卡切片）而非整手枚举，故保留逐卡调用点；行序与条数同转换前。
  out.append_array(manual_facts())
  out.append_array(item_action_facts())
  if state.phase=="rest": out.append_array(hook_facts())
@@ -2741,6 +2742,17 @@ func attack_point_fact(g, params: Dictionary) -> Dictionary:
 # 攻击域成员谓词（S2，plan §3 不变量 5）：与 attack_point_keys 的归一化集合等价，不成立即 false。
 func attack_point_member(g, params: Dictionary) -> bool:
  return not g.attack_point_fact(g,params).is_empty()
+
+# 卡牌域 point 登记面的 g 方法转发（S3）：枚举与构造的唯一实现在 core/card_effects.gd（登记项只存 g 上
+# 的方法名，见切片计划 §3），本三处不含第二套逻辑；行为与 core/card_effects.gd::card_point_* 同一实现。
+func card_point_keys(g) -> Array:
+ return Cards.card_point_keys(g)
+
+func card_point_fact(g, params: Dictionary) -> Dictionary:
+ return Cards.card_point_fact(g,params)
+
+func card_point_member(g, params: Dictionary) -> bool:
+ return Cards.card_point_member(g,params)
 
 # 装备自解家族的 point 解析（S2）：按 target id 在该家族既有枚举（action_targets）里定位单一件并复用同一行构造。
 func _equipment_point_fact(g, p: Dictionary) -> Dictionary:

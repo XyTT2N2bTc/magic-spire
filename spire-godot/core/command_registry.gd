@@ -7,11 +7,12 @@ extends RefCounted
 # core/copy_router.gd and core/save_store.gd preload core/game.gd back, and core/card_effects.gd
 # takes this table in S3.
 #
-# Table form (every kind but attack after S2; S3 moves card):
+# Table form (every kind but attack and card after S3):
 #   source : String — method name on g, signature (kind: String, params: Dictionary) -> Array.
 #                     That array is the fact set the point query scans for this kind; every entry
 #                     names the producer and guard its core/game.gd::_kind_facts arm used before S1.
-# Point form (S2 lands it for attack; S3 adds card):
+# Point form (S2 landed it for attack; S3 adds card; the card keys／build／member forward to
+# core/card_effects.gd, where the single enumeration and constructor live):
 #   keys／build／member : String — method names on g, called as keys(g) -> Array,
 #                     build(g, params) -> Dictionary, member(g, params) -> bool
 #                     (signatures in the slice plan section 3; keys is the only candidate enumeration,
@@ -25,7 +26,7 @@ extends RefCounted
 const TAKEOVER_SOURCE="command_facts"
 
 const ENTRIES={
- "card":{"form":"table","source":"_whole_table_kind_facts"},
+ "card":{"form":"point","keys":"card_point_keys","build":"card_point_fact","member":"card_point_member"},
  "chain":{"form":"table","source":"_whole_table_kind_facts"},
  "attack":{"form":"point","keys":"attack_point_keys","build":"attack_point_fact","member":"attack_point_member"},
  "status_toggle":{"form":"table","source":"_status_toggle_kind_facts"},

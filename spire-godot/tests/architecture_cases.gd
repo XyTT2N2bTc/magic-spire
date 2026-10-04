@@ -653,6 +653,8 @@ static func run(t) -> void:
  fact_source_map_is_pinned(t)
  attack_fact_direct_lookup(t)
  attack_point_lookup_reads_one_row(t)
+ card_fact_direct_lookup(t)
+ card_point_lookup_reads_one_row(t)
  command_fact_kind_lookup(t)
  single_fact_lookup_per_submit(t)
  rejected_submit_lookup_counts(t)
@@ -2259,9 +2261,9 @@ static func instruction_route_table_is_total(t) -> void:
    seen[key]=String(c.label)
  t.check(duplicates.is_empty(),"G2 instruction_route_table_is_total: every command shape resolves to exactly one row: "+str(duplicates.slice(0,3)))
 
-# Fact-lookup kind sets: POINT_KINDS lists the kinds converted to point form (S1 empty; S2 adds
-# attack, S3 adds card). Table kinds are derived from COMMAND_KEYS minus POINT_KINDS, never written out.
-const POINT_KINDS=["attack"]
+# Fact-lookup kind sets: POINT_KINDS lists the kinds converted to point form (S1 empty; S2 added
+# attack, S3 added card). Table kinds are derived from COMMAND_KEYS minus POINT_KINDS, never written out.
+const POINT_KINDS=["attack","card"]
 const T4_EQUIVALENCE_CELLS=[["battle",0],["battle",12],["battle",26],["battle",44],["prepare",0],["rest",0],["takeover",0]]
 
 static func table_kinds() -> Array:
@@ -2274,9 +2276,8 @@ static func table_kinds() -> Array:
 # of CommandRegistry and core/game.gd, so pointing a kind at another existing g method (or swapping the
 # takeover source) is caught even though command_registry_is_total and the row-equality checks stay
 # green. Never derive this table from the registry. Update it in the same batch that changes a form
-# (S2 moved attack to point form and dropped it here; S3 drops card).
+# (S2 moved attack to point form and dropped it here; S3 dropped card).
 const FROZEN_TABLE_SOURCES={
- "card":"_whole_table_kind_facts",
  "chain":"_whole_table_kind_facts",
  "status_toggle":"_status_toggle_kind_facts",
  "posture":"_posture_kind_facts",
@@ -2317,11 +2318,13 @@ const FROZEN_TABLE_SOURCES={
 }
 const FROZEN_TAKEOVER_SOURCE="command_facts"
 
-# S2: the point-form method names get the same literal freeze (expected side written here, never derived
+# S2/S3: the point-form method names get the same literal freeze (expected side written here, never derived
 # from CommandRegistry). Missing/mismatched = a point kind lost its declared builder; extra = a point kind
-# without a frozen expectation.
+# without a frozen expectation. The card trio forwards to core/card_effects.gd, where the single
+# enumeration and constructor live.
 const FROZEN_POINT_METHODS={
  "attack":{"keys":"attack_point_keys","build":"attack_point_fact","member":"attack_point_member"},
+ "card":{"keys":"card_point_keys","build":"card_point_fact","member":"card_point_member"},
 }
 
 # C1 diff: kinds present in the given set but missing from the registry. The totality check and the
@@ -2496,9 +2499,46 @@ static func fact_source_map_is_pinned(t) -> void:
 const FACT_LOOKUP_MUTATION_IDS=["missing_enemy","missing_target","missing_uid"]
 const FACT_LOOKUP_ID_FIELDS=["enemy","target","uid","relic","item"]
 
-static func fact_lookup_family(kind: String, params: Dictionary) -> String:
+static func fact_lookup_family(g, kind: String, params: Dictionary) -> String:
+ if kind=="card":
+  var type=String(params.get("type",""))
+  var spec=g.Cards.Rules.SPECS.get(type,{})
+  if spec.is_empty(): return "unknown"
+  if spec.has("free_slots") and String(params.get("target",""))=="" and bool(params.get("free",false)): return "free_slots"
+  if spec.has("self_faces") and bool(params.get("self_target",false)): return "self_faces"
+  if g.Cards.Rules.single_face(type): return "single_face"
+  if String(params.get("target",""))==g.CaptureBind.BIND_TARGET: return "bind"
+  return "target_slots"
  if String(params.get("target",""))!="": return "self_release"
  return "witch" if String(params.get("type","")).begins_with("witch_") else "basic"
+
+# S3 card branch flags (plan §7 A1 field families; expected side = SPECS declarations + row params only,
+# never the registry). One row can belong to several families; every listed family needs a positive count.
+const CARD_BRANCH_FAMILIES=["free_slots","self_faces","single_face","bound_modes","target_slots","x_cost","exhaust_hand_select","exhaust_hand_fallback","bind"]
+
+static func card_branch_flags(g, params: Dictionary) -> Array:
+ var flags=[]
+ var type=String(params.get("type",""))
+ var spec=g.Cards.Rules.SPECS.get(type,{})
+ if spec.is_empty(): return flags
+ var target=String(params.get("target",""))
+ var free=bool(params.get("free",false))
+ var self_target=bool(params.get("self_target",false))
+ var hand_uid=String(params.get("hand_uid",""))
+ var face=spec.get("self_faces",{}).get("free" if free else "bound",{})
+ var exhaust=spec.get("exhaust_hand",false) or face.get("exhaust_hand",false)
+ if spec.has("free_slots") and target=="" and free: flags.append("free_slots")
+ if spec.has("self_faces") and self_target: flags.append("self_faces")
+ if g.Cards.Rules.single_face(type): flags.append("single_face")
+ if spec.has("bound_modes"): flags.append("bound_modes")
+ if target==g.CaptureBind.BIND_TARGET:
+  flags.append("bind")
+ elif not self_target and not (spec.has("free_slots") and target=="" and free):
+  flags.append("target_slots")
+ if exhaust and hand_uid!="": flags.append("exhaust_hand_select")
+ if exhaust and hand_uid=="": flags.append("exhaust_hand_fallback")
+ if spec.get("x_cost",false) and self_target: flags.append("x_cost")
+ return flags
 
 # 变异语料＝字段级替换：不存在的 id／未注册 type／清空必填／越界 form／布尔取反／x 与 charge_action 组合。
 static func fact_lookup_mutations(kind: String, params: Dictionary, mutation_ids: Array) -> Array:
@@ -2531,7 +2571,7 @@ static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fix
  var key_set={}
  for candidate in g.call(String(entry.get("keys","")),g):
   key_set[JSON.stringify(g.command_params(kind,candidate))]=true
- var coverage={"dir1":0,"dir2":0,"keys":0,"member":0,"duplicates":0,"distinct_duplicates":0,"families":{},"mutation_families":{}}
+ var coverage={"dir1":0,"dir2":0,"keys":0,"member":0,"duplicates":0,"distinct_duplicates":0,"families":{},"mutation_families":{},"branches":{}}
  var first_of={}
  for index in range(rows.size()):
   var key=JSON.stringify(g.command_params(kind,rows[index].payload))
@@ -2548,8 +2588,10 @@ static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fix
   if not point.is_empty() and not FirstTurnControl.active(g):
    t.check(g.display_fact(point)==first,"fact_lookup_equivalence[%s]: direction 2 projects the first table row kind=%s index=%d params=%s" % [fixture,kind,index,key])
   coverage.dir1+=1
-  var family=fact_lookup_family(kind,params)
+  var family=fact_lookup_family(g,kind,params)
   coverage.families[family]=int(coverage.families.get(family,0))+1
+  if kind=="card":
+   for flag in card_branch_flags(g,params): coverage.branches[flag]=int(coverage.branches.get(flag,0))+1
   if int(first_of[key])!=index:
    coverage.duplicates+=1
    if JSON.stringify(row)!=JSON.stringify(first): coverage.distinct_duplicates+=1
@@ -2568,7 +2610,7 @@ static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fix
    t.check(bool(g.call(member_name,g,mutated))==key_set.has(mutated_key),"fact_lookup_equivalence[%s]: member equals the keys set on the mutation kind=%s params=%s" % [fixture,kind,mutated_key])
    coverage.dir2+=1
    coverage.member+=1
-   var mutation_family=fact_lookup_family(kind,mutated)
+   var mutation_family=fact_lookup_family(g,kind,mutated)
    coverage.mutation_families[mutation_family]=int(coverage.mutation_families.get(mutation_family,0))+1
  # 每个枚举键都必须出现在该状态的表里（防「View 从未提供、直出却接受」）。
  for key in key_set:
@@ -2585,7 +2627,7 @@ static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fix
    var raw=CommandRegistry.point(g,kind,candidate)
    if not raw.is_empty(): built.append(g.display_fact(raw))
   t.check(built==rows,"fact_lookup_equivalence[%s]: the view rows equal keys times build kind=%s" % [fixture,kind])
- print("FACT LOOKUP fixture=%s kind=%s dir1_rows=%d dir2_mutations=%d keys=%d member=%d duplicates=%d distinct=%d dir1_families=%s dir2_families=%s" % [fixture,kind,coverage.dir1,coverage.dir2,coverage.keys,coverage.member,coverage.duplicates,coverage.distinct_duplicates,str(coverage.families),str(coverage.mutation_families)])
+ print("FACT LOOKUP fixture=%s kind=%s dir1_rows=%d dir2_mutations=%d keys=%d member=%d duplicates=%d distinct=%d dir1_families=%s dir2_families=%s branches=%s" % [fixture,kind,coverage.dir1,coverage.dir2,coverage.keys,coverage.member,coverage.duplicates,coverage.distinct_duplicates,str(coverage.families),str(coverage.mutation_families),str(coverage.branches)])
  return coverage
 
 # 装备自解家族夹具（非战斗阶段正例；S2 出口判据要求至少一个非战斗阶段实跑）。
@@ -2658,6 +2700,176 @@ static func attack_point_lookup_reads_one_row(t) -> void:
   t.check(found==row and g.attack_facts_calls==0 and g.equipment_spell_calls==0 and g.fact_source_calls==0,"attack_point_lookup_reads_one_row: one row is answered without a whole-table producer: "+String(entry[0]))
   compared+=1
  t.check(compared==samples.size(),"attack_point_lookup_reads_one_row: every family sample was compared have="+str(compared))
+
+# ==== S3 card 双向等价、分支覆盖与重复收敛（C3／C4／C6／C7；gherkin S3-1／S3-2／S3-3）====
+# 分支族夹具（gherkin S3-2）：把字段族代表卡型放进手牌。breath_control 顶层 exhaust_hand＋free_slots；
+# ready_to_strike 面级 exhaust_hand；concentration 声明 bound_modes；self_binding 为 x_cost 自身卡；
+# panic 是可打出的单面卡（mode=none）；strong_elbow 声明 target_slots。
+const CARD_BRANCH_TYPES=["breath_control","ready_to_strike","concentration","self_binding","panic","strong_elbow"]
+
+static func card_branch_fixture(t, phase: String, count: int, game_class=null):
+ var g=r1_build(phase,count,game_class)
+ for type in CARD_BRANCH_TYPES: Rewards.give(t,g,type)
+ return g
+
+# exhaust_hand 回退正例（gherkin S3-2）：手牌只留这一张卡，选择展开必须回退为 hand_uid 置空。
+static func card_exhaust_fallback_fixture(t, type: String, game_class=null):
+ var g=r1_build("battle",12,game_class)
+ var card=Rewards.give(t,g,type)
+ g.state.hand=[card]
+ return g
+
+# 捕缚家族正例（gherkin S3-2 的组合分支；沿用既有 ARCH 的 drone_solo 真实捕缚流程）。
+static func card_bind_fixture(t, type: String):
+ var g=Game.new(42,true,"drone_solo")
+ t.action(g,"end")
+ Rewards.give(t,g,type)
+ return g
+
+# 特殊装备跨槽（gherkin S3-3）：crotch_rope_low 的声明槽位＝special_3_a＋special_3_b，同一实例在两个
+# 槽位都可被 targets_at 取到；seen_special 必须只保留走查序首槽（special_3_a）的那一项，后一槽不得成为
+# 候选键。夹具走 _install_special，状态保持 validate 通过。
+static func card_special_cross_slot_fixture(t, card_type: String):
+ var g=r1_build("battle",12)
+ var item=g._install_special("crotch_rope_low","special_3_a")
+ g.state.hand=[Rewards.give(t,g,card_type)]
+ return [g,item]
+
+# 空目标补位（gherkin S3-3）：清空装备后只在手掌装一件单侧件：occupied 为 false 而 targets_at 非空，
+# 走查必须补一个空目标项（沿用 card_facts_consumes_has_targets_at 的单侧手掌语义）。
+static func card_empty_target_fixture(t, card_type: String, game_class=null):
+ var g=r1_build("battle",12,game_class)
+ _clear_gear(g)
+ var piece=g.add_fixture("palm",4,10)
+ piece.side="left"
+ g.state.hand=[Rewards.give(t,g,card_type)]
+ return [g,piece.id]
+
+# 重复归一化 params（沿用 attack_duplicate_params_fixture 的读法）：同 uid 的第二张手牌产生同 params 的
+# 两条枚举项；build 是 params 的纯函数，故本夹具证明「点查询返回枚举序首条」而非内容可区分。
+static func card_duplicate_params_fixture(t, card_type: String, game_class=null):
+ var g=r1_build("battle",12,game_class)
+ var card=Rewards.give(t,g,card_type)
+ g.state.hand=[card,card.duplicate(true)]
+ return g
+
+# 点查询集合（登记项 keys）的唯一取用面：测试侧只经登记项方法名取枚举，不复制枚举语义。
+static func point_keys_for(g, kind: String) -> Array:
+ var entry=CommandRegistry.entry(kind)
+ return g.call(String(entry.get("keys","")),g)
+
+# C3／C4／C6／C7（S3 出口判据①②③）：card 在 0／12／26／44 件 × 战斗／监狱／整备夹具与分支族夹具上
+# 各跑一次方向①／②；逐分支族覆盖计数为 0 即红；exhaust_hand 的选择与回退各有正例；重复收敛夹具
+# （特殊装备跨槽、空目标补位）显式构造。
+static func card_fact_direct_lookup(t) -> void:
+ var fixtures=[]
+ for phase in ["battle","prepare","prison"]:
+  for count in [0,12,26,44]:
+   fixtures.append(["%s:%d" % [phase,count],r1_build(phase,count)])
+ var branch_battle=card_branch_fixture(t,"battle",26)
+ fixtures.append(["branch:battle:26",branch_battle])
+ fixtures.append(["branch:prison:26",card_branch_fixture(t,"prison",26)])
+ fixtures.append(["exhaust_fallback:breath_control",card_exhaust_fallback_fixture(t,"breath_control")])
+ fixtures.append(["exhaust_fallback:ready_to_strike",card_exhaust_fallback_fixture(t,"ready_to_strike")])
+ var bind=card_bind_fixture(t,"concentration")
+ t.check(bind.CaptureBind.has_bind(bind),"card_fact_direct_lookup: the bind fixture establishes a real capture bind")
+ if bind.CaptureBind.has_bind(bind): fixtures.append(["bind:concentration",bind])
+ var cross=card_special_cross_slot_fixture(t,"strain")
+ t.check(not cross[1].is_empty(),"card_fact_direct_lookup: the cross-slot special fixture installs a special item")
+ if not cross[1].is_empty(): fixtures.append(["special_cross_slot",cross[0]])
+ var pad=card_empty_target_fixture(t,"strain")
+ t.check(pad[0].state.equipment.size()==1 and not pad[0].occupied("palm") and not pad[0].targets_at("palm").is_empty(),"card_fact_direct_lookup: the empty-target fixture holds one unoccupied palm piece")
+ fixtures.append(["empty_target_padding",pad[0]])
+ var duplicate=card_duplicate_params_fixture(t,"strain")
+ fixtures.append(["duplicate_params",duplicate])
+ var totals={"dir1":0,"dir2":0,"keys":0,"member":0,"duplicates":0,"distinct_duplicates":0}
+ var families={}
+ var branches={}
+ for entry in fixtures:
+  var coverage=fact_lookup_equivalence(t,entry[1],"card",FACT_LOOKUP_MUTATION_IDS,entry[0])
+  for key in totals: totals[key]=int(totals[key])+int(coverage[key])
+  for family in coverage.families: families[family]=int(families.get(family,0))+int(coverage.families[family])
+  for flag in coverage.branches: branches[flag]=int(branches.get(flag,0))+int(coverage.branches[flag])
+ for flag in CARD_BRANCH_FAMILIES:
+  t.check(int(branches.get(flag,0))>0,"card_fact_direct_lookup: every card branch family is covered by direction 1 missing="+flag+" have="+str(branches))
+ t.check(int(totals.keys)>0 and int(totals.dir2)>0 and int(totals.member)>0,"card_fact_direct_lookup: the harness compared enumerated keys, mutations and member predicates: "+str(totals))
+ t.check(int(totals.duplicates)>0,"card_fact_direct_lookup: the duplicate fixture enumerates duplicate normalized params: "+str(totals))
+ # gherkin S3-2：声明外槽位不产生行（点侧沿用 card_facts_declared_slots 语义）。
+ var elbow_card={}
+ for card in branch_battle.state.hand:
+  if card.type=="strong_elbow": elbow_card=card
+ t.check(not elbow_card.is_empty(),"card_fact_direct_lookup: the branch fixture holds strong_elbow")
+ var elbow_spec=branch_battle.Cards.Rules.SPECS.get("strong_elbow",{})
+ var elbow_keys=point_keys_for(branch_battle,"card").filter(func(k):return String(k.get("uid",""))==String(elbow_card.get("uid","")))
+ t.check(not elbow_keys.is_empty() and elbow_keys.all(func(k):return String(k.get("slot","")) in elbow_spec.get("target_slots",[])),"card_fact_direct_lookup: declared-slot cards keep every point key inside target_slots: "+str(elbow_keys.map(func(k):return k.get("slot",""))))
+ # gherkin S3-3：特殊装备跨槽——同一实例只保留走查序首槽；后一槽的向量必须被点查询与 member 同时拒绝。
+ var cross_g=cross[0]
+ var cross_id=String(cross[1].get("id",""))
+ t.check(cross_g.targets_at("special_3_a").size()==1 and cross_g.targets_at("special_3_b").size()==1 and String(cross_g.targets_at("special_3_a")[0].id)==String(cross_g.targets_at("special_3_b")[0].id),"card_fact_direct_lookup: the cross-slot fixture reaches the same instance from both declared slots: "+cross_id)
+ var cross_keys=point_keys_for(cross_g,"card").filter(func(k):return String(k.get("target",""))==cross_id)
+ t.check(cross_keys.size()==1 and String(cross_keys[0].get("slot",""))=="special_3_a","card_fact_direct_lookup: a special instance spanning slots stays on its first walked slot: "+str(cross_keys))
+ var later=cross_g.command_params("card",{"kind":"card","uid":cross_g.state.hand[0].uid,"type":"strain","slot":"special_3_b","target":cross_id})
+ t.check(cross_g.command_fact(cross_g.command(later,cross_g.state.version)).is_empty(),"card_fact_direct_lookup: the later slot of the same special id is not a member")
+ t.check(not bool(cross_g.call("card_point_member",cross_g,later)),"card_fact_direct_lookup: the member predicate rejects the later slot of the same special id")
+ # gherkin S3-3：空目标补位——同一槽位同时枚举实件与补位空目标，且表内 (kind, params) 唯一。
+ var pad_g=pad[0]
+ var pad_id=String(pad[1])
+ var palm_keys=point_keys_for(pad_g,"card").filter(func(k):return String(k.get("slot",""))=="palm")
+ t.check(palm_keys.any(func(k):return String(k.get("target",""))==pad_id) and palm_keys.any(func(k):return String(k.get("target",""))==""),"card_fact_direct_lookup: the padded slot enumerates the piece and the empty target: "+str(palm_keys))
+ for convergent in [["special_cross_slot",cross_g],["empty_target_padding",pad_g]]:
+  var seen={}
+  var repeated=[]
+  for row in convergent[1].command_facts():
+   var row_key=String(row.payload.get("kind",""))+"|"+JSON.stringify(convergent[1].command_params(row.payload.kind,row.payload))
+   if seen.has(row_key): repeated.append(row_key)
+   seen[row_key]=true
+  t.check(repeated.is_empty(),"card_fact_direct_lookup: the convergence fixture keeps (kind, params) unique "+String(convergent[0])+": "+str(repeated.slice(0,3)))
+ print("CARD FACT LOOKUP fixtures=%d dir1_rows=%d dir2_mutations=%d keys=%d member=%d duplicates=%d distinct=%d families=%s branches=%s" % [fixtures.size(),totals.dir1,totals.dir2,totals.keys,totals.member,totals.duplicates,totals.distinct_duplicates,str(families),str(branches)])
+
+# core/card_effects.gd 的函数全是 `static func`：source_func_text 只认行首的 `\nfunc `，会一直取到文件
+# 尾；本提取器在下一个 `\nstatic func `／`\nfunc ` 处截断（只用于该文件的源码级判据）。
+static func source_static_func_body_code(path: String, name: String) -> String:
+ var handle=FileAccess.open(path,FileAccess.READ)
+ if handle==null: return ""
+ var source=handle.get_as_text()
+ var start=source.find("\nstatic func "+name+"(")
+ if start<0: return ""
+ var rest=source.substr(start+1)
+ var nxt=-1
+ for cut in [rest.find("\nstatic func ",1),rest.find("\nfunc ",1)]:
+  if cut>=0 and (nxt<0 or cut<nxt): nxt=cut
+ var text=rest if nxt<0 else rest.substr(0,nxt)
+ var code=""
+ for line in text.split("\n"): code+=String(line).split("#")[0]+"\n"
+ return code
+
+# C6（S3 出口判据③；gherkin S3-1／S3-2）：card 点查询只算一行——不调用整表生产者
+# （core/game.gd::_fact_source／core/card_effects.gd::card_facts）或该域整表枚举
+# （core/card_effects.gd::card_point_keys）；成员谓词是独立谓词，不经请求行的构造
+# （不调用 card_point_fact／_target_fact）。core/card_effects.gd::card_facts 是静态函数，运行时无法经
+# g 计数，故该条证据为源码文本；运行期计数（测试侧子类）覆盖 _fact_source。
+static func card_point_lookup_reads_one_row(t) -> void:
+ var builder=source_static_func_body_code("res://core/card_effects.gd","card_point_fact")
+ var member=source_static_func_body_code("res://core/card_effects.gd","card_point_member")
+ t.check(not builder.strip_edges().is_empty() and not member.strip_edges().is_empty(),"card_point_lookup_reads_one_row: both card point bodies are extracted have_builder="+str(builder.length())+" have_member="+str(member.length()))
+ t.check(builder.find("card_facts(")<0 and builder.find("_fact_source(")<0 and builder.find("card_point_keys(")<0,"card_point_lookup_reads_one_row: the point builder never calls a whole-table producer: "+builder)
+ t.check(member.find("card_facts(")<0 and member.find("_fact_source(")<0 and member.find("card_point_keys(")<0,"card_point_lookup_reads_one_row: the member predicate never calls a whole-table producer: "+member)
+ t.check(member.find("card_point_fact(")<0 and member.find("_target_fact(")<0 and member.find("_fact(")<0,"card_point_lookup_reads_one_row: the member predicate is independent of the row constructor: "+member)
+ var samples=[["battle:12",r1_build("battle",12,FactSourceCountingGame)],["branch:prison:26",card_branch_fixture(t,"prison",26,FactSourceCountingGame)],["exhaust_fallback:breath_control",card_exhaust_fallback_fixture(t,"breath_control",FactSourceCountingGame)]]
+ var compared=0
+ for entry in samples:
+  var g=entry[1]
+  var row={}
+  for candidate in g.command_facts():
+   if String(candidate.payload.get("kind",""))=="card": row=candidate; break
+  t.check(not row.is_empty(),"card_point_lookup_reads_one_row: the fixture exposes a card row: "+String(entry[0]))
+  if row.is_empty(): continue
+  g.fact_source_calls=0
+  var found=g.command_fact(g.command(row.payload,g.state.version))
+  print("CARD POINT LOOKUP fixture=%s whole_table_calls _fact_source=%d" % [entry[0],g.fact_source_calls])
+  t.check(found==row and g.fact_source_calls==0,"card_point_lookup_reads_one_row: one row is answered without a whole-table producer: "+String(entry[0]))
+  compared+=1
+ t.check(compared==samples.size(),"card_point_lookup_reads_one_row: every family sample was compared have="+str(compared))
 
 static func pipeline_lookup_inspect(t) -> void:
  var edges=pipeline_lookup_edges()
