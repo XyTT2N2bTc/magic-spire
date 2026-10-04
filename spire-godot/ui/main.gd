@@ -538,6 +538,41 @@ func render(snapshot: Dictionary={}) -> void:
  _localize_controls(layout)
 
 const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","posture","resources","show_log","body_bar","body_details","pickers","speech","notice","drawers","page","scene_instances"]
+# Declared present adjacency; guarded by
+# tests/architecture_cases.gd::present_adjacency_graph_is_pinned (three checks: a declared
+# edge must have a direct call in its parent body; a table symbol a registered parent calls
+# directly must be declared; no dead entry - no phantom symbol, no unreachable row).
+# Membership rule (the guard's premise):
+#  - Entering the table: stable symbols of the present pipeline - the section routines and
+#    their presentation-key routines, the stage/resource/enemy/drawer section routines in
+#    `ui/main.gd`, plus the external parents declared below (`header.configure`,
+#    `layout.body_sidebar`, `layout.hero_portrait`, `configure_enemy`,
+#    `EquipmentPortrait.configure`). Each symbol must be a declared function in its owning
+#    file; a rename or deletion on either side must be done in the same batch as this table.
+#  - Every symbol named anywhere in the table must have its own row: a symbol that appears only
+#    as a child (e.g. a leaf) is a missing row, `"symbol":[...]` or `"symbol":[]` required.
+#  - Every edge is a direct call inside the parent body (including calls inside lambdas and
+#    chained `….child(`); all direct calls a registered parent makes to table symbols must be
+#    registered, and a symbol no registered parent calls directly is a dead entry.
+#  - Boundary leaves (declared with no children and never expanded): the external symbols
+#    `layout.hero_portrait`, `layout.body_sidebar`, `configure_enemy` and
+#    `EquipmentPortrait.configure`, `CardFace.separate_keywords` and, in this file, leaves
+#    that truly call no table symbol (e.g. `_place`). External symbols resolve in their owning
+#    file; of them only `header.configure` declares a child, so it is the only external body
+#    read for edge checking (`header.configure -> header._presentation_key`).
+#  - Shared hand helpers `_label` and `_place` are admitted; all registered callers must
+#    declare their direct edges to them. Other construction helpers (`_panel`/`_button`/
+#    `_style`/`_bar`/`_scroll`/`_text`), frame chrome (`layout.begin_frame`/
+#    `layout.end_frame`/`_localize_controls`), and domain routines reached only by
+#    unregistered parents remain outside the table.
+#  - Coverage boundary (reviewer's responsibility, not guarded): the checks verify the edges
+#    that ARE declared, not that every present-pipeline routine IS declared. Adding a new
+#    section or stage routine without registering it, deleting a whole row, or emptying the
+#    table to `{"present":[]}` all leave the guard green. No completeness floor is added
+#    because "every declared `ui/main.gd` function a registered parent calls must be a table
+#    row or child" would flag ~80 local routines (render alone calls ~20) beyond the
+#    non-admitted names above - a large, churn-prone hand list. New declarations and whole-row
+#    removals are reviewed by hand (`.zcode/skills/spire-docs/SKILL.md`, fifth category).
 # Declared present adjacency (direct calls, stable symbols only): present routes to
 # _present_needs_full_render (predicate), render (full fallback), header.configure
 # (["header"] local), _relic_row (["relics"] local), _hand (["hand"] local; it also
@@ -586,8 +621,10 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # details blocked only for ["notice"], neither show_menu nor show_items / show_home /
 # show_route / non-battle / other DRAWERS only for ["drawers"], and
 # show_home / show_route / non-battle / missing hero, body portrait, or
-# living enemy group only for ["scene_instances"]; render, _show_term,
-# layout.body_sidebar, and layout.hero_portrait are boundary leaves here.
+# living enemy group only for ["scene_instances"]. `layout.body_sidebar`,
+# `layout.hero_portrait`, `configure_enemy` and `EquipmentPortrait.configure` are external
+# boundary leaves; registered local helpers expand their direct calls to
+# other table symbols, including shared hand primitives. `render` re-enters shared sections.
 # present does not call _bottom_controls, _wall_controls, _posture_controls,
 # mana_flask.build, _refresh_drawers, _open_drawer, _close_drawers,
 # _drawer_shell, _body_drawer, _refresh_body_details, _equipment_tile,
@@ -598,27 +635,29 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _dismiss_speech, _speech_visible, _show_term, _drag_rejection,
 # _card_tooltip, or _takeover_banner.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","_scene_instances_need_full","_refresh_scene_instances_section","_sync_drag_versions","layout.body_sidebar"],
- "_present_needs_full_render":["_scene_instances_need_full"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","_scene_instances_need_full","_refresh_scene_instances_section","_sync_drag_versions","layout.body_sidebar","_selecting_hand","_hide_term"],
+ "_present_needs_full_render":["_scene_instances_need_full","_selecting_hand"],
  "_scene_instances_need_full":[],
  "_refresh_scene_instances_section":["layout.hero_portrait","_place_enemy_row","_enemy_row","configure_enemy","_status_strip","_sync_enemy_stage","_release_enemy_stage","EquipmentPortrait.configure"],
  "_enemy_row":[],
  "_place_enemy_row":[],
- "_sync_enemy_stage":["_sync_enemy_select","_sync_enemy_intent_icons","_enemy_hp_text"],
+ "_sync_enemy_stage":["_sync_enemy_select","_sync_enemy_intent_icons","_enemy_hp_text","_label","_place"],
  "_enemy_hp_text":[],
- "_sync_enemy_select":["_configure_enemy_drop"],
- "_sync_enemy_intent_icons":["_intent_icon_rect","_unload_stage_node","_show_term"],
+ "_sync_enemy_select":["_configure_enemy_drop","_place"],
+ "_sync_enemy_intent_icons":["_intent_icon_rect","_unload_stage_node","_show_term","_place"],
+ "_intent_icon_rect":[],
  "_release_enemy_stage":[],
  "_unload_stage_node":[],
  "_configure_enemy_drop":["_attack_drop_candidate"],
- "_status_strip":["_status_control","_unload_resource_direct"],
- "_status_control":[],
+ "_attack_drop_candidate":[],
+ "_status_strip":["_status_control","_unload_resource_direct","_place"],
+ "_status_control":["_show_term","_label","_place","_hide_term"],
  "layout.hero_portrait":[],
  "configure_enemy":[],
  "EquipmentPortrait.configure":[],
  "header.configure":["header._presentation_key"],
  "header._presentation_key":[],
- "_relic_row":["_relic_presentation_key"],
+ "_relic_row":["_relic_presentation_key","_show_term","_place","_hide_term"],
  "_relic_presentation_key":[],
  "_hand":["_sync_card_faces","_hand_presentation_key","_hand_key_hit","_hand_row_plan","_hand_reset_row","_hand_apply_card","_hand_release_card","_hand_mount_card","_hand_place_row"],
  "_hand_row_plan":["_hand_card_data","_hand_node_counts"],
@@ -633,51 +672,66 @@ const PRESENT_ADJACENCY={
  "_hand_key_hit":["_hand_node_counts"],
  "_hand_face_slice":["CardFace.separate_keywords"],
  "_hand_place_row":[],
- "_card":["_place","_label","_refresh_card_face","_hand_apply_card","_clear_player_picker","_clear_drop_targets","_refresh_body_details"],
+ "_card":["_place","_label","_refresh_card_face","_hand_apply_card","_clear_player_picker","_clear_drop_targets","_refresh_body_details","_ignore_mouse","_card_tooltip","_selecting_hand"],
  "_refresh_card_face":["_hand_face_slice","_ignore_mouse","_card_tooltip"],
  "_ignore_mouse":[],
  "_card_tooltip":["_show_term","_hide_term"],
  "_sync_card_faces":[],
  "_sync_drag_versions":[],
  "_hand_presentation_key":["_hand_card_key"],
- "_build_action_rail":["_action_presentation_key"],
+ "_build_action_rail":["_action_presentation_key","render","_label","_place"],
  "_action_presentation_key":[],
  "_refresh_posture_section":["_posture_presentation_key","_wall_controls","_posture_controls"],
- "_wall_controls":[],
- "_posture_controls":["_posture_presentation_key"],
+ "_wall_controls":["_place","display_key"],
+ "_posture_controls":["_posture_presentation_key","_place","display_key"],
  "_posture_presentation_key":[],
  "_refresh_resource_section":["_resource_presentation_key","_build_resource_bar","_sync_hero_stage_meters"],
- "_build_resource_bar":["_resource_presentation_key"],
+ "_build_resource_bar":["_resource_presentation_key","_guard_bind_drop_target","_resource_meter","_label","_place","display_key"],
  "_resource_presentation_key":[],
- "_sync_hero_stage_meters":["_stage_control","_resource_meter","_sync_stage_meter","_meter_value_text","_guard_bind_drop_target","_unload_resource_direct","_hero_casting_text"],
+ "_sync_hero_stage_meters":["_stage_control","_resource_meter","_sync_stage_meter","_meter_value_text","_guard_bind_drop_target","_unload_resource_direct","_hero_casting_text","_label","_place"],
  "_sync_stage_meter":["_stage_control","_resource_meter","_meter_value_text"],
  "_hero_casting_text":[],
  "_meter_value_text":[],
  "_stage_control":[],
- "_resource_meter":["_meter_value_text"],
+ "_resource_meter":["_meter_value_text","_label","_place"],
  "_guard_bind_drop_target":["_actor_drop_area"],
- "_actor_drop_area":[],
+ "_actor_drop_area":["_place"],
  "_unload_resource_direct":[],
  "_refresh_log_section":["_log_presentation_key","_log_drawer"],
- "_log_drawer":["_log_presentation_key"],
+ "_log_drawer":["_log_presentation_key","_label"],
  "_log_presentation_key":[],
- "_refresh_body_details_section":["_body_details_presentation_key","_body_details"],
- "_body_details":["_body_details_presentation_key"],
+ "_refresh_body_details_section":["_body_details_presentation_key","_body_details","_selecting_hand"],
+ "_body_details":["_body_details_presentation_key","render","_label"],
  "_body_details_presentation_key":[],
  "_refresh_picker_section":["_picker_presentation_key","_hand_target_picker"],
- "_hand_target_picker":["_picker_presentation_key"],
+ "_hand_target_picker":["_picker_presentation_key","render","_label","_clear_player_picker"],
  "_picker_presentation_key":[],
  "_refresh_speech_section":["_speech_presentation_key","_speech_bubble"],
- "_speech_bubble":["_speech_presentation_key"],
+ "_speech_bubble":["_speech_presentation_key","_ignore_mouse","_label","_place"],
  "_speech_presentation_key":[],
- "_refresh_notice_section":["_notice_presentation_key","_show_term"],
+ "_refresh_notice_section":["_notice_presentation_key","_show_term","_hide_term"],
  "_notice_presentation_key":[],
- "_show_term":[],
+ "_show_term":["_ignore_mouse","_label","_hide_term"],
  "_refresh_drawer_section":["_drawer_presentation_key","_menu_drawer","_items_drawer"],
  "_menu_drawer":[],
+ "_items_drawer":["_label"],
  "_drawer_presentation_key":[],
  "layout.body_sidebar":[],
- "render":[],
+ "render":["_hand","_refresh_notice_section","_sync_card_faces","_sync_drag_versions","_place","_selecting_hand","_hide_term"],
+ "_climax_narration":["_label"],
+ "_label":[],
+ "_place":[],
+ "_activate_card":["render","_selecting_hand"],
+ "_selecting_hand":[],
+ "_hand_choice":[],
+ "display_key":[],
+ "card_entry":[],
+ "_hand_availability_slice":[],
+ "CardFace.separate_keywords":[],
+ "_clear_player_picker":[],
+ "_clear_drop_targets":["_hide_term"],
+ "_refresh_body_details":["_body_details","_selecting_hand"],
+ "_hide_term":[],
 }
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:

@@ -3450,3 +3450,25 @@ flowchart LR
   - **G**：`ui/main.gd::PRESENT_ADJACENCY` 的 `"_card"` 行仍缺它经闭包直调的 `_card_tooltip`／`_ignore_mouse` 两条边——**本轮之前就缺、非本轮引入**（该表是手工声明式邻接，无门禁校验；本轮只补了 `_hand` 节内新增的真实边）。
   - 成本项（沿用上一节③）：`ui/card_face.gd::set_art` 在 `effect_free` 变时取纹理两次（属性 setter 的 `ui/card_face.gd::_art_changed` 一次、`set_art` 的 `ui/card_face.gd::_apply_art_texture` 一次）；挂载重复构造切片一项已在本轮按 (A)③ 修掉。
 - 未跑：`-Suite all`；UI 其余 10 分类（本刀只动 `ui/main.gd` 的手牌节、`ui/card_face.gd` 未动、`tests/display_ui_cases.gd`；`casting` 已按本次要求纳入）；安卓真机；打包、标签、推送。
+
+
+
+## 2026-10-02｜present 邻接表机械判据入表（补记）
+
+- 域：`spire-godot/ui/main.gd::PRESENT_ADJACENCY`、`spire-godot/tests/architecture_cases.gd::present_adjacency_graph_is_pinned`、`.zcode/skills/spire-docs/SKILL.md` 第五类「管线／邻接表」。源码依据 `5ed785f`。
+- 判据三条：声明边必须在父体内有直调；表内符号被已登记父直调必须登记；无死项（无幻符、无孤儿、无不可达）。判据外读跨文件父体仅 `header.configure`（其子 `header._presentation_key`）；外部边界 `layout.hero_portrait`／`layout.body_sidebar`／`configure_enemy`／`EquipmentPortrait.configure` 按属主文件存在性核对。无产品行为改动。
+- 运行（冻结于 `5ed785f`，前后指纹同为 `5574F0AE0269E10D61409FCFE4633474EB1302D11610A27E4FCC373395A80192`）：`20261002T080030763-14100`（architecture PASS 4474）、`20261002T080116217-42532`（runner PASS 541）。敏感性运行号：`20261002T075112837-53504`、`20261002T075208309-53512`、`20261002T075357601-30736`、`20261002T075500112-34832`、`20261002T075629416-5340`（照录）。`20261002T075722327-28468` 是 `-Import` 轮、指纹 `79B8D5CA948F680B260A77D21F4F7FC4198229FE8EB222DE9A49114813A5C897` 不等，不作冻结证据。
+- 双审（muse／bunny）均 PASS；三条应修在本批落地：①补本记录；②`_intent_icon_rect`／`_attack_drop_candidate`／`_items_drawer` 由仅作子改为各自 `[]` 行，表头写明「每个被声明的符号都必须有行」；③判据只校验已声明边，不拦新增节例程／删整行／整表掏空，评估后采 ②：在表头与 `spire-docs` 第五类写死覆盖边界（由评审负责），并登记完整性下限为后续项（`docs/record/proposals/present-adjacency-completeness-floor.md`）。评估依据：候选下限「已登记父在 `ui/main.gd` 的每个直调须入表或成子」实测牵出 80 个本地例程，仅 9 个在现有不入表名单（`_label`/`_place`/`_panel`/`_button`/`_style`/`_bar`/`_scroll`/`_text`/`_localize_controls`）内，余 71 个为构建／域例程（`render` 单独约 20 个），非小而稳定，故不设。
+- 本批增量复跑（新源码，前后指纹同为 `07EA7583B5ADBF08455CDD690DC575E611288EEA5578071B49E010648F05233E`）：`20261002T144103826-55716`（architecture PASS 4474）、`20261002T144147595-43320`（runner PASS 541，含 `-VerifyRunner` 六项负例探针）、`tools/check-docs.ps1`（35 规则文档 2521 引用，PASS）；exit 0。
+- 失败：无。未验证：`-Suite all` 完整回归、窗口其余分类、安卓真机、打包与发布。
+
+
+## 2026-10-05｜PR #12／#13 集成：手牌增量刷新与管线声明校验
+
+- 基线 main `8e83876`；PR #12头部`255f1dd`（手牌增量刷新）、PR #13头部`8544275`（邻接表机械判据）。整合在独立工作树，版本保持0.18.2.fix；本批仅合并源码与推送，不打包、打标签或发布Release。旧#1／#3未有新更新，不纳入本批。
+- 文本冲突：双侧验证记录全部保留；邻接行同时保留手牌窄键调用与行动栏render调用。交叉兼容：共享手牌辅助函数进入表后，补14个子符号行、52条已登记符号间真实直调边，测试属主表登记CardFace；不削弱判据、不更改产品规则。同步表头与依赖表，移除作者机器临时计划路径作为当前契约入口。
+- 首轮`20261004T143429807-41832`：architecture两条失败（漏边、CardFace属主），runner及composites通过；问题修复后完整原范围`tools/check.ps1 -Suite architecture,runner,composites -KeepGoing -TimeoutSeconds 300`，`20261004T143619057-40756`，5111断言PASS（4474／541／96），exit0、before==after。
+- 窗口：`tools/check.ps1 -UIOnly -UISuite display,interface,body_layout,card_power,targeting,keyboard,touch,localization,hand_assist,encyclopedia,casting,rewards,services -KeepGoing -TimeoutSeconds 900`，`20261004T143709729-40404`，13分类3469断言PASS，exit0、before==after，628.78秒。最后仅修改表头注释和依赖说明，产品实现及UI测试未变，复用这份行为证据。
+- 最后文字修改后：`tools/check.ps1 -Suite architecture -TimeoutSeconds 300`，`20261004T144807111-41016`，4474断言PASS，exit0、before==after；文档门禁36文件2688引用通过。实际执行日志按UTC日期命名，用户侧日期为2026-10-05。
+- 独立审查`review_pr12_pr13`（Astra low，只读）完成本批审查及定点返修复核，已提出问题全部关闭。未重跑测试器负例：运行器实现未变；未跑全量规则、其余UI、性能基准、人工试玩、安卓真机与打包。
+- 主检出原有102个未提交文件另行逐字节备份于准备树`spire-godot/build/pr12-pr13-20261005/local-backup/`及`local-manifest.json`；本次推送不夹带这些在途修改。恢复它们时对重叠文件三方合并，局部适配及验证另记主检出本地记录。

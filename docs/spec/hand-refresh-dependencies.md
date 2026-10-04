@@ -1,8 +1,7 @@
 # 手牌卡增量刷新：依赖约束（cleaner 可核对）
 
 本文件是「手牌卡增量刷新」一片的依赖约束：允许改动的文件、允许的依赖方向与禁止项。
-片子的计划与验收契约在 `C:\1\tmp\hand-refresh-plan\`（`plan.md`／`gherkin.md`／`acceptance.md`／`open-items.md`，临时区，不入库）；
-人已裁定 `open-items.md` 的 2／3（面缓存判据、重建边界收窄）并记录切分批准，实现者可开工。
+当前实现与失效条件见 `docs/spec/response-pipeline.md`；本文件登记手牌刷新依赖、重建边界及验证范围。
 本文件不写执行结果：通过／失败／未执行登记 `docs/record/verification.md`。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`data/`、`ui/`、`tests/`、`tools/`、`build/`）
@@ -30,7 +29,7 @@
 | `ui/main.gd::_refresh_card_face` | 体改为调用 `ui/card_face.gd` 新 setter 的组合（仍是「全字段应用」入口）；**新增第 3 个可选参数 `prepared`（预构造面值切片，由 `ui/main.gd::_hand_mount_card` 与 `ui/main.gd::_hand_apply_card` 传入，使每个 (card, side) 切片至多构造一次；不传时现构造）**——签名变更由本次审查裁定授权；翻面接线改为按 uid 读当前数据（`_hand_cards[uid]`），不再捕获构建期 `card` 字典；悬停重入改为延迟调用（与 `fit_text` 同一帧内先布局后重入） | 名字保留、`prepared` 为空时行为与签名语义不变；卡面节点写入只在 `ui/card_face.gd` 的 setter 里（不得留第二份实现）；卡面结构不新增嵌套（见下「必须保持」的节点直接子级） |
 | `ui/main.gd::_card_tooltip` | 正文溢出判据改读 `ui/card_face.gd` 的 `text_overflow`（`fit_text` 的结果），不再读 `Content.size`（就地更新后节点尺寸要等引擎排序趟） | 其余行集合、词条框、锚点与显示条件逐字不变 |
 | `ui/main.gd::_sync_card_faces`／`card_faces`／`card_draw_serials` | 离行 uid 的键改由 `_hand_release_card` 删除（`ui/main.gd::_receive_player_drop` 的写面路径不变） | 面状态仍是 `card_faces` 单一份；`_sync_card_faces` 仍是「新抽牌面→`card_faces`」的唯一例程；`ui/card_motion.gd` 的临时 display 键（`display_motion_*`）不在清理范围 |
-| `ui/main.gd::PRESENT_ADJACENCY` 与表头注释 | `_hand` 行补本片新例程；保留 `_hand → _sync_card_faces`／`_hand_presentation_key` | 只按实现体声明真实直接调用，不加假边；其余节的行不改 |
+| `ui/main.gd::PRESENT_ADJACENCY` 与表头注释 | `_hand` 行补本片新例程；保留 `_hand → _sync_card_faces`／`_hand_presentation_key` | 只按实现体声明真实直接调用，不加假边；共享手牌辅助函数入表后，其余已登记父函数对这些符号的直接调用同步补边，并补齐每个子符号的独立行 |
 | `ui/card_face.gd` | 新增原地更新 setter（每字段一个，值相同即早退）：标题／费用／分类／正文／警告／可用性／词条／条件／art；改写 `ui/card_face.gd::set_mana` 为**按位置／kind 复用**徽章节点与 `StyleBoxFlat`（只改文本、tooltip、字号、`bg_color`／`border_color`；条目数或 kind 变才增删；入参为该面的扁平条目 `[kind, text, detail]`，同 kind 撞名以位置为主、kind 作匹配提示、首个该 kind 保持原名）；多余内容节点出树入池（`_spare`，按槽名／kind 分区）而不是销毁，翻回已应用过的面复用同一实例；词条与条件共用一条标签组写入路径（`ui/card_face.gd::_write_tags`，样式差异作参数）；`text_overflow` 记录 `fit_text` 的正文溢出结果 | `CardIllustration`／`CardHeader`／`CardTitle`／`CardCost`／`CardMana`（含 `Mana_<kind>`）／`CardText`（含 `Content`、`CardClassification`／`CardEffect`／`CardWarning`／`CardAvailability`）／`CardKeywords`／`CardRequirements` 必须仍是按钮的**直接子节点**且名字不变；`ui/card_face.gd::separate_keywords`／`ui/card_face.gd::dimensions`／`ui/card_face.gd::text_scale`／`ui/card_face.gd::flip_requested`／`ui/card_face.gd::_get_drag_data` 语义不变；不新增 `_process`／tween／第二套节点树 |
 | `ui/card_motion.gd` | **零改动** | `ui/card_motion.gd::positions`／`ui/card_motion.gd::enqueue`／`ui/card_motion.gd::clear` 与 `pending_draws` 的隐藏/显示语义不变（本片把 pending 只当 `visible` 值字段） |
 | `tests/display_ui_cases.gd` | 新增 `static func present_hand_incremental(t)`（P1–P3／N1–N5／E1–E10 的具名 check，含实例 id 集合差与几何助手 `present_hand_row`／`present_hand_rows`／`present_hand_nodes`／`present_hand_styles`／`present_hand_children`／`present_hand_lost`／`present_hand_seat`／`present_hand_slot`／`present_hand_given`／`present_hand_source_text` 与源文本判据）；改写 `DISPLAY present hand rebuilds the card when the presentation key changes` 一条；**本轮复核（bunny 2.3／2.4）裁定的夹具与判据调整由本次审查裁定授权**：E7 夹具前提改由投影 `view.hand[i].draw_serial` 驱动（不再强改 `ui.card_draw_serials`，`ui.card_draw_serials` 只在 E8 里作为前提归零）、断言消息措辞、E8 断言体（恒真式 → 实例 id ＋ 八个直接子级）、N2／E9 夹具（起始面预置与幽灵条目 `card_ghost`／`candidate_buttons` 悬空项）——判据面不变、不弱化既有断言 | 其余既有断言不删不改；`present_routes_hand_or_full` 的 `get_view` 计数断言不放宽；不新增分类文件、不改 `tests/ui_smoke.gd` 的 `UI_MODULES` |
@@ -38,6 +37,7 @@
 | `tests/card_power_ui_cases.gd`、`tests/binding_search_ui_cases.gd`、`tests/body_layout_ui_cases.gd` | 默认**零改动**（仅当就地更新暴露真实错值时才新增断言） | 翻面后 `visible_text` 只含当前面；`BIND SEARCH UI flipping shows full free effect`；`FOCUS face flip retains the hand control` |
 | `docs/spec/response-pipeline.md` | `hand` 节键行改写为「先 `ui/main.gd::_sync_card_faces`，再按固定顺序：每卡窄键＋成员增删＋幂等重排」；缓存清单补面缓存与失效规则；节键成本句补每卡键；证据入口场景 3 给 hand 加限定（每卡键变 ⇒ 该卡按重建边界表处理，不整节替换） | 其余节与场景编号不变；不写执行结果；被取代的措辞删改而不加「更正」段 |
 | `docs/spec/release-interface.md` | 「翻面重建对应词条与条件」改为「翻面切换到该面已缓存的词条与条件」（不重建卡面） | 布局常量、词条分离规则、节点名与几何描述不变 |
+| `tests/architecture_cases.gd::PRESENT_EXTERNAL_OWNERS`、`tests/architecture_cases.gd::present_adjacency_graph_is_pinned` | 合并管线声明表校验时登记 `CardFace` 的属主文件；手牌新增表项及其已登记直调边同步到 `ui/main.gd::PRESENT_ADJACENCY` | 不放宽直调、可达性、入边与属主解析判据；外部边界仍按文件核对 |
 | `docs/spec/hand-refresh-dependencies.md` | 本片契约落盘 | 与主体实现不一致时改本文件而不是放宽实现 |
 | 根 `AGENTS.md` 文档入口表 | 增加一行：任务「手牌卡增量刷新（cleaner 核对）」→ `docs/spec/hand-refresh-dependencies.md` | 其它行不改 |
 | `docs/record/changelog.md`、`docs/record/verification.md` | 实现完成后各追加一条／一节（日期＋域＋命令＋结果＋未跑项） | 只追加，不改历史条目 |
