@@ -3389,9 +3389,7 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
    previous_absent[section]=_present_needs_full_render([section])
  surrender_version=-1
  if show_home or is_instance_valid(enemy_feedback): return
- # 显示数据（M-V）：形状 → 当前状态下那条行动的派生字段；不参与提交复核。
- var row=game.command_fact(cmd)
- var payload=row.get("payload",{}) if not row.is_empty() else {}
+ # 显示数据（M-V）：判定行随提交结果返回（唯一判定出口直出）；不参与提交复核。
  var kind=String(cmd.get("kind",""))
  var previous=view
  var previous_cards=preload("res://ui/card_motion.gd").positions(self)
@@ -3400,6 +3398,8 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
   var bounds=actor_targets.hero.get_global_rect()
   feedback_anchor=Vector2(bounds.get_center().x,bounds.position.y)
  var result=game.dispatch(cmd,int(cmd.get("expected_version",-1)))
+ var row=result.get("fact",{})
+ var payload=row.get("payload",{}) if not row.is_empty() else {}
  var updated=game.get_view()
  # Consume automated speech even when the last command has already ended takeover.
  if takeover: _skip_hero_speech(updated.speech)

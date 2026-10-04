@@ -24,7 +24,7 @@
 | 分类子路由 | `ui/command_routes.gd` | 每类指令恰一条装配子路由；把 UI 意图装成类型化指令，不判定资格、不 preload core |
 | 类型化指令 | `core/game.gd::command_params`／`core/game.gd::command` | 数据形状 `{kind, params, expected_version}`；`params` 键面＝`core/game.gd::COMMAND_KEYS`（唯一投影，同一形状 → 同一 params） |
 | 唯一合法性判定 | `core/game.gd::command_fact`／`core/game.gd::command_facts`／`core/game.gd::display_fact` | 形状 ＋ 当前状态 → 投影事实；提交侧与显示侧同一实现的两条调用边 |
-| 提交入口 | `core/game.gd::dispatch` | 事务副本、失败全回滚、成功 `version` 一次自增；只有 UI 侧 `ui/main.gd::_submit` 一个调用点 |
+| 提交入口 | `core/game.gd::dispatch` | 事务副本、失败全回滚、成功 `version` 一次自增；成功结果带判定行 `fact`（显示侧 `payload` 由它取，不在提交前另查）、失败与未判定为 `fact:{}`；只有 UI 侧 `ui/main.gd::_submit` 一个调用点 |
 | 投影 | `core/game.gd::get_view` → `core/game_view.gd::build` | 按显示点取显示事实（`core/game.gd::shape_key` 为显示点身份）；不再物化行表、不再有候选身份 id |
 | 显示消费 | `ui/target_queries.gd::facts`／`ui/target_queries.gd::fact_key`／`ui/target_queries.gd::first_usable` | 按显示点读事实；不可用文本＝判定 `reason` 原文；首／末项回退按 `fallback` 显式声明 |
 

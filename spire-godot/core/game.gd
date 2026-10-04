@@ -2960,23 +2960,23 @@ func retain_facts() -> Array:
 
 func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  var buff_issue=Consumables.validate_buffs(self,state.get("body_buffs"))
- if buff_issue!="": return {"ok":false,"error":buff_issue}
+ if buff_issue!="": return {"ok":false,"error":buff_issue,"fact":{}}
  var binding_issue=Binding.state_issue(self)
- if binding_issue!="": return {"ok":false,"error":binding_issue}
+ if binding_issue!="": return {"ok":false,"error":binding_issue,"fact":{}}
  if expected_version!=state.version:
-  return {"ok":false,"error":"状态已更新，请重新选择行动。"}
+  return {"ok":false,"error":"状态已更新，请重新选择行动。","fact":{}}
  var special_issue=SpecialEquipment.validate(state.get("special_equipment"))
- if special_issue!="": return {"ok":false,"error":special_issue}
+ if special_issue!="": return {"ok":false,"error":special_issue,"fact":{}}
  var pending_issue=Cards.validate(self)
- if pending_issue!="": return {"ok":false,"error":pending_issue}
+ if pending_issue!="": return {"ok":false,"error":pending_issue,"fact":{}}
  var relic_issue=RelicEffects.validate(self)
- if relic_issue!="": return {"ok":false,"error":relic_issue}
+ if relic_issue!="": return {"ok":false,"error":relic_issue,"fact":{}}
  # T4 复核：指令形状＋参数合法性（不判定资格），随后由形状取回该显示点的投影事实（唯一判定在事实出口内）。
  var shape_issue=command_issue(cmd)
- if shape_issue!="": return {"ok":false,"error":shape_issue}
+ if shape_issue!="": return {"ok":false,"error":shape_issue,"fact":{}}
  var chosen=command_fact(cmd)
- if chosen.is_empty(): return {"ok":false,"error":"该行动已经失效，请重新选择。"}
- if not chosen.valid: return {"ok":false,"error":chosen.reason}
+ if chosen.is_empty(): return {"ok":false,"error":"该行动已经失效，请重新选择。","fact":{}}
+ if not chosen.valid: return {"ok":false,"error":chosen.reason,"fact":{}}
  var extra_traction=Cards.magic_card_traction(self,chosen.payload)
  var traction_mark=Cards.hand_modifier(self,"energy_pressure")
  var traction_guard=CaptureBind.has_bind(self,"guard")
@@ -3030,7 +3030,7 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
   _card_energy_pressure_pending=0.0
   _capture_energy_pending={}
   state=original
-  return {"ok":false,"error":"行动未提交："+execution_issue}
+  return {"ok":false,"error":"行动未提交："+execution_issue,"fact":{}}
  if not action_buffs.is_empty():
   if state.card_chain.is_empty(): Cards.consume_action_buffs(self,action_buffs)
   else: state.card_chain.action_buffs=action_buffs
@@ -3055,7 +3055,7 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
   _resource_feedback=null
   _card_feedback=[]
   state=original
-  return {"ok":false,"error":"行动未提交："+issue}
+  return {"ok":false,"error":"行动未提交："+issue,"fact":{}}
  state.version=int(original.version)+1
  if state.logs.size()==original.logs.size(): _emit("event",chosen.label+"。")
  # Mark committed results only. Existing enemy/event copy retains its own source.
@@ -3099,7 +3099,7 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  if chosen.payload.kind=="card" and not _magic_failed and original.phase in ["battle","prison"]:
   var track=Cards.Rules.SPECS[chosen.payload.type].get("play_music","")
   if track!="": music_events.append({"track":track,"phase":original.phase,"loop":original.phase=="battle"})
- return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"checkpoint":checkpoint,"spell_failed":_magic_failed}
+ return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"checkpoint":checkpoint,"spell_failed":_magic_failed,"fact":chosen}
 
 func cast_view(profile: Dictionary={"parts":["mouth"],"multiplier":1.0}) -> Dictionary:
  if not _equipment_read_active(): return _build_cast_view(profile)

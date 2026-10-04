@@ -513,6 +513,14 @@ class FactSourceCountingGame extends "res://tests/game_fixture.gd":
   fact_source_calls+=1
   return super._fact_source()
 
+# S5 test-side counter: production carries no counters; every command_fact reached through
+# dispatch (and any pre-submit lookup the UI used to make) lands here.
+class SubmitLookupCountingGame extends "res://tests/game_fixture.gd":
+ var fact_calls=0
+ func command_fact(cmd: Dictionary) -> Dictionary:
+  fact_calls+=1
+  return super.command_fact(cmd)
+
 # Test-side later-source counters for has_targets_at early-exit; production has none.
 class TargetWalkCountingGame extends TargetsAtCountingGame:
  var composite_root_calls=0
@@ -623,6 +631,9 @@ static func run(t) -> void:
  command_registry_is_total(t)
  fact_source_map_is_pinned(t)
  command_fact_kind_lookup(t)
+ single_fact_lookup_per_submit(t)
+ rejected_submit_lookup_counts(t)
+ submit_presented_fact_is_unchanged(t)
  card_facts_declared_slots(t)
  card_facts_consumes_has_targets_at(t)
  card_facts_keyword_min_query(t)
@@ -1706,7 +1717,11 @@ const R5_RECOMPUTED=["record","view"]
 # 字段面不同），在 R5 提交字节上复算冻结。
 const R5_FIRST_TURN={"takeover:0":"8bf0e226191edacd337b525691d9e36a","takeover:12":"ff12a17c57f7d8e7e7023ac7e7c15280"}
 # 带 mask 复算后的冻结值（在 R5 提交字节上复算，不从实现反推）：覆盖 R5_RECORD_ADDED 与 R5_RECOMPUTED。
-const R5_BASELINE={"battle:0":{"facts_text":"ac39ae864b6c5be2953f41bf47a1a5f0","facts_verdicts":"e16b774323b27feb0e1ec4a2de711bef","record":"74ca5a32d24987729e2d512df5691239","view":"98491d612f1a34d0a2c7624612655ab3","view_display_facts":"88"},"battle:12":{"facts_text":"4ff202e54cc276992613cfa15dd4483d","facts_verdicts":"fc4651ba295f7c196efa42ca3504093d","record":"00583d90980c5854b7fa5875ceefaa88","view":"d5dacaf06675cc544c1b14d13a7fdda9","view_display_facts":"100"},"battle:26":{"facts_text":"6563e2f5d257f4d404fbbb84b14d4b76","facts_verdicts":"861fd22798a16f77cf6351cde3011d60","record":"c839661145542b89679d97cd83977409","view":"ca211857952a5a4e6692be61c21531bc","view_display_facts":"184"},"battle:44":{"facts_text":"e1e9ae1c2ea1bf1cca274561d4c2e833","facts_verdicts":"8b73a596d24eadb28bcc9f4ed2b80c7c","record":"a4b5e1cafbabdaa15876d1b01c638203","view":"10f9aa4599f499e20755ed61bb282dfb","view_display_facts":"292"},"event:0":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"b312f7c4b16b7a4d9279c75eb7a9b89d","view":"541595ca13f5e73ca9de0f2b64f3ce46","view_display_facts":"3"},"event:12":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"0329089c388a38e75bd3bcd7ae833fb6","view":"3fc2ab7b618ab92a94d4b251eb9135da","view_display_facts":"3"},"event:26":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"ab1c0533e933340269d6935bedf02753","view":"3f64d8883f83cae0aa864c885fc71ad0","view_display_facts":"3"},"event:44":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"2a81a62cd240a9b40e77d67cc753d869","view":"6c2356440bcd43f4a82510528dc173a1","view_display_facts":"3"},"prepare:0":{"facts_text":"f7104838af279e342ab5aed44cb20a57","facts_verdicts":"0f60a5032db2d92fd89a88272f10dc1f","record":"8d065faf466d09e62383d3f7f6c4ad1e","view":"0a1924ba193cacb79a01ecbc05800bc1","view_display_facts":"72"},"prepare:12":{"facts_text":"8d4a1d3d5424b2652da0e42a5a7cab74","facts_verdicts":"330ac05bfcc503da1d5c2f5c58e28ef4","record":"6fbb207bb22449f7a878acaceda02e66","view":"19a684ffdeded96a26a50558885c8eca","view_display_facts":"84"},"prepare:26":{"facts_text":"31db9e6906e9e6edc2df544f6c58a495","facts_verdicts":"af704235553476a09ee81bd9a2b4faca","record":"8b19a23270dd6c90b2896de9a626d3ef","view":"a8208d05993dea9ac36e7fad8ecdeef7","view_display_facts":"168"},"prepare:44":{"facts_text":"6fd1ccecf8d6b337985d1e7065034e63","facts_verdicts":"5088345798f3561021d5322f9eb91a77","record":"00b045b694af3b8f592c3518bc545d61","view":"daf76ace88fec073a7743db2de0f3d7c","view_display_facts":"276"},"prison:0":{"facts_text":"063d3fb839831b1a5e2dfade29050cf7","facts_verdicts":"dd8c0a7b5470dbe8df9b7e872539ccd1","record":"4c09241017ee75638d7ac9c7a306d3ec","view":"61a5029d16c6913146698a3dd5bf48a5","view_display_facts":"79"},"prison:12":{"facts_text":"9d598659ba79454d46cf7796096b2727","facts_verdicts":"b321f1b18a82fb524db374cc81f0b877","record":"863dbd1664f847936bd812cf590f1459","view":"d3d8296745b0d9a375f7bd6caab592fb","view_display_facts":"88"},"prison:26":{"facts_text":"c25701787eae5067e2254bf2afa85448","facts_verdicts":"2bfa1bada5517a2857df809a2eb0d550","record":"8ba24604f6e68e66ba2f01378d7aafd7","view":"71034fb99f96a73b64544341b2fa8a3c","view_display_facts":"172"},"prison:44":{"facts_text":"ee32f17b1ee01a503c778db400fc26df","facts_verdicts":"f951eb35e09671769be056a22bac31a0","record":"8a0854a3b2c84f6a5c47bb9cd21dbbda","view":"dc82941a16fbd013239bbfe38b81d451","view_display_facts":"280"},"rest:0":{"facts_text":"e0e212f3475e1f9dcd244fe2564fdbd9","facts_verdicts":"ec4343c1370f8acfe92526873650aa36","record":"367ef088c4357eed6a8e80935bc5dc43","view":"a9d1770b00e77d7d37107effe368b4c3","view_display_facts":"78"},"rest:12":{"facts_text":"a952cbe4b46679882ae30ee8e00cbbfc","facts_verdicts":"5bb8fcea01ee73d4c5be74d960430e7d","record":"75c091aaa5e29380f34f7f6227872dec","view":"0f3e2db33facaf7d0cac349c8b68035f","view_display_facts":"126"},"rest:26":{"facts_text":"299c00b335e6a86c74c5017c32985a07","facts_verdicts":"3796be82638559efd08c14f35a4b24f7","record":"80e57e29a72b97a67aebcdbfd6f28487","view":"cab287418335d07b0d6b03abe199242a","view_display_facts":"252"},"rest:44":{"facts_text":"e1e4b83a24971f84477b9c1e0d59a6b1","facts_verdicts":"a7e66ae91adfbda41a18d60d9b71e9c3","record":"25a7263e555cb28bfc7adce0900e7756","view":"6a518514aef15bea1585bac114284bec","view_display_facts":"414"},"shop:0":{"facts_text":"608cfefe469084cd7a5322122eccff44","facts_verdicts":"b35ecaa120573ce7221efb885cdce1de","record":"94fdca283b6f6e6bd019968e561a1a02","view":"5933d35bb57aaf0743e7f1b8a7b5bdfa","view_display_facts":"49"},"shop:12":{"facts_text":"c7e231624b76db3e4caa04bc8df79e4d","facts_verdicts":"898b1cbf0d1f2c82f95564aae9b204d9","record":"93bebbce4d3f78ecae6c41b711ab5179","view":"cabc92f5d7f563aaef710bad1ee4f4ca","view_display_facts":"73"},"shop:26":{"facts_text":"4e4f209ed0c13bf3eb6d050e628f9e30","facts_verdicts":"9dd6c6caf8d3ee28bab06f2815f5777d","record":"ff5b8ecdf6668c342097b12afc1125b3","view":"dfda2802902de5f0c5a952a32c383ebb","view_display_facts":"101"},"shop:44":{"facts_text":"1cb65cb87d85ca843d8d94f7f318bacd","facts_verdicts":"45f3c9972f3720db6475312a9d28ad5b","record":"86bcd3cccabe3c9dac478a3152ecf992","view":"ab7e905c2af157a9d85cb1c6559b796a","view_display_facts":"137"},"takeover:0":{"facts_text":"c75421de9b2720481ea31d8002e23e26","facts_verdicts":"9fa43250337736f6c5d7b90df6fc0899","record":"4f58d058d9a1609a4ba5ffe1fb42f49c","view":"10892969a87b17ecf070b09c3bbecfd0","view_display_facts":"80"},"takeover:12":{"facts_text":"975d3c9922d0af94cc4848181df82ddb","facts_verdicts":"322274a2e387906c10f7a2deade40792","record":"1b8926cd71e59473346e2c2b5ad274e5","view":"c6ecc09c5dbc07cc14523e51b7795090","view_display_facts":"92"}}
+# S5 的显式重算（协调者裁定，2026-10-05；人批的 O7）：dispatch 成功结果新增 fact 键后，冻结记录里的
+# submit_keys（成功结果键面摘要）与由其派生的 <record> 摘要随之变化；本批只重算这两个面，mask 不变
+# （R5_VIEW_MASK／R5_RECORD_MASK／R5_RECORD_ADDED 原值），其余记录字段与 G6 其余断言逐字不变。
+# 差异只来自该键的自证在 docs/record/verification.md：旧键面复算摘要与旧冻结值逐 cell 相等。
+const R5_BASELINE={"battle:0":{"facts_text":"ac39ae864b6c5be2953f41bf47a1a5f0","facts_verdicts":"e16b774323b27feb0e1ec4a2de711bef","record":"dc822d9a923dac966a75f1b2377f9f0f","view":"98491d612f1a34d0a2c7624612655ab3","view_display_facts":"88"},"battle:12":{"facts_text":"4ff202e54cc276992613cfa15dd4483d","facts_verdicts":"fc4651ba295f7c196efa42ca3504093d","record":"f10be81486bf8806bf68285905ce2624","view":"d5dacaf06675cc544c1b14d13a7fdda9","view_display_facts":"100"},"battle:26":{"facts_text":"6563e2f5d257f4d404fbbb84b14d4b76","facts_verdicts":"861fd22798a16f77cf6351cde3011d60","record":"628670ef3c660368406bc2effbfcbb07","view":"ca211857952a5a4e6692be61c21531bc","view_display_facts":"184"},"battle:44":{"facts_text":"e1e9ae1c2ea1bf1cca274561d4c2e833","facts_verdicts":"8b73a596d24eadb28bcc9f4ed2b80c7c","record":"c80e71880b64424c41282d697bd665a9","view":"10f9aa4599f499e20755ed61bb282dfb","view_display_facts":"292"},"event:0":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"5334057f22c5e4a1e15678406401780a","view":"541595ca13f5e73ca9de0f2b64f3ce46","view_display_facts":"3"},"event:12":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"0e6f7a329997c8ad6794419bd04aa2c9","view":"3fc2ab7b618ab92a94d4b251eb9135da","view_display_facts":"3"},"event:26":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"6ebf858e711b4fa6aaf5721d000aac00","view":"3f64d8883f83cae0aa864c885fc71ad0","view_display_facts":"3"},"event:44":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"6be6d6ded0a4db650ec72195d7c61ac2","view":"6c2356440bcd43f4a82510528dc173a1","view_display_facts":"3"},"prepare:0":{"facts_text":"f7104838af279e342ab5aed44cb20a57","facts_verdicts":"0f60a5032db2d92fd89a88272f10dc1f","record":"443f90d2779c05d0a19b5b15bb2e6a0d","view":"0a1924ba193cacb79a01ecbc05800bc1","view_display_facts":"72"},"prepare:12":{"facts_text":"8d4a1d3d5424b2652da0e42a5a7cab74","facts_verdicts":"330ac05bfcc503da1d5c2f5c58e28ef4","record":"c8844c5b86e7b32bb12122a9ffc4236b","view":"19a684ffdeded96a26a50558885c8eca","view_display_facts":"84"},"prepare:26":{"facts_text":"31db9e6906e9e6edc2df544f6c58a495","facts_verdicts":"af704235553476a09ee81bd9a2b4faca","record":"4c77352a508ed7c8c4bae8ee64c25825","view":"a8208d05993dea9ac36e7fad8ecdeef7","view_display_facts":"168"},"prepare:44":{"facts_text":"6fd1ccecf8d6b337985d1e7065034e63","facts_verdicts":"5088345798f3561021d5322f9eb91a77","record":"d2fe19b820a7e89aabe90e67657919e9","view":"daf76ace88fec073a7743db2de0f3d7c","view_display_facts":"276"},"prison:0":{"facts_text":"063d3fb839831b1a5e2dfade29050cf7","facts_verdicts":"dd8c0a7b5470dbe8df9b7e872539ccd1","record":"69a5e5e7981338fd7d70e6dce05039bc","view":"61a5029d16c6913146698a3dd5bf48a5","view_display_facts":"79"},"prison:12":{"facts_text":"9d598659ba79454d46cf7796096b2727","facts_verdicts":"b321f1b18a82fb524db374cc81f0b877","record":"fa337996eaff9bbfad72b8c02ba6221b","view":"d3d8296745b0d9a375f7bd6caab592fb","view_display_facts":"88"},"prison:26":{"facts_text":"c25701787eae5067e2254bf2afa85448","facts_verdicts":"2bfa1bada5517a2857df809a2eb0d550","record":"12e35fbf906b69f588724f6f9b2a4177","view":"71034fb99f96a73b64544341b2fa8a3c","view_display_facts":"172"},"prison:44":{"facts_text":"ee32f17b1ee01a503c778db400fc26df","facts_verdicts":"f951eb35e09671769be056a22bac31a0","record":"46bc2f438e3164dfa637b29c66bc4b69","view":"dc82941a16fbd013239bbfe38b81d451","view_display_facts":"280"},"rest:0":{"facts_text":"e0e212f3475e1f9dcd244fe2564fdbd9","facts_verdicts":"ec4343c1370f8acfe92526873650aa36","record":"125fc18b3f16a1dbe472bf70a6729e09","view":"a9d1770b00e77d7d37107effe368b4c3","view_display_facts":"78"},"rest:12":{"facts_text":"a952cbe4b46679882ae30ee8e00cbbfc","facts_verdicts":"5bb8fcea01ee73d4c5be74d960430e7d","record":"655e5534b39642f8705c3c788f5783e9","view":"0f3e2db33facaf7d0cac349c8b68035f","view_display_facts":"126"},"rest:26":{"facts_text":"299c00b335e6a86c74c5017c32985a07","facts_verdicts":"3796be82638559efd08c14f35a4b24f7","record":"1b6c36ed4157679e1202a31c5e612f76","view":"cab287418335d07b0d6b03abe199242a","view_display_facts":"252"},"rest:44":{"facts_text":"e1e4b83a24971f84477b9c1e0d59a6b1","facts_verdicts":"a7e66ae91adfbda41a18d60d9b71e9c3","record":"fda88fa0920639c10b71dbf5e2a0ee79","view":"6a518514aef15bea1585bac114284bec","view_display_facts":"414"},"shop:0":{"facts_text":"608cfefe469084cd7a5322122eccff44","facts_verdicts":"b35ecaa120573ce7221efb885cdce1de","record":"b55a23dbd2487396b93550da597a47ba","view":"5933d35bb57aaf0743e7f1b8a7b5bdfa","view_display_facts":"49"},"shop:12":{"facts_text":"c7e231624b76db3e4caa04bc8df79e4d","facts_verdicts":"898b1cbf0d1f2c82f95564aae9b204d9","record":"4460c86416965eb64cde8ea04feb71f1","view":"cabc92f5d7f563aaef710bad1ee4f4ca","view_display_facts":"73"},"shop:26":{"facts_text":"4e4f209ed0c13bf3eb6d050e628f9e30","facts_verdicts":"9dd6c6caf8d3ee28bab06f2815f5777d","record":"0e4500619d773a6fcaa8dba51305414a","view":"dfda2802902de5f0c5a952a32c383ebb","view_display_facts":"101"},"shop:44":{"facts_text":"1cb65cb87d85ca843d8d94f7f318bacd","facts_verdicts":"45f3c9972f3720db6475312a9d28ad5b","record":"1d1b5bd1321ffd0c1444759f1ac3c8aa","view":"ab7e905c2af157a9d85cb1c6559b796a","view_display_facts":"137"},"takeover:0":{"facts_text":"c75421de9b2720481ea31d8002e23e26","facts_verdicts":"9fa43250337736f6c5d7b90df6fc0899","record":"30163fb3ef88036126f85eb4f1331650","view":"10892969a87b17ecf070b09c3bbecfd0","view_display_facts":"80"},"takeover:12":{"facts_text":"975d3c9922d0af94cc4848181df82ddb","facts_verdicts":"322274a2e387906c10f7a2deade40792","record":"a9a679ad03ab9bdb3a97d75effcf78c5","view":"c6ecc09c5dbc07cc14523e51b7795090","view_display_facts":"92"}}
 const R3_VIEW_KEYS_BASE=["action_log","arms","battle_item_drop","battle_relic_drop","battle_rewards","bodies","body_coverage","body_groups","body_regions","candidates","capacity","capture","card_chain","card_costs","card_instances","card_texts","carried_items","casting","character_id","climax","composite_portrait_layers","content_status","deck_cards","deck_count","demo_cycle","demo_exit","demo_finished","discard_cards","discard_count","draw_cards","draw_count","encounter","end_turn_locked","enemies","energy","energy_max","equipment_fireball_unlocked","equipment_portrait_layers","first_turn_control","guard_bind","hand","has_restraint_level","hook_contact","hook_environment_name","hook_location","hook_uses","initial_seed","items","journey","legs","logs","mana","mana_flask","mana_max","map_name","map_region","movement","npc_speech","order","pending_retain","phase","phase_caption","pose_name","posture","powers","practice","practice_description","practice_focus","practice_hint","practice_kind","practice_options","preparation_turns","prepare_left","pressure","prison","relics","rest_left","retain_left","reward_count","reward_destination","reward_panel","reward_title","room_event","room_name","rooms_completed","round","route","run_header","security","seed","shop","speech","statuses","summary","temporary_mana","tower_generation","tower_start_pending","travel_log","travel_turns","version","wall","wall_position","wall_text"]
 
 const R1_TAKEOVER_COUNTS=[0,12]
@@ -1740,15 +1755,19 @@ static func r1_end_turn(g) -> void:
    g.dispatch(g.command(c.payload,g.state.version),g.state.version)
    return
 
-static func r1_build(phase: String, count: int):
+static func r1_build(phase: String, count: int, game_class=null):
+ # Frozen matrix uses the two canonical classes; a caller may substitute a test-side subclass
+ # (S5 counting) without touching the fixture itself. Omitted -> byte-identical construction.
+ var BattleClass=Game if game_class==null else game_class
+ var CoreClass=GameCore if game_class==null else game_class
  var g=null
  match phase:
   "battle":
-   g=Game.new(42)
+   g=BattleClass.new(42)
   "takeover":
-   g=GameCore.new(42,true,"doubao")
+   g=CoreClass.new(42,true,"doubao")
   "prepare":
-   g=Game.new(42)
+   g=BattleClass.new(42)
    var guard=0
    while g.state.phase=="battle" and guard<12:
     guard+=1
@@ -1758,13 +1777,13 @@ static func r1_build(phase: String, count: int):
      g.dispatch(g.command(c.payload,g.state.version),g.state.version)
      break
   "rest":
-   g=GameCore.new(42,true,"equipment")
+   g=CoreClass.new(42,true,"equipment")
   "shop":
-   g=GameCore.new(42,true,"shop")
+   g=CoreClass.new(42,true,"shop")
   "event":
-   g=GameCore.new(42,true,"abandoned_storeroom")
+   g=CoreClass.new(42,true,"abandoned_storeroom")
   "prison":
-   g=GameCore.new(42,true,"prison_test")
+   g=CoreClass.new(42,true,"prison_test")
  g.state.equipment.clear()
  g.state.links.clear()
  g.state.composites.clear()
@@ -2535,6 +2554,173 @@ static func command_fact_kind_lookup(t) -> void:
  var table_med=t4_median(table_samples)
  print("T4 LOOKUP MEDIAN flask_us=%d attack_us=%d command_facts_us=%d pieces=51" % [flask_med,attack_med,table_med])
  t.check(flask_med*3<table_med,"T4 flask command_fact still scans the full table if this timing assertion fails flask_us="+str(flask_med)+" command_facts_us="+str(table_med))
+
+# S5（plan §5 S5 出口判据①②；gherkin S5-1／S5-2）：每提交只查一次事实出口，提交前预查询删除，
+# 呈现输入与改动前「提交前查询」逐字段相等。旧键面与旧行为期望在测试侧独立写出，不由实现派生。
+const S5_SUBMIT_KEYS_BEFORE=["ok","version","resource_feedback","card_feedback","music_feedback","checkpoint","spell_failed"]
+const S5_SUBMIT_KEYS_AFTER=["ok","version","resource_feedback","card_feedback","music_feedback","checkpoint","spell_failed","fact"]
+const S5_REJECT_KEYS=["ok","error","fact"]
+
+# 源码文本助手（S5 用；既有 pipeline_lookup_func_body 只覆盖 core/game.gd 的四个锚点）。
+static func source_func_text(path: String, name: String) -> String:
+ var handle=FileAccess.open(path,FileAccess.READ)
+ if handle==null: return ""
+ var source=handle.get_as_text()
+ var start=source.find("func "+name+"(")
+ if start<0: return ""
+ var rest=source.substr(start)
+ var nxt=rest.find("\nfunc ",1)
+ return rest if nxt<0 else rest.substr(0,nxt)
+
+static func source_func_code(path: String, name: String) -> String:
+ var code=""
+ for line in source_func_text(path,name).split("\n"): code+=String(line).split("#")[0]+"\n"
+ return code
+
+static func source_func_body_code(path: String, name: String) -> String:
+ var code=source_func_code(path,name)
+ var at=code.find("\n")
+ return "" if at<0 else code.substr(at+1)
+
+static func source_func_params(path: String, name: String) -> Array:
+ var text=source_func_text(path,name)
+ var open=text.find("(")
+ var close=text.find(")",open)
+ var names=[]
+ if open<0 or close<0: return names
+ for part in text.substr(open+1,close-open-1).split(",",false):
+  var head=String(part).strip_edges().split(":")
+  var param=String(head[0]).strip_edges()
+  if param!="": names.append(param)
+ return names
+
+# C5（S5 出口判据①）：一次成功提交只发生一次 command_fact（dispatch 内），ui/main.gd::_submit 内 0 次
+# （源码级：提交执行段是 UI 侧唯一提交路径）。每次提交打印计数。
+static func single_fact_lookup_per_submit(t) -> void:
+ var submit_code=source_func_body_code("res://ui/main.gd","_submit")
+ t.check(submit_code.find("dispatch(")>=0,"S5 single_fact_lookup_per_submit: ui/main.gd::_submit body is extracted with its dispatch call")
+ var submit_calls=pipeline_lookup_call_count(submit_code,"command_fact")
+ t.check(submit_calls==0,"S5 single_fact_lookup_per_submit: ui/main.gd::_submit has no pre-submit command_fact( call have="+str(submit_calls))
+ t.check(submit_code.find("result.get(\"fact\",{})")>=0,"S5 single_fact_lookup_per_submit: ui/main.gd::_submit takes the judgement row from the dispatch result")
+ t.check(pipeline_lookup_call_count(submit_code,"dispatch")==1,"S5 single_fact_lookup_per_submit: ui/main.gd::_submit keeps exactly one dispatch call")
+ var submissions=0
+ var kinds={}
+ var keys_printed=false
+ for cell in [["battle",0],["battle",12],["prepare",12],["prison",12]]:
+  var picked=[]
+  var table=r1_build(cell[0],cell[1]).command_facts()
+  if table.any(func(row):return row.valid and String(row.payload.get("kind",""))=="end"): picked.append("end")
+  for row in table:
+   if not row.valid or picked.size()>=3: continue
+   var row_kind=String(row.payload.get("kind",""))
+   if row_kind in picked: continue
+   picked.append(row_kind)
+  for kind in picked:
+   var g=r1_build(cell[0],cell[1],SubmitLookupCountingGame)
+   var cmd={}
+   for row in g.command_facts():
+    if row.valid and String(row.payload.get("kind",""))==kind:
+     cmd=g.command(row.payload,g.state.version)
+     break
+   if cmd.is_empty(): continue
+   g.fact_calls=0
+   var result=g.dispatch(cmd,g.state.version)
+   var calls=g.fact_calls
+   print("S5 SINGLE LOOKUP fixture=%s:%d kind=%s command_fact: dispatch=%d submit=%d" % [cell[0],cell[1],kind,calls,submit_calls])
+   t.check(result.ok and calls==1,"S5 single_fact_lookup_per_submit: one successful submit performs exactly one command_fact inside dispatch fixture=%s:%d kind=%s calls=%d" % [cell[0],cell[1],kind,calls])
+   if result.ok:
+    if not keys_printed:
+     keys_printed=true
+     print("S5 DISPATCH KEYS before=%s after=%s" % [str(S5_SUBMIT_KEYS_BEFORE),str(result.keys())])
+    t.check(result.keys()==S5_SUBMIT_KEYS_AFTER,"S5 single_fact_lookup_per_submit: the success result gains exactly fact in the declared order fixture=%s:%d kind=%s have=%s" % [cell[0],cell[1],kind,str(result.keys())])
+   submissions+=1
+   kinds[kind]=true
+ t.check(submissions>=4 and kinds.has("end"),"S5 single_fact_lookup_per_submit: several real fixtures and kinds were sampled submits="+str(submissions)+" kinds="+str(kinds.keys()))
+
+# 失败路径（gherkin S5-1 第二场景）：陈旧 version／形状不合法／判定不通过 ≤1 次查询，拒绝文案逐字不变、
+# export_snapshot() 相等、失败结果不带判定行。期望文案取自冻结基线 R1_BASELINE 的 reject_stale／
+# reject_invalid 与形状复核既有文案，不由被测实现派生。
+static func rejected_submit_lookup_counts(t) -> void:
+ for cell in [["battle",0],["prison",12]]:
+  var key="%s:%d" % [cell[0],cell[1]]
+  var template=r1_build(cell[0],cell[1])
+  var usable={}
+  var invalid={}
+  for row in template.command_facts():
+   if usable.is_empty() and row.valid: usable=row
+   if invalid.is_empty() and not row.valid: invalid=row
+  t.check(not usable.is_empty() and not invalid.is_empty(),"S5 rejected_submit_lookup_counts: fixture exposes a valid and an invalid row "+key)
+  var stale_text=String(R1_BASELINE[key].get("reject_stale",""))
+  var invalid_text=String(R1_BASELINE[key].get("reject_invalid",""))
+  # 陈旧 expected_version：版本比对在判定之前，零次查询。
+  var g=r1_build(cell[0],cell[1],SubmitLookupCountingGame)
+  var version=int(g.state.version)
+  var before=g.export_snapshot()
+  g.fact_calls=0
+  var stale=g.dispatch(g.command(usable.payload,version-1),version-1)
+  print("S5 REJECT stale fixture=%s command_fact=%d error=%s" % [key,g.fact_calls,str(stale.get("error",""))])
+  t.check(not stale.ok and String(stale.get("error",""))==stale_text,"S5 rejected_submit_lookup_counts: stale version keeps the verbatim rejection "+key+" have="+str(stale.get("error","")))
+  t.check(g.fact_calls<=1 and g.export_snapshot()==before,"S5 rejected_submit_lookup_counts: stale rejection looks up at most once and leaves the snapshot equal "+key+" calls="+str(g.fact_calls))
+  t.check(stale.keys()==S5_REJECT_KEYS and stale.get("fact",{}).is_empty(),"S5 rejected_submit_lookup_counts: a rejection result carries an empty fact and the declared keys "+key+" have="+str(stale.keys()))
+  # 形状不合法：未登记 kind 与声明外参数键都在形状复核早退，零次查询。
+  g=r1_build(cell[0],cell[1],SubmitLookupCountingGame)
+  version=int(g.state.version)
+  before=g.export_snapshot()
+  g.fact_calls=0
+  var unknown=g.dispatch({"kind":"no_such_kind","params":{},"expected_version":version},version)
+  var forged=g.dispatch({"kind":"end","params":{"no_such_param":1},"expected_version":version},version)
+  t.check(not unknown.ok and not forged.ok and String(unknown.get("error",""))=="该行动已经失效，请重新选择。" and String(forged.get("error",""))=="该行动已经失效，请重新选择。" and g.fact_calls==0,"S5 rejected_submit_lookup_counts: an invalid shape is refused before any lookup "+key+" calls="+str(g.fact_calls))
+  t.check(g.export_snapshot()==before,"S5 rejected_submit_lookup_counts: shape rejections leave the snapshot equal "+key)
+  # 判定不通过（valid=false）：走到判定恰一次，error 为 reason 原文。
+  g=r1_build(cell[0],cell[1],SubmitLookupCountingGame)
+  version=int(g.state.version)
+  before=g.export_snapshot()
+  g.fact_calls=0
+  var judged=g.dispatch(g.command(invalid.payload,version),version)
+  print("S5 REJECT invalid fixture=%s command_fact=%d error=%s" % [key,g.fact_calls,str(judged.get("error",""))])
+  t.check(not judged.ok and String(judged.get("error",""))==invalid_text,"S5 rejected_submit_lookup_counts: an invalid row keeps the verbatim reason "+key+" have="+str(judged.get("error","")))
+  t.check(g.fact_calls<=1 and g.export_snapshot()==before,"S5 rejected_submit_lookup_counts: an invalid row looks up at most once and leaves the snapshot equal "+key+" calls="+str(g.fact_calls))
+  t.check(judged.keys()==S5_REJECT_KEYS and judged.get("fact",{}).is_empty(),"S5 rejected_submit_lookup_counts: a judged rejection carries an empty fact "+key+" have="+str(judged.keys()))
+
+# C10（S5 出口判据②；gherkin S5-2）：ok 路径的呈现输入＝改动前提交前查询的结果（逐字段与逐字节）；
+# 失败路径不读该行（ui/first_turn_presenter.gd::outcome 第四参数）。
+static func submit_presented_fact_is_unchanged(t) -> void:
+ var compared=0
+ for cell in [["battle",12],["prepare",12],["prison",12]]:
+  var picked=[]
+  for row in r1_build(cell[0],cell[1]).command_facts():
+   if not row.valid: continue
+   var row_kind=String(row.payload.get("kind",""))
+   if row_kind in picked or picked.size()>=2: continue
+   picked.append(row_kind)
+  for kind in picked:
+   var old_g=r1_build(cell[0],cell[1])
+   var new_g=r1_build(cell[0],cell[1])
+   var cmd={}
+   for row in old_g.command_facts():
+    if row.valid and String(row.payload.get("kind",""))==kind:
+     cmd=old_g.command(row.payload,old_g.state.version)
+     break
+   if cmd.is_empty(): continue
+   # 旧行为：ui/main.gd::_submit 提交前的命令事实查询（S5 已从提交执行段删除，本用例在测试侧复现取值）。
+   var old_row=old_g.command_fact(cmd)
+   var old_result=old_g.dispatch(cmd,old_g.state.version)
+   var new_result=new_g.dispatch(new_g.command(old_row.payload,new_g.state.version),new_g.state.version)
+   t.check(old_result.ok and new_result.ok,"S5 submit_presented_fact_is_unchanged: the sample submit commits on both sides fixture=%s:%d kind=%s" % [cell[0],cell[1],kind])
+   t.check(new_result.fact==old_row,"S5 submit_presented_fact_is_unchanged: the dispatch fact equals the pre-submit lookup row field-for-field fixture=%s:%d kind=%s" % [cell[0],cell[1],kind])
+   t.check(JSON.stringify(new_result.fact)==JSON.stringify(old_row),"S5 submit_presented_fact_is_unchanged: payload and display fields stay byte-equal to the pre-submit lookup fixture=%s:%d kind=%s" % [cell[0],cell[1],kind])
+   t.check(old_result==new_result,"S5 submit_presented_fact_is_unchanged: the submission result is identical with and without the pre-submit lookup fixture=%s:%d kind=%s" % [cell[0],cell[1],kind])
+   t.check(old_g.export_snapshot()==new_g.export_snapshot(),"S5 submit_presented_fact_is_unchanged: the pre-submit lookup never perturbs the committed state fixture=%s:%d kind=%s" % [cell[0],cell[1],kind])
+   compared+=1
+ print("S5 PRESENTED FACT compared=%d" % compared)
+ t.check(compared>=3,"S5 submit_presented_fact_is_unchanged: several real submits compared rows="+str(compared))
+ var outcome_params=source_func_params("res://ui/first_turn_presenter.gd","outcome")
+ var outcome_body=source_func_body_code("res://ui/first_turn_presenter.gd","outcome")
+ t.check(outcome_params.size()==4 and outcome_body.find("cue")>=0,"S5 submit_presented_fact_is_unchanged: first_turn_presenter.outcome body and its four parameters are extracted have="+str(outcome_params))
+ var payload_param="c" if outcome_params.size()!=4 else String(outcome_params[3])
+ var uses_payload=RegEx.new()
+ uses_payload.compile("\\b"+payload_param+"\\b")
+ t.check(uses_payload.search(outcome_body)==null,"S5 submit_presented_fact_is_unchanged: first_turn_presenter.outcome never reads its fourth argument ("+payload_param+")")
 
 # Pre-cut card_facts slot walk: union B.SLOTS then skip undeclared occupied before target_payload.
 static func card_facts_union_slot_oracle(g, card: Dictionary) -> Array:
