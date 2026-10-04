@@ -16,7 +16,7 @@
 | `valid`／`reason` 只有一个判定产出（UI 与接管路径只消费） | `tests/architecture_cases.gd::single_eligibility_implementation` |
 | UI 提交唯一入口：`ui/command_router.gd::emit`／`emit_deferred`，`ui/main.gd::_submit` 只由路由调用，`ui/command_router.gd`／`ui/command_routes.gd` 不 preload core | `tests/architecture_cases.gd::instruction_router_single_entry` |
 | `ui/command_router.gd::ROUTES` 的 kind 全集与逐域分类（表外 kind fail-closed） | `tests/architecture_cases.gd::instruction_route_table_is_total` |
-| 指令经 kind 命中行 ≡ 全表同形状（`core/game.gd::command_fact` 经 `core/game.gd::_kind_facts`） | `tests/architecture_cases.gd::command_fact_kind_lookup` |
+| 指令经 kind 命中行 ≡ 全表同形状（`core/game.gd::command_fact` 可行动期经 `core/command_registry.gd::point` → `core/game.gd::_kind_facts`；整表来源显式登记，接管期扫整表） | `tests/architecture_cases.gd::command_fact_kind_lookup`、`tests/architecture_cases.gd::command_registry_is_total` |
 | 卡牌事实的声明槽位（`target_slots` 表外槽不调 `targets_at`，事实与刀前相等） | `tests/architecture_cases.gd::card_facts_declared_slots`、`tests/architecture_cases.gd::card_facts_consumes_has_targets_at`、`tests/architecture_cases.gd::card_facts_keyword_min_query` |
 | 行为基线等价（记录路径／视图键面／基线值只按显式声明的掩码变化） | `tests/architecture_cases.gd::behavior_baseline_equivalence` |
 | 跨层方向：`core`／`data` 不引用 `ui`；`ui/` 内只有 `ui/main.gd` preload core | `tests/architecture_cases.gd::slice_dependency_directions` |

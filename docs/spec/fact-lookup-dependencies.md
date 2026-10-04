@@ -12,6 +12,7 @@
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
 | `core/command_registry.gd`（新建，S1 已落地；唯一汇编点） | 39 条 table 形登记项（`form` ＋ `source` 方法名）、`core/command_registry.gd::kinds`／`core/command_registry.gd::entry`／`core/command_registry.gd::point`、接管整表项 `core/command_registry.gd::takeover_source`；S2／S3 把 `attack`／`card` 的登记项改 point 形（`keys`／`build`／`member`） | 零模块 preload（经 `g` 调用域函数）；只读：不写 `state`、不产事件、不推进随机、不改 `version`；登记表是 kind 的唯一清单（`form` 无默认、必须显式） |
+| `core/command_registry.gd.uid`（S1 已落地） | 引擎生成的脚本资源 UID 旁文件，随新脚本入库 | 不手工改 UID |
 | `core/game.gd` | S1 已落地：`_kind_facts` 改登记表查找并删 `_:` 兜底臂；`_command_fact_row` 的接管分支取登记表项、可行动期经 `core/command_registry.gd::point`；登记表 table 形来源落为本文件具名函数（`core/game.gd::_whole_table_kind_facts`／`core/game.gd::_attack_kind_facts`／`core/game.gd::_item_discard_kind_facts`／`core/game.gd::_posture_kind_facts`／`core/game.gd::_wall_move_kind_facts`／`core/game.gd::_status_toggle_kind_facts`／`core/game.gd::_relic_kind_facts`／`core/game.gd::_surrender_kind_facts`，签名统一 `(kind, params)`），`_flask_kind_facts`／`_flow_kind_facts`／`_item_use_kind_facts` 同步该签名。S5（未落地）：`dispatch` 结果新增 `fact` 键（判定行，未判定为 `{}`）。S2（未落地）：`attack_facts`／`equipment_spell_facts` 改同登记项 keys × build，新增 `attack_point_keys`／`attack_point_fact`／`attack_point_member`（`_attack_offer_fact` 复用）。S3（未落地）：手牌循环调用点（如需） | 五条预检顺序与 `error` 文案、版本比对、事务副本与全回滚、`version` 成功一次自增、执行分支、`get_view` 调用点白名单、`core/game.gd::command_params`／`shape_key`／`_fact`／`display_fact` 语义逐字不变；table 形来源函数的守卫、顺序与产出逐字不变（只把 kind／params 变成参数） |
 | `core/card_effects.gd`（S3，未落地） | `card_facts` 改同登记项 keys × build；新增 `card_point_keys`／`card_point_fact`／`card_point_member`（复用 `target_payload`／`target_facts`／`reason`）；`card_facts_declared_slots` 语义不变 | 分支面与行顺序逐字节不变；`core/card_effects.gd::target_payload` 签名与产出不变；no Callable 进 `data/` |
 | `core/witch_character.gd`（S2，未落地，仅当需要暴露巫女家族键／构造器） | 暴露 point 键与构造器入口；`attack_facts` 语义与顺序不变 | `SPECS[id]` 运行期数据写入语义不变；不新增卡型代码注册路径 |
@@ -36,7 +37,8 @@
 | 文件 | 允许的改动 | 必须保持 |
 | --- | --- | --- |
 | `docs/spec/fact-lookup-dependencies.md`（本文件，S1 新建） | 随阶段同步文件面 | 与实现逐文件一致；被取代段落改写或删除，不留「更正」段 |
-| `docs/spec/candidate-removal.md` | S1 已落地：§2.1 T4 行与查找边措辞。S5（未落地）：§3.1 M-III 的返回形状清单 | 其余 T 图与 G 条不动；机读真源仍是 `tests/architecture_cases.gd::PIPELINE_LOOKUP_EDGES`，文档只链接不复制 |
+| `docs/spec/candidate-removal.md` | S1 已落地：§2.1 T4 行与查找边措辞；S1 清洁：§1.6 D-4 过时取行措辞。S5（未落地）：§3.1 M-III 的返回形状清单 | 其余 T 图与 G 条不动；机读真源仍是 `tests/architecture_cases.gd::PIPELINE_LOOKUP_EDGES`，文档只链接不复制 |
+| `docs/spec/candidate-removal-dependencies.md` | S1 清洁（协调者追加授权）：T4 登记项取行与整表来源措辞 | 其余允许面与不变量不动 |
 | `docs/spec/response-pipeline.md` | S5（未落地）：接缝 A 的 `dispatch` 返回形状行 | 其余接缝与调用点白名单不动 |
 | `docs/record/verification.md` | 只追加：每批日期＋域＋命令＋结果＋未跑项＋敏感性证明运行号 | 历史条目不改 |
 
