@@ -126,10 +126,6 @@ func _kind_facts(kind: String, params: Dictionary) -> Array:
 func _whole_table_kind_facts(_kind: String, _params: Dictionary) -> Array:
  return _fact_source()
 
-func _attack_kind_facts(_kind: String, params: Dictionary) -> Array:
- if String(params.get("target",""))!="": return _fact_source()
- return attack_facts() if _phase_action_tail() else []
-
 func _item_discard_kind_facts(_kind: String, _params: Dictionary) -> Array:
  return item_discard_facts() if _fact_source_domain() else []
 
@@ -2684,16 +2680,92 @@ func kick_profile(variant: Dictionary={}) -> Dictionary:
  if justice and leg_level>BasicAttacks.TYPES.kick[2].postures.stand.max_level: reason="正义飞踢需要双腿活动自由。"
  return {"label":label,"cost":cost,"damage":damage,"reason":reason,"fall":bound,"interrupt":infused_justice or (not justice and (posture=="stand" or not bound)),"cooldown_turns":0 if justice and not infused_justice else spec.cooldown_turns}
 
-# 基础攻击（行动域）：显示事实的唯一来源。角色2（巫女）的攻击事实由 core/witch_character.gd::attack_facts 给出。
+# 攻击域 point 登记项（S2；接口契约见切片计划 §3 与 docs/spec/fact-lookup-dependencies.md）：keys 是该 kind
+# 候选键的唯一枚举实现（O3）。三家族与顺序＝转换前 attack_facts()（基础／巫女）++ equipment_spell_facts()
+# （装备自解）的表序，不得重排：表序与「重复归一化 params 收敛枚举序首条」都依赖它。守卫与转换前两条
+# 生产者逐条对应；_phase_action_tail() 即转换前 _phase_facts 尾段到达条件（并隐含 base_action_block 的
+# 绑定／校验前置），故不再重复。
+func attack_point_keys(g) -> Array:
+ var keys=[]
+ if not g._phase_action_tail(): return keys
+ if String(g.state.phase)=="battle":
+  if Character.active(g):
+   for enemy in g.state.enemies:
+    if enemy.gone: continue
+    for part in Character.PARTS:
+     for form in [0,1]:
+      keys.append(g.command_params("attack",Character.attack_offer_fact(g,enemy,part,form).payload))
+  else:
+   for e in g.state.enemies:
+    if e.gone: continue
+    for type in BasicAttacks.TYPES:
+     for form in range(BasicAttacks.forms(g,type).size()):
+      keys.append(g.command_params("attack",g._attack_offer_fact(e,type,form).payload))
+ if Character.active(g): return keys
+ var factor=float(Cards.spell_power(g,"fireball").get("equipment_damage_factor",0.0))
+ if factor>0.0:
+  var usage=BasicAttacks.usage(g,"fireball")
+  for target in g.action_targets():
+   keys.append(g.command_params("attack",g._equipment_spell_fact(target,factor,usage).payload))
+ return keys
+
+# 攻击域 point 构造器（S2）：把 params 解析到具体家族的具体键，复用该家族既有单行构造；非成员返回 {}。
+# 只算请求的那一行：不调用 _fact_source()／attack_facts()／equipment_spell_facts()／attack_point_keys()。
+func attack_point_fact(g, params: Dictionary) -> Dictionary:
+ var p=g.command_params("attack",params)
+ if not g._phase_action_tail(): return {}
+ if String(p.get("target",""))!="": return g._equipment_point_fact(g,p)
+ var enemy_id=String(p.get("enemy",""))
+ var enemy={}
+ for e in g.state.enemies:
+  if e.gone or String(e.id)!=enemy_id: continue
+  enemy=e
+  break
+ if enemy.is_empty(): return {}
+ var form=int(p.get("form",0))
+ var row={}
+ if Character.active(g):
+  var part=String(p.get("part",""))
+  if part not in Character.PARTS or form<0 or form>1: return {}
+  if String(p.get("type",""))!="witch_"+part: return {}
+  row=Character.attack_offer_fact(g,enemy,part,form)
+ else:
+  var type=String(p.get("type",""))
+  if not BasicAttacks.TYPES.has(type): return {}
+  var forms=BasicAttacks.forms(g,type)
+  if form<0 or form>=forms.size(): return {}
+  row=g._attack_offer_fact(enemy,type,form)
+ if row.is_empty(): return {}
+ return row if g.command_params("attack",row.payload)==p else {}
+
+# 攻击域成员谓词（S2，plan §3 不变量 5）：与 attack_point_keys 的归一化集合等价，不成立即 false。
+func attack_point_member(g, params: Dictionary) -> bool:
+ return not g.attack_point_fact(g,params).is_empty()
+
+# 装备自解家族的 point 解析（S2）：按 target id 在该家族既有枚举（action_targets）里定位单一件并复用同一行构造。
+func _equipment_point_fact(g, p: Dictionary) -> Dictionary:
+ if Character.active(g): return {}
+ var factor=float(Cards.spell_power(g,"fireball").get("equipment_damage_factor",0.0))
+ if factor<=0.0: return {}
+ var target_id=String(p.get("target",""))
+ var found={}
+ for target in g.action_targets():
+  if String(target.id)!=target_id: continue
+  found=target
+  break
+ if found.is_empty(): return {}
+ var row=g._equipment_spell_fact(found,factor,BasicAttacks.usage(g,"fireball"))
+ return row if g.command_params("attack",row.payload)==p else {}
+
+# 基础攻击（行动域）：显示事实的唯一来源。行由同一登记项派生（candidate keys × 该 kind 的唯一构造器），
+# 本生产者只取基础与巫女家族（target 为空）；行序、条数与转换前逐字节相同。角色2（巫女）的攻击单行构造由
+# core/witch_character.gd::attack_offer_fact 给出。
 func attack_facts() -> Array:
  var facts=[]
- if not base_action_block() or state.phase!="battle": return facts
- if Character.active(self): return Character.attack_facts(self)
- for e in state.enemies:
-  if e.gone: continue
-  for type in BasicAttacks.TYPES:
-   for form in range(BasicAttacks.forms(self,type).size()):
-    facts.append(_attack_offer_fact(e,type,form))
+ for k in attack_point_keys(self):
+  if String(k.get("target",""))!="": continue
+  var row=attack_point_fact(self,k)
+  if not row.is_empty(): facts.append(row)
  return facts
 
 func _attack_offer_fact(e: Dictionary, type: String, form: int) -> Dictionary:
@@ -2776,27 +2848,29 @@ func _attack_offer_fact(e: Dictionary, type: String, form: int) -> Dictionary:
  fact.brief_tags=" · ".join(tags)
  return fact
 
-# 装备自解火球（行动域，非战斗阶段）：显示事实的唯一来源。
+# 装备自解火球（行动域，非战斗阶段）：显示事实的唯一来源。行由同一登记项派生，本生产者只取装备自解家族
+# （target 非空）；factor／usage 由单行构造的调用方算一次（原循环体提为 _equipment_spell_fact，逐字保留）。
 func equipment_spell_facts() -> Array:
  var facts=[]
- if not base_action_block(): return facts
- if Character.active(self): return facts
- var factor=float(Cards.spell_power(self,"fireball").get("equipment_damage_factor",0.0))
- if factor<=0.0: return facts
- var usage=BasicAttacks.usage(self,"fireball")
- for target in action_targets():
-  var reason=""
-  var definition=SpecialEquipment.DESIGNS[target.type] if SpecialEquipment.is_special(target) else Equipment.TEMPLATES[target.template]
-  if not _outer(target): reason="先解除遮挡它的外层拘束具。"
-  elif definition.get("damage_factor",1.0)==0.0: reason=target.name+"无法受到伤害。"
-  elif usage.remaining<=0: reason="本回合火球术次数已用完。"
-  var damage=BasicAttacks.fireball_damage(self)*factor
-  var release_args={"target_name":target.name,"damage":damage}
-  var fact=_attack_fact_display(_fact({"kind":"attack","type":"fireball","form":0,"hits":1,"all":false,"enemy":"","target":target.id,"damage":damage,"damage_type":"magic","interrupt":false,"fall":false},"火球术 · 自解",{"kind":"game.attack_release","args":release_args,"fallback":copy_attack_release(self,release_args)},Cards.attack_cost(self,"fireball",BasicAttacks.energy_cost(self,"fireball")),_mana_cost(B.SPELL_COST),reason,"","attack"))
-  fact.brief=number(damage)+" 伤害"
-  fact.brief_tags="%d/%d次" % [usage.remaining,usage.limit]
-  facts.append(fact)
+ for k in attack_point_keys(self):
+  if String(k.get("target",""))=="": continue
+  var row=attack_point_fact(self,k)
+  if not row.is_empty(): facts.append(row)
  return facts
+
+# 装备自解单行构造（原 equipment_spell_facts 的循环体；point 构造与 View 生产者共用同一实现）。
+func _equipment_spell_fact(target: Dictionary, factor: float, usage: Dictionary) -> Dictionary:
+ var reason=""
+ var definition=SpecialEquipment.DESIGNS[target.type] if SpecialEquipment.is_special(target) else Equipment.TEMPLATES[target.template]
+ if not _outer(target): reason="先解除遮挡它的外层拘束具。"
+ elif definition.get("damage_factor",1.0)==0.0: reason=target.name+"无法受到伤害。"
+ elif usage.remaining<=0: reason="本回合火球术次数已用完。"
+ var damage=BasicAttacks.fireball_damage(self)*factor
+ var release_args={"target_name":target.name,"damage":damage}
+ var fact=_attack_fact_display(_fact({"kind":"attack","type":"fireball","form":0,"hits":1,"all":false,"enemy":"","target":target.id,"damage":damage,"damage_type":"magic","interrupt":false,"fall":false},"火球术 · 自解",{"kind":"game.attack_release","args":release_args,"fallback":copy_attack_release(self,release_args)},Cards.attack_cost(self,"fireball",BasicAttacks.energy_cost(self,"fireball")),_mana_cost(B.SPELL_COST),reason,"","attack"))
+ fact.brief=number(damage)+" 伤害"
+ fact.brief_tags="%d/%d次" % [usage.remaining,usage.limit]
+ return fact
 
 # Reachable only on the default tail of _phase_facts (after the early returns).
 func command_tail() -> bool:

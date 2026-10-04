@@ -4,6 +4,7 @@ const GameCore=preload("res://core/game.gd")
 const CommandRegistry=preload("res://core/command_registry.gd")
 const Rewards=preload("res://tests/reward_cases.gd")
 const Guard=preload("res://core/guard.gd")
+const FirstTurnControl=preload("res://core/first_turn_control.gd")
 
 # docs/spec/ondemand-copy.md「oracle 三条（必须换判据）」: frozen hashes recomputed with
 # unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for copy_baseline_fixture.
@@ -513,6 +514,26 @@ class FactSourceCountingGame extends "res://tests/game_fixture.gd":
   fact_source_calls+=1
   return super._fact_source()
 
+# S2 test-side counter: the point-query path must compute the requested row only, so these three
+# whole-table producers stay at zero calls. Production carries no counters.
+class AttackLookupCountingGame extends "res://tests/game_fixture.gd":
+ var attack_facts_calls=0
+ var equipment_spell_calls=0
+ var fact_source_calls=0
+ func attack_facts() -> Array:
+  attack_facts_calls+=1
+  return super.attack_facts()
+ func equipment_spell_facts() -> Array:
+  equipment_spell_calls+=1
+  return super.equipment_spell_facts()
+ func _fact_source() -> Array:
+  fact_source_calls+=1
+  return super._fact_source()
+ func reset_attack_lookup_counts() -> void:
+  attack_facts_calls=0
+  equipment_spell_calls=0
+  fact_source_calls=0
+
 # S5 test-side counter: production carries no counters; every command_fact reached through
 # dispatch (and any pre-submit lookup the UI used to make) lands here.
 class SubmitLookupCountingGame extends "res://tests/game_fixture.gd":
@@ -630,6 +651,8 @@ static func run(t) -> void:
  instruction_route_table_is_total(t)
  command_registry_is_total(t)
  fact_source_map_is_pinned(t)
+ attack_fact_direct_lookup(t)
+ attack_point_lookup_reads_one_row(t)
  command_fact_kind_lookup(t)
  single_fact_lookup_per_submit(t)
  rejected_submit_lookup_counts(t)
@@ -2238,7 +2261,7 @@ static func instruction_route_table_is_total(t) -> void:
 
 # Fact-lookup kind sets: POINT_KINDS lists the kinds converted to point form (S1 empty; S2 adds
 # attack, S3 adds card). Table kinds are derived from COMMAND_KEYS minus POINT_KINDS, never written out.
-const POINT_KINDS=[]
+const POINT_KINDS=["attack"]
 const T4_EQUIVALENCE_CELLS=[["battle",0],["battle",12],["battle",26],["battle",44],["prepare",0],["rest",0],["takeover",0]]
 
 static func table_kinds() -> Array:
@@ -2251,11 +2274,10 @@ static func table_kinds() -> Array:
 # of CommandRegistry and core/game.gd, so pointing a kind at another existing g method (or swapping the
 # takeover source) is caught even though command_registry_is_total and the row-equality checks stay
 # green. Never derive this table from the registry. Update it in the same batch that changes a form
-# (S2 adds attack, S3 adds card to POINT_KINDS: drop that key here then).
+# (S2 moved attack to point form and dropped it here; S3 drops card).
 const FROZEN_TABLE_SOURCES={
  "card":"_whole_table_kind_facts",
  "chain":"_whole_table_kind_facts",
- "attack":"_attack_kind_facts",
  "status_toggle":"_status_toggle_kind_facts",
  "posture":"_posture_kind_facts",
  "wall_move":"_wall_move_kind_facts",
@@ -2294,6 +2316,13 @@ const FROZEN_TABLE_SOURCES={
  "demo_continue":"_whole_table_kind_facts",
 }
 const FROZEN_TAKEOVER_SOURCE="command_facts"
+
+# S2: the point-form method names get the same literal freeze (expected side written here, never derived
+# from CommandRegistry). Missing/mismatched = a point kind lost its declared builder; extra = a point kind
+# without a frozen expectation.
+const FROZEN_POINT_METHODS={
+ "attack":{"keys":"attack_point_keys","build":"attack_point_fact","member":"attack_point_member"},
+}
 
 # C1 diff: kinds present in the given set but missing from the registry. The totality check and the
 # synthetic self-check below run this same function, so a gap cannot be hidden by a second comparison.
@@ -2426,7 +2455,8 @@ static func command_registry_is_total(t) -> void:
 # R4（审查补件）：kind → table 来源的身份用本文件字面表 FROZEN_TABLE_SOURCES 钉住（期望侧不取自
 # CommandRegistry，防自证）。missing＝冻结项被改名／换源／换形或与 POINT_KINDS 冲突；extra＝登记表
 # 有而冻结表没有的 table kind（双向都报）。接管整表来源名同样钉住。S1 的 POINT_KINDS 为空集，故本批
-# 校 39 条 table 形；S2／S3 转 point 形时按批从本表移除该 kind。
+# 校 39 条 table 形；S2 起按批从本表移除该 kind，并由 FROZEN_POINT_METHODS 钉住 point 形的
+# keys／build／member 三个方法名（期望侧同样写在测试内）。
 static func fact_source_map_is_pinned(t) -> void:
  var missing=[]
  for kind in FROZEN_TABLE_SOURCES:
@@ -2444,7 +2474,190 @@ static func fact_source_map_is_pinned(t) -> void:
  t.check(missing.is_empty(),"fact_source_map_is_pinned: every frozen kind keeps its pinned table source (missing or mismatched): "+str(missing))
  t.check(extra.is_empty(),"fact_source_map_is_pinned: every table kind has a frozen source expectation (extra): "+str(extra))
  t.check(CommandRegistry.takeover_source()==FROZEN_TAKEOVER_SOURCE,"fact_source_map_is_pinned: takeover source is pinned: have="+CommandRegistry.takeover_source()+" want="+FROZEN_TAKEOVER_SOURCE)
- print("FACT SOURCE MAP PINNED kinds=%d takeover=%s" % [FROZEN_TABLE_SOURCES.size(),FROZEN_TAKEOVER_SOURCE])
+ var wrong_point=[]
+ for kind in FROZEN_POINT_METHODS:
+  if kind not in POINT_KINDS: wrong_point.append(kind+"!frozen-but-not-point-kind")
+  var item=CommandRegistry.entry(kind)
+  if String(item.get("form",""))!="point": wrong_point.append(kind+"="+String(item.get("form",""))+" want=point")
+  for field in ["keys","build","member"]:
+   var have=String(item.get(field,""))
+   var want=String(FROZEN_POINT_METHODS[kind][field])
+   if have!=want: wrong_point.append(kind+"."+field+"="+have+" want="+want)
+ var extra_point=[]
+ for kind in POINT_KINDS:
+  if not FROZEN_POINT_METHODS.has(kind): extra_point.append(kind)
+ t.check(wrong_point.is_empty(),"fact_source_map_is_pinned: every frozen point kind keeps its pinned keys/build/member: "+str(wrong_point))
+ t.check(extra_point.is_empty(),"fact_source_map_is_pinned: every point kind has a frozen method expectation (extra): "+str(extra_point))
+ print("FACT SOURCE MAP PINNED kinds=%d takeover=%s point=%d" % [FROZEN_TABLE_SOURCES.size(),FROZEN_TAKEOVER_SOURCE,FROZEN_POINT_METHODS.size()])
+
+# ==== S2 双向等价 harness（C3／C4；acceptance.md §2；S3 复用同一函数）====
+# 期望侧独立（防自证）：方向①只取该状态 command_facts() 的表行；方向②只做表内归一化 params 的成员扫描，
+# 变异语料由本文件按字段级替换独立构造。只有步骤 3（member⟺keys，acceptance §2 明列）向登记项询 keys。
+const FACT_LOOKUP_MUTATION_IDS=["missing_enemy","missing_target","missing_uid"]
+const FACT_LOOKUP_ID_FIELDS=["enemy","target","uid","relic","item"]
+
+static func fact_lookup_family(kind: String, params: Dictionary) -> String:
+ if String(params.get("target",""))!="": return "self_release"
+ return "witch" if String(params.get("type","")).begins_with("witch_") else "basic"
+
+# 变异语料＝字段级替换：不存在的 id／未注册 type／清空必填／越界 form／布尔取反／x 与 charge_action 组合。
+static func fact_lookup_mutations(kind: String, params: Dictionary, mutation_ids: Array) -> Array:
+ var declared=GameCore.COMMAND_KEYS.get(kind,{})
+ var out=[]
+ for field in FACT_LOOKUP_ID_FIELDS:
+  if not declared.has(field) or String(params.get(field,""))=="": continue
+  for id in mutation_ids:
+   var replaced=params.duplicate(); replaced[field]=id; out.append(replaced)
+  var cleared=params.duplicate(); cleared[field]=""; out.append(cleared)
+ if declared.has("type"):
+  var unregistered=params.duplicate(); unregistered.type="no_such_type"; out.append(unregistered)
+  var blank=params.duplicate(); blank.type=""; out.append(blank)
+ if declared.has("form"):
+  var beyond=params.duplicate(); beyond.form=int(params.get("form",0))+97; out.append(beyond)
+ for field in ["all","charge_action","free","enabled"]:
+  if not declared.has(field) or typeof(declared[field])!=TYPE_BOOL: continue
+  var flipped=params.duplicate(); flipped[field]=not bool(params.get(field,false)); out.append(flipped)
+ if declared.has("x"):
+  var raised=params.duplicate(); raised.x=int(params.get("x",0))+1; out.append(raised)
+  if declared.has("charge_action"):
+   var combo=raised.duplicate(); combo.charge_action=not bool(params.get("charge_action",false)); out.append(combo)
+ return out
+
+static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fixture: String) -> Dictionary:
+ var rows=g.command_facts().filter(func(row):return String(row.payload.get("kind",""))==kind)
+ # 步骤 3 的期望集合（acceptance §2：只此一步询 keys；方向①／②的期望仍只取表与变异语料）。
+ var entry=CommandRegistry.entry(kind)
+ var member_name=String(entry.get("member",""))
+ var key_set={}
+ for candidate in g.call(String(entry.get("keys","")),g):
+  key_set[JSON.stringify(g.command_params(kind,candidate))]=true
+ var coverage={"dir1":0,"dir2":0,"keys":0,"member":0,"duplicates":0,"distinct_duplicates":0,"families":{},"mutation_families":{}}
+ var first_of={}
+ for index in range(rows.size()):
+  var key=JSON.stringify(g.command_params(kind,rows[index].payload))
+  if not first_of.has(key): first_of[key]=index
+ for index in range(rows.size()):
+  var row=rows[index]
+  var params=g.command_params(kind,row.payload)
+  var key=JSON.stringify(params)
+  var first=rows[int(first_of[key])]
+  var point=CommandRegistry.point(g,kind,params)
+  var found=g.command_fact(g.command(row.payload,g.state.version))
+  t.check(found==first and JSON.stringify(found)==JSON.stringify(first),"fact_lookup_equivalence[%s]: direction 1 returns the enumerated row kind=%s index=%d params=%s" % [fixture,kind,index,key])
+  t.check(not point.is_empty(),"fact_lookup_equivalence[%s]: direction 2 accepts the table member kind=%s index=%d params=%s" % [fixture,kind,index,key])
+  if not point.is_empty() and not FirstTurnControl.active(g):
+   t.check(g.display_fact(point)==first,"fact_lookup_equivalence[%s]: direction 2 projects the first table row kind=%s index=%d params=%s" % [fixture,kind,index,key])
+  coverage.dir1+=1
+  var family=fact_lookup_family(kind,params)
+  coverage.families[family]=int(coverage.families.get(family,0))+1
+  if int(first_of[key])!=index:
+   coverage.duplicates+=1
+   if JSON.stringify(row)!=JSON.stringify(first): coverage.distinct_duplicates+=1
+  # 步骤 3（acceptance §2；plan §3 不变量 5）：member 谓词对表行与每个变异向量都必须等于 keys 的归一化集合
+  # ——point 由 member∧build 组成，build 会掩盖过宽的 member，故在此直接问谓词。
+  t.check(bool(g.call(member_name,g,params))==key_set.has(key),"fact_lookup_equivalence[%s]: member equals the keys set kind=%s params=%s" % [fixture,kind,key])
+  coverage.member+=1
+  for mutation in fact_lookup_mutations(kind,params,mutation_ids):
+   var mutated=g.command_params(kind,mutation)
+   var mutated_key=JSON.stringify(mutated)
+   var in_table=false
+   for other in rows:
+    if g.command_params(kind,other.payload)==mutated: in_table=true; break
+   var accepted=not CommandRegistry.point(g,kind,mutated).is_empty()
+   t.check(accepted==in_table,"fact_lookup_equivalence[%s]: direction 2 mutation agrees with the table kind=%s accepted=%s in_table=%s params=%s" % [fixture,kind,str(accepted),str(in_table),mutated_key])
+   t.check(bool(g.call(member_name,g,mutated))==key_set.has(mutated_key),"fact_lookup_equivalence[%s]: member equals the keys set on the mutation kind=%s params=%s" % [fixture,kind,mutated_key])
+   coverage.dir2+=1
+   coverage.member+=1
+   var mutation_family=fact_lookup_family(kind,mutated)
+   coverage.mutation_families[mutation_family]=int(coverage.mutation_families.get(mutation_family,0))+1
+ # 每个枚举键都必须出现在该状态的表里（防「View 从未提供、直出却接受」）。
+ for key in key_set:
+  var in_table=false
+  for other in rows:
+   if JSON.stringify(g.command_params(kind,other.payload))==key: in_table=true; break
+  t.check(in_table,"fact_lookup_equivalence[%s]: every enumerated key appears in the table kind=%s params=%s" % [fixture,kind,key])
+  coverage.keys+=1
+ # C7（gherkin S2-3；两侧都取自登记项，只做「View 生产者 = keys × build」一致性，不替代方向①／②）：
+ # 该 kind 的表行序列（含家族顺序）逐项等于 keys 的点构造投影。接管期表行带 select 标注，跳过该步。
+ if not FirstTurnControl.active(g):
+  var built=[]
+  for candidate in g.call(String(entry.get("keys","")),g):
+   var raw=CommandRegistry.point(g,kind,candidate)
+   if not raw.is_empty(): built.append(g.display_fact(raw))
+  t.check(built==rows,"fact_lookup_equivalence[%s]: the view rows equal keys times build kind=%s" % [fixture,kind])
+ print("FACT LOOKUP fixture=%s kind=%s dir1_rows=%d dir2_mutations=%d keys=%d member=%d duplicates=%d distinct=%d dir1_families=%s dir2_families=%s" % [fixture,kind,coverage.dir1,coverage.dir2,coverage.keys,coverage.member,coverage.duplicates,coverage.distinct_duplicates,str(coverage.families),str(coverage.mutation_families)])
+ return coverage
+
+# 装备自解家族夹具（非战斗阶段正例；S2 出口判据要求至少一个非战斗阶段实跑）。
+static func attack_self_release_fixture(phase: String, count: int, game_class=null):
+ var g=r1_build(phase,count,game_class)
+ if "flame_flourish_bound" not in g.state.card_buffs: g.state.card_buffs.append("flame_flourish_bound")
+ return g
+
+# 显式重复夹具（acceptance §1.1 第 6 条）：把第二个存活敌人的 id 换成第一个的 id 并换成机械系类型，制造同
+# 归一化 params 的两条枚举项。合法夹具受 G2 唯一性约束不产生重复，故显式构造。注：build 是 params 的纯函数
+# （按 id 解析到首个对象），攻击域重复 params 必然收敛到同一行内容，故本夹具证明的是「点查询返回枚举序首条」
+# 而非内容可区分。
+static func attack_duplicate_params_fixture():
+ var g=r1_build("battle",12)
+ var source={}
+ for e in g.state.enemies:
+  if e.gone: continue
+  source=e
+  break
+ if source.is_empty(): return g
+ var duplicate=source.duplicate(true)
+ duplicate.id=String(source.id)
+ for type in g.Enemies.TYPES:
+  if String(type)==String(source.type): continue
+  if not bool(g.Enemies.TYPES[type].get("mechanical",false)): continue
+  duplicate.type=String(type)
+  break
+ g.state.enemies.append(duplicate)
+ return g
+
+# C3／C4（S2 出口判据①；gherkin S2-1）：attack 双向等价在冻结矩阵、51 件稠密夹具、非战斗阶段（整备＋
+# 装备自解 buff）与巫女角色夹具上各跑一次；逐家族覆盖计数为 0 即红。
+static func attack_fact_direct_lookup(t) -> void:
+ var fixtures=[]
+ for cell in r1_cells(): fixtures.append(["%s:%d" % [cell[0],cell[1]],r1_build(cell[0],cell[1])])
+ fixtures.append(["dense_51",t4_dense_51()])
+ fixtures.append(["prepare:12+self_release",attack_self_release_fixture("prepare",12)])
+ fixtures.append(["witch:battle",Game.new(42,false,"equipment",true,false,25,false,false,"witch")])
+ fixtures.append(["duplicate_params",attack_duplicate_params_fixture()])
+ var totals={"dir1":0,"dir2":0,"keys":0,"member":0,"duplicates":0,"distinct_duplicates":0}
+ var families={}
+ for entry in fixtures:
+  var coverage=fact_lookup_equivalence(t,entry[1],"attack",FACT_LOOKUP_MUTATION_IDS,entry[0])
+  for key in totals: totals[key]=int(totals[key])+int(coverage[key])
+  for family in coverage.families: families[family]=int(families.get(family,0))+int(coverage.families[family])
+ t.check(int(families.get("basic",0))>0 and int(families.get("witch",0))>0 and int(families.get("self_release",0))>0,"attack_fact_direct_lookup: every attack family is covered by direction 1: "+str(families))
+ t.check(int(totals.keys)>0 and int(totals.dir2)>0 and int(totals.member)>0,"attack_fact_direct_lookup: the harness compared enumerated keys, mutations and member predicates: "+str(totals))
+ t.check(int(totals.duplicates)>0,"attack_fact_direct_lookup: the duplicate fixture enumerates duplicate normalized params: "+str(totals))
+ print("ATTACK FACT LOOKUP fixtures=%d dir1_rows=%d dir2_mutations=%d keys=%d member=%d duplicates=%d distinct=%d families=%s" % [fixtures.size(),totals.dir1,totals.dir2,totals.keys,totals.member,totals.duplicates,totals.distinct_duplicates,str(families)])
+
+# C6（S2 出口判据②；gherkin S2-2）：point 形点查询只算一行——不调用 attack_facts()／equipment_spell_facts()／
+# _fact_source()／attack_point_keys()（源码文本＋运行期计数；计数子类在测试侧，生产源码不带计数器）。
+static func attack_point_lookup_reads_one_row(t) -> void:
+ var builder=source_func_body_code("res://core/game.gd","attack_point_fact")
+ var member=source_func_body_code("res://core/game.gd","attack_point_member")
+ t.check(builder.find("attack_facts(")<0 and builder.find("equipment_spell_facts(")<0 and builder.find("_fact_source(")<0 and builder.find("attack_point_keys(")<0,"attack_point_lookup_reads_one_row: the point builder never calls a whole-table producer: "+builder)
+ t.check(member.find("attack_facts(")<0 and member.find("equipment_spell_facts(")<0 and member.find("_fact_source(")<0 and member.find("attack_point_keys(")<0,"attack_point_lookup_reads_one_row: the member predicate never calls a whole-table producer: "+member)
+ var samples=[["battle:0",r1_build("battle",0,AttackLookupCountingGame)],["prepare:12+self_release",attack_self_release_fixture("prepare",12,AttackLookupCountingGame)],["witch:battle",AttackLookupCountingGame.new(42,false,"equipment",true,false,25,false,false,"witch")]]
+ var compared=0
+ for entry in samples:
+  var g=entry[1]
+  var row={}
+  for candidate in g.command_facts():
+   if String(candidate.payload.get("kind",""))=="attack": row=candidate; break
+  t.check(not row.is_empty(),"attack_point_lookup_reads_one_row: the fixture exposes an attack row: "+String(entry[0]))
+  if row.is_empty(): continue
+  g.reset_attack_lookup_counts()
+  var found=g.command_fact(g.command(row.payload,g.state.version))
+  print("ATTACK POINT LOOKUP fixture=%s whole_table_calls attack_facts=%d equipment_spell_facts=%d _fact_source=%d" % [entry[0],g.attack_facts_calls,g.equipment_spell_calls,g.fact_source_calls])
+  t.check(found==row and g.attack_facts_calls==0 and g.equipment_spell_calls==0 and g.fact_source_calls==0,"attack_point_lookup_reads_one_row: one row is answered without a whole-table producer: "+String(entry[0]))
+  compared+=1
+ t.check(compared==samples.size(),"attack_point_lookup_reads_one_row: every family sample was compared have="+str(compared))
 
 static func pipeline_lookup_inspect(t) -> void:
  var edges=pipeline_lookup_edges()

@@ -195,46 +195,50 @@ static func attack_detail(g, args: Dictionary) -> String:
 
 # 角色2 的基础攻击事实（行动域，docs/spec/candidate-removal.md「接口」T5／T8；批 R3）：行与显示事实的唯一来源。
 # brief 依赖本次判定的 mana_payment，故判定先算一次并随事实带走（同一实现、同一输入，不是第二份判定）。
+# S2 把循环体提为 attack_offer_fact（唯一单行构造）：point 登记项经 core/game.gd::attack_point_fact 复用同一函数。
+static func attack_offer_fact(g, enemy: Dictionary, part: String, form: int) -> Dictionary:
+ var n=int(g.state.witch_charges[part])
+ var charge=form==0
+ var cost=1 if charge or part!="mouth" else 2
+ var mana=5.0 if charge or part!="mouth" else 10.0
+ if part=="legs" and not charge: mana=0.0
+ mana=0.0 if charge and Expansion.free_preparation(g) else g._mana_cost(mana)
+ var reason=""
+ if not charge and part=="legs" and n<4: reason="需要至少4层腿部施法预备，当前%d层。" % n
+ if not charge and g.state.combat.attack_uses.get("witch_"+part,0)>0: reason="本回合已经释放过%s法术，下回合才能再次释放。" % NAMES[part]
+ var casting=g.cast_view(g.Cards.cast_profile(g,"witch_"+part,mana>0))
+ if casting.reason!="": reason=casting.reason
+ elif casting.chance<=0: reason="当前施法成功率为0%。"
+ var all_targets=part=="mouth" and not charge
+ if not charge and reason=="": reason=g.Puppets.taunt_reason(g,enemy,all_targets)
+ var names={"hand":["火焰箭","烈焰箭","炎枪术"],"mouth":["吹雪","冰风","暴风雪"],"mind":["思维侵入","思维扰乱","思维破坏"],"legs":["魔女飞踹！","魔女飞踹！","魔女飞踹！"]}
+ var label=NAMES[part]+"施法" if charge else names[part][2 if n>=4 else (1 if n>=2 else 0)]
+ var hits=1 if part=="legs" else n+1
+ var base={"hand":6.0,"mouth":4.0,"mind":4.0,"legs":1.0}[part]
+ var focus=0 if charge or part=="legs" else g.state.witch_focus
+ var damage=0.0 if charge else (base+focus)*g.Cards.damage_multiplier(g,"witch_"+part)
+ var discount=2 if g.state.card_buffs.has("witch_ready_to_strike_free") else 0
+ var p={"kind":"attack","type":"witch_"+part,"part":part,"form":form,"charge_action":charge,"enemy":enemy.id,"all":all_targets,"hits":hits,"damage":damage,"damage_type":"physical" if part=="legs" else "magic","interrupt":part=="legs" and not charge,"fall":false,"witch_action":true}
+ var copy_args={"part":part,"charge":charge,"stacks":n,"damage":damage,"hits":hits,"all_targets":all_targets,"focus":focus}
+ var cost_value=maxi(0,cost-discount)
+ var verdict=g.eligibility(p,cost_value,mana,reason,"")
+ var own_after=maxf(0,g.state.mana-verdict.mana_payment.mana)
+ var target_multiplier=1.0 if all_targets else g.Enemies.damage_multiplier(g,enemy.type,p.damage_type)
+ var brief="预备 %d → %d" % [n,n+1] if charge else ("全体 " if all_targets else "")+g.number(damage*damage_multiplier(g,own_after,maxf(0,g.state.temporary_mana-verdict.mana_payment.temporary_mana))*target_multiplier)+" × %d" % hits
+ var fact=g._attack_fact_display(g._fact(p,label,{"kind":"witch.attack","args":copy_args,"fallback":attack_detail(g,copy_args)},cost_value,mana,reason,"","attack"))
+ fact.casting=casting
+ fact.brief=brief
+ fact.brief_tags=""
+ fact.verdict=verdict
+ return fact
+
 static func attack_facts(g) -> Array:
  var facts=[]
  for enemy in g.state.enemies:
   if enemy.gone: continue
   for part in PARTS:
-   var n=int(g.state.witch_charges[part])
    for form in [0,1]:
-    var charge=form==0
-    var cost=1 if charge or part!="mouth" else 2
-    var mana=5.0 if charge or part!="mouth" else 10.0
-    if part=="legs" and not charge: mana=0.0
-    mana=0.0 if charge and Expansion.free_preparation(g) else g._mana_cost(mana)
-    var reason=""
-    if not charge and part=="legs" and n<4: reason="需要至少4层腿部施法预备，当前%d层。" % n
-    if not charge and g.state.combat.attack_uses.get("witch_"+part,0)>0: reason="本回合已经释放过%s法术，下回合才能再次释放。" % NAMES[part]
-    var casting=g.cast_view(g.Cards.cast_profile(g,"witch_"+part,mana>0))
-    if casting.reason!="": reason=casting.reason
-    elif casting.chance<=0: reason="当前施法成功率为0%。"
-    var all_targets=part=="mouth" and not charge
-    if not charge and reason=="": reason=g.Puppets.taunt_reason(g,enemy,all_targets)
-    var names={"hand":["火焰箭","烈焰箭","炎枪术"],"mouth":["吹雪","冰风","暴风雪"],"mind":["思维侵入","思维扰乱","思维破坏"],"legs":["魔女飞踹！","魔女飞踹！","魔女飞踹！"]}
-    var label=NAMES[part]+"施法" if charge else names[part][2 if n>=4 else (1 if n>=2 else 0)]
-    var hits=1 if part=="legs" else n+1
-    var base={"hand":6.0,"mouth":4.0,"mind":4.0,"legs":1.0}[part]
-    var focus=0 if charge or part=="legs" else g.state.witch_focus
-    var damage=0.0 if charge else (base+focus)*g.Cards.damage_multiplier(g,"witch_"+part)
-    var discount=2 if g.state.card_buffs.has("witch_ready_to_strike_free") else 0
-    var p={"kind":"attack","type":"witch_"+part,"part":part,"form":form,"charge_action":charge,"enemy":enemy.id,"all":all_targets,"hits":hits,"damage":damage,"damage_type":"physical" if part=="legs" else "magic","interrupt":part=="legs" and not charge,"fall":false,"witch_action":true}
-    var copy_args={"part":part,"charge":charge,"stacks":n,"damage":damage,"hits":hits,"all_targets":all_targets,"focus":focus}
-    var cost_value=maxi(0,cost-discount)
-    var verdict=g.eligibility(p,cost_value,mana,reason,"")
-    var own_after=maxf(0,g.state.mana-verdict.mana_payment.mana)
-    var target_multiplier=1.0 if all_targets else g.Enemies.damage_multiplier(g,enemy.type,p.damage_type)
-    var brief="预备 %d → %d" % [n,n+1] if charge else ("全体 " if all_targets else "")+g.number(damage*damage_multiplier(g,own_after,maxf(0,g.state.temporary_mana-verdict.mana_payment.temporary_mana))*target_multiplier)+" × %d" % hits
-    var fact=g._attack_fact_display(g._fact(p,label,{"kind":"witch.attack","args":copy_args,"fallback":attack_detail(g,copy_args)},cost_value,mana,reason,"","attack"))
-    fact.casting=casting
-    fact.brief=brief
-    fact.brief_tags=""
-    fact.verdict=verdict
-    facts.append(fact)
+    facts.append(attack_offer_fact(g,enemy,part,form))
  return facts
 
 static func consume_buff(g, id: String) -> void:

@@ -7,12 +7,15 @@ extends RefCounted
 # core/copy_router.gd and core/save_store.gd preload core/game.gd back, and core/card_effects.gd
 # takes this table in S3.
 #
-# Table form (every kind in S1; S2/S3 move attack/card to point form):
+# Table form (every kind but attack after S2; S3 moves card):
 #   source : String — method name on g, signature (kind: String, params: Dictionary) -> Array.
 #                     That array is the fact set the point query scans for this kind; every entry
 #                     names the producer and guard its core/game.gd::_kind_facts arm used before S1.
-# Point form (S2/S3 land it; no entry uses it yet):
-#   keys／build／member : String — method names on g (signatures in the slice plan section 3).
+# Point form (S2 lands it for attack; S3 adds card):
+#   keys／build／member : String — method names on g, called as keys(g) -> Array,
+#                     build(g, params) -> Dictionary, member(g, params) -> bool
+#                     (signatures in the slice plan section 3; keys is the only candidate enumeration,
+#                     build is the single-row constructor, member is the membership predicate).
 #
 # Fail-closed: an unregistered kind is not a command shape, so point() returns {} and no anonymous
 # `_:` fallback exists to reach a producer.
@@ -24,7 +27,7 @@ const TAKEOVER_SOURCE="command_facts"
 const ENTRIES={
  "card":{"form":"table","source":"_whole_table_kind_facts"},
  "chain":{"form":"table","source":"_whole_table_kind_facts"},
- "attack":{"form":"table","source":"_attack_kind_facts"},
+ "attack":{"form":"point","keys":"attack_point_keys","build":"attack_point_fact","member":"attack_point_member"},
  "status_toggle":{"form":"table","source":"_status_toggle_kind_facts"},
  "posture":{"form":"table","source":"_posture_kind_facts"},
  "wall_move":{"form":"table","source":"_wall_move_kind_facts"},
@@ -74,14 +77,19 @@ static func takeover_source() -> String:
  return TAKEOVER_SOURCE
 
 # The single point-query lookup: table form = first params hit in that kind's named source
-# (core/game.gd::_kind_facts reads it); point form = member/build once S2/S3 land. Unregistered
-# kind -> {} and the producer is never reached. The returned dictionary is the raw fact, not the
-# display fact: core/game.gd::_command_fact_row is the only caller that projects it.
+# (core/game.gd::_kind_facts reads it); point form = the entry's member predicate, then its single-row
+# builder. Unregistered kind -> {} and the producer is never reached. The returned dictionary is the
+# raw fact, not the display fact: core/game.gd::_command_fact_row is the only caller that projects it.
 static func point(g, kind: String, params: Dictionary) -> Dictionary:
  var item=entry(kind)
  if item.is_empty(): return {}
- if String(item.get("form",""))=="table":
+ var form=String(item.get("form",""))
+ if form=="table":
   for f in g._kind_facts(kind,params):
    if String(f.payload.get("kind",""))!=kind: continue
    if g.command_params(kind,f.payload)==params: return f
+  return {}
+ if form=="point":
+  if not g.call(String(item.get("member","")),g,params): return {}
+  return g.call(String(item.get("build","")),g,params)
  return {}
