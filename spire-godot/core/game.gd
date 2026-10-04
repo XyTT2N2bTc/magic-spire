@@ -1,5 +1,6 @@
 extends RefCounted
 const FirstTurnControl=preload("res://core/first_turn_control.gd")
+const CommandRegistry=preload("res://core/command_registry.gd")
 var _resource_feedback
 var _card_feedback: Array=[]
 var _equipment_read: Dictionary={}
@@ -89,8 +90,8 @@ func command_issue(cmd: Dictionary) -> String:
  return ""
 
 # 指令形状 → 当前状态下该显示点的投影事实（T4 后半：唯一判定经显示事实给出）。形状与 params 相等的
-# 事实恰有一条；无命中即失效。按 kind 只调该生产者再 display_fact，不经 command_facts 全表（销 B2／DUP3）。
-# 未接线 kind 仍走 _fact_source；禁止对子集跑 FirstTurnControl.select。
+# 事实恰有一条；无命中即失效。按 kind 只查 core/command_registry.gd 的登记项再 display_fact，不经
+# command_facts 全表（销 B2／DUP3）。未登记 kind fail-closed 返回空；禁止对子集跑 FirstTurnControl.select。
 func command_fact(cmd: Dictionary) -> Dictionary:
  var kind=String(cmd.get("kind",""))
  var params=command_params(kind,cmd.get("params",{}))
@@ -99,40 +100,55 @@ func command_fact(cmd: Dictionary) -> Dictionary:
  _equipment_read=previous
  return found
 
-# select 只吃全表：接管期回全表查找；可行动期按 kind 调该生产者。不对子集再跑 select。
+# The takeover phase scans the full selected table; the action phase reads one row through the registry
+# entry. select only ever eats the full table, so a subset is never re-selected here.
 func _command_fact_row(kind: String, params: Dictionary) -> Dictionary:
  if FirstTurnControl.active(self):
-  for f in command_facts():
+  for f in call(CommandRegistry.takeover_source()):
    if String(f.payload.get("kind",""))!=kind: continue
    if command_params(kind,f.payload)==params: return f
   return {}
- var found={}
- for f in _kind_facts(kind,params):
-  if String(f.payload.get("kind",""))!=kind: continue
-  var row=display_fact(f)
-  if command_params(kind,row.payload)==params:
-   found=row;break
- return found
+ var raw=CommandRegistry.point(self,kind,params)
+ if raw.is_empty(): return {}
+ var row=display_fact(raw)
+ return row if command_params(kind,row.payload)==params else {}
 
-# T4 查找的运作层：已接线 kind 只跑 _fact_source／_phase_facts 里该生产者；kind 不在 COMMAND_KEYS → 空。
+# T4 lookup runtime layer: the registry names the source per kind and this reads that source array only.
+# There is no `_:` fallback arm: an unregistered kind returns empty (fail-closed), and whole-table
+# semantics is an explicitly named entry per kind instead of an anonymous branch.
 func _kind_facts(kind: String, params: Dictionary) -> Array:
- match kind:
-  "flask": return _flask_kind_facts()
-  "attack":
-   if String(params.get("target",""))!="": return _fact_source()
-   return attack_facts() if _phase_action_tail() else []
-  "item_discard": return item_discard_facts() if _fact_source_domain() else []
-  "item_use": return _item_use_kind_facts(params)
-  "end","calm","finish_prepare","finish_rest","finish_pack": return _flow_kind_facts(kind)
-  "posture": return posture_facts() if _phase_action_tail() else []
-  "wall_move": return wall_move_facts() if _phase_action_tail() else []
-  "status_toggle": return _status_toggle_facts() if _fact_source_domain() else []
-  "relic_toggle","relic_discharge": return RelicEffects.facts(self) if _fact_source_domain() else []
-  "surrender":
-   if not _fact_source_domain(): return []
-   var row=surrender_fact()
-   return [] if row.is_empty() else [row]
-  _: return _fact_source() if COMMAND_KEYS.has(kind) else []
+ var item=CommandRegistry.entry(kind)
+ if item.is_empty() or String(item.get("form",""))!="table": return []
+ return call(String(item.source),kind,params)
+
+# Table-form sources named by the registry: one arm per pre-S1 core/game.gd::_kind_facts arm, each body
+# kept verbatim (guard and order unchanged); the kind/params vector only became a parameter.
+func _whole_table_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ return _fact_source()
+
+func _attack_kind_facts(_kind: String, params: Dictionary) -> Array:
+ if String(params.get("target",""))!="": return _fact_source()
+ return attack_facts() if _phase_action_tail() else []
+
+func _item_discard_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ return item_discard_facts() if _fact_source_domain() else []
+
+func _posture_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ return posture_facts() if _phase_action_tail() else []
+
+func _wall_move_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ return wall_move_facts() if _phase_action_tail() else []
+
+func _status_toggle_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ return _status_toggle_facts() if _fact_source_domain() else []
+
+func _relic_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ return RelicEffects.facts(self) if _fact_source_domain() else []
+
+func _surrender_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if not _fact_source_domain(): return []
+ var row=surrender_fact()
+ return [] if row.is_empty() else [row]
 
 func _fact_source_domain() -> bool:
  return state.relic_bundle.is_empty() and state.phase!="departure" and command_domain_ready()
@@ -141,17 +157,17 @@ func _fact_source_domain() -> bool:
 func _phase_action_tail() -> bool:
  return _fact_source_domain() and command_tail()
 
-func _flask_kind_facts() -> Array:
+func _flask_kind_facts(_kind: String, _params: Dictionary) -> Array:
  if not state.relic_bundle.is_empty() or state.phase=="departure": return ManaFlask.facts(self,true)
  return ManaFlask.facts(self) if command_domain_ready() else []
 
-func _flow_kind_facts(kind: String) -> Array:
+func _flow_kind_facts(kind: String, _params: Dictionary) -> Array:
  if not _fact_source_domain(): return []
  if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES: return _phase_facts() if kind=="end" else []
  if state.phase=="pack" or _phase_action_tail(): return flow_facts()
  return []
 
-func _item_use_kind_facts(params: Dictionary) -> Array:
+func _item_use_kind_facts(_kind: String, params: Dictionary) -> Array:
  var item=_item(String(params.get("item","")))
  if item.is_empty(): return []
  var op=Tools.operation(item.type)
@@ -2374,7 +2390,8 @@ func candidate_detail(candidate: Dictionary) -> String:
  return _candidate_detail(_candidate_base_detail(payload),payload,Cards.magic_card_traction(self,payload),_mana_payment(payload,float(candidate.get("mana",0.0))))
 
 # 全部指令显示事实的唯一来源（docs/spec/candidate-removal.md「接口」T5／T8；批 R5）：按阶段／域产出显示点事实。
-# 投影与接管选择经 command_facts 取本列表；command_fact 已接线 kind 经 _kind_facts 调该生产者，未接线 kind 仍走本函数。行载体已删除，无第二份物化。
+# 投影与接管选择经 command_facts 取本列表；command_fact 可行动期经登记项取该 kind 的来源（整表语义的
+# kind 由 core/command_registry.gd 显式点名本函数，不再有匿名兜底臂）。行载体已删除，无第二份物化。
 func _fact_source() -> Array:
  var facts: Array=[]
  if not state.relic_bundle.is_empty():
@@ -2408,7 +2425,8 @@ func _status_toggle_facts() -> Array:
  return facts
 
 # 投影事实（唯一出口，T8）：事实源 → 唯一判定与 detail 组装（display_fact）→ 接管标注（唯一选择结果）。
-# core/game_view.gd::build 的 view.display_facts 来自本列表；command_fact 经 kind 调该生产者，不经本列表。
+# core/game_view.gd::build 的 view.display_facts 来自本列表；command_fact 的接管期表级项显式点名本列表
+# （core/command_registry.gd::TAKEOVER_SOURCE），可行动期按 kind 取登记项、不经本列表。
 func command_facts() -> Array:
  # 读取批次：事实源与投影只在一个批次内物化一次（与改动前的候选表读取同一批次语义）。
  var previous=_begin_equipment_read()

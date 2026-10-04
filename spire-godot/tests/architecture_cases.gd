@@ -1,6 +1,7 @@
 extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 const GameCore=preload("res://core/game.gd")
+const CommandRegistry=preload("res://core/command_registry.gd")
 const Rewards=preload("res://tests/reward_cases.gd")
 const Guard=preload("res://core/guard.gd")
 
@@ -505,6 +506,13 @@ class TargetsAtCountingGame extends "res://tests/game_fixture.gd":
   targets_at_slots.append(slot)
   return super.targets_at(slot)
 
+# Test-side counter: an unregistered kind must not reach the whole-table producer (C2 fail-closed).
+class FactSourceCountingGame extends "res://tests/game_fixture.gd":
+ var fact_source_calls=0
+ func _fact_source() -> Array:
+  fact_source_calls+=1
+  return super._fact_source()
+
 # Test-side later-source counters for has_targets_at early-exit; production has none.
 class TargetWalkCountingGame extends TargetsAtCountingGame:
  var composite_root_calls=0
@@ -612,6 +620,7 @@ static func run(t) -> void:
  single_eligibility_implementation(t)
  instruction_router_single_entry(t)
  instruction_route_table_is_total(t)
+ command_registry_is_total(t)
  command_fact_kind_lookup(t)
  card_facts_declared_slots(t)
  card_facts_consumes_has_targets_at(t)
@@ -2207,18 +2216,30 @@ static func instruction_route_table_is_total(t) -> void:
    seen[key]=String(c.label)
  t.check(duplicates.is_empty(),"G2 instruction_route_table_is_total: every command shape resolves to exactly one row: "+str(duplicates.slice(0,3)))
 
-const T4_WIRED_KINDS=["flask","attack","item_discard","item_use","end","calm","finish_prepare","finish_rest","finish_pack","posture","wall_move","status_toggle","relic_toggle","relic_discharge","surrender"]
-const T4_EQUIVALENCE_CELLS=[["battle",0],["battle",12],["battle",26],["battle",44],["prepare",0],["rest",0]]
+# Fact-lookup kind sets: POINT_KINDS lists the kinds converted to point form (S1 empty; S2 adds
+# attack, S3 adds card). Table kinds are derived from COMMAND_KEYS minus POINT_KINDS, never written out.
+const POINT_KINDS=[]
+const T4_EQUIVALENCE_CELLS=[["battle",0],["battle",12],["battle",26],["battle",44],["prepare",0],["rest",0],["takeover",0]]
 
-static func t4_wired_row(g, fact: Dictionary) -> bool:
- var kind=String(fact.payload.get("kind",""))
- if kind not in T4_WIRED_KINDS: return false
- if kind=="attack" and String(fact.payload.get("target",""))!="": return false
- if kind=="item_use":
-  var item=g._item(String(fact.payload.get("item","")))
-  if item.is_empty(): return false
-  return g.Tools.operation(item.type) in ["buff","escape"]
- return true
+static func table_kinds() -> Array:
+ var out=[]
+ for kind in GameCore.COMMAND_KEYS:
+  if kind not in POINT_KINDS: out.append(kind)
+ return out
+
+# C1 diff: kinds present in the given set but missing from the registry. The totality check and the
+# synthetic self-check below run this same function, so a gap cannot be hidden by a second comparison.
+static func command_registry_missing(kinds: Array) -> Array:
+ var missing=[]
+ for kind in kinds:
+  if CommandRegistry.entry(kind).is_empty(): missing.append(kind)
+ return missing
+
+static func command_registry_extra() -> Array:
+ var extra=[]
+ for kind in CommandRegistry.kinds():
+  if not GameCore.COMMAND_KEYS.has(kind): extra.append(kind)
+ return extra
 
 static func t4_median(samples: Array) -> int:
  var ordered=samples.duplicate()
@@ -2235,8 +2256,7 @@ static func t4_dense_51():
 
 const PIPELINE_LOOKUP_FUNCS=["command_fact","_command_fact_row","_kind_facts","command_facts"]
 const PIPELINE_LOOKUP_EDGES=[
- {"id":"L-wired","from":"core/game.gd::command_fact","to":"core/game.gd::display_fact","type":"call","path":"nontakeover _command_fact_row -> _kind_facts -> match-arm producer -> display_fact"},
- {"id":"L-unwired","from":"core/game.gd::command_fact","to":"core/game.gd::_fact_source","type":"call","path":"_kind_facts _: arm: COMMAND_KEYS.has(kind) then _fact_source() else []"},
+ {"id":"L-point","from":"core/game.gd::command_fact","to":"core/game.gd::display_fact","type":"call","path":"nontakeover _command_fact_row -> CommandRegistry.point -> registry entry source (S2/S3: keys/build/member) -> display_fact"},
  {"id":"L-table","from":"core/game.gd::command_facts","to":"core/game.gd::_fact_source","type":"call","path":"command_facts for-loop: _fact_source() then display_fact"},
 ]
 const PIPELINE_P2_EDGES=[
@@ -2296,48 +2316,90 @@ static func pipeline_lookup_default_arm(body: String) -> String:
  if at<0: return ""
  return body.substr(at)
 
+# C1（plan §3 契约 1；docs/spec/fact-lookup-dependencies.md「自检清单」）：登记表与 COMMAND_KEYS 逐条相等
+# （39／39，missing／extra 双向），form 显式，table 形 source 与 point 形 keys／build／member 都是 g 上
+# 存在的方法名；POINT_KINDS 声明与登记形态一致（S1 空集，S2／S3 起增项）。
+static func command_registry_is_total(t) -> void:
+ var g=GameCore.new(42)
+ var missing=command_registry_missing(GameCore.COMMAND_KEYS.keys())
+ var extra=command_registry_extra()
+ t.check(missing.is_empty() and extra.is_empty(),"command_registry_is_total: kinds() equals COMMAND_KEYS (39/39) missing="+str(missing)+" extra="+str(extra))
+ t.check(CommandRegistry.kinds().size()==39,"command_registry_is_total: the registry declares exactly 39 kinds have="+str(CommandRegistry.kinds().size()))
+ var bad_form=[]
+ var bad_source=[]
+ var bad_point=[]
+ for kind in CommandRegistry.kinds():
+  var item=CommandRegistry.entry(kind)
+  var form=String(item.get("form",""))
+  if form not in ["point","table"]:
+   bad_form.append(kind+"="+form)
+  elif form=="table":
+   var source=String(item.get("source",""))
+   if source.is_empty() or not g.has_method(source): bad_source.append(kind+"="+source)
+  else:
+   for field in ["keys","build","member"]:
+    var name=String(item.get(field,""))
+    if name.is_empty() or not g.has_method(name): bad_point.append(kind+"."+field+"="+name)
+ t.check(bad_form.is_empty(),"command_registry_is_total: every entry declares form point|table: "+str(bad_form))
+ t.check(bad_source.is_empty(),"command_registry_is_total: every table entry names an existing g source: "+str(bad_source))
+ t.check(bad_point.is_empty(),"command_registry_is_total: every point entry names keys/build/member on g: "+str(bad_point))
+ # 合成自检：同一差集函数必须报出未登记 kind，判据自身可检出缺口（实机一次变异见验证记录）。
+ var synthetic=GameCore.COMMAND_KEYS.keys()
+ synthetic.append("no_such_new_kind")
+ t.check(command_registry_missing(synthetic)==["no_such_new_kind"],"command_registry_is_total: the same diff reports an unregistered kind: "+str(command_registry_missing(synthetic)))
+ var wrong_form=[]
+ for kind in POINT_KINDS:
+  if not GameCore.COMMAND_KEYS.has(kind): wrong_form.append(kind+"!COMMAND_KEYS")
+  elif String(CommandRegistry.entry(kind).get("form",""))!="point": wrong_form.append(kind+"!point")
+ for kind in table_kinds():
+  if String(CommandRegistry.entry(kind).get("form",""))!="table": wrong_form.append(kind+"!table")
+ t.check(wrong_form.is_empty(),"command_registry_is_total: POINT_KINDS matches the entry forms: "+str(wrong_form))
+
 static func pipeline_lookup_inspect(t) -> void:
  var edges=pipeline_lookup_edges()
- t.check(edges.size()==3,"pipeline_lookup_inspect: PIPELINE_LOOKUP_EDGES is exactly three lookup edges have="+str(edges.size()))
+ t.check(edges.size()==2,"pipeline_lookup_inspect: PIPELINE_LOOKUP_EDGES is exactly two lookup edges have="+str(edges.size()))
  var by_id={}
  var signatures=[]
  for edge in edges:
   var id=String(edge.get("id",""))
   var from_fn=pipeline_lookup_func_name(edge.get("from",""))
   var signature=String(edge.get("from",""))+" -> "+String(edge.get("to",""))+" / "+String(edge.get("type",""))
-  t.check(id!="" and not by_id.has(id) and signature not in signatures,"pipeline_lookup_inspect: L-wired, L-unwired, and L-table must be distinct id/from/to: "+id+" "+signature)
+  t.check(id!="" and not by_id.has(id) and signature not in signatures,"pipeline_lookup_inspect: L-point and L-table must be distinct id/from/to: "+id+" "+signature)
   t.check(String(edge.get("type",""))=="call" and from_fn in PIPELINE_LOOKUP_FUNCS,"pipeline_lookup_inspect: lookup edge is a call from an extracted func: "+id+" "+from_fn)
   by_id[id]=edge
   signatures.append(signature)
- t.check(by_id.has("L-wired") and by_id.has("L-unwired") and by_id.has("L-table"),"pipeline_lookup_inspect: table ids are L-wired / L-unwired / L-table")
+ t.check(by_id.has("L-point") and by_id.has("L-table"),"pipeline_lookup_inspect: table ids are L-point / L-table")
  var bodies={}
  for name in PIPELINE_LOOKUP_FUNCS:
   bodies[name]=pipeline_lookup_func_body(name)
   t.check(not String(bodies[name]).strip_edges().is_empty(),"pipeline_lookup_inspect: extracted body is non-empty for "+name)
  var command_fact_body=bodies["command_fact"]
- var wired_to=pipeline_lookup_func_name(by_id["L-wired"].to)
- var unwired_to=pipeline_lookup_func_name(by_id["L-unwired"].to)
+ var point_to=pipeline_lookup_func_name(by_id["L-point"].to)
  var table_to=pipeline_lookup_func_name(by_id["L-table"].to)
  t.check(pipeline_lookup_call_count(command_fact_body,"command_facts")==0,"pipeline_lookup_inspect: command_fact body has no command_facts(")
- t.check(pipeline_lookup_call_count(command_fact_body,"_command_fact_row")==1 and pipeline_lookup_call_count(command_fact_body,wired_to)==0 and pipeline_lookup_call_count(command_fact_body,unwired_to)==0,"pipeline_lookup_inspect: L-wired unique path starts at exactly one _command_fact_row(")
+ t.check(pipeline_lookup_call_count(command_fact_body,"_command_fact_row")==1 and pipeline_lookup_call_count(command_fact_body,point_to)==0 and pipeline_lookup_call_count(command_fact_body,table_to)==0,"pipeline_lookup_inspect: L-point unique path starts at exactly one _command_fact_row(")
  var nontakeover=pipeline_lookup_nontakeover_row(bodies["_command_fact_row"])
- t.check(not nontakeover.strip_edges().is_empty() and pipeline_lookup_call_count(nontakeover,"_kind_facts")==1 and pipeline_lookup_call_count(nontakeover,wired_to)==1,"pipeline_lookup_inspect: nontakeover _command_fact_row has _kind_facts( and display_fact(")
- t.check(pipeline_lookup_call_count(nontakeover,unwired_to)==0 and pipeline_lookup_call_count(nontakeover,"command_facts")==0,"pipeline_lookup_inspect: nontakeover _command_fact_row is a single path (no _fact_source( / command_facts()")
+ t.check(not nontakeover.strip_edges().is_empty() and pipeline_lookup_call_count(nontakeover,"CommandRegistry.point")==1 and pipeline_lookup_call_count(nontakeover,point_to)==1,"pipeline_lookup_inspect: nontakeover _command_fact_row has CommandRegistry.point( and display_fact(")
+ t.check(pipeline_lookup_call_count(nontakeover,table_to)==0 and pipeline_lookup_call_count(nontakeover,"command_facts")==0,"pipeline_lookup_inspect: nontakeover _command_fact_row is a single path (no _fact_source( / command_facts()")
  var kind_body=bodies["_kind_facts"]
- var default_arm=pipeline_lookup_default_arm(kind_body)
- t.check(not default_arm.is_empty(),"pipeline_lookup_inspect: _kind_facts has a _: arm")
- var match_part=kind_body.trim_suffix(default_arm) if not default_arm.is_empty() else kind_body
- var missing_arms=[]
- for kind in T4_WIRED_KINDS:
-  if match_part.find('"'+kind+'"')<0: missing_arms.append(kind)
-  if not GameCore.COMMAND_KEYS.has(kind): missing_arms.append(kind+"!COMMAND_KEYS")
- t.check(missing_arms.is_empty(),"pipeline_lookup_inspect: every T4_WIRED_KINDS kind has a match arm and is in COMMAND_KEYS: "+str(missing_arms))
- t.check(pipeline_lookup_call_count(default_arm,unwired_to)==1 and default_arm.find("COMMAND_KEYS.has(")>=0,"pipeline_lookup_inspect: _: arm is COMMAND_KEYS.has(kind) then _fact_source()")
- var unwired_keys=0
- for kind in GameCore.COMMAND_KEYS:
-  if kind in T4_WIRED_KINDS: continue
-  unwired_keys+=1
- t.check(unwired_keys>0,"pipeline_lookup_inspect: COMMAND_KEYS has kinds that take the _: arm")
+ t.check(pipeline_lookup_default_arm(kind_body).is_empty(),"pipeline_lookup_inspect: _kind_facts has no _: fallback arm")
+ t.check(kind_body.find("CommandRegistry.entry(")>=0 and kind_body.find("_fact_source")<0,"pipeline_lookup_inspect: _kind_facts reads the registry entry and never falls back to _fact_source()")
+ var row_body=bodies["_command_fact_row"]
+ t.check(pipeline_lookup_call_count(row_body,"CommandRegistry.takeover_source")==1,"pipeline_lookup_inspect: the takeover branch takes its table item from the registry")
+ var g=GameCore.new(42)
+ var takeover_source=CommandRegistry.takeover_source()
+ t.check(not takeover_source.is_empty() and g.has_method(takeover_source),"pipeline_lookup_inspect: the takeover table item names an existing g source: "+takeover_source)
+ var unnamed=[]
+ for kind in ["relic_bundle","departure"]:
+  var item=CommandRegistry.entry(kind)
+  if String(item.get("form",""))!="table" or String(item.get("source",""))=="": unnamed.append(kind)
+ t.check(unnamed.is_empty(),"pipeline_lookup_inspect: relic_bundle and departure carry an explicit table source: "+str(unnamed))
+ # C2 运行期：未登记 kind fail-closed（空行，且不触达 _fact_source）。
+ var probe=FactSourceCountingGame.new(42)
+ probe.fact_source_calls=0
+ var unknown=probe.command_fact({"kind":"no_such_kind","params":{},"expected_version":probe.state.version})
+ t.check(unknown.is_empty(),"pipeline_lookup_inspect: an unregistered kind yields an empty row")
+ t.check(probe.fact_source_calls==0,"pipeline_lookup_inspect: an unregistered kind never reaches _fact_source (calls="+str(probe.fact_source_calls)+")")
  var table_body=bodies["command_facts"]
  t.check(pipeline_lookup_func_name(by_id["L-table"].from)!="command_fact" and pipeline_lookup_call_count(table_body,table_to)==1 and pipeline_lookup_call_count(table_body,"display_fact")==1,"pipeline_lookup_inspect: command_facts body has _fact_source( and display_fact(")
  var p2_ids=[]
@@ -2349,10 +2411,11 @@ static func pipeline_lookup_inspect(t) -> void:
  t.check(PIPELINE_P2_EDGES.size()==2 and p2_ids.has("T4") and p2_ids.has("T5") and p2_froms.size()==2 and p2_froms[0]!=p2_froms[1],"pipeline_lookup_inspect: P2 declares T4/T5 call edges to eligibility")
  t.check(VERDICT_PRODUCERS.get("core/game.gd",[]).has("eligibility"),"pipeline_lookup_inspect: P2 write sites stay on G4 VERDICT_PRODUCERS (no second write scan)")
 
-# docs/spec/candidate-removal.md T4：command_fact 经 kind 调该生产者，不经全表。
+# docs/spec/candidate-removal.md T4：command_fact 经登记项取行（table 形首条 params 命中），不经全表。
 static func command_fact_kind_lookup(t) -> void:
  pipeline_lookup_inspect(t)
  var compared=0
+ var kinds_covered={}
  for cell in T4_EQUIVALENCE_CELLS:
   var g=r1_build(cell[0],cell[1])
   var key="%s:%d" % [cell[0],cell[1]]
@@ -2361,11 +2424,12 @@ static func command_fact_kind_lookup(t) -> void:
   t.check(facts.size()==int(R5_BASELINE[key].view_display_facts),"T4 command_facts count matches the pre-slice snapshot "+key+" have="+str(facts.size())+" want="+str(R5_BASELINE[key].view_display_facts))
   t.check(view.display_facts.size()==facts.size(),"T4 get_view display_facts count stays aligned with command_facts "+key)
   for fact in facts:
-   if not t4_wired_row(g,fact): continue
    var found=g.command_fact(g.command(fact.payload,g.state.version))
    t.check(found==fact,"T4 command_fact matches the full-table row kind="+String(fact.payload.kind)+" key="+String(fact.get("key",""))+" fixture="+key)
    compared+=1
- t.check(compared>0,"T4 command_fact compared wired rows against the full table")
+   kinds_covered[String(fact.payload.get("kind",""))]=true
+ print("T4 ROW EQUIVALENCE cells=%d rows=%d kinds=%d" % [T4_EQUIVALENCE_CELLS.size(),compared,kinds_covered.size()])
+ t.check(compared>0 and kinds_covered.has("card") and kinds_covered.has("flask"),"T4 command_fact compared every table row of the fixture matrix (card and flask covered)")
  var miss=r1_build("battle",0)
  t.check(miss.command_fact({"kind":"flask","params":{"op":"no_such"},"expected_version":miss.state.version}).is_empty(),"T4 command_fact miss is an empty dictionary")
  var body=pipeline_lookup_func_body("command_fact")

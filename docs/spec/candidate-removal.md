@@ -35,7 +35,7 @@
 | T1 | 各 UI 指令来源 → 指令路由 | 唯一前端指令入口 |
 | T2 | 指令路由 → 分类子路由 | 唯一分类点（`ROUTES`；表外拒绝） |
 | T3 | 分类子路由 → `core/game.gd::dispatch` | 唯一后端提交边（UI 侧 dispatch 调用点唯一） |
-| T4 | `core/game.gd::dispatch` → 唯一判定 | 提交侧强制复核（形状＋参数合法性＋判定） |
+| T4 | `core/game.gd::dispatch` → 唯一判定 | 提交侧强制复核（形状＋参数合法性＋判定）；`core/game.gd::command_fact` 可行动期经登记项取行（`core/command_registry.gd::point`：table 形＝该 kind 来源首条 params 命中；point 形＝`keys`／`build`／`member`），不经 `command_facts` 全表；接管期扫显式登记的整表；39 条 kind 唯一汇编于 `core/command_registry.gd` |
 | T5 | `core/game_view.gd::build` → 唯一判定 | 显示侧取可用／原因／风险／费用 |
 | T6 | 显示路径 → `core/game.gd::candidate_detail`／`core/game.gd::live_card_text`（经 `ui/main.gd::detail_of`／`ui/main.gd::card_entry`） | 文案按需现算 |
 | T7 | `core/game.gd::dispatch` → 执行与事务 | 现状不变（事务副本、全回滚、version 一次自增） |
@@ -49,7 +49,8 @@
 `tests/architecture_cases.gd::single_eligibility_implementation`；终态断言＝
 `tests/architecture_cases.gd::removal_end_state`；行为基线＝`tests/architecture_cases.gd::behavior_baseline_equivalence`；
 查找边机读表＝`tests/architecture_cases.gd::PIPELINE_LOOKUP_EDGES`（入口
-`tests/architecture_cases.gd::pipeline_lookup_inspect`）；get_view 调用点白名单＝
+`tests/architecture_cases.gd::pipeline_lookup_inspect`）；登记表全量＝
+`tests/architecture_cases.gd::command_registry_is_total`；get_view 调用点白名单＝
 `tests/architecture_cases.gd::get_view_call_sites_are_pinned`；显示改线＝
 `tests/display_ui_cases.gd::r3_display_points_do_not_read_rows`／
 `tests/display_ui_cases.gd::r4_display_points_do_not_read_rows`／
