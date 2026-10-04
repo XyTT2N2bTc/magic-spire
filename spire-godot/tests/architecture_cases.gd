@@ -661,6 +661,8 @@ static func run(t) -> void:
  rejected_submit_lookup_counts(t)
  submit_presented_fact_is_unchanged(t)
  submit_key_face_rebaseline_self_proof(t)
+ dispatch_fact_row_is_readonly(t)
+ payload_write_sites_are_pinned(t)
  card_facts_declared_slots(t)
  card_facts_consumes_has_targets_at(t)
  card_facts_keyword_min_query(t)
@@ -3238,6 +3240,67 @@ static func submit_key_face_rebaseline_self_proof(t) -> void:
  print("S5 KEY FACE SELF PROOF before=%s after=%s" % [before,after])
  t.check(before==S5_SUBMIT_KEYS_BEFORE_DIGEST,"S5 submit_key_face_rebaseline_self_proof: the pre-fact key face hashes to the pre-S5 frozen value have="+before+" want="+S5_SUBMIT_KEYS_BEFORE_DIGEST)
  t.check(after==S5_SUBMIT_KEYS_AFTER_DIGEST,"S5 submit_key_face_rebaseline_self_proof: the post-fact key face hashes to the rebaselined value have="+after+" want="+S5_SUBMIT_KEYS_AFTER_DIGEST)
+
+# ==== C1（切片收尾批，R6 C1／S5 审查 [存疑] 的硬化）：判定行只读与 payload 写点白名单 ====
+# docs/spec/candidate-removal.md §2.1「事实行只读」：判定行与其 payload 自产出起只读；UI 与执行共享
+# 同一对象（不拷贝），故 dispatch 的执行段只写 state（经既有 action_copy／logs／feedback 机制），不得写
+# 判定行或其 payload；将来「执行时要记结算结果」的落点是 state，不是事实行。
+# 口径：core/game.gd::dispatch 体内对局部 `chosen` 的成员／索引赋值（`chosen.<字段> …=`、`chosen["…"] …=`、
+# `chosen.payload…=`）；`==`／`!=`／`<`／`>` 比较与只读取用、以及 `FirstTurnControl.commit(self,chosen)`
+# 这类传参不算。源码文本去注释沿用既有的 `#` 截断。
+const FACT_ROW_WRITE_PATTERN="\\bchosen(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[^\\]]*\\])+\\s*[-+*/%&|^]?=(?!=)"
+
+# 全仓 payload 写点白名单（C1 第二半；口径见 docs/spec/fact-lookup-dependencies.md 禁止项）：接收者名里含
+# `payload` 的写只允许**生产者侧构造**——当前唯一 `core/prison.gd::add`（写它自己刚造的本地载荷）。
+# 集合断言＝多一处或少一处都红（同一函数内多写一处同样计入）；把 chosen.payload 传给 helper、由 helper
+# 去写是源码文本判据扫不到的残余逃逸面，补偿＝本白名单计数变化即红＋审查。
+const PAYLOAD_WRITE_CALLS=["payload.merge(","payload.erase(","payload.clear("]
+const PAYLOAD_INDEX_WRITE_PATTERN="payload\\s*\\[[^\\]]+\\]\\s*[-+*/%&|^]?=(?!=)"
+const PAYLOAD_WRITE_WHITELIST=["res://core/prison.gd::add"]
+
+static func dispatch_fact_row_is_readonly(t) -> void:
+ var body=source_func_body_code("res://core/game.gd","dispatch")
+ t.check(not body.strip_edges().is_empty() and body.find("command_fact(cmd)")>=0,"ARCH dispatch_fact_row_is_readonly (core/game.gd::dispatch): the body is extracted with its judgement lookup have="+str(body.length()))
+ var row_write=RegEx.new()
+ row_write.compile(FACT_ROW_WRITE_PATTERN)
+ var hits=[]
+ for hit in row_write.search_all(body): hits.append(hit.get_string())
+ print("FACT ROW READONLY SCAN hits=%d domain=core/game.gd::dispatch" % hits.size())
+ t.check(hits.is_empty(),"ARCH dispatch_fact_row_is_readonly (core/game.gd::dispatch): the judgement row and its payload are only read after command_fact produces them (UI and execution share the same object, so a write here would leak into the UI); writes="+str(hits))
+
+static func payload_write_sites() -> Dictionary:
+ var index_write=RegEx.new()
+ index_write.compile(PAYLOAD_INDEX_WRITE_PATTERN)
+ var declaration=RegEx.new()
+ declaration.compile("^\\s*(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
+ var sites=[]
+ var files=0
+ for file in script_files("res://core")+script_files("res://data"):
+  var handle=FileAccess.open(file,FileAccess.READ)
+  if handle==null: continue
+  files+=1
+  var current="?"
+  for line in handle.get_as_text().split("\n"):
+   var code=String(line).split("#")[0]
+   var decl=declaration.search(code)
+   if decl!=null: current=decl.get_string(1)
+   var found=index_write.search(code)!=null
+   if not found:
+    for needle in PAYLOAD_WRITE_CALLS:
+     if code.find(needle)>=0:
+      found=true
+      break
+   if found: sites.append(file+"::"+current)
+ sites.sort()
+ return {"files":files,"sites":sites}
+
+static func payload_write_sites_are_pinned(t) -> void:
+ var scan=payload_write_sites()
+ var want=PAYLOAD_WRITE_WHITELIST.duplicate()
+ want.sort()
+ print("PAYLOAD WRITE SCAN files=%d sites=%d %s" % [scan.files,scan.sites.size(),str(scan.sites)])
+ t.check(scan.files>0,"ARCH payload_write_sites_are_pinned (core/ + data/): the source scan reached the script roots files="+str(scan.files))
+ t.check(scan.sites==want,"ARCH payload_write_sites_are_pinned (core/ + data/): payload writes are exactly the declared producer-side construction whitelist (a new site, a second write in a whitelisted function or a removed site turns this red); have="+str(scan.sites)+" want="+str(want))
 
 # Pre-cut card_facts slot walk: union B.SLOTS then skip undeclared occupied before target_payload.
 static func card_facts_union_slot_oracle(g, card: Dictionary) -> Array:

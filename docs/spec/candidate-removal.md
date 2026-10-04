@@ -56,6 +56,8 @@
 `tests/display_ui_cases.gd::r4_display_points_do_not_read_rows`／
 `tests/display_ui_cases.gd::r5_display_facts_match_determination`。
 
+**事实行只读**（不变量）：判定行（`chosen`＝`core/game.gd::dispatch` 经 `core/game.gd::command_fact` 取回、随成功结果 `fact` 键回传 UI 的 display fact）与其 `payload` **自产出起只读**——UI 与执行共享同一对象、不引入拷贝；执行段只写 `state`，将来「执行时要记结算结果」的正确落点也是 `state`。判据＝`tests/architecture_cases.gd::dispatch_fact_row_is_readonly`（`dispatch` 体内无判定行写点）、`tests/architecture_cases.gd::payload_write_sites_are_pinned`（全仓 `payload` 写点＝仅生产者侧构造白名单）；判据射程与残余逃逸面见 `docs/spec/fact-lookup-dependencies.md`。
+
 ## 输入域
 
 - `kind` 必须是声明表已声明的键；`params` 只用稳定 ID（type／uid／slot／target／item／enemy／mode…），
