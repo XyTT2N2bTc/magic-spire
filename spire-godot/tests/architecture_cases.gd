@@ -621,6 +621,7 @@ static func run(t) -> void:
  instruction_router_single_entry(t)
  instruction_route_table_is_total(t)
  command_registry_is_total(t)
+ fact_source_map_is_pinned(t)
  command_fact_kind_lookup(t)
  card_facts_declared_slots(t)
  card_facts_consumes_has_targets_at(t)
@@ -2227,6 +2228,54 @@ static func table_kinds() -> Array:
   if kind not in POINT_KINDS: out.append(kind)
  return out
 
+# R4: the kind -> table source identity is frozen with a literal expected side written here, independent
+# of CommandRegistry and core/game.gd, so pointing a kind at another existing g method (or swapping the
+# takeover source) is caught even though command_registry_is_total and the row-equality checks stay
+# green. Never derive this table from the registry. Update it in the same batch that changes a form
+# (S2 adds attack, S3 adds card to POINT_KINDS: drop that key here then).
+const FROZEN_TABLE_SOURCES={
+ "card":"_whole_table_kind_facts",
+ "chain":"_whole_table_kind_facts",
+ "attack":"_attack_kind_facts",
+ "status_toggle":"_status_toggle_kind_facts",
+ "posture":"_posture_kind_facts",
+ "wall_move":"_wall_move_kind_facts",
+ "manual":"_whole_table_kind_facts",
+ "hook":"_whole_table_kind_facts",
+ "end":"_flow_kind_facts",
+ "calm":"_flow_kind_facts",
+ "surrender":"_surrender_kind_facts",
+ "item_use":"_item_use_kind_facts",
+ "item_install":"_whole_table_kind_facts",
+ "item_retrieve":"_whole_table_kind_facts",
+ "item_discard":"_item_discard_kind_facts",
+ "finish_prepare":"_flow_kind_facts",
+ "finish_rest":"_flow_kind_facts",
+ "finish_pack":"_flow_kind_facts",
+ "retain":"_whole_table_kind_facts",
+ "retain_skip":"_whole_table_kind_facts",
+ "rest_rare":"_whole_table_kind_facts",
+ "rest_card":"_whole_table_kind_facts",
+ "rest_flask":"_whole_table_kind_facts",
+ "rest_begin":"_whole_table_kind_facts",
+ "service":"_whole_table_kind_facts",
+ "event":"_whole_table_kind_facts",
+ "prison":"_whole_table_kind_facts",
+ "depart":"_whole_table_kind_facts",
+ "travel_step":"_whole_table_kind_facts",
+ "reward":"_whole_table_kind_facts",
+ "reward_skip":"_whole_table_kind_facts",
+ "relic_bundle":"_whole_table_kind_facts",
+ "departure":"_whole_table_kind_facts",
+ "flask":"_flask_kind_facts",
+ "relic_toggle":"_relic_kind_facts",
+ "relic_discharge":"_relic_kind_facts",
+ "relic_control_done":"_whole_table_kind_facts",
+ "demo_end":"_whole_table_kind_facts",
+ "demo_continue":"_whole_table_kind_facts",
+}
+const FROZEN_TAKEOVER_SOURCE="command_facts"
+
 # C1 diff: kinds present in the given set but missing from the registry. The totality check and the
 # synthetic self-check below run this same function, so a gap cannot be hidden by a second comparison.
 static func command_registry_missing(kinds: Array) -> Array:
@@ -2354,6 +2403,29 @@ static func command_registry_is_total(t) -> void:
  for kind in table_kinds():
   if String(CommandRegistry.entry(kind).get("form",""))!="table": wrong_form.append(kind+"!table")
  t.check(wrong_form.is_empty(),"command_registry_is_total: POINT_KINDS matches the entry forms: "+str(wrong_form))
+
+# R4（审查补件）：kind → table 来源的身份用本文件字面表 FROZEN_TABLE_SOURCES 钉住（期望侧不取自
+# CommandRegistry，防自证）。missing＝冻结项被改名／换源／换形或与 POINT_KINDS 冲突；extra＝登记表
+# 有而冻结表没有的 table kind（双向都报）。接管整表来源名同样钉住。S1 的 POINT_KINDS 为空集，故本批
+# 校 39 条 table 形；S2／S3 转 point 形时按批从本表移除该 kind。
+static func fact_source_map_is_pinned(t) -> void:
+ var missing=[]
+ for kind in FROZEN_TABLE_SOURCES:
+  if kind in POINT_KINDS:
+   missing.append(kind+"!frozen-but-point")
+   continue
+  var item=CommandRegistry.entry(kind)
+  var form=String(item.get("form",""))
+  var source=String(item.get("source",""))
+  if form!="table" or source!=FROZEN_TABLE_SOURCES[kind]:
+   missing.append(kind+"="+form+"/"+source+" want=table/"+FROZEN_TABLE_SOURCES[kind])
+ var extra=[]
+ for kind in table_kinds():
+  if not FROZEN_TABLE_SOURCES.has(kind): extra.append(kind)
+ t.check(missing.is_empty(),"fact_source_map_is_pinned: every frozen kind keeps its pinned table source (missing or mismatched): "+str(missing))
+ t.check(extra.is_empty(),"fact_source_map_is_pinned: every table kind has a frozen source expectation (extra): "+str(extra))
+ t.check(CommandRegistry.takeover_source()==FROZEN_TAKEOVER_SOURCE,"fact_source_map_is_pinned: takeover source is pinned: have="+CommandRegistry.takeover_source()+" want="+FROZEN_TAKEOVER_SOURCE)
+ print("FACT SOURCE MAP PINNED kinds=%d takeover=%s" % [FROZEN_TABLE_SOURCES.size(),FROZEN_TAKEOVER_SOURCE])
 
 static func pipeline_lookup_inspect(t) -> void:
  var edges=pipeline_lookup_edges()
