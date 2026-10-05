@@ -188,9 +188,10 @@ func _request_fit() -> void:
 
 # Content 槽：同名标签保持在固定槽序上；缺件即新建。
 # 条件槽（警告／可用性）文本为空即销毁；常驻槽（`always`，分类／正文）保持挂载只切可见性。
-# 内容标签出 Content 后不得再插回：把已移除的标签重新挂进 ScrollContainer 的 `Content`，
-# 引擎会在随后的提交里于延迟阶段崩溃（配方与证据见 docs/record/verification.md 2026-10-05 条），
-# 故这个槽位不做池化复用；池（`_spare`）只保留给词条／条件／魔力这些不承载滚动的组。
+# 内容标签出 Content 后不得再插回：配方里把已移除的标签重新挂进 ScrollContainer 的 `Content` 必崩、
+# 停用该池化即消失（E1 表明该形态单独不足以复现；机理未确证——证据见 docs/record/verification.md 2026-10-05 条），
+# 故这个槽位不做池化复用。池（`_spare`）只保留给词条／条件／魔力三类组：它们的回插目标不是 `Content`，
+# 但这不证明安全——卡面会被放进 ScrollContainer 子树（图鉴／牌库／离狱），该复用仍属未证（待 E2）。
 func _content_slot(label_name: String, text: String, font_size: int, color: Color, always: bool=false) -> bool:
  var area=get_node_or_null("CardText")
  var content=area.get_node_or_null("Content") if area!=null else null
