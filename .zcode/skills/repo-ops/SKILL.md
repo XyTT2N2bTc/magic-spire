@@ -57,6 +57,7 @@ git worktree list
 & tools/check.ps1 -Import -Suite architecture -UI -UISuite home
 & tools/check.ps1 -Suite installation_priority -Impact -Exhaustive
 & tools/check.ps1 -Suite runner -VerifyRunner
+& tools/check.ps1 -Suite recipe -TimeoutSeconds 1800      # 长时程真实输入配方（预发布与交付前必跑）
 & tools/check.ps1 -Suite all -UI -UISuite all            # 完整回归
 & tools/check.ps1 -RerunFailed build/checks/<运行号>      # 只续跑失败与未完成分类
 ```
@@ -68,6 +69,7 @@ git worktree list
 - `-ListOnly` 只预览范围（输出 `PLAN ONLY:`），不算通过；`all` 只用于明确完整回归，检查通过后不无故重复运行。失败分类默认停止后续分类：`-KeepGoing` 只继续当前规则或 UI 阶段，脚本错误始终停止。
 - `-RerunFailed <目录或 summary.json>` 只重跑失败与未完成的分类，不能与 `-Suite`／`-UISuite`／`-UI`／`-UIOnly`／`-Impact`／`-Exhaustive` 同用；`status=passed` 的上轮结果会被拒绝。
 - `-VerifyRunner` 跑测试器自身的负例探针（未启用范围的拒绝、故意脚本错误、超时、失败停止与继续执行），不能与 `-ListOnly` 同用；`-Import` 在首次没有 `.godot/` 或新增素材导入时使用。
+- **长时程真实输入配方（`-Suite recipe`）**：固定配方种子 7／`--cap=60`／`--style=trade`，跑 `tests/recipe_driver.gd`，用真实点击与拖拽（窗口 1600×900，非 headless）走到 60 次提交。判读：收尾行 `RECIPE seed=7 commits=60 steps=60 stop=cap` 且 `exit=0`，`stop` 不是 `cap` 或退出码非 0 即整轮失败（产品崩溃时引擎退出码不被吞掉，留在 `check-recipe.log` 末行 `exit=`）。证据在 `build/checks/<运行号>/check-recipe.log`，头部为 `RUN IDENTITY`（`head`／`dirty`／关键文件 `sha256`），摘要见 `summary.json` 的 `recipe` 字段，`-RerunFailed` 会带上失败的 `recipe`。默认**不并入 `all`**（先观察稳定性），但**预发布与交付前必跑**；实测单轮约 51s（`-TimeoutSeconds 1800` 足够）。`-ListOnly` 只登记范围、不执行该阶段。
 - **判读**：退出码、每个分类的 `SUITE RESULT: <name> PASS|FAIL`、完成标记（`PASS: N assertions`／`UI PASS: N assertions`）与 `summary.json`（`status`／`before`／`after`／`rules.retry`）。检查期间源码或内容变化会打印 `SOURCE CHANGED:`、整轮记为 `source_changed` 并 exit 1，须重跑全部原选范围——`source_changed` 不得当作冻结版本通过。口径见 `.zcode/skills/spire-validation-release/SKILL.md`。
 - 日志与证据：每轮写入 `build/checks/<运行号>/`（`check-rules.log`、`check-ui.log`、`summary.json` 等），不入库；摘要登记到 `docs/record/verification.md`。
 - 内容包校验：`& tools/check-content.ps1`（改动 `spire-godot/content/packs/` 后必跑）；`-Path <目录>` 可指向别处，如 `-Path content/templates`。
