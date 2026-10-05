@@ -81,8 +81,9 @@
   `card_buttons`／`candidate_buttons`／`card_faces`／`card_draw_serials`／`_hand_cards` 只含当前手牌 uid。
 - 翻面两次（翻出再翻回）：按钮与八个直接子节点实例 id 不变；未变魔力条目的徽章节点与
   `get_theme_stylebox_override("panel")` 样式资源实例 id 不变；**实例集合的增删只允许来自条件内容标签
-  （`CardWarning`／`CardAvailability`）的跨空边界重建**：起点面没有该标签（或两面都有，标签存活）的往返
-  零增删（`tests/display_ui_cases.gd::present_hand_incremental` 的翻面夹具按此前提挑选并断言前提）；
+  （`CardWarning`／`CardAvailability`）的跨空边界重建**：起点面没有**一面独有的**条件内容标签
+  （两面都没有，或两面都有且存活）的往返零增删（`tests/display_ui_cases.gd::present_hand_incremental`
+  的翻面夹具按此前提挑选并断言前提）；
   起点面独有该标签的往返（如一面可用、另一面不可用）只许该标签销毁后新建，其余实例不变
   （同函数 P4 段的跨面夹具钉住这条）。每个 (card, side) 切片构造 ≤ 1 次。
 - 只看值字段变化时：`_hand_place_row`（本片新增的重排入口）未被调用（几何键未变）；`fit_text`／头栏布局只在相关字段变时才跑。
