@@ -27,7 +27,7 @@
 - 判据（结果面）＝`tests/architecture_cases.gd::copy_single_entry_matches_projection` 与
   `tests/card_text_cases.gd::copy_fixed_set_matches_full_entry`：下面三条路径的返回逐字段相等。
 
-### 三个只读入口
+### 只读入口
 
 | 接口 | 输入 | 返回 | 谁能调 |
 | --- | --- | --- | --- |
@@ -64,9 +64,7 @@
 - 路由侧（`core/copy_router.gd`，全 static）：
   - `text(g, copy) -> String`：`copy` 是 String → 原样返回；是 descriptor → 按 `kind` 分派到注册的 builder；
   - `categories() -> Array[String]`：可枚举的类别清单（测试与接手方据此核对覆盖）；
-  - builder 由模块自带并在路由注册（**不要求把中文搬到路由文件**）：已存在的 8 个 detail 构建函数
-    （`Cards.detail`／`Services.detail`／`SelfBinding.detail`／`Hannya.detail`／`Splash.detail`／
-    `BasicAttacks.cost_description`／`relic_effects.posture_detail`／`card_splash.detail`）原地保留；
+  - builder 由模块自带并在路由注册（**不要求把中文搬到路由文件**）；
   - 共享片段只放实测确认的横切流程，当前只有 `two_face(type)`（两面拼接）。
 - 消费者侧：UI 不直连路由、不 preload `core/copy_router.gd`；只经上面的 `Game` 只读入口，再由显示侧 helper 取用。
 
@@ -154,13 +152,8 @@ S 按下列显示入口**逐条取源再取并集**；只允许用本次 View �
   (point,key,view_version) 至多一条；**清空时机是「`ui.view` 被替换」**，不是「version 数字变化」；
   `view_version` 只是诊断标签，不得当缓存键或失效键，也不得据它判定渲染内容的新旧；
   不渲染、不进日志／存档／快照、不做成计数器。允许的「没省到」：打出的幽灵卡（该 type 投影时不保证在 S 内）。
-- 收口阶段（结构调整、行为不变）的交接约束：**不重命名、不重排、不做风格统一**；
-  原入口作为薄别名保留（走直传通道，行为与今天一致）；迁移必须可中断——任意批次做完后代码都要能跑、能测；
-  不顺手改文案措辞、不改判定、不合并「看起来重复但行为不同」的入口
-  （牌堆浏览的三重合并去掉会改筛选排序行为，不得动）。
 - 算未完成（任一）：出现未附可证失效规则的复用（含 UI 侧第二份文案副本、惰性对象）、
   给 `get_view` 加显示需求参数；显示点绕过 helper 直读投影字段；缺失时静默空白或静默回落目录基础文本；
-  收口阶段的重命名／重排／风格统一／措辞改动；新增生产源码文件（`core/copy_router.gd` 除外）或第三方依赖；
   改判定／随机／存档／快照／候选资格／候选 ID／可见文案；实现 `escape_preview` 按需化或改 UI 响应路径与节键；
   以耗时数字或「应该更快」作完成判据；把既有断言删掉或弱化换取绿灯。
 
@@ -223,20 +216,3 @@ S 按下列显示入口**逐条取源再取并集**；只允许用本次 View �
   奖励三选一／休息选牌／事件卡选项／出发选牌、商店买卡（S 的已知回归点）、图鉴不产生 `projection_misses`、
   人为缺键不报错不空白。
 - 证据：`build/checks/<id>/check-rules.log`、`check-ui.log`、`summary.json`；入库的只有验证摘要。
-
-## 分批（每批一个 oracle 判据，可独立完工）
-
-执行顺序 **B0 前置 → 收口批 R0…R6 → 按需批 B1…B3**；每批单独跑该批套件与该批 UI 套件，
-不得把前一阶段或前一批的绿色拼进下一批的结论。
-
-| 批 | 改动 | 该批判据 |
-| --- | --- | --- |
-| B0 前置 | 生成函数 + 单条入口 + helper／记录上线；只改三处「缺键即崩」的取用点（硬索引、预求值的 `get(detail)`、把 metadata 合并当第二份卡面文案用）；S 与候选 detail 不收窄 | B0 判据（全等 + 缺键不崩） |
-| B1 固有集合 | S 收窄 + `card_instances` 收窄 | 判据①（卡面部分）+ 判据③ |
-| B2 全量入口 | `live_card_text_set` + `deck_list` 移出 + 三个消费方迁移 | 判据③（全量入口部分） |
-| B3 detail 按需 | card 组 detail 按需 + `candidate_detail` + `detail_of` 铺到全部取用点 | 判据①（候选部分）+ 判据③ |
-| R0 路由骨架 | 路由模块 + `core/game.gd::_fact` 的 `copy` 参数接受 descriptor；不迁任何生产者 | 全 View 与改前逐字段全等 |
-| R1–R6 收口 | 依次：小模块 pilot → 两面拼接片段 → 转发包装（一次一个）→ 其余模块 → `core/game.gd` 直呼（最后做，与其它片重碰）→ View 外直产 | `copy_route_bytes_unchanged` + 未迁移模块行为不变 + 该批模块套件 |
-
-红了先归因再改代码：先看差异是文本内容、候选数量／顺序、缺 detail，还是 `copy_router_failures` 出现未知 kind
-（后者是批次漏注册类别，不是产品缺陷）。

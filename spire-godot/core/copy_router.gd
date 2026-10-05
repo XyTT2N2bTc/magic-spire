@@ -19,7 +19,7 @@ const RoomEvents=preload("res://core/room_events.gd")
 const RelicBundle=preload("res://core/relic_bundle.gd")
 const Consumables=preload("res://core/consumables.gd")
 const WitchCharacter=preload("res://core/witch_character.gd")
-# game.gd 反向引用本模块（_candidate 走路由），循环 preload 只在函数体内使用，引擎允许。
+# game.gd 反向引用本模块（_fact_core 经 CopyRouter.text 路由 copy），循环 preload 只在函数体内使用，引擎允许。
 const Game=preload("res://core/game.gd")
 const WitchExpansion=preload("res://core/witch_expansion.gd")
 
