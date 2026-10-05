@@ -2339,3 +2339,14 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - 处置证据要点：`view.card_texts`／`view.card_instances` 的 UI 直读点实测仅 `ui/main.gd::card_entry`／`::_card`／`::_hand_presentation_key`；候选 `detail` 直读点仅 `ui/event_screen.gd`（event 组）与 `ui/main.gd::_drawer_presentation_key`（item 组节键），card 组只经 `ui/main.gd::detail_of`；`_candidate(out,…)`／`target_candidate`／`paid_candidate`／`ActionIndex`／`old_action`／`copy_display_points_have_no_misses`／`copy_full_entry_equals_baseline`／`copy_ghost_fallback_recorded` 在当前代码中均不存在（分别由 `core/game.gd::_fact`／`core/room_services.gd::paid_fact`／`ui/target_queries.gd::first_usable`／`copy_single_entry_matches_projection`／`copy_missing_key_never_crashes` 取代）。
 - 待你过目（不自行选边）：`ondemand-copy.md` 的「分批（B0→R0…R6→B1…B3）」段与「收口阶段交接约束／算未完成」——代码仍有直传字符串生产者（如 `core/card_effects.gd` 的 chain 事实），无法从代码判定收口批是否结束；B3 逐条清单在计划区 `C:\1\tmp\agb3-list.md`（未入库、未改 `AGENTS.md`）。
 - 未跑项：未跑 `-Suite all` 与 UI 回归、未跑 `tools/check-content.ps1`（未改 `content/packs/`）、未跑打包与安卓真机、未推送、未 tag、未改版本。
+
+## 2026-10-05 推翻重写 AGENTS.md 与 ondemand-copy 收尾删改（B3'）
+
+- 域：根 `AGENTS.md`（整份重写，212 → 101 行：红线／本仓特有约束／Godot 技术栈与 GDScript 代码规范正文／实现规约（审查）／检查力度与报告四态／最小索引；节点名 `禁区`／`实现规约`／`代码规范`／`文档入口` 保留，使既有文档指针仍可解析；删与全局 AGENTS 重复句、历史叙述、「引用代码不写行号」、可在检查里表达的判据复述）、`docs/spec/ondemand-copy.md`（删「分批」段与收口交接约束及「算未完成」内同源两小句；「三个只读入口」改「只读入口」；删与当前路由不符的 8 个 detail 构建函数点名）、`spire-godot/core/copy_router.gd`（头部注释 `_candidate` → `_fact_core`，未改代码语义）。本地提交 `6880a6b`，未推送、未 tag、未改版本。
+- 人裁：不做逐条修剪、推翻重写；文档以当前架构为基线；全局文档＝引用并信任（不复制其正文）；`AGENTS.md` 必须写入 Godot 代码规范正文（不引 TS 栈 500／800 行数阈值，按职责拆不按行数硬拆）。B2b 上一条「待你过目」的分批段与收口交接约束本次裁定删除，删除对象仅限该两段及其同源复述，契约其余语义条目未动。
+- 命令与结果（`GODOT_BIN` 显式指向 `Godot_v4.7.2-stable_win64_console.exe`；起前 `Get-Process Godot*` 为空、跑后仍为空，串行单引擎）：
+  - `tools/check.ps1 -Suite architecture -TimeoutSeconds 2400`，运行 `20261005T131757062-37960`：`DOCS RESULT: PASS`、`RULE SCOPE: architecture`、`SUITE RESULT: architecture PASS`、`PASS: 4496 assertions`、`CHECK rules: 28.19s`、exit=0、`status=passed`、before==after==`66B6C5B55AD225BE8A38CE2E0352EDF7972D433ABCDE7C0A6205D10EA0B5DC91`、无 `SOURCE CHANGED`、无 cert-store 行；`summary.json` 的 `docs.status=passed`（35 文件、1444 引用、0 problem、allowlist 3）、`rules.complete=true`、`ui.selected=[]`。
+  - 独立 `tools/check-docs.ps1`：`DOCS PASS: 35 rule-class document(s), 1444 reference(s) checked, allowlist 3 entrie(s)`、exit=0；三条 declared-missing 仍无人引用（DOC NOTE），清单未增未删。
+- 新版 `AGENTS.md` 索引自查：文档入口表 18 行与 5 个项目 skill 的点名路径逐条实测存在（`docs/design/*` 8 份、`docs/spec/*` 6 份、`docs/guide/*` 2 份、`docs/record/verification.md`／`changelog.md`、`spire-godot/assets/art/ART-NOTES.md`／`spire-godot/assets/vendor/CREDITS.md`、`.zcode/skills/*/SKILL.md`）；引用由本轮文档门禁全量复验（1444 条、0 problem）。
+- 跑后 `git status --short` 干净：本轮 `.godot` 已存在，未触发 import 阶段，无 `.import` 行尾改写需还原。
+- 未跑项：未跑 `-Suite all` 与 UI 回归（未改行为面，仅注释改动一处）、未跑 `tools/check-content.ps1`（未改 `content/packs/`）、未跑打包与安卓真机、未推送、未 tag、未改版本。
