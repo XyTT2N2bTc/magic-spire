@@ -33,9 +33,6 @@ $declaredMissing = [ordered]@{
     'core/candidate_deps.gd'             = 'docs/spec/candidate-delta.md declares this slice not landed (header, 2026-09-18); removal condition: that slice lands.'
     'ui/candidate_delta.gd'              = 'same not-landed slice as core/candidate_deps.gd; removal condition: that slice lands.'
     'tools/candidate-deps.ps1'           = 'same not-landed slice as core/candidate_deps.gd; removal condition: that slice lands.'
-    'tools/check-index.ps1'              = 'belongs to the unlanded check-routing slice (docs/record/proposals/check-routing-and-per-click-checks.md); removal condition: that slice lands.'
-    'tests/check_index.json'             = 'unlanded check-routing slice freeze file; removal condition: that slice lands.'
-    'tests/check_index*.gd'              = 'unlanded check-routing slice test files; removal condition: that slice lands.'
 }
 
 $repositoryPrefixes = @('spire-godot', 'docs', '.zcode', 'release', 'outputs')

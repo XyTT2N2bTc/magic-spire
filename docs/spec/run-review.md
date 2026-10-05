@@ -3,7 +3,7 @@
 契约文件：回顾面板的入口可见性、三块取源、只读保证、只读地图口径、布局、失败语义与验证判据。
 内部实现以代码为准，接口语义以本文件为准；函数名与稳定 ID 是锚点，本文件不写行号。
 本文件不写执行结果：通过／失败／未执行与红集登记 `docs/record/verification.md`。
-依赖约束（允许改动文件表）见 `docs/spec/run-review-dependencies.md`。
+依赖约束索引（判据＝检查符号）见 `docs/spec/run-review-dependencies.md`。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、
 `tools/`、`build/`）均相对 `spire-godot/`；`docs/` 相对仓库根。

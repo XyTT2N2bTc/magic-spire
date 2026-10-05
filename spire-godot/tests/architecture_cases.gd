@@ -612,6 +612,10 @@ static func run(t) -> void:
  card_facts_declared_slots(t)
  card_facts_consumes_has_targets_at(t)
  card_facts_keyword_min_query(t)
+ slice_dependency_directions(t)
+ run_identity_single_writer(t)
+ feedback_save_single_serializer(t)
+ card_terms_single_source(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -2683,3 +2687,89 @@ static func copy_candidate(g, kind: String, op: String) -> Dictionary:
   if op!="" and candidate.payload.get("action",candidate.payload.get("op",""))!=op: continue
   return candidate
  return {}
+
+# docs/spec/*-dependencies.md（已落地三片：种子标识／反馈存档、本局回顾、卡面词条）。
+# 依赖表散文退化为索引后，可机检的判据落在这里：跨层方向、唯一复制实现、唯一条存档序列化、
+# 词条单一来源。改写这三片的散文前先读本节的断言消息，它们就是"必须保持"的真源。
+static func source_text(relative: String) -> String:
+ var handle=FileAccess.open("res://"+relative,FileAccess.READ)
+ return "" if handle==null else handle.get_as_text()
+
+# 指向 ui 模块的引用：`res://ui/…` 或 `…ui/<name>.gd`。资源路径（`assets/ui/…`）与文档路径不算跨层引用。
+static func names_ui_module(text: String) -> bool:
+ var regex=RegEx.new()
+ if regex.compile("(res://ui/|(?<![A-Za-z0-9_/])ui/[A-Za-z0-9_]+\\.gd)")!=OK: return true
+ return regex.search(text)!=null
+
+# 写点扫描（函数归属跟踪同 verdict_write_scan）：roots 下的 .gd 文本里匹配 pattern 的行。
+static func source_write_sites(roots: Array, pattern: String) -> Array:
+ var regex=RegEx.new()
+ if regex.compile(pattern)!=OK: return []
+ var declaration=RegEx.new()
+ declaration.compile("^\\s*(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)")
+ var hits=[]
+ for root in roots:
+  for path in script_files(root):
+   var lines=source_text(path.trim_prefix("res://")).split("\n")
+   var current="<file>"
+   for index in range(lines.size()):
+    var code=String(lines[index]).split("#")[0]
+    var declared=declaration.search(code)
+    if declared!=null: current=declared.get_string(1)
+    if regex.search(code)==null: continue
+    hits.append({"file":path.trim_prefix("res://"),"function":current,"line":index+1,"text":code.strip_edges()})
+ return hits
+
+static func write_site_names(hits: Array) -> Array:
+ var names=[]
+ for hit in hits:
+  var name=String(hit.file)+"::"+String(hit.function)
+  if name not in names: names.append(name)
+ names.sort()
+ return names
+
+static func declaration_text(hits: Array, token: String) -> Array:
+ return hits.filter(func(hit):return not String(hit.text).contains(token))
+
+static func slice_dependency_directions(t) -> void:
+ var inherited=[]
+ for root in ["res://core","res://data"]:
+  for path in script_files(root):
+   if names_ui_module(source_text(path.trim_prefix("res://"))): inherited.append(path.trim_prefix("res://"))
+ t.check(inherited.is_empty(),"DEP slice_dependency_directions: core/data never reference the ui module: "+str(inherited))
+ var core_preloaders=[]
+ for path in script_files("res://ui"):
+  if source_text(path.trim_prefix("res://")).contains("preload(\"res://core"): core_preloaders.append(path.trim_prefix("res://"))
+ t.check(core_preloaders==["ui/main.gd"],"DEP slice_dependency_directions: ui/main.gd is the only ui file that preloads core: "+str(core_preloaders))
+
+static func run_identity_single_writer(t) -> void:
+ var clipboard=write_site_names(source_write_sites(["res://core","res://data","res://ui"],"DisplayServer\\.clipboard_set\\s*\\("))
+ t.check(clipboard==["ui/main.gd::copy_seed"],"DEP run_identity_single_writer: the only clipboard write is ui/main.gd::copy_seed: "+str(clipboard))
+ var deadline=write_site_names(declaration_text(source_write_sites(["res://ui"],"seed_copied_until\\s*=[^=]"),"var seed_copied_until"))
+ t.check(deadline==["ui/main.gd::_refresh_seed_chip","ui/main.gd::copy_seed"],"DEP run_identity_single_writer: the 1.2s window is owned by copy_seed/_refresh_seed_chip only: "+str(deadline))
+ var views=write_site_names(source_write_sites(["res://ui"],"(seed_chip|run_review_copy)\\.text\\s*="))
+ t.check(views==["ui/main.gd::_refresh_seed_chip"],"DEP run_identity_single_writer: both run-identity views are rewritten only by _refresh_seed_chip: "+str(views))
+
+static func feedback_save_single_serializer(t) -> void:
+ var serializers=write_site_names(source_write_sites(["res://ui"],"fixed_point_text\\s*\\("))
+ t.check(serializers==["ui/feedback_report.gd::_capture_save"],"DEP feedback_save_single_serializer: the attachment is read only through SaveStore.fixed_point_text in ui/feedback_report.gd::_capture_save: "+str(serializers))
+ var carriers=[]
+ for path in script_files("res://ui"):
+  if source_text(path.trim_prefix("res://")).contains("save_attachment"): carriers.append(path.trim_prefix("res://"))
+ t.check(carriers==["ui/feedback_report.gd"],"DEP feedback_save_single_serializer: ui/feedback_report.gd is the only ui file that carries the attachment: "+str(carriers))
+
+static func card_terms_single_source(t) -> void:
+ var readers=[]
+ var term_pattern=RegEx.new()
+ term_pattern.compile("(?<![A-Za-z0-9_])TERMS(?![A-Za-z0-9_])")
+ for root in ["res://core","res://ui"]:
+  for path in script_files(root):
+   if term_pattern.search(source_text(path.trim_prefix("res://")))!=null: readers.append(path.trim_prefix("res://"))
+ t.check(readers.is_empty(),"DEP card_terms_single_source: the term table is never read from core/ui: "+str(readers))
+ var definition=RegEx.new()
+ definition.compile("(?m)^\\s*(?:static\\s+)?func\\s+keywords\\s*\\(")
+ var defined=[]
+ for root in ["res://core","res://data","res://ui"]:
+  for path in script_files(root):
+   if definition.search(source_text(path.trim_prefix("res://")))!=null: defined.append(path.trim_prefix("res://"))
+ t.check(defined==["data/card_text.gd"],"DEP card_terms_single_source: exactly one keywords() implementation exists, in data/card_text.gd: "+str(defined))

@@ -168,12 +168,12 @@
 | 状态迁移管线（单写入者） | docs/spec/transition-pipeline.md |
 | 固定点存档 | docs/spec/save-fixed-points.md |
 | 本局种子标识与查看复制 | docs/spec/seed-identity.md |
-| 本片依赖约束（cleaner 核对） | docs/spec/seed-feedback-dependencies.md |
+| 种子标识与反馈存档依赖约束（判据索引） | docs/spec/seed-feedback-dependencies.md |
 | 手牌卡增量刷新（cleaner 核对） | docs/spec/hand-refresh-dependencies.md |
 | 本局回顾（战报面板） | docs/spec/run-review.md |
-| 本局回顾依赖约束（cleaner 核对） | docs/spec/run-review-dependencies.md |
+| 本局回顾依赖约束（判据索引） | docs/spec/run-review-dependencies.md |
 | 卡面词条悬停显示 | docs/spec/card-terms.md |
-| 卡面词条依赖约束（cleaner 核对） | docs/spec/card-terms-dependencies.md |
+| 卡面词条依赖约束（判据索引） | docs/spec/card-terms-dependencies.md |
 | 指令判定与候选移除 | docs/spec/candidate-removal.md、docs/spec/candidate-removal-dependencies.md |
 | 装备只读查询 | docs/spec/equipment-query-seam.md |
 | 玩家可见文案的收口与按需 | docs/spec/ondemand-copy.md |
