@@ -2350,3 +2350,10 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - 新版 `AGENTS.md` 索引自查：文档入口表 18 行与 5 个项目 skill 的点名路径逐条实测存在（`docs/design/*` 8 份、`docs/spec/*` 6 份、`docs/guide/*` 2 份、`docs/record/verification.md`／`changelog.md`、`spire-godot/assets/art/ART-NOTES.md`／`spire-godot/assets/vendor/CREDITS.md`、`.zcode/skills/*/SKILL.md`）；引用由本轮文档门禁全量复验（1444 条、0 problem）。
 - 跑后 `git status --short` 干净：本轮 `.godot` 已存在，未触发 import 阶段，无 `.import` 行尾改写需还原。
 - 未跑项：未跑 `-Suite all` 与 UI 回归（未改行为面，仅注释改动一处）、未跑 `tools/check-content.ps1`（未改 `content/packs/`）、未跑打包与安卓真机、未推送、未 tag、未改版本。
+
+## 2026-10-05 B3' 前言措辞收尾与终态复跑
+
+- 域：根 `AGENTS.md`（前言改用「全局 AGENTS 的红线照旧生效」原句，1 行；语义与节结构不变）。本地提交 `20a49a2`。
+- 命令与结果（`GODOT_BIN` 显式指向 `Godot_v4.7.2-stable_win64_console.exe`；起前 `Get-Process Godot*` 为空、跑后仍为空，串行单引擎）：`tools/check.ps1 -Suite architecture -TimeoutSeconds 2400`，运行 `20261005T132034618-27544`：`DOCS RESULT: PASS`、`SUITE RESULT: architecture PASS`、`PASS: 4496 assertions`、`CHECK rules: 40.79s`、exit=0、`status=passed`、before==after==`EC87A84A8DBF9BFC4AF1A554CB40CE6ED2ACADFAEE78348A476C59CFCBF49293`、无 `SOURCE CHANGED`、无 cert-store 行；独立 `tools/check-docs.ps1`：`DOCS PASS: 35 rule-class document(s), 1444 reference(s) checked, allowlist 3 entrie(s)`、exit=0。跑后 `git status --short` 干净，无 `.import` 行尾改写。
+- 上一轮 `20261005T131757062-37960`（提交 `6880a6b`）因本句措辞改动被取代，不作终态证据。
+- 未跑项：未跑 `-Suite all` 与 UI 回归、未跑 `tools/check-content.ps1`（未改 `content/packs/`）、未跑打包与安卓真机、未推送、未 tag、未改版本。
