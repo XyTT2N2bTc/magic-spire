@@ -56,7 +56,9 @@
 `tests/display_ui_cases.gd::r4_display_points_do_not_read_rows`／
 `tests/display_ui_cases.gd::r5_display_facts_match_determination`。
 
-**事实行只读**（不变量）：判定行（`chosen`＝`core/game.gd::dispatch` 经 `core/game.gd::command_fact` 取回、随成功结果 `fact` 键回传 UI 的 display fact）与其 `payload` **自产出起只读**——UI 与执行共享同一对象、不引入拷贝；执行段只写 `state`，将来「执行时要记结算结果」的正确落点也是 `state`。判据＝`tests/architecture_cases.gd::dispatch_fact_row_is_readonly`（`dispatch` 体内无判定行写点）、`tests/architecture_cases.gd::payload_write_sites_are_pinned`（全仓 `payload` 写点＝仅生产者侧构造白名单）；判据射程与残余逃逸面见 `docs/spec/fact-lookup-dependencies.md`。
+**事实行只读**（不变量）：判定行（`chosen`＝`core/game.gd::dispatch` 经 `core/game.gd::command_fact` 取回、随成功结果 `fact` 键回传 UI 的 display fact）与其 `payload` **自产出起只读**——UI 与执行共享同一对象、不引入拷贝；执行段只写 `state`，将来「执行时要记结算结果」的正确落点也是 `state`。判据＝`tests/architecture_cases.gd::dispatch_fact_row_is_readonly`、`tests/architecture_cases.gd::payload_write_sites_are_pinned`。
+
+**判据的射程（不是「共享行只读」的证明）**：两条判据都是源码文本的写点计数钉，抓文本形态的写点，不是不变量的证明。①`tests/architecture_cases.gd::dispatch_fact_row_is_readonly`＝`core/game.gd::dispatch` 体内对局部 `chosen` 的成员／索引赋值（`chosen.<字段> …=`／`chosen["…"] …=`／`chosen.payload…=`；比较与传参不算）；②`tests/architecture_cases.gd::payload_write_sites_are_pinned`＝`core/`＋`data/` 全部 `.gd` 内、接收者**末段**恰为 `payload` 的写点（成员赋值 `.field=` 含 `+=` 等复合、索引赋值 `[…]=`、改字典内容的 `payload.merge(`／`erase(`／`clear(`），按写点**出现次数**恰等于字面白名单 `tests/architecture_cases.gd::PAYLOAD_WRITE_WHITELIST`（生产者侧构造：`core/card_effects.gd::card_point_fact` 两处、`core/prison.gd::add` 一处）。四条已知逃逸面与补偿（白名单计数变化即红＋审查）逐条登记在 `docs/spec/fact-lookup-dependencies.md` 禁止项。
 
 ## 输入域
 

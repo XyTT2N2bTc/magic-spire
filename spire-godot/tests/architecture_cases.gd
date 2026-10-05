@@ -3241,7 +3241,7 @@ static func submit_key_face_rebaseline_self_proof(t) -> void:
  t.check(before==S5_SUBMIT_KEYS_BEFORE_DIGEST,"S5 submit_key_face_rebaseline_self_proof: the pre-fact key face hashes to the pre-S5 frozen value have="+before+" want="+S5_SUBMIT_KEYS_BEFORE_DIGEST)
  t.check(after==S5_SUBMIT_KEYS_AFTER_DIGEST,"S5 submit_key_face_rebaseline_self_proof: the post-fact key face hashes to the rebaselined value have="+after+" want="+S5_SUBMIT_KEYS_AFTER_DIGEST)
 
-# ==== C1（切片收尾批，R6 C1／S5 审查 [存疑] 的硬化）：判定行只读与 payload 写点白名单 ====
+# ==== C1（切片收尾批，R6 C1／S5 审查 [存疑] 的硬化；R14 修正批放宽写形态）：判定行只读与 payload 写点白名单 ====
 # docs/spec/candidate-removal.md §2.1「事实行只读」：判定行与其 payload 自产出起只读；UI 与执行共享
 # 同一对象（不拷贝），故 dispatch 的执行段只写 state（经既有 action_copy／logs／feedback 机制），不得写
 # 判定行或其 payload；将来「执行时要记结算结果」的落点是 state，不是事实行。
@@ -3250,13 +3250,19 @@ static func submit_key_face_rebaseline_self_proof(t) -> void:
 # 这类传参不算。源码文本去注释沿用既有的 `#` 截断。
 const FACT_ROW_WRITE_PATTERN="\\bchosen(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[^\\]]*\\])+\\s*[-+*/%&|^]?=(?!=)"
 
-# 全仓 payload 写点白名单（C1 第二半；口径见 docs/spec/fact-lookup-dependencies.md 禁止项）：接收者名里含
-# `payload` 的写只允许**生产者侧构造**——当前唯一 `core/prison.gd::add`（写它自己刚造的本地载荷）。
-# 集合断言＝多一处或少一处都红（同一函数内多写一处同样计入）；把 chosen.payload 传给 helper、由 helper
-# 去写是源码文本判据扫不到的残余逃逸面，补偿＝本白名单计数变化即红＋审查。
-const PAYLOAD_WRITE_CALLS=["payload.merge(","payload.erase(","payload.clear("]
-const PAYLOAD_INDEX_WRITE_PATTERN="payload\\s*\\[[^\\]]+\\]\\s*[-+*/%&|^]?=(?!=)"
-const PAYLOAD_WRITE_WHITELIST=["res://core/prison.gd::add"]
+# 全仓 payload 写点扫描（C1 第二半；口径与逃逸面见 docs/spec/fact-lookup-dependencies.md 禁止项）：
+# 写形态＝「接收者**末段**恰为 `payload`」的成员赋值 `.field=`（含 `+=` 等复合赋值）与索引赋值 `[…]=`，
+# 外加改字典内容的 `payload.merge(`／`payload.erase(`／`payload.clear(`。段边界用 `\b`（前一字符不是
+# [A-Za-z0-9_]）：`chosen.payload.probe=`／`chosen.payload["x"]=` 计入（末段是 payload）；
+# `attack_payload.x=`／`target_payload[0]=` 不计（末段是 attack_payload／target_payload，不是本判据语域的载荷）。
+const PAYLOAD_WRITE_PATTERN="\\bpayload(?:\\s*(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[^\\]]*\\]))+\\s*[-+*/%&|^]?=(?!=)"
+const PAYLOAD_MUTATOR_CALL_PATTERN="\\bpayload\\s*\\.\\s*(?:merge|erase|clear)\\s*\\("
+
+# 白名单按写点**出现次数**逐条登记（R14：同一函数内的第二处写——即使在同一行——也会多出一条并使集合断言红）；
+# 集合断言＝多一处或少一处都红。这不是「共享行只读」的证明，只是 core/＋data/ 全部 .gd 内的写点计数钉；
+# 已知逃逸面（dispatch 外的 `chosen` 成员形写、ui/ 侧写入、局部别名、把 payload 传给 helper 由 helper 写）
+# 逐条登记在 docs/spec/fact-lookup-dependencies.md 禁止项。
+const PAYLOAD_WRITE_WHITELIST=["res://core/card_effects.gd::card_point_fact","res://core/card_effects.gd::card_point_fact","res://core/prison.gd::add"]
 
 static func dispatch_fact_row_is_readonly(t) -> void:
  var body=source_func_body_code("res://core/game.gd","dispatch")
@@ -3269,8 +3275,10 @@ static func dispatch_fact_row_is_readonly(t) -> void:
  t.check(hits.is_empty(),"ARCH dispatch_fact_row_is_readonly (core/game.gd::dispatch): the judgement row and its payload are only read after command_fact produces them (UI and execution share the same object, so a write here would leak into the UI); writes="+str(hits))
 
 static func payload_write_sites() -> Dictionary:
- var index_write=RegEx.new()
- index_write.compile(PAYLOAD_INDEX_WRITE_PATTERN)
+ var write=RegEx.new()
+ write.compile(PAYLOAD_WRITE_PATTERN)
+ var mutator=RegEx.new()
+ mutator.compile(PAYLOAD_MUTATOR_CALL_PATTERN)
  var declaration=RegEx.new()
  declaration.compile("^\\s*(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
  var sites=[]
@@ -3284,13 +3292,9 @@ static func payload_write_sites() -> Dictionary:
    var code=String(line).split("#")[0]
    var decl=declaration.search(code)
    if decl!=null: current=decl.get_string(1)
-   var found=index_write.search(code)!=null
-   if not found:
-    for needle in PAYLOAD_WRITE_CALLS:
-     if code.find(needle)>=0:
-      found=true
-      break
-   if found: sites.append(file+"::"+current)
+   # 逐次登记：同一行两处写算两条（集合断言因此对「同一函数内再加一处」敏感，含同一行）。
+   var count=write.search_all(code).size()+mutator.search_all(code).size()
+   for _occurrence in count: sites.append(file+"::"+current)
  sites.sort()
  return {"files":files,"sites":sites}
 
@@ -3300,7 +3304,7 @@ static func payload_write_sites_are_pinned(t) -> void:
  want.sort()
  print("PAYLOAD WRITE SCAN files=%d sites=%d %s" % [scan.files,scan.sites.size(),str(scan.sites)])
  t.check(scan.files>0,"ARCH payload_write_sites_are_pinned (core/ + data/): the source scan reached the script roots files="+str(scan.files))
- t.check(scan.sites==want,"ARCH payload_write_sites_are_pinned (core/ + data/): payload writes are exactly the declared producer-side construction whitelist (a new site, a second write in a whitelisted function or a removed site turns this red); have="+str(scan.sites)+" want="+str(want))
+ t.check(scan.sites==want,"ARCH payload_write_sites_are_pinned (core/ + data/): every payload write occurrence (receiver segment exactly `payload`: member/index assignment or mutating call) is the declared producer-side construction whitelist (a new write, a second write inside a whitelisted function or a removed write turns this red); have="+str(scan.sites)+" want="+str(want))
 
 # Pre-cut card_facts slot walk: union B.SLOTS then skip undeclared occupied before target_payload.
 static func card_facts_union_slot_oracle(g, card: Dictionary) -> Array:
