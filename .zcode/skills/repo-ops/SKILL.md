@@ -84,3 +84,61 @@ git worktree list
 - 计时脚本、基准数据、验收补充脚本等一次性产物放已忽略的 `spire-godot/build/`，
   不入库、不进运行时（见根 `AGENTS.md`「禁区」）。摘要登记后保留本批复核需要的原始证据；
   清理时确认不再被当前验收引用，避免记录刚写完就失去证据。
+
+## 多 harness 协作（操作卡）
+
+本节只写操作事实；带 † 的条目为 2026-10-05 多 harness 实测、本轮实现未复跑（待核实）。
+
+### 引擎与门禁
+
+- 引擎显式指定 `C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe`。
+  `GODOT_BIN` 可能已被改坏（当前 User 级指向不存在的
+  `C:\1\Tools\Godot\v4.7-stable\Godot_v4.7-stable_win64.exe`）；每次在同一 shell 显式覆盖，
+  不要信 `tools/find-godot.ps1` 的回退（本机无 `godot`／`godot4` 命令、`Downloads` 无候选时会直接抛错）：
+
+  ```powershell
+  $env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
+  Test-Path $env:GODOT_BIN
+  ```
+- 同一时间只跑一个引擎进程；跑前跑后各查一次：
+  ```powershell
+  Get-Process Godot* -ErrorAction SilentlyContinue
+  ```
+- 新工作树首次运行前先导入；导入会把工作树内 `.import` 按本机行尾整批改写（实测 516 个文件），
+  跑完 `git checkout -- .` 还原，再 `git status --short` 确认干净：
+
+  ```powershell
+  & $env:GODOT_BIN --headless --path <工作树>/spire-godot --import
+  ```
+- 门禁判读（全部满足才算通过）：退出码 0；每分类 `SUITE RESULT: <name> PASS`；`summary.json` 的
+  `status=passed` 且 `before==after`；日志无 `SOURCE CHANGED`；日志无
+  `Failed to read the root certificate store`（该行＝沙箱假红，换非沙箱宿主重跑）。
+- 指纹面：`docs/spec`、`docs/design`、`docs/guide`、`.zcode/skills`、`AGENTS.md` 属 rule-class、
+  在源码指纹内 ⇒ 先改完再跑门禁；`docs/record/**` 不在指纹内。范围唯一声明为 `tools/doc-scan-scope.ps1`。
+
+### harness 清单
+
+- **ZCode 子代理**（Agent 工具）：只在同一会话内；`run_in_background`；派工载荷需自含
+  （域／接口契约路径／授权范围／证据要求）。
+- **opencode CLI**（`opencode run`，1.18.29）：模型 `opencode/muse-spark-1.3-contributor-free`
+  （`--variant xhigh`）与 `opencode/space-bunny-free`（`--variant max`）；`--dir` 指向固定提交的
+  detached 工作树；`--auto`；每个审查者独立 XDG 目录（`XDG_DATA_HOME`／`XDG_CACHE_HOME`／
+  `XDG_CONFIG_HOME` 各指到各自的 `C:\1\tmp\oc-*`）；载荷写明只读：不改任何文件、不提交、不跑引擎。
+- **codex CLI**：`~/.local/bin/codex.exe` 是 0.153.1、落后——`gpt-6.1-sol` 被 ChatGPT 账号拒绝
+  （原文 `not supported when using Codex with a ChatGPT account`）。可用核＝desktop 包内的 0.160.0：
+  `C:\Program Files\WindowsApps\OpenAI.Codex_26.930.3930.0_x64__2p2nqsd0c76g0\app\resources\codex.exe`，
+  同 `~/.codex/config.toml`、同账号可正常跑 `-m gpt-6.1-sol`†。
+- **codex 沙箱限制**†：`--sandbox workspace-write` 下 ①跑 `tools/check.ps1` 会报
+  `Failed to read the root certificate store.` 并 `status=failed`（假红）；②`git add`／`git commit`
+  会因主仓 `.git` 不在可写面而失败。需要它跑门禁或提交时用 `--sandbox danger-full-access`，
+  否则只让它做只读分析。
+
+### 审查协议
+
+- 审查者固定在 detached 工作树（`C:\1\tmp\magic-spire-wt-*-review-*`）、只读、不跑引擎、不读他人报告；
+  FAIL 为准；同一对象多路独立（muse＋bunny，必要时加 codex）；收口后做窄口径确认（只查被提的项）；
+  每路给出 `[已核对通过]`／`[应修]`／`[存疑]` ＋域＋证据＋`VERDICT` 行。
+- 证据带内：临时 runner 的日志头写 `RUN IDENTITY`（`head=<git rev-parse HEAD>`、
+  `dirty=<porcelain 条目数>`、所载关键文件 `sha256`），日志尾写 `exit=<code>`；"预期 PASS"不是证据。
+- 证据位置：探针／驱动／日志一律 `spire-godot/build/`（gitignored，随工作树拆除消失）；
+  计划与裁定在 `C:\1\tmp\<slice>-plan\`；个人记忆在 `C:/1/Myself`（项目外）。
