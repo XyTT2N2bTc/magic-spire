@@ -28,5 +28,5 @@
   （点击断言实测仍绿），只靠 cleaner／审查者核对差异面。
 - 词条框的字号（CYAN 19px／TEXT 15px）与配色是机制声明，无断言覆盖。
 - 商店买卡与去卡（`ui/shop_screen.gd::_card_offer`、`ui/shop_screen.gd::services`）的悬停由验收程序在真实窗口逐点操作覆盖。
-- 不新增分类文件、不改 `tests/ui_smoke.gd::UI_MODULES`／`tests/suite_selection.gd::CROSS_AREAS`；
+- 本片不新增分类文件，也不改 `tests/ui_smoke.gd::UI_MODULES`／`tests/suite_selection.gd::CROSS_AREAS`；
   推送、打标签、改版本号、改 `project.godot` 或导出预设不在本片授权面（红线见根 `AGENTS.md`「禁区」）。

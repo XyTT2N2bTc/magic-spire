@@ -111,13 +111,13 @@ S 按下列显示入口**逐条取源再取并集**；只允许用本次 View �
   **没有 `type`**；只扫候选 payload 会漏掉这个牌型，表现为商店卡面缺失（缺失而非降级）。
 - 不计入 S、走全量入口：抽／弃／牌堆整摞、能力区、牌堆浏览、商店去卡；图鉴不进 S（保持 `live_state=false`）。
 - 幽灵卡（打出）不在 S（投影期不可知），现场补算并留记录。
-- 新增显示入口时必须同步补 S 的推导；判据是 `ui.projection_misses` 为空（幽灵卡除外）。
+- 新增显示入口时必须同步补 S 的推导；判据是 `ui.projection_misses` 为空。例外只有打出的幽灵卡（投影期不可知，现场补算并记录）。
 
 ### descriptor 与类别
 
 - descriptor 用「类别（kind）+ 参数（args）」，由路由按 kind 分派渲染；**不选「模板 id + 参数」**：
   做模板库等于把作者写好的整句重写成模板，且最容易破坏逐字节判据。
-- 明令禁止：不得为了「统一」把整段中文搬进中央模板库，不得顺手改措辞。
+- 明令禁止：不得为了「统一」把整段中文搬进中央模板库，也不得借机改动既有措辞。
 - 两份卡面组装与费用双源**不合并**：静态 `Catalog.card`（`Rules.energy_label` + `B.card_metadata`）与
   实时 `Cards.text_entry`（`Cards.energy_label` + `Cards.metadata`）继续并存；允许且仅允许的收口是
   实时路径集中到 `text_entry` 并登记为路由类别（`kind="card.face"` 实时、`kind="card.catalog"` 静态）——

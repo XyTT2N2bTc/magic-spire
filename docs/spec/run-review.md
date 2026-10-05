@@ -65,7 +65,7 @@ func _run_review_copy_text() -> String      # 未复制=_text("ui.run_review.cop
 ### 只读保证（实现必须同时满足）
 
 1. 不调用 `ui._submit`、`ui.actions`、`ui.game.dispatch`、`ui._save_progress`；
-   不读写 `ui.game.state`（测试与夹具除外）。唯一的写动作是复制按钮 → `ui.copy_seed()`：
+   不读写 `ui.game.state`。例外：测试与夹具可读写 `ui.game.state`。唯一的写动作是复制按钮 → `ui.copy_seed()`：
    它只写剪贴板与 `seed_copied_until`，不得自写 `DisplayServer.clipboard_set`、不得自建截止时间或回调。
 2. 回顾地图实例只读：`room_selected` 不接 `ui._select_route_room`，`drawings_changed` 不接
    `ui._save_progress`（这两条连接只属于 `_route_screen()`）。

@@ -72,7 +72,7 @@
 - 预检顺序：`Consumables.validate_buffs`、`Binding.state_issue` 在版本比对**之前**；
   `SpecialEquipment.validate`、`Cards.validate`、`RelicEffects.validate` 在**之后**，各自返回自己的 `error`。
 - 事务：任一 issue → `state=original` 全回滚，不留部分付款／部分装备；`version` 只在成功提交时自增一次。
-- 禁止：把写入退化为「注释式清单」；给 `get_view` 加显示需求参数；UI 预判资格或自行推断作废范围；
+- 禁止：把写入退化为「注释式清单」（表里写了 kind、代码仍各写各的）；给 `get_view` 加显示需求参数；UI 预判资格或自行推断作废范围；
   为凑绿删弱既有断言；把旧案（F1–F9／W1–W5／B1–B4／H1–H5／C0–C4）当作现行约束复活。
 
 ## 证据入口

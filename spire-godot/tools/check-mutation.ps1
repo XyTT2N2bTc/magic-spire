@@ -4,16 +4,16 @@ param(
     [ValidateRange(1,3600)][int]$TimeoutSeconds = 600
 )
 # Sensitivity evidence for the named checks: for one entry of tests/mutations.json, apply the
-# declared source mutation, run the narrowest rule suite, require this check (and only the fact
-# that it is the one that reddened) to appear as an engine error, then restore the file
-# byte-for-byte. Any failure -- anchor not unique, suite green, wrong check red, restore hash
-# mismatch -- makes the whole invocation exit non-zero.
+# declared source mutation, run the narrowest rule suite, require that named check to redden
+# (the suite must fail and an engine error line must name the check), then restore the file
+# byte-for-byte. Any failure -- anchor not unique, suite green, suite failed without an error
+# line naming this check, restore hash mismatch -- makes the whole invocation exit non-zero.
 #
 # The table's find/replace strings use \n; the anchor and the injected text are expanded to the
 # target file's own line ending (CRLF here) so matching and writing stay byte-exact.
 #
-# This tool mutates tracked source for the duration of one suite run. Run it with a single engine
-# and never concurrently with another gate.
+# This tool mutates tracked source for the duration of one suite run. Run it with one engine
+# process at a time and never concurrently with another gate.
 $ErrorActionPreference = 'Stop'
 $Check = @($Check | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | Select-Object -Unique)
 if ($All -and $Check.Count -gt 0) { throw '-All and -Check are mutually exclusive.' }

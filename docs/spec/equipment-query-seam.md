@@ -132,7 +132,7 @@
   清单含既有开作用域点（`core/game.gd::command_fact`／`command_facts`／`get_view`、
   `core/card_effects.gd::occupied_body_count`）与下表点名的读-only 入口。
 - 作用域**不得加在叶查询上**（`equipment_at`／`physical_pieces`／`_equipment`／`capacity_used`／
-  `_point_count`／`links_at`／…）：它们跟随外层作用域，自带作用域只会造成「每次查询重建一次」。
+   `_point_count`／`links_at`／…）：叶查询跟随外层作用域，自带作用域只会造成「每次查询重建一次」。
 - `candidates()` 与 `get_view()` 的现有进出保持不变。
 
 | 入口 | 位置 | 作用域包住什么 |
@@ -159,7 +159,7 @@
 | `EquipmentReplacement` 收尾校验 | 替换管线内的读后写收尾 |
 | `data/first_floor_enemy_pools.gd` 的 `eligible` | 已决（人裁）：保持 live；**数据层不得调用 core 的读作用域进出**，其收益经 core 侧自带作用域间接到达 |
 
-豁免不是「可以不看」：这是契约判据（读后写／多出口／存档守卫），清洗者与加固者不得「顺手补上」作用域；
+豁免清单是契约判据（读后写／多出口／存档守卫）；清洗者与加固者不得在豁免函数内补加作用域，
 加了即算未完成。
 
 ### 键空间（索引内部，清洗者检查对象）

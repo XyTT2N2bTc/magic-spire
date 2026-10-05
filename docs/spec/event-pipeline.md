@@ -33,7 +33,7 @@
 | 节点推进 | `Events.enter_node`（唯一节点管线） | 读节点声明的全部策略，逐作者选项调 `evaluate_option`，把冻结结果写入 `state.room_event.options` |
 | 求值 | `Events.evaluate_option`（唯一入口） | 记 `decision` 与逐条 `gates`；只读（唯一写状态的分支是到达时的冻结结果落地） |
 | 候选与显示事实 | `Events.candidates` → 唯一判定 | 由冻结选项生成显示事实；被丢弃的选项不出现 |
-| 只读投影 | `Events.view` → `GameView.build` | 输出事件名、intro、stage、report、result_status 与 selector 的分组身份；不输出全部隐藏原因 |
+| 只读投影 | `Events.view` → `GameView.build` | 输出事件名、intro、stage、report、result_status 与 selector 的分组身份；不输出隐藏原因 |
 | 界面 | `ui/event_screen.gd` | 只消费 `view.room_event` 与显示事实；实际提交经指令路由发事件指令 |
 | 提交复核 | `Game.dispatch` | 校验版本与指令形状／参数合法性，按形状取该条行动并由唯一判定确认 `valid`，在事务副本上执行，失败完整回滚 |
 | 执行 | `Events.execute` → `apply_effects` | 取冻结选项执行效果；分流到道具奖励、事件战斗、卡牌／遗物奖励、下一节点或结果 |
@@ -45,7 +45,7 @@
 
 - `core/room_events.gd` 集中定义访问、生成、随机冻结、探测、效果、候选、投影、战斗桥与校验；
   各消费者必须经本文件声明的入口访问事件能力。
-- 事件战斗**借用**普通战斗的 `room_encounters` 与奖励状态：这是事实，不代表可以直接改存档字段。
+- 事件战斗**借用**普通战斗的 `room_encounters` 与奖励状态：这是事实；不得据此直接改存档字段。
 - UI 只消费过滤后的显示事实：`event_screen` 无法区分「未生成／被隐藏／生成但不可用」，
   具名原因只存在于 core 的 trace。
 - 单节点与多节点共用节点声明、求值与执行管线；`recipe`、`hold_special`／`restore_held` 有测试夹具覆盖，

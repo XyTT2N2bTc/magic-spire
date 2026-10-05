@@ -18,7 +18,7 @@
 | 附件默认勾选、探测 GET 先于 POST、旧 schema 降级不重发、失败不阻塞提交 | `tests/interface_ui_cases.gd` 的 FEEDBACK 具名 check（窗口分类 `interface`） |
 | 服务端 `save` 形状／大小／信封校验与限流、回执哈希排除 `save` | `spire-godot/tools/feedback-service/test.cjs`（`node --test`） |
 | 存档序列化面与文件替换（`core/save_store.gd::pack`、`unpack`、`read_slot`、`write_game`、`summary` 的回退与校验） | `tests/persistence_cases.gd`（往返、损坏回退、隔离用例） |
-| `core/game.gd::TRANSITIONS` 的 checkpoint 声明不顺手改动 | `tests/architecture_cases.gd::save_checkpoint_kinds_are_pinned` |
+| `core/game.gd::TRANSITIONS` 的 checkpoint 声明不随无关改动变动 | `tests/architecture_cases.gd::save_checkpoint_kinds_are_pinned` |
 | 随机域集合不变（不新增随机域） | `tests/architecture_cases.gd::run` 的 "ARCH initialization creates exactly the registered random domains" |
 | 投影键面／记录路径／基线值不漂移 | `tests/architecture_cases.gd::behavior_baseline_equivalence` |
 
