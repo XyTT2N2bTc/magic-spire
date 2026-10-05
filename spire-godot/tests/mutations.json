@@ -41,7 +41,8 @@
     "command_fact_kind_lookup",
     "card_facts_declared_slots",
     "card_facts_consumes_has_targets_at",
-    "card_facts_keyword_min_query"
+    "card_facts_keyword_min_query",
+    "present_adjacency_graph_is_pinned"
   ],
   "mutations": {
     "slice_dependency_directions": {
