@@ -1642,7 +1642,7 @@ static func copy_candidate_detail_on_demand(t) -> void:
   break
  t.check(played==1 and g.state!=before,"COPY scenario 5 write path unaffected by on-demand detail")
 
-# docs/spec/candidate-removal.md §5 G6（批 R1）：行为基线等价。切片开始时用未改源码复算 26 个夹具单元
+# docs/spec/candidate-removal.md「接口」判据真源（behavior_baseline_equivalence；批 R1）：行为基线等价。切片开始时用未改源码复算 26 个夹具单元
 # （0／12／26／44 件 × 战斗／整备／休息／商店／事件／监狱＋豆包接管，同种子 42）并逐路径比对通过
 # （1508 条路径，首个差异＝无；全量值与逐字段比对器在批 R1 的 build 目录 oracle 内，用完删除）。
 # 这里保留冻结的单元级记录：键集合必须与冻结路径逐一相符（R1 的 mask 为空），命名路径逐字段相等；
@@ -1682,7 +1682,7 @@ const R1_MASK=[]
 # 但 view 的键不因此减少（候选行载体与 view.display_facts 键到 R5 才删），故 mask 只声明新增键、不声明删除键。
 # view 摘要按 mask 删键后必须与 R1 冻结值逐字节相等；键集合另按 R3_VIEW_KEYS_BASE 逐条核对（防静默增删）。
 const R3_VIEW_MASK=["display_facts"]
-# 批 R5 的显式 mask（docs/spec/candidate-removal.md §5 G6／§2.2 终态断言）：本批删除的载体逐条声明，多一条少一条即红。
+# 批 R5 的显式 mask（docs/spec/candidate-removal.md「接口」判据真源：behavior_baseline_equivalence／removal_end_state）：本批删除的载体逐条声明，多一条少一条即红。
 #  R5_VIEW_MASK＝视图键：候选行表（view.candidates）。
 #  R5_RECORD_MASK＝记录路径：候选行的提交身份 id（rows_verdicts）与 view.candidates（view_candidates）。
 #  R5_RECORD_ADDED＝随删除重算的记录路径：判定投影改显示键（facts_verdicts）、显示点全量文本基线（facts_text）、
@@ -1853,7 +1853,7 @@ static func r1_record(g, phase: String, count: int) -> Dictionary:
  out["validate_after"]=str(g.validate())
  return out
 
-# view 摘要按批 R3 的显式 mask 删键（docs/spec/candidate-removal.md §5 G6 的 mask 语义：显式声明、不得静默）。
+# view 摘要按批 R3 的显式 mask 删键（docs/spec/candidate-removal.md「接口」判据真源 behavior_baseline_equivalence 的 mask 语义：显式声明、不得静默）。
 static func r1_view_without_mask(view: Dictionary) -> Dictionary:
  var masked={}
  for key in view:
@@ -1869,7 +1869,7 @@ static func r1_record_digest(record: Dictionary) -> String:
  for path in paths: lines.append(str(path)+"="+str(record[path]))
  return r1_digest("\n".join(lines))
 
-# docs/spec/candidate-removal.md §5 G7（批 R5）：终态断言。扫描面＝core/、ui/、tests/ 的源码文本
+# docs/spec/candidate-removal.md「接口」判据真源（removal_end_state；批 R5）：终态断言。扫描面＝core/、ui/、tests/ 的源码文本
 # （tools/ 与 data/ 不进面：tools 的允许清单条目按契约只点名不动手，data 的规则池不属候选层）。
 # 模式串按片段拼接，避免扫描器命中本检查自身的声明文本。
 static func r5_removed_patterns() -> Array:
@@ -1977,7 +1977,7 @@ static func behavior_baseline_equivalence(t) -> void:
  t.check(mask_problems.is_empty(),"G6 behavior_baseline_equivalence: the added view keys are exactly the declared mask: "+str(mask_problems.slice(0,3)))
  t.check(removed_problems.is_empty() and not FileAccess.file_exists("res://ui/action_index.gd"),"G6 behavior_baseline_equivalence: the declared deletion set is gone from the projection and the row index file is deleted: "+str(removed_problems.slice(0,3)))
 
-# docs/spec/candidate-removal.md §5 G4（批 R1；R2 前置补正：写点扫描面加宽，销 R1 复核缺口①）。
+# docs/spec/candidate-removal.md「接口」判据真源（single_eligibility_implementation；批 R1；R2 前置补正：写点扫描面加宽，销 R1 复核缺口①）。
 # 扫描面＝core/ 与 ui/ 的源码文本（tests／data 不进面）；写点四种形态——字段赋值（.valid=／.reason=）、
 # 字典键（"valid":／"reason":）、括号赋值（["valid"]=／["reason"]=）、括号字典键（["valid"]:／["reason"]:）；
 # 读取式（x.valid／x.reason 作为值）不计。判定落点＝core/game.gd 的 eligibility／eligibility_takeover。
@@ -2087,8 +2087,8 @@ static func single_eligibility_implementation(t) -> void:
  var takeover_writes=scan.hits.filter(func(hit):return String(hit.file)=="core/first_turn_control.gd")
  t.check(ui_writes.is_empty() and takeover_writes.is_empty(),"G4 single_eligibility_implementation: ui/ and the takeover path only consume the determination: ui="+str(ui_writes.map(func(hit):return verdict_site(hit)))+" takeover="+str(takeover_writes.map(func(hit):return verdict_site(hit))))
 
-# docs/spec/candidate-removal.md §5 G1／G2（批 R2）：指令路由单入口＋分类表全量。
-# kind 全集与逐域＝契约 §3.3.1（39 条）；本表是核对面，不是第二真源（真源是 ui/command_router.gd 的 ROUTES）。
+# docs/spec/candidate-removal.md「接口」判据真源（instruction_router_single_entry／instruction_route_table_is_total；批 R2）：指令路由单入口＋分类表全量。
+# kind 全集与逐域＝契约（docs/spec/candidate-removal.md「输入域」）（39 条）；本表是核对面，不是第二真源（真源是 ui/command_router.gd 的 ROUTES）。
 # 域列与 ROUTES 逐条相等（R2 复核低项：end／calm／surrender 曾与 ROUTES 不一致且未被断言使用）。
 const COMMAND_KINDS={
  "card":"battle","chain":"battle","attack":"battle","status_toggle":"battle","posture":"battle",
@@ -2101,7 +2101,7 @@ const COMMAND_KINDS={
  "flask":"relic","relic_toggle":"relic","relic_discharge":"relic","relic_control_done":"relic",
  "demo_end":"demo","demo_continue":"demo"}
 
-# 契约 §5 G2 的逐域覆盖面（战斗／整备／休息／商店／事件／监狱／路线／奖励／出发／demo）。
+# docs/spec/candidate-removal.md「接口」判据真源 instruction_route_table_is_total 的逐域覆盖面（战斗／整备／休息／商店／事件／监狱／路线／奖励／出发／demo）。
 const COMMAND_DOMAINS=["battle","flow","rest","shop","event","prison","route","reward","departure","demo"]
 
 # 子路由的实现面：command_routes.gd::assemble 的 match 分支名（唯一分类点的落地检查）。
@@ -2164,7 +2164,7 @@ static func instruction_router_single_entry(t) -> void:
 static func instruction_route_table_is_total(t) -> void:
  var router=preload("res://ui/command_router.gd")
  var routes=router.ROUTES
- # 1) kind 全集＝契约 §3.3.1 的 39 条（多一条少一条即红）。
+ # 1) kind 全集＝契约（docs/spec/candidate-removal.md「输入域」）的 39 条（多一条少一条即红）。
  var missing=[];var extra=[]
  for kind in COMMAND_KINDS:
   if not routes.has(kind): missing.append(kind)
@@ -2871,7 +2871,7 @@ static func transition_kind_set_pinned(t) -> void:
   if point!=String(TRANSITION_CHECKPOINTS.get(kind,"")): bad.append(kind+":checkpoint-mismatch")
  t.check(bad.is_empty(),"TRANS transition_kind_set_pinned: every kind declares shape, owners and the pinned checkpoint column: "+str(bad))
 
-# docs/spec/candidate-removal.md §3.3.1：kind 的 params 键面（COMMAND_KEYS）是闭集；散文表只保留索引。
+# docs/spec/candidate-removal.md「输入域」：kind 的 params 键面（COMMAND_KEYS）是闭集；散文表只保留索引。
 const COMMAND_KEY_SETS={
  "card":["uid","type","slot","target","free","mode","self_target","x","hand_uid"],
  "chain":["action","type","target","slot","free","mode","selected_uid"],

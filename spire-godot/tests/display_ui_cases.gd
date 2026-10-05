@@ -5,7 +5,7 @@ const Portrait=preload("res://ui/equipment_portrait.gd")
 const Art=preload("res://ui/pixel_art.gd")
 const Cases=preload("res://tests/architecture_cases.gd")
 
-# docs/spec/candidate-removal.md §5 G5（批 R3 的手牌／行动／姿态／墙面／底栏域）：夹具矩阵 0／12／26／44 件
+# docs/spec/candidate-removal.md「接口」判据真源（r3_display_points_do_not_read_rows；批 R3 的手牌／行动／姿态／墙面／底栏域）：夹具矩阵 0／12／26／44 件
 # × 战斗／整备／休息（同种子 42）。①每个显示点的可用／原因／风险／费用与唯一判定对同一形状的输出逐字段相等
 # （同一形状恰有一条候选行＝G2 已断言的前提）；②显示文本与未改源码基线逐字相等（基线于批 R3 前用未改源码复算，
 # 只含显示文本字段，不含提交身份 id）。键＝显示点（kind＋声明 params 的 8 位摘要；手牌点＝hand|uid）。
@@ -30,7 +30,7 @@ static func r3_point_fields(c: Dictionary) -> Array:
  var casting=c.get("casting",{})
  return [String(c.label),str(c.cost),str(c.mana),str(c.valid),String(c.reason),String(c.risk),String(c.get("brief","")),String(c.get("brief_tags","")),String(c.get("body_part","")),str(casting.get("percent","")),str(casting.get("formula","")),String(c.get("detail",""))]
 
-# 本批删边的核对面（docs/spec/candidate-removal.md §2.2 的 D13 对应行）：手牌／行动／姿态／墙面／底栏域的
+# 本批删边的核对面（docs/spec/candidate-removal.md「接口」显示消费；机读面＝tests/display_ui_cases.gd::r3_display_points_do_not_read_rows）：手牌／行动／姿态／墙面／底栏域的
 # 显示读只经显示事实，不再在点名函数里按 payload 字段取候选行。域外显示点（练习／捕获／路线／身体／道具／
 # 拖放等）本批不动，仍按行读，故按函数点名核对而不是全文件扫描。
 const R3_DISPLAY_POINTS={
@@ -64,7 +64,7 @@ static func r3_point_key(g, payload: Dictionary) -> String:
  var kind=String(payload.get("kind",""))
  return kind+"|"+JSON.stringify(g.command_params(kind,payload)).sha256_text().substr(0,8)
 
-# 判定参考（docs/spec/candidate-removal.md §2.1 P2）：唯一判定对同一显示点输入的重算。原始输入来自
+# 判定参考（docs/spec/candidate-removal.md「接口」唯一合法性判定）：唯一判定对同一显示点输入的重算。原始输入来自
 # core/game.gd::command_facts（未合并判定的事实），投影来自 view.display_facts；接管锁定的显示点在接管期内
 # 的结论由接管锁给出（G8 覆盖面），此处按其锁结论核对。
 static func r3_determination_mismatches(g, view: Dictionary, groups: Array) -> Array:
@@ -112,7 +112,7 @@ static func display_facts_match_determination(t) -> void:
    if not points.has(key): problems.append(key+" missing")
   t.check(problems.is_empty(),"G5 display_facts_match_determination: display text equals the unmodified-source baseline ("+name+"): "+str(problems.slice(0,3)))
 
-# docs/spec/candidate-removal.md §5 G5（批 R4 的装备／快捷解除／拖放／道具域）。
+# docs/spec/candidate-removal.md「接口」判据真源（r4_display_points_do_not_read_rows；批 R4 的装备／快捷解除／拖放／道具域）。
 # 夹具与 R3 相同，并补上商店／事件／监狱（该节 Given 的其余阶段）。文本基线在未改源码上复算后冻结。
 # 冻结基线的前缀（View 键名）；事实组名由 R4_POINT_GROUPS 声明。
 const R4_FACT_GROUPS=["equipment","hooks","items","chain","retain"]
@@ -2090,7 +2090,7 @@ static func copy_missing_key_never_crashes(t) -> void:
  t.check(ui.projection_misses.any(func(entry):return entry.point=="card_entry" and entry.key.begins_with(card.type)),"COPY deleted card key is recomputed through the single entry and recorded: "+str(ui.projection_misses))
  t.check(ui.game.export_snapshot()==before,"COPY missing-key rendering never changes state or random cursors")
 
-# docs/spec/candidate-removal.md §5 G3（批 R2）：拒绝语义不变。三类拒绝（陈旧版本／形状不合法／判定不通过）
+# docs/spec/candidate-removal.md「失败语义」（批 R2）：拒绝语义不变。三类拒绝（陈旧版本／形状不合法／判定不通过）
 # 与五预检各一例，文案逐字、失败全回滚；真实窗口、真实输入，不绕过 UI 入口。
 static func g3_reject_probes(g) -> Array:
  return [
@@ -2146,7 +2146,7 @@ static func submit_reject_semantics_unchanged(t) -> void:
   t.check(expected!="" and not refused.ok and String(refused.error)==expected and g.export_snapshot()==frozen,"REJECT precheck keeps its verbatim text and rolls back: "+String(probe.name)+" error="+str(refused.get("error","")))
   probe["restore"].call()
 
-# docs/spec/candidate-removal.md §5 G8（批 R2）：接管路径不变。真实演示入口、真实输入；
+# docs/spec/candidate-removal.md「接口」唯一合法性判定（接管路径；批 R2）：接管路径不变。真实演示入口、真实输入；
 # 只有已选步骤可提交，其余显示同一文案；手动输入被接管锁阻挡；换局后旧步骤不提交。
 static func takeover_path_unchanged(t) -> void:
  var ui=t.ui
@@ -2181,7 +2181,7 @@ static func takeover_path_unchanged(t) -> void:
  t.check(ui.show_home and ui.game.export_snapshot()==home_before,"TAKEOVER a previous step cannot commit after returning home")
  ui.restart(42);await t.frames()
 
-# docs/spec/candidate-removal.md §5 G5（批 R5 的服务／事件／监狱／路线／奖励／出发域）：夹具矩阵同 R4，
+# docs/spec/candidate-removal.md「接口」判据真源（r5_display_facts_match_determination；批 R5 的服务／事件／监狱／路线／奖励／出发域）：夹具矩阵同 R4，
 # 另按真实阶段补奖励／路线／出发／demo 四个夹具。文本基线由 G6 的 facts_text 摘要承担（全显示点），
 # 这里承担「每个显示点的可用／原因／风险／费用＝唯一判定对同一形状的输出」的逐字段相等与域覆盖。
 const R5_G5_GROUPS=["attack","pressure","flow","surrender","posture","wall_move","card","prison","manual","hook","item","chain","retain","relic","flask","status_toggle","service","event","reward","rest_service","route","departure","demo_exit"]

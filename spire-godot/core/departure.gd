@@ -69,7 +69,7 @@ static func reason(g, entry: Dictionary) -> String:
   if issue!="": return issue
  return ""
 
-# 出发面板的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 出发面板的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md「接口」T5／T8）。
 # 标签按本函数自建的顺序取 Data.CATEGORIES（与改动前的行序一致）。
 static func facts(g) -> Array:
  var out=[];var d=g.state.departure

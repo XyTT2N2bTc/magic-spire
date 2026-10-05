@@ -120,6 +120,16 @@ git worktree list
 - 指纹面：`docs/spec`、`docs/design`、`docs/guide`、`.zcode/skills`、`AGENTS.md` 属 rule-class、
   在源码指纹内 ⇒ 先改完再跑门禁；`docs/record/**` 不在指纹内。范围唯一声明为 `tools/doc-scan-scope.ps1`。
 
+### 工作树并发纪律
+
+- 每个工作树同一时间只允许一个写者；派工前确认该树没有其它会话在写。
+- 等待判据（全部满足才算对方收工）：① `Get-Process Godot*` 为空；② `spire-godot/build/checks/`
+  下连续 3 分钟无新运行目录；③ `git status --short` 为空；④ HEAD 稳定（隔一段时间两次
+  `git rev-parse HEAD` 相同）。
+- **提交 ≠ 收工**：门禁与突变脚本运行期会临时改文件（`tools/check-mutation.ps1` 跑前跑后比对工作区，
+  残留即自报 `MUTATION_RESIDUE` 并非零退出）；等待按上一条判据，不按"有没有提交"。
+- 引擎与突变脚本：同一时间一个引擎进程；`tools/check-mutation.ps1` 运行期不得有其它写者。
+
 ### harness 清单
 
 - **ZCode 子代理**（Agent 工具）：只在同一会话内；`run_in_background`；派工载荷需自含

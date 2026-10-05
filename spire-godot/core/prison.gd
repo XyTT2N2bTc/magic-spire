@@ -219,7 +219,7 @@ static func key_detail(_g, _args: Dictionary) -> String:
 static func door_exit_detail(_g, _args: Dictionary) -> String:
  return "自行开锁后速度须至少1；狱警钥匙路线不检查速度。点击离开时重新判定。"
 
-# 监狱显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 监狱显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md「接口」T5／T8）。
 static func facts(g) -> Array:
  var out=[]
  if g.state.phase=="captured":
@@ -255,7 +255,7 @@ static func facts(g) -> Array:
  out.append_array(unlock_facts(g))
  return out
 
-# 牢门解锁事实（手牌域的手牌可用性输入，docs/spec/candidate-removal.md §2.1 T5／T8；批 R3）：
+# 牢门解锁事实（手牌域的手牌可用性输入，docs/spec/candidate-removal.md「接口」T5／T8；批 R3）：
 # 手牌上屏的术式解锁牌可用性与牢门显示点共用同一份事实。
 static func unlock_facts(g) -> Array:
  var facts=[]

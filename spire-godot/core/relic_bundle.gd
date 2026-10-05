@@ -9,7 +9,7 @@ static func start(g, source: String) -> void:
   entries.append({"type":g.RelicRewards.offer(g,rarity),"rarity":rarity,"status":"pending"})
  g.state.relic_bundle={"source":source,"entries":entries}
 
-# 遗物抽取包的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 遗物抽取包的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md「接口」T5／T8）。
 static func facts(g) -> Array:
  var out=[]
  if g.state.relic_bundle.source=="universal_scanner":

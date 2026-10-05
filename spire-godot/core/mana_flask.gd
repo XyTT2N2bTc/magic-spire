@@ -42,7 +42,7 @@ static func withdrawal(g) -> Dictionary:
  var restored=minf(minf(drawn,g.Consumables.potion_amount(g,drawn)),room)
  return {"drawn":drawn,"restored":restored}
 
-# 魔瓶的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 魔瓶的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md「接口」T5／T8）。
 static func facts(g, withdrawal_only: bool=false) -> Array:
  var out=[]
  if not available(g): return out

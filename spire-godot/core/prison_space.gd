@@ -131,7 +131,7 @@ static func view(g) -> Dictionary:
   sites.append(item)
  return {"blind":blind,"sites":sites,"fall":fall_profile(g),"stride":g.wall_movement_profile().distance,"cost":g.wall_movement_profile().cost}
 
-# 牢房空间移动的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 牢房空间移动的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md「接口」T5／T8）。
 static func facts(g) -> Array:
  var out=[]
  var v=view(g);var profile=g.wall_movement_profile()

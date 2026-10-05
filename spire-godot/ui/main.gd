@@ -58,7 +58,7 @@ var localization=preload("res://ui/localization.gd").new()
 
 var game_factory=Game
 var game=Game.new()
-# 指令路由（docs/spec/candidate-removal.md §3.1 N1）：前端唯一指令入口，分类后交 _submit 执行段。
+# 指令路由（docs/spec/candidate-removal.md「接口」指令路由）：前端唯一指令入口，分类后交 _submit 执行段。
 var command_router=CommandRouter.new(self)
 var view: Dictionary
 # Read-only display diagnostics (docs/ondemand-copy.md「显示侧取用 helper」): one entry per (point, key, view version),
@@ -373,7 +373,7 @@ func _resume_snapshot(snapshot: Dictionary, drawings: Dictionary={}) -> bool:
 
 func _quick_sl() -> void:
  if view.demo_finished: return
- # docs/save-fixed-points.md §1：恢复不是进度固定点；磁盘仍持有上一次固定点内容。
+ # docs/save-fixed-points.md「域」：恢复不是进度固定点；磁盘仍持有上一次固定点内容。
  _resume_snapshot(game.restart_snapshot(),map_drawings)
 
 func _save_unavailable(message: String) -> void:
@@ -3380,7 +3380,7 @@ func _submit_dirty(before: Dictionary, succeeded: bool, absent: Dictionary) -> A
  return dirty
 
 func _submit(cmd: Dictionary, takeover: bool=false) -> void:
- # 提交执行段（docs/spec/candidate-removal.md §3.1 M-III 的 UI 侧落点）：只由指令路由调用。
+ # 提交执行段（docs/spec/candidate-removal.md「接口」提交入口的 UI 侧落点）：只由指令路由调用。
  if _takeover_locked() and not takeover: return
  var previous_keys=_submit_presentation_keys() if not show_home and not is_instance_valid(enemy_feedback) and String(view.get("phase",""))=="battle" else {}
  var previous_absent={}
@@ -3407,7 +3407,7 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
  if result.ok:
   preload("res://ui/shell/body_sidebar.gd").expand_applied(self,previous,updated)
   if payload.get("witch_action",false) and not payload.get("charge_action",false): attack_forms[payload.get("type","")]=0
-  # docs/save-fixed-points.md §2／§5.1：只有提交结果带非空 checkpoint 才写盘；
+  # docs/save-fixed-points.md「接口」：只有提交结果带非空 checkpoint 才写盘；
   # 不比较内容、不读快照，其余提交一律不写。
   if String(result.get("checkpoint",""))!="": _save_progress()
   if kind=="demo_continue": _reset_interface(updated)

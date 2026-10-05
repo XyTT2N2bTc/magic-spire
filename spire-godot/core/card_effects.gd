@@ -13,7 +13,7 @@ static func active_buffs(g, include_disabled: bool=false) -> Array:
   if id not in result: result.append(id)
  return result
 
-# 状态开关的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 状态开关的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md「接口」T5／T8）。
 static func toggle_facts(g) -> Array:
  var out=[]
  if g.state.overloaded or g.state.phase in ["cleared","prison_end"]: return out
@@ -862,7 +862,7 @@ static func detail(g, p: Dictionary) -> String:
  if Rules.SPECS[p.type].get("follow_through",false): lower_text+="总计降紧%d档，目标解除后%s。" % [Rules.SPECS[p.type].hits,"超级顺延" if Rules.SPECS[p.type].get("follow_through_scope","region")=="body" else "顺延"]
  return lower_text
 
-# 卡牌事实（手牌域，docs/spec/candidate-removal.md §2.1 T5／T8；批 R3）：行与显示事实的唯一来源。
+# 卡牌事实（手牌域，docs/spec/candidate-removal.md「接口」T5／T8；批 R3）：行与显示事实的唯一来源。
 # 返回事实列表（payload／label／copy／cost／mana／reason／risk／group），判定与 detail 由 Game 的事实入口给出。
 static func target_facts(g, p: Dictionary, label: String, cost: int, mana: float, risk: String="") -> Array:
  var facts=[]
@@ -1307,7 +1307,7 @@ static func select_exhaust(g, p: Dictionary) -> void:
  g.Pressure.gain(g,30,"强制高潮")
  g.Pressure.forced_climax(g,"强制高潮")
 
-# 连锁继续（批 R4：行与显示事实的唯一来源，docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 连锁继续（批 R4：行与显示事实的唯一来源，docs/spec/candidate-removal.md「接口」T5／T8）。
 static func chain_facts(g) -> Array:
  var out=[]
  var chain=g.state.card_chain

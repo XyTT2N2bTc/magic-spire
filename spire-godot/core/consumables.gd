@@ -62,7 +62,7 @@ static func reason(g, type: String) -> String:
   if g.state.sure_cast: return "本场战斗已有一次必定成功的施法尚未使用。"
  return ""
 
-# 道具使用事实（道具域，批 R4 起、R5 收口）：显示事实的唯一来源（docs/spec/candidate-removal.md §2.1 T5／T8）。
+# 道具使用事实（道具域，批 R4 起、R5 收口）：显示事实的唯一来源（docs/spec/candidate-removal.md「接口」T5／T8）。
 static func use_facts(g, item: Dictionary) -> Array:
  var facts=[]
  var spec=Tools.TYPES[item.type]

@@ -78,7 +78,7 @@ static func refresh_detail(_g, _args: Dictionary) -> String:
 static func leave_detail(_g, _args: Dictionary) -> String:
  return "保留已获得的物品，继续向上一层前进。"
 
-# 付费服务的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md §2.1 T5／T8）：
+# 付费服务的显示事实（批 R5：行生产转发改显示事实构建，docs/spec/candidate-removal.md「接口」T5／T8）：
 # 每个付费服务按支付来源产出各自的显示点（自身魔力／魔瓶），供投影与提交复核共用。
 static func paid_fact(g, payload: Dictionary, label: String, info, price: float, reason: String, group: String, required_payment: String="") -> Array:
  var out=[]
