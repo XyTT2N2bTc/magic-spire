@@ -144,7 +144,8 @@ freeze_one()：按节点声明选布局——
 
 **随机关键词**：`weighted`／`compile`／`freeze_effects`／`freeze_item_rewards` 的调用次序决定
 `state.rng.event` 计数；`RelicRewards.offer` 用 `relic` 域，且只在「该定义含遗物奖励选项且遗物池非空」
-时调用一次。三者都不得改序、改次数、改判据。条目**求值顺序**不影响随机消耗（只影响 `gates` 顺序与 `reason` 拼接），
+时调用一次。上述随机消耗点（关键词 `weighted`／`compile`／`freeze_effects`／`freeze_item_rewards` 与
+`RelicRewards.offer`）不得改序、不得改次数、不得改判据。条目**求值顺序**不影响随机消耗（只影响 `gates` 顺序与 `reason` 拼接），
 但必须按声明顺序记录，保证 trace 与原因可复现。
 
 各 `purpose` 的检查清单必须逐项等价、不得多不得少：

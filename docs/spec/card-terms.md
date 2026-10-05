@@ -32,7 +32,7 @@
 | 保留选牌 | `ui/main.gd::_action_row`（`c.payload.kind=="retain"` 分支） |
 | 回顾面板卡组 | `ui/deck_browser.gd::setup` → `ui/deck_browser.gd::refresh` |
 
-战斗内手牌走同一 `ui/main.gd::_card_tooltip`；本片**不新增战斗判定分支**：改动按共用入口一并生效（见未决问题）。
+战斗内手牌走同一 `ui/main.gd::_card_tooltip`；本片**不新增战斗判定分支**：改动按共用入口一并生效。
 
 ## 接口
 
