@@ -1587,3 +1587,11 @@ flowchart LR
 
 - 手牌按每卡显示键原地更新，成员变化才增删节点；翻面复用值切片和卡面节点，悬停读取当前数据。
 - present声明表新增真实直调、可达性与属主解析检查；整合两PR时同步共享辅助函数边与CardFace属主。验证范围与首轮失败修复见同日验证记录；版本仍为0.18.2.fix，仅源码合并。
+
+## 2026-10-05 手牌崩溃修复审计收口：E1 范围判定、判据诚实化与带内退出码
+
+- 范围（E1）：build-only 独立最小驱动（1×`ScrollContainer`＋1×`VBoxContainer("Content")`＋每轮 1 个 `Label`；60 轮 add→remove→**同实例回插**→`queue_free`，窗口态、显式 4.7.2 console exe、单进程）三变体（回插／不回插对照／回插＋延迟 fit 式写入）**全部 exit 0** ⇒"把曾被移除的 Control 回插进 ScrollContainer 子树"本身不足以复现 SIGSEGV，触发需要游戏侧上下文（引擎最终机理仍未确证）。`ui/card_face.gd::_content_slot` 的最小面修复维持不变（B 绿分支），词条／条件／魔力三类池保留复用，残余风险登记为待验实验 E2。
+- 契约（C）：`docs/spec/hand-refresh-dependencies.md` 统一三处互相矛盾的表述——**内容差额（条件内容标签跨空边界）触发的该标签销毁／新建允许；值变／重排不得增删实例**；修正允许改动行"四个内容槽清空即 `remove_child`＋`queue_free`"的不实描述（常驻槽 `CardClassification`／`CardEffect` 只切 `visible`）；翻面零增删收窄为"起点面没有一面独有的条件内容标签（或两面都有）的往返"。
+- 测试（C4）：`tests/display_ui_cases.gd::present_hand_incremental` 新增 P4 段（单面可用性真→假→真与跨面往返：出现／同占用改值／销毁／重建，只许该条件内容标签增删）＋辅助 `present_hand_usable`／`present_hand_delta`；翻面夹具改为按覆盖前提挑选并显式断言前提。敏感性（临时还原 `_park` 池化）`20261005T021819234-22308` 3 条新断言红；修复态 `-UIOnly -UISuite display` → `20261005T021549640-18964` `display PASS`（1096 断言）。
+- 证据（E4／5a）：配方与 E1 全部日志尾附 `exit=<code>`（`Start-Process -Wait -PassThru`）；**已知 139 对照**（临时还原 `255f1dd` 的 `ui/card_face.gd`）＝第 39 次提交后 signal 11、`exit=-1073741819`（0xC0000005）；修复态同配方两跑 `commits=60 steps=60`＋`exit=0`（`build/fact-kinds/round2-*.log`，汇总 `round2-index.json`）。
+- 门禁：UI 10 分类 `20261005T022533651-17988`（2779 断言、10／10 `PASS`、`status=passed`、`before==after`、docs 阶段 PASS）、`architecture` `20261005T030021859-26500`（4468 断言、同判读）、`tools/check-docs.ps1` PASS（36 文档／2658 引用／允许清单 6）；两门同指纹 `E3BC88B0…`。未推送、未打标签、未改版本号、未打包。

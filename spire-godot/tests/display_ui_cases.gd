@@ -2263,6 +2263,24 @@ static func present_hand_lost(before: Dictionary, after: Dictionary) -> Array:
  out.sort()
  return out
 
+# Instance ids lost and gained between two subtree maps, ignoring the content labels whose
+# destroy/create is allowed when a content slot crosses the empty boundary
+# (docs/spec/hand-refresh-dependencies.md, content delta).
+static func present_hand_delta(before: Dictionary, after: Dictionary, allowed: Array) -> Dictionary:
+ var lost=[]
+ var gained=[]
+ for id in before:
+  if not after.has(id) and not (String(before[id]) in allowed): lost.append(String(before[id]))
+ for id in after:
+  if not before.has(id) and not (String(after[id]) in allowed): gained.append(String(after[id]))
+ lost.sort();gained.sort()
+ return {"lost":lost,"gained":gained}
+
+# Per-face usability from the projected hand row: the hand face slice shows the availability line
+# exactly when the face is not usable (ui/main.gd::_hand_face_slice).
+static func present_hand_usable(row, free: bool) -> bool:
+ return bool(row.availability.get("free" if free else "bound",{}).get("usable",true))
+
 # 每张手牌按钮的判据行：实例 id、子树实例集合、徽章样式资源、八个直接子级、位置。
 static func present_hand_row(button) -> Dictionary:
  return {"id":button.get_instance_id(),"nodes":present_hand_nodes(button),"styles":present_hand_styles(button),"children":present_hand_children(button),"position":button.position}
@@ -2331,15 +2349,31 @@ static func present_hand_incremental(t) -> void:
  ui.restart(42);await t.frames(8)
  ui.render(ui.view);await t.frames()
  var flip_uid=""
+ # The zero create/destroy claim covers a round trip whose starting face carries no conditional
+ # content label the other face lacks (a one-sided label would be destroyed on the way out and
+ # rebuilt as a new instance on the way back). Pick such a card when one exists, so the judgement
+ # is explicit instead of fixture luck; the excluded round trip is pinned by P4 below.
  for card in ui.view.hand:
   if bool(card.single_face): continue
   var bound_shape=[card.face_mana.bound.size(),card.face_keywords.bound.size(),card.face_requirements.bound.size()]
   var free_shape=[card.face_mana.free.size(),card.face_keywords.free.size(),card.face_requirements.free.size()]
-  if bound_shape!=free_shape: flip_uid=String(card.uid);break
+  var card_start_free=bool(ui.card_faces.get(String(card.uid),false))
+  if bound_shape!=free_shape and (present_hand_usable(card,card_start_free) or not present_hand_usable(card,not card_start_free)): flip_uid=String(card.uid);break
+ if flip_uid=="":
+  for card in ui.view.hand:
+   if bool(card.single_face): continue
+   var card_start_free=bool(ui.card_faces.get(String(card.uid),false))
+   if present_hand_usable(card,card_start_free) or not present_hand_usable(card,not card_start_free): flip_uid=String(card.uid);break
  if flip_uid=="":
   for card in ui.view.hand:
    if not bool(card.single_face): flip_uid=String(card.uid);break
  t.check(flip_uid!="","DISPLAY hand refresh flip fixture has a non-single-face hand card")
+ var flip_row=null
+ for card in ui.view.hand:
+  if String(card.uid)==flip_uid: flip_row=card
+ var flip_start_free=bool(ui.card_faces.get(flip_uid,false))
+ var flip_coverage_ok=flip_row!=null and (present_hand_usable(flip_row,flip_start_free) or not present_hand_usable(flip_row,not flip_start_free))
+ t.check(flip_coverage_ok,"DISPLAY hand refresh flip fixture starts without a one-sided content label (the zero create/destroy claim holds only for that round trip)")
  var reads_flip=ui.game.view_reads
  var snapshot_flip=ui.game.export_snapshot()
  var flip_base=present_hand_row(ui.card_buttons[flip_uid])
@@ -2394,6 +2428,89 @@ static func present_hand_incremental(t) -> void:
  var rows_again=present_hand_rows(ui)
  t.check(rows_again==settled,"DISPLAY hand refresh second present writes nothing (positions, instances and subtrees unchanged)")
  t.check(order_before.size()==ui.card_buttons.size(),"DISPLAY hand refresh reorder keeps the row size")
+ # ---------- P4 content delta across the empty boundary: only that content label may be rebuilt ----------
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var delta_uid=""
+ for card in ui.view.hand:
+  if not bool(card.single_face): delta_uid=String(card.uid);break
+ if delta_uid=="": delta_uid=String(ui.view.hand[0].uid)
+ var delta_row=null
+ for card in ui.view.hand:
+  if String(card.uid)==delta_uid: delta_row=card
+ var delta_face="free" if bool(ui.card_faces.get(delta_uid,false)) else "bound"
+ var delta_button=ui.card_buttons[delta_uid]
+ # Normalise to the usable state first: the starting line, if the fixture had one, is a delta of
+ # its own and must not leak into the baseline below.
+ delta_row.availability[delta_face].usable=true
+ delta_row.availability[delta_face].text=""
+ delta_row.availability[delta_face].dim=false
+ ui.present(["hand"]);await t.frames()
+ t.check(delta_button.find_child("CardAvailability",true,false)==null,"DISPLAY hand refresh content-delta fixture starts with no availability line")
+ var delta_base=present_hand_row(delta_button)
+ delta_row.availability[delta_face].usable=false
+ delta_row.availability[delta_face].text="（内容差额探针）"
+ delta_row.availability[delta_face].dim=true
+ ui.present(["hand"]);await t.frames()
+ var line_first=delta_button.find_child("CardAvailability",true,false)
+ t.check(line_first!=null and String(line_first.text)=="（内容差额探针）","DISPLAY hand refresh mounts the availability line when the face becomes unusable")
+ var with_line=present_hand_row(delta_button)
+ var mounted_delta=present_hand_delta(delta_base.nodes,with_line.nodes,["CardAvailability"])
+ t.check(mounted_delta.lost.is_empty() and mounted_delta.gained.is_empty() and with_line.id==delta_base.id and with_line.children==delta_base.children and with_line.position==delta_base.position,"DISPLAY hand refresh an appearing availability adds only that content label: "+str(mounted_delta))
+ # Same occupancy, new value: zero create and zero destroy.
+ delta_row.availability[delta_face].text="（内容差额探针二）"
+ ui.present(["hand"]);await t.frames()
+ t.check(present_hand_row(delta_button).nodes==with_line.nodes and String(delta_button.find_child("CardAvailability",true,false).text)=="（内容差额探针二）","DISPLAY hand refresh rewrites the line in place while it stays mounted")
+ delta_row.availability[delta_face].usable=true
+ delta_row.availability[delta_face].text=""
+ delta_row.availability[delta_face].dim=false
+ ui.present(["hand"]);await t.frames()
+ var cleared=present_hand_row(delta_button)
+ var cleared_delta=present_hand_delta(with_line.nodes,cleared.nodes,["CardAvailability"])
+ t.check(delta_button.find_child("CardAvailability",true,false)==null and (not is_instance_valid(line_first) or line_first.is_queued_for_deletion()),"DISPLAY hand refresh clearing the availability drops that instance")
+ t.check(cleared_delta.lost.is_empty() and cleared_delta.gained.is_empty() and cleared.id==delta_base.id and cleared.children==delta_base.children,"DISPLAY hand refresh clearing the availability removes only that content label: "+str(cleared_delta))
+ delta_row.availability[delta_face].usable=false
+ delta_row.availability[delta_face].text="（内容差额探针三）"
+ delta_row.availability[delta_face].dim=true
+ ui.present(["hand"]);await t.frames()
+ var line_again=delta_button.find_child("CardAvailability",true,false)
+ var refilled=present_hand_row(delta_button)
+ var refill_delta=present_hand_delta(cleared.nodes,refilled.nodes,["CardAvailability"])
+ t.check(line_again!=null and line_again!=line_first and String(line_again.text)=="（内容差额探针三）","DISPLAY hand refresh rebuilds the availability line instead of re-inserting the freed instance")
+ t.check(refill_delta.lost.is_empty() and refill_delta.gained.is_empty() and refilled.id==delta_base.id and refilled.children==delta_base.children,"DISPLAY hand refresh refilling the availability adds only that content label: "+str(refill_delta))
+ # Across faces: one face unusable and the other usable, so the round trip crosses the boundary.
+ ui.restart(42);await t.frames(8)
+ ui.render(ui.view);await t.frames()
+ var cross_uid=""
+ for card in ui.view.hand:
+  if not bool(card.single_face): cross_uid=String(card.uid);break
+ t.check(cross_uid!="","DISPLAY hand refresh cross-face fixture has a non-single-face hand card")
+ var cross_face="free" if bool(ui.card_faces.get(cross_uid,false)) else "bound"
+ var cross_other="bound" if cross_face=="free" else "free"
+ var cross_row=null
+ for card in ui.view.hand:
+  if String(card.uid)==cross_uid: cross_row=card
+ cross_row.availability[cross_face]["usable"]=false
+ cross_row.availability[cross_face]["dim"]=true
+ cross_row.availability[cross_face]["text"]="（跨面探针）"
+ cross_row.availability[cross_other]["usable"]=true
+ cross_row.availability[cross_other]["dim"]=false
+ cross_row.availability[cross_other]["text"]=""
+ ui.present(["hand"]);await t.frames()
+ var cross_button=ui.card_buttons[cross_uid]
+ var cross_line=cross_button.find_child("CardAvailability",true,false)
+ t.check(cross_line!=null and String(cross_line.text)=="（跨面探针）","DISPLAY hand refresh cross-face fixture shows the line on the unusable face")
+ var cross_before=present_hand_row(cross_button)
+ await t.flip(cross_uid)
+ var cross_on_other=present_hand_row(cross_button)
+ var other_delta=present_hand_delta(cross_before.nodes,cross_on_other.nodes,["CardAvailability"])
+ t.check(cross_button.find_child("CardAvailability",true,false)==null and other_delta.lost.is_empty() and other_delta.gained.is_empty() and cross_on_other.id==cross_before.id and cross_on_other.children==cross_before.children,"DISPLAY hand refresh flipping onto the usable face removes only that content label: "+str(other_delta))
+ await t.flip(cross_uid)
+ var cross_back_line=cross_button.find_child("CardAvailability",true,false)
+ var cross_back=present_hand_row(cross_button)
+ var back_delta=present_hand_delta(cross_on_other.nodes,cross_back.nodes,["CardAvailability"])
+ t.check(cross_back_line!=null and cross_back_line!=cross_line and String(cross_back_line.text)=="（跨面探针）","DISPLAY hand refresh flipping back rebuilds the line instead of re-inserting it")
+ t.check(back_delta.lost.is_empty() and back_delta.gained.is_empty() and cross_back.id==cross_before.id and cross_back.children==cross_before.children,"DISPLAY hand refresh flipping back across unequal occupancy rebuilds only that content label: "+str(back_delta))
  # ---------- E7 draw_serial 变、面不变 ⇒ 零写入 ----------
  ui.restart(42);await t.frames(8)
  ui.render(ui.view);await t.frames()
