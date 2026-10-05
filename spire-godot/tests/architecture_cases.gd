@@ -39,8 +39,9 @@ const TRANSITION_PATTERNS={
  "tower_restart":"_restart_tower\\(",
 }
 
-# Every .gd file below a res:// directory, sorted; the single enumerator for source scans.
-static func script_files(root: String) -> Array:
+# Every source file below a res:// directory matching one of the declared extensions (default
+# .gd), sorted; the single enumerator for source scans.
+static func script_files(root: String, extensions: Array=[".gd"]) -> Array:
  var result=[]
  var pending=[root]
  while not pending.is_empty():
@@ -48,7 +49,10 @@ static func script_files(root: String) -> Array:
   var handle=DirAccess.open(directory)
   if handle==null: continue
   for name in handle.get_files():
-   if String(name).ends_with(".gd"): result.append(directory+"/"+name)
+   for extension in extensions:
+    if String(name).ends_with(extension):
+     result.append(directory+"/"+name)
+     break
   for name in handle.get_directories(): pending.append(directory+"/"+name)
  result.sort()
  return result
@@ -615,6 +619,7 @@ static func run(t) -> void:
  slice_dependency_directions(t)
  run_identity_single_writer(t)
  feedback_save_single_serializer(t)
+ feedback_save_cap_pinned(t)
  card_terms_single_source(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
@@ -2741,6 +2746,12 @@ static func slice_dependency_directions(t) -> void:
  for path in script_files("res://ui"):
   if source_text(path.trim_prefix("res://")).contains("preload(\"res://core"): core_preloaders.append(path.trim_prefix("res://"))
  t.check(core_preloaders==["ui/main.gd"],"DEP slice_dependency_directions: ui/main.gd is the only ui file that preloads core: "+str(core_preloaders))
+ # The feedback service runs outside the game: it never references game source paths.
+ var service_references=[]
+ for path in script_files("res://tools/feedback-service",[".gs",".cjs",".js"]):
+  for token in ["res://core","res://ui","res://data"]:
+   if source_text(path.trim_prefix("res://")).contains(token): service_references.append(path.trim_prefix("res://")+" references "+token)
+ t.check(service_references.is_empty(),"DEP slice_dependency_directions: tools/feedback-service never references game source paths (res://core, res://ui, res://data): "+str(service_references))
 
 static func run_identity_single_writer(t) -> void:
  var clipboard=write_site_names(source_write_sites(["res://core","res://data","res://ui"],"DisplayServer\\.clipboard_set\\s*\\("))
@@ -2757,6 +2768,12 @@ static func feedback_save_single_serializer(t) -> void:
  for path in script_files("res://ui"):
   if source_text(path.trim_prefix("res://")).contains("save_attachment"): carriers.append(path.trim_prefix("res://"))
  t.check(carriers==["ui/feedback_report.gd"],"DEP feedback_save_single_serializer: ui/feedback_report.gd is the only ui file that carries the attachment: "+str(carriers))
+
+# docs/spec/feedback-deployment.md「存档附件」: the attachment cap is one constant declared in
+# ui/feedback_report.gd (not core/save_store.gd); declaration and value are pinned as source text.
+static func feedback_save_cap_pinned(t) -> void:
+ var source=source_text("ui/feedback_report.gd")
+ t.check(source.contains("const MAX_SAVE_BYTES=2*1024*1024"),"DEP feedback_save_cap_pinned: ui/feedback_report.gd declares the 2 MiB attachment cap as const MAX_SAVE_BYTES=2*1024*1024")
 
 static func card_terms_single_source(t) -> void:
  var readers=[]
