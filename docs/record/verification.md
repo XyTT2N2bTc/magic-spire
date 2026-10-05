@@ -2293,3 +2293,14 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - 终态`20261005T094833470-38060`：`SUITE RESULT: architecture PASS`、4479断言（较既有基线4477增加2条）、exit=0、`status=passed`、`before==after`、无`SOURCE CHANGED`；同轮`DOCS RESULT: PASS`。独立`tools/check-docs.ps1`：`DOCS PASS: 35 rule-class document(s), 2109 reference(s) checked, allowlist 3 entrie(s)`，exit=0；操作卡提交前同一门禁为35文件／2109引用PASS。
 - 未跑项：未跑`-Suite all`与UI回归、未跑codex／opencode多路独立审查、未复跑操作卡中带†的codex沙箱与opencode XDG条目（卡内标待核实）；未打包、未推送、未改版本。
 
+## 2026-10-05 记录守恒修复与 check-record-conservation.ps1
+
+域：`docs/record/verification.md`（8 个丢失标识的逐字恢复）、`.zcode/skills/spire-docs/SKILL.md`（记录生命周期行统一＋保留白名单）、`.zcode/skills/repo-ops/SKILL.md`（操作卡登记）、`spire-godot/tools/check-record-conservation.ps1`（新增，迁移期脚本）。基线 `8e83876`；本地提交 `89e4611`（本条目另批），未推送、未 tag、未改版本。
+
+- 恢复的 8 个标识：ZIP `8212e594af0d4e511fff70b550469c5075f8799f9d0870716fc83fadaf7d479d`（143545728 B）、`80abcd71c99225e51916d163f5e9ae6c5372d402`、`08b2caf57b312797a965cb020ed193145f8e87c3`、`63993badc0a6c1425a5a0ca38432188c2fffc0a3`、`683feefe5353ee8d79b7acd18d18c50206241130`、`02ea62262a1a89d8abc0e7b7364ba2885f37c934`、`B0D8D6353F805A8D7AB6F5EFC2A31D3D27629F5C7345FB342C21755A149E2901`、`FAA51D56B8D626959A828D93DB7EE67D7D026D57E34D85C46B3F6E8D0CE8755E`。5 句按原卷逐字放回原条目，未改写、未摘要：打包 `| 哈希 | …` 行；PR#4/#5 来源句（主分支基线＋两 PR head）；PR#6 的 head 与整合前 main 句；v0.18.1 规则初轮 before/after 句；卡牌施法条件冻结门禁 before/after 句。
+- 保留白名单（写入 `spire-docs` 记录诚实节）：任何分隔写法的 before/after、小写 failed、「哈希」／SHA256／checksum 行、40／64 位十六进制、运行号、`build/`／`outputs/` 路径、失败／未跑／未验证／不作证原句、标题／日期／域行。
+- 新增 `tools/check-record-conservation.ps1 -Base <rev>`（默认 `8e83876`）对三卷输出四类差集，非空即非零退出。终态复跑：identifiers=0、non_verbatim=0、headings/dates/domains=0、markers=0，allowlist 1 条（已用：2026-09-18 卷首被 2026-10-05 改编排的散句），exit=0。敏感性实测：临时删哈希行＋改写一句＋改域行 → identifiers=1、non_verbatim=1、domains=1、exit=1；按 sha256 还原（`8b87c02a…`）后复跑 PASS。
+- 文档门禁 `tools/check-docs.ps1`：`DOCS PASS: 35 rule-class document(s), 2114 reference(s) checked, allowlist 3 entrie(s)`，exit=0。
+- 规则门 `tools/check.ps1 -Suite architecture -TimeoutSeconds 2400`（`GODOT_BIN` 显式指向 `Godot_v4.7.2-stable_win64_console.exe`）：`20261005T095758440-36784`、`SUITE RESULT: architecture PASS`、4479 断言、40.38s、exit=0、`status=passed`、before==after==`D6A46B2138062C5EDE0DEF17F288CB52876DB30989B7467233DBDF7B1EFF7E32`、无 `SOURCE CHANGED`、无 cert-store 行，轮内 docs 阶段同为 PASS。起前 `Get-Process Godot*` 见非本会话进程（PID 9592／35032），等到为空才起，本轮引擎串行、无并跑。
+- 未跑项：未跑 `-Suite all` 与 UI 回归、未跑 `tools/check-content.ps1`（未改 `content/packs/`）、未跑打包与安卓真机、未推送、未改版本。
+
