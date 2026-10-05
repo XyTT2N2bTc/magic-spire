@@ -135,6 +135,7 @@ RuleChangePackage、逐分类结果与可复现日志见[整合审查](pr2-integ
 | `package.ps1 -BuildId pr2-20260917` | 退出码 0；导出前后运行源码指纹一致（`build/package-pr2-20260917/source-manifest.json`）；日志无 ERROR 行 |
 | `check-package.ps1 -Directory <成品>` | **PASS**（清单逐项 SHA256 一致、发布 EXE 启动、成品 PCK 资源探针）；两次：`build/package-check-20260917T115621322`，加入包内验证说明并同步登记清单后 `…T115708521` 再次 PASS |
 | ZIP 解压复核 | 24/24 清单项哈希与字节一致；清单外文件仅 `manifest.json` 自身（脚本按设计不把自身写入 files） |
+| 哈希 | ZIP `8212e594af0d4e511fff70b550469c5075f8799f9d0870716fc83fadaf7d479d`（143545728 B）；EXE `28e19c54…`；PCK `5bf7f18b…`；manifest `62aa0857…` |
 **未完成／不得当作通过（已写入包内 `验证说明.txt`）**：里程碑全量 `-Suite all -UI -UISuite all` **未运行**（本仓该命令历史上从未跑完）；本包依据的是开发路由的受影响套件轮（218.8s、`unrun=[]`、红集未超出既有六项）与两个冻结 oracle 的逐字通过，**两者都不能替代里程碑门禁**；Android 未打包（本机缺签名配置 `G:/CodexData/keys/spire-android/signing.json`）。包内另写明"每点击完整性检查改 debug feature"的过渡实现导致 release 不跑五道提交前检查与两道候选闸（早拦缺失由提交后聚合校验兜底并回滚）。
 
 ## 2026-09-17 per-click 完整性检查改 debug feature（实现者；协调者转写）
@@ -789,7 +790,7 @@ RuleChangePackage（加性、零规则改动：不动候选、数值、存档、
 - **本轮未跑：规则门／oracle／性能测量**（按人指示"不必每次都测效率"，留到定稿轮）；像素判据未另跑独立脚本或截图，只随 `impact_feedback` 套件执行。
 
 ## 2026-09-18｜PR #4／#5 本地整合验证
-#5 包含 #4；按用户「以 PR 为优先」完整接纳其目录、根指引、项目 skills、打包路径及反馈实现，保留独立审查发现的必要补修。
+**来源与范围**：主分支基线 `80abcd71c99225e51916d163f5e9ae6c5372d402`；PR #4 `08b2caf57b312797a965cb020ed193145f8e87c3`；PR #5 `63993badc0a6c1425a5a0ca38432188c2fffc0a3`。#5 包含 #4；按用户「以 PR 为优先」完整接纳其目录、根指引、项目 skills、打包路径及反馈实现，保留独立审查发现的必要补修。
 `tests/impact_feedback_ui_cases.gd` 增加 9 条断言（146 → 155）。独立子代理完成文档、调用边界与补修测试审查，没有剩余阻塞意见。
 **规则检查**（日志均在整合工作树 `spire-godot/build/checks/`）：
 - `20260918T045136391-25052`：`-Import -Suite architecture,pressure -UI -UISuite impact_feedback -KeepGoing`，architecture 471＋pressure 1085＝1556 条规则通过；上游反馈 146 条通过，退出码 0。此轮早于反馈清理／时间线补修，指纹 `69641D4BA790366B715EFB94D6C7B4E2BCBA28D37FF800AF021ACC52A93135A1` 前后一致；后续仅 UI 补修，没有改这些规则实现或规则测试。
@@ -858,6 +859,7 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - 未跑：oracle、像素判据、性能测量、打包（按人指示留到定稿轮）。
 
 ## 2026-09-19｜PR #6 合并到当前 main：监狱与内容包根
+用户要求检查新 PR 并入项目，以 PR 为优先。本轮新增开放 PR 为 [#6](https://github.com/h13942080472-prog/magic-spire/pull/6)，head `683feefe5353ee8d79b7acd18d18c50206241130`，整合前 main `02ea62262a1a89d8abc0e7b7364ba2885f37c934`。
 内容根由 `ContentCatalog.PACKS_ROOT` 单常量与 `packs_root()` 决定：开发／Android 为 `res://content/packs`，Windows 导出前显式设为 `adjacent`，导出后改回；两个打包入口调用共用断言，不自动修改源码。
 实际执行内容 CLI 先复现解析失败、退出1；改为 `packs_root()` 后正式12份内容校验通过、退出0。
 **测试修订与失败处理**：保留 PR 的五级正反例、正式交互、存档、计时与位置检查；增加战后整备边界2条，以及完整监狱英文与变更保底数值的8条检查。首轮 `20260919T070140846-6184` 在6633条规则中仅新增的完整英文手册断言失败，其他11分类通过，窗口阶段未执行；最小只读探针确认旧碎片回退不能完整翻译拼接正文。补完整模板与规格行译文后，重跑全部本次选择范围，首轮结果不作为最终通过证据。
@@ -1488,7 +1490,7 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 ## 2026-09-20｜v0.18.1 发布验收
 - 继续遵守“不用试玩”：本次不运行normal_play或UI交互回归，未做安卓真机验收。
 - 版本：project与两平台预设0.18.1；Windows文件／产品版本0.18.1.0；Android code13，原发布签名证书SHA256保持 `9da2962a178eec7a6be1bb45c77c37372c0f18c2f2efe313e3f8aad07cdd0608`。
-- 规则初轮：全部51个非试玩分类，以 `-Exhaustive -KeepGoing` 执行，`20260920T054831561-40660` 2/29034失败，49分类通过；两条均为旧断言。
+- 规则初轮：全部51个非试玩分类，以 `-Exhaustive -KeepGoing` 执行，`20260920T054831561-40660` 2/29034失败，49分类通过；两条均为旧断言。before/after均 `B0D8D6353F805A8D7AB6F5EFC2A31D3D27629F5C7345FB342C21755A149E2901`，整轮记failed，不称通过。
 - 校验修订：链接端点波及期望改读正式冻结的卡面值，保留真实提交、蓄力消费、选中端点与另一端隔离；监狱双杯夹具移除被杯具降值取代的固定110.52历史前提，保留所有迁移、组件清除、伪造拒绝、30步巡视／回充及可行动断言。
 - 按 `-RerunFailed` 续跑links／prison：`20260920T055537651-40752` 1554断言全通过、退出0；before/after均 `603AF9AD9FE94D38753858AE3715D9A7FE1035EAD0962DDAE73F79D0E68188E2`。汇总在 `spire-godot/build/release-v0.18.1/rules-evidence.json`。
 - Windows输出 `outputs/spire-v0.18.1-windows-x64-release-20260920-0181`，发布EXE无界面启动与PCK资源检查均通过，证据 `build/package-check-20260920T055720550`。Android输出 `outputs/spire-v0.18.1-android-release-20260920-0181`，清单／签名／16KB对齐及12份内置内容包检查通过，APK资源探针 `build/android-probe-20260920T055759513` 通过；无内容模板、测试、工具或签名秘密入包。
@@ -1586,7 +1588,7 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - 独立只读审查 `review_siphon_art` 通过，素材／映射diff --check通过。只做素材定向检查，未跑全量、未做视觉验收、打包发布或提交；其他在途UI不在范围。
 
 ## 2026-09-21 卡牌施法条件右下角（Codex）
-- 冻结门禁 `20260920T141656448-2800`（interface、encyclopedia）共538断言；encyclopedia174通过，interface364仅两条既有CARD ART直接索引／共用插画断言失败，整体failed。
+- 冻结门禁 `20260920T141656448-2800`（interface、encyclopedia）共538断言；encyclopedia174通过，interface364仅两条既有CARD ART直接索引／共用插画断言失败，整体failed。before/after一致：`FAA51D56B8D626959A828D93DB7EE67D7D026D57E34D85C46B3F6E8D0CE8755E`。
 - `build/card_requirements_probe.gd` 实际打开魔术手图鉴，定向2断言通过，截图 `build/card-requirements.png` 已目检；保留其余任务在途改动。未跑全部规则回归、未打包或发布。
 - 独立只读审查 review_card_requirements 通过本轮几何、翻面完整性及鼠标通道范围；diff --check通过。
 

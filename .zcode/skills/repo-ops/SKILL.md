@@ -72,6 +72,7 @@ git worktree list
 - 日志与证据：每轮写入 `build/checks/<运行号>/`（`check-rules.log`、`check-ui.log`、`summary.json` 等），不入库；摘要登记到 `docs/record/verification.md`。
 - 内容包校验：`& tools/check-content.ps1`（改动 `spire-godot/content/packs/` 后必跑）；`-Path <目录>` 可指向别处，如 `-Path content/templates`。
 - 规则类文档引用门禁 `spire-godot/tools/check-docs.ps1`：现在是 `tools/check.ps1` 的**独立阶段**（先用引擎无关的它开路，有自己的 `DOCS RESULT: PASS|FAIL` 结果行与 `summary.json` 的 `docs` 字段，失败即整轮失败），也可单跑做局部核对；改 `docs/spec`／`docs/design`／`docs/guide`／根 `AGENTS.md`／`.zcode/skills` 后必跑（或随主门禁带上）。检查点名路径存在、`文件::符号` 锚点已声明、本地 md 链接可达，并打印允许清单条数；扫描范围与排除理由的唯一声明在 `tools/doc-scan-scope.ps1`，`-ListTokens` 逐条打印。这些规则类文档同时在源码指纹内：改动它们会触发 `SOURCE CHANGED`。
+- 记录守恒核对 `tools/check-record-conservation.ps1 -Base <rev>`（默认 `8e83876`）：对三卷验证册比较基线，输出标识、逐字保真、标题／日期／域行、失败／未跑行四类差集，差集非空即非零退出。**迁移期脚本，不是常驻门禁**（只在历史压缩或记录修整时取证）；保留白名单与压缩规则见 `.zcode/skills/spire-docs/SKILL.md` 记录诚实节。
 - 引擎与启动：`tools/find-godot.ps1` 提供 `Find-SpireGodot`（`GODOT_BIN` → `godot`／`godot4` → `%USERPROFILE%\Downloads` 顺序探测），`tools/launch.ps1` 启动游戏。
 - 打包输出默认写到仓库根 `outputs/`（`package.ps1 -OutputRoot` 可覆盖）；打包入口 `tools/package.ps1`、`tools/package-android.ps1`，成品检查 `tools/check-package.ps1`、`tools/check-android-package.ps1`；先读 `docs/spec/packaging.md`，不以旧发布说明代替当前脚本。
 - **打包脚本必须用 PowerShell 7**（`pwsh`）：`package.ps1`／`package-android.ps1` 使用 `[IO.Path]::GetRelativePath`，Windows PowerShell 5.1 不支持。
