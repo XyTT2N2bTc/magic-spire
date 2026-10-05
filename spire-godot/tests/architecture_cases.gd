@@ -631,6 +631,7 @@ static func run(t) -> void:
  run_review_is_read_only_source(t)
  target_queries_stay_stateless(t)
  ui_never_reads_game_state(t)
+ mutation_evidence_is_total(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -2979,3 +2980,70 @@ static func target_queries_stay_stateless(t) -> void:
 static func ui_never_reads_game_state(t) -> void:
  var hits=source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])game\\.state\\b")
  t.check(hits.is_empty(),"RL ui_never_reads_game_state: ui/ never reads or writes game.state: "+str(write_site_names(hits)))
+
+# 检查力度的证据面（根 AGENTS.md「检查力度与报告四态」）：tests/mutations.json 是「判据名 → 临时突变」的
+# 唯一声明表，执行器 tools/check-mutation.ps1（改源代码→跑声明的套件→要求该判据变红→逐字节还原）。
+# 本判据双向核对：① 表里不得有幽灵条目（声明的套件里没有这个判据）；② 本轮规范重写线新增的判据
+# 必须逐条有证据（不得靠 known_gaps 逃逸）；③ 本文件的判据全集必须等于 表 ∪ known_gaps，两边都不许默默缺席。
+# 判据全集＝本文件里函数体自带断言的顶层函数：断言调用自成一行（`t.check(` 起行），
+# 于是取源／扫描类助手不计入，run 是入口、下划线助手随父判据。断言形态变化时本条随之失效。
+const MUTATION_TABLE="tests/mutations.json"
+const NORM_REWRITE_CHECKS=["slice_dependency_directions","run_identity_single_writer","feedback_save_single_serializer","card_terms_single_source","feedback_save_cap_pinned","equipment_scope_sites","equipment_targets_walk_is_one_path","transition_kind_set_pinned","command_params_keys_pinned","get_view_call_sites_are_pinned","production_source_never_preloads_tests","ondemand_copy_consumer_boundary","run_review_is_read_only_source","target_queries_stay_stateless","ui_never_reads_game_state"]
+
+static func mutation_judgment_universe() -> Array:
+ var names=[]
+ var current=""
+ var body=""
+ var declaration=RegEx.new()
+ var assertion=RegEx.new()
+ if declaration.compile("^(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")!=OK: return names
+ if assertion.compile("(?m)^ +t\\.check\\(")!=OK: return names
+ for line in source_text("tests/architecture_cases.gd").split("\n"):
+  var found=declaration.search(line)
+  if found!=null:
+   if current!="" and current!="run" and not current.begins_with("_") and assertion.search(body)!=null: names.append(current)
+   current=found.get_string(1)
+   body=""
+  elif current!="":
+   body+=line+"\n"
+ if current!="" and current!="run" and not current.begins_with("_") and assertion.search(body)!=null: names.append(current)
+ names.sort()
+ return names
+
+# 套件名 → 它的 case 文件；SUITES 的唯一声明在 tests/test_game.gd（core 直接跑 test_game.gd）。
+static func suite_script(test_game: String, suite: String) -> String:
+ if suite=="core": return "tests/test_game.gd"
+ var pattern=RegEx.new()
+ if pattern.compile("\""+suite+"\":\"res://([^\"]+)\"")!=OK: return ""
+ var found=pattern.search(test_game)
+ return "" if found==null else found.get_string(1)
+
+static func mutation_evidence_is_total(t) -> void:
+ var parsed=JSON.parse_string(source_text(MUTATION_TABLE))
+ t.check(parsed is Dictionary,"MT mutation_evidence_is_total: "+MUTATION_TABLE+" parses as a JSON object")
+ if not parsed is Dictionary: return
+ var entries=parsed.get("mutations",null)
+ var gaps=parsed.get("known_gaps",null)
+ t.check(entries is Dictionary and not (entries as Dictionary).is_empty(),"MT mutation_evidence_is_total: mutations is a non-empty declaration table")
+ t.check(gaps is Array,"MT mutation_evidence_is_total: known_gaps is an explicit list (no silent absence)")
+ if not entries is Dictionary or not gaps is Array: return
+ var universe=mutation_judgment_universe()
+ t.check(not universe.is_empty(),"MT mutation_evidence_is_total: the judgment universe is non-empty")
+ var test_game=source_text("tests/test_game.gd")
+ var ghosts=[]
+ for name in entries:
+  var row=entries[name]
+  if not row is Dictionary: ghosts.append(String(name)+":shape"); continue
+  var suite=String((row as Dictionary).get("suite",""))
+  var script=suite_script(test_game,suite)
+  if script=="" or not source_text(script).contains("func "+String(name)+"("): ghosts.append(String(name)+"@"+suite)
+ t.check(ghosts.is_empty(),"MT mutation_evidence_is_total: every table entry names a real check of its declared suite: "+str(ghosts))
+ var uncovered=NORM_REWRITE_CHECKS.filter(func(name):return not (entries as Dictionary).has(name))
+ t.check(uncovered.is_empty(),"MT mutation_evidence_is_total: the checks added by this rewrite line all carry mutation evidence: "+str(uncovered))
+ var covered=entries.keys().map(func(key):return String(key))
+ var declared_gaps=gaps.map(func(key):return String(key))
+ var silent=universe.filter(func(name):return name not in covered and name not in declared_gaps)
+ var both=covered.filter(func(name):return name in declared_gaps)
+ var unknown=declared_gaps.filter(func(name):return name not in universe)
+ t.check(silent.is_empty() and both.is_empty() and unknown.is_empty(),"MT mutation_evidence_is_total: each judgment is either evidenced or named in known_gaps: silent="+str(silent)+" both="+str(both)+" unknown="+str(unknown))
+

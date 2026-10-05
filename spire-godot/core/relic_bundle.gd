@@ -29,7 +29,7 @@ static func facts(g) -> Array:
  out.append(g._fact({"kind":"relic_bundle","op":"finish"},"返回奖励",{"kind":"relic_bundle.finish","args":{},"fallback":finish_detail(g,{})},0,0.0,"","","reward"))
  return out
 
-# R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+# R4（docs/ondemand-copy.md「文案路由（收口阶段）」）：直呼点文案改走路由，正文留在本模块。
 static func copy_cards(g) -> Array:
  return g.state.deck.filter(func(card):return g.Cards.Rules.SPECS[card.type].rarity!="basic" and g.can_offer_card(card.type))
 

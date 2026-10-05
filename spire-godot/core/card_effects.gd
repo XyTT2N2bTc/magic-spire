@@ -564,7 +564,7 @@ static func metadata(g, type: String, uid: String="") -> Dictionary:
    for side in ["bound","free"]: result.face_mana[side]=result.face_mana[side].filter(func(entry):return entry.kind!="gain")
  return result
 
-# 界面固有卡面文案的唯一生成函数（docs/ondemand-copy.md §1.1）：实时路径的四个步骤在此一处。
+# 界面固有卡面文案的唯一生成函数（docs/ondemand-copy.md「唯一生成函数（三路共用）」）：实时路径的四个步骤在此一处。
 # 输入按牌型与实例 uid，输出全新 Dictionary，只读且不影响判定、随机与存档。
 static func text_entry(g, type: String, uid: String="") -> Dictionary:
  var entry=face_texts(g,type,uid)
@@ -875,12 +875,12 @@ static func target_facts(g, p: Dictionary, label: String, cost: int, mana: float
   if choices.is_empty():
    p.hand_uid="";choices.append(p)
  for choice in choices:
-  # B3（docs/ondemand-copy.md §1.5）：descriptor 只留类别与参数，detail 由 Game.candidate_detail 现算。
+  # B3（docs/ondemand-copy.md「按需的候选详情」）：descriptor 只留类别与参数，detail 由 Game.candidate_detail 现算。
   facts.append(g._fact(choice,label,{"kind":"card.target","args":{"payload":choice}},cost,mana,reason(g,choice),risk,"card"))
  return facts
 
-# R3（docs/ondemand-copy.md §11.5）：转发包装的文案参数改走路由，签名与产出保持不变。
-# R6（docs/ondemand-copy.md §11.5）：单面卡面正文的 builder，正文留在本模块。
+# R3（docs/ondemand-copy.md「文案路由（收口阶段）」）：转发包装的文案参数改走路由，签名与产出保持不变。
+# R6（docs/ondemand-copy.md「文案路由（收口阶段）」）：单面卡面正文的 builder，正文留在本模块。
 static func face_text_detail(g, args: Dictionary) -> String:
  return face_text(g,String(args.get("type","")),bool(args.get("free",false)),String(args.get("uid","")))
 

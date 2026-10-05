@@ -197,7 +197,7 @@ static func add(out: Array, g, action: String, label: String, copy, cost: int=0,
  payload.merge(extra)
  out.append(g._fact(payload,label,copy,cost,0.0,reason,"","prison"))
 
-# R3（docs/ondemand-copy.md §11.5）：Prison.add 各站点文案的 builder，正文留在本模块，路由只做分派。
+# R3（docs/ondemand-copy.md「文案路由（收口阶段）」）：Prison.add 各站点文案的 builder，正文留在本模块，路由只做分派。
 static func enter_detail(_g, _args: Dictionary) -> String:
  return "牢门会在你身后锁上。"
 
@@ -272,7 +272,7 @@ static func unlock_facts(g) -> Array:
 static func capacity_reason(g) -> String:
  return "随身道具超出容量，请在道具栏使用或放弃多出的工具。" if g.carried_items()>g.item_capacity() else ""
 
-# R4（docs/ondemand-copy.md §11.5）：牢门解锁牌候选文案改走路由，正文留在本模块。
+# R4（docs/ondemand-copy.md「文案路由（收口阶段）」）：牢门解锁牌候选文案改走路由，正文留在本模块。
 static func unlock_door_detail(g, args: Dictionary) -> String:
  var type=String(args.get("type",""))
  return "打出这张牌打开牢门；临时魔力优先抵扣耗魔。"+("随后可选择另一把外露锁。" if g.Cards.Rules.SPECS[type].get("hits",1)>1 else "")

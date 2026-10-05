@@ -61,7 +61,7 @@ static func payment_notice(g, source: String) -> String:
   return ShopCopy.PLATE_SELF_BLOCK_REASON
  return ""
 
-# R3（docs/ondemand-copy.md §11.5）：「购买／解除／移除」三处文案的 builder，正文留在本模块。
+# R3（docs/ondemand-copy.md「文案路由（收口阶段）」）：「购买／解除／移除」三处文案的 builder，正文留在本模块。
 static func offer_detail(g, args: Dictionary) -> String:
  return detail(g,args.get("offer",{}))
 

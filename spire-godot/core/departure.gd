@@ -93,7 +93,7 @@ static func facts(g) -> Array:
   out.append(g._fact({"kind":"departure","op":"finish"},"出发  ›",{"kind":"departure.finish","args":{},"fallback":finish_detail(g,{})},0,0.0,"","","flow"))
  return out
 
-# R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+# R4（docs/ondemand-copy.md「文案路由（收口阶段）」）：直呼点文案改走路由，正文留在本模块。
 static func description_detail(g, args: Dictionary) -> String:
  return description(g,String(args.get("entry_id","")))
 

@@ -176,7 +176,7 @@ static func profile(g, part: String) -> Dictionary:
  if part=="hand" and g.state.card_buffs.has("witch_hand_freedom"): return {"parts":["hand"],"multiplier":1.0,"body_free":true}
  return {"parts":[part],"multiplier":LEG_CAST_MULTIPLIERS[g.level("legs")] if part=="legs" else 1.0}
 
-# R4（docs/ondemand-copy.md §11.5）：法术候选文案改走路由，正文留在本模块。
+# R4（docs/ondemand-copy.md「文案路由（收口阶段）」）：法术候选文案改走路由，正文留在本模块。
 static func attack_detail(g, args: Dictionary) -> String:
  var part=String(args.get("part",""))
  var charge=bool(args.get("charge",false))

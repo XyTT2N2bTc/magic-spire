@@ -19,7 +19,7 @@ static func facts(g) -> Array:
   out.append(g._fact({"kind":"demo_continue"},"继续游玩",{"kind":"demo_exit.continue","args":continue_args,"fallback":continue_detail(g,continue_args)},0,0.0,"","","demo_exit"))
  return out
 
-# R1（docs/ondemand-copy.md §11.5）：文案类别登记在路由，正文仍留本模块。
+# R1（docs/ondemand-copy.md「文案路由（收口阶段）」）：文案类别登记在路由，正文仍留本模块。
 static func end_detail(_g, _args: Dictionary) -> String:
  return "结束本次游玩。"
 

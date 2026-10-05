@@ -5,7 +5,7 @@ var _card_feedback: Array=[]
 var _equipment_read: Dictionary={}
 # Build-time self check records (§6): one entry per voided read batch, on this instance only.
 var _equipment_index_issues: Array=[]
-# 文案路由失败记录（docs/ondemand-copy.md §11.2）：未知 kind／无效 builder／结果类型不符时追加一条。
+# 文案路由失败记录（docs/ondemand-copy.md「失败语义」）：未知 kind／无效 builder／结果类型不符时追加一条。
 # 只读诊断：不进 state、不进 View、不进存档、不渲染、不做成计数器。
 var copy_router_failures: Array=[]
 
@@ -2160,7 +2160,7 @@ func _fact_verdict(f: Dictionary) -> Dictionary:
 # 事实 → 判定＋detail 的唯一组装（行与投影显示事实共用；两处都不写 valid／reason，只 merge 判定结论）。
 func _fact_core(f: Dictionary) -> Dictionary:
  var payload: Dictionary=f.payload
- # B3（docs/ondemand-copy.md §1.5）：card 目标显示点不再预生成 detail，显示时经 candidate_detail 现算。
+ # B3（docs/ondemand-copy.md「按需的候选详情」）：card 目标显示点不再预生成 detail，显示时经 candidate_detail 现算。
  var on_demand=String(payload.get("kind",""))=="card"
  var verdict=_fact_verdict(f)
  var core={}
@@ -2198,7 +2198,7 @@ func display_fact(f: Dictionary) -> Dictionary:
  fact.key=shape_key(fact.payload)
  return fact
 
-# 候选 detail 的唯一组装点（docs/ondemand-copy.md §1.5／§11.2）：eager 路径与候选只读入口共用，
+# 候选 detail 的唯一组装点（docs/ondemand-copy.md「按需的候选详情」／「文案路由（收口阶段）」）：eager 路径与候选只读入口共用，
 # 追加顺序与原实现一致（锁定项圈改写 → 熟练牵扯 → 临时魔力抵扣）。
 func _candidate_detail(base: String, payload: Dictionary, extra_traction: int, payment: Dictionary) -> String:
  var detail=base
@@ -2215,7 +2215,7 @@ func _candidate_detail(base: String, payload: Dictionary, extra_traction: int, p
 func _candidate_base_detail(payload: Dictionary) -> String:
  return Cards.target_detail(self,{"payload":payload})
 
-# R5（docs/ondemand-copy.md §11.5）：本模块直呼点的文案 builder，正文留在本模块，路由只做分派。
+# R5（docs/ondemand-copy.md「文案路由（收口阶段）」）：本模块直呼点的文案 builder，正文留在本模块，路由只做分派。
 static func copy_surrender(_g, _args: Dictionary) -> String:
  return "放弃战斗，被逮捕并进入收押处理。"
 
@@ -2365,8 +2365,8 @@ static func copy_depart(g, args: Dictionary) -> String:
  if bool(args.get("tower_start",false)): detail="选择此区域作为出狱起点，不消耗回合。\n"+g.room_description(room)
  return detail
 
-# 候选 detail 的只读入口（docs/ondemand-copy.md §1.5／§2）：当前 View 的候选逐字节等于投影值。
-# 陈旧候选允许按当前 state 重算（§2）；不写 state、不推进随机、不改 version、不产生日志与事件。
+# 候选 detail 的只读入口（docs/ondemand-copy.md「按需的候选详情」／「只读入口」）：当前 View 的候选逐字节等于投影值。
+# 陈旧候选允许按当前 state 重算（docs/ondemand-copy.md「只读入口」）；不写 state、不推进随机、不改 version、不产生日志与事件。
 func candidate_detail(candidate: Dictionary) -> String:
  if candidate.has("detail"): return String(candidate.detail)
  var payload=candidate.get("payload",{})
@@ -2418,7 +2418,7 @@ func command_facts() -> Array:
  _equipment_read=previous
  return result
 
-# 全量卡面文案的只读入口（docs/ondemand-copy.md §1.3）：输入 [{type,uid}]，逐项按 §1.1 现算，容器全部新建。
+# 全量卡面文案的只读入口（docs/ondemand-copy.md「只读入口」Game.live_card_text_set）：输入 [{type,uid}]，逐项按「唯一生成函数（三路共用）」现算，容器全部新建。
 func live_card_text_set(cards: Array) -> Dictionary:
  var texts={}
  var instances={}
@@ -2430,8 +2430,8 @@ func live_card_text_set(cards: Array) -> Dictionary:
   if uid!="" and not instances.has(uid): instances[uid]=Cards.text_entry(self,type,uid)
  return {"texts":texts,"instances":instances}
 
-# 单条卡面文案的只读入口（docs/ondemand-copy.md §1.4）：任意注册牌型现算一条，返回全新容器。
-# 不写 state、不推进随机、不改 version、不产生日志与事件（§2 共同语义）。
+# 单条卡面文案的只读入口（docs/ondemand-copy.md「只读入口」Game.live_card_text）：任意注册牌型现算一条，返回全新容器。
+# 不写 state、不推进随机、不改 version、不产生日志与事件（docs/ondemand-copy.md「只读入口」共同语义）。
 func live_card_text(type: String, uid: String = "") -> Dictionary:
  return Cards.text_entry(self,type,uid)
 

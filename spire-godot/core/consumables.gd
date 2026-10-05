@@ -83,7 +83,7 @@ static func noncombat_facts(g, existing: Array) -> Array:
   facts.append_array(use_facts(g,item))
  return facts
 
-# R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+# R4（docs/ondemand-copy.md「文案路由（收口阶段）」）：直呼点文案改走路由，正文留在本模块。
 static func description_detail(g, args: Dictionary) -> String:
  return description(g,String(args.get("item_type","")))
 

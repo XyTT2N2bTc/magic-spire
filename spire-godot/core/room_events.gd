@@ -958,7 +958,7 @@ static func append_choice_fact(g, out: Array, option: Dictionary) -> void:
  out.append(g._fact({"kind":"event","action":"choose","choice":option.id},option.label,{"kind":"event.choice","args":choice_args,"fallback":choice_detail(g,choice_args)},0,0.0,reason,"","event"))
  if result.decision=="disabled" and not result.gates.is_empty() and result.gates.all(func(hit):return CONDITIONS.has(hit.kind)): out.back().reason_surface="secondary"
 
-# R4（docs/ondemand-copy.md §11.5）：直呼点文案改走路由，正文留在本模块。
+# R4（docs/ondemand-copy.md「文案路由（收口阶段）」）：直呼点文案改走路由，正文留在本模块。
 static func choice_detail(g, args: Dictionary) -> String:
  var option_id=String(args.get("option_id",""))
  for option in g.state.room_event.get("options",[]):
