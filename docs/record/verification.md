@@ -2324,3 +2324,18 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - 守卫阳性对照（`docs/spec/seed-identity.md`，随后删除该行）：注入 `` `core/game.gd::b2_no_such_symbol` `` → `DOC FAIL: … symbol is not declared in the anchored file`、`DOCS FAIL: 1 unresolved`；注入 `` `tools/b2_no_such_tool.ps1` `` → 两条 `DOC FAIL`（坏锚点在位）、`DOCS FAIL: 2 unresolved`；两行删除后 `DOCS PASS`。
 - 不变式自证：`git diff --stat` 只含 `docs/spec/*` 14 份与 `spire-godot/tests/architecture_cases.gd`；`docs/design/**`、`spire-godot/assets/**`、根 `AGENTS.md`、`.zcode/skills/**` 零改动；未新增 `check-docs` 允许清单条目；未改 `core`／`ui`／`data` 语义。
 - 未跑项：未跑 `-Suite all` 与 UI 回归、未跑 `tools/check-content.ps1`（未改 `content/packs/`）、未跑打包与安卓真机、未推送、未 tag、未改版本；引擎起前 `Get-Process Godot*` 为空、轮内串行，跑后 `git status` 无 `.import` 行尾改写。
+
+## 2026-10-05 B2 保守例外按代码基线处置（B2b）
+
+- 域：`docs/spec/ondemand-copy.md`（冲突句改写＋过期符号/基线/成本段删除）、`docs/spec/release-interface.md`（ActionIndex 引用改为 `ui/target_queries.gd::first_usable`／`view.display_facts`）、`docs/spec/run-review.md`（引用检查名与断言原文一致）、`.zcode/skills/spire-docs/SKILL.md`（新增「文档以当前架构为基线」约束句）、`spire-godot/tests/architecture_cases.gd`（`ondemand_copy_consumer_boundary` 增卡面投影直读点白名单；新增 `ui_never_reads_game_state`）。本地提交 `ac5d543`，未推送、未 tag、未改版本。
+- 人裁：契约与实现冲突以当前架构为准（文档跟随代码、不绕行）；B2 保守例外的取舍判据＝以当前代码为基线（活约束留、能机检的搬检查、过期删、判不清列入待审）；B3 只出清单不改 `AGENTS.md`。
+- 命令与结果（`GODOT_BIN` 显式指向 `Godot_v4.7.2-stable_win64_console.exe`；每轮起前 `Get-Process Godot*` 为空，串行单引擎）：
+  - `tools/check.ps1 -Suite architecture -TimeoutSeconds 2400` 基线绿 `20261005T125837517-32032`：`SUITE RESULT: architecture PASS`、4496 断言（较既有 4494 增加 2 条）、exit=0、`status=passed`、`before==after`、无 `SOURCE CHANGED`；轮内 `DOCS PASS: 35 rule-class document(s), 1478 reference(s) checked, allowlist 3 entrie(s)`。
+  - 独立 `tools/check-docs.ps1`：`DOCS PASS: 35 document(s), 1478 reference(s), allowlist 3`，exit=0（三条 declared-missing 仍无人引用，清单未增未删）。
+- 突变（相反语义 → 红 → 还原）：
+  - 突变 1（`ui/deck_browser.gd::setup` 加一行直读 `ui.view.card_texts`）`20261005T125938734-26028`：architecture FAIL、1/4496，唯一失败即新白名单断言 `CP ondemand_copy_consumer_boundary: card_texts and card_instances are read only by ui/main.gd::card_entry/_card/_hand_presentation_key`（多出 `ui/deck_browser.gd::setup`）；按字节备份还原后复绿。
+  - 突变 2（`ui/arena.gd::configure_hero` 加一行 `ui.game.state` 读）`20261005T130033590-38988`：architecture FAIL、1/4496，唯一失败 `RL ui_never_reads_game_state: ui/ never reads or writes game.state: ["ui/arena.gd::configure_hero"]`；按字节备份还原后复绿。
+- 终态 `20261005T130118119-39532`：`SUITE RESULT: architecture PASS`、4496 断言、exit=0、`status=passed`、before==after、无 `SOURCE CHANGED`；轮内 `DOCS RESULT: PASS`；跑后 `git status --short` 干净，本轮无 `.import` 行尾改写。
+- 处置证据要点：`view.card_texts`／`view.card_instances` 的 UI 直读点实测仅 `ui/main.gd::card_entry`／`::_card`／`::_hand_presentation_key`；候选 `detail` 直读点仅 `ui/event_screen.gd`（event 组）与 `ui/main.gd::_drawer_presentation_key`（item 组节键），card 组只经 `ui/main.gd::detail_of`；`_candidate(out,…)`／`target_candidate`／`paid_candidate`／`ActionIndex`／`old_action`／`copy_display_points_have_no_misses`／`copy_full_entry_equals_baseline`／`copy_ghost_fallback_recorded` 在当前代码中均不存在（分别由 `core/game.gd::_fact`／`core/room_services.gd::paid_fact`／`ui/target_queries.gd::first_usable`／`copy_single_entry_matches_projection`／`copy_missing_key_never_crashes` 取代）。
+- 待你过目（不自行选边）：`ondemand-copy.md` 的「分批（B0→R0…R6→B1…B3）」段与「收口阶段交接约束／算未完成」——代码仍有直传字符串生产者（如 `core/card_effects.gd` 的 chain 事实），无法从代码判定收口批是否结束；B3 逐条清单在计划区 `C:\1\tmp\agb3-list.md`（未入库、未改 `AGENTS.md`）。
+- 未跑项：未跑 `-Suite all` 与 UI 回归、未跑 `tools/check-content.ps1`（未改 `content/packs/`）、未跑打包与安卓真机、未推送、未 tag、未改版本。
