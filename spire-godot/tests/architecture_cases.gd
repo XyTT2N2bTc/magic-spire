@@ -630,6 +630,7 @@ static func run(t) -> void:
  ondemand_copy_consumer_boundary(t)
  run_review_is_read_only_source(t)
  target_queries_stay_stateless(t)
+ ui_never_reads_game_state(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -2940,6 +2941,11 @@ static func production_source_never_preloads_tests(t) -> void:
 static func ondemand_copy_consumer_boundary(t) -> void:
  var router=source_write_sites(["res://ui"],"copy_router")
  t.check(router.is_empty(),"CP ondemand_copy_consumer_boundary: ui/ never references core/copy_router: "+str(write_site_names(router)))
+ # 卡面投影的直读点白名单（docs/spec/ondemand-copy.md「显示侧取用 helper」）：改三处之外的读取即红。
+ var projection_sites=["ui/main.gd::_card","ui/main.gd::_hand_presentation_key","ui/main.gd::card_entry"]
+ var texts=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])card_texts\\b"))
+ var instances=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])card_instances\\b"))
+ t.check(texts==projection_sites and instances==projection_sites,"CP ondemand_copy_consumer_boundary: card_texts and card_instances are read only by ui/main.gd::card_entry/_card/_hand_presentation_key: "+str(texts)+" "+str(instances))
  var candidates=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])candidate_detail\\s*\\("))
  t.check(candidates==["ui/main.gd::detail_of"],"CP ondemand_copy_consumer_boundary: candidate_detail is consumed only by ui/main.gd::detail_of: "+str(candidates))
  var sets=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])live_card_text_set\\s*\\("))
@@ -2968,3 +2974,8 @@ static func target_queries_stay_stateless(t) -> void:
  for token in forbidden:
   if code.contains(token): bad.append(token)
  t.check(not text.is_empty() and bad.is_empty(),"RL target_queries_stay_stateless: ui/target_queries.gd consumes only View/ActionIndex/payload: "+str(bad))
+
+# docs/spec/release-interface.md 失败语义：界面不读不写 game.state（core 是唯一状态与事务入口）。
+static func ui_never_reads_game_state(t) -> void:
+ var hits=source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])game\\.state\\b")
+ t.check(hits.is_empty(),"RL ui_never_reads_game_state: ui/ never reads or writes game.state: "+str(write_site_names(hits)))

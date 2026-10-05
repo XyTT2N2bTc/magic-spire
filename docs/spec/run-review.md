@@ -159,7 +159,7 @@ func _run_review_copy_text() -> String      # 未复制=_text("ui.run_review.cop
 
 - 窗口 `route` 分类 → `tests/route_ui_cases.gd` 的 `run_review(t)`（在既有 `run(t)` 恢复存档隔离之前调用；
   复用既有真实指针助手与真实夹具）。具名 check（原文见该文件）：
-  `ROUTE run review is not part of rules, candidates or randomness`／`ROUTE run review node click never departs`／
+  `ROUTE run review is not part of rules, facts or randomness`／`ROUTE run review node click never departs`／
   `ROUTE run review map matches the projected route`／`ROUTE run review progress counts the walked nodes`／
   `ROUTE run review deck lists every physical card`／`ROUTE run review identity reuses the run report text`／
   `ROUTE run review entries follow the route data`／`ROUTE run review behaves like the shared drawer`／
