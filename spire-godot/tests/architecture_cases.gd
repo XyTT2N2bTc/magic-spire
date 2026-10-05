@@ -621,6 +621,15 @@ static func run(t) -> void:
  feedback_save_single_serializer(t)
  feedback_save_cap_pinned(t)
  card_terms_single_source(t)
+ equipment_scope_sites(t)
+ equipment_targets_walk_is_one_path(t)
+ transition_kind_set_pinned(t)
+ command_params_keys_pinned(t)
+ get_view_call_sites_are_pinned(t)
+ production_source_never_preloads_tests(t)
+ ondemand_copy_consumer_boundary(t)
+ run_review_is_read_only_source(t)
+ target_queries_stay_stateless(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -2790,3 +2799,172 @@ static func card_terms_single_source(t) -> void:
   for path in script_files(root):
    if definition.search(source_text(path.trim_prefix("res://")))!=null: defined.append(path.trim_prefix("res://"))
  t.check(defined==["data/card_text.gd"],"DEP card_terms_single_source: exactly one keywords() implementation exists, in data/card_text.gd: "+str(defined))
+
+# docs/spec/equipment-query-seam.md：作用域进出点是冻结名单。下面两个常量是「必须新开作用域的入口」与
+# 「明确豁免」的唯一机读副本；散文表只保留索引。
+const SCOPE_ENTRY_SITES=["core/contact.gd::workspace","core/enemy_plans.gd::targets","core/equipment_offers.gd::ordinary","core/equipment_offers.gd::for_pool","core/equipment_offers.gd::preferred","core/equipment_offers.gd::links","core/self_binding.gd::tighten_targets","core/self_binding.gd::capacity","core/room_events.gd::selector_values","core/room_events.gd::compile","core/card_effects.gd::occupied_body_count","core/game.gd::command_fact","core/game.gd::command_facts","core/game.gd::_prepare_assembly","core/game.gd::get_view"]
+const SCOPE_EXEMPTIONS=["core/prison.gd::intake_equipment","core/slip_motion.gd::apply","core/room_events.gd::freeze_effects","core/shoulder_links.gd::cleanup","core/game.gd::validate","data/first_floor_enemy_pools.gd::eligible"]
+
+static func scope_open_sites() -> Array:
+ var hits=source_write_sites(["res://core","res://data"],"_begin_equipment_read\\s*\\(\\s*\\)")
+ return write_site_names(hits.filter(func(hit):return not String(hit.text).begins_with("func ")))
+
+static func equipment_scope_sites(t) -> void:
+ var names=scope_open_sites()
+ var missing=SCOPE_ENTRY_SITES.filter(func(site):return site not in names)
+ var extra=names.filter(func(site):return site not in SCOPE_ENTRY_SITES)
+ t.check(missing.is_empty() and extra.is_empty(),"EQ equipment_scope_sites: scope open points are the pinned entry list: missing="+str(missing)+" extra="+str(extra))
+ var opened=[]
+ var all_hits=source_write_sites(["res://core","res://data"],"_begin_equipment_read\\s*\\(\\s*\\)")
+ for site in SCOPE_EXEMPTIONS:
+  var parts=String(site).split("::")
+  var hit=all_hits.filter(func(row):return String(row.file)==String(parts[0]) and String(row.function)==String(parts[1]) and not String(row.text).begins_with("func "))
+  if not hit.is_empty(): opened.append(site)
+ t.check(opened.is_empty(),"EQ equipment_scope_sites: exemptions never open a read scope: "+str(opened))
+
+static func game_function_body(name: String) -> String:
+ # Signature line excluded so a call cannot be confused with the function's own name.
+ var source=source_text("core/game.gd")
+ var start=source.find("func "+name+"(")
+ if start<0: return ""
+ var rest=source.substr(start)
+ var signature_end=rest.find("\n")
+ if signature_end<0: return ""
+ var body=rest.substr(signature_end+1)
+ var nxt=body.find("\nfunc ")
+ return body if nxt<0 else body.substr(0,nxt)
+
+static func equipment_targets_walk_is_one_path(t) -> void:
+ var targets_body=game_function_body("targets_at")
+ var forbidden=["physical_pieces(","equipment_at(","_composite_roots(","links_at(","connections(","special_equipment.filter"]
+ var direct=[]
+ for token in forbidden:
+  if targets_body.contains(token): direct.append(token)
+ t.check(not targets_body.is_empty() and direct.is_empty(),"EQ equipment_targets_walk_is_one_path: targets_at never reaches a source container directly: "+str(direct))
+ var visit_body=game_function_body("_visit_targets_at")
+ var backwards=[]
+ for token in ["targets_at(","slot_targets"]:
+  if visit_body.contains(token): backwards.append(token)
+ t.check(not visit_body.is_empty() and backwards.is_empty(),"EQ equipment_targets_walk_is_one_path: _visit_targets_at never calls back into targets_at or reads slot_targets: "+str(backwards))
+
+# docs/spec/transition-pipeline.md：TRANSITIONS 的 kind 全集与 checkpoint 列（缺省＝不是固定点）。
+const TRANSITION_KINDS=["setup_init","tower_restart","practice_init","prison_cell_init","prison_gate_init","battle_start","battle_end_victory","battle_end_saturated","battle_end_captured","prepare_start","prepare_end","rest_start","room_enter","floor_enter","travel_start","prison_cell_enter","inspection_start","prison_exit_battle_start","prison_escape","event_enter","event_leave_empty","event_item_rewards","shop_enter","departure_start","departure_end","demo_end"]
+const TRANSITION_CHECKPOINTS={"battle_end_victory":"battle_end","battle_end_saturated":"battle_end","battle_end_captured":"battle_end","prepare_end":"prepare_end","floor_enter":"floor"}
+
+static func transition_kind_set_pinned(t) -> void:
+ var table=GameCore.TRANSITIONS
+ var missing=TRANSITION_KINDS.filter(func(kind):return not table.has(kind))
+ var extra=[]
+ for kind in table:
+  if kind not in TRANSITION_KINDS: extra.append(kind)
+ t.check(missing.is_empty() and extra.is_empty() and table.size()==TRANSITION_KINDS.size(),"TRANS transition_kind_set_pinned: the declared kind set is closed: missing="+str(missing)+" extra="+str(extra))
+ var bad=[]
+ for kind in table:
+  var entry=table[kind]
+  if typeof(entry)!=TYPE_DICTIONARY or not entry.has("phases") or not entry.has("room") or not entry.has("tx") or not entry.has("owners"):
+   bad.append(kind+":shape"); continue
+  if not entry.phases is Array or not entry.owners is Array or entry.owners.is_empty(): bad.append(kind+":arrays")
+  var point=String(entry.get("checkpoint",""))
+  if point!="" and point not in ["floor","battle_end","prepare_end"]: bad.append(kind+":checkpoint="+point)
+  if point!=String(TRANSITION_CHECKPOINTS.get(kind,"")): bad.append(kind+":checkpoint-mismatch")
+ t.check(bad.is_empty(),"TRANS transition_kind_set_pinned: every kind declares shape, owners and the pinned checkpoint column: "+str(bad))
+
+# docs/spec/candidate-removal.md §3.3.1：kind 的 params 键面（COMMAND_KEYS）是闭集；散文表只保留索引。
+const COMMAND_KEY_SETS={
+ "card":["uid","type","slot","target","free","mode","self_target","x","hand_uid"],
+ "chain":["action","type","target","slot","free","mode","selected_uid"],
+ "attack":["type","form","enemy","all","target","x","part","charge_action"],
+ "status_toggle":["status","enabled","uid"],
+ "posture":["dest","wall"],
+ "wall_move":["direction"],
+ "manual":["target"],
+ "hook":["target"],
+ "end":[],
+ "calm":[],
+ "surrender":[],
+ "item_use":["item","target"],
+ "item_install":["item","mount","operator"],
+ "item_retrieve":["item","mount","operator"],
+ "item_discard":["item"],
+ "finish_prepare":[],
+ "finish_rest":[],
+ "finish_pack":[],
+ "retain":["uid"],
+ "retain_skip":[],
+ "rest_rare":[],
+ "rest_card":["type"],
+ "rest_flask":[],
+ "rest_begin":[],
+ "service":["op","index","target","uid","payment"],
+ "event":["action","choice","type"],
+ "prison":["action","site","direction","steps","uid","type","target","slot","mode","free"],
+ "depart":["room"],
+ "travel_step":[],
+ "reward":["category","type","reward_id"],
+ "reward_skip":["category"],
+ "relic_bundle":["op","index","uid","type"],
+ "departure":["op","option","uid","type"],
+ "flask":["op"],
+ "relic_toggle":["relic"],
+ "relic_discharge":["relic"],
+ "relic_control_done":[],
+ "demo_end":[],
+ "demo_continue":[],
+}
+
+static func command_params_keys_pinned(t) -> void:
+ var declared=GameCore.COMMAND_KEYS
+ var probe=Game.new(42)
+ var bad=[]
+ for kind in COMMAND_KEY_SETS:
+  if not declared.has(kind): bad.append(kind+":missing"); continue
+  var actual=declared[kind].keys().map(func(key):return String(key)); actual.sort()
+  var expected=COMMAND_KEY_SETS[kind].duplicate(); expected.sort()
+  if actual!=expected: bad.append(kind+":declared "+str(actual)+" != "+str(expected))
+  var projected=probe.command_params(kind,{}).keys().map(func(key):return String(key)); projected.sort()
+  if projected!=expected: bad.append(kind+":params "+str(projected))
+ t.check(bad.is_empty() and declared.size()==COMMAND_KEY_SETS.size(),"CR command_params_keys_pinned: the command key face is closed per kind: "+str(bad))
+
+# docs/spec/response-pipeline.md 接缝 A：get_view 的调用点白名单（_resume_snapshot／render／_submit／restart）。
+static func get_view_call_sites_are_pinned(t) -> void:
+ var hits=source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])game\\.get_view\\s*\\(")
+ var sites=write_site_names(hits)
+ t.check(sites==["ui/main.gd::_resume_snapshot","ui/main.gd::_submit","ui/main.gd::render","ui/main.gd::restart"],"RP get_view_call_sites_are_pinned: only the four whitelisted UI functions call get_view: "+str(sites))
+
+# docs/spec/event-pipeline.md 依赖规范 6：生产代码（core／data／ui）不得引用 res://tests/**。
+static func production_source_never_preloads_tests(t) -> void:
+ var hits=source_write_sites(["res://core","res://data","res://ui"],"res://tests/")
+ t.check(hits.is_empty(),"DEP production_source_never_preloads_tests: production source never references res://tests/: "+str(write_site_names(hits)))
+
+# docs/spec/ondemand-copy.md：UI 只经 Game 只读入口与两个 helper 取用文案；UI 不直连 core/copy_router。
+static func ondemand_copy_consumer_boundary(t) -> void:
+ var router=source_write_sites(["res://ui"],"copy_router")
+ t.check(router.is_empty(),"CP ondemand_copy_consumer_boundary: ui/ never references core/copy_router: "+str(write_site_names(router)))
+ var candidates=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])candidate_detail\\s*\\("))
+ t.check(candidates==["ui/main.gd::detail_of"],"CP ondemand_copy_consumer_boundary: candidate_detail is consumed only by ui/main.gd::detail_of: "+str(candidates))
+ var sets=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])live_card_text_set\\s*\\("))
+ t.check(sets==["ui/deck_browser.gd::setup","ui/shop_screen.gd::services"],"CP ondemand_copy_consumer_boundary: live_card_text_set is consumed only by the deck browser and shop removal: "+str(sets))
+ var live=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])live_card_text\\s*\\("))
+ t.check(live==["ui/main.gd::card_entry"],"CP ondemand_copy_consumer_boundary: live_card_text is consumed only by ui/main.gd::card_entry: "+str(live))
+
+# docs/spec/run-review.md 只读保证：ui/run_review.gd 唯一写动作是复制按钮 → ui.copy_seed()。
+static func run_review_is_read_only_source(t) -> void:
+ var text=source_text("ui/run_review.gd")
+ var code=""
+ for line in text.split("\n"): code+=String(line).split("#")[0]+"\n"
+ var forbidden=["ui.game.","DisplayServer.clipboard_set","_save_progress",".dispatch(","seed_copied_until="]
+ var bad=[]
+ for token in forbidden:
+  if code.contains(token): bad.append(token)
+ t.check(not text.is_empty() and code.contains("ui.copy_seed") and bad.is_empty(),"RR run_review_is_read_only_source: ui/run_review.gd copies through ui.copy_seed only: "+str(bad))
+
+# docs/spec/release-interface.md 输入域：共享查询只吃 View／ActionIndex／载荷，不接收 Game、不写状态。
+static func target_queries_stay_stateless(t) -> void:
+ var text=source_text("ui/target_queries.gd")
+ var code=""
+ for line in text.split("\n"): code+=String(line).split("#")[0]+"\n"
+ var forbidden=["game.","Game.","ui.game",".state","dispatch(","_submit("]
+ var bad=[]
+ for token in forbidden:
+  if code.contains(token): bad.append(token)
+ t.check(not text.is_empty() and bad.is_empty(),"RL target_queries_stay_stateless: ui/target_queries.gd consumes only View/ActionIndex/payload: "+str(bad))

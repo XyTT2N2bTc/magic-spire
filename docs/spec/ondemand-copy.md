@@ -76,6 +76,9 @@
   - `detail_of(candidate) -> String`：`candidate.detail` 存在即用；缺失 → `game.candidate_detail(candidate)` 并记录。
 - 除这两个 helper 外，UI 全仓不得直接读 `view.card_texts[…]`、`view.card_instances[…]`、`c.detail`；
   含 `c.get("brief", c.detail…)` 这种**预求值**写法（GDScript 会先算默认参数，缺键即崩）。
+- 源文本判据＝`tests/architecture_cases.gd::ondemand_copy_consumer_boundary`：UI 不引用 `core/copy_router`；
+  `candidate_detail` 只由 `ui/main.gd::detail_of` 消费，`live_card_text_set` 只由牌堆浏览与商店去卡消费，
+  `live_card_text` 只由 `ui/main.gd::card_entry` 消费。语义条目（S 取源、或然失败、复用准入线）仍为本文件真源。
 
 ## 输入域
 

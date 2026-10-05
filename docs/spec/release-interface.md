@@ -185,6 +185,8 @@ flowchart LR
 ## 输入域
 
 - 共享查询的输入只有**当前 View 的数据、ActionIndex 和本次载荷**；不接收 `Game` 或控件，不写状态。
+  源文本判据＝`tests/architecture_cases.gd::target_queries_stay_stateless`（`ui/target_queries.gd` 不出现
+  `game.`／`Game.`／`.state`／`dispatch(`／`_submit(`）。
 - 界面输入为真实 viewport 输入（鼠标、键盘、触屏）；提交一律走**指令路由（`ui/command_router.gd::emit` 唯一入口）＋ 版本复核**的正式入口（R2 起）。
 - 快捷栏按键只选择区域，选中后再用牌；格内显示真实绑定，自定义键位即时跟随。固定 ←／→ 只在
   快捷区域被选中、且无模态／输入框／独立键盘目标选择／拖拽时接管，原键位设置和菜单导航继续使用。
