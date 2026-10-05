@@ -34,7 +34,7 @@ if ($RerunFailed) {
 # The long-horizon real-input recipe is its own check.ps1 phase, not a test_game.gd rule suite: it
 # drives a real window through the shipped UI helpers and owns its exit-code evidence. Pull the
 # token out of the rule scope here; `all` deliberately does not expand to it (see the operations
-# card in .zcode/skills/repo-ops/SKILL.md).
+# card in skills/repo-ops/SKILL.md).
 $Recipe = 'recipe' -in $Suite
 $Suite = @($Suite | Where-Object { $_ -ne 'recipe' })
 if ($UI -and -not $UIOnly -and $PSBoundParameters.ContainsKey('Suite') -and -not $PSBoundParameters.ContainsKey('UISuite')) {
@@ -75,8 +75,9 @@ function Get-SourceFingerprint {
     Get-ChildItem -LiteralPath $gameDirectory -File | Where-Object { $_.Extension -in @('.godot','.gd','.tscn','.tres') } | ForEach-Object {
         $entries.Add($_.Name + ':' + (Get-FileHash -LiteralPath $_.FullName).Hash)
     }
-    # Rule-class documents sit above the module (docs/, AGENTS.md, .zcode/skills) and are part of
-    # the guarded surface: a contract edit must move the fingerprint instead of passing silently.
+    # Rule-class documents sit above the module (docs/, AGENTS.md, skills/ and its .zcode/skills
+    # discovery stubs) and are part of the guarded surface: a contract edit must move the
+    # fingerprint instead of passing silently.
     # Records and the archive are excluded in doc-scan-scope.ps1 (append-only churn, not rules).
     foreach ($document in (Get-RuleDocFiles -RepositoryRoot $repositoryRoot)) {
         $entries.Add($document.Substring($repositoryRoot.Length + 1) + ':' + (Get-FileHash -LiteralPath $document -Algorithm SHA256).Hash)
@@ -85,7 +86,7 @@ function Get-SourceFingerprint {
     # NLS in Windows PowerShell 5.1), which ordered case/accent/hyphen neighbours differently and
     # gave one source tree two different values depending on the host that happened to run it.
     # Ordinal comparison is culture-free, so the same file set yields the same value anywhere.
-    # The value stays a within-run guard, not an identity (see .zcode/skills/spire-docs/SKILL.md).
+    # The value stays a within-run guard, not an identity (see skills/spire-docs/SKILL.md).
     $ordered = $entries.ToArray()
     [Array]::Sort($ordered, [StringComparer]::Ordinal)
     $bytes = [Text.Encoding]::UTF8.GetBytes(($ordered -join "`n"))

@@ -2,7 +2,7 @@
 
 「候选层移除与指令路由」（`docs/spec/candidate-removal.md`）一片已落地（批 R1–R5 全部合并）。
 本文件是这一片的依赖约束索引：判据的真源是下表点名的检查，散文不复述内容
-（2026-10-05 重写：允许改动表、183 文件迁移面清单与逐批授权期结束，规则见 `.zcode/skills/spire-docs/SKILL.md`「判据优先」）。
+（2026-10-05 重写：允许改动表、183 文件迁移面清单与逐批授权期结束，规则见 `skills/spire-docs/SKILL.md`「判据优先」）。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、`tools/`、`build/`）
 均相对 `spire-godot/`；`docs/` 相对仓库根。
@@ -26,6 +26,6 @@
 
 - 生产源码不带计数器／计时钩子；本片不新增运行时钩子或第三方依赖。
 - UI 自行判定资格、用译文／名称／颜色／图片识别对象、用 `version` 当缓存键——这些是根 `AGENTS.md`「禁区」与
-  `.zcode/skills/spire-architecture/SKILL.md` 的通用约束，本片不复述。
+  `skills/spire-architecture/SKILL.md` 的通用约束，本片不复述。
 - 装备只读查询接缝内部（`_query_stack_items`／`targets_at`）不因本片改写。
 - 推送、打标签、改版本号；改 `project.godot` 或导出预设不在本片授权面。

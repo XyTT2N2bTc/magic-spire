@@ -80,4 +80,4 @@
 - 规则侧：`& tools/check.ps1 -Suite architecture,persistence -Impact -TimeoutSeconds 1200`。
 - 窗口侧：`& tools/check.ps1 -UIOnly -UISuite all -KeepGoing -TimeoutSeconds 3600`。
 - 判读（退出码、`SUITE RESULT`、`status=passed` 且 `before==after`、引擎错误 0 行）与登记口径见
-  `.zcode/skills/repo-ops/SKILL.md` 与 `docs/record/verification.md`；未跑项不得写成通过。
+  `skills/repo-ops/SKILL.md` 与 `docs/record/verification.md`；未跑项不得写成通过。

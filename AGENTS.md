@@ -2,7 +2,7 @@
 
 本文件只写：红线、本仓特有约束、Godot 技术栈与代码规范、最小索引。
 全局 AGENTS 的红线照旧生效；全局 AGENTS 的职能与交接规则、完成证据与接口信任规则不在此复述。
-命令与操作流程见 `.zcode/skills/repo-ops/SKILL.md`。
+命令与操作流程见 `skills/repo-ops/SKILL.md`。
 
 ## 红线（禁区）
 
@@ -59,7 +59,7 @@
 ## 实现规约（审查）
 
 - 纯数值修改（既有配置或常量中的生命、伤害、费用、倍率、概率、数量）与同步文案／测试预期，不派独立子代理审查；仅修正文档错字、格式、链接且不改契约时也不派审查。规则逻辑、执行流程、接口、架构、测试判据或门禁规范变化，按完成的逻辑批次派一次**独立子代理审查**：初审用新会话，返修时沿用原审查者、只复核受影响范围；审查者只读，不得改动代码。
-- 审查模型、证据复用与结束条件见 `.zcode/skills/spire-validation-release/SKILL.md`「审查流程」。
+- 审查模型、证据复用与结束条件见 `skills/spire-validation-release/SKILL.md`「审查流程」。
 
 ## 检查力度与报告四态
 
@@ -69,7 +69,7 @@
 
 ## 最小索引
 
-- 命令与操作流程见 `.zcode/skills/repo-ops/SKILL.md`。
+- 命令与操作流程见 `skills/repo-ops/SKILL.md`。
 
 ### 文档入口
 
@@ -95,6 +95,8 @@
 | 美术来源与差分 | spire-godot/assets/art/ART-NOTES.md、spire-godot/assets/vendor/CREDITS.md |
 
 ### 项目 skill
+
+skill 正文在根 `skills/*/SKILL.md`（供多 harness 使用）；`.zcode/skills/` 下同名文件仅为 ZCode 发现用的薄桩。
 
 - `repo-ops`：命令与操作流程（检查门禁及语义、工作树、内容包校验、引擎定位、打包发布）。
 - `spire-docs`：文档规范（五类生命周期、符号锚点、判据优先、依赖约束索引、记录诚实、文档守卫）。

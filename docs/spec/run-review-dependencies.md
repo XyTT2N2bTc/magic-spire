@@ -1,7 +1,7 @@
 # 本局回顾面板：依赖约束索引
 
 「本局回顾」（`docs/spec/run-review.md`）一片已落地。本文件是这一片的依赖约束索引：
-判据的真源是下表点名的检查，散文不复述内容（2026-10-05 重写；规则见 `.zcode/skills/spire-docs/SKILL.md`「判据优先」）。
+判据的真源是下表点名的检查，散文不复述内容（2026-10-05 重写；规则见 `skills/spire-docs/SKILL.md`「判据优先」）。
 本片与种子角标／反馈存档两片同批提 PR，切口独立：`docs/spec/seed-feedback-dependencies.md` 仍约束那两片。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、

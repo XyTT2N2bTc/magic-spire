@@ -28,10 +28,10 @@
 | `spire-godot/project.godot` | 版本号与导出预设的读取源（打包脚本据此选择预设） | 打包与发布 |
 | `spire-godot/build/`、`outputs/` | 已忽略目录：构建证据与交付产物，不入库 | 按验证记录中的路径取证 |
 | `release/` | 玩家面副本与启动器（`基础操作教学.txt`、`开始游戏.cmd`／`.vbs`） | 随包分发与启动 |
-| `.zcode/skills/` | 操作与领域技能：`repo-ops`（命令与操作流程）、`spire-architecture`、`spire-ui-content`、`spire-validation-release` | 动手前 |
+| `skills/` | 操作与领域技能正文：`repo-ops`（命令与操作流程）、`spire-architecture`、`spire-ui-content`、`spire-validation-release`；`.zcode/skills/` 下同名文件仅为 ZCode 发现用薄桩 | 动手前 |
 | `LICENSE`、`ASSET_RIGHTS.md`、`版本更新内容.txt` | 许可、素材权利范围与版本更新记录 | 发布与素材处理 |
 
-命令与操作流程不在本文件，也不在 `AGENTS.md`：见 `.zcode/skills/repo-ops/SKILL.md`
+命令与操作流程不在本文件，也不在 `AGENTS.md`：见 `skills/repo-ops/SKILL.md`
 （根级 git 检查、分类门禁、内容包校验、引擎定位、打包发布）。
 
 ## 输入域（本文件收录什么）
@@ -47,5 +47,5 @@
 ## 证据入口
 
 - 文档改动：核对链接指向的文件在仓库内存在、编码与体积符合约定（纯文档修改不重跑游戏回归）。
-- 仓库级检查命令与判读见 `.zcode/skills/repo-ops/SKILL.md`；`spire-godot/` 的分类门禁与打包见该技能与
+- 仓库级检查命令与判读见 `skills/repo-ops/SKILL.md`；`spire-godot/` 的分类门禁与打包见该技能与
   `docs/spec/packaging.md`；验证结果登记在 `docs/record/verification.md`。

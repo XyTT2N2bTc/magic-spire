@@ -2,7 +2,7 @@
 
 「种子标识」（`docs/spec/seed-identity.md`）与「反馈一并上传存档」（`docs/spec/feedback-deployment.md`）两片已落地。
 本文件是这两片的依赖约束索引：判据的真源是下表点名的检查，散文不复述内容
-（2026-10-05 重写；规则见 `.zcode/skills/spire-docs/SKILL.md`「判据优先」）。
+（2026-10-05 重写；规则见 `skills/spire-docs/SKILL.md`「判据优先」）。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、
 `tools/`、`build/`）均相对 `spire-godot/`；`docs/` 相对仓库根。

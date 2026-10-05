@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 # actually run; losing an identifier, rewriting a kept sentence or dropping a failure/unrun line
 # destroys traceability that no other gate can restore (docs/record/** is outside the source
 # fingerprint). The keep-filter white list this check enforces lives in
-# .zcode/skills/spire-docs/SKILL.md, section "记录诚实".
+# skills/spire-docs/SKILL.md, section "记录诚实".
 #   1. identifiers : run ids (\d{8}T\d{9}-\d+), 40/64-hex values and build//outputs/ evidence paths
 #                    present in Base must still be present in the current file.
 #   2. verbatim    : every current body sentence inside a section that also exists in Base must be
