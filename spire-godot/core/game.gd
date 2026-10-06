@@ -2385,32 +2385,25 @@ func candidate_detail(candidate: Dictionary) -> String:
  if payload.get("kind","")!="card": return ""
  return _candidate_detail(_candidate_base_detail(payload),payload,Cards.magic_card_traction(self,payload),_mana_payment(payload,float(candidate.get("mana",0.0))))
 
-# 全部指令显示事实的唯一来源（docs/spec/candidate-removal.md「接口」T5／T8；批 R5）：按阶段／域产出显示点事实。
+# 全部指令显示事实的唯一来源（docs/spec/candidate-removal.md「接口」T5／T8；批 R5）。A 批（K1，plan §3；
+# docs/spec/fact-table-dependencies.md「单元表」）：表的组成面由 core/command_registry.gd::FACT_UNITS 声明，本函数
+# 只做一次连接——分支判定经 _phase_branch（K0），单元顺序＝表序（顺序是数据，不是控制流），未声明单元不产行。
 # 投影与接管选择经 command_facts 取本列表；command_fact 可行动期经登记项取该 kind 的来源（整表语义的
-# kind 由 core/command_registry.gd 显式点名本函数，不再有匿名兜底臂）。行载体已删除，无第二份物化。
+# kind 由 core/command_registry.gd 显式点名 _whole_table_kind_facts，不再有匿名兜底臂）。行载体已删除，无第二份物化。
 func _fact_source() -> Array:
+ return _join_fact_units(CommandRegistry.fact_source_units(_phase_branch()))
+
+# 单元连接通道（K1 的唯一入口）：facts＝本单元之前已累积的表（单元表 input 列声明的跨单元前置靠它传递）。
+# 生产者是 g 上的方法名，签名 (facts: Array) -> Array；表外不追加任何行。
+func _join_fact_units(units: Array) -> Array:
  var facts: Array=[]
- if not state.relic_bundle.is_empty():
-  facts.append_array(RelicBundle.facts(self))
-  facts.append_array(Consumables.noncombat_facts(self,facts))
-  facts.append_array(ManaFlask.facts(self,true))
-  return facts
- if state.phase=="departure":
-  facts.append_array(Departure.facts(self))
-  facts.append_array(Consumables.noncombat_facts(self,facts))
-  facts.append_array(ManaFlask.facts(self,true))
-  return facts
- if not command_domain_ready(): return facts
- facts.append_array(_phase_facts())
- facts.append_array(Consumables.noncombat_facts(self,facts))
- facts.append_array(_route_facts(facts))
- var surrender=surrender_fact()
- if not surrender.is_empty(): facts.append(surrender)
- facts.append_array(item_discard_facts())
- facts.append_array(ManaFlask.facts(self))
- facts.append_array(RelicEffects.facts(self))
- facts.append_array(_status_toggle_facts())
+ for unit in units:
+  facts.append_array(call(String(unit.producer),facts))
  return facts
+
+# 一个分支的单元连接（_phase_facts 的每分支调用点；顺序＝表序）。
+func _phase_branch_units(branch: String) -> Array:
+ return _join_fact_units(CommandRegistry.phase_units(branch))
 
 # 状态开关（蓄力切换＋可切换能力）：显示事实的唯一来源；_fact_source 与 command_fact 共用。
 func _status_toggle_facts() -> Array:
@@ -2449,86 +2442,197 @@ func live_card_text_set(cards: Array) -> Dictionary:
 func live_card_text(type: String, uid: String = "") -> Dictionary:
  return Cards.text_entry(self,type,uid)
 
-# 阶段与行动显示事实（command_facts 的阶段分支）：早退分支与改动前的行路径逐条对应。
+# K0（plan §3 A 批；docs/spec/fact-table-dependencies.md「分支词表」）：阶段分支的唯一选择器——按改动前
+# _fact_source 的前缀早退（relic_bundle／departure／domain_blocked）与 _phase_facts 的早退链逐条对应；
+# _phase_facts 与（B 批）各 kind 域臂共用它。分支 id 表与 _phase_facts 的 return 点双向全量
+# （tests/architecture_cases.gd::phase_branch_vocabulary_is_total）。只读：不写 state、不推进随机、不改 version。
+func _phase_branch() -> String:
+ if not state.relic_bundle.is_empty(): return "relic_bundle"
+ if state.phase=="departure": return "departure"
+ if not command_domain_ready(): return "domain_blocked"
+ if state.phase=="rest_choice": return "rest_choice"
+ if state.phase in ["shop","treasure"]: return "shop_treasure"
+ if state.phase=="event": return "event"
+ if state.phase in ["captured","inspection"]: return "captured_inspection"
+ if state.phase=="prison_end": return "prison_end"
+ if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES: return "overload_climax"
+ if not state.card_chain.is_empty(): return "card_chain"
+ if state.pending_retain: return "pending_retain"
+ if state.phase=="reward": return "reward"
+ if state.phase=="map": return "map"
+ if state.phase=="travel": return "travel"
+ if state.phase=="cleared": return "cleared"
+ if state.phase=="pack": return "pack"
+ return "action_tail"
+
+# 阶段显示事实（command_facts 的阶段分支；K0／K1）：分支判定只经 _phase_branch（本函数体内不再有条件链），
+# 每分支跑单元表中归属该 owner 的单元（顺序＝表序；prison_end／map 是空表分支）。三个前缀分支由 _fact_source
+# 先行解析；直呼本函数时它们落回尾段（前缀状态不在生产调用路径上；实测残差见
+# docs/spec/fact-table-dependencies.md「仍靠人审」）。
 func _phase_facts() -> Array:
+ match _phase_branch():
+  "rest_choice": return _phase_branch_units("rest_choice")
+  "shop_treasure": return _phase_branch_units("shop_treasure")
+  "event": return _phase_branch_units("event")
+  "captured_inspection": return _phase_branch_units("captured_inspection")
+  "prison_end": return _phase_branch_units("prison_end")
+  "overload_climax": return _phase_branch_units("overload_climax")
+  "card_chain": return _phase_branch_units("card_chain")
+  "pending_retain": return _phase_branch_units("pending_retain")
+  "reward": return _phase_branch_units("reward")
+  "map": return _phase_branch_units("map")
+  "travel": return _phase_branch_units("travel")
+  "cleared": return _phase_branch_units("cleared")
+  "pack": return _phase_branch_units("pack")
+  "relic_bundle", "departure", "domain_blocked", "action_tail": return _phase_branch_units("action_tail")
+ return []
+
+# ==== 单元生产者（K1；core/command_registry.gd::FACT_UNITS 的 producer 列）====
+# 每个都是一个追加点的唯一实现，签名 (facts: Array) -> Array（facts＝累积表；未声明单元的写法不得出现在表外）。
+
+# 休息选择块（4 行；rest_choice 分支）。
+func _unit_rest_choice(_facts: Array) -> Array:
  var out: Array = []
- if state.phase=="rest_choice":
-  out.append(_fact({"kind":"rest_rare"},"随机获得1张稀有卡 · 扣除%d回合" % B.REST_CARD_TURNS.rare,{"kind":"game.rest_rare","args":{},"fallback":copy_rest_rare(self,{})},0,0.0,"休息回合不足。" if state.rest_left<B.REST_CARD_TURNS.rare else "","","rest_service"))
-  for type in state.rest_cards:
-   var rarity=Cards.Rules.SPECS[type].rarity
-   var turns=B.REST_CARD_TURNS[rarity]
-   var rest_args={"count":state.rest_cards.size(),"rarity":rarity,"turns":turns}
-   out.append(_fact({"kind":"rest_card","type":type},"领取「"+B.CARD_NAMES[type]+"」 · 扣除%d回合" % turns,{"kind":"game.rest_card","args":rest_args,"fallback":copy_rest_card(self,rest_args)},0,0.0,"休息回合不足。" if state.rest_left<turns else "","","rest_service"))
-  out.append(_fact({"kind":"rest_flask"},"魔瓶补充%d魔力 · 扣除%d回合" % [B.REST_FLASK_MANA,B.REST_FLASK_TURNS],{"kind":"game.rest_flask","args":{},"fallback":copy_rest_flask(self,{})},0,0.0,"休息回合不足。" if state.rest_left<B.REST_FLASK_TURNS else "","","rest_service"))
-  var begin_args={"left":state.rest_left}
-  out.append(_fact({"kind":"rest_begin"},"跳过奖励，直接休息",{"kind":"game.rest_begin","args":begin_args,"fallback":copy_rest_begin(self,begin_args)},0,0.0,"","","rest_service"))
-  return out
- if state.phase in ["shop","treasure"]:
-  return Services.facts(self)
- if state.phase=="event":
-  return Events.facts(self)
- if state.phase in ["captured","inspection"]:
-  return Prison.facts(self)
- if state.phase=="prison_end": return out
- if state.overloaded and state.phase in RelicEffects.COMBAT_PHASES:
-  var climax_args={"battle":state.phase=="battle","first":state.order=="first"}
-  out.append(_fact({"kind":"end"},"继续 · 高潮后缓一缓",{"kind":"game.end_climax","args":climax_args,"fallback":copy_end_climax(self,climax_args)},0,0.0,"","","flow"))
-  return out
- if not state.card_chain.is_empty():
-  return Cards.chain_display_facts(self)
- if state.pending_retain:
-  return retain_facts()
- if state.phase == "reward":
-  if Events.active_item_rewards(self):
-   for row in Events.item_reward_rows(self):
-    if row.claimed: continue
-    var full_reason="随身道具栏已满，无法拾取这件道具。" if carried_items()>=item_capacity() else ""
-    out.append(_fact({"kind":"reward","category":"item","type":row.type,"reward_id":row.id},"领取「"+Tools.TYPES[row.type].name+"」",{"kind":"game.reward_item","args":{},"fallback":copy_reward_item(self,{})},0,0.0,full_reason,"","reward"))
-   out.append(_fact({"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_item_skip","args":{},"fallback":copy_reward_item_skip(self,{})},0,0.0,"","","reward"))
-   return out
-  if not state.reward_claimed.has("card"):
-   for type in state.reward_options:
-    out.append(_fact({"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",{"kind":"card.two_face","args":{"type":type},"fallback":CopyRouter.two_face(self,type)},0,0.0,"","","reward"))
-  if state.battle_flask_drop>0 and not state.reward_claimed.has("flask"):
-   out.append(_fact({"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,{"kind":"game.reward_flask","args":{},"fallback":copy_reward_flask(self,{})},0,0.0,"","","reward"))
-  for category in ["item","relic"]:
-   var type=state.battle_item_drop if category=="item" else state.battle_relic_drop
-   if type=="" or state.reward_claimed.has(category): continue
-   var title=Tools.TYPES[type].name if category=="item" else Relics.TYPES[type].name
-   var other_args={"category":category,"type":type}
-   out.append(_fact({"kind":"reward","category":category,"type":type},"领取「"+title+"」",{"kind":"game.reward_other","args":other_args,"fallback":copy_reward_other(self,other_args)},0,0.0,"","","reward"))
-  if not state.reward_claimed.has("relic"):
-   for type in state.boss_relic_options:
-    out.append(_fact({"kind":"reward","category":"relic","type":type},"选择「"+Relics.TYPES[type].name+"」",{"kind":"game.reward_relic","args":{"type":type},"fallback":copy_reward_relic(self,{"type":type})},0,0.0,RelicEffects.gain_reason(self,type),"","reward"))
-  for category in ["card","relic"]:
-   var offered=not state.reward_options.is_empty() if category=="card" else (state.battle_relic_drop!="" or not state.boss_relic_options.is_empty())
-   if offered and not state.reward_claimed.has(category):
-    out.append(_fact({"kind":"reward_skip","category":category},"跳过",{"kind":"game.reward_skip_category","args":{"category":category},"fallback":copy_reward_skip_category(self,{"category":category})},0,0.0,"","","reward"))
-  out.append(_fact({"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_skip","args":{},"fallback":copy_reward_skip(self,{})},0,0.0,"","","reward"))
-  return out
- if state.phase == "map": return out
- if state.phase == "travel":
-  var step_args={"remaining":state.journey.remaining}
-  out.append(_fact({"kind":"travel_step"},"继续前进 · 1回合",{"kind":"game.travel_step","args":step_args,"fallback":copy_travel_step(self,step_args)},0,0.0,travel_route_reason(),SlipMotion.hint(),"route"))
-  return out
- if state.phase == "cleared":
-  return DemoExit.facts(self)
- if state.phase == "pack":
-  out.append_array(item_action_facts())
-  out.append_array(flow_facts())
-  return out
- out.append_array(wall_move_facts())
- out.append_array(posture_facts())
- out.append_array(attack_facts())
- out.append_array(equipment_spell_facts())
- for card in state.hand: out.append_array(Cards.card_facts(self,card))
- # S3：card 的槽位面按卡取行（逐卡切片）而非整手枚举，故保留逐卡调用点；行序与条数同转换前。
- out.append_array(manual_facts())
- out.append_array(item_action_facts())
- if state.phase=="rest": out.append_array(hook_facts())
- if state.phase=="prison": out.append_array(Prison.facts(self))
- out.append_array(flow_facts())
+ out.append(_fact({"kind":"rest_rare"},"随机获得1张稀有卡 · 扣除%d回合" % B.REST_CARD_TURNS.rare,{"kind":"game.rest_rare","args":{},"fallback":copy_rest_rare(self,{})},0,0.0,"休息回合不足。" if state.rest_left<B.REST_CARD_TURNS.rare else "","","rest_service"))
+ for type in state.rest_cards:
+  var rarity=Cards.Rules.SPECS[type].rarity
+  var turns=B.REST_CARD_TURNS[rarity]
+  var rest_args={"count":state.rest_cards.size(),"rarity":rarity,"turns":turns}
+  out.append(_fact({"kind":"rest_card","type":type},"领取「"+B.CARD_NAMES[type]+"」 · 扣除%d回合" % turns,{"kind":"game.rest_card","args":rest_args,"fallback":copy_rest_card(self,rest_args)},0,0.0,"休息回合不足。" if state.rest_left<turns else "","","rest_service"))
+ out.append(_fact({"kind":"rest_flask"},"魔瓶补充%d魔力 · 扣除%d回合" % [B.REST_FLASK_MANA,B.REST_FLASK_TURNS],{"kind":"game.rest_flask","args":{},"fallback":copy_rest_flask(self,{})},0,0.0,"休息回合不足。" if state.rest_left<B.REST_FLASK_TURNS else "","","rest_service"))
+ var begin_args={"left":state.rest_left}
+ out.append(_fact({"kind":"rest_begin"},"跳过奖励，直接休息",{"kind":"game.rest_begin","args":begin_args,"fallback":copy_rest_begin(self,begin_args)},0,0.0,"","","rest_service"))
  return out
+
+# 高潮后缓一缓（overload_climax 分支的单行）。
+func _unit_climax_end(_facts: Array) -> Array:
+ var out: Array = []
+ var climax_args={"battle":state.phase=="battle","first":state.order=="first"}
+ out.append(_fact({"kind":"end"},"继续 · 高潮后缓一缓",{"kind":"game.end_climax","args":climax_args,"fallback":copy_end_climax(self,climax_args)},0,0.0,"","","flow"))
+ return out
+
+# 奖励族（reward 分支）：逐条与改动前的行路径相同。
+func _unit_reward(_facts: Array) -> Array:
+ var out: Array = []
+ if Events.active_item_rewards(self):
+  for row in Events.item_reward_rows(self):
+   if row.claimed: continue
+   var full_reason="随身道具栏已满，无法拾取这件道具。" if carried_items()>=item_capacity() else ""
+   out.append(_fact({"kind":"reward","category":"item","type":row.type,"reward_id":row.id},"领取「"+Tools.TYPES[row.type].name+"」",{"kind":"game.reward_item","args":{},"fallback":copy_reward_item(self,{})},0,0.0,full_reason,"","reward"))
+  out.append(_fact({"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_item_skip","args":{},"fallback":copy_reward_item_skip(self,{})},0,0.0,"","","reward"))
+  return out
+ if not state.reward_claimed.has("card"):
+  for type in state.reward_options:
+   out.append(_fact({"kind":"reward","category":"card","type":type},"选择「"+B.CARD_NAMES[type]+"」",{"kind":"card.two_face","args":{"type":type},"fallback":CopyRouter.two_face(self,type)},0,0.0,"","","reward"))
+ if state.battle_flask_drop>0 and not state.reward_claimed.has("flask"):
+  out.append(_fact({"kind":"reward","category":"flask","type":"boss_mana"},"领取%d魔瓶魔力" % state.battle_flask_drop,{"kind":"game.reward_flask","args":{},"fallback":copy_reward_flask(self,{})},0,0.0,"","","reward"))
+ for category in ["item","relic"]:
+  var type=state.battle_item_drop if category=="item" else state.battle_relic_drop
+  if type=="" or state.reward_claimed.has(category): continue
+  var title=Tools.TYPES[type].name if category=="item" else Relics.TYPES[type].name
+  var other_args={"category":category,"type":type}
+  out.append(_fact({"kind":"reward","category":category,"type":type},"领取「"+title+"」",{"kind":"game.reward_other","args":other_args,"fallback":copy_reward_other(self,other_args)},0,0.0,"","","reward"))
+ if not state.reward_claimed.has("relic"):
+  for type in state.boss_relic_options:
+   out.append(_fact({"kind":"reward","category":"relic","type":type},"选择「"+Relics.TYPES[type].name+"」",{"kind":"game.reward_relic","args":{"type":type},"fallback":copy_reward_relic(self,{"type":type})},0,0.0,RelicEffects.gain_reason(self,type),"","reward"))
+ for category in ["card","relic"]:
+  var offered=not state.reward_options.is_empty() if category=="card" else (state.battle_relic_drop!="" or not state.boss_relic_options.is_empty())
+  if offered and not state.reward_claimed.has(category):
+   out.append(_fact({"kind":"reward_skip","category":category},"跳过",{"kind":"game.reward_skip_category","args":{"category":category},"fallback":copy_reward_skip_category(self,{"category":category})},0,0.0,"","","reward"))
+ out.append(_fact({"kind":"reward","type":"skip"},"继续",{"kind":"game.reward_skip","args":{},"fallback":copy_reward_skip(self,{})},0,0.0,"","","reward"))
+ return out
+
+# 旅途单行（travel 分支）。
+func _unit_travel_step(_facts: Array) -> Array:
+ var out: Array = []
+ var step_args={"remaining":state.journey.remaining}
+ out.append(_fact({"kind":"travel_step"},"继续前进 · 1回合",{"kind":"game.travel_step","args":step_args,"fallback":copy_travel_step(self,step_args)},0,0.0,travel_route_reason(),SlipMotion.hint(),"route"))
+ return out
+
+func _unit_relic_bundle(_facts: Array) -> Array:
+ return RelicBundle.facts(self)
+
+func _unit_departure(_facts: Array) -> Array:
+ return Departure.facts(self)
+
+# 非战斗道具（读累积表去重：不可独立增量，见单元表注释）。
+func _unit_noncombat_consumables(facts: Array) -> Array:
+ return Consumables.noncombat_facts(self,facts)
+
+func _unit_flask_full(_facts: Array) -> Array:
+ return ManaFlask.facts(self,true)
+
+func _unit_flask(_facts: Array) -> Array:
+ return ManaFlask.facts(self)
+
+func _unit_phase(_facts: Array) -> Array:
+ return _phase_facts()
+
+# 投降行（0／1 行）：与 _surrender_kind_facts 的守卫同一来源（surrender_fact）。
+func _unit_surrender(_facts: Array) -> Array:
+ var row=surrender_fact()
+ return [] if row.is_empty() else [row]
+
+func _unit_item_discard(_facts: Array) -> Array:
+ return item_discard_facts()
+
+func _unit_relic_effects(_facts: Array) -> Array:
+ return RelicEffects.facts(self)
+
+func _unit_status_toggle(_facts: Array) -> Array:
+ return _status_toggle_facts()
+
+# 路线行（读累积表的出口行＋现算 room_entry_reason：不可独立增量，见单元表注释）。
+func _unit_route(facts: Array) -> Array:
+ return _route_facts(facts)
+
+func _unit_services(_facts: Array) -> Array:
+ return Services.facts(self)
+
+func _unit_events(_facts: Array) -> Array:
+ return Events.facts(self)
+
+func _unit_prison(_facts: Array) -> Array:
+ return Prison.facts(self)
+
+func _unit_chain(_facts: Array) -> Array:
+ return Cards.chain_display_facts(self)
+
+func _unit_retain(_facts: Array) -> Array:
+ return retain_facts()
+
+func _unit_demo_exit(_facts: Array) -> Array:
+ return DemoExit.facts(self)
+
+func _unit_item_action(_facts: Array) -> Array:
+ return item_action_facts()
+
+func _unit_flow(_facts: Array) -> Array:
+ return flow_facts()
+
+func _unit_wall_move(_facts: Array) -> Array:
+ return wall_move_facts()
+
+func _unit_posture(_facts: Array) -> Array:
+ return posture_facts()
+
+func _unit_attack(_facts: Array) -> Array:
+ return attack_facts()
+
+func _unit_equipment_spell(_facts: Array) -> Array:
+ return equipment_spell_facts()
+
+# S3：card 的槽位面按卡取行（逐卡切片）而非整手枚举，故保留逐卡调用点；行序与条数同转换前。
+func _unit_hand_cards(_facts: Array) -> Array:
+ var out: Array = []
+ for card in state.hand: out.append_array(Cards.card_facts(self,card))
+ return out
+
+func _unit_manual(_facts: Array) -> Array:
+ return manual_facts()
+
+func _unit_hook(_facts: Array) -> Array:
+ return hook_facts()
 
 # Position is saved once per encounter; previews only read it.
 func _initial_wall_distance(battle: bool) -> int:

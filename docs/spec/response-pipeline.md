@@ -202,6 +202,9 @@ func render(snapshot: Dictionary = {}) -> void
   `tests/architecture_cases.gd::fact_source_map_is_pinned`／`tests/architecture_cases.gd::fact_lookup_equivalence`／
   `tests/architecture_cases.gd::single_fact_lookup_per_submit`／`tests/architecture_cases.gd::dispatch_fact_row_is_readonly`／
   `tests/architecture_cases.gd::payload_write_sites_are_pinned`。
+- 事实表的「面 / 点」边界收口的依赖约束（cleaner 可核对）见 `docs/spec/fact-table-dependencies.md`。
+- 事实表收口（A 批：分支词表＋单元表）的具名判据＝`tests/architecture_cases.gd::fact_units_cover_fact_source`／
+  `tests/architecture_cases.gd::phase_branch_vocabulary_is_total`／`tests/architecture_cases.gd::baseline_constants_are_unchanged`。
 - 测量口径（只报告，不用于通过判据）：装备 0／12／26 件 × 选择类／提交类两条路径，同一夹具交替执行、
   2 次热身＋15 次有效配对，报逐对比值中位与两侧独立中位；计时脚本与 JSON 只放已忽略的 `build/<topic>-<date>/`，
   摘要登记 `docs/record/verification.md` 后删除原始目录；生产源码不留计数器、开关或计时钩子。

@@ -651,6 +651,9 @@ static func run(t) -> void:
  instruction_route_table_is_total(t)
  command_registry_is_total(t)
  fact_source_map_is_pinned(t)
+ fact_units_cover_fact_source(t)
+ phase_branch_vocabulary_is_total(t)
+ baseline_constants_are_unchanged(t)
  attack_fact_direct_lookup(t)
  attack_point_lookup_reads_one_row(t)
  attack_point_rejects_nonbattle_families(t)
@@ -2497,6 +2500,282 @@ static func fact_source_map_is_pinned(t) -> void:
  t.check(extra_point.is_empty(),"fact_source_map_is_pinned: every point kind has a frozen method expectation (extra): "+str(extra_point))
  print("FACT SOURCE MAP PINNED kinds=%d takeover=%s point=%d" % [FROZEN_TABLE_SOURCES.size(),FROZEN_TAKEOVER_SOURCE,FROZEN_POINT_METHODS.size()])
 
+# ==== A 批（K0＋K1；plan §3 A 段；docs/spec/fact-table-dependencies.md）====
+# 期望侧全部写在本文件（不取自登记表／投影实现；acceptance.md §3「oracle 独立性」④）：
+#  PHASE_BRANCH_VOCABULARY＝_phase_branch 的分支 id 词表；PHASE_EMPTY_BRANCHES＝有分支 id、无单元的空表分支；
+#  FACT_UNIT_EXPECTATION＝单元表 owner → 有序 [id, producer, input]（order 由序位给出，1 起）；
+#  R5_*_PRE_DIGEST＝A 批动工前六个基线常量的副本摘要（值面；G-1 零移动）。
+# 变体（被测侧的对照）：core/game.gd 的源码文本（_phase_branch 的 return 点、_phase_facts 的 return 点）。
+const PHASE_BRANCH_VOCABULARY=["relic_bundle","departure","domain_blocked","rest_choice","shop_treasure","event","captured_inspection","prison_end","overload_climax","card_chain","pending_retain","reward","map","travel","cleared","pack","action_tail"]
+const PHASE_EMPTY_BRANCHES=["map","prison_end"]
+# _fact_source 的三个前缀 owner（登记表 FACT_PREFIX_OWNERS 的期望侧）；_phase_facts 的臂数（四个前缀／尾段标签共用一条臂）。
+const FACT_SOURCE_PREFIX_BRANCHES=["relic_bundle","departure","domain_blocked"]
+const PHASE_FACTS_ARMS=14
+const FACT_UNIT_EXPECTATION={
+ "relic_bundle":[["relic_bundle_prefix","_unit_relic_bundle",""],["relic_bundle_consumables","_unit_noncombat_consumables","relic_bundle_prefix"],["relic_bundle_flask","_unit_flask_full",""]],
+ "departure":[["departure_prefix","_unit_departure",""],["departure_consumables","_unit_noncombat_consumables","departure_prefix"],["departure_flask","_unit_flask_full",""]],
+ "main":[["phase","_unit_phase",""],["noncombat_consumables","_unit_noncombat_consumables","phase"],["route","_unit_route","phase"],["surrender","_unit_surrender",""],["item_discard","_unit_item_discard",""],["flask","_unit_flask",""],["relic_effects","_unit_relic_effects",""],["status_toggle","_unit_status_toggle",""]],
+ "rest_choice":[["rest_choice_block","_unit_rest_choice",""]],
+ "shop_treasure":[["services","_unit_services",""]],
+ "event":[["events","_unit_events",""]],
+ "captured_inspection":[["prison","_unit_prison",""]],
+ "overload_climax":[["climax_end","_unit_climax_end",""]],
+ "card_chain":[["chain","_unit_chain",""]],
+ "pending_retain":[["retain","_unit_retain",""]],
+ "reward":[["reward","_unit_reward",""]],
+ "travel":[["travel_step","_unit_travel_step",""]],
+ "cleared":[["demo_exit","_unit_demo_exit",""]],
+ "pack":[["pack_items","_unit_item_action",""],["pack_flow","_unit_flow",""]],
+ "action_tail":[["wall_move","_unit_wall_move",""],["posture","_unit_posture",""],["attack","_unit_attack",""],["equipment_spell","_unit_equipment_spell",""],["hand_cards","_unit_hand_cards",""],["manual","_unit_manual",""],["item_action","_unit_item_action",""],["hook","_unit_hook",""],["prison_tail","_unit_prison",""],["flow","_unit_flow",""]],
+}
+# 组列在 A 批夹具矩阵里观测不到的 (单元:组) 对（逐条给出理由）；判据双向核对：列出的必须真的观测不到
+# （能观测到即红＝不能腐烂的豁免），未列的必须逐组观测到。
+# 理由：chain 与 phase 的 chain 组需要牌链夹具（本批夹具不建链）。
+const FACT_UNIT_GROUP_UNCOVERED=["phase:chain","chain:chain"]
+const R5_BASELINE_PRE_DIGEST="0dc7b88d916be013171b69c93983f337"
+const R3_VIEW_MASK_PRE_DIGEST="744a18f9e02b9b54eb8faf1a8cd63421"
+const R5_VIEW_MASK_PRE_DIGEST="86b8713a03a3d68b842542cd2a0e362d"
+const R5_RECORD_MASK_PRE_DIGEST="4a319a70a1908adf45a3246667ae8b08"
+const R5_RECORD_ADDED_PRE_DIGEST="eeefde37c4563c64ef053f8576f5c327"
+const R5_RECOMPUTED_PRE_DIGEST="0934c0a12b0fcf79af8d84148dbb0205"
+
+static func phase_branch_returns() -> Array:
+ var body=source_func_body_code("res://core/game.gd","_phase_branch")
+ var pattern=RegEx.new()
+ if pattern.compile("return \"([a-z_]+)\"")!=OK: return []
+ var out=[]
+ for found in pattern.search_all(body): out.append(found.get_string(1))
+ return out
+
+static func phase_facts_labels() -> Array:
+ var body=source_func_body_code("res://core/game.gd","_phase_facts")
+ var pattern=RegEx.new()
+ if pattern.compile("\"([a-z_]+)\"")!=OK: return []
+ var out=[]
+ for line in body.split("\n"):
+  var text=String(line).strip_edges()
+  if not text.begins_with("\""): continue
+  var at=text.find(":")
+  if at<0: continue
+  for found in pattern.search_all(text.substr(0,at)): out.append(found.get_string(1))
+ return out
+
+# C-A-2（K0；gherkin A-2；acceptance.md §1 A 段）：分支词表 ↔ _phase_branch 的 return 点 ↔ _phase_facts 的 return 点
+# 三处双向全量（期望侧＝本文件字面词表；被测侧＝源码文本，非运行时反射）。敏感性：新增一个早退分支不登记 → missing；
+# 词表留一个死分支／改一个 return 字面 → extra／missing。
+static func phase_branch_vocabulary_is_total(t) -> void:
+ var returns=phase_branch_returns()
+ var labels=phase_facts_labels()
+ var declared=PHASE_BRANCH_VOCABULARY
+ var missing=declared.filter(func(name):return name not in returns)
+ var extra=returns.filter(func(name):return name not in declared)
+ t.check(missing.is_empty() and extra.is_empty(),"K0 phase_branch_vocabulary_is_total: every declared branch id is returned by _phase_branch and nothing else is (missing="+str(missing)+" extra="+str(extra)+")")
+ var missing_labels=declared.filter(func(name):return name not in labels)
+ var extra_labels=labels.filter(func(name):return name not in declared)
+ t.check(missing_labels.is_empty() and extra_labels.is_empty(),"K0 phase_branch_vocabulary_is_total: _phase_facts keeps exactly one return point per declared branch (missing="+str(missing_labels)+" extra="+str(extra_labels)+")")
+ t.check(returns.size()==declared.size() and labels.size()==declared.size(),"K0 phase_branch_vocabulary_is_total: no branch id is declared, returned or listed twice (returns="+str(returns.size())+" labels="+str(labels.size())+" declared="+str(declared.size())+")")
+ var facts_body=source_func_body_code("res://core/game.gd","_phase_facts")
+ t.check(facts_body.find("_phase_branch(")>=0 and facts_body.find("if ")<0 and facts_body.find("append")<0,"K0 phase_branch_vocabulary_is_total: _phase_facts decides branches only through _phase_branch (no second condition chain and no append point in its body): if="+str(facts_body.find("if "))+" append="+str(facts_body.find("append")))
+ var branch_body=source_func_body_code("res://core/game.gd","_phase_branch")
+ var assignment=RegEx.new()
+ var assignment_ok=assignment.compile("(?<![=!<>])=(?!=)")==OK
+ t.check(not branch_body.strip_edges().is_empty() and assignment_ok and assignment.search(branch_body)==null,"K0 phase_branch_vocabulary_is_total: _phase_branch is read-only (no assignment in its body)")
+ print("PHASE BRANCH VOCABULARY declared=%d returns=%d labels=%d" % [declared.size(),returns.size(),labels.size()])
+
+# 单元表的登记侧副本（被测实现；期望侧是上面的字面表）。
+static func fact_units_declared() -> Array:
+ var out=[]
+ for unit in CommandRegistry.FACT_UNITS:
+  out.append({"id":String(unit.get("id","")),"order":int(unit.get("order",0)),"owner":String(unit.get("owner","")),"producer":String(unit.get("producer","")),"groups":unit.get("groups",[]),"input":String(unit.get("input",""))})
+ return out
+
+static func fact_units_by_owner() -> Dictionary:
+ var out={}
+ for unit in fact_units_declared():
+  var owner=String(unit.owner)
+  if not out.has(owner): out[owner]=[]
+  out[owner].append(unit)
+ return out
+
+# 单元观测夹具（K1 组列与连接等价）：26 cell（含 shop／treasure／event／prison 相位）＋ 相位扫描（含三个前缀状态）
+# ＋ 六处状态标志。每个条目＝{"label":..., "game":..., "phase_join":bool}；domain_blocked 条目只做 _fact_source 面
+# （单元表对它是空表；其相位面落回尾段，组列无单元须覆盖，见 PHASE_EMPTY_BRANCHES 与单元表注释）。
+static func fact_unit_enrich(g) -> void:
+ # 覆盖 item／flask／status_toggle／item_discard 组列的状态垫片（不改规则，只改夹具输入）。
+ g.state.items.append({"id":"item_probe","type":"mana_potion","uses":1,"mount":"carry"})
+ g.state.flask_mana=40.0
+ g.state.charge=2
+
+static func fact_unit_states() -> Array:
+ var out=[]
+ for cell in r1_cells():
+  out.append({"label":"cell:%s:%d" % [cell[0],cell[1]],"game":r1_build(cell[0],cell[1]),"phase_join":true})
+ for phase in ["departure","rest_choice","reward","map","travel","cleared","pack","prison_end","captured","inspection","battle","prepare","rest"]:
+  for variant in ["plain","relic_bundle","departure","domain_blocked"]:
+   var g=r1_build("battle",0)
+   fact_unit_enrich(g)
+   match variant:
+    "relic_bundle": preload("res://core/relic_bundle.gd").start(g,"reward")
+    "departure": preload("res://core/departure.gd").start(g)
+    "domain_blocked": g.state.special_equipment=[{"type":"no_such_special"}]
+   if phase=="departure" and g.state.departure.is_empty(): preload("res://core/departure.gd").start(g)
+   g.state.phase=phase
+   if phase=="travel":
+    var ids=g.state.rooms.map(func(room):return String(room.id))
+    g.state.journey={"from":String(g.state.room),"target":String(ids[0]),"total":2,"remaining":2,"speed":1,"mode":"步行"}
+   if phase=="inspection": g.state.prison={"stage":"arrival"}
+   out.append({"label":"sweep:%s|%s" % [phase,variant],"game":g,"phase_join":variant!="domain_blocked"})
+ var overloaded=r1_build("battle",0)
+ fact_unit_enrich(overloaded)
+ overloaded.state.overloaded=true
+ out.append({"label":"flag:overload_climax","game":overloaded,"phase_join":true})
+ var retain=r1_build("battle",0)
+ fact_unit_enrich(retain)
+ retain.state.pending_retain=true
+ out.append({"label":"flag:pending_retain","game":retain,"phase_join":true})
+ var spell=r1_build("battle",12)
+ fact_unit_enrich(spell)
+ spell.state.card_buffs.append("flame_flourish_bound")
+ out.append({"label":"flag:equipment_spell","game":spell,"phase_join":true})
+ var rest_hook=r1_build("rest",0)
+ fact_unit_enrich(rest_hook)
+ rest_hook.state.hook_uses=3
+ out.append({"label":"flag:hook","game":rest_hook,"phase_join":true})
+ var demo=r1_build("battle",0)
+ fact_unit_enrich(demo)
+ demo.room_data(demo.state.room).kind="exit"
+ demo.state.phase="cleared"
+ out.append({"label":"flag:demo_exit","game":demo,"phase_join":true})
+ return out
+
+# 测试侧连接重放（与 core/game.gd::_join_fact_units 同一通道语义：按表序调每个 producer，累积表前传）。
+static func fact_unit_replay(g, units: Array, observed: Dictionary) -> Array:
+ var facts: Array=[]
+ for unit in units:
+  var id=String(unit.get("id",""))
+  var rows=g.call(String(unit.get("producer","")),facts)
+  if not observed.has(id): observed[id]={}
+  for row in rows: observed[id][String(row.get("group",""))]=true
+  facts.append_array(rows)
+ return facts
+
+# C-A-1（K1；gherkin A-1；acceptance.md §1 A 段）：单元表 ↔ 本文件字面期望（owner 序／id／producer／input／order）
+# 与空表分支双向全量；生产者都在 g 上存在；连接通道唯一（源码文本）；每单元 input 指向同 owner 更早的单元；
+# 组列与实测行 group 值域双向一致；测试侧重放与 _fact_source／_phase_facts 逐字节相等。
+static func fact_units_cover_fact_source(t) -> void:
+ var declared=fact_units_by_owner()
+ var missing=[]
+ var extra=[]
+ for owner in FACT_UNIT_EXPECTATION:
+  var want=FACT_UNIT_EXPECTATION[owner]
+  var have=declared.get(owner,[])
+  for index in range(want.size()):
+   var row=want[index]
+   if index>=have.size():
+    missing.append(owner+":"+String(row[0]))
+    continue
+   var unit=have[index]
+   if String(unit.id)!=String(row[0]) or String(unit.producer)!=String(row[1]) or String(unit.input)!=String(row[2]):
+    missing.append(owner+":"+String(row[0])+" want="+str(row)+" have=["+String(unit.id)+","+String(unit.producer)+","+String(unit.input)+"]")
+  for index in range(want.size(),have.size()): extra.append(owner+":"+String(have[index].id))
+ for owner in declared:
+  if not FACT_UNIT_EXPECTATION.has(owner): extra.append("owner:"+owner)
+ var empty_extra=PHASE_EMPTY_BRANCHES.filter(func(branch):return declared.has(branch))
+ var undeclared=PHASE_BRANCH_VOCABULARY.filter(func(branch):return not declared.has(branch) and branch not in PHASE_EMPTY_BRANCHES and branch not in FACT_SOURCE_PREFIX_BRANCHES)
+ t.check(missing.is_empty() and extra.is_empty() and empty_extra.is_empty() and undeclared.is_empty(),"K1 fact_units_cover_fact_source: the declared unit table is two-way total against the literal expectation (missing="+str(missing)+" extra="+str(extra)+" empty_extra="+str(empty_extra)+" undeclared_branch="+str(undeclared)+")")
+ t.check(CommandRegistry.FACT_PREFIX_OWNERS==FACT_SOURCE_PREFIX_BRANCHES,"K1 fact_units_cover_fact_source: the registry prefix-owner vocabulary equals the literal expectation: "+str(CommandRegistry.FACT_PREFIX_OWNERS))
+ var order_problems=[]
+ var input_problems=[]
+ var producers=[]
+ for owner in declared:
+  var seen={}
+  for index in range(declared[owner].size()):
+   var unit=declared[owner][index]
+   producers.append(String(unit.producer))
+   if int(unit.order)!=index+1: order_problems.append(owner+":"+String(unit.id)+"="+str(unit.order))
+   if String(unit.input)!="" and not seen.has(String(unit.input)): input_problems.append(owner+":"+String(unit.id)+"<-"+String(unit.input))
+   seen[String(unit.id)]=true
+ t.check(order_problems.is_empty(),"K1 fact_units_cover_fact_source: the order column is the unit's position in its owner sequence (1..N, no gaps): "+str(order_problems))
+ t.check(input_problems.is_empty(),"K1 fact_units_cover_fact_source: every input names an earlier unit of the same owner (accumulated-table prerequisites are explicit): "+str(input_problems))
+ var probe=GameCore.new(42)
+ var bad_producers=producers.filter(func(name):return name.is_empty() or not probe.has_method(name))
+ var bad_groups=[]
+ for unit in fact_units_declared():
+  if not (unit.groups is Array) or unit.groups.is_empty(): bad_groups.append(String(unit.id))
+ t.check(bad_producers.is_empty(),"K1 fact_units_cover_fact_source: every declared producer exists on g: "+str(bad_producers))
+ t.check(bad_groups.is_empty(),"K1 fact_units_cover_fact_source: every unit declares a non-empty group set: "+str(bad_groups))
+ # 连接通道唯一（源码文本）：_fact_source 只有一次连接；_phase_facts 的每条臂都经 _phase_branch_units；连接通道内
+ # 不出现任何 producer 名（表外第二处追加点／第二份条件链即红）。
+ var source_body=source_func_body_code("res://core/game.gd","_fact_source")
+ var phase_body=source_func_body_code("res://core/game.gd","_phase_facts")
+ var join_body=source_func_body_code("res://core/game.gd","_join_fact_units")
+ var bad_source=[]
+ if pipeline_lookup_call_count(source_body,"_join_fact_units")!=1: bad_source.append("_fact_source:join="+str(pipeline_lookup_call_count(source_body,"_join_fact_units")))
+ if source_body.find("CommandRegistry.fact_source_units(")<0 or source_body.find("_phase_branch()")<0 or source_body.find("if ")>=0: bad_source.append("_fact_source:no-single-table-join")
+ var arms=0
+ var arm_problems=[]
+ for line in phase_body.split("\n"):
+  var text=String(line)
+  if not text.strip_edges().begins_with("\""): continue
+  arms+=1
+  if text.find("return _phase_branch_units(")<0: arm_problems.append(text.strip_edges())
+ if arms!=PHASE_FACTS_ARMS or not arm_problems.is_empty(): bad_source.append("_phase_facts:arms="+str(arms)+" "+str(arm_problems.slice(0,2)))
+ if pipeline_lookup_call_count(phase_body,"_phase_branch")!=1: bad_source.append("_phase_facts:branch="+str(pipeline_lookup_call_count(phase_body,"_phase_branch")))
+ if pipeline_lookup_call_count(join_body,"call")!=1 or pipeline_lookup_call_count(join_body,"append_array")!=1: bad_source.append("join:shape")
+ for name in producers:
+  if join_body.find(name)>=0: bad_source.append("join:producer "+name)
+ t.check(bad_source.is_empty(),"K1 fact_units_cover_fact_source: the table join is the only append path (source text): "+str(bad_source))
+ # 运行期：测试侧重放与两个入口逐字节相等；逐单元观测 group 值域。
+ var observed={}
+ var join_problems=[]
+ var compared=0
+ for entry in fact_unit_states():
+  var label=String(entry.label)
+  var g=entry.game
+  var branch=g._phase_branch()
+  var units=CommandRegistry.fact_source_units(branch)
+  if JSON.stringify(fact_unit_replay(g,units,observed))!=JSON.stringify(g._fact_source()): join_problems.append(label+":fact_source")
+  if bool(entry.phase_join):
+   var phase_branch=branch
+   if phase_branch in ["relic_bundle","departure","domain_blocked"]: phase_branch="action_tail"
+   if JSON.stringify(fact_unit_replay(g,CommandRegistry.phase_units(phase_branch),observed))!=JSON.stringify(g._phase_facts()): join_problems.append(label+":phase_facts")
+  compared+=1
+ t.check(join_problems.is_empty(),"K1 fact_units_cover_fact_source: the declared units replay byte-for-byte into _fact_source and _phase_facts on every fixture: "+str(join_problems.slice(0,4)))
+ t.check(compared>=60,"K1 fact_units_cover_fact_source: the fixture matrix covered the unit table (coverage floor): "+str(compared))
+ var group_problems=[]
+ var coverage_report=[]
+ for unit in fact_units_declared():
+  var id=String(unit.id)
+  var seen_groups=observed.get(id,{})
+  var declared_groups=unit.groups
+  for group in seen_groups:
+   if group not in declared_groups: group_problems.append(id+": undeclared observed group "+String(group))
+  var unobserved=declared_groups.filter(func(group):return not seen_groups.has(group))
+  coverage_report.append(id+"="+str(declared_groups)+" observed="+str(seen_groups.keys())+" unobserved="+str(unobserved))
+  for group in unobserved:
+   if id+":"+String(group) not in FACT_UNIT_GROUP_UNCOVERED: group_problems.append(id+": declared but never observed "+String(group))
+ for pair in FACT_UNIT_GROUP_UNCOVERED:
+  var parts=String(pair).split(":")
+  var declared_pair=[]
+  for unit in fact_units_declared():
+   if String(unit.id)==parts[0]: declared_pair=unit.groups
+  var seen_pair=observed.get(parts[0],{})
+  if parts.size()!=2 or parts[1] not in declared_pair or seen_pair.has(parts[1]): group_problems.append("stale uncovered entry "+String(pair))
+ t.check(group_problems.is_empty(),"K1 fact_units_cover_fact_source: every unit's declared group set equals the observed row group range (two-way): "+str(group_problems))
+ print("FACT UNITS declared=%d states=%d uncovered=%s" % [fact_units_declared().size(),compared,str(FACT_UNIT_GROUP_UNCOVERED)])
+ for line in coverage_report: print("FACT UNIT GROUPS "+String(line))
+
+# C-A-3（G-1 零移动；gherkin A-3；acceptance.md §1 A 段）：R5_BASELINE 与四个 mask 常量在本批一字未改——
+# 副本以摘要形式冻结（动工前值），任何移动＝红（不是"重冻"）：重冻必须走 G-2 程序（前值冻结＋声明差异＋自证）。
+static func baseline_constants_are_unchanged(t) -> void:
+ var pairs=[["R5_BASELINE",JSON.stringify(R5_BASELINE),R5_BASELINE_PRE_DIGEST],["R3_VIEW_MASK",JSON.stringify(R3_VIEW_MASK),R3_VIEW_MASK_PRE_DIGEST],["R5_VIEW_MASK",JSON.stringify(R5_VIEW_MASK),R5_VIEW_MASK_PRE_DIGEST],["R5_RECORD_MASK",JSON.stringify(R5_RECORD_MASK),R5_RECORD_MASK_PRE_DIGEST],["R5_RECORD_ADDED",JSON.stringify(R5_RECORD_ADDED),R5_RECORD_ADDED_PRE_DIGEST],["R5_RECOMPUTED",JSON.stringify(R5_RECOMPUTED),R5_RECOMPUTED_PRE_DIGEST]]
+ var moved=[]
+ for pair in pairs:
+  if r1_digest(String(pair[1]))!=String(pair[2]): moved.append(String(pair[0]))
+ t.check(moved.is_empty(),"G1 baseline_constants_are_unchanged: R5_BASELINE and the mask constants keep the frozen pre-batch digest (a move is a rebaseline, never a silent edit): "+str(moved))
+ t.check(r1_digest(JSON.stringify(["a"]))!=r1_digest(JSON.stringify(["b"])),"G1 baseline_constants_are_unchanged: the frozen-digest comparison is sensitive to a value change")
+ print("BASELINE CONSTANTS FROZEN pairs=%d" % pairs.size())
+
 # ==== S2 双向等价 harness（C3／C4；acceptance.md §2；S3 复用同一函数）====
 # 期望侧独立（防自证）：方向①只取该状态 command_facts() 的表行；方向②只做表内归一化 params 的成员扫描，
 # 变异语料由本文件按字段级替换独立构造。只有步骤 3（member⟺keys，acceptance §2 明列）向登记项询 keys。
@@ -3931,9 +4210,14 @@ static func mutation_evidence_is_total(t) -> void:
  if not parsed is Dictionary: return
  var entries=parsed.get("mutations",null)
  var gaps=parsed.get("known_gaps",null)
+ var frozen=parsed.get("known_gaps_frozen",null)
  t.check(entries is Dictionary and not (entries as Dictionary).is_empty(),"MT mutation_evidence_is_total: mutations is a non-empty declaration table")
  t.check(gaps is Array,"MT mutation_evidence_is_total: known_gaps is an explicit list (no silent absence)")
- if not entries is Dictionary or not gaps is Array: return
+ t.check(frozen is Array and not (frozen as Array).is_empty(),"MT mutation_evidence_is_total: known_gaps_frozen is the A-batch snapshot (the gap list only shrinks from here)")
+ if not entries is Dictionary or not gaps is Array or not frozen is Array: return
+ var grown=gaps.map(func(key):return String(key)).filter(func(name):return name not in frozen)
+ t.check(grown.is_empty(),"MT mutation_evidence_is_total: the frozen gap list only shrinks (new entries are red): "+str(grown))
+ print("MUTATION GAP FREEZE frozen=%d current=%d shrunk=%d" % [frozen.size(),gaps.size(),frozen.filter(func(name):return name not in gaps).size()])
  var universe=mutation_judgment_universe()
  t.check(not universe.is_empty(),"MT mutation_evidence_is_total: the judgment universe is non-empty")
  var test_game=source_text("tests/test_game.gd")
