@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "note": "检查的证据面声明表：每条＝既有的具名判据 → 一处临时突变（file／find／replace）＋跑哪个最窄规则套件。执行器是 tools/check-mutation.ps1；tests/architecture_cases.gd::mutation_evidence_is_total 核对本表与判据全集。find 必须在 file 内唯一出现一次，replace 必须让该判据变红；运行期逐字节还原。",
-  "known_gaps_reason": "既有判据里尚未逐条补突变证据的部分（多为本批之前的架构判据）：本清单只能缩短——新增判据不得登记为缺口，必须随批附带证据。",
+  "known_gaps_reason": "既有判据里尚未逐条补突变证据的部分（多为本表之前的架构判据）：本清单只能缩短——新写的判据不得登记为缺口，必须随批附带证据。例外只对「写于本表存在之前的重放线判据」：2026-10-06 的 fact-lookup 重放批按实际逐条登记（40→54），此后再新增判据仍须随批附带证据。",
   "known_gaps": [
     "transition_write_sites_are_pinned",
     "save_checkpoint_kinds_are_pinned",
@@ -42,7 +42,21 @@
     "card_facts_declared_slots",
     "card_facts_consumes_has_targets_at",
     "card_facts_keyword_min_query",
-    "present_adjacency_graph_is_pinned"
+    "present_adjacency_graph_is_pinned",
+    "command_registry_is_total",
+    "fact_source_map_is_pinned",
+    "fact_lookup_equivalence",
+    "attack_fact_direct_lookup",
+    "attack_point_lookup_reads_one_row",
+    "attack_point_rejects_nonbattle_families",
+    "card_fact_direct_lookup",
+    "card_point_lookup_reads_one_row",
+    "single_fact_lookup_per_submit",
+    "rejected_submit_lookup_counts",
+    "submit_presented_fact_is_unchanged",
+    "submit_key_face_rebaseline_self_proof",
+    "dispatch_fact_row_is_readonly",
+    "payload_write_sites_are_pinned"
   ],
   "mutations": {
     "slice_dependency_directions": {
