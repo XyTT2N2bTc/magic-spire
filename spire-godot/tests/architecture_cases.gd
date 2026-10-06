@@ -515,18 +515,78 @@ class FactSourceCountingGame extends "res://tests/game_fixture.gd":
   return super._fact_source()
 
 # B 批（K2）测试侧计数：一次可行动期的命令事实查询不得建整表；生产源码不带计数器。
+# 2026-10-06 B 批审查条目 1（归 C 批）：计数面扩到整表连接的三个入口（_join_fact_units／
+# _phase_branch_units／_phase_facts 直调），使「臂内经 helper 重建整表」也在计数面内。
 class PointLookupCountingGame extends "res://tests/game_fixture.gd":
  var fact_source_calls=0
  var command_facts_calls=0
+ var join_units_calls=0
+ var branch_units_calls=0
+ var phase_facts_calls=0
  func _fact_source() -> Array:
   fact_source_calls+=1
   return super._fact_source()
  func command_facts() -> Array:
   command_facts_calls+=1
   return super.command_facts()
+ func _join_fact_units(units: Array) -> Array:
+  join_units_calls+=1
+  return super._join_fact_units(units)
+ func _phase_branch_units(branch: String) -> Array:
+  branch_units_calls+=1
+  return super._phase_branch_units(branch)
+ func _phase_facts() -> Array:
+  phase_facts_calls+=1
+  return super._phase_facts()
  func reset_point_lookup_counts() -> void:
   fact_source_calls=0
   command_facts_calls=0
+  join_units_calls=0
+  branch_units_calls=0
+  phase_facts_calls=0
+
+# C 批（K3）测试侧计数：表 pass 每行恰构造一次、每个读取批次只走查一次。计数口径＝core/game.gd::_fact
+# 的调用（事实的唯一构造点）＋走查入口 core/game.gd::attack_point_walk 的调用；期望侧＝该次调用返回的行集
+# （不取自实现）。生产源码不带计数器。
+class PointFamilyCountingGame extends "res://tests/game_fixture.gd":
+ var fact_calls=0
+ var fact_payloads=[]
+ var walk_calls=0
+ func _fact(payload: Dictionary, label: String, copy, cost, mana, reason: String, risk: String, group: String) -> Dictionary:
+  fact_calls+=1
+  fact_payloads.append(payload.duplicate())
+  return super._fact(payload,label,copy,cost,mana,reason,risk,group)
+ func attack_point_walk(g) -> Array:
+  walk_calls+=1
+  return super.attack_point_walk(g)
+ func reset_point_family_counts() -> void:
+  fact_calls=0
+  fact_payloads.clear()
+  walk_calls=0
+
+# 逐家族构造次数（被测侧）；期望侧＝该夹具的返回行集（见 table_rows_constructed_once）。
+static func point_family_constructed(g) -> Dictionary:
+ var out={"attack":0,"witch":0,"equipment_spell":0,"card":0}
+ for payload in g.fact_payloads:
+  var kind=String(payload.get("kind",""))
+  if kind=="attack":
+   if String(payload.get("target",""))!="": out.equipment_spell=int(out.equipment_spell)+1
+   elif String(payload.get("type","")).begins_with("witch_"): out.witch=int(out.witch)+1
+   else: out.attack=int(out.attack)+1
+  elif kind=="card": out.card=int(out.card)+1
+ return out
+
+static func point_family_rows(rows: Array) -> Dictionary:
+ var out={"attack":0,"witch":0,"equipment_spell":0,"card":0}
+ for row in rows:
+  var payload=row.payload
+  var kind=String(payload.get("kind",""))
+  if kind=="attack":
+   if String(payload.get("target",""))!="": out.equipment_spell=int(out.equipment_spell)+1
+   elif String(payload.get("type","")).begins_with("witch_"): out.witch=int(out.witch)+1
+   else: out.attack=int(out.attack)+1
+  elif kind=="card": out.card=int(out.card)+1
+ return out
 
 # S2 test-side counter: the point-query path must compute the requested row only, so these three
 # whole-table producers stay at zero calls. Production carries no counters.
@@ -678,6 +738,10 @@ static func run(t) -> void:
  point_sources_are_kind_limited(t)
  point_query_builds_no_table(t)
  prefix_branch_tables_are_frozen(t)
+ domain_arm_branch_ids_are_pinned(t)
+ table_rows_constructed_once(t)
+ table_walk_single_entry(t)
+ point_family_rows_respect_read_scope(t)
  command_fact_kind_lookup(t)
  single_fact_lookup_per_submit(t)
  rejected_submit_lookup_counts(t)
@@ -3137,6 +3201,22 @@ static func batch_kind_sources() -> Dictionary:
   if source in BATCH_ARM_SOURCES: out[kind]=source
  return out
 
+# 全部 table 形 kind 的来源臂（去重；含 9 个 K0 之前的窄来源），顺序＝kind 声明序。
+static func table_arm_sources() -> Array:
+ var out=[]
+ for kind in table_kinds():
+  var source=String(CommandRegistry.entry(kind).get("source",""))
+  if source!="" and source not in out: out.append(source)
+ return out
+
+# 文件里的函数名全集（源码文本：行首 func／static func；供「臂体调用了哪些本地函数」的双向核对）。
+static func source_func_names(relative: String) -> Array:
+ var pattern=RegEx.new()
+ var names=[]
+ if pattern.compile("(?m)^(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")!=OK: return names
+ for found in pattern.search_all(source_text(relative)): names.append(found.get_string(1))
+ return names
+
 # 缺口 2（归 B 批）：每个域臂的守卫必须调用 _phase_branch()（域臂体，不只 _phase_facts 体）。
 static func domain_arm_guards_call_phase_branch(t) -> void:
  var sources={}
@@ -3165,6 +3245,17 @@ static func domain_arm_guards_call_phase_branch(t) -> void:
 # C-B-4（K2；gherkin B-4）：整表来源不再是点查询的答案——登记表文本不再出现整表来源名；每个 table kind 的
 # 臂体不调 _fact_source()／command_facts()；_kind_facts 与 _item_use_kind_facts 无整表回落；23 项把 source
 # 指回自己的域臂（少改／多改都红）。FROZEN_TABLE_SOURCES 的 23 项同批 rebase（old→new 见其注释）。
+# B 批审查条目 2（归 C 批）加固：kinds=37／arms=16 由打印改为断言；文本扫描扩到被调 helper（白名单双向
+# 核对：臂体新调一个本地函数而没进表 ＝ 未扫描的间接调用，即红；改名致 helper 体提取为空 ＝ 红）。
+const POINT_SOURCE_TABLE_KINDS=37
+const POINT_SOURCE_DOMAIN_ARMS=16
+const POINT_SOURCE_ARMS_TOTAL=25
+const TABLE_ARM_HELPERS=["_fact","_fact_source_domain","_item","_phase_action_tail","_phase_branch","_phase_facts","_route_facts","_status_toggle_facts","_unit_rest_choice","_unit_reward","_unit_travel_step","command_domain_ready","flow_facts","hook_facts","item_action_block","item_action_facts","item_discard_facts","manual_facts","posture_facts","retain_facts","surrender_fact","wall_move_facts"]
+const TABLE_ARM_WHOLE_TABLE_CALLS=["_fact_source(","command_facts(","_join_fact_units(","_phase_branch_units("]
+# 声明豁免：_flow_kind_facts 的 overload_climax 分支按设计返回该分支自己的单元生产者（_phase_facts）——
+# 它不是整表出口，且运行期由 point_query_builds_no_table 的计数豁免（恰 1 次）钉住（豁免不能腐烂：无臂调用即红）。
+const TABLE_ARM_HELPER_EXEMPT=["_phase_facts"]
+
 static func point_sources_are_kind_limited(t) -> void:
  var registry=source_text("core/command_registry.gd")
  t.check(not registry.contains("_whole_table_kind_facts"),"point_sources_are_kind_limited: no registry entry names the whole-table source any more")
@@ -3183,13 +3274,158 @@ static func point_sources_are_kind_limited(t) -> void:
  var item_use_body=source_func_body_code("res://core/game.gd","_item_use_kind_facts")
  t.check(not item_use_body.strip_edges().is_empty() and item_use_body.find("_fact_source(")<0,"point_sources_are_kind_limited: the item_use arm keeps no whole-table residual")
  var batch=batch_kind_sources()
- t.check(batch.size()==23,"point_sources_are_kind_limited: the 23 rebased kinds stay on their domain arms have="+str(batch.size())+" "+str(batch.keys().filter(func(kind):return true)))
- print("POINT SOURCES KIND LIMITED kinds=%d arms=%d known=%d" % [table_kinds().size(),BATCH_ARM_SOURCES.size(),batch.size()])
+ var arms=table_arm_sources()
+ t.check(batch.size()==23,"point_sources_are_kind_limited: the 23 rebased kinds stay on their domain arms have="+str(batch.size()))
+ t.check(table_kinds().size()==POINT_SOURCE_TABLE_KINDS and BATCH_ARM_SOURCES.size()==POINT_SOURCE_DOMAIN_ARMS and arms.size()==POINT_SOURCE_ARMS_TOTAL,"point_sources_are_kind_limited: the table-kind count, the domain-arm set and the total arm set keep their frozen sizes: kinds="+str(table_kinds().size())+" domain_arms="+str(BATCH_ARM_SOURCES.size())+" arms="+str(arms.size())+" want="+str([POINT_SOURCE_TABLE_KINDS,POINT_SOURCE_DOMAIN_ARMS,POINT_SOURCE_ARMS_TOTAL]))
+ var bodies={}
+ var missing_helpers=[]
+ for name in TABLE_ARM_HELPERS:
+  var body=source_func_body_code("res://core/game.gd",name)
+  bodies[name]=body
+  if body.strip_edges().is_empty(): missing_helpers.append(name)
+ t.check(missing_helpers.is_empty(),"point_sources_are_kind_limited: every whitelisted arm helper body is extracted (a rename must not silently empty the scan): "+str(missing_helpers))
+ var indirect=[]
+ for name in bodies:
+  if name in TABLE_ARM_HELPER_EXEMPT: continue
+  for needle in TABLE_ARM_WHOLE_TABLE_CALLS:
+   if String(bodies[name]).find(needle)>=0: indirect.append(name+"->"+needle)
+ t.check(indirect.is_empty(),"point_sources_are_kind_limited: no arm helper reaches a whole-table form (an indirect whole-table call is red): "+str(indirect))
+ var declared_names=source_func_names("core/game.gd")
+ var unlisted=[]
+ for arm in arms:
+  var body=source_func_body_code("res://core/game.gd",arm)
+  for candidate in declared_names:
+   if candidate==arm or arm.ends_with(candidate) or candidate in TABLE_ARM_HELPERS: continue
+   if body.find(candidate+"(")>=0: unlisted.append(arm+"->"+candidate)
+ t.check(unlisted.is_empty(),"point_sources_are_kind_limited: every local function an arm calls is on the scanned helper list (an unlisted indirection would escape the whole-table scan): "+str(unlisted))
+ var stale_exempt=TABLE_ARM_HELPER_EXEMPT.filter(func(name):return not arms.any(func(arm):return source_func_body_code("res://core/game.gd",arm).find(name+"(")>=0))
+ t.check(stale_exempt.is_empty(),"point_sources_are_kind_limited: the declared helper exemption cannot rot (an exempt helper no arm calls is red): "+str(stale_exempt))
+ print("POINT SOURCES KIND LIMITED kinds=%d arms=%d known=%d helpers=%d exempt=%d" % [table_kinds().size(),BATCH_ARM_SOURCES.size(),batch.size(),TABLE_ARM_HELPERS.size(),TABLE_ARM_HELPER_EXEMPT.size()])
 
-# C-B-3（K2；gherkin B-3）：点查询不建整表——测试侧计数子类逐次统计 _fact_source／command_facts 调用；可行动期
-# 每个 table 形 kind 的一次 command_fact 必须为 0；接管期按声明豁免（走 TAKEOVER_SOURCE 整表扫描＝1，与今天相同）；
-# 覆盖非空：23 项新域臂里至少 POINT_LOOKUP_COVERAGE_FLOOR 项在夹具矩阵上命中非空行（全 0 即红）。
+# 域臂守卫的分支 id 正确性（B 批审查条目 2／4）：两层判据——
+# ① 文本层（双向）：每个域臂体点名的分支 id 字面恰等于声明的守卫集合（缺一个／多一个都红；两个臂互换守卫
+#    在此层即红，因为各自会点名对方的分支 id）；
+# ② 运行期：夹具矩阵上臂产出的行必须落在该臂声明的**运行期**分支集合内（行 ⇒ 分支 ∈ 声明），且逐臂逐分支
+#    都必须在矩阵里被观测到行（声明不能腐烂）。
+# 两处集合只有一处差异（已声明）：_depart_kind_facts 的 map 行由 match 的兜底臂给出（_route_facts 在 map
+# 相位对空输入也产行），故运行期集合把守卫字面里的 action_tail 换成 map。声明侧都是本文件字面期望。
+const DOMAIN_ARM_BRANCH_IDS={
+ "_chain_kind_facts":["card_chain"],
+ "_manual_kind_facts":["action_tail"],
+ "_hook_kind_facts":["action_tail"],
+ "_item_action_kind_facts":["action_tail","pack"],
+ "_retain_kind_facts":["pending_retain"],
+ "_rest_choice_kind_facts":["rest_choice"],
+ "_services_kind_facts":["shop_treasure"],
+ "_events_kind_facts":["event"],
+ "_prison_kind_facts":["captured_inspection","action_tail"],
+ "_depart_kind_facts":["shop_treasure","event","action_tail","pack"],
+ "_reward_kind_facts":["reward"],
+ "_relic_bundle_kind_facts":["relic_bundle"],
+ "_departure_kind_facts":["departure"],
+ "_travel_step_kind_facts":["travel"],
+ "_demo_exit_kind_facts":["cleared"],
+ "_relic_control_done_kind_facts":[],
+}
+const DOMAIN_ARM_ROW_BRANCHES={
+ "_chain_kind_facts":["card_chain"],
+ "_manual_kind_facts":["action_tail"],
+ "_hook_kind_facts":["action_tail"],
+ "_item_action_kind_facts":["action_tail","pack"],
+ "_retain_kind_facts":["pending_retain"],
+ "_rest_choice_kind_facts":["rest_choice"],
+ "_services_kind_facts":["shop_treasure"],
+ "_events_kind_facts":["event"],
+ "_prison_kind_facts":["captured_inspection","action_tail"],
+ "_depart_kind_facts":["map","shop_treasure","event","action_tail","pack"],
+ "_reward_kind_facts":["reward"],
+ "_relic_bundle_kind_facts":["relic_bundle"],
+ "_departure_kind_facts":["departure"],
+ "_travel_step_kind_facts":["travel"],
+ "_demo_exit_kind_facts":["cleared"],
+ "_relic_control_done_kind_facts":[],
+}
+# 9 个 K0 之前的窄来源用 domain 合成守卫（不是分支守卫）：本判据不含分支 id 期望，逐条在此声明并与
+# domain_arm_guards_call_phase_branch 的豁免面同集合（任一侧漏列／多列即红）；其残差登记进依赖索引的「仍靠人审」。
+const DOMAIN_ARM_DOMAIN_GUARDED=PHASE_BRANCH_ARM_EXEMPT
+# 已在夹具矩阵里观测不到行的声明分支（逐条登记，双向核对）：_depart_kind_facts 的 shop／event 出口行需要
+# 「服务／事件已产出离开行」的夹具，本矩阵（26 cell 的 0／12 ＋ 63 个分支态）里没有这样的商店／事件——
+# 该臂在这两个分支的行面因此无机械证据，登记为「仍靠人审」（观测到即表示本行过期，红）。
+const DOMAIN_ARM_ROW_BRANCHES_UNOBSERVED=["_depart_kind_facts@shop_treasure","_depart_kind_facts@event"]
+# 运行期矩阵：26 cell 的 0／12 两档（含 shop／treasure／event／prison 相位）＋ branch_sweep_states() 的
+# 全部相位/前缀/标志态（与 B 批冻结矩阵同一份声明）。
+static func arm_branch_fixtures() -> Array:
+ var out=[]
+ for cell in r1_cells():
+  if cell[0]=="takeover" or cell[1] not in FACT_LOOKUP_ALL_KIND_COUNTS: continue
+  out.append(["%s:%d" % [cell[0],cell[1]],r1_build(cell[0],cell[1])])
+ for sweep in branch_sweep_states(): out.append([String(sweep.label),sweep.game])
+ return out
+
+static func domain_arm_branch_ids_are_pinned(t) -> void:
+ var arms=table_arm_sources()
+ var missing=DOMAIN_ARM_BRANCH_IDS.keys().filter(func(name):return name not in arms)
+ var extra=arms.filter(func(name):return not DOMAIN_ARM_BRANCH_IDS.has(name) and name not in DOMAIN_ARM_DOMAIN_GUARDED)
+ t.check(missing.is_empty() and extra.is_empty(),"domain_arm_branch_ids_are_pinned: every table arm is either branch-guarded with a declared branch-id expectation or a declared domain-guarded exemption (two-way): missing="+str(missing)+" extra="+str(extra))
+ t.check(DOMAIN_ARM_BRANCH_IDS.size()==POINT_SOURCE_DOMAIN_ARMS and DOMAIN_ARM_ROW_BRANCHES.size()==POINT_SOURCE_DOMAIN_ARMS and arms.size()==POINT_SOURCE_ARMS_TOTAL,"domain_arm_branch_ids_are_pinned: both expectation tables cover every branch-guarded arm and the arm sets keep their sizes: "+str(DOMAIN_ARM_BRANCH_IDS.size())+"/"+str(DOMAIN_ARM_ROW_BRANCHES.size())+" arms="+str(arms.size()))
+ var text=[]
+ for name in DOMAIN_ARM_BRANCH_IDS:
+  if name not in arms: continue
+  var body=source_func_body_code("res://core/game.gd",name)
+  if body.strip_edges().is_empty(): text.append(name+"=<no body>"); continue
+  for branch in DOMAIN_ARM_BRANCH_IDS[name]:
+   if body.find("\""+String(branch)+"\"")<0: text.append(name+": guard never names "+String(branch))
+  for branch in PHASE_BRANCH_VOCABULARY:
+   if branch in DOMAIN_ARM_BRANCH_IDS[name]: continue
+   if body.find("\""+String(branch)+"\"")>=0: text.append(name+": guards on undeclared branch "+String(branch))
+ t.check(text.is_empty(),"domain_arm_branch_ids_are_pinned: each arm's guard names exactly its declared branch ids (two-way, source text): "+str(text.slice(0,6)))
+ var fixtures=arm_branch_fixtures()
+ var observed={}
+ var runtime=[]
+ var arm_rows=0
+ for entry in fixtures:
+  var g=entry[1]
+  var branch=g._phase_branch()
+  for kind in table_kinds():
+   var source=String(CommandRegistry.entry(kind).get("source",""))
+   if source.is_empty() or not DOMAIN_ARM_BRANCH_IDS.has(source): continue
+   var canonical=g.command_params(kind,{})
+   for raw in g.call(source,kind,canonical):
+    if String(raw.payload.get("kind",""))!=kind: continue
+    arm_rows+=1
+    if not observed.has(source): observed[source]={}
+    observed[source][branch]=true
+    if branch not in DOMAIN_ARM_ROW_BRANCHES[source]: runtime.append("%s:%s branch=%s" % [String(entry[0]),source,String(branch)])
+ t.check(runtime.is_empty(),"domain_arm_branch_ids_are_pinned: every arm row appears in one of its declared branches (a wrong branch id is red at runtime): "+str(runtime.slice(0,6)))
+ t.check(arm_rows>0,"domain_arm_branch_ids_are_pinned: the runtime layer compared at least one arm row have="+str(arm_rows))
+ var unobserved=[]
+ var registered=DOMAIN_ARM_ROW_BRANCHES_UNOBSERVED
+ for name in DOMAIN_ARM_ROW_BRANCHES:
+  for branch in DOMAIN_ARM_ROW_BRANCHES[name]:
+   var pair=name+"@"+String(branch)
+   var seen=observed.get(name,{}).has(branch)
+   if not seen and pair not in registered: unobserved.append(pair)
+   if seen and pair in registered: unobserved.append(pair+"=<registered but observed>")
+ t.check(unobserved.is_empty(),"domain_arm_branch_ids_are_pinned: every declared runtime branch is observed with rows in the fixture matrix or registered as unobservable (the declaration cannot rot, two-way): "+str(unobserved))
+ var stale_arms=[]
+ for pair in DOMAIN_ARM_ROW_BRANCHES_UNOBSERVED:
+  var parts=String(pair).split("@")
+  if parts.size()!=2 or not DOMAIN_ARM_ROW_BRANCHES.has(parts[0]) or parts[1] not in DOMAIN_ARM_ROW_BRANCHES[parts[0]]: stale_arms.append(String(pair))
+ t.check(stale_arms.is_empty(),"domain_arm_branch_ids_are_pinned: every unobserved registration names a declared arm/branch pair: "+str(stale_arms))
+ var branchless=DOMAIN_ARM_ROW_BRANCHES.keys().filter(func(name):return DOMAIN_ARM_ROW_BRANCHES[name].is_empty())
+ t.check(branchless==BATCH_ARM_GUARDLESS and not observed.has("_relic_control_done_kind_facts"),"domain_arm_branch_ids_are_pinned: the declared branchless arm stays row-free everywhere: "+str(branchless))
+ print("DOMAIN ARM BRANCH IDS arms=%d fixtures=%d arm_rows=%d runtime_problems=%d unobserved=%d" % [arms.size(),fixtures.size(),arm_rows,runtime.size(),unobserved.size()])
+
+# C-B-3（K2；gherkin B-3）：点查询不建整表——测试侧计数子类逐次统计整表出口与其三个连接入口
+# （_fact_source／command_facts／_join_fact_units／_phase_branch_units／_phase_facts 直调）；可行动期
+# 每个 table 形 kind 的**每条**表行都做一次 command_fact，五路计数必须全为 0；接管期按声明豁免
+# （走 TAKEOVER_SOURCE 整表扫描＝1，与今天相同）；覆盖非空：23 项新域臂里至少 POINT_LOOKUP_COVERAGE_FLOOR
+# 项在夹具矩阵上命中非空行（全 0 即红）。
+# B 批审查条目 1（归 C 批）加固：计数面扩到三个连接入口、样本改为覆盖每 kind 的全部行、修掉恒假子句；
+# 唯一一处相位单元计数豁免＝_flow_kind_facts 在 overload_climax 分支对 kind=="end" 返回该分支自己的单元
+# （_phase_facts＝该分支的单元连接），逐条断言恰为 1 且必须被观测到（豁免不能腐烂）。
 const POINT_LOOKUP_COVERAGE_FLOOR=15
+const POINT_LOOKUP_PHASE_UNIT_EXEMPT={"end":"overload_climax"}
 
 static func point_query_builds_no_table(t) -> void:
  var fixtures=[]
@@ -3199,25 +3435,37 @@ static func point_query_builds_no_table(t) -> void:
  for sweep in branch_sweep_states(PointLookupCountingGame): fixtures.append([String(sweep.label),sweep.game])
  var kinds=table_kinds()
  var hits={}
+ var exempt_hits={}
  var compared=0
+ var rows_seen=0
  var problems=[]
  for entry in fixtures:
   var g=entry[1]
   var table=g.command_facts()
-  for kind in kinds:
-   var row={}
-   for candidate in table:
-    if String(candidate.payload.get("kind",""))==kind: row=candidate; break
-   if row.is_empty(): continue
+  var tested={}
+  for row in table:
+   var kind=String(row.payload.get("kind",""))
+   if kind not in kinds: continue
+   rows_seen+=1
+   var key=kind+"|"+JSON.stringify(g.command_params(kind,row.payload))
+   if tested.has(key): continue
+   tested[key]=true
+   var branch=g._phase_branch()
+   var exempt=String(POINT_LOOKUP_PHASE_UNIT_EXEMPT.get(kind,""))==branch
+   if exempt: exempt_hits[kind]=true
    g.reset_point_lookup_counts()
    var found=g.command_fact(g.command(row.payload,g.state.version))
    compared+=1
-   if kind in BATCH_ARM_SOURCES or String(CommandRegistry.entry(kind).get("source","")) in BATCH_ARM_SOURCES: hits[kind]=true
-   if not (found==row and g.fact_source_calls==0 and g.command_facts_calls==0): problems.append("%s:%s fact_source=%d command_facts=%d equal=%s" % [String(entry[0]),kind,g.fact_source_calls,g.command_facts_calls,str(found==row)])
- t.check(problems.is_empty(),"point_query_builds_no_table: one command_fact answers from the kind arm without building the table: "+str(problems.slice(0,6)))
- t.check(compared>0,"point_query_builds_no_table: the fixture matrix answered at least one table-form kind have="+str(compared))
+   if String(CommandRegistry.entry(kind).get("source","")) in BATCH_ARM_SOURCES: hits[kind]=true
+   var want=1 if exempt else 0
+   if not (found==row and g.fact_source_calls==0 and g.command_facts_calls==0 and g.join_units_calls==want and g.branch_units_calls==want and g.phase_facts_calls==want):
+    problems.append("%s:%s branch=%s fact_source=%d command_facts=%d join=%d branch_units=%d phase_facts=%d equal=%s" % [String(entry[0]),kind,branch,g.fact_source_calls,g.command_facts_calls,g.join_units_calls,g.branch_units_calls,g.phase_facts_calls,str(found==row)])
+ t.check(problems.is_empty(),"point_query_builds_no_table: one command_fact answers from the kind arm without building the table or its units (the only declared phase-unit exemption is exactly one build): "+str(problems.slice(0,6)))
+ t.check(compared>0 and rows_seen>=compared,"point_query_builds_no_table: the fixture matrix answered every distinct table row of every kind have="+str(compared)+" rows="+str(rows_seen))
  var covered=hits.keys().filter(func(kind):return batch_kind_sources().has(kind))
  t.check(covered.size()>=POINT_LOOKUP_COVERAGE_FLOOR,"point_query_builds_no_table: at least "+str(POINT_LOOKUP_COVERAGE_FLOOR)+" of the 23 rebased kinds hit a non-empty row have="+str(covered.size())+" "+str(covered))
+ var stale_exempt=POINT_LOOKUP_PHASE_UNIT_EXEMPT.keys().filter(func(kind):return not exempt_hits.has(kind))
+ t.check(stale_exempt.is_empty(),"point_query_builds_no_table: the declared phase-unit exemption is observed in the matrix (an unused exemption is red): "+str(stale_exempt))
  # 接管期声明豁免：select 标注的那一步仍经 TAKEOVER_SOURCE 的整表扫描一次（与改动前相同）；relic_control_done
  # 的行只由 FirstTurnControl.select 注入，点查询路径对它恒为空（臂体恒空，见 domain_arm_guards_call_phase_branch）。
  var takeover=r1_build("takeover",0,PointLookupCountingGame)
@@ -3230,12 +3478,17 @@ static func point_query_builds_no_table(t) -> void:
  var found=takeover.command_fact(takeover.command(automated.payload,takeover.state.version))
  t.check(found==automated,"point_query_builds_no_table: the takeover phase answers the selected row")
  t.check(takeover.command_facts_calls==1 and takeover.fact_source_calls==1,"point_query_builds_no_table: the takeover exemption is exactly one declared whole-table build: command_facts="+str(takeover.command_facts_calls)+" fact_source="+str(takeover.fact_source_calls))
- print("POINT QUERY NO TABLE fixtures=%d kinds_answered=%d rebased_covered=%d takeover_builds=1" % [fixtures.size(),compared,covered.size()])
+ print("POINT QUERY NO TABLE fixtures=%d rows=%d distinct_answered=%d rebased_covered=%d phase_unit_exempt=%s takeover_builds=1" % [fixtures.size(),rows_seen,compared,covered.size(),str(exempt_hits.keys())])
 
 # 缺口 1（A 批审查归 B 批）：冻结矩阵扩到前缀/分支态。26 cell 不含前缀态（relic_bundle／departure／
 # domain_blocked）与 rest_choice／reward／travel／map／cleared／pack 等分支，前缀零移动此前只有 build/ 的
 # 差分探针能证（仓库内不可重放）。本判据把 branch_sweep_states() 的每个状态逐条冻结成行面摘要：
-# 期望侧＝B 批动工前实测值（写在测试内，不取自实现）；状态集合双向核对（缺一个／多一个都红）。
+# 期望侧＝B 批动工前实测值（写在测试内，不取自实现）；状态集合与规模双向核对（缺一个／多一个都红）。
+# 出处自证（B 批审查条目 3）：下表在本批动工前的 core/game.gd 字节上实测，其 sha256 见
+# PREFIX_BRANCH_TABLE_SOURCE_SHA256；复核者按同一 sha256 的源码重跑 branch_sweep_states() 即可重算。
+const PREFIX_BRANCH_TABLE_SOURCE_SHA256="1AFA055BFB84119B6B8BA34B46C67C62BDBF6ADB9E77BDF9B7F1F2A71B8DE76A"
+# 状态数（字面）：branch_sweep_states() 与下表都必须恰为这个数——「删一态＋同步删基线」在此红。
+const PREFIX_BRANCH_TABLE_STATE_COUNT=63
 const PREFIX_BRANCH_TABLE_BASELINE={
  "sweep:departure|plain":["departure","8","0a2f9d0dde945abd70b6d831f6e00ea0"],
  "sweep:departure|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
@@ -3326,8 +3579,9 @@ static func prefix_branch_tables_are_frozen(t) -> void:
   if JSON.stringify(have)!=JSON.stringify(want): moved.append(label+" have="+JSON.stringify(have)+" want="+JSON.stringify(want))
  t.check(missing.is_empty() and declared.is_empty(),"prefix_branch_tables_are_frozen: the fixture sweep and the frozen table are two-way total (missing="+str(missing)+" extra="+str(declared)+")")
  t.check(moved.is_empty(),"prefix_branch_tables_are_frozen: every branch/prefix state keeps its frozen table face (a prefix move is red, never a silent edit): "+str(moved.slice(0,4)))
- t.check(compared>=48,"prefix_branch_tables_are_frozen: the sweep covered the branch matrix (coverage floor): "+str(compared))
- print("PREFIX BRANCH TABLES FROZEN states=%d moved=%d" % [compared,moved.size()])
+ # 规模双向（B 批审查条目 3）：三处（扫描／基线表／字面状态数）必须相等——删一态并同步删基线行在此红。
+ t.check(compared==PREFIX_BRANCH_TABLE_BASELINE.size() and compared==PREFIX_BRANCH_TABLE_STATE_COUNT,"prefix_branch_tables_are_frozen: the sweep size equals the frozen table size equals the literal state count (a deleted state, with or without its baseline row, is red): compared="+str(compared)+" baseline="+str(PREFIX_BRANCH_TABLE_BASELINE.size())+" declared="+str(PREFIX_BRANCH_TABLE_STATE_COUNT))
+ print("PREFIX BRANCH TABLES FROZEN states=%d moved=%d source_sha256=%s" % [compared,moved.size(),PREFIX_BRANCH_TABLE_SOURCE_SHA256])
 
 
 # 装备自解家族夹具（非战斗阶段正例；S2 出口判据要求至少一个非战斗阶段实跑）。
@@ -3644,6 +3898,158 @@ static func card_point_lookup_reads_one_row(t) -> void:
   compared+=1
  t.check(compared==samples.size(),"card_point_lookup_reads_one_row: every family sample was compared have="+str(compared))
 
+# ==== C 批（K3 一次构造；plan §3 C 段；acceptance.md §1 C 段）====
+
+# C 批（K3）走查次数代理：core/card_effects.gd::_card_slot_walk 对每个声明槽位问一次
+# core/game.gd::has_targets_at（core 内唯一调用点），故「单卡手牌夹具上每个槽位至多被问一次」
+# 即「该手牌的表 pass 只走查一次」。生产源码不带计数器。
+class SlotWalkCountingGame extends "res://tests/game_fixture.gd":
+ var slot_walk_slots=[]
+ func has_targets_at(slot: String) -> bool:
+  slot_walk_slots.append(slot)
+  return super.has_targets_at(slot)
+
+# C-C-1（K3；gherkin C-1／C-2）：点形家族的表 pass 每行恰构造一次。被测侧＝测试侧计数子类（按 payload
+# 逐家族统计 core/game.gd::_fact 的调用）；期望侧＝该次 command_facts() 返回的行集（不取自实现）。
+# 敏感性：把任一表生产者改回「取键＋构造」两步 ⇒ 构造次数翻倍（构造数 ≠ 行数）即红；
+# card 的走查次数由单卡夹具的槽位问询面钉住（两步形态 ⇒ 每个槽位被问 1+keys 次）。
+static func table_rows_constructed_once(t) -> void:
+ var fixtures=[]
+ for cell in r1_cells():
+  if cell[0]=="takeover": continue
+  fixtures.append(["%s:%d" % [cell[0],cell[1]],r1_build(cell[0],cell[1],PointFamilyCountingGame)])
+ fixtures.append(["prepare:12+self_release",attack_self_release_fixture("prepare",12,PointFamilyCountingGame)])
+ fixtures.append(["witch:battle",PointFamilyCountingGame.new(42,false,"equipment",true,false,25,false,false,"witch")])
+ fixtures.append(["branch:battle:26",card_branch_fixture(t,"battle",26,PointFamilyCountingGame)])
+ fixtures.append(["exhaust_fallback:breath_control",card_exhaust_fallback_fixture(t,"breath_control",PointFamilyCountingGame)])
+ var problems=[]
+ var totals={"attack":0,"witch":0,"equipment_spell":0,"card":0}
+ var rows_total=0
+ for entry in fixtures:
+  var g=entry[1]
+  g.reset_point_family_counts()
+  var rows=g.command_facts()
+  var expected=point_family_rows(rows)
+  var constructed=point_family_constructed(g)
+  if g.fact_calls!=rows.size(): problems.append("%s: fact_calls=%d rows=%d" % [String(entry[0]),g.fact_calls,rows.size()])
+  for family in expected:
+   if int(constructed[family])!=int(expected[family]): problems.append("%s: %s constructed=%d rows=%d" % [String(entry[0]),family,constructed[family],expected[family]])
+   totals[family]=int(totals[family])+int(expected[family])
+  rows_total+=rows.size()
+  # 两半共用同一次走查：一次表 pass 至多一次（两次＝两半各走一遍；行存在则必然 ≥1）。
+  if g.walk_calls>1: problems.append("%s: attack walk_calls=%d" % [String(entry[0]),g.walk_calls])
+ t.check(problems.is_empty(),"table_rows_constructed_once: every point-family row is constructed exactly once per table pass (no keys-then-build round trip): "+str(problems.slice(0,6)))
+ t.check(problems.is_empty() and totals.attack>0 and totals.witch>0 and totals.equipment_spell>0 and totals.card>0 and rows_total>0,"table_rows_constructed_once: every point family is covered by the fixture matrix (attack/witch/equipment_spell/card): "+str(totals)+" rows="+str(rows_total))
+ var single=card_exhaust_fallback_fixture(t,"strong_elbow",SlotWalkCountingGame)
+ t.check(single.state.hand.size()==1,"table_rows_constructed_once: the single-card fixture holds exactly one card")
+ single.slot_walk_slots.clear()
+ var single_rows=single.command_facts()
+ var slots=single.slot_walk_slots.duplicate()
+ var repeated=[]
+ for slot in single.slot_walk_slots:
+  if single.slot_walk_slots.count(slot)>1 and slot not in repeated: repeated.append(slot)
+ t.check(not slots.is_empty() and repeated.is_empty(),"table_rows_constructed_once: one card is walked once per table pass (a slot asked twice means the walk ran again): repeated="+str(repeated)+" slots="+str(slots))
+ t.check(single_rows.any(func(row):return String(row.payload.get("kind",""))=="card"),"table_rows_constructed_once: the single-card fixture exposes card rows")
+ print("POINT FAMILY ONCE fixtures=%d rows=%d attack=%d witch=%d equipment_spell=%d card=%d walk_slots=%d" % [fixtures.size(),rows_total,totals.attack,totals.witch,totals.equipment_spell,totals.card,slots.size()])
+
+# C-C-2（K3；gherkin C-3）：点形家族的表生产者只有一个走查入口（源码文本）——三个生产者体内各恰出现走查
+# 入口一次，且不出现「先取键再构造」的两步形态；走查与单行构造各只有一处实现（keys／build／member 仍各自
+# 独立，attack 侧沿用既有 ATTACK_POINT_HELPERS／ATTACK_POINT_INDIRECT_CALLS 口径）。
+const TABLE_WALK_ENTRIES=[
+ ["res://core/game.gd","attack_facts","_attack_point_walk_cached(","attack_point_keys(","attack_point_fact("],
+ ["res://core/game.gd","equipment_spell_facts","_attack_point_walk_cached(","attack_point_keys(","attack_point_fact("],
+ ["res://core/card_effects.gd","card_facts","_card_point_rows(","_card_point_card_keys(","card_point_fact("],
+]
+# 走查与单行构造的唯一定义点（[file, style, name]；style=static 用 core/card_effects.gd 的静态提取器）。
+const TABLE_WALK_UNIQUE_DEFS=[
+ ["res://core/game.gd","func","attack_point_walk"],
+ ["res://core/game.gd","func","attack_point_keys"],
+ ["res://core/game.gd","func","attack_point_fact"],
+ ["res://core/game.gd","func","attack_point_member"],
+ ["res://core/card_effects.gd","static","_card_point_rows"],
+ ["res://core/card_effects.gd","static","card_point_fact"],
+ ["res://core/card_effects.gd","static","card_point_member"],
+ ["res://core/card_effects.gd","static","card_point_keys"],
+]
+
+static func table_walk_entry_body(file: String, name: String) -> String:
+ return source_static_func_body_code(file,name) if file.ends_with("card_effects.gd") else source_func_body_code(file,name)
+
+static func table_walk_single_entry(t) -> void:
+ var bodies={}
+ var missing=[]
+ for row in TABLE_WALK_ENTRIES:
+  var file=String(row[0])
+  var name=String(row[1])
+  var body=table_walk_entry_body(file,name)
+  bodies[name]=body
+  if body.strip_edges().is_empty(): missing.append(file+"::"+name)
+ t.check(missing.is_empty(),"table_walk_single_entry: every table producer body is extracted (a rename must not silently empty the scan): "+str(missing))
+ var problems=[]
+ for row in TABLE_WALK_ENTRIES:
+  var name=String(row[1])
+  var body=String(bodies.get(name,""))
+  var entries=0
+  var at=0
+  while true:
+   var found=body.find(String(row[2]),at)
+   if found<0: break
+   entries+=1
+   at=found+1
+  if entries!=1: problems.append(name+": walk entry appears "+str(entries)+" times")
+  if body.find(String(row[3]))>=0: problems.append(name+": still enumerates keys ("+String(row[3])+")")
+  if body.find(String(row[4]))>=0: problems.append(name+": still rebuilds rows ("+String(row[4])+")")
+ t.check(problems.is_empty(),"table_walk_single_entry: each table producer takes its rows from the one walk (no keys-then-build two-step form): "+str(problems))
+ var defs=[]
+ for row in TABLE_WALK_UNIQUE_DEFS:
+  var file=String(row[0])
+  var style=String(row[1])
+  var name=String(row[2])
+  var body=attack_point_helper_body(file,style,name)
+  if body.strip_edges().is_empty(): defs.append(file+"::"+name+"=<no body>")
+  if source_text(file.trim_prefix("res://")).find(("\nstatic func " if style=="static" else "\nfunc ")+name+"(")<0: defs.append(file+"::"+name+"=<no definition>")
+ t.check(defs.is_empty(),"table_walk_single_entry: the walk, keys, build and member each keep exactly one implementation: "+str(defs))
+ var keys_body=source_func_body_code("res://core/game.gd","attack_point_keys")
+ var card_keys_body=source_static_func_body_code("res://core/card_effects.gd","card_point_keys")
+ t.check(keys_body.find("_attack_point_walk_cached(")>=0 and keys_body.find("attack_point_fact(")<0 and card_keys_body.find("_card_point_card_keys(")>=0,"table_walk_single_entry: keys enumerates the same walk and never builds rows")
+ print("TABLE WALK SINGLE ENTRY producers=%d unique_defs=%d" % [TABLE_WALK_ENTRIES.size(),TABLE_WALK_UNIQUE_DEFS.size()])
+
+# C-C-3（K3；gherkin C-4；design.md §5.0 C 行）：批次语义——①测试侧持批（把 _begin_equipment_read 的 previous
+# 留在测试里）时三个点形生产者与无批次逐字节相等，且攻击走查只发生一次；②出批即弃：出批后改状态再调用，
+# 结果必须按新状态给出（批次内条目不再被复用 ⇒ 不陈旧）。敏感性：让走查跨批次存活（挂 self 或按键）⇒
+# ②的比较红（after 与批内结果相同）。
+static func point_family_rows_respect_read_scope(t) -> void:
+ var fixtures=[
+  ["battle:12",r1_build("battle",12,PointFamilyCountingGame)],
+  ["prepare:12+self_release",attack_self_release_fixture("prepare",12,PointFamilyCountingGame)],
+ ]
+ var problems=[]
+ var stale_checked=0
+ for entry in fixtures:
+  var g=entry[1]
+  var expected=[g.attack_facts(),g.equipment_spell_facts(),g.state.hand.map(func(card):return g.Cards.card_facts(g,card))]
+  g.reset_point_family_counts()
+  var previous=g._begin_equipment_read()
+  var batched=[g.attack_facts(),g.equipment_spell_facts(),g.state.hand.map(func(card):return g.Cards.card_facts(g,card))]
+  g._equipment_read=previous
+  if batched!=expected: problems.append(String(entry[0])+": batch-held calls differ from batch-free calls")
+  if g.walk_calls!=1: problems.append(String(entry[0])+": attack walk_calls="+str(g.walk_calls))
+  var before=g.attack_facts()
+  var previous_inner=g._begin_equipment_read()
+  var during=g.attack_facts()
+  g._equipment_read=previous_inner
+  var enemies=g.state.enemies
+  g.state.enemies=[]
+  var after=g.attack_facts()
+  g.state.enemies=enemies
+  if not before.is_empty():
+   stale_checked+=1
+   if during!=before: problems.append(String(entry[0])+": the batch-held attack rows differ from the batch-free rows")
+   if after.size()>=during.size() and JSON.stringify(after)==JSON.stringify(during): problems.append(String(entry[0])+": the walk result outlives its read batch (stale rows after the state changed)")
+ t.check(problems.is_empty(),"point_family_rows_respect_read_scope: the walk result is reused inside one read batch and dropped when the batch ends: "+str(problems))
+ t.check(stale_checked>0,"point_family_rows_respect_read_scope: at least one fixture exercised the stale check have="+str(stale_checked))
+ print("POINT FAMILY READ SCOPE fixtures=%d stale_checked=%d" % [fixtures.size(),stale_checked])
+
 static func pipeline_lookup_inspect(t) -> void:
  var edges=pipeline_lookup_edges()
  t.check(edges.size()==2,"pipeline_lookup_inspect: PIPELINE_LOOKUP_EDGES is exactly two lookup edges have="+str(edges.size()))
@@ -3958,7 +4364,9 @@ const PAYLOAD_MUTATOR_CALL_PATTERN="\\bpayload\\s*\\.\\s*(?:merge|erase|clear)\\
 # 集合断言＝多一处或少一处都红。这不是「共享行只读」的证明，只是 core/＋data/ 全部 .gd 内的写点计数钉；
 # 已知逃逸面（dispatch 外的 `chosen` 成员形写、ui/ 侧写入、局部别名、把 payload 传给 helper 由 helper 写）
 # 逐条登记在 docs/spec/fact-lookup-dependencies.md 禁止项。
-const PAYLOAD_WRITE_WHITELIST=["res://core/card_effects.gd::card_point_fact","res://core/card_effects.gd::card_point_fact","res://core/prison.gd::add"]
+# C 批（K3）：card 单行构造的 payload 收尾写入从 core/card_effects.gd::card_point_fact 移到唯一单行构造器
+# core/card_effects.gd::_card_point_row（point 构造与表 pass 共用），写点条数与位置面只此一处移动。
+const PAYLOAD_WRITE_WHITELIST=["res://core/card_effects.gd::_card_point_row","res://core/card_effects.gd::_card_point_row","res://core/prison.gd::add"]
 
 static func dispatch_fact_row_is_readonly(t) -> void:
  var body=source_func_body_code("res://core/game.gd","dispatch")

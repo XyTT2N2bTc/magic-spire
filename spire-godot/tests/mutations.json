@@ -237,9 +237,9 @@
       "suite": "architecture"
     },
     "point_sources_are_kind_limited": {
-      "file": "core/command_registry.gd",
-      "find": " \"manual\":{\"form\":\"table\",\"source\":\"_manual_kind_facts\"},",
-      "replace": " \"manual\":{\"form\":\"table\",\"source\":\"_flow_kind_facts\"},",
+      "file": "core/game.gd",
+      "find": "func manual_facts() -> Array:\n var facts=[]\n if not command_tail(): return facts",
+      "replace": "func manual_facts() -> Array:\n var facts=[]\n if not command_tail(): return facts\n _join_fact_units(_phase_branch_units(\"prison_end\"))",
       "suite": "architecture"
     },
     "domain_arm_guards_call_phase_branch": {
@@ -251,13 +251,37 @@
     "point_query_builds_no_table": {
       "file": "core/game.gd",
       "find": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return manual_facts()",
-      "replace": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n return _fact_source()",
+      "replace": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n _join_fact_units(_phase_branch_units(\"action_tail\"))\n return manual_facts()",
       "suite": "architecture"
     },
     "prefix_branch_tables_are_frozen": {
+      "file": "tests/architecture_cases.gd",
+      "find": "const PREFIX_BRANCH_TABLE_STATE_COUNT=63",
+      "replace": "const PREFIX_BRANCH_TABLE_STATE_COUNT=62",
+      "suite": "architecture"
+    },
+    "domain_arm_branch_ids_are_pinned": {
       "file": "core/game.gd",
-      "find": "func _unit_flask_full(_facts: Array) -> Array:\n return ManaFlask.facts(self,true)",
-      "replace": "func _unit_flask_full(_facts: Array) -> Array:\n return ManaFlask.facts(self)",
+      "find": "func _chain_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"card_chain\": return []\n return Cards.chain_display_facts(self)",
+      "replace": "func _chain_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return Cards.chain_display_facts(self)",
+      "suite": "architecture"
+    },
+    "table_rows_constructed_once": {
+      "file": "core/game.gd",
+      "find": "func attack_facts() -> Array:\n var facts: Array=[]\n for pair in _attack_point_walk_cached(self):\n  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  facts.append(pair.row)\n return facts",
+      "replace": "func attack_facts() -> Array:\n var facts: Array=[]\n for k in attack_point_keys(self):\n  if String(k.get(\"target\",\"\"))!=\"\": continue\n  var row=attack_point_fact(self,k)\n  if not row.is_empty(): facts.append(row)\n return facts",
+      "suite": "architecture"
+    },
+    "table_walk_single_entry": {
+      "file": "core/card_effects.gd",
+      "find": " var rows=_card_point_rows(g,card)",
+      "replace": " var rows=[]\n for k in _card_point_card_keys(g,card):\n  var row=card_point_fact(g,k)\n  if not row.is_empty(): rows.append(row)",
+      "suite": "architecture"
+    },
+    "point_family_rows_respect_read_scope": {
+      "file": "core/game.gd",
+      "find": "func _attack_point_walk_cached(g) -> Array:\n if not g._equipment_read_active(): return attack_point_walk(g)\n if not g._equipment_read.has(\"attack_point_walk\"): g._equipment_read.attack_point_walk=attack_point_walk(g)\n return (g._equipment_read.attack_point_walk as Array).duplicate(true)",
+      "replace": "static var _mutation_walk_cache: Array=[]\n\nfunc _attack_point_walk_cached(g) -> Array:\n if _mutation_walk_cache.is_empty(): _mutation_walk_cache=attack_point_walk(g)\n return _mutation_walk_cache.duplicate(true)",
       "suite": "architecture"
     }
   }

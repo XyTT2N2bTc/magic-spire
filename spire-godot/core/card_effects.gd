@@ -936,13 +936,19 @@ static func _card_point_sites(g, card: Dictionary) -> Array:
   sites.append({"family":"slots","base":_card_slot_key(card,item),"item":item,"enabled":spec.get("exhaust_hand",false)})
  return sites
 
-# 单张手牌的候选键切片（keys 与 card_facts 共用同一枚举实现，不存在第二套枚举）：切片并集＝整手 keys，
-# 顺序＝转换前 card_facts 逐卡取行的行序。
-static func _card_point_card_keys(g, card: Dictionary) -> Array:
- var keys=[]
+# 单张手牌的定位项 × 选择展开（唯一枚举，K3）：候选键与表 pass 都从这里取（同一走查、同一 command_params
+# 归一、同一顺序），不存在第二套枚举。切片并集＝整手 keys，顺序＝转换前 card_facts 逐卡取行的行序。
+static func _card_point_site_choices(g, card: Dictionary) -> Array:
+ var out: Array=[]
  for site in _card_point_sites(g,card):
   for choice in _target_choices(g,site.base,bool(site.enabled)):
-   keys.append(g.command_params("card",choice))
+   out.append({"site":site,"choice":choice,"params":g.command_params("card",choice)})
+ return out
+
+# 单张手牌的候选键切片（keys 用；唯一枚举经 _card_point_site_choices）。
+static func _card_point_card_keys(g, card: Dictionary) -> Array:
+ var keys=[]
+ for item in _card_point_site_choices(g,card): keys.append(item.params)
  return keys
 
 # 槽位走查（原 card_facts 槽位遍历的唯一步骤表）：只产出「槽位＋目标＋面」定位项，不构造 preview 与行；
@@ -992,32 +998,36 @@ static func _card_slot_key(card: Dictionary, item: Dictionary) -> Dictionary:
 static func card_point_fact(g, params: Dictionary) -> Dictionary:
  var site=_card_point_site(g,params)
  if site.is_empty(): return {}
- var p=site.p
- var card=g._card(String(p.get("uid","")))
+ var card=g._card(String(site.p.get("uid","")))
  if card.is_empty(): return {}
+ return _card_point_row(g,card,site,site.choice,site.p)
+
+# 单行构造（唯一实现；point 构造与表 pass 共用）：site 决定家族，choice 是该 site 的选择展开项，
+# p 是归一化键面（bind／槽位的选择重解析与 member 的候选键同一处）。
+static func _card_point_row(g, card: Dictionary, site: Dictionary, choice: Dictionary, p: Dictionary) -> Dictionary:
  var spec=Rules.SPECS[card.type]
  var family=String(site.family)
  if family=="free_slots":
-  return _target_fact(g,site.choice,"自由 · "+g.B.CARD_NAMES[card.type],energy_cost(g,card.type,true),face_mana(g,card.type,true),"")
+  return _target_fact(g,choice,"自由 · "+g.B.CARD_NAMES[card.type],energy_cost(g,card.type,true),face_mana(g,card.type,true),"")
  if family=="self_faces":
-  var face_label=Rules.face_name(card.type,site.choice.free)+"面" if spec.has("bound_modes") else ("自由面" if site.choice.free else "挣脱面")
-  return _target_fact(g,site.choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+face_label,energy_cost(g,card.type,site.choice.free),face_mana(g,card.type,site.choice.free),"")
+  var face_label=Rules.face_name(card.type,choice.free)+"面" if spec.has("bound_modes") else ("自由面" if choice.free else "挣脱面")
+  return _target_fact(g,choice,"打出「"+g.B.CARD_NAMES[card.type]+"」 · "+face_label,energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),"")
  if family=="single_face":
-  return g._fact(site.choice,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":site.choice}},energy_cost(g,card.type),0.0,reason(g,site.choice),"","card")
+  return g._fact(choice,"打出「"+g.B.CARD_NAMES[card.type]+"」",{"kind":"card.target","args":{"payload":choice}},energy_cost(g,card.type),0.0,reason(g,choice),"","card")
  if family=="bind":
   var second=bool(site.item.get("second",false))
   var bind=bind_payload(g,card.type,card.uid,second)
   bind.kind="card";bind.uid=card.uid
-  var choice=_card_point_choice(g,bind,spec.get("exhaust_hand",false),p)
-  if choice.is_empty(): return {}
-  return _target_fact(g,choice,"冲开捕缚 · %s伤害" % g.number(bind.preview.damage),energy_cost(g,card.type),face_mana(g,card.type,second),"")
+  var bind_choice=_card_point_choice(g,bind,spec.get("exhaust_hand",false),p)
+  if bind_choice.is_empty(): return {}
+  return _target_fact(g,bind_choice,"冲开捕缚 · %s伤害" % g.number(bind.preview.damage),energy_cost(g,card.type),face_mana(g,card.type,second),"")
  var item=site.item
  var payload=target_payload(g,card.type,item.slot,item.target,g.HandAssist.profiles(g),card.uid,item.second)
  if payload.free and spec.has("free_slots"): return {}
  payload.kind="card";payload.uid=card.uid
- var choice=_card_point_choice(g,payload,spec.get("exhaust_hand",false),p)
- if choice.is_empty(): return {}
- return _card_slot_fact(g,card,item,choice)
+ var slot_choice=_card_point_choice(g,payload,spec.get("exhaust_hand",false),p)
+ if slot_choice.is_empty(): return {}
+ return _card_slot_fact(g,card,item,slot_choice)
 
 # card 域成员谓词（S3，plan §3 不变量 5）：独立谓词＝阶段守卫＋该分支族的候选键成员判断；不构造请求行
 # （不调用 g._fact／display_fact，也不调用 card_facts／card_point_keys）。与 card_point_fact 共用同一解析，
@@ -1059,15 +1069,33 @@ static func _card_slot_fact(g, card: Dictionary, item: Dictionary, choice: Dicti
  if spec.has("bound_modes"): label=Rules.face_name(card.type,choice.free)+" · "+g._equipment_name(target)
  return _target_fact(g,choice,label,energy_cost(g,card.type,choice.free),face_mana(g,card.type,choice.free),risk)
 
-# card 域 View 生产者（唯一）：行 = 同一枚举（该手牌切片）× 同一 build，行序、条数与每行字段与转换前
-# 逐字节相同。按卡取切片而非整手 keys：既有断言（card_facts_keyword_min_query 的 strong_elbow 槽位面）
-# 要求按卡取行时不得查询其他手牌的槽位；切片与整手枚举共用 _card_point_card_keys 一处实现。
+# card 域 View 生产者（唯一，K3）：一次走查（_card_point_sites × _target_choices）直接产出成对结果里的行——
+# 不走「先枚举 params 再逐条查表」的两步，每行恰构造一次（_card_point_row 是唯一单行构造）。重复归一化
+# params 复用首条行，与 card_point_fact 的「首个命中 site」同序，故行序、条数与每行字段与转换前逐字节相同。
+# 按卡取切片而非整手 keys：既有断言（card_facts_keyword_min_query 的 strong_elbow 槽位面）要求按卡取行时
+# 不得查询其他手牌的槽位。走查结果在读取批次内复用（形态同 core/game_view.gd::equipment_entry 的
+# equipment_views：出批即弃、不按键判等、不跨提交、不挂 self）；批次外调用退化为今行为（每次现算）。
 static func card_facts(g, card: Dictionary) -> Array:
+ var uid=String(card.get("uid",""))
+ var batch=g._equipment_read if g._equipment_read_active() else {}
+ if batch.has("card_point_rows") and batch.card_point_rows.has(uid): return (batch.card_point_rows[uid] as Array).duplicate(true)
+ var rows=_card_point_rows(g,card)
+ if not batch.is_empty():
+  if not batch.has("card_point_rows"): batch.card_point_rows={}
+  batch.card_point_rows[uid]=rows
+ return rows
+
+static func _card_point_rows(g, card: Dictionary) -> Array:
  var facts=[]
- for k in _card_point_card_keys(g,card):
-  var row=card_point_fact(g,k)
-  if row.is_empty(): continue
-  facts.append(row)
+ var first={}
+ for item in _card_point_site_choices(g,card):
+  var key=JSON.stringify(item.params)
+  if first.has(key):
+   if not first[key].is_empty(): facts.append(first[key])
+   continue
+  var row=_card_point_row(g,card,item.site,item.choice,item.params)
+  first[key]=row
+  if not row.is_empty(): facts.append(row)
  return facts
 
 static func can_select_retain(g, card: Dictionary) -> bool:

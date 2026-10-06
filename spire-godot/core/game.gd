@@ -2879,33 +2879,59 @@ func kick_profile(variant: Dictionary={}) -> Dictionary:
 func _attack_battle_families_ready(g) -> bool:
  return g._phase_action_tail() and String(g.state.phase)=="battle"
 
-# 攻击域 point 登记项（S2；接口契约见切片计划 §3 与 docs/spec/fact-lookup-dependencies.md）：keys 是该 kind
-# 候选键的唯一枚举实现（O3）。三家族与顺序＝转换前 attack_facts()（基础／巫女）++ equipment_spell_facts()
-# （装备自解）的表序，不得重排：表序与「重复归一化 params 收敛枚举序首条」都依赖它。守卫与转换前两条
-# 生产者逐条对应：基础／巫女经 _attack_battle_families_ready；装备自解＝非巫女＋factor>0＋target 在
-# action_targets（原循环的两个前置）。
-func attack_point_keys(g) -> Array:
- var keys=[]
- if not g._phase_action_tail(): return keys
+# 攻击域 point 走查（K3；plan §3 C 段；接口契约见 docs/spec/fact-table-dependencies.md）：一次走查同时产出
+# 「定位键面＋已构造的行」成对结果——表 pass 直接取行，不经 params 往返；候选键枚举（keys）与两个表生产者
+# 都只从这里取，故每行恰构造一次、顺序只有一处。三家族与顺序＝转换前 attack_facts()（基础／巫女）++
+# equipment_spell_facts()（装备自解）的表序，不得重排：表序与「重复归一化 params 收敛枚举序首条」都依赖它。
+# 守卫与转换前两条生产者逐条对应：基础／巫女经 _attack_battle_families_ready；装备自解＝非巫女＋factor>0＋
+# target 在 action_targets（原循环的两个前置）。重复归一化 params（同 id 的第二个敌人／目标）复用首条行，
+# 与 attack_point_fact 按 id 解析到首个对象的内容面同序（行是 params 的纯函数，见 attack_duplicate_params_fixture）。
+func attack_point_walk(g) -> Array:
+ var pairs: Array=[]
+ if not g._phase_action_tail(): return pairs
+ var first={}
  if _attack_battle_families_ready(g):
   if Character.active(g):
    for enemy in g.state.enemies:
     if enemy.gone: continue
     for part in Character.PARTS:
      for form in [0,1]:
-      keys.append(g.command_params("attack",Character.attack_offer_fact(g,enemy,part,form).payload))
+      pairs.append(_attack_point_pair(g,Character.attack_offer_fact(g,enemy,part,form),first))
   else:
    for e in g.state.enemies:
     if e.gone: continue
     for type in BasicAttacks.TYPES:
      for form in range(BasicAttacks.forms(g,type).size()):
-      keys.append(g.command_params("attack",g._attack_offer_fact(e,type,form).payload))
- if Character.active(g): return keys
+      pairs.append(_attack_point_pair(g,g._attack_offer_fact(e,type,form),first))
+ if Character.active(g): return pairs
  var factor=float(Cards.spell_power(g,"fireball").get("equipment_damage_factor",0.0))
  if factor>0.0:
   var usage=BasicAttacks.usage(g,"fireball")
   for target in g.action_targets():
-   keys.append(g.command_params("attack",g._equipment_spell_fact(target,factor,usage).payload))
+   pairs.append(_attack_point_pair(g,g._equipment_spell_fact(target,factor,usage),first))
+ return pairs
+
+# 走查项＝{params, row}：params 仍是 command_params 的归一化键面（点查询与 keys 消费同一份）；row 已构造。
+# 重复 params 复用首条行（不第二次构造），与「点查询按 id 解析到首个对象」的内容面同序。
+func _attack_point_pair(g, row: Dictionary, first: Dictionary) -> Dictionary:
+ var params=g.command_params("attack",row.payload)
+ var key=JSON.stringify(params)
+ if first.has(key): return {"params":params,"row":first[key]}
+ first[key]=row
+ return {"params":params,"row":row}
+
+# 走查结果的批内复用入口（K3）：形态同 core/game_view.gd::equipment_entry 的 equipment_views——只在本读取批次
+# （core/game.gd::_begin_equipment_read 的寿命）内复用，出批即弃；不按键判等、不跨提交、不挂 self；
+# 批次外调用退化为今行为（每次现算）。命中即深拷，批次内的结果容器互不别名。
+func _attack_point_walk_cached(g) -> Array:
+ if not g._equipment_read_active(): return attack_point_walk(g)
+ if not g._equipment_read.has("attack_point_walk"): g._equipment_read.attack_point_walk=attack_point_walk(g)
+ return (g._equipment_read.attack_point_walk as Array).duplicate(true)
+
+# 攻击域 point 登记项的候选键枚举（O3；唯一枚举）：取走查项的归一化键面，不再第二次构造行。
+func attack_point_keys(g) -> Array:
+ var keys: Array=[]
+ for pair in g._attack_point_walk_cached(g): keys.append(pair.params)
  return keys
 
 # 攻击域 point 构造器（S2）：把 params 解析到具体家族的具体键，复用该家族既有单行构造；非成员返回 {}。
@@ -3022,15 +3048,14 @@ func _equipment_point_fact(g, p: Dictionary) -> Dictionary:
  var row=g._equipment_spell_fact(found,factor,BasicAttacks.usage(g,"fireball"))
  return row if g.command_params("attack",row.payload)==p else {}
 
-# 基础攻击（行动域）：显示事实的唯一来源。行由同一登记项派生（candidate keys × 该 kind 的唯一构造器），
-# 本生产者只取基础与巫女家族（target 为空）；行序、条数与转换前逐字节相同。角色2（巫女）的攻击单行构造由
-# core/witch_character.gd::attack_offer_fact 给出。
+# 基础攻击（行动域）：显示事实的唯一来源。行直接取自唯一走查（attack_point_walk 的成对结果），不再经
+# attack_point_keys × attack_point_fact 两步构造；本生产者只取基础与巫女家族（target 为空），行序、条数与
+# 转换前逐字节相同。角色2（巫女）的攻击单行构造由 core/witch_character.gd::attack_offer_fact 给出。
 func attack_facts() -> Array:
- var facts=[]
- for k in attack_point_keys(self):
-  if String(k.get("target",""))!="": continue
-  var row=attack_point_fact(self,k)
-  if not row.is_empty(): facts.append(row)
+ var facts: Array=[]
+ for pair in _attack_point_walk_cached(self):
+  if String(pair.params.get("target",""))!="": continue
+  facts.append(pair.row)
  return facts
 
 func _attack_offer_fact(e: Dictionary, type: String, form: int) -> Dictionary:
@@ -3113,14 +3138,13 @@ func _attack_offer_fact(e: Dictionary, type: String, form: int) -> Dictionary:
  fact.brief_tags=" · ".join(tags)
  return fact
 
-# 装备自解火球（行动域，非战斗阶段）：显示事实的唯一来源。行由同一登记项派生，本生产者只取装备自解家族
-# （target 非空）；factor／usage 由单行构造的调用方算一次（原循环体提为 _equipment_spell_fact，逐字保留）。
+# 装备自解火球（行动域，非战斗阶段）：显示事实的唯一来源。行直接取自同一走查的成对结果，本生产者只取
+# 装备自解家族（target 非空）；两半共用同一次走查（factor／usage 由单行构造的调用方算一次，逐字保留）。
 func equipment_spell_facts() -> Array:
- var facts=[]
- for k in attack_point_keys(self):
-  if String(k.get("target",""))=="": continue
-  var row=attack_point_fact(self,k)
-  if not row.is_empty(): facts.append(row)
+ var facts: Array=[]
+ for pair in _attack_point_walk_cached(self):
+  if String(pair.params.get("target",""))=="": continue
+  facts.append(pair.row)
  return facts
 
 # 装备自解单行构造（原 equipment_spell_facts 的循环体；point 构造与 View 生产者共用同一实现）。
