@@ -76,9 +76,8 @@
     是它的具名薄包装；
   - `detail_of(candidate) -> String`：`candidate.detail` 存在即用；缺失 → `game.candidate_detail(candidate)` 并记录。
 - 卡面投影的直读点（与当前代码一致；改实现须同步本条）：`view.card_texts`／`view.card_instances` 在 UI 内
-  只由 `ui/main.gd::card_entry`、`ui/main.gd::_card`（`live_state` 卡面的唯一合并点）与
-  `ui/main.gd::_hand_presentation_key`（手牌节键，不产出显示文案）直读；其余界面取卡面文案经 helper
-  或 `ui/main.gd::_display_card`。
+  只由 `ui/main.gd::card_entry` 与 `ui/main.gd::_card`（`live_state` 卡面的唯一合并点）直读；其余界面取卡面
+  文案经 helper 或 `ui/main.gd::_display_card`。
 - 候选详情的直读点：card 组候选（`payload.kind=="card"`）字典不带 `detail`，只能经 `ui/main.gd::detail_of`
   → `Game.candidate_detail`；其余组（event／item 等）保持预生成 `detail`，允许的直读点＝
   `ui/event_screen.gd`（`selector_button`／`action`／`drawer`）与 `ui/main.gd::_drawer_presentation_key`
@@ -86,7 +85,7 @@
   （GDScript 会先算默认参数，缺键即崩）。
 - 消费面判据＝`tests/architecture_cases.gd::ondemand_copy_consumer_boundary`：UI 不引用 `core/copy_router`；
   `candidate_detail` 只由 `ui/main.gd::detail_of` 消费，`live_card_text_set` 只由牌堆浏览与商店去卡消费，
-  `live_card_text` 只由 `ui/main.gd::card_entry` 消费；`card_texts`／`card_instances` 的直读点白名单为上面三处。
+  `live_card_text` 只由 `ui/main.gd::card_entry` 消费；`card_texts`／`card_instances` 的直读点白名单为上面两处。
   语义条目（S 取源、或然失败、复用准入线）仍为本文件真源。
 
 ## 输入域

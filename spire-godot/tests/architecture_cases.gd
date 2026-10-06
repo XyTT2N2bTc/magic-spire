@@ -2942,11 +2942,12 @@ static func production_source_never_preloads_tests(t) -> void:
 static func ondemand_copy_consumer_boundary(t) -> void:
  var router=source_write_sites(["res://ui"],"copy_router")
  t.check(router.is_empty(),"CP ondemand_copy_consumer_boundary: ui/ never references core/copy_router: "+str(write_site_names(router)))
- # 卡面投影的直读点白名单（docs/spec/ondemand-copy.md「显示侧取用 helper」）：改三处之外的读取即红。
- var projection_sites=["ui/main.gd::_card","ui/main.gd::_hand_presentation_key","ui/main.gd::card_entry"]
+ # 卡面投影的直读点白名单（docs/spec/ondemand-copy.md「显示侧取用 helper」）：改两处之外的读取即红。
+ # 手牌节键不再直读（2026-09-28 手牌卡增量刷新：每卡窄键只读该卡自身的透传字段与本地显示态）。
+ var projection_sites=["ui/main.gd::_card","ui/main.gd::card_entry"]
  var texts=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])card_texts\\b"))
  var instances=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])card_instances\\b"))
- t.check(texts==projection_sites and instances==projection_sites,"CP ondemand_copy_consumer_boundary: card_texts and card_instances are read only by ui/main.gd::card_entry/_card/_hand_presentation_key: "+str(texts)+" "+str(instances))
+ t.check(texts==projection_sites and instances==projection_sites,"CP ondemand_copy_consumer_boundary: card_texts and card_instances are read only by ui/main.gd::card_entry/_card: "+str(texts)+" "+str(instances))
  var candidates=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])candidate_detail\\s*\\("))
  t.check(candidates==["ui/main.gd::detail_of"],"CP ondemand_copy_consumer_boundary: candidate_detail is consumed only by ui/main.gd::detail_of: "+str(candidates))
  var sets=write_site_names(source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])live_card_text_set\\s*\\("))
