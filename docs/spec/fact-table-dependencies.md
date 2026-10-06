@@ -1,25 +1,26 @@
 # 事实表的「面 / 点」边界收口：依赖约束索引
 
 「事实表的『面 / 点』边界收口」片（`docs/spec/candidate-removal.md`「接口」T4／T5／T8 之后的收口）的依赖约束索引：
-**A 批（K0 分支词表＋K1 单元表）、B 批（K2 点查询的限定生产者：39 kind 各自一个域臂）与 C 批（K3 点形家族一次构造：
-一次走查直接产行、批内复用、出批即弃）已落地**；D（整表批内复用）／E（需求机制＋结果标量）／F（接线）／G（声明切片）未开工。
+**A 批（K0 分支词表＋K1 单元表）、B 批（K2 点查询的限定生产者：39 kind 各自一个域臂）、C 批（K3 点形家族一次构造：
+一次走查直接产行）与 D 批（K1 第二半：批内复用的唯一机制，整表／走查／逐卡行共用一条）已落地**；
+E（需求机制＋结果标量）／F（接线）／G（声明切片）未开工。
 判据的真源是下表点名的检查，散文不复述内容（规则见 `skills/spire-docs/SKILL.md`「判据优先」）。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、`tools/`、`build/`）
 均相对 `spire-godot/`；`docs/` 相对仓库根。本文件不写执行结果：通过／失败／未执行登记 `docs/record/verification.md`。
 
-## 收口后的唯一入口（A＋B＋C 批已落地）
+## 收口后的唯一入口（A＋B＋C＋D 批已落地）
 
 | 语义 | 唯一入口 |
 | --- | --- |
-| 表出口 | `core/game.gd::command_facts`（唯一整表出口；B 批未改） |
+| 表出口 | `core/game.gd::command_facts`（唯一整表出口；D 批起批内只构建一次） |
 | 表的组成（单元序列） | `core/command_registry.gd::FACT_UNITS`（单元表：id／order／owner／producer／groups／input） |
 | 单元连接 | `core/game.gd::_join_fact_units`（唯一通道：按表序 `call(producer, facts)`；未声明单元不产行） |
 | 阶段分支 | `core/game.gd::_phase_branch`（具名分支 id；`core/game.gd::_phase_facts` 与 23 项 kind 域臂共用） |
 | 点查询的来源 | `core/command_registry.gd::ENTRIES[kind].source`（每 kind 一个域臂＝分支守卫＋该分支单元的最小生产者；B 批落地） |
 | 点形家族的行构造 | `core/game.gd::attack_point_walk`（一次走查产出 `{params, row}` 成对结果；`core/game.gd::attack_point_keys` 与基础／装备自解两半的表生产者共用它）／`core/card_effects.gd::_card_point_rows`（card 域的一次走查，逐卡切片） |
 | 点形家族的单行构造 | `core/game.gd::attack_point_fact`（attack 域）／`core/card_effects.gd::_card_point_row`（card 域：点查询与表 pass 共用同一实现） |
-| 点形家族的批内复用 | `core/game.gd::_attack_point_walk_cached` 与 `core/card_effects.gd::card_facts` 的批内条目（走查结果只在本读取批次内复用；寿命＝`core/game.gd::_begin_equipment_read` 的批次，出批即弃） |
+| 批内复用（D 批） | `core/game.gd::_batch_rows`（整表／攻击走查／逐卡行三条条目共用一条机制；寿命＝`core/game.gd::_begin_equipment_read` 的批次，出批即弃；不按键判等、不跨提交、不挂 `self`；命中与首算都返回深拷贝） |
 | 行 → 组 | `core/game.gd::display_fact` 的 `fact.group=` 写入点（本批未改） |
 
 ## 判据 → 检查
@@ -40,6 +41,11 @@
 | 点形家族表 pass 每行恰构造一次（计数子类按 payload 逐家族对照返回行集；单卡夹具的槽位问询面＝一卡一次走查） | `tests/architecture_cases.gd::table_rows_constructed_once` |
 | 点形家族表生产者只有一个走查入口（源码文本：三处生产者体内各恰一次，且不出现「先取键再构造」两步形态；走查／keys／build／member 各一处实现） | `tests/architecture_cases.gd::table_walk_single_entry` |
 | 批次语义：测试侧持批时三个点形生产者与无批次逐字节相等且攻击走查恰一次；出批后改状态再调用必须按新状态给值（不陈旧） | `tests/architecture_cases.gd::point_family_rows_respect_read_scope` |
+| 整表批内复用：同一批次内三次取用只构建一次、`core/game.gd::_fact_source` 一次，表的唯一出口在同一批次内命中同一条目；出批后下一次读取必重建；被拒提交不留可复用条目、拒绝文案逐字不变 | `tests/architecture_cases.gd::fact_table_reuse_within_batch` |
+| 缓存寿命＝批次（文本层）：条目容器只被 `core/game.gd::_batch_rows` 读写；机制体只见批次字典（无 `self`／`set_meta`／`is_same`／`version`／`state`）；条目名只在声明的调用点；`core/game.gd::command_facts()` 只被 `core/game_view.gd::build` 调用；`core/game.gd::dispatch` 的投影取用只在 `state=state.duplicate(true)` 之前；`get_view()` 仍是四点白名单（同批复跑既有判据） | `tests/architecture_cases.gd::fact_table_cache_lifetime_is_pinned` |
+| 复用路径 == 从零路径：真实输入配方（seed=7／cap=60／style=trade）逐提交与 `export_snapshot`→`restore_snapshot` 的从零实例逐字节相等（含批内两次取用）；oracle 自检＝restore 后除声明的版本推进外 state 逐字节相等 | `tests/architecture_cases.gd::table_reuse_matches_fresh_projection` |
+| 复用／取用边界不可污染：三条批内条目各自「批内取回的行被调用方改写后，同批第二次取用仍等于从零路径」；重复归一化 params 的行是互不别名的独立等值字典（attack 走查） | `tests/architecture_cases.gd::batch_reuse_never_aliases_callers` |
+| 走查行的空行面：两条表生产者的取行都保留改动前的 `is_empty` 过滤（文本＋顺序），且 `core/game.gd::attack_point_walk` 在全部夹具上产出的每条 `{params,row}` 的 row 都是完整行（过滤今天不吞任何行；基础／巫女／装备自解三家族覆盖 > 0） | `tests/architecture_cases.gd::walk_rows_are_never_empty` |
 | kind → table 来源的身份字面冻结（23 项已 rebase 到域臂；少改／多改都红） | `tests/architecture_cases.gd::fact_source_map_is_pinned`、`tests/architecture_cases.gd::pipeline_lookup_inspect` |
 | 单元生产者不得写判定、不得推进随机（只读面） | `tests/architecture_cases.gd::single_eligibility_implementation`、`tests/architecture_cases.gd::behavior_baseline_equivalence` 的 `rng`／`rng_total` 逐 cell |
 
@@ -56,8 +62,12 @@
 - 点形家族（attack／card）的表 pass 只经一次走查取行（`core/game.gd::attack_point_walk`／`core/card_effects.gd::_card_point_rows`）；
   候选键枚举（`core/game.gd::attack_point_keys`／`core/card_effects.gd::card_point_keys`）与两半表生产者共用同一次走查，
   单行构造（`core/game.gd::attack_point_fact`／`core/card_effects.gd::_card_point_row`）仍是点查询的唯一构造器，member 仍独立。
-- 走查结果的复用只在本读取批次内（批内条目落在 `core/game.gd::_equipment_read` 上）；出批即弃，禁止按键判等、
-  禁止跨提交、禁止挂 `self`；批次外调用每次现算（退化等同改动前）。
+- 批内复用的唯一机制是 `core/game.gd::_batch_rows`（D 批）：整表（`core/game.gd::command_facts` 的条目
+  `BATCH_TABLE`）／攻击走查（`core/game.gd::attack_facts`／`core/game.gd::attack_point_keys`／
+  `core/game.gd::equipment_spell_facts` 的条目 `BATCH_ATTACK_WALK`）／逐卡行（`core/card_effects.gd::card_facts`
+  的条目 `BATCH_CARD_ROWS:<uid>`）都只经这一条入口取用；条目只落在 `core/game.gd::_begin_equipment_read`
+  的批次字典上，出批即弃，禁止按键判等、禁止跨提交、禁止挂 `self`；**命中与首算都返回深拷贝**（批次内的
+  存量不外借，`core/game_view.gd::build` 的就地写碰不到它）；批次外调用每次现算（退化等同改动前）。
 - 不新增依赖边；core／data 不 preload ui；本批不新增 View 键、不新增存档字段、不改提交事务与判定语义。
 
 ## 不可独立增量（显式登记）
@@ -66,7 +76,7 @@
 `noncombat_consumables`（按 payload.kind／item 去重）、`route`（读累积表的出口行＋现算 `core/game.gd::room_entry_reason`）、
 `relic_effects`／`hand_cards`／`prison`／`events`／`services`。任何"按本次提交的 kind 决定复用"的做法同禁。
 
-## 仍靠人审（无机械判据，A 批保留；B 批审查与 C 批续登）
+## 仍靠人审（无机械判据，A 批保留；B 批审查／C 批／D 批续登）
 
 - **`core/game.gd::_phase_facts` 直呼的语义残差**：其三个前缀臂（relic_bundle／departure／domain_blocked）落回尾段；
   改动前该函数在这些状态会命中链内的相位分支。可达面：三个前缀由 `core/game.gd::_fact_source` 先行解析，
@@ -85,9 +95,25 @@
 - **9 个 domain 合成守卫的窄来源**：`tests/architecture_cases.gd::DOMAIN_ARM_DOMAIN_GUARDED`（＝`tests/architecture_cases.gd::PHASE_BRANCH_ARM_EXEMPT`）
   不吃分支 id 判据——它们的守卫是域合成条件（`core/game.gd::_fact_source_domain`／`core/game.gd::_phase_action_tail`／`core/game.gd::command_domain_ready`）；
   行面只由 `tests/architecture_cases.gd::fact_lookup_all_kinds` 的「臂行 ⊆ 表行」与覆盖断言保证。
-- **点形家族批内条目的寿命**：由 `tests/architecture_cases.gd::point_family_rows_respect_read_scope`（持批／出批＋改状态）与源码文本钉住；
-  「批内条目不与任何按键／跨批缓存混用」无全机械证明，靠 `core/game.gd::_attack_point_walk_cached`／`core/card_effects.gd::card_facts`
-  体内只出现批次字典这一文本事实。
+- **批内条目的寿命（D 批）**：由 `tests/architecture_cases.gd::fact_table_reuse_within_batch`（持批／出批＋被拒提交）、
+  `tests/architecture_cases.gd::fact_table_cache_lifetime_is_pinned`（源码文本：容器只被机制读写、条目名只出现在声明调用点、
+  机制体不见 `self`／`set_meta`／`is_same`／`version`／`state`）与 `tests/architecture_cases.gd::table_reuse_matches_fresh_projection`
+  （真实配方 60 提交逐字节 vs 从零实例）三层钉住。**残留**：「以后会不会有人把某条新条目接到第二条容器上」只由
+  `core/game.gd::_batch_rows` 的文本事实与条目名文本判据兜底，无全机械证明；`core/game_view.gd::equipment_entry` 的
+  `equipment_views` 是另一条独立接缝（`docs/spec/equipment-query-seam.md` 的批次），本批不并入。
+- **从零 oracle 的覆盖面**：`tests/architecture_cases.gd::table_reuse_matches_fresh_projection` 每提交新建从零实例
+  （否则两侧会一起读到同一个陈旧值）；因此它钉的是「条目在 live 实例上跨批存活」。**类级（`static`）常驻缓存
+  不在它的面内**（两侧会一起读到它），那一条由 `tests/architecture_cases.gd::fact_table_reuse_within_batch` 的
+  「出批必重建」与 `tests/architecture_cases.gd::point_family_rows_respect_read_scope` 的跨批次变异承接。
+- **card 域的重复归一化 params 行独立性**：`tests/architecture_cases.gd::batch_reuse_never_aliases_callers` 的重复行部分
+  只覆盖 attack 走查（既有 `tests/architecture_cases.gd::attack_duplicate_params_fixture` 给出可辨认的重复 params 对）；
+  card 域现有重复夹具（`tests/architecture_cases.gd::card_duplicate_params_fixture`）产出的两条行内容不同，无法用内容分组
+  辨认同一 params 对，故 card 侧的 `core/card_effects.gd::_card_point_rows` 重复行独立性**无机械证据**——它与 attack 侧
+  同写一次（`(first[key] as Dictionary).duplicate(true)`），由该函数的文本与本题人审承接；card 侧的批内污染面由
+  上述同一判据的①（三条条目各自「批内改写后同批第二次取用」）覆盖。
+- **走查行的空行面**：`tests/architecture_cases.gd::walk_rows_are_never_empty` 同时钉「两条生产者的取行保留
+  改动前的 `is_empty` 过滤」（文本）与「走查产出的 row 非空」（在全部夹具上）；但「未来新增家族在夹具矩阵
+  之外回 `{}`」不在机械判据内（矩阵外的分支无夹具），只由该过滤与本题人审承接。
 - **点形家族点查询路径的构造次数**：点查询（`core/game.gd::attack_point_fact`／`core/card_effects.gd::card_point_fact` 族）仍各自走
   单行路径且不进批内条目；`tests/architecture_cases.gd::attack_point_lookup_reads_one_row`／`tests/architecture_cases.gd::card_point_lookup_reads_one_row`
   只钉「不经整表生产者」与「member 独立」，不钉点查询自身的构造次数（无机械判据）。

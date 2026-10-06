@@ -210,8 +210,13 @@ func render(snapshot: Dictionary = {}) -> void
   `tests/architecture_cases.gd::point_query_builds_no_table`／`tests/architecture_cases.gd::prefix_branch_tables_are_frozen`。
 - 事实表收口（B 批审查收口：域臂守卫的分支 id 正确性＝文本层双向＋运行期「臂行 ⇒ 分支 ∈ 声明」）的具名判据＝
   `tests/architecture_cases.gd::domain_arm_branch_ids_are_pinned`。
-- 事实表收口（C 批：点形家族一次构造＝一次走查直接产行、批内复用、出批即弃）的具名判据＝`tests/architecture_cases.gd::table_rows_constructed_once`／
+- 事实表收口（C 批：点形家族一次构造＝一次走查直接产行）的具名判据＝`tests/architecture_cases.gd::table_rows_constructed_once`／
   `tests/architecture_cases.gd::table_walk_single_entry`／`tests/architecture_cases.gd::point_family_rows_respect_read_scope`。
+- 事实表收口（D 批：批内复用的唯一机制—整表／攻击走查／逐卡行共用一条，寿命＝读取批次、出批即弃、命中与首算都返回深拷贝）的具名判据＝
+  `tests/architecture_cases.gd::fact_table_reuse_within_batch`／`tests/architecture_cases.gd::fact_table_cache_lifetime_is_pinned`／
+  `tests/architecture_cases.gd::table_reuse_matches_fresh_projection`／`tests/architecture_cases.gd::batch_reuse_never_aliases_callers`／
+  `tests/architecture_cases.gd::walk_rows_are_never_empty`；同批报告项（不作通过判据）＝`tests/recipe_driver.gd` 打印的
+  `TABLE REUSE …` 计数行（在 `tools/check.ps1 -Suite recipe` 内）。
 - 测量口径（只报告，不用于通过判据）：装备 0／12／26 件 × 选择类／提交类两条路径，同一夹具交替执行、
   2 次热身＋15 次有效配对，报逐对比值中位与两侧独立中位；计时脚本与 JSON 只放已忽略的 `build/<topic>-<date>/`，
   摘要登记 `docs/record/verification.md` 后删除原始目录；生产源码不留计数器、开关或计时钩子。

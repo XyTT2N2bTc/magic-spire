@@ -268,20 +268,50 @@
     },
     "table_rows_constructed_once": {
       "file": "core/game.gd",
-      "find": "func attack_facts() -> Array:\n var facts: Array=[]\n for pair in _attack_point_walk_cached(self):\n  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  facts.append(pair.row)\n return facts",
+      "find": "func attack_facts() -> Array:\n var facts: Array=[]\n for pair in _batch_rows(BATCH_ATTACK_WALK,func(): return attack_point_walk(self)):\n  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  if pair.row.is_empty(): continue\n  facts.append(pair.row)\n return facts",
       "replace": "func attack_facts() -> Array:\n var facts: Array=[]\n for k in attack_point_keys(self):\n  if String(k.get(\"target\",\"\"))!=\"\": continue\n  var row=attack_point_fact(self,k)\n  if not row.is_empty(): facts.append(row)\n return facts",
       "suite": "architecture"
     },
     "table_walk_single_entry": {
       "file": "core/card_effects.gd",
-      "find": " var rows=_card_point_rows(g,card)",
-      "replace": " var rows=[]\n for k in _card_point_card_keys(g,card):\n  var row=card_point_fact(g,k)\n  if not row.is_empty(): rows.append(row)",
+      "find": "func card_facts(g, card: Dictionary) -> Array:\n return g._batch_rows(g.BATCH_CARD_ROWS+\":\"+String(card.get(\"uid\",\"\")),func(): return _card_point_rows(g,card))",
+      "replace": "func card_facts(g, card: Dictionary) -> Array:\n var rows=[]\n for k in _card_point_card_keys(g,card):\n  var row=card_point_fact(g,k)\n  if not row.is_empty(): rows.append(row)\n return rows",
       "suite": "architecture"
     },
     "point_family_rows_respect_read_scope": {
       "file": "core/game.gd",
-      "find": "func _attack_point_walk_cached(g) -> Array:\n if not g._equipment_read_active(): return attack_point_walk(g)\n if not g._equipment_read.has(\"attack_point_walk\"): g._equipment_read.attack_point_walk=attack_point_walk(g)\n return (g._equipment_read.attack_point_walk as Array).duplicate(true)",
-      "replace": "static var _mutation_walk_cache: Array=[]\n\nfunc _attack_point_walk_cached(g) -> Array:\n if _mutation_walk_cache.is_empty(): _mutation_walk_cache=attack_point_walk(g)\n return _mutation_walk_cache.duplicate(true)",
+      "find": "func _batch_rows(entry: String, build: Callable) -> Array:\n if not _equipment_read_active(): return build.call()",
+      "replace": "static var _mutation_walk_cache={}\n\nfunc _batch_rows(entry: String, build: Callable) -> Array:\n if not _equipment_read_active():\n  if not _mutation_walk_cache.has(entry): _mutation_walk_cache[entry]=build.call()\n  return (_mutation_walk_cache[entry] as Array).duplicate(true)",
+      "suite": "architecture"
+    },
+    "fact_table_reuse_within_batch": {
+      "file": "core/game.gd",
+      "find": "func _batch_rows(entry: String, build: Callable) -> Array:\n if not _equipment_read_active(): return build.call()\n if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}",
+      "replace": "func _batch_rows(entry: String, build: Callable) -> Array:\n if true: return build.call()\n if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}",
+      "suite": "architecture"
+    },
+    "fact_table_cache_lifetime_is_pinned": {
+      "file": "core/game.gd",
+      "find": " if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}",
+      "replace": " if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}\n if not has_meta(\"batch_rows_probe\"): set_meta(\"batch_rows_probe\",{})",
+      "suite": "architecture"
+    },
+    "table_reuse_matches_fresh_projection": {
+      "file": "core/game.gd",
+      "find": " if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}\n var entries: Dictionary=_equipment_read[BATCH_ROW_ENTRIES]\n if not entries.has(entry): entries[entry]=build.call()\n return (entries[entry] as Array).duplicate(true)",
+      "replace": " if not has_meta(\"reuse_probe\"): set_meta(\"reuse_probe\",{})\n var entries: Dictionary=get_meta(\"reuse_probe\")\n if not entries.has(entry): entries[entry]=build.call()\n return (entries[entry] as Array).duplicate(true)",
+      "suite": "architecture"
+    },
+    "batch_reuse_never_aliases_callers": {
+      "file": "core/game.gd",
+      "find": " return (entries[entry] as Array).duplicate(true)",
+      "replace": " return entries[entry]",
+      "suite": "architecture"
+    },
+    "walk_rows_are_never_empty": {
+      "file": "core/game.gd",
+      "find": "  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  if pair.row.is_empty(): continue\n  facts.append(pair.row)\n return facts\n\nfunc _attack_offer_fact(",
+      "replace": "  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  facts.append(pair.row)\n return facts\n\nfunc _attack_offer_fact(",
       "suite": "architecture"
     }
   }

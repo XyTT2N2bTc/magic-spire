@@ -742,6 +742,11 @@ static func run(t) -> void:
  table_rows_constructed_once(t)
  table_walk_single_entry(t)
  point_family_rows_respect_read_scope(t)
+ fact_table_reuse_within_batch(t)
+ fact_table_cache_lifetime_is_pinned(t)
+ table_reuse_matches_fresh_projection(t)
+ batch_reuse_never_aliases_callers(t)
+ walk_rows_are_never_empty(t)
  command_fact_kind_lookup(t)
  single_fact_lookup_per_submit(t)
  rejected_submit_lookup_counts(t)
@@ -3955,9 +3960,11 @@ static func table_rows_constructed_once(t) -> void:
 # C-C-2（K3；gherkin C-3）：点形家族的表生产者只有一个走查入口（源码文本）——三个生产者体内各恰出现走查
 # 入口一次，且不出现「先取键再构造」的两步形态；走查与单行构造各只有一处实现（keys／build／member 仍各自
 # 独立，attack 侧沿用既有 ATTACK_POINT_HELPERS／ATTACK_POINT_INDIRECT_CALLS 口径）。
+# D 批（K1-D）后 walk 入口经批内复用机制取用：标记仍是走查本身（`core/game.gd::attack_point_walk`／
+# `core/card_effects.gd::_card_point_rows`），批内条目名由 D-3 的文本判据单独钉住。
 const TABLE_WALK_ENTRIES=[
- ["res://core/game.gd","attack_facts","_attack_point_walk_cached(","attack_point_keys(","attack_point_fact("],
- ["res://core/game.gd","equipment_spell_facts","_attack_point_walk_cached(","attack_point_keys(","attack_point_fact("],
+ ["res://core/game.gd","attack_facts","attack_point_walk(","attack_point_keys(","attack_point_fact("],
+ ["res://core/game.gd","equipment_spell_facts","attack_point_walk(","attack_point_keys(","attack_point_fact("],
  ["res://core/card_effects.gd","card_facts","_card_point_rows(","_card_point_card_keys(","card_point_fact("],
 ]
 # 走查与单行构造的唯一定义点（[file, style, name]；style=static 用 core/card_effects.gd 的静态提取器）。
@@ -4011,7 +4018,7 @@ static func table_walk_single_entry(t) -> void:
  t.check(defs.is_empty(),"table_walk_single_entry: the walk, keys, build and member each keep exactly one implementation: "+str(defs))
  var keys_body=source_func_body_code("res://core/game.gd","attack_point_keys")
  var card_keys_body=source_static_func_body_code("res://core/card_effects.gd","card_point_keys")
- t.check(keys_body.find("_attack_point_walk_cached(")>=0 and keys_body.find("attack_point_fact(")<0 and card_keys_body.find("_card_point_card_keys(")>=0,"table_walk_single_entry: keys enumerates the same walk and never builds rows")
+ t.check(keys_body.find("attack_point_walk(")>=0 and keys_body.find("attack_point_fact(")<0 and card_keys_body.find("_card_point_card_keys(")>=0,"table_walk_single_entry: keys enumerates the same walk and never builds rows")
  print("TABLE WALK SINGLE ENTRY producers=%d unique_defs=%d" % [TABLE_WALK_ENTRIES.size(),TABLE_WALK_UNIQUE_DEFS.size()])
 
 # C-C-3（K3；gherkin C-4；design.md §5.0 C 行）：批次语义——①测试侧持批（把 _begin_equipment_read 的 previous
@@ -4049,6 +4056,306 @@ static func point_family_rows_respect_read_scope(t) -> void:
  t.check(problems.is_empty(),"point_family_rows_respect_read_scope: the walk result is reused inside one read batch and dropped when the batch ends: "+str(problems))
  t.check(stale_checked>0,"point_family_rows_respect_read_scope: at least one fixture exercised the stale check have="+str(stale_checked))
  print("POINT FAMILY READ SCOPE fixtures=%d stale_checked=%d" % [fixtures.size(),stale_checked])
+
+# ==== D 批（K1-D）：批内复用的唯一机制 ＝ core/game.gd::_batch_rows ====
+# 契约：docs/spec/fact-table-dependencies.md「批内复用」（gherkin D-1…D-5；acceptance.md §1 C-D-1…C-D-5）。
+# 形态与寿命照 core/game_view.gd::equipment_entry 的 equipment_views：条目只落在 core/game.gd::_begin_equipment_read
+# 建立的批次字典上，出批即弃；单一入口／单一寿命规则／单一深拷贝语义（命中与首算都返回深拷贝）。
+# 测试侧记录器＝tests/batch_reuse_recorder.gd（包装机制入口计数；生产源码不带计数器）。
+const ReuseRecorder=preload("res://tests/batch_reuse_recorder.gd")
+const NormalPlay=preload("res://tests/normal_play_cases.gd")
+# 批内条目名 → 唯一允许出现它的生产函数（D-3 文本判据；声明行另计一次）。
+const BATCH_ENTRY_KINDS={
+ "BATCH_TABLE":["core/game.gd::command_facts"],
+ "BATCH_ATTACK_WALK":["core/game.gd::attack_facts","core/game.gd::attack_point_keys","core/game.gd::equipment_spell_facts"],
+ "BATCH_CARD_ROWS":["core/card_effects.gd::card_facts"],
+}
+const BATCH_ENTRY_FORBIDDEN=["set_meta(","get_meta(","self","is_same(",".version","state.","_cache"]
+
+# D-1／D-2（gherkin D-1／D-2；acceptance.md §1 C-D-1／C-D-2）：整表在一个读取批次内只构建一次、出批即弃；
+# 失败提交不享受复用。测试侧持批＝把 core/game.gd::_begin_equipment_read 返回的 previous 留在测试里；
+# 计数口径＝机制的请求次数／真实构建次数（测试侧记录器）＋core/game.gd::_fact_source 的调用次数（＝单元
+# 生产者被跑的次数，全 0 即第二、三次取用没有重新连接任何单元）。
+static func fact_table_reuse_within_batch(t) -> void:
+ var cells=[["battle",12],["prepare",12],["takeover",0]]
+ var problems=[]
+ var compared=0
+ for cell in cells:
+  var label="%s:%d" % [cell[0],cell[1]]
+  var g=r1_build(cell[0],cell[1],ReuseRecorder)
+  # 从零参考＝同类的第二个实例（同类同种子 ⇒ 同状态；批次外调用每次现算；状态不等即红而不是静默对比）。
+  var reference=r1_build(cell[0],cell[1],ReuseRecorder)
+  g.reset_reuse_counts()
+  var before=g.export_snapshot()
+  var previous=g._begin_equipment_read()
+  var held=[g.get_view(),g.get_view(),g.get_view()]
+  var held_requests=g.reuse_requests_of("table")
+  var held_builds=g.reuse_builds_of("table")
+  var held_sources=g.fact_source_calls
+  # 表的唯一出口在同一批次内也必须命中同一批内条目（第四次请求，仍是 1 次构建）。
+  var held_table=JSON.stringify(g.command_facts())
+  var held_table_requests=g.reuse_requests_of("table")
+  var held_table_builds=g.reuse_builds_of("table")
+  g._equipment_read=previous
+  g.get_view()
+  var released_builds=g.reuse_builds_of("table")
+  var held_equal=JSON.stringify(held[0].display_facts)==JSON.stringify(held[1].display_facts) and JSON.stringify(held[1].display_facts)==JSON.stringify(held[2].display_facts)
+  var free_equal=JSON.stringify(g.export_snapshot())==JSON.stringify(reference.export_snapshot()) and JSON.stringify(held[0].display_facts)==JSON.stringify(reference.get_view().display_facts) and held_table==JSON.stringify(reference.command_facts())
+  if held_requests!=3 or held_table_requests!=4 or held_builds!=1 or held_table_builds!=1 or held_sources!=1 or not held_equal or not free_equal:
+   problems.append("%s: requests=%d/%d builds=%d/%d fact_source=%d held_equal=%s batch_free_equal=%s" % [label,held_requests,held_table_requests,held_builds,held_table_builds,held_sources,str(held_equal),str(free_equal)])
+  if released_builds!=2:
+   problems.append("%s: after the batch ended the next read must rebuild the table (builds=%d)" % [label,released_builds])
+  if g.export_snapshot()!=before:
+   problems.append(label+": batch-held reads changed the snapshot")
+  compared+=1
+ t.check(problems.is_empty(),"fact_table_reuse_within_batch: one read batch builds the table once, drops it when the batch ends and leaves state untouched: "+str(problems))
+ t.check(compared==cells.size() and problems.is_empty(),"fact_table_reuse_within_batch: every fixture cell held its own batch (three views and the table exit inside one batch build it once, the next read rebuilds): "+str(compared))
+ # D-2：失败提交不享受复用——被拒的提交不留任何可复用条目，紧接着的投影按新批重建且与从零路径逐字节相等；
+ # 拒绝文案取自冻结基线 R1_BASELINE（期望侧不由实现派生）；UI 侧失败提示仍是提交结果 error 的逐字副本。
+ var rejected_checked=0
+ for cell in [["battle",0],["prison",12]]:
+  var key="%s:%d" % [cell[0],cell[1]]
+  var template=r1_build(cell[0],cell[1],ReuseRecorder)
+  var usable={}
+  for row in template.command_facts():
+   if usable.is_empty() and row.valid: usable=row
+  if usable.is_empty(): continue
+  var g=r1_build(cell[0],cell[1],ReuseRecorder)
+  var version=int(g.state.version)
+  var before_reject=g.export_snapshot()
+  g.reset_reuse_counts()
+  var rejected=g.dispatch(g.command(usable.payload,version-1),version-1)
+  var reject_builds=g.reuse_builds_of("table")
+  var updated=g.get_view()
+  var view_builds=g.reuse_builds_of("table")
+  t.check(not rejected.ok and String(rejected.get("error",""))==String(R1_BASELINE[key].reject_stale),"fact_table_reuse_within_batch: a stale submit keeps the frozen rejection text ("+key+"): "+str(rejected.get("error","")))
+  t.check(reject_builds==0 and view_builds==1 and int(g.state.version)==version,"fact_table_reuse_within_batch: the rejected submit leaves no reusable batch entry, so the next projection rebuilds once ("+key+"): rejected_builds="+str(reject_builds)+" view_builds="+str(view_builds))
+  t.check(g.export_snapshot()==before_reject and JSON.stringify(g.export_snapshot())==JSON.stringify(template.export_snapshot()) and JSON.stringify(updated.display_facts)==JSON.stringify(template.get_view().display_facts),"fact_table_reuse_within_batch: the rejected submit leaves the snapshot and the projection equal to the from-zero path ("+key+")")
+  rejected_checked+=1
+ t.check(rejected_checked==2,"fact_table_reuse_within_batch: both rejection fixtures were exercised have="+str(rejected_checked))
+ var submit_code=source_func_body_code("res://ui/main.gd","_submit")
+ t.check(submit_code.find("notice=\"\" if result.ok else result.error")>=0 and submit_code.find("game.get_view()")>=0,"fact_table_reuse_within_batch: ui/main.gd::_submit shows the dispatch error verbatim and takes its projection after the submit")
+ print("TABLE REUSE WITHIN BATCH fixtures=%d rejected=%d" % [compared,rejected_checked])
+
+# D-3（gherkin D-3；acceptance.md §1 C-D-3）：缓存寿命＝读取批次、单一入口、不挂 self、不按键判等；
+# 投影不跨就地改写窗口（core/game.gd::dispatch 内的投影取用在 state=state.duplicate(true) 之前，
+# core/game.gd::get_view 仍是四点白名单）。全部为源码文本判据（生产源码）。
+static func fact_table_cache_lifetime_is_pinned(t) -> void:
+ var body=game_function_body("_batch_rows")
+ t.check(not body.strip_edges().is_empty() and body.find("_equipment_read_active()")>=0 and body.find("BATCH_ROW_ENTRIES")>=0 and body.find("duplicate(true)")>=0,"fact_table_cache_lifetime_is_pinned: core/game.gd::_batch_rows is the one batch entry (batch check + container + deep copy): "+body.strip_edges().substr(0,120))
+ var forbidden=[]
+ for token in BATCH_ENTRY_FORBIDDEN:
+  if body.contains(token): forbidden.append(token)
+ t.check(not body.strip_edges().is_empty() and forbidden.is_empty(),"fact_table_cache_lifetime_is_pinned: the batch entry never stores on self, never keys by identity or version and never reads state: "+str(forbidden))
+ var container=declaration_text(source_write_sites(["res://core","res://data","res://ui"],"BATCH_ROW_ENTRIES"),"const ")
+ t.check(write_site_names(container)==["core/game.gd::_batch_rows"],"fact_table_cache_lifetime_is_pinned: the entry container is read and written only inside core/game.gd::_batch_rows: "+str(write_site_names(container)))
+ var problems=[]
+ for name in BATCH_ENTRY_KINDS:
+  var hits=source_write_sites(["res://core","res://data","res://ui"],name)
+  var uses=declaration_text(hits,"const ")
+  var names=write_site_names(uses)
+  var want=BATCH_ENTRY_KINDS[name].duplicate()
+  want.sort()
+  if names!=want or hits.size()!=want.size()+1:
+   problems.append(name+": uses="+str(names)+" declarations="+str(hits.size()-uses.size()))
+ t.check(problems.is_empty(),"fact_table_cache_lifetime_is_pinned: every entry name is declared once and used only at its declared call sites: "+str(problems))
+ var table_sites=write_site_names(source_write_sites(["res://core","res://data","res://ui"],"(?<![A-Za-z0-9_])command_facts\\s*\\("))
+ t.check(table_sites==["core/game.gd::command_facts","core/game_view.gd::build"],"fact_table_cache_lifetime_is_pinned: command_facts() is called only by core/game_view.gd::build outside any transaction (the other hit is its definition; the takeover arm names it through core/command_registry.gd::TAKEOVER_SOURCE): "+str(table_sites))
+ var dispatch_body=source_func_body_code("res://core/game.gd","dispatch")
+ var transaction=dispatch_body.find("state=state.duplicate(true)")
+ var early=[]
+ var late=[]
+ for token in ["command_fact(","command_facts(","get_view("]:
+  var at=dispatch_body.find(token)
+  if at<0: continue
+  if transaction>0 and at<transaction: early.append(token)
+  else: late.append(token)
+ t.check(transaction>0 and early==["command_fact("] and late.is_empty(),"fact_table_cache_lifetime_is_pinned: core/game.gd::dispatch takes its projection row before the in-place transaction window and never projects after it (state=state.duplicate(true) at "+str(transaction)+"): early="+str(early)+" late="+str(late))
+ t.check(CommandRegistry.takeover_source()==FROZEN_TAKEOVER_SOURCE and FROZEN_TAKEOVER_SOURCE=="command_facts","fact_table_cache_lifetime_is_pinned: the takeover arm names the table exit (the whole-table read inside command_fact runs in its own batch): "+CommandRegistry.takeover_source())
+ get_view_call_sites_are_pinned(t)
+ print("BATCH CACHE LIFETIME entries=%d container=%s" % [BATCH_ENTRY_KINDS.size(),str(write_site_names(container))])
+
+# D-4（gherkin D-4；acceptance.md §1 C-D-4；design.md §5.0 D 行）：复用路径 == 从零路径。真实输入配方
+# （seed=7／cap=60／style=trade，与 tests/recipe_driver.gd 同一策略与种子）逐提交比对：live 实例（全程经
+# 批内复用）与从零实例（每次比对前新建 Game ＋ export_snapshot → restore_snapshot，批内条目必空）在每次
+# 提交后逐字节相等（含 key 面与顺序）。从零实例**每次重建**是关键：任一批内条目在批次边界之外存活
+# （挂 self／挂实例元数据）都会让 live 侧留在上次的状态而上报红——否则两侧会一起读到同一个陈旧值。
+# 类级（`static`）常驻缓存不受本 oracle 约束（两侧会一起读到它）：那一条由
+# tests/architecture_cases.gd::fact_table_reuse_within_batch 的「出批必重建」与
+# tests/architecture_cases.gd::point_family_rows_respect_read_scope 的跨批次变异各自钉住。
+# oracle 自检：restore 后除 core/game.gd::restore_snapshot 声明的版本推进外，state 与快照逐字节相等
+# （其余任一键不等即按红处理）。
+static func table_reuse_matches_fresh_projection(t) -> void:
+ var live=Game.new(7)
+ var navigation={}
+ var problems=[]
+ var commits=0
+ var steps=0
+ var stop_reason="cap"
+ var phases=[]
+ while commits<60 and steps<900:
+  steps+=1
+  var view=live.get_view()
+  var phase=String(view.phase)
+  if not phases.has(phase): phases.append(phase)
+  if phase in ["cleared","prison_end"]:
+   stop_reason="end_phase:"+phase
+   break
+  var choice=NormalPlay.choose(view,"trade",navigation)
+  if choice.is_empty():
+   stop_reason="no_legal_step"
+   break
+  var before_version=int(live.state.version)
+  var result=live.dispatch(live.command(choice.payload,live.state.version),live.state.version)
+  if not result.ok or int(live.state.version)<=before_version: continue
+  commits+=1
+  NormalPlay.remember(view,choice,navigation)
+  var fresh=Game.new(7)
+  if not fresh._equipment_read.is_empty(): problems.append("commit "+str(commits)+": the from-zero instance held a read batch before the comparison")
+  var snapshot=live.export_snapshot()
+  var restored=fresh.restore_snapshot(snapshot)
+  if not restored.get("ok",false):
+   problems.append("commit "+str(commits)+": the from-zero instance refused the snapshot: "+str(restored.get("error","")))
+   break
+  var fresh_snapshot=fresh.export_snapshot()
+  var state_diff=[]
+  for state_key in snapshot:
+   if JSON.stringify(fresh_snapshot.get(state_key))!=JSON.stringify(snapshot[state_key]): state_diff.append(String(state_key))
+  if state_diff!=["version"]:
+   problems.append("commit "+str(commits)+": the restored state differs beyond the declared version bump: "+str(state_diff))
+  if int(fresh.state.version)<=int(snapshot.version):
+   problems.append("commit "+str(commits)+": restore_snapshot did not advance the version have="+str(fresh.state.version)+" snapshot="+str(snapshot.version))
+  var live_face=prefix_branch_table_face(live)
+  var fresh_face=prefix_branch_table_face(fresh)
+  if live_face!=fresh_face:
+   var live_rows=live.command_facts()
+   problems.append("commit "+str(commits)+" kind="+String(choice.payload.kind)+" version="+str(live.state.version)+": reused table differs from the from-zero table live="+live_face+" fresh="+fresh_face+" rows="+str(live_rows.size()))
+  var held_batch=live._begin_equipment_read()
+  var held_first=prefix_branch_table_face(live)
+  var held_second=prefix_branch_table_face(live)
+  live._equipment_read=held_batch
+  if held_first!=fresh_face or held_second!=fresh_face:
+   problems.append("commit "+str(commits)+": the batch-held table differs from the from-zero table live="+held_first+"/"+held_second+" fresh="+fresh_face)
+ t.check(problems.is_empty(),"table_reuse_matches_fresh_projection: every commit projects byte-identically through the batch entry and from a from-zero instance: "+str(problems.slice(0,3)))
+ t.check(commits==60 and stop_reason=="cap","table_reuse_matches_fresh_projection: the recipe committed 60 times before its natural end have="+str(commits)+" stop="+stop_reason)
+ print("TABLE REUSE FRESH ORACLE commits=%d steps=%d stop=%s phases=%s" % [commits,steps,stop_reason,str(phases)])
+
+# D 批审查加固 1（K1-D 的「批内污染」面）：复用／取用的边界不可污染——① 批内取回的条目被调用方就地改写
+# （core/game_view.gd::build 的 release_preview 写点同形：改行 ＋ 增删容器项）后，同批内的第二次取用仍必须
+# 与从零路径逐字节相等；三条批内条目逐条核（整表／攻击走查／逐卡行——C 批的 card 首算路径曾把活数组存批
+# 又原样返回，同批内第二次同 uid 读会读到被第一个调用方污染的值）；
+# ② 同一张表里重复归一化 params 的两行必须是互不别名的独立等值字典（改动前两步路径逐项构造；同一引用
+# 两行会让调用方写一行改两行）。
+static func batch_reuse_never_aliases_callers(t) -> void:
+ var problems=[]
+ var compared=0
+ for cell in [["battle",12],["prepare",12],["prison",12]]:
+  var label="%s:%d" % [cell[0],cell[1]]
+  var g=r1_build(cell[0],cell[1],ReuseRecorder)
+  var reference=r1_build(cell[0],cell[1],ReuseRecorder)
+  var expected={}
+  var first={}
+  expected["table"]=JSON.stringify(reference.command_facts())
+  expected["attack_walk"]=JSON.stringify(reference.attack_facts())
+  expected["equipment_spell"]=JSON.stringify(reference.equipment_spell_facts())
+  var previous=g._begin_equipment_read()
+  first["table"]=JSON.stringify(g.command_facts())
+  first["attack_walk"]=JSON.stringify(g.attack_facts())
+  first["equipment_spell"]=JSON.stringify(g.equipment_spell_facts())
+  for card in reference.state.hand:
+   var key="card:"+String(card.uid)
+   expected[key]=JSON.stringify(reference.Cards.card_facts(reference,card))
+   first[key]=JSON.stringify(g.Cards.card_facts(g,card))
+  # 调用方就地改写（release_preview 写点同形：写成员 ＋ 增删容器项），批次内条目必须毫发无损。
+  for row in g.command_facts(): row.release_preview={"probe":true}
+  for pair in g.attack_facts(): pair.probe=true
+  for pair in g.equipment_spell_facts(): pair.probe=true
+  for card in g.state.hand:
+   var rows=g.Cards.card_facts(g,card)
+   for row in rows: row.release_preview={"probe":true}
+   rows.append({"probe":true})
+  var second={}
+  second["table"]=JSON.stringify(g.command_facts())
+  second["attack_walk"]=JSON.stringify(g.attack_facts())
+  second["equipment_spell"]=JSON.stringify(g.equipment_spell_facts())
+  for card in g.state.hand: second["card:"+String(card.uid)]=JSON.stringify(g.Cards.card_facts(g,card))
+  g._equipment_read=previous
+  for key in expected:
+   if first.get(key,"")!=expected[key] or second.get(key,"")!=expected[key]:
+    problems.append(label+" "+key+": a caller writing into the rows it got back changed the batch entry (first_equal="+str(first.get(key,"")==expected[key])+" second_equal="+str(second.get(key,"")==expected[key])+")")
+  compared+=1
+ t.check(problems.is_empty(),"batch_reuse_never_aliases_callers: every batch entry only hands out deep copies, so an in-batch writer cannot pollute the table, the walk or the card rows: "+str(problems))
+ t.check(compared==3,"batch_reuse_never_aliases_callers: every fixture cell exercised the in-batch writer on all three entries have="+str(compared))
+ # ② 重复归一化 params 的两行：等值但不同一（attack 走查的两条 pair row——重复夹具由既有
+ # attack_duplicate_params_fixture 给出，按归一化 params 成组）。
+ var duplicate_groups=0
+ var g=attack_duplicate_params_fixture()
+ var by_params={}
+ for pair in g.attack_point_walk(g):
+  var key=JSON.stringify(pair.params)
+  if not by_params.has(key): by_params[key]=[]
+  by_params[key].append(pair.row)
+ for key in by_params:
+  var group=by_params[key]
+  if group.size()<2: continue
+  duplicate_groups+=1
+  for index in range(1,group.size()):
+   if is_same(group[0],group[index]):
+    problems.append("attack: duplicate normalized params share one row object")
+    continue
+   if JSON.stringify(group[0])!=JSON.stringify(group[index]):
+    problems.append("attack: duplicate normalized params are not equal rows")
+    continue
+   group[0].probe_marker=true
+   if group[index].has("probe_marker"): problems.append("attack: writing one duplicate row leaked into the other")
+   group[0].erase("probe_marker")
+ t.check(duplicate_groups>0 and problems.is_empty(),"batch_reuse_never_aliases_callers: duplicate normalized params yield independent equal rows (the pre-change two-step path built one dictionary per enumeration item): groups="+str(duplicate_groups)+" "+str(problems))
+ print("BATCH REUSE ALIAS cells=%d duplicate_groups=%d" % [compared,duplicate_groups])
+
+# D 批审查加固 2（K1-D 的「空行静默面」）：走查产出的行永不空。D 前的两条表生产者有 is_empty 过滤，C 批
+# 改走查后改为无条件取行——今天等价，将来任一家族回 {} 就会静默多一条空行（与改动前不等价）。落点＝
+# **两条同时做**、理由是它们各补一半：① 恢复改动前的空行过滤（语义面：任何未来家族回 {} 都与改动前逐字节
+# 等价，不再多一条空行）；② 机械判据「走查产出的每一条 row 都非空」＋「两条生产者的取行都有该过滤」
+# （文本面：过滤今天不吞任何行，将来家族回 {} 时本判据先红，过滤不会退化成静默少一行）。只做②时，
+# 矩阵外的家族仍可静默回 {}；只做①时，家族缺陷会被静默吞掉。覆盖＝r1_cells()（除接管）＋装备自解／巫女／
+# 重复 params／逐卡分支族夹具；家族覆盖计数全 0 即红。
+static func walk_rows_are_never_empty(t) -> void:
+ var guarded=[]
+ for row in TABLE_WALK_ENTRIES:
+  if not String(row[0]).ends_with("core/game.gd"): continue
+  var body=table_walk_entry_body(String(row[0]),String(row[1]))
+  var guard=body.find("if pair.row.is_empty(): continue")
+  var take=body.find("facts.append(pair.row)")
+  if guard<0 or take<0 or guard>take: guarded.append(String(row[1])+": guard="+str(guard)+" append="+str(take))
+ t.check(guarded.is_empty(),"walk_rows_are_never_empty: both table halves keep the pre-change empty-row guard before taking the walk row (a family returning {} must not add a silent empty row): "+str(guarded))
+ var fixtures=[]
+ for cell in r1_cells():
+  if cell[0]=="takeover": continue
+  fixtures.append(["%s:%d" % [cell[0],cell[1]],r1_build(cell[0],cell[1])])
+ fixtures.append(["prepare:12+self_release",attack_self_release_fixture("prepare",12)])
+ fixtures.append(["witch:battle",Game.new(42,false,"equipment",true,false,25,false,false,"witch")])
+ fixtures.append(["duplicate_params",attack_duplicate_params_fixture()])
+ fixtures.append(["branch:battle:26",card_branch_fixture(t,"battle",26)])
+ fixtures.append(["exhaust_fallback:strong_elbow",card_exhaust_fallback_fixture(t,"strong_elbow")])
+ var families={"basic":0,"witch":0,"self_release":0}
+ var problems=[]
+ var pairs_seen=0
+ for entry in fixtures:
+  var label=String(entry[0])
+  var g=entry[1]
+  for pair in g.attack_point_walk(g):
+   pairs_seen+=1
+   var row=pair.get("row",null)
+   if not (row is Dictionary) or (row as Dictionary).is_empty():
+    problems.append(label+": the walk produced an empty row for params "+JSON.stringify(pair.get("params",{})))
+    continue
+   var family="self_release"
+   if String(pair.params.get("target",""))=="":
+    family="witch" if String(pair.params.get("type","")).begins_with("witch_") else "basic"
+   families[family]=int(families[family])+1
+ t.check(problems.is_empty(),"walk_rows_are_never_empty: every row the walk produces is a complete fact row (the guard above never fires today, so a family returning {} is caught here before it becomes a silent dropped row): "+str(problems.slice(0,4)))
+ t.check(pairs_seen>0 and int(families["basic"])>0 and int(families["witch"])>0 and int(families["self_release"])>0,"walk_rows_are_never_empty: the fixture matrix covers every walk family: "+str(families)+" pairs="+str(pairs_seen))
+ print("WALK ROWS NONEMPTY fixtures=%d pairs=%d families=%s" % [fixtures.size(),pairs_seen,str(families)])
 
 static func pipeline_lookup_inspect(t) -> void:
  var edges=pipeline_lookup_edges()

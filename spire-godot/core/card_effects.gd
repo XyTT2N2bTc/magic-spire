@@ -1073,17 +1073,11 @@ static func _card_slot_fact(g, card: Dictionary, item: Dictionary, choice: Dicti
 # 不走「先枚举 params 再逐条查表」的两步，每行恰构造一次（_card_point_row 是唯一单行构造）。重复归一化
 # params 复用首条行，与 card_point_fact 的「首个命中 site」同序，故行序、条数与每行字段与转换前逐字节相同。
 # 按卡取切片而非整手 keys：既有断言（card_facts_keyword_min_query 的 strong_elbow 槽位面）要求按卡取行时
-# 不得查询其他手牌的槽位。走查结果在读取批次内复用（形态同 core/game_view.gd::equipment_entry 的
-# equipment_views：出批即弃、不按键判等、不跨提交、不挂 self）；批次外调用退化为今行为（每次现算）。
+# 不得查询其他手牌的槽位。走查结果只经批内复用机制取用（D 批：core/game.gd::_batch_rows 的唯一边界——
+# 唯一入口／唯一寿命／唯一深拷贝语义；条目名＝该手牌 uid，出批即弃、不按键判等、不跨提交、不挂 self）；
+# 批次外调用每次现算，与无批次调用逐字节相等。
 static func card_facts(g, card: Dictionary) -> Array:
- var uid=String(card.get("uid",""))
- var batch=g._equipment_read if g._equipment_read_active() else {}
- if batch.has("card_point_rows") and batch.card_point_rows.has(uid): return (batch.card_point_rows[uid] as Array).duplicate(true)
- var rows=_card_point_rows(g,card)
- if not batch.is_empty():
-  if not batch.has("card_point_rows"): batch.card_point_rows={}
-  batch.card_point_rows[uid]=rows
- return rows
+ return g._batch_rows(g.BATCH_CARD_ROWS+":"+String(card.get("uid","")),func(): return _card_point_rows(g,card))
 
 static func _card_point_rows(g, card: Dictionary) -> Array:
  var facts=[]
@@ -1091,7 +1085,8 @@ static func _card_point_rows(g, card: Dictionary) -> Array:
  for item in _card_point_site_choices(g,card):
   var key=JSON.stringify(item.params)
   if first.has(key):
-   if not first[key].is_empty(): facts.append(first[key])
+   # 重复归一化 params 取首条行的独立副本（改动前的两步路径对每个枚举项各构造一次、行互不别名）。
+   if not first[key].is_empty(): facts.append((first[key] as Dictionary).duplicate(true))
    continue
   var row=_card_point_row(g,card,item.site,item.choice,item.params)
   first[key]=row

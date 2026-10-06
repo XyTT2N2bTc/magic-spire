@@ -6,8 +6,9 @@ extends "res://tests/ui_smoke.gd"
 #
 # Dependencies are shipped helpers only: tests/ui_smoke.gd (frames/move_mouse/mouse_button/click/
 # start_drag/release_target/reveal_drop_target/flip/close_information), the play policy
-# tests/normal_play_cases.gd::choose, tests/game_fixture.gd as the game class, and the same case
-# helpers tests/normal_play_ui_cases.gd uses for drawers, events and prison details. Policy reads
+# tests/normal_play_cases.gd::choose, tests/batch_reuse_recorder.gd as the game class (the
+# tests/game_fixture.gd tower shape plus the D-batch reuse counters), and the same case helpers
+# tests/normal_play_ui_cases.gd uses for drawers, events and prison details. Policy reads
 # only the projection the player sees; no state, save or RNG writes.
 #
 # The shell owns the outer evidence: tools/check.ps1 prepends the RUN IDENTITY header and appends
@@ -22,7 +23,10 @@ const Normal=preload("res://tests/normal_play_cases.gd")
 const EventCases=preload("res://tests/event_ui_cases.gd")
 const InterfaceCases=preload("res://tests/interface_ui_cases.gd")
 const ExplorationCases=preload("res://tests/exploration_ui_cases.gd")
-const Fixture=preload("res://tests/game_fixture.gd")
+# D 批（K1-D）记录器（gherkin D-5）：本类＝tests/game_fixture.gd ＋ 批内复用机制 core/game.gd::_batch_rows
+# 的请求／构建计数（tests/batch_reuse_recorder.gd），规则行为与本类未包装时逐字节相同。报告口径见
+# _reuse_report 的打印与 docs/record/verification.md 的 D 批条目。
+const RecordingFixture=preload("res://tests/batch_reuse_recorder.gd")
 const OUT_ROOT="res://build/recipe"
 
 var recipe_seed=7
@@ -54,7 +58,7 @@ func _run_recipe() -> void:
  ui=load("res://main.tscn").instantiate()
  ui.persistence_enabled=false
  ui.feedback_duration=0.04
- ui.game_factory=Fixture
+ ui.game_factory=RecordingFixture
  ui.game=ui.game_factory.new()
  root.add_child(ui)
  await frames()
@@ -97,15 +101,39 @@ func _run_recipe() -> void:
     break
   Normal.remember(v,c,navigation)
  print("FK SESSION %s commits=%d steps=%d stop=%s phases=%s" % [label,commits,steps,stop_reason,str(phases)])
+ _reuse_report()
  DirAccess.make_dir_recursive_absolute(OUT_ROOT)
  _write_json(OUT_ROOT+"/recipe-"+label+".json",{
   "seed":recipe_seed,"cap":recipe_cap,"style":recipe_style,
   "engine":Engine.get_version_info().string,"window":"1600x900",
-  "game_class":"tests/game_fixture.gd","persistence":false,"feedback_duration":0.04,
+  "game_class":"tests/batch_reuse_recorder.gd","persistence":false,"feedback_duration":0.04,
   "commits":commits,"steps":steps,"stop_reason":stop_reason,"phases_seen":phases,
   "final_phase":String(ui.view.phase),"final_version":int(ui.view.version)})
  print("RECIPE seed=%d commits=%d steps=%d stop=%s" % [recipe_seed,commits,steps,stop_reason])
  finish_checks()
+
+# D-5（gherkin D-5；report-only）：批内复用机制 core/game.gd::_batch_rows 的请求次数与真实构建次数，
+# 逐条目种类（table／attack_walk／card_rows:<uid>）；两者之差＝同一批次内的重复取用次数（＝被批内条目
+# 挡下的重复整表构建／重复走查）。计数只进报告，不作判据、不写提速、不采集耗时。
+func _reuse_report() -> void:
+ var game=ui.game
+ if game==null or not ("reuse_requests" in game):
+  print("TABLE REUSE unavailable: the recipe fixture carries no recorder")
+  return
+ var kinds={}
+ for entry in game.reuse_requests: kinds[String(entry).split(":")[0]]=true
+ for entry in game.reuse_builds: kinds[String(entry).split(":")[0]]=true
+ var names=kinds.keys()
+ names.sort()
+ var total_requests=0
+ var total_builds=0
+ for kind in names:
+  var requests=game.reuse_requests_of(kind)
+  var builds=game.reuse_builds_of(kind)
+  total_requests+=requests
+  total_builds+=builds
+  print("TABLE REUSE entry=%s requests=%d builds=%d repeated=%d" % [kind,requests,builds,requests-builds])
+ print("TABLE REUSE total entries=%d requests=%d builds=%d repeated=%d" % [names.size(),total_requests,total_builds,total_requests-total_builds])
 
 # Real-input drive of one chosen visible fact: the same shape as tests/normal_play_ui_cases.gd, so
 # the recipe reproduces the submits a human click/drag produces.

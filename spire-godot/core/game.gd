@@ -276,6 +276,24 @@ func _begin_equipment_read() -> Dictionary:
 func _equipment_read_active() -> bool:
  return not _equipment_read.is_empty() and not _equipment_read.get("invalid",false) and is_same(_equipment_read.state,state)
 
+# ==== 批内复用的唯一机制（D 批，K1-D；docs/spec/fact-table-dependencies.md「批内复用」）====
+# 形态同 core/game_view.gd::equipment_entry 的 equipment_views：条目只落在 _begin_equipment_read 建立的
+# 批次字典上（本函数的 _equipment_read[BATCH_ROW_ENTRIES] 子字典），寿命＝该读取批次，出批即弃。
+# 不按键判等（条目名只是同一批次内的槽位名，不是「值仍有效」的判据）、不跨提交、不挂 self；批次外调用每次
+# 现算，与无批次调用逐字节相等。命中与首算都返回深拷贝：批次内的存量只经深拷外出，任何调用方改写取回的
+# 行（core/game_view.gd::build 就会就地写 release_preview）都碰不到它——批内污染不可能。
+const BATCH_ROW_ENTRIES="reuse_rows"
+const BATCH_TABLE="table"
+const BATCH_ATTACK_WALK="attack_walk"
+const BATCH_CARD_ROWS="card_rows"
+
+func _batch_rows(entry: String, build: Callable) -> Array:
+ if not _equipment_read_active(): return build.call()
+ if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}
+ var entries: Dictionary=_equipment_read[BATCH_ROW_ENTRIES]
+ if not entries.has(entry): entries[entry]=build.call()
+ return (entries[entry] as Array).duplicate(true)
+
 # Edges follow the verified build direction only: authoritative containers project forward into
 # piece order. An inconsistent graph is neither repaired nor partly trusted (docs/spec/equipment-query-seam.md「失败语义」).
 func _build_equipment_read_index() -> void:
@@ -2504,11 +2522,14 @@ func _status_toggle_facts() -> Array:
 # core/game_view.gd::build 的 view.display_facts 来自本列表；command_fact 的接管期表级项显式点名本列表
 # （core/command_registry.gd::TAKEOVER_SOURCE），可行动期按 kind 取登记项、不经本列表。
 func command_facts() -> Array:
- # 读取批次：事实源与投影只在一个批次内物化一次（与改动前的候选表读取同一批次语义）。
+ # 读取批次：整表在一个批次内只构建一次（D 批／K1-D；批内条目经 core/game.gd::_batch_rows 的唯一边界取用，
+ # 出批即弃）。构建体＝表出口的构建半（事实源 → display_fact → 接管选择），批次外调用每次现算，与改动前
+ # 逐字节相等；PIPELINE_LOOKUP_EDGES 的 L-table 边（command_facts → _fact_source）落在这段体内，不改边。
  var previous=_begin_equipment_read()
- var facts: Array=[]
- for f in _fact_source(): facts.append(display_fact(f))
- var result=FirstTurnControl.select(self,facts)
+ var result=_batch_rows(BATCH_TABLE,func():
+  var facts: Array=[]
+  for f in _fact_source(): facts.append(display_fact(f))
+  return FirstTurnControl.select(self,facts))
  _equipment_read=previous
  return result
 
@@ -2912,26 +2933,20 @@ func attack_point_walk(g) -> Array:
  return pairs
 
 # 走查项＝{params, row}：params 仍是 command_params 的归一化键面（点查询与 keys 消费同一份）；row 已构造。
-# 重复 params 复用首条行（不第二次构造），与「点查询按 id 解析到首个对象」的内容面同序。
+# 重复 params 复用首条行（不第二次构造），但取用是独立副本：改动前的两步路径对同 params 的两个枚举项各构造
+# 一次、是两个互不别名的等值字典，同一引用两行会让调用方写一行改两行（D 批审查加固 1）。
 func _attack_point_pair(g, row: Dictionary, first: Dictionary) -> Dictionary:
  var params=g.command_params("attack",row.payload)
  var key=JSON.stringify(params)
- if first.has(key): return {"params":params,"row":first[key]}
+ if first.has(key): return {"params":params,"row":(first[key] as Dictionary).duplicate(true)}
  first[key]=row
  return {"params":params,"row":row}
 
-# 走查结果的批内复用入口（K3）：形态同 core/game_view.gd::equipment_entry 的 equipment_views——只在本读取批次
-# （core/game.gd::_begin_equipment_read 的寿命）内复用，出批即弃；不按键判等、不跨提交、不挂 self；
-# 批次外调用退化为今行为（每次现算）。命中即深拷，批次内的结果容器互不别名。
-func _attack_point_walk_cached(g) -> Array:
- if not g._equipment_read_active(): return attack_point_walk(g)
- if not g._equipment_read.has("attack_point_walk"): g._equipment_read.attack_point_walk=attack_point_walk(g)
- return (g._equipment_read.attack_point_walk as Array).duplicate(true)
-
 # 攻击域 point 登记项的候选键枚举（O3；唯一枚举）：取走查项的归一化键面，不再第二次构造行。
+# 走查结果只经批内复用机制取用（D 批：唯一入口／唯一寿命／唯一深拷贝语义）。
 func attack_point_keys(g) -> Array:
  var keys: Array=[]
- for pair in g._attack_point_walk_cached(g): keys.append(pair.params)
+ for pair in g._batch_rows(BATCH_ATTACK_WALK,func(): return attack_point_walk(g)): keys.append(pair.params)
  return keys
 
 # 攻击域 point 构造器（S2）：把 params 解析到具体家族的具体键，复用该家族既有单行构造；非成员返回 {}。
@@ -3050,11 +3065,14 @@ func _equipment_point_fact(g, p: Dictionary) -> Dictionary:
 
 # 基础攻击（行动域）：显示事实的唯一来源。行直接取自唯一走查（attack_point_walk 的成对结果），不再经
 # attack_point_keys × attack_point_fact 两步构造；本生产者只取基础与巫女家族（target 为空），行序、条数与
-# 转换前逐字节相同。角色2（巫女）的攻击单行构造由 core/witch_character.gd::attack_offer_fact 给出。
+# 转换前逐字节相同。空行过滤为改动前语义（D 批审查加固 2：某家族回 {} 时静默多一条空行，与改动前不等价；
+# tests/architecture_cases.gd::walk_rows_are_never_empty 另行钉住「走查行永不空」，故该过滤今天不吞任何行）。
+# 角色2（巫女）的攻击单行构造由 core/witch_character.gd::attack_offer_fact 给出。
 func attack_facts() -> Array:
  var facts: Array=[]
- for pair in _attack_point_walk_cached(self):
+ for pair in _batch_rows(BATCH_ATTACK_WALK,func(): return attack_point_walk(self)):
   if String(pair.params.get("target",""))!="": continue
+  if pair.row.is_empty(): continue
   facts.append(pair.row)
  return facts
 
@@ -3140,10 +3158,12 @@ func _attack_offer_fact(e: Dictionary, type: String, form: int) -> Dictionary:
 
 # 装备自解火球（行动域，非战斗阶段）：显示事实的唯一来源。行直接取自同一走查的成对结果，本生产者只取
 # 装备自解家族（target 非空）；两半共用同一次走查（factor／usage 由单行构造的调用方算一次，逐字保留）。
+# 空行过滤与基础半同源（改动前语义；见 core/game.gd::attack_facts 的说明）。
 func equipment_spell_facts() -> Array:
  var facts: Array=[]
- for pair in _attack_point_walk_cached(self):
+ for pair in _batch_rows(BATCH_ATTACK_WALK,func(): return attack_point_walk(self)):
   if String(pair.params.get("target",""))=="": continue
+  if pair.row.is_empty(): continue
   facts.append(pair.row)
  return facts
 
