@@ -229,6 +229,36 @@
       "find": "const R5_RECOMPUTED=[\"record\",\"view\"]",
       "replace": "const R5_RECOMPUTED=[\"record\"]",
       "suite": "architecture"
+    },
+    "fact_lookup_all_kinds": {
+      "file": "core/game.gd",
+      "find": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return manual_facts()",
+      "replace": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n return manual_facts()",
+      "suite": "architecture"
+    },
+    "point_sources_are_kind_limited": {
+      "file": "core/command_registry.gd",
+      "find": " \"manual\":{\"form\":\"table\",\"source\":\"_manual_kind_facts\"},",
+      "replace": " \"manual\":{\"form\":\"table\",\"source\":\"_flow_kind_facts\"},",
+      "suite": "architecture"
+    },
+    "domain_arm_guards_call_phase_branch": {
+      "file": "core/game.gd",
+      "find": "func _hook_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return hook_facts()",
+      "replace": "func _hook_kind_facts(_kind: String, _params: Dictionary) -> Array:\n return hook_facts()",
+      "suite": "architecture"
+    },
+    "point_query_builds_no_table": {
+      "file": "core/game.gd",
+      "find": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return manual_facts()",
+      "replace": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n return _fact_source()",
+      "suite": "architecture"
+    },
+    "prefix_branch_tables_are_frozen": {
+      "file": "core/game.gd",
+      "find": "func _unit_flask_full(_facts: Array) -> Array:\n return ManaFlask.facts(self,true)",
+      "replace": "func _unit_flask_full(_facts: Array) -> Array:\n return ManaFlask.facts(self)",
+      "suite": "architecture"
     }
   }
 }

@@ -205,6 +205,9 @@ func render(snapshot: Dictionary = {}) -> void
 - 事实表的「面 / 点」边界收口的依赖约束（cleaner 可核对）见 `docs/spec/fact-table-dependencies.md`。
 - 事实表收口（A 批：分支词表＋单元表）的具名判据＝`tests/architecture_cases.gd::fact_units_cover_fact_source`／
   `tests/architecture_cases.gd::phase_branch_vocabulary_is_total`／`tests/architecture_cases.gd::baseline_constants_are_unchanged`。
+- 事实表收口（B 批：点查询的限定生产者＝分支守卫＋最小生产者）的具名判据＝`tests/architecture_cases.gd::fact_lookup_all_kinds`／
+  `tests/architecture_cases.gd::domain_arm_guards_call_phase_branch`／`tests/architecture_cases.gd::point_sources_are_kind_limited`／
+  `tests/architecture_cases.gd::point_query_builds_no_table`／`tests/architecture_cases.gd::prefix_branch_tables_are_frozen`。
 - 测量口径（只报告，不用于通过判据）：装备 0／12／26 件 × 选择类／提交类两条路径，同一夹具交替执行、
   2 次热身＋15 次有效配对，报逐对比值中位与两侧独立中位；计时脚本与 JSON 只放已忽略的 `build/<topic>-<date>/`，
   摘要登记 `docs/record/verification.md` 后删除原始目录；生产源码不留计数器、开关或计时钩子。

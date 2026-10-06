@@ -9,8 +9,11 @@ extends RefCounted
 #
 # Table form (every kind but attack and card after S3):
 #   source : String — method name on g, signature (kind: String, params: Dictionary) -> Array.
-#                     That array is the fact set the point query scans for this kind; every entry
-#                     names the producer and guard its core/game.gd::_kind_facts arm used before S1.
+#                     That array is the fact set the point query scans for this kind. S1 pointed the
+#                     whole-table kinds at one shared method; K2 (B batch) gives every entry its own
+#                     domain arm — guard = core/game.gd::_phase_branch() (never a copy of the early
+#                     return chain) plus the minimal producer the branch's FACT_UNITS row declares.
+#                     No entry names a whole-table source any more.
 # Point form (S2 landed it for attack; S3 adds card; the card keys／build／member forward to
 # core/card_effects.gd, where the single enumeration and constructor live):
 #   keys／build／member : String — method names on g, called as keys(g) -> Array,
@@ -27,44 +30,44 @@ const TAKEOVER_SOURCE="command_facts"
 
 const ENTRIES={
  "card":{"form":"point","keys":"card_point_keys","build":"card_point_fact","member":"card_point_member"},
- "chain":{"form":"table","source":"_whole_table_kind_facts"},
+ "chain":{"form":"table","source":"_chain_kind_facts"},
  "attack":{"form":"point","keys":"attack_point_keys","build":"attack_point_fact","member":"attack_point_member"},
  "status_toggle":{"form":"table","source":"_status_toggle_kind_facts"},
  "posture":{"form":"table","source":"_posture_kind_facts"},
  "wall_move":{"form":"table","source":"_wall_move_kind_facts"},
- "manual":{"form":"table","source":"_whole_table_kind_facts"},
- "hook":{"form":"table","source":"_whole_table_kind_facts"},
+ "manual":{"form":"table","source":"_manual_kind_facts"},
+ "hook":{"form":"table","source":"_hook_kind_facts"},
  "end":{"form":"table","source":"_flow_kind_facts"},
  "calm":{"form":"table","source":"_flow_kind_facts"},
  "surrender":{"form":"table","source":"_surrender_kind_facts"},
  "item_use":{"form":"table","source":"_item_use_kind_facts"},
- "item_install":{"form":"table","source":"_whole_table_kind_facts"},
- "item_retrieve":{"form":"table","source":"_whole_table_kind_facts"},
+ "item_install":{"form":"table","source":"_item_action_kind_facts"},
+ "item_retrieve":{"form":"table","source":"_item_action_kind_facts"},
  "item_discard":{"form":"table","source":"_item_discard_kind_facts"},
  "finish_prepare":{"form":"table","source":"_flow_kind_facts"},
  "finish_rest":{"form":"table","source":"_flow_kind_facts"},
  "finish_pack":{"form":"table","source":"_flow_kind_facts"},
- "retain":{"form":"table","source":"_whole_table_kind_facts"},
- "retain_skip":{"form":"table","source":"_whole_table_kind_facts"},
- "rest_rare":{"form":"table","source":"_whole_table_kind_facts"},
- "rest_card":{"form":"table","source":"_whole_table_kind_facts"},
- "rest_flask":{"form":"table","source":"_whole_table_kind_facts"},
- "rest_begin":{"form":"table","source":"_whole_table_kind_facts"},
- "service":{"form":"table","source":"_whole_table_kind_facts"},
- "event":{"form":"table","source":"_whole_table_kind_facts"},
- "prison":{"form":"table","source":"_whole_table_kind_facts"},
- "depart":{"form":"table","source":"_whole_table_kind_facts"},
- "travel_step":{"form":"table","source":"_whole_table_kind_facts"},
- "reward":{"form":"table","source":"_whole_table_kind_facts"},
- "reward_skip":{"form":"table","source":"_whole_table_kind_facts"},
- "relic_bundle":{"form":"table","source":"_whole_table_kind_facts"},
- "departure":{"form":"table","source":"_whole_table_kind_facts"},
+ "retain":{"form":"table","source":"_retain_kind_facts"},
+ "retain_skip":{"form":"table","source":"_retain_kind_facts"},
+ "rest_rare":{"form":"table","source":"_rest_choice_kind_facts"},
+ "rest_card":{"form":"table","source":"_rest_choice_kind_facts"},
+ "rest_flask":{"form":"table","source":"_rest_choice_kind_facts"},
+ "rest_begin":{"form":"table","source":"_rest_choice_kind_facts"},
+ "service":{"form":"table","source":"_services_kind_facts"},
+ "event":{"form":"table","source":"_events_kind_facts"},
+ "prison":{"form":"table","source":"_prison_kind_facts"},
+ "depart":{"form":"table","source":"_depart_kind_facts"},
+ "travel_step":{"form":"table","source":"_travel_step_kind_facts"},
+ "reward":{"form":"table","source":"_reward_kind_facts"},
+ "reward_skip":{"form":"table","source":"_reward_kind_facts"},
+ "relic_bundle":{"form":"table","source":"_relic_bundle_kind_facts"},
+ "departure":{"form":"table","source":"_departure_kind_facts"},
  "flask":{"form":"table","source":"_flask_kind_facts"},
  "relic_toggle":{"form":"table","source":"_relic_kind_facts"},
  "relic_discharge":{"form":"table","source":"_relic_kind_facts"},
- "relic_control_done":{"form":"table","source":"_whole_table_kind_facts"},
- "demo_end":{"form":"table","source":"_whole_table_kind_facts"},
- "demo_continue":{"form":"table","source":"_whole_table_kind_facts"},
+ "relic_control_done":{"form":"table","source":"_relic_control_done_kind_facts"},
+ "demo_end":{"form":"table","source":"_demo_exit_kind_facts"},
+ "demo_continue":{"form":"table","source":"_demo_exit_kind_facts"},
 }
 
 # ==== K1 单元表（plan §3 A 批；docs/spec/fact-table-dependencies.md「单元表」）====

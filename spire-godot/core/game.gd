@@ -121,10 +121,94 @@ func _kind_facts(kind: String, params: Dictionary) -> Array:
  if item.is_empty() or String(item.get("form",""))!="table": return []
  return call(String(item.source),kind,params)
 
-# Table-form sources named by the registry: one arm per pre-S1 core/game.gd::_kind_facts arm, each body
-# kept verbatim (guard and order unchanged); the kind/params vector only became a parameter.
-func _whole_table_kind_facts(_kind: String, _params: Dictionary) -> Array:
- return _fact_source()
+# 表形 kind 的域臂（K2；plan §3 B 段；docs/spec/fact-table-dependencies.md「点查询的来源面」）：守卫＝
+# 经 core/game.gd::_phase_branch() 的声明可达分支（不抄早退链——同一语义只有那一处），生产者＝该分支在
+# core/command_registry.gd::FACT_UNITS 里登记的单元（rest／reward／travel 复用同一单元生产者，避免第二份实现）。
+# 分支 id 是数据：新增一个相位分支只改 _phase_branch 一处，未登记分支一律落回 action_tail，与整表一致。
+
+# 牌链（card_chain 分支的单行族）。
+func _chain_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="card_chain": return []
+ return Cards.chain_display_facts(self)
+
+# 装备操作与挂钩（action_tail 的 manual／hook 单元；hook_facts 自带 phase=="rest" 守卫）。
+func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="action_tail": return []
+ return manual_facts()
+
+func _hook_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="action_tail": return []
+ return hook_facts()
+
+# 道具操作块：action_tail 与 pack 两个分支共用同一单元生产者。
+func _item_action_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch() not in ["action_tail","pack"]: return []
+ return item_action_facts()
+
+# 保留选择（retain／retain_skip 同一单元产物）。
+func _retain_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="pending_retain": return []
+ return retain_facts()
+
+# 休息选择块（rest_rare／rest_card／rest_flask／rest_begin 同一单元产物）。
+func _rest_choice_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="rest_choice": return []
+ return _unit_rest_choice([])
+
+# 商店与宝箱。
+func _services_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="shop_treasure": return []
+ return Services.facts(self)
+
+# 事件。
+func _events_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="event": return []
+ return Events.facts(self)
+
+# 监狱：捕获／巡视分支与相位 prison 的尾段单元（Prison.facts 自带相位守卫）。
+func _prison_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch() not in ["captured_inspection","action_tail"]: return []
+ return Prison.facts(self)
+
+# 路线出口行：出口候选只由本分支的单元产行（服务／事件的离开行、尾段与 pack 的 finish_* 行）；三个前缀分支
+# 连 route 单元都不跑（前缀 owner 不含 main 单元），故直接空表；其余分支（map 以外）没有出口行，_route_facts 亦为空表。
+func _depart_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ var branch=_phase_branch()
+ if branch in CommandRegistry.FACT_PREFIX_OWNERS: return []
+ match branch:
+  "shop_treasure": return _route_facts(Services.facts(self))
+  "event": return _route_facts(Events.facts(self))
+  "action_tail", "pack": return _route_facts(flow_facts())
+  _: return _route_facts([])
+
+# 奖励族（reward／reward_skip 同一单元产物）。
+func _reward_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="reward": return []
+ return _unit_reward([])
+
+# 遗物捆绑与出发（两个前缀分支）。
+func _relic_bundle_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="relic_bundle": return []
+ return RelicBundle.facts(self)
+
+func _departure_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="departure": return []
+ return Departure.facts(self)
+
+# 旅途单行。
+func _travel_step_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="travel": return []
+ return _unit_travel_step([])
+
+# 通关（demo_end／demo_continue 同一单元产物）。
+func _demo_exit_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ if _phase_branch()!="cleared": return []
+ return DemoExit.facts(self)
+
+# 接管结束行只由 FirstTurnControl.select 注入（接管期取行经 TAKEOVER_SOURCE 整表扫描，见 _command_fact_row）；
+# 非接管期的整表里没有这个 kind 的行，故臂恒为空。
+func _relic_control_done_kind_facts(_kind: String, _params: Dictionary) -> Array:
+ return []
 
 func _item_discard_kind_facts(_kind: String, _params: Dictionary) -> Array:
  return item_discard_facts() if _fact_source_domain() else []
@@ -167,12 +251,15 @@ func _item_use_kind_facts(_kind: String, params: Dictionary) -> Array:
  var item=_item(String(params.get("item","")))
  if item.is_empty(): return []
  var op=Tools.operation(item.type)
- if op not in ["buff","escape"]: return _fact_source()
  if not state.relic_bundle.is_empty() or state.phase=="departure":
   return Consumables.use_facts(self,item) if op=="buff" and Consumables.outside_battle(self,item.type) else []
  if not command_domain_ready(): return []
- if item_action_block(): return item_action_facts(item.id)
- return Consumables.use_facts(self,item) if op=="buff" and Consumables.outside_battle(self,item.type) else []
+ if op in ["buff","escape"]:
+  if item_action_block(): return item_action_facts(item.id)
+  return Consumables.use_facts(self,item) if op=="buff" and Consumables.outside_battle(self,item.type) else []
+ # 非 buff／escape 的操作（开锁／切割）：行只由道具操作块产出；操作块不成立即无行（K2 清除整表回落，
+ # 与改动前的 _fact_source() 在 kind+params 过滤后同集——整表里这些行也只来自 item_action_facts）。
+ return item_action_facts(item.id) if item_action_block() else []
 
 # A read batch owns its indexes; commands and subsequent views never reuse them.
 # Speculative installation replaces state, so it must use live queries instead.
@@ -2388,8 +2475,8 @@ func candidate_detail(candidate: Dictionary) -> String:
 # 全部指令显示事实的唯一来源（docs/spec/candidate-removal.md「接口」T5／T8；批 R5）。A 批（K1，plan §3；
 # docs/spec/fact-table-dependencies.md「单元表」）：表的组成面由 core/command_registry.gd::FACT_UNITS 声明，本函数
 # 只做一次连接——分支判定经 _phase_branch（K0），单元顺序＝表序（顺序是数据，不是控制流），未声明单元不产行。
-# 投影与接管选择经 command_facts 取本列表；command_fact 可行动期经登记项取该 kind 的来源（整表语义的
-# kind 由 core/command_registry.gd 显式点名 _whole_table_kind_facts，不再有匿名兜底臂）。行载体已删除，无第二份物化。
+# 投影与接管选择经 command_facts 取本列表；command_fact 可行动期经登记项取该 kind 的来源（B 批起 39 kind
+# 各自的域臂＝分支守卫＋最小生产者，点查询路径不再回落本函数；登记项显式点名来源，无匿名兜底臂）。行载体已删除，无第二份物化。
 func _fact_source() -> Array:
  return _join_fact_units(CommandRegistry.fact_source_units(_phase_branch()))
 

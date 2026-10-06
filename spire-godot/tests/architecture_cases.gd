@@ -514,6 +514,20 @@ class FactSourceCountingGame extends "res://tests/game_fixture.gd":
   fact_source_calls+=1
   return super._fact_source()
 
+# B 批（K2）测试侧计数：一次可行动期的命令事实查询不得建整表；生产源码不带计数器。
+class PointLookupCountingGame extends "res://tests/game_fixture.gd":
+ var fact_source_calls=0
+ var command_facts_calls=0
+ func _fact_source() -> Array:
+  fact_source_calls+=1
+  return super._fact_source()
+ func command_facts() -> Array:
+  command_facts_calls+=1
+  return super.command_facts()
+ func reset_point_lookup_counts() -> void:
+  fact_source_calls=0
+  command_facts_calls=0
+
 # S2 test-side counter: the point-query path must compute the requested row only, so these three
 # whole-table producers stay at zero calls. Production carries no counters.
 class AttackLookupCountingGame extends "res://tests/game_fixture.gd":
@@ -659,6 +673,11 @@ static func run(t) -> void:
  attack_point_rejects_nonbattle_families(t)
  card_fact_direct_lookup(t)
  card_point_lookup_reads_one_row(t)
+ fact_lookup_all_kinds(t)
+ domain_arm_guards_call_phase_branch(t)
+ point_sources_are_kind_limited(t)
+ point_query_builds_no_table(t)
+ prefix_branch_tables_are_frozen(t)
  command_fact_kind_lookup(t)
  single_fact_lookup_per_submit(t)
  rejected_submit_lookup_counts(t)
@@ -2284,44 +2303,68 @@ static func table_kinds() -> Array:
 # takeover source) is caught even though command_registry_is_total and the row-equality checks stay
 # green. Never derive this table from the registry. Update it in the same batch that changes a form
 # (S2 moved attack to point form and dropped it here; S3 dropped card).
+# B 批（K2）rebase：23 项从 _whole_table_kind_facts 改为各自的域臂，old -> new 逐条如下——
+#   chain: _whole_table_kind_facts -> _chain_kind_facts
+#   demo_continue: _whole_table_kind_facts -> _demo_exit_kind_facts
+#   demo_end: _whole_table_kind_facts -> _demo_exit_kind_facts
+#   depart: _whole_table_kind_facts -> _depart_kind_facts
+#   departure: _whole_table_kind_facts -> _departure_kind_facts
+#   event: _whole_table_kind_facts -> _events_kind_facts
+#   hook: _whole_table_kind_facts -> _hook_kind_facts
+#   item_install: _whole_table_kind_facts -> _item_action_kind_facts
+#   item_retrieve: _whole_table_kind_facts -> _item_action_kind_facts
+#   manual: _whole_table_kind_facts -> _manual_kind_facts
+#   prison: _whole_table_kind_facts -> _prison_kind_facts
+#   relic_bundle: _whole_table_kind_facts -> _relic_bundle_kind_facts
+#   relic_control_done: _whole_table_kind_facts -> _relic_control_done_kind_facts
+#   rest_begin: _whole_table_kind_facts -> _rest_choice_kind_facts
+#   rest_card: _whole_table_kind_facts -> _rest_choice_kind_facts
+#   rest_flask: _whole_table_kind_facts -> _rest_choice_kind_facts
+#   rest_rare: _whole_table_kind_facts -> _rest_choice_kind_facts
+#   retain: _whole_table_kind_facts -> _retain_kind_facts
+#   retain_skip: _whole_table_kind_facts -> _retain_kind_facts
+#   reward: _whole_table_kind_facts -> _reward_kind_facts
+#   reward_skip: _whole_table_kind_facts -> _reward_kind_facts
+#   service: _whole_table_kind_facts -> _services_kind_facts
+#   travel_step: _whole_table_kind_facts -> _travel_step_kind_facts
 const FROZEN_TABLE_SOURCES={
- "chain":"_whole_table_kind_facts",
+ "chain":"_chain_kind_facts",
  "status_toggle":"_status_toggle_kind_facts",
  "posture":"_posture_kind_facts",
  "wall_move":"_wall_move_kind_facts",
- "manual":"_whole_table_kind_facts",
- "hook":"_whole_table_kind_facts",
+ "manual":"_manual_kind_facts",
+ "hook":"_hook_kind_facts",
  "end":"_flow_kind_facts",
  "calm":"_flow_kind_facts",
  "surrender":"_surrender_kind_facts",
  "item_use":"_item_use_kind_facts",
- "item_install":"_whole_table_kind_facts",
- "item_retrieve":"_whole_table_kind_facts",
+ "item_install":"_item_action_kind_facts",
+ "item_retrieve":"_item_action_kind_facts",
  "item_discard":"_item_discard_kind_facts",
  "finish_prepare":"_flow_kind_facts",
  "finish_rest":"_flow_kind_facts",
  "finish_pack":"_flow_kind_facts",
- "retain":"_whole_table_kind_facts",
- "retain_skip":"_whole_table_kind_facts",
- "rest_rare":"_whole_table_kind_facts",
- "rest_card":"_whole_table_kind_facts",
- "rest_flask":"_whole_table_kind_facts",
- "rest_begin":"_whole_table_kind_facts",
- "service":"_whole_table_kind_facts",
- "event":"_whole_table_kind_facts",
- "prison":"_whole_table_kind_facts",
- "depart":"_whole_table_kind_facts",
- "travel_step":"_whole_table_kind_facts",
- "reward":"_whole_table_kind_facts",
- "reward_skip":"_whole_table_kind_facts",
- "relic_bundle":"_whole_table_kind_facts",
- "departure":"_whole_table_kind_facts",
+ "retain":"_retain_kind_facts",
+ "retain_skip":"_retain_kind_facts",
+ "rest_rare":"_rest_choice_kind_facts",
+ "rest_card":"_rest_choice_kind_facts",
+ "rest_flask":"_rest_choice_kind_facts",
+ "rest_begin":"_rest_choice_kind_facts",
+ "service":"_services_kind_facts",
+ "event":"_events_kind_facts",
+ "prison":"_prison_kind_facts",
+ "depart":"_depart_kind_facts",
+ "travel_step":"_travel_step_kind_facts",
+ "reward":"_reward_kind_facts",
+ "reward_skip":"_reward_kind_facts",
+ "relic_bundle":"_relic_bundle_kind_facts",
+ "departure":"_departure_kind_facts",
  "flask":"_flask_kind_facts",
  "relic_toggle":"_relic_kind_facts",
  "relic_discharge":"_relic_kind_facts",
- "relic_control_done":"_whole_table_kind_facts",
- "demo_end":"_whole_table_kind_facts",
- "demo_continue":"_whole_table_kind_facts",
+ "relic_control_done":"_relic_control_done_kind_facts",
+ "demo_end":"_demo_exit_kind_facts",
+ "demo_continue":"_demo_exit_kind_facts",
 }
 const FROZEN_TAKEOVER_SOURCE="command_facts"
 
@@ -2528,10 +2571,10 @@ const FACT_UNIT_EXPECTATION={
  "pack":[["pack_items","_unit_item_action",""],["pack_flow","_unit_flow",""]],
  "action_tail":[["wall_move","_unit_wall_move",""],["posture","_unit_posture",""],["attack","_unit_attack",""],["equipment_spell","_unit_equipment_spell",""],["hand_cards","_unit_hand_cards",""],["manual","_unit_manual",""],["item_action","_unit_item_action",""],["hook","_unit_hook",""],["prison_tail","_unit_prison",""],["flow","_unit_flow",""]],
 }
-# 组列在 A 批夹具矩阵里观测不到的 (单元:组) 对（逐条给出理由）；判据双向核对：列出的必须真的观测不到
+# 组列在夹具矩阵里观测不到的 (单元:组) 对（逐条给出理由）；判据双向核对：列出的必须真的观测不到
 # （能观测到即红＝不能腐烂的豁免），未列的必须逐组观测到。
-# 理由：chain 与 phase 的 chain 组需要牌链夹具（本批夹具不建链）。
-const FACT_UNIT_GROUP_UNCOVERED=["phase:chain","chain:chain"]
+# B 批起为空：牌链夹具（flag:card_chain）落地后 phase 与 chain 的 chain 组已可观测，豁免逐条缩短为无。
+const FACT_UNIT_GROUP_UNCOVERED=[]
 const R5_BASELINE_PRE_DIGEST="0dc7b88d916be013171b69c93983f337"
 const R3_VIEW_MASK_PRE_DIGEST="744a18f9e02b9b54eb8faf1a8cd63421"
 const R5_VIEW_MASK_PRE_DIGEST="86b8713a03a3d68b842542cd2a0e362d"
@@ -2603,6 +2646,7 @@ static func fact_units_by_owner() -> Dictionary:
 static func fact_unit_enrich(g) -> void:
  # 覆盖 item／flask／status_toggle／item_discard 组列的状态垫片（不改规则，只改夹具输入）。
  g.state.items.append({"id":"item_probe","type":"mana_potion","uses":1,"mount":"carry"})
+ g.state.items.append({"id":"tool_probe","type":"saw","uses":2,"mount":"hand_wall"})
  g.state.flask_mana=40.0
  g.state.charge=2
 
@@ -2610,14 +2654,23 @@ static func fact_unit_states() -> Array:
  var out=[]
  for cell in r1_cells():
   out.append({"label":"cell:%s:%d" % [cell[0],cell[1]],"game":r1_build(cell[0],cell[1]),"phase_join":true})
+ out.append_array(branch_sweep_states())
+ return out
+
+# 相位 × 前缀扫描 ＋ 六个状态标志分支（B 批的等价 harness 与冻结矩阵、A 批的组列观测共用这一份声明：
+# 一处声明，两个判据消费；条目＝{"label","game","phase_join"}，domain_blocked 只做 _fact_source 面）。
+static func branch_sweep_states(game_class=null) -> Array:
+ var out=[]
  for phase in ["departure","rest_choice","reward","map","travel","cleared","pack","prison_end","captured","inspection","battle","prepare","rest"]:
   for variant in ["plain","relic_bundle","departure","domain_blocked"]:
-   var g=r1_build("battle",0)
+   var g=r1_build("battle",0,game_class)
    fact_unit_enrich(g)
    match variant:
     "relic_bundle": preload("res://core/relic_bundle.gd").start(g,"reward")
     "departure": preload("res://core/departure.gd").start(g)
-    "domain_blocked": g.state.special_equipment=[{"type":"no_such_special"}]
+    # domain_blocked：未注册类型的特殊装备使 command_domain_ready() 为假（B 批起本夹具也走 command_facts()，
+    # 故实例必须带 id——action_targets() 的 id 边要求每个目标有 id；类型仍是未注册值，域仍被阻断）。
+    "domain_blocked": g.state.special_equipment=[{"id":"no_such_special","type":"no_such_special"}]
    if phase=="departure" and g.state.departure.is_empty(): preload("res://core/departure.gd").start(g)
    g.state.phase=phase
    if phase=="travel":
@@ -2625,27 +2678,57 @@ static func fact_unit_states() -> Array:
     g.state.journey={"from":String(g.state.room),"target":String(ids[0]),"total":2,"remaining":2,"speed":1,"mode":"步行"}
    if phase=="inspection": g.state.prison={"stage":"arrival"}
    out.append({"label":"sweep:%s|%s" % [phase,variant],"game":g,"phase_join":variant!="domain_blocked"})
- var overloaded=r1_build("battle",0)
+ var overloaded=r1_build("battle",0,game_class)
  fact_unit_enrich(overloaded)
  overloaded.state.overloaded=true
  out.append({"label":"flag:overload_climax","game":overloaded,"phase_join":true})
- var retain=r1_build("battle",0)
+ var retain=r1_build("battle",0,game_class)
  fact_unit_enrich(retain)
  retain.state.pending_retain=true
  out.append({"label":"flag:pending_retain","game":retain,"phase_join":true})
- var spell=r1_build("battle",12)
+ var spell=r1_build("battle",12,game_class)
  fact_unit_enrich(spell)
  spell.state.card_buffs.append("flame_flourish_bound")
  out.append({"label":"flag:equipment_spell","game":spell,"phase_join":true})
- var rest_hook=r1_build("rest",0)
+ var rest_hook=r1_build("rest",0,game_class)
  fact_unit_enrich(rest_hook)
  rest_hook.state.hook_uses=3
  out.append({"label":"flag:hook","game":rest_hook,"phase_join":true})
- var demo=r1_build("battle",0)
+ var demo=r1_build("battle",0,game_class)
  fact_unit_enrich(demo)
  demo.room_data(demo.state.room).kind="exit"
  demo.state.phase="cleared"
  out.append({"label":"flag:demo_exit","game":demo,"phase_join":true})
+ var chain_g=r1_build("battle",12,game_class)
+ fact_unit_enrich(chain_g)
+ chain_g.state.card_chain={"type":"unlock","slot":"","remaining":1,"mode":"unlock","free":false}
+ out.append({"label":"flag:card_chain","game":chain_g,"phase_join":true})
+ var rest_card=r1_build("rest",0,game_class)
+ fact_unit_enrich(rest_card)
+ rest_card.state.phase="rest_choice"
+ rest_card.state.rest_cards=["focus"]
+ out.append({"label":"flag:rest_card","game":rest_card,"phase_join":true})
+ var reward_skip=r1_build("battle",0,game_class)
+ fact_unit_enrich(reward_skip)
+ reward_skip.state.phase="reward"
+ reward_skip.state.reward_options=["focus"]
+ out.append({"label":"flag:reward_skip","game":reward_skip,"phase_join":true})
+ var relic_rows=r1_build("battle",12,game_class)
+ fact_unit_enrich(relic_rows)
+ relic_rows.state.relics.append("great_wand")
+ relic_rows.state.relics.append("doubao")
+ out.append({"label":"flag:relic_rows","game":relic_rows,"phase_join":true})
+ # 前缀分支带装备的两态：前缀分支只跑三／一个前缀单元，而臂的守卫若被写坏（漏了前缀排除）在有目标时会多产行——
+ # 这一对夹具是「域臂行集 ⊆ 表行集」这一层的唯一触发面（其余前缀态没有装备目标）。
+ var relics_equipped=r1_build("battle",12,game_class)
+ fact_unit_enrich(relics_equipped)
+ preload("res://core/relic_bundle.gd").start(relics_equipped,"reward")
+ out.append({"label":"flag:relic_bundle_equipped","game":relics_equipped,"phase_join":true})
+ var departure_equipped=r1_build("battle",12,game_class)
+ fact_unit_enrich(departure_equipped)
+ preload("res://core/departure.gd").start(departure_equipped)
+ departure_equipped.state.phase="departure"
+ out.append({"label":"flag:departure_equipped","game":departure_equipped,"phase_join":true})
  return out
 
 # 测试侧连接重放（与 core/game.gd::_join_fact_units 同一通道语义：按表序调每个 producer，累积表前传）。
@@ -2846,13 +2929,16 @@ static func fact_lookup_mutations(kind: String, params: Dictionary, mutation_ids
    var combo=raised.duplicate(); combo.charge_action=not bool(params.get("charge_action",false)); out.append(combo)
  return out
 
-static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fixture: String) -> Dictionary:
- var rows=g.command_facts().filter(func(row):return String(row.payload.get("kind",""))==kind)
+static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fixture: String, announce: bool=true, table: Variant=null) -> Dictionary:
+ # table 可传入调用方已取的整表（同一夹具多 kind 复用时避免重复建表；缺省＝本函数自取，语义不变）。
+ var rows=(g.command_facts() if table==null else table).filter(func(row):return String(row.payload.get("kind",""))==kind)
  # 步骤 3 的期望集合（acceptance §2：只此一步询 keys；方向①／②的期望仍只取表与变异语料）。
+ # 表形 kind 的登记项没有 keys／build／member（K2 后来源是各域臂），故 B 批起跳过该步。
  var entry=CommandRegistry.entry(kind)
+ var point_form=String(entry.get("form",""))=="point"
  var member_name=String(entry.get("member",""))
  var key_set={}
- for candidate in g.call(String(entry.get("keys","")),g):
+ for candidate in (g.call(String(entry.get("keys","")),g) if point_form else []):
   key_set[JSON.stringify(g.command_params(kind,candidate))]=true
  var coverage={"dir1":0,"dir2":0,"keys":0,"member":0,"duplicates":0,"distinct_duplicates":0,"families":{},"mutation_families":{},"branches":{}}
  var first_of={}
@@ -2879,9 +2965,10 @@ static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fix
    coverage.duplicates+=1
    if JSON.stringify(row)!=JSON.stringify(first): coverage.distinct_duplicates+=1
   # 步骤 3（acceptance §2；plan §3 不变量 5）：member 谓词对表行与每个变异向量都必须等于 keys 的归一化集合
-  # ——point 由 member∧build 组成，build 会掩盖过宽的 member，故在此直接问谓词。
-  t.check(bool(g.call(member_name,g,params))==key_set.has(key),"fact_lookup_equivalence[%s]: member equals the keys set kind=%s params=%s" % [fixture,kind,key])
-  coverage.member+=1
+  # ——point 由 member∧build 组成，build 会掩盖过宽的 member，故在此直接问谓词。表形 kind 无 member，跳过。
+  if point_form:
+   t.check(bool(g.call(member_name,g,params))==key_set.has(key),"fact_lookup_equivalence[%s]: member equals the keys set kind=%s params=%s" % [fixture,kind,key])
+   coverage.member+=1
   for mutation in fact_lookup_mutations(kind,params,mutation_ids):
    var mutated=g.command_params(kind,mutation)
    var mutated_key=JSON.stringify(mutated)
@@ -2890,9 +2977,10 @@ static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fix
     if g.command_params(kind,other.payload)==mutated: in_table=true; break
    var accepted=not CommandRegistry.point(g,kind,mutated).is_empty()
    t.check(accepted==in_table,"fact_lookup_equivalence[%s]: direction 2 mutation agrees with the table kind=%s accepted=%s in_table=%s params=%s" % [fixture,kind,str(accepted),str(in_table),mutated_key])
-   t.check(bool(g.call(member_name,g,mutated))==key_set.has(mutated_key),"fact_lookup_equivalence[%s]: member equals the keys set on the mutation kind=%s params=%s" % [fixture,kind,mutated_key])
+   if point_form:
+    t.check(bool(g.call(member_name,g,mutated))==key_set.has(mutated_key),"fact_lookup_equivalence[%s]: member equals the keys set on the mutation kind=%s params=%s" % [fixture,kind,mutated_key])
+    coverage.member+=1
    coverage.dir2+=1
-   coverage.member+=1
    var mutation_family=fact_lookup_family(g,kind,mutated)
    coverage.mutation_families[mutation_family]=int(coverage.mutation_families.get(mutation_family,0))+1
  # 每个枚举键都必须出现在该状态的表里（防「View 从未提供、直出却接受」）。
@@ -2904,14 +2992,343 @@ static func fact_lookup_equivalence(t, g, kind: String, mutation_ids: Array, fix
   coverage.keys+=1
  # C7（gherkin S2-3；两侧都取自登记项，只做「View 生产者 = keys × build」一致性，不替代方向①／②）：
  # 该 kind 的表行序列（含家族顺序）逐项等于 keys 的点构造投影。接管期表行带 select 标注，跳过该步。
- if not FirstTurnControl.active(g):
+ # 表形 kind 没有 keys 枚举，跳过（其唯一枚举是表自身，见 C-B-2 的跨夹具语料层）。
+ if point_form and not FirstTurnControl.active(g):
   var built=[]
   for candidate in g.call(String(entry.get("keys","")),g):
    var raw=CommandRegistry.point(g,kind,candidate)
    if not raw.is_empty(): built.append(g.display_fact(raw))
   t.check(built==rows,"fact_lookup_equivalence[%s]: the view rows equal keys times build kind=%s" % [fixture,kind])
- print("FACT LOOKUP fixture=%s kind=%s dir1_rows=%d dir2_mutations=%d keys=%d member=%d duplicates=%d distinct=%d dir1_families=%s dir2_families=%s branches=%s" % [fixture,kind,coverage.dir1,coverage.dir2,coverage.keys,coverage.member,coverage.duplicates,coverage.distinct_duplicates,str(coverage.families),str(coverage.mutation_families),str(coverage.branches)])
+ if announce:
+  print("FACT LOOKUP fixture=%s kind=%s dir1_rows=%d dir2_mutations=%d keys=%d member=%d duplicates=%d distinct=%d dir1_families=%s dir2_families=%s branches=%s" % [fixture,kind,coverage.dir1,coverage.dir2,coverage.keys,coverage.member,coverage.duplicates,coverage.distinct_duplicates,str(coverage.families),str(coverage.mutation_families),str(coverage.branches)])
  return coverage
+
+# ==== B 批（K2；plan §3 B 段）====
+# 全 39 kind 的双向等价 harness（C-B-2；gherkin B-1／B-2）两层：
+#  ①逐夹具逐 kind：方向①（点查询 == 该 kind 表内首条 params 命中行）／方向②（变异 params 的接受集 == 表成员集）
+#    与点形 kind 的 keys／member 步骤；表形 kind 跳过 keys／member（登记项没有这三个字段，K2 后来源是域臂）。
+#  ②跨夹具成员语料：任何夹具里出现过的 params，在该夹具内必须「被接受 ⟺ 是表成员」——逐夹具的变异语料
+#    抓不到过宽臂（只在某分支产行的 kind 若在该分支之外仍被接受，在这一层即红）。
+# 期望侧独立（acceptance §3）：两个方向的期望都只取自该状态的 command_facts() 行与表行 params，
+# 不取自登记项、域臂实现或 keys 枚举。接管夹具不进本矩阵（接管期取行经 TAKEOVER_SOURCE 整表扫描，
+# 由 point_query_builds_no_table 的声明豁免与 command_fact_kind_lookup 的接管行等价另证）。
+const TABLE_KIND_TAKEOVER_ONLY=["relic_control_done"]
+# 跨夹具成员语料：每个 kind 最多保留 CROSS_FIXTURE_CORPUS_CAP 个来自不同夹具的归一化 params（打印实际条数，
+# 不静默截断）；阶段②对每个夹具每 kind 至多探测 CROSS_FIXTURE_PROBES_PER_KIND 条「来自别的分支」的语料。
+const CROSS_FIXTURE_CORPUS_CAP=16
+const CROSS_FIXTURE_PROBES_PER_KIND=2
+# r1_cells 的装配件数维度：本 harness 取 0／12 两档，稠密档由 t4_dense_51()（51 件、334 行）承担
+# ——表形 kind 的行数与分支面在这两处已覆盖，26／44 档由 attack／card 的点形 harness 与 G6 基线各自覆盖。
+const FACT_LOOKUP_ALL_KIND_COUNTS=[0,12]
+
+static func fact_lookup_all_kind_fixtures() -> Array:
+ var out=[]
+ for cell in r1_cells():
+  if cell[0]=="takeover" or cell[1] not in FACT_LOOKUP_ALL_KIND_COUNTS: continue
+  out.append(["%s:%d" % [cell[0],cell[1]],r1_build(cell[0],cell[1])])
+ out.append(["dense_51",t4_dense_51()])
+ for entry in branch_sweep_states(): out.append([String(entry.label),entry.game])
+ return out
+
+# 该状态下该 kind 的表成员集（归一化 params 的集合；期望侧只取表行）。
+static func fact_lookup_table_keys(g, kind: String, table: Variant=null) -> Dictionary:
+ var out={}
+ var rows=(g.command_facts() if table==null else table)
+ for row in rows:
+  if String(row.payload.get("kind",""))!=kind: continue
+  out[JSON.stringify(g.command_params(kind,row.payload))]=g.command_params(kind,row.payload)
+ return out
+
+static func fact_lookup_all_kinds(t) -> void:
+ var fixtures=fact_lookup_all_kind_fixtures()
+ var tables=[]
+ for entry in fixtures: tables.append(entry[1].command_facts())
+ var corpus={}
+ var corpus_total={}
+ var presence={}
+ for index in range(fixtures.size()):
+  var g=fixtures[index][1]
+  var branch=g._phase_branch()
+  for kind in GameCore.COMMAND_KEYS:
+   var keys=fact_lookup_table_keys(g,kind,tables[index])
+   if not keys.is_empty(): presence[kind]=int(presence.get(kind,0))+1
+   for key in keys:
+    corpus_total[kind]=int(corpus_total.get(kind,0))+1
+    var list=corpus.get(kind,[])
+    var duplicated=list.any(func(row):return JSON.stringify(row.params)==key)
+    if not duplicated and list.size()<CROSS_FIXTURE_CORPUS_CAP: list.append({"branch":branch,"params":keys[key]})
+    corpus[kind]=list
+ var totals={"dir1":0,"dir2":0,"keys":0,"member":0,"duplicates":0}
+ var compared=0
+ for index in range(fixtures.size()):
+  var g=fixtures[index][1]
+  for kind in GameCore.COMMAND_KEYS:
+   var coverage=fact_lookup_equivalence(t,g,kind,FACT_LOOKUP_MUTATION_IDS,String(fixtures[index][0]),false,tables[index])
+   for field in totals: totals[field]=int(totals[field])+int(coverage[field])
+   compared+=1
+ t.check(compared==fixtures.size()*GameCore.COMMAND_KEYS.size(),"fact_lookup_all_kinds: every fixture x kind pair was compared have="+str(compared)+" want="+str(fixtures.size()*GameCore.COMMAND_KEYS.size()))
+ t.check(int(totals.dir1)>0 and int(totals.dir2)>0 and int(totals.keys)>0 and int(totals.member)>0,"fact_lookup_all_kinds: the harness compared rows, mutations, enumerated keys and member predicates: "+str(totals))
+ # 覆盖非空（缺夹具即红）：除只由接管注入的 kind 外，每个 kind 必须在某个夹具的表里产行。
+ var empty=[]
+ for kind in GameCore.COMMAND_KEYS:
+  if int(presence.get(kind,0))==0 and kind not in TABLE_KIND_TAKEOVER_ONLY: empty.append(kind)
+ t.check(empty.is_empty(),"fact_lookup_all_kinds: every kind except the takeover-only one appears in the table matrix (missing fixtures): "+str(empty))
+ var batch_gaps=batch_kind_sources().keys().filter(func(kind):return not presence.has(kind) and kind not in TABLE_KIND_TAKEOVER_ONLY)
+ t.check(batch_gaps.is_empty(),"fact_lookup_all_kinds: every one of the 23 rebased kinds is exercised by the matrix: "+str(batch_gaps))
+ t.check(presence.size()>=38,"fact_lookup_all_kinds: the fixture matrix exercises every kind but the takeover-only one have="+str(presence.size()))
+ # ②跨夹具成员语料（抓过宽臂）：每个夹具 × 每个 kind 用「来自别的分支」的语料向量探测至多 CROSS_FIXTURE_PROBES_PER_KIND 条，
+ # 断言「接受 ⟺ 是表成员」。语料条数与探测数逐项打印，不静默截断。
+ var cross_problems=[]
+ var cross_compared=0
+ for index in range(fixtures.size()):
+  var g=fixtures[index][1]
+  var branch=g._phase_branch()
+  var member={}
+  for kind in GameCore.COMMAND_KEYS: member[kind]=fact_lookup_table_keys(g,kind,tables[index])
+  for kind in GameCore.COMMAND_KEYS:
+   var probes=corpus.get(kind,[]).filter(func(row):return String(row.branch)!=branch)
+   var used=0
+   for row in probes:
+    if used>=CROSS_FIXTURE_PROBES_PER_KIND: break
+    used+=1
+    var normalized=g.command_params(kind,row.params)
+    var accepted=not CommandRegistry.point(g,kind,normalized).is_empty()
+    cross_compared+=1
+    if accepted!=member[kind].has(JSON.stringify(normalized)): cross_problems.append("%s:%s accepted=%s in_table=%s params=%s" % [String(fixtures[index][0]),kind,str(accepted),str(member[kind].has(JSON.stringify(normalized))),JSON.stringify(normalized)])
+ t.check(cross_problems.is_empty(),"fact_lookup_all_kinds: the cross-fixture member corpus agrees with the table (over-wide arms redden here): "+str(cross_problems.slice(0,6)))
+ t.check(cross_compared>0,"fact_lookup_all_kinds: the cross-fixture corpus compared at least one vector per exercised kind have="+str(cross_compared))
+ # ③域臂行集 ⊆ 该夹具的表行集：参数无关的臂（state 派生行）在它不该产行的分支里若仍产行即红——逐夹具的变异语料
+ # 抓不到这一类（跨夹具 params 在本夹具里天然不命中），故单列一层，每夹具每 kind 只调一次臂。
+ var arm_problems=[]
+ var arm_compared=0
+ for index in range(fixtures.size()):
+  var g=fixtures[index][1]
+  for kind in GameCore.COMMAND_KEYS:
+   var source=String(CommandRegistry.entry(kind).get("source",""))
+   if source.is_empty(): continue
+   var vector=corpus.get(kind,[])
+   var canonical=g.command_params(kind,{} if vector.is_empty() else vector[0].params)
+   var table_params=fact_lookup_table_keys(g,kind,tables[index])
+   for raw in g.call(source,kind,canonical):
+    if String(raw.payload.get("kind",""))!=kind: continue
+    var normalized=g.command_params(kind,raw.payload)
+    arm_compared+=1
+    if not table_params.has(JSON.stringify(normalized)): arm_problems.append("%s:%s arm row outside the table params=%s" % [String(fixtures[index][0]),kind,JSON.stringify(normalized)])
+ t.check(arm_problems.is_empty(),"fact_lookup_all_kinds: every domain arm row is a table row of the same fixture (a state-derived arm that ignores its branch reddens here): "+str(arm_problems.slice(0,6)))
+ t.check(arm_compared>0,"fact_lookup_all_kinds: the arm row-set layer compared at least one arm row have="+str(arm_compared))
+ print("FACT LOOKUP ALL KINDS fixtures=%d pairs=%d dir1_rows=%d dir2_mutations=%d keys=%d member=%d corpus_kinds=%d cross=%d arm_rows=%d kinds_with_rows=%d" % [fixtures.size(),compared,totals.dir1,totals.dir2,totals.keys,totals.member,corpus_total.size(),cross_compared,arm_compared,presence.size()])
+
+# ==== B 批（K2）判据：域臂守卫、点查询不建整表、分支/前缀态冻结 ====
+# 域臂守卫的期望侧（缺口 2；A 批审查归 B 批）：23 项新域臂（16 个方法）必须经 _phase_branch() 取分支——
+# 判据扫的是域臂体（不只 _phase_facts 体），所以「在臂里各抄一份早退链」拿不到绿灯。9 个 K0 之前的窄来源
+# 用 domain 合成守卫（command_domain_ready／command_tail／相位守卫），逐条豁免并双向核对：列了却没豁免、
+# 没列却豁免都红（豁免不能腐烂）。期望侧写在本文件，不取自登记表。
+const BATCH_ARM_SOURCES=["_chain_kind_facts","_manual_kind_facts","_hook_kind_facts","_item_action_kind_facts","_retain_kind_facts","_rest_choice_kind_facts","_services_kind_facts","_events_kind_facts","_prison_kind_facts","_depart_kind_facts","_reward_kind_facts","_relic_bundle_kind_facts","_departure_kind_facts","_travel_step_kind_facts","_demo_exit_kind_facts","_relic_control_done_kind_facts"]
+const PHASE_BRANCH_ARM_EXEMPT=["_flow_kind_facts","_relic_kind_facts","_wall_move_kind_facts","_surrender_kind_facts","_status_toggle_kind_facts","_posture_kind_facts","_item_use_kind_facts","_item_discard_kind_facts","_flask_kind_facts"]
+# 恒空臂（不选分支故不该有守卫）：接管结束行只由 FirstTurnControl.select 注入，非接管期的整表里没有这个 kind
+# 的行——"它在任何分支都不产行"由 fact_lookup_all_kinds 的 TABLE_KIND_TAKEOVER_ONLY 覆盖断言证明。
+const BATCH_ARM_GUARDLESS=["_relic_control_done_kind_facts"]
+
+# kind → 域臂（被测实现；身份由 domain_arm_guards_call_phase_branch 的双向核对与 FROZEN_TABLE_SOURCES 钉住）。
+static func batch_kind_sources() -> Dictionary:
+ var out={}
+ for kind in table_kinds():
+  var source=String(CommandRegistry.entry(kind).get("source",""))
+  if source in BATCH_ARM_SOURCES: out[kind]=source
+ return out
+
+# 缺口 2（归 B 批）：每个域臂的守卫必须调用 _phase_branch()（域臂体，不只 _phase_facts 体）。
+static func domain_arm_guards_call_phase_branch(t) -> void:
+ var sources={}
+ for kind in table_kinds(): sources[String(CommandRegistry.entry(kind).get("source",""))]=kind
+ var missing=BATCH_ARM_SOURCES.filter(func(name):return not sources.has(name))
+ var extra=sources.keys().filter(func(name):return name not in BATCH_ARM_SOURCES and name not in PHASE_BRANCH_ARM_EXEMPT)
+ t.check(missing.is_empty() and extra.is_empty(),"domain_arm_guards_call_phase_branch: every table entry is either a declared domain arm or a named pre-K0 exemption (two-way): missing="+str(missing)+" extra="+str(extra))
+ var unguarded=[]
+ var guardless_with_branch=[]
+ for name in BATCH_ARM_SOURCES:
+  if not sources.has(name): continue
+  var body=source_func_body_code("res://core/game.gd",name)
+  var guarded=body.find("_phase_branch(")>=0
+  if not guarded and name not in BATCH_ARM_GUARDLESS: unguarded.append(name)
+  if guarded and name in BATCH_ARM_GUARDLESS: guardless_with_branch.append(name)
+ t.check(unguarded.is_empty(),"domain_arm_guards_call_phase_branch: every domain arm takes its branch from _phase_branch() (a copied early-return chain is never the guard): "+str(unguarded))
+ t.check(guardless_with_branch.is_empty(),"domain_arm_guards_call_phase_branch: the declared branchless (always empty) arm cannot rot: "+str(guardless_with_branch))
+ for name in BATCH_ARM_GUARDLESS:
+  var body=source_func_body_code("res://core/game.gd",name)
+  t.check(body.strip_edges()=="return []","domain_arm_guards_call_phase_branch: the branchless arm stays a constant empty answer (no branch, no producer): "+name+" body="+body.strip_edges())
+ var stale=PHASE_BRANCH_ARM_EXEMPT.filter(func(name):return sources.has(name) and source_func_body_code("res://core/game.gd",name).find("_phase_branch(")>=0)
+ t.check(stale.is_empty(),"domain_arm_guards_call_phase_branch: the exemption list cannot rot (an exempt arm that starts guarding is red): "+str(stale))
+ t.check(BATCH_ARM_SOURCES.size()==16 and PHASE_BRANCH_ARM_EXEMPT.size()==9 and BATCH_ARM_GUARDLESS.size()==1,"domain_arm_guards_call_phase_branch: the declared arm sets keep their size (16 domain arms + 9 pre-K0 exemptions + 1 branchless arm)")
+ print("DOMAIN ARM GUARDS arms=%d exempt=%d guardless=%d unguarded=0" % [BATCH_ARM_SOURCES.size(),PHASE_BRANCH_ARM_EXEMPT.size(),BATCH_ARM_GUARDLESS.size()])
+
+# C-B-4（K2；gherkin B-4）：整表来源不再是点查询的答案——登记表文本不再出现整表来源名；每个 table kind 的
+# 臂体不调 _fact_source()／command_facts()；_kind_facts 与 _item_use_kind_facts 无整表回落；23 项把 source
+# 指回自己的域臂（少改／多改都红）。FROZEN_TABLE_SOURCES 的 23 项同批 rebase（old→new 见其注释）。
+static func point_sources_are_kind_limited(t) -> void:
+ var registry=source_text("core/command_registry.gd")
+ t.check(not registry.contains("_whole_table_kind_facts"),"point_sources_are_kind_limited: no registry entry names the whole-table source any more")
+ var bad=[]
+ for kind in table_kinds():
+  var source=String(CommandRegistry.entry(kind).get("source",""))
+  if source.is_empty():
+   bad.append(kind+"=<empty>")
+   continue
+  var body=source_func_body_code("res://core/game.gd",source)
+  if body.strip_edges().is_empty(): bad.append(kind+":"+source+"=<no body>")
+  elif body.find("_fact_source(")>=0 or body.find("command_facts(")>=0: bad.append(kind+":"+source+"=whole-table call")
+ t.check(bad.is_empty(),"point_sources_are_kind_limited: every table arm answers from its own producer (no whole-table call in the point path): "+str(bad))
+ var kind_body=source_func_body_code("res://core/game.gd","_kind_facts")
+ t.check(not kind_body.strip_edges().is_empty() and kind_body.find("_fact_source(")<0,"point_sources_are_kind_limited: _kind_facts never falls back to _fact_source()")
+ var item_use_body=source_func_body_code("res://core/game.gd","_item_use_kind_facts")
+ t.check(not item_use_body.strip_edges().is_empty() and item_use_body.find("_fact_source(")<0,"point_sources_are_kind_limited: the item_use arm keeps no whole-table residual")
+ var batch=batch_kind_sources()
+ t.check(batch.size()==23,"point_sources_are_kind_limited: the 23 rebased kinds stay on their domain arms have="+str(batch.size())+" "+str(batch.keys().filter(func(kind):return true)))
+ print("POINT SOURCES KIND LIMITED kinds=%d arms=%d known=%d" % [table_kinds().size(),BATCH_ARM_SOURCES.size(),batch.size()])
+
+# C-B-3（K2；gherkin B-3）：点查询不建整表——测试侧计数子类逐次统计 _fact_source／command_facts 调用；可行动期
+# 每个 table 形 kind 的一次 command_fact 必须为 0；接管期按声明豁免（走 TAKEOVER_SOURCE 整表扫描＝1，与今天相同）；
+# 覆盖非空：23 项新域臂里至少 POINT_LOOKUP_COVERAGE_FLOOR 项在夹具矩阵上命中非空行（全 0 即红）。
+const POINT_LOOKUP_COVERAGE_FLOOR=15
+
+static func point_query_builds_no_table(t) -> void:
+ var fixtures=[]
+ for cell in r1_cells():
+  if cell[0]=="takeover" or cell[1] not in FACT_LOOKUP_ALL_KIND_COUNTS: continue
+  fixtures.append(["%s:%d" % [cell[0],cell[1]],r1_build(cell[0],cell[1],PointLookupCountingGame)])
+ for sweep in branch_sweep_states(PointLookupCountingGame): fixtures.append([String(sweep.label),sweep.game])
+ var kinds=table_kinds()
+ var hits={}
+ var compared=0
+ var problems=[]
+ for entry in fixtures:
+  var g=entry[1]
+  var table=g.command_facts()
+  for kind in kinds:
+   var row={}
+   for candidate in table:
+    if String(candidate.payload.get("kind",""))==kind: row=candidate; break
+   if row.is_empty(): continue
+   g.reset_point_lookup_counts()
+   var found=g.command_fact(g.command(row.payload,g.state.version))
+   compared+=1
+   if kind in BATCH_ARM_SOURCES or String(CommandRegistry.entry(kind).get("source","")) in BATCH_ARM_SOURCES: hits[kind]=true
+   if not (found==row and g.fact_source_calls==0 and g.command_facts_calls==0): problems.append("%s:%s fact_source=%d command_facts=%d equal=%s" % [String(entry[0]),kind,g.fact_source_calls,g.command_facts_calls,str(found==row)])
+ t.check(problems.is_empty(),"point_query_builds_no_table: one command_fact answers from the kind arm without building the table: "+str(problems.slice(0,6)))
+ t.check(compared>0,"point_query_builds_no_table: the fixture matrix answered at least one table-form kind have="+str(compared))
+ var covered=hits.keys().filter(func(kind):return batch_kind_sources().has(kind))
+ t.check(covered.size()>=POINT_LOOKUP_COVERAGE_FLOOR,"point_query_builds_no_table: at least "+str(POINT_LOOKUP_COVERAGE_FLOOR)+" of the 23 rebased kinds hit a non-empty row have="+str(covered.size())+" "+str(covered))
+ # 接管期声明豁免：select 标注的那一步仍经 TAKEOVER_SOURCE 的整表扫描一次（与改动前相同）；relic_control_done
+ # 的行只由 FirstTurnControl.select 注入，点查询路径对它恒为空（臂体恒空，见 domain_arm_guards_call_phase_branch）。
+ var takeover=r1_build("takeover",0,PointLookupCountingGame)
+ var automated={}
+ for candidate in takeover.command_facts():
+  if bool(candidate.get("automated",false)): automated=candidate; break
+ t.check(not automated.is_empty(),"point_query_builds_no_table: the takeover fixture carries the step selected by FirstTurnControl.select")
+ t.check(CommandRegistry.point(takeover,"relic_control_done",{}).is_empty(),"point_query_builds_no_table: the relic_control_done arm stays empty (the injected row is never answered by the point path)")
+ takeover.reset_point_lookup_counts()
+ var found=takeover.command_fact(takeover.command(automated.payload,takeover.state.version))
+ t.check(found==automated,"point_query_builds_no_table: the takeover phase answers the selected row")
+ t.check(takeover.command_facts_calls==1 and takeover.fact_source_calls==1,"point_query_builds_no_table: the takeover exemption is exactly one declared whole-table build: command_facts="+str(takeover.command_facts_calls)+" fact_source="+str(takeover.fact_source_calls))
+ print("POINT QUERY NO TABLE fixtures=%d kinds_answered=%d rebased_covered=%d takeover_builds=1" % [fixtures.size(),compared,covered.size()])
+
+# 缺口 1（A 批审查归 B 批）：冻结矩阵扩到前缀/分支态。26 cell 不含前缀态（relic_bundle／departure／
+# domain_blocked）与 rest_choice／reward／travel／map／cleared／pack 等分支，前缀零移动此前只有 build/ 的
+# 差分探针能证（仓库内不可重放）。本判据把 branch_sweep_states() 的每个状态逐条冻结成行面摘要：
+# 期望侧＝B 批动工前实测值（写在测试内，不取自实现）；状态集合双向核对（缺一个／多一个都红）。
+const PREFIX_BRANCH_TABLE_BASELINE={
+ "sweep:departure|plain":["departure","8","0a2f9d0dde945abd70b6d831f6e00ea0"],
+ "sweep:departure|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:departure|departure":["departure","8","0a2f9d0dde945abd70b6d831f6e00ea0"],
+ "sweep:departure|domain_blocked":["departure","8","0a2f9d0dde945abd70b6d831f6e00ea0"],
+ "sweep:rest_choice|plain":["rest_choice","8","98abf02bd8fdb98609908f6b14442e6a"],
+ "sweep:rest_choice|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:rest_choice|departure":["rest_choice","8","98abf02bd8fdb98609908f6b14442e6a"],
+ "sweep:rest_choice|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:reward|plain":["reward","7","14c4306fcbef8a2e93b2ed5bf401432d"],
+ "sweep:reward|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:reward|departure":["reward","7","14c4306fcbef8a2e93b2ed5bf401432d"],
+ "sweep:reward|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:map|plain":["map","8","a507c6c80ccbb62052b1371922fb8f1e"],
+ "sweep:map|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:map|departure":["map","8","a507c6c80ccbb62052b1371922fb8f1e"],
+ "sweep:map|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:travel|plain":["travel","7","be781114facff18ea4f28a93ba56746c"],
+ "sweep:travel|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:travel|departure":["travel","7","be781114facff18ea4f28a93ba56746c"],
+ "sweep:travel|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:cleared|plain":["cleared","2","d87610942815b24e6660de917451defe"],
+ "sweep:cleared|relic_bundle":["relic_bundle","7","e09edecb14b88418e58a6d14523ac0b8"],
+ "sweep:cleared|departure":["cleared","2","d87610942815b24e6660de917451defe"],
+ "sweep:cleared|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:pack|plain":["pack","10","98237f175a56ee564dfff2cf1d9ad562"],
+ "sweep:pack|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:pack|departure":["pack","10","98237f175a56ee564dfff2cf1d9ad562"],
+ "sweep:pack|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:prison_end|plain":["prison_end","2","d87610942815b24e6660de917451defe"],
+ "sweep:prison_end|relic_bundle":["relic_bundle","7","e09edecb14b88418e58a6d14523ac0b8"],
+ "sweep:prison_end|departure":["prison_end","2","d87610942815b24e6660de917451defe"],
+ "sweep:prison_end|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:captured|plain":["captured_inspection","7","25b29176db3b31f05af7311596afc648"],
+ "sweep:captured|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:captured|departure":["captured_inspection","7","25b29176db3b31f05af7311596afc648"],
+ "sweep:captured|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:inspection|plain":["captured_inspection","8","c170407313358f9de4c81f218f34267c"],
+ "sweep:inspection|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:inspection|departure":["captured_inspection","8","c170407313358f9de4c81f218f34267c"],
+ "sweep:inspection|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:battle|plain":["action_tail","93","d96ae17e030d62e74c18a203fd4d320e"],
+ "sweep:battle|relic_bundle":["relic_bundle","8","609bfddb170311c1bb37d8b7048e22ac"],
+ "sweep:battle|departure":["action_tail","93","d96ae17e030d62e74c18a203fd4d320e"],
+ "sweep:battle|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:prepare|plain":["action_tail","77","b07f66d574b1dba809c46d5fb9584cb1"],
+ "sweep:prepare|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:prepare|departure":["action_tail","77","b07f66d574b1dba809c46d5fb9584cb1"],
+ "sweep:prepare|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "sweep:rest|plain":["action_tail","77","3d12980be9bc26285e3042ca3afe2b63"],
+ "sweep:rest|relic_bundle":["relic_bundle","9","db85dae4e279769ca6bbe9a1daa3a82d"],
+ "sweep:rest|departure":["action_tail","77","3d12980be9bc26285e3042ca3afe2b63"],
+ "sweep:rest|domain_blocked":["domain_blocked","0","4f53cda18c2baa0c0354bb5f9a3ecbe5"],
+ "flag:overload_climax":["overload_climax","6","63ef64aa6bfbda1da4da1baeb6a906da"],
+ "flag:pending_retain":["pending_retain","12","690c89746a256c4edb8faec68cc3a51e"],
+ "flag:equipment_spell":["action_tail","117","3083d4f26a695223cb874ce9ac0489bd"],
+ "flag:hook":["action_tail","83","c394592c05218962ab1cdc265694e160"],
+ "flag:demo_exit":["cleared","4","0df86713c77f877b4564e49107737275"],
+ "flag:card_chain":["card_chain","7","682afed1b5f48406d4122b3d0218375a"],
+ "flag:rest_card":["rest_choice","11","91a85d569516914243cea1d080feee90"],
+ "flag:reward_skip":["reward","9","c5658346f0bba2c8e302c725e3f2ebb1"],
+ "flag:relic_rows":["action_tail","107","ed5f98fb08d19501e8b2976317cb26ea"],
+ "flag:relic_bundle_equipped":["relic_bundle","8","e7dccde4536f9d304e05b8c58ef03857"],
+ "flag:departure_equipped":["departure","8","0a2f9d0dde945abd70b6d831f6e00ea0"],
+}
+
+static func prefix_branch_table_face(g) -> String:
+ var rows=g.command_facts()
+ return r1_digest(JSON.stringify(rows.map(func(row):return [String(row.get("key","")),bool(row.get("valid",false)),String(row.get("reason","")),String(row.get("group","")),row.get("payload",{})])))
+
+static func prefix_branch_tables_are_frozen(t) -> void:
+ var states=branch_sweep_states()
+ var declared=PREFIX_BRANCH_TABLE_BASELINE.keys()
+ var missing=[]
+ var moved=[]
+ var compared=0
+ for entry in states:
+  var label=String(entry.label)
+  declared=declared.filter(func(name):return String(name)!=label)
+  if not PREFIX_BRANCH_TABLE_BASELINE.has(label):
+   missing.append(label)
+   continue
+  var g=entry.game
+  var rows=g.command_facts()
+  var have=[g._phase_branch(),str(rows.size()),prefix_branch_table_face(g)]
+  var want=PREFIX_BRANCH_TABLE_BASELINE[label]
+  compared+=1
+  if JSON.stringify(have)!=JSON.stringify(want): moved.append(label+" have="+JSON.stringify(have)+" want="+JSON.stringify(want))
+ t.check(missing.is_empty() and declared.is_empty(),"prefix_branch_tables_are_frozen: the fixture sweep and the frozen table are two-way total (missing="+str(missing)+" extra="+str(declared)+")")
+ t.check(moved.is_empty(),"prefix_branch_tables_are_frozen: every branch/prefix state keeps its frozen table face (a prefix move is red, never a silent edit): "+str(moved.slice(0,4)))
+ t.check(compared>=48,"prefix_branch_tables_are_frozen: the sweep covered the branch matrix (coverage floor): "+str(compared))
+ print("PREFIX BRANCH TABLES FROZEN states=%d moved=%d" % [compared,moved.size()])
+
 
 # 装备自解家族夹具（非战斗阶段正例；S2 出口判据要求至少一个非战斗阶段实跑）。
 static func attack_self_release_fixture(phase: String, count: int, game_class=null):
