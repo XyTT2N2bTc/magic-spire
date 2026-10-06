@@ -125,6 +125,65 @@ const FACT_UNITS=[
 # _fact_source 的三个前缀 owner（"main" 只在这三者之外到达；core/game.gd::_phase_branch 的前三个 id）。
 const FACT_PREFIX_OWNERS=["relic_bundle","departure","domain_blocked"]
 
+# ==== K4／K5 需求词汇表（plan §3 E 批；docs/spec/response-pipeline.md 接缝 A 的 `game.get_view()` 行）====
+# 需求（demand）＝一组组名；组 → 单元的映射就是本文件的 FACT_UNITS 组列（同一张表，不另立）。
+# VIEW_FACT_GROUPS ＝ 投影承接组（闭包下限）：core/game_view.gd::build 除 display_facts／display_fact_scope
+# 外的键跨组消费的组；需求裁剪不得把它们裁掉，否则该 View 键会被改写（acceptance.md C-E-3 的 LPI 不变式）。
+# 逐组的消费点（design.md §1.3 的十处跨组消费）：
+#  card／prison → hand[].availability（按 payload.uid ∧ kind in ["card","prison"] 取行）；
+#  item → items[].target_groups／items[].unavailable_reasons（kind=="item_use" 行）；
+#  manual → body_groups[].can_release（kind=="manual" 行）；
+#  posture → first_turn_control（接管步骤取行；接管期另有全组入口守卫）；
+#  flow／route → route（出口事实行）；
+#  reward／rest_service／service／service_flow／service_refresh／service_release／service_remove／event
+#  → reward_panel 的 rows[].available／action_keys／skip_key 与 card_texts 的键集。
+const VIEW_FACT_GROUPS=["card","event","flow","item","manual","posture","prison","rest_service","reward","route","service","service_flow","service_refresh","service_release","service_remove"]
+
+# 组全集（FACT_UNITS 组列的并集，排序去重）：需求闭包的「全组」取值＝本列表。
+static func fact_groups() -> Array:
+ var out=[]
+ for unit in FACT_UNITS:
+  for group in unit.get("groups",[]):
+   var name=String(group)
+   if name not in out: out.append(name)
+ out.sort()
+ return out
+
+# 需求闭包（组半；唯一实现）：demand ∪ 投影承接组。demand 里的未登记组不选任何单元（声明错误由
+# docs/spec/fact-table-dependencies.md「需求声明」的判据抓，运行期不另设兜底）。
+static func fact_scope(demand: Array) -> Array:
+ var scope=VIEW_FACT_GROUPS.duplicate()
+ for group in demand:
+  var name=String(group)
+  if name not in scope: scope.append(name)
+ scope.sort()
+ return scope
+
+# 需求闭包（单元半；唯一实现）：要跑的单元＝组集合与需求闭包相交者，另含其 input 前置（跨单元前置读累积表，
+# 必须在它之前跑过；前置行的可见性只由行过滤决定，不由单元选择决定）。顺序＝原表序；groups 为空＝不裁剪。
+static func fact_units_in_scope(units: Array, groups: Array) -> Array:
+ if groups.is_empty(): return units
+ var wanted={}
+ for unit in units:
+  if unit_demanded(unit,groups): wanted[String(unit.get("id",""))]=true
+ var growing=true
+ while growing:
+  growing=false
+  for unit in units:
+   var id=String(unit.get("id",""))
+   if wanted.has(id) or not wanted.has(String(unit.get("input",""))): continue
+   wanted[id]=true
+   growing=true
+ var out=[]
+ for unit in units:
+  if wanted.has(String(unit.get("id",""))): out.append(unit)
+ return out
+
+static func unit_demanded(unit: Dictionary, groups: Array) -> bool:
+ for group in unit.get("groups",[]):
+  if group in groups: return true
+ return false
+
 # _fact_source 的单元序列（顺序＝表序）：前缀分支只跑该前缀 owner 的单元；"main" 只在这三个前缀之外到达
 # （domain_blocked＝空表）。阶段分支（_phase_facts 的 owner）不进本序列。
 static func fact_source_units(branch: String) -> Array:

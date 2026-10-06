@@ -346,9 +346,9 @@ static func sidebar_refresh(t) -> void:
 
 class GetViewCountingGame extends "res://tests/game_fixture.gd":
  var get_view_calls=0
- func get_view() -> Dictionary:
+ func get_view(demand: Array = []) -> Dictionary:
   get_view_calls+=1
-  return super.get_view()
+  return super.get_view(demand)
 
 class SubmitCountingGame extends GetViewCountingGame:
  var last_result={}

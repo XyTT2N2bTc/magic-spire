@@ -20,13 +20,13 @@ func _batch_rows(entry: String, build: Callable) -> Array:
  reuse_builds[entry]=int(reuse_builds.get(entry,0))+built[0]
  return rows
 
-func _fact_source() -> Array:
+func _fact_source(groups: Array = []) -> Array:
  fact_source_calls+=1
- return super._fact_source()
+ return super._fact_source(groups)
 
-func _join_fact_units(units: Array) -> Array:
+func _join_fact_units(units: Array, groups: Array = []) -> Array:
  join_units_calls+=1
- return super._join_fact_units(units)
+ return super._join_fact_units(units,groups)
 
 func reuse_requests_of(kind: String) -> int:
  return _reuse_total(reuse_requests,kind)

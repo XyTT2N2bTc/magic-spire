@@ -2,8 +2,9 @@
 
 「事实表的『面 / 点』边界收口」片（`docs/spec/candidate-removal.md`「接口」T4／T5／T8 之后的收口）的依赖约束索引：
 **A 批（K0 分支词表＋K1 单元表）、B 批（K2 点查询的限定生产者：39 kind 各自一个域臂）、C 批（K3 点形家族一次构造：
-一次走查直接产行）与 D 批（K1 第二半：批内复用的唯一机制，整表／走查／逐卡行共用一条）已落地**；
-E（需求机制＋结果标量）／F（接线）／G（声明切片）未开工。
+一次走查直接产行）、D 批（K1 第二半：批内复用的唯一机制，整表／走查／逐卡行共用一条）与 E 批（K4 需求机制：
+`get_view(demand)`＋需求闭包＋行过滤；K7 成功结果两个提交后只读标量）已落地**；
+F（接线）／G（声明切片）未开工。**E 批不接线**：四个 `get_view` 调用点仍取缺省＝全组，UI 行为与接线前相同。
 判据的真源是下表点名的检查，散文不复述内容（规则见 `skills/spire-docs/SKILL.md`「判据优先」）。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、`tools/`、`build/`）
@@ -22,6 +23,13 @@ E（需求机制＋结果标量）／F（接线）／G（声明切片）未开�
 | 点形家族的单行构造 | `core/game.gd::attack_point_fact`（attack 域）／`core/card_effects.gd::_card_point_row`（card 域：点查询与表 pass 共用同一实现） |
 | 批内复用（D 批） | `core/game.gd::_batch_rows`（整表／攻击走查／逐卡行三条条目共用一条机制；寿命＝`core/game.gd::_begin_equipment_read` 的批次，出批即弃；不按键判等、不跨提交、不挂 `self`；命中与首算都返回深拷贝） |
 | 行 → 组 | `core/game.gd::display_fact` 的 `fact.group=` 写入点（本批未改） |
+| 需求（投影输入面，E 批 K4） | `core/game.gd::fact_demand_groups`（唯一闭包入口：`demand` ＋ 投影承接组 ＋ 入口守卫；`[]` 缺省与显式全组同一取值＝`core/command_registry.gd::fact_groups`） |
+| 组 → 单元 | `core/command_registry.gd::FACT_UNITS` 的 `groups` 列（同一张表，不另立）；单元选择＝`core/command_registry.gd::fact_units_in_scope`（点名单元的组 ∩ 闭包，另含其 `input` 前置） |
+| 行过滤（表的行面，E 批） | `core/game.gd::_fact_rows_in_scope`（唯一丢弃行的地方；`display_facts` 因此恒为全组行的纯子序列） |
+| 投影承接组（闭包下限，E 批） | `core/command_registry.gd::VIEW_FACT_GROUPS`（`core/game_view.gd::build` 除 `display_facts`／`display_fact_scope` 外的键消费的组） |
+| 新 View 键（E 批） | `core/game_view.gd::fact_groups_of`（`display_fact_scope`＝行面 `group` 的去重排序，可推导；追加在返回字典末尾） |
+| 提交后过载标量（E 批 K7） | `core/pressure.gd::overloaded`（`Pressure.view` 的 `overloaded` 字段与 `core/game.gd::dispatch` 的成功结果共用它；归一化段的唯一依据） |
+| 动工前冻结值（E 批） | `tests/frozen-baselines.json`（外部锚定：A 批常量摘要、26 cell 的动工前内容、`known_gaps` 的冻结清单；逐项锚定到提交哈希与文件 sha256） |
 
 ## 判据 → 检查
 
@@ -29,9 +37,15 @@ E（需求机制＋结果标量）／F（接线）／G（声明切片）未开�
 | --- | --- |
 | 单元表 ↔ 测试内字面期望双向全量（owner 序／id／producer／input／order）；生产者都在 `core/game.gd` 上存在；连接通道唯一（源码文本）；每单元 input 指向同 owner 更早的单元；组列与实测行 group 值域双向一致；测试侧重放与 `core/game.gd::_fact_source`／`core/game.gd::_phase_facts` 逐字节相等 | `tests/architecture_cases.gd::fact_units_cover_fact_source` |
 | 分支词表三处双向全量：`tests/architecture_cases.gd::PHASE_BRANCH_VOCABULARY`（字面表）↔ `core/game.gd::_phase_branch` 的 return 点 ↔ `core/game.gd::_phase_facts` 的 return 点；`core/game.gd::_phase_facts` 体内无条件链 | `tests/architecture_cases.gd::phase_branch_vocabulary_is_total` |
-| G-1 零移动：`R5_BASELINE` 与四个 mask 常量按动工前摘要冻结（任何移动＝红；重冻必须走前值冻结＋声明差异＋自证的程序） | `tests/architecture_cases.gd::baseline_constants_are_unchanged` |
+| G-1 零移动：四个 mask 常量按动工前摘要冻结（前值在**独立文件** `tests/frozen-baselines.json`，不得与被校验常量同文件；任何移动＝红）；`R5_BASELINE` 的两个字段面按 E 批的声明重冻后由 `tests/architecture_cases.gd::baseline_diff_is_declared` 双向核对 | `tests/architecture_cases.gd::baseline_constants_are_unchanged` |
+| 缺省（无参）投影 == 显式全组投影逐字节；每个 cell 都带唯一新增 View 键 `display_fact_scope`；`core/game.gd::get_view` 的形参恰为 `demand` | `tests/architecture_cases.gd::default_projection_is_unchanged` |
+| 行面＝纯子序列（逐行逐字节、顺序一致、无增无减）＋`display_fact_scope` 与行面双向一致＋LPI（除 `display_facts`／`display_fact_scope` 外每个 View 键与全组构建逐字节相等）；**覆盖＝26 cell（每 cell 6 张画像构建）＋配方 60 提交＋两条覆盖夹具（可用的 `item_use` 行／可解开的普通装备）**，覆盖计数为空即红 | `tests/architecture_cases.gd::lazy_projection_invariant` |
+| 组清点双向全量：表出口产出的行 group 值域 == 测试内字面组全集 == `core/command_registry.gd::FACT_UNITS` 的组列并集；每个声明组都能被至少一个单元覆盖；投影承接组 ⊆ 声明组全集 | `tests/architecture_cases.gd::fact_groups_are_total` |
+| 接管／`card_chain`／`pending_retain` 的需求恒为全组：裁一个窄需求仍与全组构建逐字节相等；接管注入行仍在投影内；`R5_FIRST_TURN` 的逐 cell 摘要不变 | `tests/architecture_cases.gd::whole_table_branches_force_full_demand` |
+| 成功结果两键：键面（含顺序）== 字面表（`tests/architecture_cases.gd::E_SUBMIT_KEYS`）；`phase` == 提交后 `state.phase`；`overloaded` == 同实例 `get_view().pressure.overloaded` == 守卫后的（`state.overloaded ∧ phase ∈ 战斗相位`）；失败结果键面仍是 `{ok,error,fact}`；成功结果的取值只来自 `state.phase` 与 `core/pressure.gd::overloaded`（源码文本，不由 `payload.kind` 或裸 state 标志反推） | `tests/architecture_cases.gd::submit_result_scalars_are_pinned` |
+| 两字段面同批重冻（G-2 程序）：`submit_keys`／派生 `<record>` × 26 cell 的差异 ⊆ 声明且声明 ⊆ 差异（双向；漏进 `view`／`facts_text`／`facts_verdicts`／`view_display_facts` 即红）；自证＝前值可由后值按声明反推（把 post 记录的 `submit_keys` 行换回旧键面摘要后重算，逐 cell 等于前值） | `tests/architecture_cases.gd::baseline_diff_is_declared` |
 | 缺省路径逐字节不变（26 cell 的 facts／verdicts／view／record 摘要） | `tests/architecture_cases.gd::behavior_baseline_equivalence` |
-| 本片判据的突变证据存在；`known_gaps` 只许相对 A 批冻结清单缩短（新增条目即红） | `tests/architecture_cases.gd::mutation_evidence_is_total`＋`tools/check-mutation.ps1` |
+| 本片判据的突变证据存在；`known_gaps` 只许相对 A 批冻结清单缩短（新增条目即红）。冻结清单在**独立文件** `tests/frozen-baselines.json`（A 批审查缺口 3：不得与被核对的 `known_gaps` 同文件，否则同批加一条并同步改冻结值即可白名单化）；声明表里残留 `known_gaps_frozen` 即红 | `tests/architecture_cases.gd::mutation_evidence_is_total`＋`tools/check-mutation.ps1` |
 | 全 39 kind 的双向等价：方向①（点查询 == 该 kind 表内首条 params 命中行）／方向②（变异 params 的接受集 == 表成员集）＋跨夹具成员语料（过宽臂在此层红）；表形 kind 跳 keys／member 步骤 | `tests/architecture_cases.gd::fact_lookup_all_kinds` |
 | 域臂守卫只经 `core/game.gd::_phase_branch()` 取分支（扫域臂体，不扫 `_phase_facts` 体）；9 个 K0 之前的窄来源与 1 个恒空臂逐条豁免且双向核对 | `tests/architecture_cases.gd::domain_arm_guards_call_phase_branch` |
 | 域臂守卫的**分支 id** 正确性两层判据：① 文本层（双向）每臂体点名的分支 id 字面恰等于 `tests/architecture_cases.gd::DOMAIN_ARM_BRANCH_IDS` 的声明集合（两臂互换守卫即红）；② 运行期：夹具矩阵上臂行 ⇒ 分支 ∈ `tests/architecture_cases.gd::DOMAIN_ARM_ROW_BRANCHES`，且每个声明分支必须被观测到行或登记进 `tests/architecture_cases.gd::DOMAIN_ARM_ROW_BRANCHES_UNOBSERVED`（双向，登记行不许腐烂） | `tests/architecture_cases.gd::domain_arm_branch_ids_are_pinned` |
@@ -52,8 +66,19 @@ E（需求机制＋结果标量）／F（接线）／G（声明切片）未开�
 ## 允许的依赖方向
 
 - `core/game.gd` → `core/command_registry.gd`：允许；单元表只存 `g` 上的方法名与字面数据（零 preload、无 Callable）。
-- 单元生产者只写在 `core/game.gd` 上，签名 `(facts: Array) -> Array`；`facts`＝本单元之前已累积的表；
+- 单元生产者只写在 `core/game.gd` 上，签名 `(facts: Array, groups: Array = []) -> Array`；`facts`＝本单元之前已累积的表，
+  `groups`＝需求闭包（空＝不裁剪；E 批 K4 起的目标通道，只有 `core/game.gd::_unit_phase` 往下透传）；
   连表只经 `core/game.gd::_join_fact_units`（表外不追加任何行）。
+- 需求（E 批 K4）：需求只决定**哪些单元被构建**（`core/command_registry.gd::fact_units_in_scope`）与**哪些行外放**
+  （`core/game.gd::_fact_rows_in_scope`，唯一丢行点）；闭包只有一处实现（`core/game.gd::fact_demand_groups`），
+  接管／`card_chain`／`pending_retain` 三支由该入口取全组（调用方预知不到，见 `docs/spec/response-pipeline.md` 接缝 A 的
+  `game.get_view()` 行）；缺省 `[]` 与显式全组是同一语义、同一条路径（不是两条路径，也不是特权模式）；
+  批内条目（`BATCH_TABLE`）的槽位义＝整表，故只有全组走批内条目，裁剪需求每次现算、不占该槽位。
+- 投影承接组（`core/command_registry.gd::VIEW_FACT_GROUPS`）是需求闭包的**下限**：闭包必须至少含这些组，
+  否则 `core/game_view.gd::build` 的其它键会被裁剪改写（`tests/architecture_cases.gd::lazy_projection_invariant` 的 LPI 面）。
+- 提交后两标量（E 批 K7）：`core/game.gd::dispatch` 的成功结果只带**提交后状态的只读标量**；
+  过载态的唯一定义处是 `core/pressure.gd::overloaded`（`Pressure.view` 与 `dispatch` 共用），不得复制条件式、
+  不得由 `payload.kind` 反推、失败结果键面一字不动。
 - `core/game.gd::_phase_branch`：只读——不写 `state`、不推进随机、不改 `version`。
 - 域臂（`core/game.gd::_chain_kind_facts` 一族，`ENTRIES[*].source` 的取值）× 分支守卫：只经 `core/game.gd::_phase_branch()`
   取分支 id；不得复制 `core/game.gd::_phase_facts` 的早退链，也不得回落 `core/game.gd::_fact_source()`／`core/game.gd::command_facts()`。
@@ -121,5 +146,17 @@ E（需求机制＋结果标量）／F（接线）／G（声明切片）未开�
   (单元:组) 对（A 批为 chain 相关两项，需牌链夹具）；判据双向核对（列出的必须真的观测不到），豁免不能腐烂。
 - **单元表的完备性**：新增一个生产者而不登记，由源码文本判据（表外第二处追加点）与 G6 行面兜底；
   表自身"少声明一个单元"由测试内字面期望与实测组列抓。
-- 不属于本片授权面：推送／打标签／改版本号、打包；改 `project.godot` 与导出预设；改 `tools/check.ps1`／
+- **需求闭包下限的完备性（E 批）**：`core/command_registry.gd::VIEW_FACT_GROUPS` 由 `core/game_view.gd::build`
+  的跨组消费点逐条推出（`docs/spec/response-pipeline.md` 的 `game.get_view()` 行列出判据名），
+  并且 LPI 判据（`tests/architecture_cases.gd::lazy_projection_invariant`）在 26 cell × 6 画像 ＋ 配方 60 提交上
+  断言「除 `display_facts`／`display_fact_scope` 外每个 View 键与全组构建逐字节相等」。**残留**：矩阵之外的相位
+  （如 `reward`／`pack`／`travel` 的奖励面板路径）若某 View 字段消费了未登记的组，LPI 抓不到；
+  该面只由上述消费点清单与本题人审承接。
+- **单元级惰性的证据面（E 批）**：E 批没有计数判据断言「未被点名的单元生产者不被调用」（计数判据属 D 批的
+  `BATCH_TABLE`／`BATCH_ATTACK_WALK`／`BATCH_CARD_ROWS`）；单元选择由 `core/command_registry.gd::fact_units_in_scope`
+  的文本事实（组 ∩ 闭包 ＋ `input` 前置）与行面判据间接保证，无直接计数证据。
+- **`E_VIEW_MASK_ADDED` 是 E 批与 F 批的交接面**：唯一新增 View 键 `display_fact_scope` 在 E 批由
+  `tests/architecture_cases.gd::E_VIEW_MASK_ADDED` 声明为「排除出冻结摘要」（E 批不动 mask 常量）；
+  接线批把它并进 `tests/architecture_cases.gd::R3_VIEW_MASK` 并清空该字面表——两处声明同一事实的状态不得跨批存活。
+- 不属于本片授权面：推送／打标签、打包；改 `project.godot` 与导出预设；改 `tools/check.ps1`／
   `tools/check-docs.ps1`／`tools/doc-scan-scope.ps1` 与其允许清单。

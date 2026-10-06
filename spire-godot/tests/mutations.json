@@ -1,64 +1,7 @@
 {
   "schema": 1,
-  "note": "检查的证据面声明表：每条＝既有的具名判据 → 一处临时突变（file／find／replace）＋跑哪个最窄规则套件。执行器是 tools/check-mutation.ps1；tests/architecture_cases.gd::mutation_evidence_is_total 核对本表与判据全集。find 必须在 file 内唯一出现一次，replace 必须让该判据变红；运行期逐字节还原。",
+  "note": "检查的证据面声明表：每条＝既有的具名判据 → 一处临时突变（file／find／replace）＋跑哪个最窄规则套件。执行器是 tools/check-mutation.ps1；tests/architecture_cases.gd::mutation_evidence_is_total 核对本表与判据全集。find 必须在 file 内唯一出现一次，replace 必须让该判据变红；运行期逐字节还原。 冻结面（缺口清单与动工前的常量摘要）不在本文件：见 tests/frozen-baselines.json（A 批审查缺口 3／4 的外部锚定点，含锚定提交与文件 sha256）。",
   "known_gaps_reason": "既有判据里尚未逐条补突变证据的部分（多为本表之前的架构判据）：本清单只能缩短——新写的判据不得登记为缺口，必须随批附带证据。例外只对「写于本表存在之前的重放线判据」：2026-10-06 的 fact-lookup 重放批按实际逐条登记（40→54），此后再新增判据仍须随批附带证据。",
-  "known_gaps_frozen_note": "A 批（K0＋K1）落盘的缺口冻结清单（plan §4.0 拆架条件①；acceptance.md §5.4）：此后 known_gaps 只许相对本清单缩短，任何新增条目即红（tests/architecture_cases.gd::mutation_evidence_is_total 双向核对）。",
-  "known_gaps_frozen": [
-    "transition_write_sites_are_pinned",
-    "save_checkpoint_kinds_are_pinned",
-    "event_dependency_edges_pinned",
-    "content_pack_root_has_no_build_feature_branch",
-    "event_definition_accessors_only",
-    "event_condition_kinds_share_one_declaration",
-    "event_probe_and_projection_readonly",
-    "event_single_evaluation_entry",
-    "tool_registry_boundary",
-    "card_identity",
-    "projection_contract",
-    "equipment_read_batches",
-    "index_materializes_once_per_scope",
-    "index_self_check_falls_back",
-    "index_id_edge_parity",
-    "index_predicate_parity",
-    "has_targets_at_parity",
-    "index_entry_parity",
-    "equipment_projection_batches",
-    "preview_read_batches",
-    "current_effect_boundaries",
-    "instance_effect_boundaries",
-    "copy_projection_masked_baseline",
-    "copy_single_entry_matches_projection",
-    "copy_route_bytes_unchanged",
-    "copy_migrated_kinds",
-    "copy_r4_sites",
-    "copy_r6_sites",
-    "copy_candidate_detail_on_demand",
-    "removal_end_state",
-    "behavior_baseline_equivalence",
-    "single_eligibility_implementation",
-    "instruction_router_single_entry",
-    "instruction_route_table_is_total",
-    "pipeline_lookup_inspect",
-    "command_fact_kind_lookup",
-    "card_facts_declared_slots",
-    "card_facts_consumes_has_targets_at",
-    "card_facts_keyword_min_query",
-    "present_adjacency_graph_is_pinned",
-    "command_registry_is_total",
-    "fact_source_map_is_pinned",
-    "fact_lookup_equivalence",
-    "attack_fact_direct_lookup",
-    "attack_point_lookup_reads_one_row",
-    "attack_point_rejects_nonbattle_families",
-    "card_fact_direct_lookup",
-    "card_point_lookup_reads_one_row",
-    "single_fact_lookup_per_submit",
-    "rejected_submit_lookup_counts",
-    "submit_presented_fact_is_unchanged",
-    "submit_key_face_rebaseline_self_proof",
-    "dispatch_fact_row_is_readonly",
-    "payload_write_sites_are_pinned"
-  ],
   "known_gaps": [
     "transition_write_sites_are_pinned",
     "save_checkpoint_kinds_are_pinned",
@@ -312,6 +255,42 @@
       "file": "core/game.gd",
       "find": "  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  if pair.row.is_empty(): continue\n  facts.append(pair.row)\n return facts\n\nfunc _attack_offer_fact(",
       "replace": "  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  facts.append(pair.row)\n return facts\n\nfunc _attack_offer_fact(",
+      "suite": "architecture"
+    },
+    "default_projection_is_unchanged": {
+      "file": "core/game.gd",
+      "find": " if demand.is_empty() or _fact_demand_forced_full(): return CommandRegistry.fact_groups()",
+      "replace": " if _fact_demand_forced_full(): return CommandRegistry.fact_groups()",
+      "suite": "architecture"
+    },
+    "lazy_projection_invariant": {
+      "file": "core/command_registry.gd",
+      "find": "const VIEW_FACT_GROUPS=[\"card\",\"event\",\"flow\",\"item\",\"manual\",\"posture\",\"prison\",\"rest_service\",\"reward\",\"route\",\"service\",\"service_flow\",\"service_refresh\",\"service_release\",\"service_remove\"]",
+      "replace": "const VIEW_FACT_GROUPS=[\"card\",\"event\",\"flow\",\"manual\",\"posture\",\"prison\",\"rest_service\",\"reward\",\"route\",\"service\",\"service_flow\",\"service_refresh\",\"service_release\",\"service_remove\"]",
+      "suite": "architecture"
+    },
+    "fact_groups_are_total": {
+      "file": "core/command_registry.gd",
+      "find": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual\",\"groups\":[\"manual\"]",
+      "replace": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual\",\"groups\":[\"manual_probe\"]",
+      "suite": "architecture"
+    },
+    "whole_table_branches_force_full_demand": {
+      "file": "core/game.gd",
+      "find": " return FirstTurnControl.active(self) or not state.card_chain.is_empty() or state.pending_retain",
+      "replace": " return FirstTurnControl.active(self)",
+      "suite": "architecture"
+    },
+    "submit_result_scalars_are_pinned": {
+      "file": "core/game.gd",
+      "find": "\"spell_failed\":_magic_failed,\"fact\":chosen,\"phase\":state.phase,\"overloaded\":Pressure.overloaded(self)}",
+      "replace": "\"spell_failed\":_magic_failed,\"fact\":chosen,\"phase\":state.phase,\"overloaded\":state.overloaded}",
+      "suite": "architecture"
+    },
+    "baseline_diff_is_declared": {
+      "file": "tests/architecture_cases.gd",
+      "find": " \"battle:0\":{\"record\":E_SUBMIT_KEYS_REASON},\n",
+      "replace": "",
       "suite": "architecture"
     }
   }

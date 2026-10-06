@@ -2493,22 +2493,34 @@ func candidate_detail(candidate: Dictionary) -> String:
 # 全部指令显示事实的唯一来源（docs/spec/candidate-removal.md「接口」T5／T8；批 R5）。A 批（K1，plan §3；
 # docs/spec/fact-table-dependencies.md「单元表」）：表的组成面由 core/command_registry.gd::FACT_UNITS 声明，本函数
 # 只做一次连接——分支判定经 _phase_branch（K0），单元顺序＝表序（顺序是数据，不是控制流），未声明单元不产行。
-# 投影与接管选择经 command_facts 取本列表；command_fact 可行动期经登记项取该 kind 的来源（B 批起 39 kind
-# 各自的域臂＝分支守卫＋最小生产者，点查询路径不再回落本函数；登记项显式点名来源，无匿名兜底臂）。行载体已删除，无第二份物化。
-func _fact_source() -> Array:
- return _join_fact_units(CommandRegistry.fact_source_units(_phase_branch()))
+# E 批（K4）：groups＝需求闭包（空＝不裁剪）——单元选择在连接内（core/command_registry.gd::fact_units_in_scope），
+# 行过滤只在本出口。投影与接管选择经 command_facts 取本列表；command_fact 可行动期经登记项取该 kind 的来源
+# （B 批起 39 kind 各自的域臂＝分支守卫＋最小生产者，点查询路径不再回落本函数）。行载体已删除，无第二份物化。
+func _fact_source(groups: Array = []) -> Array:
+ return _fact_rows_in_scope(_join_fact_units(CommandRegistry.fact_source_units(_phase_branch()),groups),groups)
 
-# 单元连接通道（K1 的唯一入口）：facts＝本单元之前已累积的表（单元表 input 列声明的跨单元前置靠它传递）。
-# 生产者是 g 上的方法名，签名 (facts: Array) -> Array；表外不追加任何行。
-func _join_fact_units(units: Array) -> Array:
+# 行按组过滤（K4；表出口的行面）：需求闭包内的行原样保留（顺序与字节都不变），闭包外的行只在本出口被丢弃。
+# groups 为空＝不裁剪（逐字节等同改动前；A 批的单元重放走这一支）。行过滤是唯一丢弃行的地方——单元之间的
+# 累积表因此始终完整，读累积表的单元（表内 input 列）看到的行与改动前逐字节相同。
+func _fact_rows_in_scope(rows: Array, groups: Array) -> Array:
+ if groups.is_empty(): return rows
+ var out: Array=[]
+ for row in rows:
+  if String(row.get("group","")) in groups: out.append(row)
+ return out
+
+# 单元连接通道（K1 的唯一入口；K4 起也是单元选择的唯一入口）：facts＝本单元之前已累积的表（单元表 input 列
+# 声明的跨单元前置靠它传递）。生产者是 g 上的方法名，签名 (facts: Array, groups: Array) -> Array；groups＝
+# 需求闭包（空＝不裁剪）。表外不追加任何行。
+func _join_fact_units(units: Array, groups: Array = []) -> Array:
  var facts: Array=[]
- for unit in units:
-  facts.append_array(call(String(unit.producer),facts))
+ for unit in CommandRegistry.fact_units_in_scope(units,groups):
+  facts.append_array(call(String(unit.producer),facts,groups))
  return facts
 
 # 一个分支的单元连接（_phase_facts 的每分支调用点；顺序＝表序）。
-func _phase_branch_units(branch: String) -> Array:
- return _join_fact_units(CommandRegistry.phase_units(branch))
+func _phase_branch_units(branch: String, groups: Array = []) -> Array:
+ return _join_fact_units(CommandRegistry.phase_units(branch),groups)
 
 # 状态开关（蓄力切换＋可切换能力）：显示事实的唯一来源；_fact_source 与 command_fact 共用。
 func _status_toggle_facts() -> Array:
@@ -2518,18 +2530,32 @@ func _status_toggle_facts() -> Array:
   facts.append(_fact({"kind":"status_toggle","status":"charge","enabled":not state.charge_all},"切换为普通蓄力" if state.charge_all else "切换为全量蓄力",{"kind":"game.status_toggle","args":toggle_args,"fallback":copy_status_toggle(self,toggle_args)},0,0.0,"","","status_toggle"))
  return facts
 
+# 投影需求（demand）的唯一闭包入口（K4／K5；plan §3 E 批）。demand＝组名集合；[]（缺省）与显式全组同一语义
+# （都取 core/command_registry.gd::fact_groups()，不是两条路径）。入口守卫：接管期与 card_chain／pending_retain
+# 三支取全组——core/game_view.gd::build 的 first_turn_control 消费整表，而这三支可在提交内由无变有
+# （FirstTurnControl.begin_turn／state.card_chain／state.pending_retain 只在提交里被写），调用方在 get_view
+# 之前预知不到（design.md §K4 需求值一览表）。只读：不写 state、不推进随机、不改 version。
+func fact_demand_groups(demand: Array) -> Array:
+ if demand.is_empty() or _fact_demand_forced_full(): return CommandRegistry.fact_groups()
+ return CommandRegistry.fact_scope(demand)
+
+func _fact_demand_forced_full() -> bool:
+ return FirstTurnControl.active(self) or not state.card_chain.is_empty() or state.pending_retain
+
 # 投影事实（唯一出口，T8）：事实源 → 唯一判定与 detail 组装（display_fact）→ 接管标注（唯一选择结果）。
 # core/game_view.gd::build 的 view.display_facts 来自本列表；command_fact 的接管期表级项显式点名本列表
 # （core/command_registry.gd::TAKEOVER_SOURCE），可行动期按 kind 取登记项、不经本列表。
-func command_facts() -> Array:
- # 读取批次：整表在一个批次内只构建一次（D 批／K1-D；批内条目经 core/game.gd::_batch_rows 的唯一边界取用，
- # 出批即弃）。构建体＝表出口的构建半（事实源 → display_fact → 接管选择），批次外调用每次现算，与改动前
- # 逐字节相等；PIPELINE_LOOKUP_EDGES 的 L-table 边（command_facts → _fact_source）落在这段体内，不改边。
- var previous=_begin_equipment_read()
- var result=_batch_rows(BATCH_TABLE,func():
+# E 批（K4）：groups＝需求（经核心闭包 fact_demand_groups 折算成需求闭包；[]＝全组）。读取批次与批内条目不变
+# （D 批／K1-D：批内条目经 core/game.gd::_batch_rows 的唯一边界取用，出批即弃）；批内条目的槽位义＝整表，
+# 故只有全组（缺省）走批内条目，裁剪需求每次现算、不占该槽位。
+func command_facts(groups: Array = []) -> Array:
+ var scope=fact_demand_groups(groups)
+ var build=func():
   var facts: Array=[]
-  for f in _fact_source(): facts.append(display_fact(f))
-  return FirstTurnControl.select(self,facts))
+  for f in _fact_source(scope): facts.append(display_fact(f))
+  return FirstTurnControl.select(self,facts)
+ var previous=_begin_equipment_read()
+ var result=_batch_rows(BATCH_TABLE,build) if scope.size()==CommandRegistry.fact_groups().size() else build.call()
  _equipment_read=previous
  return result
 
@@ -2573,33 +2599,34 @@ func _phase_branch() -> String:
  if state.phase=="pack": return "pack"
  return "action_tail"
 
-# 阶段显示事实（command_facts 的阶段分支；K0／K1）：分支判定只经 _phase_branch（本函数体内不再有条件链），
-# 每分支跑单元表中归属该 owner 的单元（顺序＝表序；prison_end／map 是空表分支）。三个前缀分支由 _fact_source
+# 阶段显示事实（command_facts 的阶段分支；K0／K1；E 批起带需求闭包）：分支判定只经 _phase_branch（本函数体内
+# 不再有条件链），每分支跑单元表中归属该 owner 的单元（顺序＝表序；prison_end／map 是空表分支）。groups＝需求
+# 闭包（空＝不裁剪），透传给连接通道做单元选择；行过滤只在 _fact_source 出口。三个前缀分支由 _fact_source
 # 先行解析；直呼本函数时它们落回尾段（前缀状态不在生产调用路径上；实测残差见
 # docs/spec/fact-table-dependencies.md「仍靠人审」）。
-func _phase_facts() -> Array:
+func _phase_facts(groups: Array = []) -> Array:
  match _phase_branch():
-  "rest_choice": return _phase_branch_units("rest_choice")
-  "shop_treasure": return _phase_branch_units("shop_treasure")
-  "event": return _phase_branch_units("event")
-  "captured_inspection": return _phase_branch_units("captured_inspection")
-  "prison_end": return _phase_branch_units("prison_end")
-  "overload_climax": return _phase_branch_units("overload_climax")
-  "card_chain": return _phase_branch_units("card_chain")
-  "pending_retain": return _phase_branch_units("pending_retain")
-  "reward": return _phase_branch_units("reward")
-  "map": return _phase_branch_units("map")
-  "travel": return _phase_branch_units("travel")
-  "cleared": return _phase_branch_units("cleared")
-  "pack": return _phase_branch_units("pack")
-  "relic_bundle", "departure", "domain_blocked", "action_tail": return _phase_branch_units("action_tail")
+  "rest_choice": return _phase_branch_units("rest_choice",groups)
+  "shop_treasure": return _phase_branch_units("shop_treasure",groups)
+  "event": return _phase_branch_units("event",groups)
+  "captured_inspection": return _phase_branch_units("captured_inspection",groups)
+  "prison_end": return _phase_branch_units("prison_end",groups)
+  "overload_climax": return _phase_branch_units("overload_climax",groups)
+  "card_chain": return _phase_branch_units("card_chain",groups)
+  "pending_retain": return _phase_branch_units("pending_retain",groups)
+  "reward": return _phase_branch_units("reward",groups)
+  "map": return _phase_branch_units("map",groups)
+  "travel": return _phase_branch_units("travel",groups)
+  "cleared": return _phase_branch_units("cleared",groups)
+  "pack": return _phase_branch_units("pack",groups)
+  "relic_bundle", "departure", "domain_blocked", "action_tail": return _phase_branch_units("action_tail",groups)
  return []
 
 # ==== 单元生产者（K1；core/command_registry.gd::FACT_UNITS 的 producer 列）====
 # 每个都是一个追加点的唯一实现，签名 (facts: Array) -> Array（facts＝累积表；未声明单元的写法不得出现在表外）。
 
 # 休息选择块（4 行；rest_choice 分支）。
-func _unit_rest_choice(_facts: Array) -> Array:
+func _unit_rest_choice(_facts: Array, _groups: Array = []) -> Array:
  var out: Array = []
  out.append(_fact({"kind":"rest_rare"},"随机获得1张稀有卡 · 扣除%d回合" % B.REST_CARD_TURNS.rare,{"kind":"game.rest_rare","args":{},"fallback":copy_rest_rare(self,{})},0,0.0,"休息回合不足。" if state.rest_left<B.REST_CARD_TURNS.rare else "","","rest_service"))
  for type in state.rest_cards:
@@ -2613,14 +2640,14 @@ func _unit_rest_choice(_facts: Array) -> Array:
  return out
 
 # 高潮后缓一缓（overload_climax 分支的单行）。
-func _unit_climax_end(_facts: Array) -> Array:
+func _unit_climax_end(_facts: Array, _groups: Array = []) -> Array:
  var out: Array = []
  var climax_args={"battle":state.phase=="battle","first":state.order=="first"}
  out.append(_fact({"kind":"end"},"继续 · 高潮后缓一缓",{"kind":"game.end_climax","args":climax_args,"fallback":copy_end_climax(self,climax_args)},0,0.0,"","","flow"))
  return out
 
 # 奖励族（reward 分支）：逐条与改动前的行路径相同。
-func _unit_reward(_facts: Array) -> Array:
+func _unit_reward(_facts: Array, _groups: Array = []) -> Array:
  var out: Array = []
  if Events.active_item_rewards(self):
   for row in Events.item_reward_rows(self):
@@ -2651,95 +2678,95 @@ func _unit_reward(_facts: Array) -> Array:
  return out
 
 # 旅途单行（travel 分支）。
-func _unit_travel_step(_facts: Array) -> Array:
+func _unit_travel_step(_facts: Array, _groups: Array = []) -> Array:
  var out: Array = []
  var step_args={"remaining":state.journey.remaining}
  out.append(_fact({"kind":"travel_step"},"继续前进 · 1回合",{"kind":"game.travel_step","args":step_args,"fallback":copy_travel_step(self,step_args)},0,0.0,travel_route_reason(),SlipMotion.hint(),"route"))
  return out
 
-func _unit_relic_bundle(_facts: Array) -> Array:
+func _unit_relic_bundle(_facts: Array, _groups: Array = []) -> Array:
  return RelicBundle.facts(self)
 
-func _unit_departure(_facts: Array) -> Array:
+func _unit_departure(_facts: Array, _groups: Array = []) -> Array:
  return Departure.facts(self)
 
 # 非战斗道具（读累积表去重：不可独立增量，见单元表注释）。
-func _unit_noncombat_consumables(facts: Array) -> Array:
+func _unit_noncombat_consumables(facts: Array, _groups: Array = []) -> Array:
  return Consumables.noncombat_facts(self,facts)
 
-func _unit_flask_full(_facts: Array) -> Array:
+func _unit_flask_full(_facts: Array, _groups: Array = []) -> Array:
  return ManaFlask.facts(self,true)
 
-func _unit_flask(_facts: Array) -> Array:
+func _unit_flask(_facts: Array, _groups: Array = []) -> Array:
  return ManaFlask.facts(self)
 
-func _unit_phase(_facts: Array) -> Array:
- return _phase_facts()
+func _unit_phase(_facts: Array, groups: Array = []) -> Array:
+ return _phase_facts(groups)
 
 # 投降行（0／1 行）：与 _surrender_kind_facts 的守卫同一来源（surrender_fact）。
-func _unit_surrender(_facts: Array) -> Array:
+func _unit_surrender(_facts: Array, _groups: Array = []) -> Array:
  var row=surrender_fact()
  return [] if row.is_empty() else [row]
 
-func _unit_item_discard(_facts: Array) -> Array:
+func _unit_item_discard(_facts: Array, _groups: Array = []) -> Array:
  return item_discard_facts()
 
-func _unit_relic_effects(_facts: Array) -> Array:
+func _unit_relic_effects(_facts: Array, _groups: Array = []) -> Array:
  return RelicEffects.facts(self)
 
-func _unit_status_toggle(_facts: Array) -> Array:
+func _unit_status_toggle(_facts: Array, _groups: Array = []) -> Array:
  return _status_toggle_facts()
 
 # 路线行（读累积表的出口行＋现算 room_entry_reason：不可独立增量，见单元表注释）。
-func _unit_route(facts: Array) -> Array:
+func _unit_route(facts: Array, _groups: Array = []) -> Array:
  return _route_facts(facts)
 
-func _unit_services(_facts: Array) -> Array:
+func _unit_services(_facts: Array, _groups: Array = []) -> Array:
  return Services.facts(self)
 
-func _unit_events(_facts: Array) -> Array:
+func _unit_events(_facts: Array, _groups: Array = []) -> Array:
  return Events.facts(self)
 
-func _unit_prison(_facts: Array) -> Array:
+func _unit_prison(_facts: Array, _groups: Array = []) -> Array:
  return Prison.facts(self)
 
-func _unit_chain(_facts: Array) -> Array:
+func _unit_chain(_facts: Array, _groups: Array = []) -> Array:
  return Cards.chain_display_facts(self)
 
-func _unit_retain(_facts: Array) -> Array:
+func _unit_retain(_facts: Array, _groups: Array = []) -> Array:
  return retain_facts()
 
-func _unit_demo_exit(_facts: Array) -> Array:
+func _unit_demo_exit(_facts: Array, _groups: Array = []) -> Array:
  return DemoExit.facts(self)
 
-func _unit_item_action(_facts: Array) -> Array:
+func _unit_item_action(_facts: Array, _groups: Array = []) -> Array:
  return item_action_facts()
 
-func _unit_flow(_facts: Array) -> Array:
+func _unit_flow(_facts: Array, _groups: Array = []) -> Array:
  return flow_facts()
 
-func _unit_wall_move(_facts: Array) -> Array:
+func _unit_wall_move(_facts: Array, _groups: Array = []) -> Array:
  return wall_move_facts()
 
-func _unit_posture(_facts: Array) -> Array:
+func _unit_posture(_facts: Array, _groups: Array = []) -> Array:
  return posture_facts()
 
-func _unit_attack(_facts: Array) -> Array:
+func _unit_attack(_facts: Array, _groups: Array = []) -> Array:
  return attack_facts()
 
-func _unit_equipment_spell(_facts: Array) -> Array:
+func _unit_equipment_spell(_facts: Array, _groups: Array = []) -> Array:
  return equipment_spell_facts()
 
 # S3：card 的槽位面按卡取行（逐卡切片）而非整手枚举，故保留逐卡调用点；行序与条数同转换前。
-func _unit_hand_cards(_facts: Array) -> Array:
+func _unit_hand_cards(_facts: Array, _groups: Array = []) -> Array:
  var out: Array = []
  for card in state.hand: out.append_array(Cards.card_facts(self,card))
  return out
 
-func _unit_manual(_facts: Array) -> Array:
+func _unit_manual(_facts: Array, _groups: Array = []) -> Array:
  return manual_facts()
 
-func _unit_hook(_facts: Array) -> Array:
+func _unit_hook(_facts: Array, _groups: Array = []) -> Array:
  return hook_facts()
 
 # Position is saved once per encounter; previews only read it.
@@ -3482,7 +3509,11 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  if chosen.payload.kind=="card" and not _magic_failed and original.phase in ["battle","prison"]:
   var track=Cards.Rules.SPECS[chosen.payload.type].get("play_music","")
   if track!="": music_events.append({"track":track,"phase":original.phase,"loop":original.phase=="battle"})
- return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"checkpoint":checkpoint,"spell_failed":_magic_failed,"fact":chosen}
+ # K7（plan §3 E 批；docs/spec/response-pipeline.md 接缝 A）：成功结果追加两个提交后只读标量，供调用方在
+ # get_view 之前算准节开合（F 批消费）。两键与 core/game_view.gd::build 的 "phase"／"pressure.overloaded"
+ # 同源同值：phase 取已提交态 state.phase；overloaded 取 core/pressure.gd::overloaded（＝view 的同一实现，
+ # 归一化段 _close_drawers 的唯一依据），不由 payload.kind 反推。失败结果键面一字不动（本 return 不达）。
+ return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"checkpoint":checkpoint,"spell_failed":_magic_failed,"fact":chosen,"phase":state.phase,"overloaded":Pressure.overloaded(self)}
 
 func cast_view(profile: Dictionary={"parts":["mouth"],"multiplier":1.0}) -> Dictionary:
  if not _equipment_read_active(): return _build_cast_view(profile)
@@ -4221,9 +4252,11 @@ func validate() -> String:
 func number(n: float) -> String:
  return str(int(n)) if is_equal_approx(n,roundf(n)) else "%.2f" % n
 
-func get_view() -> Dictionary:
+# 投影入口（唯一）：demand＝需求（组名集合；[] 缺省＝全组，两者同一语义与同一条路径——核心闭包
+# core/game.gd::fact_demand_groups 折算）。E 批不接线：四个 UI 调用点仍取缺省（＝全组）。
+func get_view(demand: Array = []) -> Dictionary:
  var previous=_begin_equipment_read()
- var result=View.build(self)
+ var result=View.build(self,demand)
  _equipment_read=previous
  return result
 

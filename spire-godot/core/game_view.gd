@@ -191,10 +191,15 @@ static func _build_equipment_entry(g, e: Dictionary) -> Dictionary:
   "root_id":e.get("root_id",""),"part":e.get("part",""),"position_text":Equipment.position_text(e),"sort_order":Equipment.anatomical_order(e),"material_name":Equipment.material_name(e),"methods":Equipment.method_text(e),"description":description,"summary":summary}
 
 # Read-only projection. All gameplay changes remain in game.gd.
-static func build(g) -> Dictionary:
+# demand（K4，plan §3 E 批）：组名集合；[]（缺省）与显式全组同一语义，闭包的唯一实现在
+# core/game.gd::fact_demand_groups。需求只决定哪些单元被构建（单元选择在连接通道内），行按需求闭包过滤后
+# 外放为 display_facts；本文件的其它键与 display_facts 取自同一张表，故需求闭包必须含投影承接组
+# （core/command_registry.gd::VIEW_FACT_GROUPS），否则那些键会被裁剪改写。
+static func build(g, demand: Array = []) -> Dictionary:
  var state=g.state
+ var scope=g.fact_demand_groups(demand)
  # 显示事实的唯一出口（core/game.gd::display_facts＝事实源＋唯一判定＋接管标注）；本文件只补释放预览。
- var facts=g.command_facts()
+ var facts=g.command_facts(scope)
  for fact in facts:
   var release=ReleaseView.preview(g,fact)
   if not release.is_empty(): fact.release_preview=release
@@ -342,7 +347,18 @@ static func build(g) -> Dictionary:
   "tower_start_pending":state.tower_start_pending,"map_name":"监狱" if state.map_region=="prison" else "塔路","map_region":state.map_region,"room_name":"选择出狱起点" if state.tower_start_pending else (g.room_data(state.room).name if state.room=="prison" else (Tower.practice_spec(state.practice_kind).name if state.practice else g.room_data(state.room).name)),"route":[] if state.practice or state.room=="prison" else g.route_view(facts),"movement":g.movement_profile(),"journey":state.journey.duplicate(true),"travel_turns":state.travel_turns,"rooms_completed":state.completed_rooms.size(),"reward_count":state.reward_count,
   "first_turn_control":g.FirstTurnControl.view(g,facts),"display_facts":facts,"logs":state.logs.duplicate(true),"summary":state.summary,"prepare_left":state.prepare_left,"preparation_turns":g.preparation_turns(),"draw_count":state.draw.size(),"discard_count":state.discard.size(),"draw_cards":state.draw.map(func(card):return {"uid":card.uid,"type":card.type}),"discard_cards":state.discard.map(func(card):return {"uid":card.uid,"type":card.type}),"deck_count":state.deck.size(),"deck_cards":state.deck.map(func(card):return {"uid":card.uid,"type":card.type}),"pending_retain":state.pending_retain,
   # Run identity (docs/spec/seed-identity.md): the map chip reads it; existing keys and order unchanged.
-  "initial_seed":state.initial_seed,"tower_generation":state.tower_generation}
+  "initial_seed":state.initial_seed,"tower_generation":state.tower_generation,
+  # K4 唯一新增 View 键（追加在末尾：其它键的次序不变）：实际投影的组集合。可推导——＝display_facts 各行
+  # group 的去重排序；判据 tests/architecture_cases.gd::lazy_projection_invariant 双向断言其与行面一致。
+  "display_fact_scope":fact_groups_of(facts)}
+
+# display_fact_scope 的唯一实现（K4）：行面的组值域，排序去重。
+static func fact_groups_of(rows: Array) -> Array:
+ var seen={}
+ for row in rows: seen[String(row.get("group",""))]=true
+ var out=seen.keys()
+ out.sort()
+ return out
 
 # Display-only material choice; exposure remains owned by the equipment query seam.
 static func portrait_materials(g, pieces: Array) -> Dictionary:

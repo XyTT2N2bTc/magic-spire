@@ -283,6 +283,12 @@ static func validate(g) -> String:
   if s.room!="" and g.room_data(s.room).is_empty(): return "刺激来源所在房间不存在。"
  return ""
 
+# 提交后过载标量（K7；plan §3 E 批）：core/game_view.gd::build 的 pressure.overloaded 与本函数是同一实现
+# ——提交后的开合归一化读的就是这个值；core/game.gd::dispatch 的成功结果直接带它，不复制条件式（第二份相位
+# 真源）。只读：state 相位与过载态，不写任何东西。
+static func overloaded(g) -> bool:
+ return g.state.overloaded and g.state.phase in g.RelicEffects.COMBAT_PHASES
+
 static func view(g, special_regions: Array) -> Dictionary:
  var sources=[]
  var guard=g.RelicEffects.pressure_guard(g)
@@ -299,6 +305,6 @@ static func view(g, special_regions: Array) -> Dictionary:
     if equipment.id in special_ids: continue
     special_ids.append(equipment.id)
     sources.append({"name":equipment.name+" · "+g.SpecialEquipment.location_name(g._equipment(equipment.id)),"text":equipment.text})
- return {"value":g.state.pressure,"maximum":limit,"stage":stage(g.state.pressure,limit),"magic_multiplier":magic_multiplier(g.state.pressure,limit),"gain_multiplier":multiplier,"overloaded":g.state.overloaded and g.state.phase in g.RelicEffects.COMBAT_PHASES,"count":g.state.overload_count,"energy_penalty":g.state.overload_energy,"sources":sources,
+ return {"value":g.state.pressure,"maximum":limit,"stage":stage(g.state.pressure,limit),"magic_multiplier":magic_multiplier(g.state.pressure,limit),"gain_multiplier":multiplier,"overloaded":overloaded(g),"count":g.state.overload_count,"energy_penalty":g.state.overload_energy,"sources":sources,
   "text":"快感 %s / %s · %s" % [g.number(g.state.pressure),g.number(limit),["平静","微热","兴奋","临界"][stage(g.state.pressure,limit)]],
   "detail":"快感增长倍率：×%s。快感达到%s立即高潮，通常损失%s魔力。滑精时免除这笔损失，后续两回合开始时各损失%s魔力。\n未佩戴任何拘束具、链接或特殊装备且未被捕缚时，每回合结束快感降低%s点，最低为0。每次高潮后蓄力减半，剩余层数向下取整。" % [g.number(multiplier),g.number(limit),g.number(B.OVERLOAD_MANA),g.number(B.SLIP_EJACULATION_MANA),g.number(B.FREE_PRESSURE_RELIEF)]}

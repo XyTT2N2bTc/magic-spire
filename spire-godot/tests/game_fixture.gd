@@ -42,6 +42,6 @@ func _initial_wall_distance(_battle: bool) -> int:
 
 # Observe projection calls without touching authoritative state or overriding rules.
 var view_reads=0
-func get_view() -> Dictionary:
+func get_view(demand: Array = []) -> Dictionary:
  view_reads+=1
- return super.get_view()
+ return super.get_view(demand)

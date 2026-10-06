@@ -1,0 +1,272 @@
+{
+ "schema": 1,
+ "note": "冻结面（tests/architecture_cases.gd 与 tests/mutations.json 的动工前值），逐项锚定到提交哈希。本文件是 A 批审查缺口 3／4 的外部锚定点：被校验的常量与缺口清单都不在本文件内，因此「同步改常量／清单＋同步改本文件」会留下两处可复核的差异（改本文件即改一条冻结面，diff 单独可见，且可由 git show <commit>:<file> 复算 sha256）。",
+ "anchor": {
+  "baseline_pre_digests": {
+   "commit": "7fcc817",
+   "subject": "refactor(architecture): declare the fact table as units plus one phase-branch selector (A batch)",
+   "file": "spire-godot/tests/architecture_cases.gd",
+   "sha256": "9F837193BEA2C8E707CE9827BC06A8573222A2057566400A125657FFE7F47760"
+  },
+  "known_gaps_frozen": {
+   "commit": "7fcc817",
+   "subject": "refactor(architecture): declare the fact table as units plus one phase-branch selector (A batch)",
+   "file": "spire-godot/tests/mutations.json",
+   "sha256": "6303C906B8E686F54A87475E07EE73DCF5720E3A5FE15B5AE1DA7C9A625897D2"
+  },
+  "baseline_pre_cells": {
+   "commit": "448ba11",
+   "subject": "docs(record): evidence D-batch gates re-run on the committed bytes",
+   "file": "spire-godot/tests/architecture_cases.gd",
+   "sha256": "F4A76B18C1D43969189586D0837C6272E2B0699E353753DE5D3AA7F5104E4E40"
+  }
+ },
+ "baseline_pre_digests": {
+  "R5_BASELINE": "0dc7b88d916be013171b69c93983f337",
+  "R3_VIEW_MASK": "744a18f9e02b9b54eb8faf1a8cd63421",
+  "R5_VIEW_MASK": "86b8713a03a3d68b842542cd2a0e362d",
+  "R5_RECORD_MASK": "4a319a70a1908adf45a3246667ae8b08",
+  "R5_RECORD_ADDED": "eeefde37c4563c64ef053f8576f5c327",
+  "R5_RECOMPUTED": "0934c0a12b0fcf79af8d84148dbb0205"
+ },
+ "baseline_pre_cells": {
+  "battle:0": {
+   "facts_text": "ac39ae864b6c5be2953f41bf47a1a5f0",
+   "facts_verdicts": "e16b774323b27feb0e1ec4a2de711bef",
+   "record": "dc822d9a923dac966a75f1b2377f9f0f",
+   "view": "98491d612f1a34d0a2c7624612655ab3",
+   "view_display_facts": "88"
+  },
+  "battle:12": {
+   "facts_text": "4ff202e54cc276992613cfa15dd4483d",
+   "facts_verdicts": "fc4651ba295f7c196efa42ca3504093d",
+   "record": "f10be81486bf8806bf68285905ce2624",
+   "view": "d5dacaf06675cc544c1b14d13a7fdda9",
+   "view_display_facts": "100"
+  },
+  "battle:26": {
+   "facts_text": "6563e2f5d257f4d404fbbb84b14d4b76",
+   "facts_verdicts": "861fd22798a16f77cf6351cde3011d60",
+   "record": "628670ef3c660368406bc2effbfcbb07",
+   "view": "ca211857952a5a4e6692be61c21531bc",
+   "view_display_facts": "184"
+  },
+  "battle:44": {
+   "facts_text": "e1e9ae1c2ea1bf1cca274561d4c2e833",
+   "facts_verdicts": "8b73a596d24eadb28bcc9f4ed2b80c7c",
+   "record": "c80e71880b64424c41282d697bd665a9",
+   "view": "10f9aa4599f499e20755ed61bb282dfb",
+   "view_display_facts": "292"
+  },
+  "event:0": {
+   "facts_text": "cfea8c6499b002900cc399479c98fbc7",
+   "facts_verdicts": "301c30de8e315e52e768df1a8bc52564",
+   "record": "5334057f22c5e4a1e15678406401780a",
+   "view": "541595ca13f5e73ca9de0f2b64f3ce46",
+   "view_display_facts": "3"
+  },
+  "event:12": {
+   "facts_text": "cfea8c6499b002900cc399479c98fbc7",
+   "facts_verdicts": "301c30de8e315e52e768df1a8bc52564",
+   "record": "0e6f7a329997c8ad6794419bd04aa2c9",
+   "view": "3fc2ab7b618ab92a94d4b251eb9135da",
+   "view_display_facts": "3"
+  },
+  "event:26": {
+   "facts_text": "cfea8c6499b002900cc399479c98fbc7",
+   "facts_verdicts": "301c30de8e315e52e768df1a8bc52564",
+   "record": "6ebf858e711b4fa6aaf5721d000aac00",
+   "view": "3f64d8883f83cae0aa864c885fc71ad0",
+   "view_display_facts": "3"
+  },
+  "event:44": {
+   "facts_text": "cfea8c6499b002900cc399479c98fbc7",
+   "facts_verdicts": "301c30de8e315e52e768df1a8bc52564",
+   "record": "6be6d6ded0a4db650ec72195d7c61ac2",
+   "view": "6c2356440bcd43f4a82510528dc173a1",
+   "view_display_facts": "3"
+  },
+  "prepare:0": {
+   "facts_text": "f7104838af279e342ab5aed44cb20a57",
+   "facts_verdicts": "0f60a5032db2d92fd89a88272f10dc1f",
+   "record": "443f90d2779c05d0a19b5b15bb2e6a0d",
+   "view": "0a1924ba193cacb79a01ecbc05800bc1",
+   "view_display_facts": "72"
+  },
+  "prepare:12": {
+   "facts_text": "8d4a1d3d5424b2652da0e42a5a7cab74",
+   "facts_verdicts": "330ac05bfcc503da1d5c2f5c58e28ef4",
+   "record": "c8844c5b86e7b32bb12122a9ffc4236b",
+   "view": "19a684ffdeded96a26a50558885c8eca",
+   "view_display_facts": "84"
+  },
+  "prepare:26": {
+   "facts_text": "31db9e6906e9e6edc2df544f6c58a495",
+   "facts_verdicts": "af704235553476a09ee81bd9a2b4faca",
+   "record": "4c77352a508ed7c8c4bae8ee64c25825",
+   "view": "a8208d05993dea9ac36e7fad8ecdeef7",
+   "view_display_facts": "168"
+  },
+  "prepare:44": {
+   "facts_text": "6fd1ccecf8d6b337985d1e7065034e63",
+   "facts_verdicts": "5088345798f3561021d5322f9eb91a77",
+   "record": "d2fe19b820a7e89aabe90e67657919e9",
+   "view": "daf76ace88fec073a7743db2de0f3d7c",
+   "view_display_facts": "276"
+  },
+  "prison:0": {
+   "facts_text": "063d3fb839831b1a5e2dfade29050cf7",
+   "facts_verdicts": "dd8c0a7b5470dbe8df9b7e872539ccd1",
+   "record": "69a5e5e7981338fd7d70e6dce05039bc",
+   "view": "61a5029d16c6913146698a3dd5bf48a5",
+   "view_display_facts": "79"
+  },
+  "prison:12": {
+   "facts_text": "9d598659ba79454d46cf7796096b2727",
+   "facts_verdicts": "b321f1b18a82fb524db374cc81f0b877",
+   "record": "fa337996eaff9bbfad72b8c02ba6221b",
+   "view": "d3d8296745b0d9a375f7bd6caab592fb",
+   "view_display_facts": "88"
+  },
+  "prison:26": {
+   "facts_text": "c25701787eae5067e2254bf2afa85448",
+   "facts_verdicts": "2bfa1bada5517a2857df809a2eb0d550",
+   "record": "12e35fbf906b69f588724f6f9b2a4177",
+   "view": "71034fb99f96a73b64544341b2fa8a3c",
+   "view_display_facts": "172"
+  },
+  "prison:44": {
+   "facts_text": "ee32f17b1ee01a503c778db400fc26df",
+   "facts_verdicts": "f951eb35e09671769be056a22bac31a0",
+   "record": "46bc2f438e3164dfa637b29c66bc4b69",
+   "view": "dc82941a16fbd013239bbfe38b81d451",
+   "view_display_facts": "280"
+  },
+  "rest:0": {
+   "facts_text": "e0e212f3475e1f9dcd244fe2564fdbd9",
+   "facts_verdicts": "ec4343c1370f8acfe92526873650aa36",
+   "record": "125fc18b3f16a1dbe472bf70a6729e09",
+   "view": "a9d1770b00e77d7d37107effe368b4c3",
+   "view_display_facts": "78"
+  },
+  "rest:12": {
+   "facts_text": "a952cbe4b46679882ae30ee8e00cbbfc",
+   "facts_verdicts": "5bb8fcea01ee73d4c5be74d960430e7d",
+   "record": "655e5534b39642f8705c3c788f5783e9",
+   "view": "0f3e2db33facaf7d0cac349c8b68035f",
+   "view_display_facts": "126"
+  },
+  "rest:26": {
+   "facts_text": "299c00b335e6a86c74c5017c32985a07",
+   "facts_verdicts": "3796be82638559efd08c14f35a4b24f7",
+   "record": "1b6c36ed4157679e1202a31c5e612f76",
+   "view": "cab287418335d07b0d6b03abe199242a",
+   "view_display_facts": "252"
+  },
+  "rest:44": {
+   "facts_text": "e1e4b83a24971f84477b9c1e0d59a6b1",
+   "facts_verdicts": "a7e66ae91adfbda41a18d60d9b71e9c3",
+   "record": "fda88fa0920639c10b71dbf5e2a0ee79",
+   "view": "6a518514aef15bea1585bac114284bec",
+   "view_display_facts": "414"
+  },
+  "shop:0": {
+   "facts_text": "608cfefe469084cd7a5322122eccff44",
+   "facts_verdicts": "b35ecaa120573ce7221efb885cdce1de",
+   "record": "b55a23dbd2487396b93550da597a47ba",
+   "view": "5933d35bb57aaf0743e7f1b8a7b5bdfa",
+   "view_display_facts": "49"
+  },
+  "shop:12": {
+   "facts_text": "c7e231624b76db3e4caa04bc8df79e4d",
+   "facts_verdicts": "898b1cbf0d1f2c82f95564aae9b204d9",
+   "record": "4460c86416965eb64cde8ea04feb71f1",
+   "view": "cabc92f5d7f563aaef710bad1ee4f4ca",
+   "view_display_facts": "73"
+  },
+  "shop:26": {
+   "facts_text": "4e4f209ed0c13bf3eb6d050e628f9e30",
+   "facts_verdicts": "9dd6c6caf8d3ee28bab06f2815f5777d",
+   "record": "0e4500619d773a6fcaa8dba51305414a",
+   "view": "dfda2802902de5f0c5a952a32c383ebb",
+   "view_display_facts": "101"
+  },
+  "shop:44": {
+   "facts_text": "1cb65cb87d85ca843d8d94f7f318bacd",
+   "facts_verdicts": "45f3c9972f3720db6475312a9d28ad5b",
+   "record": "1d1b5bd1321ffd0c1444759f1ac3c8aa",
+   "view": "ab7e905c2af157a9d85cb1c6559b796a",
+   "view_display_facts": "137"
+  },
+  "takeover:0": {
+   "facts_text": "c75421de9b2720481ea31d8002e23e26",
+   "facts_verdicts": "9fa43250337736f6c5d7b90df6fc0899",
+   "record": "30163fb3ef88036126f85eb4f1331650",
+   "view": "10892969a87b17ecf070b09c3bbecfd0",
+   "view_display_facts": "80"
+  },
+  "takeover:12": {
+   "facts_text": "975d3c9922d0af94cc4848181df82ddb",
+   "facts_verdicts": "322274a2e387906c10f7a2deade40792",
+   "record": "a9a679ad03ab9bdb3a97d75effcf78c5",
+   "view": "c6ecc09c5dbc07cc14523e51b7795090",
+   "view_display_facts": "92"
+  }
+ },
+ "known_gaps_frozen": [
+  "transition_write_sites_are_pinned",
+  "save_checkpoint_kinds_are_pinned",
+  "event_dependency_edges_pinned",
+  "content_pack_root_has_no_build_feature_branch",
+  "event_definition_accessors_only",
+  "event_condition_kinds_share_one_declaration",
+  "event_probe_and_projection_readonly",
+  "event_single_evaluation_entry",
+  "tool_registry_boundary",
+  "card_identity",
+  "projection_contract",
+  "equipment_read_batches",
+  "index_materializes_once_per_scope",
+  "index_self_check_falls_back",
+  "index_id_edge_parity",
+  "index_predicate_parity",
+  "has_targets_at_parity",
+  "index_entry_parity",
+  "equipment_projection_batches",
+  "preview_read_batches",
+  "current_effect_boundaries",
+  "instance_effect_boundaries",
+  "copy_projection_masked_baseline",
+  "copy_single_entry_matches_projection",
+  "copy_route_bytes_unchanged",
+  "copy_migrated_kinds",
+  "copy_r4_sites",
+  "copy_r6_sites",
+  "copy_candidate_detail_on_demand",
+  "removal_end_state",
+  "behavior_baseline_equivalence",
+  "single_eligibility_implementation",
+  "instruction_router_single_entry",
+  "instruction_route_table_is_total",
+  "pipeline_lookup_inspect",
+  "command_fact_kind_lookup",
+  "card_facts_declared_slots",
+  "card_facts_consumes_has_targets_at",
+  "card_facts_keyword_min_query",
+  "present_adjacency_graph_is_pinned",
+  "command_registry_is_total",
+  "fact_source_map_is_pinned",
+  "fact_lookup_equivalence",
+  "attack_fact_direct_lookup",
+  "attack_point_lookup_reads_one_row",
+  "attack_point_rejects_nonbattle_families",
+  "card_fact_direct_lookup",
+  "card_point_lookup_reads_one_row",
+  "single_fact_lookup_per_submit",
+  "rejected_submit_lookup_counts",
+  "submit_presented_fact_is_unchanged",
+  "submit_key_face_rebaseline_self_proof",
+  "dispatch_fact_row_is_readonly",
+  "payload_write_sites_are_pinned"
+ ]
+}

@@ -510,9 +510,9 @@ class TargetsAtCountingGame extends "res://tests/game_fixture.gd":
 # Test-side counter: an unregistered kind must not reach the whole-table producer (C2 fail-closed).
 class FactSourceCountingGame extends "res://tests/game_fixture.gd":
  var fact_source_calls=0
- func _fact_source() -> Array:
+ func _fact_source(groups: Array = []) -> Array:
   fact_source_calls+=1
-  return super._fact_source()
+  return super._fact_source(groups)
 
 # B 批（K2）测试侧计数：一次可行动期的命令事实查询不得建整表；生产源码不带计数器。
 # 2026-10-06 B 批审查条目 1（归 C 批）：计数面扩到整表连接的三个入口（_join_fact_units／
@@ -523,21 +523,21 @@ class PointLookupCountingGame extends "res://tests/game_fixture.gd":
  var join_units_calls=0
  var branch_units_calls=0
  var phase_facts_calls=0
- func _fact_source() -> Array:
+ func _fact_source(groups: Array = []) -> Array:
   fact_source_calls+=1
-  return super._fact_source()
- func command_facts() -> Array:
+  return super._fact_source(groups)
+ func command_facts(groups: Array = []) -> Array:
   command_facts_calls+=1
-  return super.command_facts()
- func _join_fact_units(units: Array) -> Array:
+  return super.command_facts(groups)
+ func _join_fact_units(units: Array, groups: Array = []) -> Array:
   join_units_calls+=1
-  return super._join_fact_units(units)
- func _phase_branch_units(branch: String) -> Array:
+  return super._join_fact_units(units,groups)
+ func _phase_branch_units(branch: String, groups: Array = []) -> Array:
   branch_units_calls+=1
-  return super._phase_branch_units(branch)
- func _phase_facts() -> Array:
+  return super._phase_branch_units(branch,groups)
+ func _phase_facts(groups: Array = []) -> Array:
   phase_facts_calls+=1
-  return super._phase_facts()
+  return super._phase_facts(groups)
  func reset_point_lookup_counts() -> void:
   fact_source_calls=0
   command_facts_calls=0
@@ -600,9 +600,9 @@ class AttackLookupCountingGame extends "res://tests/game_fixture.gd":
  func equipment_spell_facts() -> Array:
   equipment_spell_calls+=1
   return super.equipment_spell_facts()
- func _fact_source() -> Array:
+ func _fact_source(groups: Array = []) -> Array:
   fact_source_calls+=1
-  return super._fact_source()
+  return super._fact_source(groups)
  func reset_attack_lookup_counts() -> void:
   attack_facts_calls=0
   equipment_spell_calls=0
@@ -728,6 +728,10 @@ static func run(t) -> void:
  fact_units_cover_fact_source(t)
  phase_branch_vocabulary_is_total(t)
  baseline_constants_are_unchanged(t)
+ default_projection_is_unchanged(t)
+ lazy_projection_invariant(t)
+ fact_groups_are_total(t)
+ whole_table_branches_force_full_demand(t)
  attack_fact_direct_lookup(t)
  attack_point_lookup_reads_one_row(t)
  attack_point_rejects_nonbattle_families(t)
@@ -752,6 +756,8 @@ static func run(t) -> void:
  rejected_submit_lookup_counts(t)
  submit_presented_fact_is_unchanged(t)
  submit_key_face_rebaseline_self_proof(t)
+ submit_result_scalars_are_pinned(t)
+ baseline_diff_is_declared(t)
  dispatch_fact_row_is_readonly(t)
  payload_write_sites_are_pinned(t)
  card_facts_declared_slots(t)
@@ -1833,6 +1839,19 @@ const R5_VIEW_MASK=["candidates"]
 const R5_RECORD_MASK=["rows_verdicts","view_candidates"]
 const R5_RECORD_ADDED=["facts_text","facts_verdicts","view_display_facts"]
 const R5_RECOMPUTED=["record","view"]
+# E 批（K4）唯一新增 View 键 display_fact_scope：行面的派生键（大且可推导），与 display_facts 同属「按 mask
+# 排除出冻结摘要」的一类。E 批不动冻结的 mask 常量（C-E-1：四个 mask 常量一字未改），故本批排除项落在本字面表：
+# 有效排除集＝R3_VIEW_MASK ＋ E_VIEW_MASK_ADDED（两处合起来仍是双向断言——不在 R3_VIEW_KEYS_BASE 里的键必须
+# 逐条在这里声明）。F 批把它并进 R3_VIEW_MASK（C-F-6）后本表清空删除。
+const E_VIEW_MASK_ADDED=["display_fact_scope"]
+# E 批（K4）唯一新增 View 键在返回字典里的位置＝末尾（core/game_view.gd::build 的最后一个键），删它不移动
+# 其余键的次序，故 view／record 摘要除已声明的两字段面外逐字节不动。
+# 动工前常量副本（A 批审查缺口 4）：不在本文件，见 tests/frozen-baselines.json（外部锚定＋锚定提交 sha256）。
+const FROZEN_BASELINES_JSON="tests/frozen-baselines.json"
+
+static func frozen_baselines() -> Dictionary:
+ var parsed=JSON.parse_string(source_text(FROZEN_BASELINES_JSON))
+ return parsed if parsed is Dictionary else {}
 # 接管单元（takeover:0／takeover:12）的 first_turn_control 摘要：接管步骤由行改为显示事实（同一形状与判定，
 # 字段面不同），在 R5 提交字节上复算冻结。
 const R5_FIRST_TURN={"takeover:0":"8bf0e226191edacd337b525691d9e36a","takeover:12":"ff12a17c57f7d8e7e7023ac7e7c15280"}
@@ -1841,7 +1860,7 @@ const R5_FIRST_TURN={"takeover:0":"8bf0e226191edacd337b525691d9e36a","takeover:1
 # submit_keys（成功结果键面摘要）与由其派生的 <record> 摘要随之变化；本批只重算这两个面，mask 不变
 # （R5_VIEW_MASK／R5_RECORD_MASK／R5_RECORD_ADDED 原值），其余记录字段与 G6 其余断言逐字不变。
 # 差异只来自该键的自证在 docs/record/verification.md：旧键面复算摘要与旧冻结值逐 cell 相等。
-const R5_BASELINE={"battle:0":{"facts_text":"ac39ae864b6c5be2953f41bf47a1a5f0","facts_verdicts":"e16b774323b27feb0e1ec4a2de711bef","record":"dc822d9a923dac966a75f1b2377f9f0f","view":"98491d612f1a34d0a2c7624612655ab3","view_display_facts":"88"},"battle:12":{"facts_text":"4ff202e54cc276992613cfa15dd4483d","facts_verdicts":"fc4651ba295f7c196efa42ca3504093d","record":"f10be81486bf8806bf68285905ce2624","view":"d5dacaf06675cc544c1b14d13a7fdda9","view_display_facts":"100"},"battle:26":{"facts_text":"6563e2f5d257f4d404fbbb84b14d4b76","facts_verdicts":"861fd22798a16f77cf6351cde3011d60","record":"628670ef3c660368406bc2effbfcbb07","view":"ca211857952a5a4e6692be61c21531bc","view_display_facts":"184"},"battle:44":{"facts_text":"e1e9ae1c2ea1bf1cca274561d4c2e833","facts_verdicts":"8b73a596d24eadb28bcc9f4ed2b80c7c","record":"c80e71880b64424c41282d697bd665a9","view":"10f9aa4599f499e20755ed61bb282dfb","view_display_facts":"292"},"event:0":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"5334057f22c5e4a1e15678406401780a","view":"541595ca13f5e73ca9de0f2b64f3ce46","view_display_facts":"3"},"event:12":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"0e6f7a329997c8ad6794419bd04aa2c9","view":"3fc2ab7b618ab92a94d4b251eb9135da","view_display_facts":"3"},"event:26":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"6ebf858e711b4fa6aaf5721d000aac00","view":"3f64d8883f83cae0aa864c885fc71ad0","view_display_facts":"3"},"event:44":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"6be6d6ded0a4db650ec72195d7c61ac2","view":"6c2356440bcd43f4a82510528dc173a1","view_display_facts":"3"},"prepare:0":{"facts_text":"f7104838af279e342ab5aed44cb20a57","facts_verdicts":"0f60a5032db2d92fd89a88272f10dc1f","record":"443f90d2779c05d0a19b5b15bb2e6a0d","view":"0a1924ba193cacb79a01ecbc05800bc1","view_display_facts":"72"},"prepare:12":{"facts_text":"8d4a1d3d5424b2652da0e42a5a7cab74","facts_verdicts":"330ac05bfcc503da1d5c2f5c58e28ef4","record":"c8844c5b86e7b32bb12122a9ffc4236b","view":"19a684ffdeded96a26a50558885c8eca","view_display_facts":"84"},"prepare:26":{"facts_text":"31db9e6906e9e6edc2df544f6c58a495","facts_verdicts":"af704235553476a09ee81bd9a2b4faca","record":"4c77352a508ed7c8c4bae8ee64c25825","view":"a8208d05993dea9ac36e7fad8ecdeef7","view_display_facts":"168"},"prepare:44":{"facts_text":"6fd1ccecf8d6b337985d1e7065034e63","facts_verdicts":"5088345798f3561021d5322f9eb91a77","record":"d2fe19b820a7e89aabe90e67657919e9","view":"daf76ace88fec073a7743db2de0f3d7c","view_display_facts":"276"},"prison:0":{"facts_text":"063d3fb839831b1a5e2dfade29050cf7","facts_verdicts":"dd8c0a7b5470dbe8df9b7e872539ccd1","record":"69a5e5e7981338fd7d70e6dce05039bc","view":"61a5029d16c6913146698a3dd5bf48a5","view_display_facts":"79"},"prison:12":{"facts_text":"9d598659ba79454d46cf7796096b2727","facts_verdicts":"b321f1b18a82fb524db374cc81f0b877","record":"fa337996eaff9bbfad72b8c02ba6221b","view":"d3d8296745b0d9a375f7bd6caab592fb","view_display_facts":"88"},"prison:26":{"facts_text":"c25701787eae5067e2254bf2afa85448","facts_verdicts":"2bfa1bada5517a2857df809a2eb0d550","record":"12e35fbf906b69f588724f6f9b2a4177","view":"71034fb99f96a73b64544341b2fa8a3c","view_display_facts":"172"},"prison:44":{"facts_text":"ee32f17b1ee01a503c778db400fc26df","facts_verdicts":"f951eb35e09671769be056a22bac31a0","record":"46bc2f438e3164dfa637b29c66bc4b69","view":"dc82941a16fbd013239bbfe38b81d451","view_display_facts":"280"},"rest:0":{"facts_text":"e0e212f3475e1f9dcd244fe2564fdbd9","facts_verdicts":"ec4343c1370f8acfe92526873650aa36","record":"125fc18b3f16a1dbe472bf70a6729e09","view":"a9d1770b00e77d7d37107effe368b4c3","view_display_facts":"78"},"rest:12":{"facts_text":"a952cbe4b46679882ae30ee8e00cbbfc","facts_verdicts":"5bb8fcea01ee73d4c5be74d960430e7d","record":"655e5534b39642f8705c3c788f5783e9","view":"0f3e2db33facaf7d0cac349c8b68035f","view_display_facts":"126"},"rest:26":{"facts_text":"299c00b335e6a86c74c5017c32985a07","facts_verdicts":"3796be82638559efd08c14f35a4b24f7","record":"1b6c36ed4157679e1202a31c5e612f76","view":"cab287418335d07b0d6b03abe199242a","view_display_facts":"252"},"rest:44":{"facts_text":"e1e4b83a24971f84477b9c1e0d59a6b1","facts_verdicts":"a7e66ae91adfbda41a18d60d9b71e9c3","record":"fda88fa0920639c10b71dbf5e2a0ee79","view":"6a518514aef15bea1585bac114284bec","view_display_facts":"414"},"shop:0":{"facts_text":"608cfefe469084cd7a5322122eccff44","facts_verdicts":"b35ecaa120573ce7221efb885cdce1de","record":"b55a23dbd2487396b93550da597a47ba","view":"5933d35bb57aaf0743e7f1b8a7b5bdfa","view_display_facts":"49"},"shop:12":{"facts_text":"c7e231624b76db3e4caa04bc8df79e4d","facts_verdicts":"898b1cbf0d1f2c82f95564aae9b204d9","record":"4460c86416965eb64cde8ea04feb71f1","view":"cabc92f5d7f563aaef710bad1ee4f4ca","view_display_facts":"73"},"shop:26":{"facts_text":"4e4f209ed0c13bf3eb6d050e628f9e30","facts_verdicts":"9dd6c6caf8d3ee28bab06f2815f5777d","record":"0e4500619d773a6fcaa8dba51305414a","view":"dfda2802902de5f0c5a952a32c383ebb","view_display_facts":"101"},"shop:44":{"facts_text":"1cb65cb87d85ca843d8d94f7f318bacd","facts_verdicts":"45f3c9972f3720db6475312a9d28ad5b","record":"1d1b5bd1321ffd0c1444759f1ac3c8aa","view":"ab7e905c2af157a9d85cb1c6559b796a","view_display_facts":"137"},"takeover:0":{"facts_text":"c75421de9b2720481ea31d8002e23e26","facts_verdicts":"9fa43250337736f6c5d7b90df6fc0899","record":"30163fb3ef88036126f85eb4f1331650","view":"10892969a87b17ecf070b09c3bbecfd0","view_display_facts":"80"},"takeover:12":{"facts_text":"975d3c9922d0af94cc4848181df82ddb","facts_verdicts":"322274a2e387906c10f7a2deade40792","record":"a9a679ad03ab9bdb3a97d75effcf78c5","view":"c6ecc09c5dbc07cc14523e51b7795090","view_display_facts":"92"}}
+const R5_BASELINE={"battle:0":{"facts_text":"ac39ae864b6c5be2953f41bf47a1a5f0","facts_verdicts":"e16b774323b27feb0e1ec4a2de711bef","record":"a91a38c0efbb91657d53f80e4612dc58","view":"98491d612f1a34d0a2c7624612655ab3","view_display_facts":"88"},"battle:12":{"facts_text":"4ff202e54cc276992613cfa15dd4483d","facts_verdicts":"fc4651ba295f7c196efa42ca3504093d","record":"534c04ff0b14b4b0b625910ad5b0bac8","view":"d5dacaf06675cc544c1b14d13a7fdda9","view_display_facts":"100"},"battle:26":{"facts_text":"6563e2f5d257f4d404fbbb84b14d4b76","facts_verdicts":"861fd22798a16f77cf6351cde3011d60","record":"ba0f2abc0e0da39fe7c0b6fe2fbdcea0","view":"ca211857952a5a4e6692be61c21531bc","view_display_facts":"184"},"battle:44":{"facts_text":"e1e9ae1c2ea1bf1cca274561d4c2e833","facts_verdicts":"8b73a596d24eadb28bcc9f4ed2b80c7c","record":"eb91794005dbc248a21d510d5c840009","view":"10f9aa4599f499e20755ed61bb282dfb","view_display_facts":"292"},"event:0":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"bf7222442366073db6d1322a470d6f18","view":"541595ca13f5e73ca9de0f2b64f3ce46","view_display_facts":"3"},"event:12":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"7206323fff489063319a2e71bafd78c6","view":"3fc2ab7b618ab92a94d4b251eb9135da","view_display_facts":"3"},"event:26":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"9229033847caec6f3fa2ab219b6624ba","view":"3f64d8883f83cae0aa864c885fc71ad0","view_display_facts":"3"},"event:44":{"facts_text":"cfea8c6499b002900cc399479c98fbc7","facts_verdicts":"301c30de8e315e52e768df1a8bc52564","record":"86f69fcd04331a3b7855b521f264e6db","view":"6c2356440bcd43f4a82510528dc173a1","view_display_facts":"3"},"prepare:0":{"facts_text":"f7104838af279e342ab5aed44cb20a57","facts_verdicts":"0f60a5032db2d92fd89a88272f10dc1f","record":"f2bfd8369e45f7fdf00b8f6316ad3901","view":"0a1924ba193cacb79a01ecbc05800bc1","view_display_facts":"72"},"prepare:12":{"facts_text":"8d4a1d3d5424b2652da0e42a5a7cab74","facts_verdicts":"330ac05bfcc503da1d5c2f5c58e28ef4","record":"1953df20705b0aa21c07d824bd125d1d","view":"19a684ffdeded96a26a50558885c8eca","view_display_facts":"84"},"prepare:26":{"facts_text":"31db9e6906e9e6edc2df544f6c58a495","facts_verdicts":"af704235553476a09ee81bd9a2b4faca","record":"d59596d73b375820ea8bbddd1ee8e58b","view":"a8208d05993dea9ac36e7fad8ecdeef7","view_display_facts":"168"},"prepare:44":{"facts_text":"6fd1ccecf8d6b337985d1e7065034e63","facts_verdicts":"5088345798f3561021d5322f9eb91a77","record":"c8e44c7aef7dcfc131918289ff0b832d","view":"daf76ace88fec073a7743db2de0f3d7c","view_display_facts":"276"},"prison:0":{"facts_text":"063d3fb839831b1a5e2dfade29050cf7","facts_verdicts":"dd8c0a7b5470dbe8df9b7e872539ccd1","record":"40f93706363b0b70f5303be1f82817c9","view":"61a5029d16c6913146698a3dd5bf48a5","view_display_facts":"79"},"prison:12":{"facts_text":"9d598659ba79454d46cf7796096b2727","facts_verdicts":"b321f1b18a82fb524db374cc81f0b877","record":"f33e1202e045a8992ee6ac548aeea802","view":"d3d8296745b0d9a375f7bd6caab592fb","view_display_facts":"88"},"prison:26":{"facts_text":"c25701787eae5067e2254bf2afa85448","facts_verdicts":"2bfa1bada5517a2857df809a2eb0d550","record":"e4e33732a3f16ac528b7b5075b48d6d4","view":"71034fb99f96a73b64544341b2fa8a3c","view_display_facts":"172"},"prison:44":{"facts_text":"ee32f17b1ee01a503c778db400fc26df","facts_verdicts":"f951eb35e09671769be056a22bac31a0","record":"d42326ffbea435fbc02988b4ae268677","view":"dc82941a16fbd013239bbfe38b81d451","view_display_facts":"280"},"rest:0":{"facts_text":"e0e212f3475e1f9dcd244fe2564fdbd9","facts_verdicts":"ec4343c1370f8acfe92526873650aa36","record":"cf063a5569eed7c62617ab47db08adf0","view":"a9d1770b00e77d7d37107effe368b4c3","view_display_facts":"78"},"rest:12":{"facts_text":"a952cbe4b46679882ae30ee8e00cbbfc","facts_verdicts":"5bb8fcea01ee73d4c5be74d960430e7d","record":"575c7c657fe4fc364095f72a05d2410f","view":"0f3e2db33facaf7d0cac349c8b68035f","view_display_facts":"126"},"rest:26":{"facts_text":"299c00b335e6a86c74c5017c32985a07","facts_verdicts":"3796be82638559efd08c14f35a4b24f7","record":"4c5d644fcbc39554d639aeb67d550a16","view":"cab287418335d07b0d6b03abe199242a","view_display_facts":"252"},"rest:44":{"facts_text":"e1e4b83a24971f84477b9c1e0d59a6b1","facts_verdicts":"a7e66ae91adfbda41a18d60d9b71e9c3","record":"0e6d12f15caf1e0f3b3b731f762ea461","view":"6a518514aef15bea1585bac114284bec","view_display_facts":"414"},"shop:0":{"facts_text":"608cfefe469084cd7a5322122eccff44","facts_verdicts":"b35ecaa120573ce7221efb885cdce1de","record":"0f41d8836cb1ba7ada61e9b53877cd67","view":"5933d35bb57aaf0743e7f1b8a7b5bdfa","view_display_facts":"49"},"shop:12":{"facts_text":"c7e231624b76db3e4caa04bc8df79e4d","facts_verdicts":"898b1cbf0d1f2c82f95564aae9b204d9","record":"fc76295ecfd61df0f454194ce8ae8ab5","view":"cabc92f5d7f563aaef710bad1ee4f4ca","view_display_facts":"73"},"shop:26":{"facts_text":"4e4f209ed0c13bf3eb6d050e628f9e30","facts_verdicts":"9dd6c6caf8d3ee28bab06f2815f5777d","record":"08d4e4d38cd5c0dd085edb1a4de6d21e","view":"dfda2802902de5f0c5a952a32c383ebb","view_display_facts":"101"},"shop:44":{"facts_text":"1cb65cb87d85ca843d8d94f7f318bacd","facts_verdicts":"45f3c9972f3720db6475312a9d28ad5b","record":"129a55371c9d28996e8375cce7c91f7e","view":"ab7e905c2af157a9d85cb1c6559b796a","view_display_facts":"137"},"takeover:0":{"facts_text":"c75421de9b2720481ea31d8002e23e26","facts_verdicts":"9fa43250337736f6c5d7b90df6fc0899","record":"f441cc05a72a355be4dd1a5965c1b602","view":"10892969a87b17ecf070b09c3bbecfd0","view_display_facts":"80"},"takeover:12":{"facts_text":"975d3c9922d0af94cc4848181df82ddb","facts_verdicts":"322274a2e387906c10f7a2deade40792","record":"9ad58a8aedf0b8c95f7fea1c7275c77b","view":"c6ecc09c5dbc07cc14523e51b7795090","view_display_facts":"92"}}
 const R3_VIEW_KEYS_BASE=["action_log","arms","battle_item_drop","battle_relic_drop","battle_rewards","bodies","body_coverage","body_groups","body_regions","candidates","capacity","capture","card_chain","card_costs","card_instances","card_texts","carried_items","casting","character_id","climax","composite_portrait_layers","content_status","deck_cards","deck_count","demo_cycle","demo_exit","demo_finished","discard_cards","discard_count","draw_cards","draw_count","encounter","end_turn_locked","enemies","energy","energy_max","equipment_fireball_unlocked","equipment_portrait_layers","first_turn_control","guard_bind","hand","has_restraint_level","hook_contact","hook_environment_name","hook_location","hook_uses","initial_seed","items","journey","legs","logs","mana","mana_flask","mana_max","map_name","map_region","movement","npc_speech","order","pending_retain","phase","phase_caption","pose_name","posture","powers","practice","practice_description","practice_focus","practice_hint","practice_kind","practice_options","preparation_turns","prepare_left","pressure","prison","relics","rest_left","retain_left","reward_count","reward_destination","reward_panel","reward_title","room_event","room_name","rooms_completed","round","route","run_header","security","seed","shop","speech","statuses","summary","temporary_mana","tower_generation","tower_start_pending","travel_log","travel_turns","version","wall","wall_position","wall_text"]
 
 const R1_TAKEOVER_COUNTS=[0,12]
@@ -2008,6 +2027,7 @@ static func r1_view_without_mask(view: Dictionary) -> Dictionary:
  for key in view:
   if key in R3_VIEW_MASK: continue
   if key in R5_VIEW_MASK: continue
+  if key in E_VIEW_MASK_ADDED: continue
   masked[key]=view[key]
  return masked
 
@@ -2089,6 +2109,7 @@ static func behavior_baseline_equivalence(t) -> void:
    key_problems.append(key+" kept="+str(kept.size())+" frozen="+str(key_base.size())+" missing="+str(key_base.filter(func(name):return not name in view_keys).slice(0,3)))
   added.sort()
   var declared_mask=R3_VIEW_MASK.duplicate()
+  declared_mask.append_array(E_VIEW_MASK_ADDED)
   declared_mask.sort()
   if added!=declared_mask: mask_problems.append(key+" added="+str(added)+" declared="+str(declared_mask))
   if not removed.is_empty(): removed_problems.append(key+" removed="+str(removed))
@@ -2644,12 +2665,9 @@ const FACT_UNIT_EXPECTATION={
 # （能观测到即红＝不能腐烂的豁免），未列的必须逐组观测到。
 # B 批起为空：牌链夹具（flag:card_chain）落地后 phase 与 chain 的 chain 组已可观测，豁免逐条缩短为无。
 const FACT_UNIT_GROUP_UNCOVERED=[]
-const R5_BASELINE_PRE_DIGEST="0dc7b88d916be013171b69c93983f337"
-const R3_VIEW_MASK_PRE_DIGEST="744a18f9e02b9b54eb8faf1a8cd63421"
-const R5_VIEW_MASK_PRE_DIGEST="86b8713a03a3d68b842542cd2a0e362d"
-const R5_RECORD_MASK_PRE_DIGEST="4a319a70a1908adf45a3246667ae8b08"
-const R5_RECORD_ADDED_PRE_DIGEST="eeefde37c4563c64ef053f8576f5c327"
-const R5_RECOMPUTED_PRE_DIGEST="0934c0a12b0fcf79af8d84148dbb0205"
+# 动工前常量副本（*_PRE_DIGEST）与 R5_BASELINE 的动工前内容已外部化到 tests/frozen-baselines.json
+# （A 批审查缺口 4：前值不得与被校验常量同文件，否则「同步改常量＋同步改前值」能白名单化）；
+# 该文件逐项锚定到提交哈希，可由 git show <commit>:<file> 复算 sha256。
 
 static func phase_branch_returns() -> Array:
  var body=source_func_body_code("res://core/game.gd","_phase_branch")
@@ -2917,16 +2935,375 @@ static func fact_units_cover_fact_source(t) -> void:
  print("FACT UNITS declared=%d states=%d uncovered=%s" % [fact_units_declared().size(),compared,str(FACT_UNIT_GROUP_UNCOVERED)])
  for line in coverage_report: print("FACT UNIT GROUPS "+String(line))
 
-# C-A-3（G-1 零移动；gherkin A-3；acceptance.md §1 A 段）：R5_BASELINE 与四个 mask 常量在本批一字未改——
-# 副本以摘要形式冻结（动工前值），任何移动＝红（不是"重冻"）：重冻必须走 G-2 程序（前值冻结＋声明差异＋自证）。
+# C-A-3／C-E-1（G-1 零移动；gherkin A-3／E-1；acceptance.md §1 A 段与 E 段）：四个 mask 常量在本片一字未改——
+# 动工前值冻结在**独立文件** tests/frozen-baselines.json（A 批审查缺口 4：前值不得与被校验常量同文件，否则
+# 「同步改常量＋同步改前值」能白名单化）。R5_BASELINE 在 E 批按已声明重冻了两个字段面（submit_keys／派生
+# <record>，C-E-7），故它不在此比对，由 tests/architecture_cases.gd::baseline_diff_is_declared 双向核对。
 static func baseline_constants_are_unchanged(t) -> void:
- var pairs=[["R5_BASELINE",JSON.stringify(R5_BASELINE),R5_BASELINE_PRE_DIGEST],["R3_VIEW_MASK",JSON.stringify(R3_VIEW_MASK),R3_VIEW_MASK_PRE_DIGEST],["R5_VIEW_MASK",JSON.stringify(R5_VIEW_MASK),R5_VIEW_MASK_PRE_DIGEST],["R5_RECORD_MASK",JSON.stringify(R5_RECORD_MASK),R5_RECORD_MASK_PRE_DIGEST],["R5_RECORD_ADDED",JSON.stringify(R5_RECORD_ADDED),R5_RECORD_ADDED_PRE_DIGEST],["R5_RECOMPUTED",JSON.stringify(R5_RECOMPUTED),R5_RECOMPUTED_PRE_DIGEST]]
+ var frozen_digests=frozen_baselines().get("baseline_pre_digests",{})
+ t.check(frozen_digests is Dictionary and not (frozen_digests as Dictionary).is_empty(),"G1 baseline_constants_are_unchanged: the frozen pre-batch digests live in the external file "+FROZEN_BASELINES_JSON)
+ var pairs=[["R3_VIEW_MASK",JSON.stringify(R3_VIEW_MASK)],["R5_VIEW_MASK",JSON.stringify(R5_VIEW_MASK)],["R5_RECORD_MASK",JSON.stringify(R5_RECORD_MASK)],["R5_RECORD_ADDED",JSON.stringify(R5_RECORD_ADDED)],["R5_RECOMPUTED",JSON.stringify(R5_RECOMPUTED)]]
  var moved=[]
+ var missing=[]
  for pair in pairs:
-  if r1_digest(String(pair[1]))!=String(pair[2]): moved.append(String(pair[0]))
- t.check(moved.is_empty(),"G1 baseline_constants_are_unchanged: R5_BASELINE and the mask constants keep the frozen pre-batch digest (a move is a rebaseline, never a silent edit): "+str(moved))
+  var want=String((frozen_digests as Dictionary).get(String(pair[0]),""))
+  if want=="": missing.append(String(pair[0]))
+  elif r1_digest(String(pair[1]))!=want: moved.append(String(pair[0]))
+ t.check(missing.is_empty(),"G1 baseline_constants_are_unchanged: every frozen constant has its pre-batch digest in the external file: "+str(missing))
+ t.check(moved.is_empty(),"G1 baseline_constants_are_unchanged: the mask constants keep the frozen pre-batch digest (a move is a rebaseline, never a silent edit): "+str(moved))
  t.check(r1_digest(JSON.stringify(["a"]))!=r1_digest(JSON.stringify(["b"])),"G1 baseline_constants_are_unchanged: the frozen-digest comparison is sensitive to a value change")
- print("BASELINE CONSTANTS FROZEN pairs=%d" % pairs.size())
+ print("BASELINE CONSTANTS FROZEN pairs=%d source=%s" % [pairs.size(),FROZEN_BASELINES_JSON])
+
+# 组全集（测试内字面期望）：需求闭包的「全组」取值；双向等于 core/command_registry.gd::FACT_UNITS 的组列并集。
+const E_FACT_GROUPS=["attack","card","chain","demo_exit","event","flask","flow","hook","item","manual","posture","pressure","prison","relic","rest_service","retain","reward","route","service","service_flow","service_refresh","service_release","service_remove","status_toggle","surrender","wall_move"]
+# 投影承接组（测试内字面期望）：core/game_view.gd::build 除 display_facts／display_fact_scope 外的键消费的组，
+# 即需求闭包下限（core/command_registry.gd::VIEW_FACT_GROUPS）。
+const E_VIEW_FACT_GROUPS=["card","event","flow","item","manual","posture","prison","rest_service","reward","route","service","service_flow","service_refresh","service_release","service_remove"]
+# 需求画像矩阵（字面需求 → 期望闭包＝需求 ∪ 承接组）：全组是它的普通取值之一（不是特权路径）。
+const E_DEMAND_PROFILES=[
+ ["full",E_FACT_GROUPS],
+ ["drawers_closed",["item","service","service_flow"]],
+ ["relics_open",["relic","reward"]],
+ ["body_details",["manual","attack","card","posture","pressure"]],
+ ["route_only",["route","flow","event"]],
+]
+# 成功结果键面（E-6；字面表，含顺序）。S5 的旧键面 S5_SUBMIT_KEYS_AFTER 与其自证常量保留不动（历史冻结，
+# tests/architecture_cases.gd::submit_key_face_rebaseline_self_proof 常驻核）。
+const E_SUBMIT_KEYS=["ok","version","resource_feedback","card_feedback","music_feedback","checkpoint","spell_failed","fact","phase","overloaded"]
+# 战斗相位词表（测试内字面期望）：guarded 过载态＝state.overloaded ∧ phase ∈ 本表（core/game.gd::dispatch 的
+# overloaded 必须与它同值——这条期望不取自实现）。
+const E_COMBAT_PHASES=["battle","prepare","rest","prison"]
+# C-E-7 的声明差异集（G-2 第 2 步；逐 cell 逐字段一条原因）：原因只有一类——已声明的新增键 ⇒ submit_keys
+# （＝result.keys() 摘要）变更 ⇒ 由它派生的 <record> 摘要随之变更。表外任何差异＝红（尤其 view／facts_text／
+# view_display_facts 任一移动）。
+const E_SUBMIT_KEYS_REASON="已声明的新增键：dispatch 成功结果追加 phase／overloaded（K7；C-E-6）⇒ submit_keys 变更 ⇒ 派生 <record> 变更"
+const E_DECLARED_DIFF={
+ "battle:0":{"record":E_SUBMIT_KEYS_REASON},
+ "battle:12":{"record":E_SUBMIT_KEYS_REASON},
+ "battle:26":{"record":E_SUBMIT_KEYS_REASON},
+ "battle:44":{"record":E_SUBMIT_KEYS_REASON},
+ "prepare:0":{"record":E_SUBMIT_KEYS_REASON},
+ "prepare:12":{"record":E_SUBMIT_KEYS_REASON},
+ "prepare:26":{"record":E_SUBMIT_KEYS_REASON},
+ "prepare:44":{"record":E_SUBMIT_KEYS_REASON},
+ "rest:0":{"record":E_SUBMIT_KEYS_REASON},
+ "rest:12":{"record":E_SUBMIT_KEYS_REASON},
+ "rest:26":{"record":E_SUBMIT_KEYS_REASON},
+ "rest:44":{"record":E_SUBMIT_KEYS_REASON},
+ "shop:0":{"record":E_SUBMIT_KEYS_REASON},
+ "shop:12":{"record":E_SUBMIT_KEYS_REASON},
+ "shop:26":{"record":E_SUBMIT_KEYS_REASON},
+ "shop:44":{"record":E_SUBMIT_KEYS_REASON},
+ "event:0":{"record":E_SUBMIT_KEYS_REASON},
+ "event:12":{"record":E_SUBMIT_KEYS_REASON},
+ "event:26":{"record":E_SUBMIT_KEYS_REASON},
+ "event:44":{"record":E_SUBMIT_KEYS_REASON},
+ "prison:0":{"record":E_SUBMIT_KEYS_REASON},
+ "prison:12":{"record":E_SUBMIT_KEYS_REASON},
+ "prison:26":{"record":E_SUBMIT_KEYS_REASON},
+ "prison:44":{"record":E_SUBMIT_KEYS_REASON},
+ "takeover:0":{"record":E_SUBMIT_KEYS_REASON},
+ "takeover:12":{"record":E_SUBMIT_KEYS_REASON},
+}
+
+# 期望闭包（由测试内字面表推导，不取自被测闭包实现）：demand ∪ 投影承接组，排序去重。
+static func e_expected_scope(demand: Array) -> Array:
+ var scope=[]
+ for group in E_VIEW_FACT_GROUPS:
+  if String(group) not in scope: scope.append(String(group))
+ for group in demand:
+  if String(group) not in scope: scope.append(String(group))
+ scope.sort()
+ return scope
+
+static func e_row_groups(rows: Array) -> Array:
+ var seen={}
+ for row in rows: seen[String(row.get("group",""))]=true
+ var out=seen.keys()
+ out.sort()
+ return out
+
+# 入口守卫（design.md §K4 需求值一览表；C-E-5 单独钉住）：接管／card_chain／pending_retain ⇒ 需求＝全组
+# （这三支可在提交内由无变有，调用方在 get_view 之前预知不到）。矩阵的期望侧据此取全组。
+static func e_demand_forced_full(g) -> bool:
+ return g.FirstTurnControl.active(g) or not g.state.card_chain.is_empty() or g.state.pending_retain
+
+# 画像矩阵 × 一个夹具：行面（纯子序列）／scope 面（与行面双向一致）／值面（LPI）。期望侧＝同一实例的全组构建
+# 行（不新建 Game；acceptance.md §3.4 的第二对照）。返回本轮比对的画像数，并累加被比较字段的覆盖计数。
+static func e_profile_matrix(g, label: String, row_problems: Array, scope_problems: Array, value_problems: Array, coverage: Dictionary) -> int:
+ var full=g.get_view()
+ var full_rows=full.display_facts
+ var full_groups=e_row_groups(full_rows)
+ var forced=e_demand_forced_full(g)
+ var full_face={}
+ for key in full.keys():
+  if key in ["display_facts","display_fact_scope"]: continue
+  full_face[key]=full[key]
+ var reachable=false
+ for card in full.hand:
+  if not card.availability.is_empty(): reachable=true
+ if reachable: coverage["hand"]=int(coverage["hand"])+1
+ reachable=false
+ for item in full.items:
+  if not item.get("target_groups",[]).is_empty(): reachable=true
+ if reachable: coverage["items"]=int(coverage["items"])+1
+ reachable=false
+ for body in full.body_groups:
+  if bool(body.get("can_release",false)): reachable=true
+ if reachable: coverage["bodies"]=int(coverage["bodies"])+1
+ if not full.route.is_empty(): coverage["route"]=int(coverage["route"])+1
+ if not full.reward_panel.get("rows",[]).is_empty(): coverage["reward"]=int(coverage["reward"])+1
+ if not full.card_texts.is_empty(): coverage["texts"]=int(coverage["texts"])+1
+ for profile in E_DEMAND_PROFILES:
+  var name=String(profile[0])
+  var demand=profile[1]
+  var cut=g.get_view(demand)
+  var scope=E_FACT_GROUPS.duplicate() if forced else e_expected_scope(demand)
+  var wanted=[]
+  for row in full_rows:
+   if String(row.get("group","")) in scope: wanted.append(row)
+  if JSON.stringify(cut.display_facts)!=JSON.stringify(wanted): row_problems.append(label+"@"+name+": display_facts is not the declared subsequence of the full rows")
+  var expected_scope=full_groups.filter(func(group):return group in scope)
+  if JSON.stringify(cut.display_fact_scope)!=JSON.stringify(expected_scope) or JSON.stringify(e_row_groups(cut.display_facts))!=JSON.stringify(cut.display_fact_scope):
+   scope_problems.append(label+"@"+name+": scope="+str(cut.display_fact_scope)+" declared="+str(expected_scope))
+  var cut_face={}
+  for key in cut.keys():
+   if key in ["display_facts","display_fact_scope"]: continue
+   cut_face[key]=cut[key]
+  if JSON.stringify(full_face)!=JSON.stringify(cut_face):
+   for key in full_face:
+    if JSON.stringify(full_face[key])!=JSON.stringify(cut_face[key]): value_problems.append(label+"@"+name+"."+String(key))
+ return E_DEMAND_PROFILES.size()
+
+# C-E-1（gherkin E-1；acceptance.md §1 E 段）：缺省（无参）路径逐字节不变——无参 == 显式全组（同一语义、同一条
+# 路径）；display_fact_scope 在每个 cell 都在；mask 常量与 R5_BASELINE 的其余字段分别由
+# baseline_constants_are_unchanged／baseline_diff_is_declared 核对。敏感性：把缺省也裁剪 → 两次调用不等。
+static func default_projection_is_unchanged(t) -> void:
+ var problems=[]
+ var scope_missing=[]
+ var compared=0
+ for cell in r1_cells():
+  var key="%s:%d" % [cell[0],cell[1]]
+  var g=r1_build(cell[0],cell[1])
+  var plain=g.get_view()
+  var explicit=g.get_view(E_FACT_GROUPS)
+  if JSON.stringify(plain)!=JSON.stringify(explicit): problems.append(key+": default != explicit full group")
+  if not plain.has("display_fact_scope"): scope_missing.append(key)
+  compared+=1
+ t.check(problems.is_empty(),"K4 default_projection_is_unchanged: the no-argument projection equals the explicit full-group projection byte for byte: "+str(problems.slice(0,3)))
+ t.check(scope_missing.is_empty() and compared==r1_cells().size(),"K4 default_projection_is_unchanged: every frozen cell carries the one new view key display_fact_scope: "+str(scope_missing))
+ var params=source_func_params("res://core/game.gd","get_view")
+ t.check(params==["demand"],"K4 default_projection_is_unchanged: core/game.gd::get_view takes exactly one demand parameter (default [] = full group; the four UI call sites still pass nothing): "+str(params))
+ print("E DEFAULT PROJECTION cells=%d" % compared)
+
+# C-E-2／C-E-3（gherkin E-2／E-3；acceptance.md §1 E 段与 §3.4／§3.5）：行面＝纯子序列（逐行逐字节、顺序一致、
+# 无增无减）；display_fact_scope 与行面双向一致；除 display_facts／display_fact_scope 外每个 View 键与全组构建
+# 逐字节相等（LPI）。本判据不新建 Game：期望侧取自同状态的全组构建。覆盖＝26 cell ＋ 配方 60 提交
+# （seed 7／cap 60／style trade，与 tests/recipe_driver.gd 同一策略与种子）。
+static func lazy_projection_invariant(t) -> void:
+ var row_problems=[]
+ var scope_problems=[]
+ var value_problems=[]
+ var coverage={"hand":0,"items":0,"bodies":0,"route":0,"reward":0,"texts":0}
+ var compared=0
+ for cell in r1_cells():
+  compared+=e_profile_matrix(r1_build(cell[0],cell[1]),"%s:%d" % [cell[0],cell[1]],row_problems,scope_problems,value_problems,coverage)
+ # 覆盖夹具（两条，逐条给出被覆盖的字段；字段无值即上面的覆盖断言红）：可用的 item_use 行（items[] 目标组）
+ # 与可解开的普通装备（body_groups[].can_release）都不在 26 cell 的默认装备状态里。
+ var item_fixture=r1_build("battle",0)
+ fact_unit_enrich(item_fixture)
+ item_fixture.state.mana=0
+ compared+=e_profile_matrix(item_fixture,"coverage:items",row_problems,scope_problems,value_problems,coverage)
+ var release_fixture=r1_build("battle",0)
+ release_fixture.add_fixture("thigh",4)
+ compared+=e_profile_matrix(release_fixture,"coverage:release",row_problems,scope_problems,value_problems,coverage)
+ var live=Game.new(7)
+ var navigation={}
+ var commits=0
+ var steps=0
+ var stop_reason="cap"
+ var phases=[]
+ while commits<60 and steps<900:
+  steps+=1
+  var probe=live.get_view()
+  var phase=String(probe.phase)
+  if not phases.has(phase): phases.append(phase)
+  if phase in ["cleared","prison_end"]:
+   stop_reason="end_phase:"+phase
+   break
+  var choice=NormalPlay.choose(probe,"trade",navigation)
+  if choice.is_empty():
+   stop_reason="no_legal_step"
+   break
+  var result=live.dispatch(live.command(choice.payload,live.state.version),live.state.version)
+  if not result.ok: continue
+  commits+=1
+  NormalPlay.remember(probe,choice,navigation)
+  compared+=e_profile_matrix(live,"recipe:"+str(commits),row_problems,scope_problems,value_problems,coverage)
+ t.check(row_problems.is_empty(),"K4 lazy_projection_invariant: every display_facts is exactly the full row list filtered by the declared closure (byte for byte, order kept): "+str(row_problems.slice(0,3)))
+ t.check(scope_problems.is_empty(),"K4 lazy_projection_invariant: display_fact_scope equals the declared closure restricted to the observed row groups and equals the row face group range: "+str(scope_problems.slice(0,3)))
+ t.check(value_problems.is_empty(),"K4 lazy_projection_invariant: apart from display_facts and display_fact_scope every view key equals the full-group build (LPI): "+str(value_problems.slice(0,3)))
+ var uncovered=coverage.keys().filter(func(key):return int(coverage[key])==0)
+ t.check(uncovered.is_empty(),"K4 lazy_projection_invariant: the compared cells cover the fact-fed view fields (the comparison is not vacuous): uncovered="+str(uncovered)+" coverage="+str(coverage))
+ t.check(commits==60 and stop_reason=="cap","K4 lazy_projection_invariant: the declared recipe committed 60 times before its natural end have="+str(commits)+" stop="+stop_reason)
+ print("E LAZY PROFILES compared=%d commits=%d coverage=%s phases=%s" % [compared,commits,str(coverage),str(phases)])
+
+# C-E-4（gherkin E-4；acceptance.md §1 E 段）：组清点双向全量——build 实际产出的行 group 值域 == 声明组全集，
+# 且（同一词汇表的第二面）等于单元表的组列并集；每个声明组都能被至少一个单元覆盖。行面取表出口
+# core/game.gd::command_facts（＝core/game_view.gd::build 取的那张表；前缀扫描态上 View 的奖励面板另有
+# §K1 实测残差，不在本判据的域内）。敏感性：某单元少声明一个组（行仍在）或声明一个不存在的组 → 双向红。
+static func fact_groups_are_total(t) -> void:
+ var observed={}
+ var states=fact_unit_states()
+ for entry in states:
+  for row in entry.game.command_facts(): observed[String(row.get("group",""))]=true
+ var seen=observed.keys()
+ seen.sort()
+ var declared=E_FACT_GROUPS.duplicate()
+ declared.sort()
+ var registry=CommandRegistry.fact_groups()
+ registry.sort()
+ var missing=declared.filter(func(group):return group not in seen)
+ var extra=seen.filter(func(group):return group not in declared)
+ t.check(missing.is_empty() and extra.is_empty(),"K4 fact_groups_are_total: the observed row group range equals the declared group universe (two-way): missing="+str(missing)+" extra="+str(extra))
+ t.check(registry==declared,"K4 fact_groups_are_total: the declared universe equals the unit table's group union (one vocabulary, two faces): "+str(registry))
+ var uncovered=declared.filter(func(group):return not CommandRegistry.FACT_UNITS.any(func(unit):return group in unit.get("groups",[])))
+ t.check(uncovered.is_empty(),"K4 fact_groups_are_total: every declared group is produced by at least one unit: "+str(uncovered))
+ var outside=E_VIEW_FACT_GROUPS.filter(func(group):return group not in declared)
+ t.check(outside.is_empty(),"K4 fact_groups_are_total: the projection lower bound stays inside the declared universe: "+str(outside))
+ print("E FACT GROUPS declared=%d states=%d" % [declared.size(),states.size()])
+
+# C-E-5（gherkin E-5）：接管／card_chain／pending_retain 的需求＝全组——三支可在提交内由无变有（调用方在
+# get_view 之前预知不到），由 core/game.gd::fact_demand_groups 的入口守卫取同一个全组值。裁一个窄需求也必须
+# 拿到与全组构建逐字节相同的 View；接管注入行（FirstTurnControl.select 的 automated 行）仍在投影内，
+# R5_FIRST_TURN 的逐 cell 摘要不变。
+static func whole_table_branches_force_full_demand(t) -> void:
+ var sweep={}
+ for entry in branch_sweep_states():
+  var label=String(entry.label)
+  if label in ["flag:card_chain","flag:pending_retain"]: sweep[label]=entry.game
+ var cases=[["takeover:0",r1_build("takeover",0)],["takeover:12",r1_build("takeover",12)],["flag:card_chain",sweep.get("flag:card_chain",null)],["flag:pending_retain",sweep.get("flag:pending_retain",null)]]
+ var problems=[]
+ var compared=0
+ for entry in cases:
+  var label=String(entry[0])
+  if entry[1]==null:
+   problems.append(label+": fixture missing")
+   continue
+  var g=entry[1]
+  var full=g.get_view()
+  var narrow=g.get_view(["relic"])
+  if JSON.stringify(full)!=JSON.stringify(narrow): problems.append(label+": a narrow demand changed a whole-table branch")
+  var automated=full.display_facts.filter(func(row):return bool(row.get("automated",false)))
+  if label.begins_with("takeover") and automated.size()!=1: problems.append(label+": the takeover step row is missing automated="+str(automated.size()))
+  compared+=1
+ t.check(problems.is_empty() and compared==cases.size(),"K4 whole_table_branches_force_full_demand: takeover, card_chain and pending_retain always take the full group value: "+str(problems))
+ var takeover=r1_build("takeover",0)
+ var takeover_view=takeover.get_view(["relic"])
+ var frozen_turn=r1_digest(JSON.stringify(takeover_view.first_turn_control))
+ t.check(frozen_turn==String(R5_FIRST_TURN["takeover:0"]),"K4 whole_table_branches_force_full_demand: the takeover step face keeps its frozen digest under a narrow demand: "+frozen_turn)
+ print("E WHOLE TABLE BRANCHES cases=%d" % compared)
+
+# C-E-6（gherkin E-6；acceptance.md §1 E 段）：成功结果两键——键面（含顺序）等于字面表；phase == 提交后
+# state.phase；overloaded == 同实例 get_view().pressure.overloaded（与 View.build 同源同值，不由 payload.kind
+# 反推）；失败结果键面不动。敏感性：把 overloaded 换成裸 state.overloaded（丢战斗相位守卫）→ 下面的 reward
+# 相位夹具（keeps_combat_state 仍真、相位不在 COMBAT_PHASES）即红。
+static func submit_result_scalars_are_pinned(t) -> void:
+ var key_problems=[]
+ var value_problems=[]
+ var submits=0
+ for cell in [["battle",0],["battle",12],["prepare",12],["prison",12]]:
+  var g=r1_build(cell[0],cell[1])
+  var picked={}
+  for row in g.command_facts():
+   if row.valid:
+    picked=row
+    break
+  if picked.is_empty(): continue
+  var result=g.dispatch(g.command(picked.payload,g.state.version),g.state.version)
+  if not result.ok: continue
+  submits+=1
+  if result.keys()!=E_SUBMIT_KEYS: key_problems.append("%s:%d kind=%s have=%s" % [cell[0],cell[1],String(picked.payload.get("kind","")),str(result.keys())])
+  if String(result.get("phase",""))!=String(g.state.phase): value_problems.append("%s:%d phase %s != %s" % [cell[0],cell[1],String(result.get("phase","")),String(g.state.phase)])
+  if bool(result.get("overloaded",false))!=bool(g.get_view().pressure.overloaded): value_problems.append("%s:%d overloaded != view pressure.overloaded" % [cell[0],cell[1]])
+  if bool(result.get("overloaded",false))!=bool(g.state.overloaded and g.state.phase in E_COMBAT_PHASES): value_problems.append("%s:%d overloaded != guarded state flag" % [cell[0],cell[1]])
+ var guarded=r1_build("battle",0)
+ fact_unit_enrich(guarded)
+ guarded.state.phase="reward"
+ guarded.state.reward_options=["focus"]
+ guarded.state.overloaded=true
+ guarded.state.energy=0
+ var guard_row={}
+ for row in guarded.command_facts():
+  if row.valid and String(row.payload.get("kind",""))=="reward":
+   guard_row=row
+   break
+ var guard_result=guarded.dispatch(guarded.command(guard_row.payload,guarded.state.version),guarded.state.version)
+ t.check(not guard_row.is_empty() and bool(guard_result.get("ok",false)),"K4 submit_result_scalars_are_pinned: the combat-phase guard fixture submits a reward row: "+String(guard_result.get("error","")))
+ t.check(guard_result.keys()==E_SUBMIT_KEYS and String(guard_result.get("phase",""))==String(guarded.state.phase),"K4 submit_result_scalars_are_pinned: the success result keeps the declared key face and the post-commit phase: "+str(guard_result.keys()))
+ t.check(bool(guarded.state.overloaded) and not bool(guard_result.get("overloaded",true)),"K4 submit_result_scalars_are_pinned: the overloaded scalar keeps the combat-phase guard (a bare state flag differs here): state="+str(guarded.state.overloaded)+" result="+str(guard_result.get("overloaded",null)))
+ t.check(bool(guard_result.get("overloaded",true))==bool(guarded.get_view().pressure.overloaded),"K4 submit_result_scalars_are_pinned: the scalar equals the same instance's view pressure.overloaded")
+ var stale=r1_build("battle",0)
+ var stale_version=int(stale.state.version)
+ var stale_result=stale.dispatch(stale.command({"kind":"card","uid":"forged_id"},stale_version-1),stale_version-1)
+ t.check(stale_result.keys()==S5_REJECT_KEYS and not bool(stale_result.get("ok",true)),"K4 submit_result_scalars_are_pinned: a rejected submit keeps the frozen failure key face "+str(S5_REJECT_KEYS)+" have="+str(stale_result.keys()))
+ var body=source_func_body_code("res://core/game.gd","dispatch")
+ var at=body.rfind("return {\"ok\":true")
+ var tail="" if at<0 else body.substr(at)
+ t.check(tail.contains("\"phase\":state.phase") and tail.contains("Pressure.overloaded(self)") and not tail.contains("state.overloaded"),"K4 submit_result_scalars_are_pinned: the success result reads state.phase and the single pressure derivation (never a bare state flag, never the payload kind): "+tail.strip_edges().substr(0,160))
+ t.check(submits>=3 and key_problems.is_empty() and value_problems.is_empty(),"K4 submit_result_scalars_are_pinned: every sampled submit carries both scalars with the declared values: submits="+str(submits)+" keys="+str(key_problems.slice(0,2))+" values="+str(value_problems.slice(0,2)))
+ print("E SUBMIT SCALARS submits=%d" % submits)
+
+# C-E-7（gherkin E-7；acceptance.md §1 E 段；G-2 五步程序）：同批重冻——submit_keys（＝result.keys() 摘要）与
+# 派生 <record> 两个字段面 × 26 cell 的差异 ⊆ 声明且声明 ⊆ 差异（双向；差异漏进 view／facts_text／
+# facts_verdicts／view_display_facts 即红——它们不在声明里）；自证＝前值可由后值按声明反推（把 post 记录里
+# submit_keys 一行的值换回旧键面摘要后重算，逐 cell 等于前值）；前值来自外部锚定文件 tests/frozen-baselines.json。
+static func baseline_diff_is_declared(t) -> void:
+ var pre_cells=frozen_baselines().get("baseline_pre_cells",{})
+ t.check(pre_cells is Dictionary and not (pre_cells as Dictionary).is_empty(),"K4 baseline_diff_is_declared: the pre-batch cell face lives in the external file "+FROZEN_BASELINES_JSON)
+ var pre_face=String(S5_SUBMIT_KEYS_AFTER_DIGEST)
+ var post_face=r1_digest(JSON.stringify(E_SUBMIT_KEYS))
+ t.check(r1_digest(JSON.stringify(S5_SUBMIT_KEYS_AFTER))==pre_face,"K4 baseline_diff_is_declared: the pre-batch submit key face still hashes to the frozen S5 digest")
+ t.check(post_face!=pre_face,"K4 baseline_diff_is_declared: the two key faces differ (the rebaseline is real, not a copied value)")
+ var diff={}
+ var self_proof=[]
+ var problems=[]
+ for cell in r1_cells():
+  var key="%s:%d" % [cell[0],cell[1]]
+  var record=r1_record(r1_build(cell[0],cell[1]),cell[0],cell[1])
+  var pre=pre_cells.get(key,{})
+  if pre.is_empty():
+   problems.append(key+": no frozen pre face")
+   continue
+  var paths=record.keys()
+  paths.sort()
+  var lines=[]
+  for path in paths:
+   var value=str(record[path])
+   if path=="submit_keys" and value!="<none>": value=pre_face
+   lines.append(str(path)+"="+value)
+  if r1_digest("\n".join(lines))!=String(pre.get("record","")): self_proof.append(key+": the pre <record> is not derivable from the post one")
+  if str(record["submit_keys"])!=post_face: problems.append(key+": the submit key face digest is not the declared one have="+str(record["submit_keys"]))
+  var moved={}
+  var post_face_values={"facts_text":str(record["facts_text"]),"facts_verdicts":str(record["facts_verdicts"]),"record":r1_record_digest(record),"view":str(record["view"]),"view_display_facts":str(record["view_display_facts"])}
+  for field in post_face_values:
+   if String(post_face_values[field])!=String(pre.get(field,"")): moved[field]=E_SUBMIT_KEYS_REASON
+  diff[key]=moved
+ var undeclared=[]
+ var missing_move=[]
+ var moved_cells=0
+ for key in diff:
+  for field in diff[key]:
+   if not (E_DECLARED_DIFF.has(key) and E_DECLARED_DIFF[key].has(field)): undeclared.append(key+"."+field)
+  if not diff[key].is_empty(): moved_cells+=1
+ for key in E_DECLARED_DIFF:
+  for field in E_DECLARED_DIFF[key]:
+   if not (diff.has(key) and diff[key].has(field)): missing_move.append(key+"."+field)
+ t.check(problems.is_empty() and self_proof.is_empty(),"K4 baseline_diff_is_declared: the two field faces move exactly as declared and the pre face is derivable from the post face: "+str(problems.slice(0,3))+" "+str(self_proof.slice(0,3)))
+ t.check(undeclared.is_empty(),"K4 baseline_diff_is_declared: every moved cell field is declared (a move outside submit_keys／<record> is red): "+str(undeclared.slice(0,4)))
+ t.check(missing_move.is_empty(),"K4 baseline_diff_is_declared: every declared move happened (a declaration without a move is red): "+str(missing_move.slice(0,4)))
+ t.check(E_DECLARED_DIFF.size()==r1_cells().size() and moved_cells==E_DECLARED_DIFF.size(),"K4 baseline_diff_is_declared: the declaration covers the frozen cells one by one have="+str(E_DECLARED_DIFF.size())+" moved="+str(moved_cells))
+ print("E BASELINE DIFF declared=%d moved=%d" % [E_DECLARED_DIFF.size(),moved_cells])
 
 # ==== S2 双向等价 harness（C3／C4；acceptance.md §2；S3 复用同一函数）====
 # 期望侧独立（防自证）：方向①只取该状态 command_facts() 的表行；方向②只做表内归一化 params 的成员扫描，
@@ -4549,7 +4926,7 @@ static func single_fact_lookup_per_submit(t) -> void:
     if not keys_printed:
      keys_printed=true
      print("S5 DISPATCH KEYS before=%s after=%s" % [str(S5_SUBMIT_KEYS_BEFORE),str(result.keys())])
-    t.check(result.keys()==S5_SUBMIT_KEYS_AFTER,"S5 single_fact_lookup_per_submit: the success result gains exactly fact in the declared order fixture=%s:%d kind=%s have=%s" % [cell[0],cell[1],kind,str(result.keys())])
+    t.check(result.keys()==E_SUBMIT_KEYS,"S5 single_fact_lookup_per_submit: the success result carries the declared post-E key face (S5_SUBMIT_KEYS_AFTER stays as the frozen self-proof face) fixture=%s:%d kind=%s have=%s" % [cell[0],cell[1],kind,str(result.keys())])
    submissions+=1
    kinds[kind]=true
  t.check(submissions>=4 and kinds.has("end"),"S5 single_fact_lookup_per_submit: several real fixtures and kinds were sampled submits="+str(submissions)+" kinds="+str(kinds.keys()))
@@ -5342,10 +5719,13 @@ static func mutation_evidence_is_total(t) -> void:
  if not parsed is Dictionary: return
  var entries=parsed.get("mutations",null)
  var gaps=parsed.get("known_gaps",null)
- var frozen=parsed.get("known_gaps_frozen",null)
+ # 缺口冻结清单在**独立文件**（A 批审查缺口 3：外部锚定，不得与被核对的 known_gaps 同文件——否则同批
+ # 加一条并同步改冻结清单即可白名单化）；表里残留该键即红（两处声明同一事实＝第二份真源）。
+ var frozen=frozen_baselines().get("known_gaps_frozen",null)
  t.check(entries is Dictionary and not (entries as Dictionary).is_empty(),"MT mutation_evidence_is_total: mutations is a non-empty declaration table")
  t.check(gaps is Array,"MT mutation_evidence_is_total: known_gaps is an explicit list (no silent absence)")
- t.check(frozen is Array and not (frozen as Array).is_empty(),"MT mutation_evidence_is_total: known_gaps_frozen is the A-batch snapshot (the gap list only shrinks from here)")
+ t.check(not parsed.has("known_gaps_frozen"),"MT mutation_evidence_is_total: the frozen gap list lives in the external file "+FROZEN_BASELINES_JSON+", not in the declaration table it governs")
+ t.check(frozen is Array and not (frozen as Array).is_empty(),"MT mutation_evidence_is_total: known_gaps_frozen is the A-batch snapshot (the gap list only shrinks from here), anchored in "+FROZEN_BASELINES_JSON)
  if not entries is Dictionary or not gaps is Array or not frozen is Array: return
  var grown=gaps.map(func(key):return String(key)).filter(func(name):return name not in frozen)
  t.check(grown.is_empty(),"MT mutation_evidence_is_total: the frozen gap list only shrinks (new entries are red): "+str(grown))
