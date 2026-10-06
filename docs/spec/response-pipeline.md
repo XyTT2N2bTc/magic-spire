@@ -197,6 +197,11 @@ func render(snapshot: Dictionary = {}) -> void
   机读判据见 `docs/spec/candidate-removal.md` 的「判据真源」行。
 - 手牌卡增量刷新的依赖约束（cleaner 可核对）见 `docs/spec/hand-refresh-dependencies.md`。
 - 手牌增量刷新的具名判据＝`tests/display_ui_cases.gd::present_hand_incremental`。
+- 事实出口「直出＋对象注册」的依赖约束（cleaner 可核对）见 `docs/spec/fact-lookup-dependencies.md`。
+- 事实出口的具名判据＝`tests/architecture_cases.gd::command_registry_is_total`／
+  `tests/architecture_cases.gd::fact_source_map_is_pinned`／`tests/architecture_cases.gd::fact_lookup_equivalence`／
+  `tests/architecture_cases.gd::single_fact_lookup_per_submit`／`tests/architecture_cases.gd::dispatch_fact_row_is_readonly`／
+  `tests/architecture_cases.gd::payload_write_sites_are_pinned`。
 - 测量口径（只报告，不用于通过判据）：装备 0／12／26 件 × 选择类／提交类两条路径，同一夹具交替执行、
   2 次热身＋15 次有效配对，报逐对比值中位与两侧独立中位；计时脚本与 JSON 只放已忽略的 `build/<topic>-<date>/`，
   摘要登记 `docs/record/verification.md` 后删除原始目录；生产源码不留计数器、开关或计时钩子。
