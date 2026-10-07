@@ -292,6 +292,12 @@
       "find": " \"battle:0\":{\"record\":E_SUBMIT_KEYS_REASON},\n",
       "replace": "",
       "suite": "architecture"
+    },
+    "frozen_anchor_files_match_git": {
+      "file": "tests/frozen-baselines.json",
+      "find": "\"sha256\": \"9F837193BEA2C8E707CE9827BC06A8573222A2057566400A125657FFE7F47760\"",
+      "replace": "\"sha256\": \"9F837193BEA2C8E707CE9827BC06A8573222A2057566400A125657FFE7F47761\"",
+      "suite": "architecture"
     }
   }
 }

@@ -14,6 +14,11 @@ param(
 #
 # This tool mutates tracked source for the duration of one suite run. Run it with one engine
 # process at a time and never concurrently with another gate.
+#
+# Each run binds itself to the commit it verified: a RUN IDENTITY block (same shape as
+# check.ps1's recipe phase) is written to build/mutations/<runId>/identity.txt at run start.
+# `worktree unchanged` in the summary only means the porcelain status did not change across
+# the run -- it never means the worktree was clean; cleanliness is read from head + dirty.
 $ErrorActionPreference = 'Stop'
 $Check = @($Check | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | Select-Object -Unique)
 if ($All -and $Check.Count -gt 0) { throw '-All and -Check are mutually exclusive.' }
@@ -37,7 +42,18 @@ $runDirectory = Join-Path $gameDirectory ('build/mutations/' + $runId)
 [IO.Directory]::CreateDirectory($runDirectory) | Out-Null
 Write-Output ('MUTATION LOGS: ' + $runDirectory)
 Write-Output ('MUTATION TABLE: ' + $names.Count + ' entry(ies); this run selects ' + $selected.Count + '.')
-$statusBefore = (@(git -C $repositoryRoot status --porcelain) -join "`n")
+$statusEntries = [string[]]@(git -C $repositoryRoot status --porcelain)
+$statusBefore = ($statusEntries -join "`n")
+$head = 'unavailable'
+try { $head = ((git -C $repositoryRoot rev-parse HEAD) | Select-Object -First 1).Trim() } catch {}
+$identity = [Collections.Generic.List[string]]::new()
+$identity.Add('RUN IDENTITY')
+$identity.Add('head=' + $head)
+$identity.Add('started=' + [DateTime]::Now.ToString('yyyy-MM-ddTHH:mm:sszzz'))
+$identity.Add('dirty=' + $statusEntries.Count)
+$identity.AddRange($statusEntries)
+[IO.File]::WriteAllLines((Join-Path $runDirectory 'identity.txt'), $identity, [Text.UTF8Encoding]::new($false))
+$identity | Write-Output
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $rows = [Collections.Generic.List[object]]::new()
 
@@ -129,6 +145,6 @@ $statusAfter = (@(git -C $repositoryRoot status --porcelain) -join "`n")
 $clean = $statusAfter -eq $statusBefore
 if (-not $clean) { Write-Output 'MUTATION RESIDUE: git status changed across the run; inspect the worktree.' }
 $good = @($rows | Where-Object { $_.red -and $_.restored }).Count
-Write-Output ('MUTATION SUMMARY: ' + $good + '/' + $rows.Count + ' entr(ies) reddened the named check and restored byte-for-byte; worktree unchanged=' + $clean + '; elapsed ' + [math]::Round($timer.Elapsed.TotalSeconds, 1) + 's')
+Write-Output ('MUTATION SUMMARY: ' + $good + '/' + $rows.Count + ' entr(ies) reddened the named check and restored byte-for-byte; worktree unchanged=' + $clean + ' (pre-dirty=' + $statusEntries.Count + '); elapsed ' + [math]::Round($timer.Elapsed.TotalSeconds, 1) + 's')
 if ($good -ne $rows.Count -or -not $clean) { exit 1 }
 exit 0

@@ -758,6 +758,7 @@ static func run(t) -> void:
  submit_key_face_rebaseline_self_proof(t)
  submit_result_scalars_are_pinned(t)
  baseline_diff_is_declared(t)
+ frozen_anchor_files_match_git(t)
  dispatch_fact_row_is_readonly(t)
  payload_write_sites_are_pinned(t)
  card_facts_declared_slots(t)
@@ -5749,4 +5750,57 @@ static func mutation_evidence_is_total(t) -> void:
  var both=covered.filter(func(name):return name in declared_gaps)
  var unknown=declared_gaps.filter(func(name):return name not in universe)
  t.check(silent.is_empty() and both.is_empty() and unknown.is_empty(),"MT mutation_evidence_is_total: each judgment is either evidenced or named in known_gaps: silent="+str(silent)+" both="+str(both)+" unknown="+str(unknown))
+
+# T 批（R-T5）锚自检：对 tests/frozen-baselines.json 的每处锚重算 `git show <锚提交>:<文件>` 的 sha256，
+# 与所载 anchor.sha256 逐字节比对（大小写不敏感）。期望侧只在两处外部——JSON 声明与 git 对象库的历史
+# blob——都不取自当前工作区文件或被测判据，使「同批偷改冻结值＋锚」无法被同一批的白名单化掩盖
+# （E 批审查找漏洞 d 的闭合面）。git 不可用（execute 退出 -1）／锚对象缺失（git 非零退出）／哈希不符
+# 都按红处理（fail-closed），不静默绿。
+# 字节通道：git show 经 cmd 重定向把 blob 字节直写 build/ 下的临时文件（OS.execute 捕获 stdout 时按
+# 系统代码页解码，非字节保真，不能直接哈希字符串），再以 HashingContext SHA-256 分块重算；build/ 是
+# 忽略目录，临时文件即用即删，不产生 git 残留。
+const ANCHOR_SHOW_TMP="res://build/anchor-show.tmp"
+
+static func _sha256_file(path: String) -> String:
+ var handle=FileAccess.open(path,FileAccess.READ)
+ if handle==null: return "<file-open-failed>"
+ var context=HashingContext.new()
+ context.start(HashingContext.HASH_SHA256)
+ while handle.get_position()<handle.get_length():
+  context.update(handle.get_buffer(65536))
+ return context.finish().hex_encode()
+
+static func _anchor_show_sha256(repo_root: String, spec: String) -> String:
+ var tmp=ProjectSettings.globalize_path(ANCHOR_SHOW_TMP)
+ var output=[]
+ var exit_code=OS.execute("cmd",["/c","git","-C",repo_root,"show",spec,">",tmp],output,false)
+ if exit_code!=0:
+  DirAccess.remove_absolute(tmp)
+  return "<git-show-exit-"+str(exit_code)+">"
+ var digest=_sha256_file(tmp)
+ DirAccess.remove_absolute(tmp)
+ return digest
+
+static func frozen_anchor_files_match_git(t) -> void:
+ var anchors=frozen_baselines().get("anchor",{})
+ t.check(anchors is Dictionary and not (anchors as Dictionary).is_empty(),"FB frozen_anchor_files_match_git: "+FROZEN_BASELINES_JSON+" declares an anchor object")
+ if not anchors is Dictionary or (anchors as Dictionary).is_empty(): return
+ var repo_root=ProjectSettings.globalize_path("res://").trim_suffix("/").get_base_dir()
+ var mismatches=[]
+ for key in anchors:
+  var entry=anchors[key]
+  if not entry is Dictionary:
+   mismatches.append(String(key)+": not an anchor object")
+   continue
+  var commit=String((entry as Dictionary).get("commit",""))
+  var file=String((entry as Dictionary).get("file",""))
+  var declared=String((entry as Dictionary).get("sha256","")).to_upper()
+  if commit=="" or file=="" or declared=="":
+   mismatches.append(String(key)+": missing commit/file/sha256 fields")
+   continue
+  var recomputed=_anchor_show_sha256(repo_root,commit+":"+file).to_upper()
+  if recomputed!=declared:
+   mismatches.append(String(key)+" ("+commit+":"+file+"): recomputed="+recomputed+" declared="+declared)
+ t.check(mismatches.is_empty(),"FB frozen_anchor_files_match_git: every anchor blob hash equals its declared sha256 (git unavailable, object missing and hash mismatch all fail closed): "+str(mismatches))
+ print("FROZEN ANCHORS: %d anchor(s) recomputed from git blobs, %d matched" % [anchors.size(),anchors.size()-mismatches.size()])
 
