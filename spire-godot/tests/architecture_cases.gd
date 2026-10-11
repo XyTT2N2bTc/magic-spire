@@ -3548,15 +3548,17 @@ static func demand_core_source_is_nonempty(t) -> String:
  return "\n".join(texts)
 
 # 修复批 RF-1（step-5 独立审查）：监狱地点页（ui/main.gd::_prison_location_details）的组合行序钉死，双向。
-# ① 拼接序＝单元表序：page_rows 先读 item 组、后并 prison 组——FACT_UNITS action_tail 段
-#    item_action order=7 先于 prison_tail order=9，本页渲染相位（phase=="prison"，页路由唯一入口）
-#    的表内两组相对序即此；对调两组读取即红（mutations.json 同名条目）。
+# ① 拼接序＝单元表序：page_rows 先读 item 组，prison 组经 append_array 并接在已建 page_rows
+#    之后——FACT_UNITS action_tail 段 item_action order=7 先于 prison_tail order=9，本页渲染相位
+#    （phase=="prison"，页路由唯一入口）的表内两组相对序即此。prison 组 prepend 到 page_rows
+#    之前（65e1c08 的 RF-1 回归形态＝mutations.json 同名条目的改写 `prison+page_rows`）会删掉
+#    append 行，故 prison 侧锚取完整 append 行：prepend 即锚消失，锚全量检查红。
 # ② 呈现序＝牢门行 → 非 item_use 的 compact 行 → item_use 落点网格；任两段对调即红。
-# 锚＝函数体内恰好出现一次的子串（幽灵锚与多义锚都红）。
+# 锚＝函数体内恰好出现一次的子串（幽灵锚、多义锚与被突变删掉的锚都红）。
 static func prison_page_row_order_is_pinned(t) -> void:
  var body=source_func_body_code("res://ui/main.gd","_prison_location_details")
  var item_read="TargetQueries.facts(view,\"item\")"
- var prison_read="TargetQueries.facts(view,\"prison\")"
+ var prison_read="page_rows.append_array(TargetQueries.facts(view,\"prison\"))"
  var door_row="scroll.add_child(door)"
  var compact_loop="if c.payload.kind!=\"item_use\": _compact_action(scroll,c)"
  var grid_loop="for c in targets: _tool_target_card(grid,c)"
