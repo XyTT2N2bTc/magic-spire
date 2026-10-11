@@ -351,6 +351,10 @@ class GetViewCountingGame extends "res://tests/game_fixture.gd":
   return super.get_view(demand)
 
 class SubmitCountingGame extends GetViewCountingGame:
+ var view_demands=[]
+ func get_view(demand: Array = []) -> Dictionary:
+  view_demands.append(demand.duplicate())
+  return super.get_view(demand)
  var last_result={}
  func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
   last_result=super.dispatch(cmd,expected_version)
@@ -2898,6 +2902,459 @@ static func present_hand_source_text(t) -> void:
  callers.sort()
  t.check(callers==["_display_card","_hand_mount_card"],"DISPLAY hand refresh builds hand cards only through the member step: "+str(callers))
 
+static func submit_full_fallback_uses_source(t) -> void:
+ var ui=t.ui
+ ui.game_factory=SubmitCountingGame
+ ui.restart(42);await t.frames(8)
+ var old=ui.view
+ var source=old.duplicate(true)
+ source.pressure.overloaded=true
+ t.check(ui._present_needs_full_render(["hand"],source) and not ui._present_needs_full_render(["hand"],old),"F4 submit_full_fallback_uses_source: nonempty dirty reads overload from source, not the previous View")
+ source=old.duplicate(true)
+ source.first_turn_control={"locked":true}
+ source.speech={"id":"source-test","text":"test"}
+ source.npc_speech={}
+ ui.suppressed_hero_speech_id=""
+ t.check(ui._present_needs_full_render(["speech"],source),"F4 submit_full_fallback_uses_source: a nonempty speech dirty set falls back from source takeover lock")
+ var game=ui.game
+ var baseline=game.get_view_calls
+ game.view_demands.clear()
+ var attack=ReadQueries.facts(ui.view,"attack").filter(func(row):return row.valid and row.payload.get("enemy","")!="")
+ t.check(not attack.is_empty(),"F4 submit_full_fallback_uses_source: a real attack fixture offers a legal submission")
+ if not attack.is_empty():
+  var enemy_id=String(attack[0].payload.enemy)
+  var detached=ui.layout.enemies[enemy_id]
+  ui.layout.enemies.erase(enemy_id)
+  var header=ui.find_child("GameHeader",true,false).get_instance_id()
+  var outcome=ui.command_router.emit("attack",attack[0],int(ui.view.version))
+  await t.frames(3)
+  if is_instance_valid(detached): detached.queue_free()
+  t.check(outcome.submitted and game.last_result.ok and game.get_view_calls==baseline+2 and game.view_demands.size()==2 and not game.view_demands[0].is_empty() and game.view_demands[1].is_empty(),"F4 submit_full_fallback_uses_source: dirty nonempty scene fallback uses cropped key input then the existing full-group second fetch")
+  t.check(ui.find_child("GameHeader",true,false).get_instance_id()!=header and ui.view.display_fact_scope==Cases.e_row_groups(game.command_facts()),"F4 submit_full_fallback_uses_source: the final full render receives the complete group face")
+ ui.game_factory=preload("res://tests/game_fixture.gd")
+ ui.restart(42);await t.frames(2)
+
+# Actual leaf observations only; policy and independent oracle never generate UI read coverage.
+const ReadQueries=preload("res://ui/target_queries.gd")
+const EXTERNAL_READ_OWNERS={
+ "ui/mana_flask.gd":["resources",["build"]],
+ "ui/quick_release_bar.gd":["body_bar",["choices","_usable_targets","idle_candidate","_candidate_for"]],
+ "ui/event_screen.gd":["page",["build","drawer"]],
+ "ui/shop_screen.gd":["page",["_ready","_card_offer","_offer","services"]],
+ "ui/reward_screen.gd":["page",["build","row","cards","relics","skip_button"]],
+ "ui/departure_screen.gd":["page",["build"]],
+ "ui/relic_bundle_screen.gd":["page",["build"]],
+ "ui/command_routes.gd":["hand",["_card_intent"]],
+ "ui/keyboard_input.gd":["hand",["handle","select_card","refresh_choices"]],
+}
+# Interaction callbacks resolve through architecture_cases.gd::SECTION_BODIES via f_main_owners:
+# there is no second ownership table (C-F-2 fix G1: static and runtime owners share one declaration).
+# Full-screen only groups are not fed back into the local demand declaration.
+const PAGE_READ_GROUPS=["chain","demo_exit","event","flow","item","prison","reward","route","service","service_flow","service_refresh","service_release","service_remove"]
+static var _read_session={}
+static var _read_coverage={}
+
+static func present_demand_recorder_begin(t) -> Dictionary:
+ var session={"events":[],"snapshots":{},"conflicts":[],"closed":false,"installed":false,"old":Callable(),"observer":Callable()}
+ var observer=func(event: Dictionary): session.events.append(event)
+ session.observer=observer
+ var previous=ReadQueries.debug_exchange_read_observer(observer)
+ session.old=previous
+ if previous.is_valid():
+  ReadQueries.debug_exchange_read_observer(previous)
+  t.check(false,"F3 present_demand_recorder: observer occupation is rejected and the old Callable restored")
+  session.observer=Callable()
+  return session
+ session.installed=true
+ _read_session=session
+ return session
+
+static func present_demand_recorder_snapshot(session: Dictionary, snapshot: Dictionary) -> void:
+ var version=int(snapshot.get("version",-1))
+ var isolated=snapshot.duplicate(true)
+ if session.snapshots.has(version) and JSON.stringify(session.snapshots[version])!=JSON.stringify(isolated): session.conflicts.append(version)
+ else: session.snapshots[version]=isolated
+
+static func _read_owner(event: Dictionary) -> Dictionary:
+ var saw_ui=false
+ var role="key" if event.stack.any(func(frame):return String(frame.function).ends_with("_presentation_key") or String(frame.function).ends_with("_key_hit") or String(frame.function)=="_hand_card_key") else "rebuild"
+ for frame in event.stack:
+  var file=String(frame.source).trim_prefix("res://")
+  var name=String(frame.function)
+  if not file.begins_with("ui/") or file=="ui/target_queries.gd": continue
+  saw_ui=true
+  if name.ends_with("_presentation_key") or name.ends_with("_key_hit"): role="key"
+  if EXTERNAL_READ_OWNERS.has(file):
+   var declared=EXTERNAL_READ_OWNERS[file]
+   if name in declared[1]: return {"section":declared[0],"domain":"page" if declared[0]=="page" else "local","role":role}
+  var owners=Cases.f_main_owners(name,file)
+  if owners.size()==1: return {"section":owners[0],"domain":"interaction" if owners[0]=="target_drag" else "page" if owners[0]=="page" else "local","role":role}
+  # Shared leaf ownership is decided by its outer section, never by the requested group.
+ return {"section":"","domain":"unknown" if saw_ui else "test","role":role}
+
+static func present_demand_recorder_end(t, session: Dictionary) -> void:
+ if session.closed: return
+ session.closed=true
+ if not session.installed: return
+ var current=ReadQueries.debug_exchange_read_observer(session.old)
+ t.check(current==session.observer,"F3 present_demand_recorder: the installed observer owns its lifetime and restores the exact old Callable before oracle queries")
+ session.installed=false
+ _read_session={}
+ print("F3 OBSERVER RESTORED "+str(current==session.observer))
+ t.check(session.conflicts.is_empty(),"F3 present_demand_recorder: each observed View version names one immutable input snapshot: "+str(session.conflicts))
+ var full_by_version={}
+ var misses=[]
+ var unknown=[]
+ var observed=0
+ var nonempty=0
+ var roles={"key":0,"rebuild":0}
+ for event in session.events:
+  var owner=_read_owner(event)
+  if owner.domain=="test": continue
+  observed+=1
+  roles[owner.role]=int(roles.get(owner.role,0))+1
+  if owner.domain=="unknown": unknown.append(str(event.stack));continue
+  var version=int(event.version)
+  if not session.snapshots.has(version): misses.append("unknown-version="+str(version)+" phase="+String(event.phase));continue
+  if not full_by_version.has(version):
+   var snapshot: Dictionary=session.snapshots[version]
+   var fresh=preload("res://core/game.gd").new(int(snapshot.get("seed",7)))
+   var restored_ok=fresh.restore_snapshot(snapshot).ok
+   t.check(restored_ok,"F3 present_demand_recorder: independent oracle restores version="+str(version))
+   if not restored_ok:
+    misses.append("invalid-oracle-version="+str(version));continue
+   var restored=fresh.export_snapshot()
+   var diff=snapshot.keys().filter(func(key):return key!="version" and JSON.stringify(snapshot[key])!=JSON.stringify(restored.get(key)))
+   var equal=diff.is_empty() and int(restored.version)>version
+   t.check(equal,"F3 present_demand_recorder: restored state equals snapshot except declared version advance: "+str(diff))
+   if not equal:
+    misses.append("unequal-oracle-version="+str(version));continue
+   full_by_version[version]=fresh.get_view()
+  var full: Dictionary=full_by_version[version]
+  var want=[]
+  var groups=[]
+  if event.op=="group":
+   want=ReadQueries.facts(full,String(event.request))
+   groups=[String(event.request)]
+  else:
+   var row=ReadQueries.fact_by_key(full,String(event.request))
+   if not row.is_empty():
+    want=[row]
+    groups=[String(row.get("group",""))]
+  if not want.is_empty(): nonempty+=1
+  var label="version=%d phase=%s domain=%s section=%s role=%s request=%s" % [version,event.phase,owner.domain,owner.section,owner.role,event.request]
+  if JSON.stringify(event.rows)!=JSON.stringify(want): misses.append(label+" got="+str(event.rows.size())+" want="+str(want.size()))
+  var domain=String(owner.domain)
+  var section=String(owner.section)
+  if not _read_coverage.has(domain): _read_coverage[domain]={}
+  if not _read_coverage[domain].has(section): _read_coverage[domain][section]={}
+  for group in groups:
+   _read_coverage[domain][section][group]=int(_read_coverage[domain][section].get(group,0))+1
+   var expected=PAGE_READ_GROUPS if domain=="page" else Cases.SECTION_READ_SETS.get(section,[])
+   if domain!="interaction" and group not in expected: misses.append(label+" undeclared-group="+group+" stack="+str(event.stack))
+ t.check(unknown.is_empty(),"F3 present_demand_recorder / section_read_sets_runtime: every actual UI read has a unique file/function section owner: "+str(unknown.slice(0,2)))
+ t.check(observed>0 and nonempty>0,"F3 present_demand_recorder: actual UI leaf observations are nonempty (disabled notifications are red): events=%d nonempty=%d" % [observed,nonempty])
+ t.check(misses.is_empty(),"F3 present_demand_recorder: every real group/key request, including an empty result, equals its independent full-group oracle: "+str(misses.slice(0,4)))
+ var before=session.events.size()
+ ReadQueries.facts(t.ui.view,"relic")
+ t.check(session.events.size()==before,"F3 present_demand_recorder: closed observation does not append events")
+ print("F3 ACTUAL READS events=%d nonempty=%d versions=%d roles=%s coverage=%s" % [observed,nonempty,full_by_version.size(),str(roles),str(_read_coverage)])
+ session.observer=Callable()
+
+static func present_demand_recorder_cleanup(t) -> void:
+ if _read_session.is_empty() or bool(_read_session.get("closed",false)): return
+ var session=_read_session
+ session.closed=true
+ if bool(session.get("installed",false)): ReadQueries.debug_exchange_read_observer(session.old)
+ session.observer=Callable()
+ _read_session={}
+ t.check(false,"F3 present_demand_recorder: leaked observer was restored at the runner boundary; the failed lifetime cannot become PASS")
+
+static func section_read_sets_runtime(t) -> void:
+ var missing=[]
+ for section in Cases.SECTION_READ_SETS:
+  if section=="page": continue
+  var actual=_read_coverage.get("local",{}).get(section,{})
+  for group in Cases.SECTION_READ_SETS[section]:
+   if not actual.has(group): missing.append(section+"."+group)
+ var page=_read_coverage.get("page",{}).get("page",{})
+ for group in PAGE_READ_GROUPS:
+  if not page.has(group): missing.append("page."+group)
+ t.check(missing.is_empty(),"F2 section_read_sets_runtime: recipe plus explicit retained-view/page fixtures observe every independently declared section group: "+str(missing))
+
+static func read_observer_boundaries(t) -> void:
+ var view=t.ui.view
+ var before=JSON.stringify(view)
+ var plain=ReadQueries.facts(view,"attack")
+ var events=[]
+ var callback=func(event: Dictionary): events.append(event)
+ var old=ReadQueries.debug_exchange_read_observer(callback)
+ t.check(not old.is_valid(),"F3 read_observer_boundaries: the boundary fixture installs only on an idle observer")
+ var observed=ReadQueries.facts(view,"attack")
+ ReadQueries.facts(view,"no_such_group")
+ ReadQueries.fact_by_key(view,"no_such_key")
+ var count=events.size()
+ ReadQueries.fact_by_key(view,"")
+ t.check(JSON.stringify(plain)==JSON.stringify(observed) and JSON.stringify(view)==before,"F3 read_observer_boundaries: observed and unobserved leaf return bytes and live View are identical")
+ t.check(events.size()==count and events.any(func(event):return event.op=="group" and event.request=="no_such_group" and event.rows.is_empty()) and events.any(func(event):return event.op=="key" and event.request=="no_such_key" and event.rows.is_empty()),"F3 read_observer_boundaries: real nonempty requests returning empty are observed; the old empty-key early return remains unobserved")
+ # G4 fix: the copy-sensitivity criterion exercises the first NONEMPTY leaf event; a fixture that
+ # cannot produce one is an explicit red, never a silent pass of the mutation judgment.
+ var mutated=null
+ for event in events:
+  if not event.rows.is_empty(): mutated=event;break
+ if mutated==null: t.check(false,"F3 read_observer_boundaries / first-nonempty-leaf-event: the copy-sensitivity criterion needs a nonempty leaf event and this fixture produced none")
+ else:
+  mutated.rows[0]["label"]="event-copy-only"
+  mutated.rows.clear();mutated.scope.clear()
+ t.check(JSON.stringify(view)==before,"F3 read_observer_boundaries: changing isolated event rows/scope cannot change the live projection")
+ var detector=BoundaryFailureCollector.new()
+ var refused=present_demand_recorder_begin(detector)
+ t.check(not refused.installed and detector.failures.size()==1,"F3 read_observer_boundaries: an occupied observer is rejected, not overwritten")
+ var restored=ReadQueries.debug_exchange_read_observer(old)
+ t.check(restored==callback,"F3 read_observer_boundaries: rejected installation preserves the exact original Callable")
+ var leaked=present_demand_recorder_begin(t)
+ present_demand_recorder_cleanup(detector)
+ var none=ReadQueries.debug_exchange_read_observer(Callable())
+ t.check(not none.is_valid() and detector.failures.size()==2,"F3 read_observer_boundaries: ordinary-failure cleanup restores ownership and reports the leaked lifetime RED")
+ var closed=events.size()
+ ReadQueries.facts(view,"attack")
+ t.check(events.size()==closed,"F3 read_observer_boundaries: restored observation no longer appends events")
+
+class BoundaryFailureCollector extends RefCounted:
+ var failures=[]
+ func check(ok: bool, message: String) -> void:
+  if not ok: failures.append(message)
+
+static func _read_fixture_ready(t, fixture, label: String) -> bool:
+ var snapshot=fixture.export_snapshot()
+ var fresh=preload("res://core/game.gd").new(int(snapshot.seed))
+ var restored=fresh.restore_snapshot(snapshot)
+ var valid=bool(restored.ok)
+ t.check(valid,"F3 present_demand_recorder setup: independent restore accepts "+label+": "+str(restored))
+ if not valid: return false
+ var copy=fresh.export_snapshot()
+ var expected=snapshot.duplicate(true);expected.erase("version")
+ var actual=copy.duplicate(true);actual.erase("version")
+ valid=preload("res://tests/persistence_cases.gd").same(snapshot,copy) and JSON.stringify(expected)==JSON.stringify(actual) and int(copy.version)>int(snapshot.version) and fixture.export_snapshot()==snapshot
+ t.check(valid,"F3 present_demand_recorder setup: complete state bytes match except renewed version and live snapshot stays unchanged "+label)
+ return valid
+
+static func _read_card_ready(t, uid: String, label: String) -> bool:
+ var ui=t.ui
+ var button=ui.card_buttons.get(uid)
+ var valid=ui.view.hand.any(func(card):return card.uid==uid) and ui.game.state.hand.any(func(card):return card.uid==uid) and is_instance_valid(button) and button.is_inside_tree() and button.is_visible_in_tree() and int(button.drag_payload.get("version",-1))==int(ui.view.version) and int(ui.view.version)==int(ui.game.state.version)
+ t.check(valid,"F3 present_demand_recorder battle card: live UID/control and drag version are valid before "+label+" uid="+uid)
+ return valid
+
+static func bound_click_focus_owner(t, events: Array) -> bool:
+ var actual=events.filter(func(event):return event.op=="group" and event.request=="prison" and event.stack.any(func(frame):return frame.source=="res://ui/drag_targets.gd" and frame.function=="focus_bodies"))
+ var valid=not actual.is_empty() and actual.all(func(event):return _read_owner(event)=={"section":"target_drag","domain":"interaction","role":"rebuild"})
+ t.check(valid,"F2 bound_click_focus_owner: the real bound-click prison leaf, even when empty, belongs to the nearest dedicated interaction/target_drag entry, not outer hand")
+ return valid
+
+static func _record_card_inputs(t, session: Dictionary, uid: String, count: int) -> bool:
+ var ui=t.ui
+ await t.close_information()
+ present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+ if not _read_card_ready(t,uid,"bound input"): return false
+ var before=ui.game.export_snapshot()
+ if count>0:
+  var event_start=session.events.size()
+  await preload("res://tests/curse_ui_cases.gd").click_card(t,uid)
+  present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+  if not bound_click_focus_owner(t,session.events.slice(event_start)): return false
+  var selected=ui.selected_card==uid and ui.show_body and ui.find_child("EquipmentDetails",true,false)!=null and ui.game.export_snapshot()==before
+  t.check(selected,"F2 section_read_sets_runtime battle44: real bound click enters body_details.card without consuming the UID")
+  if not selected: return false
+ if not _read_card_ready(t,uid,"flip"): return false
+ await t.flip(uid)
+ present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+ var flipped=_read_card_ready(t,uid,"drag") and bool(ui.card_buttons.get(uid).free_face) and ui.game.export_snapshot()==before
+ t.check(flipped,"F3 present_demand_recorder battle card: real flip retains UID and changes only the displayed face")
+ if not flipped: return false
+ await t.start_drag(uid,"wrist")
+ present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+ var dragging=t.root.gui_is_dragging() and ui.active_drag.get("card_uid","")==uid and int(ui.active_drag.get("version",-1))==int(ui.view.version)
+ t.check(dragging,"F3 present_demand_recorder battle card: native drag receives the retained UID and current View version")
+ if dragging: await t.move_mouse(ui.actor_targets.hero.get_global_rect().get_center(),true)
+ present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+ await t.move_mouse(Vector2(1550,70),true);await t.mouse_button(Vector2(1550,70),MOUSE_BUTTON_LEFT,false)
+ present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+ var cancelled=not t.root.gui_is_dragging() and ui.active_drag.is_empty() and ui.game.export_snapshot()==before
+ t.check(cancelled,"F3 present_demand_recorder battle card: empty-space release cancels without a rule submission")
+ if not dragging or not cancelled: return false
+ if count==0:
+  if not _read_card_ready(t,uid,"final consuming click"): return false
+  var usable=ReadQueries.facts(ui.view,"card").any(func(row):return row.valid and row.payload.get("uid","")==uid and row.payload.get("free",false))
+  t.check(usable and ui.card_buttons.get(uid).free_face,"F3 present_demand_recorder battle0: the final real click has a valid free-face fact")
+  if not usable: return false
+  await preload("res://tests/curse_ui_cases.gd").click_card(t,uid)
+  present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+  var consumed=int(ui.view.version)>int(before.version) and not ui.view.hand.any(func(card):return card.uid==uid) and not ui.card_buttons.has(uid)
+  t.check(consumed,"F3 present_demand_recorder battle0: native click commits last and removes the UID/control before any further lookup")
+  if not consumed: return false
+ return true
+
+static func _record_clear_overlays(t, session: Dictionary) -> bool:
+ var ui=t.ui
+ var before=ui.game.export_snapshot()
+ present_demand_recorder_snapshot(session,before)
+ await t.close_information()
+ present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+ var close=ui.find_child("CloseEquipmentDetails",true,false)
+ if close!=null:
+  await preload("res://tests/target_sidebar_ui_cases.gd").press(t,close)
+  present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+ var clear=not ui.show_body and ui.find_child("EquipmentDetails",true,false)==null and ui.find_child("InformationDrawer",true,false)==null and ui.game.export_snapshot()==before
+ t.check(clear,"F3 present_demand_recorder retained page: native close removes both covering layers without changing state/version")
+ return clear
+
+static func _record_shop_services(t, session: Dictionary) -> void:
+ var ui=t.ui
+ if not await _record_clear_overlays(t,session): return
+ var before=ui.game.export_snapshot()
+ for service in [["ShopRelease","release"],["ShopRemove","remove"],["ShopInventory","discard"]]:
+  await t.close_information()
+  present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+  var closed=not ui.show_shop_service and ui.find_child("InformationDrawer",true,false)==null and ui.game.export_snapshot()==before
+  t.check(closed,"F3 present_demand_recorder shop service: native close precedes the next same-field opener "+service[0])
+  if not closed: return
+  var control=ui.find_child(service[0],true,false)
+  var ready=is_instance_valid(control) and control.is_inside_tree() and control.is_visible_in_tree() and not control.disabled
+  t.check(ready,"F3 present_demand_recorder shop service: fresh visible enabled control receives native input "+service[0])
+  if not ready: return
+  await preload("res://tests/target_sidebar_ui_cases.gd").press(t,control)
+  present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+  var opened=ui.show_shop_service and ui.shop_service_mode==service[1] and ui.find_child("InformationDrawer",true,false)!=null and ui.game.export_snapshot()==before
+  t.check(opened,"F3 present_demand_recorder shop service: native opener shows its real service mode without rule/version change "+service[0])
+  if not opened: return
+
+static func present_demand_recorder(t) -> void:
+ var ui=t.ui
+ _read_coverage={}
+ read_observer_boundaries(t)
+ if not _read_fixture_ready(t,ui.game,"retained-entry"): return
+ var session=present_demand_recorder_begin(t)
+ present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+ ui._open_drawer("show_items");await t.frames(2)
+ ui._open_drawer("show_menu");await t.frames(2)
+ ui.show_body=true;ui.selected_card="";ui.render(ui.view);await t.frames(2)
+ present_demand_recorder_snapshot(session,ui.game.export_snapshot())
+ present_demand_recorder_end(t,session)
+ ui._close_drawers();ui.show_body=false
+ # Existing rule fixtures supply explicit inputs before observation, never writes to the live recorded run.
+ for cell in [["battle",0],["battle",44],["prepare",0],["rest",0],["shop",0],["event",0],["prison",0],["takeover",0]]:
+  var fixture=Cases.r1_build(cell[0],cell[1])
+  if cell[0]=="battle":
+   if not fixture.state.hand.any(func(card):return card.type=="strain"): preload("res://tests/curse_cases.gd").give(fixture,"strain")
+   fixture._gain_charge(2)
+  ui.game=fixture
+  ui._reset_interface(fixture.get_view())
+  var uid=""
+  if cell[0]=="battle":
+   ui.render();await t.frames(2)
+   var cards=ui.view.hand.filter(func(card):return card.type=="strain")
+   t.check(not cards.is_empty(),"F3 present_demand_recorder setup: battle fixture supplies its existing strain card")
+   if cards.is_empty(): continue
+   uid=String(cards[0].uid)
+   if not _read_card_ready(t,uid,"setup"): continue
+   if ui.card_buttons.get(uid).free_face: await t.flip(uid)
+   t.check(not ui.card_buttons.get(uid).free_face,"F3 present_demand_recorder setup: native flip establishes the bound face before observation")
+  if not _read_fixture_ready(t,fixture,String(cell[0])+":"+str(cell[1])): continue
+  session=present_demand_recorder_begin(t)
+  present_demand_recorder_snapshot(session,fixture.export_snapshot())
+  ui.render();await t.frames(2)
+  ui.show_body=cell[0] in ["battle","prepare","rest","prison","takeover"];ui.selected_slot="wrist"
+  ui.render(ui.view);await t.frames(2)
+  for drawer in ["show_items","show_hook","show_pressure"]:
+   ui._open_drawer(drawer);await t.frames(2)
+  if cell[0]=="battle":
+   if not await _record_card_inputs(t,session,uid,int(cell[1])):
+    present_demand_recorder_end(t,session)
+    continue
+   ui.quick_release_open=true;ui.render(ui.view);await t.frames(2)
+   ui.quick_release_open=false;ui.show_body=false;ui.selected_card="";ui.render(ui.view);await t.frames(2)
+   var button=ui.find_child("BasicAttack_fireball",true,false)
+   if button!=null and not button.disabled and not ui.actor_targets.is_empty():
+    var origin=button.get_global_rect().get_center()
+    await t.move_mouse(origin);await t.mouse_button(origin,MOUSE_BUTTON_LEFT,true)
+    await t.move_mouse(origin+Vector2(0,-42),true)
+    var enemies=ui.view.enemies.filter(func(enemy):return not enemy.get("gone",false))
+    if not enemies.is_empty(): await t.move_mouse(ui.actor_targets[enemies[0].id].get_global_rect().get_center(),true)
+    await t.move_mouse(Vector2(1550,70),true);await t.mouse_button(Vector2(1550,70),MOUSE_BUTTON_LEFT,false)
+  if cell[0]=="prison":
+   if not await _record_clear_overlays(t,session):
+    present_demand_recorder_end(t,session)
+    continue
+   var sites=ui.view.prison.space.sites.filter(func(site):return site.interaction.get("kind","")=="door")
+   t.check(not sites.is_empty(),"F3 present_demand_recorder prison inspect: legal fixture exposes a stable door site")
+   if sites.is_empty():
+    present_demand_recorder_end(t,session)
+    continue
+   var id=String(sites[0].id)
+   var inspect=ui.find_child("InspectPrison_"+id,true,false)
+   var delivered=is_instance_valid(inspect) and inspect.is_inside_tree() and inspect.is_visible_in_tree() and not inspect.disabled
+   t.check(delivered,"F3 present_demand_recorder prison inspect: uncovered stable-id control is visible and enabled before native input")
+   if not delivered:
+    present_demand_recorder_end(t,session)
+    continue
+   var before=fixture.export_snapshot()
+   await preload("res://tests/exploration_ui_cases.gd").open_details(t,id)
+   present_demand_recorder_snapshot(session,fixture.export_snapshot())
+   t.check(ui.prison_detail==id and ui.find_child("PrisonLocationDetails",true,false)!=null and ui.find_child("PrisonExploration",true,false)==null and fixture.export_snapshot()==before,"F3 present_demand_recorder prison inspect: native delivery opens only the selected secondary page and preserves state/version")
+  if cell[0]=="prepare":
+   var map=ui.find_child("OpenMap",true,false)
+   if map!=null: map.pressed.emit();await t.frames(2)
+  if cell[0]=="shop": await _record_shop_services(t,session)
+  present_demand_recorder_snapshot(session,fixture.export_snapshot())
+  present_demand_recorder_end(t,session)
+  ui._close_drawers();ui.show_body=false
+ var extras=[]
+ var retain_fixture=Cases.r1_build("battle",12)
+ retain_fixture.Cards.request_retain(retain_fixture,2)
+ extras.append(["retain",retain_fixture])
+ var departure_fixture=Cases.r1_build("battle",0)
+ departure_fixture.Departure.start(departure_fixture)
+ extras.append(["departure",departure_fixture])
+ var bundle_fixture=Cases.r1_build("battle",0)
+ bundle_fixture.RelicEffects.gain(bundle_fixture,"nesting_doll")
+ bundle_fixture.RelicBundle.start(bundle_fixture,"nesting_doll")
+ extras.append(["bundle",bundle_fixture])
+ var chain_fixture=preload("res://tests/reward_cases.gd").setup()
+ var first_lock=chain_fixture.add_fixture("thigh",4,10,true)
+ var second_lock=chain_fixture.add_fixture("ankle",4,10,true)
+ var chain_card=preload("res://tests/curse_cases.gd").give(chain_fixture,"double_unlock")
+ var unlock=chain_fixture.command_facts().filter(func(row):return row.valid and row.payload.get("kind","")=="card" and row.payload.get("uid","")==chain_card.uid and row.payload.get("target","")==first_lock.id and not row.payload.get("free",true) and row.payload.get("mode","")=="unlock")
+ t.check(not unlock.is_empty(),"F3 present_demand_recorder chain setup: the existing two-magic-lock fixture supplies the formal bound unlock action")
+ if not unlock.is_empty():
+  var result=chain_fixture.dispatch(chain_fixture.command(unlock[0].payload,chain_fixture.state.version),chain_fixture.state.version)
+  var chain=chain_fixture.state.card_chain
+  var pending=result.ok and not chain.is_empty() and chain.get("mode","")=="unlock" and int(chain.get("remaining",0))==1 and chain_fixture.command_facts().any(func(row):return row.valid and row.payload.get("kind","")=="chain" and row.payload.get("target","")==second_lock.id)
+  t.check(pending,"F3 present_demand_recorder chain setup: one formal unlock leaves remaining=1 and a valid second locked target")
+  if pending: extras.append(["chain",chain_fixture])
+ var reward_fixture=Cases.r1_build("battle",0)
+ reward_fixture._finish_battle()
+ extras.append(["reward",reward_fixture])
+ var demo_fixture=Cases.r1_build("battle",0)
+ demo_fixture.room_data(demo_fixture.state.room).kind="exit"
+ demo_fixture.state.phase="cleared"
+ extras.append(["demo",demo_fixture])
+ for entry in extras:
+  var fixture=entry[1]
+  if not _read_fixture_ready(t,fixture,String(entry[0])): continue
+  ui.game=fixture
+  ui._reset_interface(fixture.get_view())
+  session=present_demand_recorder_begin(t)
+  present_demand_recorder_snapshot(session,fixture.export_snapshot())
+  ui.render();await t.frames(2)
+  ui.show_body=true;ui.render(ui.view);await t.frames(2)
+  present_demand_recorder_snapshot(session,fixture.export_snapshot())
+  present_demand_recorder_end(t,session)
+  ui._close_drawers();ui.show_body=false
+ section_read_sets_runtime(t)
+ ui.game_factory=preload("res://tests/game_fixture.gd")
+ ui.restart(42);await t.frames(2)
+
 static func run(t) -> void:
  r3_display_points_do_not_read_rows(t)
  display_facts_match_determination(t)
@@ -2907,6 +3364,7 @@ static func run(t) -> void:
  await portrait_snapshot_boundary(t)
  await submit_reject_semantics_unchanged(t)
  await submit_presents_local_dirty_or_full(t)
+ await submit_full_fallback_uses_source(t)
  await submit_unmounts_closed_overlay_sections(t)
  await takeover_path_unchanged(t)
  await portrait_composite_boundary(t)
@@ -3028,4 +3486,5 @@ static func run(t) -> void:
  t.root.mode=Window.MODE_WINDOWED;t.root.borderless=old_border;t.root.size=old_size;t.root.position=old_position;t.root.mode=old_mode
  ui.display_settings.initialize(t.root,false)
  await t.close_information();await t.frames()
+ await present_demand_recorder(t)
  await preload("res://tests/card_music_ui_cases.gd").run(t)

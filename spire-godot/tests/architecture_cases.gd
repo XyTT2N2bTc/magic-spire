@@ -758,6 +758,12 @@ static func run(t) -> void:
  submit_key_face_rebaseline_self_proof(t)
  submit_result_scalars_are_pinned(t)
  baseline_diff_is_declared(t)
+ demand_declarations_are_total(t)
+ section_read_sets_are_pinned(t)
+ submit_demand_call_sites_are_pinned(t)
+ command_facts_full_scope_is_content_equal(t)
+ contract_text_is_updated_verbatim(t)
+ target_queries_read_observer_is_debug_only(t)
  frozen_anchor_files_match_git(t)
  dispatch_fact_row_is_readonly(t)
  payload_write_sites_are_pinned(t)
@@ -1829,7 +1835,9 @@ const R1_MASK=[]
 # 批 R3 的显式 mask：本批唯一新增的视图键（显示事实投影，T5／T8）。行读边（D13 对应行）在本批从 ui/ 删除，
 # 但 view 的键不因此减少（候选行载体与 view.display_facts 键到 R5 才删），故 mask 只声明新增键、不声明删除键。
 # view 摘要按 mask 删键后必须与 R1 冻结值逐字节相等；键集合另按 R3_VIEW_KEYS_BASE 逐条核对（防静默增删）。
-const R3_VIEW_MASK=["display_facts"]
+# F 批（C-F-6）：E 批的过渡声明 E_VIEW_MASK_ADDED 并入本表后原表删除——有效排除集重新只是一张 mask 表；
+# 这是全片唯一被授权的 mask 变更（design.md §5.2 G-2 的声明落点），其余 mask 常量与 R5_BASELINE 一字未改。
+const R3_VIEW_MASK=["display_facts","display_fact_scope"]
 # 批 R5 的显式 mask（docs/spec/candidate-removal.md「接口」判据真源：behavior_baseline_equivalence／removal_end_state）：本批删除的载体逐条声明，多一条少一条即红。
 #  R5_VIEW_MASK＝视图键：候选行表（view.candidates）。
 #  R5_RECORD_MASK＝记录路径：候选行的提交身份 id（rows_verdicts）与 view.candidates（view_candidates）。
@@ -1840,13 +1848,8 @@ const R5_VIEW_MASK=["candidates"]
 const R5_RECORD_MASK=["rows_verdicts","view_candidates"]
 const R5_RECORD_ADDED=["facts_text","facts_verdicts","view_display_facts"]
 const R5_RECOMPUTED=["record","view"]
-# E 批（K4）唯一新增 View 键 display_fact_scope：行面的派生键（大且可推导），与 display_facts 同属「按 mask
-# 排除出冻结摘要」的一类。E 批不动冻结的 mask 常量（C-E-1：四个 mask 常量一字未改），故本批排除项落在本字面表：
-# 有效排除集＝R3_VIEW_MASK ＋ E_VIEW_MASK_ADDED（两处合起来仍是双向断言——不在 R3_VIEW_KEYS_BASE 里的键必须
-# 逐条在这里声明）。F 批把它并进 R3_VIEW_MASK（C-F-6）后本表清空删除。
-const E_VIEW_MASK_ADDED=["display_fact_scope"]
-# E 批（K4）唯一新增 View 键在返回字典里的位置＝末尾（core/game_view.gd::build 的最后一个键），删它不移动
-# 其余键的次序，故 view／record 摘要除已声明的两字段面外逐字节不动。
+# E 批（K4）唯一新增 View 键 display_fact_scope 在返回字典里的位置＝末尾（core/game_view.gd::build 的最后一个键），删它不移动
+# 其余键的次序，故 view／record 摘要除已声明的两字段面外逐字节不动。E 批的过渡排除表已按 C-F-6 并入 R3_VIEW_MASK 后删除。
 # 动工前常量副本（A 批审查缺口 4）：不在本文件，见 tests/frozen-baselines.json（外部锚定＋锚定提交 sha256）。
 const FROZEN_BASELINES_JSON="tests/frozen-baselines.json"
 
@@ -2028,7 +2031,6 @@ static func r1_view_without_mask(view: Dictionary) -> Dictionary:
  for key in view:
   if key in R3_VIEW_MASK: continue
   if key in R5_VIEW_MASK: continue
-  if key in E_VIEW_MASK_ADDED: continue
   masked[key]=view[key]
  return masked
 
@@ -2109,8 +2111,7 @@ static func behavior_baseline_equivalence(t) -> void:
   if kept.size()!=key_base.size():
    key_problems.append(key+" kept="+str(kept.size())+" frozen="+str(key_base.size())+" missing="+str(key_base.filter(func(name):return not name in view_keys).slice(0,3)))
   added.sort()
-  var declared_mask=R3_VIEW_MASK.duplicate()
-  declared_mask.append_array(E_VIEW_MASK_ADDED)
+  var declared_mask=["display_facts","display_fact_scope"]
   declared_mask.sort()
   if added!=declared_mask: mask_problems.append(key+" added="+str(added)+" declared="+str(declared_mask))
   if not removed.is_empty(): removed_problems.append(key+" removed="+str(removed))
@@ -2936,14 +2937,23 @@ static func fact_units_cover_fact_source(t) -> void:
  print("FACT UNITS declared=%d states=%d uncovered=%s" % [fact_units_declared().size(),compared,str(FACT_UNIT_GROUP_UNCOVERED)])
  for line in coverage_report: print("FACT UNIT GROUPS "+String(line))
 
-# C-A-3／C-E-1（G-1 零移动；gherkin A-3／E-1；acceptance.md §1 A 段与 E 段）：四个 mask 常量在本片一字未改——
+# C-A-3／C-E-1／C-F-6: masks retain historical PRE except R3's sole declared append, proved reversibly below.
 # 动工前值冻结在**独立文件** tests/frozen-baselines.json（A 批审查缺口 4：前值不得与被校验常量同文件，否则
 # 「同步改常量＋同步改前值」能白名单化）。R5_BASELINE 在 E 批按已声明重冻了两个字段面（submit_keys／派生
 # <record>，C-E-7），故它不在此比对，由 tests/architecture_cases.gd::baseline_diff_is_declared 双向核对。
 static func baseline_constants_are_unchanged(t) -> void:
  var frozen_digests=frozen_baselines().get("baseline_pre_digests",{})
  t.check(frozen_digests is Dictionary and not (frozen_digests as Dictionary).is_empty(),"G1 baseline_constants_are_unchanged: the frozen pre-batch digests live in the external file "+FROZEN_BASELINES_JSON)
- var pairs=[["R3_VIEW_MASK",JSON.stringify(R3_VIEW_MASK)],["R5_VIEW_MASK",JSON.stringify(R5_VIEW_MASK)],["R5_RECORD_MASK",JSON.stringify(R5_RECORD_MASK)],["R5_RECORD_ADDED",JSON.stringify(R5_RECORD_ADDED)],["R5_RECOMPUTED",JSON.stringify(R5_RECOMPUTED)]]
+ # F: preserve the external historical PRE; prove the sole authorized append in both directions.
+ var pre=["display_facts"]
+ var addition=["display_fact_scope"]
+ var post=pre.duplicate()
+ post.append_array(addition)
+ var inverse=R3_VIEW_MASK.filter(func(key):return key not in addition)
+ var historical=String(frozen_digests.get("R3_VIEW_MASK",""))
+ t.check(R3_VIEW_MASK==post,"F6 baseline_constants_are_unchanged: POST is exactly independent PRE plus the unique declared append, without deletion, reordering or duplicates")
+ t.check(r1_digest(JSON.stringify(pre))==historical and r1_digest(JSON.stringify(inverse))==historical,"F6 baseline_constants_are_unchanged: independent PRE and reverse-removal of the sole append reproduce the unmodified external historical digest")
+ var pairs=[["R3_VIEW_MASK",JSON.stringify(inverse)],["R5_VIEW_MASK",JSON.stringify(R5_VIEW_MASK)],["R5_RECORD_MASK",JSON.stringify(R5_RECORD_MASK)],["R5_RECORD_ADDED",JSON.stringify(R5_RECORD_ADDED)],["R5_RECOMPUTED",JSON.stringify(R5_RECOMPUTED)]]
  var moved=[]
  var missing=[]
  for pair in pairs:
@@ -3082,6 +3092,11 @@ static func e_profile_matrix(g, label: String, row_problems: Array, scope_proble
 static func default_projection_is_unchanged(t) -> void:
  var problems=[]
  var scope_missing=[]
+ var key_problems=[]
+ var pre_keys=R3_VIEW_KEYS_BASE.filter(func(key):return key not in R5_VIEW_MASK)
+ pre_keys.append("display_facts")
+ var entry_keys=pre_keys.duplicate()
+ entry_keys.append("display_fact_scope")
  var compared=0
  for cell in r1_cells():
   var key="%s:%d" % [cell[0],cell[1]]
@@ -3090,11 +3105,19 @@ static func default_projection_is_unchanged(t) -> void:
   var explicit=g.get_view(E_FACT_GROUPS)
   if JSON.stringify(plain)!=JSON.stringify(explicit): problems.append(key+": default != explicit full group")
   if not plain.has("display_fact_scope"): scope_missing.append(key)
+  var keys=plain.keys()
+  var cumulative_added=keys.filter(func(name):return name not in pre_keys)
+  var cumulative_removed=pre_keys.filter(func(name):return name not in keys)
+  var incremental_added=keys.filter(func(name):return name not in entry_keys)
+  var incremental_removed=entry_keys.filter(func(name):return name not in keys)
+  if cumulative_added!=["display_fact_scope"] or not cumulative_removed.is_empty() or not incremental_added.is_empty() or not incremental_removed.is_empty():
+   key_problems.append(key+" cumulative="+str(cumulative_added)+"/"+str(cumulative_removed)+" F-entry="+str(incremental_added)+"/"+str(incremental_removed))
   compared+=1
  t.check(problems.is_empty(),"K4 default_projection_is_unchanged: the no-argument projection equals the explicit full-group projection byte for byte: "+str(problems.slice(0,3)))
  t.check(scope_missing.is_empty() and compared==r1_cells().size(),"K4 default_projection_is_unchanged: every frozen cell carries the one new view key display_fact_scope: "+str(scope_missing))
+ t.check(key_problems.is_empty(),"F6 default_projection_is_unchanged: cumulative added=[display_fact_scope]/removed=[] and F relative to 32ca5bb added=[]/removed=[] from independent literal key faces: "+str(key_problems.slice(0,3)))
  var params=source_func_params("res://core/game.gd","get_view")
- t.check(params==["demand"],"K4 default_projection_is_unchanged: core/game.gd::get_view takes exactly one demand parameter (default [] = full group; the four UI call sites still pass nothing): "+str(params))
+ t.check(params==["demand"],"K4 default_projection_is_unchanged: core/game.gd::get_view takes exactly one demand parameter (default [] = full group; UI demand values are pinned by the F call-site check): "+str(params))
  print("E DEFAULT PROJECTION cells=%d" % compared)
 
 # C-E-2／C-E-3（gherkin E-2／E-3；acceptance.md §1 E 段与 §3.4／§3.5）：行面＝纯子序列（逐行逐字节、顺序一致、
@@ -3118,6 +3141,28 @@ static func lazy_projection_invariant(t) -> void:
  var release_fixture=r1_build("battle",0)
  release_fixture.add_fixture("thigh",4)
  compared+=e_profile_matrix(release_fixture,"coverage:release",row_problems,scope_problems,value_problems,coverage)
+ # C-F-9 前缀态夹具（F_PREFIX_PROFILES 登记进画像矩阵覆盖面；配方偶遇不再作为前缀态的覆盖来源）：
+ # 累积表去重变弱一类纯子序列偏差只在前缀态可达——relic_bundle 非空与 domain_blocked（域被阻断）
+ # 两个前缀态 × E_DEMAND_PROFILES 全部画像，行面／值面／display_fact_scope 三方互核同上。
+ # 夹具取 View 可重放的形态：nesting_doll 套娃包（source 必须是实持遗物，panel 直取 TYPES[source]）；
+ # 空躯干固缚记录使 Binding.state_issue 非空 ⇒ command_domain_ready()==false，而 present() 对空记录
+ # 为假，View 构建无错误（branch_sweep 的 no_such_special 探针只走 _fact_source 面，进 View 会命中
+ # 未登记类型的 TYPES 直取与缺 durability 的 worn_count，不可复用）。
+ var bundle_fixture=r1_build("battle",0)
+ fact_unit_enrich(bundle_fixture)
+ bundle_fixture.state.relics.append("nesting_doll")
+ preload("res://core/relic_bundle.gd").start(bundle_fixture,"nesting_doll")
+ t.check(not bundle_fixture.state.relic_bundle.is_empty() and bundle_fixture._phase_branch()=="relic_bundle","K4 lazy_projection_invariant: the registered relic_bundle prefix is actually active before every declared demand profile")
+ var bundle_profiles=e_profile_matrix(bundle_fixture,"prefix:relic_bundle",row_problems,scope_problems,value_problems,coverage)
+ compared+=bundle_profiles
+ var blocked_fixture=r1_build("battle",0)
+ fact_unit_enrich(blocked_fixture)
+ blocked_fixture.add_fixture("wrist",4)
+ blocked_fixture.state.equipment[0].binding={}
+ t.check(not blocked_fixture.command_domain_ready() and blocked_fixture._phase_branch()=="domain_blocked","K4 lazy_projection_invariant: the registered domain_blocked prefix is actually active before every declared demand profile")
+ var blocked_profiles=e_profile_matrix(blocked_fixture,"prefix:domain_blocked",row_problems,scope_problems,value_problems,coverage)
+ compared+=blocked_profiles
+ t.check(bundle_profiles==E_DEMAND_PROFILES.size() and blocked_profiles==E_DEMAND_PROFILES.size(),"K4 lazy_projection_invariant: both prefix-state fixtures execute every demand profile")
  var live=Game.new(7)
  var navigation={}
  var commits=0
@@ -3146,8 +3191,9 @@ static func lazy_projection_invariant(t) -> void:
  t.check(value_problems.is_empty(),"K4 lazy_projection_invariant: apart from display_facts and display_fact_scope every view key equals the full-group build (LPI): "+str(value_problems.slice(0,3)))
  var uncovered=coverage.keys().filter(func(key):return int(coverage[key])==0)
  t.check(uncovered.is_empty(),"K4 lazy_projection_invariant: the compared cells cover the fact-fed view fields (the comparison is not vacuous): uncovered="+str(uncovered)+" coverage="+str(coverage))
+ t.check(F_PREFIX_PROFILES.size()==2 and F_PREFIX_PROFILES[0][0]=="prefix:relic_bundle" and F_PREFIX_PROFILES[1][0]=="prefix:domain_blocked","K4 lazy_projection_invariant: the prefix-state fixtures (relic_bundle non-empty and domain_blocked) stay registered in the profile matrix coverage")
  t.check(commits==60 and stop_reason=="cap","K4 lazy_projection_invariant: the declared recipe committed 60 times before its natural end have="+str(commits)+" stop="+stop_reason)
- print("E LAZY PROFILES compared=%d commits=%d coverage=%s phases=%s" % [compared,commits,str(coverage),str(phases)])
+ print("E LAZY PROFILES compared=%d commits=%d prefix=%d coverage=%s phases=%s" % [compared,commits,F_PREFIX_PROFILES.size(),str(coverage),str(phases)])
 
 # C-E-4（gherkin E-4；acceptance.md §1 E 段）：组清点双向全量——build 实际产出的行 group 值域 == 声明组全集，
 # 且（同一词汇表的第二面）等于单元表的组列并集；每个声明组都能被至少一个单元覆盖。行面取表出口
@@ -3305,6 +3351,399 @@ static func baseline_diff_is_declared(t) -> void:
  t.check(missing_move.is_empty(),"K4 baseline_diff_is_declared: every declared move happened (a declaration without a move is red): "+str(missing_move.slice(0,4)))
  t.check(E_DECLARED_DIFF.size()==r1_cells().size() and moved_cells==E_DECLARED_DIFF.size(),"K4 baseline_diff_is_declared: the declaration covers the frozen cells one by one have="+str(E_DECLARED_DIFF.size())+" moved="+str(moved_cells))
  print("E BASELINE DIFF declared=%d moved=%d" % [E_DECLARED_DIFF.size(),moved_cells])
+
+# ==== F 批（K5 接线；plan §3 F 行；acceptance.md §1 F 段与 §4 F 命令清单）====
+# 顺序（acceptance.md §5 第 5 条）：C-F-1／2／3／8／9 先绿，才进 C-F-6（契约文本与 mask）；C-F-7 常驻、期望零移动。
+
+# C-F-2 的声明侧冻结（测试内字面表；期望值不取自被测扫描）：节 → 该节节体与节键读取的组集合。
+# 归属依据＝ui/main.gd::PRESENT_ADJACENCY 的父子关系（SECTION_BODIES 的 adj 列必须从该节构建器经邻接
+# 边可达）＋ SECTION_BODIES 的 extra 列（交互回调与邻接表未登记的体，逐条声明）＋ QUERY_WRAPPER_GROUPS
+# （组字面在外部 ui 文件里的包装调用）。与 ui/main.gd::PRESENT_DEMAND 双向全量（C-F-1）；
+# 运行期读集由 tests/display_ui_cases.gd 的记录器比对（同一张表的第二面）。
+# 残差（登记进 docs/spec/fact-table-dependencies.md「仍靠人审」）：拖放候选回调（_free_player_candidate
+# 等数据驱动读取）不按组字面进扫描——它们读取的组（card／posture）已由其它节的声明覆盖，且其行来自
+# 投影本身（拖起的行已在投影内）；商店／事件等外屏的字面在 render 的整帧路径读取，那些路径需求取全组。
+const SECTION_READ_SETS={
+ "header":[],
+ "relics":["relic"],
+ "hand":["card"],
+ "actions":["attack","pressure"],
+ "posture":["posture","wall_move"],
+ "resources":["flow","surrender","flask"],
+ "show_log":[],
+ "body_bar":["card"],
+ "body_details":["attack","card","manual","retain"],
+ "pickers":[],
+ "speech":[],
+ "notice":[],
+ "drawers":["hook","item","status_toggle"],
+ "page":["chain","demo_exit","flow","item","prison","route"],
+ "scene_instances":["attack","status_toggle"],
+}
+# 每节的声明体：adj＝必须经 PRESENT_ADJACENCY 从该节构建器可达；extra＝邻接表未登记的体（键命中、
+# 交互回调、整帧页分支），存在性由判据核对。节键函数（*_presentation_key 及其 key_hit）逐节在列。
+const SECTION_BODIES={
+ "header":{"adj":[],"extra":[]},
+ "relics":{"adj":["_relic_row","_relic_presentation_key"],"extra":[]},
+ "hand":{"adj":["_hand","_hand_presentation_key","_hand_card_key","_hand_choice"],"extra":["_player_drag_preview","_activate_card"]},
+ "actions":{"adj":["_build_action_rail","_action_presentation_key"],"extra":[]},
+ "posture":{"adj":["_refresh_posture_section","_posture_presentation_key","_wall_controls","_posture_controls"],"extra":["_posture_key_hit","_posture_layout","_self_action"]},
+ "resources":{"adj":["_refresh_resource_section","_resource_presentation_key","_build_resource_bar"],"extra":["_resource_key_hit"]},
+ "show_log":{"adj":[],"extra":[]},
+ "body_bar":{"adj":[],"extra":["_free_player_candidate","_can_drop_on_player"]},
+ "body_details":{"adj":["_refresh_body_details_section","_body_details_presentation_key","_body_details"],"extra":["_refresh_body_details","_body_card_actions","_single_body_card_action","_single_restraint_card_action","_player_picker","_equipment_tile","_equipment_actions","quick_release_source","_card_target"]},
+ "pickers":{"adj":[],"extra":["_hand_target_picker"]},
+ "speech":{"adj":[],"extra":[]},
+ "notice":{"adj":[],"extra":[]},
+ "drawers":{"adj":["_refresh_drawer_section","_drawer_presentation_key","_menu_drawer","_items_drawer"],"extra":["_item_details","_hook_drawer","_pressure_drawer","_status_control"]},
+ "page":{"adj":[],"extra":["_capture_screen","_inspection_screen","_route_screen","_practice_screen","_chain_screen","_demo_exit_screen","_prison_controls","_prison_location_details","_door_candidate","_queue_map_step","_select_route_room"]},
+ "scene_instances":{"adj":["_refresh_scene_instances_section","_status_strip","_sync_enemy_stage","_sync_enemy_select","_configure_enemy_drop","_attack_drop_candidate"],"extra":["_status_control"]},
+ "target_drag":{"adj":[],"extra":["_begin_target_drag",{"file":"ui/drag_targets.gd","function":"focus_bodies"}]},
+}
+# 组字面在外部 ui 文件里的包装调用（判据侧声明；包装体本身在 ui/main.gd 内无组字面）。
+const QUERY_WRAPPER_GROUPS={"_build_resource_bar":["flask"]}
+# 各节构建器（PRESENT_ADJACENCY 的归属根；header／body_bar 的构建器在 ui/shell/ 外部文件，本表只扫 main.gd）。
+const SECTION_BUILDERS={
+ "relics":"_relic_row","hand":"_hand","actions":"_build_action_rail","posture":"_refresh_posture_section",
+ "resources":"_refresh_resource_section","show_log":"_refresh_log_section","body_details":"_refresh_body_details_section",
+ "pickers":"_refresh_picker_section","speech":"_refresh_speech_section","notice":"_refresh_notice_section",
+ "drawers":"_refresh_drawer_section","scene_instances":"_refresh_scene_instances_section",
+}
+# PHASE_OPEN_DEMAND 的相位词表（退化表的键域；测试内字面期望）。
+const F_PHASE_OPEN_EXPECTED={
+ "battle":["attack","pressure"],"prepare":["attack","pressure"],"rest":["hook"],"prison":["item","prison"],
+ "pack":["item"],"map":["route"],"travel":["route"],"reward":["reward"],"rest_choice":["rest_service"],
+ "shop":["service","service_flow","service_refresh","service_release","service_remove"],"treasure":["service"],
+ "event":["event"],"captured":["item","prison"],"inspection":["item","prison"],"departure":["reward"],
+ "cleared":["demo_exit"],"prison_end":[],
+}
+# C-F-9 的前缀态夹具登记（画像矩阵覆盖面；配方偶遇不再作为前缀态的覆盖来源）。
+const F_PREFIX_PROFILES=[["prefix:relic_bundle","relic_bundle"],["prefix:domain_blocked","domain_blocked"]]
+
+# main.gd 的函数体切分（1 空格缩进的顶层 func；与本文件其它源码扫描判据同一形态）。
+static func f_main_bodies() -> Dictionary:
+ var declaration=RegEx.new()
+ if declaration.compile("^func ([A-Za-z_][A-Za-z0-9_]*)")!=OK: return {}
+ var bodies={}
+ var current=""
+ var buffer=[]
+ for line in source_text("ui/main.gd").split("\n"):
+  var code=String(line).split("#")[0]
+  var found=declaration.search(code)
+  if found!=null:
+   if current!="": bodies[current]="\n".join(buffer)
+   current=found.get_string(1)
+   buffer=[]
+  elif current!="":
+   buffer.append(code)
+ if current!="": bodies[current]="\n".join(buffer)
+ return bodies
+
+# ui/main.gd::PRESENT_ADJACENCY 的可达闭包（从节构建器出发；与 present_adjacency_graph_is_pinned 同一声明表）。
+static func f_extra_anchor(entry) -> Dictionary:
+ if entry is String: return {"file":"ui/main.gd","function":String(entry)}
+ if not entry is Dictionary or entry.size()!=2 or not entry.get("file") is String or not entry.get("function") is String: return {}
+ var file=String(entry.file)
+ var name=String(entry.function)
+ if not file.begins_with("ui/") or not file.ends_with(".gd") or file.contains("\\") or file.contains("..") or file.contains(":") or file.simplify_path()!=file or name.is_empty(): return {}
+ return {"file":file,"function":name}
+
+static func f_main_owners(name: String, file: String="ui/main.gd") -> Array:
+ var owners=[]
+ for section in SECTION_BODIES:
+  var owns=file=="ui/main.gd" and (name in SECTION_BODIES[section].adj or SECTION_BUILDERS.get(section,"")==name)
+  for entry in SECTION_BODIES[section].extra:
+   if f_extra_anchor(entry)=={"file":file,"function":name}: owns=true
+  if owns: owners.append(section)
+ return owners
+
+static func f_adjacency_reachable(builder: String, adjacency: Dictionary, bodies: Dictionary, section: String="") -> Array:
+ var seen={}
+ var queue=[builder]
+ while not queue.is_empty():
+  var name=String(queue.pop_front())
+  if seen.has(name): continue
+  seen[name]=true
+  for child in adjacency.get(name,[]):
+   # Full-render fallback owns a full demand, not the local section's read set.
+   if String(child) in ["render","present"]: continue
+   var owners=f_main_owners(String(child))
+   if section!="" and owners.size()==1 and owners[0]!=section: continue
+   if bodies.has(String(child)) and not seen.has(String(child)): queue.append(String(child))
+ return seen.keys()
+
+# 一个节的扫描读集：声明体（adj＋extra）∪ 包装调用 ⇒ 组字面并集。
+static func f_section_scan(section: String, bodies: Dictionary, adjacency: Dictionary) -> Array:
+ var declared=SECTION_BODIES[section]
+ var names=[]
+ names.append_array(declared.adj)
+ for entry in declared.extra:
+  var anchor=f_extra_anchor(entry)
+  if anchor.get("file","")=="ui/main.gd": names.append(anchor.function)
+ if SECTION_BUILDERS.has(section):
+  for name in f_adjacency_reachable(SECTION_BUILDERS[section],adjacency,bodies,section):
+   if name not in names: names.append(name)
+ var groups={}
+ for name in names:
+  var body=String(bodies.get(String(name),""))
+  var found=RegEx.new()
+  if found.compile("TargetQueries\\.(?:facts|select|find|fact_by_key)\\(\\s*view\\s*,\\s*\"([a-z_]+)\"")!=OK: continue
+  for hit in found.search_all(body): groups[String(hit.get_string(1))]=true
+  for group in QUERY_WRAPPER_GROUPS.get(String(name),[]): groups[String(group)]=true
+ var out=groups.keys()
+ out.sort()
+ return out
+
+# C-F-1（gherkin F-1；acceptance.md C-F-1）：需求声明双向全量——PRESENT_DEMAND 15 节逐节有行且与
+# SECTION_READ_SETS 双向相等；PHASE_OPEN_DEMAND 键域与值域受钉；每个声明组都存在于单元表的组列
+# （组→单元，同一张表不另立）；闭包只有一处实现（core/game.gd::fact_demand_groups）；core 不读 UI 节名。
+# 敏感性：改 PRESENT_DEMAND 一行（加幻影组／删已读组）→ 双向红；core 出现节名 → 红。
+static func demand_core_source_is_nonempty(t) -> String:
+ var texts=[]
+ for path in ["core/game.gd","core/command_registry.gd","core/game_view.gd"]:
+  var text=source_text(path)
+  t.check(not text.is_empty(),"F1 demand_core_source_is_nonempty / demand_declarations_are_total: the core vocabulary boundary reads real source at "+path+", not an empty or doubly-prefixed path")
+  texts.append(text)
+ return "\n".join(texts)
+
+static func demand_declarations_are_total(t) -> void:
+ var ui_script=load("res://ui/main.gd")
+ var present: Dictionary=ui_script.PRESENT_DEMAND
+ var sections=[]
+ for section in ui_script.PRESENT_SECTIONS: sections.append(String(section))
+ var missing=[]
+ var extra=[]
+ for section in sections:
+  if not present.has(section): missing.append(section)
+ for section in present:
+  if not sections.has(String(section)): extra.append(String(section))
+ t.check(missing.is_empty() and extra.is_empty(),"F1 demand_declarations_are_total: every presentable section declares its demand row and nothing else: missing="+str(missing)+" extra="+str(extra))
+ var universe=CommandRegistry.fact_groups()
+ var declared_problems=[]
+ var face_problems=[]
+ for section in sections:
+  var row=[]
+  for group in present.get(section,[]): row.append(String(group))
+  row.sort()
+  var frozen=[]
+  for group in SECTION_READ_SETS[section]: frozen.append(String(group))
+  frozen.sort()
+  if row!=frozen: face_problems.append(section+" declared="+str(row)+" frozen="+str(frozen))
+  for group in row:
+   if group not in universe: declared_problems.append(section+"."+group)
+ t.check(face_problems.is_empty(),"F1 demand_declarations_are_total: the product table and the frozen read sets agree section by section (two-way): "+str(face_problems.slice(0,3)))
+ t.check(declared_problems.is_empty(),"F1 demand_declarations_are_total: every declared group exists in the unit table's group union (a phantom group is red): "+str(declared_problems))
+ var open_demand: Dictionary=ui_script.PHASE_OPEN_DEMAND
+ var phase_problems=[]
+ for phase in open_demand:
+  if not F_PHASE_OPEN_EXPECTED.has(String(phase)): phase_problems.append("phase "+String(phase))
+  elif open_demand[phase]!=F_PHASE_OPEN_EXPECTED[phase]: phase_problems.append("row "+String(phase))
+  for group in open_demand[phase]:
+   if String(group) not in universe: phase_problems.append(String(phase)+"."+String(group))
+ for phase in F_PHASE_OPEN_EXPECTED:
+  if not open_demand.has(phase): phase_problems.append("missing "+phase)
+ t.check(phase_problems.is_empty(),"F1 demand_declarations_are_total: the fallback table stays inside the declared phase vocabulary and the group universe, and covers every phase: "+str(phase_problems.slice(0,3)))
+ var demand_body=source_func_body_code("res://ui/main.gd","_present_demand")
+ t.check(demand_body.contains("PRESENT_DEMAND.get(section") and demand_body.contains("_submit_opens(") and demand_body.contains("PHASE_OPEN_DEMAND.get(phase"),"F1 demand_declarations_are_total: _present_demand is the single demand entry reading the two declared tables and the shared open/close implementation")
+ var core_texts=demand_core_source_is_nonempty(t)
+ var closure=source_func_body_code("res://core/game.gd","fact_demand_groups")
+ t.check(closure.contains("CommandRegistry.fact_scope(demand)") and closure.count("fact_scope(")==1,"F1 demand_declarations_are_total: demand reaches the existing single core closure entry")
+ var leaked=[]
+ for name in ["body_details","scene_instances","show_log","body_bar","pickers","drawers"]:
+  if core_texts.contains("\""+name+"\""): leaked.append(name)
+ t.check(not core_texts.contains("PRESENT_DEMAND") and not core_texts.contains("PHASE_OPEN_DEMAND") and not core_texts.contains("PRESENT_SECTIONS") and leaked.is_empty(),"F1 demand_declarations_are_total: core never reads the UI section vocabulary (one-way declaration): "+str(leaked))
+ var groups=0
+ for section in sections: groups+=SECTION_READ_SETS[section].size()
+ print("F1 DEMAND TABLES sections=%d groups=%d fallback_phases=%d" % [sections.size(),groups,F_PHASE_OPEN_EXPECTED.size()])
+
+# C-F-2（gherkin F-2；acceptance.md C-F-2）：逐节读集冻结——源码扫描双向（含节键函数与 extra 体），
+# adj 体必须经 PRESENT_ADJACENCY 从节构建器可达，extra 体必须存在；relics 节键覆盖 relic 组
+# （O-7 修掉，无例外文本——_relic_presentation_key 必须含 TargetQueries 的 relic 组字面）。
+# 运行期读集由 tests/display_ui_cases.gd::section_read_sets_runtime 与本表比对（同表第二面）。
+# 敏感性：某节体新增读一个组而没进表 → 扫描红；声明写了没人读 → 反向红。
+static func section_read_sets_are_pinned(t) -> void:
+ var bodies=f_main_bodies()
+ var adjacency=load("res://ui/main.gd").PRESENT_ADJACENCY
+ var missing=[]
+ var unreachable=[]
+ var forward=[]
+ var backward=[]
+ var extra_seen={}
+ var extra_problems=[]
+ var legacy=0
+ for section in SECTION_BODIES:
+  for entry in SECTION_BODIES[section].extra:
+   var anchor=f_extra_anchor(entry)
+   if anchor.is_empty(): extra_problems.append(section+" invalid extra="+str(entry));continue
+   var label=String(anchor.file)+"::"+String(anchor.function)
+   var registration=String(section)+"/"+label
+   if extra_seen.has(registration): extra_problems.append("duplicate "+registration)
+   extra_seen[registration]=true
+   var body=String(bodies.get(anchor.function,"")) if anchor.file=="ui/main.gd" else source_static_func_body_code("res://"+String(anchor.file),String(anchor.function))
+   if not FileAccess.file_exists("res://"+String(anchor.file)) or body.strip_edges().is_empty() or section not in f_main_owners(String(anchor.function),String(anchor.file)): extra_problems.append("unresolved "+label)
+   if entry is String:
+    legacy+=1
+    if anchor!={"file":"ui/main.gd","function":String(entry)}: extra_problems.append("legacy changed "+label)
+ t.check(extra_problems.is_empty() and legacy==35,"F2 section_read_sets_are_pinned: extra anchors normalize once, preserve all 35 legacy main entries, and name real file/function bodies without duplicate registrations: "+str(extra_problems))
+ for section in SECTION_READ_SETS:
+  var declared=SECTION_BODIES[section]
+  for name in declared.adj:
+   if not bodies.has(String(name)): missing.append(section+"/"+String(name))
+  for entry in declared.extra:
+   var anchor=f_extra_anchor(entry)
+   if anchor.get("file","")=="ui/main.gd" and not bodies.has(String(anchor.function)): missing.append(section+"/"+String(anchor.function)+"(extra)")
+  if SECTION_BUILDERS.has(section):
+   var reachable=f_adjacency_reachable(SECTION_BUILDERS[section],adjacency,bodies,section)
+   for name in declared.adj:
+    if not reachable.has(String(name)): unreachable.append(section+"/"+String(name))
+  var scan=f_section_scan(section,bodies,adjacency)
+  var frozen=[]
+  for group in SECTION_READ_SETS[section]: frozen.append(String(group))
+  frozen.sort()
+  for group in scan:
+   if group not in frozen: forward.append(section+"."+group)
+  for group in frozen:
+   if group not in scan: backward.append(section+"."+group)
+ t.check(missing.is_empty(),"F2 section_read_sets_are_pinned: every declared body is a real ui/main.gd function: "+str(missing.slice(0,4)))
+ t.check(unreachable.is_empty(),"F2 section_read_sets_are_pinned: adjacency bodies are reachable from their section builder through PRESENT_ADJACENCY: "+str(unreachable.slice(0,4)))
+ t.check(forward.is_empty(),"F2 section_read_sets_are_pinned: every group literal in a declared section body is in that section's frozen set (a new read is red): "+str(forward.slice(0,4)))
+ t.check(backward.is_empty(),"F2 section_read_sets_are_pinned: every declared group is read by a declared section body (a declared-but-unread group is red): "+str(backward.slice(0,4)))
+ var relic_key=String(bodies.get("_relic_presentation_key",""))
+ t.check(relic_key.contains("TargetQueries.find(view,\"relic\""),"F2 section_read_sets_are_pinned: the relics section key covers the relic group its rebuild reads (O-7 fixed; no declared exception)")
+ t.check(f_main_owners("_refresh_body_details")==["body_details"] and f_main_owners("_body_details")==["body_details"] and not f_adjacency_reachable("_hand",adjacency,bodies,"hand").has("_body_details"),"F2 section_read_sets_are_pinned: the same ownership declaration stops hand callbacks at body_details and owns both destination entries")
+ var focus=source_static_func_body_code("res://ui/drag_targets.gd","focus_bodies")
+ var choices=source_static_func_body_code("res://ui/drag_targets.gd","choices")
+ var offers=source_static_func_body_code("res://ui/drag_targets.gd","offers")
+ t.check(SECTION_BODIES.get("target_drag",{})=={"adj":[],"extra":["_begin_target_drag",{"file":"ui/drag_targets.gd","function":"focus_bodies"}]} and f_main_owners("_begin_target_drag")==["target_drag"] and f_main_owners("focus_bodies","ui/drag_targets.gd")==["target_drag"] and String(bodies.get("_begin_target_drag","")).contains("DragTargets.begin(self,data)") and focus.contains("choices(ui,data)") and choices.contains("offers(ui,data)") and offers.contains("Queries.drag_facts(ui.view,data,ui.view.version)") and not SECTION_READ_SETS.has("target_drag"),"F2 section_read_sets_are_pinned: begin and the dedicated focus_bodies query chain share one independent interaction declaration, not a present section or a guessed group owner")
+ var covered=0
+ for section in SECTION_READ_SETS: covered+=SECTION_READ_SETS[section].size()
+ print("F2 SECTION READ SETS sections=%d groups=%d" % [SECTION_READ_SETS.size(),covered])
+
+# C-F-3 actual reads are observed only by the display lifecycle in the original recipe window path.
+# No headless declaration replay is accepted as actual rendering evidence.
+
+# C-F-4＋C-F-5（gherkin F-4／F-5；acceptance.md C-F-4／C-F-5）：调用点与需求取值受钉——get_view 四点
+# 白名单内的需求表达式逐点核对：_submit 的局部重建分支（前后均 battle 且节键可用）传 _present_demand
+# （精确开合经 _submit_opens 与归一化段共用同一实现；PHASE_OPEN_DEMAND 只在 result.ok==false 兜底），
+# 其余路径（含 render(updated) 回落与存档恢复）传全组；_prison_location_details 不再直读整表、
+# prison／item 组走组查询。敏感性：改掉需求表达式或另写一份开合条件式 → 文本判据红。
+static func submit_demand_call_sites_are_pinned(t) -> void:
+ var submit=source_func_body_code("res://ui/main.gd","_submit")
+ t.check(submit.contains("var local_rebuild: bool=String(previous.get(\"phase\",\"\"))==\"battle\" and not previous_keys.is_empty() and (String(result.get(\"phase\",\"\"))==\"battle\" if bool(result.get(\"ok\",false)) else true)"),"F4 submit_demand_call_sites_are_pinned: the local-rebuild branch is decided from the post-commit scalars (battle on both sides and usable section keys)")
+ t.check(submit.contains("game.get_view(_present_demand(result) if local_rebuild else [])"),"F4 submit_demand_call_sites_are_pinned: the possible-local-rebuild submit passes the declared demand; every other path keeps the default full group")
+ t.check(submit.contains("var opens=_submit_opens(result,previous)") and submit.contains("if opens.close_drawers: _close_drawers()") and submit.contains("if opens.open_items: show_items=true"),"F4 submit_demand_call_sites_are_pinned: the normalization segment executes the one shared open/close implementation")
+ t.check(submit.contains("if local_rebuild: updated=game.get_view()") and submit.contains("if not _present_needs_full_render(dirty,updated):"),"F4 submit_demand_call_sites_are_pinned: every complete fallback after dirty evaluation re-projects full group through the existing second statement")
+ var presenter=source_func_body_code("res://ui/main.gd","present")
+ t.check(presenter.contains("if _present_needs_full_render(dirty,next):") and not presenter.contains("dirty.has(\"speech\")") and not presenter.contains("get_view("),"F4 submit_demand_call_sites_are_pinned: present consumes the same full predicate without a second condition chain or a projection call")
+ var statement_counts=[]
+ for name in ["_resume_snapshot","render","_submit","restart"]: statement_counts.append(source_func_body_code("res://ui/main.gd",name).count("game.get_view("))
+ t.check(statement_counts==[1,1,2,1],"F4 submit_demand_call_sites_are_pinned: the four owners retain the five existing projection statements 1/1/2/1: "+str(statement_counts))
+ var fallback=source_func_body_code("res://ui/main.gd","_present_needs_full_render")
+ var fallback_sections=[]
+ var matcher=RegEx.new()
+ matcher.compile("section==\"([a-z_]+)\"")
+ for hit in matcher.search_all(fallback):
+  if hit.get_string(1) not in fallback_sections: fallback_sections.append(hit.get_string(1))
+ var expected_sections=["*","page","hand","header","actions","posture","resources","show_log","body_details","pickers","speech","notice","drawers","scene_instances"]
+ fallback_sections.sort();expected_sections.sort()
+ # The wildcard is tested separately because the identifier regex intentionally excludes '*'.
+ expected_sections.erase("*")
+ t.check(fallback_sections==expected_sections and fallback.contains("section==\"*\"") and fallback.contains("dirty.is_empty()") and fallback.contains("var next=view if source.is_empty() else source") and not fallback.contains("get_view("),"F4 submit_demand_call_sites_are_pinned: the one full-render predicate keeps all frozen structural/section branches and uses the selected source")
+ t.check(submit.count("game.get_view(")==2,"F4 submit_demand_call_sites_are_pinned: _submit fetches the view exactly twice at most (demand projection and the full-group fallback)")
+ var present=source_func_body_code("res://ui/main.gd","_present_demand").replace("\r","")
+ t.check(present.contains("if not bool(result.get(\"ok\",false)):\n  var phase=String(view.get(\"phase\",\"\"))\n  for group in PHASE_OPEN_DEMAND.get(phase,[]):") and present.count("PHASE_OPEN_DEMAND.get(")==1,"F4 submit_demand_call_sites_are_pinned: only ok=false reads the fallback table; successful results never enter that fallback")
+ var opens_body=source_func_body_code("res://ui/main.gd","_submit_opens")
+ t.check(opens_body.contains("if not bool(result.get(\"ok\",false))") and not present.contains("close_drawers\":") and not submit.contains("updated.phase!=view.phase") and not submit.contains("updated.pressure.overloaded"),"F4 submit_demand_call_sites_are_pinned: open/close decisions have one implementation, not a second normalization condition")
+ var host=load("res://ui/main.gd").new()
+ host.view={"phase":"battle"}
+ t.check(host._submit_opens({"ok":false},host.view)=={"close_drawers":false,"open_items":false},"F4 submit_demand_call_sites_are_pinned: failed submits leave section opening unchanged")
+ t.check(host._submit_opens({"ok":true,"phase":"pack","overloaded":false},host.view)=={"close_drawers":true,"open_items":true},"F4 submit_demand_call_sites_are_pinned: post-commit pack closes old drawers then opens items")
+ t.check(host._submit_opens({"ok":true,"phase":"battle","overloaded":true},host.view)=={"close_drawers":true,"open_items":false},"F4 submit_demand_call_sites_are_pinned: post-commit overload closes drawers")
+ var closed=host._present_demand({"ok":true,"phase":"battle","overloaded":false})
+ host.show_items=true;host.show_menu=true;host.show_body=true
+ t.check(host._present_demand({"ok":true,"phase":"battle","overloaded":false})==closed,"F4 submit_demand_call_sites_are_pinned: declaration demand does not depend on transient drawer opening")
+ host.free()
+ var opens_refs=source_text("ui/main.gd").count("_submit_opens(")
+ t.check(opens_refs==3,"F4 submit_demand_call_sites_are_pinned: _submit_opens has exactly two consumers (normalization and the demand entry) beside its declaration have=%d"%opens_refs)
+ for name in ["render","_resume_snapshot","restart"]:
+  var body=source_func_body_code("res://ui/main.gd",name)
+  t.check(body.contains("game.get_view()") and not body.contains("game.get_view(["),"F4 submit_demand_call_sites_are_pinned: "+name+" keeps the default full-group projection")
+ var prison=source_func_body_code("res://ui/main.gd","_prison_location_details")
+ t.check(not prison.contains("view.display_facts"),"F5 submit_demand_call_sites_are_pinned: _prison_location_details no longer reads the whole projection")
+ t.check(prison.contains("TargetQueries.facts(view,\"prison\")") and prison.contains("TargetQueries.select(view,\"item\""),"F5 submit_demand_call_sites_are_pinned: the prison page reads the prison and item groups through the one query face")
+ var groups=0
+ for section in SECTION_READ_SETS: groups+=SECTION_READ_SETS[section].size()
+ t.check(SECTION_READ_SETS["page"].has("prison") and SECTION_READ_SETS["page"].has("item"),"F5 submit_demand_call_sites_are_pinned: the prison page's groups are declared in its section demand")
+ print("F4 DEMAND CALL SITES sections=%d groups=%d" % [SECTION_READ_SETS.size(),groups])
+
+# C-F-8（gherkin F-8；acceptance.md C-F-8；R-T8，design.md §K1-D 末段）：全组槽位准入＝内容等值——
+# 源码文本无 size 比较；「等 size 非全组」demand（全部真实组去一＋加一未登记组）不占批内槽位，
+# 同批后续全组读取不被污染（两段各自与从零实例逐字节相等）。敏感性：把判定改回 size 启发式
+# （突变条目 command_facts_full_scope_is_content_equal）→ 该 demand 命中 size 判定占用整表槽位 ⇒
+# 同批后续全组读取含裁剪行，红。
+static func command_facts_full_scope_is_content_equal(t) -> void:
+ var body=source_func_body_code("res://core/game.gd","command_facts")
+ t.check(not body.contains(".size()=="),"F8 command_facts_full_scope_is_content_equal: the size heuristic is gone from the slot admission")
+ t.check(body.contains("if scope==CommandRegistry.fact_groups() else build.call()"),"F8 command_facts_full_scope_is_content_equal: the slot admission is the content equality against the truth-source full group")
+ t.check(body.count("fact_groups()")==1,"F8 command_facts_full_scope_is_content_equal: exactly one full-group condition guards the batch slot (no second admission path)")
+ var groups: Array=CommandRegistry.fact_groups()
+ var crafted=[]
+ for group in groups:
+  if group!="relic": crafted.append(group)
+ crafted.append("no_such_group")
+ var problems=[]
+ for cell in [["battle",0],["battle",12]]:
+  var g=r1_build(cell[0],cell[1],ReuseRecorder)
+  fact_unit_enrich(g)
+  g.state.relics=["great_wand"]
+  var snapshot=g.export_snapshot()
+  var reference=ReuseRecorder.new(42)
+  t.check(reference.restore_snapshot(snapshot).ok,"F8 command_facts_full_scope_is_content_equal: the independent empty-cache instance restores the fixture")
+  var restored=reference.export_snapshot()
+  var mismatched=snapshot.keys().filter(func(key):return key!="version" and JSON.stringify(restored.get(key))!=JSON.stringify(snapshot[key]))
+  t.check(mismatched.is_empty() and int(restored.version)>int(snapshot.version),"F8 command_facts_full_scope_is_content_equal: the oracle state matches the snapshot except the declared restore version advance: "+str(mismatched))
+  var crafted_scope=g.fact_demand_groups(crafted)
+  t.check(crafted_scope.size()==groups.size() and "relic" not in crafted_scope and "no_such_group" in crafted_scope,"F8 command_facts_full_scope_is_content_equal: the adversarial closure truly has equal size but different content")
+  var reference_rows=reference.command_facts()
+  t.check(reference_rows.any(func(row):return String(row.get("group",""))=="relic"),"F8 command_facts_full_scope_is_content_equal: the removed group has real rows, so the pollution comparison is non-vacuous")
+  var previous=g._begin_equipment_read()
+  g.reset_reuse_counts()
+  var cropped=g.command_facts(crafted)
+  var builds_after_cropped=g.reuse_builds_of("table")
+  var full=g.command_facts()
+  var builds_after_full=g.reuse_builds_of("table")
+  g._equipment_read=previous
+  var want=[]
+  for row in reference_rows:
+   if String(row.get("group",""))!="relic": want.append(row)
+  if builds_after_cropped!=0: problems.append("%s:%d the equal-size non-full demand occupied the batch slot (builds=%d)" % [cell[0],cell[1],builds_after_cropped])
+  if builds_after_full!=1: problems.append("%s:%d the following full-group read did not build the table once (builds=%d)" % [cell[0],cell[1],builds_after_full])
+  if JSON.stringify(cropped)!=JSON.stringify(want): problems.append("%s:%d the cropped result is not the declared subsequence of the from-zero full rows" % [cell[0],cell[1]])
+  if JSON.stringify(full)!=JSON.stringify(reference_rows): problems.append("%s:%d the same-batch full-group read was polluted by the earlier non-full demand" % [cell[0],cell[1]])
+ t.check(problems.is_empty(),"F8 command_facts_full_scope_is_content_equal: the equal-size non-full demand never occupies the batch slot and the same-batch full read stays byte-identical to the from-zero projection: "+str(problems.slice(0,3)))
+ print("F8 SLOT ADMISSION cells=2 crafted_size=%d full_size=%d" % [crafted.size(),groups.size()])
+
+
+static func target_queries_read_observer_is_debug_only(t) -> void:
+ var observe=source_static_func_body_code("res://ui/target_queries.gd","_debug_observe_read")
+ var guard=observe.find("if not OS.is_debug_build() or not _debug_read_observer.is_valid(): return")
+ t.check(guard>=0 and observe.find("get_stack()")>guard and observe.find("duplicate(true)")>guard,"F3 target_queries_read_observer_is_debug_only: release/uninstalled paths return before stack capture, event copying or notification")
+ var exchange=source_static_func_body_code("res://ui/target_queries.gd","debug_exchange_read_observer")
+ t.check(exchange.contains("if not OS.is_debug_build(): return Callable()") and exchange.contains("return previous"),"F3 target_queries_read_observer_is_debug_only: exchange preserves the old Callable and never installs on release")
+ var facts=source_static_func_body_code("res://ui/target_queries.gd","facts")
+ var key=source_static_func_body_code("res://ui/target_queries.gd","fact_by_key")
+ t.check(facts.count("_debug_observe_read(")==1 and key.count("_debug_observe_read(")==1 and key.find("if key==\"\": return {}")<key.find("_debug_observe_read("),"F3 target_queries_read_observer_is_debug_only: exactly the original group/key leaf results notify once; empty-key early return is unchanged")
+ var bypass=source_write_sites(["res://ui"],"(?:all_facts\\s*\\(|[.\\[]display_facts\\b|get\\(\\\"display_facts\\\")")
+ var stray=write_site_names(bypass).filter(func(name):return name not in ["ui/target_queries.gd::all_facts","ui/target_queries.gd::facts","ui/target_queries.gd::fact_by_key"])
+ t.check(stray.is_empty(),"F3 target_queries_read_observer_is_debug_only: external UI cannot bypass the observed leaves with all_facts or direct display_facts: "+str(stray))
+
+# C-F-6: exact human wording; the mask's historical PRE proof stays in the existing frozen interface.
+static func contract_text_is_updated_verbatim(t) -> void:
+ var contract=source_text("../docs/spec/response-pipeline.md")
+ var rows=Array(contract.split("\n")).filter(func(line):return String(line).begins_with("| `game.get_view(demand := [])` |"))
+ t.check(rows.size()==1 and String(rows[0]).contains("`view.version` 等于投影来源的已提交 `state.version`；**在不改变实际呈现效果的情况下，尽量降低单次成本**；投影结果不得当规则判定来源"),"F6 contract_text_is_updated_verbatim: the get_view contract adopts the human sentence verbatim exactly once")
+ var own=source_text("tests/architecture_cases.gd")
+ t.check(not own.contains("const E_VIEW_MASK_"+"ADDED="),"F6 contract_text_is_updated_verbatim: the transitional exclusion table is removed; only the merged R3 mask remains effective")
 
 # ==== S2 双向等价 harness（C3／C4；acceptance.md §2；S3 复用同一函数）====
 # 期望侧独立（防自证）：方向①只取该状态 command_facts() 的表行；方向②只做表内归一化 params 的成员扫描，
@@ -5739,8 +6178,15 @@ static func mutation_evidence_is_total(t) -> void:
   var row=entries[name]
   if not row is Dictionary: ghosts.append(String(name)+":shape"); continue
   var suite=String((row as Dictionary).get("suite",""))
-  var script=suite_script(test_game,suite)
-  if script=="" or not source_text(script).contains("func "+String(name)+"("): ghosts.append(String(name)+"@"+suite)
+  var execution=String((row as Dictionary).get("execution","rules"))
+  var script=""
+  if execution=="rules": script=suite_script(test_game,suite)
+  elif execution=="ui": script=suite_script(source_text("tests/ui_smoke.gd"),suite)
+  elif execution=="recipe" and suite=="recipe":
+   script=suite_script(source_text("tests/ui_smoke.gd"),"display")
+   var recipe=source_func_body_code("res://tests/recipe_driver.gd","_run_recipe")
+   if not recipe.contains("load(UI_MODULES[\"display\"])") or not recipe.contains("present_demand_recorder_begin") or not recipe.contains("present_demand_recorder_end"): script=""
+  if script=="" or not source_text(script).contains("func "+String(name)+"("): ghosts.append(String(name)+"@"+execution+":"+suite)
  t.check(ghosts.is_empty(),"MT mutation_evidence_is_total: every table entry names a real check of its declared suite: "+str(ghosts))
  var uncovered=NORM_REWRITE_CHECKS.filter(func(name):return not (entries as Dictionary).has(name))
  t.check(uncovered.is_empty(),"MT mutation_evidence_is_total: the checks added by this rewrite line all carry mutation evidence: "+str(uncovered))
@@ -5753,8 +6199,8 @@ static func mutation_evidence_is_total(t) -> void:
 
 # T 批（R-T5）锚自检：对 tests/frozen-baselines.json 的每处锚重算 `git show <锚提交>:<文件>` 的 sha256，
 # 与所载 anchor.sha256 逐字节比对（大小写不敏感）。期望侧只在两处外部——JSON 声明与 git 对象库的历史
-# blob——都不取自当前工作区文件或被测判据，使「同批偷改冻结值＋锚」无法被同一批的白名单化掩盖
-# （E 批审查找漏洞 d 的闭合面）。git 不可用（execute 退出 -1）／锚对象缺失（git 非零退出）／哈希不符
+# blobs. This check proves only declared historical blob identity; PRE value conservation is proved separately
+# by baseline_constants_are_unchanged / baseline_diff_is_declared. git 不可用（execute 退出 -1）／锚对象缺失（git 非零退出）／哈希不符
 # 都按红处理（fail-closed），不静默绿。
 # 字节通道：git show 经 cmd 重定向把 blob 字节直写 build/ 下的临时文件（OS.execute 捕获 stdout 时按
 # 系统代码页解码，非字节保真，不能直接哈希字符串），再以 HashingContext SHA-256 分块重算；build/ 是
