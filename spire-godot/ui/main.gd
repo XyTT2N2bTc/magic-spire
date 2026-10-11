@@ -2883,10 +2883,15 @@ func _prison_location_details(parent: Node,site: Dictionary) -> void:
   scroll.add_child(_label(item.passive_text,15,CYAN))
  var selected_actions=[]
  # C-F-5（O-6 的产品侧收口）：本页不再直读整表（view.display_facts 是按需求裁剪的投影），改走组查询——
- # 监狱页读 prison／item 两组（已登记进 PRESENT_DEMAND["page"]／["drawers"] 的声明域）。行序与改动前一致：
- # 表序里 prison 组的行先于 item 组的行，两组各自内部按原序拼接。
- var page_rows=TargetQueries.facts(view,"prison")
- page_rows.append_array(TargetQueries.select(view,"item",{"item":site.interaction.item}) if kind=="item" else TargetQueries.facts(view,"item"))
+ # 监狱页读 item／prison 两组；两组都不在 PRESENT_DEMAND 的声明行里（审查 RF-2 纠错）：page 域读组由
+ # 全组回落承载（tests/architecture_cases.gd::F_DEMAND_EXCLUSIONS 的 page 行理由=page），item 另属
+ # core/command_registry.gd::VIEW_FACT_GROUPS 承接组（同表 drawers 行理由=VIEW）。
+ # 拼接序＝单元表序（审查 RF-1：65e1c08 曾拼成 prison 先、item 后，与 FACT_UNITS action_tail 段
+ # item_action order=7 先于 prison_tail order=9 相反，本批恢复；两组各自内部按原序拼接）。呈现序两层
+ # 都与改动前一致：compact 行每页只来自单组，item_use 行统一进末尾网格；组合序由
+ # tests/architecture_cases.gd::prison_page_row_order_is_pinned 钉住（顺序颠倒即红）。
+ var page_rows=TargetQueries.select(view,"item",{"item":site.interaction.item}) if kind=="item" else TargetQueries.facts(view,"item")
+ page_rows.append_array(TargetQueries.facts(view,"prison"))
  for c in page_rows:
   var matches=(kind=="door" and ((c.payload.kind=="prison" and c.payload.action in ["key","door_exit","unlock"]) or (c.payload.kind=="item_use" and c.payload.target=="prison_door"))) or (kind=="vent" and c.payload.kind=="prison" and c.payload.action in ["vent_kick","vent_exit"]) or (kind=="item" and c.payload.get("item","")==site.interaction.item)
   if matches and c.payload.kind!="item_install": selected_actions.append(c)

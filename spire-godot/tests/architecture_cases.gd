@@ -760,6 +760,7 @@ static func run(t) -> void:
  baseline_diff_is_declared(t)
  demand_declarations_are_total(t)
  section_read_sets_are_pinned(t)
+ prison_page_row_order_is_pinned(t)
  submit_demand_call_sites_are_pinned(t)
  command_facts_full_scope_is_content_equal(t)
  contract_text_is_updated_verbatim(t)
@@ -3545,6 +3546,27 @@ static func demand_core_source_is_nonempty(t) -> String:
   t.check(not text.is_empty(),"F1 demand_core_source_is_nonempty / demand_declarations_are_total: the core vocabulary boundary reads real source at "+path+", not an empty or doubly-prefixed path")
   texts.append(text)
  return "\n".join(texts)
+
+# 修复批 RF-1（step-5 独立审查）：监狱地点页（ui/main.gd::_prison_location_details）的组合行序钉死，双向。
+# ① 拼接序＝单元表序：page_rows 先读 item 组、后并 prison 组——FACT_UNITS action_tail 段
+#    item_action order=7 先于 prison_tail order=9，本页渲染相位（phase=="prison"，页路由唯一入口）
+#    的表内两组相对序即此；对调两组读取即红（mutations.json 同名条目）。
+# ② 呈现序＝牢门行 → 非 item_use 的 compact 行 → item_use 落点网格；任两段对调即红。
+# 锚＝函数体内恰好出现一次的子串（幽灵锚与多义锚都红）。
+static func prison_page_row_order_is_pinned(t) -> void:
+ var body=source_func_body_code("res://ui/main.gd","_prison_location_details")
+ var item_read="TargetQueries.facts(view,\"item\")"
+ var prison_read="TargetQueries.facts(view,\"prison\")"
+ var door_row="scroll.add_child(door)"
+ var compact_loop="if c.payload.kind!=\"item_use\": _compact_action(scroll,c)"
+ var grid_loop="for c in targets: _tool_target_card(grid,c)"
+ var broken=[]
+ for anchor in [item_read,prison_read,door_row,compact_loop,grid_loop]:
+  if body.count(anchor)!=1: broken.append(anchor)
+ t.check(broken.is_empty(),"RF1 prison_page_row_order_is_pinned: every row-order anchor occurs exactly once in _prison_location_details (a phantom or ambiguous anchor is red): "+str(broken))
+ if not broken.is_empty(): return
+ t.check(body.find(item_read)<body.find(prison_read),"RF1 prison_page_row_order_is_pinned: the page assembles the item group rows before the prison group rows (the unit-table order of the two groups on this page; swapping the two reads is red)")
+ t.check(body.find(door_row)<body.find(compact_loop) and body.find(compact_loop)<body.find(grid_loop),"RF1 prison_page_row_order_is_pinned: the combined emission stays door row, then compact rows, then the item_use target grid (swapping any two segments is red)")
 
 static func demand_declarations_are_total(t) -> void:
  var ui_script=load("res://ui/main.gd")

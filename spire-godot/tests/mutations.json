@@ -316,6 +316,12 @@
       "replace": " \"target_drag\":{\"adj\":[],\"extra\":[{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},",
       "suite": "architecture"
     },
+    "prison_page_row_order_is_pinned": {
+      "file": "ui/main.gd",
+      "find": " page_rows.append_array(TargetQueries.facts(view,\"prison\"))",
+      "replace": " page_rows=TargetQueries.facts(view,\"prison\")+page_rows",
+      "suite": "architecture"
+    },
     "present_demand_recorder": {
       "file": "ui/target_queries.gd",
       "find": " if not OS.is_debug_build() or not _debug_read_observer.is_valid(): return",
