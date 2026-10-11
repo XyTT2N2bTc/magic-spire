@@ -2548,6 +2548,10 @@ func _fact_demand_forced_full() -> bool:
 # E 批（K4）：groups＝需求（经核心闭包 fact_demand_groups 折算成需求闭包；[]＝全组）。读取批次与批内条目不变
 # （D 批／K1-D：批内条目经 core/game.gd::_batch_rows 的唯一边界取用，出批即弃）；批内条目的槽位义＝整表，
 # 故只有全组（缺省）走批内条目，裁剪需求每次现算、不占该槽位。
+# F 批（R-T8，design.md §K1-D 末段）：槽位准入＝内容等值——scope 与 fact_groups() 逐元素相等（两侧都经
+# 闭包排序去重，== 即逐元素比对）。E 批的 size 启发式在 F 接线后可达歧义：全部真实组去一＋加一未登记组
+# 的 demand 恰等 size 而闭包非全组，会把裁剪行写进整表槽位、污染同批后续全组读取（C-F-8）；内容等值下
+# 该 demand 不占槽位。这是槽位判定的唯一全组条件，size 比较已消除。
 func command_facts(groups: Array = []) -> Array:
  var scope=fact_demand_groups(groups)
  var build=func():
@@ -2555,7 +2559,7 @@ func command_facts(groups: Array = []) -> Array:
   for f in _fact_source(scope): facts.append(display_fact(f))
   return FirstTurnControl.select(self,facts)
  var previous=_begin_equipment_read()
- var result=_batch_rows(BATCH_TABLE,build) if scope.size()==CommandRegistry.fact_groups().size() else build.call()
+ var result=_batch_rows(BATCH_TABLE,build) if scope==CommandRegistry.fact_groups() else build.call()
  _equipment_read=previous
  return result
 

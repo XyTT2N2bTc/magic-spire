@@ -4,8 +4,8 @@ param(
     [ValidateRange(1,3600)][int]$TimeoutSeconds = 600
 )
 # Sensitivity evidence for the named checks: for one entry of tests/mutations.json, apply the
-# declared source mutation, run the narrowest rule suite, require that named check to redden
-# (the suite must fail and an engine error line must name the check), then restore the file
+# declared source mutation, delegate its rules/UI/recipe phase to check.ps1, require that named
+# check to redden in the target phase's original log and summary, then restore the file
 # byte-for-byte. Any failure -- anchor not unique, suite green, suite failed without an error
 # line naming this check, restore hash mismatch -- makes the whole invocation exit non-zero.
 #
@@ -57,27 +57,29 @@ $identity | Write-Output
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $rows = [Collections.Generic.List[object]]::new()
 
-function Invoke-MutationEngine {
-    param([string]$Log, [string]$Suite)
-    $arguments = @('--path', $gameDirectory, '--log-file', $Log, '--headless', '--script', 'res://tests/test_game.gd', '--', ('--suite=' + $Suite))
-    $startInfo = [Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $engine
-    $startInfo.UseShellExecute = $false
-    $startInfo.CreateNoWindow = $true
-    $startInfo.Arguments = ($arguments | ForEach-Object { '"' + $_.Replace('"', '\"') + '"' }) -join ' '
-    $process = [Diagnostics.Process]::new()
-    $process.StartInfo = $startInfo
-    try {
-        [void]$process.Start()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            $process.Kill()
-            $process.WaitForExit()
-            return @{ exit = $null; timeout = $true }
-        }
-        return @{ exit = $process.ExitCode; timeout = $false }
-    } finally {
-        $process.Dispose()
+function Get-MutationExecution {
+    param($Row)
+    $execution = if ($Row.PSObject.Properties.Name -contains 'execution') { [string]$Row.execution } else { 'rules' }
+    if ($execution -notin @('rules','ui','recipe')) { throw ('Unknown mutation execution: ' + $execution) }
+    if ($execution -eq 'recipe' -and [string]$Row.suite -ne 'recipe') { throw 'Recipe execution requires suite=recipe.' }
+    return $execution
+}
+
+function Invoke-MutationCheck {
+    param([string]$Execution, [string]$Suite)
+    $arguments = @('-NoProfile','-File',(Join-Path $PSScriptRoot 'check.ps1'),'-TimeoutSeconds',[string]$TimeoutSeconds)
+    switch ($Execution) {
+        'rules' { $arguments += @('-Suite',$Suite) }
+        'ui' { $arguments += @('-UIOnly','-UISuite',$Suite) }
+        'recipe' { $arguments += @('-Suite','recipe') }
     }
+    # check.ps1 owns the only phase routing, engine argv and process timeout lifecycle.
+    $output = (& (Get-Process -Id $PID).Path @arguments 2>&1 | Out-String)
+    $code = $LASTEXITCODE
+    Write-Host $output
+    $found = [regex]::Match($output,'(?m)^SUMMARY: ([^\r\n]+)')
+    if (-not $found.Success) { throw ('Child check did not publish a summary (exit=' + $code + ').') }
+    return @{ exit=$code; summary=$found.Groups[1].Value.Trim() }
 }
 
 foreach ($name in $selected) {
@@ -91,6 +93,7 @@ foreach ($name in $selected) {
     try {
         if (-not $row.file -or -not ($row.find -is [string]) -or -not ($row.replace -is [string]) -or -not $row.suite) { throw 'entry is missing file/find/replace/suite.' }
         if ($row.find -eq $row.replace) { throw 'find and replace are identical.' }
+        $execution = Get-MutationExecution -Row $row
         $path = Join-Path $gameDirectory ([string]$row.file)
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw ('target file not found: ' + $row.file) }
         $original = [IO.File]::ReadAllBytes($path)
@@ -108,18 +111,28 @@ foreach ($name in $selected) {
         $bytes = [Text.Encoding]::UTF8.GetBytes($mutatedText)
         if ($hasBom) { [IO.File]::WriteAllBytes($path, [byte[]](@(0xEF, 0xBB, 0xBF) + $bytes)) } else { [IO.File]::WriteAllBytes($path, $bytes) }
         $mutated = $true
-        $log = Join-Path $runDirectory ($name + '.log')
+        $run = Invoke-MutationCheck -Execution $execution -Suite ([string]$row.suite)
+        $summary = [IO.File]::ReadAllText($run.summary) | ConvertFrom-Json
+        Write-Output ('MUTATION CHILD SUMMARY: ' + $run.summary + '; execution=' + $execution)
+        if ($run.exit -eq 0 -or $summary.status -ne 'failed' -or $summary.before -ne $summary.after) { throw 'Child check must fail without changing source during execution.' }
+        if ($summary.docs.status -ne 'passed') { throw 'Document phase failure is not target mutation RED.' }
+        $stage = $summary.$execution
+        $log = [string]$stage.log
         $result.log = $log
-        $run = Invoke-MutationEngine -Log $log -Suite ([string]$row.suite)
-        if ($run.timeout) { throw ('suite ' + $row.suite + ' timed out after ' + $TimeoutSeconds + 's.') }
-        $output = if (Test-Path -LiteralPath $log) { [IO.File]::ReadAllText($log) } else { '' }
-        $started = $output -match ('(?m)^SUITE START: ' + [regex]::Escape([string]$row.suite) + '\s*$')
-        $failed = $output -match ('(?m)^SUITE RESULT: ' + [regex]::Escape([string]$row.suite) + ' FAIL\s*$')
-        $errorLines = @($output -split '\r?\n' | Where-Object { $_ -match '^\s*(?:USER )?(?:SCRIPT |PARSE )?ERROR:' -and $_.Contains($name) })
-        if ($run.exit -eq $null -or $run.exit -eq 0) { throw ('suite ' + $row.suite + ' exited ' + $run.exit + '; the mutated source did not fail the run.') }
-        if (-not $started) { throw ('suite ' + $row.suite + ' never started; the mutation broke loading instead of the check.') }
-        if (-not $failed) { throw ('SUITE RESULT: ' + $row.suite + ' did not report FAIL.') }
-        if ($errorLines.Count -eq 0) { throw ('no engine error line names the mutated check ' + $name + '.') }
+        if (-not $log -or -not (Test-Path -LiteralPath $log)) { throw 'Target phase did not publish its original log.' }
+        $output = [IO.File]::ReadAllText($log)
+        if ($output -match 'SOURCE CHANGED:|Failed to read the root certificate store|SCRIPT ERROR:|PARSE ERROR:|ObjectDB instances were leaked|resources still in use') { throw 'Target phase contains a source/environment/loading/runtime failure, not a judgment RED.' }
+        $errorLines = @($output -split '\r?\n' | Where-Object { $_ -match '^\s*(?:stderr: )?(?:USER )?ERROR:' -and $_.Contains($name) })
+        if ($errorLines.Count -eq 0) { throw ('No target error names the mutated check ' + $name + '.') }
+        if ($execution -eq 'recipe') {
+            if ($stage.seed -ne 7 -or $stage.commits -ne 60 -or $stage.stop -ne 'cap' -or $stage.exit -eq 0) { throw 'Recipe did not finish its unchanged 60-commit input cap with a failed assertion.' }
+            if ($output -notmatch '(?m)^RECIPE DRIVER .*seed=7 cap=60 style=trade window=1600x900\s*$' -or $output -notmatch '(?m)^RECIPE seed=7 commits=60 steps=\d+ stop=cap\s*$' -or $output -notmatch '(?m)^UI FAIL: \d+ assertions\s*$' -or $output -notmatch '(?m)^F3 OBSERVER RESTORED true\s*$') { throw 'Recipe target identity/completion/failure/restore markers are incomplete.' }
+        } else {
+            $started = $output -match ('(?m)^SUITE START: ' + [regex]::Escape([string]$row.suite) + '\s*$')
+            $failed = $output -match ('(?m)^SUITE RESULT: ' + [regex]::Escape([string]$row.suite) + ' FAIL\s*$')
+            if (-not $started -or -not $failed -or [string]$row.suite -notin $stage.failed) { throw 'Target suite never completed with its named FAIL result.' }
+            if ($execution -eq 'ui' -and $output -notmatch '(?m)^UI FAIL: \d+ assertions\s*$') { throw 'UI completion failure marker is missing.' }
+        }
         $result.red = $true
     } catch {
         $result.reason = $_.Exception.Message
@@ -132,7 +145,7 @@ foreach ($name in $selected) {
         }
         $entryTimer.Stop()
         $result.seconds = [math]::Round($entryTimer.Elapsed.TotalSeconds, 1)
-        $result.hash = $originalHash.Substring(0, 12)
+        $result.hash = if ($originalHash) { $originalHash.Substring(0, [Math]::Min(12,$originalHash.Length)) } else { '' }
         $rows.Add($result)
     }
     $verdict = if ($result.red -and $result.restored) { 'RED' } else { 'FAILED' }

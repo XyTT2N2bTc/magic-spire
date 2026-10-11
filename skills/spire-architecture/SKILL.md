@@ -21,6 +21,15 @@ description: >-
   数值、费用、原因与实际行为必须一致。
 
 - core/game.gd 是状态与事务唯一提交入口；core/game_view.gd 生成只读显示快照，UI 不读不写 game.state。
+
+### 只读投影
+
+- `ui/main.gd::PRESENT_DEMAND` 声明节→组（含节键与保留视图的交互读集）；`core/command_registry.gd::FACT_UNITS` 的组列声明组→单元；core 不消费 UI 节名。需求闭包只经 `core/game.gd::fact_demand_groups`，无参和显式全组共用同一生产通道。
+- `ui/main.gd::_present_demand` 是 UI 需求唯一入口；成功提交的精确开合与归一化执行共用 `ui/main.gd::_submit_opens`，只读结果的 phase／overloaded；`ui/main.gd::PHASE_OPEN_DEMAND` 只在 ok=false 时保守退化。四个调用点及局部/全组分支由 `spire-godot/tests/architecture_cases.gd::submit_demand_call_sites_are_pinned` 钉住。
+- `ui/main.gd::_present_needs_full_render` 是带source的完整fallback唯一判定；提交初投供节键，归一化与dirty后若要全帧且初投裁剪则经既有回取口取全组，present不复制条件链。真实读观察仅 `ui/target_queries.gd::debug_exchange_read_observer` 的debug瞬时Callable例外，facts／fact_by_key原两叶通知，不是规则状态或缓存；release或未安装不捕栈/复制。
+- `display_facts` 是全组行按需求闭包过滤的纯子序列；其余 View 键由 `spire-godot/tests/architecture_cases.gd::lazy_projection_invariant` 核对。逐节声明和源码读集由 `spire-godot/tests/architecture_cases.gd::demand_declarations_are_total`／`section_read_sets_are_pinned` 核对；真实读取记录器入口为 `spire-godot/tests/display_ui_cases.gd::present_demand_recorder`。依赖与仍靠人审的读者清点见 `docs/spec/fact-table-dependencies.md`。
+
+### 提交与规则边界
 - UI 提交经 `ui/command_router.gd` 的 `emit` 收口（分类转发表 `ROUTES`）；提交处复核指令形状（kind＋params）与状态版本；显示查询只读 View 的显示事实，不重算资格。
 - ui/target_queries.gd 是身体目标／拖放载荷／解除候选的唯一查询入口：只吃 View 的显示事实，不持有游戏、控件（见 docs/spec/release-interface.md）。
 - core/pressure.gd 等助手沿正式初始化／行动／回合管线执行，不另立玩家命令；失败必须完整回滚。

@@ -74,6 +74,9 @@ func _run_recipe() -> void:
  var stale=0
  var stop_reason="cap"
  var phases: Array=[]
+ var read_cases=load(UI_MODULES["display"])
+ var read_session=read_cases.present_demand_recorder_begin(self)
+ read_cases.present_demand_recorder_snapshot(read_session,ui.game.export_snapshot())
  while commits<recipe_cap and steps<900:
   steps+=1
   var v=ui.view
@@ -88,7 +91,9 @@ func _run_recipe() -> void:
    break
   var before=int(ui.game.state.version)
   print("FK step %d phase=%s chosen=%s params=%s" % [steps,phase,String(c.get("payload",{}).get("kind","")),JSON.stringify(c.get("payload",{}))])
+  read_cases.present_demand_recorder_snapshot(read_session,ui.game.export_snapshot())
   await _drive(c,v)
+  read_cases.present_demand_recorder_snapshot(read_session,ui.game.export_snapshot())
   var after=int(ui.game.state.version)
   if after>before:
    stale=0
@@ -100,6 +105,8 @@ func _run_recipe() -> void:
     stop_reason="stuck_on:"+String(c.payload.kind)
     break
   Normal.remember(v,c,navigation)
+ read_cases.present_demand_recorder_end(self,read_session)
+ check(commits==recipe_cap and stop_reason=="cap","F3 present_demand_recorder: the unchanged real-input recipe reaches its declared cap")
  print("FK SESSION %s commits=%d steps=%d stop=%s phases=%s" % [label,commits,steps,stop_reason,str(phases)])
  _reuse_report()
  DirAccess.make_dir_recursive_absolute(OUT_ROOT)

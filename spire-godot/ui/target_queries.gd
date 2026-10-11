@@ -9,6 +9,21 @@ const RELEASE_MODES=["strain","slip","magic_slip","lower","unlock"]
 # 拖放族键面（同一拖起语义的落点族）：与改动前 siblings 的字段面逐条一致。
 const FAMILY_FIELDS=["kind","type","item","mode","action","free","form"]
 
+# Debug-only observation is not query state or a cache; release never installs it.
+static var _debug_read_observer: Callable=Callable()
+
+static func debug_exchange_read_observer(observer: Callable) -> Callable:
+ if not OS.is_debug_build(): return Callable()
+ var previous=_debug_read_observer
+ _debug_read_observer=observer
+ return previous
+
+static func _debug_observe_read(view: Dictionary, op: String, request: String, rows: Array) -> void:
+ if not OS.is_debug_build() or not _debug_read_observer.is_valid(): return
+ var stack=[]
+ for frame in get_stack(): stack.append({"source":String(frame.get("source","")),"function":String(frame.get("function",""))})
+ _debug_read_observer.call({"op":op,"request":request,"version":int(view.get("version",-1)),"phase":String(view.get("phase","")),"scope":view.get("display_fact_scope",[]).duplicate(),"rows":rows.duplicate(true),"stack":stack})
+
 static func body_at(view: Dictionary, slot: String) -> Dictionary:
  for region in view.body_regions:
   if region.id==slot: return region
@@ -31,7 +46,9 @@ static func all_facts(view: Dictionary) -> Array:
 
 # 组取用（组名＝事实的 group 字段，与改动前的行组名同值）：取不到的组返回空表。
 static func facts(view: Dictionary, group: String) -> Array:
- return all_facts(view).filter(func(f):return String(f.get("group","action"))==group)
+ var rows=all_facts(view).filter(func(f):return String(f.get("group","action"))==group)
+ _debug_observe_read(view,"group",group,rows)
+ return rows
 
 # 显示键的唯一取值点（事实自带的形状键；不含提交身份 id）。
 static func fact_key(c: Dictionary) -> String:
@@ -39,9 +56,13 @@ static func fact_key(c: Dictionary) -> String:
 
 static func fact_by_key(view: Dictionary, key: String) -> Dictionary:
  if key=="": return {}
+ var result={}
  for f in all_facts(view):
-  if fact_key(f)==key: return f
- return {}
+  if fact_key(f)==key:
+   result=f
+   break
+ _debug_observe_read(view,"key",key,[] if result.is_empty() else [result])
+ return result
 
 # 组查询（显示侧）：字段按 payload 比较，语义与改动前的显示查询一致。
 static func select(view: Dictionary, group: String, fields: Dictionary={}) -> Array:

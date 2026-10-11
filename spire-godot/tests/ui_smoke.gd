@@ -61,6 +61,7 @@ func module_checks(selected: Array) -> void:
    if suite==null or not suite.can_instantiate():
     check(false,"Cannot load selected UI suite: "+name);return
    await suite.run(self)
+  if name=="display": load(UI_MODULES["display"]).present_demand_recorder_cleanup(self)
   print("UI SUITE %s: %d assertions, %d ms" % [name,assertions-before,Time.get_ticks_msec()-started])
   var failed=failures.size()>previous_failures or engine_errors.count()>previous_errors
   print("SUITE RESULT: %s %s" % [name,"FAIL" if failed else "PASS"])
@@ -68,6 +69,7 @@ func module_checks(selected: Array) -> void:
   if failed and (runtime_error or "--keep-going" not in OS.get_cmdline_user_args()): return
 
 func finish_checks() -> void:
+ load(UI_MODULES["display"]).present_demand_recorder_cleanup(self)
  print("UI TIME: %d ms" % (Time.get_ticks_msec()-started_at))
  print("UI INPUT: ",external_mouse_events," OS mouse events isolated from scripted pointer")
  var passed=failures.is_empty() and engine_errors.count()==0
