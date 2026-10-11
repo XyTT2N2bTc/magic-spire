@@ -538,6 +538,71 @@ func render(snapshot: Dictionary={}) -> void:
  _localize_controls(layout)
 
 const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","posture","resources","show_log","body_bar","body_details","pickers","speech","notice","drawers","page","scene_instances"]
+# 需求声明（K5 真源 1，plan §3 F 批；修复批 G2 分表；docs/spec/fact-table-dependencies.md「需求声明」）：
+# 节 → 组集合的字面表。本表是**需求声明**不是读集名册：每节行＝该节实际读集
+# （tests/architecture_cases.gd::SECTION_READ_SETS 冻结域）中需要本表声明来承载投影的组，默认排除两类——
+# ① 投影承接组（core/command_registry.gd::VIEW_FACT_GROUPS，core/game_view.gd::build 跨组消费点已载，
+# 恒在需求闭包 scope 内，声明与否不改变裁剪结果）；② 全屏 page 域组（page 渲染走完整谓词全组回落，
+# 局部声明不承载）。逐节差集的登记理由冻结在 tests/architecture_cases.gd::F_DEMAND_EXCLUSIONS
+# （理由=VIEW ⇒ 组 ∈ VIEW_FACT_GROUPS；理由=page ⇒ 节=page），判据＝demand_declarations_are_total。
+# 声明域＝任何可显示的节（含节键读），不按"哪些抽屉正开着"取值——视图在两次投影之间被保留，
+# 期间用户可开抽屉／看身体详情／开路线，这些都从同一份 display_facts 取数（design.md §K5 ④）。
+# core 不读本表（词汇表分工：UI 声明要哪些组，core 声明组由谁产）。
+#  逐节依据（节体与节键内的 TargetQueries 组字面；外部 ui 文件的包装读取见
+#  tests/architecture_cases.gd::SECTION_READ_SETS 的声明注释）：
+#   header／show_log／body_bar／pickers／speech／notice 的键与节体只读 View 键，不读事实
+#   （body_bar 的拖放候选读 card，属承接组，不声明）；
+#   relics——_relic_row 与 _relic_presentation_key（O-7）按 relic id 取 relic_discharge／relic_toggle 候选；
+#   hand——_hand_choice 取 card 组（承接组，不声明）；手牌可用性由 View 的 hand[].availability 承载；
+#   actions——行动栏与节键读 attack／pressure；
+#   posture——姿态／墙面控制与节键读 posture（承接组）／wall_move（声明）；
+#   resources——资源栏与键命中读 flow（承接组）／surrender；_build_resource_bar 经 ui/mana_flask.gd::build 读 flask；
+#   body_details——身体详情与节键读 manual／attack／card（后两者属承接组或已声明），_body_details 另读 retain；
+#   drawers——道具／挂钩／角色状态抽屉读 item（承接组，pack 开抽屉由 _submit_opens 的 open_items 分支承载）
+#           ／hook／status_toggle，装备条读 manual（承接组）；
+#   page——渲染页分支读 prison／item／flow／route／chain／demo_exit：全屏页走完整谓词全组回落，
+#          声明行不承载（page 行收窄为空；商店／事件等外屏同路径取全组）；
+#   scene_instances——敌人落点的攻击候选读 attack，状态条读 status_toggle。
+const PRESENT_DEMAND={
+ "header":[],
+ "relics":["relic"],
+ "hand":[],
+ "actions":["attack","pressure"],
+ "posture":["wall_move"],
+ "resources":["surrender","flask"],
+ "show_log":[],
+ "body_bar":[],
+ "body_details":["attack","retain"],
+ "pickers":[],
+ "speech":[],
+ "notice":[],
+ "drawers":["hook","status_toggle"],
+ "page":[],
+ "scene_instances":["attack","status_toggle"],
+}
+# 退化情形的字面表（K5 真源 3／§K5 ③）：PHASE_OPEN_DEMAND 只在 result.ok==false（失败结果不带 phase／
+# overloaded 两键，精确开合不可得）时作保守兜底——state 未变、无节新开／关，按表多算不改变呈现。
+# 键＝提交前 View 的相位；值＝该相位可能开着／新开的节所需的组。期望侧冻结在
+# tests/architecture_cases.gd::demand_declarations_are_total。
+const PHASE_OPEN_DEMAND={
+ "battle":["attack","pressure"],
+ "prepare":["attack","pressure"],
+ "rest":["hook"],
+ "prison":["item","prison"],
+ "pack":["item"],
+ "map":["route"],
+ "travel":["route"],
+ "reward":["reward"],
+ "rest_choice":["rest_service"],
+ "shop":["service","service_flow","service_refresh","service_release","service_remove"],
+ "treasure":["service"],
+ "event":["event"],
+ "captured":["item","prison"],
+ "inspection":["item","prison"],
+ "departure":["reward"],
+ "cleared":["demo_exit"],
+ "prison_end":[],
+}
 # Declared present adjacency; guarded by
 # tests/architecture_cases.gd::present_adjacency_graph_is_pinned (three checks: a declared
 # edge must have a direct call in its parent body; a table symbol a registered parent calls
@@ -635,7 +700,7 @@ const PRESENT_SECTIONS: Array[String]=["header","relics","hand","actions","postu
 # _dismiss_speech, _speech_visible, _show_term, _drag_rejection,
 # _card_tooltip, or _takeover_banner.
 const PRESENT_ADJACENCY={
- "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","_scene_instances_need_full","_refresh_scene_instances_section","_sync_drag_versions","layout.body_sidebar","_selecting_hand","_hide_term"],
+ "present":["_present_needs_full_render","render","header.configure","_relic_row","_hand","_build_action_rail","_refresh_posture_section","_refresh_resource_section","_refresh_log_section","_refresh_body_details_section","_refresh_picker_section","_refresh_speech_section","_refresh_notice_section","_refresh_drawer_section","_refresh_scene_instances_section","_sync_drag_versions","layout.body_sidebar","_hide_term"],
  "_present_needs_full_render":["_scene_instances_need_full","_selecting_hand"],
  "_scene_instances_need_full":[],
  "_refresh_scene_instances_section":["layout.hero_portrait","_place_enemy_row","_enemy_row","configure_enemy","_status_strip","_sync_enemy_stage","_release_enemy_stage","EquipmentPortrait.configure"],
@@ -736,7 +801,7 @@ const PRESENT_ADJACENCY={
 
 func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  var next=view if snapshot.is_empty() else snapshot
- if _present_needs_full_render(dirty) or (dirty.has("hand") and bool(next.pressure.overloaded)) or (dirty.has("actions") and (String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active))) or (dirty.has("posture") and (String(next.phase)!="battle" or show_route)) or (dirty.has("resources") and (String(next.phase)!="battle" or show_route)) or (dirty.has("show_log") and (not show_log or show_home)) or (dirty.has("body_details") and (_selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain))) or (dirty.has("pickers") and not _selecting_hand()) or (dirty.has("speech") and (next.get("speech",{}).is_empty() or show_home or show_route or String(next.phase)!="battle" or (not show_home and bool(next.get("first_turn_control",{}).get("locked",false))) or suppressed_hero_speech_id=="hero:"+str(next.get("speech",{}).get("id","")) or not next.get("npc_speech",{}).is_empty())) or (dirty.has("notice") and (notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed))) or (dirty.has("drawers") and (not (show_menu or show_items) or show_home or show_route or String(next.phase)!="battle" or DRAWERS.any(func(field):return field not in ["show_menu","show_items"] and bool(get(field))))) or (dirty.has("scene_instances") and _scene_instances_need_full(next)):
+ if _present_needs_full_render(dirty,next):
   render(next)
   return
  DragTargets.clear(self,false)
@@ -778,38 +843,39 @@ func present(dirty: Array=["*"], snapshot: Dictionary={}) -> void:
  if is_instance_valid(keyboard_input): keyboard_input.refresh_hints.call_deferred()
  _localize_controls(layout)
 
-func _present_needs_full_render(dirty: Array) -> bool:
- if not is_instance_valid(layout) or view.is_empty() or dirty.is_empty():
+func _present_needs_full_render(dirty: Array, source: Dictionary={}) -> bool:
+ var next=view if source.is_empty() else source
+ if not is_instance_valid(layout) or next.is_empty() or dirty.is_empty():
   return true
  for value in dirty:
   var section=String(value)
   if section=="*" or section=="page" or not PRESENT_SECTIONS.has(section):
    return true
   if section=="hand":
-   if bool(view.pressure.overloaded): return true
+   if bool(next.pressure.overloaded): return true
   if section=="header":
    if not is_instance_valid(layout.get_node_or_null("GameHeader")): return true
   if section=="actions":
-   if String(view.phase)!="battle" or quick_release_open or _selecting_hand() or not view.card_chain.is_empty() or bool(view.reward_panel.active): return true
+   if String(next.phase)!="battle" or quick_release_open or _selecting_hand() or not next.card_chain.is_empty() or bool(next.reward_panel.active): return true
   if section=="posture":
-   if String(view.phase)!="battle" or show_route: return true
+   if String(next.phase)!="battle" or show_route: return true
   if section=="resources":
-   if String(view.phase)!="battle" or show_route: return true
+   if String(next.phase)!="battle" or show_route: return true
   if section=="show_log":
    if not show_log or show_home: return true
   if section=="body_details":
-   if _selecting_hand() or not (show_body or selected_card!="" or bool(view.pending_retain)) or quick_release_open or String(view.phase)!="battle" or bool(view.pending_retain): return true
+   if _selecting_hand() or not (show_body or selected_card!="" or bool(next.pending_retain)) or quick_release_open or String(next.phase)!="battle" or bool(next.pending_retain): return true
   if section=="pickers":
    if not _selecting_hand(): return true
   if section=="speech":
-   var speech=view.get("speech",{})
-   if speech.is_empty() or show_home or show_route or String(view.phase)!="battle" or _takeover_locked() or suppressed_hero_speech_id=="hero:"+str(speech.get("id","")) or not view.get("npc_speech",{}).is_empty(): return true
+   var speech=next.get("speech",{})
+   if speech.is_empty() or show_home or show_route or String(next.phase)!="battle" or bool(next.get("first_turn_control",{}).get("locked",false)) or suppressed_hero_speech_id=="hero:"+str(speech.get("id","")) or not next.get("npc_speech",{}).is_empty(): return true
   if section=="notice":
-   if notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(view.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed): return true
+   if notice=="" or not actor_targets.has("hero") or not is_instance_valid(actor_targets.hero) or not actor_targets.hero.is_inside_tree() or show_home or show_route or String(next.phase)!="battle" or (is_instance_valid(touch_input) and touch_input.finger>=0 and not touch_input.details_allowed): return true
   if section=="drawers":
-   if not (show_menu or show_items) or show_home or show_route or String(view.phase)!="battle" or DRAWERS.any(func(field):return field not in ["show_menu","show_items"] and bool(get(field))): return true
+   if not (show_menu or show_items) or show_home or show_route or String(next.phase)!="battle" or DRAWERS.any(func(field):return field not in ["show_menu","show_items"] and bool(get(field))): return true
   if section=="scene_instances":
-   if _scene_instances_need_full(view): return true
+   if _scene_instances_need_full(next): return true
  return false
 
 func _scene_instances_need_full(source: Dictionary) -> bool:
@@ -910,11 +976,19 @@ func _header() -> void:
 var _relic_key=[]
 
 func _relic_presentation_key() -> Array:
+ # O-7（F 批收口，C-F-2 无例外文本）：节键必须覆盖本节重建读取的 relic 组——_relic_row 按 relic id
+ # 取 relic_discharge／relic_toggle 候选行，行面（key／valid／reason）变化而 view.relics 未变时旧键会
+ # 命中、条带接线陈旧。读法沿用同一组查询入口（TargetQueries.find），不新开接口；键仍只读当次
+ # View＋本地态（节键语义不变）。
  var rows=[]
+ var choices=[]
  for relic in view.relics:
   var counter=relic.counter.duplicate(true) if relic.counter is Dictionary else relic.counter
   rows.append([String(relic.id),String(relic.name),String(relic.detail),counter,String(relic.current),relic.rarity])
- return [rows,String(localization.locale)]
+  var choice=TargetQueries.find(view,"relic",{"kind":"relic_discharge","relic":relic.id})
+  if choice.is_empty(): choice=TargetQueries.find(view,"relic",{"kind":"relic_toggle","relic":relic.id})
+  choices.append([] if choice.is_empty() else [TargetQueries.fact_key(choice),bool(choice.valid),String(choice.reason)])
+ return [rows,choices,String(localization.locale)]
 
 func _relic_row() -> void:
  var key=_relic_presentation_key()
@@ -2808,7 +2882,12 @@ func _prison_location_details(parent: Node,site: Dictionary) -> void:
   scroll.add_child(_label(item.contact_text,13,CYAN))
   scroll.add_child(_label(item.passive_text,15,CYAN))
  var selected_actions=[]
- for c in view.display_facts:
+ # C-F-5（O-6 的产品侧收口）：本页不再直读整表（view.display_facts 是按需求裁剪的投影），改走组查询——
+ # 监狱页读 prison／item 两组（已登记进 PRESENT_DEMAND["page"]／["drawers"] 的声明域）。行序与改动前一致：
+ # 表序里 prison 组的行先于 item 组的行，两组各自内部按原序拼接。
+ var page_rows=TargetQueries.facts(view,"prison")
+ page_rows.append_array(TargetQueries.select(view,"item",{"item":site.interaction.item}) if kind=="item" else TargetQueries.facts(view,"item"))
+ for c in page_rows:
   var matches=(kind=="door" and ((c.payload.kind=="prison" and c.payload.action in ["key","door_exit","unlock"]) or (c.payload.kind=="item_use" and c.payload.target=="prison_door"))) or (kind=="vent" and c.payload.kind=="prison" and c.payload.action in ["vent_kick","vent_exit"]) or (kind=="item" and c.payload.get("item","")==site.interaction.item)
   if matches and c.payload.kind!="item_install": selected_actions.append(c)
  for c in selected_actions:
@@ -3346,6 +3425,34 @@ func _shop_chatter(pool: Array) -> void:
  body.text=line;bubble.show();speech_group=bubble
  speech_deadline=Time.get_ticks_msec()+5000
 
+# 提交后开合的唯一判定（K5 ③／F-4）：归一化段的执行与需求计算共用本实现——相位变化或过载关抽屉、
+# pack 开物品抽屉。入参＝提交结果与提交前 View：成功结果带 phase／overloaded 两个提交后标量（K7，
+# 与 View.build 同源同值）；失败结果 state 未变、无节新开／关。只读：不写任何状态。
+func _submit_opens(result: Dictionary, previous: Dictionary) -> Dictionary:
+ if not bool(result.get("ok",false)): return {"close_drawers":false,"open_items":false}
+ var phase=String(result.get("phase",""))
+ return {"close_drawers":phase!=String(previous.get("phase","")) or bool(result.get("overloaded",false)),"open_items":phase=="pack"}
+
+# 需求求值的单入口（K5 真源 3；plan §3 F 批；修复批 G2 分表）：产出提交后投影的声明需求（组名集合，经
+# core/game.gd::fact_demand_groups 折算成闭包）。只读 UI 本地态与提交后标量，不含"哪些抽屉正开着"
+# 这一维（design.md §K5 ④：需求按界面配置声明，覆盖任何可显示的节的读集）。
+#  声明集合＝PRESENT_DEMAND 全节的并集（raw 并集不含 item；VIEW 承接组与 page 域组由闭包下限与
+#  page 全组回落承载，不入声明）。在此之上，提交后新开／关的节由 _submit_opens（与归一化段
+#  共用的同一实现）算出：pack 开物品抽屉 ⇒ item（raw 并集不含 item，该分支真实可达）；失败结果
+#  不带两键 ⇒ PHASE_OPEN_DEMAND 按提交前相位作保守兜底（state 未变，多算不改变呈现）。
+func _present_demand(result: Dictionary) -> Array:
+ var groups=[]
+ for section in PRESENT_SECTIONS:
+  for group in PRESENT_DEMAND.get(section,[]):
+   if group not in groups: groups.append(group)
+ var opens=_submit_opens(result,view)
+ if opens.open_items and "item" not in groups: groups.append("item")
+ if not bool(result.get("ok",false)):
+  var phase=String(view.get("phase",""))
+  for group in PHASE_OPEN_DEMAND.get(phase,[]):
+   if group not in groups: groups.append(group)
+ return groups
+
 # Submission compares existing section keys; no command-kind invalidation table.
 func _submit_presentation_keys() -> Dictionary:
  if not is_instance_valid(layout) or view.is_empty(): return {}
@@ -3400,7 +3507,12 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
  var result=game.dispatch(cmd,int(cmd.get("expected_version",-1)))
  var row=result.get("fact",{})
  var payload=row.get("payload",{}) if not row.is_empty() else {}
- var updated=game.get_view()
+ # F 批接线（K5 现行设计；F-4）：局部重建可能的提交（前后均 battle 且节键可用）传声明需求
+ # （_present_demand，精确开合经 _submit_opens 与归一化段共用同一实现；PHASE_OPEN_DEMAND 只在
+ # result.ok==false 时退化兜底），其余路径取缺省全组。提交后相位＝成功结果的 phase（K7，与
+ # View.build 同源同值）；失败提交 state 未变，相位即提交前相位。
+ var local_rebuild: bool=String(previous.get("phase",""))=="battle" and not previous_keys.is_empty() and (String(result.get("phase",""))=="battle" if bool(result.get("ok",false)) else true)
+ var updated=game.get_view(_present_demand(result) if local_rebuild else [])
  # Consume automated speech even when the last command has already ended takeover.
  if takeover: _skip_hero_speech(updated.speech)
  notice="" if result.ok else result.error
@@ -3414,20 +3526,19 @@ func _submit(cmd: Dictionary, takeover: bool=false) -> void:
   player_pick=false
   selected_card=""; selected_candidate=""; show_body=false
   show_route=false
-  if updated.phase!=view.phase:
-   _close_drawers()
-  if updated.phase=="pack": show_items=true
-  if updated.pressure.overloaded:
-   # Climax owns the interruption presentation. Never cover it with the
-   # general-purpose character-status drawer, even if that drawer was open.
-   _close_drawers()
+  # 归一化段（K5 ③）：开合决策经 _submit_opens——与 _present_demand 共用的同一实现。
+  var opens=_submit_opens(result,previous)
+  if opens.close_drawers: _close_drawers()
+  if opens.open_items: show_items=true
  var dirty=[]
- if String(previous.get("phase",""))=="battle" and String(updated.phase)=="battle" and not previous_keys.is_empty():
+ if local_rebuild:
   view=updated
   dirty=_submit_dirty(previous_keys,result.ok,previous_absent)
- if not dirty.is_empty():
+ if not _present_needs_full_render(dirty,updated):
   present(dirty,updated)
  else:
+  # Initial projection is key input only; every complete fallback receives a full-group view.
+  if local_rebuild: updated=game.get_view()
   render(updated)
  if takeover and is_instance_valid(takeover_presenter): takeover_presenter.outcome(result,previous,updated,payload)
  if result.ok and kind=="demo_end":

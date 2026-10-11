@@ -33,7 +33,6 @@
     "copy_r6_sites",
     "copy_candidate_detail_on_demand",
     "removal_end_state",
-    "behavior_baseline_equivalence",
     "single_eligibility_implementation",
     "instruction_router_single_entry",
     "instruction_route_table_is_total",
@@ -169,8 +168,8 @@
     },
     "baseline_constants_are_unchanged": {
       "file": "tests/architecture_cases.gd",
-      "find": "const R5_RECOMPUTED=[\"record\",\"view\"]",
-      "replace": "const R5_RECOMPUTED=[\"record\"]",
+      "find": "const R3_VIEW_MASK=[\"display_facts\",\"display_fact_scope\"]",
+      "replace": "const R3_VIEW_MASK=[\"display_fact_scope\",\"display_fact_scope\"]",
       "suite": "architecture"
     },
     "fact_lookup_all_kinds": {
@@ -258,9 +257,9 @@
       "suite": "architecture"
     },
     "default_projection_is_unchanged": {
-      "file": "core/game.gd",
-      "find": " if demand.is_empty() or _fact_demand_forced_full(): return CommandRegistry.fact_groups()",
-      "replace": " if _fact_demand_forced_full(): return CommandRegistry.fact_groups()",
+      "file": "core/game_view.gd",
+      "find": "\"display_fact_scope\":fact_groups_of(facts)}",
+      "replace": "\"display_fact_scope_probe\":fact_groups_of(facts)}",
       "suite": "architecture"
     },
     "lazy_projection_invariant": {
@@ -297,6 +296,82 @@
       "file": "tests/frozen-baselines.json",
       "find": "\"sha256\": \"9F837193BEA2C8E707CE9827BC06A8573222A2057566400A125657FFE7F47760\"",
       "replace": "\"sha256\": \"9F837193BEA2C8E707CE9827BC06A8573222A2057566400A125657FFE7F47761\"",
+      "suite": "architecture"
+    },
+    "demand_declarations_are_total": {
+      "file": "ui/main.gd",
+      "find": " \"relics\":[\"relic\"],",
+      "replace": " \"relics\":[\"relic_probe\"],",
+      "suite": "architecture"
+    },
+    "demand_core_source_is_nonempty": {
+      "file": "tests/architecture_cases.gd",
+      "find": " for path in [\"core/game.gd\",\"core/command_registry.gd\",\"core/game_view.gd\"]:",
+      "replace": " for path in [\"res://core/game.gd\",\"core/command_registry.gd\",\"core/game_view.gd\"]:",
+      "suite": "architecture"
+    },
+    "section_read_sets_are_pinned": {
+      "file": "tests/architecture_cases.gd",
+      "find": " \"target_drag\":{\"adj\":[],\"extra\":[\"_begin_target_drag\",{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},",
+      "replace": " \"target_drag\":{\"adj\":[],\"extra\":[{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},",
+      "suite": "architecture"
+    },
+    "present_demand_recorder": {
+      "file": "ui/target_queries.gd",
+      "find": " if not OS.is_debug_build() or not _debug_read_observer.is_valid(): return",
+      "replace": " if true: return",
+      "suite": "recipe",
+      "execution": "recipe"
+    },
+    "submit_demand_call_sites_are_pinned": {
+      "file": "ui/main.gd",
+      "find": "var updated=game.get_view(_present_demand(result) if local_rebuild else [])",
+      "replace": "var updated=game.get_view()",
+      "suite": "architecture"
+    },
+    "behavior_baseline_equivalence": {
+      "file": "tests/architecture_cases.gd",
+      "find": "const R3_VIEW_MASK=[\"display_facts\",\"display_fact_scope\"]",
+      "replace": "const R3_VIEW_MASK=[\"display_facts\"]",
+      "suite": "architecture"
+    },
+    "target_queries_read_observer_is_debug_only": {
+      "file": "ui/target_queries.gd",
+      "find": " if not OS.is_debug_build() or not _debug_read_observer.is_valid(): return",
+      "replace": " if not _debug_read_observer.is_valid(): return",
+      "suite": "architecture"
+    },
+    "contract_text_is_updated_verbatim": {
+      "file": "../docs/spec/response-pipeline.md",
+      "find": "**在不改变实际呈现效果的情况下，尽量降低单次成本**",
+      "replace": "**UI 只能减少 get_view 的调用次数，不能降低单次成本**",
+      "suite": "architecture"
+    },
+    "submit_full_fallback_uses_source": {
+      "file": "ui/main.gd",
+      "find": " var next=view if source.is_empty() else source",
+      "replace": " var next=view",
+      "suite": "display",
+      "execution": "ui"
+    },
+    "bound_click_focus_owner": {
+      "file": "tests/architecture_cases.gd",
+      "find": " \"target_drag\":{\"adj\":[],\"extra\":[\"_begin_target_drag\",{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},",
+      "replace": " \"target_drag\":{\"adj\":[],\"extra\":[\"_begin_target_drag\"]},",
+      "suite": "display",
+      "execution": "ui"
+    },
+    "read_observer_boundaries": {
+      "file": "ui/target_queries.gd",
+      "find": "\"rows\":rows.duplicate(true),\"stack\":stack",
+      "replace": "\"rows\":rows,\"stack\":stack",
+      "suite": "display",
+      "execution": "ui"
+    },
+    "command_facts_full_scope_is_content_equal": {
+      "file": "core/game.gd",
+      "find": " var result=_batch_rows(BATCH_TABLE,build) if scope==CommandRegistry.fact_groups() else build.call()",
+      "replace": " var result=_batch_rows(BATCH_TABLE,build) if scope.size()==CommandRegistry.fact_groups().size() else build.call()",
       "suite": "architecture"
     }
   }

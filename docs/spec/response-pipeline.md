@@ -37,10 +37,10 @@
 | `game.dispatch(cmd, expected_version) -> Dictionary` | `cmd`＝类型化指令 `{kind, params, expected_version}`（kind 与键面见 `docs/spec/candidate-removal.md`；`params` 只用稳定 ID）。成功 `{ok:true, version, resource_feedback, card_feedback, music_feedback, checkpoint, spell_failed, fact, phase, overloaded}`：`fact` 为本次提交的判定行（display fact；`ui/main.gd::_submit` 由它取呈现用的 `payload`，不再于提交前另查 `command_fact`；一次成功提交只在 `dispatch` 内做一次事实出口查询）；`phase`＝提交后（已提交态）的相位，`overloaded`＝提交后的过载态（归一化段 `ui/main.gd::_submit` 的 `_close_drawers()` 判断依据），两键都是**提交后状态的只读标量**，与 `core/game_view.gd::build` 的 `phase`／`pressure.overloaded` **同源同值**（过载态的唯一定义处＝`core/pressure.gd::overloaded`，`Pressure.view` 与 `dispatch` 共用它），不构成第二份判定／第二份相位真源，**不得由 `payload.kind` 反推**；失败 `{ok:false, error:String, fact:{}}`（不带其它键；两键只在 `ok==true` 时出现） | 只有 M2 `_submit`（测试可直调，UI 其它文件禁止） | 只有 `ok=true` 才写状态：`state=state.duplicate(true)` 后执行事务，失败回滚，不留部分付款／部分装备；core 侧拒绝语义与 `tests/test_game.gd` 的 TC-CORE-0002／0003 锁定 |
 | `game.command_params(kind, source)`／`game.command(source)` | 指令装配的唯一投影／唯一装箱 | UI 指令层（`ui/command_router.gd`／`ui/command_routes.gd`）与测试；不得在别处二次装配 | 同一形状 → 同一 `params` 只有一条路径；键面＝`core/game.gd::COMMAND_KEYS` 的 39 kind 声明（`tests/architecture_cases.gd::command_params_keys_pinned`） |
 | `game.command_issue(cmd)`／`game.command_fact(cmd)` | 形状与参数合法性复核（失败返回「该行动已经失效，请重新选择。」）／形状 → 当前状态下的显示事实 | `command_issue` 由 `dispatch` 内调用；`command_fact` 供提交复核、显示读取路径与测试 | 形状与 `params` 相等的事实恰有一条；不写 `valid`／`reason`、不产事件、不推进随机、不跨调用保留 |
-| `game.get_view(demand := [])` | 输入＝**需求**（一组组名；缺省 `[]` ＝全组，与显式全组是**同一语义、同一条路径**——需求闭包的唯一实现＝`core/game.gd::fact_demand_groups`，组→单元在 `core/command_registry.gd::FACT_UNITS` 的组列，投影承接组下限＝同文件 `VIEW_FACT_GROUPS`）；纯只读投影（`View.build` 内调 `Game.command_facts()` 取显示事实、每条显示事实的 `ReleaseView.preview`、显示集合 `card_texts`、room_event／shop／relics／prison 四个 view）；唯一新增 View 键 `display_fact_scope`＝本次实际投影的组集合（＝`display_facts` 各行 `group` 的去重排序，可推导）。需求只决定**哪些单元被构建与哪些行外放**：`display_facts` 恒为全组行的**纯子序列**（逐行逐字节、顺序一致、无增无减），其余 View 键的取值由闭包下限保证与全组构建逐字节相等（判据 `tests/architecture_cases.gd::default_projection_is_unchanged`／`lazy_projection_invariant`／`fact_groups_are_total`／`whole_table_branches_force_full_demand`；接管／`card_chain`／`pending_retain` 三支按声明守卫取全组） | 唯一允许的调用点集合：`_resume_snapshot`、`render`（空快照）、`_submit`、`restart`（`tests/architecture_cases.gd::get_view_call_sites_are_pinned`；接线的调用点需求声明归按节投影那一批，四个调用点在机制批仍取缺省＝全组） | `view.version` 等于投影来源的已提交 `state.version`；UI 只能减少 `get_view` 的调用次数，不能降低单次成本；投影结果不得当规则判定来源 |
+| `game.get_view(demand := [])` | 输入＝**需求**（一组组名；缺省 `[]` ＝全组，与显式全组是**同一语义、同一条路径**——需求闭包的唯一实现＝`core/game.gd::fact_demand_groups`，组→单元在 `core/command_registry.gd::FACT_UNITS` 的组列，投影承接组下限＝同文件 `VIEW_FACT_GROUPS`）；纯只读投影（`View.build` 内调 `Game.command_facts()` 取显示事实、每条显示事实的 `ReleaseView.preview`、显示集合 `card_texts`、room_event／shop／relics／prison 四个 view）；唯一新增 View 键 `display_fact_scope`＝本次实际投影的组集合（＝`display_facts` 各行 `group` 的去重排序，可推导）。需求只决定**哪些单元被构建与哪些行外放**：`display_facts` 恒为全组行的**纯子序列**（逐行逐字节、顺序一致、无增无减），其余 View 键的取值由闭包下限保证与全组构建逐字节相等（判据 `tests/architecture_cases.gd::default_projection_is_unchanged`／`lazy_projection_invariant`／`fact_groups_are_total`／`whole_table_branches_force_full_demand`；接管／`card_chain`／`pending_retain` 三支按声明守卫取全组） | 唯一允许的调用点集合：`_resume_snapshot`、`render`（空快照）、`_submit`、`restart`（`tests/architecture_cases.gd::get_view_call_sites_are_pinned`）；`_submit` 的局部重建分支（前后均 battle 且节键可用）传**声明需求**＝`ui/main.gd::_present_demand`（`PRESENT_DEMAND`／`PHASE_OPEN_DEMAND` 两张字面表＋与归一化段共用的开合实现 `_submit_opens`；失败提交退化为 `PHASE_OPEN_DEMAND` 兜底），其余调用点与 `render(updated)` 回落取缺省＝全组（判据 `tests/architecture_cases.gd::submit_demand_call_sites_are_pinned`／`demand_declarations_are_total`／`section_read_sets_are_pinned`；实际读取记录器为 `tests/display_ui_cases.gd::present_demand_recorder`；逐节读集与需求声明对照 `docs/spec/fact-table-dependencies.md`「需求声明」） | `view.version` 等于投影来源的已提交 `state.version`；**在不改变实际呈现效果的情况下，尽量降低单次成本**；投影结果不得当规则判定来源 |
 | `restore_snapshot(saved)`／`restart_snapshot()` | 返回 `{ok,error}`／快照字典；UI 只判断 `ok`，不解析结构、不迁移字段 | 快照入口只允许 `_resume_snapshot`、`restart`、`_quick_sl` 三处 | 见 `docs/spec/save-fixed-points.md` 与 `docs/spec/transition-pipeline.md` 的冻结时机约定 |
 | `game.number(n) -> String`、`game.Prison.*` 常量 | 显示格式化与立绘选择 | M3／M5 节函数 | 只读显示调用，不参与判定 |
-| `TargetQueries` | static、无状态；输入只有 View 数据（含显示事实表）与本次载荷 | 各节函数 | 返回显示事实（不复制、不改写）；`RELEASE_MODES` 是唯一模式定义处；`first_usable` 全不可用返回**首项**，末项回退由 `fallback="last"` 显式声明，两者不得按名字相近合并 |
+| `TargetQueries` | static查询只吃View与载荷，无查询缓存。唯一调试例外为 `ui/target_queries.gd::debug_exchange_read_observer` 的瞬时Callable交换（返回旧观察者）；两叶结果经 `_debug_observe_read` 只在debug且已安装时通知隔离数据/函数栈，release或未装不捕栈/复制 | 各节查询；观察仅测试独占生命周期 | 返回显示事实（不复制、不改写）；`RELEASE_MODES` 是唯一模式定义处；`first_usable` 全不可用返回**首项**，末项回退由 `fallback="last"` 显式声明，两者不得按名字相近合并；原返回值/顺序不因观察改变 |
 
 **三个按需只读入口不属于 `get_view` 白名单**：`game.live_card_text`、`game.live_card_text_set`、
 `game.candidate_detail`（语义见 `docs/spec/ondemand-copy.md`）。它们不改白名单，也不得经 `get_view`
@@ -87,8 +87,7 @@ func present(dirty: Array = ["*"], snapshot: Dictionary = {}) -> void
 func render(snapshot: Dictionary = {}) -> void
 ```
 
-- `present`：按 `PRESENT_SECTIONS` 顺序各处理一次 `dirty` 内的局部节；空集、含 `*`／`page`／未知节名
-  或任一节既有全量谓词成立 → `render(当前或传入的 View)`。不以脏集多于一节作为全量条件。
+- `present`：按 `PRESENT_SECTIONS` 顺序各处理一次 `dirty` 内的局部节；完整全量判断只经 `ui/main.gd::_present_needs_full_render(dirty,source)`（source缺省为当前View），包含空集、`*`／`page`／未知节与所有既有结构/节状态条件。不以脏集多于一节作为全量条件。提交路径初投仅供节键求值，归一化与dirty后由同一谓词决定回落；初投裁剪且需全帧时在 `_submit` 的既有第二回取口取全组，最终 `render` 不吃裁剪快照。独立 `present` 回落仍使用当前或传入View，不新增自身 `get_view`。
   `snapshot` 非空则原子替换 `view`；为空则用当前 `ui.view`；两条路径均不额外 `get_view`。
   `render(snapshot)` 保留「空 snapshot 才 `get_view`」的语义。
 - 局部路径不 `begin_frame`、不清空 `layout.used`，固定顺序为：
@@ -107,7 +106,7 @@ func render(snapshot: Dictionary = {}) -> void
 | 节 | `present` 的局部入口 | 键真源 |
 | --- | --- | --- |
 | `header` | `header.configure` | `ui/shell/header.gd::_presentation_key` |
-| `relics` | `_relic_row` | `_relic_presentation_key` |
+| `relics` | `_relic_row` | `_relic_presentation_key`（行面＋按 relic id 的 `relic` 组候选读——节键覆盖本节重建读取的组，无已声明例外；判据 `tests/architecture_cases.gd::section_read_sets_are_pinned`） |
 | `hand` | `_hand`（先 `_sync_card_faces` 把本次抽牌的面同步进 `card_faces`，再按**固定顺序**：拦截（`_hand_presentation_key` ＋ `_hand_key_hit`／`_hand_row_plan` 的纯数据 diff）→ 逐卡值更新（`_hand_apply_card`）→ 成员增删（`_hand_release_card` 先、`_hand_mount_card` 后；行态同此步经 `_hand_reset_row`）→ 幂等重排（`_hand_place_row`，几何/顺序未变则连它都不调用）） | `_hand_presentation_key`：`[locale, 行态, 顺序(uid), pending(uid), {uid: 每卡窄键}]`；每卡窄键（`_hand_card_key`）只由该卡自身的透传字段、`availability`、面状态、选择态与 pending 组成，不整行深拷贝、不含 `view.card_costs` 等 View 级切片；`version` 不进键 |
 | `actions` | `_build_action_rail` | `_action_presentation_key` |
 | `posture` | `_refresh_posture_section` | `_posture_presentation_key` |
@@ -155,11 +154,11 @@ func render(snapshot: Dictionary = {}) -> void
 - `dispatch`：`cmd` 是**类型化指令**（`kind`＋`params`，只用稳定 ID，不含候选提交身份 id）；
   形状与键面由 core 的声明表复核，形状无对应行动只会被 core 拒绝，不得由 UI 预判；
   `expected_version` 为 UI 当前 `view.version`，调用方传 `-1` 时由 UI 补。
-- `get_view`：无输入；调用点必须落在唯一集合内（`_resume_snapshot`／`render` 空快照／`_submit`／`restart`）。
+- `get_view`：输入为组需求，缺省为空即全组；调用点必须落在唯一集合内（`_resume_snapshot`／`render` 空快照／`_submit`／`restart`），各点的需求分支见接缝 A。
 - `impact_feedback.play`：`events` 只接受 `dispatch` 返回值的 `resource_feedback` 数组；`payload` 只接受本次已提交
   候选的载荷（普攻读扁平 `damage`，伤害卡读 `preview.damage` 与 `mode`）；`snapshot` 只接受提交后 View。
   三条输入都不是资格判定来源：与当前 View 不一致时按「照实表现已提交结果」处理，不做规则推演、不重算、不拒绝。
-- 选择类点击（`_activate_card`、`_use_self_card`、`_card_target`、`_select_enemy`、`_player_picker`、
+- 选择类点击（`_activate_card`、`_card_target`、`_select_enemy`、`_player_picker`、
   `_hand_target_picker`、`body_sidebar._toggle`、`keyboard_input` 的 `select_card`／`cancel`、`quick_release_bar.select`）：
   只改本地选中态，不 `dispatch`／`get_view`／`save`。
 - 提交类点击（状态控件、行动格、姿态控制、底栏、墙面控制、装备格、行动行、卡牌目标、监狱控件、
@@ -217,6 +216,14 @@ func render(snapshot: Dictionary = {}) -> void
   `tests/architecture_cases.gd::table_reuse_matches_fresh_projection`／`tests/architecture_cases.gd::batch_reuse_never_aliases_callers`／
   `tests/architecture_cases.gd::walk_rows_are_never_empty`；同批报告项（不作通过判据）＝`tests/recipe_driver.gd` 打印的
   `TABLE REUSE …` 计数行（在 `tools/check.ps1 -Suite recipe` 内）。
+- 事实表收口（F 批：按节投影接线＝需求声明的两张字面表＋精确开合与退化情形＋逐节读集冻结＋前缀态画像＋
+  批内槽位准入内容等值）的具名判据＝`tests/architecture_cases.gd::demand_declarations_are_total`／
+  `tests/architecture_cases.gd::section_read_sets_are_pinned`／
+  `tests/architecture_cases.gd::submit_demand_call_sites_are_pinned`／`tests/architecture_cases.gd::command_facts_full_scope_is_content_equal`／
+  `tests/architecture_cases.gd::lazy_projection_invariant`（含 `relic_bundle`／`domain_blocked` 前缀态画像）／
+  `tests/architecture_cases.gd::contract_text_is_updated_verbatim`；需求记录器的 UI 窗口半边＝
+  `tests/display_ui_cases.gd::present_demand_recorder`。需求声明、逐节读集与读者清点表的对照面＝
+  `docs/spec/fact-table-dependencies.md`「需求声明」。
 - 测量口径（只报告，不用于通过判据）：装备 0／12／26 件 × 选择类／提交类两条路径，同一夹具交替执行、
   2 次热身＋15 次有效配对，报逐对比值中位与两侧独立中位；计时脚本与 JSON 只放已忽略的 `build/<topic>-<date>/`，
   摘要登记 `docs/record/verification.md` 后删除原始目录；生产源码不留计数器、开关或计时钩子。

@@ -3141,28 +3141,43 @@ static func lazy_projection_invariant(t) -> void:
  var release_fixture=r1_build("battle",0)
  release_fixture.add_fixture("thigh",4)
  compared+=e_profile_matrix(release_fixture,"coverage:release",row_problems,scope_problems,value_problems,coverage)
- # C-F-9 前缀态夹具（F_PREFIX_PROFILES 登记进画像矩阵覆盖面；配方偶遇不再作为前缀态的覆盖来源）：
- # 累积表去重变弱一类纯子序列偏差只在前缀态可达——relic_bundle 非空与 domain_blocked（域被阻断）
- # 两个前缀态 × E_DEMAND_PROFILES 全部画像，行面／值面／display_fact_scope 三方互核同上。
- # 夹具取 View 可重放的形态：nesting_doll 套娃包（source 必须是实持遗物，panel 直取 TYPES[source]）；
- # 空躯干固缚记录使 Binding.state_issue 非空 ⇒ command_domain_ready()==false，而 present() 对空记录
- # 为假，View 构建无错误（branch_sweep 的 no_such_special 探针只走 _fact_source 面，进 View 会命中
- # 未登记类型的 TYPES 直取与缺 durability 的 worn_count，不可复用）。
- var bundle_fixture=r1_build("battle",0)
- fact_unit_enrich(bundle_fixture)
- bundle_fixture.state.relics.append("nesting_doll")
- preload("res://core/relic_bundle.gd").start(bundle_fixture,"nesting_doll")
- t.check(not bundle_fixture.state.relic_bundle.is_empty() and bundle_fixture._phase_branch()=="relic_bundle","K4 lazy_projection_invariant: the registered relic_bundle prefix is actually active before every declared demand profile")
- var bundle_profiles=e_profile_matrix(bundle_fixture,"prefix:relic_bundle",row_problems,scope_problems,value_problems,coverage)
- compared+=bundle_profiles
- var blocked_fixture=r1_build("battle",0)
- fact_unit_enrich(blocked_fixture)
- blocked_fixture.add_fixture("wrist",4)
- blocked_fixture.state.equipment[0].binding={}
- t.check(not blocked_fixture.command_domain_ready() and blocked_fixture._phase_branch()=="domain_blocked","K4 lazy_projection_invariant: the registered domain_blocked prefix is actually active before every declared demand profile")
- var blocked_profiles=e_profile_matrix(blocked_fixture,"prefix:domain_blocked",row_problems,scope_problems,value_problems,coverage)
- compared+=blocked_profiles
- t.check(bundle_profiles==E_DEMAND_PROFILES.size() and blocked_profiles==E_DEMAND_PROFILES.size(),"K4 lazy_projection_invariant: both prefix-state fixtures execute every demand profile")
+ # C-F-9 前缀态夹具（修复批 G8：F_PREFIX_PROFILES 是前缀夹具运行的唯一驱动，循环按声明表迭代并
+ # 记录实际执行集，执行集／声明集双向对账；配方偶遇不再作为前缀态的覆盖来源）：累积表去重变弱
+ # 一类纯子序列偏差只在前缀态可达——登记前缀态 × E_DEMAND_PROFILES 全部画像，行面／值面／
+ # display_fact_scope 三方互核同上。夹具取 View 可重放的形态：nesting_doll 套娃包（source 必须是
+ # 实持遗物，panel 直取 TYPES[source]）；空躯干固缚记录使 Binding.state_issue 非空 ⇒
+ # command_domain_ready()==false，而 present() 对空记录为假，View 构建无错误（branch_sweep 的
+ # no_such_special 探针只走 _fact_source 面，进 View 会命中未登记类型的 TYPES 直取与缺 durability
+ # 的 worn_count，不可复用）。
+ var prefix_declared=[]
+ var prefix_profiles={}
+ for profile in F_PREFIX_PROFILES:
+  var label=String(profile[0])
+  var kind=String(profile[1])
+  prefix_declared.append(label)
+  var fixture=r1_build("battle",0)
+  fact_unit_enrich(fixture)
+  if kind=="relic_bundle":
+   fixture.state.relics.append("nesting_doll")
+   preload("res://core/relic_bundle.gd").start(fixture,"nesting_doll")
+  elif kind=="domain_blocked":
+   fixture.add_fixture("wrist",4)
+   fixture.state.equipment[0].binding={}
+  var active: bool=false
+  if kind=="relic_bundle": active=not fixture.state.relic_bundle.is_empty() and fixture._phase_branch()==kind
+  elif kind=="domain_blocked": active=not fixture.command_domain_ready() and fixture._phase_branch()==kind
+  t.check(active,"K4 lazy_projection_invariant: the registered "+label+" prefix is actually active before every declared demand profile")
+  if not active: continue
+  prefix_profiles[label]=e_profile_matrix(fixture,label,row_problems,scope_problems,value_problems,coverage)
+  compared+=int(prefix_profiles[label])
+ # 执行集／声明集双向对账：登记未实现（声明 ⊃ 执行）与未登记实现（执行 ⊃ 声明）都红；
+ # 每个登记前缀还必须真的跑满 E_DEMAND_PROFILES 全部画像。
+ var prefix_missing=prefix_declared.filter(func(label):return not prefix_profiles.has(label))
+ var prefix_extra=prefix_profiles.keys().filter(func(label):return label not in prefix_declared)
+ var prefix_counts_ok=true
+ for label in prefix_declared:
+  if int(prefix_profiles.get(label,0))!=E_DEMAND_PROFILES.size(): prefix_counts_ok=false
+ t.check(prefix_missing.is_empty() and prefix_extra.is_empty() and prefix_counts_ok,"K4 lazy_projection_invariant: the executed prefix fixtures and the F_PREFIX_PROFILES registration agree both ways and every registered prefix ran every demand profile: missing="+str(prefix_missing)+" extra="+str(prefix_extra))
  var live=Game.new(7)
  var navigation={}
  var commits=0
@@ -3191,7 +3206,6 @@ static func lazy_projection_invariant(t) -> void:
  t.check(value_problems.is_empty(),"K4 lazy_projection_invariant: apart from display_facts and display_fact_scope every view key equals the full-group build (LPI): "+str(value_problems.slice(0,3)))
  var uncovered=coverage.keys().filter(func(key):return int(coverage[key])==0)
  t.check(uncovered.is_empty(),"K4 lazy_projection_invariant: the compared cells cover the fact-fed view fields (the comparison is not vacuous): uncovered="+str(uncovered)+" coverage="+str(coverage))
- t.check(F_PREFIX_PROFILES.size()==2 and F_PREFIX_PROFILES[0][0]=="prefix:relic_bundle" and F_PREFIX_PROFILES[1][0]=="prefix:domain_blocked","K4 lazy_projection_invariant: the prefix-state fixtures (relic_bundle non-empty and domain_blocked) stay registered in the profile matrix coverage")
  t.check(commits==60 and stop_reason=="cap","K4 lazy_projection_invariant: the declared recipe committed 60 times before its natural end have="+str(commits)+" stop="+stop_reason)
  print("E LAZY PROFILES compared=%d commits=%d prefix=%d coverage=%s phases=%s" % [compared,commits,F_PREFIX_PROFILES.size(),str(coverage),str(phases)])
 
@@ -3380,6 +3394,24 @@ const SECTION_READ_SETS={
  "page":["chain","demo_exit","flow","item","prison","route"],
  "scene_instances":["attack","status_toggle"],
 }
+# 修复批 G2（acceptance.md C-F-1）：未声明读组的登记理由（测试内字面表）。PRESENT_DEMAND 是需求声明
+# 不是读集名册：SECTION_READ_SETS[section] 中未进 PRESENT_DEMAND[section] 的组必须逐组在此登记——
+# 理由=VIEW ⇒ 组 ∈ core/command_registry.gd::VIEW_FACT_GROUPS（投影承接组恒在闭包 scope 内，
+# 声明与否不改变裁剪结果）；理由=page ⇒ 节=page（page 渲染走完整谓词全组回落，声明行不承载）。
+# 理由与事实不符、漏登记、或登记了实际已声明／未读的组（陈旧登记）都由 demand_declarations_are_total 判红。
+const F_DEMAND_EXCLUSIONS={
+ "hand":{"card":"VIEW"},
+ "posture":{"posture":"VIEW"},
+ "resources":{"flow":"VIEW"},
+ "body_bar":{"card":"VIEW"},
+ "body_details":{"card":"VIEW","manual":"VIEW"},
+ "drawers":{"item":"VIEW"},
+ "page":{"chain":"page","demo_exit":"page","flow":"page","item":"page","prison":"page","route":"page"},
+}
+# 修复批 G2：裁剪可达的冻结差集。有效 scope＝raw 声明并集 ∪ VIEW_FACT_GROUPS 必须是 fact_groups()
+# 的真子集，且差集恰为此非空字面（{chain,demo_exit} 由 page 域全组回落承载）——差集为空
+# （声明∪承接覆盖全组）⇒ 裁剪机制空转，当场红；新组进 fact_groups() 而未被有效 scope 覆盖也红。
+const F_DEMAND_SCOPE_DIFFERENCE=["chain","demo_exit"]
 # 每节的声明体：adj＝必须经 PRESENT_ADJACENCY 从该节构建器可达；extra＝邻接表未登记的体（键命中、
 # 交互回调、整帧页分支），存在性由判据核对。节键函数（*_presentation_key 及其 key_hit）逐节在列。
 const SECTION_BODIES={
@@ -3417,7 +3449,8 @@ const F_PHASE_OPEN_EXPECTED={
  "event":["event"],"captured":["item","prison"],"inspection":["item","prison"],"departure":["reward"],
  "cleared":["demo_exit"],"prison_end":[],
 }
-# C-F-9 的前缀态夹具登记（画像矩阵覆盖面；配方偶遇不再作为前缀态的覆盖来源）。
+# C-F-9 的前缀态夹具登记（修复批 G8：前缀夹具运行的唯一驱动——lazy_projection_invariant 的运行循环
+# 按本表迭代并记录实际执行集，执行集／声明集双向对账；配方偶遇不再作为前缀态的覆盖来源）。
 const F_PREFIX_PROFILES=[["prefix:relic_bundle","relic_bundle"],["prefix:domain_blocked","domain_blocked"]]
 
 # main.gd 的函数体切分（1 空格缩进的顶层 func；与本文件其它源码扫描判据同一形态）。
@@ -3494,10 +3527,17 @@ static func f_section_scan(section: String, bodies: Dictionary, adjacency: Dicti
  out.sort()
  return out
 
-# C-F-1（gherkin F-1；acceptance.md C-F-1）：需求声明双向全量——PRESENT_DEMAND 15 节逐节有行且与
-# SECTION_READ_SETS 双向相等；PHASE_OPEN_DEMAND 键域与值域受钉；每个声明组都存在于单元表的组列
-# （组→单元，同一张表不另立）；闭包只有一处实现（core/game.gd::fact_demand_groups）；core 不读 UI 节名。
-# 敏感性：改 PRESENT_DEMAND 一行（加幻影组／删已读组）→ 双向红；core 出现节名 → 红。
+# C-F-1（gherkin F-1；acceptance.md C-F-1；修复批 G2/G7）：需求声明受钉——PRESENT_DEMAND 是需求声明
+# 不是读集名册：每节声明行 ⊆ SECTION_READ_SETS 同节行（幻影声明红），未声明的读组逐组带登记理由
+# （F_DEMAND_EXCLUSIONS：理由=VIEW ⇒ 组 ∈ CommandRegistry.VIEW_FACT_GROUPS；理由=page ⇒ 节=page），
+# 逐节相等检查作废；全节 raw 并集 U 与 VIEW_FACT_GROUPS 的并集是 fact_groups() 的真子集且差集为
+# 冻结字面 {chain,demo_exit}（差集为空 ⇒ 裁剪机制空转，当场红）；raw 并集不含 item ⇒ _present_demand
+# 的 opens.open_items 分支真实可达（删分支＝源文本红）；PHASE_OPEN_DEMAND 键域与值域受钉（失败兜底，
+# G2 不改）；每个声明组都存在于单元表的组列（组→单元，同一张表不另立）；闭包只有一处实现
+# （core/game.gd::fact_demand_groups）；core 不读 UI 节名（G7：扫描面扩到全部可机械扫描的节名，
+# 残差见 docs/spec/fact-table-dependencies.md「仍靠人审」）。
+# 敏感性：把声明改回读集名册（如给 hand 加回 card）→ 陈旧登记红；给声明并集加组使差集变空 → 冻结差集红；
+# 新增未声明读组无登记理由 → 理由红；core 出现扫描面内节名 → 红；删 opens.open_items 分支 → 源文本红。
 static func demand_core_source_is_nonempty(t) -> String:
  var texts=[]
  for path in ["core/game.gd","core/command_registry.gd","core/game_view.gd"]:
@@ -3519,8 +3559,12 @@ static func demand_declarations_are_total(t) -> void:
   if not sections.has(String(section)): extra.append(String(section))
  t.check(missing.is_empty() and extra.is_empty(),"F1 demand_declarations_are_total: every presentable section declares its demand row and nothing else: missing="+str(missing)+" extra="+str(extra))
  var universe=CommandRegistry.fact_groups()
+ var view_backed=[]
+ for group in CommandRegistry.VIEW_FACT_GROUPS: view_backed.append(String(group))
  var declared_problems=[]
  var face_problems=[]
+ var reason_problems=[]
+ var raw_union=[]
  for section in sections:
   var row=[]
   for group in present.get(section,[]): row.append(String(group))
@@ -3528,11 +3572,35 @@ static func demand_declarations_are_total(t) -> void:
   var frozen=[]
   for group in SECTION_READ_SETS[section]: frozen.append(String(group))
   frozen.sort()
-  if row!=frozen: face_problems.append(section+" declared="+str(row)+" frozen="+str(frozen))
   for group in row:
+   if group not in frozen: face_problems.append(section+" declares unread "+group)
    if group not in universe: declared_problems.append(section+"."+group)
- t.check(face_problems.is_empty(),"F1 demand_declarations_are_total: the product table and the frozen read sets agree section by section (two-way): "+str(face_problems.slice(0,3)))
+   if group not in raw_union: raw_union.append(group)
+  for group in frozen:
+   if group in row: continue
+   var reason=String(F_DEMAND_EXCLUSIONS.get(section,{}).get(group,""))
+   if reason=="": reason_problems.append(section+"."+group+" undeclared without a registered reason");continue
+   if reason=="VIEW" and group not in view_backed: reason_problems.append(section+"."+group+" reason=VIEW but the group is not a projection-backed group")
+   if reason=="page" and section!="page": reason_problems.append(section+"."+group+" reason=page outside the page section")
+ for section in F_DEMAND_EXCLUSIONS:
+  if not sections.has(String(section)): reason_problems.append(String(section)+" is not a presentable section");continue
+  for group in F_DEMAND_EXCLUSIONS[section]:
+   var frozen=[]
+   for read in SECTION_READ_SETS[section]: frozen.append(String(read))
+   var row=[]
+   for group2 in present.get(section,[]): row.append(String(group2))
+   if String(group) in row or String(group) not in frozen: reason_problems.append(section+"."+String(group)+" registers a stale exclusion (declared or not read)")
+ t.check(face_problems.is_empty(),"F1 demand_declarations_are_total: every declared group is a real read of its section (a phantom declaration is red): "+str(face_problems.slice(0,3)))
  t.check(declared_problems.is_empty(),"F1 demand_declarations_are_total: every declared group exists in the unit table's group union (a phantom group is red): "+str(declared_problems))
+ t.check(reason_problems.is_empty(),"F1 demand_declarations_are_total: every undeclared read group carries a registered exclusion reason (VIEW-backed or page domain) and no stale registration survives: "+str(reason_problems.slice(0,3)))
+ var effective=raw_union.duplicate()
+ for group in view_backed:
+  if group not in effective: effective.append(group)
+ var difference=[]
+ for group in universe:
+  if String(group) not in effective: difference.append(String(group))
+ t.check(difference==F_DEMAND_SCOPE_DIFFERENCE,"F1 demand_declarations_are_total: the effective scope (raw declaration union plus projection-backed groups) stays a proper subset of the fact universe with the frozen non-empty difference {chain, demo_exit} carried by the page full-group fallback (an empty difference means the crop mechanism is dead): "+str(difference))
+ t.check(not raw_union.has("item"),"F1 demand_declarations_are_total: the raw declaration union does not declare item (the opens.open_items branch stays reachable; the declaration is not a read-set roster): "+str(raw_union))
  var open_demand: Dictionary=ui_script.PHASE_OPEN_DEMAND
  var phase_problems=[]
  for phase in open_demand:
@@ -3545,16 +3613,20 @@ static func demand_declarations_are_total(t) -> void:
  t.check(phase_problems.is_empty(),"F1 demand_declarations_are_total: the fallback table stays inside the declared phase vocabulary and the group universe, and covers every phase: "+str(phase_problems.slice(0,3)))
  var demand_body=source_func_body_code("res://ui/main.gd","_present_demand")
  t.check(demand_body.contains("PRESENT_DEMAND.get(section") and demand_body.contains("_submit_opens(") and demand_body.contains("PHASE_OPEN_DEMAND.get(phase"),"F1 demand_declarations_are_total: _present_demand is the single demand entry reading the two declared tables and the shared open/close implementation")
+ t.check(demand_body.contains("if opens.open_items and \"item\" not in groups"),"F1 demand_declarations_are_total: _present_demand keeps the opens.open_items branch that carries the pack-opened item group (deleting the branch is red)")
  var core_texts=demand_core_source_is_nonempty(t)
  var closure=source_func_body_code("res://core/game.gd","fact_demand_groups")
  t.check(closure.contains("CommandRegistry.fact_scope(demand)") and closure.count("fact_scope(")==1,"F1 demand_declarations_are_total: demand reaches the existing single core closure entry")
+ # G7 core 节名泄漏扫描面＝15 节中可机械扫描者（quoted 字面不与 core 自身词汇撞形）：
+ # posture 与组名同形、relics／hand／speech 与 core 自身 state／View 键词汇同形——四处残差登记
+ # docs/spec/fact-table-dependencies.md「仍靠人审」，不进机械扫描面（扫描即误报，基线变红）。
  var leaked=[]
- for name in ["body_details","scene_instances","show_log","body_bar","pickers","drawers"]:
+ for name in ["header","actions","resources","notice","page","show_log","body_bar","body_details","pickers","drawers","scene_instances"]:
   if core_texts.contains("\""+name+"\""): leaked.append(name)
- t.check(not core_texts.contains("PRESENT_DEMAND") and not core_texts.contains("PHASE_OPEN_DEMAND") and not core_texts.contains("PRESENT_SECTIONS") and leaked.is_empty(),"F1 demand_declarations_are_total: core never reads the UI section vocabulary (one-way declaration): "+str(leaked))
+ t.check(not core_texts.contains("PRESENT_DEMAND") and not core_texts.contains("PHASE_OPEN_DEMAND") and not core_texts.contains("PRESENT_SECTIONS") and leaked.is_empty(),"F1 demand_declarations_are_total: core never reads the UI section vocabulary (one-way declaration; the swept face and its residuals are registered in fact-table-dependencies.md): "+str(leaked))
  var groups=0
  for section in sections: groups+=SECTION_READ_SETS[section].size()
- print("F1 DEMAND TABLES sections=%d groups=%d fallback_phases=%d" % [sections.size(),groups,F_PHASE_OPEN_EXPECTED.size()])
+ print("F1 DEMAND TABLES sections=%d groups=%d declared=%d scope=%d fallback_phases=%d" % [sections.size(),groups,raw_union.size(),effective.size(),F_PHASE_OPEN_EXPECTED.size()])
 
 # C-F-2（gherkin F-2；acceptance.md C-F-2）：逐节读集冻结——源码扫描双向（含节键函数与 extra 体），
 # adj 体必须经 PRESENT_ADJACENCY 从节构建器可达，extra 体必须存在；relics 节键覆盖 relic 组

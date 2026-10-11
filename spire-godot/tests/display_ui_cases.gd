@@ -470,7 +470,7 @@ static func submit_unmounts_closed_overlay_sections(t) -> void:
  ui.command_router.emit("attack",usable[0].duplicate(true),ui.view.version);await t.frames()
  t.check(ui.find_child("HandSelectionBar",true,false)==null and ui.find_child("HandTargetCancel",true,false)==null,"SUBMIT UNMOUNT attack removes HandSelectionBar and HandTargetCancel")
  t.check(present_named_live_count(ui,"HandSelectionBar")==0 and present_named_live_count(ui,"HandTargetCancel")==0,"SUBMIT UNMOUNT attack leaves no live hand overlay")
- t.check(counting.get_view_calls==baseline+1,"SUBMIT UNMOUNT hand attack fetches exactly one view")
+ t.check(counting.get_view_calls==baseline+2,"SUBMIT UNMOUNT hand attack fetches the demand projection plus the complete fallback (a nonempty dirty set whose overlay unmount turns the full predicate true)")
  ui.restart(42);await t.frames(8)
  ui.render(ui.view);await t.frames()
  t.check(ui.view.phase=="battle" and not ui.show_home and not ui.show_route and not ui.show_log and not ui.view.pressure.overloaded and not ui._takeover_locked() and ui.find_child("GameHeader",true,false)!=null,"SUBMIT UNMOUNT details fixture is a mounted battle")
@@ -488,7 +488,7 @@ static func submit_unmounts_closed_overlay_sections(t) -> void:
  ui.command_router.emit("attack",usable[0].duplicate(true),ui.view.version);await t.frames()
  t.check(ui.find_child("EquipmentDetails",true,false)==null and ui.find_child("CloseEquipmentDetails",true,false)==null,"SUBMIT UNMOUNT attack removes EquipmentDetails and CloseEquipmentDetails")
  t.check(present_named_live_count(ui,"EquipmentDetails")==0 and present_named_live_count(ui,"CloseEquipmentDetails")==0,"SUBMIT UNMOUNT attack leaves no live equipment details")
- t.check(counting.get_view_calls==baseline+1,"SUBMIT UNMOUNT details attack fetches exactly one view")
+ t.check(counting.get_view_calls==baseline+2,"SUBMIT UNMOUNT details attack fetches the demand projection plus the complete fallback (a nonempty dirty set whose overlay unmount turns the full predicate true)")
 
 static func present_visible_slot_names(ui) -> Array:
  var names=[]

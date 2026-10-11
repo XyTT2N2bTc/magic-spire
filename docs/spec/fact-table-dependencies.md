@@ -4,13 +4,13 @@
 **A 批（K0 分支词表＋K1 单元表）、B 批（K2 点查询的限定生产者：39 kind 各自一个域臂）、C 批（K3 点形家族一次构造：
 一次走查直接产行）、D 批（K1 第二半：批内复用的唯一机制，整表／走查／逐卡行共用一条）与 E 批（K4 需求机制：
 `get_view(demand)`＋需求闭包＋行过滤；K7 成功结果两个提交后只读标量）已落地**；
-F（接线）／G（声明切片）未开工。**E 批不接线**：四个 `get_view` 调用点仍取缺省＝全组，UI 行为与接线前相同。
+F（K5 接线）实现面＝UI 节→组声明、共享精确开合、失败退化、逐节读集与真实读取记录器、R-T8 槽位内容等值及前缀态画像；G（声明切片）未进入。四个 `get_view` 函数白名单不变；仅 `_submit` 的局部重建候选传声明需求，其余取全组。
 判据的真源是下表点名的检查，散文不复述内容（规则见 `skills/spire-docs/SKILL.md`「判据优先」）。
 
 路径约定：不带 `spire-godot/` 前缀的源码、测试与工具路径（`core/`、`ui/`、`data/`、`tests/`、`tools/`、`build/`）
 均相对 `spire-godot/`；`docs/` 相对仓库根。本文件不写执行结果：通过／失败／未执行登记 `docs/record/verification.md`。
 
-## 收口后的唯一入口（A＋B＋C＋D 批已落地）
+## 收口后的唯一入口（A＋B＋C＋D＋E；F 接线见需求声明）
 
 | 语义 | 唯一入口 |
 | --- | --- |
@@ -37,9 +37,9 @@ F（接线）／G（声明切片）未开工。**E 批不接线**：四个 `get_
 | --- | --- |
 | 单元表 ↔ 测试内字面期望双向全量（owner 序／id／producer／input／order）；生产者都在 `core/game.gd` 上存在；连接通道唯一（源码文本）；每单元 input 指向同 owner 更早的单元；组列与实测行 group 值域双向一致；测试侧重放与 `core/game.gd::_fact_source`／`core/game.gd::_phase_facts` 逐字节相等 | `tests/architecture_cases.gd::fact_units_cover_fact_source` |
 | 分支词表三处双向全量：`tests/architecture_cases.gd::PHASE_BRANCH_VOCABULARY`（字面表）↔ `core/game.gd::_phase_branch` 的 return 点 ↔ `core/game.gd::_phase_facts` 的 return 点；`core/game.gd::_phase_facts` 体内无条件链 | `tests/architecture_cases.gd::phase_branch_vocabulary_is_total` |
-| G-1 零移动：四个 mask 常量按动工前摘要冻结（前值在**独立文件** `tests/frozen-baselines.json`，不得与被校验常量同文件；任何移动＝红）；`R5_BASELINE` 的两个字段面按 E 批的声明重冻后由 `tests/architecture_cases.gd::baseline_diff_is_declared` 双向核对 | `tests/architecture_cases.gd::baseline_constants_are_unchanged` |
+| G-1 历史冻结与 F 唯一 mask 增量 | `tests/architecture_cases.gd::baseline_constants_are_unchanged` |
 | 缺省（无参）投影 == 显式全组投影逐字节；每个 cell 都带唯一新增 View 键 `display_fact_scope`；`core/game.gd::get_view` 的形参恰为 `demand` | `tests/architecture_cases.gd::default_projection_is_unchanged` |
-| 行面＝纯子序列（逐行逐字节、顺序一致、无增无减）＋`display_fact_scope` 与行面双向一致＋LPI（除 `display_facts`／`display_fact_scope` 外每个 View 键与全组构建逐字节相等）；**覆盖＝26 cell（每 cell 6 张画像构建）＋配方 60 提交＋两条覆盖夹具（可用的 `item_use` 行／可解开的普通装备）**，覆盖计数为空即红 | `tests/architecture_cases.gd::lazy_projection_invariant` |
+| LPI 值面、纯子序列行面与两前缀态画像 | `tests/architecture_cases.gd::lazy_projection_invariant` |
 | 组清点双向全量：表出口产出的行 group 值域 == 测试内字面组全集 == `core/command_registry.gd::FACT_UNITS` 的组列并集；每个声明组都能被至少一个单元覆盖；投影承接组 ⊆ 声明组全集 | `tests/architecture_cases.gd::fact_groups_are_total` |
 | 接管／`card_chain`／`pending_retain` 的需求恒为全组：裁一个窄需求仍与全组构建逐字节相等；接管注入行仍在投影内；`R5_FIRST_TURN` 的逐 cell 摘要不变 | `tests/architecture_cases.gd::whole_table_branches_force_full_demand` |
 | 成功结果两键：键面（含顺序）== 字面表（`tests/architecture_cases.gd::E_SUBMIT_KEYS`）；`phase` == 提交后 `state.phase`；`overloaded` == 同实例 `get_view().pressure.overloaded` == 守卫后的（`state.overloaded ∧ phase ∈ 战斗相位`）；失败结果键面仍是 `{ok,error,fact}`；成功结果的取值只来自 `state.phase` 与 `core/pressure.gd::overloaded`（源码文本，不由 `payload.kind` 或裸 state 标志反推） | `tests/architecture_cases.gd::submit_result_scalars_are_pinned` |
@@ -62,6 +62,44 @@ F（接线）／G（声明切片）未开工。**E 批不接线**：四个 `get_
 | 走查行的空行面：两条表生产者的取行都保留改动前的 `is_empty` 过滤（文本＋顺序），且 `core/game.gd::attack_point_walk` 在全部夹具上产出的每条 `{params,row}` 的 row 都是完整行（过滤今天不吞任何行；基础／巫女／装备自解三家族覆盖 > 0） | `tests/architecture_cases.gd::walk_rows_are_never_empty` |
 | kind → table 来源的身份字面冻结（23 项已 rebase 到域臂；少改／多改都红） | `tests/architecture_cases.gd::fact_source_map_is_pinned`、`tests/architecture_cases.gd::pipeline_lookup_inspect` |
 | 单元生产者不得写判定、不得推进随机（只读面） | `tests/architecture_cases.gd::single_eligibility_implementation`、`tests/architecture_cases.gd::behavior_baseline_equivalence` 的 `rng`／`rng_total` 逐 cell |
+
+## 需求声明（F）
+
+| 判据 | 执行它的检查 |
+| --- | --- |
+| C-F-1 需求声明受钉（声明⊆读集＋未声明读组登记理由＋有效 scope 真子集差集冻结＋open_items 分支源文本钉）与单入口闭包 | `tests/architecture_cases.gd::demand_declarations_are_total` |
+| C-F-1 core 词汇边界扫描非空 | `tests/architecture_cases.gd::demand_core_source_is_nonempty` |
+| C-F-2 逐节源码读集（含节键） | `tests/architecture_cases.gd::section_read_sets_are_pinned` |
+| C-F-3 实际读取与全组同值 | `tests/display_ui_cases.gd::present_demand_recorder` |
+| C-F-2 逐域真实读集覆盖 | `tests/display_ui_cases.gd::section_read_sets_runtime` |
+| C-F-3 观察边界、还原与副本隔离 | `tests/display_ui_cases.gd::read_observer_boundaries` |
+| C-F-3 debug/未装无观察成本与无叶绕过 | `tests/architecture_cases.gd::target_queries_read_observer_is_debug_only` |
+| C-F-4 source差异与非空dirty完整回落 | `tests/display_ui_cases.gd::submit_full_fallback_uses_source` |
+| C-F-4 四点实参与共享开合；C-F-5 监狱页组查询 | `tests/architecture_cases.gd::submit_demand_call_sites_are_pinned` |
+| C-F-6 逐字契约文本 | `tests/architecture_cases.gd::contract_text_is_updated_verbatim` |
+| C-F-6 历史 PRE 正向单项差集与逆向复算 | `tests/architecture_cases.gd::baseline_constants_are_unchanged` |
+| C-F-6 View 累计与 F 增量键面 | `tests/architecture_cases.gd::default_projection_is_unchanged` |
+| C-F-7 F cell 增量零移动、E 历史自证保留 | `tests/architecture_cases.gd::behavior_baseline_equivalence`／`baseline_diff_is_declared` |
+| C-F-8 等 size 非全组不得污染整表槽位 | `tests/architecture_cases.gd::command_facts_full_scope_is_content_equal` |
+| C-F-9 两前缀态 × 全部需求画像 | `tests/architecture_cases.gd::lazy_projection_invariant` |
+
+| 语义 | 唯一通道 |
+| --- | --- |
+| UI 节→组（需求声明，修复批 G2 分表） | `ui/main.gd::PRESENT_DEMAND`（需求声明不是读集名册：每节行 ⊆ `tests/architecture_cases.gd::SECTION_READ_SETS` 同节行；未声明的读组由测试内登记理由承接——理由=VIEW ⇒ 组 ∈ `core/command_registry.gd::VIEW_FACT_GROUPS` 恒在闭包 scope，理由=page ⇒ 节=page 走全组回落；理由表＝`tests/architecture_cases.gd::F_DEMAND_EXCLUSIONS`，有效 scope＝声明并集 ∪ 承接组，与组全集的差集冻结为 `tests/architecture_cases.gd::F_DEMAND_SCOPE_DIFFERENCE`）；读集冻结与运行期期望仍＝`tests/architecture_cases.gd::SECTION_READ_SETS` |
+| 需求求值 | `ui/main.gd::_present_demand` → 节声明并集（raw 并集不含 `item`，pack 开抽屉的 item 由 `_submit_opens` 的 open_items 分支承载）＋共享开合；仅失败追加 `ui/main.gd::PHASE_OPEN_DEMAND` |
+| 成功结果的精确开合 | 需求求值与 `_submit` 归一化 → `ui/main.gd::_submit_opens` → phase／overloaded；执行关抽屉／pack 开物品 |
+| 四个投影调用函数／五条调用语句 | `_resume_snapshot`／`render` 空快照／`restart` 各一条取全组；`_submit` 初投声明需求或全组，完整 fallback 需要时仅经既有第二条回取全组（1/1/2/1） |
+| 完整 fallback | `_submit` 求 dirty 后与 `present` 共用 `ui/main.gd::_present_needs_full_render` 的 source 决策，局部展示不复制条件链 |
+| 真实读取观察 | `ui/target_queries.gd::facts`／`fact_by_key` → 唯一 `_debug_observe_read` → 测试独占Callable；debug交换入口 `debug_exchange_read_observer`，release或无观察者不捕栈/复制 |
+| 记录生命周期 | 原 `tests/recipe_driver.gd::_run_recipe` → 动态display begin/snapshot/end；原 `_drive` 动作体不变；独立oracle在还原Callable后核 |
+| 逐节归属 | `tests/architecture_cases.gd::SECTION_BODIES`／`SECTION_BUILDERS` → `f_main_owners`，静态跨节与真实栈消费同源；target_drag是独立交互，不入present节声明 |
+| 突变执行 | `tools/check-mutation.ps1` 规范化execution并唯一委托 `tools/check.ps1` 原rules/ui/recipe阶段，目标原summary/log判RED与逐字节还原 |
+| 组→单元及前置关系 | `core/game.gd::fact_demand_groups` → `core/command_registry.gd::fact_scope`／`fact_units_in_scope` → 单元表生产通道 |
+| 整表槽位 | `core/game.gd::command_facts` 的 scope 内容等于 `core/command_registry.gd::fact_groups` 才经批内条目 |
+| 监狱页取行 | `ui/main.gd::_prison_location_details` → `ui/target_queries.gd::facts`／`select` 的 prison／item 组 |
+| 遗物条与节键 | `ui/main.gd::_relic_row`／`_relic_presentation_key` → 同一 relic 组查询 |
+
+实际 F 实现文件面：`core/game.gd`、`ui/main.gd`、`ui/target_queries.gd`、`tests/architecture_cases.gd`、`tests/display_ui_cases.gd`、`tests/recipe_driver.gd`、`tests/ui_smoke.gd`、`tests/mutations.json`、`tools/check-mutation.ps1`、本索引、`docs/spec/response-pipeline.md`、`skills/spire-architecture/SKILL.md`；`tests/frozen-baselines.json` 的历史面零改动。正式证据由后续阶段追加 `docs/record/verification.md`，不属于本实现提交的文件面。
 
 ## 允许的依赖方向
 
@@ -101,7 +139,28 @@ F（接线）／G（声明切片）未开工。**E 批不接线**：四个 `get_
 `noncombat_consumables`（按 payload.kind／item 去重）、`route`（读累积表的出口行＋现算 `core/game.gd::room_entry_reason`）、
 `relic_effects`／`hand_cards`／`prison`／`events`／`services`。任何"按本次提交的 kind 决定复用"的做法同禁。
 
-## 仍靠人审（无机械判据，A 批保留；B 批审查／C 批／D 批续登）
+## 仍靠人审（无机械判据，A 批保留；B／C／D／F 续登）
+
+### F 的测试侧 display_facts 读者清点
+
+下表是读取域与覆盖理由，不把裁剪视图冒称整表 oracle。规则读者保留无参全组路径；UI 全表比较只在 restart／全组 render 取得的视图上成立。无需为同值性改绿而迁移读者；新增读者或组仍须独立审查覆盖面。源码扫描范围为 `tests/`，交付报告保留精确命中索引。
+
+| 读者/接口 | 读组/域 | 当次投影包含理由 |
+| --- | --- | --- |
+| `tests/architecture_cases.gd` 的冻结、表复用与点表比较；`tests/basic_attack_cases.gd`、`tests/battle_reward_cases.gd`、`tests/enemy_cases.gd`、`tests/equipment_cases.gd`、`tests/equipment_complete_cases.gd`、`tests/fire_dynamics_cases.gd` | 全表，或 attack／flow／reward／card／manual | 都由规则侧无参 `get_view` 取得全组；画像裁剪比较另以显式全组行构成期望 |
+| `tests/display_ui_cases.gd` 的 R3/R4/R5 比较与接管 | 分域全集、接管全部 | 独立夹具无参投影；接管入口强制全组，既有冻结/锁定断言未放宽 |
+| `tests/display_ui_cases.gd` 的提交/行动/姿态/舞台探针 | attack／flow／posture／wall_move／pressure，拒绝探针的全部已见行 | 节声明覆盖前五组；拒绝与接管夹具由 restart 全组进入，后续逐节真实读取仍须记录器验证 |
+| `tests/ui_smoke.gd` 的 click／拖牌助手；`tests/normal_play_cases.gd::choose` 与 `tests/normal_play_ui_cases.gd` | 玩家可见事实全集、攻击形态 | 战斗声明并集加核心承接组覆盖战斗可行动族；非战斗与进出战斗取全组。策略只消费可见投影，不作为整表 oracle |
+| `tests/route_driver.gd::event_action` 的 `tests/ui_smoke.gd` 调用；`tests/event_ui_cases.gd` | event | 非战斗事件页取全组 |
+| `tests/exploration_ui_cases.gd`、`tests/prison_ui_cases.gd` | prison／item | 监狱页与提交全组；page 的 prison／item 声明保留 |
+| `tests/enemy_feedback_ui_cases.gd`、`tests/guard_ui_cases.gd`、`tests/enemy_ui_cases.gd`、`tests/tower_progression_ui_cases.gd` | flow／attack，可用下一步 | flow 属核心承接组；attack 属行动/舞台节声明；非战斗下一步取全组 |
+| `tests/impact_feedback_ui_cases.gd`、`tests/pressure_ui_cases.gd` | status_toggle、战斗行动（排除 flask/item_discard） | status_toggle 与战斗行动组均在节声明并集 |
+| `tests/home_ui_cases.gd`、`tests/home_persistence_ui_cases.gd`、`tests/persistence_ui_cases.gd` | 出发全表、合法/旧版本首行 | restart／恢复路径取全组 |
+| `tests/installed_tools_ui_cases.gd` | 当前视图与 command_facts 全表比对 | 只在 restart 后无提交取得全组时比较，非裁剪状态 |
+| `tests/localization_ui_cases.gd`、`tests/route_ui_cases.gd` | 事实副本守恒，不枚举未见组 | 对比同一视图的本地选择前后，无新的 get_view；不依赖全表身份 |
+| `tests/target_sidebar_ui_cases.gd` | 合成TargetQueries数据、attack | 合成查询单测不经过投影；真实攻击来自节声明，r4比较来自规则夹具全组 |
+
+残留：源码文字扫描不能证明将来新增的动态组读者完备；真实配方与逐节夹具之外的新路径由独立审查承接。F 不把少量UI提交或声明重放当真实60读取证据。
 
 - **`core/game.gd::_phase_facts` 直呼的语义残差**：其三个前缀臂（relic_bundle／departure／domain_blocked）落回尾段；
   改动前该函数在这些状态会命中链内的相位分支。可达面：三个前缀由 `core/game.gd::_fact_source` 先行解析，
@@ -155,8 +214,13 @@ F（接线）／G（声明切片）未开工。**E 批不接线**：四个 `get_
 - **单元级惰性的证据面（E 批）**：E 批没有计数判据断言「未被点名的单元生产者不被调用」（计数判据属 D 批的
   `BATCH_TABLE`／`BATCH_ATTACK_WALK`／`BATCH_CARD_ROWS`）；单元选择由 `core/command_registry.gd::fact_units_in_scope`
   的文本事实（组 ∩ 闭包 ＋ `input` 前置）与行面判据间接保证，无直接计数证据。
-- **`E_VIEW_MASK_ADDED` 是 E 批与 F 批的交接面**：唯一新增 View 键 `display_fact_scope` 在 E 批由
-  `tests/architecture_cases.gd::E_VIEW_MASK_ADDED` 声明为「排除出冻结摘要」（E 批不动 mask 常量）；
-  接线批把它并进 `tests/architecture_cases.gd::R3_VIEW_MASK` 并清空该字面表——两处声明同一事实的状态不得跨批存活。
+- **冻结域**：有效排除集只留 `tests/architecture_cases.gd::R3_VIEW_MASK`；历史 PRE 仍在未改的 `tests/frozen-baselines.json`。F 对 E／T 入口的 cell 字段增量为零；E 历史 26 个 record 差异由 `tests/architecture_cases.gd::baseline_diff_is_declared` 保留双向声明与逆向自证。独立审查应核对历史 PRE 未被替换为 POST；锚 blob 自检不替代语义逆向证明。
+- **core 节名泄漏扫描的扫描面残差（修复批 G7）**：`tests/architecture_cases.gd::demand_declarations_are_total`
+  的 core 文本扫描面＝15 节中可机械扫描的 11 个（`header`／`actions`／`resources`／`notice`／`page`／`show_log`／
+  `body_bar`／`body_details`／`pickers`／`drawers`／`scene_instances`，quoted 字面匹配）；其余 4 节与 core 自身词汇
+  撞形、机械扫描即误报，泄漏与否只由人审承接——`posture` 与组名同形（`core/command_registry.gd` 组列含
+  `posture`），`relics`／`hand`／`speech` 与 core 自身 state／View 键词汇同形（如 `core/game_view.gd` 的
+  `"relics"`／`"hand"`／`"speech"` 键）。`PRESENT_DEMAND`／`PHASE_OPEN_DEMAND`／`PRESENT_SECTIONS`
+  三个表名的缺席检查仍覆盖全部 15 节的表级泄漏。
 - 不属于本片授权面：推送／打标签、打包；改 `project.godot` 与导出预设；改 `tools/check.ps1`／
   `tools/check-docs.ps1`／`tools/doc-scan-scope.ps1` 与其允许清单。
