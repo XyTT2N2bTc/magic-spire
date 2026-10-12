@@ -5,6 +5,8 @@ const CommandRegistry=preload("res://core/command_registry.gd")
 const Rewards=preload("res://tests/reward_cases.gd")
 const Guard=preload("res://core/guard.gd")
 const FirstTurnControl=preload("res://core/first_turn_control.gd")
+const Store=preload("res://core/save_store.gd")
+const EventCases=preload("res://tests/event_cases.gd")
 
 # docs/spec/ondemand-copy.md「oracle 三条（必须换判据）」: frozen hashes recomputed with
 # unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for copy_baseline_fixture.
@@ -701,6 +703,218 @@ static func event_single_evaluation_entry(t) -> void:
    var result=g.Events.evaluate_option(g,g.Events.request_for(g,option[0],"candidate"))
    t.check(candidate.valid==(result.decision=="generated") and (result.reason=="" or candidate.get("reason","")!=""),"EVENT ENTRY candidate support matches the single entry: "+id+"/"+str(candidate.payload.get("choice","")))
 
+# ==== 每点击完整性检查的 debug 门控（docs/record/proposals/check-routing-and-per-click-checks.md「二」）====
+# 人裁定：五道提交检查、投影面（经 command_domain_ready）与事件探针的整状态一半在正常流程下从不失败，
+# 按构建类型判定运行；诊断只活在实例上（不进 state／存档／View／玩家可见日志／返回字典）。release 侧的
+# 早拦损失由 dispatch 尾部、写档前、读档后的聚合校验兜底并回滚——F4 面（版本新鲜度、聚合校验、事件与替换
+# 的规则用途、探针效果可行性一半）不得随门控改动。三条具名判据：per_click_checks_are_debug_only／
+# per_click_diagnostics_stay_out_of_the_game／projection_integrity_gate_is_declared_once。
+
+static func per_click_damaged_rows() -> Array:
+ return [
+  {"check":"Consumables.validate_buffs","reason":"同一部位的药剂效果重复。"},
+  {"check":"Binding.state_issue","reason":"连接式固缚耐久不正确。"},
+  {"check":"SpecialEquipment.validate","reason":"同一种性玩具不能重复佩戴。"},
+  {"check":"Cards.validate","reason":"本回合力量加值不正确。"},
+  {"check":"RelicEffects.validate","reason":"累计进度对应的遗物未持有。"},
+ ]
+
+# 五份坏状态各只破坏一道检查，且记录结构保持完整（重复作用位置／越界耐久／重复家族／负数回合加值／
+# 孤儿累计进度）——release 侧跳过检查后候选构建与提交执行本身不会崩，这正是登记的取舍。
+static func per_click_damaged_game(check: String):
+ match check:
+  "Consumables.validate_buffs":
+   var buffs=Game.new(42)
+   buffs.state.body_buffs=[{"type":"lubricant_potion","group":"thigh"},{"type":"lubricant_potion","group":"thigh"}]
+   return buffs
+  "Binding.state_issue":
+   for seed in range(1,100):
+    var bound=Game.new(seed,true,"torso_binding")
+    if bound.state.equipment.is_empty(): continue
+    var piece=bound.state.equipment[0]
+    if not piece.has("binding") or str(piece.binding.get("kind",""))!="linked": continue
+    piece.binding.durability=piece.binding.maximum+1.0
+    return bound
+   return null
+  "SpecialEquipment.validate":
+   var special=Game.new(42)
+   special._install_special("shaft_ring_low","special_2_a")
+   var twin=special.state.special_equipment[0].duplicate(true)
+   twin.id="special_9_z"
+   special.state.special_equipment.append(twin)
+   return special
+  "Cards.validate":
+   var cards=Game.new(42)
+   cards.state.turn_strength=-1
+   return cards
+  "RelicEffects.validate":
+   var relics=Game.new(42)
+   relics.state.relic_counters={"nonexistent_relic":1}
+   return relics
+ return null
+
+# 坏状态下仍存在一个合法提交（结束回合）：开关关时它走到执行与 dispatch 尾部聚合校验；开关开时它先被
+# 门控检查拒绝。找不到时返回空，由调用方断言。
+static func per_click_legal_command(g) -> Dictionary:
+ for row in g.command_facts():
+  if String(row.payload.get("kind",""))=="end" and row.valid: return g.command(row.payload,g.state.version)
+ return {}
+
+static func per_click_checks_are_debug_only(t) -> void:
+ var rows=per_click_damaged_rows()
+ t.check(rows.size()==5,"PERCLICK per_click_checks_are_debug_only: the five gated per-click checks each have a damaged fixture: "+str(rows.size()))
+ # G-PC-1：默认只有构建类型；覆盖入口只在 debug 生效；不存在存档／命令行／环境变量开启途径。
+ var surface=Game.new(42)
+ t.check(surface.debug_checks_enabled(),"PERCLICK per_click_checks_are_debug_only: a debug build enables the checks by default")
+ surface.set_debug_checks_enabled(false)
+ t.check(not surface.debug_checks_enabled(),"PERCLICK per_click_checks_are_debug_only: the override turns the switch off")
+ surface.set_debug_checks_enabled(true)
+ t.check(surface.debug_checks_enabled(),"PERCLICK per_click_checks_are_debug_only: the override turns it back on")
+ var enabled_body=source_func_body_code("res://core/game.gd","debug_checks_enabled")
+ var setter_body=source_func_body_code("res://core/game.gd","set_debug_checks_enabled")
+ t.check(enabled_body.contains("OS.is_debug_build()") and setter_body.contains("OS.is_debug_build()"),"PERCLICK per_click_checks_are_debug_only: the build type is the switch's only source: "+enabled_body.strip_edges()+setter_body.strip_edges())
+ var opening_paths=["get_environment","has_environment","get_cmdline","FileAccess","user://"]
+ var reachable=opening_paths.filter(func(token):return (enabled_body+setter_body).contains(token))
+ t.check(reachable.is_empty(),"PERCLICK per_click_checks_are_debug_only: no runtime path opens the switch: "+str(reachable))
+ # 被门控清单穷举：开关只被两个声明文件消费（game.gd 的提交／投影面与 room_events.gd 的探针面）。
+ var consumers=[]
+ for path in script_files("res://core"):
+  if source_text(path.trim_prefix("res://")).contains("debug_checks_enabled("): consumers.append(path.trim_prefix("res://"))
+ t.check(consumers==["core/game.gd","core/room_events.gd"],"PERCLICK per_click_checks_are_debug_only: the switch has exactly the two declared consumers: "+str(consumers))
+ # G-PC-2／G-PC-3：同一坏状态与同一合法提交在两种开关下——开＝本检查文案拒绝＋诊断＋快照不动；
+ # 关＝该检查不跑，改由 dispatch 尾部聚合校验以「行动未提交：」拒绝并逐字节回滚。
+ for row in rows:
+  var on_game=per_click_damaged_game(row.check)
+  var off_game=per_click_damaged_game(row.check)
+  if on_game==null or off_game==null:
+   t.check(false,"PERCLICK per_click_checks_are_debug_only: the damaged fixture exists: "+row.check)
+   continue
+  off_game.set_debug_checks_enabled(false)
+  var cmd=per_click_legal_command(off_game)
+  t.check(not cmd.is_empty(),"PERCLICK per_click_checks_are_debug_only: the damaged fixture still exposes a legal command: "+row.check)
+  var on_before=on_game.export_snapshot()
+  var on_result=on_game.dispatch(cmd,int(on_game.state.version))
+  t.check(not on_result.ok and String(on_result.error)==str(row.reason),"PERCLICK per_click_checks_are_debug_only: switch on, the gated check keeps its own rejection wording "+row.check+": "+str(on_result))
+  var logged=on_game.debug_check_failures.back() if not on_game.debug_check_failures.is_empty() else {}
+  t.check(str(logged.get("check",""))==row.check and str(logged.get("reason",""))==str(row.reason) and str(logged.get("location",""))=="game.dispatch","PERCLICK per_click_checks_are_debug_only: switch on, a failure records check, reason and game.dispatch in the diagnostics "+row.check+": "+str(on_game.debug_check_failures))
+  t.check(on_game.export_snapshot()==on_before,"PERCLICK per_click_checks_are_debug_only: switch on, the early rejection leaves the snapshot byte-identical "+row.check)
+  var off_before=off_game.export_snapshot()
+  var off_result=off_game.dispatch(cmd,int(off_game.state.version))
+  t.check(not off_result.ok and String(off_result.error)=="行动未提交："+str(row.reason),"PERCLICK per_click_checks_are_debug_only: switch off, the dispatch-tail aggregate refuses the same damaged state "+row.check+": "+str(off_result))
+  t.check(off_game.export_snapshot()==off_before,"PERCLICK per_click_checks_are_debug_only: switch off, the tail rejection rolls back byte-for-byte "+row.check)
+  t.check(off_game.debug_check_failures.is_empty(),"PERCLICK per_click_checks_are_debug_only: switch off, a skipped check writes no diagnostics "+row.check+": "+str(off_game.debug_check_failures))
+ # G-PC-3：只被聚合校验抓住的坏状态在两种开关下都走尾部拒绝（开关不影响聚合兜底）。
+ for mode in [true,false]:
+  var label="on" if mode else "off"
+  var tail=Game.new(42)
+  tail.set_debug_checks_enabled(mode)
+  tail.state.wall_distance=7
+  var tail_before=tail.export_snapshot()
+  var tail_result=tail.dispatch(per_click_legal_command(tail),int(tail.state.version))
+  t.check(not tail_result.ok and String(tail_result.error)=="行动未提交：距墙距离必须是0至4的整数。" and tail.export_snapshot()==tail_before,"PERCLICK per_click_checks_are_debug_only: switch "+label+", the dispatch-tail aggregate still refuses an aggregate-only damaged state and rolls back: "+str(tail_result))
+ # G-PC-6 的 F4 面（逐条）：版本新鲜度、写档前／读档后的聚合校验在两种开关下逐字相同。
+ for mode in [true,false]:
+  var label="on" if mode else "off"
+  var stale=Game.new(42)
+  stale.set_debug_checks_enabled(mode)
+  var stale_result=stale.dispatch(per_click_legal_command(stale),stale.state.version-1)
+  t.check(not stale_result.ok and String(stale_result.error)=="状态已更新，请重新选择行动。","PERCLICK per_click_checks_are_debug_only: switch "+label+", staleness stays checked in every build: "+str(stale_result))
+  var save_game=per_click_damaged_game("Cards.validate")
+  save_game.set_debug_checks_enabled(mode)
+  t.check(save_game.Snapshot.check(save_game.export_snapshot(),save_game)=="","PERCLICK per_click_checks_are_debug_only: switch "+label+", the save fixture passes the field check so only the aggregate can refuse it")
+  var store=Store.new("res://build/per-click-checks-"+label+"-"+str(Time.get_ticks_usec()))
+  var written=store.write_game(save_game)
+  t.check(not written.ok and String(written.error)=="保存失败：本回合力量加值不正确。","PERCLICK per_click_checks_are_debug_only: switch "+label+", writing keeps the pre-save aggregate validation: "+str(written))
+  t.check(not FileAccess.file_exists(store.path(save_game.state.save_slot)),"PERCLICK per_click_checks_are_debug_only: switch "+label+", a refused write leaves no file behind")
+  var loaded=Game.new(42)
+  loaded.set_debug_checks_enabled(mode)
+  var restored=loaded.restore_snapshot(save_game.export_snapshot())
+  t.check(not restored.ok and String(restored.error)=="无法继续这份存档：本回合力量加值不正确。","PERCLICK per_click_checks_are_debug_only: switch "+label+", loading keeps the post-load aggregate validation: "+str(restored))
+  var clean=Game.new(42)
+  clean.set_debug_checks_enabled(mode)
+  t.check(clean.restore_snapshot(Game.new(42).export_snapshot()).ok,"PERCLICK per_click_checks_are_debug_only: switch "+label+", a valid snapshot still loads")
+  var replacement=Game.new(42)
+  replacement.set_debug_checks_enabled(mode)
+  replacement._install_special("shaft_ring_low","special_2_a")
+  replacement.state.special_equipment[0].remaining=-1
+  var forced=replacement.IronMan.Replacement.force_special(replacement,"corona_ring_low",1,"per-click-probe")
+  t.check(not forced.ok and String(forced.reason)=="替换后的特殊装备结构不合法。","PERCLICK per_click_checks_are_debug_only: switch "+label+", the replacement structural recheck is not gated: "+str(forced))
+  var event_game=Game.new(42)
+  event_game.set_debug_checks_enabled(mode)
+  event_game._install_special("shaft_ring_low","special_2_a")
+  EventCases.arrive(event_game,"binding_cleric")
+  var held=event_game.Events.apply_effects(event_game,[{"op":"hold_special","key":"pending","slots":["special_2_a"]}],event_game.state.room_event.refs,false)
+  t.check(held=="","PERCLICK per_click_checks_are_debug_only: switch "+label+", the event fixture holds the special item: "+held)
+  if held=="":
+   var held_twin=event_game.state.room_event.held["pending"][0].duplicate(true)
+   held_twin.id="special_9_z"
+   event_game.state.special_equipment.append(held_twin)
+   var put_back=event_game.Events.apply_effects(event_game,[{"op":"restore_held","key":"pending"}],event_game.state.room_event.refs,false)
+   t.check(put_back=="无法原样装回暂存装备：同一种性玩具不能重复佩戴。","PERCLICK per_click_checks_are_debug_only: switch "+label+", the event rule use of SpecialEquipment.validate is not gated: "+put_back)
+   t.check(event_game.validate()=="事件暂存装备不合法：同一种性玩具不能重复佩戴。","PERCLICK per_click_checks_are_debug_only: switch "+label+", the aggregate event validation keeps running: "+event_game.validate())
+ # G-PC-5：探针整状态一半随开关，效果可行性一半在两种开关下都保留。
+ for mode in [true,false]:
+  var label="on" if mode else "off"
+  var values=Game.new(42)
+  values.set_debug_checks_enabled(mode)
+  EventCases.arrive(values,"binding_cleric")
+  values.state.room_event.values={"seen":-1}
+  var state_half=values.Events.probe_result(values,[],{})
+  t.check(String(state_half.gate)==("validate_failed" if mode else ""),"PERCLICK per_click_checks_are_debug_only: switch "+label+", the probe's whole-state half follows the switch: "+str(state_half))
+  if mode:
+   t.check(String(state_half.reason)=="事件计数记录不正确。","PERCLICK per_click_checks_are_debug_only: switch on, the probe half reports the aggregate reason: "+str(state_half))
+   t.check(values.debug_check_failures.any(func(row):return str(row.check)=="Game.validate" and str(row.location)=="room_events.probe_result"),"PERCLICK per_click_checks_are_debug_only: switch on, the probe's failing whole-state half writes its diagnostic: "+str(values.debug_check_failures))
+  else:
+   t.check(values.debug_check_failures.is_empty(),"PERCLICK per_click_checks_are_debug_only: switch off, the skipped probe half writes no diagnostics: "+str(values.debug_check_failures))
+  var effects=Game.new(42)
+  effects.set_debug_checks_enabled(mode)
+  EventCases.arrive(effects,"binding_cleric")
+  var effects_half=effects.Events.probe_result(effects,[{"op":"mana_loss","amount":99999}],{})
+  t.check(String(effects_half.gate)=="probe_failed" and str(effects_half.reason)=="剩余魔力不足以支付已公开的费用。","PERCLICK per_click_checks_are_debug_only: switch "+label+", the probe's effects half stays a rule judgement: "+str(effects_half))
+
+# G-PC-7：诊断只活在实例上——不进 state（含玩家可见日志）、不进存档、不进 View、不进拒绝结果。
+# push_warning 是唯一过程输出（"DEBUG CHECK" 前缀只可能出现在引擎告警里）。
+static func per_click_diagnostics_stay_out_of_the_game(t) -> void:
+ for row in per_click_damaged_rows():
+  var g=per_click_damaged_game(row.check)
+  if g==null:
+   t.check(false,"PERCLICK per_click_diagnostics_stay_out_of_the_game: the damaged fixture exists: "+row.check)
+   continue
+  var twin=per_click_damaged_game(row.check)
+  twin.set_debug_checks_enabled(false)
+  var cmd=per_click_legal_command(twin)
+  var before=g.export_snapshot()
+  var result=g.dispatch(cmd,int(g.state.version))
+  t.check(not g.debug_check_failures.is_empty(),"PERCLICK per_click_diagnostics_stay_out_of_the_game: a gated failure writes the in-process diagnostics: "+row.check)
+  t.check(result.keys()==S5_REJECT_KEYS,"PERCLICK per_click_diagnostics_stay_out_of_the_game: the rejection keeps the declared key face: "+row.check+": "+str(result.keys()))
+  t.check(g.export_snapshot()==before,"PERCLICK per_click_diagnostics_stay_out_of_the_game: the diagnostics never enter state or the save: "+row.check)
+  var sinks=[JSON.stringify(g.state),JSON.stringify(g.state.logs),JSON.stringify(g.get_view()),JSON.stringify(result),JSON.stringify(g.export_snapshot())]
+  var leaked=sinks.filter(func(text):return text.contains("debug_check_failures") or text.contains("DEBUG CHECK"))
+  t.check(leaked.is_empty(),"PERCLICK per_click_diagnostics_stay_out_of_the_game: no sink carries the diagnostics: "+row.check+": "+str(leaked))
+
+# G-PC-4：投影闸的唯一声明点是 command_domain_ready（base_action_block 在阶段守卫后复用），
+# 两种开关下的投影行为可辨。
+static func projection_integrity_gate_is_declared_once(t) -> void:
+ var expression='Binding.state_issue(self)=="" and SpecialEquipment.validate(state.get("special_equipment"))==""'
+ var total=source_text("core/game.gd").count(expression)
+ t.check(total==1,"PERCLICK projection_integrity_gate_is_declared_once: the domain predicate is declared exactly once in core/game.gd: "+str(total))
+ var ready_body=source_func_body_code("res://core/game.gd","command_domain_ready")
+ t.check(ready_body.contains(expression),"PERCLICK projection_integrity_gate_is_declared_once: the single declaration lives in command_domain_ready: "+ready_body.strip_edges())
+ var block_body=source_func_body_code("res://core/game.gd","base_action_block")
+ t.check(block_body.contains("return command_domain_ready()") and not block_body.contains(expression),"PERCLICK projection_integrity_gate_is_declared_once: base_action_block reuses the gate instead of inlining the predicate: "+block_body.strip_edges())
+ t.check(block_body.find("BASE_ABSENT_PHASES")>=0 and block_body.find("BASE_ABSENT_PHASES")<block_body.find("return command_domain_ready()"),"PERCLICK projection_integrity_gate_is_declared_once: base_action_block keeps its phase guard before reusing the gate")
+ for check in ["Binding.state_issue","SpecialEquipment.validate"]:
+  var on_game=per_click_damaged_game(check)
+  t.check(on_game!=null and not on_game.command_domain_ready() and not on_game.base_action_block(),"PERCLICK projection_integrity_gate_is_declared_once: switch on, the projection gate reports the damaged domain: "+check)
+  t.check(on_game!=null and on_game.command_facts().is_empty(),"PERCLICK projection_integrity_gate_is_declared_once: switch on, no fact row is built through the blocked domain: "+check)
+  var off_game=per_click_damaged_game(check)
+  if off_game==null:
+   t.check(false,"PERCLICK projection_integrity_gate_is_declared_once: the projection fixture exists: "+check)
+   continue
+  off_game.set_debug_checks_enabled(false)
+  t.check(off_game.command_domain_ready() and off_game.base_action_block(),"PERCLICK projection_integrity_gate_is_declared_once: switch off, the projection gate is not evaluated: "+check)
+  t.check(not off_game.command_facts().is_empty() and not off_game.get_view().is_empty(),"PERCLICK projection_integrity_gate_is_declared_once: switch off, the fact table and the view are built from the same damaged state: "+check)
+
 static func run(t) -> void:
  event_dependency_edges_pinned(t)
  content_pack_root_has_no_build_feature_branch(t)
@@ -710,6 +924,9 @@ static func run(t) -> void:
  event_condition_kinds_share_one_declaration(t)
  event_probe_and_projection_readonly(t)
  event_single_evaluation_entry(t)
+ per_click_checks_are_debug_only(t)
+ projection_integrity_gate_is_declared_once(t)
+ per_click_diagnostics_stay_out_of_the_game(t)
  event_definition_accessors_only(t)
  tool_registry_boundary(t)
  equipment_read_batches(t)
@@ -2156,8 +2373,8 @@ static func behavior_baseline_equivalence(t) -> void:
 # 读取式（x.valid／x.reason 作为值）不计。判定落点＝core/game.gd 的 eligibility／eligibility_takeover。
 const VERDICT_PRODUCERS={"core/game.gd":["eligibility","eligibility_takeover"]}
 # 非判定载体（逐函数声明）：这些模块的 reason 字段是各自域内的原因文本（装备施加结果、接触可达、事件闸门、
-# 奖励行、工具操作者、施法路线、快照预览等），不是资格结论；表外任何 reason 写点即红（加宽后的 stray 面）。
-# 双向核对：表外写点即红，表内每项仍须被扫到（防表腐烂）。
+# 奖励行、工具操作者、施法路线、快照预览、每点击检查的调试诊断等），不是资格结论；表外任何 reason 写点即红
+# （加宽后的 stray 面）。双向核对：表外写点即红，表内每项仍须被扫到（防表腐烂）。
 const VERDICT_REASON_CARRIERS=[
  "core/contact.gd::evaluate",
  "core/contact.gd::profile",
@@ -2172,6 +2389,7 @@ const VERDICT_REASON_CARRIERS=[
  "core/game.gd::_build_cast_view",
  "core/game.gd::_build_escape_preview",
  "core/game.gd::_cast_path",
+ "core/game.gd::_debug_check",
  "core/game.gd::_prepare_installation",
  "core/game.gd::kick_profile",
  "core/game_view.gd::battle_rewards",

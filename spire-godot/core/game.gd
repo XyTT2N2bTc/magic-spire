@@ -10,6 +10,30 @@ var _equipment_index_issues: Array=[]
 # 只读诊断：不进 state、不进 View、不进存档、不渲染、不做成计数器。
 var copy_router_failures: Array=[]
 
+# docs/record/proposals/check-routing-and-per-click-checks.md「二」（人裁定：正常流程下永不为 false 的
+# 每点击完整性检查＝release 里的固定浪费，按 debug 构建判定运行）：默认值只有构建类型这一条来源，
+# 覆盖入口在非 debug 构建里直接拒绝——发布的二进制没有任何运行期途径（存档／命令行／环境变量）能打开它。
+var _debug_checks_override: Variant=null
+# 检查失败的诊断落点：检查名、原因、位置。只读诊断——不进 state、不进 View、不进存档、
+# 不进玩家可见日志（_emit）、不渲染、不做成计数器。
+var debug_check_failures: Array=[]
+
+func debug_checks_enabled() -> bool:
+ if not OS.is_debug_build(): return false
+ if typeof(_debug_checks_override)==TYPE_BOOL: return _debug_checks_override
+ return true
+
+func set_debug_checks_enabled(value: bool) -> void:
+ if not OS.is_debug_build(): return
+ _debug_checks_override=value
+
+# release 下不可达：调用点先过 debug_checks_enabled()；这里把原因串原样返回，交给调用点早退。
+func _debug_check(name: String, location: String, reason: String) -> String:
+ if reason!="":
+  debug_check_failures.append({"check":name,"reason":reason,"location":location})
+  push_warning("DEBUG CHECK "+name+" @"+location+": "+reason)
+ return reason
+
 # 指令形状的键面真源（docs/spec/candidate-removal.md「接口」类型化指令＝{kind, params, expected_version}）。
 # 显示事实（core/game.gd::display_fact 的输出）与该形状一一对应：同一 (kind, params) 只有一条事实。
 # 值＝该 kind 的 params 键与默认值：键面只用稳定 ID（template／type／id／uid／slot／target…），
@@ -2816,7 +2840,7 @@ const BASE_ABSENT_PHASES=["rest_choice","shop","treasure","reward","map","travel
 
 func base_action_block() -> bool:
  if not state.relic_bundle.is_empty() or state.phase=="departure" or state.phase in BASE_ABSENT_PHASES: return false
- return Binding.state_issue(self)=="" and SpecialEquipment.validate(state.get("special_equipment"))==""
+ return command_domain_ready()
 
 # 攻击事实的显示字段（原 core/game_view.gd::build 的投影表达式，批 R3 随事实来源迁移）：施法投影＋部位。
 func _attack_fact_display(f: Dictionary) -> Dictionary:
@@ -3330,8 +3354,11 @@ func item_discard_facts() -> Array:
  return facts
 
 # 指令域的公共前置（绑定状态与特殊装备校验，command_facts 的入口守卫）：显示事实的域构建器复用同一守卫，
-# 不再各自重写条件。
+# 不再各自重写条件。本函数是指令域完整性谓词的唯一声明点（base_action_block 在阶段守卫后复用）。
+# 被门控面（docs/record/proposals/check-routing-and-per-click-checks.md「二」）：debug 构建语义与改动前逐字
+# 相同；release 下表达式不求值、直接视为就绪（带着坏状态继续构建候选＝已登记的取舍）。
 func command_domain_ready() -> bool:
+ if not debug_checks_enabled(): return true
  return Binding.state_issue(self)=="" and SpecialEquipment.validate(state.get("special_equipment"))==""
 
 # 道具操作块参与的阶段（＝_phase_facts 的非早退分支）：早退分支（休息选择／商店／宝箱／事件／捕获／
@@ -3373,18 +3400,23 @@ func retain_facts() -> Array:
  return facts
 
 func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
- var buff_issue=Consumables.validate_buffs(self,state.get("body_buffs"))
- if buff_issue!="": return {"ok":false,"error":buff_issue,"fact":{}}
- var binding_issue=Binding.state_issue(self)
- if binding_issue!="": return {"ok":false,"error":binding_issue,"fact":{}}
+ # 每点击完整性检查＝debug feature（docs/record/proposals/check-routing-and-per-click-checks.md「二」）：
+ # 药剂／躯干固缚／性玩具／卡牌／遗物五道只在 debug 构建里跑，release 下这五次调用不成立（不是算了再丢）。
+ # 版本相等是新鲜度（正常流程会失败），不属被门控面，改由两段门控夹住以保住现有检查顺序。
+ if debug_checks_enabled():
+  var buff_issue=_debug_check("Consumables.validate_buffs","game.dispatch",Consumables.validate_buffs(self,state.get("body_buffs")))
+  if buff_issue!="": return {"ok":false,"error":buff_issue,"fact":{}}
+  var binding_issue=_debug_check("Binding.state_issue","game.dispatch",Binding.state_issue(self))
+  if binding_issue!="": return {"ok":false,"error":binding_issue,"fact":{}}
  if expected_version!=state.version:
   return {"ok":false,"error":"状态已更新，请重新选择行动。","fact":{}}
- var special_issue=SpecialEquipment.validate(state.get("special_equipment"))
- if special_issue!="": return {"ok":false,"error":special_issue,"fact":{}}
- var pending_issue=Cards.validate(self)
- if pending_issue!="": return {"ok":false,"error":pending_issue,"fact":{}}
- var relic_issue=RelicEffects.validate(self)
- if relic_issue!="": return {"ok":false,"error":relic_issue,"fact":{}}
+ if debug_checks_enabled():
+  var special_issue=_debug_check("SpecialEquipment.validate","game.dispatch",SpecialEquipment.validate(state.get("special_equipment")))
+  if special_issue!="": return {"ok":false,"error":special_issue,"fact":{}}
+  var pending_issue=_debug_check("Cards.validate","game.dispatch",Cards.validate(self))
+  if pending_issue!="": return {"ok":false,"error":pending_issue,"fact":{}}
+  var relic_issue=_debug_check("RelicEffects.validate","game.dispatch",RelicEffects.validate(self))
+  if relic_issue!="": return {"ok":false,"error":relic_issue,"fact":{}}
  # T4 复核：指令形状＋参数合法性（不判定资格），随后由形状取回该显示点的投影事实（唯一判定在事实出口内）。
  var shape_issue=command_issue(cmd)
  if shape_issue!="": return {"ok":false,"error":shape_issue,"fact":{}}

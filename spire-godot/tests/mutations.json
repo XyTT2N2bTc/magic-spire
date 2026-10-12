@@ -379,6 +379,24 @@
       "find": " var result=_batch_rows(BATCH_TABLE,build) if scope==CommandRegistry.fact_groups() else build.call()",
       "replace": " var result=_batch_rows(BATCH_TABLE,build) if scope.size()==CommandRegistry.fact_groups().size() else build.call()",
       "suite": "architecture"
+    },
+    "per_click_checks_are_debug_only": {
+      "file": "core/game.gd",
+      "find": "func debug_checks_enabled() -> bool:\n if not OS.is_debug_build(): return false\n if typeof(_debug_checks_override)==TYPE_BOOL: return _debug_checks_override\n return true",
+      "replace": "func debug_checks_enabled() -> bool:\n return false",
+      "suite": "architecture"
+    },
+    "per_click_diagnostics_stay_out_of_the_game": {
+      "file": "core/game.gd",
+      "find": "func _debug_check(name: String, location: String, reason: String) -> String:\n if reason!=\"\":\n  debug_check_failures.append({\"check\":name,\"reason\":reason,\"location\":location})",
+      "replace": "func _debug_check(name: String, location: String, reason: String) -> String:\n if reason!=\"\":\n  debug_check_failures.append({\"check\":name,\"reason\":reason,\"location\":location})\n  state[\"debug_check_failures\"]=debug_check_failures.duplicate(true)",
+      "suite": "architecture"
+    },
+    "projection_integrity_gate_is_declared_once": {
+      "file": "core/game.gd",
+      "find": " return command_domain_ready()",
+      "replace": " return Binding.state_issue(self)==\"\" and SpecialEquipment.validate(state.get(\"special_equipment\"))==\"\"",
+      "suite": "architecture"
     }
   }
 }
