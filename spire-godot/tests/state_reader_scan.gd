@@ -151,9 +151,7 @@ static func function_body(rel: String, function: String) -> String:
 static func _tables() -> Dictionary:
  var registry={}
  for field in field_registry(): registry[field]=true
- var reads=[_re("\\bstate\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)"),
-  _re("\\bstate\\s*\\[\\s*(?:&\\s*)?\"([A-Za-z_][A-Za-z0-9_]*)\"\\s*\\]"),
-  _re("\\bstate\\s*\\.\\s*get\\s*\\(\\s*(?:&\\s*)?\"([A-Za-z_][A-Za-z0-9_]*)\"")]
+ var reads=_read_patterns("state")
  var whole_patterns={"duplicate":_re("\\bstate\\s*\\.\\s*duplicate\\s*\\("),
   "iterate":_re("\\bfor\\s+[A-Za-z_]\\w*\\s+in\\s+(?:g\\.)?state\\b(?!\\s*[.\\[])"),
   "has":_re("\\bstate\\s*\\.\\s*has\\s*\\("),
@@ -161,6 +159,7 @@ static func _tables() -> Dictionary:
   "pass":_re("\\b(?:return\\s+)?(?:g\\.)?state\\s*[,)]")}
  var compound=_re("\\bstate\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*[-+*/%&|^]=")
  var declaration=_re(DECLARATION)
+ var writes=_write_patterns()
  var owners={}
  var ui_reads={}
  var whole={}
@@ -174,7 +173,7 @@ static func _tables() -> Dictionary:
    var declared=declaration.search(code)
    if declared!=null: current=declared.get_string(1)
    var skip={}
-   for pattern in _write_patterns():
+   for pattern in writes:
     for hit in pattern.search_all(code): skip[hit.get_start()]=true
    var hits=[]
    for hit in compound.search_all(code):
@@ -197,8 +196,10 @@ static func _tables() -> Dictionary:
     owners[site][name]=int(owners[site].get(name,0))+1
    if ui: continue
    for kind in whole_patterns.keys():
+    # One count per line per kind; the forms are text matches, so a member access whose name is
+    # `state` (x.state,) counts like the dictionary being handed over (docs/spec/state-readers.md 残差).
     var found=whole_patterns[kind].search(code)
-    if found==null or (kind=="pass" and _pass_skip(code)): continue
+    if found==null: continue
     var key=rel+"::"+current+"|"+kind
     whole[key]=int(whole.get(key,0))+1
  var sorted_owners={}
@@ -214,10 +215,7 @@ static func _receiver_fields(rel: String, function: String, param: String) -> Ar
  if body=="": return []
  var registry={}
  for field in field_registry(): registry[field]=true
- var escaped=param.replace("\\","\\\\")
- var patterns=[_re("\\b"+escaped+"\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)"),
-  _re("\\b"+escaped+"\\s*\\[\\s*(?:&\\s*)?\"([A-Za-z_][A-Za-z0-9_]*)\"\\s*\\]"),
-  _re("\\b"+escaped+"\\s*\\.\\s*get\\s*\\(\\s*(?:&\\s*)?\"([A-Za-z_][A-Za-z0-9_]*)\"")]
+ var patterns=_read_patterns(param)
  var fields={}
  for line in body.split("\n"):
   for pattern in patterns:
@@ -344,16 +342,18 @@ static func _face_row(owners: Dictionary, face: Dictionary) -> Dictionary:
 
 # ------------------------------------------------------------------------- helpers
 
+# The three read forms for one receiver name: `<receiver>.<field>`, `<receiver>["<field>"]` and
+# `<receiver>.get("<field>"…)`. The state face (receiver `state`) and the alias receivers share this
+# single definition, so a read form is added or changed in exactly one place.
+static func _read_patterns(receiver: String) -> Array:
+ var head="\\b"+receiver.replace("\\","\\\\")
+ return [_re(head+"\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)"),
+  _re(head+"\\s*\\[\\s*(?:&\\s*)?\"([A-Za-z_][A-Za-z0-9_]*)\"\\s*\\]"),
+  _re(head+"\\s*\\.\\s*get\\s*\\(\\s*(?:&\\s*)?\"([A-Za-z_][A-Za-z0-9_]*)\"")]
+
 static func _write_patterns() -> Array:
  return [_re("\\bstate\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(?<![=<>!+\\-*/%&|^])=(?!=)"),
   _re("\\bstate\\s*\\[\\s*(?:&\\s*)?\"([A-Za-z_][A-Za-z0-9_]*)\"\\s*\\]\\s*(?<![=<>+\\-*/%&|^])=(?!=)")]
-
-# The pass kind is "the whole dictionary handed over"; a preceding `.state` in the same line
-# means the token is a member access on another object, not the state dictionary.
-static func _pass_skip(code: String) -> bool:
- if not code.contains("state"): return false
- var head=String(code.split("state")[0])
- return head.substr(maxi(0,head.length()-6)).contains(".state")
 
 # Depth-1 quoted keys of the `_init` state literal (a key is followed by `:`; nested records
 # and string values never are at this level).

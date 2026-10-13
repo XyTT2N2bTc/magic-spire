@@ -43,18 +43,21 @@
 - 禁止：`tests/state_reader_scan.gd` 引 `core/`／`ui/`／`data/`／测试夹具（它只读文本，不 preload 产品码）；
   产品码引 `tests/`；`tests/architecture_cases.gd` 出现第二套 state 扫描实现（三条判据只消费同一派生模块，
   不自行枚举源码）。
+- 扫描原语边界：本模块自带最小枚举与读文本原语（`tests/state_reader_scan.gd::_rel_files`／`_source_text`），
+  与 `tests/architecture_cases.gd::script_files`／`source_text` 同形但不共用——本模块要被
+  `tools/build_state_readers.gd` 独立 headless 加载（架构判据文件不进这条通路），而本片的允许边只有
+  `tests/architecture_cases.gd` → 本模块，反向引用成环；抽第三个共享文件又超出本片允许文件面。
+  故该重复按最小原语保留（枚举＋读文本，不含任何扫描语义）。
 
 ## 行数线
 
-- `tests/state_reader_scan.gd` ≤ 320（计划行数线）；`tests/state_readers.json` 不设行数线（生成物）；
-  `tests/architecture_cases.gd` 净增 ≤ 220 行（实际净增见验证记录）。
-- **偏差登记（需协调者处置）**：`tests/state_reader_scan.gd` 实际 450 行，超出计划行数线 130 行。
-  超出部分＝`failure_face` 的静态调用闭包（函数体索引、常量前缀／`g.`／`self.` 调用边、闭包遍历、逐 kind 种子）
-  ——它是 G-SR-7 的判据落点（`tests/state_reader_scan.gd::failure_face`）与套件内
-  `STATE FAILURE FACE …` 报告行的实现；设计期的同一闭包只作为规模对比存在（`design.md` §1.4 引用
-  `evidence/closure.py`），未计入 §2.2 的模块行数估计。处置选项：接受当前行数，或把失败面报告移出本模块
-  （代价＝`architecture` 套件不再打印该报告行，G-SR-7 的落点失效）。**在本文件被更新或协调者裁定前，
-  按「已登记偏差」看待，不得写成「符合行数线」。**
+- `tests/state_readers.json` 不设行数线（生成物，评审靠判据打印行与统计）；`tests/architecture_cases.gd` 净增 77 行（限 220）。
+- `tests/state_reader_scan.gd` 450 行：**协调者已裁接受（2026-10-14，P5 派工记录）**，计划行数线 ≤ 320 是规划者的
+  规模估计，不是本仓的硬约束（先例：`tests/check_index.gd` 534 行同为单职责的派生／判据模块）。接受理由：
+  本模块职责单一（全片唯一扫描实现：派生＋冻结物形状＋失败面），超出估计的部分＝`failure_face` 的静态调用闭包
+  （函数体索引、常量前缀／`g.`／`self.` 调用边、闭包遍历、逐 kind 种子），它是 G-SR-7 的判据落点与套件内
+  `STATE FAILURE FACE …` 报告行的实现。若日后要把失败面报告移出本模块，须同时给出 G-SR-7 的新落点，
+  不单独改本行。
 
 ## 单一声明面与唯一写者（清洁检查点）
 
@@ -65,6 +68,8 @@
 - 别名声明只有一处：`tests/state_reader_scan.gd::ALIAS_DECLARATIONS`（6 个函数）；非 state 形参排除表见下。
 - UI 零直读：`ui_reads` 恒为空表；`ui/` 内的局部样式变量 `state` 不是 state 读（口径见
   `docs/spec/state-readers.md`「扫描口径」第 5 条）。
+- UI 面的既有 token 禁令（`ui/` 不出现 `game.state`，含写与未登记成员）见 `docs/spec/release-interface.md`；
+  本片 `ui_reads` 是 state 字段读面（登记表字段名的直读＝0），两条判据语义不同、不重复。
 
 ## 非 state 形参排除表（不得计入别名面，逐条带理由）
 
