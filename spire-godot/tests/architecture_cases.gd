@@ -985,6 +985,9 @@ static func run(t) -> void:
  frozen_anchor_files_match_git(t)
  dispatch_fact_row_is_readonly(t)
  payload_write_sites_are_pinned(t)
+ state_read_sites_are_pinned(t)
+ state_read_scan_reaches_every_source(t)
+ state_read_registrations_are_pinned(t)
  card_facts_declared_slots(t)
  card_facts_consumes_has_targets_at(t)
  card_facts_keyword_min_query(t)
@@ -6433,6 +6436,80 @@ static func target_queries_stay_stateless(t) -> void:
 static func ui_never_reads_game_state(t) -> void:
  var hits=source_write_sites(["res://ui"],"(?<![A-Za-z0-9_])game\\.state\\b")
  t.check(hits.is_empty(),"RL ui_never_reads_game_state: ui/ never reads or writes game.state: "+str(write_site_names(hits)))
+
+# docs/spec/state-readers.md／state-readers-dependencies.md：state 字段读者面的静态真源
+# tests/state_readers.json（只由 tools/build_state_readers.gd --write 覆盖）＋三条双向判据。
+# tests/state_reader_scan.gd 是唯一扫描实现（本文件不另起第二套），判据只读派生与冻结物；
+# 判据不写死基线数字：派生＝冻结才是判据，打印行的数字是当前派生值（改读面后随重生成移动）。
+const StateReaderScan=preload("res://tests/state_reader_scan.gd")
+
+static func state_read_sites_are_pinned(t) -> void:
+ var derived=StateReaderScan.scan()
+ var stats=derived.stats
+ print("STATE READERS files=%d fields=%d cells=%d sites=%d whole_state=%d ui_reads=%d digest=%s" % [stats.files,stats.fields,stats.cells,stats.sites,stats.whole_state,stats.ui_reads,StateReaderScan.canonical(derived).sha256_text().substr(0,12)])
+ var failure=StateReaderScan.frozen_error()
+ t.check(failure=="","STATEREAD state_read_sites_are_pinned: tests/state_readers.json is readable and schema 1: "+failure)
+ if failure!="": return
+ var comparison=StateReaderScan.compare(derived,StateReaderScan.frozen())
+ t.check(comparison.ok,"STATEREAD state_read_sites_are_pinned: the derivation equals the frozen table -- an extra read, a missing read and a changed (owner,field) count are all red; first difference at "+comparison.first_diff)
+ var face=StateReaderScan.failure_face()
+ print("STATE FAILURE FACE fields=%d cells=%d kinds=%d sites=%d" % [face.fields,face.cells,face.kinds,face.sites])
+ for row in face.rows:
+  if String(row[0])=="all": continue
+  print("STATE FAILURE FACE kind=%s fields=%d cells=%d sites=%d" % [row[0],row[1].fields,row[1].cells,row[1].sites])
+
+static func state_read_scan_reaches_every_source(t) -> void:
+ var derived=StateReaderScan.scan()
+ var unknown=derived.unknown
+ var unread=derived.unread_fields
+ var registry=StateReaderScan.field_registry()
+ print("STATE READERS unknown=%d unread=%s registry=%d" % [unknown.size(),str(unread),registry.size()])
+ t.check(unknown.is_empty(),"STATEREAD state_read_scan_reaches_every_source: every read field name is registered (an unknown name carries its 文件::函数:行): "+str(unknown.slice(0,5)))
+ t.check(derived.ui_reads.is_empty(),"STATEREAD state_read_scan_reaches_every_source: ui/ never reads a registered state field directly: "+str(derived.ui_reads))
+ var unreachable=[]
+ for site in derived.owners.keys():
+  var parts=String(site).split("::")
+  if StateReaderScan.function_body(String(parts[0]),String(parts[1])).strip_edges()=="": unreachable.append(site)
+ t.check(derived.generated_from.files>0 and unreachable.is_empty(),"STATEREAD state_read_scan_reaches_every_source: every owner resolves to a non-empty declared body over %d file(s): %s" % [derived.generated_from.files,str(unreachable.slice(0,5))])
+ var covered={}
+ for site in derived.owners.keys():
+  for field in derived.owners[site].keys(): covered[field]=true
+ for site in derived.aliases.keys():
+  for field in derived.aliases[site].fields: covered[field]=true
+ for site in derived.schema_strings.keys():
+  for field in derived.schema_strings[site].fields: covered[field]=true
+ for field in unread: covered[field]=true
+ var missing=registry.filter(func(field):return not covered.has(field))
+ var extra=covered.keys().filter(func(field):return field not in registry)
+ t.check(missing.is_empty() and extra.is_empty(),"STATEREAD state_read_scan_reaches_every_source: the registry, the three read faces and unread_fields cover each other (a field nobody reads must be declared unread): missing="+str(missing)+" extra="+str(extra))
+
+static func state_read_registrations_are_pinned(t) -> void:
+ var failure=StateReaderScan.frozen_error()
+ t.check(failure=="","STATEREAD state_read_registrations_are_pinned: tests/state_readers.json is readable and schema 1: "+failure)
+ if failure!="": return
+ var derived=StateReaderScan.scan()
+ var frozen=StateReaderScan.frozen()
+ var alias_fields=0
+ for key in derived.aliases.keys(): alias_fields+=int(derived.aliases[key].fields.size())
+ var schema_fields=0
+ for key in derived.schema_strings.keys(): schema_fields+=int(derived.schema_strings[key].fields.size())
+ print("STATE READERS REGISTRATIONS whole_state=%d whole_records=%d aliases=%d alias_fields=%d schema_owners=%d schema_fields=%d" % [derived.generated_from.whole_state,derived.whole_state.size(),derived.aliases.size(),alias_fields,derived.schema_strings.size(),schema_fields])
+ var whole_missing=[]
+ var whole_extra=[]
+ var mine={}
+ var theirs={}
+ for row in derived.whole_state: mine["%s|%s|%s|%d" % [row.file,row.function,row.kind,row.count]]=true
+ for row in frozen.whole_state: theirs["%s|%s|%s|%d" % [row.file,row.function,row.kind,row.count]]=true
+ for key in theirs.keys():
+  if not mine.has(key): whole_missing.append(key)
+ for key in mine.keys():
+  if not theirs.has(key): whole_extra.append(key)
+ t.check(whole_missing.is_empty() and whole_extra.is_empty(),"STATEREAD state_read_registrations_are_pinned: whole_state is a per (file,function,kind,count) declaration -- a new, removed or re-counted whole-dictionary read is red: missing="+str(whole_missing.slice(0,3))+" extra="+str(whole_extra.slice(0,3)))
+ var empty=[]
+ for key in derived.aliases.keys():
+  if derived.aliases[key].fields.is_empty(): empty.append(key)
+ t.check(StateReaderScan.canonical(derived.aliases)==StateReaderScan.canonical(frozen.aliases) and empty.is_empty(),"STATEREAD state_read_registrations_are_pinned: the declared alias receivers match the frozen per-function field sets and every alias resolves to a non-empty body: unresolved="+str(empty))
+ t.check(StateReaderScan.canonical(derived.schema_strings)==StateReaderScan.canonical(frozen.schema_strings),"STATEREAD state_read_registrations_are_pinned: the Snapshot.fields(state|g.state, spec) spec union matches the frozen schema_strings table")
 
 # 检查力度的证据面（根 AGENTS.md「检查力度与报告四态」）：tests/mutations.json 是「判据名 → 临时突变」的
 # 唯一声明表，执行器 tools/check-mutation.ps1（改源代码→跑声明的套件→要求该判据变红→逐字节还原）。

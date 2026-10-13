@@ -84,6 +84,7 @@
 | 第一幕敌人 | docs/design/enemies-first-floor.md |
 | 键盘与触屏 | docs/design/input-controls.md |
 | 输入到落地的提交与刷新 | docs/spec/response-pipeline.md |
+| state 字段读者声明与反向溯源 | docs/spec/state-readers.md、docs/spec/state-readers-dependencies.md |
 | 事件管线与事件结构 | docs/spec/event-pipeline.md |
 | 状态迁移管线（单写入者） | docs/spec/transition-pipeline.md |
 | 固定点存档 | docs/spec/save-fixed-points.md |

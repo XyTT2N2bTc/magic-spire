@@ -1,0 +1,2707 @@
+{
+  "aliases": {
+    "core/game.gd::_scene_key": {
+      "fields": [
+        "combat",
+        "demo_finished",
+        "encounter",
+        "map_region",
+        "phase",
+        "room",
+        "seed",
+        "tower_generation"
+      ],
+      "param": "s"
+    },
+    "core/prison.gd::reinforcement_issue": {
+      "fields": [
+        "phase",
+        "prison",
+        "room",
+        "round",
+        "security"
+      ],
+      "param": "s"
+    },
+    "core/snapshot.gd::check": {
+      "fields": [
+        "battle_flask_drop",
+        "battle_item_drop",
+        "battle_relic_drop",
+        "body_buffs",
+        "boss_relic_options",
+        "calm_uses",
+        "capture",
+        "card_chain",
+        "character_id",
+        "combat",
+        "completed_rooms",
+        "composites",
+        "deck",
+        "ditto_form",
+        "enemies",
+        "equipment",
+        "guard_bind",
+        "hand",
+        "items",
+        "journey",
+        "last_strong_group",
+        "links",
+        "logs",
+        "mana_max",
+        "map_region",
+        "next_equipment",
+        "order",
+        "overload_total",
+        "pending_retain",
+        "phase",
+        "posture",
+        "practice",
+        "practice_kind",
+        "pressure_sources",
+        "prison",
+        "rare_offset",
+        "relic_counters",
+        "relic_pending",
+        "relic_seen",
+        "relic_used",
+        "relics",
+        "rest_cards",
+        "rest_left",
+        "reward_claimed",
+        "reward_options",
+        "rng",
+        "room",
+        "room_encounters",
+        "room_event",
+        "rooms",
+        "round",
+        "save_slot",
+        "security",
+        "special_equipment",
+        "temporary_mana",
+        "tower_start_pending",
+        "traversed_edges",
+        "version",
+        "wall",
+        "wall_distance",
+        "weakness_turns"
+      ],
+      "param": "s"
+    },
+    "core/snapshot.gd::is_current": {
+      "fields": [
+        "save_revision"
+      ],
+      "param": "s"
+    },
+    "core/snapshot.gd::migrate_cup_stacks": {
+      "fields": [
+        "capture",
+        "pressure_sources",
+        "prison",
+        "room_event",
+        "special_equipment"
+      ],
+      "param": "s"
+    },
+    "core/snapshot.gd::migrate_iron_drone": {
+      "fields": [
+        "enemies"
+      ],
+      "param": "s"
+    }
+  },
+  "generated_from": {
+    "cells": 1264,
+    "fields": 121,
+    "files": 129,
+    "inputs_sha256": "504e0a54927a559ff0b18931d8228c757302c22dc1b473cc935efb388b5aa863",
+    "sites": 2075,
+    "ui_reads": 0,
+    "whole_state": 52
+  },
+  "owners": {
+    "core/action_replay.gd::payload": {
+      "phase": 1,
+      "prison": 1
+    },
+    "core/action_replay.gd::take": {
+      "card_buff_uses": 2,
+      "card_buffs": 2
+    },
+    "core/capture_bind.gd::allowed_postures": {
+      "guard_bind": 1
+    },
+    "core/capture_bind.gd::apply_bind": {
+      "guard_bind": 7,
+      "order": 1
+    },
+    "core/capture_bind.gd::capture_ready": {
+      "guard_bind": 1,
+      "phase": 1
+    },
+    "core/capture_bind.gd::clear_bind": {
+      "enemies": 1
+    },
+    "core/capture_bind.gd::damage_bind": {
+      "guard_bind": 5
+    },
+    "core/capture_bind.gd::energy_spent": {
+      "guard_bind": 2
+    },
+    "core/capture_bind.gd::fixed_posture": {
+      "posture": 1
+    },
+    "core/capture_bind.gd::gain_bind": {
+      "guard_bind": 5
+    },
+    "core/capture_bind.gd::has_bind": {
+      "guard_bind": 2,
+      "phase": 1
+    },
+    "core/capture_bind.gd::observe": {
+      "enemies": 1,
+      "guard_bind": 4,
+      "phase": 1
+    },
+    "core/capture_bind.gd::posture_reason": {
+      "posture": 1
+    },
+    "core/capture_bind.gd::turn_start": {
+      "guard_bind": 1
+    },
+    "core/capture_bind.gd::validate": {
+      "guard_bind": 1,
+      "phase": 1,
+      "posture": 1
+    },
+    "core/capture_bind.gd::view": {
+      "guard_bind": 7
+    },
+    "core/card_effects.gd::_power_draw": {
+      "hand": 3
+    },
+    "core/card_effects.gd::_target_choices": {
+      "hand": 1
+    },
+    "core/card_effects.gd::active_buffs": {
+      "card_buffs": 1,
+      "powers": 1
+    },
+    "core/card_effects.gd::apply_effects": {
+      "hand": 4,
+      "mana": 2,
+      "mana_max": 1,
+      "temporary_mana": 1,
+      "tick": 1
+    },
+    "core/card_effects.gd::availability": {
+      "card_chain": 1,
+      "overloaded": 1,
+      "pending_retain": 1,
+      "phase": 1
+    },
+    "core/card_effects.gd::base_damage": {
+      "ditto_form": 1,
+      "relics": 1
+    },
+    "core/card_effects.gd::basic_attack_freedom": {
+      "phase": 1
+    },
+    "core/card_effects.gd::begin_turn": {
+      "combat": 1,
+      "phase": 1,
+      "powers": 1
+    },
+    "core/card_effects.gd::buff_stacks": {
+      "card_buff_uses": 1,
+      "powers": 1
+    },
+    "core/card_effects.gd::cancel_chain": {
+      "card_chain": 1
+    },
+    "core/card_effects.gd::card_point_keys": {
+      "hand": 1
+    },
+    "core/card_effects.gd::casting_modifiers": {
+      "powers": 1
+    },
+    "core/card_effects.gd::chain_facts": {
+      "card_chain": 1,
+      "phase": 1,
+      "prison": 1
+    },
+    "core/card_effects.gd::chain_stop_fact": {
+      "card_chain": 3
+    },
+    "core/card_effects.gd::commit_failure": {
+      "powers": 1
+    },
+    "core/card_effects.gd::consume_action_buffs": {
+      "card_buff_uses": 4,
+      "card_buffs": 1
+    },
+    "core/card_effects.gd::consume_attack_buffs": {
+      "card_buff_uses": 4,
+      "card_buffs": 2
+    },
+    "core/card_effects.gd::consume_card_damage": {
+      "card_buffs": 2
+    },
+    "core/card_effects.gd::consume_first_magic": {
+      "powers": 1
+    },
+    "core/card_effects.gd::continue_card": {
+      "card_chain": 8
+    },
+    "core/card_effects.gd::detail": {
+      "card_chain": 1,
+      "mana": 1,
+      "pressure": 2,
+      "spell_base_bonuses": 2
+    },
+    "core/card_effects.gd::end_hand": {
+      "hand": 1,
+      "phase": 1
+    },
+    "core/card_effects.gd::end_powers": {
+      "card_buff_uses": 1,
+      "card_buffs": 1,
+      "discard": 1,
+      "powers": 2
+    },
+    "core/card_effects.gd::energy_cost": {
+      "energy": 1
+    },
+    "core/card_effects.gd::expire_turn_buffs": {
+      "card_buff_uses": 2,
+      "card_buffs": 2,
+      "turn_strength": 2
+    },
+    "core/card_effects.gd::face_mana": {
+      "mana": 1,
+      "temporary_mana": 1
+    },
+    "core/card_effects.gd::failure_outcome": {
+      "powers": 1
+    },
+    "core/card_effects.gd::finish_chain": {
+      "card_chain": 1
+    },
+    "core/card_effects.gd::finish_retain": {
+      "retain_draw_after": 1
+    },
+    "core/card_effects.gd::first_magic": {
+      "powers": 1
+    },
+    "core/card_effects.gd::flush_meter": {
+      "powers": 1
+    },
+    "core/card_effects.gd::flush_powers": {
+      "enemies": 1,
+      "powers": 1
+    },
+    "core/card_effects.gd::follow_through_facts": {
+      "card_chain": 1
+    },
+    "core/card_effects.gd::grant_buff": {
+      "card_buff_uses": 3,
+      "card_buffs": 2
+    },
+    "core/card_effects.gd::hand_modifier": {
+      "hand": 1
+    },
+    "core/card_effects.gd::hand_multiplier": {
+      "hand": 1
+    },
+    "core/card_effects.gd::hit": {
+      "card_chain": 4,
+      "prison": 1
+    },
+    "core/card_effects.gd::normalize": {
+      "card_chain": 3
+    },
+    "core/card_effects.gd::pending_draw": {
+      "powers": 1
+    },
+    "core/card_effects.gd::physical_attachment": {
+      "mana": 1,
+      "temporary_mana": 1
+    },
+    "core/card_effects.gd::play": {
+      "card_chain": 6,
+      "exhaust": 1,
+      "hand": 2,
+      "play": 1,
+      "powers": 1
+    },
+    "core/card_effects.gd::progress_text": {
+      "card_buff_uses": 2,
+      "powers": 4
+    },
+    "core/card_effects.gd::purge_temporary": {
+      "deck": 1
+    },
+    "core/card_effects.gd::reason": {
+      "combat": 1,
+      "equipment": 1,
+      "hand": 2,
+      "mana": 1,
+      "phase": 2,
+      "posture": 1,
+      "pressure": 1,
+      "temporary_mana": 1
+    },
+    "core/card_effects.gd::record_meter": {
+      "combat": 1,
+      "phase": 1,
+      "powers": 1
+    },
+    "core/card_effects.gd::record_play": {
+      "mana": 1,
+      "powers": 3
+    },
+    "core/card_effects.gd::remove_permanent": {
+      "deck": 1
+    },
+    "core/card_effects.gd::request_retain": {
+      "hand": 1,
+      "pending_retain": 1
+    },
+    "core/card_effects.gd::resolve": {
+      "combat": 1,
+      "equipment": 1,
+      "exhaust": 2,
+      "hand": 5,
+      "mana": 10,
+      "mana_max": 3,
+      "pressure": 1,
+      "spell_base_bonuses": 2,
+      "turn_strength": 1
+    },
+    "core/card_effects.gd::restraint_changed": {
+      "combat": 1,
+      "phase": 1,
+      "powers": 1
+    },
+    "core/card_effects.gd::retain": {
+      "hand": 1,
+      "retain_left": 2,
+      "tick": 1
+    },
+    "core/card_effects.gd::select_exhaust": {
+      "card_chain": 2,
+      "exhaust": 1
+    },
+    "core/card_effects.gd::settle_played_card": {
+      "discard": 1,
+      "exhaust": 1,
+      "play": 2
+    },
+    "core/card_effects.gd::target_payload": {
+      "card_chain": 1
+    },
+    "core/card_effects.gd::toggle_facts": {
+      "overloaded": 1,
+      "phase": 1,
+      "powers": 1
+    },
+    "core/card_effects.gd::toggle_power": {
+      "powers": 1
+    },
+    "core/card_effects.gd::validate": {
+      "card_buff_uses": 4,
+      "card_buffs": 3,
+      "card_chain": 3,
+      "deck": 1,
+      "evasion": 3,
+      "hand": 1,
+      "overloaded": 2,
+      "pending_retain": 1,
+      "phase": 2,
+      "play": 3,
+      "powers": 2,
+      "retain_draw_after": 2,
+      "retain_left": 2,
+      "spell_base_bonuses": 3,
+      "turn_strength": 3
+    },
+    "core/card_effects.gd::worn_count": {
+      "composites": 1,
+      "equipment": 1,
+      "special_equipment": 1
+    },
+    "core/card_rewards.gd::eligible": {
+      "deck": 1,
+      "relics": 1
+    },
+    "core/card_rewards.gd::offer": {
+      "rare_offset": 2
+    },
+    "core/consumables.gd::noncombat_facts": {
+      "items": 1
+    },
+    "core/consumables.gd::outside_battle": {
+      "phase": 1
+    },
+    "core/consumables.gd::reason": {
+      "discard": 1,
+      "draw": 1,
+      "hand": 1,
+      "mana": 1,
+      "mana_max": 1,
+      "phase": 2,
+      "posture": 1,
+      "sure_cast": 1
+    },
+    "core/consumables.gd::slip_multiplier": {
+      "body_buffs": 1
+    },
+    "core/consumables.gd::use": {
+      "body_buffs": 2,
+      "mana": 2,
+      "mana_max": 1
+    },
+    "core/contact.gd::limited_slots": {
+      "posture": 1
+    },
+    "core/contact.gd::workspace": {
+      "posture": 1
+    },
+    "core/demo_exit.gd::at_exit": {
+      "phase": 1,
+      "practice": 1,
+      "room": 1
+    },
+    "core/demo_exit.gd::continue_run": {
+      "demo_cycle": 3,
+      "mana_max": 1,
+      "posture": 1,
+      "pressure": 3
+    },
+    "core/demo_exit.gd::facts": {
+      "demo_cycle": 2,
+      "demo_finished": 1
+    },
+    "core/demo_exit.gd::health_multiplier": {
+      "demo_cycle": 1
+    },
+    "core/demo_exit.gd::validate": {
+      "demo_cycle": 4,
+      "demo_finished": 2,
+      "phase": 1,
+      "practice": 2,
+      "room": 1
+    },
+    "core/departure.gd::execute": {
+      "deck": 1,
+      "departure": 1,
+      "flask_mana": 2,
+      "mana": 3,
+      "mana_max": 4,
+      "relics": 1
+    },
+    "core/departure.gd::facts": {
+      "deck": 1,
+      "departure": 1
+    },
+    "core/departure.gd::freeze": {
+      "deck": 1
+    },
+    "core/departure.gd::option_count": {
+      "character_id": 1
+    },
+    "core/departure.gd::panel": {
+      "departure": 1
+    },
+    "core/departure.gd::reason": {
+      "mana": 1,
+      "mana_max": 1,
+      "relics": 2
+    },
+    "core/departure.gd::selected": {
+      "departure": 2
+    },
+    "core/departure.gd::start": {
+      "relics": 1,
+      "seed": 1
+    },
+    "core/enemy_plans.gd::build": {
+      "overload_total": 1
+    },
+    "core/enemy_plans.gd::end_turn": {
+      "phase": 1
+    },
+    "core/enemy_plans.gd::execute_batch": {
+      "evasion": 2
+    },
+    "core/enemy_plans.gd::has_equipment_space": {
+      "enemies": 1
+    },
+    "core/enemy_plans.gd::installation_intents": {
+      "chastity_locks_enabled": 1
+    },
+    "core/enemy_plans.gd::lock_departure_pending": {
+      "chastity_locks_enabled": 1
+    },
+    "core/enemy_plans.gd::long_battle_limit": {
+      "phase": 1,
+      "room": 2,
+      "room_encounters": 1,
+      "round": 1
+    },
+    "core/enemy_plans.gd::targets": {
+      "equipment": 1
+    },
+    "core/enemy_plans.gd::tick_install": {
+      "enemies": 1,
+      "phase": 1
+    },
+    "core/equipment_application.gd::_groups": {
+      "composites": 1
+    },
+    "core/equipment_application.gd::_raw": {
+      "chastity_locks_enabled": 1
+    },
+    "core/equipment_application.gd::_request_reason": {
+      "special_equipment": 1
+    },
+    "core/equipment_application.gd::choose": {
+      "chastity_lock_chance": 1,
+      "chastity_locks_enabled": 1
+    },
+    "core/equipment_application.gd::evade": {
+      "evasion": 4
+    },
+    "core/equipment_application.gd::execute": {
+      "evasion": 1
+    },
+    "core/equipment_application.gd::execute_concrete": {
+      "special_equipment": 2
+    },
+    "core/equipment_offers.gd::preferred": {
+      "special_equipment": 1
+    },
+    "core/equipment_offers.gd::shoulders": {
+      "equipment": 1
+    },
+    "core/equipment_replacement.gd::_force_special_live": {
+      "special_equipment": 2
+    },
+    "core/equipment_replacement.gd::_plan": {
+      "special_equipment": 1
+    },
+    "core/equipment_replacement.gd::_transfer": {
+      "links": 1
+    },
+    "core/equipment_replacement.gd::_transfer_search": {
+      "links": 1
+    },
+    "core/equipment_replacement.gd::_trial": {
+      "composites": 1,
+      "equipment": 1,
+      "links": 4,
+      "special_equipment": 1
+    },
+    "core/equipment_replacement.gd::_units": {
+      "composites": 1,
+      "equipment": 1,
+      "special_equipment": 1
+    },
+    "core/equipment_replacement.gd::execute": {
+      "version": 1
+    },
+    "core/first_turn_control.gd::_eligible": {
+      "combat": 1,
+      "phase": 2
+    },
+    "core/first_turn_control.gd::_roll": {
+      "combat": 1,
+      "seed": 1
+    },
+    "core/first_turn_control.gd::active": {
+      "combat": 1,
+      "phase": 1,
+      "tick": 1
+    },
+    "core/first_turn_control.gd::begin_turn": {
+      "combat": 4,
+      "phase": 3,
+      "relic_counters": 2,
+      "relics": 1,
+      "tick": 1
+    },
+    "core/first_turn_control.gd::commit": {
+      "combat": 1
+    },
+    "core/first_turn_control.gd::mode": {
+      "relic_counters": 1
+    },
+    "core/first_turn_control.gd::select": {
+      "combat": 1,
+      "energy": 1,
+      "hand": 1,
+      "overloaded": 1
+    },
+    "core/first_turn_control.gd::toggle": {
+      "relic_counters": 2
+    },
+    "core/first_turn_control.gd::validate": {
+      "combat": 2,
+      "relics": 1,
+      "tick": 1
+    },
+    "core/first_turn_control.gd::view": {
+      "combat": 2,
+      "phase": 1,
+      "tick": 1
+    },
+    "core/game.gd::_advance_travel": {
+      "journey": 8,
+      "room": 1,
+      "travel_turns": 1,
+      "traversed_edges": 1
+    },
+    "core/game.gd::_all_gone": {
+      "enemies": 1
+    },
+    "core/game.gd::_append_enemies": {
+      "enemies": 15,
+      "next_enemy": 2,
+      "overload_total": 1,
+      "room": 1,
+      "room_encounters": 1
+    },
+    "core/game.gd::_apply_equipment_damage": {
+      "special_equipment": 2
+    },
+    "core/game.gd::_arrive_room": {
+      "completed_rooms": 1,
+      "demo_cycle": 1,
+      "room": 2
+    },
+    "core/game.gd::_assembly_reason": {
+      "composites": 1
+    },
+    "core/game.gd::_attach_special_reinforcement": {
+      "next_equipment": 2,
+      "special_equipment": 2
+    },
+    "core/game.gd::_attack_battle_families_ready": {
+      "phase": 1
+    },
+    "core/game.gd::_attack_offer_fact": {
+      "heavy_used": 1,
+      "weakness_turns": 1
+    },
+    "core/game.gd::_battle_end_reason": {
+      "enemies": 2,
+      "phase": 1,
+      "room": 1
+    },
+    "core/game.gd::_begin_player_turn": {
+      "combat": 2,
+      "mana": 3,
+      "next_energy": 1,
+      "overload_energy": 1,
+      "slip_ejaculation_turns": 5,
+      "tick": 1
+    },
+    "core/game.gd::_card": {
+      "hand": 1
+    },
+    "core/game.gd::_cast_magic": {
+      "combat": 2,
+      "mana": 1,
+      "mana_max": 1,
+      "pressure": 1
+    },
+    "core/game.gd::_cast_path": {
+      "pressure": 1,
+      "sure_cast": 1
+    },
+    "core/game.gd::_cleanup": {
+      "composites": 4,
+      "equipment": 3,
+      "items": 2,
+      "links": 3,
+      "powers": 1,
+      "special_equipment": 7
+    },
+    "core/game.gd::_clear_charge": {
+      "charge": 1
+    },
+    "core/game.gd::_climax_special_slip": {
+      "special_equipment": 1
+    },
+    "core/game.gd::_composite": {
+      "composites": 1
+    },
+    "core/game.gd::_composite_roots": {
+      "composites": 1
+    },
+    "core/game.gd::_consume_charge": {
+      "charge": 4,
+      "charge_all": 2
+    },
+    "core/game.gd::_depart": {
+      "phase": 3,
+      "room": 3,
+      "tower_start_pending": 1
+    },
+    "core/game.gd::_discard_end": {
+      "discard": 1,
+      "exhaust": 1,
+      "hand": 1,
+      "tick": 1
+    },
+    "core/game.gd::_draw": {
+      "discard": 3,
+      "draw": 7,
+      "hand": 1
+    },
+    "core/game.gd::_emit": {
+      "logs": 1,
+      "phase": 1
+    },
+    "core/game.gd::_end_turn": {
+      "order": 1,
+      "phase": 4,
+      "prepare_left": 2,
+      "rest_left": 2,
+      "weakness_turns": 3
+    },
+    "core/game.gd::_enemy": {
+      "enemies": 1
+    },
+    "core/game.gd::_enemy_operation": {
+      "logs": 1
+    },
+    "core/game.gd::_enemy_phase": {
+      "enemies": 2,
+      "logs": 1,
+      "phase": 2,
+      "round": 2
+    },
+    "core/game.gd::_equipment_index_issue": {
+      "composites": 1
+    },
+    "core/game.gd::_execute": {
+      "battle_flask_drop": 3,
+      "calm_uses": 4,
+      "enemies": 1,
+      "flask_mana": 2,
+      "hook_uses": 2,
+      "items": 1,
+      "next_energy": 1,
+      "phase": 1,
+      "pressure": 2,
+      "prison": 2,
+      "rest_left": 4,
+      "reward_claimed": 2,
+      "room": 2,
+      "wall_distance": 3
+    },
+    "core/game.gd::_execute_attack": {
+      "combat": 3,
+      "round": 1
+    },
+    "core/game.gd::_execute_enemy_operation": {
+      "weakness_turns": 1
+    },
+    "core/game.gd::_fact_demand_forced_full": {
+      "card_chain": 1,
+      "pending_retain": 1
+    },
+    "core/game.gd::_fact_source_domain": {
+      "phase": 1,
+      "relic_bundle": 1
+    },
+    "core/game.gd::_finish_battle": {
+      "enemies": 1,
+      "phase": 1,
+      "reward_count": 2,
+      "room": 4,
+      "room_encounters": 1,
+      "room_event": 1
+    },
+    "core/game.gd::_finish_if_saturated": {
+      "card_chain": 1,
+      "enemies": 2,
+      "phase": 1
+    },
+    "core/game.gd::_finish_preparation": {
+      "completed_rooms": 2,
+      "practice": 1,
+      "room": 3
+    },
+    "core/game.gd::_flask_kind_facts": {
+      "phase": 1,
+      "relic_bundle": 1
+    },
+    "core/game.gd::_flow_kind_facts": {
+      "overloaded": 1,
+      "phase": 2
+    },
+    "core/game.gd::_gain_card": {
+      "deck": 1,
+      "discard": 1,
+      "phase": 1,
+      "tick": 1
+    },
+    "core/game.gd::_gain_charge": {
+      "charge": 1
+    },
+    "core/game.gd::_gain_energy": {
+      "energy": 1,
+      "overloaded": 1
+    },
+    "core/game.gd::_gain_temporary_card": {
+      "deck": 1,
+      "discard": 1
+    },
+    "core/game.gd::_gain_tool": {
+      "items": 1,
+      "next_item": 2
+    },
+    "core/game.gd::_generate_tower": {
+      "room_encounters": 2,
+      "rooms": 1,
+      "seed": 1
+    },
+    "core/game.gd::_init": {
+      "chastity_locks_enabled": 1,
+      "deck": 6,
+      "rng": 1,
+      "room": 1
+    },
+    "core/game.gd::_initial_wall_distance": {
+      "wall": 1
+    },
+    "core/game.gd::_install_assembly": {
+      "composites": 1,
+      "next_composite": 1
+    },
+    "core/game.gd::_install_link": {
+      "links": 1,
+      "next_link": 1
+    },
+    "core/game.gd::_install_special": {
+      "next_equipment": 2,
+      "special_equipment": 3
+    },
+    "core/game.gd::_install_template": {
+      "equipment": 1,
+      "next_equipment": 2
+    },
+    "core/game.gd::_item": {
+      "items": 1
+    },
+    "core/game.gd::_item_use_kind_facts": {
+      "phase": 1,
+      "relic_bundle": 1
+    },
+    "core/game.gd::_leave_mounted_tools": {
+      "items": 2
+    },
+    "core/game.gd::_make_card": {
+      "next_card": 2
+    },
+    "core/game.gd::_mana_cost": {
+      "pressure": 1
+    },
+    "core/game.gd::_mana_payment": {
+      "temporary_mana": 1
+    },
+    "core/game.gd::_materialize_action_targets": {
+      "special_equipment": 1
+    },
+    "core/game.gd::_materialize_anchor_list": {
+      "special_equipment": 1
+    },
+    "core/game.gd::_materialize_equipment_targets": {
+      "links": 1
+    },
+    "core/game.gd::_materialize_link_edge": {
+      "links": 1
+    },
+    "core/game.gd::_materialize_physical_pieces": {
+      "composites": 1,
+      "equipment": 2
+    },
+    "core/game.gd::_materialize_root_edge": {
+      "composites": 1
+    },
+    "core/game.gd::_phase_branch": {
+      "card_chain": 1,
+      "overloaded": 1,
+      "pending_retain": 1,
+      "phase": 12,
+      "relic_bundle": 1
+    },
+    "core/game.gd::_plan_assembly": {
+      "next_composite": 1
+    },
+    "core/game.gd::_prepare_installation": {
+      "equipment": 1
+    },
+    "core/game.gd::_prepare_link": {
+      "links": 1,
+      "next_link": 1
+    },
+    "core/game.gd::_prepare_round": {
+      "prepare_left": 1
+    },
+    "core/game.gd::_put_card_in_hand": {
+      "draw_serial": 2,
+      "hand": 2
+    },
+    "core/game.gd::_query_stack_items": {
+      "special_equipment": 1
+    },
+    "core/game.gd::_random_index": {
+      "rng": 2,
+      "seed": 1
+    },
+    "core/game.gd::_remote_special": {
+      "special_equipment": 1
+    },
+    "core/game.gd::_reset_piles": {
+      "deck": 1,
+      "discard": 1,
+      "draw": 2,
+      "exhaust": 1,
+      "hand": 1,
+      "play": 1,
+      "powers": 1
+    },
+    "core/game.gd::_rest_round": {
+      "hook_uses": 1,
+      "rest_left": 1
+    },
+    "core/game.gd::_restart_tower": {
+      "map_region": 1,
+      "pressure_sources": 1,
+      "rng": 2,
+      "room_encounters": 1,
+      "rooms": 2,
+      "seed": 1,
+      "tower_generation": 1
+    },
+    "core/game.gd::_room_transition_kind": {
+      "room": 1
+    },
+    "core/game.gd::_route_exit_candidate": {
+      "phase": 1,
+      "practice": 1,
+      "room": 1,
+      "room_event": 1
+    },
+    "core/game.gd::_route_facts": {
+      "completed_rooms": 1,
+      "phase": 2,
+      "room": 1,
+      "rooms": 1,
+      "tower_start_pending": 3
+    },
+    "core/game.gd::_sealed_reason": {
+      "composites": 1
+    },
+    "core/game.gd::_slip_block_reason": {
+      "links": 1
+    },
+    "core/game.gd::_slip_reason": {
+      "composites": 1,
+      "special_equipment": 1
+    },
+    "core/game.gd::_spawn_children": {
+      "logs": 1,
+      "round": 2
+    },
+    "core/game.gd::_spawn_enemies": {
+      "room": 2
+    },
+    "core/game.gd::_special_install_reason": {
+      "special_equipment": 5
+    },
+    "core/game.gd::_start_battle": {
+      "completed_rooms": 1,
+      "encounter": 1,
+      "enemies": 1,
+      "last_strong_group": 1,
+      "room": 1,
+      "room_encounters": 6
+    },
+    "core/game.gd::_start_practice": {
+      "composites": 2,
+      "deck": 2,
+      "draw": 2,
+      "equipment": 6,
+      "practice_kind": 1,
+      "pressure_sources": 1,
+      "room_encounters": 1,
+      "rooms": 1
+    },
+    "core/game.gd::_start_preparation": {
+      "combat": 2,
+      "energy": 1
+    },
+    "core/game.gd::_start_rest": {
+      "practice": 1,
+      "room": 1
+    },
+    "core/game.gd::_start_round": {
+      "enemies": 2,
+      "order": 2,
+      "posture": 1,
+      "round": 2,
+      "slip_ejaculation_force_last": 1
+    },
+    "core/game.gd::_status_toggle_facts": {
+      "charge": 1,
+      "charge_all": 3,
+      "overloaded": 1,
+      "phase": 1
+    },
+    "core/game.gd::_tick_special": {
+      "special_equipment": 1
+    },
+    "core/game.gd::_unit_climax_end": {
+      "order": 1,
+      "phase": 1
+    },
+    "core/game.gd::_unit_hand_cards": {
+      "hand": 1
+    },
+    "core/game.gd::_unit_rest_choice": {
+      "rest_cards": 2,
+      "rest_left": 4
+    },
+    "core/game.gd::_unit_reward": {
+      "battle_flask_drop": 2,
+      "battle_item_drop": 1,
+      "battle_relic_drop": 2,
+      "boss_relic_options": 2,
+      "reward_claimed": 5,
+      "reward_options": 2
+    },
+    "core/game.gd::_unit_travel_step": {
+      "journey": 1
+    },
+    "core/game.gd::_visit_targets_at": {
+      "special_equipment": 1
+    },
+    "core/game.gd::_wall_bonus": {
+      "posture": 1,
+      "wall": 1
+    },
+    "core/game.gd::action_targets": {
+      "special_equipment": 1
+    },
+    "core/game.gd::attack_point_fact": {
+      "enemies": 1
+    },
+    "core/game.gd::attack_point_member": {
+      "enemies": 1
+    },
+    "core/game.gd::attack_point_walk": {
+      "enemies": 2
+    },
+    "core/game.gd::base_action_block": {
+      "phase": 2,
+      "relic_bundle": 1
+    },
+    "core/game.gd::carried_items": {
+      "items": 1
+    },
+    "core/game.gd::chain_rows_active": {
+      "card_chain": 1,
+      "overloaded": 1,
+      "phase": 2
+    },
+    "core/game.gd::charge_bonus": {
+      "charge": 2,
+      "charge_all": 1
+    },
+    "core/game.gd::command": {
+      "version": 1
+    },
+    "core/game.gd::command_domain_ready": {
+      "special_equipment": 1
+    },
+    "core/game.gd::command_tail": {
+      "card_chain": 1,
+      "overloaded": 1,
+      "pending_retain": 1,
+      "phase": 3
+    },
+    "core/game.gd::copy_attack": {
+      "enemies": 1
+    },
+    "core/game.gd::cursed_eyes": {
+      "relics": 1
+    },
+    "core/game.gd::cursed_plate": {
+      "special_equipment": 1
+    },
+    "core/game.gd::dispatch": {
+      "body_buffs": 1,
+      "card_chain": 6,
+      "enemies": 1,
+      "energy": 1,
+      "logs": 12,
+      "overload_count": 1,
+      "overload_total": 1,
+      "overloaded": 1,
+      "phase": 1,
+      "pressure": 2,
+      "relic_pending": 1,
+      "room_event": 2,
+      "special_equipment": 1,
+      "travel_turns": 1,
+      "version": 2
+    },
+    "core/game.gd::display_round": {
+      "combat": 1,
+      "phase": 2,
+      "prison": 1,
+      "round": 1
+    },
+    "core/game.gd::eligibility": {
+      "energy": 2,
+      "flask_mana": 1,
+      "mana": 1,
+      "special_equipment": 1
+    },
+    "core/game.gd::equipment_targets": {
+      "links": 1
+    },
+    "core/game.gd::flow_facts": {
+      "order": 1,
+      "phase": 4,
+      "pressure": 1
+    },
+    "core/game.gd::hook_facts": {
+      "hook_uses": 1,
+      "phase": 1
+    },
+    "core/game.gd::item_action_block": {
+      "card_chain": 1,
+      "overloaded": 1,
+      "pending_retain": 1,
+      "phase": 2
+    },
+    "core/game.gd::item_action_facts": {
+      "items": 1,
+      "phase": 1,
+      "prison": 1
+    },
+    "core/game.gd::item_capacity": {
+      "departure": 1
+    },
+    "core/game.gd::item_discard_facts": {
+      "items": 1
+    },
+    "core/game.gd::item_facts": {
+      "phase": 1,
+      "relic_bundle": 1
+    },
+    "core/game.gd::kick_profile": {
+      "card_buffs": 1
+    },
+    "core/game.gd::link_anchors": {
+      "special_equipment": 1
+    },
+    "core/game.gd::links_at": {
+      "links": 1
+    },
+    "core/game.gd::manual_facts": {
+      "special_equipment": 1
+    },
+    "core/game.gd::movement_profile": {
+      "posture": 2
+    },
+    "core/game.gd::physical_pieces": {
+      "composites": 1,
+      "equipment": 1
+    },
+    "core/game.gd::posture_facts": {
+      "phase": 1,
+      "posture": 2
+    },
+    "core/game.gd::relic_value": {
+      "ditto_form": 1,
+      "relic_counters": 1,
+      "relics": 1
+    },
+    "core/game.gd::restore_snapshot": {
+      "capture": 1,
+      "card_chain": 1,
+      "enemies": 1,
+      "hand": 1,
+      "overloaded": 1,
+      "pending_retain": 1,
+      "phase": 1,
+      "version": 1
+    },
+    "core/game.gd::retain_facts": {
+      "card_chain": 1,
+      "hand": 1,
+      "overloaded": 1,
+      "pending_retain": 1,
+      "phase": 2,
+      "retain_draw_after": 1
+    },
+    "core/game.gd::retained_charge": {
+      "charge": 1
+    },
+    "core/game.gd::retained_energy": {
+      "combat": 1,
+      "energy": 1,
+      "next_energy": 1
+    },
+    "core/game.gd::retained_temporary_mana": {
+      "temporary_mana": 1
+    },
+    "core/game.gd::room_data": {
+      "rooms": 1
+    },
+    "core/game.gd::room_description": {
+      "map_region": 1,
+      "room": 1,
+      "room_encounters": 1,
+      "tower_start_pending": 1
+    },
+    "core/game.gd::room_entry_reason": {
+      "completed_rooms": 2,
+      "phase": 6,
+      "room": 3,
+      "tower_start_pending": 1
+    },
+    "core/game.gd::route_view": {
+      "completed_rooms": 1,
+      "journey": 5,
+      "room": 4,
+      "room_encounters": 1,
+      "rooms": 1,
+      "traversed_edges": 1
+    },
+    "core/game.gd::surrender_fact": {
+      "enemies": 1,
+      "phase": 1
+    },
+    "core/game.gd::travel_route_reason": {
+      "journey": 3,
+      "room": 2
+    },
+    "core/game.gd::validate": {
+      "battle_item_drop": 2,
+      "body_buffs": 1,
+      "chastity_climax_factor": 2,
+      "chastity_lock_chance": 3,
+      "completed_rooms": 1,
+      "composites": 3,
+      "cursed_plate_masochist_mode": 1,
+      "enemies": 5,
+      "energy": 1,
+      "equipment": 4,
+      "item_drop_chance": 3,
+      "items": 1,
+      "journey": 5,
+      "links": 2,
+      "mana": 2,
+      "mana_max": 2,
+      "phase": 2,
+      "room": 2,
+      "slip_ejaculation_turns": 2,
+      "special_equipment": 1,
+      "sure_cast": 1,
+      "temporary_mana": 1,
+      "wall_distance": 3
+    },
+    "core/game.gd::wall_contact": {
+      "wall": 1,
+      "wall_distance": 1
+    },
+    "core/game.gd::wall_move_facts": {
+      "phase": 4,
+      "wall": 1,
+      "wall_distance": 3
+    },
+    "core/game.gd::wall_view": {
+      "relics": 1,
+      "wall": 5,
+      "wall_distance": 2
+    },
+    "core/game_view.gd::_build_equipment_entry": {
+      "chastity_climax_factor": 1,
+      "combat": 4,
+      "cursed_plate_masochist_mode": 2
+    },
+    "core/game_view.gd::_card_display_set": {
+      "hand": 1,
+      "rest_cards": 1,
+      "reward_options": 1
+    },
+    "core/game_view.gd::battle_rewards": {
+      "battle_flask_drop": 3,
+      "battle_item_drop": 2,
+      "battle_relic_drop": 2,
+      "boss_relic_options": 3,
+      "phase": 1,
+      "reward_claimed": 1,
+      "reward_options": 1
+    },
+    "core/game_view.gd::build": {
+      "battle_item_drop": 2,
+      "battle_relic_drop": 2,
+      "capture": 1,
+      "card_chain": 4,
+      "character_id": 1,
+      "completed_rooms": 1,
+      "composites": 1,
+      "deck": 2,
+      "demo_cycle": 1,
+      "demo_finished": 1,
+      "discard": 2,
+      "draw": 2,
+      "encounter": 1,
+      "enemies": 1,
+      "energy": 1,
+      "hand": 2,
+      "hook_uses": 1,
+      "initial_seed": 1,
+      "items": 1,
+      "journey": 1,
+      "logs": 3,
+      "mana": 1,
+      "mana_max": 1,
+      "map_region": 2,
+      "order": 1,
+      "pending_retain": 1,
+      "phase": 1,
+      "posture": 2,
+      "powers": 1,
+      "practice": 3,
+      "practice_kind": 5,
+      "prepare_left": 1,
+      "prison": 1,
+      "rest_left": 1,
+      "retain_left": 1,
+      "reward_count": 1,
+      "room": 4,
+      "round": 1,
+      "security": 1,
+      "seed": 1,
+      "special_equipment": 1,
+      "summary": 1,
+      "temporary_mana": 1,
+      "tick": 1,
+      "tower_generation": 1,
+      "tower_start_pending": 3,
+      "travel_turns": 1,
+      "version": 1,
+      "wall": 1
+    },
+    "core/game_view.gd::reward_panel": {
+      "phase": 7,
+      "relic_bundle": 1,
+      "rest_cards": 1,
+      "rest_left": 2,
+      "reward_claimed": 1,
+      "room": 1,
+      "room_event": 1
+    },
+    "core/game_view.gd::run_header": {
+      "map_region": 1,
+      "order": 2,
+      "phase": 3,
+      "room": 2
+    },
+    "core/guard.gd::capture": {
+      "card_buff_uses": 1,
+      "card_buffs": 1,
+      "hand": 1,
+      "items": 3,
+      "links": 1,
+      "phase": 1,
+      "rooms": 1,
+      "security": 4,
+      "special_equipment": 2
+    },
+    "core/guard.gd::execute": {
+      "phase": 1
+    },
+    "core/guard.gd::validate": {
+      "capture": 4,
+      "enemies": 1,
+      "energy": 1,
+      "items": 1,
+      "phase": 1,
+      "room": 1,
+      "security": 3,
+      "special_equipment": 1
+    },
+    "core/hannya.gd::give": {
+      "discard": 1
+    },
+    "core/hannya.gd::heavy_bonus": {
+      "card_buffs": 1
+    },
+    "core/hannya.gd::level": {
+      "card_buffs": 1
+    },
+    "core/hannya.gd::prepare_innate": {
+      "combat": 2,
+      "draw": 3
+    },
+    "core/hannya.gd::reason": {
+      "posture": 1
+    },
+    "core/hannya.gd::resolve": {
+      "card_buffs": 2,
+      "mana": 4,
+      "mana_max": 1
+    },
+    "core/hannya.gd::status_detail": {
+      "card_buffs": 1
+    },
+    "core/hannya.gd::validate": {
+      "card_buffs": 2
+    },
+    "core/installed_tools.gd::preview": {
+      "card_chain": 2
+    },
+    "core/installed_tools.gd::select": {
+      "items": 1
+    },
+    "core/intent_view.gd::build": {
+      "round": 2
+    },
+    "core/iron_man.gd::active_special": {
+      "special_equipment": 1
+    },
+    "core/iron_man.gd::apply_capture_equipment": {
+      "special_equipment": 1
+    },
+    "core/iron_man.gd::armor_disabled": {
+      "enemies": 1
+    },
+    "core/iron_man.gd::capture_removed": {
+      "enemies": 1
+    },
+    "core/iron_man.gd::recharge": {
+      "special_equipment": 1
+    },
+    "core/iron_man.gd::validate": {
+      "enemies": 1
+    },
+    "core/item_rewards.gd::roll": {
+      "item_drop_chance": 1
+    },
+    "core/mana_flask.gd::available": {
+      "phase": 1
+    },
+    "core/mana_flask.gd::execute": {
+      "combat": 2,
+      "flask_deposits": 1,
+      "flask_mana": 2,
+      "mana": 3
+    },
+    "core/mana_flask.gd::facts": {
+      "flask_mana": 1,
+      "mana": 1,
+      "phase": 1
+    },
+    "core/mana_flask.gd::limit": {
+      "phase": 3
+    },
+    "core/mana_flask.gd::remaining": {
+      "combat": 1,
+      "flask_deposits": 1
+    },
+    "core/mana_flask.gd::reset_turn": {
+      "combat": 1
+    },
+    "core/mana_flask.gd::validate": {
+      "combat": 1,
+      "flask_deposits": 2,
+      "flask_mana": 1
+    },
+    "core/mana_flask.gd::view": {
+      "flask_mana": 1
+    },
+    "core/mana_flask.gd::withdrawal": {
+      "flask_mana": 1,
+      "mana": 1,
+      "mana_max": 1
+    },
+    "core/pressure.gd::_apply_overloads": {
+      "card_chain": 1,
+      "charge": 5,
+      "chastity_climax_factor": 3,
+      "cursed_plate_masochist_mode": 1,
+      "mana": 3,
+      "overload_count": 1,
+      "overload_energy": 2,
+      "overload_total": 1,
+      "phase": 3,
+      "pressure": 2,
+      "slip_ejaculation_turns": 2,
+      "special_equipment": 3
+    },
+    "core/pressure.gd::action_risk": {
+      "pressure_sources": 2
+    },
+    "core/pressure.gd::active": {
+      "encounter": 1,
+      "enemies": 1,
+      "phase": 2,
+      "room": 1
+    },
+    "core/pressure.gd::attach": {
+      "encounter": 1,
+      "enemies": 1,
+      "pressure_sources": 2
+    },
+    "core/pressure.gd::balance_mana": {
+      "mana": 5,
+      "mana_max": 1,
+      "pressure": 1
+    },
+    "core/pressure.gd::calm": {
+      "calm_uses": 1
+    },
+    "core/pressure.gd::cleanup": {
+      "phase": 1,
+      "pressure_sources": 2,
+      "room": 1
+    },
+    "core/pressure.gd::gain": {
+      "pressure": 1
+    },
+    "core/pressure.gd::gain_multiplier": {
+      "relics": 1
+    },
+    "core/pressure.gd::lose": {
+      "pressure": 2
+    },
+    "core/pressure.gd::maximum": {
+      "special_equipment": 1
+    },
+    "core/pressure.gd::overloaded": {
+      "overloaded": 1,
+      "phase": 1
+    },
+    "core/pressure.gd::relax": {
+      "pressure": 3
+    },
+    "core/pressure.gd::scripted_climax": {
+      "logs": 3,
+      "mana": 3,
+      "overload_total": 2
+    },
+    "core/pressure.gd::settle_maximum": {
+      "pressure": 2
+    },
+    "core/pressure.gd::source_multiplier": {
+      "special_equipment": 1
+    },
+    "core/pressure.gd::tick": {
+      "pressure_sources": 2
+    },
+    "core/pressure.gd::validate": {
+      "calm_uses": 2,
+      "energy": 1,
+      "overload_count": 1,
+      "overload_energy": 1,
+      "overload_total": 1,
+      "overloaded": 1,
+      "pressure": 3,
+      "pressure_sources": 1
+    },
+    "core/pressure.gd::view": {
+      "overload_count": 1,
+      "overload_energy": 1,
+      "pressure": 5,
+      "pressure_sources": 1
+    },
+    "core/prison.gd::after_preparation": {
+      "prison": 3
+    },
+    "core/prison.gd::begin_turn": {
+      "prison": 3
+    },
+    "core/prison.gd::completed_turn": {
+      "phase": 1,
+      "prison": 4
+    },
+    "core/prison.gd::end_turn": {
+      "prison": 4
+    },
+    "core/prison.gd::enter": {
+      "prison": 1
+    },
+    "core/prison.gd::equipment_label": {
+      "security": 1
+    },
+    "core/prison.gd::equipment_spec": {
+      "security": 1
+    },
+    "core/prison.gd::escape": {
+      "pressure_sources": 1,
+      "room_encounters": 2,
+      "security": 2
+    },
+    "core/prison.gd::execute": {
+      "discard": 1,
+      "encounter": 1,
+      "exhaust": 3,
+      "items": 3,
+      "prison": 1,
+      "security": 2,
+      "special_equipment": 2,
+      "tick": 1
+    },
+    "core/prison.gd::facts": {
+      "phase": 3,
+      "posture": 1,
+      "prison": 2,
+      "security": 1,
+      "tick": 1
+    },
+    "core/prison.gd::has_flat_lock": {
+      "special_equipment": 1
+    },
+    "core/prison.gd::initial": {
+      "capture": 2,
+      "security": 1
+    },
+    "core/prison.gd::inspection_climax": {
+      "mana": 1
+    },
+    "core/prison.gd::intake_climax": {
+      "mana": 1
+    },
+    "core/prison.gd::intake_equipment": {
+      "equipment": 1,
+      "security": 3
+    },
+    "core/prison.gd::intake_label": {
+      "security": 1
+    },
+    "core/prison.gd::is_exit_battle": {
+      "map_region": 1,
+      "room": 1
+    },
+    "core/prison.gd::latest_inspection_result": {
+      "logs": 2
+    },
+    "core/prison.gd::latest_inspection_scene": {
+      "logs": 2
+    },
+    "core/prison.gd::refill_batteries": {
+      "special_equipment": 1
+    },
+    "core/prison.gd::reinforcements_active": {
+      "phase": 1,
+      "prison": 2,
+      "room": 1
+    },
+    "core/prison.gd::reinforcements_left": {
+      "prison": 1,
+      "round": 1
+    },
+    "core/prison.gd::release_inspection": {
+      "prison": 1
+    },
+    "core/prison.gd::sentence_label": {
+      "prison": 1
+    },
+    "core/prison.gd::sentence_limit": {
+      "prison": 1,
+      "security": 1
+    },
+    "core/prison.gd::start_practice": {
+      "rooms": 1
+    },
+    "core/prison.gd::tick_reinforcements": {
+      "prison": 2,
+      "round": 3,
+      "security": 3
+    },
+    "core/prison.gd::toy_label": {
+      "security": 2
+    },
+    "core/prison.gd::toy_spec": {
+      "chastity_locks_enabled": 1,
+      "security": 2
+    },
+    "core/prison.gd::unlock_facts": {
+      "hand": 1,
+      "phase": 1,
+      "prison": 1
+    },
+    "core/prison.gd::validate": {
+      "energy": 1,
+      "phase": 3,
+      "prison": 1,
+      "security": 1
+    },
+    "core/prison.gd::view": {
+      "items": 1,
+      "phase": 3,
+      "prison": 1
+    },
+    "core/prison.gd::won": {
+      "prison": 4
+    },
+    "core/prison_space.gd::active": {
+      "phase": 1,
+      "prison": 2,
+      "room": 1
+    },
+    "core/prison_space.gd::at": {
+      "prison": 2
+    },
+    "core/prison_space.gd::attachment_position": {
+      "prison": 1
+    },
+    "core/prison_space.gd::direction_path": {
+      "prison": 1
+    },
+    "core/prison_space.gd::discover": {
+      "prison": 3
+    },
+    "core/prison_space.gd::fall_profile": {
+      "phase": 1,
+      "posture": 1,
+      "pressure": 1
+    },
+    "core/prison_space.gd::locations": {
+      "items": 1,
+      "prison": 1
+    },
+    "core/prison_space.gd::mounted_reason": {
+      "prison": 1
+    },
+    "core/prison_space.gd::move": {
+      "prison": 1,
+      "wall_distance": 1
+    },
+    "core/prison_space.gd::site_path": {
+      "prison": 1
+    },
+    "core/prison_space.gd::validate": {
+      "items": 1,
+      "prison": 1,
+      "wall_distance": 1
+    },
+    "core/prison_space.gd::view": {
+      "items": 1,
+      "prison": 1
+    },
+    "core/prison_space.gd::wall_path": {
+      "prison": 1
+    },
+    "core/puppet_enemy.gd::dismiss": {
+      "enemies": 1
+    },
+    "core/puppet_enemy.gd::owned": {
+      "enemies": 1
+    },
+    "core/puppet_enemy.gd::summon": {
+      "round": 1
+    },
+    "core/puppet_enemy.gd::taunt_reason": {
+      "enemies": 1
+    },
+    "core/relic_bundle.gd::copy_cards": {
+      "deck": 1
+    },
+    "core/relic_bundle.gd::execute": {
+      "relic_bundle": 3
+    },
+    "core/relic_bundle.gd::facts": {
+      "relic_bundle": 3,
+      "relics": 1
+    },
+    "core/relic_bundle.gd::finish_detail": {
+      "relic_bundle": 1
+    },
+    "core/relic_bundle.gd::panel": {
+      "relic_bundle": 4
+    },
+    "core/relic_bundle.gd::validate": {
+      "relic_bundle": 1,
+      "relic_seen": 1,
+      "relics": 5
+    },
+    "core/relic_effects.gd::_mana_hook": {
+      "mana": 1,
+      "mana_max": 1,
+      "relics": 1
+    },
+    "core/relic_effects.gd::attribute": {
+      "ditto_form": 1,
+      "relics": 1,
+      "turn_strength": 1
+    },
+    "core/relic_effects.gd::begin_combat": {
+      "combat": 1,
+      "phase": 1,
+      "pressure": 1,
+      "relics": 1,
+      "witch_focus": 1
+    },
+    "core/relic_effects.gd::begin_turn": {
+      "combat": 7,
+      "phase": 2,
+      "relic_counters": 2,
+      "relics": 1,
+      "temporary_mana": 1
+    },
+    "core/relic_effects.gd::boss_key": {
+      "cursed_plate_released": 1,
+      "enemies": 1,
+      "relics": 1,
+      "room": 1,
+      "special_equipment": 1
+    },
+    "core/relic_effects.gd::cap_pressure": {
+      "combat": 1
+    },
+    "core/relic_effects.gd::card_played": {
+      "relic_counters": 3,
+      "relics": 1
+    },
+    "core/relic_effects.gd::cast_guarantee": {
+      "combat": 1,
+      "ditto_form": 1,
+      "phase": 1,
+      "relics": 1
+    },
+    "core/relic_effects.gd::clear_temporary": {
+      "body_buffs": 1
+    },
+    "core/relic_effects.gd::climax": {
+      "relic_counters": 2,
+      "relics": 1
+    },
+    "core/relic_effects.gd::counter": {
+      "combat": 7,
+      "ditto_form": 1,
+      "phase": 1,
+      "relic_counters": 6,
+      "round": 3
+    },
+    "core/relic_effects.gd::definition": {
+      "ditto_form": 1
+    },
+    "core/relic_effects.gd::discharge": {
+      "mana": 2,
+      "mana_max": 1,
+      "relic_counters": 2
+    },
+    "core/relic_effects.gd::end_combat": {
+      "body_buffs": 1,
+      "combat": 10,
+      "mana": 1,
+      "mana_max": 1,
+      "phase": 4,
+      "prison": 1,
+      "relic_counters": 1,
+      "relics": 2
+    },
+    "core/relic_effects.gd::end_turn": {
+      "combat": 5,
+      "energy": 1,
+      "phase": 3
+    },
+    "core/relic_effects.gd::facts": {
+      "card_chain": 1,
+      "overloaded": 1,
+      "pending_retain": 1,
+      "phase": 2,
+      "relic_counters": 2,
+      "relics": 1
+    },
+    "core/relic_effects.gd::flush": {
+      "ditto_form": 1,
+      "mana": 2,
+      "mana_max": 1,
+      "relic_pending": 2
+    },
+    "core/relic_effects.gd::gain": {
+      "mana": 5,
+      "mana_max": 6,
+      "pressure": 1,
+      "relic_counters": 3,
+      "relics": 3
+    },
+    "core/relic_effects.gd::gain_reason": {
+      "mana_max": 1
+    },
+    "core/relic_effects.gd::keeps_combat_state": {
+      "combat": 1,
+      "phase": 3,
+      "room_event": 1
+    },
+    "core/relic_effects.gd::mana_lost": {
+      "combat": 3,
+      "phase": 1,
+      "relic_counters": 2,
+      "relics": 2
+    },
+    "core/relic_effects.gd::opening_draw": {
+      "combat": 2
+    },
+    "core/relic_effects.gd::phase_matches": {
+      "phase": 2
+    },
+    "core/relic_effects.gd::posture_discount": {
+      "ditto_form": 1
+    },
+    "core/relic_effects.gd::posture_sources": {
+      "ditto_form": 1,
+      "phase": 1,
+      "posture": 1,
+      "relics": 1,
+      "ribbon_tick": 1,
+      "tick": 1
+    },
+    "core/relic_effects.gd::pressure_guard": {
+      "combat": 2,
+      "relics": 1
+    },
+    "core/relic_effects.gd::pressure_tick": {
+      "combat": 1,
+      "phase": 1,
+      "pressure": 2,
+      "relics": 1
+    },
+    "core/relic_effects.gd::shuffled": {
+      "relic_counters": 2,
+      "relics": 1
+    },
+    "core/relic_effects.gd::transform": {
+      "ditto_form": 1,
+      "relic_counters": 1,
+      "relic_pending": 1,
+      "relic_used": 2,
+      "relics": 1
+    },
+    "core/relic_effects.gd::trigger": {
+      "combat": 2,
+      "ditto_form": 1,
+      "enemies": 1,
+      "relic_pending": 3,
+      "relic_used": 1,
+      "relics": 1,
+      "round": 1,
+      "tick": 2
+    },
+    "core/relic_effects.gd::turn_draw": {
+      "relic_counters": 2,
+      "relics": 1
+    },
+    "core/relic_effects.gd::used": {
+      "combat": 1,
+      "ditto_form": 1,
+      "relic_used": 1,
+      "tick": 1
+    },
+    "core/relic_effects.gd::validate": {
+      "combat": 2,
+      "cursed_plate_released": 3,
+      "ditto_form": 2,
+      "equipment": 1,
+      "relic_counters": 3,
+      "relics": 6,
+      "special_equipment": 1
+    },
+    "core/relic_effects.gd::view": {
+      "cursed_plate_released": 1,
+      "ditto_form": 4,
+      "relics": 1
+    },
+    "core/relic_rewards.gd::available": {
+      "relics": 2
+    },
+    "core/relic_rewards.gd::battle_drop": {
+      "boss_relic_options": 2,
+      "relic_seen": 4,
+      "room": 2,
+      "room_encounters": 1
+    },
+    "core/relic_rewards.gd::offer": {
+      "relic_seen": 2
+    },
+    "core/room_events.gd::_enter_chain": {
+      "event_seen": 2,
+      "relics": 1,
+      "room_event": 1,
+      "special_equipment": 1
+    },
+    "core/room_events.gd::active_battle": {
+      "phase": 1,
+      "room_event": 2
+    },
+    "core/room_events.gd::active_item_rewards": {
+      "phase": 1,
+      "room_event": 2
+    },
+    "core/room_events.gd::apply_effects": {
+      "deck": 1,
+      "flask_mana": 2,
+      "links": 1,
+      "mana": 11,
+      "mana_max": 8,
+      "relics": 1,
+      "room": 1,
+      "room_event": 10,
+      "special_equipment": 5
+    },
+    "core/room_events.gd::authored_choice": {
+      "room_event": 2
+    },
+    "core/room_events.gd::battle_requires_defeat": {
+      "room_event": 1
+    },
+    "core/room_events.gd::begin_battle": {
+      "room": 1,
+      "room_encounters": 1,
+      "room_event": 3
+    },
+    "core/room_events.gd::begin_item_rewards": {
+      "room_event": 3
+    },
+    "core/room_events.gd::choice_detail": {
+      "room_event": 1
+    },
+    "core/room_events.gd::claim_item_reward": {
+      "room_event": 1
+    },
+    "core/room_events.gd::compile": {
+      "room": 1
+    },
+    "core/room_events.gd::condition_met": {
+      "room_event": 1
+    },
+    "core/room_events.gd::copy_condition_met": {
+      "special_equipment": 1
+    },
+    "core/room_events.gd::describe_result": {
+      "flask_mana": 1,
+      "mana": 3,
+      "mana_max": 4,
+      "room_event": 1
+    },
+    "core/room_events.gd::enter_node_result": {
+      "room_event": 3
+    },
+    "core/room_events.gd::evaluate_option": {
+      "room_event": 2
+    },
+    "core/room_events.gd::execute": {
+      "room_event": 1
+    },
+    "core/room_events.gd::facts": {
+      "room_event": 1
+    },
+    "core/room_events.gd::finish_battle": {
+      "phase": 1,
+      "room_event": 3
+    },
+    "core/room_events.gd::finish_item_rewards": {
+      "room_event": 2
+    },
+    "core/room_events.gd::freeze_effects": {
+      "rng": 2,
+      "room": 2,
+      "room_event": 6
+    },
+    "core/room_events.gd::history_issue": {
+      "event_seen": 4,
+      "practice": 1,
+      "rooms": 1
+    },
+    "core/room_events.gd::item_reward_rows": {
+      "room_event": 1
+    },
+    "core/room_events.gd::probe_cleanup": {
+      "room_event": 1
+    },
+    "core/room_events.gd::probe_result": {
+      "room_event": 2
+    },
+    "core/room_events.gd::refusal": {
+      "mana": 2
+    },
+    "core/room_events.gd::request_for": {
+      "room_event": 2
+    },
+    "core/room_events.gd::selector_values": {
+      "deck": 1,
+      "special_equipment": 1
+    },
+    "core/room_events.gd::start": {
+      "completed_rooms": 2,
+      "event_seen": 3,
+      "practice": 1,
+      "room": 4
+    },
+    "core/room_events.gd::trace_entry": {
+      "room_event": 1
+    },
+    "core/room_events.gd::validate": {
+      "battle_item_drop": 1,
+      "battle_relic_drop": 1,
+      "boss_relic_options": 1,
+      "phase": 2,
+      "relics": 2,
+      "reward_claimed": 1,
+      "reward_options": 1,
+      "room_event": 10,
+      "special_equipment": 1
+    },
+    "core/room_events.gd::view": {
+      "phase": 1,
+      "room": 1,
+      "room_event": 1
+    },
+    "core/room_services.gd::_job": {
+      "special_equipment": 1
+    },
+    "core/room_services.gd::_restock": {
+      "seed": 1,
+      "tower_generation": 1
+    },
+    "core/room_services.gd::_shop_trade": {
+      "room": 2,
+      "seed": 1,
+      "version": 1
+    },
+    "core/room_services.gd::discounted_price": {
+      "phase": 1,
+      "relics": 1
+    },
+    "core/room_services.gd::execute": {
+      "room": 3,
+      "shop_refreshes": 3,
+      "shop_removals": 3
+    },
+    "core/room_services.gd::facts": {
+      "deck": 1,
+      "relics": 1,
+      "room": 1,
+      "shop_refreshes": 1,
+      "shop_removals": 1
+    },
+    "core/room_services.gd::paid_fact": {
+      "phase": 1
+    },
+    "core/room_services.gd::payment_notice": {
+      "special_equipment": 1
+    },
+    "core/room_services.gd::release_jobs": {
+      "composites": 1,
+      "equipment": 1,
+      "links": 1,
+      "phase": 1,
+      "special_equipment": 2
+    },
+    "core/room_services.gd::start": {
+      "room": 1
+    },
+    "core/room_services.gd::validate": {
+      "phase": 2,
+      "room": 1,
+      "rooms": 1,
+      "shop_refreshes": 1,
+      "shop_removals": 1
+    },
+    "core/room_services.gd::view": {
+      "logs": 2,
+      "phase": 1,
+      "room": 5,
+      "shop_removals": 1
+    },
+    "core/save_store.gd::fixed_point_text": {
+      "save_slot": 1
+    },
+    "core/save_store.gd::write_game": {
+      "save_slot": 1
+    },
+    "core/self_binding.gd::resolve": {
+      "mana": 4,
+      "mana_max": 1
+    },
+    "core/shoulder_links.gd::cleanup": {
+      "equipment": 1
+    },
+    "core/shoulder_links.gd::pieces": {
+      "equipment": 1
+    },
+    "core/shoulder_links.gd::validate": {
+      "composites": 1,
+      "equipment": 1
+    },
+    "core/slip_motion.gd::apply": {
+      "posture": 2
+    },
+    "core/slip_motion.gd::profile": {
+      "posture": 2
+    },
+    "core/status_view.gd::build": {
+      "card_buff_uses": 1,
+      "sure_cast": 2
+    },
+    "core/tool_rules.gd::escape_reason": {
+      "phase": 1,
+      "security": 1
+    },
+    "core/tool_rules.gd::height_points": {
+      "posture": 3
+    },
+    "core/tool_rules.gd::install_reason": {
+      "items": 1,
+      "wall": 1
+    },
+    "core/tool_rules.gd::installation_points": {
+      "items": 1
+    },
+    "core/tool_rules.gd::operator_profile": {
+      "posture": 1
+    },
+    "core/tool_rules.gd::same_installation_point": {
+      "prison": 1
+    },
+    "core/tool_rules.gd::unlock_reason": {
+      "posture": 1
+    },
+    "core/torso_binding.gd::cancel_for_assembly": {
+      "equipment": 1
+    },
+    "core/torso_binding.gd::connections": {
+      "equipment": 1
+    },
+    "core/torso_binding.gd::filter_points": {
+      "equipment": 1
+    },
+    "core/torso_binding.gd::state_issue": {
+      "equipment": 1
+    },
+    "core/witch_character.gd::active": {
+      "character_id": 1
+    },
+    "core/witch_character.gd::allowed_card": {
+      "character_id": 1
+    },
+    "core/witch_character.gd::attack_detail": {
+      "card_buffs": 1
+    },
+    "core/witch_character.gd::attack_offer_fact": {
+      "card_buffs": 1,
+      "combat": 1,
+      "mana": 1,
+      "temporary_mana": 1,
+      "witch_charges": 1,
+      "witch_focus": 1
+    },
+    "core/witch_character.gd::clear": {
+      "witch_charges": 1
+    },
+    "core/witch_character.gd::consume_buff": {
+      "card_buff_uses": 4,
+      "card_buffs": 2
+    },
+    "core/witch_character.gd::damage_multiplier": {
+      "mana": 1,
+      "powers": 1,
+      "temporary_mana": 1
+    },
+    "core/witch_character.gd::evade": {
+      "witch_charges": 2
+    },
+    "core/witch_character.gd::execute": {
+      "card_buffs": 1,
+      "combat": 1,
+      "enemies": 1,
+      "witch_charges": 3
+    },
+    "core/witch_character.gd::lose_focus": {
+      "witch_focus": 2
+    },
+    "core/witch_character.gd::pool": {
+      "character_id": 1
+    },
+    "core/witch_character.gd::profile": {
+      "card_buffs": 1
+    },
+    "core/witch_character.gd::relic_allowed": {
+      "character_id": 1
+    },
+    "core/witch_character.gd::retain_focus": {
+      "witch_focus": 1
+    },
+    "core/witch_character.gd::reward_member": {
+      "character_id": 1
+    },
+    "core/witch_expansion.gd::end_reason": {
+      "card_buffs": 1,
+      "phase": 1
+    },
+    "core/witch_expansion.gd::evolve": {
+      "deck": 1
+    },
+    "core/witch_expansion.gd::induce": {
+      "card_buffs": 1
+    },
+    "core/witch_expansion.gd::pressure_multiplier": {
+      "card_buffs": 1
+    },
+    "core/witch_expansion.gd::protects_preparation": {
+      "card_buffs": 1
+    },
+    "core/witch_expansion.gd::reason": {
+      "phase": 1
+    },
+    "core/witch_expansion.gd::resolve": {
+      "flask_mana": 2,
+      "mana": 2,
+      "mana_max": 1,
+      "pressure": 1
+    },
+    "core/witch_expansion.gd::skill_discount": {
+      "card_buffs": 1
+    },
+    "data/basic_attacks.gd::energy_cost": {
+      "combat": 1,
+      "energy": 1
+    },
+    "data/basic_attacks.gd::fireball_damage": {
+      "spell_base_bonuses": 1
+    },
+    "data/basic_attacks.gd::forms": {
+      "energy": 1
+    },
+    "data/basic_attacks.gd::kick_cooldown": {
+      "kick_last": 1,
+      "round": 1
+    },
+    "data/basic_attacks.gd::posture": {
+      "posture": 1
+    },
+    "data/basic_attacks.gd::usage": {
+      "combat": 1
+    },
+    "data/encyclopedia.gd::entries": {
+      "character_id": 1
+    },
+    "data/enemies.gd::damage_multiplier": {
+      "relics": 1
+    },
+    "data/enemies.gd::encounter_member": {
+      "room": 1,
+      "room_encounters": 1
+    },
+    "data/links.gd::slip_factor": {
+      "links": 1
+    },
+    "data/phases.gd::caption": {
+      "order": 1,
+      "phase": 4,
+      "practice": 2,
+      "prepare_left": 1,
+      "rest_left": 2,
+      "room_event": 1,
+      "round": 1,
+      "security": 1
+    },
+    "data/relics.gd::form_issue": {
+      "ditto_form": 1,
+      "relics": 1
+    },
+    "data/special_equipment.gd::effective_gain": {
+      "combat": 2,
+      "cursed_plate_masochist_mode": 1
+    },
+    "data/special_equipment.gd::environment_contact": {
+      "hook_uses": 1,
+      "items": 1,
+      "phase": 1,
+      "wall": 1
+    },
+    "data/special_equipment.gd::view": {
+      "chastity_climax_factor": 1,
+      "combat": 2,
+      "cursed_plate_masochist_mode": 1,
+      "special_equipment": 2
+    }
+  },
+  "schema": 1,
+  "schema_strings": {
+    "core/game.gd::validate": {
+      "fields": [
+        "battle_item_drop",
+        "charge_all",
+        "chastity_climax_factor",
+        "chastity_lock_chance",
+        "chastity_locks_enabled",
+        "cursed_plate_masochist_mode",
+        "item_drop_chance",
+        "slip_ejaculation_force_last",
+        "slip_ejaculation_turns",
+        "sure_cast",
+        "temporary_mana"
+      ]
+    },
+    "core/mana_flask.gd::validate": {
+      "fields": [
+        "flask_deposits",
+        "flask_mana"
+      ]
+    },
+    "core/pressure.gd::validate": {
+      "fields": [
+        "calm_uses"
+      ]
+    },
+    "core/room_services.gd::validate": {
+      "fields": [
+        "shop_removals"
+      ]
+    }
+  },
+  "ui_reads": [],
+  "unread_fields": [
+    "dexterity",
+    "strength"
+  ],
+  "whole_state": [
+    {
+      "count": 1,
+      "file": "core/capture_bind.gd",
+      "function": "gain_amount",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/capture_bind.gd",
+      "function": "initial_value",
+      "kind": "pass"
+    },
+    {
+      "count": 2,
+      "file": "core/capture_bind.gd",
+      "function": "required_intent",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/demo_exit.gd",
+      "function": "continue_run",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/enemy_plans.gd",
+      "function": "build",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/enemy_plans.gd",
+      "function": "installation_intents",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_replacement.gd",
+      "function": "_commit_changes",
+      "kind": "get_variable"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_replacement.gd",
+      "function": "_plan",
+      "kind": "duplicate"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_replacement.gd",
+      "function": "_trial",
+      "kind": "duplicate"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_replacement.gd",
+      "function": "_trial",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_replacement.gd",
+      "function": "force_special",
+      "kind": "duplicate"
+    },
+    {
+      "count": 2,
+      "file": "core/game.gd",
+      "function": "_append_enemies",
+      "kind": "pass"
+    },
+    {
+      "count": 2,
+      "file": "core/game.gd",
+      "function": "_begin_equipment_read",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_commit_scene_start",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_damage_enemy",
+      "kind": "pass"
+    },
+    {
+      "count": 2,
+      "file": "core/game.gd",
+      "function": "_emit",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_equipment_read_active",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "dispatch",
+      "kind": "duplicate"
+    },
+    {
+      "count": 3,
+      "file": "core/game.gd",
+      "function": "dispatch",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "export_snapshot",
+      "kind": "duplicate"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "restart_snapshot",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "restore_snapshot",
+      "kind": "pass"
+    },
+    {
+      "count": 9,
+      "file": "core/game.gd",
+      "function": "validate",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game_view.gd",
+      "function": "build",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/iron_man.gd",
+      "function": "intent_facts",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/iron_man.gd",
+      "function": "plan",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/mana_flask.gd",
+      "function": "validate",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/pressure.gd",
+      "function": "validate",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/prison.gd",
+      "function": "validate",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/puppet_enemy.gd",
+      "function": "summon",
+      "kind": "pass"
+    },
+    {
+      "count": 2,
+      "file": "core/relic_effects.gd",
+      "function": "validate",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/resource_feedback.gd",
+      "function": "capture",
+      "kind": "has"
+    },
+    {
+      "count": 1,
+      "file": "core/resource_feedback.gd",
+      "function": "relic",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/room_events.gd",
+      "function": "freeze_effects",
+      "kind": "duplicate"
+    },
+    {
+      "count": 1,
+      "file": "core/room_events.gd",
+      "function": "validate",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/room_services.gd",
+      "function": "validate",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/snapshot.gd",
+      "function": "check",
+      "kind": "iterate"
+    }
+  ]
+}

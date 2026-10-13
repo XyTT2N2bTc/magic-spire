@@ -445,6 +445,24 @@
       "find": "const INDEX_DEFECTS=[",
       "replace": "const INDEX_DEFECTS=[\n {\"date\":\"2026-10-13\",\"path\":\"spire-godot/core/snapshot.gd\",\"missed_suites\":[\"architecture\"],\"found_by\":\"mutation probe\",\"log\":\"build/mutations/probe\",\"added\":\"\"},",
       "suite": "runner"
+    },
+    "state_read_sites_are_pinned": {
+      "file": "core/game.gd",
+      "find": "func item_action_block() -> bool:",
+      "replace": "func item_action_block() -> bool:\n if state.version<0: return false",
+      "suite": "architecture"
+    },
+    "state_read_scan_reaches_every_source": {
+      "file": "ui/main.gd",
+      "find": "var result=game.dispatch(cmd,int(cmd.get(\"expected_version\",-1)))",
+      "replace": "var result=game.dispatch(cmd,int(cmd.get(\"expected_version\",-1)))\n var _probe_state_read=game.state.phase",
+      "suite": "architecture"
+    },
+    "state_read_registrations_are_pinned": {
+      "file": "core/game.gd",
+      "find": "func command_issue(cmd: Dictionary) -> String:",
+      "replace": "func command_issue(cmd: Dictionary) -> String:\n var _probe_whole_state=state.duplicate(true)",
+      "suite": "architecture"
     }
   }
 }

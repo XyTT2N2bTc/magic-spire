@@ -66,6 +66,8 @@ git worktree list
 & tools/check.ps1 -ChangedList <清单文件> -ListOnly        # 显式清单：一行一仓根相对路径，# 与空行忽略
 & tools/check-index.ps1                                  # 索引零漂移校验（退出码 0／1）
 & tools/check-index.ps1 -Write                           # 重冻 tests/check_index.json（必须与源码同批提交）
+& $env:GODOT_BIN --headless --path . --script res://tools/build_state_readers.gd -- --verify   # 状态字段读者表零漂移
+& $env:GODOT_BIN --headless --path . --script res://tools/build_state_readers.gd -- --write    # 重生成 tests/state_readers.json（只此写者，同批提交）
 ```
 
 - 默认（不传 `-Suite`）跑快速检查 `runner`＋`architecture`，默认窗口分类是 `home`；分类名注册在 `tests/test_game.gd`（`SUITES`）与 `tests/ui_smoke.gd`（`UI_MODULES`）。
@@ -75,6 +77,7 @@ git worktree list
 - **路由模式（`-Changed`／`-ChangedList`）**：范围由冻结的派生索引 `tests/check_index.json` 决定，契约见 `docs/spec/check-routing.md`。三者与 `-Suite`／`-UISuite`／`-UI`／`-UIOnly`／`-Impact`／`-RerunFailed` 互斥，`-Since` 只配 `-Changed`，所有拒绝都在起引擎前。计划逐文件打印 `ROUTE ROW`／`ROUTE DEFAULT`／`ROUTE UNMAPPED`／`ROUTE NONE`／`ROUTE MILESTONE`／`ROUTE WIDEN CANDIDATE`；未命中索引不是失败，而是走目录闭包，闭包也未命中落到 `all-dev`＋`all-dev-ui`；`docs/`／`release/`／`.zcode/`／`skills/`／`spire-godot/build/`／模块内 `.godot/`／仓根 `*.md` 等 declared-none 路径不选任何套件、也永不作为通过；仓库外路径与空集拒绝。
 - **路由只服务开发期快速反馈**：PR／打包／发版／版本推进前必须 `-Suite all -UI -UISuite all`。里程碑套件 `normal_play`／`baseline` 被路由显式扣除（每次计划打印扣除清单与闭包覆盖清单）；`summary.route` 记录不得用于宣称里程碑或交付通过。
 - **索引维护**：`tests/check_index.json` 是生成物，只许 `tools/check-index.ps1 -Write` 写。更新触发＝任一扫描输入文本变化：`core|data|ui` 的 `.gd`、所有 `tests/*_cases.gd`（含 `tests/runner_cases.gd`）、两个宿主 `tests/test_game.gd`／`tests/ui_smoke.gd`、`tests/check_index.gd`、`tests/check_index_edges.gd`；忘记重冻会被 `runner` 的 `index_matches_regeneration` 打红（默认快速门禁含 `runner`）。
+- **状态字段读者表维护**：`tests/state_readers.json` 是生成物，只许 `tools/build_state_readers.gd --write` 写；更新触发＝`core|data|ui` 任一 `.gd` 文本变化（含注释，输入指纹＝全部文本），忘记重生成会被 `architecture` 的 `state_read_sites_are_pinned` 打红。口径、判据与残差见 `docs/spec/state-readers.md`。
 - `-ListOnly` 只预览范围（输出 `PLAN ONLY:`），不算通过；`all` 只用于明确完整回归，检查通过后不无故重复运行。失败分类默认停止后续分类：`-KeepGoing` 只继续当前规则或 UI 阶段，脚本错误始终停止。
 - `-RerunFailed <目录或 summary.json>` 只重跑失败与未完成的分类，不能与 `-Suite`／`-UISuite`／`-UI`／`-UIOnly`／`-Impact`／`-Exhaustive` 同用；`status=passed` 的上轮结果会被拒绝。
 - `-VerifyRunner` 跑测试器自身的负例探针，不能与 `-ListOnly` 同用：既有七条 `negative-*`（未启用范围的拒绝、故意脚本错误、超时、失败停止与继续执行）＋路由八条 `route-*`（`route-ui-only`／`route-content`／`route-save`／`route-snapshot-domain`／`route-blind-closure`／`route-unmapped-fail-closed`／`route-declared-none`／`route-scope-matches`，最后一条证明 `-ListOnly` 的计划＝真跑的范围）；探针日志逐条落 `build/checks/<运行号>/check-<探针名>.log`。`-Import` 在首次没有 `.godot/` 或新增素材导入时使用。

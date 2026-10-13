@@ -227,4 +227,9 @@ func render(snapshot: Dictionary = {}) -> void
 - 测量口径（只报告，不用于通过判据）：装备 0／12／26 件 × 选择类／提交类两条路径，同一夹具交替执行、
   2 次热身＋15 次有效配对，报逐对比值中位与两侧独立中位；计时脚本与 JSON 只放已忽略的 `build/<topic>-<date>/`，
   摘要登记 `docs/record/verification.md` 后删除原始目录；生产源码不留计数器、开关或计时钩子。
+- 状态字段读者声明与反向溯源（静态真源＋双向判据）的依赖约束（cleaner 可核对）见
+  `docs/spec/state-readers-dependencies.md`；具名判据＝`tests/architecture_cases.gd::state_read_sites_are_pinned`／
+  `tests/architecture_cases.gd::state_read_scan_reaches_every_source`／
+  `tests/architecture_cases.gd::state_read_registrations_are_pinned`（冻结真源＝`tests/state_readers.json`，
+  重生成入口＝`tools/build_state_readers.gd`）。
 - 结果与未跑项登记 `docs/record/verification.md`，不得用任一层代表整片结论。
