@@ -172,7 +172,14 @@ static func index_defects_stay_closed(t,derived: Dictionary) -> void:
 
 # §6-G3, pinned to the measured derivation. These are the routing contract's examples, so a
 # re-freeze that changes one of these shapes must update this judgement in the same commit.
+# An unreadable or wrong-schema frozen index makes every plan unusable (suites_for returns an
+# empty rows array), so report that state here and stop instead of indexing an empty plan: the
+# failure stays a named judgement ERROR, never a runtime script error (tools/check-mutation.ps1
+# reads a script error as "not a judgement RED").
 static func index_route_examples_are_pinned(t) -> void:
+ var frozen_failure=Index.frozen_error()
+ t.check(frozen_failure=="","RUNNER index_route_examples_are_pinned: the frozen index is readable before the routing examples are pinned: "+frozen_failure)
+ if frozen_failure!="": return
  var save=Index.suites_for(["spire-godot/core/save_store.gd"])
  t.check(save.ok and save.rules==["architecture","runner","persistence"],"RUNNER index_route_examples_are_pinned: save_store rule scope is architecture,runner,persistence")
  t.check(save.ui==["encyclopedia","home_persistence","home","interface","persistence"],"RUNNER index_route_examples_are_pinned: save_store UI scope is encyclopedia,home_persistence,home,interface,persistence")
