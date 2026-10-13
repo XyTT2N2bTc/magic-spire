@@ -58,17 +58,26 @@ git worktree list
 & tools/check.ps1 -Suite installation_priority -Impact -Exhaustive
 & tools/check.ps1 -Suite runner -VerifyRunner
 & tools/check.ps1 -Suite recipe -TimeoutSeconds 1800      # 长时程真实输入配方（预发布与交付前必跑）
-& tools/check.ps1 -Suite all -UI -UISuite all            # 完整回归
+& tools/check.ps1 -Suite all -UI -UISuite all            # 完整回归（里程碑专用）
 & tools/check.ps1 -RerunFailed build/checks/<运行号>      # 只续跑失败与未完成分类
+& tools/check.ps1 -Changed -ListOnly                     # 按工作区变更出计划（PLAN ONLY，不算通过）
+& tools/check.ps1 -Changed -TimeoutSeconds 1200          # 按工作区变更跑路由出的范围（开发期快速反馈）
+& tools/check.ps1 -Changed -Since <ref>                  # 已提交后：ref → 工作区
+& tools/check.ps1 -ChangedList <清单文件> -ListOnly        # 显式清单：一行一仓根相对路径，# 与空行忽略
+& tools/check-index.ps1                                  # 索引零漂移校验（退出码 0／1）
+& tools/check-index.ps1 -Write                           # 重冻 tests/check_index.json（必须与源码同批提交）
 ```
 
 - 默认（不传 `-Suite`）跑快速检查 `runner`＋`architecture`，默认窗口分类是 `home`；分类名注册在 `tests/test_game.gd`（`SUITES`）与 `tests/ui_smoke.gd`（`UI_MODULES`）。
 - `-Suite`／`-UISuite` 逗号分隔、重复项去重；纯显示用 `-UIOnly -UISuite <窗口分类>`；规则与窗口同时改则 `-Suite <规则分类> -UI -UISuite <窗口分类>`（只写 `-UI` 会拒绝：`-UISuite` 必须配 `-UI` 或 `-UIOnly`）。
 - 共享规则用 `-Impact` 合并交叉分类一次跑完；随机生成改动加 `-Exhaustive`（`-Suite all` 自动启用完整随机样本）。
 - 影响范围的唯一声明为 `tests/suite_selection.gd::CROSS_AREAS`：键是需要补跑的测试分类，值是会影响它的修改域；只从用户原始选择展开一次。新增跨系统联动时同步这份声明，并在 `runner_cases` 验证具体联动会被选中；仅把用例加入某分类的 `run`，不能保证修改其上游时会自动补跑。
+- **路由模式（`-Changed`／`-ChangedList`）**：范围由冻结的派生索引 `tests/check_index.json` 决定，契约见 `docs/spec/check-routing.md`。三者与 `-Suite`／`-UISuite`／`-UI`／`-UIOnly`／`-Impact`／`-RerunFailed` 互斥，`-Since` 只配 `-Changed`，所有拒绝都在起引擎前。计划逐文件打印 `ROUTE ROW`／`ROUTE DEFAULT`／`ROUTE UNMAPPED`／`ROUTE NONE`／`ROUTE MILESTONE`／`ROUTE WIDEN CANDIDATE`；未命中索引不是失败，而是走目录闭包，闭包也未命中落到 `all-dev`＋`all-dev-ui`；`docs/`／`release/`／`.zcode/`／`skills/`／`spire-godot/build/`／模块内 `.godot/`／仓根 `*.md` 等 declared-none 路径不选任何套件、也永不作为通过；仓库外路径与空集拒绝。
+- **路由只服务开发期快速反馈**：PR／打包／发版／版本推进前必须 `-Suite all -UI -UISuite all`。里程碑套件 `normal_play`／`baseline` 被路由显式扣除（每次计划打印扣除清单与闭包覆盖清单）；`summary.route` 记录不得用于宣称里程碑或交付通过。
+- **索引维护**：`tests/check_index.json` 是生成物，只许 `tools/check-index.ps1 -Write` 写。更新触发＝任一扫描输入文本变化：`core|data|ui` 的 `.gd`、所有 `tests/*_cases.gd`（含 `tests/runner_cases.gd`）、两个宿主 `tests/test_game.gd`／`tests/ui_smoke.gd`、`tests/check_index.gd`、`tests/check_index_edges.gd`；忘记重冻会被 `runner` 的 `index_matches_regeneration` 打红（默认快速门禁含 `runner`）。
 - `-ListOnly` 只预览范围（输出 `PLAN ONLY:`），不算通过；`all` 只用于明确完整回归，检查通过后不无故重复运行。失败分类默认停止后续分类：`-KeepGoing` 只继续当前规则或 UI 阶段，脚本错误始终停止。
 - `-RerunFailed <目录或 summary.json>` 只重跑失败与未完成的分类，不能与 `-Suite`／`-UISuite`／`-UI`／`-UIOnly`／`-Impact`／`-Exhaustive` 同用；`status=passed` 的上轮结果会被拒绝。
-- `-VerifyRunner` 跑测试器自身的负例探针（未启用范围的拒绝、故意脚本错误、超时、失败停止与继续执行），不能与 `-ListOnly` 同用；`-Import` 在首次没有 `.godot/` 或新增素材导入时使用。
+- `-VerifyRunner` 跑测试器自身的负例探针，不能与 `-ListOnly` 同用：既有七条 `negative-*`（未启用范围的拒绝、故意脚本错误、超时、失败停止与继续执行）＋路由八条 `route-*`（`route-ui-only`／`route-content`／`route-save`／`route-snapshot-domain`／`route-blind-closure`／`route-unmapped-fail-closed`／`route-declared-none`／`route-scope-matches`，最后一条证明 `-ListOnly` 的计划＝真跑的范围）；探针日志逐条落 `build/checks/<运行号>/check-<探针名>.log`。`-Import` 在首次没有 `.godot/` 或新增素材导入时使用。
 - **敏感性证据**：`tools/check-mutation.ps1`（`-All` 或 `-Check <判据名>`）按 `tests/mutations.json` 的声明逐条做临时突变——改源码 → 跑该条声明的规则套件 → 要求具名判据变红 → **逐字节还原并用哈希自证**，任一环节失败即非零退出。`tools/check-mutation.ps1` 改的是跟踪中的源码；运行时必须串行单引擎，不得与其他门禁并发；日志在 `build/mutations/<运行号>/`。表与判据全集的核对判据是 `tests/architecture_cases.gd::mutation_evidence_is_total`。
 - **长时程真实输入配方（`-Suite recipe`）**：固定配方种子 7／`--cap=60`／`--style=trade`，跑 `tests/recipe_driver.gd`，用真实点击与拖拽（窗口 1600×900，非 headless）走到 60 次提交。判读：收尾行 `RECIPE seed=7 commits=60 steps=60 stop=cap` 且 `exit=0`，`stop` 不是 `cap` 或退出码非 0 即整轮失败（产品崩溃时引擎退出码不被吞掉，留在 `check-recipe.log` 末行 `exit=`）。证据在 `build/checks/<运行号>/check-recipe.log`，头部为 `RUN IDENTITY`（`head`／`dirty`／关键文件 `sha256`），摘要见 `summary.json` 的 `recipe` 字段，`-RerunFailed` 会带上失败的 `recipe`。默认**不并入 `all`**（先观察稳定性），但**预发布与交付前必跑**；实测单轮约 51s（`-TimeoutSeconds 1800` 足够）。`-ListOnly` 只登记范围、不执行该阶段。
 - **判读**：退出码、每个分类的 `SUITE RESULT: <name> PASS|FAIL`、完成标记（`PASS: N assertions`／`UI PASS: N assertions`）与 `summary.json`（`status`／`before`／`after`／`rules.retry`）。检查期间源码或内容变化会打印 `SOURCE CHANGED:`、整轮记为 `source_changed` 并 exit 1，须重跑全部原选范围——`source_changed` 不得当作冻结版本通过。口径见 `skills/spire-validation-release/SKILL.md`。

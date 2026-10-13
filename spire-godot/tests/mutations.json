@@ -397,6 +397,36 @@
       "find": " return command_domain_ready()",
       "replace": " return Binding.state_issue(self)==\"\" and SpecialEquipment.validate(state.get(\"special_equipment\"))==\"\"",
       "suite": "architecture"
+    },
+    "index_matches_regeneration": {
+      "file": "tests/check_index.json",
+      "find": "  \"schema\": 1,",
+      "replace": "  \"schema\": 2,",
+      "suite": "runner"
+    },
+    "index_skips_no_source_file": {
+      "file": "tests/check_index_edges.gd",
+      "find": " {\"path\":\"spire-godot/core/tool_rules.gd\",\"reason\":\"状态相关工具查询经 g.Tools 间接消费，没有专属域词；由 spire-godot/core/ 闭包（all-dev）兜住\"},",
+      "replace": "",
+      "suite": "runner"
+    },
+    "index_declared_domains_exist": {
+      "file": "tests/check_index_edges.gd",
+      "find": "{\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVE\"],",
+      "replace": "{\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVEX\"],",
+      "suite": "runner"
+    },
+    "index_suites_are_all_reachable": {
+      "file": "tests/test_game.gd",
+      "find": "\"core\":null,",
+      "replace": "\"core\":null,\"mutation_probe_suite\":null,",
+      "suite": "runner"
+    },
+    "index_route_examples_are_pinned": {
+      "file": "tests/check_index.gd",
+      "find": "const CORE_APPEND=[\"architecture\",\"persistence\",\"runner\"]",
+      "replace": "const CORE_APPEND=[]",
+      "suite": "runner"
     }
   }
 }
