@@ -427,6 +427,24 @@
       "find": "const CORE_APPEND=[\"architecture\",\"persistence\",\"runner\"]",
       "replace": "const CORE_APPEND=[]",
       "suite": "runner"
+    },
+    "index_covers_every_case_file": {
+      "file": "tests/test_game.gd",
+      "find": "\"card_power\":\"res://tests/card_power_cases.gd\",",
+      "replace": "\"card_power\":null,",
+      "suite": "runner"
+    },
+    "index_targets_exist": {
+      "file": "tests/check_index_edges.gd",
+      "find": "{\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVE\"],",
+      "replace": "{\"path\":\"spire-godot/core/mutation_probe_ghost.gd\",\"domains\":[\"SAVE\"],\"reason\":\"mutation probe: a DOMAINS path that is not on disk\"},\n {\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVE\"],",
+      "suite": "runner"
+    },
+    "index_defects_stay_closed": {
+      "file": "tests/check_index_edges.gd",
+      "find": "const INDEX_DEFECTS=[",
+      "replace": "const INDEX_DEFECTS=[\n {\"date\":\"2026-10-13\",\"path\":\"spire-godot/core/snapshot.gd\",\"missed_suites\":[\"architecture\"],\"found_by\":\"mutation probe\",\"log\":\"build/mutations/probe\",\"added\":\"\"},",
+      "suite": "runner"
     }
   }
 }

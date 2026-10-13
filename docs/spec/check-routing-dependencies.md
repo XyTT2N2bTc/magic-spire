@@ -41,3 +41,11 @@
 ## 文档守卫
 
 `docs/spec/check-routing.md` 与本文件的路径、`文件::符号` 锚点与本地链接由 `tools/check-docs.ps1` 守卫（随 `tools/check.ps1` 的 docs 阶段）；改动后必须过该门。
+
+## 仍靠人审（无机械判据，本批保留）
+
+- 上两节「允许的边／禁止的边」与实现的文件面一致：片②允许面不含 `tests/architecture_cases.gd`，本批未落机械判据（已落判据的三片依赖文档由后续批次补判据），目前由 cleaner 与审查者按本文件逐条核对。分项现状：`core|ui|data` 引用 `tests/` 由 `tests/architecture_cases.gd::production_source_never_preloads_tests` 守卫；手改 `tests/check_index.json` 由源码指纹与零漂移比对（`tests/runner_cases.gd::index_matches_regeneration`、`tests/runner_cases.gd::index_regeneration_is_the_only_writer`）抓住；其余各条（`tests/check_index.gd` 不预载宿主脚本、`tests/route_plan.gd` 不引 `core/`、不出现第二份「文件→套件」映射）无断言。
+- 路由窄度：每次计划打印的 `ROUTE ROW`／`ROUTE DEFAULT`／`ROUTE UNMAPPED`／`ROUTE WIDEN CANDIDATE` 与 `-Suite <受影响区域> -Impact` 的对照无断言；路由更窄的每一处必须对应一条派生边或一条 `WIDEN` 记录，靠人逐次核对（`tests/check_index_edges.gd` 文本＋运行打印，acceptance A-RT-11 的审查面）。
+- `declared-none` 前缀的两份文本（`tools/check.ps1::Test-DeclaredNone`、`tests/check_index.gd::_declared_none`）的同步义务无跨文件判据：改一处必须人工同步另一处。
+- 手写层条目存活（无幻影）：`WIDEN`／`EXCLUDE`／`CLOSURE`／`ORACLE_NOTES`／`SUITE_EXEMPT` 无存在性判据（`DOMAINS` 与 `BLIND_BY_DESIGN` 两侧有；`INDEX_DEFECTS` 的闭合由突变条目 `index_defects_stay_closed` 取证）；本批 cleaner 已逐条人工确认，之后靠人核对。
+
