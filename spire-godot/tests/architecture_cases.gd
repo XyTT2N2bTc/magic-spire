@@ -6479,9 +6479,15 @@ static func state_read_scan_reaches_every_source(t) -> void:
  for site in derived.schema_strings.keys():
   for field in derived.schema_strings[site].fields: covered[field]=true
  for field in unread: covered[field]=true
+ # Coordinator ruling A (2026-10-14, P5 hardening): the missing= half is structurally always empty --
+ # unread_fields is derived as registry minus the three read faces, so covered already holds every
+ # registered field and this half is not a bidirectional guard. The bidirectional protection lives in
+ # state_read_sites_are_pinned (derived == frozen, an extra or missing read is red) and
+ # state_read_registrations_are_pinned (whole_state / aliases / schema_strings, both directions); the
+ # extra= half keeps its teeth through schema_strings, the only face here not filtered by the registry.
  var missing=registry.filter(func(field):return not covered.has(field))
  var extra=covered.keys().filter(func(field):return field not in registry)
- t.check(missing.is_empty() and extra.is_empty(),"STATEREAD state_read_scan_reaches_every_source: the registry, the three read faces and unread_fields cover each other (a field nobody reads must be declared unread): missing="+str(missing)+" extra="+str(extra))
+ t.check(missing.is_empty() and extra.is_empty(),"STATEREAD state_read_scan_reaches_every_source: the registry, the three read faces and unread_fields cover each other (a field nobody reads must be declared unread; the missing= half is structurally always empty and is NOT a bidirectional guard -- that guard is state_read_sites_are_pinned + state_read_registrations_are_pinned): missing="+str(missing)+" extra="+str(extra))
 
 static func state_read_registrations_are_pinned(t) -> void:
  var failure=StateReaderScan.frozen_error()
