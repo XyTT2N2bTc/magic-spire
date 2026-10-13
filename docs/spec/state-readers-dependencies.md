@@ -51,7 +51,7 @@
 
 ## 行数线
 
-- `tests/state_readers.json` 不设行数线（生成物，评审靠判据打印行与统计）；`tests/architecture_cases.gd` 净增 77 行（限 220）。
+- `tests/state_readers.json` 不设行数线（生成物，评审靠判据打印行与统计）；`tests/architecture_cases.gd` 净增 83 行（限 220）。
 - `tests/state_reader_scan.gd` 450 行：**协调者已裁接受（2026-10-14，P5 派工记录）**，计划行数线 ≤ 320 是规划者的
   规模估计，不是本仓的硬约束（先例：`tests/check_index.gd` 534 行同为单职责的派生／判据模块）。接受理由：
   本模块职责单一（全片唯一扫描实现：派生＋冻结物形状＋失败面），超出估计的部分＝`failure_face` 的静态调用闭包

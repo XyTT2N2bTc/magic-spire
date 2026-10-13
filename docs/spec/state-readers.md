@@ -135,8 +135,11 @@
   归因；必须按仓规登记进 `ALIAS_DECLARATIONS`（`tests/state_reader_scan.gd`）并同批重生成，否则该函数的读
   是静默面。声明本身的双向（多／少一个函数或字段都红）已由 `state_read_registrations_are_pinned` 钉住。
 - **模式串并集口径的盲点**：同一函数内新增一处与既有 spec 字段集相同的调用不改并集，不红（按函数并集登记）。
-- **变量键字段面不可归因**：`state[变量]` 的读只以 `get_variable` 形态登记；`for zone in …: s[zone]` 之类
-  在别名函数内也不产生字段级记录。
+- **变量键字段面不可归因（静默面，登记为仍靠人审）**：`state[变量]` 形态的**读取不进入任何表**——现探 19 处
+  非字面 `state[` 形态（读／写／复合混合；其中 `for item in g.state[field]`／`float(g.state[key])` 等为纯读或
+  迭代读），全部静默、无字段级记录；`get_variable` 仅覆盖 `core/equipment_replacement.gd::_commit_changes`
+  的 `state.get(<非字面量>)` 一处，不构成对本形态读的覆盖。新增此类读点不经判据变红，须人审（审查记录：独立
+  审查实测该类纯读 ≥11 处，与上列一致）。
 - **子键与嵌套记录**：子键名（`state.combat.serial` 的 `serial` 等）不登记；嵌套记录上的 `Snapshot.fields`
   按排除处理（理由见上）。
 - **变量键写**：`state.rng[domain]=0` 这类变量键写不计读、也不进 `whole_state`（形态不属于五类之一）；
