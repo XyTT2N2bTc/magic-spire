@@ -2976,9 +2976,15 @@ static func branch_sweep_states(game_class=null) -> Array:
    match variant:
     "relic_bundle": preload("res://core/relic_bundle.gd").start(g,"reward")
     "departure": preload("res://core/departure.gd").start(g)
-    # domain_blocked：未注册类型的特殊装备使 command_domain_ready() 为假（B 批起本夹具也走 command_facts()，
-    # 故实例必须带 id——action_targets() 的 id 边要求每个目标有 id；类型仍是未注册值，域仍被阻断）。
-    "domain_blocked": g.state.special_equipment=[{"id":"no_such_special","type":"no_such_special"}]
+    # domain_blocked：同一种性玩具重复佩戴使 SpecialEquipment.validate 非空 ⇒ command_domain_ready() 为假
+    # （B 批起本夹具也走 command_facts()，故实例必须带 id——action_targets() 的 id 边要求每个目标有 id）。
+    # 记录完整（正式安装工厂＋重复家族）：门控关掉时本级的 command_facts 面照常构建，不会命中未登记类型的
+    # TYPES 直取或缺 durability 的 worn_count（旧的 no_such_special 占位只在门控开时安全，故换掉）。
+    "domain_blocked":
+     g._install_special("shaft_ring_low","special_2_a")
+     var twin=g.state.special_equipment[0].duplicate(true)
+     twin.id="special_9_z"
+     g.state.special_equipment.append(twin)
    if phase=="departure" and g.state.departure.is_empty(): preload("res://core/departure.gd").start(g)
    g.state.phase=phase
    if phase=="travel":
@@ -3365,9 +3371,7 @@ static func lazy_projection_invariant(t) -> void:
  # 一类纯子序列偏差只在前缀态可达——登记前缀态 × E_DEMAND_PROFILES 全部画像，行面／值面／
  # display_fact_scope 三方互核同上。夹具取 View 可重放的形态：nesting_doll 套娃包（source 必须是
  # 实持遗物，panel 直取 TYPES[source]）；空躯干固缚记录使 Binding.state_issue 非空 ⇒
- # command_domain_ready()==false，而 present() 对空记录为假，View 构建无错误（branch_sweep 的
- # no_such_special 探针只走 _fact_source 面，进 View 会命中未登记类型的 TYPES 直取与缺 durability
- # 的 worn_count，不可复用）。
+ # command_domain_ready()==false，而 present() 对空记录为假，View 构建无错误）。
  var prefix_declared=[]
  var prefix_profiles={}
  for profile in F_PREFIX_PROFILES:
