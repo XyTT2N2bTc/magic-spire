@@ -2827,3 +2827,10 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - `tools/check-docs.ps1` 单跑 → `DOCS PASS: 43 rule-class document(s), 2369 reference(s) checked, allowlist 3 entrie(s)`，exit 0；归档 `tmp/clickharden-9-docs.log`。
 - 四态：**已测**＝①（两 head）②（两 head）③④＋突变正式轮 3/3＋A-PC-9 两轮＋A-PC-10（运行号与归档如上）＋H 里程碑正式轮＋check-docs 单跑；**未跑**＝片②（检查路由；另片）、安卓真机、打包与发布、独立审查（协调者另派新会话）；**被跳过**＝无；**假设**＝无。被中断轮与无 summary 的轮（A-PC-9 单命令超时轮、里程碑前两轮）均如实登记为未完成，不写成通过。
 - 本节只追加本文件一个文件、单独提交（docs-only）；全部提交仅在本地 `.git`；未推送、未 tag、未改版本号、未开 PR、未打包。
+
+### 片①记录补登（2026-10-13，协调者代批；独立审查两条 [存疑] 的收口）
+
+- 域：本节；依据＝独立审查（会话模型子代理，对象 `e565cb9..f116b10`，VERDICT PASS）第 1／2 条 [存疑]。
+- **plan §7-① 处置A证据②③补登**：①**聚合兜底面**＝`dispatch` 尾部聚合校验＋`"行动未提交："` 回滚逐字节未动（判据 A-PC-3／A-PC-6 在案，见片①加固节）；②**release 差异登记**＝`debug_checks_enabled()` 在非 debug 构建恒 false ⇒ release 下五道检查与探针整状态半不跑、`_debug_check` 不写诊断；早拦损失由提交后聚合验证兜底并回滚（上批既定口径）。测试语料均在 debug 构建下运行、仍走检查面 ⇒ **测试不覆盖 release 差异本身**；release 产物行为差未跑验证（打包面），如实登记为未验证。
+- **探针日志澄清句**：片①加固节所称「命令面 0 脚本错误」成立；审查另测得门控关闭轮 get_view 面存在 37 条与开关无关的脚本错误（relic_bundle/prison 夹具面），两者不矛盾，不作片①红集。
+- 其余一条 [存疑]（判据消费者扫描面限 `res://core`；`dispatch` 次序无机械判据；切分归档只留前 3 条 ERROR）**登记为仍靠人审／已接受残余**，交后续片或 H 收尾处理。
