@@ -2967,3 +2967,10 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - 四态：**已测**＝①..⑦＋突变三条（运行号与归档如上）；**失败**＝无（三条突变的目标 RED 为预期结果；无未完成轮、无 `SOURCE CHANGED`）；**未跑**＝`-Suite all -UI -UISuite all` 里程碑（合同列为里程碑项、协调者未在本批授权；⑤⑥ 的逐文件 `ROUTE` 与宽集实跑**不代替**里程碑通过——`ROUTE MILESTONE COVERAGE` 明示 5 个闭包文件须里程碑全量、开发路由不跑 milestone 套件）、安卓真机、打包与发布、独立审查与验收（协调者另派新会话）；**被跳过**＝无；**假设**＝无。
 - 登记口径（G-SR-8）：**本片不产出 release 运行期面**；判据只在 debug/headless 套件运行，release 二进制无对应行为差异，也无「release 已验证」结论。
 - 本节只追加本文件一个文件、单独提交（docs-only）；全部提交仅在本地 `.git`；未推送、未 tag、未改版本号、未开 PR、未打包。
+
+### P5 独立审查与验收一轮登记（2026-10-14，协调者落账；补审查结论落点）
+
+- 域：本节；对象 `b887d28..45f5ae4`（实现 `54d777d`→清洁 `8301818`→裁定A `5f53ce1`→记录 `50d7fef`→审查返修 `45f5ae4`）。
+- **独立审查（会话模型子代理，只读）**：九项＋找漏洞；结论 **VERDICT: FAIL，但仅两条文档 [应修]**（机制面全部 [已核对]，含独立 Python 重写口径复算 files=129/registry=124/cells=1264/sites=2075/whole=52/ui_reads=0 与冻结物逐键全等）：①`state-readers-dependencies.md` 行数线「净增 77 行」与 `numstat` 不符（实 83）；②`state-readers.md` 残差「变量键读只以 get_variable 形态登记」失真（该类读**不进任何表**，实测纯读 ≥11 处）。返修 `45f5ae4`（两文档 6+/3−）交原审查者只复核受影响差异：**两条 [已核对]、VERDICT: PASS**。
+- **验收一轮（验收者，自跑运行号）**：索引零漂移（digest `8efe105c…`）；冻结物 `--verify` exit 0（sha `a4048167…`，files=129/fields=121/cells=1264/sites=2075；failure face 117/878/39/1387）；`-Suite architecture`＝`20261013T170121418-58764`（120919 断言、红集 []、`before==after`）；三条突变＝`build/mutations/20261013T170520753-54020`（identity `head=45f5ae4 dirty=0`，3/3 RED＋逐字节还原，无 RESIDUE）；check-docs 47/2725/3。C-SR-1..10 记录面齐、G-SR-1..8 逐场景通过。**判定＝验收通过（未满足条目＝无）**。
+- 四态：已测＝上列＋加固批全部；未跑＝全量里程碑、安卓真机、打包发布（本片不产出 release 运行期面，按口径登记）；被跳过＝无；假设＝无。
