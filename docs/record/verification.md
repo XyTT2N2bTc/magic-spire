@@ -2974,3 +2974,12 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - **独立审查（会话模型子代理，只读）**：九项＋找漏洞；结论 **VERDICT: FAIL，但仅两条文档 [应修]**（机制面全部 [已核对]，含独立 Python 重写口径复算 files=129/registry=124/cells=1264/sites=2075/whole=52/ui_reads=0 与冻结物逐键全等）：①`state-readers-dependencies.md` 行数线「净增 77 行」与 `numstat` 不符（实 83）；②`state-readers.md` 残差「变量键读只以 get_variable 形态登记」失真（该类读**不进任何表**，实测纯读 ≥11 处）。返修 `45f5ae4`（两文档 6+/3−）交原审查者只复核受影响差异：**两条 [已核对]、VERDICT: PASS**。
 - **验收一轮（验收者，自跑运行号）**：索引零漂移（digest `8efe105c…`）；冻结物 `--verify` exit 0（sha `a4048167…`，files=129/fields=121/cells=1264/sites=2075；failure face 117/878/39/1387）；`-Suite architecture`＝`20261013T170121418-58764`（120919 断言、红集 []、`before==after`）；三条突变＝`build/mutations/20261013T170520753-54020`（identity `head=45f5ae4 dirty=0`，3/3 RED＋逐字节还原，无 RESIDUE）；check-docs 47/2725/3。C-SR-1..10 记录面齐、G-SR-1..8 逐场景通过。**判定＝验收通过（未满足条目＝无）**。
 - 四态：已测＝上列＋加固批全部；未跑＝全量里程碑、安卓真机、打包发布（本片不产出 release 运行期面，按口径登记）；被跳过＝无；假设＝无。
+
+### 2026-10-14｜v0.18.2.fix 打包（Windows＋Android 自签）登记
+
+- 域：`tools/package.ps1`／`tools/package-android.ps1` 及其成品探针；源＝枝 `worker/state-readers` HEAD `8f091eb`（含 `version/code=15`）。
+- **Windows**：`20261014-sr`（首版）与 **`20261014-sr2`（当前，含改后包内说明）**；`check-package.ps1` 均 `PACKAGE CHECK PASS`（PCK 探针＋发布 EXE 启动＋12 相邻内容包）；sr2 ZIP 219,684,953 B，SHA256 `d8f1f8bf9ce4424276831e26113fada544fb8cda9a77a2e27758304c5177f7c5`，解压复验 24/24；EXE/PCK 哈希与 sr 完全相同（差异仅在说明与 manifest）。旧 sr 保留留档。
+- **Android（本地自签测试包）**：本机自建工具链（官方 4.7.2 模板，SHA256 与 `docs/spec/packaging.md` 载值逐字节相符；SDK build-tools 35.0.1＋platform 36；JDK17 归位 `build/android-tools/`）；原发布签名密钥已遗失，经人令用本地自签密钥（密码仅存 keystore＋DPAPI，明文未落盘）——**APK 为自签测试包，不能覆盖安装正式签名版本**，包内附 `自签测试说明.txt`。APK 239,118,104 B，SHA256 `129e8e3d592ce44a4ec1a9b425ebaa143d1351c610f385e9adba771516ddccfd`：`APK RESOURCE PROBE PASS`、aapt 证 `versionCode=15/versionName=0.18.2.fix/targetSdk=36/arm64+armv7/仅 INTERNET`、apksigner v2+v3 验签通过、zipalign 校验通过、包内无禁入文件。Android ZIP（含说明与许可）234,968,510 B，SHA256 `ec07319e4fab607d81c0576f9fda3befec71eb6d4ef44172035acc7c8f07789f`，解压 12/12 复验。
+- 包内说明改文（`cd214a7`）：两份 release-notes 由「未生成安装包」改为事实版（Win 包＋Android 自签测试包及其限制）；uid 边车补提交（`8f091eb`）。
+- **按人令不发加密 7z**（「没有这么需要加密」）：已生成的半成品双层归档与含口令临时脚本均已删除，全树口令零残留；契约中的「双层加密 7z」交付项本轮不执行。
+- 四态：已测＝上列导出与两平台包探针；未跑＝**安卓真机／模拟器安装与启动**（桌面探针不能替代真机验收）、发布/Tag/上传（未授权）；被跳过＝加密 7z（人令）；假设＝无。环境变更＝Godot 编辑器 Android SDK/JDK 路径指向本工作树自建工具链（备份见 `build/android-tools/`），换树打包须重新指向。
