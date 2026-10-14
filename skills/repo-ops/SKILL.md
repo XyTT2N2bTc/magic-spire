@@ -174,4 +174,4 @@ git worktree list
 - 证据带内：临时 runner 的日志头写 `RUN IDENTITY`（`head=<git rev-parse HEAD>`、
   `dirty=<porcelain 条目数>`、所载关键文件 `sha256`），日志尾写 `exit=<code>`；"预期 PASS"不是证据。
 - 证据位置：探针／驱动／日志一律 `spire-godot/build/`（gitignored，随工作树拆除消失）；
-  计划与裁定在 `C:\1\tmp\<slice>-plan\`；个人记忆在 `C:/1/Myself`（项目外）。
+  计划与裁定在**当前切片工作树的 `tmp/`**（`<工作树>/tmp/<slice>-plan/`）；个人记忆在 `C:/1/Myself`（项目外）。
