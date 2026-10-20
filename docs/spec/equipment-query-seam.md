@@ -144,7 +144,6 @@
 | `SelfBinding.tighten_targets`（含 `capacity()`） | `core/self_binding.gd` | 全函数（叶）；推演期换 state 时由身份判定自动绕开 |
 | `RoomEvents.selector_values` | `core/room_events.gd` | `"restraint"` 分支的只读块 |
 | `RoomEvents.compile` | `core/room_events.gd` | **只包** `targets=` 过滤表达式；`locked_assembly` 分支会换 state，不得包全函数 |
-| `Prison.validate` | `core/prison.gd` | 无自带只读块；若已在 `Game.validate` 之下的嵌套调用，则为空操作 |
 | `Game._prepare_assembly` | `core/game.gd` | 规划段（`_assembly_reason`、层序循环、`_capacity_issue`）；真正写入在其后的 `_install_assembly` |
 
 ### 明确豁免（不得开作用域）
@@ -152,11 +151,12 @@
 | 入口 | 理由 |
 | --- | --- |
 | `Prison.intake_equipment` | 循环内读后写（`_refresh_equipment` 可新增肩带，作用域跨写即过期） |
+| `Prison.validate` | 存档／读档守卫；在 `Game.validate` 之下嵌套校验，无自带只读块 |
+| `EquipmentReplacement._trial` | 替换管线内的读后写收尾（`state` 深拷贝后写入，再读回校验） |
 | `SlipMotion.apply` | 正式施加滑脱，读后写 |
 | `RoomEvents.freeze_effects` | 循环内逐次读后写 |
 | `Shoulders.cleanup` | 迭代中 `erase` 肩带成员 |
 | `Game.validate` | 存档／读档守卫，按「验证的边界」从原始 state 现算，且未测得瓶颈 |
-| `EquipmentReplacement` 收尾校验 | 替换管线内的读后写收尾 |
 | `data/first_floor_enemy_pools.gd` 的 `eligible` | 已决（人裁）：保持 live；**数据层不得调用 core 的读作用域进出**，其收益经 core 侧自带作用域间接到达 |
 
 豁免清单是契约判据（读后写／多出口／存档守卫）；清洗者与加固者不得在豁免函数内补加作用域，

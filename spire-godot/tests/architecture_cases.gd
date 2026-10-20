@@ -6441,7 +6441,7 @@ static func card_terms_single_source(t) -> void:
 # docs/spec/equipment-query-seam.md：作用域进出点是冻结名单。下面两个常量是「必须新开作用域的入口」与
 # 「明确豁免」的唯一机读副本；散文表只保留索引。
 const SCOPE_ENTRY_SITES=["core/contact.gd::workspace","core/enemy_plans.gd::targets","core/equipment_offers.gd::ordinary","core/equipment_offers.gd::for_pool","core/equipment_offers.gd::preferred","core/equipment_offers.gd::links","core/self_binding.gd::tighten_targets","core/self_binding.gd::capacity","core/room_events.gd::selector_values","core/room_events.gd::compile","core/card_effects.gd::occupied_body_count","core/game.gd::command_fact","core/game.gd::command_facts","core/game.gd::_prepare_assembly","core/game.gd::get_view"]
-const SCOPE_EXEMPTIONS=["core/prison.gd::intake_equipment","core/slip_motion.gd::apply","core/room_events.gd::freeze_effects","core/shoulder_links.gd::cleanup","core/game.gd::validate","data/first_floor_enemy_pools.gd::eligible"]
+const SCOPE_EXEMPTIONS=["core/prison.gd::intake_equipment","core/prison.gd::validate","core/equipment_replacement.gd::_trial","core/slip_motion.gd::apply","core/room_events.gd::freeze_effects","core/shoulder_links.gd::cleanup","core/game.gd::validate","data/first_floor_enemy_pools.gd::eligible"]
 
 static func scope_open_sites() -> Array:
  var hits=source_write_sites(["res://core","res://data"],"_begin_equipment_read\\s*\\(\\s*\\)")
