@@ -11,9 +11,12 @@ extends RefCounted
 # 默认 `replacement` 套件只跑便宜面（新增耗时预算 ≤ 2 分钟）：
 #   1) 语料完整性：逐状态／逐例 sha256、整文件 body sha256、清单计数；
 #   2) 自检模式：改坏固定小片的一例 old.ok，比较器必须恰好只报这一例；
-#   3) 一个固定小切片对拍：固定 case_id／application case_id，不随语料排序漂移。
-# 全量对拍是显式命令（只在 S1 重构或验收时跑；抓取时的过滤双跑证明已逐例重调 Replacement.plan，
-# 与一次全量 reoracle 等价，故本片不再重跑）：
+#   3) 一个固定小切片对拍：固定 case_id／application case_id，不随语料排序漂移；
+#   4) S0b 的 12 例构造夹具（tag=fixture）全部对拍。
+# 全量对拍是显式命令（S1 重构或验收时跑）。S0 收口已在最终入库语料（100 例／19 应用层行／
+# 29 状态，file sha256 6215c300…）上实跑一次全量 reoracle：2026-10-27，100/100 判定全等，
+# exit 0，74.9 s（reoracle 只重跑旧预言机，应用层返回属 compare 口径）；抓取期与构造夹具的
+# 逐例过滤双跑证明不等于这次全量重跑，不能替代本命令：
 #   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=compare
 #   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=reoracle
 const Replacement=preload("res://core/equipment_replacement.gd")
@@ -22,11 +25,12 @@ const Game=preload("res://core/game.gd")
 const Special=preload("res://data/special_equipment.gd")
 
 const DEFAULT_CORPUS="res://tests/fixtures/replacement-corpus.json"
-# design.md §7.1 的覆盖类；S0a 真实语料只覆盖前 5 类，后 6 类由 S0b 的构造夹具补齐（人裁 D8）。
+# design.md §7.1 的 11 个覆盖类：S0a 的真实语料覆盖 5 类，S0b 的 12 例构造夹具补齐其余 6 类。
 const REQUIRED_CLASSES=["protected","cursed","same_family_special","composite_groups",
  "random_variant","exact_fit","one_short","link_retained","link_lost","shoulder_loss",
  "binding_random_tier3"]
-const S0B_CLASSES=["cursed","exact_fit","one_short","link_retained","shoulder_loss","binding_random_tier3"]
+# S0b 构造夹具的固定例数（tag=fixture）；删例或漏并都会让计数判据变红。
+const FIXTURE_CASE_COUNT=12
 const OLD_KEYS=["ok","reason","removed","installed","lost_links","score","comparisons"]
 const AFTER_KEYS=["equipment","composites","special_equipment","links","next_equipment","next_composite"]
 # 抓取行里过滤充分性未成立、因而整例排除的 case_id（计划 §5-S0.3「不得进入过滤语料」）。
@@ -68,6 +72,13 @@ static func subset(data: Dictionary, case_ids: Array, application_ids: Array) ->
  var applications=data.get("application_cases",[]).filter(func(row): return String(row.get("case_id","")) in application_ids)
  return {"schema":data.get("schema",1),"source":data.get("source",{}),
   "states":data.get("states",{}),"cases":cases,"application_cases":applications,
+  "manifest":data.get("manifest",{})}
+
+# 构造夹具集合（tag=fixture）：默认套件全部对拍，不看固定 id 清单，新增夹具自动进面。
+static func fixture_subset(data: Dictionary) -> Dictionary:
+ var cases=data.get("cases",[]).filter(func(row): return String(row.get("tag",""))=="fixture")
+ return {"schema":data.get("schema",1),"source":data.get("source",{}),
+  "states":data.get("states",{}),"cases":cases,"application_cases":[],
   "manifest":data.get("manifest",{})}
 
 # ---- 被测侧接缝 ----
@@ -225,6 +236,8 @@ static func manifest_issues(data: Dictionary) -> Array:
  if int(manifest.get("case_count",-1))!=data.get("cases",[]).size(): issues.append("case_count mismatch")
  if int(manifest.get("application_case_count",-1))!=data.get("application_cases",[]).size(): issues.append("application_case_count mismatch")
  if int(manifest.get("state_count",-1))!=states.size(): issues.append("state_count mismatch")
+ var fixtures=data.get("cases",[]).filter(func(row): return String(row.get("tag",""))=="fixture")
+ if int(manifest.get("fixture_case_count",-1))!=fixtures.size(): issues.append("fixture_case_count mismatch")
  return issues
 
 # 过滤充分性：抓取时每例都跑过「完整 state 与只剔 logs 的 state」两次预言机，这里读记录；
@@ -264,8 +277,7 @@ static func corpus_checks(t) -> void:
  var filters=filter_issues(data)
  t.check(filters.is_empty(),"CORPUS corpus_filter_is_sufficient: every case carries a full/filtered double-run proof: "+str(filters))
  var missing=missing_classes(data)
- var undeclared=missing.filter(func(name): return not S0B_CLASSES.has(String(name)))
- t.check(undeclared.is_empty(),"CORPUS corpus_covers_required_classes: only the declared S0b class gap is allowed: "+str(undeclared))
+ t.check(missing.is_empty(),"CORPUS corpus_covers_required_classes: all 11 design classes have at least one case: "+str(missing))
  var declared_unsafe=EXCLUDED_UNSAFE_CASES
  var excluded=Array(data.get("manifest",{}).get("excluded_unsafe_cases",[])).map(func(row): return String(row.get("case_id","")))
  t.check(excluded==declared_unsafe,"CORPUS corpus_exclusions_are_declared: the only capture rows kept out of the filtered corpus are the declared ones: "+str(excluded))
@@ -283,7 +295,13 @@ static func corpus_checks(t) -> void:
  var applications=compare_applications(slice)
  t.check(applications.ok,"CORPUS application_results_match (fixed slice): every fixed-slice application row deep-equals the stored return value (checked %d): %s" % [applications.checked,str(applications.mismatches.slice(0,3))])
  var compare_ms=Time.get_ticks_msec()-compare_started
- print("CORPUS SUITE ms=%d integrity_ms=%d selfcheck_ms=%d compare_ms=%d cases=%d application_cases=%d excluded=%d declared_gap=%s" % [Time.get_ticks_msec()-started,integrity_ms,selfcheck_ms,compare_ms,judgments.checked,applications.checked,excluded.size(),str(missing)])
+ var fixtures_started=Time.get_ticks_msec()
+ var fixtures=fixture_subset(data)
+ t.check(fixtures.get("cases",[]).size()==FIXTURE_CASE_COUNT,"CORPUS corpus_fixtures_are_present: the committed corpus carries all %d constructed fixtures (found %d)" % [FIXTURE_CASE_COUNT,fixtures.get("cases",[]).size()])
+ var fixture_judgments=compare_judgments(fixtures,"compare")
+ t.check(fixture_judgments.ok,"CORPUS corpus_fixtures_match_old_judgment: every constructed fixture boolean equals the stored oracle result (checked %d): %s" % [fixture_judgments.checked,str(fixture_judgments.mismatches.slice(0,3))])
+ var fixture_ms=Time.get_ticks_msec()-fixtures_started
+ print("CORPUS SUITE ms=%d integrity_ms=%d selfcheck_ms=%d compare_ms=%d fixture_ms=%d cases=%d application_cases=%d fixtures=%d excluded=%d classes=%s" % [Time.get_ticks_msec()-started,integrity_ms,selfcheck_ms,compare_ms,fixture_ms,judgments.checked,applications.checked,fixture_judgments.checked,excluded.size(),str(missing)])
 
 static func run_selfcheck(data: Dictionary) -> Dictionary:
  return selfcheck(data,SELFCHECK_CASE_IDS)

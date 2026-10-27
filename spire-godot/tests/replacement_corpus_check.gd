@@ -1,18 +1,21 @@
 extends SceneTree
 
 # S0 语料对拍驱动（headless，独立于测试套件；默认套件不跑全量）：
-#   --corpus=<path> --mode=compare   逐例被测侧（S0＝同一 Replacement.plan）vs 存量 old.ok
-#   --corpus=<path> --mode=reoracle  重调旧预言机 Replacement.plan vs 存量逐项旧结果
+#   --corpus=<path> --mode=compare   逐例被测侧（S0＝同一 Replacement.plan）vs 存量 old.ok，
+#                                    并对拍应用层行的 returned（acceptance.md §4 的 compare 口径）
+#   --corpus=<path> --mode=reoracle  重调旧预言机 Replacement.plan vs 存量逐项旧结果（只判定例：
+#                                    design.md §7.2 把应用层返回划给 compare，reoracle 检的是预言机漂移）
 #   --corpus=<path> --mode=selfcheck 在内存里改坏一例的 old.ok，要求比较器只报这一例
 # 退出码：compare／reoracle 全等＝0，有差异＝1，语料缺失／参数错＝2；
 # selfcheck 按 acceptance.md §2.2 以「恰好一例红」为非 0（1），比较器失灵＝2。
 #
-# 显式全量命令（各约 10 分钟；默认 `replacement` 套件只跑完整性＋自检＋固定小切片）：
+# 显式全量命令（全量 reoracle 在 100 例上实测 74.9 s；首跑带应用层对拍共 162.6 s；默认
+# `replacement` 套件只跑完整性＋自检＋固定小切片＋12 例构造夹具）：
 #   $env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
 #   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=compare
 #   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=reoracle
 #   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=selfcheck
-#   --limit=N 截断判定例；--cases-only 只比判定例（应用层 0 行）。
+#   --limit=N 截断判定例；--cases-only 只比判定例（应用层 0 行；reoracle 恒为此口径）。
 const Cases=preload("res://tests/replacement_corpus_cases.gd")
 
 func _init() -> void:
@@ -41,7 +44,10 @@ func _init() -> void:
   result=Cases.compare_judgments(data,"reoracle",limit)
  else:
   result=Cases.compare_judgments(data,"compare",limit)
- var application_result=Cases.compare_applications(data,0 if cases_only else limit)
+ # 应用层返回属 compare 口径（acceptance.md §4）；reoracle 只验旧预言机在判定例上未漂移。
+ var application_result={"ok":true,"checked":0,"mismatches":[]}
+ if mode!="reoracle" and not cases_only:
+  application_result=Cases.compare_applications(data,limit)
  var ok=result.ok and application_result.ok
  print("CORPUS RESULT mode=%s ok=%s checked=%d mismatches=%d application_checked=%d application_mismatches=%d" % [mode,str(ok),result.checked,result.mismatches.size(),application_result.checked,application_result.mismatches.size()])
  if not result.mismatches.is_empty():
