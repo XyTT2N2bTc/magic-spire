@@ -653,6 +653,10 @@
       "owner": "rule:replacement",
       "signals": 3
     },
+    "spire-godot/tests/replacement_corpus_cases.gd": {
+      "owner": "",
+      "signals": 4
+    },
     "spire-godot/tests/resonance_cases.gd": {
       "owner": "rule:card_power",
       "signals": 1
@@ -886,7 +890,7 @@
       "signals": 2
     }
   },
-  "digest": "8efe105ccfa5a587d94e4a013593653e03b4587f684d837eab37d14cc0bbf316",
+  "digest": "d861db75c5662be66a12e0aa11abac7a4607a8809689bf77e9be76e4bf227771",
   "domain_words": {
     "ART": [
       "ui:display",
@@ -1824,7 +1828,7 @@
       ]
     }
   },
-  "generated_from": "4c1c68a4bf593b36596a3bc34f4227c83c753d36cc178ba3caf13d7b4452916f",
+  "generated_from": "87b4e815f2d2df2f76fb699c038e03bc56b91c8759b604a2a1e9e289f3a2f750",
   "registries": {
     "rule": [
       "witch_character",
@@ -1934,11 +1938,11 @@
   "stats": {
     "blind": 3,
     "blind_by_design": 3,
-    "case_files": 220,
+    "case_files": 221,
     "domains": 60,
     "domains_declared": 60,
     "excluded": 15,
-    "inputs": 353,
+    "inputs": 354,
     "rule_suites": 52,
     "source_files": 129,
     "sources_with_edges": 127,
