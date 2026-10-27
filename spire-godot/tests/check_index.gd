@@ -22,6 +22,11 @@ extends RefCounted
 #  * `static func` declarations are deliberately not indexed (generic helpers declared
 #    in many files); their consumers stay covered by DOMAINS/BLIND_BY_DESIGN plus the
 #    directory closure (docs/spec/check-routing.md §5.3).
+#  * `case file`: a `*_cases.gd` whose text carries a line-anchored real
+#    `static func run(` declaration (`declares_run`). A comment or an indented line never
+#    counts, so a helper module under tests/ is not a case file: it falls to the tests/
+#    closure instead of owning an empty scope. The derivation and the runner's ownership
+#    checks call the same predicate (docs/spec/check-routing.md §4).
 #  * output is canonical: keys sorted, arrays sorted, no timestamps; the frozen file is
 #    written with JSON.stringify(body, "  ", true) so its key order is stable.
 #  * inputs are all scanned texts, so a comment edit in core|data|ui or tests also
@@ -41,6 +46,17 @@ const ALL_DEV_UI="all-dev-ui"
 const CORE_APPEND=["architecture","persistence","runner"]
 
 # ---------------------------------------------------------------- public interface
+
+# The only predicate for "this text is an executable case file": a real declaration at
+# column 0. A comment line, an indented line or a prose mention of the signature is not a
+# declaration -- reading the text as a substring once turned a helper module's header into
+# an owner-less executable case and reddened the runner from 018b879 on. The derivation
+# (_case_paths) and tests/runner_cases.gd (ownership, index_covers_every_case_file) call
+# this one function so the two sides can never disagree again.
+static func declares_run(text: String) -> bool:
+ var re=RegEx.new()
+ re.compile("(?m)^static func run\\(")
+ return re.search(text)!=null
 
 static func derive() -> Dictionary:
  var scan=_scan()
@@ -409,7 +425,12 @@ static func _case_paths() -> Array:
  var directory=DirAccess.open("res://tests")
  if directory==null: return out
  for file in directory.get_files():
-  if file.ends_with("_cases.gd"): out.append("res://tests/"+file)
+  if not file.ends_with("_cases.gd"): continue
+  var path="res://tests/"+file
+  # Only a real run() declaration makes a case file. A helper module that merely lives in
+  # tests/ stays out of case_files, so it is never an owner-less executable case; it is
+  # routed by the tests/ closure instead (fail-closed, no silently empty scope).
+  if declares_run(FileAccess.get_file_as_string(path)): out.append(path)
  out.sort()
  return out
 

@@ -72,7 +72,7 @@ static func ownership(t) -> void:
  for file in directory.get_files():
   if file.ends_with("_cases.gd"):
    var path="res://tests/"+file
-   if FileAccess.get_file_as_string(path).contains("static func run("):
+   if Index.declares_run(FileAccess.get_file_as_string(path)):
     t.check(owners.has(path),"RUNNER executable test file has a registered owner: "+file)
 
 static func visit(t,path: String,owner: String,owners: Dictionary,calls: RegEx) -> void:
@@ -99,7 +99,9 @@ static func index(t) -> void:
  index_defects_stay_closed(t,derived)
  index_route_examples_are_pinned(t)
 
-# i: every executable case file is in case_files with an owner that is a registered suite.
+# i: every executable case file (Index.declares_run) is in case_files with an owner that is
+# a registered suite. One shared predicate decides what "executable" means; a helper module
+# whose header mentions the signature is not a case file.
 static func index_covers_every_case_file(t,derived: Dictionary) -> void:
  var directory=DirAccess.open("res://tests")
  if directory==null:
@@ -107,7 +109,8 @@ static func index_covers_every_case_file(t,derived: Dictionary) -> void:
   return
  for file in directory.get_files():
   if not file.ends_with("_cases.gd"): continue
-  if not FileAccess.get_file_as_string("res://tests/"+file).contains("static func run("): continue
+  var path="res://tests/"+file
+  if not Index.declares_run(FileAccess.get_file_as_string(path)): continue
   var key="spire-godot/tests/"+file
   t.check(derived.case_files.has(key),"RUNNER index_covers_every_case_file: "+file+" is in the frozen index")
   if not derived.case_files.has(key): continue
