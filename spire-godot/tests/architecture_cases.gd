@@ -1182,9 +1182,9 @@ static func run(t) -> void:
  card_terms_single_source(t)
  equipment_scope_sites(t)
  equipment_targets_walk_is_one_path(t)
- _assess_dependency_edges(t)
- _legal_requests_is_the_only_judgment_entry(t)
- _migrated_pure_functions_have_one_implementation(t)
+ assess_dependency_edges(t)
+ legal_requests_is_the_only_judgment_entry(t)
+ migrated_pure_functions_have_one_implementation(t)
  transition_kind_set_pinned(t)
  command_params_keys_pinned(t)
  get_view_call_sites_are_pinned(t)
@@ -2572,7 +2572,6 @@ const VERDICT_REASON_CARRIERS=[
  "core/equipment_application.gd::_failure",
  "core/equipment_application.gd::_result",
  "core/equipment_application.gd::execute",
- "core/equipment_replacement.gd::_fail",
  "core/equipment_replacement.gd::_force_special_live",
  "core/equipment_replacement.gd::_trial",
  "core/equipment_replacement.gd::execute",
@@ -6516,17 +6515,17 @@ const ASSESS_SOURCE="core/equipment_replacement_assess.gd"
 const ASSESS_ALLOWED_EDGES=["res://data/equipment.gd","res://data/composites.gd","res://data/special_equipment.gd","res://data/links.gd","res://data/balance.gd","res://core/shoulder_links.gd","res://core/torso_binding.gd","res://core/witch_character.gd"]
 const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replacement.gd","res://ui","res://tests"]
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。
-const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","comparison_value"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"]]
+const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","comparison_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"]]
 # replacement 里允许保留旧名的唯一适配器（既有链接场景的 (g,links,anchors) 调用形状）。
 const REPLACEMENT_ADAPTERS={"_transfer":"transfer_options"}
-# replacement 调 assess 的完整符号集：删一条接线或加一条未声明的调用即红。
-const REPLACEMENT_ASSESS_CALLS=["assign","capacity_points","compare","comparison_value","counts","normalize","pieces","sets","transfer_options","units"]
+# replacement 调 assess 的完整符号集：删一条接线或加一条未声明的调用即红。failure 是唯一失败
+# 形状的构造入口（replacement 自身不再声明 _fail）；normalize..units 是纯阶段。
+const REPLACEMENT_ASSESS_CALLS=["assign","capacity_points","compare","comparison_value","counts","failure","normalize","pieces","sets","transfer_options","units"]
 
-# 函数名以下划线开头：tests/mutations.json 的 mutation_judgment_universe 只收公开函数，并要求每条
-# 公开判据登记突变证据；本片授权面不含 tests/mutations.json（派工「授权面」表），所以这三条先以私有
-# 函数名排除在该宇宙之外，敏感性证据由片报告里逐条「改相反语义→具名红→逐字节还原」提供。
-# 协调者若要把它们登记进 mutations.json，需要扩授权面（片报告的 reserved_judgments）。
-static func _assess_dependency_edges(t) -> void:
+# 三条判据都是公开名并逐条登记 tests/mutations.json（suite=architecture）：mutation_judgment_universe
+# 只收公开函数，下划线命名会让它们绕过登记（S1 实现的 reserved_judgments）。判据消息里的 ARCH 名不变，
+# 敏感性由 tools/check-mutation.ps1 -Check <名> 实跑取证（改相反语义→具名红→逐字节还原）。
+static func assess_dependency_edges(t) -> void:
  var text=source_code(ASSESS_SOURCE)
  t.check(text.strip_edges()!="","ARCH assess_dependency_edges: "+ASSESS_SOURCE+" exists")
  # Load probe: the module is reachable here and answers, so the source-only clauses
@@ -6545,7 +6544,7 @@ static func _assess_dependency_edges(t) -> void:
   if text.contains(token): impure.append(token)
  t.check(impure.is_empty(),"ARCH assess_dependency_edges: the assess module never writes state, copies a state snapshot or advances random: "+str(impure))
 
-static func _legal_requests_is_the_only_judgment_entry(t) -> void:
+static func legal_requests_is_the_only_judgment_entry(t) -> void:
  var relative="core/equipment_application.gd"
  var declarations=RegEx.new()
  declarations.compile("(?m)^(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
@@ -6564,7 +6563,7 @@ static func _legal_requests_is_the_only_judgment_entry(t) -> void:
  var plan_callers=write_site_names(plan_calls)
  t.check(plan_calls.size()==4 and plan_callers==[relative+"::_covering_plan",relative+"::execute_concrete",relative+"::legal_requests"],"ARCH legal_requests_is_the_only_judgment_entry: replacement planning is reached only from the judgment, its group shell and the executor: sites="+str(plan_calls.size())+" callers="+str(plan_callers))
 
-static func _migrated_pure_functions_have_one_implementation(t) -> void:
+static func migrated_pure_functions_have_one_implementation(t) -> void:
  var missing=[]
  for pair in MIGRATED_PURE_FUNCTIONS:
   if source_function_body(ASSESS_SOURCE,pair[1])=="": missing.append(pair[1])
@@ -6587,6 +6586,11 @@ static func _migrated_pure_functions_have_one_implementation(t) -> void:
  var added=wired.filter(func(name):return not name in REPLACEMENT_ASSESS_CALLS)
  var dropped=REPLACEMENT_ASSESS_CALLS.filter(func(name):return not name in wired)
  t.check(added.is_empty() and dropped.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: the transaction calls exactly the declared assess surface: added="+str(added)+" dropped="+str(dropped))
+ # 失败形状也只有一份：replacement 不再声明 _fail，也不内联 ok:false 的字典；每个失败结果都由
+ # Assess.failure 构造。上面的调用面与这里双向核对：删除接线或长回第二份形状即红。
+ var transaction=source_code("core/equipment_replacement.gd")
+ var local_failure=transaction.contains("func _fail(") or transaction.contains("\"ok\":false")
+ t.check(not local_failure and transaction.contains("Assess.failure("),"ARCH migrated_pure_functions_have_one_implementation: the transaction keeps no failure shape of its own; every failed plan comes from Assess.failure: local="+str(local_failure))
 
 # docs/spec/transition-pipeline.md：TRANSITIONS 的 kind 全集与 checkpoint 列（缺省＝不是固定点）。
 const TRANSITION_KINDS=["setup_init","tower_restart","practice_init","prison_cell_init","prison_gate_init","battle_start","battle_end_victory","battle_end_saturated","battle_end_captured","prepare_start","prepare_end","rest_start","room_enter","floor_enter","travel_start","prison_cell_enter","inspection_start","prison_exit_battle_start","prison_escape","event_enter","event_leave_empty","event_item_rewards","shop_enter","departure_start","departure_end","demo_end"]

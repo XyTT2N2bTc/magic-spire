@@ -60,8 +60,11 @@ func _initialize() -> void:
    if suite==null or not suite.can_instantiate():
     push_error("Cannot load selected rule suite: "+name);quit(1);return
    suite.run(self)
-   # S0 对拍基座语料检查挂在 replacement 套件内：入口是 corpus_checks，不是 run（见该文件头）。
-   if name=="replacement": preload("res://tests/replacement_corpus_cases.gd").corpus_checks(self)
+   # S0 对拍基座语料检查与 S1 只读/随机不变量都挂在 replacement 套件内：
+   # 入口分别是 corpus_checks／assess_checks，不是 run（见两个文件头）。
+   if name=="replacement":
+    preload("res://tests/replacement_corpus_cases.gd").corpus_checks(self)
+    preload("res://tests/replacement_assess_cases.gd").assess_checks(self)
   if "--probe-suite-failure" in OS.get_cmdline_user_args() and name==selected[0]: check(false,"deliberate_suite_failure")
   print("SUITE %s: %d assertions, %d ms" % [name,count-previous,Time.get_ticks_msec()-started])
   var failed=failures.size()>previous_failures or engine_errors.count()>previous_errors
