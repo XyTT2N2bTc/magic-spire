@@ -9,8 +9,8 @@ extends SceneTree
 # 退出码：compare／reoracle 全等＝0，有差异＝1，语料缺失／参数错＝2；
 # selfcheck 按 acceptance.md §2.2 以「恰好一例红」为非 0（1），比较器失灵＝2。
 #
-# 显式全量命令（全量 reoracle 在 100 例上实测 74.9 s；首跑带应用层对拍共 162.6 s；默认
-# `replacement` 套件只跑完整性＋自检＋固定小切片＋12 例构造夹具）：
+# 显式全量命令（保型语料 101 例／19 应用层行上实测：compare 191.6 s、reoracle 83.8 s；
+# 默认 `replacement` 套件只跑完整性＋自检＋固定小切片＋12 例构造夹具）：
 #   $env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
 #   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=compare
 #   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=reoracle

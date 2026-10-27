@@ -655,7 +655,7 @@
     },
     "spire-godot/tests/replacement_corpus_cases.gd": {
       "owner": "",
-      "signals": 4
+      "signals": 5
     },
     "spire-godot/tests/resonance_cases.gd": {
       "owner": "rule:card_power",
@@ -890,7 +890,7 @@
       "signals": 2
     }
   },
-  "digest": "d861db75c5662be66a12e0aa11abac7a4607a8809689bf77e9be76e4bf227771",
+  "digest": "fc7667d918b4e4edfa18cd95002049603368e00786eb8c02fa1e311556b4223f",
   "domain_words": {
     "ART": [
       "ui:display",
@@ -1828,7 +1828,7 @@
       ]
     }
   },
-  "generated_from": "0cbce0ec1026721c80f428c6c70797f74df9cebd895594e63f4d01263ab390b6",
+  "generated_from": "3ef95c955563e6528521df5c1ac9cb8fd93725b38eb1dd5c62308ffc97676af6",
   "registries": {
     "rule": [
       "witch_character",
