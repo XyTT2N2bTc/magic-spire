@@ -3,6 +3,7 @@ const E=preload("res://data/equipment.gd")
 const C=preload("res://data/composites.gd")
 const O=preload("res://core/equipment_offers.gd")
 const Replacement=preload("res://core/equipment_replacement.gd")
+const Assess=preload("res://core/equipment_replacement_assess.gd")
 
 # Internal installer for Game/RoomEvents. No player command, costs, readiness state
 # mutation, final-departure handling, or future intent construction belongs here.
@@ -199,13 +200,17 @@ static func _choices(g, spec: Dictionary, source: String) -> Array:
  var preferred_slots=spec.get("preferred_slots",[])
  for slot in preferred_slots:
   var band=raw.filter(func(p):return slot in _slots(p))
-  var found=_legal_choices(g,band,spec,source)
+  var found=legal_requests(g,band,spec,source)
   if found.is_empty() and spec.get("replace",false) and spec.get("count",1)>1 and spec.get("pool","ordinary")=="ordinary":
    found=_groups(g,raw,spec,source).filter(func(group):return group.requests.any(func(p):return slot in _slots(p)))
   if not found.is_empty(): return O.preferred(g,found)
- return O.preferred(g,_legal_choices(g,raw,spec,source))
+ return O.preferred(g,legal_requests(g,raw,spec,source))
 
-static func _legal_choices(g, raw: Array, spec: Dictionary, source: String) -> Array:
+# The single legal-candidate entry: choose and can_apply reach it through
+# _choice_bands -> _choices, and _choices calls it for the preferred-slot band and
+# the final band. A replacement feasibility check outside this function is a second
+# entry; the replace branch still plans through _replacement_plan until S2.
+static func legal_requests(g, raw: Array, spec: Dictionary, source: String) -> Array:
  var normal=raw.filter(func(p):return _request_reason(g,p,true,spec.get("protected_ids",[]))=="")
  if not normal.is_empty(): return normal
  if not spec.get("replace",false): return []
@@ -363,14 +368,14 @@ static func _groups(g, raw: Array, spec: Dictionary, source: String) -> Array:
    var minimum=-1
    for piece in root.components:
     if piece.get("independent",false) or point not in E.physical_points(piece): continue
-    var cost=Replacement.comparison_value(g,piece)
+    var cost=Assess.comparison_value(g,piece)
     if point=="upper_arm_top": cost+=root.components.filter(func(e):return E.is_shoulder(e)).size()
     minimum=maxi(minimum,cost)
    var requests=[]
    for entry in raw:
     if entry.kind!="install" or point not in g._installation_points(entry.slot,entry.get("point","")): continue
     var request=entry.duplicate(true);request.tier=local.tier
-    if Replacement.comparison_value(g,request)<=minimum: continue
+    if Assess.comparison_value(g,request)<=minimum: continue
     requests.append(request)
    choices.append(requests)
   if choices.any(func(requests):return requests.is_empty()): continue
