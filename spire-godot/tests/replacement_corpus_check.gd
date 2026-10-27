@@ -10,7 +10,7 @@ extends SceneTree
 # selfcheck 按 acceptance.md §2.2 以「恰好一例红」为非 0（1），比较器失灵＝2。
 #
 # 显式全量命令（保型语料 101 例／19 应用层行上实测：compare 191.6 s、reoracle 83.8 s；
-# 默认 `replacement` 套件只跑完整性＋自检＋固定小切片＋12 例构造夹具）：
+# 套件只跑便宜面，范围见 tests/replacement_corpus_cases.gd 文件头）：
 #   $env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
 #   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=compare
 #   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=reoracle
@@ -57,9 +57,10 @@ func _init() -> void:
  quit(0 if ok else 1)
 
 func _selfcheck(data: Dictionary, limit: int) -> void:
- var take=limit if limit>0 else 2
+ # 默认小片取前 2 例由 Cases.selfcheck 决定；驱动只在 --limit 显式收紧时传 id。
  var ids=[]
- for case in data.get("cases",[]).slice(0,take): ids.append(String(case.get("case_id","")))
+ if limit>0:
+  for case in data.get("cases",[]).slice(0,limit): ids.append(String(case.get("case_id","")))
  var result=Cases.selfcheck(data,ids)
  print("CORPUS RESULT mode=selfcheck ok=%s mutated=%s reported=%s clean_slice=%s" % [str(result.ok),String(result.mutated),JSON.stringify(result.reported),str(result.clean_ok)])
  if not result.detail.is_empty():

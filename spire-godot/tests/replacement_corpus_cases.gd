@@ -8,11 +8,12 @@ extends RefCounted
 # 所以刻意不声明 `static func run(`：tests/check_index.gd 把所有含该签名的 `*_cases.gd` 当作可执行
 # 用例文件，要求它有一个注册套件做 owner；注册表（SUITES）不在本片授权面内。
 #
-# 保型编码（S0c）：语料里每个含数值的载荷——states[*].state，cases[*] 的 step／seed／
+# 保型编码：语料里每个含数值的载荷——states[*].state，cases[*] 的 step／seed／
 # protected_ids／requests／old／filtered_unsafe，application_cases[*] 的 raw／spec／returned，
 # 以及 body 的 schema／source——都用 core/save_store.gd::encode 写出：数值叶变成
 # {"@integer":"…"}／{"@float":"<16 hex>"}，因此语料正文没有裸数字，JSON.parse_string 读回后
-# 不会把整数值 float 压成 int。读入一律经 unseal()（唯一 decode 入口）。本模块不另写任何
+# 不会把整数值 float 压成 int。读入一律经 _decode()（唯一 decode 通道：unseal() 取值、
+# payload_issues() 只验可解）。本模块不另写任何
 # float→int 压缩：那曾把 live 的 8.0 变成 8，而 core/equipment_replacement.gd::_same_loadout
 # 用 Dictionary==／Array.find 比较，对 8 与 8.0 判不同，于是 20260906-00006 不可复现、
 # 应用层行 20260906-L00384 也不复现。
@@ -22,29 +23,31 @@ extends RefCounted
 #   2) 保型不变量：正文里没有裸数字（数值叶只能是 @integer／@float 对象）；
 #   3) 自检模式：改坏固定小片的一例 old.ok，比较器必须恰好只报这一例；
 #   4) 一个固定小切片对拍：固定 case_id／application case_id，不随语料排序漂移；
-#   5) S0b 的 12 例构造夹具（tag=fixture）全部对拍。
-# 全量对拍是显式命令（S1 重构或验收时跑）：
-#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=compare
-#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=reoracle
+#   5) 12 例构造夹具（tag=fixture）全部对拍。
+# 全量对拍是显式命令（S1 重构或验收时跑）；命令与实测耗时只在驱动
+# tests/replacement_corpus_check.gd 的文件头维护一份，本文件不重复。
+#
+# 单一入口（语义 → 唯一符号；改路径须同批改本节）：
+#   读取语料 → load_corpus()；数值解码 → _decode()（unseal()／payload_issues() 共用）；
+#   正文与状态 sha256 → _digest()；深比较 → _json_same()；
+#   切片封装 → _envelope()（subset()／fixture_subset() 共用）；比较器的 Game 复位 → _fresh_game()；
+#   判定接缝 → judge()。判据名与断言只由 corpus_checks() 注册；本模块不声明 static run(。
 const Replacement=preload("res://core/equipment_replacement.gd")
 const Application=preload("res://core/equipment_application.gd")
 const Game=preload("res://core/game.gd")
-const Special=preload("res://data/special_equipment.gd")
 const Store=preload("res://core/save_store.gd")
 
 const DEFAULT_CORPUS="res://tests/fixtures/replacement-corpus.json"
-# design.md §7.1 的 11 个覆盖类：S0a 的真实语料覆盖 5 类，S0b 的 12 例构造夹具补齐其余 6 类。
+# design.md §7.1 的 11 个覆盖类：真实语料覆盖 5 类，12 例构造夹具补齐其余 6 类。
 const REQUIRED_CLASSES=["protected","cursed","same_family_special","composite_groups",
  "random_variant","exact_fit","one_short","link_retained","link_lost","shoulder_loss",
  "binding_random_tier3"]
-# S0b 构造夹具的固定例数（tag=fixture）；删例或漏并都会让计数判据变红。
+# 构造夹具的固定例数（tag=fixture）；删例或漏并都会让计数判据变红。
 const FIXTURE_CASE_COUNT=12
 const OLD_KEYS=["ok","reason","removed","installed","lost_links","score","comparisons"]
 const AFTER_KEYS=["equipment","composites","special_equipment","links","next_equipment","next_composite"]
 # 语料 body 的键：这些键下不允许出现裸数字（manifest 是文件自身清单，不计入 body）。
 const BODY_KEYS=["schema","source","states","cases","application_cases"]
-# 语料的 type-faithful 编解码就是 core/save_store.gd::encode／decode，不另写第二套。
-const CODEC="core/save_store.gd::encode|decode"
 # 固定小切片（语料冻结后不改；取早期步 284／296／314，避开 946／957／969／971 的大集合例）。
 const SUITE_CASE_IDS=["20260906-00000","20260906-00001","20260906-00002","20260906-00003"]
 const SUITE_APPLICATION_IDS=["20260906-L00354","20260906-L00362","20260906-L00373"]
@@ -53,17 +56,20 @@ const SELFCHECK_CASE_IDS=["20260906-00000","20260906-00001"]
 
 # ---- 保型编解码（唯一入口） ----
 
-# 写侧：语料生成器用同一个 encode；数值叶落成 @integer／@float 对象。
-static func seal(value):
- return Store.encode(value)
+# 所有数值载荷的唯一 decode 通道：写侧（语料生成器）直接用 core/save_store.gd::encode，
+# 本模块只读，故只有一个读入口。report=true 时打印域内错误（unseal 的调用方）；
+# payload_issues() 只判可解性，不振铃。
+static func _decode(value, what: String, report: bool=false) -> Dictionary:
+ var decoded=Store.decode(value)
+ if report and not decoded.get("ok",false):
+  push_error("replacement corpus: damaged payload ("+what+"): "+String(decoded.get("error","")))
+ return decoded
 
-# 读侧：所有数值载荷的唯一 decode。语料损坏时返回 null 并打印域内错误；
+# 取值侧：语料损坏时返回 null 并打印域内错误；
 # 判据 corpus_payloads_decode 会先把它变成红色断言。
 static func unseal(value, what: String="payload"):
- var decoded=Store.decode(value)
- if not decoded.get("ok",false):
-  push_error("replacement corpus: damaged payload ("+what+"): "+String(decoded.get("error","")))
-  return null
+ var decoded=_decode(value,what,true)
+ if not decoded.get("ok",false): return null
  return decoded.value
 
 # 逐行数值元数据（step／seed／filtered_unsafe）与载荷走同一 codec；缺键或损坏时取兜底值。
@@ -81,20 +87,22 @@ static func load_corpus(path: String=DEFAULT_CORPUS) -> Dictionary:
  if not parsed is Dictionary: return {}
  return parsed
 
-# 固定小切片：按显式 id 取子集，顺序沿用语料；缺 id 时子集更小，调用方须断言数量。
-static func subset(data: Dictionary, case_ids: Array, application_ids: Array) -> Dictionary:
- var cases=data.get("cases",[]).filter(func(row): return String(row.get("case_id","")) in case_ids)
- var applications=data.get("application_cases",[]).filter(func(row): return String(row.get("case_id","")) in application_ids)
+# 切片外壳：subset() 与 fixture_subset() 的唯一封装点。
+static func _envelope(data: Dictionary, cases: Array, applications: Array) -> Dictionary:
  return {"schema":data.get("schema",{}),"source":data.get("source",{}),
   "states":data.get("states",{}),"cases":cases,"application_cases":applications,
   "manifest":data.get("manifest",{})}
 
+# 固定小切片：按显式 id 取子集，顺序沿用语料；缺 id 时子集更小，调用方须断言数量。
+static func subset(data: Dictionary, case_ids: Array, application_ids: Array) -> Dictionary:
+ var cases=data.get("cases",[]).filter(func(row): return String(row.get("case_id","")) in case_ids)
+ var applications=data.get("application_cases",[]).filter(func(row): return String(row.get("case_id","")) in application_ids)
+ return _envelope(data,cases,applications)
+
 # 构造夹具集合（tag=fixture）：默认套件全部对拍，不看固定 id 清单，新增夹具自动进面。
 static func fixture_subset(data: Dictionary) -> Dictionary:
  var cases=data.get("cases",[]).filter(func(row): return String(row.get("tag",""))=="fixture")
- return {"schema":data.get("schema",{}),"source":data.get("source",{}),
-  "states":data.get("states",{}),"cases":cases,"application_cases":[],
-  "manifest":data.get("manifest",{})}
+ return _envelope(data,cases,[])
 
 # ---- 被测侧接缝 ----
 # S0 只有旧预言机；S1 起把 body 换成 `Assess.legal(g,case.requests,case.source,case.protected_ids)`。
@@ -126,16 +134,26 @@ static func project(result: Dictionary) -> Dictionary:
   "lost_links":result.get("lost_links",[]),"score":result.get("score",0),
   "comparisons":result.get("comparisons",[]),"after":after}
 
-static func old_entry(projected: Dictionary) -> Dictionary:
+# OLD_KEYS 投影的唯一入口：live 结果（project 后）与存量 old（unseal 后）共用；
+# 存量损坏时 unseal 返回 null，这里退化为空投影，由比较判红。
+static func old_entry(projected) -> Dictionary:
  var result={}
+ if not projected is Dictionary: return result
  for key in OLD_KEYS: result[key]=projected.get(key)
  return result
 
 # ---- 逐例对拍 ----
 
-static func _prepare(data: Dictionary) -> Dictionary:
- return {"cases":data.get("cases",[]),"application_cases":data.get("application_cases",[]),
-  "states":data.get("states",{})}
+# 同一语义只有一条深比较路径：reoracle 的逐项结果与应用层返回数组都经它。
+static func _json_same(left, right) -> bool:
+ return JSON.stringify(left)==JSON.stringify(right)
+
+# 每次对拍前重建 Game 并复位语料读取缓存：两个比较器共用这一个复位点（design.md §7.2）。
+static func _fresh_game():
+ var g=Game.new(0)
+ g._equipment_read={}
+ g._resource_feedback=null
+ return g
 
 # 状态每次从 encode 后的原文 decode 出新副本：调用方拿到的是独立对象，不需要再 duplicate。
 static func _case_state(data: Dictionary, case: Dictionary) -> Dictionary:
@@ -147,24 +165,22 @@ static func _case_state(data: Dictionary, case: Dictionary) -> Dictionary:
 # mode=compare：只比布尔（S2 起的新判定契约）；mode=reoracle：逐项深比较旧结果。
 # limit<0 表示全量；自检用很小的一片验证比较器能变红。
 static func compare_judgments(data: Dictionary, mode: String="compare", limit: int=-1) -> Dictionary:
- var corpus=_prepare(data)
- var g=Game.new(0)
+ var g=_fresh_game()
  var gamed=0
  var mismatches=[]
- g._equipment_read={}
- g._resource_feedback=null
- for case in corpus.get("cases",[]):
+ for case in data.get("cases",[]):
   if limit>=0 and gamed>=limit: break
   gamed+=1
-  g.state=_case_state(corpus,case)
+  g.state=_case_state(data,case)
   var judged=judge(g,case)
   var expected=case.get("old",{})
   var same=false
   var detail={}
   if mode=="reoracle":
    var actual=old_entry(project(judged))
-   same=JSON.stringify(actual)==JSON.stringify(_old_view(expected))
-   if not same: detail={"expected":_old_view(expected),"actual":actual}
+   var stored=old_entry(unseal(expected,"old"))
+   same=_json_same(actual,stored)
+   if not same: detail={"expected":stored,"actual":actual}
   else:
    same=bool(judged.get("ok",false))==bool(expected.get("ok",false))
    if not same: detail={"expected":expected.get("ok",false),"actual":judged.get("ok",false)}
@@ -173,36 +189,25 @@ static func compare_judgments(data: Dictionary, mode: String="compare", limit: i
     "tag":String(case.get("tag","")),"state":String(case.get("state","")),"detail":detail})
  return {"ok":mismatches.is_empty(),"checked":gamed,"mismatches":mismatches,"mode":mode}
 
-# 存量 old 全部经同一 decode 还原；理由与数值逐项按 live 类型比较。
-static func _old_view(expected: Dictionary) -> Dictionary:
- var result={}
- var value=unseal(expected,"old")
- if not value is Dictionary: return result
- for key in OLD_KEYS: result[key]=value.get(key)
- return result
-
 # 应用层结果：同一 (state, raw, spec, source) 上重放 _legal_choices，逐项深比较返回数组。
 static func compare_applications(data: Dictionary, limit: int=-1) -> Dictionary:
- var corpus=_prepare(data)
- var g=Game.new(0)
+ var g=_fresh_game()
  var checked=0
  var mismatches=[]
- g._equipment_read={}
- g._resource_feedback=null
- for row in corpus.get("application_cases",[]):
+ for row in data.get("application_cases",[]):
   if limit>=0 and checked>=limit: break
   checked+=1
-  g.state=_case_state(corpus,row)
+  g.state=_case_state(data,row)
   var returned=Application._legal_choices(g,unseal(row.get("raw",[]),"raw"),
    unseal(row.get("spec",{}),"spec"),row.get("source",""))
   var expected=unseal(row.get("returned",[]),"returned")
-  if JSON.stringify(returned)!=JSON.stringify(expected):
+  if not _json_same(returned,expected):
    mismatches.append({"case_id":row.get("case_id",""),"state":row.get("state",""),
     "expected":expected,"actual":returned})
  return {"ok":mismatches.is_empty(),"checked":checked,"mismatches":mismatches,"mode":"application"}
 
 # 自检：改坏固定小片里第一例的 old.ok，要求比较器只报它；干净片必须全等。
-# 返回 {ok, mutated, reported, clean_ok, detail}；S0a 默认套件与 check 驱动共用。
+# 返回 {ok, mutated, reported, clean_ok, detail}；默认套件与 check 驱动共用。
 static func selfcheck(data: Dictionary, case_ids: Array=[]) -> Dictionary:
  var ids=case_ids.duplicate()
  if ids.is_empty():
@@ -225,6 +230,10 @@ static func selfcheck(data: Dictionary, case_ids: Array=[]) -> Dictionary:
 
 # ---- 语料自证判据 ----
 
+# 唯一的 sha256：逐状态摘要与整文件 body 摘要都走这里（manifest.file_sha256 按同一正文重算）。
+static func _digest(value) -> String:
+ return JSON.stringify(value).sha256_text()
+
 # 清单冻结：每个 state 的 sha256 等于键名；整文件 body sha256 等于 manifest.file_sha256；
 # 每条 case／application 行引用的 state 存在；清单计数与内容一致。
 static func manifest_issues(data: Dictionary) -> Array:
@@ -233,7 +242,7 @@ static func manifest_issues(data: Dictionary) -> Array:
  for digest in states:
   var entry=states[digest]
   var state=entry.get("state",{}) if entry is Dictionary else {}
-  var computed=JSON.stringify(state).sha256_text()
+  var computed=_digest(state)
   if computed!=String(digest): issues.append("state "+String(digest)+" recomputes to "+computed)
   var dropped=entry.get("dropped_keys",[]) if entry is Dictionary else []
   if not dropped.has("logs") or (state is Dictionary and state.has("logs") and not state.get("logs",[]).is_empty()):
@@ -246,7 +255,7 @@ static func manifest_issues(data: Dictionary) -> Array:
    issues.append("application case "+String(row.get("case_id",""))+" references a missing state")
  var body={}
  for key in BODY_KEYS: body[key]=data.get(key)
- var digest=JSON.stringify(body).sha256_text()
+ var digest=_digest(body)
  var manifest=data.get("manifest",{})
  if String(manifest.get("file_sha256",""))!=digest: issues.append("file_sha256 mismatch: "+digest)
  if int(manifest.get("case_count",-1))!=data.get("cases",[]).size(): issues.append("case_count mismatch")
@@ -279,14 +288,14 @@ static func payload_issues(data: Dictionary) -> Array:
  for digest in data.get("states",{}):
   var entry=data.states[digest]
   var state=entry.get("state",{}) if entry is Dictionary else {}
-  if not Store.decode(state).get("ok",false): issues.append("state "+String(digest))
+  if not _decode(state,"state "+String(digest)).get("ok",false): issues.append("state "+String(digest))
  for case in data.get("cases",[]):
   for key in ["requests","protected_ids","old","step","seed","filtered_unsafe"]:
-   if not Store.decode(case.get(key,{})).get("ok",false):
+   if not _decode(case.get(key,{}),"case "+String(case.get("case_id",""))+"."+key).get("ok",false):
     issues.append("case "+String(case.get("case_id",""))+"."+key)
  for row in data.get("application_cases",[]):
   for key in ["raw","spec","returned"]:
-   if not Store.decode(row.get(key,{})).get("ok",false):
+   if not _decode(row.get(key,{}),"application case "+String(row.get("case_id",""))+"."+key).get("ok",false):
     issues.append("application case "+String(row.get("case_id",""))+"."+key)
  return issues
 
@@ -305,7 +314,7 @@ static func filter_issues(data: Dictionary) -> Array:
 static func missing_classes(data: Dictionary) -> Array:
  var seen={}
  for case in data.get("cases",[]):
-  for name in case.get("classes",[]): seen[name]=true
+  for name in case.get("classes",[]): seen[String(name)]=true
  for row in data.get("application_cases",[]):
   for name in row.get("classes",[]): seen[String(name)]=true
  var missing=[]
