@@ -5,8 +5,10 @@ extends RefCounted
 # 存量 old 结果只是同一预言机的缓存，reoracle 模式重调预言机验证未漂移。
 #
 # 入口是 `corpus_checks(t)`，由 tests/test_game.gd 的 `replacement` 分支调用。本模块不是注册套件，
-# 所以刻意不声明 `static func run(`：tests/check_index.gd 把所有含该签名的 `*_cases.gd` 当作可执行
+# 所以刻意不声明 static func run 签名：tests/check_index.gd 把所有含该签名的 `*_cases.gd` 当作可执行
 # 用例文件，要求它有一个注册套件做 owner；注册表（SUITES）不在本片授权面内。
+# 本文件的文本也不能出现该签名带左括号的写法：runner 的 index_covers_every_case_file 是纯子串扫描，
+# 注释里写一遍就会把本模块当成缺 owner 的可执行用例。
 #
 # 保型编码：语料里每个含数值的载荷——states[*].state，cases[*] 的 step／seed／
 # protected_ids／requests／old／filtered_unsafe，application_cases[*] 的 raw／spec／returned，
