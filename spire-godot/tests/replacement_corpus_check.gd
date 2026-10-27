@@ -1,10 +1,10 @@
 extends SceneTree
 
 # S0 语料对拍驱动（headless，独立于测试套件；默认套件不跑全量）：
-#   --corpus=<path> --mode=compare   逐例被测侧（S0＝同一 Replacement.plan）vs 存量 old.ok，
+#   --corpus=<path> --mode=compare   逐例被测侧（judge_subject；S1＝现行路径）vs 存量 old.ok，
 #                                    并对拍应用层行的 returned（acceptance.md §4 的 compare 口径）
-#   --corpus=<path> --mode=reoracle  重调旧预言机 Replacement.plan vs 存量逐项旧结果（只判定例：
-#                                    design.md §7.2 把应用层返回划给 compare，reoracle 检的是预言机漂移）
+#   --corpus=<path> --mode=reoracle  重调旧预言机（judge_oracle＝Replacement.plan）vs 存量逐项旧结果
+#                                    （只判定例：design.md §7.2 把应用层返回划给 compare）
 #   --corpus=<path> --mode=selfcheck 在内存里改坏一例的 old.ok，要求比较器只报这一例
 # 退出码：compare／reoracle 全等＝0，有差异＝1，语料缺失／参数错＝2；
 # selfcheck 按 acceptance.md §2.2 以「恰好一例红」为非 0（1），比较器失灵＝2。

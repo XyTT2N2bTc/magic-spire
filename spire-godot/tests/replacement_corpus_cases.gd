@@ -1,7 +1,8 @@
 extends RefCounted
 
 # S0 对拍基座：入库语料（tests/fixtures/replacement-corpus.json）的读取、判据与比较器。
-# 被测侧暂时由同一旧预言机 Replacement.plan 驱动（S1 起换成 Assess.legal，见 judge()）；
+# 判定接缝拆成两个入口（审查 F1／协调者 A9）：被测侧 judge_subject() 本片仍走现行路径，
+# S2 只改这一处；旧预言机 judge_oracle() 恒为 Replacement.plan，reoracle 只用它。
 # 存量 old 结果只是同一预言机的缓存，reoracle 模式重调预言机验证未漂移。
 #
 # 入口是 `corpus_checks(t)`，由 tests/test_game.gd 的 `replacement` 分支调用。本模块不是注册套件，
@@ -32,7 +33,7 @@ extends RefCounted
 #   读取语料 → load_corpus()；数值解码 → _decode()（unseal()／payload_issues() 共用）；
 #   正文与状态 sha256 → _digest()；深比较 → _json_same()；
 #   切片封装 → _envelope()（subset()／fixture_subset() 共用）；比较器的 Game 复位 → _fresh_game()；
-#   判定接缝 → judge()。判据名与断言只由 corpus_checks() 注册；本模块不声明 static run(。
+#   判定接缝 → judge_subject()（被测侧）／judge_oracle()（旧预言机）。判据名与断言只由 corpus_checks() 注册；本模块不声明 static run(。
 const Replacement=preload("res://core/equipment_replacement.gd")
 const Application=preload("res://core/equipment_application.gd")
 const Game=preload("res://core/game.gd")
@@ -106,9 +107,16 @@ static func fixture_subset(data: Dictionary) -> Dictionary:
  return _envelope(data,cases,[])
 
 # ---- 被测侧接缝 ----
-# S0 只有旧预言机；S1 起把 body 换成 `Assess.legal(g,case.requests,case.source,case.protected_ids)`。
+# 两个入口，各自只做一件事：
+#   judge_subject  = 被测侧，S1 仍走现行路径；S2 把 body 换成
+#                    `Assess.legal(g,case.requests,case.source,case.protected_ids)` 即完成接线。
+#   judge_oracle   = 旧预言机，恒为 Replacement.plan；reoracle 只用它，compare/selfcheck 不经过它。
 # 判定布尔之外的理由字符串不作契约（旧 _legal_choices 不读它）。
-static func judge(g, case: Dictionary) -> Dictionary:
+static func judge_subject(g, case: Dictionary) -> bool:
+ return Replacement.plan(g,unseal(case.get("requests",[]),"requests"),
+  String(case.get("source","")),unseal(case.get("protected_ids",[]),"protected_ids")).get("ok",false)
+
+static func judge_oracle(g, case: Dictionary) -> Dictionary:
  return Replacement.plan(g,unseal(case.get("requests",[]),"requests"),
   String(case.get("source","")),unseal(case.get("protected_ids",[]),"protected_ids"))
 
@@ -173,24 +181,25 @@ static func compare_judgments(data: Dictionary, mode: String="compare", limit: i
   if limit>=0 and gamed>=limit: break
   gamed+=1
   g.state=_case_state(data,case)
-  var judged=judge(g,case)
   var expected=case.get("old",{})
   var same=false
   var detail={}
   if mode=="reoracle":
-   var actual=old_entry(project(judged))
+   var actual=old_entry(project(judge_oracle(g,case)))
    var stored=old_entry(unseal(expected,"old"))
    same=_json_same(actual,stored)
    if not same: detail={"expected":stored,"actual":actual}
   else:
-   same=bool(judged.get("ok",false))==bool(expected.get("ok",false))
-   if not same: detail={"expected":expected.get("ok",false),"actual":judged.get("ok",false)}
+   var actual_ok=judge_subject(g,case)
+   same=actual_ok==bool(expected.get("ok",false))
+   if not same: detail={"expected":expected.get("ok",false),"actual":actual_ok}
   if not same:
    mismatches.append({"case_id":String(case.get("case_id","")),"step":row_int(case,"step"),
     "tag":String(case.get("tag","")),"state":String(case.get("state","")),"detail":detail})
  return {"ok":mismatches.is_empty(),"checked":gamed,"mismatches":mismatches,"mode":mode}
 
-# 应用层结果：同一 (state, raw, spec, source) 上重放 _legal_choices，逐项深比较返回数组。
+# 应用层结果：同一 (state, raw, spec, source) 上重放合法候选入口 legal_requests，逐项深比较返回数组。
+# 被测侧从私有 _legal_choices 改指生产入口（审查 F2），避免只比别名。
 static func compare_applications(data: Dictionary, limit: int=-1) -> Dictionary:
  var g=_fresh_game()
  var checked=0
@@ -199,7 +208,7 @@ static func compare_applications(data: Dictionary, limit: int=-1) -> Dictionary:
   if limit>=0 and checked>=limit: break
   checked+=1
   g.state=_case_state(data,row)
-  var returned=Application._legal_choices(g,unseal(row.get("raw",[]),"raw"),
+  var returned=Application.legal_requests(g,unseal(row.get("raw",[]),"raw"),
    unseal(row.get("spec",{}),"spec"),row.get("source",""))
   var expected=unseal(row.get("returned",[]),"returned")
   if not _json_same(returned,expected):
