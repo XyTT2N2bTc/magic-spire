@@ -227,12 +227,16 @@ static func compare(g, units: Array, installed: Array, deficit: Dictionary, befo
     var incoming=singles.filter(func(piece):return point in physical_points(g,piece))
     if incoming.is_empty(): strict=false
     for old in locals:
-     if incoming.any(func(piece):return comparison_value(g,piece)<=comparison_value(g,old)+loss(g,old,point,unit,before_links,lost)): strict=false
+     # Price the removed piece once: the same value is compared against every incoming piece.
+     var old_value=comparison_value(g,old)+loss(g,old,point,unit,before_links,lost)
+     if incoming.any(func(piece):return comparison_value(g,piece)<=old_value): strict=false
    strict_roots[unit.id]=strict
   for piece in unit.pieces:
    for point in capacity_points(g,piece):
     if point not in deficit: continue
-    rows.append({"old_id":piece.id,"unit":unit.id,"point":point,"old_value":comparison_value(g,piece)+loss(g,piece,point,unit,before_links,lost),"lost_link_bonus":loss(g,piece,point,unit,before_links,lost),"composite":unit.composite})
+    # One lost-link price fills both fields, so the row cannot disagree with itself.
+    var lost_value=loss(g,piece,point,unit,before_links,lost)
+    rows.append({"old_id":piece.id,"unit":unit.id,"point":point,"old_value":comparison_value(g,piece)+lost_value,"lost_link_bonus":lost_value,"composite":unit.composite})
  # Incidental overlap from removing a whole root is not an extra voting ticket.
  rows.sort_custom(func(a,b):return a.old_value>b.old_value)
  var needed={};var selected=[]

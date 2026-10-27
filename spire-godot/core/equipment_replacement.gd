@@ -277,8 +277,9 @@ static func _trial(g, before: Dictionary, specs: Array, source: String, units: A
  if not units.is_empty() and _same_loadout(before,g.state): return _fail("替换后装备没有变化。")
  return {"ok":true,"reason":"","requests":specs,"removed":removed,"installed":installed.duplicate(true),"lost_links":lost,"comparisons":comparison.rows,"score":comparison.score,"_after":g.state.duplicate(true)}
 
-# Test-facing adapter only: the implementation is Assess.transfer_options, and the
-# existing link scenarios call this historical (g, links, anchors) shape. A pure
-# delegate keeps one implementation without rewriting the assertions.
+# Test-facing adapter, kept for the two existing link scenarios that call this
+# historical (g, links, anchors) shape (tests/replacement_cases.gd::
+# equivalent_link_transfers, ::partially_lost_transfers). One unconditional
+# delegate: Assess.transfer_options stays the only implementation.
 static func _transfer(g, links: Array, anchors: Array) -> Array:
  return Assess.transfer_options(g,links,anchors,g.link_anchors(),g.state.links)
