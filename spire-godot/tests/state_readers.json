@@ -113,10 +113,10 @@
     }
   },
   "generated_from": {
-    "cells": 1264,
+    "cells": 1262,
     "fields": 121,
-    "files": 129,
-    "inputs_sha256": "21c193880f8cefb3b11d0d86d132a88a05aee8c26675cd871b43fbe188239cd0",
+    "files": 130,
+    "inputs_sha256": "243594d47fbdb437a5c470d7229255234a8c08890511d935e45f667d368bb6b6",
     "sites": 2075,
     "ui_reads": 0,
     "whole_state": 52
@@ -590,23 +590,17 @@
       "special_equipment": 2
     },
     "core/equipment_replacement.gd::_plan": {
-      "special_equipment": 1
+      "composites": 1,
+      "equipment": 1,
+      "special_equipment": 2
     },
     "core/equipment_replacement.gd::_transfer": {
-      "links": 1
-    },
-    "core/equipment_replacement.gd::_transfer_search": {
       "links": 1
     },
     "core/equipment_replacement.gd::_trial": {
       "composites": 1,
       "equipment": 1,
-      "links": 4,
-      "special_equipment": 1
-    },
-    "core/equipment_replacement.gd::_units": {
-      "composites": 1,
-      "equipment": 1,
+      "links": 5,
       "special_equipment": 1
     },
     "core/equipment_replacement.gd::execute": {

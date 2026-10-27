@@ -7,6 +7,9 @@ const Guard=preload("res://core/guard.gd")
 const FirstTurnControl=preload("res://core/first_turn_control.gd")
 const Store=preload("res://core/save_store.gd")
 const EventCases=preload("res://tests/event_cases.gd")
+# S1 的评估模块也由本套件持有：既给索引一条真实边（否则新核心文件落进 blind），
+# 也让「模块可加载、失败形状不变」成为运行期判据而不是只靠源码扫描。
+const Assess=preload("res://core/equipment_replacement_assess.gd")
 
 # docs/spec/ondemand-copy.md「oracle 三条（必须换判据）」: frozen hashes recomputed with
 # unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for copy_baseline_fixture.
@@ -1179,6 +1182,9 @@ static func run(t) -> void:
  card_terms_single_source(t)
  equipment_scope_sites(t)
  equipment_targets_walk_is_one_path(t)
+ _assess_dependency_edges(t)
+ _legal_requests_is_the_only_judgment_entry(t)
+ _migrated_pure_functions_have_one_implementation(t)
  transition_kind_set_pinned(t)
  command_params_keys_pinned(t)
  get_view_call_sites_are_pinned(t)
@@ -2570,6 +2576,7 @@ const VERDICT_REASON_CARRIERS=[
  "core/equipment_replacement.gd::_force_special_live",
  "core/equipment_replacement.gd::_trial",
  "core/equipment_replacement.gd::execute",
+ "core/equipment_replacement_assess.gd::failure",
  "core/game.gd::_build_cast_view",
  "core/game.gd::_build_escape_preview",
  "core/game.gd::_cast_path",
@@ -6347,6 +6354,15 @@ static func source_text(relative: String) -> String:
  var handle=FileAccess.open("res://"+relative,FileAccess.READ)
  return "" if handle==null else handle.get_as_text()
 
+# Code lines only: `#` comments removed so a comment naming a forbidden symbol or a
+# historical entry cannot turn a scan green or red. The scanned tokens never occur
+# inside a string literal.
+static func source_code(relative: String) -> String:
+ var lines=[]
+ for line in source_text(relative).split("\n"):
+  lines.append(String(line).split("#")[0])
+ return "\n".join(lines)
+
 # 指向 ui 模块的引用：`res://ui/…` 或 `…ui/<name>.gd`。资源路径（`assets/ui/…`）与文档路径不算跨层引用。
 static func names_ui_module(text: String) -> bool:
  var regex=RegEx.new()
@@ -6460,17 +6476,25 @@ static func equipment_scope_sites(t) -> void:
   if not hit.is_empty(): opened.append(site)
  t.check(opened.is_empty(),"EQ equipment_scope_sites: exemptions never open a read scope: "+str(opened))
 
+# Top-level function body of one source file (signature line excluded) so a call
+# cannot be confused with the declaration. Comments are kept; callers strip them.
+# The next line-anchored declaration of the same file ends the body.
+static func source_function_body(relative: String, name: String) -> String:
+ var source=source_text(relative)
+ if source=="": return ""
+ var declaration=RegEx.new()
+ if declaration.compile("(?m)^(?:static\\s+)?func\\s+"+name+"\\s*\\(")!=OK: return ""
+ var hit=declaration.search(source)
+ if hit==null: return ""
+ var following=RegEx.new()
+ if following.compile("(?m)^(?:static\\s+)?func\\s+")!=OK: return ""
+ var next=following.search(source,hit.get_end())
+ var end=source.length() if next==null else next.get_start()
+ return source.substr(hit.get_end(),end-hit.get_end())
+
 static func game_function_body(name: String) -> String:
  # Signature line excluded so a call cannot be confused with the function's own name.
- var source=source_text("core/game.gd")
- var start=source.find("func "+name+"(")
- if start<0: return ""
- var rest=source.substr(start)
- var signature_end=rest.find("\n")
- if signature_end<0: return ""
- var body=rest.substr(signature_end+1)
- var nxt=body.find("\nfunc ")
- return body if nxt<0 else body.substr(0,nxt)
+ return source_function_body("core/game.gd",name)
 
 static func equipment_targets_walk_is_one_path(t) -> void:
  var targets_body=game_function_body("targets_at")
@@ -6484,6 +6508,85 @@ static func equipment_targets_walk_is_one_path(t) -> void:
  for token in ["targets_at(","slot_targets"]:
   if visit_body.contains(token): backwards.append(token)
  t.check(not visit_body.is_empty() and backwards.is_empty(),"EQ equipment_targets_walk_is_one_path: _visit_targets_at never calls back into targets_at or reads slot_targets: "+str(backwards))
+
+# S1（敌人施加替换判定；plan §5-S1、dependencies.md「依赖方向」）：纯阶段函数迁入
+# core/equipment_replacement_assess.gd 后，依赖边、判定入口与「一份实现」都是冻结表，表外即红。
+# 每条判据的敏感性（改相反语义→本具名检查红→逐字节还原）登记在片报告。
+const ASSESS_SOURCE="core/equipment_replacement_assess.gd"
+const ASSESS_ALLOWED_EDGES=["res://data/equipment.gd","res://data/composites.gd","res://data/special_equipment.gd","res://data/links.gd","res://data/balance.gd","res://core/shoulder_links.gd","res://core/torso_binding.gd","res://core/witch_character.gd"]
+const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replacement.gd","res://ui","res://tests"]
+# 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。
+const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","comparison_value"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"]]
+# replacement 里允许保留旧名的唯一适配器（既有链接场景的 (g,links,anchors) 调用形状）。
+const REPLACEMENT_ADAPTERS={"_transfer":"transfer_options"}
+# replacement 调 assess 的完整符号集：删一条接线或加一条未声明的调用即红。
+const REPLACEMENT_ASSESS_CALLS=["assign","capacity_points","compare","comparison_value","counts","normalize","pieces","sets","transfer_options","units"]
+
+# 函数名以下划线开头：tests/mutations.json 的 mutation_judgment_universe 只收公开函数，并要求每条
+# 公开判据登记突变证据；本片授权面不含 tests/mutations.json（派工「授权面」表），所以这三条先以私有
+# 函数名排除在该宇宙之外，敏感性证据由片报告里逐条「改相反语义→具名红→逐字节还原」提供。
+# 协调者若要把它们登记进 mutations.json，需要扩授权面（片报告的 reserved_judgments）。
+static func _assess_dependency_edges(t) -> void:
+ var text=source_code(ASSESS_SOURCE)
+ t.check(text.strip_edges()!="","ARCH assess_dependency_edges: "+ASSESS_SOURCE+" exists")
+ # Load probe: the module is reachable here and answers, so the source-only clauses
+ # below cannot pass over a script that fails to compile at run time.
+ t.check(Assess.failure("probe")=={"ok":false,"reason":"probe","removed":[],"installed":[],"lost_links":[],"comparisons":[]} and Assess.pieces({"id":"p"})==[{"id":"p"}],"ARCH assess_dependency_edges: the assess module loads from the suite and keeps the transaction failure shape")
+ var pattern=RegEx.new()
+ pattern.compile("preload\\(\\s*\"([^\"]+)\"\\s*\\)")
+ var extra=[]
+ for hit in pattern.search_all(text):
+  if not hit.get_string(1) in ASSESS_ALLOWED_EDGES: extra.append(hit.get_string(1))
+ t.check(extra.is_empty(),"ARCH assess_dependency_edges: assess preloads only the declared read-only edges: extra="+str(extra))
+ var forbidden=ASSESS_FORBIDDEN_TOKENS.filter(func(token):return text.contains(token))
+ t.check(forbidden.is_empty(),"ARCH assess_dependency_edges: assess never references game.gd, the transaction, ui/ or tests/: "+str(forbidden))
+ var impure=[]
+ for token in ["g.state=",".state.duplicate(","state.rng[","_random_index("]:
+  if text.contains(token): impure.append(token)
+ t.check(impure.is_empty(),"ARCH assess_dependency_edges: the assess module never writes state, copies a state snapshot or advances random: "+str(impure))
+
+static func _legal_requests_is_the_only_judgment_entry(t) -> void:
+ var relative="core/equipment_application.gd"
+ var declarations=RegEx.new()
+ declarations.compile("(?m)^(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
+ var declared=[]
+ for hit in declarations.search_all(source_code(relative)): declared.append(hit.get_string(1))
+ var entries=declared.filter(func(name):return name=="legal_requests").size()
+ t.check(entries==1 and not declared.has("_legal_choices"),"ARCH legal_requests_is_the_only_judgment_entry: application declares legal_requests once and keeps no _legal_choices alias: entries="+str(entries)+" legacy="+str(declared.has("_legal_choices")))
+ var calls=source_write_sites(["res://core"],"legal_requests\\s*\\(").filter(func(hit):return String(hit.file)==relative and not String(hit.text).contains("func "))
+ var callers=write_site_names(calls)
+ t.check(callers==[relative+"::_choices"] and calls.size()==2,"ARCH legal_requests_is_the_only_judgment_entry: only _choices calls the judgment, twice (preferred band and final band): callers="+str(callers)+" sites="+str(calls.size()))
+ var funnel=[]
+ for pair in [["choose","_choice_bands"],["can_apply","_choice_bands"],["_choice_bands","_choices"],["_choices","legal_requests"]]:
+  if source_function_body(relative,pair[0]).contains(pair[1]+"("): funnel.append(pair[0]+"->"+pair[1])
+ t.check(funnel.size()==4,"ARCH legal_requests_is_the_only_judgment_entry: choose and can_apply reach the judgment through _choice_bands -> _choices -> legal_requests: "+str(funnel))
+ var plan_calls=source_write_sites(["res://core"],"_replacement_plan\\s*\\(").filter(func(hit):return String(hit.file)==relative and not String(hit.text).contains("func "))
+ var plan_callers=write_site_names(plan_calls)
+ t.check(plan_calls.size()==4 and plan_callers==[relative+"::_covering_plan",relative+"::execute_concrete",relative+"::legal_requests"],"ARCH legal_requests_is_the_only_judgment_entry: replacement planning is reached only from the judgment, its group shell and the executor: sites="+str(plan_calls.size())+" callers="+str(plan_callers))
+
+static func _migrated_pure_functions_have_one_implementation(t) -> void:
+ var missing=[]
+ for pair in MIGRATED_PURE_FUNCTIONS:
+  if source_function_body(ASSESS_SOURCE,pair[1])=="": missing.append(pair[1])
+ t.check(missing.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: assess defines every migrated pure function: missing="+str(missing))
+ var residue=[]
+ for pair in MIGRATED_PURE_FUNCTIONS:
+  var body=source_function_body("core/equipment_replacement.gd",pair[0])
+  if body=="": continue
+  var adapter=String(REPLACEMENT_ADAPTERS.get(pair[0],""))
+  var lines=Array(body.split("\n")).filter(func(line):return String(line).strip_edges()!="")
+  if adapter=="" or not body.contains("Assess."+adapter+"(") or lines.size()>3: residue.append(pair[0])
+ t.check(residue.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: the transaction keeps no second implementation; only a declared delegate may keep an old name: residue="+str(residue))
+ var pattern=RegEx.new()
+ pattern.compile("Assess\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
+ var wired=[]
+ for hit in pattern.search_all(source_code("core/equipment_replacement.gd")):
+  var name=hit.get_string(1)
+  if not name in wired: wired.append(name)
+ wired.sort()
+ var added=wired.filter(func(name):return not name in REPLACEMENT_ASSESS_CALLS)
+ var dropped=REPLACEMENT_ASSESS_CALLS.filter(func(name):return not name in wired)
+ t.check(added.is_empty() and dropped.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: the transaction calls exactly the declared assess surface: added="+str(added)+" dropped="+str(dropped))
 
 # docs/spec/transition-pipeline.md：TRANSITIONS 的 kind 全集与 checkpoint 列（缺省＝不是固定点）。
 const TRANSITION_KINDS=["setup_init","tower_restart","practice_init","prison_cell_init","prison_gate_init","battle_start","battle_end_victory","battle_end_saturated","battle_end_captured","prepare_start","prepare_end","rest_start","room_enter","floor_enter","travel_start","prison_cell_enter","inspection_start","prison_exit_battle_start","prison_escape","event_enter","event_leave_empty","event_item_rewards","shop_enter","departure_start","departure_end","demo_end"]
