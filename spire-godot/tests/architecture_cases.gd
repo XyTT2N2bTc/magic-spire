@@ -1184,6 +1184,7 @@ static func run(t) -> void:
  equipment_targets_walk_is_one_path(t)
  assess_dependency_edges(t)
  legal_requests_is_the_only_judgment_entry(t)
+ replacement_judgment_has_one_entry(t)
  migrated_pure_functions_have_one_implementation(t)
  transition_kind_set_pinned(t)
  command_params_keys_pinned(t)
@@ -6514,15 +6515,20 @@ static func equipment_targets_walk_is_one_path(t) -> void:
 const ASSESS_SOURCE="core/equipment_replacement_assess.gd"
 const ASSESS_ALLOWED_EDGES=["res://data/equipment.gd","res://data/composites.gd","res://data/special_equipment.gd","res://data/links.gd","res://data/balance.gd","res://core/shoulder_links.gd","res://core/torso_binding.gd","res://core/witch_character.gd"]
 const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replacement.gd","res://ui","res://tests"]
+# assess 对传入 g 只许调用 dependencies.md「依赖方向／禁止」节点名的只读实例方法；表外即红
+# （任何写入方法，如 _cleanup／_commit_changes／_emit，都落在表外）。_composite_body／
+# _equipment 是迁移前就在用的只读读取，属该节的「等」。
+const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_composite_body","_equipment","_outer","_prepare_installation","_prepare_assembly","_sealed_reason","_special_install_reason","tier"]
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。
 const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","comparison_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"]]
-# replacement 里允许保留旧名的唯一适配器（既有链接场景的 (g,links,anchors) 调用形状）。
-const REPLACEMENT_ADAPTERS={"_transfer":"transfer_options"}
-# replacement 调 assess 的完整符号集：删一条接线或加一条未声明的调用即红。failure 是唯一失败
-# 形状的构造入口（replacement 自身不再声明 _fail）；normalize..units 是纯阶段。
-const REPLACEMENT_ASSESS_CALLS=["assign","capacity_points","compare","comparison_value","counts","failure","normalize","pieces","sets","transfer_options","units"]
+# replacement 里允许保留旧名的唯一适配器：旧名 -> [assess 名, 期望的参数原文（按顺序）]。
+# 体内只许这一条 return，参数表外即红：加本地变量、截断返回值、换参数都是第二份实现。
+const REPLACEMENT_ADAPTERS={"_transfer":["transfer_options",["g","links","anchors","g.link_anchors()","g.state.links"]]}
+# replacement 调 assess 的完整符号集与每个符号的期望调用点数：删一条接线或加一条未声明的
+# 调用即红。failure 是唯一失败形状的构造入口（replacement 自身不再声明 _fail）。
+const REPLACEMENT_ASSESS_CALL_SITES={"assign":1,"capacity_points":2,"compare":1,"comparison_value":4,"counts":3,"failure":24,"normalize":1,"pieces":2,"sets":1,"transfer_options":2,"units":1}
 
-# 三条判据都是公开名并逐条登记 tests/mutations.json（suite=architecture）：mutation_judgment_universe
+# 四条判据都是公开名并逐条登记 tests/mutations.json（suite=architecture）：mutation_judgment_universe
 # 只收公开函数，下划线命名会让它们绕过登记（S1 实现的 reserved_judgments）。判据消息里的 ARCH 名不变，
 # 敏感性由 tools/check-mutation.ps1 -Check <名> 实跑取证（改相反语义→具名红→逐字节还原）。
 static func assess_dependency_edges(t) -> void:
@@ -6543,6 +6549,32 @@ static func assess_dependency_edges(t) -> void:
  for token in ["g.state=",".state.duplicate(","state.rng[","_random_index("]:
   if text.contains(token): impure.append(token)
  t.check(impure.is_empty(),"ARCH assess_dependency_edges: the assess module never writes state, copies a state snapshot or advances random: "+str(impure))
+ # 白名单（F2）：g 上只许调用 dependencies.md「禁止」节列明的只读实例方法；表外即红。
+ var calls=[]
+ var call=RegEx.new()
+ call.compile("(?<![A-Za-z0-9_])g\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
+ for hit in call.search_all(text):
+  if not hit.get_string(1) in ASSESS_READONLY_INSTANCE_METHODS and not hit.get_string(1) in calls: calls.append(hit.get_string(1))
+ calls.sort()
+ t.check(calls.is_empty(),"ARCH assess_dependency_edges: assess calls only the read-only instance methods declared for its g parameter (dependencies.md 禁止节); a call outside the whitelist is a write path: extra="+str(calls))
+ # 任何 state 路径的赋值（字段、下标、复合赋值）都是对 live state 的写入。
+ var writes=[]
+ var write=RegEx.new()
+ write.compile("(?<![A-Za-z0-9_])g\\s*\\.\\s*state\\b(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[^\\]]*\\])*\\s*(?:\\*\\*|<<|>>|\\+|-|\\*|/|%|&|\\||\\^)?=(?!=)")
+ for hit in write.search_all(text): writes.append(hit.get_string().strip_edges())
+ t.check(writes.is_empty(),"ARCH assess_dependency_edges: assess never assigns a g.state path (field, index or compound assignment): "+str(writes))
+ # 在 state 容器上调用变异方法或整份拷贝，同样是对 live state 的写/拷贝。
+ var mutators=[]
+ var mutation=RegEx.new()
+ mutation.compile("(?<![A-Za-z0-9_])g\\s*\\.\\s*state\\b(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[^\\]]*\\])*\\s*\\.\\s*(append|append_array|erase|clear|push_back|push_front|pop_back|pop_front|insert|remove_at|resize|fill|sort|sort_custom|shuffle|merge|duplicate)\\s*\\(")
+ for hit in mutation.search_all(text): mutators.append(hit.get_string().strip_edges())
+ t.check(mutators.is_empty(),"ARCH assess_dependency_edges: assess never mutates or copies a live g.state container (mutation methods and duplicate are write paths): "+str(mutators))
+ # 别名会把写入藏到扫描之外，故不允许把 g.state 绑到局部变量。
+ var aliases=[]
+ var alias=RegEx.new()
+ alias.compile("(?m)^\\s*(?:var\\s+)?[A-Za-z_][A-Za-z0-9_]*\\s*=\\s*g\\.state\\b")
+ for hit in alias.search_all(text): aliases.append(hit.get_string().strip_edges())
+ t.check(aliases.is_empty(),"ARCH assess_dependency_edges: assess never binds g.state to a local alias (a write through the alias would be invisible to this scan): "+str(aliases))
 
 static func legal_requests_is_the_only_judgment_entry(t) -> void:
  var relative="core/equipment_application.gd"
@@ -6563,6 +6595,19 @@ static func legal_requests_is_the_only_judgment_entry(t) -> void:
  var plan_callers=write_site_names(plan_calls)
  t.check(plan_calls.size()==4 and plan_callers==[relative+"::_covering_plan",relative+"::execute_concrete",relative+"::legal_requests"],"ARCH legal_requests_is_the_only_judgment_entry: replacement planning is reached only from the judgment, its group shell and the executor: sites="+str(plan_calls.size())+" callers="+str(plan_callers))
 
+# dependencies.md 判据→检查表登记名（S1 审查 F1：登记名原先不存在，实际实现只数 _replacement_plan）。
+# 本判据扫「直达旧判定」的调用点：application 里事务 plan 的调用点必须只有 _replacement_plan 一处，
+# 判定入口 can_apply／legal_requests／_choices／_choice_bands 不得直接触碰事务。
+static func replacement_judgment_has_one_entry(t) -> void:
+ var relative="core/equipment_application.gd"
+ var plan_calls=source_write_sites(["res://core"],"\\.\\s*plan\\s*\\(").filter(func(hit):return String(hit.file)==relative and not String(hit.text).contains("func "))
+ var plan_callers=write_site_names(plan_calls)
+ t.check(plan_calls.size()==1 and plan_callers==[relative+"::_replacement_plan"],"ARCH replacement_judgment_has_one_entry: every call of the transaction plan goes through _replacement_plan; a second direct plan channel (for example inside can_apply) is a second judgment entry: sites="+str(plan_calls.size())+" callers="+str(plan_callers))
+ var direct=[]
+ for name in ["can_apply","legal_requests","_choices","_choice_bands"]:
+  if source_function_body(relative,name).contains("Replacement."): direct.append(name)
+ t.check(direct.is_empty(),"ARCH replacement_judgment_has_one_entry: can_apply, legal_requests, _choices and _choice_bands never reference the transaction module directly (only _replacement_plan calls it): direct="+str(direct))
+
 static func migrated_pure_functions_have_one_implementation(t) -> void:
  var missing=[]
  for pair in MIGRATED_PURE_FUNCTIONS:
@@ -6572,20 +6617,34 @@ static func migrated_pure_functions_have_one_implementation(t) -> void:
  for pair in MIGRATED_PURE_FUNCTIONS:
   var body=source_function_body("core/equipment_replacement.gd",pair[0])
   if body=="": continue
-  var adapter=String(REPLACEMENT_ADAPTERS.get(pair[0],""))
-  var lines=Array(body.split("\n")).filter(func(line):return String(line).strip_edges()!="")
-  if adapter=="" or not body.contains("Assess."+adapter+"(") or lines.size()>3: residue.append(pair[0])
- t.check(residue.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: the transaction keeps no second implementation; only a declared delegate may keep an old name: residue="+str(residue))
+  # body 从签名的 "(" 之后开始：首行是签名余部，不算函数体。
+  var lines=Array(body.split("\n"))
+  lines.remove_at(0)
+  var adapter=REPLACEMENT_ADAPTERS.get(pair[0],[])
+  var expected=""
+  if not adapter.is_empty(): expected="return Assess."+String(adapter[0])+"("+",".join(adapter[1])+")"
+  var code=[]
+  for line in lines:
+   var text=String(line).split("#")[0].strip_edges()
+   if text!="": code.append(text.replace(" ",""))
+  if expected=="" or code.size()!=1 or code[0]!=expected.replace(" ",""): residue.append(pair[0])
+ t.check(residue.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: the transaction keeps no second implementation; a declared delegate may keep an old name only as its exact single-line return with the declared arguments: residue="+str(residue))
+ # 接线按调用点计数（F4）：删一条接线、或在适配器里加一条本地逻辑，计数/形状都会变红。
  var pattern=RegEx.new()
  pattern.compile("Assess\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
- var wired=[]
+ var sites={}
  for hit in pattern.search_all(source_code("core/equipment_replacement.gd")):
   var name=hit.get_string(1)
-  if not name in wired: wired.append(name)
- wired.sort()
- var added=wired.filter(func(name):return not name in REPLACEMENT_ASSESS_CALLS)
- var dropped=REPLACEMENT_ASSESS_CALLS.filter(func(name):return not name in wired)
- t.check(added.is_empty() and dropped.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: the transaction calls exactly the declared assess surface: added="+str(added)+" dropped="+str(dropped))
+  sites[name]=int(sites.get(name,0))+1
+ var mismatched=[]
+ for name in REPLACEMENT_ASSESS_CALL_SITES:
+  if int(sites.get(name,0))!=int(REPLACEMENT_ASSESS_CALL_SITES[name]): mismatched.append(name+":"+str(int(sites.get(name,0)))+"!="+str(int(REPLACEMENT_ASSESS_CALL_SITES[name])))
+ mismatched.sort()
+ var undeclared=[]
+ for name in sites:
+  if not REPLACEMENT_ASSESS_CALL_SITES.has(name): undeclared.append(name)
+ undeclared.sort()
+ t.check(mismatched.is_empty() and undeclared.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: the transaction calls each declared assess stage exactly the declared number of times (a deleted call site or an undeclared one is red): mismatched="+str(mismatched)+" undeclared="+str(undeclared))
  # 失败形状也只有一份：replacement 不再声明 _fail，也不内联 ok:false 的字典；每个失败结果都由
  # Assess.failure 构造。上面的调用面与这里双向核对：删除接线或长回第二份形状即红。
  var transaction=source_code("core/equipment_replacement.gd")

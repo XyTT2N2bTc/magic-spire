@@ -496,8 +496,8 @@
     },
     "assess_dependency_edges": {
       "file": "core/equipment_replacement_assess.gd",
-      "find": "static func failure(reason: String) -> Dictionary:",
-      "replace": "static func _mutation_probe_impure(g) -> void:\n g.state=g.state\n\nstatic func failure(reason: String) -> Dictionary:",
+      "find": "static func normalize(g, requests: Array) -> Dictionary:\n if requests.is_empty(): return failure(\"本次没有指定要安装的装备。\")",
+      "replace": "static func normalize(g, requests: Array) -> Dictionary:\n g.state.version=0\n if requests.is_empty(): return failure(\"本次没有指定要安装的装备。\")",
       "suite": "architecture"
     },
     "legal_requests_is_the_only_judgment_entry": {
@@ -506,10 +506,16 @@
       "replace": "static func _mutation_probe_plan(g, source: String) -> Dictionary:\n return _replacement_plan(g,[],source)\n\nstatic func _result() -> Dictionary:",
       "suite": "architecture"
     },
+    "replacement_judgment_has_one_entry": {
+      "file": "core/equipment_application.gd",
+      "find": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n return not _choice_bands(g,spec,source).is_empty()",
+      "replace": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n if Replacement.plan(g,[],source).get(\"ok\",false): return true\n return not _choice_bands(g,spec,source).is_empty()",
+      "suite": "architecture"
+    },
     "migrated_pure_functions_have_one_implementation": {
       "file": "core/equipment_replacement.gd",
-      "find": "static func _install(g, r: Dictionary, source: String) -> Dictionary:",
-      "replace": "static func _counts(g, pieces: Array) -> Dictionary:\n var result={}\n for piece in pieces: result[piece.id]=1\n return result\n\nstatic func _fail(reason: String) -> Dictionary:\n return {\"ok\":false,\"reason\":reason,\"removed\":[],\"installed\":[],\"lost_links\":[],\"comparisons\":[]}\n\nstatic func _install(g, r: Dictionary, source: String) -> Dictionary:",
+      "find": "static func _transfer(g, links: Array, anchors: Array) -> Array:\n return Assess.transfer_options(g,links,anchors,g.link_anchors(),g.state.links)",
+      "replace": "static func _transfer(g, links: Array, anchors: Array) -> Array:\n var options=Assess.transfer_options(g,links,anchors,g.link_anchors(),g.state.links)\n return options.slice(0,1)",
       "suite": "architecture"
     }
   }
