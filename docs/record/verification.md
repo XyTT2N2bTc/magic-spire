@@ -3048,3 +3048,12 @@ Windows 验证导出 `pr45-validation-20260918` 与 `check-package.ps1 -WitchBal
 - 失败与不作证据轮：S0a–S0c 各轮门禁只跑了 `replacement,architecture`，漏掉 `runner`，`runner` 自 `018b879` 起红（头注释含 `static func run(` 字面被子串扫描误判），由 `4ee9d67` 改注释、`86e8202` 收口为行首锚定谓词修复；S0c 首轮门禁漏 `-TimeoutSeconds`，architecture 在 300 s 截断记为 failed，不作证据。
 - 未跑（如实，不作通过）：§1 三种子整局重放（只在 S4 最终验收）、窗口／UI 套件、recipe、打包与双平台；三方过滤证明因完整 live state 未入库，不能在仓内复算（只读抓取记录）。
 - 本节只追加本文件一节、单独提交（docs-only）；仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+### 2026-10-28｜敌人施加替换判定 S1 纯函数迁入 assess 与判定入口收口登记（协调者落账）
+
+- 域：本节；对象 `e612198..cc970d2`（枝 `worker/enemy-assess`；实现 `cf9648c` 纯阶段迁入新模块 `core/equipment_replacement_assess.gd`、`db8e6f5` 对拍接缝拆为 `judge_subject`／`judge_oracle`、`96ec8f5` 架构判据；清洁 `b7a5065`；加固 `39815fe`、`cc970d2`）。产品面：`core/equipment_replacement_assess.gd`（新，280 行，0 preload）、`core/equipment_replacement.gd`（净 −223，`_fail` 删除、失败形状只由 `Assess.failure` 构造）、`core/equipment_application.gd`（`_legal_choices` 改名 `legal_requests` 为唯一判定入口，净 +5）；行为不变，本片不接入只读判定。契约：`C:/1/tmp/magic-spire-wt-adjacency/tmp/enemy-apply-plan/rev2/acceptance.md` §3／§4／§5。
+- 验收（`dsp-20261028T034333Z-c34f`，`head=cc970d2`、`dirty=0`）：全量 `--mode=reoracle` 101/101 全等（S1 主判据）、`--mode=compare` 101＋19 全等、`--mode=selfcheck` 恰 1 例红（exit 1）；14 分类 `-Impact` 门禁 45 个 `SUITE RESULT … PASS`、`PASS: 144201 assertions`、`status=passed`、`before==after`＝`8FE897C0…`、无 `SOURCE CHANGED`；`-Suite runner -VerifyRunner` `PASS: 1733 assertions`；`check-index` verify PASS（`9be35935…`）；`build_state_readers.gd -- --verify` PASS（`69f29e69…`）。§5：`tools/check-mutation.ps1 -Check replacement_judgment_has_one_entry`、`-Check assess_dependency_edges` 均具名红＋逐字节还原；手动突变删除 `plan` 内恢复 `_resource_feedback` 的一行 → `ASSESS replacement_plan_leaves_live_state_unchanged` 红 → 还原哈希一致。记录：工作树 `tmp/s1/acceptance/acceptance-s1.md`。
+- 独立审查（`dsp-20261028T010243Z-33d7`）：13 个被迁函数＋`failure` 逐项等价；发现 F1／F2／F3（重要）与 F4–F6（次要）均为门禁漏报面，由第二轮加固 `cc970d2` 收口（判定通道扫 `Replacement.plan(`、assess 对 `g` 只读方法白名单、运行时比整份 `SaveStore.encode(state)` 与 `_resource_feedback`、适配器与接线按调用点计数、覆盖计数按函数），F3 由协调者补登契约允许改动表。
+- 失败与不作证据轮：首轮实现把三条架构判据以下划线命名绕开 `mutation_judgment_universe` 登记，由 `39815fe` 恢复公开名并登记 `tests/mutations.json`；`39815fe` 内 `mutations.json` 首条初版突变未变红，同提交内修正后重跑取证。
+- 未跑（如实，不作通过）：§1 三种子整局重放、§6 窗口与真实交互、§7 性能（均归 S4）；运行时 ASSESS 不变量中「入参不变」「随机不推进」两条未做突变（结构上不能登记 `mutations.json`，仅有加固轮临时探针取证）。
+- 本节只追加本文件一节、单独提交（docs-only）；仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
