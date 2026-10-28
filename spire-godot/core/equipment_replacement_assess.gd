@@ -3,8 +3,9 @@ extends RefCounted
 # Pure planning stages of the replacement transaction. The transaction
 # (core/equipment_replacement.gd) and, from S2, the read-only judgment call these
 # same functions, so this module is the single implementation of normalization,
-# removable units, minimal cover sets, counts, strength comparison and link
-# transfer. A second copy of any of them is a defect, not a shortcut.
+# mandatory family units, capacity deficit, removable units, minimal cover sets,
+# counts, strength comparison, link transfer, factory arguments and loadout
+# identity. A second copy of any of them is a defect, not a shortcut.
 #
 # Invariants kept by every function here:
 # - It never writes g.state, never copies or swaps a state snapshot, never emits
@@ -278,3 +279,129 @@ static func assign(g, rows: Array, installed: Array, strict_roots: Dictionary, i
 # A composite carries its components; any other record is its own single piece.
 static func pieces(item: Dictionary) -> Array:
  return item.components if item.has("components") else [item]
+
+# S2a-3: the plan stages that used to be inline in core/equipment_replacement.gd. They are
+# here so the transaction and the read-only judgment evaluate the same rules over the same
+# containers; the transaction keeps only the orchestration (when to call them and which
+# factory to run). Each one takes the authoritative containers as parameters: no stage
+# copies, swaps or reads a state snapshot, and no stage emits or advances random.
+
+# Family-mandatory units: installing a special piece must first replace every existing
+# piece of the same exclusive family. The cursed boundary and the protected-id refusal
+# stay plan verdicts, so the caller returns the failure shape unchanged.
+static func mandatory(g, special_equipment: Array, specs: Array, protected_ids: Array) -> Dictionary:
+ var units=[]
+ var ids=[]
+ for request in specs:
+  if request.kind!="special_install": continue
+  var family=g.SpecialEquipment.exclusive_family(request.type)
+  for item in special_equipment:
+   if g.SpecialEquipment.exclusive_family(item.type)!=family or item.id in ids: continue
+   if g.cursed_plate(item): return failure(g.SpecialEquipment.CURSED_PLATE_REASON)
+   if item.id in protected_ids: return failure("同一批次刚安装的特殊装备不能再次被替换。")
+   units.append({"id":item.id,"pieces":[item.duplicate(true)],"counts":counts(g,[item]),"composite":false})
+   ids.append(item.id)
+ return {"ok":true,"units":units}
+
+# Capacity shortfall per point. `existing` is counted by the caller on the container it
+# trusts (live equipment plus special equipment, or a derived view), so this stage never
+# reads state; the incoming prototypes may tighten the cap at their own capacity point.
+static func deficit(g, demand: Dictionary, existing: Dictionary, new_pieces: Array, mandatory_units: Array) -> Dictionary:
+ var mandatory_counts={}
+ for unit in mandatory_units:
+  for point in unit.counts: mandatory_counts[point]=mandatory_counts.get(point,0)+unit.counts[point]
+ var result={}
+ for point in demand:
+  var capacity=g.SpecialEquipment.capacity(point) if point in g.SpecialEquipment.slots() else g._capacity(g.Links.point_slot(point))
+  for piece in new_pieces:
+   if point not in g.SpecialEquipment.slots() and point in g.Equipment.capacity_points(piece):
+    capacity=mini(capacity,g.Equipment.capacity(g.Links.point_slot(point),piece.template)+demand[point]-1)
+  var extra=existing.get(point,0)-mandatory_counts.get(point,0)+demand[point]-capacity
+  if extra>0: result[point]=extra
+ return result
+
+# Remove the units that may not be dismantled: cursed pieces, protected ids and the
+# mandatory family replacements already selected for this plan.
+static func removable(g, units: Array, protected_ids: Array, mandatory_ids: Array) -> Array:
+ return units.filter(func(unit):return not unit.pieces.any(func(piece):return g.cursed_eyes(piece) or g.cursed_plate(piece) or piece.id in protected_ids or piece.id in mandatory_ids))
+
+# Optimistic rejection bound: even the weakest eligible values, ignoring lost links and
+# whole-root restrictions, must pass the SAME assignment rule. Insertion order of `units`
+# is irrelevant because the values are sorted; the actual minimal sets and complete
+# trials remain authoritative.
+static func comparison_possible(g, units: Array, deficit: Dictionary, installed: Array) -> bool:
+ var rows=[]
+ for point in deficit:
+  var values=[]
+  for unit in units:
+   for piece in unit.pieces:
+    if point in capacity_points(g,piece): values.append(comparison_value(g,piece))
+  values.sort()
+  if values.size()<deficit[point]: return false
+  for i in range(deficit[point]): rows.append({"point":point,"old_value":values[i],"composite":false})
+ return assign(g,rows,installed,{},0,{},{},[]).ok
+
+# Factory arguments per request kind. The transaction's factory dispatch and the view's
+# record preview read the same parameters, including the tier durability ratio, so the
+# tier-to-durability rule is not restated per caller.
+static func factory_args(g, r: Dictionary) -> Dictionary:
+ match r.kind:
+  "install":
+   var maximum=g.Equipment.maximum(r.grade)
+   return {"kind":"install","template":r.template,"slot":r.slot,"durability":maximum*[0.0,0.4,0.8,1.0][r.tier],"maximum":maximum,"locked":r.locked,"grade":r.grade,"layer":r.get("layer",-1),"variant":r.variant,"point":r.point}
+  "assembly":
+   return {"kind":"assembly","family":r.family,"variant":r.variant,"grade":r.grade,"tier":r.tier,"parts":r.parts,"straps":r.straps,"attached_to":r.get("attached_to","")}
+  "special_install":
+   return {"kind":"special_install","type":r.type,"slot":r.slot,"tier":r.get("tier",0)}
+ return {}
+
+# Flattened loadout records for identity comparison: a composite carries its components,
+# a binding carries its generated record, a host carries its shoulder straps. Identity and
+# provenance fields are stripped so a regenerated id alone cannot make a fresh copy look
+# like different equipment.
+static func loadout_records(snapshot: Dictionary) -> Array:
+ var records=[]
+ for item in snapshot.equipment+snapshot.special_equipment+snapshot.links+snapshot.composites:
+  var record=item.duplicate(true)
+  records.append_array(record.get("components",[]))
+  record.erase("components")
+  if record.get("binding",{}).has("id"):
+   records.append(record.binding)
+   record.binding={"kind":record.binding.kind}
+  if record.has("shoulders"):
+   records.append_array(record.shoulders.pieces)
+   record.shoulders.erase("pieces")
+   record.shoulders.erase("source")
+  records.append(record)
+ return records
+
+static func record_facts(record: Dictionary) -> Dictionary:
+ var facts=record.duplicate(true)
+ # Identity and provenance alone do not make a fresh copy different equipment.
+ for key in ["id","source","root_id","parent_id","shoulder_host","attached_to","ends"]: facts.erase(key)
+ return facts
+
+static func same_loadout(before: Dictionary, after: Dictionary) -> bool:
+ var old_records=loadout_records(before)
+ var new_records=loadout_records(after)
+ if old_records.size()!=new_records.size(): return false
+ var unmatched=old_records.duplicate()
+ var identity={}
+ for record in new_records:
+  var facts=record_facts(record)
+  var index=unmatched.find_custom(func(old):return record_facts(old)==facts)
+  if index<0: return false
+  identity[record.id]=unmatched[index].id
+  unmatched.remove_at(index)
+ # Keep the complete attachment/link graph, normalizing only regenerated IDs.
+ var expected=old_records.duplicate(true)
+ for record in expected: record.erase("source")
+ for record in new_records:
+  record.erase("source")
+  for key in ["id","root_id","parent_id","shoulder_host","attached_to"]:
+   if record.has(key): record[key]=identity.get(record[key],record[key])
+  if record.has("ends"): record.ends=record.ends.map(func(id):return identity.get(id,id))
+  var index=expected.find(record)
+  if index<0: return false
+  expected.remove_at(index)
+ return true

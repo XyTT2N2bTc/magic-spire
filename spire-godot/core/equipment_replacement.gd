@@ -82,77 +82,23 @@ static func _force_special_live(g, type: String, tier: int, source: String) -> D
  return {"ok":true,"reason":"","removed":removed,"installed":[installed],"lost_links":lost_links,"comparisons":[]}
 
 static func _install(g, r: Dictionary, source: String) -> Dictionary:
- match r.kind:
-  "install":
-   var maximum=g.Equipment.maximum(r.grade)
-   return g._install_template(r.template,r.slot,maximum*[0.0,0.4,0.8,1.0][r.tier],maximum,r.locked,source,r.grade,r.get("layer",-1),r.variant,r.point)
-  "assembly": return g._install_assembly(r.family,r.variant,source,r.grade,r.tier,r.parts,r.straps,r.get("attached_to",""))
-  "special_install": return g._install_special(r.type,r.slot,r.get("tier",0))
+ # Argument derivation is Assess.factory_args: only the "which factory" dispatch stays here.
+ var args=Assess.factory_args(g,r)
+ match args.get("kind",""):
+  "install": return g._install_template(args.template,args.slot,args.durability,args.maximum,args.locked,source,args.grade,args.layer,args.variant,args.point)
+  "assembly": return g._install_assembly(args.family,args.variant,source,args.grade,args.tier,args.parts,args.straps,args.get("attached_to",""))
+  "special_install": return g._install_special(args.type,args.slot,args.tier)
  return {}
-
-static func _loadout_records(snapshot: Dictionary) -> Array:
- var records=[]
- for item in snapshot.equipment+snapshot.special_equipment+snapshot.links+snapshot.composites:
-  var record=item.duplicate(true)
-  records.append_array(record.get("components",[]))
-  record.erase("components")
-  if record.get("binding",{}).has("id"):
-   records.append(record.binding)
-   record.binding={"kind":record.binding.kind}
-  if record.has("shoulders"):
-   records.append_array(record.shoulders.pieces)
-   record.shoulders.erase("pieces")
-   record.shoulders.erase("source")
-  records.append(record)
- return records
-
-static func _record_facts(record: Dictionary) -> Dictionary:
- var facts=record.duplicate(true)
- # Identity and provenance alone do not make a fresh copy different equipment.
- for key in ["id","source","root_id","parent_id","shoulder_host","attached_to","ends"]: facts.erase(key)
- return facts
-
-static func _same_loadout(before: Dictionary, after: Dictionary) -> bool:
- var old_records=_loadout_records(before)
- var new_records=_loadout_records(after)
- if old_records.size()!=new_records.size(): return false
- var unmatched=old_records.duplicate()
- var identity={}
- for record in new_records:
-  var facts=_record_facts(record)
-  var index=unmatched.find_custom(func(old):return _record_facts(old)==facts)
-  if index<0: return false
-  identity[record.id]=unmatched[index].id
-  unmatched.remove_at(index)
- # Keep the complete attachment/link graph, normalizing only regenerated IDs.
- var expected=old_records.duplicate(true)
- for record in expected: record.erase("source")
- for record in new_records:
-  record.erase("source")
-  for key in ["id","root_id","parent_id","shoulder_host","attached_to"]:
-   if record.has(key): record[key]=identity.get(record[key],record[key])
-  if record.has("ends"): record.ends=record.ends.map(func(id):return identity.get(id,id))
-  var index=expected.find(record)
-  if index<0: return false
-  expected.remove_at(index)
- return true
 
 static func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:
  var normalized=Assess.normalize(g,requests)
  if not normalized.ok: return normalized
  var specs=normalized.requests
  var before=g.state.duplicate(true)
- var mandatory=[]
- var mandatory_ids=[]
- for request in specs:
-  if request.kind!="special_install": continue
-  var family=g.SpecialEquipment.exclusive_family(request.type)
-  for item in before.special_equipment:
-   if g.SpecialEquipment.exclusive_family(item.type)!=family or item.id in mandatory_ids: continue
-   if g.cursed_plate(item): return Assess.failure(g.SpecialEquipment.CURSED_PLATE_REASON)
-   if item.id in protected_ids: return Assess.failure("同一批次刚安装的特殊装备不能再次被替换。")
-   mandatory.append({"id":item.id,"pieces":[item.duplicate(true)],"counts":Assess.counts(g,[item]),"composite":false})
-   mandatory_ids.append(item.id)
+ var mandatory_result=Assess.mandatory(g,before.special_equipment,specs,protected_ids)
+ if not mandatory_result.ok: return mandatory_result
+ var mandatory=mandatory_result.units
+ var mandatory_ids=mandatory.map(func(unit):return unit.id)
  var direct=_trial(g,before,specs,source,[]) if mandatory.is_empty() else Assess.failure("同族旧装备需要先完成替换。")
  if direct.ok: return direct
  # Factory-made prototypes, solely for capacity demand and comparison geometry.
@@ -174,23 +120,13 @@ static func _plan(g, requests: Array, source: String, protected_ids: Array) -> D
  var demand=Assess.counts(g,new_pieces)
  g.state=before.duplicate(true)
  var existing=Assess.counts(g,g.physical_pieces()+g.state.special_equipment)
- var mandatory_counts={}
- for unit in mandatory:
-  for point in unit.counts: mandatory_counts[point]=mandatory_counts.get(point,0)+unit.counts[point]
- var deficit={}
- for point in demand:
-  var capacity=g.SpecialEquipment.capacity(point) if point in g.SpecialEquipment.slots() else g._capacity(g.Links.point_slot(point))
-  for piece in new_pieces:
-   if point not in g.SpecialEquipment.slots() and point in g.Equipment.capacity_points(piece):
-    capacity=mini(capacity,g.Equipment.capacity(g.Links.point_slot(point),piece.template)+demand[point]-1)
-  var extra=existing.get(point,0)-mandatory_counts.get(point,0)+demand[point]-capacity
-  if extra>0: deficit[point]=extra
+ var deficit=Assess.deficit(g,demand,existing,new_pieces,mandatory)
  var units=Assess.units(g,g.state.equipment,g.state.special_equipment,g.state.composites,deficit)
- units=units.filter(func(unit):return not unit.pieces.any(func(piece):return g.cursed_eyes(piece) or g.cursed_plate(piece) or piece.id in protected_ids or piece.id in mandatory_ids))
+ units=Assess.removable(g,units,protected_ids,mandatory_ids)
  # Even the weakest eligible values, with no lost-link penalty or whole-root
  # restriction, must pass the SAME assignment rule. This is only an optimistic
  # rejection bound; actual minimal sets and complete trials remain authoritative.
- if not _comparison_possible(g,units+mandatory,deficit,prototypes):
+ if not Assess.comparison_possible(g,units+mandatory,deficit,prototypes):
   return Assess.failure("最外层没有满足本次容量、强度比较和完整覆盖要求的替换方案。")
  var search={"minimum":units.size()+1,"sets":[],"seen":{}}
  Assess.sets(units,deficit,[],search)
@@ -210,18 +146,6 @@ static func _plan(g, requests: Array, source: String, protected_ids: Array) -> D
   if attempt.ok and (attempt.removed+attempt.lost_links).any(func(id):return id in protected_ids): continue
   if attempt.ok and (best.is_empty() or attempt.score<best.score): best=attempt
  return best if not best.is_empty() else Assess.failure("最外层没有满足本次容量、强度比较和完整覆盖要求的替换方案。")
-
-static func _comparison_possible(g, units: Array, deficit: Dictionary, installed: Array) -> bool:
- var rows=[]
- for point in deficit:
-  var values=[]
-  for unit in units:
-   for piece in unit.pieces:
-    if point in Assess.capacity_points(g,piece): values.append(Assess.comparison_value(g,piece))
-  values.sort()
-  if values.size()<deficit[point]: return false
-  for i in range(deficit[point]): rows.append({"point":point,"old_value":values[i],"composite":false})
- return Assess.assign(g,rows,installed,{},0,{},{},[]).ok
 
 static func _trial(g, before: Dictionary, specs: Array, source: String, units: Array, deficit: Dictionary={}) -> Dictionary:
  g.state=before.duplicate(true)
@@ -273,7 +197,7 @@ static func _trial(g, before: Dictionary, specs: Array, source: String, units: A
  if g.Shoulders.validate(g)!="" or g.SpecialEquipment.validate(g.state.special_equipment)!="" or g._capacity_issue(g.physical_pieces())!="": return Assess.failure("替换后的装备占位或依附关系未通过检查。")
  for link in g.state.links:
   if g.Links.validate(link,g.link_anchors(),g.state.links)!="": return Assess.failure("替换后的链接结构未通过检查。")
- if not units.is_empty() and _same_loadout(before,g.state): return Assess.failure("替换后装备没有变化。")
+ if not units.is_empty() and Assess.same_loadout(before,g.state): return Assess.failure("替换后装备没有变化。")
  return {"ok":true,"reason":"","requests":specs,"removed":removed,"installed":installed.duplicate(true),"lost_links":lost,"comparisons":comparison.rows,"score":comparison.score,"_after":g.state.duplicate(true)}
 
 # Test-facing adapter, kept for the two existing link scenarios that call this

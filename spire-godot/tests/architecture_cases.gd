@@ -6509,24 +6509,27 @@ static func equipment_targets_walk_is_one_path(t) -> void:
   if visit_body.contains(token): backwards.append(token)
  t.check(not visit_body.is_empty() and backwards.is_empty(),"EQ equipment_targets_walk_is_one_path: _visit_targets_at never calls back into targets_at or reads slot_targets: "+str(backwards))
 
-# S1（敌人施加替换判定；plan §5-S1、dependencies.md「依赖方向」）：纯阶段函数迁入
+# S1（敌人施加替换判定；plan §5-S1、dependencies.md「依赖方向」）＋S2a-3：纯阶段函数迁入
 # core/equipment_replacement_assess.gd 后，依赖边、判定入口与「一份实现」都是冻结表，表外即红。
+# S2a-3 追加 comparison_possible／loadout_records／record_facts／same_loadout 四对；
+# mandatory／deficit／removable／factory_args 是事务内联段落的显式抽名，故只进调用点计数表。
 # 每条判据的敏感性（改相反语义→本具名检查红→逐字节还原）登记在片报告。
 const ASSESS_SOURCE="core/equipment_replacement_assess.gd"
 const ASSESS_ALLOWED_EDGES=["res://data/equipment.gd","res://data/composites.gd","res://data/special_equipment.gd","res://data/links.gd","res://data/balance.gd","res://core/shoulder_links.gd","res://core/torso_binding.gd","res://core/witch_character.gd"]
 const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replacement.gd","res://ui","res://tests"]
 # assess 对传入 g 只许调用 dependencies.md「依赖方向／禁止」节点名的只读实例方法；表外即红
 # （任何写入方法，如 _cleanup／_commit_changes／_emit，都落在表外）。_composite_body／
-# _equipment 是迁移前就在用的只读读取，属该节的「等」。
-const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_composite_body","_equipment","_outer","_prepare_installation","_prepare_assembly","_sealed_reason","_special_install_reason","tier"]
+# _equipment 是迁移前就在用的只读读取，属该节的「等」。S2a-3 追加 _capacity（Equipment.capacity
+# 查表）、cursed_eyes（读 state.relics）、cursed_plate（读 special_equipment 的诅咒判定）：三者只读不写。
+const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_composite_body","_equipment","_outer","_prepare_installation","_prepare_assembly","_sealed_reason","_special_install_reason","cursed_eyes","cursed_plate","tier"]
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。
-const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","comparison_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"]]
+const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","comparison_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"],["_loadout_records","loadout_records"],["_record_facts","record_facts"],["_same_loadout","same_loadout"]]
 # replacement 里允许保留旧名的唯一适配器：旧名 -> [assess 名, 期望的参数原文（按顺序）]。
 # 体内只许这一条 return，参数表外即红：加本地变量、截断返回值、换参数都是第二份实现。
 const REPLACEMENT_ADAPTERS={"_transfer":["transfer_options",["g","links","anchors","g.link_anchors()","g.state.links"]]}
 # replacement 调 assess 的完整符号集与每个符号的期望调用点数：删一条接线或加一条未声明的
 # 调用即红。failure 是唯一失败形状的构造入口（replacement 自身不再声明 _fail）。
-const REPLACEMENT_ASSESS_CALL_SITES={"assign":1,"capacity_points":2,"compare":1,"comparison_value":4,"counts":3,"failure":24,"normalize":1,"pieces":2,"sets":1,"transfer_options":2,"units":1}
+const REPLACEMENT_ASSESS_CALL_SITES={"capacity_points":1,"compare":1,"comparison_possible":1,"comparison_value":3,"counts":2,"deficit":1,"factory_args":1,"failure":22,"mandatory":1,"normalize":1,"pieces":2,"removable":1,"same_loadout":1,"sets":1,"transfer_options":2,"units":1}
 
 # 四条判据都是公开名并逐条登记 tests/mutations.json（suite=architecture）：mutation_judgment_universe
 # 只收公开函数，下划线命名会让它们绕过登记（S1 实现的 reserved_judgments）。判据消息里的 ARCH 名不变，

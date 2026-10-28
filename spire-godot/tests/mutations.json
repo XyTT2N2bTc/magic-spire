@@ -514,8 +514,8 @@
     },
     "migrated_pure_functions_have_one_implementation": {
       "file": "core/equipment_replacement.gd",
-      "find": "static func _transfer(g, links: Array, anchors: Array) -> Array:\n return Assess.transfer_options(g,links,anchors,g.link_anchors(),g.state.links)",
-      "replace": "static func _transfer(g, links: Array, anchors: Array) -> Array:\n var options=Assess.transfer_options(g,links,anchors,g.link_anchors(),g.state.links)\n return options.slice(0,1)",
+      "find": "static func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:",
+      "replace": "static func _comparison_possible(g, units: Array, deficit: Dictionary, installed: Array) -> bool:\n return false\n\nstatic func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:",
       "suite": "architecture"
     }
   }
