@@ -1,5 +1,36 @@
 {
   "aliases": {
+    "core/game.gd::_assembly_reason_in": {
+      "fields": [
+        "composites"
+      ],
+      "param": "s"
+    },
+    "core/game.gd::_composite_in": {
+      "fields": [
+        "composites"
+      ],
+      "param": "s"
+    },
+    "core/game.gd::_materialize_physical_pieces_in": {
+      "fields": [
+        "composites",
+        "equipment"
+      ],
+      "param": "s"
+    },
+    "core/game.gd::_plan_assembly_in": {
+      "fields": [
+        "next_composite"
+      ],
+      "param": "s"
+    },
+    "core/game.gd::_prepare_installation_in": {
+      "fields": [
+        "equipment"
+      ],
+      "param": "s"
+    },
     "core/game.gd::_scene_key": {
       "fields": [
         "combat",
@@ -10,6 +41,37 @@
         "room",
         "seed",
         "tower_generation"
+      ],
+      "param": "s"
+    },
+    "core/game.gd::_sealed_reason_in": {
+      "fields": [
+        "composites"
+      ],
+      "param": "s"
+    },
+    "core/game.gd::_special_install_reason_in": {
+      "fields": [
+        "special_equipment"
+      ],
+      "param": "s"
+    },
+    "core/game.gd::action_targets_in": {
+      "fields": [
+        "equipment",
+        "special_equipment"
+      ],
+      "param": "s"
+    },
+    "core/game.gd::equipment_targets_in": {
+      "fields": [
+        "links"
+      ],
+      "param": "s"
+    },
+    "core/game.gd::link_anchors_in": {
+      "fields": [
+        "special_equipment"
       ],
       "param": "s"
     },
@@ -113,13 +175,13 @@
     }
   },
   "generated_from": {
-    "cells": 1262,
+    "cells": 1249,
     "fields": 121,
     "files": 130,
-    "inputs_sha256": "08e0c7ac652993327397d0393c137db9f4412cc3a81c6554475ed96981d2d362",
-    "sites": 2075,
+    "inputs_sha256": "43bca3a13f2f17f0b86d1c32206ba113657e1862365dcc3c906f9d7d618f6c83",
+    "sites": 2056,
     "ui_reads": 0,
-    "whole_state": 52
+    "whole_state": 71
   },
   "owners": {
     "core/action_replay.gd::payload": {
@@ -675,9 +737,6 @@
       "demo_cycle": 1,
       "room": 2
     },
-    "core/game.gd::_assembly_reason": {
-      "composites": 1
-    },
     "core/game.gd::_attach_special_reinforcement": {
       "next_equipment": 2,
       "special_equipment": 2
@@ -728,9 +787,6 @@
     },
     "core/game.gd::_climax_special_slip": {
       "special_equipment": 1
-    },
-    "core/game.gd::_composite": {
-      "composites": 1
     },
     "core/game.gd::_composite_roots": {
       "composites": 1
@@ -920,10 +976,6 @@
     "core/game.gd::_materialize_link_edge": {
       "links": 1
     },
-    "core/game.gd::_materialize_physical_pieces": {
-      "composites": 1,
-      "equipment": 2
-    },
     "core/game.gd::_materialize_root_edge": {
       "composites": 1
     },
@@ -933,12 +985,6 @@
       "pending_retain": 1,
       "phase": 12,
       "relic_bundle": 1
-    },
-    "core/game.gd::_plan_assembly": {
-      "next_composite": 1
-    },
-    "core/game.gd::_prepare_installation": {
-      "equipment": 1
     },
     "core/game.gd::_prepare_link": {
       "links": 1,
@@ -955,7 +1001,7 @@
       "special_equipment": 1
     },
     "core/game.gd::_random_index": {
-      "rng": 2,
+      "rng": 1,
       "seed": 1
     },
     "core/game.gd::_remote_special": {
@@ -999,9 +1045,6 @@
       "rooms": 1,
       "tower_start_pending": 3
     },
-    "core/game.gd::_sealed_reason": {
-      "composites": 1
-    },
     "core/game.gd::_slip_block_reason": {
       "links": 1
     },
@@ -1015,9 +1058,6 @@
     },
     "core/game.gd::_spawn_enemies": {
       "room": 2
-    },
-    "core/game.gd::_special_install_reason": {
-      "special_equipment": 5
     },
     "core/game.gd::_start_battle": {
       "completed_rooms": 1,
@@ -1089,9 +1129,6 @@
     "core/game.gd::_wall_bonus": {
       "posture": 1,
       "wall": 1
-    },
-    "core/game.gd::action_targets": {
-      "special_equipment": 1
     },
     "core/game.gd::attack_point_fact": {
       "enemies": 1
@@ -1168,9 +1205,6 @@
       "mana": 1,
       "special_equipment": 1
     },
-    "core/game.gd::equipment_targets": {
-      "links": 1
-    },
     "core/game.gd::flow_facts": {
       "order": 1,
       "phase": 4,
@@ -1204,9 +1238,6 @@
     "core/game.gd::kick_profile": {
       "card_buffs": 1
     },
-    "core/game.gd::link_anchors": {
-      "special_equipment": 1
-    },
     "core/game.gd::links_at": {
       "links": 1
     },
@@ -1215,10 +1246,6 @@
     },
     "core/game.gd::movement_profile": {
       "posture": 2
-    },
-    "core/game.gd::physical_pieces": {
-      "composites": 1,
-      "equipment": 1
     },
     "core/game.gd::posture_facts": {
       "phase": 1,
@@ -2548,6 +2575,12 @@
       "kind": "pass"
     },
     {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_assembly_reason",
+      "kind": "pass"
+    },
+    {
       "count": 2,
       "file": "core/game.gd",
       "function": "_begin_equipment_read",
@@ -2556,7 +2589,25 @@
     {
       "count": 1,
       "file": "core/game.gd",
+      "function": "_capacity_point_count",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_chastity_displaces",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
       "function": "_commit_scene_start",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_composite",
       "kind": "pass"
     },
     {
@@ -2580,6 +2631,72 @@
     {
       "count": 1,
       "file": "core/game.gd",
+      "function": "_equipment",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_installation_points",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_materialize_physical_pieces",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_piece_covers_point",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_plan_assembly",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_point_count",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_prepare_installation",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_read_active_for",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_sealed_reason",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_special_install_reason",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "action_targets",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
       "function": "dispatch",
       "kind": "duplicate"
     },
@@ -2592,8 +2709,32 @@
     {
       "count": 1,
       "file": "core/game.gd",
+      "function": "equipment_at",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "equipment_targets",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
       "function": "export_snapshot",
       "kind": "duplicate"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "link_anchors",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "physical_pieces",
+      "kind": "pass"
     },
     {
       "count": 1,

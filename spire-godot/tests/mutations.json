@@ -517,6 +517,24 @@
       "find": "static func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:",
       "replace": "static func _comparison_possible(g, units: Array, deficit: Dictionary, installed: Array) -> bool:\n return false\n\nstatic func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:",
       "suite": "architecture"
+    },
+    "live_wrappers_delegate_once": {
+      "file": "core/game.gd",
+      "find": "func _prepare_installation(template: String, slot: String, grade: int, locked: bool=false, point: String=\"\", layer: int=-1) -> Dictionary:\n return _prepare_installation_in(state,template,slot,grade,locked,point,layer)",
+      "replace": "func _prepare_installation(template: String, slot: String, grade: int, locked: bool=false, point: String=\"\", layer: int=-1) -> Dictionary:\n var probe=state.equipment.size()\n return _prepare_installation_in(state,template,slot,grade,locked,point,layer)",
+      "suite": "architecture"
+    },
+    "view_functions_read_only_their_view": {
+      "file": "core/game.gd",
+      "find": "func _sealed_reason_in(s: Dictionary, slot: String) -> String:\n for root in s.composites:",
+      "replace": "func _sealed_reason_in(s: Dictionary, slot: String) -> String:\n for root in state.composites:",
+      "suite": "architecture"
+    },
+    "assess_never_restates_factory_rules": {
+      "file": "core/equipment_replacement_assess.gd",
+      "find": "static func normalize(g, requests: Array) -> Dictionary:",
+      "replace": "const _MUTATION_PROBE_REASON=\"此处已有躯干固缚，不能在它外面追加拘束具；可以在同层安装。\"\n\nstatic func normalize(g, requests: Array) -> Dictionary:",
+      "suite": "architecture"
     }
   }
 }

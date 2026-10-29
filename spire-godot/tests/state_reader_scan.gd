@@ -20,7 +20,17 @@ const REGISTRY_ENTRIES="core/command_registry.gd"
 const DECLARATION="^\\s*(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)"
 const RESERVED_MEMBERS=["duplicate","get","has"]
 const ALIAS_DECLARATIONS=[
+ {"file":"core/game.gd","function":"_assembly_reason_in","param":"s"},
+ {"file":"core/game.gd","function":"_composite_in","param":"s"},
+ {"file":"core/game.gd","function":"_materialize_physical_pieces_in","param":"s"},
+ {"file":"core/game.gd","function":"_plan_assembly_in","param":"s"},
+ {"file":"core/game.gd","function":"_prepare_installation_in","param":"s"},
  {"file":"core/game.gd","function":"_scene_key","param":"s"},
+ {"file":"core/game.gd","function":"_sealed_reason_in","param":"s"},
+ {"file":"core/game.gd","function":"_special_install_reason_in","param":"s"},
+ {"file":"core/game.gd","function":"action_targets_in","param":"s"},
+ {"file":"core/game.gd","function":"equipment_targets_in","param":"s"},
+ {"file":"core/game.gd","function":"link_anchors_in","param":"s"},
  {"file":"core/snapshot.gd","function":"is_current","param":"s"},
  {"file":"core/snapshot.gd","function":"check","param":"s"},
  {"file":"core/snapshot.gd","function":"migrate_iron_drone","param":"s"},

@@ -25,8 +25,13 @@ static func active(g, e: Dictionary) -> bool:
  return present(e) and g._outer(e)
 
 static func connections(g) -> Array:
+ return connections_of(g.state.equipment)
+
+# One list definition for live and view callers: the equipment container is the only input, so a
+# state-shaped view asks without handing over live state.
+static func connections_of(equipment: Array) -> Array:
  var result=[]
- for e in g.state.equipment:
+ for e in equipment:
   if present(e) and e.binding.kind=="linked": result.append(e.binding)
  return result
 

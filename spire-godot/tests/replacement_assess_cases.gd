@@ -14,6 +14,10 @@ extends RefCounted
 #   2) assess_pure_functions_never_advance_random：同一循环，state.rng 与 state.seed 逐例不变。
 #   3) replacement_plan_leaves_live_state_unchanged：逐语料例跑 Replacement.plan；调用前把
 #      _resource_feedback 置为可辨认的非 null 值，plan 必须原样恢复它（删除 plan 内的恢复行即红）。
+#   4) view_index_only_for_same_state（S2a-1）：读作用域的索引只认 live state 对象；同内容副本恒走扫描，
+#      结果与无作用域扫描逐项相同，索引不被重建或泄漏。
+#   5) random_draw_matches_random_index（S2a-1）：_random_draw 与 _random_index 在每个随机域 × size{1,2,7}
+#      上返回值与计数推进相同；本地计数调用不碰 state.rng。
 #
 # 覆盖计数（F6）：_exercise() 返回本例实际执行到的函数集合；提前 return 的例不计入后续函数。
 # 三条判据都在消息里分别报出每个函数的 checked 计数。
@@ -27,6 +31,8 @@ const Replacement=preload("res://core/equipment_replacement.gd")
 const Assess=preload("res://core/equipment_replacement_assess.gd")
 const Corpus=preload("res://tests/replacement_corpus_cases.gd")
 const Store=preload("res://core/save_store.gd")
+const Game=preload("res://core/game.gd")
+const Equipment=preload("res://data/equipment.gd")
 
 # _exercise 可能执行到的 assess 纯函数：覆盖计数按这张表逐函数报出。
 const STEPS=["normalize","capacity_points","counts","comparison_value","physical_points","loss","pieces","units","sets","compare","assign","transfer_options"]
@@ -53,6 +59,8 @@ static func assess_checks(t) -> void:
  assess_pure_functions_leave_inputs_unchanged(t,data)
  assess_pure_functions_never_advance_random(t,data)
  replacement_plan_leaves_live_state_unchanged(t,data)
+ view_index_only_for_same_state(t)
+ random_draw_matches_random_index(t)
 
 # case_id 逐条列出第一个差异：整份状态文本、state 引用、反馈三者分开报告，红行能直接判读。
 static func _differences(case_id: String, before: Dictionary, after: Dictionary) -> Array:
@@ -164,3 +172,83 @@ static func replacement_plan_leaves_live_state_unchanged(t, data: Dictionary) ->
   elif result.ok: accepted+=1
   problems.append_array(_differences(String(case.get("case_id","")),before,_snapshot(g)))
  t.check(problems.is_empty() and checked==cases.size(),"ASSESS replacement_plan_leaves_live_state_unchanged: Replacement.plan restores the live state object and the resource feedback and leaves the whole encoded state unchanged (plan calls %d/%d; accepted %d; feedback seeded before every call): %s" % [checked,cases.size(),accepted,str(problems.slice(0,3))])
+
+# S2a-1（gherkin「索引只认同一对象」；design §3.1-3）：读作用域里的索引只对 live state 这一对象生效；
+# 同内容不同对象的视图恒走扫描。做法：打开作用域后把索引四条边换成可辨认的探针件，分别以 state 与
+# state 的副本求值——索引分支须看得见探针，副本须看不见，且副本结果与无作用域扫描逐项相同。
+static func view_index_only_for_same_state(t) -> void:
+ var g=Game.new(42)
+ g._equipment_read={}
+ g._resource_feedback=null
+ g.add_fixture("upper_arm",7.0,10.0)
+ g.add_fixture("wrist",7.0,10.0)
+ var piece=g.state.equipment[0]
+ var slot="upper_arm"
+ var point=String(Equipment.capacity_points(piece)[0])
+ var live_id=String(piece.id)
+ # 无作用域的扫描参照（同一次调用里先取，再开作用域）。
+ var plain_pieces=JSON.stringify(g.physical_pieces())
+ var plain_slot=JSON.stringify(g.equipment_at(slot))
+ var plain_count=g._point_count(point)
+ var plain_equipment=String(g._equipment(live_id).get("id",""))
+ var previous=g._begin_equipment_read()
+ var scope=g._equipment_read
+ var probe={"id":"probe_view_piece","template":"rope_wrist","variant":0,"slot":"wrist","name":"probe","durability":5.0,"maximum":10.0,"locked":false,"material":"rope","source":"probe","grade":1,"layer":0,"coverage":["wrist"],"points":[point]}
+ scope.pieces=[probe]
+ scope.slots={slot:[probe]}
+ scope.capacity_points={point:[probe]}
+ scope.physical_points={point:[probe]}
+ scope.ids={"probe_view_piece":probe}
+ # 同一对象：四条查询都必须来自索引（看得见探针）。
+ var index_answers=[]
+ if JSON.stringify(g.physical_pieces_in(g.state))!=JSON.stringify([probe]): index_answers.append("physical_pieces")
+ if JSON.stringify(g.equipment_at_in(g.state,slot))!=JSON.stringify([probe]): index_answers.append("equipment_at")
+ if g._point_count_in(g.state,point)!=1: index_answers.append("_point_count")
+ if not is_same(g._equipment_in(g.state,"probe_view_piece"),probe): index_answers.append("_equipment")
+ # 不同对象：视图必须绕过索引，结果等于无作用域扫描，且看不到探针。
+ var view=g.state.duplicate(true)
+ var view_answers=[]
+ if JSON.stringify(g.physical_pieces_in(view))!=plain_pieces: view_answers.append("physical_pieces")
+ if JSON.stringify(g.equipment_at_in(view,slot))!=plain_slot: view_answers.append("equipment_at")
+ if g._point_count_in(view,point)!=plain_count: view_answers.append("_point_count")
+ if String(g._equipment_in(view,live_id).get("id",""))!=plain_equipment: view_answers.append("_equipment")
+ if not g._equipment_in(view,"probe_view_piece").is_empty(): view_answers.append("probe-visible")
+ # 调用前后索引不被重建或泄漏：同一容器、探针仍在。
+ var leaked=[]
+ if not is_same(g._equipment_read,scope): leaked.append("scope-replaced")
+ if (g._equipment_read.get("pieces",[]) as Array).size()!=1 or String(g._equipment_read.pieces[0].id)!="probe_view_piece": leaked.append("probe-edge-lost")
+ g._equipment_read=previous
+ t.check(index_answers.is_empty() and leaked.is_empty(),"ASSESS view_index_only_for_same_state: the live state object answers from the batch index and the index is neither rebuilt nor leaked around the call (index=%s scope=%s)" % [str(index_answers),str(leaked)])
+ t.check(view_answers.is_empty(),"ASSESS view_index_only_for_same_state: a same-content view object always scans and equals the no-scope reference (probe invisible, same items in the same order): %s" % str(view_answers))
+ t.check(g._equipment_read.is_empty(),"ASSESS view_index_only_for_same_state: the read scope is restored to its previous value after the views are evaluated: "+str(g._equipment_read))
+
+# S2a-1（gherkin「随机抽取一份实现（X3）」；design §3.4）：_random_draw 是唯一的抽取算式，_random_index 只是
+# 把 live seed 与 counter 字典交给它。两个方向都要成立：本地计数调用不碰 state.rng，且同 seed／同计数下
+# 两者的返回值与计数推进逐项相同（含 size<=1 不递增）。
+static func random_draw_matches_random_index(t) -> void:
+ var g=Game.new(42)
+ var domains=[]
+ for domain in g.B.RNG_SALTS.keys(): domains.append(String(domain))
+ domains.sort()
+ var untouched=[]
+ var problems=[]
+ var checked=0
+ for domain in domains:
+  for size in [1,2,7]:
+   var before=JSON.stringify(g.state.rng)
+   g._random_draw(g.state.seed,domain,{domain:0},size)
+   if JSON.stringify(g.state.rng)!=before: untouched.append(domain+"/"+str(size))
+   var local={}
+   local[domain]=int(g.state.rng[domain])
+   var expected=g._random_draw(g.state.seed,domain,local,size)
+   var live_before=int(g.state.rng[domain])
+   var live=g._random_index(domain,size)
+   var live_after=int(g.state.rng[domain])
+   var delta=0 if size<=1 else 1
+   if expected!=live: problems.append(domain+"/"+str(size)+":value")
+   if live_after-live_before!=delta: problems.append(domain+"/"+str(size)+":live counter +"+str(live_after-live_before))
+   if int(local[domain])-live_before!=delta: problems.append(domain+"/"+str(size)+":local counter +"+str(int(local[domain])-live_before))
+   checked+=1
+ print("ASSESS RANDOM DRAW domains=%d checked=%d counters=%s" % [domains.size(),checked,JSON.stringify(g.state.rng)])
+ t.check(untouched.is_empty(),"ASSESS random_draw_matches_random_index: a local counter dictionary is the only thing _random_draw advances -- state.rng is byte-identical before and after (domains=%d sizes=1,2,7): %s" % [domains.size(),str(untouched)])
+ t.check(problems.is_empty() and checked==domains.size()*3,"ASSESS random_draw_matches_random_index: the live entry and the shared draw return the same value and advance exactly one counter step for every registered domain and size in {1,2,7} (size<=1 does not advance): checked=%d/%d %s" % [checked,domains.size()*3,str(problems.slice(0,6))])

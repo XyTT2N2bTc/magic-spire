@@ -421,17 +421,30 @@ func _materialize_point_edge(pieces: Array, points_of: Callable) -> Dictionary:
  return points
 
 func _capacity_point_count(point: String) -> int:
- if _equipment_read_active(): return _equipment_read.capacity_points.get(point,[]).size()
- return physical_pieces().filter(func(e):return point in Equipment.capacity_points(e)).size()
+ return _capacity_point_count_in(state,point)
+
+# The batch index is trusted only for the live state object; a view object always scans.
+func _read_active_for(s: Dictionary) -> bool:
+ return _equipment_read_active() and is_same(s,state)
+
+func _capacity_point_count_in(s: Dictionary, point: String) -> int:
+ if _read_active_for(s): return _equipment_read.capacity_points.get(point,[]).size()
+ return physical_pieces_in(s).filter(func(e):return point in Equipment.capacity_points(e)).size()
 
 func _piece_covers_point(point: String, e: Dictionary) -> bool:
- if _equipment_read_active(): return _equipment_read.physical_points.get(point,[]).has(e)
+ return _piece_covers_point_in(state,point,e)
+
+func _piece_covers_point_in(s: Dictionary, point: String, e: Dictionary) -> bool:
+ if _read_active_for(s): return _equipment_read.physical_points.get(point,[]).has(e)
  return point in Equipment.physical_points(e)
 
 func _materialize_physical_pieces() -> Array:
- var pieces=state.equipment.duplicate()
- for root in state.composites: pieces.append_array(root.components)
- for host in state.equipment:
+ return _materialize_physical_pieces_in(state)
+
+func _materialize_physical_pieces_in(s: Dictionary) -> Array:
+ var pieces=s.equipment.duplicate()
+ for root in s.composites: pieces.append_array(root.components)
+ for host in s.equipment:
   if host.has("shoulders"): pieces.append_array(host.shoulders.pieces)
  return pieces
 
@@ -721,12 +734,16 @@ func _start_practice() -> void:
  _emit("event",spec.name+"："+spec.hint)
 
 func _random_index(domain: String, size: int) -> int:
+ return _random_draw(state.seed,domain,state.rng,size)
+
+# One draw implementation: live passes state.rng itself, a view passes a local counter copy.
+func _random_draw(seed_value, domain: String, counters: Dictionary, size: int) -> int:
  if size <= 1:
   return 0
  var rng = RandomNumberGenerator.new()
  var salt = B.RNG_SALTS[domain]
- rng.seed = int(state.seed) + salt + int(state.rng[domain]) * 104729
- state.rng[domain] += 1
+ rng.seed = int(seed_value) + salt + int(counters[domain]) * 104729
+ counters[domain] += 1
  return rng.randi_range(0,size-1)
 
 func _shuffle(cards: Array, draw_cycle: bool=false) -> void:
@@ -1208,8 +1225,11 @@ func _enemy(id: String) -> Dictionary:
  return {}
 
 func _equipment(id: String) -> Dictionary:
- if _equipment_read_active(): return _equipment_read.ids.get(id,{})
- for e in action_targets():
+ return _equipment_in(state,id)
+
+func _equipment_in(s: Dictionary, id: String) -> Dictionary:
+ if _read_active_for(s): return _equipment_read.ids.get(id,{})
+ for e in action_targets_in(s):
   if e.id == id:
    return e
  return {}
@@ -1230,32 +1250,44 @@ func _equipment_name(target: Dictionary) -> String:
  return "第%d条%s" % [items.find(target)+1,target.name] if items.size()>1 else target.name
 
 func equipment_at(slot: String) -> Array:
- if _equipment_read_active():
+ return equipment_at_in(state,slot)
+
+func equipment_at_in(s: Dictionary, slot: String) -> Array:
+ if _read_active_for(s):
   if _equipment_read.slots.has(slot): return _equipment_read.slots[slot].duplicate()
   return []
- return physical_pieces().filter(func(e): return slot in Equipment.coverage(e) and e.durability>0)
+ return physical_pieces_in(s).filter(func(e): return slot in Equipment.coverage(e) and e.durability>0)
 
 # One physical list powers targeting, contact, enemies and validation; roots carry no extra durability.
 func physical_pieces() -> Array:
- if _equipment_read_active() and _equipment_read.has("pieces"): return _equipment_read.pieces.duplicate()
- var pieces=state.equipment.duplicate()
- for root in state.composites: pieces.append_array(root.components)
- pieces.append_array(Shoulders.pieces(self))
- return pieces
+ return physical_pieces_in(state)
+
+func physical_pieces_in(s: Dictionary) -> Array:
+ if _read_active_for(s) and _equipment_read.has("pieces"): return _equipment_read.pieces.duplicate()
+ return _materialize_physical_pieces_in(s)
 
 # Link eligibility is separate from ordinary coverage/capacity and special removal routes.
 func link_anchors() -> Array:
- if _equipment_read_active(): return _equipment_read.anchors.duplicate()
- return physical_pieces()+state.special_equipment.filter(Links.is_crotch_anchor)
+ return link_anchors_in(state)
+
+func link_anchors_in(s: Dictionary) -> Array:
+ if _read_active_for(s): return _equipment_read.anchors.duplicate()
+ return physical_pieces_in(s)+s.special_equipment.filter(Links.is_crotch_anchor)
 
 func equipment_targets() -> Array:
- if _equipment_read_active(): return _equipment_read.targets.duplicate()
- return physical_pieces()+state.links
+ return equipment_targets_in(state)
+
+func equipment_targets_in(s: Dictionary) -> Array:
+ if _read_active_for(s): return _equipment_read.targets.duplicate()
+ return physical_pieces_in(s)+s.links
 
 # Player removal queries include the independent family, enemy application does not.
 func action_targets() -> Array:
- if _equipment_read_active(): return _equipment_read.actions.duplicate()
- return equipment_targets()+state.special_equipment+Binding.connections(self)
+ return action_targets_in(state)
+
+func action_targets_in(s: Dictionary) -> Array:
+ if _read_active_for(s): return _equipment_read.actions.duplicate()
+ return equipment_targets_in(s)+s.special_equipment+Binding.connections_of(s.equipment)
 
 func targets_at(slot: String) -> Array:
  if _equipment_read_active(): return _equipment_read.slot_targets.get(slot,[]).duplicate()
@@ -1305,8 +1337,11 @@ func _visit_targets_at(slot: String, found: Array, stop_on_first: bool) -> bool:
  return false
 
 func _composite(id: String) -> Dictionary:
- if _equipment_read_active(): return _equipment_read.roots.get(id,{})
- for root in state.composites:
+ return _composite_in(state,id)
+
+func _composite_in(s: Dictionary, id: String) -> Dictionary:
+ if _read_active_for(s): return _equipment_read.roots.get(id,{})
+ for root in s.composites:
   if root.id==id: return root
  return {}
 
@@ -1316,14 +1351,20 @@ func _composite_body(root: Dictionary) -> Dictionary:
  return {}
 
 func _sealed_reason(slot: String) -> String:
- for root in state.composites:
+ return _sealed_reason_in(state,slot)
+
+func _sealed_reason_in(s: Dictionary, slot: String) -> String:
+ for root in s.composites:
   if Composites.active(root) and slot in Composites.definition(root).closed: return root.name+"封住了"+B.SLOT_NAMES[slot]+"，不能在该处追加装备或链接。"
  return ""
 
 func _assembly_reason(layout: Dictionary, attached_to: String="") -> String:
+ return _assembly_reason_in(state,layout,attached_to)
+
+func _assembly_reason_in(s: Dictionary, layout: Dictionary, attached_to: String="") -> String:
  if layout.kind=="head":
   return "马具已经并入口球，不再单独安装。"
- for old in state.composites:
+ for old in s.composites:
   if not Composites.active(old): continue
   if layout.kind in ["glove","jacket"] and old.kind in ["glove","jacket"]: return "单手套与拘束衣不能重复或互相覆盖。"
   if layout.kind=="head" and old.kind=="head": return "口部装备已经附有头部马具。"
@@ -1331,9 +1372,9 @@ func _assembly_reason(layout: Dictionary, attached_to: String="") -> String:
    if layout.variant==old.variant or old.variant in ["ankle","toes"]: return "已有同段单腿套，或外层长套不允许再补入短套。"
   if layout.kind=="wrap" and old.kind=="wrap" and layout.variant==old.variant: return "这一侧的手已经包裹。"
  for slot in layout.coverage:
-  if layout.kind!="head" and _sealed_reason(slot)!="": return _sealed_reason(slot)
+  if layout.kind!="head" and _sealed_reason_in(s,slot)!="": return _sealed_reason_in(s,slot)
  if layout.kind=="wrap":
-  for e in physical_pieces():
+  for e in physical_pieces_in(s):
    if e.get("side","") not in ["",layout.variant]: continue
    if Equipment.coverage(e).any(func(slot):return slot in ["palm","fingers"]): return "包裹前该侧手掌与手指必须没有装备。"
  return ""
@@ -1370,15 +1411,18 @@ func _prepare_assembly(kind: String, variant: String, source: String, grade: int
  return root
 
 func _plan_assembly(kind: String, variant: String, source: String, grade: int=2, tightness: int=2, overrides: Dictionary={}, straps: String="straight", attached_to: String="") -> Dictionary:
+ return _plan_assembly_in(state,kind,variant,source,grade,tightness,overrides,straps,attached_to)
+
+func _plan_assembly_in(s: Dictionary, kind: String, variant: String, source: String, grade: int=2, tightness: int=2, overrides: Dictionary={}, straps: String="straight", attached_to: String="") -> Dictionary:
  var layout=Composites.spec(kind,variant,straps)
  if layout.is_empty() or not Equipment.GRADES.has(grade) or grade<layout.minimum or tightness not in [1,2,3]: return {}
- if _assembly_reason(layout,attached_to)!="": return {}
+ if _assembly_reason_in(s,layout,attached_to)!="": return {}
  for key in overrides:
   if key not in layout.parts: return {}
  var layer=0
  for slot in layout.coverage:
-  for e in equipment_at(slot): layer=maxi(layer,e.layer+1)
- var root={"id":"composite_%d" % state.next_composite,"name":layout.name,"kind":kind,"variant":variant,"straps":straps,"layer":layer,"components":[],"attached_to":attached_to}
+  for e in equipment_at_in(s,slot): layer=maxi(layer,e.layer+1)
+ var root={"id":"composite_%d" % s.next_composite,"name":layout.name,"kind":kind,"variant":variant,"straps":straps,"layer":layer,"components":[],"attached_to":attached_to}
  for key in layout.parts:
   var definition=layout.parts[key]
   var settings=overrides.get(key,{})
@@ -1388,10 +1432,13 @@ func _plan_assembly(kind: String, variant: String, source: String, grade: int=2,
   var piece=_make_assembly_piece(root,definition,key,grade,part_tier,settings,source)
   root.components.append(piece)
  if Composites.validate(root)!="": return {}
- if _capacity_issue(physical_pieces()+root.components)!="": return {}
+ if _capacity_issue(physical_pieces_in(s)+root.components)!="": return {}
  return root
 
 func _special_install_reason(type: String, slot: String) -> String:
+ return _special_install_reason_in(state,type,slot)
+
+func _special_install_reason_in(s: Dictionary, type: String, slot: String) -> String:
  SpecialEquipment.ensure_catalog()
  if not SpecialEquipment.DESIGNS.has(type) or not SpecialEquipment.TYPES.has(type): return "这件装备尚未定义。"
  var design=SpecialEquipment.DESIGNS[type]
@@ -1399,18 +1446,18 @@ func _special_install_reason(type: String, slot: String) -> String:
  if design.slots.is_empty() or slot!=design.slots[0]: return "该装备不能安装在这个位置。"
  if SpecialEquipment.TYPES[type].get("component_only",false): return "固定带只能随对应主体自动附加。"
  if SpecialEquipment.is_chastity_type(type):
-  var old_locks=state.special_equipment.filter(SpecialEquipment.is_chastity)
+  var old_locks=s.special_equipment.filter(SpecialEquipment.is_chastity)
   if old_locks.size()>1: return "当前平板锁状态不完整。"
   if old_locks.size()==1 and not SpecialEquipment.can_upgrade(old_locks[0].type,type): return "只能换成等级更高或功能更多的平板锁。"
-  var retained=state.special_equipment.filter(func(e):return not _chastity_displaces(type,e))
+  var retained=s.special_equipment.filter(func(e):return not _chastity_displaces_in(s,type,e))
   for covered in design.slots:
    if SpecialEquipment.used_capacity(retained,covered)+int(design.capacity_cost)>SpecialEquipment.capacity(covered): return "所需位置已满。"
   return ""
- var blocking_lock=state.special_equipment.filter(func(e):return SpecialEquipment.is_chastity(e) and SpecialEquipment.occupied_slots(e).any(func(covered):return covered in design.slots))
+ var blocking_lock=s.special_equipment.filter(func(e):return SpecialEquipment.is_chastity(e) and SpecialEquipment.occupied_slots(e).any(func(covered):return covered in design.slots))
  if not blocking_lock.is_empty(): return blocking_lock[0].name+"封住了所需位置，其他性玩具不能替换它。"
- if state.special_equipment.any(func(e):return SpecialEquipment.exclusive_family(e.type)==SpecialEquipment.exclusive_family(type)): return "杯类特殊装备只能佩戴一件。" if SpecialEquipment.exclusive_family(type)=="cup" else "已佩戴同类装备。"
+ if s.special_equipment.any(func(e):return SpecialEquipment.exclusive_family(e.type)==SpecialEquipment.exclusive_family(type)): return "杯类特殊装备只能佩戴一件。" if SpecialEquipment.exclusive_family(type)=="cup" else "已佩戴同类装备。"
  for covered in design.slots:
-  if SpecialEquipment.used_capacity(state.special_equipment,covered)+int(design.capacity_cost)>SpecialEquipment.capacity(covered): return "所需位置已满。"
+  if SpecialEquipment.used_capacity(s.special_equipment,covered)+int(design.capacity_cost)>SpecialEquipment.capacity(covered): return "所需位置已满。"
  return ""
 
 func _install_special(type: String, slot: String, tightness: int=0) -> Dictionary:
@@ -1434,9 +1481,12 @@ func _install_special(type: String, slot: String, tightness: int=0) -> Dictionar
  return item
 
 func _chastity_displaces(incoming_type: String, item: Dictionary) -> bool:
+ return _chastity_displaces_in(state,incoming_type,item)
+
+func _chastity_displaces_in(s: Dictionary, incoming_type: String, item: Dictionary) -> bool:
  if SpecialEquipment.is_reinforcement(item):
-  var owner=_equipment(item.owner_id)
-  return not owner.is_empty() and _chastity_displaces(incoming_type,owner)
+  var owner=_equipment_in(s,item.owner_id)
+  return not owner.is_empty() and _chastity_displaces_in(s,incoming_type,owner)
  if SpecialEquipment.is_chastity(item): return SpecialEquipment.can_upgrade(item.type,incoming_type)
  var incoming=SpecialEquipment.DESIGNS[incoming_type]
  return SpecialEquipment.occupied_slots(item).any(func(covered):return covered in incoming.slots and (covered!="special_2_d" or SpecialEquipment.catheter_type(incoming_type)))
@@ -1869,30 +1919,39 @@ func _six_add_curses(e: Dictionary, type: String, count: int) -> void:
  if added>0: _emit("event",e.name+"将%d张「%s」混入弃牌堆。" % [added,B.CARD_NAMES[type]],{"temporary_curse":{"type":type,"count":added}})
 
 func _installation_points(slot: String, point: String="") -> Array:
+ return _installation_points_in(state,slot,point)
+
+func _installation_points_in(s: Dictionary, slot: String, point: String="") -> Array:
  if not Equipment.SEGMENTS.has(slot): return Equipment.points(slot) if point=="" or point==slot else []
  var options=Equipment.points(slot)
  if point!="": return [point] if point in options else []
- options.sort_custom(func(a,b):return _point_count(a)<_point_count(b) if _point_count(a)!=_point_count(b) else Equipment.ANATOMY.find(a)<Equipment.ANATOMY.find(b))
+ options.sort_custom(func(a,b):return _point_count_in(s,a)<_point_count_in(s,b) if _point_count_in(s,a)!=_point_count_in(s,b) else Equipment.ANATOMY.find(a)<Equipment.ANATOMY.find(b))
  return [options[0]]
 
 func _point_count(point: String) -> int:
- return _capacity_point_count(point)
+ return _point_count_in(state,point)
+
+func _point_count_in(s: Dictionary, point: String) -> int:
+ return _capacity_point_count_in(s,point)
 
 func _installation_reason(template: String, slot: String, grade: int, locked: bool=false, point: String="", layer: int=-1) -> String:
  return _prepare_installation(template,slot,grade,locked,point,layer).reason
 
 # Resolve exact points and structural layer once for both queries and creation.
 func _prepare_installation(template: String, slot: String, grade: int, locked: bool=false, point: String="", layer: int=-1) -> Dictionary:
- if Equipment.TEMPLATES.get(template,{}).get("lock_only",false) and state.equipment.any(func(e):return Equipment.lock_only(e)):
+ return _prepare_installation_in(state,template,slot,grade,locked,point,layer)
+
+func _prepare_installation_in(s: Dictionary, template: String, slot: String, grade: int, locked: bool=false, point: String="", layer: int=-1) -> Dictionary:
+ if Equipment.TEMPLATES.get(template,{}).get("lock_only",false) and s.equipment.any(func(e):return Equipment.lock_only(e)):
   return {"reason":"已经佩戴限制项圈。"}
  if cursed_eyes({"slot":slot}): return {"reason":"诅咒眼罩封闭了眼部装备操作。"}
  var reason=Equipment.definition_reason(template,slot,grade,locked)
  if reason!="": return {"reason":reason}
- reason=_sealed_reason(slot)
+ reason=_sealed_reason_in(s,slot)
  if reason!="": return {"reason":reason}
- var locations=_installation_points(slot,point)
+ var locations=_installation_points_in(s,slot,point)
  if locations.is_empty(): return {"reason":"该具体位置不属于所选身体部位。"}
- var overlaps=equipment_at(slot).filter(func(e):return locations.any(func(p):return _piece_covers_point(p,e)))
+ var overlaps=equipment_at_in(s,slot).filter(func(e):return locations.any(func(p):return _piece_covers_point_in(s,p,e)))
  var proposed=layer
  if proposed<0:
   proposed=0
@@ -1904,7 +1963,7 @@ func _prepare_installation(template: String, slot: String, grade: int, locked: b
  if overlaps.any(func(e):return e.has("root_id") and proposed<=e.layer): return {"reason":"已有复合拘束具覆盖这里，只能安装在它外面。"}
  for location in locations:
   var limit=Equipment.capacity(slot,template)
-  if _point_count(location)>=limit: return {"reason":("嘴部已有装备时只能追加胶带。" if limit<_capacity(slot) else Equipment.point_name(location)+"已有%d件装备，位置已满。" % limit),"capacity_full":true,"points":locations,"layer":proposed}
+  if _point_count_in(s,location)>=limit: return {"reason":("嘴部已有装备时只能追加胶带。" if limit<_capacity(slot) else Equipment.point_name(location)+"已有%d件装备，位置已满。" % limit),"capacity_full":true,"points":locations,"layer":proposed}
  return {"reason":"","points":locations,"layer":proposed}
 
 func _install_template(template: String, slot: String, durability: float, maximum: float, locked: bool, source: String, grade: int=1, layer: int=-1, variant: int=0, point: String="") -> Dictionary:

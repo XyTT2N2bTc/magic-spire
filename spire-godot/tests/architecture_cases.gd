@@ -1172,6 +1172,7 @@ static func run(t) -> void:
  state_read_sites_are_pinned(t)
  state_read_scan_reaches_every_source(t)
  state_read_registrations_are_pinned(t)
+ view_functions_read_only_their_view(t)
  card_facts_declared_slots(t)
  card_facts_consumes_has_targets_at(t)
  card_facts_keyword_min_query(t)
@@ -1182,7 +1183,9 @@ static func run(t) -> void:
  card_terms_single_source(t)
  equipment_scope_sites(t)
  equipment_targets_walk_is_one_path(t)
+ live_wrappers_delegate_once(t)
  assess_dependency_edges(t)
+ assess_never_restates_factory_rules(t)
  legal_requests_is_the_only_judgment_entry(t)
  replacement_judgment_has_one_entry(t)
  migrated_pure_functions_have_one_implementation(t)
@@ -2581,7 +2584,7 @@ const VERDICT_REASON_CARRIERS=[
  "core/game.gd::_build_escape_preview",
  "core/game.gd::_cast_path",
  "core/game.gd::_debug_check",
- "core/game.gd::_prepare_installation",
+ "core/game.gd::_prepare_installation_in",
  "core/game.gd::kick_profile",
  "core/game_view.gd::battle_rewards",
  "core/game_view.gd::reward_card_row",
@@ -6509,6 +6512,63 @@ static func equipment_targets_walk_is_one_path(t) -> void:
   if visit_body.contains(token): backwards.append(token)
  t.check(not visit_body.is_empty() and backwards.is_empty(),"EQ equipment_targets_walk_is_one_path: _visit_targets_at never calls back into targets_at or reads slot_targets: "+str(backwards))
 
+# S2a-1（plan §3「S2a-1 读侧」；design §3.1／§3.2「原接口一行委托」）：18 个被参数化函数
+# 的唯一实现在 *_in 孪生里，原接口只剩一行委托；表即 design §3.2 的孪生清单，期望侧是委托行原文
+# （去空格后比较）。加本地判断、换参数、少一层委托都红。X3 的 _random_index 同表核对（无 _in 后缀）。
+const VIEW_TWIN_WRAPPERS={
+ "_prepare_installation":"return _prepare_installation_in(state,template,slot,grade,locked,point,layer)",
+ "_plan_assembly":"return _plan_assembly_in(state,kind,variant,source,grade,tightness,overrides,straps,attached_to)",
+ "_assembly_reason":"return _assembly_reason_in(state,layout,attached_to)",
+ "_special_install_reason":"return _special_install_reason_in(state,type,slot)",
+ "_chastity_displaces":"return _chastity_displaces_in(state,incoming_type,item)",
+ "_equipment":"return _equipment_in(state,id)",
+ "action_targets":"return action_targets_in(state)",
+ "equipment_targets":"return equipment_targets_in(state)",
+ "physical_pieces":"return physical_pieces_in(state)",
+ "_materialize_physical_pieces":"return _materialize_physical_pieces_in(state)",
+ "equipment_at":"return equipment_at_in(state,slot)",
+ "_capacity_point_count":"return _capacity_point_count_in(state,point)",
+ "_point_count":"return _point_count_in(state,point)",
+ "_installation_points":"return _installation_points_in(state,slot,point)",
+ "_piece_covers_point":"return _piece_covers_point_in(state,point,e)",
+ "_sealed_reason":"return _sealed_reason_in(state,slot)",
+ "link_anchors":"return link_anchors_in(state)",
+ "_composite":"return _composite_in(state,id)"}
+# X3：唯一实现在 _random_draw，本域入口只剩一行委托（状态读取仍在委托行里，故 owners 不变）。
+const RANDOM_INDEX_DELEGATE="return _random_draw(state.seed,domain,state.rng,size)"
+
+# 包装／孪生函数的函数体去掉首行（签名余部）与注释后的非空代码行，空格压平后逐行比对。
+static func wrapper_code_lines(relative: String, name: String) -> Array:
+ var lines=Array(source_function_body(relative,name).split("\n"))
+ if not lines.is_empty(): lines.remove_at(0)
+ var code=[]
+ for line in lines:
+  var text=String(line).split("#")[0].strip_edges()
+  if text!="": code.append(text.replace(" ",""))
+ return code
+
+static func view_twin_names() -> Array:
+ var names=[]
+ for name in VIEW_TWIN_WRAPPERS.keys(): names.append(String(name)+"_in")
+ names.sort()
+ return names
+
+static func live_wrappers_delegate_once(t) -> void:
+ var problems=[]
+ for name in VIEW_TWIN_WRAPPERS:
+  var expected=String(VIEW_TWIN_WRAPPERS[name])
+  var code=wrapper_code_lines("core/game.gd",String(name))
+  if code.size()!=1 or code[0]!=expected.replace(" ",""): problems.append(String(name)+": "+str(code))
+ # 每个孪生必须存在、首参是视图形参 s、并且绝不开只读作用域（叶查询规则，seam「不得把作用域加在叶查询上」）。
+ var missing=[]
+ for twin in view_twin_names():
+  var body=source_function_body("core/game.gd",twin)
+  if body.strip_edges()=="": missing.append(twin); continue
+  var head=String(Array(body.split("\n"))[0]).split(",")[0].split(")")[0].strip_edges()
+  if head!="s: Dictionary" or body.contains("_begin_equipment_read") or body.contains("_equipment_read="): problems.append(twin+":first-param-or-scope")
+ t.check(problems.is_empty() and missing.is_empty(),"ARCH live_wrappers_delegate_once: every parameterized query keeps one implementation in its *_in twin and a single-line delegate with the original arguments (twin first parameter is the view s, and no twin opens or releases a read scope): problems="+str(problems.slice(0,6))+" missing="+str(missing))
+ t.check(Array(wrapper_code_lines("core/game.gd","_random_index"))==[String(RANDOM_INDEX_DELEGATE).replace(" ","")],"ARCH live_wrappers_delegate_once: the live random entry is one delegate to _random_draw with the live seed and counter dictionary: "+str(wrapper_code_lines("core/game.gd","_random_index")))
+
 # S1（敌人施加替换判定；plan §5-S1、dependencies.md「依赖方向」）＋S2a-3：纯阶段函数迁入
 # core/equipment_replacement_assess.gd 后，依赖边、判定入口与「一份实现」都是冻结表，表外即红。
 # S2a-3 追加 comparison_possible／loadout_records／record_facts／same_loadout 四对；
@@ -6578,6 +6638,67 @@ static func assess_dependency_edges(t) -> void:
  alias.compile("(?m)^\\s*(?:var\\s+)?[A-Za-z_][A-Za-z0-9_]*\\s*=\\s*g\\.state\\b")
  for hit in alias.search_all(text): aliases.append(hit.get_string().strip_edges())
  t.check(aliases.is_empty(),"ARCH assess_dependency_edges: assess never binds g.state to a local alias (a write through the alias would be invisible to this scan): "+str(aliases))
+
+# S2a-1（gherkin「判定模块不重述工厂规则」；design §10）：准入与记录构造的原因文本、记录 id 前缀与
+# 随机算式常数只有一份，就在 game.gd 的共用函数里；assess 抄任何一条即红。表＝本片与 S2a-2 的
+# 共用记录构造函数（S2a-2 尚未抽出的三项在体内为空时跳过，抽出后自动纳入核对）。
+const FACTORY_RULE_CARRIERS=["_prepare_installation_in","_plan_assembly_in","_assembly_reason_in","_special_install_reason_in","_sealed_reason_in","_template_piece","_special_piece","_reinforcement_strap"]
+const FACTORY_RULE_TOKENS=["equipment_%d","composite_%d","special_%d","104729"]
+# 耐久档表属于 _special_piece（S2a-2 的记录构造）唯一所有；该所有者抽出之前 assess 的 factory_args
+# 仍持有这份字面量（S2a-3 保留判断 V-S2a3-3，待协调者裁决落点）。所有者一出现，下面的核对立即生效。
+const FACTORY_REASON_DURABILITY="[0.0,0.4,0.8,1.0]"
+# 已存在的逐字节同句（不是本批抄进去的）：S1 的 assess.normalize 用同一句请求形状原因文本，而该文件
+# 不在 S2a-1 授权面。登记为「同一句只许出现在该函数内」：出现在别处、或该处消失（覆盖率下降）都红，
+# 交 S2b 接线时并入共用准入后删除本行。
+const FACTORY_RULE_ECHOES={"该装备不能安装在这个位置。":"core/equipment_replacement_assess.gd::normalize"}
+
+# assess 源码里出现某字面量的 (文件::函数) 位置（注释已剔除；逐行取所属声明）。
+static func assess_echo_sites(literal: String) -> Array:
+ var sites=[]
+ var current="<file>"
+ var declaration=RegEx.new()
+ declaration.compile("^(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
+ for line in source_code(ASSESS_SOURCE).split("\n"):
+  var declared=declaration.search(line)
+  if declared!=null: current=declared.get_string(1)
+  if String(line).contains(literal): sites.append(ASSESS_SOURCE+"::"+current)
+ return sites
+
+static func assess_never_restates_factory_rules(t) -> void:
+ var text=source_code(ASSESS_SOURCE)
+ var literals={}
+ var scanned=[]
+ for name in FACTORY_RULE_CARRIERS:
+  var body=game_function_body(name)
+  if body.strip_edges()=="": continue
+  scanned.append(name)
+  var quoted=RegEx.new()
+  quoted.compile("\"([^\"]*)\"")
+  for hit in quoted.search_all(body):
+   var value=hit.get_string(1)
+   var wide=false
+   for index in range(value.length()):
+    if value.unicode_at(index)>127: wide=true; break
+   if wide: literals[value]=true
+ var leaked=[]
+ for token in FACTORY_RULE_TOKENS: literals[token]=true
+ var deferred=[]
+ var echoed=[]
+ for literal in literals.keys():
+  var sites=assess_echo_sites(String(literal))
+  if sites.is_empty(): continue
+  if sites==[String(FACTORY_RULE_ECHOES.get(literal,""))]: echoed.append(literal)
+  else: leaked.append(literal)
+ var tombstone=[]
+ for literal in FACTORY_RULE_ECHOES.keys():
+  if not assess_echo_sites(String(literal)).has(String(FACTORY_RULE_ECHOES[literal])): tombstone.append(literal)
+ if game_function_body("_special_piece").strip_edges()!="":
+  if text.contains(FACTORY_REASON_DURABILITY): leaked.append(FACTORY_REASON_DURABILITY)
+ else: deferred.append("durability ladder owned by _special_piece (S2a-2)")
+ leaked.sort()
+ print("FACTORY RULE CARRIERS scanned=%s deferred=%s echoed=%s" % [str(scanned),str(deferred),str(echoed)])
+ t.check(not scanned.is_empty() and leaked.is_empty(),"ARCH assess_never_restates_factory_rules: assess restates no admission reason text, record id prefix or random constant of the shared factory functions (a copied rule in the judgment module is a second implementation): leaked="+str(leaked)+" carriers="+str(scanned))
+ t.check(tombstone.is_empty(),"ARCH assess_never_restates_factory_rules: every declared byte-identical echo still sits exactly in its registered function (a stale row would silently exempt the whole phrase): stale="+str(tombstone))
 
 static func legal_requests_is_the_only_judgment_entry(t) -> void:
  var relative="core/equipment_application.gd"
@@ -6866,6 +6987,62 @@ static func state_read_registrations_are_pinned(t) -> void:
   if derived.aliases[key].fields.is_empty(): empty.append(key)
  t.check(StateReaderScan.canonical(derived.aliases)==StateReaderScan.canonical(frozen.aliases) and empty.is_empty(),"STATEREAD state_read_registrations_are_pinned: the declared alias receivers match the frozen per-function field sets and every alias resolves to a non-empty body: unresolved="+str(empty))
  t.check(StateReaderScan.canonical(derived.schema_strings)==StateReaderScan.canonical(frozen.schema_strings),"STATEREAD state_read_registrations_are_pinned: the Snapshot.fields(state|g.state, spec) spec union matches the frozen schema_strings table")
+
+# S2a-1（gherkin「视图函数只读自己的视图」；design §3.6）：每个 *_in 孪生只以只读 state 形字典 s 求值。
+# (a) 冻结表里没有这些孪生的 live state 读点（owners 为空）；(b) 函数体里对 s 的字段读取全部 ⊆ VIEW_FIELDS，
+# 且与 ALIAS_DECLARATIONS 派生的 aliases 字段集合逐项相等（漏登记与多登记都红，读 s.logs 立即越界）；
+# (c) 函数体不调用表外函数（算外白名单＝其它孪生、L 助手、X2／纯构造助手与语言内建）；
+# (d) 不用 s.get("<键>") 取默认值（漏键必须报错，design §3.6-3）。
+const VIEW_FIELDS=["composites","equipment","links","next_composite","next_equipment","special_equipment"]
+const VIEW_TWIN_L_HELPERS=["cursed_eyes","Character.has_slot"]
+const VIEW_TWIN_SHARED=["_capacity","_capacity_issue","_make_assembly_piece","_composite_body","_read_active_for"]
+const VIEW_TWIN_KEYWORDS=["and","or","not","if","elif","else","while","for","match","return","func","in","is","as","await","int","float","str","bool","maxi","mini","maxf","minf","absf","absi","clampi","clampf","len","range","print","push_error","Array","Dictionary","String","Vector2"]
+
+static func view_twin_code(twin: String) -> String:
+ var code=""
+ for line in source_function_body("core/game.gd",twin).split("\n"): code+=String(line).split("#")[0]+"\n"
+ return code
+
+static func view_twin_fields(twin: String) -> Array:
+ var fields={}
+ var pattern=RegEx.new()
+ for field in StateReaderScan.field_registry():
+  if pattern.compile("\\bs\\s*\\.\\s*"+String(field)+"\\b")!=OK: continue
+  if pattern.search(view_twin_code(twin))!=null: fields[field]=true
+ var names=fields.keys().map(func(key):return String(key))
+ names.sort()
+ return names
+
+static func view_functions_read_only_their_view(t) -> void:
+ var frozen=StateReaderScan.frozen()
+ var derived=StateReaderScan.scan()
+ var live_reads=[]
+ var outside=[]
+ var alias_mismatch=[]
+ var defaults=[]
+ var calls=[]
+ var call_pattern=RegEx.new()
+ call_pattern.compile("(?<![\\w.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
+ var allowed=view_twin_names()+VIEW_TWIN_L_HELPERS+VIEW_TWIN_SHARED+VIEW_TWIN_KEYWORDS
+ for twin in view_twin_names():
+  var site="core/game.gd::"+twin
+  if not frozen.owners.get(site,{}).is_empty() or not derived.owners.get(site,{}).is_empty(): live_reads.append(site)
+  var reads=view_twin_fields(twin)
+  var declared=derived.aliases.get(site,{"fields":[]}).fields.map(func(field):return String(field))
+  declared.sort()
+  for field in reads:
+   if not field in VIEW_FIELDS: outside.append(twin+"."+field)
+  if reads!=declared: alias_mismatch.append(twin+":reads="+str(reads)+" declared="+str(declared))
+  var code=view_twin_code(twin)
+  for hit in call_pattern.search_all(code):
+   if not hit.get_string(1) in allowed and not calls.has(hit.get_string(1)): calls.append(hit.get_string(1))
+  for field in VIEW_FIELDS:
+   if code.contains("s.get(\""+field) or code.contains("s.get(\""+field+"\","):
+    if not defaults.has(twin+"."+field): defaults.append(twin+"."+field)
+ t.check(live_reads.is_empty(),"STATEREAD view_functions_read_only_their_view: no *_in twin appears in the frozen or derived live-state read face (a twin reading state.<field> is a live read hidden in a view function): "+str(live_reads))
+ t.check(outside.is_empty() and alias_mismatch.is_empty(),"STATEREAD view_functions_read_only_their_view: every twin reads only VIEW_FIELDS through s and its declared alias field set equals the reads in its body (a missing or extra ALIAS_DECLARATIONS row is red): outside="+str(outside)+" mismatch="+str(alias_mismatch.slice(0,6)))
+ t.check(calls.is_empty(),"STATEREAD view_functions_read_only_their_view: every twin body calls only other twins, the declared L helpers, the declared shared helpers and language builtins (a factory rule reached from a twin is a second entry): extra="+str(calls))
+ t.check(defaults.is_empty(),"STATEREAD view_functions_read_only_their_view: twins never default a missing VIEW_FIELDS key with s.get(...) -- a view must fail loudly on a missing key: "+str(defaults))
 
 # 检查力度的证据面（根 AGENTS.md「检查力度与报告四态」）：tests/mutations.json 是「判据名 → 临时突变」的
 # 唯一声明表，执行器 tools/check-mutation.ps1（改源代码→跑声明的套件→要求该判据变红→逐字节还原）。
