@@ -348,7 +348,7 @@ static func factory_args(g, r: Dictionary) -> Dictionary:
  match r.kind:
   "install":
    var maximum=g.Equipment.maximum(r.grade)
-   return {"kind":"install","template":r.template,"slot":r.slot,"durability":maximum*[0.0,0.4,0.8,1.0][r.tier],"maximum":maximum,"locked":r.locked,"grade":r.grade,"layer":r.get("layer",-1),"variant":r.variant,"point":r.point}
+   return {"kind":"install","template":r.template,"slot":r.slot,"durability":g._tier_durability(maximum,r.tier),"maximum":maximum,"locked":r.locked,"grade":r.grade,"layer":r.get("layer",-1),"variant":r.variant,"point":r.point}
   "assembly":
    return {"kind":"assembly","family":r.family,"variant":r.variant,"grade":r.grade,"tier":r.tier,"parts":r.parts,"straps":r.straps,"attached_to":r.get("attached_to","")}
   "special_install":

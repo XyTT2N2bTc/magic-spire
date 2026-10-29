@@ -15,11 +15,16 @@ static func present(e: Dictionary) -> bool:
 static func refresh(g, e: Dictionary) -> void:
  if not eligible(e) or g.tier(e.durability,e.maximum)!=3: return
  var old=e.get("binding",{})
- var kind=old.kind if not old.is_empty() else (["linked","integrated"][g._random_index("binding",2)])
- if kind=="integrated": e.binding={"kind":kind}
- else:
-  e.binding={"kind":kind,"id":"binding_"+e.id,"parent_id":e.id,"template":"torso_connection","name":NAMES[kind],"slot":e.slot,"points":g.Equipment.physical_points(e).duplicate(),"layer":e.layer,"grade":e.grade,"variant":e.variant,"material":e.material,"locked":false,"maximum":MAXIMUM[e.grade],"durability":MAXIMUM[e.grade],"source":e.source}
- g._emit("event",e.name+"形成了"+NAMES[kind]+"，将手臂固定在身后。",{"torso_binding":{"target":e.id,"kind":kind,"refreshed":not old.is_empty()}})
+ e.binding=resolve(g,e,g._random_index)
+ g._emit("event",e.name+"形成了"+NAMES[e.binding.kind]+"，将手臂固定在身后。",{"torso_binding":{"target":e.id,"kind":e.binding.kind,"refreshed":not old.is_empty()}})
+
+# Kind selection and record shape. `draw(domain,size)` is the only random source (live refresh
+# passes g._random_index); the builder writes no state and emits nothing.
+static func resolve(g, e: Dictionary, draw: Callable) -> Dictionary:
+ var old=e.get("binding",{})
+ var kind=old.kind if not old.is_empty() else (["linked","integrated"][draw.call("binding",2)])
+ if kind=="integrated": return {"kind":kind}
+ return {"kind":kind,"id":"binding_"+e.id,"parent_id":e.id,"template":"torso_connection","name":NAMES[kind],"slot":e.slot,"points":g.Equipment.physical_points(e).duplicate(),"layer":e.layer,"grade":e.grade,"variant":e.variant,"material":e.material,"locked":false,"maximum":MAXIMUM[e.grade],"durability":MAXIMUM[e.grade],"source":e.source}
 
 static func active(g, e: Dictionary) -> bool:
  return present(e) and g._outer(e)
@@ -48,9 +53,13 @@ static func filter_points(g, original: Array) -> Array:
 
 static func cancel_for_assembly(g, pieces: Array) -> void:
  for e in g.state.equipment:
-  if not e.has("binding") or not pieces.any(func(p):return g.Equipment.overlaps(e,p)): continue
+  if not cancels(g,e,pieces): continue
   if present(e): g._emit("event","为穿戴复合拘束具，先解开了"+e.name+"上的躯干固缚。",{"torso_binding":{"target":e.id,"cancelled":true}})
   e.erase("binding")
+
+# Which pieces lose their binding to make room for the assembly components in `pieces`.
+static func cancels(g, e: Dictionary, pieces: Array) -> bool:
+ return e.has("binding") and pieces.any(func(p):return g.Equipment.overlaps(e,p))
 
 static func can_tighten(e: Dictionary) -> bool:
  return e.durability<e.maximum or (eligible(e) and e.has("binding") and not present(e))

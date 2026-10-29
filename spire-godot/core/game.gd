@@ -1460,19 +1460,29 @@ func _special_install_reason_in(s: Dictionary, type: String, slot: String) -> St
   if SpecialEquipment.used_capacity(s.special_equipment,covered)+int(design.capacity_cost)>SpecialEquipment.capacity(covered): return "所需位置已满。"
  return ""
 
+# The tier-to-durability ladder has one source; tier 0 is deliberately a zero-durability record.
+func _tier_durability(maximum: float, tier: int) -> float:
+ return maximum*[0.0,0.4,0.8,1.0][tier]
+
+# New special-piece record. A builder writes no state, emits no event and draws no random: the
+# factory keeps the id counter, the append and the announcements.
+func _special_piece(next_equipment: int, type: String, tightness: int) -> Dictionary:
+ var design=SpecialEquipment.DESIGNS[type]
+ var item={"id":"special_%d" % next_equipment,"template":"special","type":type,"slot":design.slots[0],"coverage":design.slots.duplicate(),"contact_slots":design.slots.duplicate(),"remaining":SpecialEquipment.TYPES[type].duration,"name":SpecialEquipment.TYPES[type].name,"grade":design.grade,"maximum":design.maximum,"durability":design.maximum*design.ratio,"locked":SpecialEquipment.is_chastity_type(type),"layer":0,"material":design.material,"variant":0,"owner_id":""}
+ if tightness>0: item.durability=_tier_durability(design.maximum,tightness)
+ if SpecialEquipment.supports_reinforcement(item): item.reinforcement_state="none"
+ return item
+
 func _install_special(type: String, slot: String, tightness: int=0) -> Dictionary:
  if tightness not in [0,1,2,3]: return {}
  if _special_install_reason(type,slot)!="": return {}
- var design=SpecialEquipment.DESIGNS[type]
  if SpecialEquipment.is_chastity_type(type):
   # Resolve ownership before removing roots, so component removal is order-independent.
   var displaced=state.special_equipment.filter(func(old):return _chastity_displaces(type,old))
   for old in displaced:
    state.special_equipment.erase(old)
    _emit("event",old.name+"被新的平板锁替换并取下。")
- var item={"id":"special_%d" % state.next_equipment,"template":"special","type":type,"slot":design.slots[0],"coverage":design.slots.duplicate(),"contact_slots":design.slots.duplicate(),"remaining":SpecialEquipment.TYPES[type].duration,"name":SpecialEquipment.TYPES[type].name,"grade":design.grade,"maximum":design.maximum,"durability":design.maximum*design.ratio,"locked":SpecialEquipment.is_chastity_type(type),"layer":0,"material":design.material,"variant":0,"owner_id":""}
- if tightness>0: item.durability=design.maximum*[0.0,0.4,0.8,1.0][tightness]
- if SpecialEquipment.supports_reinforcement(item): item.reinforcement_state="none"
+ var item=_special_piece(state.next_equipment,type,tightness)
  state.next_equipment+=1
  state.special_equipment.append(item)
  if SpecialEquipment.supports_reinforcement(item) and tier(item.durability,item.maximum)==3: _attach_special_reinforcement(item)
@@ -1491,14 +1501,18 @@ func _chastity_displaces_in(s: Dictionary, incoming_type: String, item: Dictiona
  var incoming=SpecialEquipment.DESIGNS[incoming_type]
  return SpecialEquipment.occupied_slots(item).any(func(covered):return covered in incoming.slots and (covered!="special_2_d" or SpecialEquipment.catheter_type(incoming_type)))
 
+# New reinforcement-strap record, same rule as _special_piece: the caller owns counter and append.
+func _reinforcement_strap(next_equipment: int, type: String, owner_id: String) -> Dictionary:
+ var design=SpecialEquipment.DESIGNS[type]
+ return {"id":"special_%d" % next_equipment,"template":"special","type":type,"slot":design.slots[0],"coverage":design.slots.duplicate(),"contact_slots":design.slots.duplicate(),"remaining":0,"name":SpecialEquipment.TYPES[type].name,"grade":design.grade,"maximum":design.maximum,"durability":design.maximum,"locked":false,"layer":0,"material":design.material,"variant":0,"owner_id":owner_id}
+
 func _attach_special_reinforcement(owner: Dictionary) -> Dictionary:
  var existing=state.special_equipment.filter(func(item):return SpecialEquipment.reinforcement_matches(item,owner))
  if not existing.is_empty(): return existing[0]
  var type=SpecialEquipment.reinforcement_type(owner)
  if type=="": return {}
- var design=SpecialEquipment.DESIGNS[type]
  owner.reinforcement_state="active"
- var strap={"id":"special_%d" % state.next_equipment,"template":"special","type":type,"slot":design.slots[0],"coverage":design.slots.duplicate(),"contact_slots":design.slots.duplicate(),"remaining":0,"name":SpecialEquipment.TYPES[type].name,"grade":design.grade,"maximum":design.maximum,"durability":design.maximum,"locked":false,"layer":0,"material":design.material,"variant":0,"owner_id":owner.id}
+ var strap=_reinforcement_strap(state.next_equipment,type,owner.id)
  state.next_equipment+=1;state.special_equipment.append(strap)
  _emit("event",owner.name+"达到紧度3档，自动扣上了"+strap.name+"。")
  return strap
@@ -1556,7 +1570,7 @@ func _make_assembly_piece(root: Dictionary, definition: Dictionary, key: String,
  var maximum=Composites.definition(root).get("maximum",Equipment.maximum(grade))
  var piece={"id":root.id+"_"+key,"root_id":root.id,"part":key,"name":root.name+" · "+definition.label,
   "template":definition.template,"slot":definition.contact[0],"coverage":definition.coverage.duplicate(),"contact_slots":definition.contact.duplicate(),"side":definition.side,"independent":definition.independent,
-  "layer":root.layer+(1 if definition.independent else 0),"grade":grade,"variant":0,"material":Equipment.TEMPLATES[definition.template].material,"locked":settings.get("locked",false),"maximum":maximum,"durability":maximum*[0.0,0.4,0.8,1.0][part_tier],"source":source}
+  "layer":root.layer+(1 if definition.independent else 0),"grade":grade,"variant":0,"material":Equipment.TEMPLATES[definition.template].material,"locked":settings.get("locked",false),"maximum":maximum,"durability":_tier_durability(maximum,part_tier),"source":source}
  if definition.has("points"): piece.points=definition.points.duplicate()
  if Equipment.is_shoulder(piece):
   piece.layer=0;piece.crossed=part_tier==3
@@ -1966,12 +1980,16 @@ func _prepare_installation_in(s: Dictionary, template: String, slot: String, gra
   if _point_count_in(s,location)>=limit: return {"reason":("嘴部已有装备时只能追加胶带。" if limit<_capacity(slot) else Equipment.point_name(location)+"已有%d件装备，位置已满。" % limit),"capacity_full":true,"points":locations,"layer":proposed}
  return {"reason":"","points":locations,"layer":proposed}
 
+# New ordinary-piece record, same rule as _special_piece: identity, name and defaults live here.
+func _template_piece(next_equipment: int, template: String, slot: String, durability: float, maximum: float, locked: bool, source: String, grade: int, layer: int, variant: int, points: Array) -> Dictionary:
+ var spec=Equipment.TEMPLATES[template]
+ return {"id":"equipment_%d" % next_equipment,"template":template,"variant":variant,"slot":slot,"name":Equipment.name_for(template,slot,grade,variant),
+  "durability":durability,"maximum":maximum,"locked":locked,"material":spec.material,"source":source,"grade":grade,"layer":layer,"slip_allowed":spec.slip,"points":points}
+
 func _install_template(template: String, slot: String, durability: float, maximum: float, locked: bool, source: String, grade: int=1, layer: int=-1, variant: int=0, point: String="") -> Dictionary:
  var placement=_prepare_installation(template,slot,grade,locked,point,layer)
  if placement.reason!="": return {}
- var spec=Equipment.TEMPLATES[template]
- var e = {"id":"equipment_%d" % state.next_equipment,"template":template,"variant":variant,"slot":slot,"name":Equipment.name_for(template,slot,grade,variant),
-  "durability":durability,"maximum":maximum,"locked":locked,"material":spec.material,"source":source,"grade":grade,"layer":placement.layer,"slip_allowed":spec.slip,"points":placement.points}
+ var e=_template_piece(state.next_equipment,template,slot,durability,maximum,locked,source,grade,placement.layer,variant,placement.points)
  if Equipment.validate(e)!="": return {}
  state.next_equipment += 1
  state.equipment.append(e)
@@ -3896,21 +3914,43 @@ func _execute_attack(c: Dictionary, targets: Array) -> void:
   RelicEffects.fell(self)
   _emit("event","攻击结束后，你转为躺姿。")
 
+# Equipment-domain cleanup removal rules (design §6, NHR-2=A). Live loops keep their order, their
+# events and their Pressure/Cards calls; only the decision is shared with the read-only judgment.
+func _released(record: Dictionary) -> bool:
+ return record.durability<=0.000001
+
+func _strap_follows(item: Dictionary, strap: Dictionary) -> bool:
+ return SpecialEquipment.supports_reinforcement(item) and SpecialEquipment.reinforcement_matches(strap,item)
+
+func _strap_orphaned(strap: Dictionary, special_equipment: Array) -> bool:
+ return SpecialEquipment.is_reinforcement(strap) and not special_equipment.any(func(owner):return SpecialEquipment.reinforcement_matches(strap,owner))
+
+func _piece_released(e: Dictionary) -> bool:
+ return e.durability<=0.000001 and (not cursed_eyes(e) or e.get("absolute_release",false))
+
+func _root_head_orphaned(root: Dictionary, host: Dictionary) -> bool:
+ return root.kind=="head" and host.is_empty()
+
+func _component_kept(e: Dictionary) -> bool:
+ return e.get("independent",false) and e.durability>0.000001
+
+func _link_anchor_lost(link: Dictionary, anchors: Array) -> bool:
+ return not link.ends.all(func(id):return anchors.any(func(e):return e.id==id))
+
 func _cleanup(released: bool=true) -> void:
  var roots=Cards.restraint_roots(self) if released and not state.powers.is_empty() else []
  Shoulders.cleanup(self)
  for item in state.special_equipment.duplicate():
-  if item.durability<=0.000001:
+  if _released(item):
    if SpecialEquipment.is_reinforcement(item):
     var owner=_equipment(item.owner_id)
     if not owner.is_empty() and SpecialEquipment.supports_reinforcement(owner): owner.reinforcement_state="removed"
    state.special_equipment.erase(item)
-   if SpecialEquipment.supports_reinforcement(item):
-    for strap in state.special_equipment.duplicate():
-     if SpecialEquipment.reinforcement_matches(strap,item): state.special_equipment.erase(strap)
+   for strap in state.special_equipment.duplicate():
+    if _strap_follows(item,strap): state.special_equipment.erase(strap)
    _emit("event",item.name+"已解除。")
  for strap in state.special_equipment.duplicate():
-  if SpecialEquipment.is_reinforcement(strap) and not state.special_equipment.any(func(owner):return SpecialEquipment.reinforcement_matches(strap,owner)):
+  if _strap_orphaned(strap,state.special_equipment):
    state.special_equipment.erase(strap)
  for item in state.items.duplicate():
   if item.uses<=0:
@@ -3918,23 +3958,23 @@ func _cleanup(released: bool=true) -> void:
    state.items.erase(item)
  for i in range(state.equipment.size()-1,-1,-1):
   var e=state.equipment[i]
-  if e.durability<=0.000001 and (not cursed_eyes(e) or e.get("absolute_release",false)):
+  if _piece_released(e):
    _emit("event",e.name+"已解除。")
    state.equipment.remove_at(i)
  for root in state.composites.duplicate():
   var body=_composite_body(root)
-  if root.kind=="head" and _equipment(root.attached_to).is_empty():
+  if _root_head_orphaned(root,_equipment(root.attached_to)):
    state.composites.erase(root)
    _emit("event","口部固定带已解除，依附其上的头部马具一并移除。")
    continue
-  if not body.is_empty() and body.durability<=0.000001:
-   root.components=root.components.filter(func(e):return e.get("independent",false) and e.durability>0.000001)
+  if not body.is_empty() and _released(body):
+   root.components=root.components.filter(func(e):return _component_kept(e))
    if root.components.is_empty(): state.composites.erase(root)
    _emit("event",root.name+"的套体已解除。"+("附带部件一并解除。" if root.components.is_empty() else ""))
   else:
    var previous_count=root.components.size()
    for part in root.components.duplicate():
-    if part.durability<=0.000001:
+    if _released(part):
      root.components.erase(part)
      _emit("event",part.name+"已解除。")
    if root.components.is_empty(): state.composites.erase(root)
@@ -3942,10 +3982,10 @@ func _cleanup(released: bool=true) -> void:
     var removed=root.components.size()<previous_count
     if removed and _slip_reason(body)=="": _emit("event","现在可以尝试滑脱"+root.name+"的套体。")
  for link in state.links.duplicate():
-  if link.durability<=0.000001:
+  if _released(link):
    state.links.erase(link)
    _emit("event",link.name+"已解除。")
-  elif not link.ends.all(func(id):return link_anchors().any(func(e):return e.id==id)):
+  elif _link_anchor_lost(link,link_anchors()):
    state.links.erase(link)
    _emit("event",link.name+"连接的一件装备已解除，这条链接随之移除。")
  Pressure.cleanup(self)

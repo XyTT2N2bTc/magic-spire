@@ -61,6 +61,7 @@ static func assess_checks(t) -> void:
  replacement_plan_leaves_live_state_unchanged(t,data)
  view_index_only_for_same_state(t)
  random_draw_matches_random_index(t)
+ parallel_orchestrations_call_the_shared_rules(t)
 
 # case_id 逐条列出第一个差异：整份状态文本、state 引用、反馈三者分开报告，红行能直接判读。
 static func _differences(case_id: String, before: Dictionary, after: Dictionary) -> Array:
@@ -252,3 +253,53 @@ static func random_draw_matches_random_index(t) -> void:
  print("ASSESS RANDOM DRAW domains=%d checked=%d counters=%s" % [domains.size(),checked,JSON.stringify(g.state.rng)])
  t.check(untouched.is_empty(),"ASSESS random_draw_matches_random_index: a local counter dictionary is the only thing _random_draw advances -- state.rng is byte-identical before and after (domains=%d sizes=1,2,7): %s" % [domains.size(),str(untouched)])
  t.check(problems.is_empty() and checked==domains.size()*3,"ASSESS random_draw_matches_random_index: the live entry and the shared draw return the same value and advance exactly one counter step for every registered domain and size in {1,2,7} (size<=1 does not advance): checked=%d/%d %s" % [checked,domains.size()*3,str(problems.slice(0,6))])
+
+# design §5「编排登记（P4）」：规则共用、编排各一份。O3（清理骨架，D11=A）的 live 端已存在（遍历顺序
+# 另由 ARCH factory_records_have_one_builder 的 CLEANUP_SKELETON 钉住），视图端 cleanup_model 属 S2b。
+# 本行＝[编号, live 端锚点, 视图端锚点, 共用的规则函数名单, 视图端是否尚未实现]：视图端一出现就必须
+# 两端都调名单内的规则（出现而未对齐即红），落地后同批把标记翻成 false —— 第二套清理规则进不了 assess。
+const PARALLEL_ORCHESTRATIONS=[["O3","core/game.gd::_cleanup","core/equipment_replacement_assess.gd::cleanup_model",["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],true]]
+
+static func _source(relative: String) -> String:
+ var file=FileAccess.open("res://"+relative,FileAccess.READ)
+ return "" if file==null else file.get_as_text()
+
+# 函数体文本（签名之后、下一个声明之前），注释剔除：判据只看代码。
+static func _function_code(site: String) -> String:
+ var parts=site.split("::")
+ if parts.size()<2: return ""
+ var text=_source(String(parts[0]))
+ var declaration=RegEx.new()
+ if declaration.compile("(?m)^(?:static\\s+)?func\\s+"+String(parts[1])+"\\s*\\(")!=OK: return ""
+ var hit=declaration.search(text)
+ if hit==null: return ""
+ var following=RegEx.new()
+ if following.compile("(?m)^(?:static\\s+)?func\\s+")!=OK: return ""
+ var next=following.search(text,hit.get_end())
+ var end=text.length() if next==null else next.get_start()
+ var lines=[]
+ for line in text.substr(hit.get_end(),end-hit.get_end()).split("\n"): lines.append(String(line).split("#")[0])
+ return "\n".join(lines)
+
+static func parallel_orchestrations_call_the_shared_rules(t) -> void:
+ var uncalled=[]
+ var pending=[]
+ var aligned=[]
+ for row in PARALLEL_ORCHESTRATIONS:
+  var live=_function_code(String(row[1]))
+  if live.strip_edges()=="": uncalled.append(String(row[1]))
+  else:
+   for name in row[3]:
+    if not live.contains(String(name)+"("): uncalled.append(String(row[1])+":"+String(name))
+  var view=_function_code(String(row[2]))
+  var declared_pending=bool(row[4])
+  if view.strip_edges()=="":
+   if not declared_pending: uncalled.append(String(row[2])+":missing")
+  else:
+   if declared_pending: pending.append(String(row[0])+" -> "+String(row[2]))
+   for name in row[3]:
+    if not view.contains(String(name)+"("): uncalled.append(String(row[2])+":"+String(name))
+   aligned.append(String(row[0]))
+ print("PARALLEL ORCHESTRATIONS aligned=%s pending_view=%s rows=%d" % [str(aligned),str(pending),PARALLEL_ORCHESTRATIONS.size()])
+ t.check(uncalled.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: every declared orchestration end calls each shared cleanup rule of its row (a deleted call or a missing end is red): uncalled="+str(uncalled))
+ t.check(pending.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: a row declared as pending on the view side must not have that side yet -- S2b must flip the marker in the same batch that adds cleanup_model, so the two skeletons cannot silently drift: appeared="+str(pending))

@@ -128,10 +128,11 @@
   `reinforcement_issue` 5（`check` 的设计期估计为 59，差异来自 `s.get("…")` 形态计入）。
 - `schema_strings`：4 个函数、7 处调用点、15 个字段名。
 - `unread_fields`＝`["dexterity","strength"]`（两者也从未被写入，属死字段）；`ui_reads`＝`[]`；`unknown`＝`[]`。
-- S2a-1（读侧共用函数抽取）重生成后的现行统计：`files=130`、`fields=121`、`cells=1249`、`sites=2056`；
-  `whole_state` 71 处（pass 62／duplicate 6／iterate 1／has 1／get_variable 1），聚合 56 条记录；
+- S2a-1（读侧共用函数抽取）与 S2a-2（写侧规则共用）重生成后的现行统计：`files=130`、`fields=121`、`cells=1249`、`sites=2056`；
+  `whole_state` 72 处（pass 63／duplicate 6／iterate 1／has 1／get_variable 1），聚合 57 条记录；
   `ALIAS_DECLARATIONS` 16 个函数（较上列 6 个新增 10 个 `_in` 孪生），`alias_fields` 93；`schema_strings` 不变。
-  含义：18 个 `_in` 孪生把原函数的直读搬到别名面（cells −13、sites −19），每个 live 委托行交出整份 `state`（`pass` ＋19）。
+  含义：18 个 `_in` 孪生把原函数的直读搬到别名面（cells −13、sites −19），每个 live 委托行交出整份 `state`（`pass` ＋19）；
+  S2a-2 的 `Shoulders.attached` 委托 `attached_in(g,state,host)` 再 +1 处 `pass`（新增行恰为委托函数，review 核对）。
 
 ## 残差与仍靠人审（无机械判据）
 

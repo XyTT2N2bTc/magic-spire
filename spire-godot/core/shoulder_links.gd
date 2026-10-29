@@ -14,8 +14,12 @@ static func pieces(g) -> Array:
  return result
 
 static func attached(g, host: Dictionary) -> Array:
+ return attached_in(g,g.state,host)
+
+# The same query over explicit containers (C1′): a view passes its own state-shaped pair.
+static func attached_in(g, s: Dictionary, host: Dictionary) -> Array:
  if host.get("template","")=="glove_body":
-  return g._composite(host.root_id).components.filter(func(e):return E.is_shoulder(e) and e.durability>0.000001)
+  return g._composite_in(s,host.root_id).components.filter(func(e):return E.is_shoulder(e) and e.durability>0.000001)
  return host.get("shoulders",{}).get("pieces",[]).filter(func(e):return e.durability>0.000001)
 
 static func missing(g, host: Dictionary) -> bool:
@@ -42,10 +46,15 @@ static func fill(g, host: Dictionary) -> void:
  pair.pieces=pair.pieces.filter(func(e):return e.durability>0.000001)
  for side in SIDES:
   if pair.pieces.any(func(e):return e.side==side and e.durability>0.000001): continue
-  var maximum=E.maximum(pair.grade)
-  pair.pieces.append({"id":host.id+"_shoulder_"+side,"shoulder_host":host.id,"template":pair.template,"name":label(pair.template,side),"slot":"shoulder","side":side,"coverage":[],"contact_slots":["shoulder"],"layer":0,"grade":pair.grade,"variant":pair.variant,"material":E.TEMPLATES[pair.template].material,"locked":false,"maximum":maximum,"durability":maximum*[0.0,0.4,0.8,1.0][pair.grade],"source":pair.source,"crossed":pair.grade==3})
+  pair.pieces.append(pair_pieces(g,host,side))
   g._emit("event",label(pair.template,side)+"已连到"+g._equipment_name(host)+"，紧度%d档。" % pair.grade,{"shoulder":{"host":host.id,"side":side,"installed":true}})
   g.Cards.restraint_changed(g,"worn")
+
+# The missing strap record of one side; the caller appends it, announces it and emits no rule here.
+static func pair_pieces(g, host: Dictionary, side: String) -> Dictionary:
+ var pair=host.shoulders
+ var maximum=E.maximum(pair.grade)
+ return {"id":host.id+"_shoulder_"+side,"shoulder_host":host.id,"template":pair.template,"name":label(pair.template,side),"slot":"shoulder","side":side,"coverage":[],"contact_slots":["shoulder"],"layer":0,"grade":pair.grade,"variant":pair.variant,"material":E.TEMPLATES[pair.template].material,"locked":false,"maximum":maximum,"durability":g._tier_durability(maximum,pair.grade),"source":pair.source,"crossed":pair.grade==3}
 
 static func refresh(g, host: Dictionary) -> void:
  update_cross(g,host)
@@ -68,9 +77,14 @@ static func cleanup(g) -> void:
  for host in g.state.equipment:
   if not host.has("shoulders"): continue
   for e in host.shoulders.pieces.duplicate():
-   if e.durability<=0.000001 or host.durability<=0.000001:
-    host.shoulders.pieces.erase(e)
-    g._emit("event",e.name+("随原拘束具一起解除。" if host.durability<=0.000001 else "已解除，另一侧独立保留。"),{"shoulder":{"host":host.id,"side":e.side,"removed":true}})
+   if not released_with_host(host,e): continue
+   host.shoulders.pieces.erase(e)
+   g._emit("event",e.name+("随原拘束具一起解除。" if host.durability<=0.000001 else "已解除，另一侧独立保留。"),{"shoulder":{"host":host.id,"side":e.side,"removed":true}})
+
+# A strap leaves with its host: a broken strap and a broken host are the same removal rule, so
+# the live cleanup and the read-only judgment cannot disagree about which strap goes.
+static func released_with_host(host: Dictionary, piece: Dictionary) -> bool:
+ return piece.durability<=0.000001 or host.durability<=0.000001
 
 static func slip_reason(g, e: Dictionary) -> String:
  if E.is_shoulder(e) and e.get("crossed",false): return "交叉肩带无法滑脱，需先松到1档。"
@@ -117,10 +131,15 @@ static func validate_host(g, host: Dictionary) -> String:
  return ""
 
 static func validate(g) -> String:
- for host in g.state.equipment:
+ return validate_in(g,g.state.equipment,g.state.composites)
+
+# The same host/root walk over explicit containers (C1′): a view passes its own arrays and the
+# validation rule stays in one place.
+static func validate_in(g, equipment: Array, composites: Array) -> String:
+ for host in equipment:
   var issue=validate_host(g,host)
   if issue!="": return issue
- for root in g.state.composites:
+ for root in composites:
   for e in root.components:
    if e.template=="glove_strap":
     var issue=crossed_issue(g,e)

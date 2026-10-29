@@ -178,10 +178,10 @@
     "cells": 1249,
     "fields": 121,
     "files": 130,
-    "inputs_sha256": "43bca3a13f2f17f0b86d1c32206ba113657e1862365dcc3c906f9d7d618f6c83",
+    "inputs_sha256": "8a9be83b1845c9d9e6af072c6987290820dac6e39faeb247d3ac5856e3aba0ae",
     "sites": 2056,
     "ui_reads": 0,
-    "whole_state": 71
+    "whole_state": 72
   },
   "owners": {
     "core/action_replay.gd::payload": {
@@ -2830,6 +2830,12 @@
       "count": 1,
       "file": "core/room_services.gd",
       "function": "validate",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/shoulder_links.gd",
+      "function": "attached",
       "kind": "pass"
     },
     {

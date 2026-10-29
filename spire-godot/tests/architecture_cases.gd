@@ -1186,6 +1186,7 @@ static func run(t) -> void:
  live_wrappers_delegate_once(t)
  assess_dependency_edges(t)
  assess_never_restates_factory_rules(t)
+ factory_records_have_one_builder(t)
  legal_requests_is_the_only_judgment_entry(t)
  replacement_judgment_has_one_entry(t)
  migrated_pure_functions_have_one_implementation(t)
@@ -6581,7 +6582,8 @@ const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replac
 # （任何写入方法，如 _cleanup／_commit_changes／_emit，都落在表外）。_composite_body／
 # _equipment 是迁移前就在用的只读读取，属该节的「等」。S2a-3 追加 _capacity（Equipment.capacity
 # 查表）、cursed_eyes（读 state.relics）、cursed_plate（读 special_equipment 的诅咒判定）：三者只读不写。
-const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_composite_body","_equipment","_outer","_prepare_installation","_prepare_assembly","_sealed_reason","_special_install_reason","cursed_eyes","cursed_plate","tier"]
+# S2a-2 追加 _tier_durability（A19 的唯一耐久档表，纯算式）。
+const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_composite_body","_equipment","_outer","_prepare_installation","_prepare_assembly","_sealed_reason","_special_install_reason","_tier_durability","cursed_eyes","cursed_plate","tier"]
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。
 const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","comparison_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"],["_loadout_records","loadout_records"],["_record_facts","record_facts"],["_same_loadout","same_loadout"]]
 # replacement 里允许保留旧名的唯一适配器：旧名 -> [assess 名, 期望的参数原文（按顺序）]。
@@ -6642,10 +6644,10 @@ static func assess_dependency_edges(t) -> void:
 # S2a-1（gherkin「判定模块不重述工厂规则」；design §10）：准入与记录构造的原因文本、记录 id 前缀与
 # 随机算式常数只有一份，就在 game.gd 的共用函数里；assess 抄任何一条即红。表＝本片与 S2a-2 的
 # 共用记录构造函数（S2a-2 尚未抽出的三项在体内为空时跳过，抽出后自动纳入核对）。
-const FACTORY_RULE_CARRIERS=["_prepare_installation_in","_plan_assembly_in","_assembly_reason_in","_special_install_reason_in","_sealed_reason_in","_template_piece","_special_piece","_reinforcement_strap"]
+const FACTORY_RULE_CARRIERS=["_prepare_installation_in","_plan_assembly_in","_assembly_reason_in","_special_install_reason_in","_sealed_reason_in","_template_piece","_special_piece","_reinforcement_strap","_tier_durability"]
 const FACTORY_RULE_TOKENS=["equipment_%d","composite_%d","special_%d","104729"]
-# 耐久档表属于 _special_piece（S2a-2 的记录构造）唯一所有；该所有者抽出之前 assess 的 factory_args
-# 仍持有这份字面量（S2a-3 保留判断 V-S2a3-3，待协调者裁决落点）。所有者一出现，下面的核对立即生效。
+# 耐久档表属于 _tier_durability（唯一辅助，A19）；_special_piece 抽出后本核对无条件生效：
+# assess（S2b 后含视图模块）出现这张表就是第二份实现。
 const FACTORY_REASON_DURABILITY="[0.0,0.4,0.8,1.0]"
 # 已存在的逐字节同句（不是本批抄进去的）：S1 的 assess.normalize 用同一句请求形状原因文本，而该文件
 # 不在 S2a-1 授权面。登记为「同一句只许出现在该函数内」：出现在别处、或该处消失（覆盖率下降）都红，
@@ -6682,7 +6684,6 @@ static func assess_never_restates_factory_rules(t) -> void:
    if wide: literals[value]=true
  var leaked=[]
  for token in FACTORY_RULE_TOKENS: literals[token]=true
- var deferred=[]
  var echoed=[]
  for literal in literals.keys():
   var sites=assess_echo_sites(String(literal))
@@ -6692,13 +6693,91 @@ static func assess_never_restates_factory_rules(t) -> void:
  var tombstone=[]
  for literal in FACTORY_RULE_ECHOES.keys():
   if not assess_echo_sites(String(literal)).has(String(FACTORY_RULE_ECHOES[literal])): tombstone.append(literal)
- if game_function_body("_special_piece").strip_edges()!="":
-  if text.contains(FACTORY_REASON_DURABILITY): leaked.append(FACTORY_REASON_DURABILITY)
- else: deferred.append("durability ladder owned by _special_piece (S2a-2)")
+ if text.contains(FACTORY_REASON_DURABILITY): leaked.append(FACTORY_REASON_DURABILITY)
  leaked.sort()
- print("FACTORY RULE CARRIERS scanned=%s deferred=%s echoed=%s" % [str(scanned),str(deferred),str(echoed)])
+ print("FACTORY RULE CARRIERS scanned=%s echoed=%s" % [str(scanned),str(echoed)])
  t.check(not scanned.is_empty() and leaked.is_empty(),"ARCH assess_never_restates_factory_rules: assess restates no admission reason text, record id prefix or random constant of the shared factory functions (a copied rule in the judgment module is a second implementation): leaked="+str(leaked)+" carriers="+str(scanned))
  t.check(tombstone.is_empty(),"ARCH assess_never_restates_factory_rules: every declared byte-identical echo still sits exactly in its registered function (a stale row would silently exempt the whole phrase): stale="+str(tombstone))
+
+# S2a-2（gherkin「工厂改用共用记录构造」「固缚与肩带规则一份」「清理规则一份」；design §5 T5–T6、§6、
+# NHR-2=A）：新件记录、C1′ 的固缚／肩带规则与装备域清理规则各只有一份实现；原函数只剩编排，写 state、
+# 发事件、推随机、遍历骨架与 Pressure/Cards 调用都在原位。把记录字面抄回工厂、把条件抄回循环、换一个
+# 委托目标都会红。A19 的耐久档表另有唯一来源核对：授权面是 game.gd＋两 C1′ 文件＋assess，授权面外
+# 仍持有同一张表的四个 core 文件登记为残留（本批不得改），残留被修好或新增副本都要同批改表。
+const RECORD_BUILDERS={"core/game.gd::_install_template":"core/game.gd::_template_piece","core/game.gd::_install_special":"core/game.gd::_special_piece","core/game.gd::_attach_special_reinforcement":"core/game.gd::_reinforcement_strap"}
+const RECORD_BUILDER_FORBIDDEN=["state.","_emit(","_random_index("]
+const RULE_DELEGATES={"core/torso_binding.gd::refresh":"core/torso_binding.gd::resolve","core/torso_binding.gd::cancel_for_assembly":"core/torso_binding.gd::cancels","core/shoulder_links.gd::fill":"core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::validate":"core/shoulder_links.gd::validate_in","core/shoulder_links.gd::cleanup":"core/shoulder_links.gd::released_with_host"}
+const SHARED_RULE_FUNCTIONS=["core/torso_binding.gd::resolve","core/torso_binding.gd::cancels","core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::attached_in","core/shoulder_links.gd::validate_in","core/shoulder_links.gd::released_with_host"]
+const SHARED_RULE_FORBIDDEN=["g.state","_emit(","_random_index("]
+const CLEANUP_RULES=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"]
+# O3 的 live 端遍历顺序（骨架两份之一；S2b 的 cleanup_model 按同一登记对齐）。
+const CLEANUP_SKELETON=["Shoulders.cleanup(self)","_strap_follows(","_strap_orphaned(strap","state.items.duplicate(","_piece_released(e)","_root_head_orphaned(root","_released(body)","_component_kept(e)","_released(part)","_released(link)","_link_anchor_lost(link","Pressure.cleanup(self)","Pressure.settle_maximum("]
+const DURABILITY_LADDER="[0.0,0.4,0.8,1.0]"
+const DURABILITY_LADDER_OWNER="core/game.gd::_tier_durability"
+const DURABILITY_LADDER_RESIDUALS=["core/equipment_application.gd","core/guard.gd","core/prison.gd","core/room_events.gd"]
+
+static func code_of_function(relative: String, name: String) -> String:
+ var lines=[]
+ for line in source_function_body(relative,name).split("\n"): lines.append(String(line).split("#")[0])
+ return "\n".join(lines)
+
+static func factory_records_have_one_builder(t) -> void:
+ var missing=[]
+ var literals=[]
+ var impure=[]
+ for site in RECORD_BUILDERS:
+  var parts=String(site).split("::")
+  var body=code_of_function(parts[0],parts[1])
+  var builder=String(RECORD_BUILDERS[site])
+  var built_parts=builder.split("::")
+  if body.strip_edges()=="" or not body.contains(built_parts[1]+"("): missing.append(site)
+  if body.contains("\"id\":"): literals.append(site)
+  var built=code_of_function(built_parts[0],built_parts[1])
+  if built.strip_edges()=="" or not built.contains("\"id\":"): missing.append(builder)
+  for token in RECORD_BUILDER_FORBIDDEN:
+   if built.contains(token): impure.append(builder+":"+token)
+ t.check(missing.is_empty() and literals.is_empty() and impure.is_empty(),"ARCH factory_records_have_one_builder: each factory calls its one record builder and keeps no record literal of its own, and every builder is pure (no state write, no event, no random): missing="+str(missing)+" literals="+str(literals)+" impure="+str(impure))
+ var delegates=[]
+ var rules=[]
+ for site in RULE_DELEGATES:
+  var parts=String(site).split("::")
+  var target=String(RULE_DELEGATES[site]).split("::")
+  if not code_of_function(parts[0],parts[1]).contains(target[1]+"("): delegates.append(site+" -> "+String(RULE_DELEGATES[site]))
+ for site in SHARED_RULE_FUNCTIONS:
+  var parts=String(site).split("::")
+  var body=code_of_function(parts[0],parts[1])
+  if body.strip_edges()=="": rules.append(site+":missing"); continue
+  for token in SHARED_RULE_FORBIDDEN:
+   if body.contains(token): rules.append(site+":"+token)
+ t.check(delegates.is_empty() and rules.is_empty(),"ARCH factory_records_have_one_builder: the live binding/shoulder entry points delegate to the shared rule functions, and those rules write no live state, emit nothing and draw no random of their own (the draw callable is passed in): delegates="+str(delegates)+" rules="+str(rules))
+ var cleanup=code_of_function("core/game.gd","_cleanup")
+ var uncalled=CLEANUP_RULES.filter(func(name):return not cleanup.contains(String(name)+"("))
+ var impure_cleanup=[]
+ for name in CLEANUP_RULES:
+  var body=code_of_function("core/game.gd",String(name))
+  if body.strip_edges()=="": impure_cleanup.append(String(name)+":missing"); continue
+  for token in ["g.state","_emit("]:
+   if body.contains(token): impure_cleanup.append(String(name)+":"+token)
+ var order=[]
+ var cursor=0
+ for anchor in CLEANUP_SKELETON:
+  var at=cleanup.find(String(anchor),cursor)
+  if at<0: order.append(String(anchor))
+  else: cursor=at
+ t.check(uncalled.is_empty() and impure_cleanup.is_empty() and order.is_empty(),"ARCH factory_records_have_one_builder: the equipment-domain cleanup decides through the shared removal predicates, in the declared traversal order (O3 live end), and no predicate writes state or emits: uncalled="+str(uncalled)+" impure="+str(impure_cleanup)+" order_lost="+str(order))
+ var ladder_files=[]
+ var owner_ok=false
+ for path in script_files("res://core"):
+  var relative=String(path).trim_prefix("res://")
+  var text=source_code(relative)
+  if not text.contains(DURABILITY_LADDER): continue
+  ladder_files.append(relative)
+  if relative==String(DURABILITY_LADDER_OWNER).split("::")[0]: owner_ok=code_of_function(relative,String(DURABILITY_LADDER_OWNER).split("::")[1]).contains(DURABILITY_LADDER) and text.count(DURABILITY_LADDER)==1
+ var declared=[String(DURABILITY_LADDER_OWNER).split("::")[0]]
+ declared.append_array(DURABILITY_LADDER_RESIDUALS)
+ var extra=ladder_files.filter(func(file):return not file in declared)
+ var gone=DURABILITY_LADDER_RESIDUALS.filter(func(file):return not file in ladder_files)
+ t.check(owner_ok and extra.is_empty() and gone.is_empty(),"ARCH factory_records_have_one_builder: the tier-to-durability ladder has exactly one source, core/game.gd::_tier_durability (A19); the declared out-of-face residuals still hold their copy, so a fixed or a new copy is red: owner="+str(owner_ok)+" extra="+str(extra)+" residuals_gone="+str(gone))
 
 static func legal_requests_is_the_only_judgment_entry(t) -> void:
  var relative="core/equipment_application.gd"
