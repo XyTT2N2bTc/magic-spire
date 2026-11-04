@@ -1474,9 +1474,9 @@ func _special_install_reason_in(s: Dictionary, type: String, slot: String) -> St
   if SpecialEquipment.used_capacity(s.special_equipment,covered)+int(design.capacity_cost)>SpecialEquipment.capacity(covered): return "所需位置已满。"
  return ""
 
-# The tier-to-durability ladder has one source; tier 0 is deliberately a zero-durability record.
+# The tier-to-durability ladder has one source (data/restraint_value.gd); tier 0 is a zero record.
 func _tier_durability(maximum: float, tier: int) -> float:
- return maximum*[0.0,0.4,0.8,1.0][tier]
+ return RestraintValue.durability_for(maximum,tier)
 
 # New special-piece record. A builder writes no state, emits no event and draws no random: the
 # factory keeps the id counter, the append and the announcements.
@@ -1618,7 +1618,7 @@ func _reinforce_equipment(target: Dictionary, to_tier: int=0) -> String:
   _refresh_equipment(target)
   return "加固并上锁，耐久恢复至满值"
  var current=tier(target.durability,target.maximum)
- target.durability=target.maximum*(1.0 if to_tier==3 else (0.8 if current==1 else 1.0))
+ target.durability=_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3)
  _refresh_equipment(target)
  return "收紧到%d档" % tier(target.durability,target.maximum)
 
@@ -2036,27 +2036,25 @@ func add_fixture(slot: String, durability: float, maximum: float = 10.0, locked:
  return _install_template(Equipment.default_template(slot) if template=="" else template,slot,durability,maximum,locked,"fixture",1,layer)
 
 func tier(durability: float, maximum: float) -> int:
- if durability <= 0.000001: return 0
- var p = durability/maximum
- if p <= 0.40000001: return 1
- if p <= 0.80000001: return 2
- return 3
+ return RestraintValue.tier_for(durability,maximum)
 
 func equipment_tier(item: Dictionary) -> int:
  return 0 if Equipment.is_shackle(item) else tier(item.durability,item.maximum)
 
 func lower_durability(d: float, m: float) -> float:
  var p = d/m
- if tier(d,m) == 1: return 0.0
- if tier(d,m) == 2: return maxf(0.0,(p-0.4)*m)
- return (0.4+2.0*(p-0.8))*m
+ var current = tier(d,m)
+ if current == 1: return 0.0
+ if current == 2: return maxf(0.0,(p-RestraintValue.TIER_RATIOS[1])*m)
+ return (RestraintValue.TIER_RATIOS[1]+2.0*(p-RestraintValue.TIER_RATIOS[2]))*m
 
 func _damage_multiplier(p: float) -> float:
- # Smooth ends around each interval; continuous at 40%. Tunable prototype curve.
- if p <= 0.4:
-  var x = clampf(1.0-p/0.4,0.0,1.0)
+ # Smooth ends around each tier interval; continuous at the tier-one edge (design 6.2). Tunable curve.
+ var knee = RestraintValue.TIER_RATIOS[1]
+ if p <= knee:
+  var x = clampf(1.0-p/knee,0.0,1.0)
   return 1.0+B.LOOSE_DAMAGE_BONUS*x*x*(3.0-2.0*x)
- var x = clampf((p-0.4)/0.6,0.0,1.0)
+ var x = clampf((p-knee)/(1.0-knee),0.0,1.0)
  return 1.0-B.DAMAGE_REDUCTION_MAX*x*x*(3.0-2.0*x)
 
 func level(region: String) -> int:
@@ -2103,7 +2101,7 @@ func _outer_cover_at(target: Dictionary, slot: String, point: String="") -> Dict
 
 func _effective_ratio(target: Dictionary) -> float:
  # Cuffs use the lowest ordering band without deriving a tightness from damage.
- if Equipment.is_shackle(target): return 0.4
+ if Equipment.is_shackle(target): return RestraintValue.TIER_RATIOS[1]
  if target.has("parent_id"): return _effective_ratio(_equipment(target.parent_id))
  var p=target.durability/target.maximum
  return p
@@ -2334,7 +2332,7 @@ func _build_escape_preview(target: Dictionary, mode: String, base: float, assist
  var charge=values.charge
  if splash: bonus=0.0;charge=0.0
  var slip_buff=1.0 if is_strain else Consumables.slip_multiplier(self,target)
- var immune = reason=="" and not is_strain and mode != "magic_slip" and ratio > 0.80000001 and slip_buff==1.0
+ var immune = reason=="" and not is_strain and mode != "magic_slip" and ratio > RestraintValue.TIER_UPPER_2 and slip_buff==1.0
  if area_effect:
   # The effect supplies its own outer-layer targets, not a manual escape route.
   reason="";bonus=0.0;charge=0.0;immune=false

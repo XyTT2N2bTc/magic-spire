@@ -84,12 +84,12 @@ static func intake_equipment(g) -> Dictionary:
    var current=g.equipment_tier(piece)
    var desired=mini(3,current+1) if enough else maxi(2,current)
    if desired>current:
-    piece.durability=piece.maximum*[0.0,0.4,0.8,1.0][desired]
+    piece.durability=g.RestraintValue.durability_for(piece.maximum,desired)
     g._refresh_equipment(piece)
   # Tightening a host can create fresh straps; they share the intake minimum.
   for piece in g.physical_pieces():
    if not g.Equipment.lock_only(piece) and not g.Equipment.is_shackle(piece) and g.equipment_tier(piece)<2:
-    piece.durability=piece.maximum*0.8
+    piece.durability=g.RestraintValue.durability_for(piece.maximum,2)
     g._refresh_equipment(piece)
  var collar={}
  if g.state.security>=B.PRISON_COLLAR_LEVEL:

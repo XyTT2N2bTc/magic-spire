@@ -122,9 +122,9 @@ static func install(g, e: Dictionary, request: Dictionary) -> bool:
  var current=request.duplicate(true)
  if own:
   var budget=e.rope_art.stock
-  while current.grade+current.tier>budget and current.grade>1: current.grade-=1
-  while current.grade+current.tier>budget and current.tier>1: current.tier-=1
-  if current.grade+current.tier>budget:
+  while g.RestraintValue.from_profile(current.grade,current.tier)>budget and current.grade>1: current.grade-=1
+  while g.RestraintValue.from_profile(current.grade,current.tier)>budget and current.tier>1: current.tier-=1
+  if g.RestraintValue.from_profile(current.grade,current.tier)>budget:
    e.rope_art.refill=true
    return false
   if current.pool=="special":
@@ -291,7 +291,7 @@ static func hogtie(g, boss: Dictionary, grade: int) -> void:
    boss.rope_art.refill=true
    return
   boss.rope_art.stock-=cost
-  old.grade=next_grade;old.maximum=g.Equipment.maximum(next_grade);old.durability=old.maximum*0.8;old.variant=0
+  old.grade=next_grade;old.maximum=g.Equipment.maximum(next_grade);old.durability=g.RestraintValue.durability_for(old.maximum,2);old.variant=0
   old.name=g.Equipment.name_for(HOGTIE,"wrist",next_grade)
   g._refresh_equipment(old)
  else:

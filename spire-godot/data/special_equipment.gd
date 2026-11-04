@@ -290,7 +290,7 @@ static func migrate_reinforcement_state(items: Array) -> void:
   var straps=valid.filter(func(item):return reinforcement_matches(item,owner))
   owner.reinforcement_state="active" if straps.size()==1 else "none"
   # Older cups had no band at any tightness; loading must not add a new restraint.
-  if straps.is_empty() and is_reinforced_cup(owner) and float(owner.get("durability",0))>float(owner.get("maximum",0))*0.80000001: owner.reinforcement_state="removed"
+  if straps.is_empty() and is_reinforced_cup(owner) and float(owner.get("durability",0))>float(owner.get("maximum",0))*RestraintValue.TIER_UPPER_2: owner.reinforcement_state="removed"
 
 static func catheter(item: Dictionary) -> bool:
  return is_chastity(item) and TYPES[item.type].get("integrated_catheter",false)
@@ -534,7 +534,7 @@ static func validate(items, legacy_cups: bool=false) -> String:
  for owner in items.filter(supports_reinforcement):
   var straps=items.filter(func(item):return reinforcement_matches(item,owner))
   var status=owner.reinforcement_state
-  if status=="none" and (not straps.is_empty() or owner.durability/owner.maximum>0.80000001): return "主体的固定带缺省状态有误。"
+  if status=="none" and (not straps.is_empty() or owner.durability/owner.maximum>RestraintValue.TIER_UPPER_2): return "主体的固定带缺省状态有误。"
   if status=="active" and straps.size()!=1: return "主体记录的固定带缺失或重复。"
   if status=="removed" and not straps.is_empty(): return "已切断的固定带需要清除。"
  for slot in counts:

@@ -74,7 +74,7 @@ static func links(g, grade: int) -> Array:
        # Reject impossible geometry before rebuilding a full physical link. The
        # factory still checks actual endpoints, sealed slots, duplicates and quotas.
        if not g.Links.adjacent(pa,pb): continue
-       var link=g._prepare_link(a.id,b.id,E.maximum(grade)*0.8,"probe",grade,[],[sa,sb],[pa,pb])
+       var link=g._prepare_link(a.id,b.id,g.RestraintValue.durability_for(E.maximum(grade),2),"probe",grade,[],[sa,sb],[pa,pb])
        if not link.is_empty(): offers.append({"kind":"link","template":"link_rope","ends":link.ends,"slots":link.slots,"contact_points":link.contact_points,"name":link.name,"rank":1})
  g._equipment_read=previous
  return offers

@@ -150,7 +150,7 @@ static func execute_concrete(g, request: Dictionary, source: String, allow_repla
  var items=[];var removed=[]
  var grade=p.get("grade",2)
  var maximum=E.maximum(grade)
- var durability=maximum*[0.0,0.4,0.8,1.0][p.get("tier",2)]
+ var durability=g.RestraintValue.durability_for(maximum,p.get("tier",2))
  match p.kind:
   "install":
    var item=g._install_template(p.template,p.slot,durability,maximum,p.get("locked",false),source,grade,p.get("layer",-1),p.get("variant",0),p.get("point",""))
@@ -351,7 +351,7 @@ static func _request_reason(g, p: Dictionary, placement: bool=true, protected_id
   "link":
    if p.get("locked",false): return "链接绳没有可上锁的位置。"
    if p.get("ends",[]).size()!=2: return "链接绳需要两个真实连接位置。"
-   if placement and g._prepare_link(p.ends[0],p.ends[1],E.maximum(grade)*[0.0,0.4,0.8,1.0][tier],p.get("source",""),grade,p.get("blocked_slip",[]),p.get("slots",[]),p.get("contact_points",[])).is_empty(): return "请重新选择可连接的两个位置。"
+   if placement and g._prepare_link(p.ends[0],p.ends[1],g.RestraintValue.durability_for(E.maximum(grade),tier),p.get("source",""),grade,p.get("blocked_slip",[]),p.get("slots",[]),p.get("contact_points",[])).is_empty(): return "请重新选择可连接的两个位置。"
   "shoulder":
    if p.get("locked",false): return "独立肩部附加需要以开锁状态安装。"
    if tier!=grade: return "独立肩部附加的初始紧度由其品质决定。"

@@ -549,9 +549,15 @@
       "suite": "architecture"
     },
     "factory_records_have_one_builder": {
-      "file": "core/shoulder_links.gd",
-      "find": "\"durability\":g._tier_durability(maximum,pair.grade),",
-      "replace": "\"durability\":maximum*[0.0,0.4,0.8,1.0][pair.grade],",
+      "file": "core/game.gd",
+      "find": "  RopeArt.track(self,e)\n  if _piece_released(e):\n   _emit(\"event\",e.name+\"已解除。\")",
+      "replace": "  if _piece_released(e):\n   RopeArt.track(self,e)\n   _emit(\"event\",e.name+\"已解除。\")",
+      "suite": "architecture"
+    },
+    "durability_ladder_has_one_source": {
+      "file": "core/prison.gd",
+      "find": "piece.durability=g.RestraintValue.durability_for(piece.maximum,2)",
+      "replace": "piece.durability=piece.maximum*0.8",
       "suite": "architecture"
     }
   }

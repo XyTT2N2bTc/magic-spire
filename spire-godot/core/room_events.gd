@@ -799,7 +799,7 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
     if emit_logs: g._emit("event",target.name+"被"+change+"。")
    "tighten_to":
     if target.is_empty() or g.Equipment.is_shackle(target) or g.SpecialEquipment.is_special(target) or e.tier not in [1,2,3] or g.equipment_tier(target)>=e.tier: return "请选择紧度低于指定档位的可加固目标。"
-    target.durability=target.maximum*[0.0,0.4,0.8,1.0][e.tier]
+    target.durability=g.RestraintValue.durability_for(target.maximum,e.tier)
     g._refresh_equipment(target)
     if emit_logs: g._emit("event",target.name+"被收紧到%d档。" % e.tier)
    "unlock":

@@ -1189,6 +1189,7 @@ static func run(t) -> void:
  assess_never_touches_runtime_fields(t)
  assess_never_restates_factory_rules(t)
  factory_records_have_one_builder(t)
+ durability_ladder_has_one_source(t)
  legal_requests_is_the_only_judgment_entry(t)
  replacement_judgment_has_one_entry(t)
  migrated_pure_functions_have_one_implementation(t)
@@ -6587,7 +6588,7 @@ const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replac
 # （任何写入方法，如 _cleanup／_commit_changes／_emit，都落在表外）。_composite_body／
 # _equipment 是迁移前就在用的只读读取，属该节的「等」。S2a-3 追加 _capacity（Equipment.capacity
 # 查表）、cursed_eyes（读 state.relics）、cursed_plate（读 special_equipment 的诅咒判定）：三者只读不写。
-# S2a-2 追加 _tier_durability（A19 的唯一耐久档表，纯算式）。
+# S2a-2 追加 _tier_durability（A19 的唯一耐久档表入口；M1b 后它委托 data/restraint_value.gd）。
 const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_composite_body","_equipment","_outer","_prepare_installation","_prepare_assembly","_sealed_reason","_special_install_reason","_tier_durability","cursed_eyes","cursed_plate","tier"]
 # M1（design rev3.1 §4.1）：经 g 常量的模块调用 g.<模块>.<函数>( 的白名单；上面的实例方法白名单只匹配
 # g.<方法>(，看不见这一类。数据模块（data/*，分层保证不调用 core）整模块放行，"*" 即整模块；core 模块逐函数放行：
@@ -6765,8 +6766,8 @@ static func assess_never_restates_factory_rules(t) -> void:
 # S2a-2（gherkin「工厂改用共用记录构造」「固缚与肩带规则一份」「清理规则一份」；design §5 T5–T6、§6、
 # NHR-2=A）：新件记录、C1′ 的固缚／肩带规则与装备域清理规则各只有一份实现；原函数只剩编排，写 state、
 # 发事件、推随机、遍历骨架与 Pressure/Cards 调用都在原位。把记录字面抄回工厂、把条件抄回循环、换一个
-# 委托目标都会红。A19 的耐久档表另有唯一来源核对：授权面是 game.gd＋两 C1′ 文件＋assess，授权面外
-# 仍持有同一张表的四个 core 文件登记为残留（本批不得改），残留被修好或新增副本都要同批改表。
+# 委托目标都会红。A19 的耐久档表另有唯一来源核对（M1b 收口后见 durability_ladder_has_one_source：
+# 档位表在 data/restraint_value.gd，core 侧残留登记已清空）。
 const RECORD_BUILDERS={"core/game.gd::_install_template":"core/game.gd::_template_piece","core/game.gd::_install_special":"core/game.gd::_special_piece","core/game.gd::_attach_special_reinforcement":"core/game.gd::_reinforcement_strap"}
 # M1：_equipment_feedback 只许留在工厂与 Binding.refresh／Shoulders.fill；记录构造与共用规则函数一调用它，
 # 判定预览就会替事务执行反馈。
@@ -6780,9 +6781,6 @@ const CLEANUP_RULES=["_released","_strap_follows","_strap_orphaned","_piece_rele
 # 各自钉在它所属谓词之前：装备循环的 track 在 _piece_released(e) 前，链接循环的在 _released(link) 前，
 # 锚点丢失分支的 track(…,true) 在 _link_anchor_lost(link 之后。
 const CLEANUP_SKELETON=["Shoulders.cleanup(self)","_strap_follows(","_strap_orphaned(strap","state.items.duplicate(","RopeArt.track(self,e)","_piece_released(e)","_root_head_orphaned(root","_released(body)","_component_kept(e)","_released(part)","RopeArt.track(self,link)","_released(link)","_link_anchor_lost(link","RopeArt.track(self,link,true)","Pressure.cleanup(self)","Pressure.settle_maximum("]
-const DURABILITY_LADDER="[0.0,0.4,0.8,1.0]"
-const DURABILITY_LADDER_OWNER="core/game.gd::_tier_durability"
-const DURABILITY_LADDER_RESIDUALS=["core/equipment_application.gd","core/guard.gd","core/prison.gd","core/room_events.gd"]
 
 static func code_of_function(relative: String, name: String) -> String:
  var lines=[]
@@ -6833,19 +6831,40 @@ static func factory_records_have_one_builder(t) -> void:
   if at<0: order.append(String(anchor))
   else: cursor=at
  t.check(uncalled.is_empty() and impure_cleanup.is_empty() and order.is_empty(),"ARCH factory_records_have_one_builder: the equipment-domain cleanup decides through the shared removal predicates, in the declared traversal order (O3 live end), and no predicate writes state or emits: uncalled="+str(uncalled)+" impure="+str(impure_cleanup)+" order_lost="+str(order))
- var ladder_files=[]
- var owner_ok=false
- for path in script_files("res://core"):
-  var relative=String(path).trim_prefix("res://")
-  var text=source_code(relative)
-  if not text.contains(DURABILITY_LADDER): continue
-  ladder_files.append(relative)
-  if relative==String(DURABILITY_LADDER_OWNER).split("::")[0]: owner_ok=code_of_function(relative,String(DURABILITY_LADDER_OWNER).split("::")[1]).contains(DURABILITY_LADDER) and text.count(DURABILITY_LADDER)==1
- var declared=[String(DURABILITY_LADDER_OWNER).split("::")[0]]
- declared.append_array(DURABILITY_LADDER_RESIDUALS)
- var extra=ladder_files.filter(func(file):return not file in declared)
- var gone=DURABILITY_LADDER_RESIDUALS.filter(func(file):return not file in ladder_files)
- t.check(owner_ok and extra.is_empty() and gone.is_empty(),"ARCH factory_records_have_one_builder: the tier-to-durability ladder has exactly one source, core/game.gd::_tier_durability (A19); the declared out-of-face residuals still hold their copy, so a fixed or a new copy is red: owner="+str(owner_ok)+" extra="+str(extra)+" residuals_gone="+str(gone))
+
+# M1b（D14「有收口的就全部收到一起」）：紧度档位⇄耐久比例只有一张表。表与两个纯函数落在
+# data/restraint_value.gd（data 不调 core；它是唯一既被 core 调用、又已被 special_equipment 预载的数据模块，
+# 不存在 data 内的预载环）。判据域＝规则层 core＋data：档位阶梯字面与两个边界常量只许出现在表本身，
+# 且不许再出现「最大耐久×档位系数」的手写乘法。tests 的同字面是判据另一侧的独立期望（不与实现同源），
+# ui/equipment_target_face.gd 的耐久刻度在授权面外——两者都不在本域，逐处登记在片报告。
+const TIER_TABLE_OWNER="data/restraint_value.gd"
+const TIER_TABLE_LADDER="[0.0,0.4,0.8,1.0]"
+const TIER_TABLE_BOUNDS=["0.40000001","0.80000001"]
+const TIER_TABLE_FUNCTIONS=["durability_for","tier_for"]
+
+static func durability_ladder_has_one_source(t) -> void:
+ var table=source_code(TIER_TABLE_OWNER)
+ var declared=TIER_TABLE_FUNCTIONS.filter(func(name):return table.contains("static func "+String(name)+"("))
+ var bounds_in_table=TIER_TABLE_BOUNDS.filter(func(literal):return table.contains(String(literal)))
+ t.check(declared.size()==TIER_TABLE_FUNCTIONS.size() and table.contains(TIER_TABLE_LADDER) and table.count(TIER_TABLE_LADDER)==1 and bounds_in_table.size()==TIER_TABLE_BOUNDS.size(),"ARCH durability_ladder_has_one_source: "+TIER_TABLE_OWNER+" is the one table and declares the ladder once, both upper bounds and both pure functions: declared="+str(declared)+" ladder_count="+str(table.count(TIER_TABLE_LADDER))+" bounds="+str(bounds_in_table))
+ var factor=RegEx.new()
+ var compiled=factor.compile("(?i)maximum[^\\n;]{0,40}?\\*\\s*(?:0\\.4|0\\.8|1\\.0)(?![0-9])")==OK
+ var duplicated=[]
+ var scaled=[]
+ if compiled:
+  for path in script_files("res://core")+script_files("res://data"):
+   var relative=String(path).trim_prefix("res://")
+   if relative==TIER_TABLE_OWNER: continue
+   var text=source_code(relative)
+   if text.contains(TIER_TABLE_LADDER): duplicated.append(relative+"::ladder")
+   for literal in TIER_TABLE_BOUNDS:
+    if text.contains(String(literal)): duplicated.append(relative+"::"+String(literal))
+   for hit in factor.search_all(text): scaled.append(relative+"::"+hit.get_string().strip_edges())
+ duplicated.sort()
+ scaled.sort()
+ t.check(compiled,"ARCH durability_ladder_has_one_source: the tier-factor pattern compiles (an uncompiled scan must not pass silently)")
+ t.check(duplicated.is_empty(),"ARCH durability_ladder_has_one_source: the ladder and its two ratio bounds are written once, in "+TIER_TABLE_OWNER+"; a second copy in the rule layer (core／data) is a second table: duplicated="+str(duplicated))
+ t.check(scaled.is_empty(),"ARCH durability_ladder_has_one_source: no core／data site multiplies a durability maximum by a bare tier factor 0.4／0.8／1.0 any more; ask the table for the durability instead: scaled="+str(scaled))
 
 static func legal_requests_is_the_only_judgment_entry(t) -> void:
  var relative="core/equipment_application.gd"
