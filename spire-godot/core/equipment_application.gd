@@ -225,7 +225,7 @@ static func _choices(g, spec: Dictionary, source: String) -> Array:
 # The single legal-candidate entry: choose and can_apply reach it through
 # _choice_bands -> _choices, and _choices calls it for the preferred-slot band and
 # the final band. A replacement feasibility check outside this function is a second
-# entry; the replace branch still plans through _replacement_plan until S2.
+# entry; the replace branch still plans through _replacement_plan until S2b.
 static func legal_requests(g, raw: Array, spec: Dictionary, source: String) -> Array:
  var normal=raw.filter(func(p):return _request_reason(g,p,true,spec.get("protected_ids",[]))=="")
  if not normal.is_empty(): return normal

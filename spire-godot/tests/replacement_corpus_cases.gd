@@ -2,7 +2,7 @@ extends RefCounted
 
 # S0 对拍基座：入库语料（tests/fixtures/replacement-corpus.json）的读取、判据与比较器。
 # 判定接缝拆成两个入口（审查 F1／协调者 A9）：被测侧 judge_subject() 本片仍走现行路径，
-# S2 只改这一处；旧预言机 judge_oracle() 恒为 Replacement.plan，reoracle 只用它。
+# S2b 只改这一处；旧预言机 judge_oracle() 恒为 Replacement.plan，reoracle 只用它。
 # 存量 old 结果只是同一预言机的缓存，reoracle 模式重调预言机验证未漂移。
 #
 # 入口是 `corpus_checks(t)`，由 tests/test_game.gd 的 `replacement` 分支调用。本模块不是注册套件，
@@ -16,7 +16,7 @@ extends RefCounted
 # {"@integer":"…"}／{"@float":"<16 hex>"}，因此语料正文没有裸数字，JSON.parse_string 读回后
 # 不会把整数值 float 压成 int。读入一律经 _decode()（唯一 decode 通道：unseal() 取值、
 # payload_issues() 只验可解）。本模块不另写任何
-# float→int 压缩：那曾把 live 的 8.0 变成 8，而 core/equipment_replacement.gd::_same_loadout
+# float→int 压缩：那曾把 live 的 8.0 变成 8，而 core/equipment_replacement_assess.gd::same_loadout
 # 用 Dictionary==／Array.find 比较，对 8 与 8.0 判不同，于是 20260906-00006 不可复现、
 # 应用层行 20260906-L00384 也不复现。
 #
@@ -119,7 +119,7 @@ static func fixture_subset(data: Dictionary) -> Dictionary:
 
 # ---- 被测侧接缝 ----
 # 两个入口，各自只做一件事：
-#   judge_subject  = 被测侧，S1 仍走现行路径；S2 把 body 换成
+#   judge_subject  = 被测侧，S1 仍走现行路径；S2b 把 body 换成
 #                    `Assess.legal(g,case.requests,case.source,case.protected_ids)` 即完成接线。
 #   judge_oracle   = 旧预言机，恒为 Replacement.plan；reoracle 只用它，compare/selfcheck 不经过它。
 # 判定布尔之外的理由字符串不作契约（旧 _legal_choices 不读它）。
@@ -182,7 +182,7 @@ static func _case_state(data: Dictionary, case: Dictionary) -> Dictionary:
  var state=unseal(entry.get("state",{}),"state "+String(case.get("state","")))
  return state if state is Dictionary else {}
 
-# mode=compare：只比布尔（S2 起的新判定契约）；mode=reoracle：逐项深比较旧结果。
+# mode=compare：只比布尔（S2b 起的新判定契约）；mode=reoracle：逐项深比较旧结果。
 # limit<0 表示全量；自检用很小的一片验证比较器能变红。
 static func compare_judgments(data: Dictionary, mode: String="compare", limit: int=-1) -> Dictionary:
  var g=_fresh_game()

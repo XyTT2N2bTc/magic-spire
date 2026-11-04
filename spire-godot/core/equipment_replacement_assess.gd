@@ -1,7 +1,7 @@
 extends RefCounted
 
 # Pure planning stages of the replacement transaction. The transaction
-# (core/equipment_replacement.gd) and, from S2, the read-only judgment call these
+# (core/equipment_replacement.gd) and, from S2b, the read-only judgment call these
 # same functions, so this module is the single implementation of normalization,
 # mandatory family units, capacity deficit, removable units, minimal cover sets,
 # counts, strength comparison, link transfer, factory arguments and loadout

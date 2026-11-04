@@ -129,9 +129,8 @@ static func _plan(g, requests: Array, source: String, protected_ids: Array) -> D
  var deficit=Assess.deficit(g,demand,existing,new_pieces,mandatory)
  var units=Assess.units(g,g.state.equipment,g.state.special_equipment,g.state.composites,deficit)
  units=Assess.removable(g,units,protected_ids,mandatory_ids)
- # Even the weakest eligible values, with no lost-link penalty or whole-root
- # restriction, must pass the SAME assignment rule. This is only an optimistic
- # rejection bound; actual minimal sets and complete trials remain authoritative.
+ # Optimistic rejection bound only (the rule and its rationale live in
+ # Assess.comparison_possible); actual minimal sets and complete trials decide.
  if not Assess.comparison_possible(g,units+mandatory,deficit,prototypes):
   return Assess.failure("最外层没有满足本次容量、强度比较和完整覆盖要求的替换方案。")
  var search={"minimum":units.size()+1,"sets":[],"seen":{}}
