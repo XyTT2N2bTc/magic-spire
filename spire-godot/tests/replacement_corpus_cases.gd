@@ -25,7 +25,7 @@ extends RefCounted
 #   2) 保型不变量：正文里没有裸数字（数值叶只能是 @integer／@float 对象）；
 #   3) 自检模式：改坏固定小片的一例 old.ok，比较器必须恰好只报这一例；
 #   4) 一个固定小切片对拍：固定 case_id／application case_id，不随语料排序漂移；
-#   5) 12 例构造夹具（tag=fixture）全部对拍。
+#   5) 21 例构造夹具（tag=fixture）全部对拍。
 # 全量对拍是显式命令（S1 重构或验收时跑）；命令与实测耗时只在驱动
 # tests/replacement_corpus_check.gd 的文件头维护一份，本文件不重复。
 #
@@ -40,20 +40,25 @@ const Game=preload("res://core/game.gd")
 const Store=preload("res://core/save_store.gd")
 
 const DEFAULT_CORPUS="res://tests/fixtures/replacement-corpus.json"
-# design.md §7.1 的 11 个覆盖类：真实语料覆盖 5 类，12 例构造夹具补齐其余 6 类。
+# design.md §7.1 的 14 个覆盖类：新语料真实覆盖 5 类，21 例构造夹具补齐其余 9 类
+# （含新加的 shackle_value／rope_locked／binding_synced_below_tier3）。
 const REQUIRED_CLASSES=["protected","cursed","same_family_special","composite_groups",
  "random_variant","exact_fit","one_short","link_retained","link_lost","shoulder_loss",
- "binding_random_tier3"]
+ "binding_random_tier3","shackle_value","rope_locked","binding_synced_below_tier3"]
 # 构造夹具的固定例数（tag=fixture）；删例或漏并都会让计数判据变红。
-const FIXTURE_CASE_COUNT=12
+const FIXTURE_CASE_COUNT=21
 const OLD_KEYS=["ok","reason","removed","installed","lost_links","score","comparisons"]
 const AFTER_KEYS=["equipment","composites","special_equipment","links","next_equipment","next_composite"]
 # 语料 body 的键：这些键下不允许出现裸数字（manifest 是文件自身清单，不计入 body）。
 const BODY_KEYS=["schema","source","states","cases","application_cases"]
-# 固定小切片（语料冻结后不改；取早期步 284／296／314，避开 946／957／969／971 的大集合例）。
-const SUITE_CASE_IDS=["20260906-00000","20260906-00001","20260906-00002","20260906-00003"]
-const SUITE_APPLICATION_IDS=["20260906-L00354","20260906-L00362","20260906-L00373"]
-# 自检小片（同上，先于切片选取以控制默认套件耗时）。
+# 固定小切片（语料冻结后不改）：M2 重抓后取新语料最早的 20260906 段（判定步 199／203／214／222，
+# 含 candidate 与 execute_preview 两种 tag）；避开 42 种子 400 步以后的大集合例（单步 272–684 例）。
+const SUITE_CASE_IDS=["20260906-00000","20260906-00001","20260906-00002","20260906-00003",
+ "20260906-00004"]
+# 应用层行同取该段全部 4 行（状态分别是步 199／203／214／222 的早步状态）。
+const SUITE_APPLICATION_IDS=["20260906-L00289","20260906-L00295","20260906-L00311",
+ "20260906-L00322"]
+# 自检小片（同上，先于切片选取以控制默认套件耗时；同样取 20260906 段 199／203 两步）。
 const SELFCHECK_CASE_IDS=["20260906-00000","20260906-00001"]
 
 # ---- 保型编解码（唯一入口） ----
