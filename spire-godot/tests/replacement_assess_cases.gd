@@ -24,10 +24,16 @@ extends RefCounted
 # 覆盖计数（F6）：_exercise() 返回本例实际执行到的函数集合；提前 return 的例不计入后续函数。
 # 三条判据都在消息里分别报出每个函数的 checked 计数。
 #
+# 运行面（D21）：这三条不变量只跑固定小切片，不遍历入库语料、更不遍历全量源——日常门禁的
+# replacement 套件因此与语料体积脱钩。切片＝21 例构造夹具（tag=fixture，覆盖镣铐／绳艺锁／
+# 固缚同步等构造路径）+ 20260906 段步 199／203／214 的 3 个失败例（单例 ≤ 5 ms，含装配请求被
+# 覆盖规则拒绝的早退路径）。切片按 SLICE_CASE_IDS 与 tag 取，不随语料排序漂移；新增夹具自动进面。
+# 全量对拍走显式命令（驱动 tests/replacement_corpus_check.gd，--corpus 指向 build/s0/corpus/ 的全量源）。
+#
 # 单一入口（语义 → 唯一符号；改路径须同批改本节）：
 #   语料读取／解码／Game 复位 → Corpus（replacement_corpus_cases.gd）的 load_corpus／unseal／
-#   _fresh_game／_case_state，本模块不复制；快照 → _snapshot()；逐例调用 → _exercise()；
-#   差异 → _differences()。判据只由 assess_checks() 注册。
+#   _fresh_game／_case_state，本模块不复制；切片 → _slice()（经 Corpus._envelope）；
+#   快照 → _snapshot()；逐例调用 → _exercise()；差异 → _differences()。判据只由 assess_checks() 注册。
 
 const Replacement=preload("res://core/equipment_replacement.gd")
 const Assess=preload("res://core/equipment_replacement_assess.gd")
@@ -42,6 +48,16 @@ const STEPS=["normalize","capacity_points","counts","replacement_value","physica
 # 事务边界要保存并恢复的运行时字段（Replacement.plan／force_special：保存→置位→恢复）：state 换成草稿对象、
 # _resource_feedback 置 null、_rope_trial 置 true。判定域（assess）既不读也不写它们（ARCH assess_dependency_edges）。
 const TRANSACTION_RUNTIME_FIELDS=["state","_resource_feedback","_rope_trial"]
+
+# 固定小切片（D21）：20260906 段步 199／203／214 的 3 个判定例（都是失败例、单例 ≤ 5 ms；
+# 各自是「包裹前该侧手掌与手指必须没有装备」的装配早退路径，与夹具的镣铐／绳艺锁／固缚路径互补）。
+const SLICE_CASE_IDS=["20260906-00000","20260906-00001","20260906-00002"]
+
+# 切片：固定 id ∪ tag=fixture；封装走 Corpus._envelope（切片外壳的唯一入口）。
+static func _slice(data: Dictionary) -> Dictionary:
+ var keep=func(row): return String(row.get("case_id","")) in SLICE_CASE_IDS or String(row.get("tag",""))=="fixture"
+ var cases=data.get("cases",[]).filter(keep)
+ return Corpus._envelope(data,cases,[])
 
 # 整份 state 的规范文本：encode 把整数/小数/名称区分开，JSON 文本再消除对象同一性。
 static func _state_text(state: Dictionary) -> String:
@@ -63,7 +79,9 @@ static func _coverage(total: Dictionary, cases: int) -> String:
  return " ".join(parts)
 
 static func assess_checks(t) -> void:
- var data=Corpus.load_corpus()
+ var full=Corpus.load_corpus()
+ var data=_slice(full)
+ print("ASSESS SLICE cases=%d fixtures=%d fixed_ids=%d full_corpus=%d" % [data.get("cases",[]).size(),data.get("cases",[]).filter(func(row): return String(row.get("tag",""))=="fixture").size(),SLICE_CASE_IDS.size(),full.get("cases",[]).size()])
  assess_pure_functions_leave_inputs_unchanged(t,data)
  assess_pure_functions_never_advance_random(t,data)
  replacement_plan_leaves_live_state_unchanged(t,data)

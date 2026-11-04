@@ -20,14 +20,20 @@ extends RefCounted
 # 用 Dictionary==／Array.find 比较，对 8 与 8.0 判不同，于是 20260906-00006 不可复现、
 # 应用层行 20260906-L00384 也不复现。
 #
+# 入库语料是**判定边界抽样**（D21，规则版本 m2c-sampling/1，见 tmp/s2/m2c/sampling.md）：
+# 全量源（3277 例／59 状态／73 应用层行）只留本地 gitignored 的 build/s0/corpus/，
+# 其 sha256 与规则版本写在 manifest.sampling（full_source／full_source_sha256／rule／mixed_moments）。
+# 抽样按 case_id 排序取边界代表，无随机、无手挑；每组成功例全留、每个失败理由桶留边界一例。
+#
 # 默认 `replacement` 套件只跑便宜面（新增耗时预算 ≤ 2 分钟）：
 #   1) 语料完整性：逐状态／逐例 sha256、整文件 body sha256、清单计数；
 #   2) 保型不变量：正文里没有裸数字（数值叶只能是 @integer／@float 对象）；
 #   3) 自检模式：改坏固定小片的一例 old.ok，比较器必须恰好只报这一例；
 #   4) 一个固定小切片对拍：固定 case_id／application case_id，不随语料排序漂移；
-#   5) 21 例构造夹具（tag=fixture）全部对拍。
-# 全量对拍是显式命令（S1 重构或验收时跑）；命令与实测耗时只在驱动
-# tests/replacement_corpus_check.gd 的文件头维护一份，本文件不重复。
+#   5) 21 例构造夹具（tag=fixture）全部对拍；
+#   6) 混合时刻判据：全量源里同时有成功与失败例的时刻，入库后两侧都还在（D21 的抽样规则 A 由此可判红）。
+# 全量对拍（含非入库例）是显式命令：把 --corpus 指向 build/s0/corpus/m2-full-merged.json；
+# 命令与实测耗时只在驱动 tests/replacement_corpus_check.gd 的文件头维护一份，本文件不重复。
 #
 # 单一入口（语义 → 唯一符号；改路径须同批改本节）：
 #   读取语料 → load_corpus()；数值解码 → _decode()（unseal()／payload_issues() 共用）；
@@ -51,8 +57,8 @@ const OLD_KEYS=["ok","reason","removed","installed","lost_links","score","compar
 const AFTER_KEYS=["equipment","composites","special_equipment","links","next_equipment","next_composite"]
 # 语料 body 的键：这些键下不允许出现裸数字（manifest 是文件自身清单，不计入 body）。
 const BODY_KEYS=["schema","source","states","cases","application_cases"]
-# 固定小切片（语料冻结后不改）：M2 重抓后取新语料最早的 20260906 段（判定步 199／203／214／222，
-# 含 candidate 与 execute_preview 两种 tag）；避开 42 种子 400 步以后的大集合例（单步 272–684 例）。
+# 固定小切片（语料冻结后不改）：20260906 段最早的判定步 199／203／214／222，
+# 含 candidate 与 execute_preview 两种 tag；避开 42 种子大集合例（单步 272–684 例）。
 const SUITE_CASE_IDS=["20260906-00000","20260906-00001","20260906-00002","20260906-00003",
  "20260906-00004"]
 # 应用层行同取该段全部 4 行（状态分别是步 199／203／214／222 的早步状态）。
@@ -337,6 +343,27 @@ static func missing_classes(data: Dictionary) -> Array:
   if not seen.has(name): missing.append(name)
  return missing
 
+# D21 敏感性判据：manifest.sampling.mixed_moments 是全量源里「同一判定时刻既有成功例又有失败例」的时刻清单。
+# 入库语料必须在这每个时刻各保留 ≥1 成功与 ≥1 失败；抽样规则去掉「每组保留全部 ok=true」后这些时刻只剩失败例，
+# 本判据即红。只对全量源里真有两种结果的时刻提要求（42:418／519／530 与 20260906:199／203／214 在全量源里
+# 只有失败例，20260906:222 只有成功例，任何语料都满足不了「每个时刻都有两种结果」，故不按字面写）。
+# 清单缺省或为空同样判红——否则本判据会被一份空清单悄悄废掉。
+static func mixed_moment_issues(data: Dictionary) -> Array:
+ var sampling=data.get("manifest",{}).get("sampling",{})
+ var listed=sampling.get("mixed_moments",[]) if sampling is Dictionary else []
+ if not listed is Array or listed.is_empty(): return ["manifest.sampling.mixed_moments is missing"]
+ var shapes={}
+ for case in data.get("cases",[]):
+  var key="%d:%d" % [row_int(case,"seed"),row_int(case,"step")]
+  if not shapes.has(key): shapes[key]={"ok":0,"fail":0}
+  shapes[key]["ok" if bool(case.get("old",{}).get("ok",false)) else "fail"]+=1
+ var issues=[]
+ for key in listed:
+  var shape=shapes.get(String(key),{"ok":0,"fail":0})
+  if int(shape.ok)<1 or int(shape.fail)<1:
+   issues.append("%s: ok=%d fail=%d" % [String(key),int(shape.ok),int(shape.fail)])
+ return issues
+
 # ---- 套件注册 ----
 
 static func corpus_checks(t) -> void:
@@ -355,7 +382,10 @@ static func corpus_checks(t) -> void:
  var filters=filter_issues(data)
  t.check(filters.is_empty(),"CORPUS corpus_filter_is_sufficient: every case carries a three-way full/filtered/round-trip proof: "+str(filters))
  var missing=missing_classes(data)
- t.check(missing.is_empty(),"CORPUS corpus_covers_required_classes: all 11 design classes have at least one case: "+str(missing))
+ t.check(missing.is_empty(),"CORPUS corpus_covers_required_classes: all %d design classes have at least one case: %s" % [REQUIRED_CLASSES.size(),str(missing)])
+ var mixed=mixed_moment_issues(data)
+ var mixed_moments=Array(data.get("manifest",{}).get("sampling",{}).get("mixed_moments",[]))
+ t.check(mixed.is_empty(),"CORPUS corpus_keeps_mixed_moments: every judgment moment that has both an accepted and a rejected case in the full source keeps at least one of each in the committed corpus (mixed moments %d, sampling rule %s): %s" % [mixed_moments.size(),String(data.get("manifest",{}).get("sampling",{}).get("rule","")),str(mixed)])
  var integrity_ms=Time.get_ticks_msec()-integrity_started
  var selfcheck_started=Time.get_ticks_msec()
  var picked=run_selfcheck(data)
@@ -376,7 +406,7 @@ static func corpus_checks(t) -> void:
  var fixture_judgments=compare_judgments(fixtures,"compare")
  t.check(fixture_judgments.ok,"CORPUS corpus_fixtures_match_old_judgment: every constructed fixture boolean equals the stored oracle result (checked %d): %s" % [fixture_judgments.checked,str(fixture_judgments.mismatches.slice(0,3))])
  var fixture_ms=Time.get_ticks_msec()-fixtures_started
- print("CORPUS SUITE ms=%d integrity_ms=%d selfcheck_ms=%d compare_ms=%d fixture_ms=%d cases=%d application_cases=%d fixtures=%d classes=%s" % [Time.get_ticks_msec()-started,integrity_ms,selfcheck_ms,compare_ms,fixture_ms,judgments.checked,applications.checked,fixture_judgments.checked,str(missing)])
+ print("CORPUS SUITE ms=%d integrity_ms=%d selfcheck_ms=%d compare_ms=%d fixture_ms=%d cases=%d application_cases=%d fixtures=%d mixed_moments=%d classes=%s" % [Time.get_ticks_msec()-started,integrity_ms,selfcheck_ms,compare_ms,fixture_ms,judgments.checked,applications.checked,fixture_judgments.checked,mixed_moments.size(),str(missing)])
 
 static func run_selfcheck(data: Dictionary) -> Dictionary:
  return selfcheck(data,SELFCHECK_CASE_IDS)

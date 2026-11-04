@@ -1,6 +1,6 @@
 extends SceneTree
 
-# S0 语料对拍驱动（headless，独立于测试套件；默认套件不跑全量）：
+# S0 语料对拍驱动（headless，独立于测试套件；默认套件只跑入库语料的便宜面）：
 #   --corpus=<path> --mode=compare   逐例被测侧（judge_subject；S1＝现行路径）vs 存量 old.ok，
 #                                    并对拍应用层行的 returned（acceptance.md §4 的 compare 口径）
 #   --corpus=<path> --mode=reoracle  重调旧预言机（judge_oracle＝Replacement.plan）vs 存量逐项旧结果
@@ -9,12 +9,20 @@ extends SceneTree
 # 退出码：compare／reoracle 全等＝0，有差异＝1，语料缺失／参数错＝2；
 # selfcheck 按 acceptance.md §2.2 以「恰好一例红」为非 0（1），比较器失灵＝2。
 #
-# 显式全量命令（保型语料 101 例／19 应用层行上实测：compare 191.6 s、reoracle 83.8 s；
-# 套件只跑便宜面，范围见 tests/replacement_corpus_cases.gd 文件头）：
+# 入库语料是判定边界抽样（D21，规则 m2c-sampling/1）：423 例判定例（388 candidate＋14 execute_preview
+# ＋21 fixture）／73 应用层行／59 状态，manifest.sampling 记全量源 sha256 与 mixed_moments。
+# 入库语料实测（保型语料 423 例／73 应用层行，2026-11-04）：compare 250.2 s、reoracle 109.5 s、
+# selfcheck 恰 1 例（42-00000）以 1 退出。套件只跑便宜面，范围见 tests/replacement_corpus_cases.gd 文件头。
+#
+# 显式全量对拍（不入库的 3277 例／73 应用层行，全量源在 gitignored 的 build/s0/corpus/；
+# 实测 2026-11-04：reoracle 178.3 s、compare 321.3 s，均 checked=3277 mismatches=0）：
 #   $env:GODOT_BIN='C:\1\Tools\Godot\v4.7.2-stable\Godot_v4.7.2-stable_win64_console.exe'
-#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=compare
-#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=reoracle
-#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://tests/fixtures/replacement-corpus.json --mode=selfcheck
+#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://build/s0/corpus/m2-full-merged.json --mode=reoracle
+#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --corpus=res://build/s0/corpus/m2-full-merged.json --mode=compare
+# 入库语料的同三条命令（--corpus 缺省即 res://tests/fixtures/replacement-corpus.json）：
+#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --mode=reoracle
+#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --mode=compare
+#   & $env:GODOT_BIN --headless --path . --script res://tests/replacement_corpus_check.gd -- --mode=selfcheck
 #   --limit=N 截断判定例；--cases-only 只比判定例（应用层 0 行；reoracle 恒为此口径）。
 const Cases=preload("res://tests/replacement_corpus_cases.gd")
 
