@@ -6543,6 +6543,15 @@ const VIEW_TWIN_WRAPPERS={
  "_composite":"return _composite_in(state,id)"}
 # X3：唯一实现在 _random_draw，本域入口只剩一行委托（状态读取仍在委托行里，故 owners 不变）。
 const RANDOM_INDEX_DELEGATE="return _random_draw(state.seed,domain,state.rng,size)"
+# S2a′ 加固第二轮（协调者裁定 A44）：孪生登记是两张表加一处源码扫描，判据不再以表自身为唯一枚举来源。
+# 命名规则（S2a-1）：查询 <name> 的唯一实现放在 <name>_in，原查询只剩一行委托。VIEW_TWIN_WRAPPERS 是
+# core/game.gd 的一半（键＝查询名，值＝委托行原文）；RULE_TWIN_WRAPPERS 是同一规则在其它模块的一半
+# （file::查询名 -> 委托行原文）。VIEW_TWIN_SCAN_FILES 是核对的源侧：逐文件扫顶层 <name>_in，
+# 扫到的未登记孪生与登记了却扫不到的行都红——清空表、删一行、在源侧加一个未登记孪生都会被看见。
+# 例外：core/torso_binding.gd 的 C1′ 变体按含义命名为 connections_of（不是 <name>_in），落在本扫描的
+# 命名规则之外，故不登记；它的委托行与视图形态当前无判据覆盖，已登记为片报告残留项（不静默豁免）。
+const VIEW_TWIN_SCAN_FILES=["core/game.gd","core/shoulder_links.gd","core/torso_binding.gd"]
+const RULE_TWIN_WRAPPERS={"core/shoulder_links.gd::attached":"return attached_in(g,g.state,host)","core/shoulder_links.gd::validate":"return validate_in(g,g.state.equipment,g.state.composites)"}
 
 # 包装／孪生函数的函数体去掉首行（签名余部）与注释后的非空代码行，空格压平后逐行比对。
 static func wrapper_code_lines(relative: String, name: String) -> Array:
@@ -6560,20 +6569,69 @@ static func view_twin_names() -> Array:
  names.sort()
  return names
 
-static func live_wrappers_delegate_once(t) -> void:
- var problems=[]
+# 源侧扫描：每个文件的顶层 <name>_in 声明（注释行不含 func，故不会被注释命中）。
+static func twin_declarations(relative: String) -> Array:
+ var names=[]
+ var declaration=RegEx.new()
+ if declaration.compile("(?m)^(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*_in)\\s*\\(")!=OK: return names
+ for hit in declaration.search_all(source_text(relative)): names.append(hit.get_string(1))
+ names.sort()
+ return names
+
+# file::<name>_in -> {file,wrapper,twin,delegate}：两张登记表的并集。
+static func twin_registry() -> Dictionary:
+ var registry={}
  for name in VIEW_TWIN_WRAPPERS:
-  var expected=String(VIEW_TWIN_WRAPPERS[name])
-  var code=wrapper_code_lines("core/game.gd",String(name))
-  if code.size()!=1 or code[0]!=expected.replace(" ",""): problems.append(String(name)+": "+str(code))
- # 每个孪生必须存在、首参是视图形参 s、并且绝不开只读作用域（叶查询规则，seam「不得把作用域加在叶查询上」）。
+  registry["core/game.gd::"+String(name)+"_in"]={"file":"core/game.gd","wrapper":String(name),"twin":String(name)+"_in","delegate":String(VIEW_TWIN_WRAPPERS[name])}
+ for key in RULE_TWIN_WRAPPERS:
+  var parts=String(key).split("::")
+  registry[String(key)+"_in"]={"file":String(parts[0]),"wrapper":String(parts[1]),"twin":String(parts[1])+"_in","delegate":String(RULE_TWIN_WRAPPERS[key])}
+ return registry
+
+static func twin_registry_problems() -> Dictionary:
+ var registry=twin_registry()
+ var scanned={}
+ for file in VIEW_TWIN_SCAN_FILES:
+  for twin in twin_declarations(String(file)): scanned[String(file)+"::"+String(twin)]=true
+ var unregistered=scanned.keys().filter(func(twin):return not registry.has(twin))
+ var phantom=registry.keys().filter(func(twin):return not scanned.has(twin))
+ unregistered.sort()
+ phantom.sort()
+ return {"unregistered":unregistered,"phantom":phantom,"scanned":scanned.size(),"registered":registry.size()}
+
+# 两条以孪生登记为枚举来源的判据共用的防空转条款：表非空，且与源侧扫描双向相等。
+# 断言本身写在两条判据里（各自具名）：本助手带一行以 `t.check(` 起行的断言就会被判据全集算成
+# 第三条无人登记的判据（MT mutation_evidence_is_total），所以这里只返回结论与消息原文。
+static func twin_registry_is_total(report: Dictionary) -> bool:
+ return int(report.scanned)>0 and not VIEW_TWIN_WRAPPERS.is_empty() and report.unregistered.is_empty() and report.phantom.is_empty()
+
+static func twin_registry_message(report: Dictionary) -> String:
+ return "the twin registry (VIEW_TWIN_WRAPPERS + RULE_TWIN_WRAPPERS) is non-empty and equals the source scan over "+str(VIEW_TWIN_SCAN_FILES)+" -- every <name>_in twin declared there is registered and every registered row is declared, so an empty table, a deleted row and an unregistered twin are all red: scanned="+str(report.scanned)+" registered="+str(report.registered)+" unregistered="+str(report.unregistered)+" phantom="+str(report.phantom)
+
+static func live_wrappers_delegate_once(t) -> void:
+ var twins=twin_registry_problems()
+ t.check(twin_registry_is_total(twins),"ARCH live_wrappers_delegate_once: "+twin_registry_message(twins))
+ var problems=[]
  var missing=[]
+ var registry=twin_registry()
+ for twin in registry:
+  var row=registry[twin]
+  var code=wrapper_code_lines(String(row.file),String(row.wrapper))
+  if code.size()!=1 or code[0]!=String(row.delegate).replace(" ",""): problems.append(String(row.wrapper)+": "+str(code))
+  # 每个孪生必须存在，并且绝不开只读作用域（叶查询规则，seam「不得把作用域加在叶查询上」）。
+  var twin_body=source_function_body(String(row.file),String(row.twin))
+  if twin_body.strip_edges()=="": missing.append(twin); continue
+  if twin_body.contains("_begin_equipment_read") or twin_body.contains("_equipment_read="): problems.append(twin+":scope")
+ # core/game.gd 的孪生以视图形参 s 求值（首参）。肩带的 validate_in 是 C1′ 的显式容器形态：视图把
+ # equipment／composites 两个数组直接交给它，不传视图字典，故它的形态只按「存在＋委托行＋不开作用域」核对。
+ var shape=[]
  for twin in view_twin_names():
   var body=source_function_body("core/game.gd",twin)
   if body.strip_edges()=="": missing.append(twin); continue
   var head=String(Array(body.split("\n"))[0]).split(",")[0].split(")")[0].strip_edges()
-  if head!="s: Dictionary" or body.contains("_begin_equipment_read") or body.contains("_equipment_read="): problems.append(twin+":first-param-or-scope")
- t.check(problems.is_empty() and missing.is_empty(),"ARCH live_wrappers_delegate_once: every parameterized query keeps one implementation in its *_in twin and a single-line delegate with the original arguments (twin first parameter is the view s, and no twin opens or releases a read scope): problems="+str(problems.slice(0,6))+" missing="+str(missing))
+  if head!="s: Dictionary": shape.append(twin)
+ for twin in shape: problems.append(twin+":first-param")
+ t.check(problems.is_empty() and missing.is_empty(),"ARCH live_wrappers_delegate_once: every parameterized query keeps one implementation in its *_in twin and a single-line delegate with the original arguments (a core/game.gd twin takes the view dictionary s as its first parameter, the module pairs may take explicit containers, and no twin opens or releases a read scope): problems="+str(problems.slice(0,6))+" missing="+str(missing))
  t.check(Array(wrapper_code_lines("core/game.gd","_random_index"))==[String(RANDOM_INDEX_DELEGATE).replace(" ","")],"ARCH live_wrappers_delegate_once: the live random entry is one delegate to _random_draw with the live seed and counter dictionary: "+str(wrapper_code_lines("core/game.gd","_random_index")))
 
 # S1（敌人施加替换判定；plan §5-S1、dependencies.md「依赖方向」）＋S2a-3：纯阶段函数迁入
@@ -6605,6 +6663,10 @@ const ASSESS_RUNTIME_FIELD_TOKENS=["_rope_trial","_rope_observing","_resource_fe
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。comparison_value 随上游改名为 replacement_value：
 # 新旧两名都不得在 replacement 留函数体（只看旧名会漏掉误留的上游 replacement_value 原体）。
 const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","replacement_value"],["replacement_value","replacement_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"],["_loadout_records","loadout_records"],["_record_facts","record_facts"],["_same_loadout","same_loadout"]]
+# S2a′ 加固第二轮：判定自有、从未从事务迁来的阶段函数。与上表合起来必须正好解释 assess 的全部顶层
+# 函数——这是迁移表的源侧另一半；否则清空迁移表时「assess 定义了每个迁移函数」与「事务不留第二份实现」
+# 两条都会空转全绿。新增判定阶段函数时登记在这里，不登记即红（不是永久豁免：函数也得真的存在）。
+const ASSESS_JUDGMENT_FUNCTIONS=["failure","mandatory","deficit","removable","factory_args"]
 # replacement 里允许保留旧名的唯一适配器：旧名 -> [assess 名, 期望的参数原文（按顺序）]。
 # 体内只许这一条 return，参数表外即红：加本地变量、截断返回值、换参数都是第二份实现。
 const REPLACEMENT_ADAPTERS={"_transfer":["transfer_options",["g","links","anchors","g.link_anchors()","g.state.links"]],"replacement_value":["replacement_value",["g","piece"]]}
@@ -6731,7 +6793,19 @@ static func assess_calls_only_declared_modules(t) -> void:
 static func assess_never_touches_runtime_fields(t) -> void:
  var text=source_code(ASSESS_SOURCE)
  var touched=ASSESS_RUNTIME_FIELD_TOKENS.filter(func(token):return text.contains(String(token)))
- t.check(text.strip_edges()!="" and touched.is_empty(),"ARCH assess_never_touches_runtime_fields: the assess module neither reads nor writes the transaction runtime fields or the rope observation flag (a read would make the judgment depend on whether it runs inside a transaction): touched="+str(touched))
+ # 双向核对（S2a′ 加固第二轮）：表非空，事务边界真正保存／置位／恢复的每个运行时字段都在表内（源侧→表），
+ # 且表里没有幽灵行（表→源侧：每个字段都真在 game.gd 声明）。清空表不再让本条空转。
+ var boundary=[]
+ var field=RegEx.new()
+ var compiled=field.compile("(?<![A-Za-z0-9_])g\\.(_[A-Za-z0-9_]+)(?!\\s*\\()")==OK
+ if compiled:
+  for name in ["plan","force_special"]:
+   for hit in field.search_all(code_of_function("core/equipment_replacement.gd",String(name))):
+    if not hit.get_string(1) in boundary: boundary.append(hit.get_string(1))
+ boundary.sort()
+ var uncovered=boundary.filter(func(name):return not String(name) in ASSESS_RUNTIME_FIELD_TOKENS)
+ var ghost=ASSESS_RUNTIME_FIELD_TOKENS.filter(func(token):return not source_code("core/game.gd").contains("var "+String(token)))
+ t.check(compiled and not ASSESS_RUNTIME_FIELD_TOKENS.is_empty() and touched.is_empty() and uncovered.is_empty() and ghost.is_empty(),"ARCH assess_never_touches_runtime_fields: the assess module neither reads nor writes the transaction runtime fields or the rope observation flag, the table names every field the plan and force_special boundary saves or restores and no field it does not declare (a read would make the judgment depend on whether it runs inside a transaction): touched="+str(touched)+" boundary="+str(boundary)+" uncovered="+str(uncovered)+" ghost="+str(ghost))
  var unguarded=[]
  for name in ["plan","force_special"]:
   var body=code_of_function("core/equipment_replacement.gd",name)
@@ -6794,7 +6868,10 @@ static func assess_never_restates_factory_rules(t) -> void:
  if text.contains(FACTORY_REASON_DURABILITY): leaked.append(FACTORY_REASON_DURABILITY)
  leaked.sort()
  print("FACTORY RULE CARRIERS scanned=%s echoed=%s" % [str(scanned),str(echoed)])
- t.check(not scanned.is_empty() and leaked.is_empty(),"ARCH assess_never_restates_factory_rules: assess restates no admission reason text, record id prefix or random constant of the shared factory functions (a copied rule in the judgment module is a second implementation): leaked="+str(leaked)+" carriers="+str(scanned))
+ # 表→源侧（S2a′ 加固第二轮）：登记的字面量必须真在 game.gd 里，且表不得为空——空表不再让本条的
+ # 补充覆盖静默消失（carriers 的源码扫描是主枚举，本表补的是它扫不到的常数，例如随机算式里的 104729）。
+ var ghost=FACTORY_RULE_TOKENS.filter(func(token):return not source_code("core/game.gd").contains(String(token)))
+ t.check(not scanned.is_empty() and not FACTORY_RULE_TOKENS.is_empty() and ghost.is_empty() and leaked.is_empty(),"ARCH assess_never_restates_factory_rules: assess restates no admission reason text, record id prefix or random constant of the shared factory functions (a copied rule in the judgment module is a second implementation), and every declared extra constant still occurs in game.gd: leaked="+str(leaked)+" carriers="+str(scanned)+" ghost="+str(ghost))
  t.check(tombstone.is_empty(),"ARCH assess_never_restates_factory_rules: every declared byte-identical echo still sits exactly in its registered function (a stale row would silently exempt the whole phrase): stale="+str(tombstone))
 
 # S2a-2（gherkin「工厂改用共用记录构造」「固缚与肩带规则一份」「清理规则一份」；design §5 T5–T6、§6、
@@ -6838,7 +6915,7 @@ static func factory_records_have_one_builder(t) -> void:
   if built.strip_edges()=="" or not built.contains("\"id\":"): missing.append(builder)
   for token in RECORD_BUILDER_FORBIDDEN:
    if built.contains(token): impure.append(builder+":"+token)
- t.check(missing.is_empty() and literals.is_empty() and impure.is_empty(),"ARCH factory_records_have_one_builder: each factory calls its one record builder and keeps no record literal of its own, and every builder is pure (no state write, no event, no random): missing="+str(missing)+" literals="+str(literals)+" impure="+str(impure))
+ t.check(not RECORD_BUILDERS.is_empty() and missing.is_empty() and literals.is_empty() and impure.is_empty(),"ARCH factory_records_have_one_builder: each factory calls its one record builder and keeps no record literal of its own, and every builder is pure (no state write, no event, no random); the builder table is never empty (an emptied table made this clause vacuous): missing="+str(missing)+" literals="+str(literals)+" impure="+str(impure))
  var delegates=[]
  var rules=[]
  for site in RULE_DELEGATES:
@@ -6851,7 +6928,7 @@ static func factory_records_have_one_builder(t) -> void:
   if body.strip_edges()=="": rules.append(site+":missing"); continue
   for token in SHARED_RULE_FORBIDDEN:
    if body.contains(token): rules.append(site+":"+token)
- t.check(delegates.is_empty() and rules.is_empty(),"ARCH factory_records_have_one_builder: the live binding/shoulder entry points delegate to the shared rule functions, and those rules write no live state, emit nothing and draw no random of their own (the draw callable is passed in): delegates="+str(delegates)+" rules="+str(rules))
+ t.check(not RULE_DELEGATES.is_empty() and not SHARED_RULE_FUNCTIONS.is_empty() and delegates.is_empty() and rules.is_empty(),"ARCH factory_records_have_one_builder: the live binding/shoulder entry points delegate to the shared rule functions, and those rules write no live state, emit nothing and draw no random of their own (the draw callable is passed in); neither table is ever empty: delegates="+str(delegates)+" rules="+str(rules))
  var cleanup=code_of_function("core/game.gd","_cleanup")
  var uncalled=CLEANUP_RULES.filter(func(name):return not cleanup.contains(String(name)+"("))
  var impure_cleanup=[]
@@ -6871,7 +6948,7 @@ static func factory_records_have_one_builder(t) -> void:
  # 仍会绿。条数从同一张表派生，不另写一份常数。
  var declared_tracks=CLEANUP_SKELETON.filter(func(anchor):return String(anchor).begins_with("RopeArt.track(")).size()
  var tracks=cleanup.count("RopeArt.track(")
- t.check(uncalled.is_empty() and impure_cleanup.is_empty() and order.is_empty() and tracks==declared_tracks,"ARCH factory_records_have_one_builder: the equipment-domain cleanup decides through the shared removal predicates, in the declared traversal order (O3 live end), carries exactly the three rope counts of the skeleton, and no predicate writes state, emits or counts rope: uncalled="+str(uncalled)+" impure="+str(impure_cleanup)+" order_lost="+str(order)+" rope_counts="+str(tracks)+"/"+str(declared_tracks))
+ t.check(not CLEANUP_RULES.is_empty() and not CLEANUP_SKELETON.is_empty() and uncalled.is_empty() and impure_cleanup.is_empty() and order.is_empty() and tracks==declared_tracks,"ARCH factory_records_have_one_builder: the equipment-domain cleanup decides through the shared removal predicates, in the declared traversal order (O3 live end), carries exactly the three rope counts of the skeleton, and no predicate writes state, emits or counts rope; neither the predicate list nor the skeleton is ever empty: uncalled="+str(uncalled)+" impure="+str(impure_cleanup)+" order_lost="+str(order)+" rope_counts="+str(tracks)+"/"+str(declared_tracks))
 
 # M1b（D14「有收口的就全部收到一起」）：紧度档位⇄耐久比例只有一张表。表与两个纯函数落在
 # data/restraint_value.gd（data 不调 core；它是唯一既被 core 调用、又已被 special_equipment 预载的数据模块，
@@ -6887,7 +6964,7 @@ static func durability_ladder_has_one_source(t) -> void:
  var table=source_code(TIER_TABLE_OWNER)
  var declared=TIER_TABLE_FUNCTIONS.filter(func(name):return table.contains("static func "+String(name)+"("))
  var bounds_in_table=TIER_TABLE_BOUNDS.filter(func(literal):return table.contains(String(literal)))
- t.check(declared.size()==TIER_TABLE_FUNCTIONS.size() and table.contains(TIER_TABLE_LADDER) and table.count(TIER_TABLE_LADDER)==1 and bounds_in_table.size()==TIER_TABLE_BOUNDS.size(),"ARCH durability_ladder_has_one_source: "+TIER_TABLE_OWNER+" is the one table and declares the ladder once, both upper bounds and both pure functions: declared="+str(declared)+" ladder_count="+str(table.count(TIER_TABLE_LADDER))+" bounds="+str(bounds_in_table))
+ t.check(not TIER_TABLE_FUNCTIONS.is_empty() and not TIER_TABLE_BOUNDS.is_empty() and declared.size()==TIER_TABLE_FUNCTIONS.size() and table.contains(TIER_TABLE_LADDER) and table.count(TIER_TABLE_LADDER)==1 and bounds_in_table.size()==TIER_TABLE_BOUNDS.size(),"ARCH durability_ladder_has_one_source: "+TIER_TABLE_OWNER+" is the one table and declares the ladder once, both upper bounds and both pure functions; neither expectation list is ever empty (an emptied list would make its half vacuous): declared="+str(declared)+" ladder_count="+str(table.count(TIER_TABLE_LADDER))+" bounds="+str(bounds_in_table))
  var factor=RegEx.new()
  var compiled=factor.compile("(?i)maximum[^\\n;]{0,40}?\\*\\s*(?:0\\.4|0\\.8|1\\.0)(?![0-9])")==OK
  var duplicated=[]
@@ -6941,9 +7018,21 @@ static func replacement_judgment_has_one_entry(t) -> void:
 
 static func migrated_pure_functions_have_one_implementation(t) -> void:
  var missing=[]
+ var explained={}
  for pair in MIGRATED_PURE_FUNCTIONS:
+  explained[String(pair[1])]=true
   if source_function_body(ASSESS_SOURCE,pair[1])=="": missing.append(pair[1])
- t.check(missing.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: assess defines every migrated pure function: missing="+str(missing))
+ for name in ASSESS_JUDGMENT_FUNCTIONS: explained[String(name)]=true
+ # 反向核对（S2a′ 加固第二轮）：assess 声明的每个顶层函数都必须被「迁移目标 ∪ 判定自有阶段」解释。
+ # 清空或删行迁移表会让对应函数变成表外声明（orphan 非空即红）；表里多一个不存在的目标仍由 missing 抓。
+ var declared=[]
+ var declaration=RegEx.new()
+ if declaration.compile("(?m)^(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")!=OK: missing.append("<scan>")
+ else:
+  for hit in declaration.search_all(source_code(ASSESS_SOURCE)): declared.append(hit.get_string(1))
+ var orphan=declared.filter(func(name):return not explained.has(String(name)))
+ orphan.sort()
+ t.check(not MIGRATED_PURE_FUNCTIONS.is_empty() and not ASSESS_JUDGMENT_FUNCTIONS.is_empty() and missing.is_empty() and orphan.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: assess defines every migrated pure function and declares nothing the migration table and the judgment-owned stage list cannot explain (an emptied or shortened table leaves the functions unexplained): missing="+str(missing)+" orphan="+str(orphan))
  var residue=[]
  for pair in MIGRATED_PURE_FUNCTIONS:
   var body=source_function_body("core/equipment_replacement.gd",pair[0])
@@ -7197,6 +7286,7 @@ static func state_read_registrations_are_pinned(t) -> void:
  t.check(StateReaderScan.canonical(derived.schema_strings)==StateReaderScan.canonical(frozen.schema_strings),"STATEREAD state_read_registrations_are_pinned: the Snapshot.fields(state|g.state, spec) spec union matches the frozen schema_strings table")
 
 # S2a-1（gherkin「视图函数只读自己的视图」；design §3.6）：每个 *_in 孪生只以只读 state 形字典 s 求值。
+# (0) 孪生登记非空且与源侧扫描双向相等（S2a′ 加固第二轮：表是唯一枚举来源时，表空会让下面各条空转全绿）；
 # (a) 冻结表里没有这些孪生的 live state 读点（owners 为空）；(b) 函数体里对 s 的字段读取全部 ⊆ VIEW_FIELDS，
 # 且与 ALIAS_DECLARATIONS 派生的 aliases 字段集合逐项相等（漏登记与多登记都红，读 s.logs 立即越界）；
 # (c) 函数体不调用表外函数（算外白名单＝其它孪生、L 助手、X2／纯构造助手与语言内建）；
@@ -7222,6 +7312,8 @@ static func view_twin_fields(twin: String) -> Array:
  return names
 
 static func view_functions_read_only_their_view(t) -> void:
+ var twins=twin_registry_problems()
+ t.check(twin_registry_is_total(twins),"STATEREAD view_functions_read_only_their_view: "+twin_registry_message(twins))
  var frozen=StateReaderScan.frozen()
  var derived=StateReaderScan.scan()
  var live_reads=[]
