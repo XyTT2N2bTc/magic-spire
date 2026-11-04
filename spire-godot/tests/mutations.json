@@ -544,8 +544,8 @@
     },
     "assess_never_restates_factory_rules": {
       "file": "core/equipment_replacement_assess.gd",
-      "find": "static func normalize(g, requests: Array) -> Dictionary:",
-      "replace": "const _MUTATION_PROBE_REASON=\"此处已有躯干固缚，不能在它外面追加拘束具；可以在同层安装。\"\n\nstatic func normalize(g, requests: Array) -> Dictionary:",
+      "find": "static func removable(g, units: Array, protected_ids: Array, mandatory_ids: Array) -> Array:\n return units.filter(",
+      "replace": "static func removable(g, units: Array, protected_ids: Array, mandatory_ids: Array) -> Array:\n var _probe_reason=\"请选择该装备支持的位置。\"\n return units.filter(",
       "suite": "architecture"
     },
     "factory_records_have_one_builder": {
