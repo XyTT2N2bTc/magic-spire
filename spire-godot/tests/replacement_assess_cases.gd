@@ -13,7 +13,9 @@ extends RefCounted
 #      g.state 引用未被替换。不再只比选定键：任何 state 键的变化都会让文本不同。
 #   2) assess_pure_functions_never_advance_random：同一循环，state.rng 与 state.seed 逐例不变。
 #   3) replacement_plan_leaves_live_state_unchanged：逐语料例跑 Replacement.plan；调用前把
-#      _resource_feedback 置为可辨认的非 null 值，plan 必须原样恢复它（删除 plan 内的恢复行即红）。
+#      _resource_feedback 置为可辨认的非 null 值，plan 必须原样恢复它（删除 plan 内的恢复行即红）；
+#      _rope_trial 按例交替预置 false／true，plan 必须恢复预置值（删恢复行→预置 false 的例红，
+#      写成固定 =false→预置 true 的例红）。事务边界字段的全集是 TRANSACTION_RUNTIME_FIELDS。
 #   4) view_index_only_for_same_state（S2a-1）：读作用域的索引只认 live state 对象；同内容副本恒走扫描，
 #      结果与无作用域扫描逐项相同，索引不被重建或泄漏。
 #   5) random_draw_matches_random_index（S2a-1）：_random_draw 与 _random_index 在每个随机域 × size{1,2,7}
@@ -37,13 +39,19 @@ const Equipment=preload("res://data/equipment.gd")
 # _exercise 可能执行到的 assess 纯函数：覆盖计数按这张表逐函数报出。
 const STEPS=["normalize","capacity_points","counts","replacement_value","physical_points","loss","pieces","units","sets","compare","assign","transfer_options"]
 
+# 事务边界要保存并恢复的运行时字段（Replacement.plan／force_special：保存→置位→恢复）：state 换成草稿对象、
+# _resource_feedback 置 null、_rope_trial 置 true。判定域（assess）既不读也不写它们（ARCH assess_dependency_edges）。
+const TRANSACTION_RUNTIME_FIELDS=["state","_resource_feedback","_rope_trial"]
+
 # 整份 state 的规范文本：encode 把整数/小数/名称区分开，JSON 文本再消除对象同一性。
 static func _state_text(state: Dictionary) -> String:
  return JSON.stringify(Store.encode(state))
 
-# 观察面：整份 state 的文本与引用，反馈记录器的内容与引用。
+# 观察面：整份 state 的规范文本，加上事务边界字段（对象按引用、布尔按值，is_same 一并比较）。
 static func _snapshot(g) -> Dictionary:
- return {"text":_state_text(g.state),"state":g.state,"feedback":g._resource_feedback}
+ var fields={}
+ for name in TRANSACTION_RUNTIME_FIELDS: fields[name]=g.get(name)
+ return {"text":_state_text(g.state),"fields":fields}
 
 static func _tally(total: Dictionary, ran: Dictionary) -> void:
  for name in STEPS:
@@ -63,12 +71,12 @@ static func assess_checks(t) -> void:
  random_draw_matches_random_index(t)
  parallel_orchestrations_call_the_shared_rules(t)
 
-# case_id 逐条列出第一个差异：整份状态文本、state 引用、反馈三者分开报告，红行能直接判读。
+# case_id 逐条列出第一个差异：整份状态文本与每个事务边界字段分开报告，红行能直接判读。
 static func _differences(case_id: String, before: Dictionary, after: Dictionary) -> Array:
  var problems=[]
  if before.text!=after.text: problems.append(case_id+":state changed")
- if not is_same(before.state,after.state): problems.append(case_id+":state reference replaced")
- if before.feedback!=after.feedback or not is_same(before.feedback,after.feedback): problems.append(case_id+":resource feedback changed")
+ for name in TRANSACTION_RUNTIME_FIELDS:
+  if not is_same(before.fields[name],after.fields[name]): problems.append(case_id+":"+name+" not restored")
  return problems
 
 # 对每例的语料容器直调迁入 assess 的纯函数：参数就是 live 容器，不给函数任何副本。
@@ -165,6 +173,8 @@ static func replacement_plan_leaves_live_state_unchanged(t, data: Dictionary) ->
   g.state=Corpus._case_state(data,case)
   # 可辨认的非 null 反馈：plan 的「置空→恢复」两半都可观测，删除恢复行即红（F5）。
   g._resource_feedback={"texts":["assess-plan-probe"]}
+  # 绳艺试算标记按例交替预置 false／true：缺恢复行时预置 false 的例红，写成固定 =false 时预置 true 的例红。
+  g._rope_trial=checked%2==1
   var before=_snapshot(g)
   var result=Replacement.plan(g,Corpus.unseal(case.get("requests",[]),"requests"),
    String(case.get("source","")),Corpus.unseal(case.get("protected_ids",[]),"protected_ids"))
@@ -172,7 +182,7 @@ static func replacement_plan_leaves_live_state_unchanged(t, data: Dictionary) ->
   if not result is Dictionary or not result.has("ok"): problems.append(String(case.get("case_id",""))+":result shape")
   elif result.ok: accepted+=1
   problems.append_array(_differences(String(case.get("case_id","")),before,_snapshot(g)))
- t.check(problems.is_empty() and checked==cases.size(),"ASSESS replacement_plan_leaves_live_state_unchanged: Replacement.plan restores the live state object and the resource feedback and leaves the whole encoded state unchanged (plan calls %d/%d; accepted %d; feedback seeded before every call): %s" % [checked,cases.size(),accepted,str(problems.slice(0,3))])
+ t.check(problems.is_empty() and checked==cases.size(),"ASSESS replacement_plan_leaves_live_state_unchanged: Replacement.plan restores every transaction runtime field (state object, resource feedback, rope-trial flag) and leaves the whole encoded state unchanged (plan calls %d/%d; accepted %d; feedback seeded and rope-trial flag alternately preset false/true before every call): %s" % [checked,cases.size(),accepted,str(problems.slice(0,3))])
 
 # S2a-1（gherkin「索引只认同一对象」；design §3.1-3）：读作用域里的索引只对 live state 这一对象生效；
 # 同内容不同对象的视图恒走扫描。做法：打开作用域后把索引四条边换成可辨认的探针件，分别以 state 与
@@ -258,7 +268,9 @@ static func random_draw_matches_random_index(t) -> void:
 # 另由 ARCH factory_records_have_one_builder 的 CLEANUP_SKELETON 钉住），视图端 cleanup_model 属 S2b。
 # 本行＝[编号, live 端锚点, 视图端锚点, 共用的规则函数名单, 视图端是否尚未实现]：视图端一出现就必须
 # 两端都调名单内的规则（出现而未对齐即红），落地后同批把标记翻成 false —— 第二套清理规则进不了 assess。
-const PARALLEL_ORCHESTRATIONS=[["O3","core/game.gd::_cleanup","core/equipment_replacement_assess.gd::cleanup_model",["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],true]]
+# 第 6 列＝只在 live 端的副作用（绳索计数、事件、压力／卡牌结算、装备反馈）：视图端一出现就红，
+# 事务内这些钩子本来就是空操作或由 live 骨架独占（design rev3.1 §4.4），判定不得执行它们。
+const PARALLEL_ORCHESTRATIONS=[["O3","core/game.gd::_cleanup","core/equipment_replacement_assess.gd::cleanup_model",["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],true,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback("]]]
 
 static func _source(relative: String) -> String:
  var file=FileAccess.open("res://"+relative,FileAccess.READ)
@@ -285,6 +297,7 @@ static func parallel_orchestrations_call_the_shared_rules(t) -> void:
  var uncalled=[]
  var pending=[]
  var aligned=[]
+ var live_only=[]
  for row in PARALLEL_ORCHESTRATIONS:
   var live=_function_code(String(row[1]))
   if live.strip_edges()=="": uncalled.append(String(row[1]))
@@ -299,7 +312,10 @@ static func parallel_orchestrations_call_the_shared_rules(t) -> void:
    if declared_pending: pending.append(String(row[0])+" -> "+String(row[2]))
    for name in row[3]:
     if not view.contains(String(name)+"("): uncalled.append(String(row[2])+":"+String(name))
+   for token in row[5]:
+    if view.contains(String(token)): live_only.append(String(row[2])+":"+String(token))
    aligned.append(String(row[0]))
  print("PARALLEL ORCHESTRATIONS aligned=%s pending_view=%s rows=%d" % [str(aligned),str(pending),PARALLEL_ORCHESTRATIONS.size()])
  t.check(uncalled.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: every declared orchestration end calls each shared cleanup rule of its row (a deleted call or a missing end is red): uncalled="+str(uncalled))
+ t.check(live_only.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: the view end of an orchestration never runs a side effect that belongs to the live end alone (rope counting, events, pressure and card settlement, equipment feedback): live_only="+str(live_only))
  t.check(pending.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: a row declared as pending on the view side must not have that side yet -- S2b must flip the marker in the same batch that adds cleanup_model, so the two skeletons cannot silently drift: appeared="+str(pending))

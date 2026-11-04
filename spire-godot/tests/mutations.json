@@ -500,6 +500,18 @@
       "replace": "static func normalize(g, requests: Array) -> Dictionary:\n g.state.version=0\n if requests.is_empty(): return failure(\"本次没有指定要安装的装备。\")",
       "suite": "architecture"
     },
+    "assess_calls_only_declared_modules": {
+      "file": "core/equipment_replacement_assess.gd",
+      "find": "static func pieces(item: Dictionary) -> Array:",
+      "replace": "static func _mutation_probe_module(g, piece: Dictionary) -> void:\n g.RopeArt.track(g,piece)\n\nstatic func pieces(item: Dictionary) -> Array:",
+      "suite": "architecture"
+    },
+    "assess_never_touches_runtime_fields": {
+      "file": "core/equipment_replacement_assess.gd",
+      "find": "static func pieces(item: Dictionary) -> Array:",
+      "replace": "static func _mutation_probe_runtime(g) -> void:\n g._rope_trial=true\n\nstatic func pieces(item: Dictionary) -> Array:",
+      "suite": "architecture"
+    },
     "legal_requests_is_the_only_judgment_entry": {
       "file": "core/equipment_application.gd",
       "find": "static func _result() -> Dictionary:",

@@ -128,7 +128,8 @@
   `reinforcement_issue` 5（`check` 的设计期估计为 59，差异来自 `s.get("…")` 形态计入）。
 - `schema_strings`：4 个函数、7 处调用点、15 个字段名。
 - `unread_fields`＝`["dexterity","strength"]`（两者也从未被写入，属死字段）；`ui_reads`＝`[]`；`unknown`＝`[]`。
-- S2a-1（读侧共用函数抽取）与 S2a-2（写侧规则共用）重生成后的现行统计：`files=130`、`fields=121`、`cells=1249`、`sites=2056`；
+- S2a-1（读侧共用函数抽取）与 S2a-2（写侧规则共用）并入上游 v0.18.3（M1）后重生成的现行统计：`files=141`、`fields=121`、`cells=1288`、`sites=2116`
+  （合并只增扫描面与读点：S2a 终点为 files=130／cells=1249／sites=2056；以下 `whole_state`、别名与模式串口径与合并前相同）；
   `whole_state` 72 处（pass 63／duplicate 6／iterate 1／has 1／get_variable 1），聚合 57 条记录；
   `ALIAS_DECLARATIONS` 16 个函数（较上列 6 个新增 10 个 `_in` 孪生），`alias_fields` 93；`schema_strings` 不变。
   含义：18 个 `_in` 孪生把原函数的直读搬到别名面（cells −13、sites −19），每个 live 委托行交出整份 `state`（`pass` ＋19）；

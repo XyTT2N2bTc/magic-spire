@@ -1185,6 +1185,8 @@ static func run(t) -> void:
  equipment_targets_walk_is_one_path(t)
  live_wrappers_delegate_once(t)
  assess_dependency_edges(t)
+ assess_calls_only_declared_modules(t)
+ assess_never_touches_runtime_fields(t)
  assess_never_restates_factory_rules(t)
  factory_records_have_one_builder(t)
  legal_requests_is_the_only_judgment_entry(t)
@@ -6587,14 +6589,23 @@ const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replac
 # 查表）、cursed_eyes（读 state.relics）、cursed_plate（读 special_equipment 的诅咒判定）：三者只读不写。
 # S2a-2 追加 _tier_durability（A19 的唯一耐久档表，纯算式）。
 const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_composite_body","_equipment","_outer","_prepare_installation","_prepare_assembly","_sealed_reason","_special_install_reason","_tier_durability","cursed_eyes","cursed_plate","tier"]
-# 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。
-const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","comparison_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"],["_loadout_records","loadout_records"],["_record_facts","record_facts"],["_same_loadout","same_loadout"]]
+# M1（design rev3.1 §4.1）：经 g 常量的模块调用 g.<模块>.<函数>( 的白名单；上面的实例方法白名单只匹配
+# g.<方法>(，看不见这一类。数据模块（data/*，分层保证不调用 core）整模块放行，"*" 即整模块；core 模块逐函数放行：
+# RopeArt 只许 locked（只读 phase／enemies／seal／material），track／replaced／observe 等写入者不得进入判定。
+# S2b 追加 Binding／Shoulders／Character 的只读函数，并以同一张表约束视图模块。
+const ASSESS_MODULE_CALLS={"Equipment":["*"],"SpecialEquipment":["*"],"Composites":["*"],"Links":["*"],"B":["*"],"RestraintValue":["*"],"RopeArt":["locked"]}
+# 判定域既不读也不写的运行时字段：事务边界字段（_rope_trial／_resource_feedback，Replacement.plan 保存并恢复）与
+# 绳艺观察防重入标记（_rope_observing）。判定只经 RopeArt.locked 读 phase／enemies，不碰这三者。
+const ASSESS_RUNTIME_FIELD_TOKENS=["_rope_trial","_rope_observing","_resource_feedback"]
+# 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。comparison_value 随上游改名为 replacement_value：
+# 新旧两名都不得在 replacement 留函数体（只看旧名会漏掉误留的上游 replacement_value 原体）。
+const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","replacement_value"],["replacement_value","replacement_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"],["_loadout_records","loadout_records"],["_record_facts","record_facts"],["_same_loadout","same_loadout"]]
 # replacement 里允许保留旧名的唯一适配器：旧名 -> [assess 名, 期望的参数原文（按顺序）]。
 # 体内只许这一条 return，参数表外即红：加本地变量、截断返回值、换参数都是第二份实现。
-const REPLACEMENT_ADAPTERS={"_transfer":["transfer_options",["g","links","anchors","g.link_anchors()","g.state.links"]]}
+const REPLACEMENT_ADAPTERS={"_transfer":["transfer_options",["g","links","anchors","g.link_anchors()","g.state.links"]],"replacement_value":["replacement_value",["g","piece"]]}
 # replacement 调 assess 的完整符号集与每个符号的期望调用点数：删一条接线或加一条未声明的
 # 调用即红。failure 是唯一失败形状的构造入口（replacement 自身不再声明 _fail）。
-const REPLACEMENT_ASSESS_CALL_SITES={"capacity_points":1,"compare":1,"comparison_possible":1,"comparison_value":3,"counts":2,"deficit":1,"factory_args":1,"failure":22,"mandatory":1,"normalize":1,"pieces":2,"removable":1,"same_loadout":1,"sets":1,"transfer_options":2,"units":1}
+const REPLACEMENT_ASSESS_CALL_SITES={"capacity_points":1,"compare":1,"comparison_possible":1,"counts":2,"deficit":1,"factory_args":1,"failure":22,"mandatory":1,"normalize":1,"pieces":2,"removable":1,"replacement_value":4,"same_loadout":1,"sets":1,"transfer_options":2,"units":1}
 
 # 四条判据都是公开名并逐条登记 tests/mutations.json（suite=architecture）：mutation_judgment_universe
 # 只收公开函数，下划线命名会让它们绕过登记（S1 实现的 reserved_judgments）。判据消息里的 ARCH 名不变，
@@ -6644,6 +6655,54 @@ static func assess_dependency_edges(t) -> void:
  for hit in alias.search_all(text): aliases.append(hit.get_string().strip_edges())
  t.check(aliases.is_empty(),"ARCH assess_dependency_edges: assess never binds g.state to a local alias (a write through the alias would be invisible to this scan): "+str(aliases))
 
+# M1（design rev3.1 §4.1、gherkin「判定只调白名单模块函数」「绳艺锁只经 assess 阶段」）：上面的实例方法白名单只匹配
+# g.<方法>(，看不见经 g 常量的模块调用，于是 g.RopeArt.track(g,x)、g.Pressure.cleanup(g) 这类写入者原先能无声通过。
+# 本判据扫 g.<模块>.<函数>(，(模块,函数) 不在 ASSESS_MODULE_CALLS 即红；绳艺锁的位置与顺序一并钉住。
+static func assess_calls_only_declared_modules(t) -> void:
+ var text=source_code(ASSESS_SOURCE)
+ var module_call=RegEx.new()
+ module_call.compile("(?<![A-Za-z0-9_])g\\.([A-Z][A-Za-z0-9_]*)\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
+ var seen=[]
+ var outside=[]
+ for hit in module_call.search_all(text):
+  var owner_name=hit.get_string(1)
+  var member_name=hit.get_string(2)
+  var allowed=ASSESS_MODULE_CALLS.get(owner_name,[])
+  if not seen.has(owner_name+"."+member_name): seen.append(owner_name+"."+member_name)
+  if not "*" in allowed and not member_name in allowed and not outside.has(owner_name+"."+member_name): outside.append(owner_name+"."+member_name)
+ seen.sort()
+ outside.sort()
+ t.check(not seen.is_empty() and outside.is_empty(),"ARCH assess_calls_only_declared_modules: assess calls module functions through g only as declared in ASSESS_MODULE_CALLS (data modules whole, RopeArt.locked alone); a write-capable call such as RopeArt.track or Pressure.cleanup is a write path the instance-method whitelist cannot see: outside="+str(outside))
+ var rope=seen.filter(func(name):return String(name).begins_with("RopeArt."))
+ t.check(rope==["RopeArt.locked"],"ARCH assess_calls_only_declared_modules: the judgment reaches the rope master only through RopeArt.locked (it reads phase, enemies, seal and material and writes nothing): rope_calls="+str(rope))
+ # 绳艺锁只经 mandatory 与 removable 两个阶段：mandatory 在 cursed_plate 之前，removable 的过滤依次为
+ # cursed_eyes、cursed_plate、RopeArt.locked、protected_ids、mandatory_ids；事务自己不重述该过滤。
+ var mandatory=code_of_function(ASSESS_SOURCE,"mandatory")
+ var removable=code_of_function(ASSESS_SOURCE,"removable")
+ var order=[]
+ var locked_at=mandatory.find("g.RopeArt.locked(")
+ if locked_at<0 or locked_at>mandatory.find("g.cursed_plate("): order.append("mandatory")
+ var cursor=-1
+ for token in ["g.cursed_eyes(","g.cursed_plate(","g.RopeArt.locked(","protected_ids","mandatory_ids"]:
+  var at=removable.find(String(token),cursor+1)
+  if at<0: order.append("removable:"+String(token))
+  else: cursor=at
+ var transaction=source_code("core/equipment_replacement.gd")
+ t.check(order.is_empty() and not transaction.contains("RopeArt.locked"),"ARCH assess_calls_only_declared_modules: the rope lock is read in the family-mandatory stage before the cursed-plate boundary and in the removable filter between cursed_plate and protected_ids, and the transaction never restates it: order_lost="+str(order)+" transaction_restates="+str(transaction.contains("RopeArt.locked")))
+
+# M1（design rev3.1 §3）：判定既不读也不写事务边界的运行时字段。Replacement.plan／force_special 保存并恢复
+# {state,_resource_feedback,_rope_trial}；_rope_observing 只供 RopeArt.observe 防重入。判定只在试算前经
+# RopeArt.locked 读 phase／enemies，所以与「是否身处事务」无关。事务侧的保存→置位→恢复同条核对，免得对手缺席。
+static func assess_never_touches_runtime_fields(t) -> void:
+ var text=source_code(ASSESS_SOURCE)
+ var touched=ASSESS_RUNTIME_FIELD_TOKENS.filter(func(token):return text.contains(String(token)))
+ t.check(text.strip_edges()!="" and touched.is_empty(),"ARCH assess_never_touches_runtime_fields: the assess module neither reads nor writes the transaction runtime fields or the rope observation flag (a read would make the judgment depend on whether it runs inside a transaction): touched="+str(touched))
+ var unguarded=[]
+ for name in ["plan","force_special"]:
+  var body=code_of_function("core/equipment_replacement.gd",name)
+  if not body.contains("var art_trial=g._rope_trial;g._rope_trial=true") or not body.contains("g._rope_trial=art_trial"): unguarded.append(name)
+ t.check(unguarded.is_empty(),"ARCH assess_never_touches_runtime_fields: Replacement.plan and force_special save, set and restore _rope_trial (the transaction owns the boundary the judgment must not touch): unguarded="+str(unguarded))
+
 # S2a-1（gherkin「判定模块不重述工厂规则」；design §10）：准入与记录构造的原因文本、记录 id 前缀与
 # 随机算式常数只有一份，就在 game.gd 的共用函数里；assess 抄任何一条即红。表＝本片与 S2a-2 的
 # 共用记录构造函数（S2a-2 尚未抽出的三项在体内为空时跳过，抽出后自动纳入核对）。
@@ -6655,7 +6714,8 @@ const FACTORY_REASON_DURABILITY="[0.0,0.4,0.8,1.0]"
 # 已存在的逐字节同句（不是本批抄进去的）：S1 的 assess.normalize 用同一句请求形状原因文本，而该文件
 # 不在 S2a-1 授权面。登记为「同一句只许出现在该函数内」：出现在别处、或该处消失（覆盖率下降）都红，
 # 交 S2b 接线时并入共用准入后删除本行。
-const FACTORY_RULE_ECHOES={"该装备不能安装在这个位置。":"core/equipment_replacement_assess.gd::normalize"}
+# M1：上游把该句改成「请选择该装备支持的位置。」（assess.normalize 与 _special_install_reason_in 两处同改），登记随之换键。
+const FACTORY_RULE_ECHOES={"请选择该装备支持的位置。":"core/equipment_replacement_assess.gd::normalize"}
 
 # assess 源码里出现某字面量的 (文件::函数) 位置（注释已剔除；逐行取所属声明）。
 static func assess_echo_sites(literal: String) -> Array:
@@ -6708,13 +6768,18 @@ static func assess_never_restates_factory_rules(t) -> void:
 # 委托目标都会红。A19 的耐久档表另有唯一来源核对：授权面是 game.gd＋两 C1′ 文件＋assess，授权面外
 # 仍持有同一张表的四个 core 文件登记为残留（本批不得改），残留被修好或新增副本都要同批改表。
 const RECORD_BUILDERS={"core/game.gd::_install_template":"core/game.gd::_template_piece","core/game.gd::_install_special":"core/game.gd::_special_piece","core/game.gd::_attach_special_reinforcement":"core/game.gd::_reinforcement_strap"}
-const RECORD_BUILDER_FORBIDDEN=["state.","_emit(","_random_index("]
+# M1：_equipment_feedback 只许留在工厂与 Binding.refresh／Shoulders.fill；记录构造与共用规则函数一调用它，
+# 判定预览就会替事务执行反馈。
+const RECORD_BUILDER_FORBIDDEN=["state.","_emit(","_random_index(","_equipment_feedback("]
 const RULE_DELEGATES={"core/torso_binding.gd::refresh":"core/torso_binding.gd::resolve","core/torso_binding.gd::cancel_for_assembly":"core/torso_binding.gd::cancels","core/shoulder_links.gd::fill":"core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::validate":"core/shoulder_links.gd::validate_in","core/shoulder_links.gd::cleanup":"core/shoulder_links.gd::released_with_host"}
 const SHARED_RULE_FUNCTIONS=["core/torso_binding.gd::resolve","core/torso_binding.gd::cancels","core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::attached_in","core/shoulder_links.gd::validate_in","core/shoulder_links.gd::released_with_host"]
-const SHARED_RULE_FORBIDDEN=["g.state","_emit(","_random_index("]
+const SHARED_RULE_FORBIDDEN=["g.state","_emit(","_random_index(","_equipment_feedback("]
 const CLEANUP_RULES=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"]
 # O3 的 live 端遍历顺序（骨架两份之一；S2b 的 cleanup_model 按同一登记对齐）。
-const CLEANUP_SKELETON=["Shoulders.cleanup(self)","_strap_follows(","_strap_orphaned(strap","state.items.duplicate(","_piece_released(e)","_root_head_orphaned(root","_released(body)","_component_kept(e)","_released(part)","_released(link)","_link_anchor_lost(link","Pressure.cleanup(self)","Pressure.settle_maximum("]
+# M1：三处 RopeArt.track 是 live 骨架独占的绳索计数（事务内由 _rope_trial 门控为空操作，视图端不调用），
+# 各自钉在它所属谓词之前：装备循环的 track 在 _piece_released(e) 前，链接循环的在 _released(link) 前，
+# 锚点丢失分支的 track(…,true) 在 _link_anchor_lost(link 之后。
+const CLEANUP_SKELETON=["Shoulders.cleanup(self)","_strap_follows(","_strap_orphaned(strap","state.items.duplicate(","RopeArt.track(self,e)","_piece_released(e)","_root_head_orphaned(root","_released(body)","_component_kept(e)","_released(part)","RopeArt.track(self,link)","_released(link)","_link_anchor_lost(link","RopeArt.track(self,link,true)","Pressure.cleanup(self)","Pressure.settle_maximum("]
 const DURABILITY_LADDER="[0.0,0.4,0.8,1.0]"
 const DURABILITY_LADDER_OWNER="core/game.gd::_tier_durability"
 const DURABILITY_LADDER_RESIDUALS=["core/equipment_application.gd","core/guard.gd","core/prison.gd","core/room_events.gd"]
