@@ -6686,7 +6686,7 @@ const VIEW_MIGRATED_PURE_FUNCTIONS=[["_loadout_records","loadout_records"],["_re
 # S2a′ 加固第二轮：判定自有、从未从事务迁来的阶段函数。与上表合起来必须正好解释 assess 的全部顶层
 # 函数——这是迁移表的源侧另一半；否则清空迁移表时「assess 定义了每个迁移函数」与「事务不留第二份实现」
 # 两条都会空转全绿。新增判定阶段函数时登记在这里，不登记即红（不是永久豁免：函数也得真的存在）。
-const ASSESS_JUDGMENT_FUNCTIONS=["failure","mandatory","deficit","removable","factory_args","legal","trial"]
+const ASSESS_JUDGMENT_FUNCTIONS=["failure","mandatory","deficit","removable","factory_args","install_all","legal","trial"]
 # replacement 里允许保留旧名的唯一适配器：旧名 -> [assess 名, 期望的参数原文（按顺序）]。
 # 体内只许这一条 return，参数表外即红：加本地变量、截断返回值、换参数都是第二份实现。
 const REPLACEMENT_ADAPTERS={"_transfer":["transfer_options",["g","g.state","links","anchors","g.link_anchors()","g.state.links"]],"replacement_value":["replacement_value",["g","piece"]]}
