@@ -1184,6 +1184,7 @@ static func run(t) -> void:
  equipment_scope_sites(t)
  equipment_targets_walk_is_one_path(t)
  live_wrappers_delegate_once(t)
+ connections_has_one_delegate(t)
  assess_dependency_edges(t)
  assess_calls_only_declared_modules(t)
  assess_never_touches_runtime_fields(t)
@@ -6549,7 +6550,7 @@ const RANDOM_INDEX_DELEGATE="return _random_draw(state.seed,domain,state.rng,siz
 # （file::查询名 -> 委托行原文）。VIEW_TWIN_SCAN_FILES 是核对的源侧：逐文件扫顶层 <name>_in，
 # 扫到的未登记孪生与登记了却扫不到的行都红——清空表、删一行、在源侧加一个未登记孪生都会被看见。
 # 例外：core/torso_binding.gd 的 C1′ 变体按含义命名为 connections_of（不是 <name>_in），落在本扫描的
-# 命名规则之外，故不登记；它的委托行与视图形态当前无判据覆盖，已登记为片报告残留项（不静默豁免）。
+# 命名规则之外，故不进这两张表；它的委托面由具名判据 connections_has_one_delegate 单独核对（A45）。
 const VIEW_TWIN_SCAN_FILES=["core/game.gd","core/shoulder_links.gd","core/torso_binding.gd"]
 const RULE_TWIN_WRAPPERS={"core/shoulder_links.gd::attached":"return attached_in(g,g.state,host)","core/shoulder_links.gd::validate":"return validate_in(g,g.state.equipment,g.state.composites)"}
 
@@ -6633,6 +6634,18 @@ static func live_wrappers_delegate_once(t) -> void:
  for twin in shape: problems.append(twin+":first-param")
  t.check(problems.is_empty() and missing.is_empty(),"ARCH live_wrappers_delegate_once: every parameterized query keeps one implementation in its *_in twin and a single-line delegate with the original arguments (a core/game.gd twin takes the view dictionary s as its first parameter, the module pairs may take explicit containers, and no twin opens or releases a read scope): problems="+str(problems.slice(0,6))+" missing="+str(missing))
  t.check(Array(wrapper_code_lines("core/game.gd","_random_index"))==[String(RANDOM_INDEX_DELEGATE).replace(" ","")],"ARCH live_wrappers_delegate_once: the live random entry is one delegate to _random_draw with the live seed and counter dictionary: "+str(wrapper_code_lines("core/game.gd","_random_index")))
+
+# A45（S2a′ 第三轮审查）：core/torso_binding.gd 的 C1′ 变体 connections 按含义命名为 connections_of，
+# 不落 <name>_in 的孪生命名规则，因而不在上面两张登记表与源侧扫描里。这里具名核对它的委托面：
+# 原接口只剩一行委托，目标就是 connections_of 且交出 live 装备容器；connections_of 只吃数组、
+# 不读 live state、不发事件——否则视图端拿到它就等于拿到 live 侧的第二条清理/投影通道。
+const CONNECTIONS_DELEGATE="return connections_of(g.state.equipment)"
+
+static func connections_has_one_delegate(t) -> void:
+ var connections=wrapper_code_lines("core/torso_binding.gd","connections")
+ var twin=code_of_function("core/torso_binding.gd","connections_of")
+ var shape=twin.contains("for e in equipment") and twin.contains("result.append(e.binding)") and not twin.contains("g.state") and not twin.contains("_emit(")
+ t.check(connections==[String(CONNECTIONS_DELEGATE).replace(" ","")] and shape,"ARCH connections_has_one_delegate: Binding.connections is exactly one delegate to connections_of with the live equipment container, and connections_of lists from its array argument alone (no live state, no event), so a view end can call it: connections="+str(connections)+" twin_list_is_one_pass_over_its_argument="+str(shape))
 
 # S1（敌人施加替换判定；plan §5-S1、dependencies.md「依赖方向」）＋S2a-3：纯阶段函数迁入
 # core/equipment_replacement_assess.gd 后，依赖边、判定入口与「一份实现」都是冻结表，表外即红。
@@ -6960,13 +6973,22 @@ const TIER_TABLE_LADDER="[0.0,0.4,0.8,1.0]"
 const TIER_TABLE_BOUNDS=["0.40000001","0.80000001"]
 const TIER_TABLE_FUNCTIONS=["durability_for","tier_for"]
 
+# 压掉全部空白（空格、制表、换行）：同一张档位表换行或加空格重写后仍与 TIER_TABLE_LADDER 字面相等。
+static func squash_whitespace(text: String) -> String:
+ var squeeze=RegEx.new()
+ if squeeze.compile("\\s+")!=OK: return text
+ return squeeze.sub(text,"",true)
+
 static func durability_ladder_has_one_source(t) -> void:
  var table=source_code(TIER_TABLE_OWNER)
+ var table_flat=squash_whitespace(table)
  var declared=TIER_TABLE_FUNCTIONS.filter(func(name):return table.contains("static func "+String(name)+"("))
  var bounds_in_table=TIER_TABLE_BOUNDS.filter(func(literal):return table.contains(String(literal)))
- t.check(not TIER_TABLE_FUNCTIONS.is_empty() and not TIER_TABLE_BOUNDS.is_empty() and declared.size()==TIER_TABLE_FUNCTIONS.size() and table.contains(TIER_TABLE_LADDER) and table.count(TIER_TABLE_LADDER)==1 and bounds_in_table.size()==TIER_TABLE_BOUNDS.size(),"ARCH durability_ladder_has_one_source: "+TIER_TABLE_OWNER+" is the one table and declares the ladder once, both upper bounds and both pure functions; neither expectation list is ever empty (an emptied list would make its half vacuous): declared="+str(declared)+" ladder_count="+str(table.count(TIER_TABLE_LADDER))+" bounds="+str(bounds_in_table))
+ t.check(not TIER_TABLE_FUNCTIONS.is_empty() and not TIER_TABLE_BOUNDS.is_empty() and declared.size()==TIER_TABLE_FUNCTIONS.size() and table_flat.count(TIER_TABLE_LADDER)==1 and bounds_in_table.size()==TIER_TABLE_BOUNDS.size(),"ARCH durability_ladder_has_one_source: "+TIER_TABLE_OWNER+" is the one table and declares the ladder once, both upper bounds and both pure functions; neither expectation list is ever empty (an emptied list would make its half vacuous), and the ladder is counted with whitespace squashed so a spaced or line-broken rewrite is still the same table: declared="+str(declared)+" ladder_count="+str(table_flat.count(TIER_TABLE_LADDER))+" bounds="+str(bounds_in_table))
+ # 两半都容忍空白与换写：重复面在压掉全部空白后的文本上找档位数组（跨行、带空格都算同一张表）；
+ # 乘算面允许 maximum 与档位系数之间隔着索引／数组字面量，且只要求同一条语句（行／分号内）共现。
  var factor=RegEx.new()
- var compiled=factor.compile("(?i)maximum[^\\n;]{0,40}?\\*\\s*(?:0\\.4|0\\.8|1\\.0)(?![0-9])")==OK
+ var compiled=factor.compile("(?i)maximum[^\\n;]{0,80}?\\*[^\\n;]{0,80}?(?:0\\.4|0\\.8|1\\.0)(?![0-9])")==OK
  var duplicated=[]
  var scaled=[]
  if compiled:
@@ -6974,15 +6996,15 @@ static func durability_ladder_has_one_source(t) -> void:
    var relative=String(path).trim_prefix("res://")
    if relative==TIER_TABLE_OWNER: continue
    var text=source_code(relative)
-   if text.contains(TIER_TABLE_LADDER): duplicated.append(relative+"::ladder")
+   if squash_whitespace(text).contains(TIER_TABLE_LADDER): duplicated.append(relative+"::ladder")
    for literal in TIER_TABLE_BOUNDS:
     if text.contains(String(literal)): duplicated.append(relative+"::"+String(literal))
    for hit in factor.search_all(text): scaled.append(relative+"::"+hit.get_string().strip_edges())
  duplicated.sort()
  scaled.sort()
  t.check(compiled,"ARCH durability_ladder_has_one_source: the tier-factor pattern compiles (an uncompiled scan must not pass silently)")
- t.check(duplicated.is_empty(),"ARCH durability_ladder_has_one_source: the ladder and its two ratio bounds are written once, in "+TIER_TABLE_OWNER+"; a second copy in the rule layer (core／data) is a second table: duplicated="+str(duplicated))
- t.check(scaled.is_empty(),"ARCH durability_ladder_has_one_source: no core／data site multiplies a durability maximum by a bare tier factor 0.4／0.8／1.0 any more; ask the table for the durability instead: scaled="+str(scaled))
+ t.check(duplicated.is_empty(),"ARCH durability_ladder_has_one_source: the ladder and its two ratio bounds are written once, in "+TIER_TABLE_OWNER+"; a second copy in the rule layer (core／data), spaced or not, is a second table: duplicated="+str(duplicated))
+ t.check(scaled.is_empty(),"ARCH durability_ladder_has_one_source: no core／data site multiplies a durability maximum by a bare tier factor 0.4／0.8／1.0 any more, whether the factor sits right after * or inside a re-listed ladder array; ask the table for the durability instead: scaled="+str(scaled))
 
 static func legal_requests_is_the_only_judgment_entry(t) -> void:
  var relative="core/equipment_application.gd"

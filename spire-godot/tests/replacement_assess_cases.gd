@@ -282,12 +282,9 @@ static func random_draw_matches_random_index(t) -> void:
  t.check(untouched.is_empty(),"ASSESS random_draw_matches_random_index: a local counter dictionary is the only thing _random_draw advances -- state.rng is byte-identical before and after (domains=%d sizes=1,2,7): %s" % [domains.size(),str(untouched)])
  t.check(problems.is_empty() and checked==domains.size()*3,"ASSESS random_draw_matches_random_index: the live entry and the shared draw return the same value and advance exactly one counter step for every registered domain and size in {1,2,7} (size<=1 does not advance): checked=%d/%d %s" % [checked,domains.size()*3,str(problems.slice(0,6))])
 
-# design §5「编排登记（P4）」：规则共用、编排各一份。O3（清理骨架，D11=A）的 live 端已存在（遍历顺序
-# 另由 ARCH factory_records_have_one_builder 的 CLEANUP_SKELETON 钉住），视图端 cleanup_model 属 S2b。
-# 本行＝[编号, live 端锚点, 视图端锚点, 共用的规则函数名单, 视图端是否尚未实现]：视图端一出现就必须
-# 两端都调名单内的规则（出现而未对齐即红），落地后同批把标记翻成 false —— 第二套清理规则进不了 assess。
-# 第 6 列＝只在 live 端的副作用（绳索计数、事件、压力／卡牌结算、装备反馈）：视图端一出现就红，
-# 事务内这些钩子本来就是空操作或由 live 骨架独占（design rev3.1 §4.4），判定不得执行它们。
+# design §5「编排登记」：O3 的 live 端已存在（遍历顺序由 ARCH factory_records_have_one_builder 钉住），
+# 视图端 cleanup_model 属 S2b。本行＝[编号, live 锚点, 视图锚点, 共用规则名单, 视图端是否尚未实现, live 独有副作用]：
+# 名单非空且与 live 骨架的共用谓词调用双向相等；视图端出现须调同一名单并同批翻标记；第 6 列在视图端出现即红。
 const PARALLEL_ORCHESTRATIONS=[["O3","core/game.gd::_cleanup","core/equipment_replacement_assess.gd::cleanup_model",["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],true,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback("]]]
 
 static func _source(relative: String) -> String:
@@ -311,29 +308,33 @@ static func _function_code(site: String) -> String:
  for line in text.substr(hit.get_end(),end-hit.get_end()).split("\n"): lines.append(String(line).split("#")[0])
  return "\n".join(lines)
 
+# 共用清理规则＝live 骨架里裸调用的、在 core/game.gd 内为单行纯谓词的本地函数：与登记表双向对照的源侧枚举。
+static func _shared_rule_calls(body: String) -> Array:
+ var names=[]; var call=RegEx.new(); if call.compile("(?<![.\\w])(_[a-z][a-z0-9_]*)\\(")!=OK: return names
+ for hit in call.search_all(body):
+  var rest=Array(_function_code("core/game.gd::"+hit.get_string(1)).split("\n",false,1))
+  var code=String(rest[1]).strip_edges() if rest.size()>1 else ""
+  if not hit.get_string(1) in names and code.begins_with("return ") and not code.contains("\n") and not code.contains("_in(") and not code.contains("state."): names.append(hit.get_string(1))
+ names.sort(); return names
+
 static func parallel_orchestrations_call_the_shared_rules(t) -> void:
- var uncalled=[]
- var pending=[]
- var aligned=[]
- var live_only=[]
+ var malformed=[]; var uncalled=[]; var pending=[]; var aligned=[]; var live_only=[]
  for row in PARALLEL_ORCHESTRATIONS:
-  var live=_function_code(String(row[1]))
-  if live.strip_edges()=="": uncalled.append(String(row[1]))
-  else:
-   for name in row[3]:
-    if not live.contains(String(name)+"("): uncalled.append(String(row[1])+":"+String(name))
-  var view=_function_code(String(row[2]))
-  var declared_pending=bool(row[4])
+  if row.size()<6: malformed.append("row-size"); continue
+  var declared=Array(row[3]).duplicate(); declared.sort(); if declared.is_empty() or Array(row[5]).is_empty(): malformed.append(String(row[0])+":row")
+  var live=_function_code(String(row[1])); var called=_shared_rule_calls(live) if live.strip_edges()!="" else []
+  if live.strip_edges()=="" or called!=declared: uncalled.append(String(row[1])+": called="+str(called)+" declared="+str(declared))
+  var view=_function_code(String(row[2])); var declare_pending=bool(row[4])
   if view.strip_edges()=="":
-   if not declared_pending: uncalled.append(String(row[2])+":missing")
+   if not declare_pending: uncalled.append(String(row[2])+":missing")
   else:
-   if declared_pending: pending.append(String(row[0])+" -> "+String(row[2]))
-   for name in row[3]:
+   if declare_pending: pending.append(String(row[0])+" -> "+String(row[2]))
+   for name in declared:
     if not view.contains(String(name)+"("): uncalled.append(String(row[2])+":"+String(name))
    for token in row[5]:
     if view.contains(String(token)): live_only.append(String(row[2])+":"+String(token))
    aligned.append(String(row[0]))
  print("PARALLEL ORCHESTRATIONS aligned=%s pending_view=%s rows=%d" % [str(aligned),str(pending),PARALLEL_ORCHESTRATIONS.size()])
- t.check(uncalled.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: every declared orchestration end calls each shared cleanup rule of its row (a deleted call or a missing end is red): uncalled="+str(uncalled))
+ t.check(not PARALLEL_ORCHESTRATIONS.is_empty() and malformed.is_empty() and uncalled.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: the table is never empty, every row declares a shared-rule list and its live-only side effects, and the live end of each row calls exactly the shared cleanup predicates its row lists (a deleted row, an emptied list, a deleted call or an unlisted predicate is red): rows="+str(PARALLEL_ORCHESTRATIONS.size())+" malformed="+str(malformed)+" uncalled="+str(uncalled))
  t.check(live_only.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: the view end of an orchestration never runs a side effect that belongs to the live end alone (rope counting, events, pressure and card settlement, equipment feedback): live_only="+str(live_only))
  t.check(pending.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: a row declared as pending on the view side must not have that side yet -- S2b must flip the marker in the same batch that adds cleanup_model, so the two skeletons cannot silently drift: appeared="+str(pending))

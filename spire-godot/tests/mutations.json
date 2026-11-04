@@ -557,7 +557,13 @@
     "durability_ladder_has_one_source": {
       "file": "core/prison.gd",
       "find": "piece.durability=g.RestraintValue.durability_for(piece.maximum,2)",
-      "replace": "piece.durability=piece.maximum*0.8",
+      "replace": "piece.durability=piece.maximum * [0.0, 0.4, 0.8, 1.0][2]\n    g.RestraintValue.durability_for(piece.maximum,2)",
+      "suite": "architecture"
+    },
+    "connections_has_one_delegate": {
+      "file": "core/torso_binding.gd",
+      "find": "static func connections(g) -> Array:\n return connections_of(g.state.equipment)",
+      "replace": "static func connections(g) -> Array:\n var probe=g.state.equipment.size()\n return connections_of(g.state.equipment)",
       "suite": "architecture"
     }
   }
