@@ -35,7 +35,7 @@ const Game=preload("res://core/game.gd")
 const Equipment=preload("res://data/equipment.gd")
 
 # _exercise 可能执行到的 assess 纯函数：覆盖计数按这张表逐函数报出。
-const STEPS=["normalize","capacity_points","counts","comparison_value","physical_points","loss","pieces","units","sets","compare","assign","transfer_options"]
+const STEPS=["normalize","capacity_points","counts","replacement_value","physical_points","loss","pieces","units","sets","compare","assign","transfer_options"]
 
 # 整份 state 的规范文本：encode 把整数/小数/名称区分开，JSON 文本再消除对象同一性。
 static func _state_text(state: Dictionary) -> String:
@@ -99,9 +99,9 @@ static func _exercise(g, case: Dictionary) -> Dictionary:
  if not owned.is_empty():
   Assess.counts(g,owned)
   Assess.counts(g,g.state.special_equipment)
-  Assess.comparison_value(g,owned[0])
+  Assess.replacement_value(g,owned[0])
   Assess.physical_points(g,owned[0])
-  ran.counts=true;ran.comparison_value=true;ran.physical_points=true
+  ran.counts=true;ran.replacement_value=true;ran.physical_points=true
  if not deficit.is_empty() and not owned.is_empty():
   Assess.loss(g,owned[0],deficit.keys()[0],{"composite":false,"pieces":[owned[0]]},g.state.links,[])
   ran.loss=true

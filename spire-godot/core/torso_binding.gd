@@ -6,25 +6,32 @@ const NAMES={"linked":"躯干固缚·连接式","integrated":"躯干固缚·一�
 const MAXIMUM={1:10.0,2:16.0,3:24.0}
 
 static func eligible(e: Dictionary) -> bool:
- return e.get("slot","") in SLOTS and not e.has("root_id") and not e.has("parent_id") and e.get("template","") not in ["link_rope","special"]
+ return not preload("res://data/equipment.gd").is_shackle(e) and e.get("slot","") in SLOTS and not e.has("root_id") and not e.has("parent_id") and e.get("template","") not in ["link_rope","special","art_hogtie"]
 
 static func present(e: Dictionary) -> bool:
  var b=e.get("binding",{})
  return not b.is_empty() and (b.kind=="integrated" or b.durability>0.000001)
 
 static func refresh(g, e: Dictionary) -> void:
- if not eligible(e) or g.tier(e.durability,e.maximum)!=3: return
  var old=e.get("binding",{})
- e.binding=resolve(g,e,g._random_index)
- g._emit("event",e.name+"形成了"+NAMES[e.binding.kind]+"，将手臂固定在身后。",{"torso_binding":{"target":e.id,"kind":e.binding.kind,"refreshed":not old.is_empty()}})
+ var next=resolve(g,e,g._random_index)
+ if next.is_empty(): return
+ e.binding=next
+ if old.is_empty() and next.kind=="linked": g._equipment_feedback(next,next.durability,true)
+ if g.tier(e.durability,e.maximum)==3: g._emit("event",e.name+"形成了"+NAMES[next.kind]+"，将手臂固定在身后。",{"torso_binding":{"target":e.id,"kind":next.kind,"refreshed":not old.is_empty()}})
 
-# Kind selection and record shape. `draw(domain,size)` is the only random source (live refresh
-# passes g._random_index); the builder writes no state and emits nothing.
+# Eligibility, kind selection and record shape. `draw(domain,size)` is the only random source
+# (live refresh passes g._random_index). Returns {} before any draw when the piece takes no binding
+# (ineligible, or below tier three with no earlier one); the builder writes no state and emits nothing.
 static func resolve(g, e: Dictionary, draw: Callable) -> Dictionary:
  var old=e.get("binding",{})
+ var reinforced=g.tier(e.durability,e.maximum)==3
+ if not eligible(e) or (not reinforced and old.is_empty()): return {}
  var kind=old.kind if not old.is_empty() else (["linked","integrated"][draw.call("binding",2)])
  if kind=="integrated": return {"kind":kind}
- return {"kind":kind,"id":"binding_"+e.id,"parent_id":e.id,"template":"torso_connection","name":NAMES[kind],"slot":e.slot,"points":g.Equipment.physical_points(e).duplicate(),"layer":e.layer,"grade":e.grade,"variant":e.variant,"material":e.material,"locked":false,"maximum":MAXIMUM[e.grade],"durability":MAXIMUM[e.grade],"source":e.source}
+ # Parent changes synchronize metadata; only tier-three reinforcement refills the connection.
+ var durability=MAXIMUM[e.grade] if reinforced else minf(old.durability,MAXIMUM[e.grade])
+ return {"kind":kind,"id":"binding_"+e.id,"parent_id":e.id,"template":"torso_connection","name":NAMES[kind],"slot":e.slot,"points":g.Equipment.physical_points(e).duplicate(),"layer":e.layer,"grade":e.grade,"variant":e.variant,"material":e.material,"locked":false,"maximum":MAXIMUM[e.grade],"durability":durability,"source":e.source}
 
 static func active(g, e: Dictionary) -> bool:
  return present(e) and g._outer(e)
@@ -66,16 +73,16 @@ static func can_tighten(e: Dictionary) -> bool:
 
 static func validate(g, e: Dictionary) -> String:
  if not e.has("binding"): return ""
- if not MAXIMUM.has(e.get("grade",0)): return "躯干固缚的装备等级不正确。"
+ if not MAXIMUM.has(e.get("grade",0)): return "躯干固缚的装备等级有误。"
  var b=e.binding
- if not eligible(e) or not b is Dictionary or b.get("kind","") not in NAMES: return "躯干固缚所属部位或形式不正确。"
- if b.kind=="integrated": return "" if b.size()==1 else "一体式固缚不能拥有独立耐久。"
+ if not eligible(e) or not b is Dictionary or b.get("kind","") not in NAMES: return "躯干固缚所属部位或形式有误。"
+ if b.kind=="integrated": return "" if b.size()==1 else "一体式固缚共用主体耐久。"
  var expected={"id":"binding_"+e.id,"parent_id":e.id,"template":"torso_connection","name":NAMES.linked,"slot":e.slot,"points":g.Equipment.physical_points(e),"layer":e.layer,"grade":e.grade,"variant":e.variant,"material":e.material,"locked":false,"maximum":MAXIMUM[e.grade],"source":e.source}
- if b.size()!=expected.size()+2: return "连接式固缚记录不完整。"
+ if b.size()!=expected.size()+2: return "连接式固缚记录缺损。"
  for key in expected:
-  if b.get(key)!=expected[key]: return "连接式固缚与所属装备不一致。"
- if typeof(b.get("durability")) not in [TYPE_INT,TYPE_FLOAT]: return "连接式固缚耐久不正确。"
- if not is_finite(b.durability) or b.durability<0 or b.durability>b.maximum: return "连接式固缚耐久不正确。"
+  if b.get(key)!=expected[key]: return "装备数据出错，请提交问题反馈。"
+ if typeof(b.get("durability")) not in [TYPE_INT,TYPE_FLOAT]: return "连接式固缚耐久有误。"
+ if not is_finite(b.durability) or b.durability<0 or b.durability>b.maximum: return "连接式固缚耐久有误。"
  return ""
 
 static func state_issue(g) -> String:
@@ -87,5 +94,5 @@ static func state_issue(g) -> String:
 static func text(g, e: Dictionary) -> String:
  if not present(e): return ""
  var label=NAMES[e.binding.kind]
- if not active(g,e): return label+"：被外层覆盖，暂不生效。"
- return label+"：手不能触及大腿"+("和双穴区域" if e.slot in ["forearm","wrist"] else "")+"；降档后仍保留。"
+ if not active(g,e): return label+"：外层覆盖期间暂停。"
+ return label+"：手部触及范围止于大腿上方"+("和双穴区域" if e.slot in ["forearm","wrist"] else "")+"；降档后仍保留。"
