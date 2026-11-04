@@ -6589,7 +6589,11 @@ const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replac
 # _equipment 是迁移前就在用的只读读取，属该节的「等」。S2a-3 追加 _capacity（Equipment.capacity
 # 查表）、cursed_eyes（读 state.relics）、cursed_plate（读 special_equipment 的诅咒判定）：三者只读不写。
 # S2a-2 追加 _tier_durability（A19 的唯一耐久档表入口；M1b 后它委托 data/restraint_value.gd）。
-const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_composite_body","_equipment","_outer","_prepare_installation","_prepare_assembly","_sealed_reason","_special_install_reason","_tier_durability","cursed_eyes","cursed_plate","tier"]
+# S2a′ 收紧（S2a′ 加固 ②）：原表比实调面宽两项（_prepare_assembly／_special_install_reason 判定从不调用），
+# 宽出的许可项等于永久豁免一个写入路径，且会被 S2b 扩表照抄。处理＝反向核对：判据要求表内每一项在
+# assess 里都真被 g.<方法>( 调用，多一项即红；核对当场查出这两项并已移出表。选反向核对而非只瘦身一次：
+# 瘦身只对今天成立，反向核对让下次漂移（删掉调用、或 S2b 扩表时抄进空位）同样红。
+const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_composite_body","_equipment","_outer","_prepare_installation","_sealed_reason","_tier_durability","cursed_eyes","cursed_plate","tier"]
 # M1（design rev3.1 §4.1）：经 g 常量的模块调用 g.<模块>.<函数>( 的白名单；上面的实例方法白名单只匹配
 # g.<方法>(，看不见这一类。数据模块（data/*，分层保证不调用 core）整模块放行，"*" 即整模块；core 模块逐函数放行：
 # RopeArt 只许 locked（只读 phase／enemies／seal／material），track／replaced／observe 等写入者不得进入判定。
@@ -6637,6 +6641,13 @@ static func assess_dependency_edges(t) -> void:
   if not hit.get_string(1) in ASSESS_READONLY_INSTANCE_METHODS and not hit.get_string(1) in calls: calls.append(hit.get_string(1))
  calls.sort()
  t.check(calls.is_empty(),"ARCH assess_dependency_edges: assess calls only the read-only instance methods declared for its g parameter (dependencies.md 禁止节); a call outside the whitelist is a write path: extra="+str(calls))
+ # 反向核对（S2a′ 加固 ②）：表里每一项都必须是判定今天真调用的方法。比实调面宽的许可项＝永久豁免
+ # 一个写入路径，S2b 扩表时会照抄；所以表与实调面双向相等——表外调用红（上一条），表内未调用也红。
+ var used=[]
+ for hit in call.search_all(text):
+  if not hit.get_string(1) in used: used.append(hit.get_string(1))
+ var idle=ASSESS_READONLY_INSTANCE_METHODS.filter(func(name):return not used.has(String(name)))
+ t.check(idle.is_empty(),"ARCH assess_dependency_edges: every whitelisted read-only instance method is actually called by the assessment, so the table is the observed call surface and not a standing exemption wider than the code (a stale row is red): idle="+str(idle))
  # 任何 state 路径的赋值（字段、下标、复合赋值）都是对 live state 的写入。
  var writes=[]
  var write=RegEx.new()
@@ -6659,6 +6670,16 @@ static func assess_dependency_edges(t) -> void:
 # M1（design rev3.1 §4.1、gherkin「判定只调白名单模块函数」「绳艺锁只经 assess 阶段」）：上面的实例方法白名单只匹配
 # g.<方法>(，看不见经 g 常量的模块调用，于是 g.RopeArt.track(g,x)、g.Pressure.cleanup(g) 这类写入者原先能无声通过。
 # 本判据扫 g.<模块>.<函数>(，(模块,函数) 不在 ASSESS_MODULE_CALLS 即红；绳艺锁的位置与顺序一并钉住。
+# S2a′ 加固①（S2b 扩表的前置核对）：白名单正向只证明「表外调用红」，表自身写错时仍会静默放行——
+# 名写错（点不到任何函数）、把整模块 "*" 给了 core 模块（RopeArt／Binding／Shoulders）、模块名不存在，
+# 都会让 S2b 的扩表变成假豁免。反向核对要求每个模块名解析到真实源文件、逐函数项在该文件里真有声明，
+# 且只有 data 模块可以整模块放行（data 不调 core，分层保证只读）；core 模块必须逐函数放行。
+static func module_source_path(module_name: String) -> String:
+ var pattern=RegEx.new()
+ if pattern.compile("(?m)^const\\s+"+module_name+"\\s*=\\s*preload\\(\"res://([^\"]+)\"\\)")!=OK: return ""
+ var hit=pattern.search(source_code("core/game.gd"))
+ return "" if hit==null else hit.get_string(1)
+
 static func assess_calls_only_declared_modules(t) -> void:
  var text=source_code(ASSESS_SOURCE)
  var module_call=RegEx.new()
@@ -6674,6 +6695,19 @@ static func assess_calls_only_declared_modules(t) -> void:
  seen.sort()
  outside.sort()
  t.check(not seen.is_empty() and outside.is_empty(),"ARCH assess_calls_only_declared_modules: assess calls module functions through g only as declared in ASSESS_MODULE_CALLS (data modules whole, RopeArt.locked alone); a write-capable call such as RopeArt.track or Pressure.cleanup is a write path the instance-method whitelist cannot see: outside="+str(outside))
+ var unresolvable=[]
+ var core_whole=[]
+ for owner_name in ASSESS_MODULE_CALLS:
+  var module_path=module_source_path(String(owner_name))
+  if module_path=="": unresolvable.append(String(owner_name)+":unresolved"); continue
+  var declared=ASSESS_MODULE_CALLS[owner_name]
+  if "*" in declared:
+   if module_path.begins_with("core/"): core_whole.append(String(owner_name)+"@"+module_path)
+   continue
+  var module_text=source_code(module_path)
+  for member_name in declared:
+   if not module_text.contains("func "+String(member_name)+"("): unresolvable.append(String(owner_name)+"."+String(member_name)+":missing")
+ t.check(unresolvable.is_empty() and core_whole.is_empty(),"ARCH assess_calls_only_declared_modules: every whitelisted module resolves through a game.gd preload, every function-by-function entry names a function its module declares, and only data modules are released whole (a core module granted '*' would reopen the write path S2b extends): unresolvable="+str(unresolvable)+" core_whole="+str(core_whole))
  var rope=seen.filter(func(name):return String(name).begins_with("RopeArt."))
  t.check(rope==["RopeArt.locked"],"ARCH assess_calls_only_declared_modules: the judgment reaches the rope master only through RopeArt.locked (it reads phase, enemies, seal and material and writes nothing): rope_calls="+str(rope))
  # 绳艺锁只经 mandatory 与 removable 两个阶段：mandatory 在 cursed_plate 之前，removable 的过滤依次为
@@ -6771,10 +6805,12 @@ static func assess_never_restates_factory_rules(t) -> void:
 const RECORD_BUILDERS={"core/game.gd::_install_template":"core/game.gd::_template_piece","core/game.gd::_install_special":"core/game.gd::_special_piece","core/game.gd::_attach_special_reinforcement":"core/game.gd::_reinforcement_strap"}
 # M1：_equipment_feedback 只许留在工厂与 Binding.refresh／Shoulders.fill；记录构造与共用规则函数一调用它，
 # 判定预览就会替事务执行反馈。
-const RECORD_BUILDER_FORBIDDEN=["state.","_emit(","_random_index(","_equipment_feedback("]
+# S2a′ 加固②（dependencies.md §4.4 第 5 条）：记录构造与共用规则函数也不许调用 RopeArt.*——绳索计数是
+# live 骨架的独占写入（事务内被 _rope_trial 门控为空操作），一旦从这里可达，判定预览就会替事务计数。
+const RECORD_BUILDER_FORBIDDEN=["state.","_emit(","_random_index(","_equipment_feedback(","RopeArt."]
 const RULE_DELEGATES={"core/torso_binding.gd::refresh":"core/torso_binding.gd::resolve","core/torso_binding.gd::cancel_for_assembly":"core/torso_binding.gd::cancels","core/shoulder_links.gd::fill":"core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::validate":"core/shoulder_links.gd::validate_in","core/shoulder_links.gd::cleanup":"core/shoulder_links.gd::released_with_host"}
 const SHARED_RULE_FUNCTIONS=["core/torso_binding.gd::resolve","core/torso_binding.gd::cancels","core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::attached_in","core/shoulder_links.gd::validate_in","core/shoulder_links.gd::released_with_host"]
-const SHARED_RULE_FORBIDDEN=["g.state","_emit(","_random_index(","_equipment_feedback("]
+const SHARED_RULE_FORBIDDEN=["g.state","_emit(","_random_index(","_equipment_feedback(","RopeArt."]
 const CLEANUP_RULES=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"]
 # O3 的 live 端遍历顺序（骨架两份之一；S2b 的 cleanup_model 按同一登记对齐）。
 # M1：三处 RopeArt.track 是 live 骨架独占的绳索计数（事务内由 _rope_trial 门控为空操作，视图端不调用），
@@ -6822,7 +6858,7 @@ static func factory_records_have_one_builder(t) -> void:
  for name in CLEANUP_RULES:
   var body=code_of_function("core/game.gd",String(name))
   if body.strip_edges()=="": impure_cleanup.append(String(name)+":missing"); continue
-  for token in ["g.state","_emit("]:
+  for token in ["g.state","_emit(","RopeArt."]:
    if body.contains(token): impure_cleanup.append(String(name)+":"+token)
  var order=[]
  var cursor=0
@@ -6830,7 +6866,12 @@ static func factory_records_have_one_builder(t) -> void:
   var at=cleanup.find(String(anchor),cursor)
   if at<0: order.append(String(anchor))
   else: cursor=at
- t.check(uncalled.is_empty() and impure_cleanup.is_empty() and order.is_empty(),"ARCH factory_records_have_one_builder: the equipment-domain cleanup decides through the shared removal predicates, in the declared traversal order (O3 live end), and no predicate writes state or emits: uncalled="+str(uncalled)+" impure="+str(impure_cleanup)+" order_lost="+str(order))
+ # 绳艺计数只归 live 骨架（S2a′ 加固①）：三处 RopeArt.track 的存在与顺序由 CLEANUP_SKELETON 钉住，
+ # 这里同时钉住条数＝骨架声明的条数——第 4 处 track（多一次计数／把 track 复制到另一个分支）在顺序核对上
+ # 仍会绿。条数从同一张表派生，不另写一份常数。
+ var declared_tracks=CLEANUP_SKELETON.filter(func(anchor):return String(anchor).begins_with("RopeArt.track(")).size()
+ var tracks=cleanup.count("RopeArt.track(")
+ t.check(uncalled.is_empty() and impure_cleanup.is_empty() and order.is_empty() and tracks==declared_tracks,"ARCH factory_records_have_one_builder: the equipment-domain cleanup decides through the shared removal predicates, in the declared traversal order (O3 live end), carries exactly the three rope counts of the skeleton, and no predicate writes state, emits or counts rope: uncalled="+str(uncalled)+" impure="+str(impure_cleanup)+" order_lost="+str(order)+" rope_counts="+str(tracks)+"/"+str(declared_tracks))
 
 # M1b（D14「有收口的就全部收到一起」）：紧度档位⇄耐久比例只有一张表。表与两个纯函数落在
 # data/restraint_value.gd（data 不调 core；它是唯一既被 core 调用、又已被 special_equipment 预载的数据模块，
@@ -7188,6 +7229,7 @@ static func view_functions_read_only_their_view(t) -> void:
  var alias_mismatch=[]
  var defaults=[]
  var calls=[]
+ var side_effects=[]
  var call_pattern=RegEx.new()
  call_pattern.compile("(?<![\\w.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
  var allowed=view_twin_names()+VIEW_TWIN_L_HELPERS+VIEW_TWIN_SHARED+VIEW_TWIN_KEYWORDS
@@ -7203,12 +7245,19 @@ static func view_functions_read_only_their_view(t) -> void:
   var code=view_twin_code(twin)
   for hit in call_pattern.search_all(code):
    if not hit.get_string(1) in allowed and not calls.has(hit.get_string(1)): calls.append(hit.get_string(1))
+  # S2a′ 加固②（dependencies.md §4.4 第 6 条）：孪生只许读 RopeArt.HOGTIE 常量，不许调用 RopeArt.*
+  # 的写入口（track／replaced／observe），也不许发事件、发反馈、推随机或碰 live state。调用面的白名单
+  # 正则看不见 g.RopeArt.track( 这类模块调用（点前的 "." 让它匹配不到函数名），所以单列一条 token 核对。
+  var hooks=code.replace("RopeArt.HOGTIE","")
+  for token in ["RopeArt.","_emit(","_equipment_feedback(","_random_index(","g.state"]:
+   if hooks.contains(token): side_effects.append(twin+":"+token)
   for field in VIEW_FIELDS:
    if code.contains("s.get(\""+field) or code.contains("s.get(\""+field+"\","):
     if not defaults.has(twin+"."+field): defaults.append(twin+"."+field)
  t.check(live_reads.is_empty(),"STATEREAD view_functions_read_only_their_view: no *_in twin appears in the frozen or derived live-state read face (a twin reading state.<field> is a live read hidden in a view function): "+str(live_reads))
  t.check(outside.is_empty() and alias_mismatch.is_empty(),"STATEREAD view_functions_read_only_their_view: every twin reads only VIEW_FIELDS through s and its declared alias field set equals the reads in its body (a missing or extra ALIAS_DECLARATIONS row is red): outside="+str(outside)+" mismatch="+str(alias_mismatch.slice(0,6)))
  t.check(calls.is_empty(),"STATEREAD view_functions_read_only_their_view: every twin body calls only other twins, the declared L helpers, the declared shared helpers and language builtins (a factory rule reached from a twin is a second entry): extra="+str(calls))
+ t.check(side_effects.is_empty(),"STATEREAD view_functions_read_only_their_view: no *_in twin calls a live-side hook -- RopeArt.* beyond the HOGTIE constant, _emit, _equipment_feedback, _random_index or live g.state (a view that counts rope, emits or feeds back is the live end's job): side_effects="+str(side_effects))
  t.check(defaults.is_empty(),"STATEREAD view_functions_read_only_their_view: twins never default a missing VIEW_FIELDS key with s.get(...) -- a view must fail loudly on a missing key: "+str(defaults))
 
 # 检查力度的证据面（根 AGENTS.md「检查力度与报告四态」）：tests/mutations.json 是「判据名 → 临时突变」的
