@@ -41,6 +41,7 @@ extends RefCounted
 #   切片封装 → _envelope()（subset()／fixture_subset() 共用）；比较器的 Game 复位 → _fresh_game()；
 #   判定接缝 → judge_subject()（被测侧）／judge_oracle()（旧预言机）。判据名与断言只由 corpus_checks() 注册；本模块不声明 static run(。
 const Replacement=preload("res://core/equipment_replacement.gd")
+const Assess=preload("res://core/equipment_replacement_assess.gd")
 const Application=preload("res://core/equipment_application.gd")
 const Game=preload("res://core/game.gd")
 const Store=preload("res://core/save_store.gd")
@@ -124,8 +125,10 @@ static func fixture_subset(data: Dictionary) -> Dictionary:
 #   judge_oracle   = 旧预言机，恒为 Replacement.plan；reoracle 只用它，compare/selfcheck 不经过它。
 # 判定布尔之外的理由字符串不作契约（旧 _legal_choices 不读它）。
 static func judge_subject(g, case: Dictionary) -> bool:
- return Replacement.plan(g,unseal(case.get("requests",[]),"requests"),
-  String(case.get("source","")),unseal(case.get("protected_ids",[]),"protected_ids")).get("ok",false)
+ # S2b: the built-in judgment is the read-only view (A0-A8); the request normalization is the
+ # same one legal_requests applies, so the corpus compares the wired path and not a variant.
+ return Assess.legal(g,Application.request_specs(unseal(case.get("requests",[]),"requests")),
+  String(case.get("source","")),unseal(case.get("protected_ids",[]),"protected_ids"))
 
 static func judge_oracle(g, case: Dictionary) -> Dictionary:
  return Replacement.plan(g,unseal(case.get("requests",[]),"requests"),
@@ -182,12 +185,14 @@ static func _case_state(data: Dictionary, case: Dictionary) -> Dictionary:
  var state=unseal(entry.get("state",{}),"state "+String(case.get("state","")))
  return state if state is Dictionary else {}
 
-# mode=compare：只比布尔（S2b 起的新判定契约）；mode=reoracle：逐项深比较旧结果。
+# mode=compare：只比布尔（S2b 起的新判定契约）；mode=compare-scope：同一比较但每例在
+# _begin_equipment_read() 打开的作用域内判定（视图必须绕开 live 索引）；mode=reoracle：逐项深比较旧结果。
 # limit<0 表示全量；自检用很小的一片验证比较器能变红。
 static func compare_judgments(data: Dictionary, mode: String="compare", limit: int=-1) -> Dictionary:
  var g=_fresh_game()
  var gamed=0
  var mismatches=[]
+ var scope_lost=[]
  for case in data.get("cases",[]):
   if limit>=0 and gamed>=limit: break
   gamed+=1
@@ -200,6 +205,14 @@ static func compare_judgments(data: Dictionary, mode: String="compare", limit: i
    var stored=old_entry(unseal(expected,"old"))
    same=_json_same(actual,stored)
    if not same: detail={"expected":stored,"actual":actual}
+  elif mode=="compare-scope":
+   var previous=g._begin_equipment_read()
+   var opened=g._equipment_read
+   var actual_ok=judge_subject(g,case)
+   if not is_same(g._equipment_read,opened) or bool(g._equipment_read.get("invalid",false)): scope_lost.append(String(case.get("case_id","")))
+   g._equipment_read=previous
+   same=actual_ok==bool(expected.get("ok",false))
+   if not same: detail={"expected":expected.get("ok",false),"actual":actual_ok}
   else:
    var actual_ok=judge_subject(g,case)
    same=actual_ok==bool(expected.get("ok",false))
@@ -207,7 +220,7 @@ static func compare_judgments(data: Dictionary, mode: String="compare", limit: i
   if not same:
    mismatches.append({"case_id":String(case.get("case_id","")),"step":row_int(case,"step"),
     "tag":String(case.get("tag","")),"state":String(case.get("state","")),"detail":detail})
- return {"ok":mismatches.is_empty(),"checked":gamed,"mismatches":mismatches,"mode":mode}
+ return {"ok":mismatches.is_empty() and scope_lost.is_empty(),"checked":gamed,"mismatches":mismatches,"mode":mode,"scope_lost":scope_lost}
 
 # 应用层结果：同一 (state, raw, spec, source) 上重放合法候选入口 legal_requests，逐项深比较返回数组。
 # 被测侧从私有 _legal_choices 改指生产入口（审查 F2），避免只比别名。

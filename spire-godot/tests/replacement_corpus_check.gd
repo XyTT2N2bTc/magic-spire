@@ -50,6 +50,8 @@ func _init() -> void:
  var result={}
  if mode=="reoracle":
   result=Cases.compare_judgments(data,"reoracle",limit)
+ elif mode=="compare-scope":
+  result=Cases.compare_judgments(data,"compare-scope",limit)
  else:
   result=Cases.compare_judgments(data,"compare",limit)
  # 应用层返回属 compare 口径（acceptance.md §4）；reoracle 只验旧预言机在判定例上未漂移。
@@ -60,6 +62,8 @@ func _init() -> void:
  print("CORPUS RESULT mode=%s ok=%s checked=%d mismatches=%d application_checked=%d application_mismatches=%d" % [mode,str(ok),result.checked,result.mismatches.size(),application_result.checked,application_result.mismatches.size()])
  if not result.mismatches.is_empty():
   print("CORPUS FIRST DIFF "+JSON.stringify(result.mismatches[0]))
+ if not result.get("scope_lost",[]).is_empty():
+  print("CORPUS SCOPE LOST "+str(result.scope_lost.slice(0,5)))
  if not application_result.mismatches.is_empty():
   print("CORPUS FIRST APPLICATION DIFF "+JSON.stringify(application_result.mismatches[0]))
  quit(0 if ok else 1)

@@ -1,5 +1,5 @@
 extends RefCounted
-
+const View=preload("res://core/equipment_replacement_view.gd")
 # Pure planning stages of the replacement transaction. The transaction
 # (core/equipment_replacement.gd) and, from S2b, the read-only judgment call these
 # same functions, so this module is the single implementation of normalization,
@@ -146,18 +146,19 @@ static func sets(units: Array, remaining: Dictionary, chosen: Array, search: Dic
   sets(units,next,chosen+[i],search)
 
 # Every legal way to keep affected links on the new anchors. `anchors` are the
-# incoming pieces; `link_anchors` and `live_links` are the validator's anchor set
+# incoming pieces; `s` is the container-shaped lookup view (the transaction passes g.state,
+# the judgment its device view); `link_anchors` and `live_links` are the validator's anchor set
 # and current link list, hoisted by the caller: the transaction's link set does not
 # change during one search, so the old per-candidate reads return the same value.
-static func transfer_options(g, links: Array, anchors: Array, link_anchors: Array, live_links: Array) -> Array:
+static func transfer_options(g, s: Dictionary, links: Array, anchors: Array, link_anchors: Array, live_links: Array) -> Array:
  var options=[]
  for link in links:
   var choices=[]
   var ends=[]
   for i in range(2):
-   var old=g._equipment(link.ends[i])
+   var old=g._equipment_in(s,link.ends[i])
    ends.append([old] if not old.is_empty() else anchors.filter(func(e):return link.contact_points[i] in g.Links.anchor_points(e,link.slots[i])))
-  if link.slots.all(func(slot):return g._sealed_reason(slot)==""):
+  if link.slots.all(func(slot):return g._sealed_reason_in(s,slot)==""):
    for a in ends[0]:
     for b in ends[1]:
      var candidate=link.duplicate(true)
@@ -360,54 +361,78 @@ static func factory_args(g, r: Dictionary) -> Dictionary:
   "special_install":
    return {"kind":"special_install","type":r.type,"slot":r.slot,"tier":r.get("tier",0)}
  return {}
+# S2b read-only judgment (A0-A8). legal() returns the verdict Replacement.plan would return, over
+# the device view instead of a duplicated state: the shared stages plus the transaction's trial
+# step list evaluated on the view. It never writes g.state, never copies or swaps a snapshot,
+# never emits and never advances a live counter.
+static func legal(g, requests: Array, source: String, protected_ids: Array=[]) -> bool:
+ var normalized=normalize(g,requests)
+ if not normalized.ok: return false
+ var specs=normalized.requests
+ var required_result=mandatory(g,g.state.special_equipment,specs,protected_ids)
+ if not required_result.ok: return false
+ var required=required_result.units
+ if required.is_empty():
+  var direct=trial(g,g.state.seed,{"binding":int(g.state.rng.binding)},specs,source,[])
+  if direct.get("ok",false): return not (direct.removed+direct.lost_links).any(func(id):return id in protected_ids)
+ var prototypes=[];var new_pieces=[]
+ var empty=View.empty(g,g.state.seed,{"binding":int(g.state.rng.binding)})
+ for r in specs:
+  var item=View.install(g,empty,factory_args(g,r),source)
+  if item.is_empty(): return false
+  new_pieces.append_array(pieces(item));prototypes.append(item)
+ for unit in required:
+  var old=unit.pieces[0]
+  var family=g.SpecialEquipment.exclusive_family(old.type)
+  var incoming=new_pieces.filter(func(piece):return g.SpecialEquipment.is_special(piece) and g.SpecialEquipment.exclusive_family(piece.type)==family)
+  if incoming.is_empty() or replacement_value(g,incoming[0])<replacement_value(g,old): return false
+ var demand=counts(g,new_pieces)
+ var existing=counts(g,g.physical_pieces()+g.state.special_equipment)
+ var shortfall=deficit(g,demand,existing,new_pieces,required)
+ var candidates=units(g,g.state.equipment,g.state.special_equipment,g.state.composites,shortfall)
+ candidates=removable(g,candidates,protected_ids,required.map(func(unit):return unit.id))
+ if not comparison_possible(g,candidates+required,shortfall,prototypes): return false
+ var search={"minimum":candidates.size()+1,"sets":[],"seen":{}}
+ sets(candidates,shortfall,[],search)
+ for chosen in search.sets:
+  var selected=required.duplicate(true)
+  for i in chosen: selected.append(candidates[i])
+  var attempt=trial(g,g.state.seed,{"binding":int(g.state.rng.binding)},specs,source,selected,shortfall)
+  if attempt.get("ok",false) and not (attempt.removed+attempt.lost_links).any(func(id):return id in protected_ids): return true
+ return false
 
-# Flattened loadout records for identity comparison: a composite carries its components,
-# a binding carries its generated record, a host carries its shoulder straps. Identity and
-# provenance fields are stripped so a regenerated id alone cannot make a fresh copy look
-# like different equipment.
-static func loadout_records(snapshot: Dictionary) -> Array:
- var records=[]
- for item in snapshot.equipment+snapshot.special_equipment+snapshot.links+snapshot.composites:
-  var record=item.duplicate(true)
-  records.append_array(record.get("components",[]))
-  record.erase("components")
-  if record.get("binding",{}).has("id"):
-   records.append(record.binding)
-   record.binding={"kind":record.binding.kind}
-  if record.has("shoulders"):
-   records.append_array(record.shoulders.pieces)
-   record.shoulders.erase("pieces")
-   record.shoulders.erase("source")
-  records.append(record)
- return records
-
-static func record_facts(record: Dictionary) -> Dictionary:
- var facts=record.duplicate(true)
- # Identity and provenance alone do not make a fresh copy different equipment.
- for key in ["id","source","root_id","parent_id","shoulder_host","attached_to","ends"]: facts.erase(key)
- return facts
-
-static func same_loadout(before: Dictionary, after: Dictionary) -> bool:
- var old_records=loadout_records(before)
- var new_records=loadout_records(after)
- if old_records.size()!=new_records.size(): return false
- var unmatched=old_records.duplicate()
- var identity={}
- for record in new_records:
-  var facts=record_facts(record)
-  var index=unmatched.find_custom(func(old):return record_facts(old)==facts)
-  if index<0: return false
-  identity[record.id]=unmatched[index].id
-  unmatched.remove_at(index)
- # Keep the complete attachment/link graph, normalizing only regenerated IDs.
- var expected=old_records.duplicate(true)
- for record in expected: record.erase("source")
- for record in new_records:
-  record.erase("source")
-  for key in ["id","root_id","parent_id","shoulder_host","attached_to"]:
-   if record.has(key): record[key]=identity.get(record[key],record[key])
-  if record.has("ends"): record.ends=record.ends.map(func(id):return identity.get(id,id))
-  var index=expected.find(record)
-  if index<0: return false
-  expected.remove_at(index)
- return true
+# O1 view skeleton: one set trial on the view; `removed_units` and the capacity `shortfall`, with
+# the transaction keeping the reasons; this end reports the verdict and the two protected id sets.
+static func trial(g, seed_value: int, counters: Dictionary, specs: Array, source: String, removed_units: Array, shortfall: Dictionary={}) -> Dictionary:
+ var view=View.live(g,seed_value,counters)
+ var old_targets=g.action_targets()
+ var impacted=View.after_removal(g,view,removed_units)
+ var installed=[]
+ for r in specs:
+  var item=View.install(g,view,factory_args(g,r),source)
+  if item.is_empty(): return {}
+  installed.append(item)
+ var anchors=[]
+ for item in installed: anchors.append_array(pieces(item))
+ var transfers=transfer_options(g,view,impacted,anchors,g.link_anchors_in(view),view.links)
+ var shoulder_losses=[]
+ var live_ids=g.action_targets_in(view).map(func(e):return e.id)
+ var removed=old_targets.filter(func(e):return e.id not in live_ids and e.template!="link_rope").map(func(e):return e.id)
+ for e in old_targets:
+  if e.id in removed and g.Equipment.is_shoulder(e): shoulder_losses.append(e.id)
+ var transfer={};var comparison={}
+ for option in transfers:
+  var checked=compare(g,removed_units,installed,shortfall,g.state.links,option.lost+shoulder_losses)
+  if checked.ok and (comparison.is_empty() or checked.score<comparison.score):
+   transfer=option;comparison=checked
+ if comparison.is_empty(): return {}
+ var lost=transfer.lost+shoulder_losses
+ view.links.append_array(transfer.kept)
+ View.cleanup(g,view)
+ for e in view.equipment:
+  if g.Equipment.validate(e)!="" or g.Binding.validate(g,e)!="": return {}
+ for root in view.composites: if g.Composites.validate(root)!="": return {}
+ if g.Shoulders.validate_in(g,view.equipment,view.composites)!="" or g.SpecialEquipment.validate(view.special_equipment)!="" or g._capacity_issue(g.physical_pieces_in(view))!="": return {}
+ for link in view.links: if g.Links.validate(link,g.link_anchors_in(view),view.links)!="": return {}
+ if not removed_units.is_empty() and View.same_loadout(g.state,view): return {}
+ return {"ok":true,"removed":removed,"lost_links":lost,"score":comparison.score}

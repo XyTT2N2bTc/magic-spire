@@ -175,13 +175,13 @@
     }
   },
   "generated_from": {
-    "cells": 1288,
+    "cells": 1303,
     "fields": 121,
-    "files": 141,
-    "inputs_sha256": "f175079801529ef949a31b36f4c519c11b9583d341fe84d635b85f1900fcc271",
-    "sites": 2116,
+    "files": 142,
+    "inputs_sha256": "3ea7106b45707888c74c486ee9bae108e61eaafd7b2c9726734cc6aa853dfd45",
+    "sites": 2137,
     "ui_reads": 0,
-    "whole_state": 72
+    "whole_state": 75
   },
   "owners": {
     "core/action_replay.gd::payload": {
@@ -695,6 +695,31 @@
     },
     "core/equipment_replacement.gd::execute": {
       "version": 1
+    },
+    "core/equipment_replacement_assess.gd::legal": {
+      "composites": 1,
+      "equipment": 1,
+      "rng": 3,
+      "seed": 3,
+      "special_equipment": 3
+    },
+    "core/equipment_replacement_assess.gd::trial": {
+      "links": 1
+    },
+    "core/equipment_replacement_view.gd::after_removal": {
+      "links": 1
+    },
+    "core/equipment_replacement_view.gd::empty": {
+      "next_composite": 1,
+      "next_equipment": 1
+    },
+    "core/equipment_replacement_view.gd::live": {
+      "composites": 1,
+      "equipment": 1,
+      "links": 1,
+      "next_composite": 1,
+      "next_equipment": 1,
+      "special_equipment": 1
     },
     "core/first_turn_control.gd::_eligible": {
       "combat": 1,
@@ -2642,11 +2667,17 @@
     {
       "count": 1,
       "file": "core/equipment_replacement.gd",
+      "function": "_transfer",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_replacement.gd",
       "function": "_trial",
       "kind": "duplicate"
     },
     {
-      "count": 1,
+      "count": 2,
       "file": "core/equipment_replacement.gd",
       "function": "_trial",
       "kind": "pass"
@@ -2656,6 +2687,12 @@
       "file": "core/equipment_replacement.gd",
       "function": "force_special",
       "kind": "duplicate"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_replacement_assess.gd",
+      "function": "trial",
+      "kind": "pass"
     },
     {
       "count": 2,

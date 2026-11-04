@@ -145,7 +145,7 @@ static func _exercise(g, case: Dictionary) -> Dictionary:
  Assess.assign(g,[row],g.state.equipment,{},0,{},{},[])
  ran.sets=true;ran.compare=true;ran.assign=true
  if not g.state.links.is_empty():
-  Assess.transfer_options(g,g.state.links,owned,g.link_anchors(),g.state.links)
+  Assess.transfer_options(g,g.state,g.state.links,owned,g.link_anchors(),g.state.links)
   ran.transfer_options=true
  return ran
 
@@ -282,10 +282,17 @@ static func random_draw_matches_random_index(t) -> void:
  t.check(untouched.is_empty(),"ASSESS random_draw_matches_random_index: a local counter dictionary is the only thing _random_draw advances -- state.rng is byte-identical before and after (domains=%d sizes=1,2,7): %s" % [domains.size(),str(untouched)])
  t.check(problems.is_empty() and checked==domains.size()*3,"ASSESS random_draw_matches_random_index: the live entry and the shared draw return the same value and advance exactly one counter step for every registered domain and size in {1,2,7} (size<=1 does not advance): checked=%d/%d %s" % [checked,domains.size()*3,str(problems.slice(0,6))])
 
-# design §5「编排登记」：O3 的 live 端已存在（遍历顺序由 ARCH factory_records_have_one_builder 钉住），
-# 视图端 cleanup_model 属 S2b。本行＝[编号, live 锚点, 视图锚点, 共用规则名单, 视图端是否尚未实现, live 独有副作用]：
+# design §5「编排登记」：每行＝[编号, live 锚点, 视图锚点, 共用规则名单, 视图端是否尚未实现, live 独有副作用]。
 # 名单非空且与 live 骨架的共用谓词调用双向相等；视图端出现须调同一名单并同批翻标记；第 6 列在视图端出现即红。
-const PARALLEL_ORCHESTRATIONS=[["O3","core/game.gd::_cleanup","core/equipment_replacement_assess.gd::cleanup_model",["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],true,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback("]]]
+# S2b 扩为多行（O1 判定试算、O3 清理骨架）并按 A47 做逐行覆盖核对：每行在两端都必须带 `# O<n>` 标记，
+# 标记集合与表的行号集合双向相等——删掉一行而表非空、或加了视图骨架却漏登记，都会红。
+const PARALLEL_ORCHESTRATIONS=[
+ ["O1","core/equipment_replacement.gd::_trial","core/equipment_replacement_assess.gd::trial",
+  ["action_targets(","pieces(","transfer_options(","compare(","same_loadout(","Equipment.validate(","Binding.validate(","Composites.validate(","Shoulders.validate","SpecialEquipment.validate(","Links.validate(","_capacity_issue(","link_anchors"],
+  false,["_emit(","RopeArt.track(","_equipment_feedback(","Pressure.","Cards.","g._cleanup(","g._install("]],
+ ["O3","core/game.gd::_cleanup","core/equipment_replacement_view.gd::cleanup",
+  ["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],
+  false,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback("]]]
 
 static func _source(relative: String) -> String:
  var file=FileAccess.open("res://"+relative,FileAccess.READ)
@@ -317,24 +324,63 @@ static func _shared_rule_calls(body: String) -> Array:
   if not hit.get_string(1) in names and code.begins_with("return ") and not code.contains("\n") and not code.contains("_in(") and not code.contains("state."): names.append(hit.get_string(1))
  names.sort(); return names
 
+# 行内 `Assess.<阶段>(` 的符号集：非 game.gd 侧的 live 骨架（O1 事务试算）用它与名单双向核对。
+# failure 是失败形状构造，不是规则，单独豁免。
+static func _assess_calls(body: String) -> Array:
+ var names=[]; var call=RegEx.new()
+ if call.compile("Assess\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")!=OK: return names
+ for hit in call.search_all(body):
+  if not hit.get_string(1) in names: names.append(hit.get_string(1))
+ names.sort(); return names
+
+# 视图端骨架的 `# O<n>` 登记标记（A47 的逐行覆盖锚点）：两端都必须带标记，标记集合与行号集合双向相等。
+static func _orchestration_marks() -> Array:
+ var marks=[]
+ var mark=RegEx.new()
+ if mark.compile("(?m)^\\s*# (O[0-9]+)\\b")!=OK: return marks
+ for relative in ["core/game.gd","core/equipment_replacement.gd","core/equipment_replacement_assess.gd","core/equipment_replacement_view.gd"]:
+  for hit in mark.search_all(_source(relative)):
+   if not hit.get_string(1) in marks: marks.append(hit.get_string(1))
+ marks.sort(); return marks
+
 static func parallel_orchestrations_call_the_shared_rules(t) -> void:
  var malformed=[]; var uncalled=[]; var pending=[]; var aligned=[]; var live_only=[]
  for row in PARALLEL_ORCHESTRATIONS:
   if row.size()<6: malformed.append("row-size"); continue
   var declared=Array(row[3]).duplicate(); declared.sort(); if declared.is_empty() or Array(row[5]).is_empty(): malformed.append(String(row[0])+":row")
-  var live=_function_code(String(row[1])); var called=_shared_rule_calls(live) if live.strip_edges()!="" else []
-  if live.strip_edges()=="" or called!=declared: uncalled.append(String(row[1])+": called="+str(called)+" declared="+str(declared))
-  var view=_function_code(String(row[2])); var declare_pending=bool(row[4])
+  var live=_function_code(String(row[1])); var declare_pending=bool(row[4])
+  if live.strip_edges()=="": malformed.append(String(row[1])+":missing")
+  elif String(row[1]).begins_with("core/game.gd"):
+   # live 端是 game.gd 的清理骨架：裸调用的单行纯谓词必须与名单双向相等。
+   var called=_shared_rule_calls(live)
+   if called!=declared: uncalled.append(String(row[1])+": called="+str(called)+" declared="+str(declared))
+  else:
+   # live 端是事务试算：名单项须真被调用，且它调到的每个共用阶段都在名单内（failure 除外）。
+   for token in declared:
+    if not live.contains(String(token)): uncalled.append(String(row[1])+":"+String(token))
+   for name in _assess_calls(live):
+    if name!="failure" and not declared.has(name+"("): uncalled.append(String(row[1])+":undeclared "+name)
+  var view=_function_code(String(row[2]))
   if view.strip_edges()=="":
    if not declare_pending: uncalled.append(String(row[2])+":missing")
   else:
    if declare_pending: pending.append(String(row[0])+" -> "+String(row[2]))
    for name in declared:
-    if not view.contains(String(name)+"("): uncalled.append(String(row[2])+":"+String(name))
+    # 名单项既可以是函数名（补 "("）也可以是两端共有的前缀（例如 Shoulders.validate 对 live 的
+    # validate( 与视图的 validate_in(）；两端都必须出现，删掉调用即红。
+    if not view.contains(String(name)+"(") and not view.contains(String(name)): uncalled.append(String(row[2])+":"+String(name))
    for token in row[5]:
     if view.contains(String(token)): live_only.append(String(row[2])+":"+String(token))
+   if not _source(String(row[2]).split("::")[0]).contains("# "+String(row[0])): uncalled.append(String(row[2])+":mark")
    aligned.append(String(row[0]))
- print("PARALLEL ORCHESTRATIONS aligned=%s pending_view=%s rows=%d" % [str(aligned),str(pending),PARALLEL_ORCHESTRATIONS.size()])
- t.check(not PARALLEL_ORCHESTRATIONS.is_empty() and malformed.is_empty() and uncalled.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: the table is never empty, every row declares a shared-rule list and its live-only side effects, and the live end of each row calls exactly the shared cleanup predicates its row lists (a deleted row, an emptied list, a deleted call or an unlisted predicate is red): rows="+str(PARALLEL_ORCHESTRATIONS.size())+" malformed="+str(malformed)+" uncalled="+str(uncalled))
+ var rows=[]
+ for row in PARALLEL_ORCHESTRATIONS: rows.append(String(row[0]))
+ rows.sort()
+ var marks=_orchestration_marks()
+ print("PARALLEL ORCHESTRATIONS aligned=%s pending_view=%s rows=%d marks=%s" % [str(aligned),str(pending),PARALLEL_ORCHESTRATIONS.size(),str(marks)])
+ t.check(not PARALLEL_ORCHESTRATIONS.is_empty() and malformed.is_empty() and uncalled.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: the table is never empty, every row declares a shared-rule list and its live-only side effects, and each end of a row calls the rules its row lists (an emptied list, a deleted call or an unlisted rule is red): rows="+str(PARALLEL_ORCHESTRATIONS.size())+" malformed="+str(malformed)+" uncalled="+str(uncalled))
  t.check(live_only.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: the view end of an orchestration never runs a side effect that belongs to the live end alone (rope counting, events, pressure and card settlement, equipment feedback): live_only="+str(live_only))
- t.check(pending.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: a row declared as pending on the view side must not have that side yet -- S2b must flip the marker in the same batch that adds cleanup_model, so the two skeletons cannot silently drift: appeared="+str(pending))
+ t.check(pending.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: a row declared as pending on the view side must not have that side yet -- S2b flips the marker in the same batch that adds the view skeleton, so the two skeletons cannot silently drift: appeared="+str(pending))
+ # A47 逐行覆盖：每个登记标记都有一行、每行都在视图端带标记；删一行而表非空同样红。
+ t.check(marks==rows and aligned.size()==PARALLEL_ORCHESTRATIONS.size(),"ASSESS parallel_orchestrations_call_the_shared_rules: every registered orchestration is checked row by row and the view skeletons carry exactly the registered marks (deleting a row while the table stays non-empty, or adding a view skeleton without a row, is red): rows="+str(rows)+" marks="+str(marks)+" aligned="+str(aligned.size()))
+

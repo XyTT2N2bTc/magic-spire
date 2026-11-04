@@ -134,6 +134,12 @@
   `ALIAS_DECLARATIONS` 16 个函数（较上列 6 个新增 10 个 `_in` 孪生），`alias_fields` 93；`schema_strings` 不变。
   含义：18 个 `_in` 孪生把原函数的直读搬到别名面（cells −13、sites −19），每个 live 委托行交出整份 `state`（`pass` ＋19）；
   S2a-2 的 `Shoulders.attached` 委托 `attached_in(g,state,host)` 再 +1 处 `pass`（新增行恰为委托函数，review 核对）。
+- S2b（只读判定接入）后重生成的现行统计：`files=142`、`fields=121`、`cells=1303`、`sites=2137`、
+  `whole_state` 75 处（pass 65／duplicate 6／iterate 1／has 1／get_variable 1），聚合 60 条记录；
+  `ALIAS_DECLARATIONS` 16 个函数、`alias_fields` 93、`schema_strings` 不变。
+  含义：新增扫描面是视图模块与判定入口——`assess.legal` 读 `equipment`／`composites`／`special_equipment`（各 1）、
+  `seed` 与 `rng`（各 3，本地计数从 live 计数取值，不推进），`assess.trial` 与 `view.after_removal` 各读 `links` 1；
+  `view.live`／`view.empty` 交出整份容器面（`pass` ＋2，`whole_state` ＋3）。
 
 ## 残差与仍靠人审（无机械判据）
 

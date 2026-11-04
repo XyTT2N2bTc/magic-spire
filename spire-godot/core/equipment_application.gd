@@ -49,9 +49,9 @@ static func choose(g, spec: Dictionary, source: String, domain: String="enemy") 
 
 # Same legality as execution, without selecting or freezing a random outcome.
 static func can_apply(g, spec: Dictionary, source: String) -> bool:
- return not _choice_bands(g,spec,source).is_empty()
+ return not _choice_bands(g,spec,source,true).is_empty()
 
-static func _choice_bands(g, spec: Dictionary, source: String) -> Array:
+static func _choice_bands(g, spec: Dictionary, source: String, first_only: bool=false) -> Array:
  if _spec_reason(spec)!="" or spec.get("count",1)==0: return []
  var bands=[]
  var mixed=not spec.get("composites",[]).is_empty()
@@ -59,20 +59,22 @@ static func _choice_bands(g, spec: Dictionary, source: String) -> Array:
  # Try all permitted empty positions before considering any replacement.
  if mixed and spec.get("replace",false):
   var plain=spec.duplicate(true);plain.replace=false
-  bands=_choice_bands(g,plain,source)
+  bands=_choice_bands(g,plain,source,first_only)
   if not bands.is_empty(): return bands
  for profile in spec.get("profiles",[{}]):
   var current=spec.duplicate(true)
   current.merge(profile,true)
-  var choices=_choices(g,current,source)
+  var choices=_choices(g,current,source,first_only)
   if choices.is_empty() and not spec.get("fallback_templates",[]).is_empty():
    current.templates=spec.fallback_templates
-   choices=_choices(g,current,source)
-  if not choices.is_empty(): bands.append(choices)
+   choices=_choices(g,current,source,first_only)
+  if not choices.is_empty():
+   bands.append(choices)
+   if first_only: return bands
  if mixed:
   var current=spec.duplicate(true)
   current.pool="composite";current.templates=spec.composites
-  var choices=_choices(g,current,source)
+  var choices=_choices(g,current,source,first_only)
   if not choices.is_empty(): bands.append(choices)
  return bands
 
@@ -202,7 +204,7 @@ static func _piece_spec(spec: Dictionary, index: int, ready_used: int) -> Dictio
  result.tier=3 if spec.get("ready_layers",0)>ready_used else (tiers[index] if index<tiers.size() else spec.get("tier",2))
  return result
 
-static func _choices(g, spec: Dictionary, source: String) -> Array:
+static func _choices(g, spec: Dictionary, source: String, first_only: bool=false) -> Array:
  var raw=_raw(g,spec,source)
  if not spec.get("excluded_points",[]).is_empty():
   raw=raw.filter(func(request):
@@ -216,17 +218,17 @@ static func _choices(g, spec: Dictionary, source: String) -> Array:
  var preferred_slots=spec.get("preferred_slots",[])
  for slot in preferred_slots:
   var band=raw.filter(func(p):return slot in _slots(p))
-  var found=legal_requests(g,band,spec,source)
+  var found=legal_requests(g,band,spec,source,first_only)
   if found.is_empty() and spec.get("replace",false) and spec.get("count",1)>1 and spec.get("pool","ordinary")=="ordinary":
    found=_groups(g,raw,spec,source).filter(func(group):return group.requests.any(func(p):return slot in _slots(p)))
   if not found.is_empty(): return O.preferred(g,found)
- return O.preferred(g,legal_requests(g,raw,spec,source))
+ return O.preferred(g,legal_requests(g,raw,spec,source,first_only))
 
 # The single legal-candidate entry: choose and can_apply reach it through
-# _choice_bands -> _choices, and _choices calls it for the preferred-slot band and
-# the final band. A replacement feasibility check outside this function is a second
-# entry; the replace branch still plans through _replacement_plan until S2b.
-static func legal_requests(g, raw: Array, spec: Dictionary, source: String) -> Array:
+# _choice_bands -> _choices. The replace branch judges through Assess.legal for a single
+# request and for every random variant; first_only is can_apply's existence read of the
+# same path and never runs a second judgment.
+static func legal_requests(g, raw: Array, spec: Dictionary, source: String, first_only: bool=false) -> Array:
  var normal=raw.filter(func(p):return _request_reason(g,p,true,spec.get("protected_ids",[]))=="")
  if not normal.is_empty(): return normal
  if not spec.get("replace",false): return []
@@ -238,14 +240,23 @@ static func legal_requests(g, raw: Array, spec: Dictionary, source: String) -> A
    var available=[]
    for variant in E.MATERIALS[E.TEMPLATES[request.template].material][request.grade].size():
     var concrete=request.duplicate(true);concrete.variant=variant
-    if _replacement_plan(g,[concrete],source,spec.get("protected_ids",[])).get("ok",false): available.append(variant)
+    if Assess.legal(g,request_specs([concrete]),source,spec.get("protected_ids",[])): available.append(variant)
    if not available.is_empty():
     var option=request.duplicate(true);option.variant=available[0];option.variant_choices=available
     options.append(option)
-  elif _replacement_plan(g,[request],source,spec.get("protected_ids",[])).get("ok",false): options.append(request)
+  elif Assess.legal(g,request_specs([request]),source,spec.get("protected_ids",[])): options.append(request)
+  if first_only and not options.is_empty(): return options
+ if first_only: return options
  if options.is_empty() and spec.get("pool","ordinary")=="ordinary" and spec.get("count",1)>1:
   options.append_array(_groups(g,raw,spec,source))
  return options
+
+# The one request normalization both replace paths share (assembly part expansion).
+static func request_specs(requests: Array) -> Array:
+ var normalized=requests.duplicate(true)
+ for request in normalized:
+  if request.kind=="assembly": request.parts=_overrides(request)
+ return normalized
 
 static func _raw(g, spec: Dictionary, source: String) -> Array:
  var grade=spec.get("grade",2)
@@ -361,10 +372,7 @@ static func _request_reason(g, p: Dictionary, placement: bool=true, protected_id
 
 static func _replacement_plan(g, requests: Array, source: String, protected_ids: Array=[]) -> Dictionary:
  # Replacement.plan owns the scratch state and feedback isolation.
- var normalized=requests.duplicate(true)
- for request in normalized:
-  if request.kind=="assembly": request.parts=_overrides(request)
- return Replacement.plan(g,normalized,source,protected_ids)
+ return Replacement.plan(g,request_specs(requests),source,protected_ids)
 
 # A composite can require several individually impossible ordinary requests. Build
 # its entire real point coverage first and let Replacement decide capacity, strength,

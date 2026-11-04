@@ -10,6 +10,7 @@ const EventCases=preload("res://tests/event_cases.gd")
 # S1 的评估模块也由本套件持有：既给索引一条真实边（否则新核心文件落进 blind），
 # 也让「模块可加载、失败形状不变」成为运行期判据而不是只靠源码扫描。
 const Assess=preload("res://core/equipment_replacement_assess.gd")
+const View=preload("res://core/equipment_replacement_view.gd")
 
 # docs/spec/ondemand-copy.md「oracle 三条（必须换判据）」: frozen hashes recomputed with
 # unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for copy_baseline_fixture.
@@ -6653,7 +6654,8 @@ static func connections_has_one_delegate(t) -> void:
 # mandatory／deficit／removable／factory_args 是事务内联段落的显式抽名，故只进调用点计数表。
 # 每条判据的敏感性（改相反语义→本具名检查红→逐字节还原）登记在片报告。
 const ASSESS_SOURCE="core/equipment_replacement_assess.gd"
-const ASSESS_ALLOWED_EDGES=["res://data/equipment.gd","res://data/composites.gd","res://data/special_equipment.gd","res://data/links.gd","res://data/balance.gd","res://core/shoulder_links.gd","res://core/torso_binding.gd","res://core/witch_character.gd"]
+const VIEW_SOURCE="core/equipment_replacement_view.gd"
+const ASSESS_ALLOWED_EDGES=["res://data/equipment.gd","res://data/composites.gd","res://data/special_equipment.gd","res://data/links.gd","res://data/balance.gd","res://core/shoulder_links.gd","res://core/torso_binding.gd","res://core/witch_character.gd","res://core/equipment_replacement_view.gd"]
 const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replacement.gd","res://ui","res://tests"]
 # assess 对传入 g 只许调用 dependencies.md「依赖方向／禁止」节点名的只读实例方法；表外即红
 # （任何写入方法，如 _cleanup／_commit_changes／_emit，都落在表外）。_composite_body／
@@ -6664,28 +6666,33 @@ const ASSESS_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replac
 # 宽出的许可项等于永久豁免一个写入路径，且会被 S2b 扩表照抄。处理＝反向核对：判据要求表内每一项在
 # assess 里都真被 g.<方法>( 调用，多一项即红；核对当场查出这两项并已移出表。选反向核对而非只瘦身一次：
 # 瘦身只对今天成立，反向核对让下次漂移（删掉调用、或 S2b 扩表时抄进空位）同样红。
-const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_composite_body","_equipment","_outer","_prepare_installation","_sealed_reason","_tier_durability","cursed_eyes","cursed_plate","tier"]
+const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_capacity_issue","_composite_body","_equipment_in","_outer","_prepare_installation","_sealed_reason_in","_tier_durability","action_targets","action_targets_in","cursed_eyes","cursed_plate","link_anchors_in","physical_pieces","physical_pieces_in","tier"]
 # M1（design rev3.1 §4.1）：经 g 常量的模块调用 g.<模块>.<函数>( 的白名单；上面的实例方法白名单只匹配
 # g.<方法>(，看不见这一类。数据模块（data/*，分层保证不调用 core）整模块放行，"*" 即整模块；core 模块逐函数放行：
 # RopeArt 只许 locked（只读 phase／enemies／seal／material），track／replaced／observe 等写入者不得进入判定。
-# S2b 追加 Binding／Shoulders／Character 的只读函数，并以同一张表约束视图模块。
-const ASSESS_MODULE_CALLS={"Equipment":["*"],"SpecialEquipment":["*"],"Composites":["*"],"Links":["*"],"B":["*"],"RestraintValue":["*"],"RopeArt":["locked"]}
+# S2b 追加 Binding／Shoulders 的只读函数，并以同一张表约束视图模块（tests/replacement_view_cases.gd::
+# view_dependency_edges 读本表）：预览只经 resolve／cancels 与 pair_pieces／eligible／attached_in／
+# released_with_host；validate／validate_in 只校验。写入者（track／replaced／cleanup／fill）不得进入。
+const ASSESS_MODULE_CALLS={"Equipment":["*"],"SpecialEquipment":["*"],"Composites":["*"],"Links":["*"],"B":["*"],"RestraintValue":["*"],"RopeArt":["locked"],"Binding":["cancels","resolve","validate"],"Shoulders":["attached_in","eligible","pair_pieces","released_with_host","validate_in"]}
 # 判定域既不读也不写的运行时字段：事务边界字段（_rope_trial／_resource_feedback，Replacement.plan 保存并恢复）与
 # 绳艺观察防重入标记（_rope_observing）。判定只经 RopeArt.locked 读 phase／enemies，不碰这三者。
 const ASSESS_RUNTIME_FIELD_TOKENS=["_rope_trial","_rope_observing","_resource_feedback"]
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。comparison_value 随上游改名为 replacement_value：
 # 新旧两名都不得在 replacement 留函数体（只看旧名会漏掉误留的上游 replacement_value 原体）。
-const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","replacement_value"],["replacement_value","replacement_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"],["_loadout_records","loadout_records"],["_record_facts","record_facts"],["_same_loadout","same_loadout"]]
+const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","replacement_value"],["replacement_value","replacement_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"]]
+# S2b（D12）：loadout 身份家族随视图模块迁出 assess；本表是它的源侧副本，由 tests/replacement_view_cases.gd::
+# view_migrated_functions_have_one_implementation 双向核对（定义在 view、assess 与 replacement 不留函数体）。
+const VIEW_MIGRATED_PURE_FUNCTIONS=[["_loadout_records","loadout_records"],["_record_facts","record_facts"],["_same_loadout","same_loadout"]]
 # S2a′ 加固第二轮：判定自有、从未从事务迁来的阶段函数。与上表合起来必须正好解释 assess 的全部顶层
 # 函数——这是迁移表的源侧另一半；否则清空迁移表时「assess 定义了每个迁移函数」与「事务不留第二份实现」
 # 两条都会空转全绿。新增判定阶段函数时登记在这里，不登记即红（不是永久豁免：函数也得真的存在）。
-const ASSESS_JUDGMENT_FUNCTIONS=["failure","mandatory","deficit","removable","factory_args"]
+const ASSESS_JUDGMENT_FUNCTIONS=["failure","mandatory","deficit","removable","factory_args","legal","trial"]
 # replacement 里允许保留旧名的唯一适配器：旧名 -> [assess 名, 期望的参数原文（按顺序）]。
 # 体内只许这一条 return，参数表外即红：加本地变量、截断返回值、换参数都是第二份实现。
-const REPLACEMENT_ADAPTERS={"_transfer":["transfer_options",["g","links","anchors","g.link_anchors()","g.state.links"]],"replacement_value":["replacement_value",["g","piece"]]}
+const REPLACEMENT_ADAPTERS={"_transfer":["transfer_options",["g","g.state","links","anchors","g.link_anchors()","g.state.links"]],"replacement_value":["replacement_value",["g","piece"]]}
 # replacement 调 assess 的完整符号集与每个符号的期望调用点数：删一条接线或加一条未声明的
 # 调用即红。failure 是唯一失败形状的构造入口（replacement 自身不再声明 _fail）。
-const REPLACEMENT_ASSESS_CALL_SITES={"capacity_points":1,"compare":1,"comparison_possible":1,"counts":2,"deficit":1,"factory_args":1,"failure":22,"mandatory":1,"normalize":1,"pieces":2,"removable":1,"replacement_value":4,"same_loadout":1,"sets":1,"transfer_options":2,"units":1}
+const REPLACEMENT_ASSESS_CALL_SITES={"capacity_points":1,"compare":1,"comparison_possible":1,"counts":2,"deficit":1,"factory_args":1,"failure":22,"mandatory":1,"normalize":1,"pieces":2,"removable":1,"replacement_value":4,"sets":1,"transfer_options":2,"units":1}
 
 # 四条判据都是公开名并逐条登记 tests/mutations.json（suite=architecture）：mutation_judgment_universe
 # 只收公开函数，下划线命名会让它们绕过登记（S1 实现的 reserved_judgments）。判据消息里的 ARCH 名不变，
@@ -6886,6 +6893,13 @@ static func assess_never_restates_factory_rules(t) -> void:
  var ghost=FACTORY_RULE_TOKENS.filter(func(token):return not source_code("core/game.gd").contains(String(token)))
  t.check(not scanned.is_empty() and not FACTORY_RULE_TOKENS.is_empty() and ghost.is_empty() and leaked.is_empty(),"ARCH assess_never_restates_factory_rules: assess restates no admission reason text, record id prefix or random constant of the shared factory functions (a copied rule in the judgment module is a second implementation), and every declared extra constant still occurs in game.gd: leaked="+str(leaked)+" carriers="+str(scanned)+" ghost="+str(ghost))
  t.check(tombstone.is_empty(),"ARCH assess_never_restates_factory_rules: every declared byte-identical echo still sits exactly in its registered function (a stale row would silently exempt the whole phrase): stale="+str(tombstone))
+ # S2b（D12）：视图模块只经共用记录构造与预览分派造件；工厂准入文本、记录 id 前缀与耐久档表抄进视图即红。
+ var view=source_code(VIEW_SOURCE)
+ var view_leaked=[]
+ for literal in literals.keys():
+  if view.contains(String(literal)): view_leaked.append(literal)
+ if view.contains(FACTORY_REASON_DURABILITY): view_leaked.append(FACTORY_REASON_DURABILITY)
+ t.check(view.strip_edges()!="" and view_leaked.is_empty(),"ARCH assess_never_restates_factory_rules: the device view restates no admission reason text, record id prefix or durability ladder of the shared factory functions (it calls the builders instead): leaked="+str(view_leaked))
 
 # S2a-2（gherkin「工厂改用共用记录构造」「固缚与肩带规则一份」「清理规则一份」；design §5 T5–T6、§6、
 # NHR-2=A）：新件记录、C1′ 的固缚／肩带规则与装备域清理规则各只有一份实现；原函数只剩编排，写 state、
@@ -7023,7 +7037,11 @@ static func legal_requests_is_the_only_judgment_entry(t) -> void:
  t.check(funnel.size()==4,"ARCH legal_requests_is_the_only_judgment_entry: choose and can_apply reach the judgment through _choice_bands -> _choices -> legal_requests: "+str(funnel))
  var plan_calls=source_write_sites(["res://core"],"_replacement_plan\\s*\\(").filter(func(hit):return String(hit.file)==relative and not String(hit.text).contains("func "))
  var plan_callers=write_site_names(plan_calls)
- t.check(plan_calls.size()==4 and plan_callers==[relative+"::_covering_plan",relative+"::execute_concrete",relative+"::legal_requests"],"ARCH legal_requests_is_the_only_judgment_entry: replacement planning is reached only from the judgment, its group shell and the executor: sites="+str(plan_calls.size())+" callers="+str(plan_callers))
+ t.check(plan_calls.size()==2 and plan_callers==[relative+"::_covering_plan",relative+"::execute_concrete"],"ARCH legal_requests_is_the_only_judgment_entry: replacement planning is reached only from its group shell and the executor after S2b (the judgment no longer plans): sites="+str(plan_calls.size())+" callers="+str(plan_callers))
+ # S2b（gherkin「判定入口只有一个」）：判定只经 Assess.legal，单请求与每个 random_variant 变体各一处。
+ var legal_calls=source_write_sites(["res://core"],"Assess\\.legal\\s*\\(").filter(func(hit):return String(hit.file)==relative and not String(hit.text).contains("func "))
+ var legal_callers=write_site_names(legal_calls)
+ t.check(legal_calls.size()==2 and legal_callers==[relative+"::legal_requests"] and not source_function_body(relative,"legal_requests").contains("_replacement_plan("),"ARCH legal_requests_is_the_only_judgment_entry: the replace branch judges through Assess.legal only, once for the random variants and once for a single request, and never plans through the transaction: sites="+str(legal_calls.size())+" callers="+str(legal_callers))
 
 # dependencies.md 判据→检查表登记名（S1 审查 F1：登记名原先不存在，实际实现只数 _replacement_plan）。
 # 本判据扫「直达旧判定」的调用点：application 里事务 plan 的调用点必须只有 _replacement_plan 一处，
@@ -7055,6 +7073,12 @@ static func migrated_pure_functions_have_one_implementation(t) -> void:
  var orphan=declared.filter(func(name):return not explained.has(String(name)))
  orphan.sort()
  t.check(not MIGRATED_PURE_FUNCTIONS.is_empty() and not ASSESS_JUDGMENT_FUNCTIONS.is_empty() and missing.is_empty() and orphan.is_empty(),"ARCH migrated_pure_functions_have_one_implementation: assess defines every migrated pure function and declares nothing the migration table and the judgment-owned stage list cannot explain (an emptied or shortened table leaves the functions unexplained): missing="+str(missing)+" orphan="+str(orphan))
+ # 视图模块的迁移实体在运行时可用：身份函数由真实 preload 载入并作答，装载内容差异判红。
+ # 这一条同时把 architecture 套件与视图模块连成一条真实 preload 边——改动视图必然重跑本套件。
+ var empty_snapshot={"equipment":[],"special_equipment":[],"links":[],"composites":[]}
+ var changed_snapshot={"equipment":[{"id":"probe-piece"}],"special_equipment":[],"links":[],"composites":[]}
+ var facts=View.record_facts({"id":"probe-piece","template":"rope_ankle"})
+ t.check(not VIEW_MIGRATED_PURE_FUNCTIONS.is_empty() and View.same_loadout(empty_snapshot,empty_snapshot) and not View.same_loadout(empty_snapshot,changed_snapshot) and not facts.has("id") and View.loadout_records(empty_snapshot)==[],"ARCH migrated_pure_functions_have_one_implementation: the migrated identity family really answers from the view module (identical snapshots match, a different loadout does not, and the record facts drop the declared identity keys): "+str(facts.keys()))
  var residue=[]
  for pair in MIGRATED_PURE_FUNCTIONS:
   var body=source_function_body("core/equipment_replacement.gd",pair[0])

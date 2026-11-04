@@ -1,5 +1,6 @@
 extends RefCounted
 const Assess=preload("res://core/equipment_replacement_assess.gd")
+const View=preload("res://core/equipment_replacement_view.gd")
 
 # Game-internal, synchronous atomic group. The caller owns permission, costs,
 # ready-stack consumption, action feedback and the enclosing version increment.
@@ -174,7 +175,7 @@ static func _trial(g, before: Dictionary, specs: Array, source: String, units: A
   installed.append(item)
  var new_anchors=[]
  for item in installed: new_anchors.append_array(Assess.pieces(item))
- var transfers=Assess.transfer_options(g,impacted,new_anchors,g.link_anchors(),g.state.links)
+ var transfers=Assess.transfer_options(g,g.state,impacted,new_anchors,g.link_anchors(),g.state.links)
  var shoulder_losses=[]
  var live=g.action_targets().map(func(e):return e.id)
  var removed=old_targets.filter(func(e):return e.id not in live and e.template!="link_rope").map(func(e):return e.id)
@@ -202,7 +203,7 @@ static func _trial(g, before: Dictionary, specs: Array, source: String, units: A
  if g.Shoulders.validate(g)!="" or g.SpecialEquipment.validate(g.state.special_equipment)!="" or g._capacity_issue(g.physical_pieces())!="": return Assess.failure("替换后的装备占位或依附关系校验失败。")
  for link in g.state.links:
   if g.Links.validate(link,g.link_anchors(),g.state.links)!="": return Assess.failure("替换后的链接结构校验失败。")
- if not units.is_empty() and Assess.same_loadout(before,g.state): return Assess.failure("替换后装备没有变化。")
+ if not units.is_empty() and View.same_loadout(before,g.state): return Assess.failure("替换后装备没有变化。")
  return {"ok":true,"reason":"","requests":specs,"removed":removed,"installed":installed.duplicate(true),"lost_links":lost,"comparisons":comparison.rows,"score":comparison.score,"_after":g.state.duplicate(true)}
 
 # Test-facing adapter, kept for the two existing link scenarios that call this
@@ -210,7 +211,7 @@ static func _trial(g, before: Dictionary, specs: Array, source: String, units: A
 # equivalent_link_transfers, ::partially_lost_transfers). One unconditional
 # delegate: Assess.transfer_options stays the only implementation.
 static func _transfer(g, links: Array, anchors: Array) -> Array:
- return Assess.transfer_options(g,links,anchors,g.link_anchors(),g.state.links)
+ return Assess.transfer_options(g,g.state,links,anchors,g.link_anchors(),g.state.links)
 
 # Public adapter for the callers that name this module (tests/binding_box_cases.gd,
 # tests/enemy_restraint_value_cases.gd, docs/design/equipment-design.md §14). One
