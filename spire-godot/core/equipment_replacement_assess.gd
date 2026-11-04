@@ -4,8 +4,9 @@ const View=preload("res://core/equipment_replacement_view.gd")
 # (core/equipment_replacement.gd) and, from S2b, the read-only judgment call these
 # same functions, so this module is the single implementation of normalization,
 # mandatory family units, capacity deficit, removable units, minimal cover sets,
-# counts, strength comparison, link transfer, factory arguments and loadout
-# identity. A second copy of any of them is a defect, not a shortcut.
+# counts, strength comparison, link transfer and factory arguments; the loadout
+# identity family lives in core/equipment_replacement_view.gd. A second copy of
+# any of them is a defect, not a shortcut.
 #
 # Invariants kept by every function here:
 # - It never writes g.state, never copies or swaps a state snapshot, never emits
@@ -16,17 +17,16 @@ const View=preload("res://core/equipment_replacement_view.gd")
 #   records) are scratch values that the caller discards.
 # - Allowed edges only: data/equipment, data/composites, data/special_equipment,
 #   data/links, data/balance, core/shoulder_links, core/torso_binding,
-#   core/witch_character. Never preload core/game.gd (cycle),
-#   core/equipment_replacement.gd (cycle), ui/ or tests/. Read-only instance
-#   methods may be called on the passed g because they read the same live state.
+#   core/witch_character, core/equipment_replacement_view.gd. Never preload
+#   core/game.gd (cycle), core/equipment_replacement.gd (cycle), ui/ or tests/.
+#   Read-only instance methods may be called on the passed g because they read
+#   the same live state.
 # - Module calls go through g, never a preload: the data modules (g.Equipment,
-#   g.RestraintValue ...) and exactly one core function, g.RopeArt.locked (read-only:
-#   phase, enemies, seal, material). tests/architecture_cases.gd::ASSESS_MODULE_CALLS
-#   is the whole list.
+#   g.RestraintValue ...) and only g.RopeArt.locked (read-only: phase, enemies, seal,
+#   material); tests/architecture_cases.gd::ASSESS_MODULE_CALLS is the whole list.
 
-# The failure shape of the plan contract: every caller reads ok/reason and the empty
-# id lists. A non-verdict carrier (writes reason, never valid); declared in
-# tests/architecture_cases.gd::VERDICT_REASON_CARRIERS like the transaction's _fail.
+# The failure shape of the plan contract: every caller reads ok/reason and the empty id
+# lists. A non-verdict carrier, declared in tests/architecture_cases.gd::VERDICT_REASON_CARRIERS.
 static func failure(reason: String) -> Dictionary:
  return {"ok":false,"reason":reason,"removed":[],"installed":[],"lost_links":[],"comparisons":[]}
 
@@ -145,11 +145,10 @@ static func sets(units: Array, remaining: Dictionary, chosen: Array, search: Dic
   for p in next: next[p]-=units[i].counts.get(p,0)
   sets(units,next,chosen+[i],search)
 
-# Every legal way to keep affected links on the new anchors. `anchors` are the
-# incoming pieces; `s` is the container-shaped lookup view (the transaction passes g.state,
-# the judgment its device view); `link_anchors` and `live_links` are the validator's anchor set
-# and current link list, hoisted by the caller: the transaction's link set does not
-# change during one search, so the old per-candidate reads return the same value.
+# Every legal way to keep affected links on the new anchors. `anchors` are the incoming pieces;
+# `s` is the container-shaped lookup view (the transaction passes g.state, the judgment its device
+# view); `link_anchors` and `live_links` are the validator's anchor set and current link list, hoisted
+# by the caller: the link set does not change during one search, so the old per-candidate reads agree.
 static func transfer_options(g, s: Dictionary, links: Array, anchors: Array, link_anchors: Array, live_links: Array) -> Array:
  var options=[]
  for link in links:
@@ -361,10 +360,18 @@ static func factory_args(g, r: Dictionary) -> Dictionary:
   "special_install":
    return {"kind":"special_install","type":r.type,"slot":r.slot,"tier":r.get("tier",0)}
  return {}
-# S2b read-only judgment (A0-A8). legal() returns the verdict Replacement.plan would return, over
-# the device view instead of a duplicated state: the shared stages plus the transaction's trial
-# step list evaluated on the view. It never writes g.state, never copies or swaps a snapshot,
-# never emits and never advances a live counter.
+
+# Preview install pass shared by the prototype view and the trial view.
+static func install_all(g, view: Dictionary, specs: Array, source: String) -> Array:
+ var installed=[]
+ for r in specs:
+  var item=View.install(g,view,factory_args(g,r),source)
+  if item.is_empty(): return []
+  installed.append(item)
+ return installed
+
+# S2b read-only judgment (A0-A8): the verdict Replacement.plan would return, over the device view
+# instead of a duplicated state; never writes g.state, copies/swaps a snapshot, emits or advances a live counter.
 static func legal(g, requests: Array, source: String, protected_ids: Array=[]) -> bool:
  var normalized=normalize(g,requests)
  if not normalized.ok: return false
@@ -375,12 +382,10 @@ static func legal(g, requests: Array, source: String, protected_ids: Array=[]) -
  if required.is_empty():
   var direct=trial(g,g.state.seed,{"binding":int(g.state.rng.binding)},specs,source,[])
   if direct.get("ok",false): return not (direct.removed+direct.lost_links).any(func(id):return id in protected_ids)
- var prototypes=[];var new_pieces=[]
- var empty=View.empty(g,g.state.seed,{"binding":int(g.state.rng.binding)})
- for r in specs:
-  var item=View.install(g,empty,factory_args(g,r),source)
-  if item.is_empty(): return false
-  new_pieces.append_array(pieces(item));prototypes.append(item)
+ var prototypes=install_all(g,View.empty(g,g.state.seed,{"binding":int(g.state.rng.binding)}),specs,source)
+ if prototypes.is_empty(): return false
+ var new_pieces=[]
+ for item in prototypes: new_pieces.append_array(pieces(item))
  for unit in required:
   var old=unit.pieces[0]
   var family=g.SpecialEquipment.exclusive_family(old.type)
@@ -407,11 +412,8 @@ static func trial(g, seed_value: int, counters: Dictionary, specs: Array, source
  var view=View.live(g,seed_value,counters)
  var old_targets=g.action_targets()
  var impacted=View.after_removal(g,view,removed_units)
- var installed=[]
- for r in specs:
-  var item=View.install(g,view,factory_args(g,r),source)
-  if item.is_empty(): return {}
-  installed.append(item)
+ var installed=install_all(g,view,specs,source)
+ if installed.is_empty(): return {}
  var anchors=[]
  for item in installed: anchors.append_array(pieces(item))
  var transfers=transfer_options(g,view,impacted,anchors,g.link_anchors_in(view),view.links)

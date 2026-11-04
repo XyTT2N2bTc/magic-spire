@@ -1,8 +1,8 @@
 extends RefCounted
 
 # S0 对拍基座：入库语料（tests/fixtures/replacement-corpus.json）的读取、判据与比较器。
-# 判定接缝拆成两个入口（审查 F1／协调者 A9）：被测侧 judge_subject() 本片仍走现行路径，
-# S2b 只改这一处；旧预言机 judge_oracle() 恒为 Replacement.plan，reoracle 只用它。
+# 判定接缝拆成两个入口（审查 F1／协调者 A9）：被测侧 judge_subject() 走 Assess.legal（S2b），
+# 旧预言机 judge_oracle() 恒为 Replacement.plan，reoracle 只用它。
 # 存量 old 结果只是同一预言机的缓存，reoracle 模式重调预言机验证未漂移。
 #
 # 入口是 `corpus_checks(t)`，由 tests/test_game.gd 的 `replacement` 分支调用。本模块不是注册套件，
@@ -120,8 +120,7 @@ static func fixture_subset(data: Dictionary) -> Dictionary:
 
 # ---- 被测侧接缝 ----
 # 两个入口，各自只做一件事：
-#   judge_subject  = 被测侧，S1 仍走现行路径；S2b 把 body 换成
-#                    `Assess.legal(g,case.requests,case.source,case.protected_ids)` 即完成接线。
+#   judge_subject  = 被测侧，S2b 起为 `Assess.legal(...)`，请求先经 Application.request_specs 归一化。
 #   judge_oracle   = 旧预言机，恒为 Replacement.plan；reoracle 只用它，compare/selfcheck 不经过它。
 # 判定布尔之外的理由字符串不作契约（旧 _legal_choices 不读它）。
 static func judge_subject(g, case: Dictionary) -> bool:

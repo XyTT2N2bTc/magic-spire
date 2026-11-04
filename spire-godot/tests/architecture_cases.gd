@@ -6841,8 +6841,8 @@ const FACTORY_RULE_TOKENS=["equipment_%d","composite_%d","special_%d","104729"]
 # assess（S2b 后含视图模块）出现这张表就是第二份实现。
 const FACTORY_REASON_DURABILITY="[0.0,0.4,0.8,1.0]"
 # 已存在的逐字节同句（不是本批抄进去的）：S1 的 assess.normalize 用同一句请求形状原因文本，而该文件
-# 不在 S2a-1 授权面。登记为「同一句只许出现在该函数内」：出现在别处、或该处消失（覆盖率下降）都红，
-# 交 S2b 接线时并入共用准入后删除本行。
+# 不在 S2a-1 授权面。登记为「同一句只许出现在该函数内」：出现在别处、或该处消失（覆盖率下降）都红；
+# S2b 落地后该句仍留在 normalize，没有并入共用准入，故此登记继续是唯一豁免。
 # M1：上游把该句改成「请选择该装备支持的位置。」（assess.normalize 与 _special_install_reason_in 两处同改），登记随之换键。
 const FACTORY_RULE_ECHOES={"请选择该装备支持的位置。":"core/equipment_replacement_assess.gd::normalize"}
 
@@ -6916,7 +6916,7 @@ const RULE_DELEGATES={"core/torso_binding.gd::refresh":"core/torso_binding.gd::r
 const SHARED_RULE_FUNCTIONS=["core/torso_binding.gd::resolve","core/torso_binding.gd::cancels","core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::attached_in","core/shoulder_links.gd::validate_in","core/shoulder_links.gd::released_with_host"]
 const SHARED_RULE_FORBIDDEN=["g.state","_emit(","_random_index(","_equipment_feedback(","RopeArt."]
 const CLEANUP_RULES=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"]
-# O3 的 live 端遍历顺序（骨架两份之一；S2b 的 cleanup_model 按同一登记对齐）。
+# O3 的 live 端遍历顺序（骨架两份之一；视图端 core/equipment_replacement_view.gd::cleanup 按同一登记对齐）。
 # M1：三处 RopeArt.track 是 live 骨架独占的绳索计数（事务内由 _rope_trial 门控为空操作，视图端不调用），
 # 各自钉在它所属谓词之前：装备循环的 track 在 _piece_released(e) 前，链接循环的在 _released(link) 前，
 # 锚点丢失分支的 track(…,true) 在 _link_anchor_lost(link 之后。

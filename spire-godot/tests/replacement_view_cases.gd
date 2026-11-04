@@ -6,7 +6,7 @@ extends RefCounted
 # 刻意不声明 `static func run(`（tests/check_index.gd::declares_run 只认行首真实声明），
 # 形态与 tests/replacement_assess_cases.gd／replacement_corpus_cases.gd 相同。
 #
-# 判据（每条都能变红，敏感性见片报告与 tests/mutations.json）：
+# 判据（每条都能变红，敏感性见片报告的手工探针；本文件不登记 tests/mutations.json）：
 #   1) view_dependency_edges：视图只依赖 data/* 与 core 谓词模块，不引判定／事务／game.gd；
 #      对 g 的调用面双向登记（表外调用红、表内闲置红）；不写 state、不整份拷、不读 live rng、不碰读作用域。
 #   2) view_builds_records_only_through_shared_builders：预览造件只经共用记录构造与准入。
@@ -20,13 +20,14 @@ const Assess=preload("res://core/equipment_replacement_assess.gd")
 const View=preload("res://core/equipment_replacement_view.gd")
 const Application=preload("res://core/equipment_application.gd")
 const Corpus=preload("res://tests/replacement_corpus_cases.gd")
+const AssessCases=preload("res://tests/replacement_assess_cases.gd")
 const Arch=preload("res://tests/architecture_cases.gd")
 const Store=preload("res://core/save_store.gd")
 const Game=preload("res://core/game.gd")
 
 const VIEW_SOURCE="core/equipment_replacement_view.gd"
-# 视图模块预加载白名单（D12）：data/* 与两个 core 谓词模块；判定、事务与 game.gd 都不可达。
-const VIEW_ALLOWED_EDGES=["res://data/equipment.gd","res://data/composites.gd","res://data/special_equipment.gd","res://data/links.gd","res://data/balance.gd","res://core/shoulder_links.gd","res://core/torso_binding.gd"]
+# 视图模块预加载白名单（D12）：data/* 与三个 core 谓词模块；判定、事务与 game.gd 都不可达。
+const VIEW_ALLOWED_EDGES=["res://data/equipment.gd","res://data/composites.gd","res://data/special_equipment.gd","res://data/links.gd","res://data/balance.gd","res://core/shoulder_links.gd","res://core/torso_binding.gd","res://core/witch_character.gd"]
 const VIEW_FORBIDDEN_TOKENS=["res://core/game.gd","res://core/equipment_replacement_assess.gd","res://core/equipment_replacement.gd","res://ui","res://tests"]
 # 视图对 g 的只读实例方法：预览造件、容器查询、随机复现与清理谓词。写入者（_cleanup／_install_*／
 # _emit／_equipment_feedback／_random_index）都在表外。
@@ -34,19 +35,10 @@ const VIEW_INSTANCE_METHODS=["_component_kept","_composite_body","_equipment_in"
 # 共用记录构造与准入：视图只许经这些函数造件，别处出现字段表就是第二份实现。
 const SHARED_BUILDERS=["_template_piece(","_special_piece(","_reinforcement_strap(","_plan_assembly_in(","_prepare_installation_in(","_special_install_reason_in(","Binding.resolve(","Binding.cancels(","Shoulders.pair_pieces("]
 
-static func source_code(relative: String) -> String:
- var file=FileAccess.open("res://"+relative,FileAccess.READ)
- return "" if file==null else file.get_as_text()
-
-# 剔除注释后的源码：判据只看代码。
-static func code_only(relative: String) -> String:
- var lines=[]
- for line in source_code(relative).split("\n"): lines.append(String(line).split("#")[0])
- return "\n".join(lines)
-
 static func view_checks(t) -> void:
  var data=Corpus.load_corpus()
- var slice=_case_slice(data)
+ # 固定切片沿用 tests/replacement_assess_cases.gd::_slice（同一实现，不另写外壳）。
+ var slice=AssessCases._slice(data)
  print("VIEW SLICE cases=%d full_corpus=%d" % [slice.get("cases",[]).size(),data.get("cases",[]).size()])
  view_dependency_edges(t)
  view_builds_records_only_through_shared_builders(t)
@@ -55,15 +47,8 @@ static func view_checks(t) -> void:
  legal_matches_plan_inside_scope(t,slice)
  can_apply_stops_at_the_first_legal_candidate(t,data.get("application_cases",[]))
 
-# 固定切片：与 tests/replacement_assess_cases.gd 同口径（tag=fixture ∪ 3 个固定失败例），
-# 经 Corpus._envelope 封装，不另写切片外壳。
-static func _case_slice(data: Dictionary) -> Dictionary:
- var ids=["20260906-00000","20260906-00001","20260906-00002"]
- var keep=func(row): return String(row.get("case_id","")) in ids or String(row.get("tag",""))=="fixture"
- return Corpus._envelope(data,data.get("cases",[]).filter(keep),[])
-
 static func view_dependency_edges(t) -> void:
- var text=source_code(VIEW_SOURCE)
+ var text=Arch.source_code(VIEW_SOURCE)
  t.check(text.strip_edges()!="","VIEW view_dependency_edges: "+VIEW_SOURCE+" exists")
  # 载入探针：模块在套件里可加载并作答，源码判据不会在编译不过的脚本上全绿。
  t.check(View.empty(Game.new(1),0,{})["equipment"]==[],"VIEW view_dependency_edges: the view module loads from the suite and builds an empty prototype")
@@ -74,16 +59,15 @@ static func view_dependency_edges(t) -> void:
  var extra=edges.filter(func(path):return not String(path) in VIEW_ALLOWED_EDGES)
  var forbidden=VIEW_FORBIDDEN_TOKENS.filter(func(token):return text.contains(String(token)))
  t.check(extra.is_empty() and forbidden.is_empty(),"VIEW view_dependency_edges: the view preloads only declared read-only edges and never names the judgment, the transaction, game.gd, ui/ or tests/: edges="+str(edges)+" extra="+str(extra)+" forbidden="+str(forbidden))
- var code=code_only(VIEW_SOURCE)
  var impure=[]
  for token in ["g.state=",".state.duplicate(","state.rng","_random_index(","_begin_equipment_read(","_equipment_read"]:
-  if code.contains(token): impure.append(token)
+  if text.contains(token): impure.append(token)
  t.check(impure.is_empty(),"VIEW view_dependency_edges: the view never writes or copies live state, never reads the live rng and never touches the read scope (its draws go through a local counter copy): "+str(impure))
  var call=RegEx.new()
  call.compile("(?<![A-Za-z0-9_])g\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
  var outside=[]
  var used=[]
- for hit in call.search_all(code):
+ for hit in call.search_all(text):
   if not hit.get_string(1) in used: used.append(hit.get_string(1))
   if not hit.get_string(1) in VIEW_INSTANCE_METHODS and not hit.get_string(1) in outside: outside.append(hit.get_string(1))
  var idle=VIEW_INSTANCE_METHODS.filter(func(name):return not used.has(String(name)))
@@ -92,13 +76,13 @@ static func view_dependency_edges(t) -> void:
  var module_call=RegEx.new()
  module_call.compile("(?<![A-Za-z0-9_])g\\.([A-Z][A-Za-z0-9_]*)\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
  var undeclared=[]
- for hit in module_call.search_all(code):
+ for hit in module_call.search_all(text):
   var allowed=Arch.ASSESS_MODULE_CALLS.get(hit.get_string(1),[])
   if not "*" in allowed and not hit.get_string(2) in allowed: undeclared.append(hit.get_string(1)+"."+hit.get_string(2))
  t.check(undeclared.is_empty(),"VIEW view_dependency_edges: the view's module calls are the same declared set as the judgment's (ASSESS_MODULE_CALLS); a write-capable function outside it is a write path: outside="+str(undeclared))
 
 static func view_builds_records_only_through_shared_builders(t) -> void:
- var code=code_only(VIEW_SOURCE)
+ var code=Arch.source_code(VIEW_SOURCE)
  var missing=SHARED_BUILDERS.filter(func(token):return not code.contains(String(token)))
  var literals=[]
  for token in Arch.FACTORY_RULE_TOKENS:
@@ -106,12 +90,12 @@ static func view_builds_records_only_through_shared_builders(t) -> void:
  t.check(missing.is_empty() and literals.is_empty(),"VIEW view_builds_records_only_through_shared_builders: the preview builds pieces through the shared record builders and admission functions only, and restates no record id prefix: missing="+str(missing)+" literals="+str(literals))
 
 static func view_migrated_functions_have_one_implementation(t) -> void:
- var view=source_code(VIEW_SOURCE)
+ var view=Arch.source_code(VIEW_SOURCE)
  var problems=[]
  for pair in Arch.VIEW_MIGRATED_PURE_FUNCTIONS:
   if not view.contains("static func "+String(pair[1])+"("): problems.append("view:"+pair[1])
   for other in ["core/equipment_replacement_assess.gd","core/equipment_replacement.gd"]:
-   var text=source_code(other)
+   var text=Arch.source_code(other)
    if text.contains("func "+String(pair[0])+"(") or text.contains("func "+String(pair[1])+"("): problems.append(other+"::"+pair[1])
  t.check(not Arch.VIEW_MIGRATED_PURE_FUNCTIONS.is_empty() and problems.is_empty(),"VIEW view_migrated_functions_have_one_implementation: the loadout identity family lives only in the view module (the judgment and the transaction keep no body under the old or the new name): problems="+str(problems))
 
