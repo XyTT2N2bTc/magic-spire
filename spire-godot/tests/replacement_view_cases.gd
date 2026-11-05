@@ -13,8 +13,13 @@ extends RefCounted
 #   3) view_migrated_functions_have_one_implementation：loadout 身份家族只在视图模块有一份实现。
 #   4) assessment_leaves_live_state_unchanged：Assess.legal 连续两次后整份 encode(state)、rng、
 #      _resource_feedback、_equipment_read、_rope_trial、_rope_observing 全等，g.state 引用未被替换。
-#   5) legal_matches_plan_inside_scope：每例在 _begin_equipment_read() 作用域内再判一次，结果与存量 old.ok 相同。
-#   6) can_apply_stops_at_the_first_legal_candidate：first_only 是同一判定路径的存在性读取。
+#   5) legal_matches_plan_inside_scope：每例在 _begin_equipment_read() 作用域内再判一次，结果与存量 old.ok 相同；
+#      切片必须真的含三档固缚例（逐试算重置本地计数的复现路径），否则本条空转。
+#   6) view_binding_draw_reproduces_the_live_refresh：视图刷新从 live 的 binding 计数起算、记录与计数推进
+#      与 live 刷新相同，且不推进 live rng（A50 R2 的复现面）。
+#   7) can_apply_stops_at_the_first_legal_candidate：first_only 是同一判定路径的存在性读取。
+#   8) parallel_orchestrations_call_the_shared_rules（A50 R3 从 replacement_assess_cases.gd 迁入）：O1／O2／O3
+#      三行编排在两端核对共用规则集合、视图端禁调 live 独有副作用，并按行核对 `# O<n>` 标记。
 
 const Assess=preload("res://core/equipment_replacement_assess.gd")
 const View=preload("res://core/equipment_replacement_view.gd")
@@ -45,7 +50,9 @@ static func view_checks(t) -> void:
  view_migrated_functions_have_one_implementation(t)
  assessment_leaves_live_state_unchanged(t,slice)
  legal_matches_plan_inside_scope(t,slice)
+ view_binding_draw_reproduces_the_live_refresh(t,slice)
  can_apply_stops_at_the_first_legal_candidate(t,data.get("application_cases",[]))
+ parallel_orchestrations_call_the_shared_rules(t)
 
 static func view_dependency_edges(t) -> void:
  var text=Arch.source_code(VIEW_SOURCE)
@@ -59,10 +66,17 @@ static func view_dependency_edges(t) -> void:
  var extra=edges.filter(func(path):return not String(path) in VIEW_ALLOWED_EDGES)
  var forbidden=VIEW_FORBIDDEN_TOKENS.filter(func(token):return text.contains(String(token)))
  t.check(extra.is_empty() and forbidden.is_empty(),"VIEW view_dependency_edges: the view preloads only declared read-only edges and never names the judgment, the transaction, game.gd, ui/ or tests/: edges="+str(edges)+" extra="+str(extra)+" forbidden="+str(forbidden))
+ # A50 R2「禁写不禁读」：随机条款只禁写——索引形态写（state.rng[）与任何 g.state 路径赋值都红；
+ # 读 state.rng.binding 计数以复现绑定抽取是允许的（视图现在经传入的本地计数副本复现，不读 live）。
+ # 禁读会把复现路径本身变成不可能。_random_index( 仍是禁调项：它推进 live 计数。
  var impure=[]
- for token in ["g.state=",".state.duplicate(","state.rng","_random_index(","_begin_equipment_read(","_equipment_read"]:
+ for token in ["g.state=",".state.duplicate(","state.rng[","_random_index(","_begin_equipment_read(","_equipment_read"]:
   if text.contains(token): impure.append(token)
- t.check(impure.is_empty(),"VIEW view_dependency_edges: the view never writes or copies live state, never reads the live rng and never touches the read scope (its draws go through a local counter copy): "+str(impure))
+ var writes=[]
+ var write=RegEx.new()
+ if write.compile("(?<![A-Za-z0-9_])g\\s*\\.\\s*state\\b(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[^\\]]*\\])*\\s*(?:\\*\\*|<<|>>|\\+|-|\\*|/|%|&|\\||\\^)?=(?!=)")==OK:
+  for hit in write.search_all(text): writes.append(hit.get_string().strip_edges())
+ t.check(impure.is_empty() and writes.is_empty(),"VIEW view_dependency_edges: the view never writes or copies live state, never advances the live random entry and never touches the read scope (a g.state path assignment is a write; reading the binding count is allowed, its draws still go through a local counter copy): impure="+str(impure)+" writes="+str(writes))
  var call=RegEx.new()
  call.compile("(?<![A-Za-z0-9_])g\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
  var outside=[]
@@ -134,13 +148,19 @@ static func assessment_leaves_live_state_unchanged(t, data: Dictionary) -> void:
  t.check(problems.is_empty() and checked==cases.size() and checked>0,"VIEW assessment_leaves_live_state_unchanged: two Assess.legal calls leave the whole encoded state, the rng, the resource feedback, the read scope, the rope-trial and rope-observing flags unchanged and the state object by reference (checked %d/%d; feedback seeded and the two flags alternately preset): %s" % [checked,cases.size(),str(problems.slice(0,3))])
 
 # 作用域内再判一次：视图恒走扫描，结果必须与存量 old.ok 相同；作用域不被重建，退出后复原。
+# 复现面（A50 R2）：判定把 live 的 binding 计数交给每个试算的本地副本；本条要求切片真的含
+# 三档且带固缚记录的例（tier3_binding>0），否则「每个试算从 live 计数重置」无从被对拍覆盖。
 static func legal_matches_plan_inside_scope(t, data: Dictionary) -> void:
  var mismatched=[]
  var scope_lost=[]
+ var tier3_binding=0
  var checked=0
  for case in data.get("cases",[]):
   var g=Corpus._fresh_game()
   g.state=Corpus._case_state(data,case)
+  for piece in g.state.equipment+g.state.special_equipment:
+   if piece is Dictionary and piece.has("binding") and g.tier(piece.durability,piece.maximum)==3:
+    tier3_binding+=1;break
   var requests=Corpus.unseal(case.get("requests",[]),"requests")
   var source=String(case.get("source",""))
   var protected_ids=Corpus.unseal(case.get("protected_ids",[]),"protected_ids")
@@ -153,17 +173,79 @@ static func legal_matches_plan_inside_scope(t, data: Dictionary) -> void:
   checked+=1
   if inside!=expected: mismatched.append(String(case.get("case_id","")))
   if not scope_kept or JSON.stringify(g._equipment_read)!=JSON.stringify(previous): scope_lost.append(String(case.get("case_id","")))
- t.check(mismatched.is_empty() and checked>0,"VIEW legal_matches_plan_inside_scope: inside an open read scope the judgment returns the stored verdict for every case (the view never answers from the live index): checked=%d mismatched=%s" % [checked,str(mismatched.slice(0,5))])
+ t.check(mismatched.is_empty() and checked>0 and tier3_binding>0,"VIEW legal_matches_plan_inside_scope: inside an open read scope the judgment returns the stored verdict for every case (the view never answers from the live index), and the slice really carries tier-three cases with a binding record so the per-trial counter reset is exercised: checked=%d tier3_binding=%d mismatched=%s" % [checked,tier3_binding,str(mismatched.slice(0,5))])
  t.check(scope_lost.is_empty(),"VIEW legal_matches_plan_inside_scope: the read scope is neither rebuilt nor replaced around the judgment and is restored to its previous value: "+str(scope_lost.slice(0,5)))
 
+# 随机复现面（A50 R2／中档加固「随机不推进＋binding 复现」）：视图刷新必须从 live 的 binding 计数起算，
+# 复现 live 刷新的抽取结果，且不推进 live 计数。取切片里三档、可固缚的件并清掉它已有的固缚记录
+# （新装件没有固缚，只有这个形状会真的抽 binding）：视图端 View.refresh 用 View.live 的本地计数副本，
+# live 端 Binding.refresh 走 g._random_index；两端的记录逐字节相同、计数推进量相同，且视图端前后 live 的
+# state.rng 不动。legal 的每次 trial 都新建 counts（{"binding":int(g.state.rng.binding)}），本条钉住这条接缝。
+static func view_binding_draw_reproduces_the_live_refresh(t, data: Dictionary) -> void:
+ var problems=[]
+ var checked=0
+ var draws=0
+ for case in data.get("cases",[]):
+  var id=String(case.get("case_id",""))
+  var g=Corpus._fresh_game()
+  g.state=Corpus._case_state(data,case)
+  var piece={}
+  for candidate in g.state.equipment:
+   if not candidate is Dictionary: continue
+   if g.tier(candidate.durability,candidate.maximum)!=3: continue
+   if not g.Binding.eligible(candidate): continue
+   piece=candidate;break
+  if piece.is_empty(): continue
+  checked+=1
+  var start=int(g.state.rng.binding)
+  var view=View.live(g,g.state.seed,{"binding":start})
+  # A newly installed piece carries no binding record; only that shape draws (resolve keeps an old kind).
+  var view_piece=piece.duplicate(true)
+  view_piece.erase("binding")
+  View.refresh(g,view,view_piece)
+  if int(g.state.rng.binding)!=start: problems.append(id+":live rng advanced by the view refresh")
+  var viewed=int(view.counters.get("binding",start))-start
+  var g2=Corpus._fresh_game()
+  g2.state=Corpus._case_state(data,case)
+  var live_piece=piece.duplicate(true)
+  live_piece.erase("binding")
+  g2.Binding.refresh(g2,live_piece)
+  var lived=int(g2.state.rng.binding)-start
+  if not view_piece.has("binding") or not live_piece.has("binding"): problems.append(id+":no binding drawn")
+  else:
+   draws+=1
+   if JSON.stringify(view_piece.binding)!=JSON.stringify(live_piece.binding): problems.append(id+":binding record differs")
+  if viewed!=lived: problems.append(id+":counter delta "+str(viewed)+"/"+str(lived))
+ print("VIEW BINDING DRAW checked=%d draws=%d" % [checked,draws])
+ t.check(problems.is_empty() and checked>0 and draws>0,"VIEW view_binding_draw_reproduces_the_live_refresh: the view refresh starts every draw from the live binding counter, returns the same binding record as the live refresh and advances only its own counter (the live rng is untouched); the slice really carries tier-three pieces without a binding so a draw happens: checked=%d draws=%d problems=%s" % [checked,draws,str(problems.slice(0,5))])
+
 # A37：can_apply 只做存在性读取——同一路径的首个合法即停，不另写第二套判定。
-# 在应用层行的固定前 12 行上比较「完整枚举」与「首个即停」：首项相同、空集一致，且确有非空例；
-# 全量 73 行由驱动 --mode=compare 覆盖（应用层返回逐项深比较）。
+# 抽样＝应用层前 12 行 ∪ 每个 spec.pool 的前 3 行（A50 存在性早停「多规格、多局面」）：
+# 逐行比较「完整枚举」与「首个即停」——首项相同、空集一致；并要求样本真的跨池、跨状态、有非空例，
+# 否则本条只在一种规格上空转。全量 73 行由驱动 --mode=compare 覆盖（应用层返回逐项深比较）。
+static func _application_sample(applications: Array) -> Array:
+ var picked=[]
+ var seen={}
+ var ids={}
+ for row in applications.slice(0,12):
+  picked.append(row);ids[String(row.get("case_id",""))]=true
+ for row in applications:
+  var spec=Corpus.unseal(row.get("spec",{}),"spec")
+  var pool=String(spec.get("pool","")) if spec is Dictionary else "<bad>"
+  var count=int(seen.get(pool,0))
+  if count>=3: continue
+  seen[pool]=count+1
+  if ids.has(String(row.get("case_id",""))): continue
+  picked.append(row);ids[String(row.get("case_id",""))]=true
+ return picked
+
 static func can_apply_stops_at_the_first_legal_candidate(t, applications: Array) -> void:
  var problems=[]
  var nonempty=0
  var checked=0
- var rows=applications.slice(0,12)
+ var pools={}
+ var states={}
+ var rows=_application_sample(applications)
  var corpus=Corpus.load_corpus()
  for row in rows:
   var g=Corpus._fresh_game()
@@ -171,6 +253,8 @@ static func can_apply_stops_at_the_first_legal_candidate(t, applications: Array)
   var raw=Corpus.unseal(row.get("raw",[]),"raw")
   var spec=Corpus.unseal(row.get("spec",{}),"spec")
   var source=String(row.get("source",""))
+  pools[String(spec.get("pool",""))]=true
+  states[String(row.get("state",""))]=true
   var full=Application.legal_requests(g,raw,spec,source)
   var stop=Application.legal_requests(g,raw,spec,source,true)
   checked+=1
@@ -178,4 +262,132 @@ static func can_apply_stops_at_the_first_legal_candidate(t, applications: Array)
   if stop.size()!=mini(1,full.size()): problems.append(String(row.get("case_id",""))+":size "+str(stop.size())+"/"+str(full.size()))
   elif not stop.is_empty() and JSON.stringify(stop[0])!=JSON.stringify(full[0]): problems.append(String(row.get("case_id",""))+":head differs")
  var body=Arch.source_function_body("core/equipment_application.gd","can_apply")
- t.check(problems.is_empty() and checked==rows.size() and nonempty>0 and body.contains("_choice_bands(g,spec,source,true)"),"VIEW can_apply_stops_at_the_first_legal_candidate: the existence read walks the same judgment and returns the first legal candidate of the full enumeration (or the same empty set) on every sampled application row, and can_apply asks only for the first band: checked=%d nonempty=%d problems=%s" % [checked,nonempty,str(problems.slice(0,5))])
+ t.check(problems.is_empty() and checked==rows.size() and nonempty>1 and pools.size()>=2 and states.size()>1 and body.contains("_choice_bands(g,spec,source,true)"),"VIEW can_apply_stops_at_the_first_legal_candidate: the existence read walks the same judgment and returns the first legal candidate of the full enumeration (or the same empty set), across spec pools and states, and can_apply asks only for the first band: checked=%d nonempty=%d pools=%s states=%d problems=%s" % [checked,nonempty,JSON.stringify(pools.keys()),states.size(),str(problems.slice(0,5))])
+
+# design §5「编排登记」：每行＝[编号, live 锚点, 视图锚点, 共用规则名单, 视图端是否尚未实现, live 独有副作用]。
+# 名单非空且与 live 骨架的共用规则集合双向相等；视图端出现须调同一名单并同批翻标记；第 6 列在视图端出现即红。
+# S2b 扩为多行（O1 判定试算、O2 视图刷新、O3 清理骨架）并按 A47 做逐行覆盖核对：每行在视图端或登记表所在
+# 模块带 `# O<n>` 标记，标记集合与表的行号集合双向相等——删掉一行而表非空、或加了视图骨架却漏登记，都会红。
+# A50 R3：O2 的视图端标记只能落在本模块（本片产品面只读，标记不写进 core）；两端的规则核对仍按 O1／O3 同形。
+# A50 R1：本判据由 replacement_assess_cases.gd 迁入（它是 S2b 新增的视图类内容，C-8 把视图判据放本文件）。
+const PARALLEL_ORCHESTRATIONS=[
+ ["O1","core/equipment_replacement.gd::_trial","core/equipment_replacement_assess.gd::trial",
+  ["action_targets(","pieces(","transfer_options(","compare(","same_loadout(","Equipment.validate(","Binding.validate(","Composites.validate(","Shoulders.validate","SpecialEquipment.validate(","Links.validate(","_capacity_issue(","link_anchors"],
+  false,["_emit(","RopeArt.track(","_equipment_feedback(","Pressure.","Cards.","g._cleanup(","g._install("]],
+ # O2 视图刷新：live _refresh_equipment 的口部命名、绑定记录与三档肩带在视图 refresh 上重放；反馈、事件
+ # 与绳索追踪属 live 独有（RopeArt.track 见第 6 列），故共用规则集合按所属模块记账（两端都只经它们办这件事）。
+ ["O2","core/game.gd::_refresh_equipment","core/equipment_replacement_view.gd::refresh",
+  ["Binding.","Equipment.","Shoulders."],
+  false,["RopeArt.track(","_emit(","_equipment_feedback(","Pressure.","Cards."]],
+ ["O3","core/game.gd::_cleanup","core/equipment_replacement_view.gd::cleanup",
+  ["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],
+  false,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback("]]]
+
+# 登记表所在模块：O2 的行标记（A50 R3）与 O1／O3 的产品侧标记一起参与逐行覆盖核对。
+const ORCHESTRATION_SOURCE="tests/replacement_view_cases.gd"
+
+static func _source(relative: String) -> String:
+ var file=FileAccess.open("res://"+relative,FileAccess.READ)
+ return "" if file==null else file.get_as_text()
+
+# 函数体文本（签名之后、下一个声明之前），注释剔除：判据只看代码。
+static func _function_code(site: String) -> String:
+ var parts=site.split("::")
+ if parts.size()<2: return ""
+ var text=_source(String(parts[0]))
+ var declaration=RegEx.new()
+ if declaration.compile("(?m)^(?:static\\s+)?func\\s+"+String(parts[1])+"\\s*\\(")!=OK: return ""
+ var hit=declaration.search(text)
+ if hit==null: return ""
+ var following=RegEx.new()
+ if following.compile("(?m)^(?:static\\s+)?func\\s+")!=OK: return ""
+ var next=following.search(text,hit.get_end())
+ var end=text.length() if next==null else next.get_start()
+ var lines=[]
+ for line in text.substr(hit.get_end(),end-hit.get_end()).split("\n"): lines.append(String(line).split("#")[0])
+ return "\n".join(lines)
+
+# 共用清理规则＝live 骨架里裸调用的、在 core/game.gd 内为单行纯谓词的本地函数：与登记表双向对照的源侧枚举。
+static func _shared_rule_calls(body: String) -> Array:
+ var names=[]; var call=RegEx.new(); if call.compile("(?<![.\\w])(_[a-z][a-z0-9_]*)\\(")!=OK: return names
+ for hit in call.search_all(body):
+  var rest=Array(_function_code("core/game.gd::"+hit.get_string(1)).split("\n",false,1))
+  var code=String(rest[1]).strip_edges() if rest.size()>1 else ""
+  if not hit.get_string(1) in names and code.begins_with("return ") and not code.contains("\n") and not code.contains("_in(") and not code.contains("state."): names.append(hit.get_string(1))
+ names.sort(); return names
+
+# 行内 `Assess.<阶段>(` 的符号集：非 game.gd 侧的 live 骨架（O1 事务试算）用它与名单双向核对。
+# failure 是失败形状构造，不是规则，单独豁免。
+static func _assess_calls(body: String) -> Array:
+ var names=[]; var call=RegEx.new()
+ if call.compile("Assess\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")!=OK: return names
+ for hit in call.search_all(body):
+  if not hit.get_string(1) in names: names.append(hit.get_string(1))
+ names.sort(); return names
+
+# game.gd 侧 live 骨架的共用规则集合：裸谓词调用（O3 清理骨架）优先；没有裸谓词时（O2 刷新骨架把口部
+# 命名、绑定与肩带交给所属模块）取去重后的 `Module.` 前缀。第 6 列的 live 独有副作用不是共用规则，剔除。
+static func _live_shared_rules(body: String, live_only: Array) -> Array:
+ var bare=_shared_rule_calls(body)
+ if not bare.is_empty(): return bare
+ var names=[]
+ var call=RegEx.new()
+ if call.compile("(?<![A-Za-z0-9_])([A-Z][A-Za-z0-9_]*)\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\(")!=OK: return names
+ for hit in call.search_all(body):
+  var match_text=hit.get_string(0)
+  if live_only.any(func(token):return match_text.begins_with(String(token))): continue
+  var token=String(hit.get_string(1))+"."
+  if not token in names: names.append(token)
+ names.sort(); return names
+
+# 编排登记标记（A47 的逐行覆盖锚点）：产品侧骨架与登记表所在模块的 `# O<n>` 行注释。
+static func _orchestration_marks() -> Array:
+ var marks=[]
+ var mark=RegEx.new()
+ if mark.compile("(?m)^\\s*# (O[0-9]+)\\b")!=OK: return marks
+ for relative in ["core/game.gd","core/equipment_replacement.gd","core/equipment_replacement_assess.gd","core/equipment_replacement_view.gd",ORCHESTRATION_SOURCE]:
+  for hit in mark.search_all(_source(relative)):
+   if not hit.get_string(1) in marks: marks.append(hit.get_string(1))
+ marks.sort(); return marks
+
+static func parallel_orchestrations_call_the_shared_rules(t) -> void:
+ var malformed=[]; var uncalled=[]; var pending=[]; var aligned=[]; var live_only=[]
+ for row in PARALLEL_ORCHESTRATIONS:
+  if row.size()<6: malformed.append("row-size"); continue
+  var declared=Array(row[3]).duplicate(); declared.sort(); if declared.is_empty() or Array(row[5]).is_empty(): malformed.append(String(row[0])+":row")
+  var live=_function_code(String(row[1])); var declare_pending=bool(row[4])
+  if live.strip_edges()=="": malformed.append(String(row[1])+":missing")
+  elif String(row[1]).begins_with("core/game.gd"):
+   # live 端是 game.gd 的编排骨架：共用规则集合与名单双向相等（O3 裸谓词、O2 模块前缀）。
+   var called=_live_shared_rules(live,Array(row[5]))
+   if called!=declared: uncalled.append(String(row[1])+": called="+str(called)+" declared="+str(declared))
+  else:
+   # live 端是事务试算：名单项须真被调用，且它调到的每个共用阶段都在名单内（failure 除外）。
+   for token in declared:
+    if not live.contains(String(token)): uncalled.append(String(row[1])+":"+String(token))
+   for name in _assess_calls(live):
+    if name!="failure" and not declared.has(name+"("): uncalled.append(String(row[1])+":undeclared "+name)
+  var view=_function_code(String(row[2]))
+  if view.strip_edges()=="":
+   if not declare_pending: uncalled.append(String(row[2])+":missing")
+  else:
+   if declare_pending: pending.append(String(row[0])+" -> "+String(row[2]))
+   for name in declared:
+    # 名单项既可以是函数名（补 "("）也可以是两端共有的前缀（例如 Shoulders.validate 对 live 的
+    # validate( 与视图的 validate_in(；O2 的 Binding./Equipment./Shoulders. 同形）；两端都必须出现。
+    if not view.contains(String(name)+"(") and not view.contains(String(name)): uncalled.append(String(row[2])+":"+String(name))
+   for token in row[5]:
+    if view.contains(String(token)): live_only.append(String(row[2])+":"+String(token))
+   var view_file=String(row[2]).split("::")[0]
+   if not _source(view_file).contains("# "+String(row[0])) and not _source(ORCHESTRATION_SOURCE).contains("# "+String(row[0])): uncalled.append(String(row[2])+":mark")
+   aligned.append(String(row[0]))
+ var rows=[]
+ for row in PARALLEL_ORCHESTRATIONS: rows.append(String(row[0]))
+ rows.sort()
+ var marks=_orchestration_marks()
+ print("PARALLEL ORCHESTRATIONS aligned=%s pending_view=%s rows=%d marks=%s" % [str(aligned),str(pending),PARALLEL_ORCHESTRATIONS.size(),str(marks)])
+ t.check(not PARALLEL_ORCHESTRATIONS.is_empty() and malformed.is_empty() and uncalled.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: the table is never empty, every row declares a shared-rule list and its live-only side effects, and each end of a row calls the rules its row lists (an emptied list, a deleted call or an unlisted rule is red): rows="+str(PARALLEL_ORCHESTRATIONS.size())+" malformed="+str(malformed)+" uncalled="+str(uncalled))
+ t.check(live_only.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: the view end of an orchestration never runs a side effect that belongs to the live end alone (rope counting, events, pressure and card settlement, equipment feedback): live_only="+str(live_only))
+ t.check(pending.is_empty(),"ASSESS parallel_orchestrations_call_the_shared_rules: a row declared as pending on the view side must not have that side yet -- S2b flips the marker in the same batch that adds the view skeleton, so the two skeletons cannot silently drift: appeared="+str(pending))
+ # A47 逐行覆盖：每个登记标记都有一行、每行都有标记（产品侧骨架或登记表模块）；删一行而表非空同样红。
+ t.check(marks==rows and aligned.size()==PARALLEL_ORCHESTRATIONS.size(),"ASSESS parallel_orchestrations_call_the_shared_rules: every registered orchestration is checked row by row and carries exactly one registration mark (deleting a row while the table stays non-empty, or adding a view skeleton without a row, is red): rows="+str(rows)+" marks="+str(marks)+" aligned="+str(aligned.size()))

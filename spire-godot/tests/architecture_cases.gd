@@ -6711,6 +6711,9 @@ static func assess_dependency_edges(t) -> void:
  t.check(extra.is_empty(),"ARCH assess_dependency_edges: assess preloads only the declared read-only edges: extra="+str(extra))
  var forbidden=ASSESS_FORBIDDEN_TOKENS.filter(func(token):return text.contains(token))
  t.check(forbidden.is_empty(),"ARCH assess_dependency_edges: assess never references game.gd, the transaction, ui/ or tests/: "+str(forbidden))
+ # A50 R2「禁写不禁读」：随机条款只认写——`state.rng[`（索引写，等号形态再由下面的赋值正则覆盖）
+ # 与 `_random_index(`（推进 live 计数）都红；读 `state.rng.binding` 计数以复现绑定抽取是允许的，
+ # 判据里没有裸 `state.rng` 前缀，所以读不会误报（敏感性：插入读→绿，插入写或 _random_index→红）。
  var impure=[]
  for token in ["g.state=",".state.duplicate(","state.rng[","_random_index("]:
   if text.contains(token): impure.append(token)
