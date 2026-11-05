@@ -1,41 +1,26 @@
 extends RefCounted
 
-# S1 加固（中档，A14）：core/equipment_replacement_assess.gd 的纯阶段函数在真实语料上不写入参、
-# 不推进随机；Replacement.plan 的事务边界不把草稿泄漏回 live state。
+# S1 加固（中档，A14）＋S2a／S2b：core/equipment_replacement_assess.gd 的纯阶段函数在真实语料上不写入参、
+# 不推进随机；Replacement.plan 的事务边界不把草稿泄漏回 live state；读作用域索引只认同一对象；随机抽取
+# 只有一份算式；贞操锁 special_install 不进只读判定；按输入类登记的回退表默认为空（A58）。
 #
-# 入口是 assess_checks(t)，由 tests/test_game.gd 的 replacement 分支调用。本模块不是注册套件，
-# 刻意不声明 `static func run(`（tests/check_index.gd::declares_run 只认行首真实声明），
-# 与 tests/replacement_corpus_cases.gd 同一形态。
+# 入口是 assess_checks(t)，由 tests/test_game.gd 的 replacement 分支调用。本模块不是注册套件，刻意不声明
+# `static func run(`（tests/check_index.gd::declares_run 只认行首真实声明），与 tests/replacement_corpus_cases.gd 同形。
 #
-# 判据与观察面：
-#   1) assess_pure_functions_leave_inputs_unchanged：逐语料例直调 assess 的纯函数；调用前后整份
-#      g.state（经 core/save_store.gd::encode 后的规范文本）与 g._resource_feedback 相等，
-#      g.state 引用未被替换。不再只比选定键：任何 state 键的变化都会让文本不同。
+# 判据与观察面（各判据的消息里报出自己的 checked 计数）：
+#   1) assess_pure_functions_leave_inputs_unchanged：调用前后整份 SaveStore.encode(state) 与 _resource_feedback 相等、state 引用未换。
 #   2) assess_pure_functions_never_advance_random：同一循环，state.rng 与 state.seed 逐例不变。
-#   3) replacement_plan_leaves_live_state_unchanged：逐语料例跑 Replacement.plan；调用前把
-#      _resource_feedback 置为可辨认的非 null 值，plan 必须原样恢复它（删除 plan 内的恢复行即红）；
-#      _rope_trial 按例交替预置 false／true，plan 必须恢复预置值（删恢复行→预置 false 的例红，
-#      写成固定 =false→预置 true 的例红）。事务边界字段的全集是 TRANSACTION_RUNTIME_FIELDS。
-#   4) view_index_only_for_same_state（S2a-1）：读作用域的索引只认 live state 对象；同内容副本恒走扫描，
-#      结果与无作用域扫描逐项相同，索引不被重建或泄漏。
-#   5) random_draw_matches_random_index（S2a-1）：_random_draw 与 _random_index 在每个随机域 × size{1,2,7}
-#      上返回值与计数推进相同；本地计数调用不碰 state.rng。
-#   6) chastity_requests_never_reach_the_judgment（A52 F2）：唯一跳过点在 legal_requests，legal 直接收到
-#      贞操锁请求返回 false（防御），语料接缝对该类回落 S2b 前的预言机（data 的类型声明是唯一名单）。
+#   3) replacement_plan_leaves_live_state_unchanged：_resource_feedback 预置可辨认非 null、_rope_trial 按例交替预置，plan 必须原样恢复。
+#   4) view_index_only_for_same_state：读作用域索引只认 live state 对象；同内容副本恒走扫描、结果与无作用域扫描逐项相同。
+#   5) random_draw_matches_random_index：_random_draw 与 _random_index 在每个随机域 × size{1,2,7} 上返回值与计数推进相同。
+#   6) chastity_requests_never_reach_the_judgment（A52 F2）：唯一跳过点在 legal_requests；legal 直接收到贞操锁请求返回 false（防御）。
+#   7) fallback_classes_are_declared（A58）：回退类表默认为空；单请求与 random_variant 判定路径只对表内输入类调 _replacement_plan，反向也核对。
 #
-# 覆盖计数（F6）：_exercise() 返回本例实际执行到的函数集合；提前 return 的例不计入后续函数。
-# 三条判据都在消息里分别报出每个函数的 checked 计数。
-#
-# 运行面（D21）：这三条不变量只跑固定小切片，不遍历入库语料、更不遍历全量源——日常门禁的
-# replacement 套件因此与语料体积脱钩。切片＝21 例构造夹具（tag=fixture，覆盖镣铐／绳艺锁／
-# 固缚同步等构造路径）+ 20260906 段步 199／203／214 的 3 个失败例（单例 ≤ 5 ms，含装配请求被
-# 覆盖规则拒绝的早退路径）。切片按 SLICE_CASE_IDS 与 tag 取，不随语料排序漂移；新增夹具自动进面。
-# 全量对拍走显式命令（驱动 tests/replacement_corpus_check.gd，--corpus 指向 build/s0/corpus/ 的全量源）。
-#
-# 单一入口（语义 → 唯一符号；改路径须同批改本节）：
-#   语料读取／解码／Game 复位 → Corpus（replacement_corpus_cases.gd）的 load_corpus／unseal／
-#   _fresh_game／_case_state，本模块不复制；切片 → _slice()（经 Corpus._envelope）；
-#   快照 → _snapshot()；逐例调用 → _exercise()；差异 → _differences()。判据只由 assess_checks() 注册。
+# 运行面（D21）：只跑固定小切片（21 例构造夹具 + 20260906 段步 199／203／214），不遍历入库语料，replacement
+# 套件因此与语料体积脱钩；全量对拍走 tests/replacement_corpus_check.gd（--corpus 指向 build/s0/corpus/ 的全量源）。
+# 单一入口（语义 → 唯一符号；改路径须同批改本节）：语料读取／解码／Game 复位 → Corpus.load_corpus／unseal／
+# _fresh_game／_case_state，本模块不复制；切片 → _slice()（经 Corpus._envelope）；快照 → _snapshot()；
+# 逐例调用 → _exercise()；差异 → _differences()。判据只由 assess_checks() 注册。
 
 const Replacement=preload("res://core/equipment_replacement.gd")
 const Assess=preload("res://core/equipment_replacement_assess.gd")
@@ -67,6 +52,11 @@ const EQUIPMENT_CONTAINERS=["equipment","composites","special_equipment","links"
 # replace 分支；legal 对直接调用返回 false（防御）。语料侧由 Corpus.judge_subject 回落到 S2b 前的预言机；
 # 类型名单不在此重抄，取 data/special_equipment.gd::CHASTITY_TYPES（判据遍历该声明）。
 const CHASTITY_SKIP_TOKEN="is_chastity_type(request.get(\"type\",\"\")): continue"
+
+# design §9 回退（A58）：回退＝第③类处理，按输入类登记、默认空。贞操锁 special_install 是跳过
+# （chastity_requests_never_reach_the_judgment），_groups／_covering_plan 叶子是 S3 前的既定旧路径
+# （ARCH legal_requests_is_the_only_judgment_entry 的漏斗计数）；回退类只由本表登记，不得按运行时猜测。
+const FALLBACK_CLASSES=[]
 
 # _exercise 可能执行到的 assess 纯函数：覆盖计数按这张表逐函数报出。
 const STEPS=["normalize","capacity_points","counts","replacement_value","physical_points","loss","pieces","units","sets","compare","assign","transfer_options"]
@@ -114,6 +104,7 @@ static func assess_checks(t) -> void:
  view_index_only_for_same_state(t)
  random_draw_matches_random_index(t)
  chastity_requests_never_reach_the_judgment(t)
+ fallback_classes_are_declared(t)
 
 # A52 F2（design §7）：贞操锁 special_install 是判定域外输入。三向：唯一跳过点在 legal_requests 且只出现一次；
 # legal 直接收到时返回 false（防御）；语料接缝把该类交给 S2b 之前的预言机。跳过点被删或判定放行即红。
@@ -129,6 +120,30 @@ static func chastity_requests_never_reach_the_judgment(t) -> void:
  var seam=Arch.source_function_body("tests/replacement_corpus_cases.gd","judge_subject")
  t.check(application.count(CHASTITY_SKIP_TOKEN)==1 and skipped.contains(CHASTITY_SKIP_TOKEN) and assessment.count(CHASTITY_SKIP_TOKEN)==0,"ASSESS chastity_requests_never_reach_the_judgment: the one skip point for a chastity special_install stays inside legal_requests (and nowhere in the judgment module), so the judgment is never handed one by the wired path: application_lines=%d in_legal_requests=%s assessment_lines=%d" % [application.count(CHASTITY_SKIP_TOKEN),str(skipped.contains(CHASTITY_SKIP_TOKEN)),assessment.count(CHASTITY_SKIP_TOKEN)])
  t.check(refused.is_empty() and seam.contains("is_chastity_type"),"ASSESS chastity_requests_never_reach_the_judgment: the judgment refuses every chastity type handed to it directly (defensive false, not the transaction verdict) and the corpus seam judges that class with the pre-S2b oracle path: refused="+str(refused))
+
+# 回退调用点的输入类归属：只认「kind=="X" 守卫行 + 其下至多 4 行内的 _replacement_plan 调用」；
+# 未归属的调用由总计数差（calls != sites）抓住，不靠旁路漏扫。
+static func _fallback_sites(body: String) -> Array:
+ var sites=[]
+ var guarded=RegEx.create_from_string("kind[^=\\n]{0,16}==\\s*\"([a-z_]+)\"[^\\n]*\\n(?:[ \\t]+[^\\n]*\\n){0,3}[ \\t]+[^\\n]*_replacement_plan\\(")
+ for hit in guarded.search_all(body): sites.append(hit.get_string(1))
+ sites.sort()
+ return sites
+
+# A58（design §9 回退；dependencies「回退类默认为空」）：源侧扫描 legal_requests 的函数体（random_variant
+# 与单请求两个判定分支都在其中）：判定走 Assess.legal，_replacement_plan 只许出现在表内输入类下；表空即
+# 零回退；反向核对（登记了类却无对应回退调用即红）。贞操锁跳过与 _groups 叶子不得登记成回退类。
+static func fallback_classes_are_declared(t) -> void:
+ var body=""
+ for line in Arch.source_function_body("core/equipment_application.gd","legal_requests").split("\n"): body+=String(line).split("#")[0]+"\n"
+ var classes=FALLBACK_CLASSES.duplicate()
+ var sites=_fallback_sites(body)
+ var undeclared=sites.filter(func(name):return name not in classes)
+ var missing=classes.filter(func(name):return not sites.has(name))
+ var leaf=Arch.source_function_body("core/equipment_application.gd","_covering_plan").contains("_replacement_plan(") and Arch.source_function_body("core/equipment_application.gd","_groups").contains("_covering_plan(")
+ print("ASSESS FALLBACK CLASSES declared=%d sites=%d classes=%s" % [classes.size(),sites.size(),str(sites)])
+ t.check(not body.is_empty() and body.count("Assess.legal(")==2 and leaf,"ASSESS fallback_classes_are_declared: the random_variant and single-request branches judge through Assess.legal while the only remaining plan call is the pre-S3 group leaf _groups -> _covering_plan -- never a fallback class: legal_calls=%d leaf=%s" % [body.count("Assess.legal("),str(leaf)])
+ t.check(classes.all(func(name):return name is String and name!="") and body.count("_replacement_plan(")==sites.size() and undeclared.is_empty() and missing.is_empty(),"ASSESS fallback_classes_are_declared: legal_requests plans through the transaction only for the input classes this table registers -- an empty table means zero _replacement_plan calls in the judgment path, and a registered class without its source fallback is red too (never register the chastity skip or the group leaf): table=%s calls=%d undeclared=%s missing=%s" % [str(FALLBACK_CLASSES),body.count("_replacement_plan("),str(undeclared),str(missing)])
 
 # case_id 逐条列出第一个差异：整份状态文本与每个事务边界字段分开报告，红行能直接判读。
 static func _differences(case_id: String, before: Dictionary, after: Dictionary) -> Array:
