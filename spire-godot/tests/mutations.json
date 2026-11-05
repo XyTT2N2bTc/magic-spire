@@ -154,6 +154,12 @@
       "replace": "\"mutation_probe_ghost_check\": {",
       "suite": "architecture"
     },
+    "mutation_finds_are_unique_in_their_files": {
+      "file": "tests/architecture_cases.gd",
+      "find": "const VIEW_FIELDS=[\"composites\",\"equipment\",\"links\",\"next_composite\",\"next_equipment\",\"special_equipment\"]",
+      "replace": "const VIEW_FIELDS=[\"composites\",\"equipment\",\"links\",\"next_composite\",\"next_equipment\",\"special_equipment\"]\n# mutation probe: const VIEW_FIELDS=[\"composites\",\"equipment\",\"links\",\"next_composite\",\"next_equipment\",\"special_equipment\"]",
+      "suite": "architecture"
+    },
     "phase_branch_vocabulary_is_total": {
       "file": "core/game.gd",
       "find": " if state.phase==\"cleared\": return \"cleared\"",
@@ -520,8 +526,8 @@
     },
     "replacement_judgment_has_one_entry": {
       "file": "core/equipment_application.gd",
-      "find": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n return not _choice_bands(g,spec,source).is_empty()",
-      "replace": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n if Replacement.plan(g,[],source).get(\"ok\",false): return true\n return not _choice_bands(g,spec,source).is_empty()",
+      "find": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n return not _choice_bands(g,spec,source,true).is_empty()",
+      "replace": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n if Replacement.plan(g,[],source).get(\"ok\",false): return true\n return not _choice_bands(g,spec,source,true).is_empty()",
       "suite": "architecture"
     },
     "migrated_pure_functions_have_one_implementation": {

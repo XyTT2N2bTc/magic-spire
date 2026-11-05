@@ -1204,6 +1204,7 @@ static func run(t) -> void:
  target_queries_stay_stateless(t)
  ui_never_reads_game_state(t)
  mutation_evidence_is_total(t)
+ mutation_finds_are_unique_in_their_files(t)
  behavior_baseline_equivalence(t)
  removal_end_state(t)
  copy_single_entry_matches_projection(t)
@@ -6488,6 +6489,17 @@ static func equipment_scope_sites(t) -> void:
   if not hit.is_empty(): opened.append(site)
  t.check(opened.is_empty(),"EQ equipment_scope_sites: exemptions never open a read scope: "+str(opened))
 
+# A53 F5b：`g.state` 或其容器的局部别名。把 live state（整份或其中一个装备容器）绑到局部变量后，
+# 经别名的赋值与变异调用不再出现在 `g.state…` 路径上，路径扫描看不见。故直接绑定一律红；
+# 从容器派生的副本（`g.state.links.filter(...)`／`map`／`duplicate` 的返回值）不是 live 别名，保持允许。
+# 形态：`[var] name[: Type] = g.state(.field|[index])*` 且右值是该行全部内容。
+static func state_alias_lines(code: String) -> Array:
+ var lines=[]
+ var alias=RegEx.new()
+ if alias.compile("(?m)^\\s*(?:var\\s+)?[A-Za-z_][A-Za-z0-9_]*(?:\\s*:[^=\\n]+)?\\s*=\\s*g\\s*\\.\\s*state(?:\\s*\\.\\s*[A-Za-z_][A-Za-z0-9_]*|\\s*\\[[^\\]\\n]*\\])*\\s*$")!=OK: return lines
+ for hit in alias.search_all(code): lines.append(hit.get_string().strip_edges())
+ return lines
+
 # Top-level function body of one source file (signature line excluded) so a call
 # cannot be confused with the declaration. Comments are kept; callers strip them.
 # The next line-anchored declaration of the same file ends the body.
@@ -6745,12 +6757,9 @@ static func assess_dependency_edges(t) -> void:
  mutation.compile("(?<![A-Za-z0-9_])g\\s*\\.\\s*state\\b(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[^\\]]*\\])*\\s*\\.\\s*(append|append_array|erase|clear|push_back|push_front|pop_back|pop_front|insert|remove_at|resize|fill|sort|sort_custom|shuffle|merge|duplicate)\\s*\\(")
  for hit in mutation.search_all(text): mutators.append(hit.get_string().strip_edges())
  t.check(mutators.is_empty(),"ARCH assess_dependency_edges: assess never mutates or copies a live g.state container (mutation methods and duplicate are write paths): "+str(mutators))
- # 别名会把写入藏到扫描之外，故不允许把 g.state 绑到局部变量。
- var aliases=[]
- var alias=RegEx.new()
- alias.compile("(?m)^\\s*(?:var\\s+)?[A-Za-z_][A-Za-z0-9_]*\\s*=\\s*g\\.state\\b")
- for hit in alias.search_all(text): aliases.append(hit.get_string().strip_edges())
- t.check(aliases.is_empty(),"ARCH assess_dependency_edges: assess never binds g.state to a local alias (a write through the alias would be invisible to this scan): "+str(aliases))
+ # 别名会把写入藏到扫描之外，故不允许把 g.state（整份或其任一装备容器）绑到局部变量。
+ var aliases=state_alias_lines(text)
+ t.check(aliases.is_empty(),"ARCH assess_dependency_edges: assess never binds g.state or one of its equipment containers to a local alias (a write through the alias would be invisible to this scan; derived filter/map copies stay allowed): "+str(aliases))
 
 # M1（design rev3.1 §4.1、gherkin「判定只调白名单模块函数」「绳艺锁只经 assess 阶段」）：上面的实例方法白名单只匹配
 # g.<方法>(，看不见经 g 常量的模块调用，于是 g.RopeArt.track(g,x)、g.Pressure.cleanup(g) 这类写入者原先能无声通过。
@@ -7481,6 +7490,48 @@ static func mutation_evidence_is_total(t) -> void:
  var both=covered.filter(func(name):return name in declared_gaps)
  var unknown=declared_gaps.filter(func(name):return name not in universe)
  t.check(silent.is_empty() and both.is_empty() and unknown.is_empty(),"MT mutation_evidence_is_total: each judgment is either evidenced or named in known_gaps: silent="+str(silent)+" both="+str(both)+" unknown="+str(unknown))
+
+# S2b 加固第二轮（A53 F1）：tests/mutations.json 的每条 find 都必须是「在其 file 内恰出现一次」的
+# 施加入口。执行器 tools/check-mutation.ps1 只在校验单条时检查唯一性（anchor must occur exactly once），
+# 所以任一锚点被源码改写后，其余条目会静默失效而不被发现——本轮真实例：replacement_judgment_has_one_entry
+# 的 find 仍是 990b688 前的 can_apply 体，现行源码无此文本。本判据对全表做与执行器同一的核对：
+# 行尾归一化一致（find 的 \n 展开为目标文件自身的行尾），0 次（失效）与多于 1 次（歧义）都红并列出条目。
+# 目标可以是 res:// 内的 .gd/.json，也可以是 ../docs/**（contract_text_is_updated_verbatim）。
+static func mutation_target_text(relative: String) -> String:
+ var direct=source_text(relative)
+ if direct!="" or not relative.begins_with(".."): return direct
+ var base=ProjectSettings.globalize_path("res://")
+ return FileAccess.get_file_as_string((base+relative).simplify_path())
+
+static func mutation_anchor_report() -> Dictionary:
+ var parses=JSON.parse_string(source_text(MUTATION_TABLE))
+ if not parses is Dictionary: return {"entries":0,"rows":[],"bad":["table"],"unreadable":[]}
+ var entries=(parses as Dictionary).get("mutations",{})
+ if not entries is Dictionary: return {"entries":0,"rows":[],"bad":["mutations"],"unreadable":[]}
+ var rows=[]
+ var bad=[]
+ var unreadable=[]
+ for name in entries:
+  var row=entries[name]
+  if not row is Dictionary: bad.append(String(name)+":shape"); continue
+  var relative=String((row as Dictionary).get("file",""))
+  var find=String((row as Dictionary).get("find",""))
+  var content=mutation_target_text(relative)
+  if content=="": unreadable.append(String(name)+":"+relative); continue
+  var newline="\r\n" if content.contains("\r\n") else "\n"
+  var needle=find.replace("\r\n","\n").replace("\n",newline)
+  var count=0 if needle=="" else content.count(needle)
+  rows.append(String(name)+"="+str(count))
+  if count!=1: bad.append(String(name)+"@"+relative+":"+str(count))
+ return {"entries":entries.size(),"rows":rows,"bad":bad,"unreadable":unreadable}
+
+static func mutation_finds_are_unique_in_their_files(t) -> void:
+ var report=mutation_anchor_report()
+ var rows=Array(report.rows)
+ if not rows.is_empty(): print("MUTATION ANCHOR ROW "+"\nMUTATION ANCHOR ROW ".join(PackedStringArray(rows)))
+ print("MUTATION ANCHORS entries=%d unique=%d bad=%d unreadable=%d" % [int(report.entries),rows.size(),Array(report.bad).size(),Array(report.unreadable).size()])
+ t.check(int(report.entries)>0 and rows.size()==int(report.entries) and Array(report.unreadable).is_empty(),"ARCH mutation_finds_are_unique_in_their_files: every table row names a readable target file, so the anchor scan covers the whole table (a non-empty table with an unreadable file is red, never silently skipped): entries="+str(report.entries)+" scanned="+str(rows.size())+" unreadable="+str(report.unreadable))
+ t.check(not rows.is_empty() and Array(report.bad).is_empty(),"ARCH mutation_finds_are_unique_in_their_files: every declared find occurs exactly once in its file after the executor's line-ending normalization -- 0 means the anchor drifted out of the source, 2 or more means it no longer selects one site: bad="+str(report.bad))
 
 # T 批（R-T5）锚自检：对 tests/frozen-baselines.json 的每处锚重算 `git show <锚提交>:<文件>` 的 sha256，
 # 与所载 anchor.sha256 逐字节比对（大小写不敏感）。期望侧只在两处外部——JSON 声明与 git 对象库的历史

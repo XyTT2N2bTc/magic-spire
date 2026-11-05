@@ -8,7 +8,8 @@ extends RefCounted
 #
 # 判据（每条都能变红，敏感性见片报告的手工探针；本文件不登记 tests/mutations.json）：
 #   1) view_dependency_edges：视图只依赖 data/* 与 core 谓词模块，不引判定／事务／game.gd；
-#      对 g 的调用面双向登记（表外调用红、表内闲置红）；不写 state、不整份拷、不读 live rng、不碰读作用域。
+#      对 g 的调用面双向登记（表外调用红、表内闲置红）；不写 state、不整份拷、不读 live rng、不碰读作用域；
+#      不把 g.state 或其容器绑到局部别名（F5b：别名后的写入会绕过路径扫描）。
 #   2) view_builds_records_only_through_shared_builders：预览造件只经共用记录构造与准入。
 #   3) view_migrated_functions_have_one_implementation：loadout 身份家族只在视图模块有一份实现。
 #   4) assessment_leaves_live_state_unchanged：Assess.legal 连续两次后整份 encode(state)、rng、
@@ -20,8 +21,11 @@ extends RefCounted
 #   7) can_apply_stops_at_the_first_legal_candidate：first_only 是同一判定路径的存在性读取。
 #   8) parallel_orchestrations_call_the_shared_rules（A50 R3 从 replacement_assess_cases.gd 迁入）：O1／O2／O3
 #      三行编排在两端核对共用规则集合、视图端禁调 live 独有副作用，并按行核对 `# O<n>` 标记。
+#      A53 F5a：扫描面先剔除注释与字符串字面量，再按调用形态匹配，并把视图端模块内被调用的本地
+#      助手按调用闭包展开——refresh 调 helper、helper 内 g._emit(…) 也红；只写字面量不再误红。
 #   9) excluded_hooks_are_not_read_by_the_judgment（A52 F3）：排除钩子表非空、可达，且与 O3 的 live-only
 #      token 双向覆盖；声明写键与判定读取集、四容器不相交；门控空操作钩子单列并逐字核对门控行。
+#      A53 V4：四容器名单与 Arch.VIEW_FIELDS 的装备容器子集、state 字面量的 [] 初始化互钉。
 
 const Assess=preload("res://core/equipment_replacement_assess.gd")
 const View=preload("res://core/equipment_replacement_view.gd")
@@ -106,6 +110,24 @@ static func _hook_reachable(row: Array) -> bool:
   if i==0 and String(hop[0])!="core/game.gd::_cleanup" and not _declared_hook(String(hop[0])): return false
  return String(chain[chain.size()-1][1])==name+"("
 
+# A53 V4：EQUIPMENT_CONTAINERS 是容器写扫描（_container_write_hits）与排除钩子互钉的宽度来源。
+# 名单只改一处（例如把 equipment 改名）会让扫描静默缩面，所以与两处权威声明互钉：
+# ① architecture_cases::VIEW_FIELDS 去掉 next_* 计数键后的装备容器子集；② core/game.gd::_init 的
+# state 字面量里逐个声明为 []（state 的装备容器就在那里初始化）。两处任一改名都会让本条红。
+static func _equipment_containers_pin() -> Dictionary:
+ var declared=[]
+ for key in Arch.VIEW_FIELDS:
+  if not String(key).begins_with("next_"): declared.append(String(key))
+ declared.sort()
+ var configured=AssessCases.EQUIPMENT_CONTAINERS.duplicate()
+ configured.sort()
+ var state_code=Arch.code_of_function("core/game.gd","_init")
+ var uninitialized=[]
+ for name in configured:
+  var pattern=RegEx.new()
+  if pattern.compile("\""+String(name)+"\"\\s*:\\s*\\[\\s*\\]")!=OK or pattern.search(state_code)==null: uninitialized.append(String(name))
+ return {"declared":declared,"configured":configured,"uninitialized":uninitialized}
+
 static func excluded_hooks_are_not_read_by_the_judgment(t) -> void:
  var phantom=[]
  var unreachable=[]
@@ -132,12 +154,14 @@ static func excluded_hooks_are_not_read_by_the_judgment(t) -> void:
   if not live_only.has(String(row[2])): unowned.append(String(row[0])+":"+String(row[2]))
  var shared=noop.keys().filter(func(anchor):return _declared_hook(String(anchor)))
  var read_keys=_judgment_read_keys()
- print("EXCLUDED HOOKS rows=%d noop=%d read_keys=%d live_only=%d" % [AssessCases.ASSESS_EXCLUDED_HOOKS.size(),AssessCases.TRANSACTION_NOOP_HOOKS.size(),read_keys.size(),live_only.size()])
+ var pin=_equipment_containers_pin()
+ print("EXCLUDED HOOKS rows=%d noop=%d read_keys=%d live_only=%d containers=%s" % [AssessCases.ASSESS_EXCLUDED_HOOKS.size(),AssessCases.TRANSACTION_NOOP_HOOKS.size(),read_keys.size(),live_only.size(),str(pin.configured)])
  t.check(not AssessCases.ASSESS_EXCLUDED_HOOKS.is_empty() and phantom.is_empty() and unreachable.is_empty() and unowned.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: the excluded-hook table is non-empty and every row resolves to a real body reachable from the live cleanup skeleton, while every live-only token of O3 is owned by a declared row (both directions): phantom="+str(phantom)+" unreachable="+str(unreachable)+" unowned="+str(unowned))
  var overlap=read_keys.filter(func(key):return declared.has(String(key)))
  var containers=AssessCases.EQUIPMENT_CONTAINERS.filter(func(key):return declared.has(String(key)))
  t.check(overlap.is_empty() and containers.is_empty() and container_writes.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: no excluded hook writes a key the judgment reads or any of the four equipment containers (declared keys vs the derived read set, plus a source scan of each hook body for container writes): overlap="+str(overlap)+" containers="+str(containers)+" writes="+str(container_writes))
  t.check(not AssessCases.TRANSACTION_NOOP_HOOKS.is_empty() and gated.is_empty() and shared.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: the transaction-noop hooks stay a separate table (gated no-ops are equivalent to not running them) and each gate line is present verbatim in its body: gated="+str(gated)+" shared="+str(shared))
+ t.check(not pin.configured.is_empty() and pin.configured==pin.declared and pin.uninitialized.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: EQUIPMENT_CONTAINERS equals the equipment containers of Arch.VIEW_FIELDS and each is declared as an empty array in the live state literal, so renaming a container on either side is red instead of silently narrowing the write scan: configured="+str(pin.configured)+" declared="+str(pin.declared)+" uninitialized="+str(pin.uninitialized))
 
 static func view_dependency_edges(t) -> void:
  var text=Arch.source_code(VIEW_SOURCE)
@@ -162,6 +186,11 @@ static func view_dependency_edges(t) -> void:
  if write.compile("(?<![A-Za-z0-9_])g\\s*\\.\\s*state\\b(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[^\\]]*\\])*\\s*(?:\\*\\*|<<|>>|\\+|-|\\*|/|%|&|\\||\\^)?=(?!=)")==OK:
   for hit in write.search_all(text): writes.append(hit.get_string().strip_edges())
  t.check(impure.is_empty() and writes.is_empty(),"VIEW view_dependency_edges: the view never writes or copies live state, never advances the live random entry and never touches the read scope (a g.state path assignment is a write; reading the binding count is allowed, its draws still go through a local counter copy): impure="+str(impure)+" writes="+str(writes))
+ # A53 F5b：别名洗白。把 g.state 整份或它的容器直接绑到局部变量后，经别名的赋值与变异调用不再
+ # 出现在 `g.state…` 路径上；故直接绑定一律红（与 ARCH assess_dependency_edges 共用同一实现）。
+ # 从容器派生的副本（g.state.links.filter(...) 的返回值）不是 live 别名，保持允许。
+ var aliases=Arch.state_alias_lines(text)
+ t.check(aliases.is_empty(),"VIEW view_dependency_edges: the view never binds g.state or one of its equipment containers to a local alias (a write through the alias, var s=g.state then s.equipment=[], would be invisible to the path scan; derived filter/map copies stay allowed): "+str(aliases))
  var call=RegEx.new()
  call.compile("(?<![A-Za-z0-9_])g\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
  var outside=[]
@@ -375,7 +404,41 @@ static func _source(relative: String) -> String:
  var file=FileAccess.open("res://"+relative,FileAccess.READ)
  return "" if file==null else file.get_as_text()
 
-# 函数体文本（签名之后、下一个声明之前），注释剔除：判据只看代码。
+# A53 F5a：判据只看可执行的调用形态。注释与字符串字面量先剔除（字面量折成一个空格，保持 token
+# 边界），于是函数体里写一句 "g.RopeArt.track(" 不再算调用；模块内被调用的本地助手按调用闭包
+# 展开（最多 HELPER_EXPANSION_DEPTH 层，seen 防环），refresh -> helper -> g._emit( 也算 refresh 的调用面。
+const HELPER_EXPANSION_DEPTH=3
+
+static func _code_text(text: String) -> String:
+ var out=[]
+ var index=0
+ var size=text.length()
+ while index<size:
+  var ch=text[index]
+  if ch=="#":
+   var end=text.find("\n",index)
+   if end<0: break
+   index=end
+   continue
+  if ch=="\"" or ch=="'":
+   var quote=ch
+   if text.substr(index,3)==quote+quote+quote:
+    var close=text.find(quote+quote+quote,index+3)
+    index=size if close<0 else close+3
+   else:
+    index+=1
+    while index<size:
+     var inner=text[index]
+     if inner=="\\": index+=2; continue
+     index+=1
+     if inner==quote or inner=="\n": break
+   out.append(" ")
+   continue
+  out.append(ch)
+  index+=1
+ return "".join(PackedStringArray(out))
+
+# 函数体代码面（签名之后、下一个声明之前），注释与字符串字面量剔除。
 static func _function_code(site: String) -> String:
  var parts=site.split("::")
  if parts.size()<2: return ""
@@ -388,13 +451,61 @@ static func _function_code(site: String) -> String:
  if following.compile("(?m)^(?:static\\s+)?func\\s+")!=OK: return ""
  var next=following.search(text,hit.get_end())
  var end=text.length() if next==null else next.get_start()
- var lines=[]
- for line in text.substr(hit.get_end(),end-hit.get_end()).split("\n"): lines.append(String(line).split("#")[0])
- return "\n".join(lines)
+ return _code_text(text.substr(hit.get_end(),end-hit.get_end()))
+
+static func _declares_function(relative: String, name: String) -> bool:
+ var declaration=RegEx.new()
+ if declaration.compile("(?m)^(?:static\\s+)?func\\s+"+name+"\\s*\\(")!=OK: return false
+ return declaration.search(_source(relative))!=null
+
+# 调用闭包：本模块内被调用的顶层助手一并并入扫描面（深度受限，seen 防环）。
+static func _expanded_code(relative: String, name: String, depth: int, seen: Dictionary) -> String:
+ var code=_function_code(relative+"::"+name)
+ if depth<=0: return code
+ var call=RegEx.new()
+ if call.compile("(?<![A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")!=OK: return code
+ var extra=[]
+ for hit in call.search_all(code):
+  var helper=hit.get_string(1)
+  if seen.has(helper) or not _declares_function(relative,helper): continue
+  seen[helper]=true
+  extra.append(_expanded_code(relative,helper,depth-1,seen))
+ if extra.is_empty(): return code
+ return code+"\n"+"\n".join(PackedStringArray(extra))
+
+static func _expanded_function_code(site: String) -> String:
+ var parts=site.split("::")
+ if parts.size()<2: return ""
+ var seen={String(parts[1]):true}
+ return _expanded_code(String(parts[0]),String(parts[1]),HELPER_EXPANSION_DEPTH,seen)
+
+# 声明项 -> 调用形态正则：`name(` 同名调用；`Module.` 模块前缀；`Module.func` 名称前缀
+# （validate 对 validate_in）；裸名认同名或同族助手调用（link_anchors 对 link_anchors_in）。
+static func _call_regex(token: String) -> RegEx:
+ var text=String(token)
+ var prefix="(?<![A-Za-z0-9_])"
+ var pattern=""
+ if text.ends_with("("): pattern=prefix+_regex_escape(text.trim_suffix("("))+"\\s*\\("
+ elif text.ends_with("."): pattern=prefix+_regex_escape(text)+"[A-Za-z_][A-Za-z0-9_]*\\s*\\("
+ elif text.contains("."): pattern=prefix+_regex_escape(text)+"[A-Za-z0-9_]*\\s*\\("
+ else: pattern=prefix+_regex_escape(text)+"[A-Za-z0-9_]*\\s*\\("
+ var regex=RegEx.new()
+ return regex if regex.compile(pattern)==OK else null
+
+static func _regex_escape(text: String) -> String:
+ var escaped=""
+ for index in range(text.length()):
+  var ch=text[index]
+  escaped+=("\\"+ch) if ch in [".","+","*","?","(",")","[","]","{","}","^","$","|","\\","/"] else ch
+ return escaped
+
+static func _declared_called(code: String, token: String) -> bool:
+ var regex=_call_regex(token)
+ return regex!=null and regex.search(code)!=null
 
 # 共用清理规则＝live 骨架里裸调用的、在 core/game.gd 内为单行纯谓词的本地函数：与登记表双向对照的源侧枚举。
 static func _shared_rule_calls(body: String) -> Array:
- var names=[]; var call=RegEx.new(); if call.compile("(?<![.\\w])(_[a-z][a-z0-9_]*)\\(")!=OK: return names
+ var names=[]; var call=RegEx.new(); if call.compile("(?<![.\\w])(_[a-z][a-z0-9_]*)\\s*\\(")!=OK: return names
  for hit in call.search_all(body):
   var rest=Array(_function_code("core/game.gd::"+hit.get_string(1)).split("\n",false,1))
   var code=String(rest[1]).strip_edges() if rest.size()>1 else ""
@@ -420,7 +531,7 @@ static func _live_shared_rules(body: String, live_only: Array) -> Array:
  if call.compile("(?<![A-Za-z0-9_])([A-Z][A-Za-z0-9_]*)\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\(")!=OK: return names
  for hit in call.search_all(body):
   var match_text=hit.get_string(0)
-  if live_only.any(func(token):return match_text.begins_with(String(token))): continue
+  if live_only.any(func(token):return _declared_called(match_text,String(token))): continue
   var token=String(hit.get_string(1))+"."
   if not token in names: names.append(token)
  names.sort(); return names
@@ -449,7 +560,7 @@ static func parallel_orchestrations_call_the_shared_rules(t) -> void:
   else:
    # live 端是事务试算：名单项须真被调用，且它调到的每个共用阶段都在名单内（failure 除外）。
    for token in declared:
-    if not live.contains(String(token)): uncalled.append(String(row[1])+":"+String(token))
+    if not _declared_called(live,String(token)): uncalled.append(String(row[1])+":"+String(token))
    for name in _assess_calls(live):
     if name!="failure" and not declared.has(name+"("): uncalled.append(String(row[1])+":undeclared "+name)
   var view=_function_code(String(row[2]))
@@ -457,12 +568,15 @@ static func parallel_orchestrations_call_the_shared_rules(t) -> void:
    if not declare_pending: uncalled.append(String(row[2])+":missing")
   else:
    if declare_pending: pending.append(String(row[0])+" -> "+String(row[2]))
+   # A53 F5a：视图端按调用闭包展开（本模块助手一并计入），声明项与第 6 列都只认调用形态，
+   # 字面量与注释不参与，所以新增 helper -> g._emit( 会红、仅写字面量 "g.RopeArt.track(" 不会红。
+   var scanned=_expanded_function_code(String(row[2]))
    for name in declared:
     # 名单项既可以是函数名（补 "("）也可以是两端共有的前缀（例如 Shoulders.validate 对 live 的
     # validate( 与视图的 validate_in(；O2 的 Binding./Equipment./Shoulders. 同形）；两端都必须出现。
-    if not view.contains(String(name)+"(") and not view.contains(String(name)): uncalled.append(String(row[2])+":"+String(name))
+    if not _declared_called(scanned,String(name)): uncalled.append(String(row[2])+":"+String(name))
    for token in row[5]:
-    if view.contains(String(token)): live_only.append(String(row[2])+":"+String(token))
+    if _declared_called(scanned,String(token)): live_only.append(String(row[2])+":"+String(token))
    var view_file=String(row[2]).split("::")[0]
    if not _source(view_file).contains("# "+String(row[0])) and not _source(ORCHESTRATION_SOURCE).contains("# "+String(row[0])): uncalled.append(String(row[2])+":mark")
    aligned.append(String(row[0]))
