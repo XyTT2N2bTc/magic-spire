@@ -30,10 +30,9 @@ const View=preload("res://core/equipment_replacement_view.gd")
 static func failure(reason: String) -> Dictionary:
  return {"ok":false,"reason":reason,"removed":[],"installed":[],"lost_links":[],"comparisons":[]}
 
-# Definition and parameter normalization. The request copy is local: the caller's
-# dictionaries are never mutated. Structural checks delegate to the original
-# factory/preparation APIs so the judgment and the transaction accept exactly the
-# same requests.
+# Definition and parameter normalization. The request copy is local: the caller's dictionaries are
+# never mutated. Structural checks delegate to the original factory/preparation APIs so the
+# judgment and the transaction accept exactly the same requests.
 static func normalize(g, requests: Array) -> Dictionary:
  if requests.is_empty(): return failure("本次没有指定要安装的装备。")
  var normalized=[]
@@ -370,12 +369,13 @@ static func install_all(g, view: Dictionary, specs: Array, source: String) -> Ar
   installed.append(item)
  return installed
 
-# S2b read-only judgment (A0-A8): the verdict Replacement.plan would return, over the device view
-# instead of a duplicated state; never writes g.state, copies/swaps a snapshot, emits or advances a live counter.
+# S2b read-only judgment (A0-A8): the verdict Replacement.plan would return, over the device view instead of a
+# duplicated state; never writes g.state or advances random. A chastity special_install is out of domain (§7).
 static func legal(g, requests: Array, source: String, protected_ids: Array=[]) -> bool:
  var normalized=normalize(g,requests)
  if not normalized.ok: return false
  var specs=normalized.requests
+ if specs.any(func(r):return r.kind=="special_install" and g.SpecialEquipment.is_chastity_type(r.get("type",""))): return false
  var required_result=mandatory(g,g.state.special_equipment,specs,protected_ids)
  if not required_result.ok: return false
  var required=required_result.units

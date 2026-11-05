@@ -220,14 +220,14 @@ static func _choices(g, spec: Dictionary, source: String, first_only: bool=false
   var band=raw.filter(func(p):return slot in _slots(p))
   var found=legal_requests(g,band,spec,source,first_only)
   if found.is_empty() and spec.get("replace",false) and spec.get("count",1)>1 and spec.get("pool","ordinary")=="ordinary":
-   found=_groups(g,raw,spec,source).filter(func(group):return group.requests.any(func(p):return slot in _slots(p)))
+   found=_groups(g,raw,spec,source,first_only,slot)
   if not found.is_empty(): return O.preferred(g,found)
  return O.preferred(g,legal_requests(g,raw,spec,source,first_only))
 
 # The single legal-candidate entry: choose and can_apply reach it through
 # _choice_bands -> _choices. The replace branch judges through Assess.legal for a single
 # request and for every random variant; first_only is can_apply's existence read of the
-# same path and never runs a second judgment.
+# same path (single requests and the whole-root group fallback) and never runs a second judgment.
 static func legal_requests(g, raw: Array, spec: Dictionary, source: String, first_only: bool=false) -> Array:
  var normal=raw.filter(func(p):return _request_reason(g,p,true,spec.get("protected_ids",[]))=="")
  if not normal.is_empty(): return normal
@@ -246,9 +246,8 @@ static func legal_requests(g, raw: Array, spec: Dictionary, source: String, firs
     options.append(option)
   elif Assess.legal(g,request_specs([request]),source,spec.get("protected_ids",[])): options.append(request)
   if first_only and not options.is_empty(): return options
- if first_only: return options
  if options.is_empty() and spec.get("pool","ordinary")=="ordinary" and spec.get("count",1)>1:
-  options.append_array(_groups(g,raw,spec,source))
+  options.append_array(_groups(g,raw,spec,source,first_only))
  return options
 
 # The one request normalization both replace paths share (assembly part expansion).
@@ -374,10 +373,10 @@ static func _replacement_plan(g, requests: Array, source: String, protected_ids:
  # Replacement.plan owns the scratch state and feedback isolation.
  return Replacement.plan(g,request_specs(requests),source,protected_ids)
 
-# A composite can require several individually impossible ordinary requests. Build
-# its entire real point coverage first and let Replacement decide capacity, strength,
-# exterior layers and links. Never delete or install a partial covering group.
-static func _groups(g, raw: Array, spec: Dictionary, source: String) -> Array:
+# A composite can require several individually impossible ordinary requests. Build its entire
+# real point coverage first and let Replacement decide capacity, strength, exterior layers and
+# links. Never delete or install a partial covering group; first_only stops at the first one.
+static func _groups(g, raw: Array, spec: Dictionary, source: String, first_only: bool=false, slot: String="") -> Array:
  var groups=[]
  for root in g.state.composites:
   if not C.active(root): continue
@@ -408,10 +407,11 @@ static func _groups(g, raw: Array, spec: Dictionary, source: String) -> Array:
    choices.append(requests)
   if choices.any(func(requests):return requests.is_empty()): continue
   var requests=_covering_plan(g,choices,0,[],source,spec.get("protected_ids",[]))
-  if requests.is_empty(): continue
+  if requests.is_empty() or (slot!="" and not requests.any(func(request):return slot in _slots(request))): continue
   var rank=0
   for request in requests: rank=maxi(rank,request.get("rank",0))
   groups.append({"kind":"application_group","requests":requests,"rank":rank})
+  if first_only: return groups
  return groups
 
 static func _covering_plan(g, choices: Array, index: int, requests: Array, source: String, protected_ids: Array) -> Array:

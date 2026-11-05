@@ -41,6 +41,30 @@ const Corpus=preload("res://tests/replacement_corpus_cases.gd")
 const Store=preload("res://core/save_store.gd")
 const Game=preload("res://core/game.gd")
 const Equipment=preload("res://data/equipment.gd")
+const Arch=preload("res://tests/architecture_cases.gd")
+
+# design §9 L2（A52 F3）：live 清理骨架与 _trial 会执行、视图骨架跳过的钩子。行＝[钩子锚点, 声明的写键,
+# 视图端禁跑的 live-only token, 到达链（[锚点, token] 对；首跳锚点须是本表行或 core/game.gd::_cleanup，
+# 末跳 token 须是该钩子的调用）]。判据在 tests/replacement_view_cases.gd::excluded_hooks_are_not_read_by_the_judgment。
+const ASSESS_EXCLUDED_HOOKS=[
+ ["core/card_effects.gd::restraint_changed",["powers","energy"],"Cards.",[]],
+ ["core/pressure.gd::cleanup",["pressure_sources"],"Pressure.",[]],
+ ["core/pressure.gd::settle_maximum",["pressure","overloaded","overload_count","overload_energy","overload_total","chastity_climax_factor","slip_ejaculation_turns"],"Pressure.",[]],
+ ["core/relic_effects.gd::_mana_hook",["mana","mana_max","flask_mana"],"Pressure.",
+  [["core/pressure.gd::settle_maximum","_apply_overloads("],["core/pressure.gd::_apply_overloads","g.RelicEffects.climax("],["core/relic_effects.gd::climax","_mana_hook("]]],
+ ["core/game.gd::_emit",["logs","summary"],"_emit(",[]]]
+# rev3.1 §4.4：与上表区分——事务内由门控变成空操作的钩子，判定不执行它们与事务完全等价，故不进上表。
+# 行＝[锚点, 门控行原文, live 端调用 token, 该调用所在的 live 文件]。
+const TRANSACTION_NOOP_HOOKS=[
+ ["core/rope_master.gd::track","if g._rope_trial: return","RopeArt.track(","core/game.gd"],
+ ["core/rope_master.gd::observe","if g._rope_trial: return","RopeArt.observe(","core/capture_bind.gd"],
+ ["core/game.gd::_equipment_feedback","if _resource_feedback!=null:","_equipment_feedback(","core/game.gd"]]
+const EQUIPMENT_CONTAINERS=["equipment","composites","special_equipment","links"]
+
+# design §7 前置条件（A52 F2）：贞操锁 special_install 不进只读判定。唯一跳过点在 legal_requests 的
+# replace 分支；legal 对直接调用返回 false（防御）。语料侧由 Corpus.judge_subject 回落到 S2b 前的预言机。
+const CHASTITY_SKIP_TOKEN="is_chastity_type(request.get(\"type\",\"\")): continue"
+const CHASTITY_TYPES=["negative_plate_lock_medium","negative_plate_lock_catheter_medium","negative_vibrator_lock_catheter_high"]
 
 # _exercise 可能执行到的 assess 纯函数：覆盖计数按这张表逐函数报出。
 const STEPS=["normalize","capacity_points","counts","replacement_value","physical_points","loss","pieces","units","sets","compare","assign","transfer_options"]
@@ -87,6 +111,22 @@ static func assess_checks(t) -> void:
  replacement_plan_leaves_live_state_unchanged(t,data)
  view_index_only_for_same_state(t)
  random_draw_matches_random_index(t)
+ chastity_requests_never_reach_the_judgment(t)
+
+# A52 F2（design §7）：贞操锁 special_install 是判定域外输入。三向：唯一跳过点在 legal_requests 且只出现一次；
+# legal 直接收到时返回 false（防御）；语料接缝把该类交给 S2b 之前的预言机。跳过点被删或判定放行即红。
+static func chastity_requests_never_reach_the_judgment(t) -> void:
+ var application=Arch.source_code("core/equipment_application.gd")
+ var assessment=Arch.source_code("core/equipment_replacement_assess.gd")
+ var skipped=Arch.source_function_body("core/equipment_application.gd","legal_requests")
+ var refused=[]
+ var g=Game.new(42)
+ for type in CHASTITY_TYPES:
+  var request={"kind":"special_install","type":type,"slot":g.SpecialEquipment.DESIGNS[type].slots[0],"tier":2}
+  if Assess.legal(g,[request],"fixture",[]): refused.append(type)
+ var seam=Arch.source_function_body("tests/replacement_corpus_cases.gd","judge_subject")
+ t.check(application.count(CHASTITY_SKIP_TOKEN)==1 and skipped.contains(CHASTITY_SKIP_TOKEN) and assessment.count(CHASTITY_SKIP_TOKEN)==0,"ASSESS chastity_requests_never_reach_the_judgment: the one skip point for a chastity special_install stays inside legal_requests (and nowhere in the judgment module), so the judgment is never handed one by the wired path: application_lines=%d in_legal_requests=%s assessment_lines=%d" % [application.count(CHASTITY_SKIP_TOKEN),str(skipped.contains(CHASTITY_SKIP_TOKEN)),assessment.count(CHASTITY_SKIP_TOKEN)])
+ t.check(refused.is_empty() and seam.contains("is_chastity_type"),"ASSESS chastity_requests_never_reach_the_judgment: the judgment refuses every chastity type handed to it directly (defensive false, not the transaction verdict) and the corpus seam judges that class with the pre-S2b oracle path: refused="+str(refused))
 
 # case_id 逐条列出第一个差异：整份状态文本与每个事务边界字段分开报告，红行能直接判读。
 static func _differences(case_id: String, before: Dictionary, after: Dictionary) -> Array:

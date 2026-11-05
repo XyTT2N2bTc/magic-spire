@@ -27,6 +27,7 @@ const Application=preload("res://core/equipment_application.gd")
 const Corpus=preload("res://tests/replacement_corpus_cases.gd")
 const AssessCases=preload("res://tests/replacement_assess_cases.gd")
 const Arch=preload("res://tests/architecture_cases.gd")
+const StateReaderScan=preload("res://tests/state_reader_scan.gd")
 const Store=preload("res://core/save_store.gd")
 const Game=preload("res://core/game.gd")
 
@@ -53,6 +54,87 @@ static func view_checks(t) -> void:
  view_binding_draw_reproduces_the_live_refresh(t,slice)
  can_apply_stops_at_the_first_legal_candidate(t,data.get("application_cases",[]))
  parallel_orchestrations_call_the_shared_rules(t)
+ excluded_hooks_are_not_read_by_the_judgment(t)
+
+# A52 F3（design §9 L2／rev3.1 §4.4）：排除钩子在判定里不执行，因此它们写的键不得被判定读取，钩子体也不得
+# 写四个装备容器。三向核对：① 表非空、每行可在源侧到达（首跳在本表行或清理骨架里）、清理骨架的每个
+# live-only token 都有登记行；② 判定读取集与声明的写键、四容器不相交，且源码扫描无容器写；③ 门控空操作
+# 钩子与排除钩子分开登记、门控行逐字存在。读取集＝state_readers.json 的 assess／view 读键 ∪ 判定实际调用的
+# <name>_in 别名键 ∪ RopeArt.locked 的 rope_master.master 读键。
+static func _judgment_read_keys() -> Array:
+ var frozen=StateReaderScan.frozen()
+ var code=Arch.source_code("core/equipment_replacement_assess.gd")+Arch.source_code(VIEW_SOURCE)
+ var keys={}
+ for anchor in frozen.get("owners",{}):
+  var parts=String(anchor).split("::")
+  if parts.size()<2: continue
+  if String(anchor).begins_with("core/equipment_replacement_assess.gd::") or String(anchor).begins_with(VIEW_SOURCE+"::") or (String(parts[1]).ends_with("_in") and code.contains(String(parts[1])+"(")):
+   for key in frozen.owners[anchor]: keys[key]=true
+ for anchor in frozen.get("aliases",{}):
+  var parts=String(anchor).split("::")
+  if parts.size()>1 and code.contains(String(parts[1])+"("):
+   for key in frozen.aliases[anchor].get("fields",[]): keys[key]=true
+ for key in frozen.get("owners",{}).get("core/rope_master.gd::master",{}): keys[key]=true
+ return keys.keys()
+
+# 钩子锚点 → 函数体（注释剔除）；四容器的写：赋值、索引赋值与就地增删。
+const EQUIPMENT_WRITE="(?<![A-Za-z0-9_])(?:g\\.)?state\\s*(?:\\.\\s*(?:equipment|composites|special_equipment|links)|\\[\\s*\"(?:equipment|composites|special_equipment|links)\"\\s*\\])\\s*(?:\\.\\s*(?:erase|append|append_array|clear|remove_at|insert|sort|shuffle|push_back)\\s*\\(|(?:[-+*/]|<<|>>)?=(?!=))"
+
+static func _hook_body(anchor: String) -> String:
+ var parts=String(anchor).split("::")
+ if parts.size()<2: return ""
+ var lines=[]
+ for line in Arch.source_function_body(String(parts[0]),String(parts[1])).split("\n"): lines.append(String(line).split("#")[0])
+ return "\n".join(lines)
+
+static func _declared_hook(anchor: String) -> bool:
+ for row in AssessCases.ASSESS_EXCLUDED_HOOKS:
+  if String(row[0])==anchor: return true
+ return false
+
+# 到达：空链要求 token 出现在清理骨架里；非空链逐跳核对 token，首跳锚点须是登记行或清理骨架，末跳是该钩子的调用。
+static func _hook_reachable(row: Array) -> bool:
+ var name=String(row[0]).split("::")[1]
+ var chain=row[3]
+ if (chain as Array).is_empty(): return _hook_body("core/game.gd::_cleanup").contains(String(row[2]))
+ for i in range(chain.size()):
+  var hop=chain[i]
+  if not _hook_body(String(hop[0])).contains(String(hop[1])): return false
+  if i==0 and String(hop[0])!="core/game.gd::_cleanup" and not _declared_hook(String(hop[0])): return false
+ return String(chain[chain.size()-1][1])==name+"("
+
+static func excluded_hooks_are_not_read_by_the_judgment(t) -> void:
+ var phantom=[]
+ var unreachable=[]
+ var declared={}
+ var container_writes=[]
+ for row in AssessCases.ASSESS_EXCLUDED_HOOKS:
+  var body=_hook_body(String(row[0]))
+  if body.strip_edges()=="": phantom.append(String(row[0]))
+  for key in row[1]: declared[String(key)]=true
+  if RegEx.create_from_string(EQUIPMENT_WRITE).search(body)!=null: container_writes.append(String(row[0]))
+  if not _hook_reachable(row): unreachable.append(String(row[0]))
+ var noop={}
+ var gated=[]
+ for row in AssessCases.TRANSACTION_NOOP_HOOKS:
+  noop[String(row[0])]=true
+  if not _hook_body(String(row[0])).contains(String(row[1])): gated.append(String(row[0]))
+  if not Arch.source_code(String(row[3])).contains(String(row[2])): gated.append(String(row[0])+":uncalled")
+ var live_only={}
+ var unowned=[]
+ for row in PARALLEL_ORCHESTRATIONS:
+  if String(row[0])!="O3": continue
+  for token in row[5]: live_only[String(token)]=true
+ for row in AssessCases.ASSESS_EXCLUDED_HOOKS:
+  if not live_only.has(String(row[2])): unowned.append(String(row[0])+":"+String(row[2]))
+ var shared=noop.keys().filter(func(anchor):return _declared_hook(String(anchor)))
+ print("EXCLUDED HOOKS rows=%d noop=%d read_keys=%d live_only=%d" % [AssessCases.ASSESS_EXCLUDED_HOOKS.size(),AssessCases.TRANSACTION_NOOP_HOOKS.size(),_judgment_read_keys().size(),live_only.size()])
+ t.check(not AssessCases.ASSESS_EXCLUDED_HOOKS.is_empty() and phantom.is_empty() and unreachable.is_empty() and unowned.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: the excluded-hook table is non-empty and every row resolves to a real body reachable from the live cleanup skeleton, while every live-only token of O3 is owned by a declared row (both directions): phantom="+str(phantom)+" unreachable="+str(unreachable)+" unowned="+str(unowned))
+ var read_keys=_judgment_read_keys()
+ var overlap=read_keys.filter(func(key):return declared.has(String(key)))
+ var containers=AssessCases.EQUIPMENT_CONTAINERS.filter(func(key):return declared.has(String(key)))
+ t.check(overlap.is_empty() and containers.is_empty() and container_writes.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: no excluded hook writes a key the judgment reads or any of the four equipment containers (declared keys vs the derived read set, plus a source scan of each hook body for container writes): overlap="+str(overlap)+" containers="+str(containers)+" writes="+str(container_writes))
+ t.check(not AssessCases.TRANSACTION_NOOP_HOOKS.is_empty() and gated.is_empty() and shared.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: the transaction-noop hooks stay a separate table (gated no-ops are equivalent to not running them) and each gate line is present verbatim in its body: gated="+str(gated)+" shared="+str(shared))
 
 static func view_dependency_edges(t) -> void:
  var text=Arch.source_code(VIEW_SOURCE)

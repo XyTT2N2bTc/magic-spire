@@ -98,6 +98,7 @@ static func run(t) -> void:
  t.check(result.ok and result.count==1 and result.installed[0].template=="link_rope" and g.state.links.size()==1,"APPLY explicit link source uses real endpoints and factory")
  _replacement_cases(t)
  _batch_cases(t)
+ _whole_root_cases(t)
  _mixed_pool_cases(t)
  _enemy_commit_cases(t)
  g=Game.new(54)
@@ -244,3 +245,39 @@ static func _batch_cases(t) -> void:
  var requests=[{"kind":"install","template":"belt","slot":"wrist","grade":2,"tier":2,"variant":0},{"kind":"install","template":"mouth_band","slot":"ankle","grade":2,"tier":2,"variant":0}]
  result=A.execute_concrete(g,{"kind":"application_group","requests":requests},"event:fixture",true)
  t.check(not result.ok and g.state==before,"APPLY frozen atomic group rejects invalid last request without partial installation")
+
+# A52 F1：存在性早停必须覆盖 _groups 回退。整根复合置换是唯一合法施加时（单请求置换全部失败），
+# can_apply 必须与 choose 的完整枚举同源——改前定义 can_apply＝完整 _choice_bands 非空，就是本条的预言机；
+# 早停在 _groups 之前返回会让 can_apply 假而 choose 仍返回组请求（闪避分支因此不消费闪避）。
+static func _whole_root_cases(t) -> void:
+ var points={"upper_arm":["upper_arm_top","above_elbow"],"forearm":["below_elbow","mid_forearm"],"wrist":[""]}
+ var specs=[]
+ for count in [5,4]:
+  for tier in [3,2]:
+   specs.append({"pool":"ordinary","templates":["tape"],"slots":["upper_arm","forearm","wrist"],"count":count,"grade":3,"tier":tier,"replace":true,"variants":{"tape":0},"ready_layers":count})
+ var mismatched=[]
+ var checked=0
+ var groups=0
+ var single_only=0
+ for seed_value in [51,56]:
+  for spec in specs:
+   var g=Game.new(seed_value)
+   for slot in points:
+    for point in points[slot]:
+     for i in range(2): g._install_template("belt",slot,4,10,false,"fixture",1,-1,0,point)
+   g._install_assembly("glove","short","fixture",2,1)
+   var raw=A._raw(g,spec,"fixture")
+   var legal=A.legal_requests(g,raw,spec,"fixture")
+   var stop=A.legal_requests(g,raw,spec,"fixture",true)
+   var oracle=not A._choice_bands(g,spec,"fixture").is_empty()
+   var can=A.can_apply(g,spec,"fixture")
+   var chosen=A.choose(g,spec,"fixture")
+   checked+=1
+   if chosen.get("kind","")=="application_group": groups+=1
+   if can!=oracle or oracle!=(not chosen.is_empty()): mismatched.append("%d/%d/%d can=%s oracle=%s choose=%s" % [seed_value,spec.count,spec.tier,str(can),str(oracle),str(not chosen.is_empty())])
+   if stop.size()!=mini(1,legal.size()) or (not stop.is_empty() and JSON.stringify(stop[0])!=JSON.stringify(legal[0])): mismatched.append("%d/%d/%d stop=%d/%d" % [seed_value,spec.count,spec.tier,stop.size(),legal.size()])
+   # 只留整根置换的那一档：逐个单请求都必须判死，唯一合法项是组请求。
+   if spec.count==5 and spec.tier==3 and legal.size()==1 and legal[0].get("kind","")=="application_group":
+    single_only+=1
+    if raw.any(func(request):return not A.legal_requests(g,[request.duplicate(true)],spec,"fixture").is_empty()): mismatched.append("%d/%d/%d single-request-legal" % [seed_value,spec.count,spec.tier])
+ t.check(mismatched.is_empty() and checked==8 and groups>=2 and single_only>=2,"APPLY can_apply_covers_the_whole_root_group_fallback: can_apply is true exactly when the full enumeration (the pre-change definition) and choose are non-empty, across four specs and two states; the shape where every single request is illegal and the whole-root group is the only legal application is really constructed (checked %d groups %d single-request-only %d): %s" % [checked,groups,single_only,str(mismatched.slice(0,4))])

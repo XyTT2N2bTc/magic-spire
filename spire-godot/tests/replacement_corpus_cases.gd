@@ -123,11 +123,16 @@ static func fixture_subset(data: Dictionary) -> Dictionary:
 #   judge_subject  = 被测侧，S2b 起为 `Assess.legal(...)`，请求先经 Application.request_specs 归一化。
 #   judge_oracle   = 旧预言机，恒为 Replacement.plan；reoracle 只用它，compare/selfcheck 不经过它。
 # 判定布尔之外的理由字符串不作契约（旧 _legal_choices 不读它）。
+# 域外输入（A52 F2，design §7）：贞操锁 `special_install` 不进只读判定——`legal_requests` 的唯一跳过点
+# 保证生产路径从不把它交给 `Assess.legal`，故语料对该类回落到 S2b 之前的预言机路径（74a5aac 的跳过口径：
+# 该类不进判定）。判据钉在 tests/replacement_assess_cases.gd::chastity_requests_never_reach_the_judgment。
 static func judge_subject(g, case: Dictionary) -> bool:
  # S2b: the built-in judgment is the read-only view (A0-A8); the request normalization is the
  # same one legal_requests applies, so the corpus compares the wired path and not a variant.
- return Assess.legal(g,Application.request_specs(unseal(case.get("requests",[]),"requests")),
-  String(case.get("source","")),unseal(case.get("protected_ids",[]),"protected_ids"))
+ var requests=unseal(case.get("requests",[]),"requests")
+ if requests is Array and requests.any(func(r):return r is Dictionary and r.get("kind","")=="special_install" and g.SpecialEquipment.is_chastity_type(r.get("type",""))):
+  return judge_oracle(g,case).get("ok",false)
+ return Assess.legal(g,Application.request_specs(requests),String(case.get("source","")),unseal(case.get("protected_ids",[]),"protected_ids"))
 
 static func judge_oracle(g, case: Dictionary) -> Dictionary:
  return Replacement.plan(g,unseal(case.get("requests",[]),"requests"),
