@@ -20,6 +20,8 @@ extends RefCounted
 #   7) can_apply_stops_at_the_first_legal_candidate：first_only 是同一判定路径的存在性读取。
 #   8) parallel_orchestrations_call_the_shared_rules（A50 R3 从 replacement_assess_cases.gd 迁入）：O1／O2／O3
 #      三行编排在两端核对共用规则集合、视图端禁调 live 独有副作用，并按行核对 `# O<n>` 标记。
+#   9) excluded_hooks_are_not_read_by_the_judgment（A52 F3）：排除钩子表非空、可达，且与 O3 的 live-only
+#      token 双向覆盖；声明写键与判定读取集、四容器不相交；门控空操作钩子单列并逐字核对门控行。
 
 const Assess=preload("res://core/equipment_replacement_assess.gd")
 const View=preload("res://core/equipment_replacement_view.gd")
@@ -77,20 +79,21 @@ static func _judgment_read_keys() -> Array:
  for key in frozen.get("owners",{}).get("core/rope_master.gd::master",{}): keys[key]=true
  return keys.keys()
 
-# 钩子锚点 → 函数体（注释剔除）；四容器的写：赋值、索引赋值与就地增删。
-const EQUIPMENT_WRITE="(?<![A-Za-z0-9_])(?:g\\.)?state\\s*(?:\\.\\s*(?:equipment|composites|special_equipment|links)|\\[\\s*\"(?:equipment|composites|special_equipment|links)\"\\s*\\])\\s*(?:\\.\\s*(?:erase|append|append_array|clear|remove_at|insert|sort|shuffle|push_back)\\s*\\(|(?:[-+*/]|<<|>>)?=(?!=))"
-
+# 钩子锚点 → 函数体（注释剔除）：与 architecture_cases 共用同一实现，不在此重抄一遍剔除循环。
 static func _hook_body(anchor: String) -> String:
  var parts=String(anchor).split("::")
- if parts.size()<2: return ""
- var lines=[]
- for line in Arch.source_function_body(String(parts[0]),String(parts[1])).split("\n"): lines.append(String(line).split("#")[0])
- return "\n".join(lines)
+ return "" if parts.size()<2 else Arch.code_of_function(String(parts[0]),String(parts[1]))
 
 static func _declared_hook(anchor: String) -> bool:
  for row in AssessCases.ASSESS_EXCLUDED_HOOKS:
   if String(row[0])==anchor: return true
  return false
+
+# 四容器的写：赋值、索引赋值与就地增删。容器名单取自 AssessCases.EQUIPMENT_CONTAINERS，不在此重抄。
+static func _container_write_hits(body: String) -> bool:
+ var names="|".join(PackedStringArray(AssessCases.EQUIPMENT_CONTAINERS))
+ var pattern="(?<![A-Za-z0-9_])(?:g\\.)?state\\s*(?:\\.\\s*(?:"+names+")|\\[\\s*\"(?:"+names+")\"\\s*\\])\\s*(?:\\.\\s*(?:erase|append|append_array|clear|remove_at|insert|sort|shuffle|push_back)\\s*\\(|(?:[-+*/]|<<|>>)?=(?!=))"
+ return RegEx.create_from_string(pattern).search(body)!=null
 
 # 到达：空链要求 token 出现在清理骨架里；非空链逐跳核对 token，首跳锚点须是登记行或清理骨架，末跳是该钩子的调用。
 static func _hook_reachable(row: Array) -> bool:
@@ -112,7 +115,7 @@ static func excluded_hooks_are_not_read_by_the_judgment(t) -> void:
   var body=_hook_body(String(row[0]))
   if body.strip_edges()=="": phantom.append(String(row[0]))
   for key in row[1]: declared[String(key)]=true
-  if RegEx.create_from_string(EQUIPMENT_WRITE).search(body)!=null: container_writes.append(String(row[0]))
+  if _container_write_hits(body): container_writes.append(String(row[0]))
   if not _hook_reachable(row): unreachable.append(String(row[0]))
  var noop={}
  var gated=[]
@@ -128,9 +131,9 @@ static func excluded_hooks_are_not_read_by_the_judgment(t) -> void:
  for row in AssessCases.ASSESS_EXCLUDED_HOOKS:
   if not live_only.has(String(row[2])): unowned.append(String(row[0])+":"+String(row[2]))
  var shared=noop.keys().filter(func(anchor):return _declared_hook(String(anchor)))
- print("EXCLUDED HOOKS rows=%d noop=%d read_keys=%d live_only=%d" % [AssessCases.ASSESS_EXCLUDED_HOOKS.size(),AssessCases.TRANSACTION_NOOP_HOOKS.size(),_judgment_read_keys().size(),live_only.size()])
- t.check(not AssessCases.ASSESS_EXCLUDED_HOOKS.is_empty() and phantom.is_empty() and unreachable.is_empty() and unowned.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: the excluded-hook table is non-empty and every row resolves to a real body reachable from the live cleanup skeleton, while every live-only token of O3 is owned by a declared row (both directions): phantom="+str(phantom)+" unreachable="+str(unreachable)+" unowned="+str(unowned))
  var read_keys=_judgment_read_keys()
+ print("EXCLUDED HOOKS rows=%d noop=%d read_keys=%d live_only=%d" % [AssessCases.ASSESS_EXCLUDED_HOOKS.size(),AssessCases.TRANSACTION_NOOP_HOOKS.size(),read_keys.size(),live_only.size()])
+ t.check(not AssessCases.ASSESS_EXCLUDED_HOOKS.is_empty() and phantom.is_empty() and unreachable.is_empty() and unowned.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: the excluded-hook table is non-empty and every row resolves to a real body reachable from the live cleanup skeleton, while every live-only token of O3 is owned by a declared row (both directions): phantom="+str(phantom)+" unreachable="+str(unreachable)+" unowned="+str(unowned))
  var overlap=read_keys.filter(func(key):return declared.has(String(key)))
  var containers=AssessCases.EQUIPMENT_CONTAINERS.filter(func(key):return declared.has(String(key)))
  t.check(overlap.is_empty() and containers.is_empty() and container_writes.is_empty(),"VIEW excluded_hooks_are_not_read_by_the_judgment: no excluded hook writes a key the judgment reads or any of the four equipment containers (declared keys vs the derived read set, plus a source scan of each hook body for container writes): overlap="+str(overlap)+" containers="+str(containers)+" writes="+str(container_writes))

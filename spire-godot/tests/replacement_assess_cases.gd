@@ -20,6 +20,8 @@ extends RefCounted
 #      结果与无作用域扫描逐项相同，索引不被重建或泄漏。
 #   5) random_draw_matches_random_index（S2a-1）：_random_draw 与 _random_index 在每个随机域 × size{1,2,7}
 #      上返回值与计数推进相同；本地计数调用不碰 state.rng。
+#   6) chastity_requests_never_reach_the_judgment（A52 F2）：唯一跳过点在 legal_requests，legal 直接收到
+#      贞操锁请求返回 false（防御），语料接缝对该类回落 S2b 前的预言机（data 的类型声明是唯一名单）。
 #
 # 覆盖计数（F6）：_exercise() 返回本例实际执行到的函数集合；提前 return 的例不计入后续函数。
 # 三条判据都在消息里分别报出每个函数的 checked 计数。
@@ -62,9 +64,9 @@ const TRANSACTION_NOOP_HOOKS=[
 const EQUIPMENT_CONTAINERS=["equipment","composites","special_equipment","links"]
 
 # design §7 前置条件（A52 F2）：贞操锁 special_install 不进只读判定。唯一跳过点在 legal_requests 的
-# replace 分支；legal 对直接调用返回 false（防御）。语料侧由 Corpus.judge_subject 回落到 S2b 前的预言机。
+# replace 分支；legal 对直接调用返回 false（防御）。语料侧由 Corpus.judge_subject 回落到 S2b 前的预言机；
+# 类型名单不在此重抄，取 data/special_equipment.gd::CHASTITY_TYPES（判据遍历该声明）。
 const CHASTITY_SKIP_TOKEN="is_chastity_type(request.get(\"type\",\"\")): continue"
-const CHASTITY_TYPES=["negative_plate_lock_medium","negative_plate_lock_catheter_medium","negative_vibrator_lock_catheter_high"]
 
 # _exercise 可能执行到的 assess 纯函数：覆盖计数按这张表逐函数报出。
 const STEPS=["normalize","capacity_points","counts","replacement_value","physical_points","loss","pieces","units","sets","compare","assign","transfer_options"]
@@ -121,7 +123,7 @@ static func chastity_requests_never_reach_the_judgment(t) -> void:
  var skipped=Arch.source_function_body("core/equipment_application.gd","legal_requests")
  var refused=[]
  var g=Game.new(42)
- for type in CHASTITY_TYPES:
+ for type in g.SpecialEquipment.CHASTITY_TYPES:
   var request={"kind":"special_install","type":type,"slot":g.SpecialEquipment.DESIGNS[type].slots[0],"tier":2}
   if Assess.legal(g,[request],"fixture",[]): refused.append(type)
  var seam=Arch.source_function_body("tests/replacement_corpus_cases.gd","judge_subject")

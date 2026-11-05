@@ -47,7 +47,7 @@ static func choose(g, spec: Dictionary, source: String, domain: String="enemy") 
  else: _freeze_variant(g,selected)
  return selected
 
-# Same legality as execution, without selecting or freezing a random outcome.
+# Same legality as execution, without selecting or freezing a random outcome; true exactly when choose returns a request.
 static func can_apply(g, spec: Dictionary, source: String) -> bool:
  return not _choice_bands(g,spec,source,true).is_empty()
 
@@ -219,8 +219,7 @@ static func _choices(g, spec: Dictionary, source: String, first_only: bool=false
  for slot in preferred_slots:
   var band=raw.filter(func(p):return slot in _slots(p))
   var found=legal_requests(g,band,spec,source,first_only)
-  if found.is_empty() and spec.get("replace",false) and spec.get("count",1)>1 and spec.get("pool","ordinary")=="ordinary":
-   found=_groups(g,raw,spec,source,first_only,slot)
+  if found.is_empty(): found=_groups(g,raw,spec,source,first_only,slot)
   if not found.is_empty(): return O.preferred(g,found)
  return O.preferred(g,legal_requests(g,raw,spec,source,first_only))
 
@@ -246,8 +245,7 @@ static func legal_requests(g, raw: Array, spec: Dictionary, source: String, firs
     options.append(option)
   elif Assess.legal(g,request_specs([request]),source,spec.get("protected_ids",[])): options.append(request)
   if first_only and not options.is_empty(): return options
- if options.is_empty() and spec.get("pool","ordinary")=="ordinary" and spec.get("count",1)>1:
-  options.append_array(_groups(g,raw,spec,source,first_only))
+ if options.is_empty(): options.append_array(_groups(g,raw,spec,source,first_only))
  return options
 
 # The one request normalization both replace paths share (assembly part expansion).
@@ -375,8 +373,9 @@ static func _replacement_plan(g, requests: Array, source: String, protected_ids:
 
 # A composite can require several individually impossible ordinary requests. Build its entire
 # real point coverage first and let Replacement decide capacity, strength, exterior layers and
-# links. Never delete or install a partial covering group; first_only stops at the first one.
+# links. Never install a partial group; first_only stops at the first one and the ordinary gate is here.
 static func _groups(g, raw: Array, spec: Dictionary, source: String, first_only: bool=false, slot: String="") -> Array:
+ if not spec.get("replace",false) or spec.get("count",1)<=1 or spec.get("pool","ordinary")!="ordinary": return []
  var groups=[]
  for root in g.state.composites:
   if not C.active(root): continue
