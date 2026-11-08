@@ -144,6 +144,11 @@
   `whole_state` 75 处，`ALIAS_DECLARATIONS` 16 个函数，`schema_strings` 不变。
   含义：新增扫描面只是兼容层 `core/save_compat.gd`（迁入的迁移函数体原样搬走，cells ＋1）；别名声明随之改指该文件，
   `core/snapshot.gd` 与 `data/special_equipment.gd` 不再持有迁移读点。
+- Q1（特殊件容器写口）后重生成的现行统计：`files=143`、`fields=121`、`cells=1306`、`sites=2131`、
+  `whole_state` 75 处，`ALIAS_DECLARATIONS` 16 个函数，`schema_strings` 不变。
+  含义：`state.special_equipment` 的 8 处成员写从调用方移入两写口 `core/game.gd::_special_append`／`::_special_erase`——
+  新增两个 owner 单元（cells ＋2，各读 1 处）；`_install_special` −2、`_attach_special_reinforcement` −1、`_cleanup` −3、
+  `core/room_events.gd::apply_effects` −2，合计 sites −8＋2＝−6；调用方仍保留其它读点，无 owner 消失。
 
 ## 残差与仍靠人审（无机械判据）
 
