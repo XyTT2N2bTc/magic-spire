@@ -336,6 +336,12 @@ static func legacy_drone(t) -> void:
  var random_before=old.rng.duplicate(true)
  t.check(g.restore_snapshot(old).ok and g.state.save_revision==g.Snapshot.REVISION,"IRON SAVE previous revision acquires drone action state")
  t.check(enemy(g,"iron_drone").intent.kind=="bind_prepare" and enemy(g,"iron_drone").intent.delayed and not g.CaptureBind.has_bind(g,"iron_drone") and g.state.rng==random_before,"IRON SAVE migration preserves interruption and randomness without fabricating capture")
+ # The newest stage is part of the monotone ladder: every older legacy revision gets the same repair.
+ for older_revision in [g.Snapshot.REINFORCEMENT_STATE_REVISION,g.Snapshot.CUP_STACK_REVISION]:
+  var older=old.duplicate(true)
+  older.save_revision=older_revision
+  var older_game=Game.new(42)
+  t.check(older_game.restore_snapshot(older).ok and older_game.state.save_revision==older_game.Snapshot.REVISION and enemy(older_game,"iron_drone").intent.kind=="bind_prepare" and not older_game.CaptureBind.has_bind(older_game,"iron_drone"),"IRON SAVE migration ladder repairs drones at older legacy revision "+str(older_revision))
  var stable=g.export_snapshot();var invalid=stable.duplicate(true)
  invalid.enemies.filter(func(e):return e.type=="iron_drone")[0].erase("guard")
  t.check(not g.restore_snapshot(invalid).ok and g.state==stable,"IRON SAVE current revision still rejects missing drone progress atomically")

@@ -4488,8 +4488,8 @@ func export_snapshot() -> Dictionary:
 func restore_snapshot(saved: Dictionary) -> Dictionary:
  var candidate=saved.duplicate(true)
  var saved_revision=candidate.get("save_revision")
- var migrate_drone=saved_revision is int and saved_revision in [Snapshot.REINFORCEMENT_STATE_REVISION,Snapshot.CUP_STACK_REVISION,Snapshot.IRON_DRONE_REVISION]
- if migrate_drone:
+ var legacy_migration=saved_revision is int and saved_revision in [Snapshot.REINFORCEMENT_STATE_REVISION,Snapshot.CUP_STACK_REVISION,Snapshot.IRON_DRONE_REVISION]
+ if legacy_migration:
   var migration_issue=SaveCompat.migrate_candidate(candidate,self)
   if migration_issue!="": return {"ok":false,"error":"无法继续这份存档："+migration_issue}
  elif not Snapshot.is_current(candidate): return {"ok":false,"code":"version","error":Snapshot.INCOMPATIBLE}
@@ -4501,7 +4501,7 @@ func restore_snapshot(saved: Dictionary) -> Dictionary:
  if issue!="": return {"ok":false,"error":"无法继续这份存档："+issue}
  var previous=state
  state=candidate
- if migrate_drone:
+ if legacy_migration:
   SaveCompat.refresh_after_swap(self)
  # Saves written before security five became an ordinary cell carry the removed
  # high-security manifest; drop the key so no second terminal path survives a load.

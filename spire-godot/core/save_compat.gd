@@ -9,11 +9,11 @@ extends RefCounted
 
 static func migrate_candidate(s: Dictionary, g) -> String:
  var revision=s.get("save_revision")
- # One membership test for the legacy set (52/53/54) inside this layer. restore_snapshot gates on
- # the same set before calling, so this copy only rejects a direct call; the stages below are one
- # monotone chain and need no second list: a stage applies to every revision at or before the one
- # that introduced its shape.
- if not revision is int or revision not in [g.Snapshot.REINFORCEMENT_STATE_REVISION,g.Snapshot.CUP_STACK_REVISION,g.Snapshot.IRON_DRONE_REVISION]: return ""
+ # The legacy range is the ladder below: it starts at the first stage revision and ends at the last
+ # one, so this precheck derives from those two constants instead of enumerating the set a second
+ # time (restore_snapshot owns the membership test and gates every real call). The stages are one
+ # monotone chain: a stage applies to every revision at or before the one that introduced its shape.
+ if not revision is int or revision<g.Snapshot.REINFORCEMENT_STATE_REVISION or revision>g.Snapshot.IRON_DRONE_REVISION: return ""
  if revision<=g.Snapshot.REINFORCEMENT_STATE_REVISION:
   var special_items=[]
   if s.get("special_equipment") is Array: special_items.append_array(s.special_equipment)

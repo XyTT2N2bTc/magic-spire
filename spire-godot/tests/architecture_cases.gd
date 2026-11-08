@@ -6464,7 +6464,7 @@ static func save_compat_only_from_legacy_restore(t) -> void:
  t.check(calls.size()==2,"ARCH save_compat_only_from_legacy_restore: restore_snapshot makes exactly the two declared entry calls: "+str(calls))
  # 旧修订判定：save_revision is int ∧ 属 52／53／54；两次调用都在该分支内。
  var restore=source_func_body_code("res://core/game.gd","restore_snapshot")
- var guard=Array(restore.split("\n")).filter(func(line):return line.strip_edges().begins_with("var migrate_drone=") and line.contains("saved_revision is int") and line.contains("Snapshot.REINFORCEMENT_STATE_REVISION") and line.contains("Snapshot.CUP_STACK_REVISION") and line.contains("Snapshot.IRON_DRONE_REVISION"))
+ var guard=Array(restore.split("\n")).filter(func(line):return line.strip_edges().begins_with("var legacy_migration=") and line.contains("saved_revision is int") and line.contains("Snapshot.REINFORCEMENT_STATE_REVISION") and line.contains("Snapshot.CUP_STACK_REVISION") and line.contains("Snapshot.IRON_DRONE_REVISION"))
  t.check(guard.size()==1,"ARCH save_compat_only_from_legacy_restore: restore_snapshot declares the legacy branch as an integer revision among 52/53/54: "+str(guard))
  var body_lines=restore.split("\n")
  var outside_branch=[]
@@ -6479,8 +6479,8 @@ static func save_compat_only_from_legacy_restore(t) -> void:
    var candidate_indent=candidate.length()-candidate.strip_edges(true,false).length()
    if candidate_indent<indent and (candidate.strip_edges().begins_with("if ") or candidate.strip_edges().begins_with("elif ")):
     branch=candidate.strip_edges();break
-  if branch!="if migrate_drone:": outside_branch.append(line.strip_edges()+" <- "+branch)
- t.check(outside_branch.is_empty(),"ARCH save_compat_only_from_legacy_restore: every compatibility call sits in the if migrate_drone: branch: "+str(outside_branch))
+  if branch!="if legacy_migration:": outside_branch.append(line.strip_edges()+" <- "+branch)
+ t.check(outside_branch.is_empty(),"ARCH save_compat_only_from_legacy_restore: every compatibility call sits in the if legacy_migration: branch: "+str(outside_branch))
  # 迁出函数只在兼容层有定义；core/data/ui 的其余源码无定义无调用。
  var moved=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"migrate_(cup_stacks|iron_drone|reinforcement_state)")
  t.check(moved.is_empty(),"ARCH save_compat_only_from_legacy_restore: the three migrated functions have no definition or call outside the compatibility layer: "+str(write_site_names(moved)))

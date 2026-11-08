@@ -369,6 +369,9 @@ static func cup_reinforcements(t) -> void:
   if D.supports_reinforcement(item): item.erase("reinforcement_state")
  restored=Game.new(17)
  t.check(restored.restore_snapshot(legacy).ok and restored._equipment(cup.id).get("reinforcement_state","")=="active" and restored.validate()=="","CUP BAND revision-52 snapshots migrate owner state before strict validation")
+ # The owner-state stage sits at revision 52 only: a later legacy revision is not refilled by it.
+ var later=legacy.duplicate(true);later.save_revision=g.Snapshot.CUP_STACK_REVISION
+ t.check(not Game.new(23).restore_snapshot(later).ok,"CUP BAND revision-53 snapshots stay outside the revision-52 owner-state stage")
 
 static func manual_insertables(t) -> void:
  for pair in [["vaginal_egg_low","special_3_a"],["anal_egg_low","special_3_b"]]:
