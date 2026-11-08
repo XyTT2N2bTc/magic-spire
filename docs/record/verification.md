@@ -4737,3 +4737,15 @@ flowchart LR
 - 非阻断遗留：`fallback_classes_are_declared` 不自行拦「把贞操锁登记为回退类」（由 `ARCH legal_requests_is_the_only_judgment_entry` 承接）；注释「第③类」编号无对应列表；F6 判据名漂移；assess／view／application 三处行数贴顶。
 - 未跑（如实，不作通过）：`ae2950c` 上未重跑 51 套件全面、语料四模式与三种子（只改测试文件，沿用 `be96d1a` 验收）；窗口／UI 套件、recipe、打包与双平台、安卓真机。
 - 本节只追加本文件一节、单独提交（docs-only）；仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+### 2026-11-09｜加装卸收口 Q0（旧档兼容层，行为不变）登记（协调者落账）
+
+- 域：`spire-godot` 读档旧修订 52／53／54 的迁移收口为 `core/save_compat.gd`（迁移候选＋换入后刷新两入口，唯一调用方 `core/game.gd::restore_snapshot` 的旧修订分支）；`core/snapshot.gd`／`data/special_equipment.gd` 只删迁出函数，修订号常量与存档 schema 不动。判据 `ARCH save_compat_only_from_legacy_restore`（13 条检查）与 `tests/mutations.json` 登记。
+- `build/checks/20261108T173850831-16096`：51 套件 `-Impact -Exhaustive` 的 RULE SCOPE 与父基线 `20261106T163924413-31004` 逐名同序，`SUITE RESULT` 51 行与 15 条 ERROR 逐行全等（失败仍为 architecture、shoulder、rewards、events、core 五套件既有红），断言 151718→151734（＋13 新判据、＋2 iron_man、＋1 special_equipment），`status=failed`、before=after，无 `SOURCE CHANGED`。
+- `build/checks/20261108T175117454-16096`：runner PASS 1846 断言（＋1 为派生索引边，不是新写断言）；`build/checks/20261108T175332175-16096`：UI 组合 architecture 4 条 ERROR 与父基线全等、四 UI 套件与父同早停，按 `-UIOnly` 补跑：shoulder 19、torso_binding 11、body_layout 231 通过，equipment_complete 113 断言一条 `HEAD equal tightness…` 为父树同错。
+- 抽样语料四模式：compare／compare-scope／reoracle 各 423 例 0 差异、退出 0，selfcheck 恰 1 例红（`42-00000`）退出 1；三种子整局 sha256 与父基线逐字节同（42／20260906／7）。
+- 旧档 52／53／54 经 `restore_snapshot` 读入的 `SaveStore.encode` 与 logs sha256 在本片树实跑、与父树 `4ff3ffd` 实现者基线值逐字节同；四个旧档用例逐名绿（51／90／6／11 断言）；缺失／51／55／56／`"2"` 不进兼容层；`DOCS PASS` 49 份、2908 引用。
+- 敏感性四条亲跑（额外调用点、去整数守卫、排出表加第二文件、`var c=SaveCompat` 别名）各在完整 architecture 套件具名红并逐字节还原；`tools/check-mutation.ps1 -Check save_compat_only_from_legacy_restore` RED、`restored=True`、`worktree unchanged=True`、无 `MUTATION RESIDUE`。允许面 14 文件 ⊆ Q0 表＋rev3.3 补记；`data／ui／content／assets` 只有 `data/special_equipment.gd` 迁出删除（10 行）；模块合计 33868→33892。
+- 未跑：完整全项目回归、安卓真机、分帧、打包与发布；未提交、未推送。
+- 片内流水：实现 `dsp-20261108T132415Z-6f77`（`3b55f85`…`6676591`）→ 清洁 `dsp-20261108T134214Z-747d`（`ae68fe9`）→ 加固 `dsp-20261108T144539Z-73fb`（`41ebf1f`）→ 独立审查 `dsp-20261108T164248Z-20d7`（无阻断，次要 F1／F2）→ 加固二 `dsp-20261108T165729Z-1b8d`（`a5a9b7d`，F2 删经唯一入口不可达的前置判定、F1 补类标识符计数）→ 验收 `dsp-20261108T173719Z-c3b0` 通过。记录：工作树 `tmp/io-q0/acceptance/acceptance-q0.md`、`tmp/io-q0/review/findings.md`。
+- 本节只追加本文件一节、单独提交（docs-only）；仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
