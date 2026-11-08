@@ -43,7 +43,7 @@ static func chastity_displacement_unchanged(t) -> void:
  var old=g._install_special("negative_plate_lock_medium","special_2_a",3)
  var strap={}
  for item in g.state.special_equipment:
-  if item.owner_id==old.id: strap=item
+  if g.SpecialEquipment.is_reinforcement(item) and item.owner_id==old.id: strap=item
  var rod=g._install_special("urethral_rod_medium","special_2_d",3)
  t.check(not old.is_empty() and not strap.is_empty() and not rod.is_empty(),"APPLY chastity_displacement_unchanged: the fixture installs the tier-3 lock, its auto-attached strap and the covered non-chastity piece")
  var before=g.state.special_equipment.map(func(item):return item.id)

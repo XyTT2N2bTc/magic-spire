@@ -6505,7 +6505,7 @@ static func save_compat_only_from_legacy_restore(t) -> void:
 # G-Q1-1（A66 NHR-1 事件部分／A68 C-6）：四容器（装备容器子集＝VIEW_FIELDS 去掉 next_* 计数键）的 live
 # 成员增删、整容器赋值与 `g.state[key]=` 整键写只出现在登记写口；替换事务的三处整容器写是登记例外。
 # 特殊件容器的 live 写口恰为 `_special_append`／`_special_erase`（A66），事件暂存层经它们再封一层。
-const EQUIPMENT_MEMBER_WRITES={
+const EQUIPMENT_MEMBER_WRITERS={
  "equipment":["core/game.gd::_install_template","core/game.gd::_cleanup"],
  "composites":["core/game.gd::_install_assembly","core/game.gd::_cleanup"],
  "links":["core/game.gd::_install_link","core/game.gd::_cleanup"],
@@ -6516,10 +6516,13 @@ const EQUIPMENT_MEMBER_WRITE_EXCEPTIONS=[
  "core/equipment_replacement.gd::_commit_changes"]
 # 成员增删／整容器赋值两种写形按容器名派生（名单只来自 VIEW_FIELDS，不另写一份）；第三种是替换事务
 # 提交用的整键写 `g.state[key]=`，键是变量，容器不可静态判定，故只许登记例外持有。
+static func _equipment_member_containers_pattern(containers: Array) -> String:
+ return "(?:"+"|".join(containers)+")"
+
 static func _equipment_member_scan_patterns(containers: Array) -> Array:
- var group="(?:"+"|".join(containers)+")"
- return ["(?<![A-Za-z0-9_])(?:g\\.)?state\\.(?:"+group+")\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign)\\s*\\(",
-  "(?<![A-Za-z0-9_])(?:g\\.)?state\\.(?:"+group+")\\s*=[^=]",
+ var container_pattern=_equipment_member_containers_pattern(containers)
+ return ["(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign)\\s*\\(",
+  "(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*=[^=]",
   "(?<![A-Za-z0-9_])(?:g\\.)?state\\s*\\[\\s*key\\s*\\]\\s*=[^=]"]
 
 static func equipment_member_writes_have_one_entry(t) -> void:
@@ -6531,20 +6534,10 @@ static func equipment_member_writes_have_one_entry(t) -> void:
  for shape in _equipment_member_scan_patterns(containers):
   hits.append_array(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,String(shape)))
  var by_container={}
- var keyed=[]
- for hit in hits:
-  var site=String(hit.file)+"::"+String(hit.function)
-  var found=[]
-  for container in containers:
-   if String(hit.text).contains("state."+String(container)): found.append(String(container))
-  if found.is_empty():
-   if site not in keyed: keyed.append(site)
-   continue
-  for container in found:
-   if not by_container.has(container): by_container[container]=[]
-   if site not in by_container[container]: by_container[container].append(site)
- keyed.sort()
- var writers=EQUIPMENT_MEMBER_WRITES
+ for container in containers:
+  by_container[container]=write_site_names(hits.filter(func(hit):return String(hit.text).contains("state."+String(container))))
+ var keyed=write_site_names(hits.filter(func(hit):return containers.all(func(container):return not String(hit.text).contains("state."+String(container)))))
+ var writers=EQUIPMENT_MEMBER_WRITERS
  var declared=writers.keys()
  declared.sort()
  var empty=containers.filter(func(container):return not writers.has(container) or Array(writers[container]).is_empty())
@@ -6573,8 +6566,9 @@ static func equipment_member_writes_have_one_entry(t) -> void:
  var event_hits=hits.filter(func(hit):return String(hit.file)=="core/room_events.gd" and String(hit.function)=="apply_effects")
  var apply=code_of_function("core/room_events.gd","apply_effects")
  t.check(apply.contains("_special_erase(") and apply.contains("_special_append(") and event_hits.is_empty(),"ARCH equipment_member_writes_have_one_entry: the event staging layer calls both ports and writes no container member itself: calls="+str(apply.contains("_special_erase("))+"/"+str(apply.contains("_special_append("))+" direct="+str(event_hits))
- var aliases=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"=\\s*(?:g\\.)?state\\.(?:"+"|".join(containers)+")\\s*$")
+ var aliases=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"=\\s*(?:g\\.)?state\\."+_equipment_member_containers_pattern(containers)+"\\s*$")
  t.check(aliases.is_empty(),"ARCH equipment_member_writes_have_one_entry: the shared scan source holds no local alias of the four containers (a bound alias would hide every later write from the member scans; whole-state staging and rollback are not container aliases): "+str(aliases))
+
 static func run_identity_single_writer(t) -> void:
  var clipboard=write_site_names(source_write_sites(["res://core","res://data","res://ui"],"DisplayServer\\.clipboard_set\\s*\\("))
  t.check(clipboard==["ui/main.gd::copy_seed"],"DEP run_identity_single_writer: the only clipboard write is ui/main.gd::copy_seed: "+str(clipboard))
