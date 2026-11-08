@@ -9,7 +9,12 @@ extends RefCounted
 
 static func migrate_candidate(s: Dictionary, g) -> String:
  var revision=s.get("save_revision")
- if revision is int and revision==g.Snapshot.REINFORCEMENT_STATE_REVISION:
+ # One membership test for the legacy set (52/53/54) inside this layer. restore_snapshot gates on
+ # the same set before calling, so this copy only rejects a direct call; the stages below are one
+ # monotone chain and need no second list: a stage applies to every revision at or before the one
+ # that introduced its shape.
+ if not revision is int or revision not in [g.Snapshot.REINFORCEMENT_STATE_REVISION,g.Snapshot.CUP_STACK_REVISION,g.Snapshot.IRON_DRONE_REVISION]: return ""
+ if revision<=g.Snapshot.REINFORCEMENT_STATE_REVISION:
   var special_items=[]
   if s.get("special_equipment") is Array: special_items.append_array(s.special_equipment)
   var saved_event=s.get("room_event",{})
@@ -17,12 +22,11 @@ static func migrate_candidate(s: Dictionary, g) -> String:
    for held_items in saved_event.held.values():
     if held_items is Array: special_items.append_array(held_items)
   migrate_reinforcement_state(g,special_items)
- if revision is int and revision in [g.Snapshot.REINFORCEMENT_STATE_REVISION,g.Snapshot.CUP_STACK_REVISION]:
+ if revision<=g.Snapshot.CUP_STACK_REVISION:
   var issue=migrate_cup_stacks(s,g)
   if issue!="": return issue
- if revision is int and revision in [g.Snapshot.REINFORCEMENT_STATE_REVISION,g.Snapshot.CUP_STACK_REVISION,g.Snapshot.IRON_DRONE_REVISION]:
-  migrate_iron_drone(s,g)
-  s.save_revision=g.Snapshot.REVISION
+ migrate_iron_drone(s,g)
+ s.save_revision=g.Snapshot.REVISION
  return ""
 
 # Post-swap refresh: the two fields the migrated save does not carry (new display names and the
