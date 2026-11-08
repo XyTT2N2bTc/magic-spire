@@ -13,42 +13,6 @@ const PIECE="id:s name:s template:s material:s variant:i grade:i locked:b slot:s
 static func is_current(s: Dictionary) -> bool:
  return s.get("save_revision") is int and s.save_revision==REVISION
 
-static func migrate_iron_drone(s: Dictionary, g) -> void:
- if not s.get("enemies") is Array: return
- for enemy in s.enemies:
-  if enemy is Dictionary and enemy.get("type")=="iron_drone" and not enemy.has("guard"):
-   enemy.guard=g.Guard.initial()
-
-static func migrate_cup_stacks(s: Dictionary, g) -> String:
- if not s.get("special_equipment") is Array: return "性玩具列表缺损。"
- var containers=[s.special_equipment]
- var event=s.get("room_event",{})
- if event is Dictionary and event.get("held") is Dictionary:
-  for held in event.held.values():
-   if not held is Array: return "事件暂存装备记录损坏。"
-   containers.append(held)
- var all_items=[]
- for items in containers: all_items.append_array(items)
- var issue=g.SpecialEquipment.validate(all_items,true)
- if issue!="": return issue
- var cups=all_items.filter(func(item):return g.SpecialEquipment.exclusive_family(item.type)=="cup")
- if cups.size()<2: return ""
- cups.sort_custom(func(a,b):return a.grade>b.grade if a.grade!=b.grade else int(a.id.trim_prefix("special_"))<int(b.id.trim_prefix("special_")))
- var removed=cups.slice(1).map(func(item):return item.id)
- for item in all_items:
-  if item.owner_id in removed: removed.append(item.id)
- for items in containers:
-  for item in items.duplicate():
-   if item.id in removed: items.erase(item)
- # Migration is not a player removal; inspections must not punish repaired saves.
- for record in [s.get("capture",{}),s.get("prison",{})]:
-  if not record is Dictionary: continue
-  for key in ["retained_special","special_added","special_baseline","special_missing"]:
-   if record.get(key) is Array: record[key]=record[key].filter(func(id):return id not in removed)
- if s.get("pressure_sources") is Array:
-  s.pressure_sources=s.pressure_sources.filter(func(source):return not source is Dictionary or source.get("equipment","") not in removed)
- return ""
-
 static func typed(value, kind: String) -> bool:
  match kind:
   "s": return value is String or value is StringName

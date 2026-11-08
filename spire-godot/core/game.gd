@@ -527,6 +527,7 @@ const RelicEffects=preload("res://core/relic_effects.gd")
 const Relics=preload("res://data/relics.gd")
 const Prison = preload("res://core/prison.gd")
 const Snapshot=preload("res://core/snapshot.gd")
+const SaveCompat=preload("res://core/save_compat.gd")
 const ActionCopy=preload("res://core/action_copy.gd")
 var _copy_context: Dictionary={}
 # docs/transition-pipeline.md「接口」：迁移日志（进程内、只读诊断）。元素＝已声明的 Transition kind。
@@ -4488,20 +4489,9 @@ func restore_snapshot(saved: Dictionary) -> Dictionary:
  var candidate=saved.duplicate(true)
  var saved_revision=candidate.get("save_revision")
  var migrate_drone=saved_revision is int and saved_revision in [Snapshot.REINFORCEMENT_STATE_REVISION,Snapshot.CUP_STACK_REVISION,Snapshot.IRON_DRONE_REVISION]
- if saved_revision is int and saved_revision==Snapshot.REINFORCEMENT_STATE_REVISION:
-  var special_items=[]
-  if candidate.get("special_equipment") is Array: special_items.append_array(candidate.special_equipment)
-  var saved_event=candidate.get("room_event",{})
-  if saved_event is Dictionary and saved_event.get("held") is Dictionary:
-   for held_items in saved_event.held.values():
-    if held_items is Array: special_items.append_array(held_items)
-  SpecialEquipment.migrate_reinforcement_state(special_items)
- if saved_revision is int and saved_revision in [Snapshot.REINFORCEMENT_STATE_REVISION,Snapshot.CUP_STACK_REVISION]:
-  var migration_issue=Snapshot.migrate_cup_stacks(candidate,self)
-  if migration_issue!="": return {"ok":false,"error":"无法继续这份存档："+migration_issue}
  if migrate_drone:
-  Snapshot.migrate_iron_drone(candidate,self)
-  candidate.save_revision=Snapshot.REVISION
+  var migration_issue=SaveCompat.migrate_candidate(candidate,self)
+  if migration_issue!="": return {"ok":false,"error":"无法继续这份存档："+migration_issue}
  elif not Snapshot.is_current(candidate): return {"ok":false,"code":"version","error":Snapshot.INCOMPATIBLE}
  # The only backfill point for the run identity: a save written before `initial_seed`
  # existed took its identity from the then current `seed`. Patched on the copy before the
@@ -4512,13 +4502,7 @@ func restore_snapshot(saved: Dictionary) -> Dictionary:
  var previous=state
  state=candidate
  if migrate_drone:
-  for enemy in state.enemies:
-   var member=Enemies.encounter_member(state,enemy.type)
-   if member.has("name"): enemy.name=member.name
-   if enemy.type=="iron_drone" and not enemy.gone and state.phase=="battle":
-    var delayed=enemy.intent.delayed
-    enemy.intent=EnemyPlans.build(self,enemy)
-    enemy.intent.delayed=delayed
+  SaveCompat.refresh_after_swap(self)
  # Saves written before security five became an ordinary cell carry the removed
  # high-security manifest; drop the key so no second terminal path survives a load.
  var loaded_capture: Dictionary=state.get("capture",{})

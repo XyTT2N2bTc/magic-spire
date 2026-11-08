@@ -282,16 +282,6 @@ static func reinforcement_type(owner: Dictionary) -> String:
 static func reinforcement_matches(component: Dictionary, owner: Dictionary) -> bool:
  return component.get("owner_id","")==owner.get("id","") and ((is_chastity_reinforcement(component) and is_chastity(owner)) or (is_cup_reinforcement(component) and is_reinforced_cup(owner)))
 
-static func migrate_reinforcement_state(items: Array) -> void:
- ensure_catalog()
- var valid=items.filter(func(item):return item is Dictionary)
- for owner in valid:
-  if not supports_reinforcement(owner) or owner.has("reinforcement_state"): continue
-  var straps=valid.filter(func(item):return reinforcement_matches(item,owner))
-  owner.reinforcement_state="active" if straps.size()==1 else "none"
-  # Older cups had no band at any tightness; loading must not add a new restraint.
-  if straps.is_empty() and is_reinforced_cup(owner) and float(owner.get("durability",0))>float(owner.get("maximum",0))*RestraintValue.TIER_UPPER_2: owner.reinforcement_state="removed"
-
 static func catheter(item: Dictionary) -> bool:
  return is_chastity(item) and TYPES[item.type].get("integrated_catheter",false)
 
