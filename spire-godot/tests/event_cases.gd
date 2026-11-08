@@ -13,6 +13,34 @@ static func arrive(g, id: String) -> void:
 static func choose(t,g,id: String) -> Dictionary:
  return t.action(g,"event",{"action":"choose","choice":id})
 
+# G-Q1-3（A66 事件部分）：事件暂存层经特殊件容器的两写口后按原序装回——暂存顺序即容器顺序，
+# 装回追加在容器尾部；未被暂存的键与重复装回都是幂等跳过。
+static func held_specials_restore_in_order(t) -> void:
+ var hold_slots=[["special_3_a"],["special_2_a"],["special_2_c","special_2_a"]]
+ for count in [0,1,2]:
+  var g=Game.new(42)
+  arrive(g,"binding_cleric")
+  for entry in [["shaft_ring_low","special_2_a"],["corona_ring_low","special_2_c"],["nipple_clamp_low","special_1_a"]]:
+   g._install_special(entry[0],entry[1],1)
+  var refs=g.state.room_event.refs
+  var before=g.state.special_equipment.map(func(item):return item.id)
+  var log_from=g.state.logs.size()
+  var hold_issue=g.Events.apply_effects(g,[{"op":"hold_special","key":"probe","slots":hold_slots[count]}],refs,true)
+  var held=g.state.room_event.held.get("probe",[])
+  var held_ids=held.map(func(item):return item.id)
+  var restore_issue=g.Events.apply_effects(g,[{"op":"restore_held","key":"probe"}],refs,true)
+  var again=g.Events.apply_effects(g,[{"op":"restore_held","key":"probe"}],refs,true)
+  var missing=g.Events.apply_effects(g,[{"op":"restore_held","key":"never_held"}],refs,true)
+  var texts=[]
+  for i in range(log_from,g.state.logs.size()): texts.append(String(g.state.logs[i].text))
+  var after=g.state.special_equipment.map(func(item):return item.id)
+  var remaining=before.filter(func(id):return id not in held_ids)
+  t.check(hold_issue=="" and restore_issue=="" and again=="" and missing=="" and held_ids.size()==count,"EVENT held_specials_restore_in_order: %d held piece(s) stage and restore without an issue, and an unheld key or a repeat restore is skipped: hold=%s restore=%s again=%s missing=%s" % [count,hold_issue,restore_issue,again,missing])
+  t.check(held_ids==before.filter(func(id):return id in held_ids),"EVENT held_specials_restore_in_order: %d piece(s) are staged in container order: held=%s before=%s" % [count,str(held_ids),str(before)])
+  t.check(after==remaining+held_ids,"EVENT held_specials_restore_in_order: %d staged piece(s) come back on the container tail in staging order: after=%s expected=%s" % [count,str(after),str(remaining+held_ids)])
+  t.check(texts==["暂时取下并保管了%d件性玩具；事件结束时原样装回。" % count,"代为保管的%d件性玩具已经原样装回。" % count],"EVENT held_specials_restore_in_order: exactly two staging lines per hold/restore pair, one per phase, at %d piece(s): %s" % [count,str(texts)])
+  t.check(g.validate()=="","EVENT held_specials_restore_in_order: %d staged piece(s) keep the state valid: %s" % [count,g.validate()])
+
 # docs/spec/event-pipeline.md「证据入口」: the compiled registry entry is the
 # single author form, and the projection keeps the same visible fields as the baseline.
 static func event_definition_single_form(t) -> void:
@@ -273,4 +301,5 @@ static func run(t) -> void:
  var durability=target.durability;var energy=g.state.energy
  t.check(t.action(g,"item_use",{"item":tool.id,"target":target.id}).ok and not g._equipment(target.id).locked and g._equipment(target.id).durability==durability and g.state.energy==energy and g._item(tool.id).uses==1,"EVENT existing picks remain a normal zero-cost unlocking tool")
  t.check(not t.action(g,"item_install",{"item":tool.id}).ok,"EVENT picks cannot install as a cutting tool")
+ held_specials_restore_in_order(t)
  event_gate_names_are_total(t)

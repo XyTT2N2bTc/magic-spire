@@ -36,12 +36,36 @@ static func excluded_links(t) -> void:
  t.check(actual==expected and g.state==before,"APPLY excluding links preserves every ordinary request, order and random state")
  t.check(g.anchor_queries==0,"APPLY explicitly excluded links never enumerate physical anchors")
 
+# G-Q1-2（A66 NHR-1 事件部分）：平板锁置换的集合、顺序与文案不变——三档旧锁、其自动加固带与被新锁
+# 覆盖的马眼位非贞操件按容器顺序逐件取下，置换经特殊件容器的两写口完成。
+static func chastity_displacement_unchanged(t) -> void:
+ var g=Game.new(57)
+ var old=g._install_special("negative_plate_lock_medium","special_2_a",3)
+ var strap={}
+ for item in g.state.special_equipment:
+  if item.owner_id==old.id: strap=item
+ var rod=g._install_special("urethral_rod_medium","special_2_d",3)
+ t.check(not old.is_empty() and not strap.is_empty() and not rod.is_empty(),"APPLY chastity_displacement_unchanged: the fixture installs the tier-3 lock, its auto-attached strap and the covered non-chastity piece")
+ var before=g.state.special_equipment.map(func(item):return item.id)
+ var log_from=g.state.logs.size()
+ var result=A.execute_concrete(g,{"kind":"special_install","type":"negative_vibrator_lock_catheter_high","slot":"special_2_a","grade":3,"tier":3},"event:fixture",false,[],true)
+ var texts=[]
+ for i in range(log_from,g.state.logs.size()): texts.append(String(g.state.logs[i].text))
+ var displaced=texts.filter(func(text):return text.ends_with("被新的平板锁替换并取下。"))
+ t.check(result.ok and result.count==1,"APPLY chastity_displacement_unchanged: the concrete grade-3 catheter lock installs over the retained pieces: "+result.reason)
+ t.check(before==[old.id,strap.id,rod.id] and result.removed==before,"APPLY chastity_displacement_unchanged: the removed set covers the old lock, its strap and the covered piece in container order: before="+str(before)+" removed="+str(result.removed))
+ var installed=g.state.special_equipment[0] if not g.state.special_equipment.is_empty() else {}
+ t.check(g.state.special_equipment.size()==2 and String(installed.get("type",""))=="negative_vibrator_lock_catheter_high" and g.state.special_equipment[1].owner_id==String(installed.get("id","")),"APPLY chastity_displacement_unchanged: the incoming lock and its auto-attached strap are the whole container afterwards: "+str(g.state.special_equipment.map(func(item):return item.id)))
+ t.check(displaced==[old.name+"被新的平板锁替换并取下。",strap.name+"被新的平板锁替换并取下。",rod.name+"被新的平板锁替换并取下。"],"APPLY chastity_displacement_unchanged: one displacement line per removed piece, in container order: "+str(displaced))
+ t.check(g.validate()=="","APPLY chastity_displacement_unchanged: the replaced state stays valid: "+g.validate())
+
 static func run(t) -> void:
  preload("res://tests/girl_sound_cases.gd").run(t)
  preload("res://tests/equipment_audio_cases.gd").run(t)
  preload("res://tests/restraint_rollout_cases.gd").run(t)
  unchanged_replacement(t)
  excluded_links(t)
+ chastity_displacement_unchanged(t)
  var materials={}
  for seed_value in t.seed_values("enemy_cycle"):
   var first=Game.new(seed_value);var second=Game.new(seed_value)

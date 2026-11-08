@@ -577,6 +577,12 @@
       "find": "const Snapshot=preload(\"res://core/snapshot.gd\")",
       "replace": "const Snapshot=preload(\"res://core/snapshot.gd\")\n\n# mutation probe: a compatibility call site outside restore_snapshot\nfunc _mutation_probe_save_compat() -> void:\n SaveCompat.refresh_after_swap(self)",
       "suite": "architecture"
+    },
+    "equipment_member_writes_have_one_entry": {
+      "file": "core/room_events.gd",
+      "find": "held.append(item.duplicate(true));g._special_erase(item)",
+      "replace": "held.append(item.duplicate(true));g.state.special_equipment.erase(item)",
+      "suite": "architecture"
     }
   }
 }
