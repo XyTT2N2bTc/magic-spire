@@ -1488,6 +1488,17 @@ func _special_piece(next_equipment: int, type: String, tightness: int) -> Dictio
  if SpecialEquipment.supports_reinforcement(item): item.reinforcement_state="none"
  return item
 
+# The special-equipment container has one live add/remove pair (Q1, A66 NHR-1): the factories,
+# the cleanup passes and the event staging layer all go through these two, so no second member
+# write of `state.special_equipment` exists outside the replacement transaction's registered
+# exceptions. The pair writes members only: ids, announcements and rule decisions stay with the
+# callers.
+func _special_append(item: Dictionary) -> void:
+ state.special_equipment.append(item)
+
+func _special_erase(item: Dictionary) -> void:
+ state.special_equipment.erase(item)
+
 func _install_special(type: String, slot: String, tightness: int=0) -> Dictionary:
  if tightness not in [0,1,2,3]: return {}
  if _special_install_reason(type,slot)!="": return {}
@@ -1495,11 +1506,11 @@ func _install_special(type: String, slot: String, tightness: int=0) -> Dictionar
   # Resolve ownership before removing roots, so component removal is order-independent.
   var displaced=state.special_equipment.filter(func(old):return _chastity_displaces(type,old))
   for old in displaced:
-   state.special_equipment.erase(old)
+   _special_erase(old)
    _emit("event",old.name+"被新的平板锁替换并取下。")
  var item=_special_piece(state.next_equipment,type,tightness)
  state.next_equipment+=1
- state.special_equipment.append(item)
+ _special_append(item)
  _equipment_feedback(item,item.durability,true)
  if SpecialEquipment.supports_reinforcement(item) and tier(item.durability,item.maximum)==3: _attach_special_reinforcement(item)
  RelicEffects._mana_hook(self,"restraint_mana","佩戴"+item.name)
@@ -1529,7 +1540,7 @@ func _attach_special_reinforcement(owner: Dictionary) -> Dictionary:
  if type=="": return {}
  owner.reinforcement_state="active"
  var strap=_reinforcement_strap(state.next_equipment,type,owner.id)
- state.next_equipment+=1;state.special_equipment.append(strap)
+ state.next_equipment+=1;_special_append(strap)
  _equipment_feedback(strap,strap.durability,true)
  _emit("event",owner.name+"达到紧度3档，自动扣上了"+strap.name+"。")
  return strap
@@ -4026,13 +4037,13 @@ func _cleanup(released: bool=true) -> void:
    if SpecialEquipment.is_reinforcement(item):
     var owner=_equipment(item.owner_id)
     if not owner.is_empty() and SpecialEquipment.supports_reinforcement(owner): owner.reinforcement_state="removed"
-   state.special_equipment.erase(item)
+   _special_erase(item)
    for strap in state.special_equipment.duplicate():
-    if _strap_follows(item,strap): state.special_equipment.erase(strap)
+    if _strap_follows(item,strap): _special_erase(strap)
    _emit("event",item.name+"已解除。")
  for strap in state.special_equipment.duplicate():
   if _strap_orphaned(strap,state.special_equipment):
-   state.special_equipment.erase(strap)
+   _special_erase(strap)
  for item in state.items.duplicate():
   if item.uses<=0:
    _emit("event",Tools.TYPES[item.type].name+"已经耗尽次数。")

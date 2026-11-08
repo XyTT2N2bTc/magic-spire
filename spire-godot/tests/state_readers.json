@@ -175,11 +175,11 @@
     }
   },
   "generated_from": {
-    "cells": 1304,
+    "cells": 1306,
     "fields": 121,
     "files": 143,
-    "inputs_sha256": "68a58bb43e976392d7d2ef2eca61e3d20fba9521565b79150e6dfa88ae773325",
-    "sites": 2137,
+    "inputs_sha256": "420271293f0e44545d0bde9f5ff063f15d2674df11f571255a8ee488133dd404",
+    "sites": 2131,
     "ui_reads": 0,
     "whole_state": 75
   },
@@ -792,7 +792,7 @@
     },
     "core/game.gd::_attach_special_reinforcement": {
       "next_equipment": 2,
-      "special_equipment": 2
+      "special_equipment": 1
     },
     "core/game.gd::_attack_battle_families_ready": {
       "phase": 1
@@ -836,7 +836,7 @@
       "items": 2,
       "links": 3,
       "powers": 1,
-      "special_equipment": 7
+      "special_equipment": 4
     },
     "core/game.gd::_clear_charge": {
       "charge": 1
@@ -995,7 +995,7 @@
     },
     "core/game.gd::_install_special": {
       "next_equipment": 2,
-      "special_equipment": 3
+      "special_equipment": 1
     },
     "core/game.gd::_install_template": {
       "equipment": 1,
@@ -1114,6 +1114,12 @@
     },
     "core/game.gd::_spawn_enemies": {
       "room": 2
+    },
+    "core/game.gd::_special_append": {
+      "special_equipment": 1
+    },
+    "core/game.gd::_special_erase": {
+      "special_equipment": 1
     },
     "core/game.gd::_start_battle": {
       "completed_rooms": 1,
@@ -2140,7 +2146,7 @@
       "relics": 1,
       "room": 1,
       "room_event": 10,
-      "special_equipment": 5
+      "special_equipment": 3
     },
     "core/room_events.gd::authored_choice": {
       "room_event": 2

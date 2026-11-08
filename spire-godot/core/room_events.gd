@@ -890,7 +890,7 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
      if not item.coverage.any(func(slot):return slot in e.slots): continue
      if g.cursed_plate(item): return g.SpecialEquipment.CURSED_PLATE_REASON
      if g.state.links.any(func(link):return item.id in link.ends): return item.name+"请先解除相连拘束具，再暂时取下。"
-     held.append(item.duplicate(true));g.state.special_equipment.erase(item)
+     held.append(item.duplicate(true));g._special_erase(item)
     g.state.room_event.held[e.key]=held
     if emit_logs: g._emit("event","暂时取下并保管了%d件性玩具；事件结束时原样装回。" % held.size())
    "restore_held":
@@ -901,7 +901,9 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
     var combined=g.state.special_equipment+held
     var held_issue=g.SpecialEquipment.validate(combined)
     if held_issue!="": return "无法原样装回暂存装备："+held_issue
-    g.state.special_equipment.append_array(held)
+    # Same-order restoration through the container's one add port (Q1): append_array and the
+    # per-item append leave the identical tail order, so the staging layer stays a thin shell.
+    for item in held: g._special_append(item)
     g.state.room_event.held.erase(e.key)
     if emit_logs: g._emit("event","代为保管的%d件性玩具已经原样装回。" % held.size())
    _: return "事件包含待支持的效果。"
