@@ -6568,6 +6568,20 @@ static func equipment_member_writes_have_one_entry(t) -> void:
  t.check(apply.contains("_special_erase(") and apply.contains("_special_append(") and event_hits.is_empty(),"ARCH equipment_member_writes_have_one_entry: the event staging layer calls both ports and writes no container member itself: calls="+str(apply.contains("_special_erase("))+"/"+str(apply.contains("_special_append("))+" direct="+str(event_hits))
  var aliases=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"=\\s*(?:g\\.)?state\\."+_equipment_member_containers_pattern(containers)+"\\s*$")
  t.check(aliases.is_empty(),"ARCH equipment_member_writes_have_one_entry: the shared scan source holds no local alias of the four containers (a bound alias would hide every later write from the member scans; whole-state staging and rollback are not container aliases): "+str(aliases))
+ # 经整份 state 的别名（`var s=g.state`）或形参别名写特殊件容器：`s.special_equipment.erase(` 不在
+ # `state.` 路径上，上面三种写形与上面的别名绑定子句都看不见。整份 state 的暂存与回滚是合法形态
+ # （EV3-01），故本条不禁止绑定，只要求特殊件容器的成员写接收者只能是 live 的 `state`／`g.state`
+ # 或视图原型 `view`（视图副本不是 live 状态）。其余容器不在此列：视图与界面副本（`region.links`）
+ # 是合法接收者，按接收者名单收窄会把它们误判。
+ var indirect=[]
+ var reach=RegEx.new()
+ if reach.compile("(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\.\\s*special_equipment\\s*\\.\\s*(?:append_array|append|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign)\\s*\\(")==OK:
+  for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,reach.get_pattern()):
+   var found=reach.search(String(hit.text))
+   var receiver="" if found==null else found.get_string(1)
+   if receiver in ["state","view"]: continue
+   indirect.append(receiver+"@"+String(hit.file)+"::"+String(hit.function))
+ t.check(indirect.is_empty(),"ARCH equipment_member_writes_have_one_entry: the special-equipment container is written only through the live state path -- a whole-state local alias or a parameter alias would hide the write from every scan above (binding such an alias is not banned, writing through it is): indirect="+str(indirect))
 
 static func run_identity_single_writer(t) -> void:
  var clipboard=write_site_names(source_write_sites(["res://core","res://data","res://ui"],"DisplayServer\\.clipboard_set\\s*\\("))

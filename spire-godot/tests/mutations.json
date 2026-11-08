@@ -583,6 +583,18 @@
       "find": "held.append(item.duplicate(true));g._special_erase(item)",
       "replace": "held.append(item.duplicate(true));g.state.special_equipment.erase(item)",
       "suite": "architecture"
+    },
+    "chastity_displacement_unchanged": {
+      "file": "core/game.gd",
+      "find": "  var displaced=state.special_equipment.filter(func(old):return _chastity_displaces(type,old))\n  for old in displaced:",
+      "replace": "  var displaced=state.special_equipment.filter(func(old):return _chastity_displaces(type,old))\n  displaced.reverse()\n  for old in displaced:",
+      "suite": "application"
+    },
+    "held_specials_restore_in_order": {
+      "file": "core/room_events.gd",
+      "find": "    for item in held: g._special_append(item)",
+      "replace": "    for i in range(held.size()-1,-1,-1): g._special_append(held[i])",
+      "suite": "events"
     }
   }
 }

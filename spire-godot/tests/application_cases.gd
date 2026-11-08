@@ -58,6 +58,23 @@ static func chastity_displacement_unchanged(t) -> void:
  t.check(g.state.special_equipment.size()==2 and String(installed.get("type",""))=="negative_vibrator_lock_catheter_high" and g.state.special_equipment[1].owner_id==String(installed.get("id","")),"APPLY chastity_displacement_unchanged: the incoming lock and its auto-attached strap are the whole container afterwards: "+str(g.state.special_equipment.map(func(item):return item.id)))
  t.check(displaced==[old.name+"被新的平板锁替换并取下。",strap.name+"被新的平板锁替换并取下。",rod.name+"被新的平板锁替换并取下。"],"APPLY chastity_displacement_unchanged: one displacement line per removed piece, in container order: "+str(displaced))
  t.check(g.validate()=="","APPLY chastity_displacement_unchanged: the replaced state stays valid: "+g.validate())
+ # 不带加固带（紧度 0–2 档）：旧锁没有自动扣带，同槽被覆盖件仍是非贞操特殊件——置换只有两件，
+ # 集合与顺序、两条文案与容器终态独立于带带那一格（加固带随宿主移除只在上一格成立）。
+ var plain=Game.new(58)
+ var plain_old=plain._install_special("negative_plate_lock_medium","special_2_a",2)
+ var plain_straps=plain.state.special_equipment.filter(func(item):return plain.SpecialEquipment.is_reinforcement(item) and item.owner_id==plain_old.id)
+ var plain_rod=plain._install_special("urethral_rod_medium","special_2_d",2)
+ t.check(not plain_old.is_empty() and plain_straps.is_empty() and not plain_rod.is_empty(),"APPLY chastity_displacement_unchanged: the no-strap cell installs the tier-2 lock without a reinforcement plus the covered non-chastity piece: old="+str(plain_old.get("id",""))+" straps="+str(plain_straps.size()))
+ var plain_before=plain.state.special_equipment.map(func(item):return item.id)
+ var plain_log_from=plain.state.logs.size()
+ var plain_result=A.execute_concrete(plain,{"kind":"special_install","type":"negative_vibrator_lock_catheter_high","slot":"special_2_a","grade":3,"tier":3},"event:fixture",false,[],true)
+ var plain_texts=[]
+ for i in range(plain_log_from,plain.state.logs.size()): plain_texts.append(String(plain.state.logs[i].text))
+ var plain_displaced=plain_texts.filter(func(text):return text.ends_with("被新的平板锁替换并取下。"))
+ t.check(plain_before==[plain_old.id,plain_rod.id] and plain_result.removed==plain_before,"APPLY chastity_displacement_unchanged: without a strap the removed set is the old lock and the covered piece in container order: before="+str(plain_before)+" removed="+str(plain_result.removed))
+ var plain_installed=plain.state.special_equipment[0] if not plain.state.special_equipment.is_empty() else {}
+ t.check(plain.state.special_equipment.size()==2 and String(plain_installed.get("type",""))=="negative_vibrator_lock_catheter_high" and plain.state.special_equipment[1].owner_id==String(plain_installed.get("id","")) and not plain.state.special_equipment.any(func(item):return item.id in plain_before),"APPLY chastity_displacement_unchanged: without a strap the container ends as the incoming lock and its own auto-attached strap, with no displaced id left: "+str(plain.state.special_equipment.map(func(item):return item.id)))
+ t.check(plain_displaced==[plain_old.name+"被新的平板锁替换并取下。",plain_rod.name+"被新的平板锁替换并取下。"],"APPLY chastity_displacement_unchanged: without a strap one displacement line per removed piece, in container order: "+str(plain_displaced))
 
 static func run(t) -> void:
  preload("res://tests/girl_sound_cases.gd").run(t)
