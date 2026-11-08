@@ -140,6 +140,10 @@
   含义：新增扫描面是视图模块与判定入口——`assess.legal` 读 `equipment`／`composites`／`special_equipment`（各 1）、
   `seed` 与 `rng`（各 3，本地计数从 live 计数取值，不推进），`assess.trial` 与 `view.after_removal` 各读 `links` 1；
   `view.live`／`view.empty` 交出整份容器面（`pass` ＋2，`whole_state` ＋3）。
+- Q0（旧档兼容层）后重生成的现行统计：`files=143`、`fields=121`、`cells=1304`、`sites=2137`、
+  `whole_state` 75 处，`ALIAS_DECLARATIONS` 16 个函数，`schema_strings` 不变。
+  含义：新增扫描面只是兼容层 `core/save_compat.gd`（迁入的迁移函数体原样搬走，cells ＋1）；别名声明随之改指该文件，
+  `core/snapshot.gd` 与 `data/special_equipment.gd` 不再持有迁移读点。
 
 ## 残差与仍靠人审（无机械判据）
 
