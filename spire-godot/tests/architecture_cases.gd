@@ -6462,6 +6462,15 @@ static func save_compat_only_from_legacy_restore(t) -> void:
  var call_sites=write_site_names(calls)
  t.check(call_sites==["core/game.gd::restore_snapshot"],"ARCH save_compat_only_from_legacy_restore: both entry points are called only from restore_snapshot: "+str(call_sites))
  t.check(calls.size()==2,"ARCH save_compat_only_from_legacy_restore: restore_snapshot makes exactly the two declared entry calls: "+str(calls))
+ # F1 (A111): the class identifier itself is face too. The call-shape scan above only sees the
+ # literal `SaveCompat.`, so `var c=SaveCompat` plus `c.refresh_after_swap(self)` would slip past
+ # both earlier checks; this whole-word count allows only the preload constant line and the two
+ # entry calls inside restore_snapshot. It extends the face, it does not relax any earlier check.
+ var identifier=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"\\bSaveCompat\\b")
+ var preload_lines=identifier.filter(func(hit):return String(hit.text).contains("preload(\"res://core/save_compat.gd\")"))
+ var entry_calls=identifier.filter(func(hit):return String(hit.function)=="restore_snapshot" and String(hit.text).contains("SaveCompat."))
+ var identifier_outside=identifier.filter(func(hit):return String(hit.file)!="core/game.gd")
+ t.check(identifier.size()==3 and preload_lines.size()==1 and entry_calls.size()==2 and identifier_outside.is_empty(),"ARCH save_compat_only_from_legacy_restore: the class identifier appears only in the one preload line and the two restore_snapshot entry calls, so a variable alias cannot reach the layer: "+str(identifier))
  # 旧修订判定：save_revision is int ∧ 属 52／53／54；两次调用都在该分支内。
  var restore=source_func_body_code("res://core/game.gd","restore_snapshot")
  var guard=Array(restore.split("\n")).filter(func(line):return line.strip_edges().begins_with("var legacy_migration=") and line.contains("saved_revision is int") and line.contains("Snapshot.REINFORCEMENT_STATE_REVISION") and line.contains("Snapshot.CUP_STACK_REVISION") and line.contains("Snapshot.IRON_DRONE_REVISION"))

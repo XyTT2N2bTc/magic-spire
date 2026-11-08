@@ -9,11 +9,10 @@ extends RefCounted
 
 static func migrate_candidate(s: Dictionary, g) -> String:
  var revision=s.get("save_revision")
- # The legacy range is the ladder below: it starts at the first stage revision and ends at the last
- # one, so this precheck derives from those two constants instead of enumerating the set a second
- # time (restore_snapshot owns the membership test and gates every real call). The stages are one
- # monotone chain: a stage applies to every revision at or before the one that introduced its shape.
- if not revision is int or revision<g.Snapshot.REINFORCEMENT_STATE_REVISION or revision>g.Snapshot.IRON_DRONE_REVISION: return ""
+ # The caller restore_snapshot owns the legacy revision-set test; this function only runs inside its
+ # legacy_migration branch (pinned by ARCH save_compat_only_from_legacy_restore). The stages below
+ # are one monotone chain: a stage applies to every revision at or before the one that introduced
+ # its shape.
  if revision<=g.Snapshot.REINFORCEMENT_STATE_REVISION:
   var special_items=[]
   if s.get("special_equipment") is Array: special_items.append_array(s.special_equipment)
