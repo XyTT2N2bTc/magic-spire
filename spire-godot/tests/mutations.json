@@ -571,6 +571,12 @@
       "find": "static func connections(g) -> Array:\n return connections_of(g.state.equipment)",
       "replace": "static func connections(g) -> Array:\n var probe=g.state.equipment.size()\n return connections_of(g.state.equipment)",
       "suite": "architecture"
+    },
+    "save_compat_only_from_legacy_restore": {
+      "file": "core/game.gd",
+      "find": "const Snapshot=preload(\"res://core/snapshot.gd\")",
+      "replace": "const Snapshot=preload(\"res://core/snapshot.gd\")\n\n# mutation probe: a compatibility call site outside restore_snapshot\nfunc _mutation_probe_save_compat() -> void:\n SaveCompat.refresh_after_swap(self)",
+      "suite": "architecture"
     }
   }
 }

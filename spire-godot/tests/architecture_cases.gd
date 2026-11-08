@@ -11,6 +11,9 @@ const EventCases=preload("res://tests/event_cases.gd")
 # 也让「模块可加载、失败形状不变」成为运行期判据而不是只靠源码扫描。
 const Assess=preload("res://core/equipment_replacement_assess.gd")
 const View=preload("res://core/equipment_replacement_view.gd")
+# A67 的旧档兼容层同样由本套件持有：既给索引一条真实边（否则新核心文件落进 blind），
+# 也让判据从脚本资源取路径，preload 与扫描到的文件是同一个。
+const SaveCompat=preload("res://core/save_compat.gd")
 
 # docs/spec/ondemand-copy.md「oracle 三条（必须换判据）」: frozen hashes recomputed with
 # unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for copy_baseline_fixture.
@@ -1178,6 +1181,7 @@ static func run(t) -> void:
  card_facts_consumes_has_targets_at(t)
  card_facts_keyword_min_query(t)
  slice_dependency_directions(t)
+ save_compat_only_from_legacy_restore(t)
  run_identity_single_writer(t)
  feedback_save_single_serializer(t)
  feedback_save_cap_pinned(t)
@@ -6401,6 +6405,16 @@ static func source_write_sites(roots: Array, pattern: String) -> Array:
     hits.append({"file":path.trim_prefix("res://"),"function":current,"line":index+1,"text":code.strip_edges()})
  return hits
 
+# A67（人裁：旧档兼容层整体排出唯一路径扫描面）：排出表以文件为单位，不出现函数名。
+# 共用扫描源＝source_write_sites 的命中去掉 UNIQUE_PATH_SCAN_EXCLUDED；本计划后续各片的唯一路径判据
+# 一律经 unique_path_sites 取数，不直接扫 core／data／ui，也不各自复制一份过滤。
+const UNIQUE_PATH_SCAN_EXCLUDED=["core/save_compat.gd"]
+const UNIQUE_PATH_SCAN_ROOTS=["res://core","res://data","res://ui"]
+
+static func unique_path_sites(roots: Array, pattern: String) -> Array:
+ var excluded=UNIQUE_PATH_SCAN_EXCLUDED
+ return source_write_sites(roots,pattern).filter(func(hit):return String(hit.file) not in excluded)
+
 static func write_site_names(hits: Array) -> Array:
  var names=[]
  for hit in hits:
@@ -6428,6 +6442,55 @@ static func slice_dependency_directions(t) -> void:
   for token in ["res://core","res://ui","res://data"]:
    if source_text(path.trim_prefix("res://")).contains(token): service_references.append(path.trim_prefix("res://")+" references "+token)
  t.check(service_references.is_empty(),"DEP slice_dependency_directions: tools/feedback-service never references game source paths (res://core, res://ui, res://data): "+str(service_references))
+
+# G-Q0-1（A67）：兼容层只由 restore_snapshot 的旧修订分支调用；迁出函数与旧杯类校验的重开面都只在
+# 兼容层内；排出表恰一文件，共用扫描源只去掉它。
+static func save_compat_only_from_legacy_restore(t) -> void:
+ var compat=String(SaveCompat.new().get_script().resource_path).trim_prefix("res://")
+ t.check(UNIQUE_PATH_SCAN_EXCLUDED==[compat],"ARCH save_compat_only_from_legacy_restore: the unique-path exclusion table names exactly the compatibility layer: "+str(UNIQUE_PATH_SCAN_EXCLUDED))
+ t.check(FileAccess.file_exists("res://"+compat),"ARCH save_compat_only_from_legacy_restore: the excluded compatibility file exists: "+compat)
+ # 共用扫描源只去掉排出表：原始命中＝共享命中＋排出文件命中，不多删不少删。
+ var references=source_write_sites(UNIQUE_PATH_SCAN_ROOTS,"save_compat")
+ var shared_references=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"save_compat")
+ var excluded_references=references.filter(func(hit):return String(hit.file) in UNIQUE_PATH_SCAN_EXCLUDED)
+ var partition=references.size()==shared_references.size()+excluded_references.size() and shared_references.all(func(hit):return String(hit.file) not in UNIQUE_PATH_SCAN_EXCLUDED)
+ t.check(partition,"ARCH save_compat_only_from_legacy_restore: the shared scan source drops exactly the declared exclusion and nothing else: raw="+str(references.size())+" shared="+str(shared_references.size())+" excluded="+str(excluded_references.size()))
+ # 引用只允许 core/game.gd 的一行 preload；调用只在 restore_snapshot 内，且恰两次（两入口）。
+ var outside=shared_references.filter(func(hit):return String(hit.file)!="core/game.gd")
+ t.check(outside.is_empty() and shared_references.size()==1 and String(shared_references[0].text).contains("preload(\"res://core/save_compat.gd\")"),"ARCH save_compat_only_from_legacy_restore: outside the compatibility layer only core/game.gd names it, in one preload line: "+str(shared_references))
+ var calls=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"SaveCompat\\.")
+ var call_sites=write_site_names(calls)
+ t.check(call_sites==["core/game.gd::restore_snapshot"],"ARCH save_compat_only_from_legacy_restore: both entry points are called only from restore_snapshot: "+str(call_sites))
+ t.check(calls.size()==2,"ARCH save_compat_only_from_legacy_restore: restore_snapshot makes exactly the two declared entry calls: "+str(calls))
+ # 旧修订判定：save_revision is int ∧ 属 52／53／54；两次调用都在该分支内。
+ var restore=source_func_body_code("res://core/game.gd","restore_snapshot")
+ var guard=Array(restore.split("\n")).filter(func(line):return line.strip_edges().begins_with("var migrate_drone=") and line.contains("saved_revision is int") and line.contains("Snapshot.REINFORCEMENT_STATE_REVISION") and line.contains("Snapshot.CUP_STACK_REVISION") and line.contains("Snapshot.IRON_DRONE_REVISION"))
+ t.check(guard.size()==1,"ARCH save_compat_only_from_legacy_restore: restore_snapshot declares the legacy branch as an integer revision among 52/53/54: "+str(guard))
+ var body_lines=restore.split("\n")
+ var outside_branch=[]
+ for index in range(body_lines.size()):
+  var line=String(body_lines[index])
+  if not line.contains("SaveCompat."): continue
+  var indent=line.length()-line.strip_edges(true,false).length()
+  var branch=""
+  for back in range(index-1,-1,-1):
+   var candidate=String(body_lines[back])
+   if candidate.strip_edges()=="": continue
+   var candidate_indent=candidate.length()-candidate.strip_edges(true,false).length()
+   if candidate_indent<indent and (candidate.strip_edges().begins_with("if ") or candidate.strip_edges().begins_with("elif ")):
+    branch=candidate.strip_edges();break
+  if branch!="if migrate_drone:": outside_branch.append(line.strip_edges()+" <- "+branch)
+ t.check(outside_branch.is_empty(),"ARCH save_compat_only_from_legacy_restore: every compatibility call sits in the if migrate_drone: branch: "+str(outside_branch))
+ # 迁出函数只在兼容层有定义；core/data/ui 的其余源码无定义无调用。
+ var moved=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"migrate_(cup_stacks|iron_drone|reinforcement_state)")
+ t.check(moved.is_empty(),"ARCH save_compat_only_from_legacy_restore: the three migrated functions have no definition or call outside the compatibility layer: "+str(write_site_names(moved)))
+ var compat_text=source_text(compat)
+ var missing=["migrate_cup_stacks","migrate_iron_drone","migrate_reinforcement_state"].filter(func(name):return not compat_text.contains("func "+name+"("))
+ t.check(missing.is_empty(),"ARCH save_compat_only_from_legacy_restore: the compatibility layer owns the three migrated functions: "+str(missing))
+ # 旧杯类校验的重开面只在兼容层（迁移用），其余源码不得带 legacy 标志。
+ var legacy_validator=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"SpecialEquipment\\.validate\\([^)]*,\\s*true\\s*\\)")
+ t.check(legacy_validator.is_empty(),"ARCH save_compat_only_from_legacy_restore: no source outside the compatibility layer passes the legacy cup flag to the validator: "+str(write_site_names(legacy_validator)))
+ t.check(compat_text.count("SpecialEquipment.validate(all_items,true)")==1,"ARCH save_compat_only_from_legacy_restore: the compatibility layer keeps exactly one legacy cup validation: "+str(compat_text.count("SpecialEquipment.validate(all_items,true)")))
 
 static func run_identity_single_writer(t) -> void:
  var clipboard=write_site_names(source_write_sites(["res://core","res://data","res://ui"],"DisplayServer\\.clipboard_set\\s*\\("))

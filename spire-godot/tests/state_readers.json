@@ -85,6 +85,22 @@
       ],
       "param": "s"
     },
+    "core/save_compat.gd::migrate_cup_stacks": {
+      "fields": [
+        "capture",
+        "pressure_sources",
+        "prison",
+        "room_event",
+        "special_equipment"
+      ],
+      "param": "s"
+    },
+    "core/save_compat.gd::migrate_iron_drone": {
+      "fields": [
+        "enemies"
+      ],
+      "param": "s"
+    },
     "core/snapshot.gd::check": {
       "fields": [
         "battle_flask_drop",
@@ -156,29 +172,13 @@
         "save_revision"
       ],
       "param": "s"
-    },
-    "core/snapshot.gd::migrate_cup_stacks": {
-      "fields": [
-        "capture",
-        "pressure_sources",
-        "prison",
-        "room_event",
-        "special_equipment"
-      ],
-      "param": "s"
-    },
-    "core/snapshot.gd::migrate_iron_drone": {
-      "fields": [
-        "enemies"
-      ],
-      "param": "s"
     }
   },
   "generated_from": {
-    "cells": 1303,
+    "cells": 1304,
     "fields": 121,
-    "files": 142,
-    "inputs_sha256": "59b9862783c72864a98bbb361ef93a9607770eee3f77819aae6fdb80a6cad8f7",
+    "files": 143,
+    "inputs_sha256": "d2f410b6dd24b0e12f01528e7bbdbeb5ddba7700bb046e819ef8edc2361ea545",
     "sites": 2137,
     "ui_reads": 0,
     "whole_state": 75
@@ -1317,11 +1317,10 @@
     "core/game.gd::restore_snapshot": {
       "capture": 1,
       "card_chain": 1,
-      "enemies": 1,
       "hand": 1,
       "overloaded": 1,
       "pending_retain": 1,
-      "phase": 2,
+      "phase": 1,
       "version": 1
     },
     "core/game.gd::retain_facts": {
@@ -2363,6 +2362,10 @@
     "core/rope_master.gd::unavailable": {
       "special_equipment": 1
     },
+    "core/save_compat.gd::refresh_after_swap": {
+      "enemies": 1,
+      "phase": 1
+    },
     "core/save_store.gd::fixed_point_text": {
       "save_slot": 1
     },
@@ -2869,12 +2872,6 @@
       "kind": "pass"
     },
     {
-      "count": 1,
-      "file": "core/game.gd",
-      "function": "restore_snapshot",
-      "kind": "pass"
-    },
-    {
       "count": 9,
       "file": "core/game.gd",
       "function": "validate",
@@ -2956,6 +2953,12 @@
       "count": 1,
       "file": "core/room_services.gd",
       "function": "validate",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/save_compat.gd",
+      "function": "refresh_after_swap",
       "kind": "pass"
     },
     {

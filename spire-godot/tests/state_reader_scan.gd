@@ -33,8 +33,8 @@ const ALIAS_DECLARATIONS=[
  {"file":"core/game.gd","function":"link_anchors_in","param":"s"},
  {"file":"core/snapshot.gd","function":"is_current","param":"s"},
  {"file":"core/snapshot.gd","function":"check","param":"s"},
- {"file":"core/snapshot.gd","function":"migrate_iron_drone","param":"s"},
- {"file":"core/snapshot.gd","function":"migrate_cup_stacks","param":"s"},
+ {"file":"core/save_compat.gd","function":"migrate_iron_drone","param":"s"},
+ {"file":"core/save_compat.gd","function":"migrate_cup_stacks","param":"s"},
  {"file":"core/prison.gd","function":"reinforcement_issue","param":"s"}]
 # Failure-path seeds (report口径): ENTRIES arms + FACT_UNITS producers + the five debug
 # verifiers + game.validate() + get_view/GameView.build; closure edges = same-file calls,
