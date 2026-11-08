@@ -73,7 +73,7 @@
 - **整字典读取**：`state` 被整体交出（传参／`duplicate`／迭代／`has`／变量键 `get`）时没有任何字段名参与匹配，
   字段级计数无法归因；这些点改走 `whole_state` 逐处登记，双向（多一处／少一处／计数变化都红）。
   字段计数面因此**不含**这些点（两表互斥，避免同一读点被记两次）。
-- **别名形参**：`core/game.gd::_scene_key`／`core/snapshot.gd::{is_current, check, migrate_iron_drone,
+- **别名形参**：`core/game.gd::_scene_key`／`core/snapshot.gd::{is_current, check}`／`core/save_compat.gd::{migrate_iron_drone,
   migrate_cup_stacks}`／`core/prison.gd::reinforcement_issue` 把 state 收在形参名下，通用字段计数看不到；
   按声明表派生字段集合并冻结。**非 state 形参的排除表**（理由逐条）在
   `docs/spec/state-readers-dependencies.md`：`core/prison_space.gd::walkable`／`core/prison_space.gd::path` 的
