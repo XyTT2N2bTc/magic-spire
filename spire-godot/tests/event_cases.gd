@@ -40,6 +40,36 @@ static func held_specials_restore_in_order(t) -> void:
   t.check(after==remaining+held_ids,"EVENT held_specials_restore_in_order: %d staged piece(s) come back on the container tail in staging order: after=%s expected=%s" % [count,str(after),str(remaining+held_ids)])
   t.check(texts==["暂时取下并保管了%d件性玩具；事件结束时原样装回。" % count,"代为保管的%d件性玩具已经原样装回。" % count],"EVENT held_specials_restore_in_order: exactly two staging lines per hold/restore pair, one per phase, at %d piece(s): %s" % [count,str(texts)])
   t.check(g.validate()=="","EVENT held_specials_restore_in_order: %d staged piece(s) keep the state valid: %s" % [count,g.validate()])
+ # A held set that contains a reinforcement strap (A118 F3): a tightness-3 piece auto-attaches its
+ # strap, so the staging layer holds both and the restore must keep the held order and leave the
+ # strap attached to its owner. Without a strap in the held set, any category-based reordering
+ # (straps first) would still satisfy the cells above.
+ var strapped=Game.new(42)
+ arrive(strapped,"binding_cleric")
+ var strapped_owner=strapped._install_special("negative_plate_lock_medium","special_2_a",3)
+ var strapped_strap={}
+ for item in strapped.state.special_equipment:
+  if strapped.SpecialEquipment.is_reinforcement(item) and item.owner_id==String(strapped_owner.get("id","")): strapped_strap=item
+ t.check(not strapped_owner.is_empty() and not strapped_strap.is_empty(),"EVENT held_specials_restore_in_order: the strap cell installs a tightness-3 piece and its auto-attached reinforcement: owner="+str(strapped_owner.get("id",""))+" strap="+str(strapped_strap.get("id","")))
+ var strapped_refs=strapped.state.room_event.refs
+ var strapped_before=strapped.state.special_equipment.map(func(item):return item.id)
+ var strapped_log_from=strapped.state.logs.size()
+ var strapped_hold=strapped.Events.apply_effects(strapped,[{"op":"hold_special","key":"probe","slots":["special_2_a"]}],strapped_refs,true)
+ var strapped_held=strapped.state.room_event.held.get("probe",[])
+ var strapped_held_ids=strapped_held.map(func(item):return item.id)
+ var strapped_restore=strapped.Events.apply_effects(strapped,[{"op":"restore_held","key":"probe"}],strapped_refs,true)
+ var strapped_texts=[]
+ for i in range(strapped_log_from,strapped.state.logs.size()): strapped_texts.append(String(strapped.state.logs[i].text))
+ var strapped_after=strapped.state.special_equipment.map(func(item):return item.id)
+ var strapped_strap_after={}
+ for item in strapped.state.special_equipment:
+  if String(item.get("id",""))==String(strapped_strap.get("id","")): strapped_strap_after=item
+ var strapped_owner_kept=strapped.state.special_equipment.any(func(item):return String(item.get("id",""))==String(strapped_owner.get("id","")))
+ t.check(strapped_hold=="" and strapped_restore=="" and strapped_held_ids==strapped_before and strapped_held_ids.size()==2,"EVENT held_specials_restore_in_order: the strap cell stages the piece and its reinforcement together in container order without an issue: hold=%s restore=%s held=%s before=%s" % [strapped_hold,strapped_restore,str(strapped_held_ids),str(strapped_before)])
+ t.check(strapped_after==strapped_held_ids,"EVENT held_specials_restore_in_order: a staged reinforcement comes back on the container tail in staging order: after=%s held=%s" % [str(strapped_after),str(strapped_held_ids)])
+ t.check(strapped_owner_kept and not strapped_strap_after.is_empty() and String(strapped_strap_after.get("owner_id",""))==String(strapped_owner.get("id","")),"EVENT held_specials_restore_in_order: the restored reinforcement still follows its owner: strap_owner=%s owner=%s" % [String(strapped_strap_after.get("owner_id","")),String(strapped_owner.get("id",""))])
+ t.check(strapped_texts==["暂时取下并保管了2件性玩具；事件结束时原样装回。","代为保管的2件性玩具已经原样装回。"],"EVENT held_specials_restore_in_order: the strap cell keeps the two staging lines unchanged: "+str(strapped_texts))
+ t.check(strapped.validate()=="","EVENT held_specials_restore_in_order: the restored strap cell keeps the state valid: "+strapped.validate())
 
 # docs/spec/event-pipeline.md「证据入口」: the compiled registry entry is the
 # single author form, and the projection keeps the same visible fields as the baseline.

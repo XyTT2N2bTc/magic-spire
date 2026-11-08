@@ -6514,15 +6514,17 @@ const EQUIPMENT_MEMBER_WRITE_EXCEPTIONS=[
  "core/equipment_replacement.gd::_plan",
  "core/equipment_replacement.gd::_trial",
  "core/equipment_replacement.gd::_commit_changes"]
-# 成员增删／整容器赋值两种写形按容器名派生（名单只来自 VIEW_FIELDS，不另写一份）；第三种是替换事务
-# 提交用的整键写 `g.state[key]=`，键是变量，容器不可静态判定，故只许登记例外持有。
+# 成员增删／整容器赋值／容器元素索引赋值三种写形按容器名派生（名单只来自 VIEW_FIELDS，不另写一份）；
+# 第四种是替换事务提交用的整键写 `g.state[key]=`，键是变量，容器不可静态判定，故只许登记例外持有。
+# `fill(`／`set(` 与索引赋值同为改写容器成员的写形（A118 F2）：只认 `state.`／`g.state.` 前缀路径。
 static func _equipment_member_containers_pattern(containers: Array) -> String:
  return "(?:"+"|".join(containers)+")"
 
 static func _equipment_member_scan_patterns(containers: Array) -> Array:
  var container_pattern=_equipment_member_containers_pattern(containers)
- return ["(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign)\\s*\\(",
+ return ["(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set)\\s*\\(",
   "(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*=[^=]",
+  "(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*\\[[^\\]]*\\]\\s*=[^=]",
   "(?<![A-Za-z0-9_])(?:g\\.)?state\\s*\\[\\s*key\\s*\\]\\s*=[^=]"]
 
 static func equipment_member_writes_have_one_entry(t) -> void:
@@ -6575,13 +6577,19 @@ static func equipment_member_writes_have_one_entry(t) -> void:
  # 是合法接收者，按接收者名单收窄会把它们误判。
  var indirect=[]
  var reach=RegEx.new()
- if reach.compile("(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\.\\s*special_equipment\\s*\\.\\s*(?:append_array|append|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign)\\s*\\(")==OK:
+ # Fail-closed (A118 F1, same direction as `names_ui_module`): a receiver pattern that no longer
+ # compiles would leave `indirect` empty and turn this clause into a silent pass. The compile
+ # result is therefore part of the same assertion, named `regex@<pattern>` when it is not OK.
+ var receiver_pattern="(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\.\\s*special_equipment\\s*\\.\\s*(?:append_array|append|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set)\\s*\\("
+ if reach.compile(receiver_pattern)!=OK:
+  indirect.append("regex@"+receiver_pattern)
+ else:
   for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,reach.get_pattern()):
    var found=reach.search(String(hit.text))
    var receiver="" if found==null else found.get_string(1)
    if receiver in ["state","view"]: continue
    indirect.append(receiver+"@"+String(hit.file)+"::"+String(hit.function))
- t.check(indirect.is_empty(),"ARCH equipment_member_writes_have_one_entry: the special-equipment container is written only through the live state path -- a whole-state local alias or a parameter alias would hide the write from every scan above (binding such an alias is not banned, writing through it is): indirect="+str(indirect))
+ t.check(indirect.is_empty(),"ARCH equipment_member_writes_have_one_entry: the special-equipment container is written only through the live state path -- a whole-state local alias or a parameter alias would hide the write from every scan above (binding such an alias is not banned, writing through it is; an uncompilable receiver pattern is red, never vacuous): indirect="+str(indirect))
 
 static func run_identity_single_writer(t) -> void:
  var clipboard=write_site_names(source_write_sites(["res://core","res://data","res://ui"],"DisplayServer\\.clipboard_set\\s*\\("))
