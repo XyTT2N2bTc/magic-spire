@@ -354,7 +354,8 @@ static func mouth_stacking(t) -> void:
 
 # G-Q2-4（plan §8 Q2；Gherkin G-Q2-4）：写口本身没有策略 —— 诅咒平板锁、未开锁的限制项圈与
 # `after>0` 的镣铐在直接调用 `_apply_manual_release` 时耐久不变；普通件照常写入，因此这条判据
-# 不是靠「一次都没写」变绿。守卫删掉后三者各自变红。
+# 不是靠「一次都没写」变绿。三个反例各自传入与现值不同的 after，所以单独去掉任一守卫都会让
+# 该件耐久变成 after（≠现值）而具名红；不这样设，after 恰等于现值就会让一条守卫的去除不可观测。
 static func manual_release_guards_stay_in_policy(t) -> void:
  var g=Game.new(42)
  var plain=g.add_fixture("ankle",8,16,false,0,"belt")
@@ -362,7 +363,7 @@ static func manual_release_guards_stay_in_policy(t) -> void:
  t.check(is_equal_approx(float(g._equipment(plain.id).durability),6.0),"REMOVAL manual_release_guards_stay_in_policy: a plain target is written by the same call, so the three guarded rows below are not vacuous: "+str(g._equipment(plain.id).durability))
  var collar=g._install_template("restriction_collar","neck",1.0,1.0,false,"fixture",3)
  var collar_before=float(g._equipment(collar.id).durability)
- g._apply_manual_release(g._equipment(collar.id),0.4)
+ g._apply_manual_release(g._equipment(collar.id),collar_before+0.4)
  t.check(is_equal_approx(float(g._equipment(collar.id).durability),collar_before),"REMOVAL manual_release_guards_stay_in_policy: an unlocked restriction collar keeps its durability because the lock-only guard stays in the policy: "+str(g._equipment(collar.id).durability))
  var types=E.SHACKLES
  if not types.is_empty():
@@ -378,7 +379,7 @@ static func manual_release_guards_stay_in_policy(t) -> void:
  var plates=plate_game.state.special_equipment.filter(plate_game.SpecialEquipment.is_cursed_plate)
  if not plates.is_empty():
   var plate_before=float(plates[0].durability)
-  plate_game._apply_manual_release(plates[0],plate_before)
+  plate_game._apply_manual_release(plates[0],plate_before+1.0)
   t.check(is_equal_approx(float(plate_game._equipment(String(plates[0].id)).durability),plate_before),"REMOVAL manual_release_guards_stay_in_policy: a cursed plate lock is never written, because the cursed-plate guard stays in the policy: "+str(plate_before)+" -> "+str(plate_game._equipment(String(plates[0].id)).durability))
 
 # G-Q2-3（plan B11、A66 NHR-3(a)；Gherkin G-Q2-3）：挂钩改走 `_apply_manual_release` 后守卫恒不触发。
@@ -464,6 +465,21 @@ static func hook_release_guards_are_already_upstream(t) -> void:
   t.check(ok and is_equal_approx(landed,chosen.after) and int(g.state.hook_uses)==uses_before-1 and first==expected and added.size()==(2 if chosen.after<=0.0 else 1),"REMOVAL hook_release_guards_are_already_upstream: the real submit writes exactly the fact's after value, spends one use and appends the unchanged message: bucket="+String(row[0])+" ok="+str(ok)+" landed="+str(landed)+" after="+str(chosen.after)+" uses="+str(g.state.hook_uses)+"/"+str(uses_before)+" added="+str(added.size())+" log="+first)
   executed+=1
  t.check(executed>=6,"REMOVAL hook_release_guards_are_already_upstream: at least six legal classes are executed through the real submit entry (a loop that finds nothing must not pass): executed="+str(executed))
+ # G-Q2-3（输入域 battle 列）：挂钩是休息相位专有命令 —— `hook_facts` 在非 rest 相位直接返回空。
+ # 战斗相位下八类目标各不产出合法挂钩事实；与上表同一事实出口核对，不手写相位判断。
+ # 敏感性：去掉 `hook_facts` 首行的相位守卫（`state.phase!="rest"` 改成假）后本断言具名红。
+ var battle=[]
+ for row in rows:
+  var bg=Game.new(42)
+  (row[2] as Callable).call(bg)
+  bg.state.wall_distance=0
+  bg.state.hook_uses=3
+  bg.state.posture=String(row[1])
+  var legal=0
+  for fact in bg.hook_facts():
+   if bool(bg.display_fact(fact).valid): legal+=1
+  if bg.state.phase!="battle" or legal!=0: battle.append(String(row[0])+":phase="+String(bg.state.phase)+" legal="+str(legal))
+ t.check(battle.is_empty(),"REMOVAL hook_release_guards_are_already_upstream: the hook is a rest-phase command, so outside rest every one of the eight target classes yields no legal hook fact (the battle column of the input domain): battle="+str(battle))
 
 # rest 相位、靠墙、挂钩次数＝3：与 `hook_facts` 的三条前置一致。路线复用既有 `tests/test_game.gd::enter_rest`
 # （真实 depart／travel_step／rest_begin），不手写相位，避免夹具比生产宽松。

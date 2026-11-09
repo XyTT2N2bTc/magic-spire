@@ -586,8 +586,8 @@
     },
     "hook_release_guards_are_already_upstream": {
       "file": "core/game.gd",
-      "find": "   _apply_manual_release(target,p.after)\n   state.hook_uses-=1",
-      "replace": "   _apply_manual_release(target,p.after+0.4)\n   state.hook_uses-=1",
+      "find": " if Equipment.is_shackle(lock_target) and (payload.get(\"mode\",\"\")==\"lower\" or payload.kind==\"hook\"): reason=\"镣铐仅有耐久，需破坏或开锁解除。\"",
+      "replace": " if Equipment.is_shackle(lock_target) and payload.get(\"mode\",\"\")==\"lower\": reason=\"镣铐仅有耐久，需破坏或开锁解除。\"",
       "suite": "equipment"
     },
     "connections_has_one_delegate": {
