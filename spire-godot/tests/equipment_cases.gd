@@ -55,6 +55,8 @@ static func run(t) -> void:
  index_targets_edge_parity(t)
  index_predicate_parity(t)
  manual_release_guards_stay_in_policy(t)
+ cross_release_waits_for_settle(t)
+ refresh_only_forms_crossing(t)
  hook_release_guards_are_already_upstream(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")
@@ -381,6 +383,72 @@ static func manual_release_guards_stay_in_policy(t) -> void:
   var plate_before=float(plates[0].durability)
   plate_game._apply_manual_release(plates[0],plate_before+1.0)
   t.check(is_equal_approx(float(plate_game._equipment(String(plates[0].id)).durability),plate_before),"REMOVAL manual_release_guards_stay_in_policy: a cursed plate lock is never written, because the cursed-plate guard stays in the policy: "+str(plate_before)+" -> "+str(plate_game._equipment(String(plates[0].id)).durability))
+
+# G-QX1-1（H2=C；plan-delta §4.2）：事件「松一档」只改耐久，交叉解除提示由该效果末尾的
+# `_cleanup()` 结算点发出，故它紧跟「…已经松到1档。」而不插在写入处。
+static func cross_release_waits_for_settle(t) -> void:
+ var g=Game.new(42)
+ var host=g._install_template("rope","upper_arm",g.Equipment.maximum(3),g.Equipment.maximum(3),false,"fixture",3)
+ var left={}
+ for piece in g.Shoulders.attached(g,host):
+  if piece.side=="left": left=piece
+ t.check(not left.is_empty() and bool(left.crossed) and g.tier(left.durability,left.maximum)==3,"REMOVAL cross_release_waits_for_settle: the tier-three host auto-attaches a crossed left strap through the real fill path: "+str(left))
+ if left.is_empty(): return
+ # The crossing only forms at tier three and only clears at tier one, so a tier-two piece keeps it
+ # and the easing write crosses the release boundary.
+ left.durability=left.maximum*0.6
+ preload("res://tests/event_cases.gd").arrive(g,"binding_cleric")
+ g.state.room_event.options=[{"id":"ease_shoulder","label":"松开肩带","detail":"松开所选装备一档。","reward":"none","report":"她解开了左肩绳的固定。","effects":[{"op":"ease_restraint","target":left.id}]}]
+ var logs_before=g.state.logs.size()
+ var result=t.action(g,"event",{"action":"choose","choice":"ease_shoulder"})
+ var added=g.state.logs.slice(logs_before)
+ var texts=added.map(func(row):return String(row.text))
+ var live=g._equipment(left.id)
+ t.check(result.ok and not live.is_empty() and g.tier(live.durability,live.maximum)==1,"REMOVAL cross_release_waits_for_settle: the real event choice lowers the crossed strap to tier one: ok="+str(result.ok)+" live="+str(live))
+ t.check(added.size()>=2 and texts[0]==left.name+"已经松到1档。" and texts[1]==left.name+"已松到一档，交叉固定解除。","REMOVAL cross_release_waits_for_settle: the release belongs to the settle point, so it follows the easing line instead of preceding it: "+str(texts))
+ t.check(added.size()>=2 and added[1].data.get("shoulder",{}).get("crossed",true)==false and not bool(live.crossed) and g.validate()=="","REMOVAL cross_release_waits_for_settle: the settle point clears crossed on the piece and on its event data, and the committed state validates: crossed="+str(live.crossed)+" issue="+g.validate())
+ t.check(not added.is_empty() and added.back().data.has("action_copy") and String(added.back().data.action_copy.get("cue",""))=="event.binding_cleric.choose" and texts.back().contains("已经松到1档。"),"REMOVAL cross_release_waits_for_settle: this event still ends on its action-copy report: "+str(texts.back()))
+
+# G-QX1-2（H2=C；plan-delta §4.2）：写入只成交叉、不解除；解除只在结算点；升入 3 档仍立即成交叉。
+# 两段分别用肩带件与 `glove_strap` 组件（`E.is_shoulder` 的两条来源）。
+static func refresh_only_forms_crossing(t) -> void:
+ var cases=[
+  ["strap",func(g):
+   var host=g._install_template("rope","upper_arm",g.Equipment.maximum(3),g.Equipment.maximum(3),false,"fixture",3)
+   var left={}
+   for piece in g.Shoulders.attached(g,host):
+    if piece.side=="left": left=piece
+   return left],
+  ["glove_strap",func(g):
+   var root=g._install_assembly("glove","long","fixture",3,2,{},"straight")
+   return root.components[1]]]
+ for row in cases:
+  var label=String(row[0])
+  var g=Game.new(42)
+  var piece=(row[1] as Callable).call(g)
+  t.check(not piece.is_empty() and bool(piece.crossed) and g.tier(piece.durability,piece.maximum)==3,"REMOVAL refresh_only_forms_crossing: the "+label+" fixture starts crossed at tier three through the real fill or assembly path: "+str(piece))
+  if piece.is_empty(): continue
+  # Lower segment: the crossing history lives at tier two, then a direct write reaches tier one.
+  piece.durability=piece.maximum*0.6
+  piece.durability=piece.maximum*0.2
+  var logs_before=g.state.logs.size()
+  g._refresh_equipment(piece)
+  var live=g._equipment(piece.id)
+  t.check(not live.is_empty() and bool(live.crossed) and g.state.logs.size()==logs_before,"REMOVAL refresh_only_forms_crossing: a direct write down to tier one followed by the refresh keeps crossed and emits no cross event for the "+label+": crossed="+str(live.crossed)+" added="+str(g.state.logs.size()-logs_before))
+  g._cleanup()
+  live=g._equipment(piece.id)
+  var added=g.state.logs.slice(logs_before)
+  t.check(not live.is_empty() and not bool(live.crossed) and added.size()==1 and String(added[0].text)==live.name+"已松到一档，交叉固定解除。","REMOVAL refresh_only_forms_crossing: the settle point then releases the crossing and emits the unchanged line for the "+label+": crossed="+str(live.crossed)+" added="+str(added.map(func(entry):return String(entry.text))))
+  # Raise segment: tier two to tier three still forms the crossing at write time.
+  piece=g._equipment(piece.id)
+  if piece.is_empty(): continue
+  piece.durability=piece.maximum
+  logs_before=g.state.logs.size()
+  g._refresh_equipment(piece)
+  live=g._equipment(piece.id)
+  added=g.state.logs.slice(logs_before)
+  t.check(not live.is_empty() and bool(live.crossed) and added.size()==1 and String(added[0].text)==live.name+"已收成交叉型。","REMOVAL refresh_only_forms_crossing: a write up to tier three forms the crossing immediately and emits the unchanged line for the "+label+": crossed="+str(live.crossed)+" added="+str(added.map(func(entry):return String(entry.text))))
+  t.check(g.validate()=="","REMOVAL refresh_only_forms_crossing: the "+label+" fixture validates after both segments: "+g.validate())
 
 # G-Q2-3（plan B11、A66 NHR-3(a)；Gherkin G-Q2-3）：挂钩改走 `_apply_manual_release` 后守卫恒不触发。
 # 枚举 rest＋靠墙＋挂钩次数>0 下的 `hook_facts()`：每类目标至少一条事实，凡 `valid=true` 都满足

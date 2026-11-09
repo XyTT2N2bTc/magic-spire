@@ -58,7 +58,8 @@ static func pair_pieces(g, host: Dictionary, side: String) -> Dictionary:
  return {"id":host.id+"_shoulder_"+side,"shoulder_host":host.id,"template":pair.template,"name":label(pair.template,side),"slot":"shoulder","side":side,"coverage":[],"contact_slots":["shoulder"],"layer":0,"grade":pair.grade,"variant":pair.variant,"material":E.TEMPLATES[pair.template].material,"locked":false,"maximum":maximum,"durability":g._tier_durability(maximum,pair.grade),"source":pair.source,"crossed":pair.grade==3}
 
 static func refresh(g, host: Dictionary) -> void:
- update_cross(g,host)
+ # Writing only forms a crossing; the release belongs to the settle point (Shoulders.cleanup).
+ if g.tier(host.durability,host.maximum)==3: update_cross(g,host)
  if g.tier(host.durability,host.maximum)!=3: return
  if eligible(host):
   if not host.has("shoulders"):
