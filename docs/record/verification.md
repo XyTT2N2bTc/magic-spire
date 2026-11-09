@@ -4749,3 +4749,16 @@ flowchart LR
 - 未跑：完整全项目回归、安卓真机、分帧、打包与发布；未提交、未推送。
 - 片内流水：实现 `dsp-20261108T132415Z-6f77`（`3b55f85`…`6676591`）→ 清洁 `dsp-20261108T134214Z-747d`（`ae68fe9`）→ 加固 `dsp-20261108T144539Z-73fb`（`41ebf1f`）→ 独立审查 `dsp-20261108T164248Z-20d7`（无阻断，次要 F1／F2）→ 加固二 `dsp-20261108T165729Z-1b8d`（`a5a9b7d`，F2 删经唯一入口不可达的前置判定、F1 补类标识符计数）→ 验收 `dsp-20261108T173719Z-c3b0` 通过。记录：工作树 `tmp/io-q0/acceptance/acceptance-q0.md`、`tmp/io-q0/review/findings.md`。
 - 本节只追加本文件一节、单独提交（docs-only）；仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+### 2026-11-09｜加装卸收口 Q1（特殊件容器写口，行为不变）登记（协调者落账）
+
+- 域：`spire-godot` 特殊件容器 `state.special_equipment` 的 live 成员增删收口为 `core/game.gd::_special_append`／`::_special_erase`；`core/room_events.gd::apply_effects` 的 `hold_special`／`restore_held` 改经两写口（`append_array` 改为按原序逐件 `_special_append`），暂存表、守卫与文案不动。判据 `ARCH equipment_member_writes_have_one_entry`（7 条）＋`APPLY chastity_displacement_unchanged`（10）＋`EVENT held_specials_restore_in_order`（21），三条目登记 `tests/mutations.json`。
+- 片范围 `b1f7352..08ad2ec`（2ad6b2d、03a2314 实现；bb778f3 清洁；b775e03 协调者 docs 统计行；81ebf75、b0e052e、08ad2ec 加固两轮）。HEAD `08ad2ec`，跑前跑后 `git status` 0 行。
+- `build/checks/20261109T000818234-62372`：52 套件（Q0 的 51 名＋`-Impact` 带出的 `localization`，A117）`-Impact -Exhaustive -KeepGoing` 的 RULE SCOPE 与父基线 `20261108T173850831-16096` 逐名同，`SUITE RESULT` 与 15 条 `ERROR` 逐行全等（失败仍为 architecture、shoulder、rewards、events、core 既有红），断言 151734→151772（＋38＝application+10／architecture+7／events+21），另 `localization` 309 断言 PASS；`status=failed`、before=after，无 `SOURCE CHANGED`。
+- `build/checks/20261109T002025930-62372`：runner PASS 1846 断言；`build/checks/20261109T002313987-62372`：UI 组合 architecture 4 条 ERROR（父 4 条）、四 UI 套件与父同早停；按 `-UIOnly` 补跑 shoulder／torso_binding／body_layout 通过（`20261109T003005533-62372`／`20261109T003102713-62372`），equipment_complete 一条 `HEAD equal tightness…` 为父树同错。
+- 语料四模式：compare／compare-scope／reoracle 各 423 例 0 差异、退出 0，selfcheck 恰 1 例红（`42-00000`）退出 1；三种子整局 sha256（42／20260906／7）逐字节同契约值。
+- `ARCH equipment_member_writes_have_one_entry`／`APPLY chastity_displacement_unchanged`／`EVENT held_specials_restore_in_order` 在 HEAD 探针亲跑各 7／10／21 断言 0 失败；`check-mutation.ps1 -Check` 三条目 3/3 具名红并逐字节还原（`worktree unchanged=True`）；五条敏感性（未登记 `erase(null)`、事件分支改回直写、接收者正则不可编译、索引赋值写、`restore_held` 先装加固带）各在完整所属套件具名红并逐字节还原；两树夹具（父树 worktree `a5a9b7d`）各格 logs／encode sha256 逐行相等、`COMPARE_ROWS=0`，worktree 已删。`DOCS PASS` 49 份、2912 引用。
+- 允许面 10 文件 ⊆ Q1 表＋A117 补记；`data／ui／content／assets` 零差异；模块合计（core＋data＋ui `.gd`）33892→33905（+13＝game.gd +11＋room_events.gd +2）。
+- 未跑：完整全项目回归、安卓真机、分帧、打包与发布；未提交、未推送。
+- 片内流水：实现 `dsp-20261108T183906Z-ce66`（`2ad6b2d`、`03a2314`）→ 清洁 `dsp-20261108T200514Z-f067`（`bb778f3`，表名改回契约 `EQUIPMENT_MEMBER_WRITERS`）＋协调者 `b775e03`（`docs/spec/state-readers.md` Q1 统计行）→ 加固 `dsp-20261108T210609Z-5b08`（`81ebf75`，不带加固带格、整份 state 别名写子句、两场景登记）→ 独立审查 `dsp-20261108T222736Z-dca4`（无阻断，次要 F1–F4）→ 加固二 `dsp-20261108T224414Z-4d9f`（`b0e052e`、`08ad2ec`，F1 fail-closed、F2 索引赋值与 fill／set、F3 暂存含带格）→ 验收 `dsp-20261108T233726Z-a2e5`（池内首跳中途 503 冷却，回退跳 `dsp-20261109T005522Z-d8c5` 续完）通过。记录：工作树 `tmp/io-q1/acceptance/acceptance-q1.md`、`tmp/io-q1/review/findings.md`；协调者裁定 A114–A119 与 `rev3.3/coordinator-rulings.md` 的 Q1 契约补记。
+- 本节只追加本文件一节、单独提交（docs-only）；仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
