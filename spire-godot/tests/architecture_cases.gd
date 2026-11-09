@@ -6744,7 +6744,12 @@ const SETTLE_CALL_PATTERN="(?<![A-Za-z0-9_])_cleanup\\s*\\("
 const SETTLE_DEFINITION_PATTERN="^(?:static\\s+)?func\\s+_cleanup\\s*\\("
 
 # 共用扫描源（unique_path_sites：core／data／ui 去掉兼容层）里 `_cleanup(` 的每个调用点。同一行两个调用
-# 各算一处（逐匹配计数，不按行计数），模式按实参现场分类：`)`＝released、`false)`＝quiet，其它记 unknown。
+# 各算一处（逐匹配计数，不按行计数），模式按实参现场分类：`)`＝released、`false)`＝quiet，其它实参或跨行
+# 实参记 unknown。共用扫描只剥 `#` 注释、不剥字符串，故字符串字面量里的同形另由 settle_match_in_string
+# 排除：那是文案而不是调用，计入会把正确源码误计成 extra。引号未在本行闭合时仍按调用计入（fail-closed，
+# 不静默漏抓）。本判据不为「源非空」与「unknown 为空」各设一条断言：源空时 21 行全部落进 missing，
+# unknown 的 `site@unknown` 键必然落进 extra（表只许 released／quiet），两条都已有具名红，单独再断是同一
+# 语义的第二条检查，也没有只让它红的改法（AGENTS「每条检查须有独有敏感性证明，否则删除」）。
 static func settle_point_rows() -> Array:
  var rows=[]
  var call=RegEx.new()
@@ -6758,13 +6763,28 @@ static func settle_point_rows() -> Array:
   while true:
    var found=call.search(text,cursor)
    if found==null: break
+   cursor=found.get_end()
+   if settle_match_in_string(text,found.get_start()): continue
    var after=text.substr(found.get_end()).strip_edges(true,false)
    var mode="unknown"
    if after.begins_with(")"): mode="released"
    elif after.begins_with("false") and after.substr(5).strip_edges(true,false).begins_with(")"): mode="quiet"
    rows.append({"site":site,"mode":mode,"text":text.substr(found.get_start(),28)})
-   cursor=found.get_end()
  return rows
+
+# 命中点是否落在本行的字符串字面量内。只有引号在本行成对闭合时才判为字符串；共用扫描按行取文本，跨行
+# 字符串在这条通道上无法可靠定位，此时返回 false 让调用照旧计数（fail-closed，不静默漏抓真实调用）。
+static func settle_match_in_string(text: String, at: int) -> bool:
+ var quote=""
+ var index=0
+ while index<at:
+  var ch=text[index]
+  if quote=="":
+   if ch=="\"" or ch=="'": quote=ch
+  elif ch==quote and (index==0 or text[index-1]!="\\"): quote=""
+  index+=1
+ if quote=="": return false
+ return text.substr(at).contains(quote)
 
 static func settle_point_counts(rows: Array) -> Dictionary:
  var counts={}
@@ -6795,9 +6815,6 @@ static func settle_points_are_declared(t) -> void:
  var missing=[]
  for key in declared_counts:
   for _index in range(int(declared_counts[key])-int(source_counts.get(key,0))): missing.append(String(key))
- var unknown=source.filter(func(row):return String(row.mode) not in modes)
- t.check(not source.is_empty(),"ARCH settle_points_are_declared: the shared scan source yields the settle calls (an empty scan is red, never vacuous): matched="+str(source.size()))
- t.check(unknown.is_empty(),"ARCH settle_points_are_declared: every `_cleanup(` call takes either no argument or the literal false -- any other arity or argument would be an undeclared settle mode: "+str(unknown))
  t.check(extra.is_empty(),"ARCH settle_points_are_declared: no `_cleanup(` call exists outside the declared points (site@mode counted per call): extra="+str(extra)+" source="+str(source.size())+" declared="+str(declared.size()))
  t.check(missing.is_empty(),"ARCH settle_points_are_declared: every declared row is a real call of its declared mode (a stale row is red, never silently vacuous): missing="+str(missing))
  # 类①：恰是绳艺大师的两处静默结算，且各自在本函数结算前已经执行过一次安装。
