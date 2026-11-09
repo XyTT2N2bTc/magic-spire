@@ -631,6 +631,12 @@
       "find": "extends RefCounted",
       "replace": "extends RefCounted\n\n# mutation probe: a placement-layer computation outside the three declared factories\nfunc _mutation_probe_placement(target) -> int:\n return target.layer+1",
       "suite": "architecture"
+    },
+    "refresh_only_forms_crossing": {
+      "file": "core/shoulder_links.gd",
+      "find": " if g.tier(host.durability,host.maximum)==3: update_cross(g,host)",
+      "replace": " update_cross(g,host)",
+      "suite": "equipment"
     }
   }
 }
