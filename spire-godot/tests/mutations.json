@@ -619,6 +619,18 @@
       "find": "    for item in held: g._special_append(item)",
       "replace": "    for i in range(held.size()-1,-1,-1): g._special_append(held[i])",
       "suite": "events"
+    },
+    "settle_points_are_declared": {
+      "file": "core/demo_exit.gd",
+      "find": "extends RefCounted",
+      "replace": "extends RefCounted\n\n# mutation probe: one more settle request outside the declared points\nfunc _mutation_probe_settle(g) -> void:\n g._cleanup()",
+      "suite": "architecture"
+    },
+    "placement_layers_have_declared_rules": {
+      "file": "core/demo_exit.gd",
+      "find": "extends RefCounted",
+      "replace": "extends RefCounted\n\n# mutation probe: a placement-layer computation outside the three declared factories\nfunc _mutation_probe_placement(target) -> int:\n return target.layer+1",
+      "suite": "architecture"
     }
   }
 }
