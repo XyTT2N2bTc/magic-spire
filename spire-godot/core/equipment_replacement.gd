@@ -78,7 +78,7 @@ static func _force_special_live(g, type: String, tier: int, source: String) -> D
  if blocking.any(g.SpecialEquipment.is_cursed_plate): return Assess.failure(g.SpecialEquipment.CURSED_PLATE_REASON)
  var old_targets=g.action_targets().duplicate(true)
  for item in blocking:
-  item.durability=0.0
+  g._write_durability(item,0.0)
  if not blocking.is_empty(): g._cleanup(false)
  var installed=g._install_special(type,coverage[0],tier)
  if installed.is_empty(): return Assess.failure("清理可替换装备后仍无法佩戴指定装备。")
@@ -166,7 +166,7 @@ static func _trial(g, before: Dictionary, specs: Array, source: String, units: A
  # Temporarily park affected links so cleanup cannot falsely announce a loss
  # for a link that the complete replacement will legally retain.
  g.state.links=g.state.links.filter(func(link):return not impacted.any(func(old):return old.id==link.id))
- for unit in units: g._equipment(unit.id).durability=0.0
+ for unit in units: g._write_durability(g._equipment(unit.id),0.0)
  if not units.is_empty(): g._cleanup(false)
  var installed=[]
  for r in specs:

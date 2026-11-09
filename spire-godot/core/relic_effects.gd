@@ -92,8 +92,8 @@ static func boss_key(g, saturated: bool) -> void:
  var lock=locks[0]
  # Dedicated-key resolution removes the physical root; cleanup cascades its strap.
  g.state.cursed_plate_released=true
- lock.locked=false
- lock.durability=0.0
+ g._unlock_equipment(lock)
+ g._write_durability(lock,0.0)
  g._cleanup()
  g._emit("event","获得专属钥匙，诅咒平板锁已解锁并整件取下。",{"cursed_plate_key":{"used":true,"target":lock.id},"relic_trigger":{"id":"cursed_plate_lock","name":"诅咒平板锁"}})
 

@@ -291,7 +291,7 @@ static func hogtie(g, boss: Dictionary, grade: int) -> void:
    boss.rope_art.refill=true
    return
   boss.rope_art.stock-=cost
-  old.grade=next_grade;old.maximum=g.Equipment.maximum(next_grade);old.durability=g.RestraintValue.durability_for(old.maximum,2);old.variant=0
+  old.grade=next_grade;old.maximum=g.Equipment.maximum(next_grade);g._write_durability(old,g.RestraintValue.durability_for(old.maximum,2));old.variant=0
   old.name=g.Equipment.name_for(HOGTIE,"wrist",next_grade)
   g._refresh_equipment(old)
  else:

@@ -1499,6 +1499,13 @@ func _special_append(item: Dictionary) -> void:
 func _special_erase(item: Dictionary) -> void:
  state.special_equipment.erase(item)
 
+# The durability port (Q2, plan §8「逐片要点·Q2」): the single live write of a piece's
+# `durability`. Assignment only — policy guards, trackers, refreshes, settling and the
+# consequence tier all stay with the caller (Q4 adds the tier parameter). Building a fresh
+# record (`_special_piece`) and the view twin's copy are the two registered exceptions.
+func _write_durability(target: Dictionary, value: float) -> void:
+ target.durability=value
+
 func _install_special(type: String, slot: String, tightness: int=0) -> Dictionary:
  if tightness not in [0,1,2,3]: return {}
  if _special_install_reason(type,slot)!="": return {}
@@ -1626,11 +1633,11 @@ func _reinforce_equipment(target: Dictionary, to_tier: int=0) -> String:
  if Equipment.is_shackle(target): return "无法加固"
  if _reinforcement_locks(target):
   target.locked=true
-  target.durability=target.maximum
+  _write_durability(target,target.maximum)
   _refresh_equipment(target)
   return "加固并上锁，耐久恢复至满值"
  var current=tier(target.durability,target.maximum)
- target.durability=_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3)
+ _write_durability(target,_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3))
  _refresh_equipment(target)
  return "收紧到%d档" % tier(target.durability,target.maximum)
 
@@ -2178,7 +2185,7 @@ func _strain_release_root(target: Dictionary) -> Dictionary:
 # Successful unlocking removes cuffs in the same cleanup as other broken pieces.
 func _unlock_equipment(target: Dictionary) -> void:
  target.locked=false
- if Equipment.is_shackle(target): target.durability=0.0
+ if Equipment.is_shackle(target): _write_durability(target,0.0)
 
 # Shared direct loosening effect; permission and cost belong to the caller's candidate.
 func _apply_manual_release(target: Dictionary, after: float, release_lock_only: bool=false, absolute: bool=false) -> void:
@@ -2189,7 +2196,7 @@ func _apply_manual_release(target: Dictionary, after: float, release_lock_only: 
  if cursed_eyes(target):
   if not absolute: return
   target.absolute_release=true
- target.durability=after
+ _write_durability(target,after)
  RopeArt.track(self,target)
 
 func relic_value(hook: String) -> float:
@@ -2270,12 +2277,12 @@ func _apply_equipment_damage(target: Dictionary, damage: float, kind: String, pa
  var before=target.durability
  var release=_strain_release_root(target) if kind=="strain" and not passive else {}
  if not passive: damage=RopeArt.card_damage(self,target,damage)
- target.durability=RopeArt.floor_value(self,target,maxf(0.0,target.durability-damage))
+ _write_durability(target,RopeArt.floor_value(self,target,maxf(0.0,target.durability-damage)))
  _equipment_feedback(target,before-target.durability,false,not passive and kind!="passive_slip")
  RopeArt.track(self,target)
  if kind in ["strain","slip"] and not passive and consume_charge: _consume_charge()
  if not release.is_empty():
-  _composite_body(release).durability=0.0
+  _write_durability(_composite_body(release),0.0)
   _emit("event","这次挣扎直接脱下了"+release.name+"。")
  if kind=="strain" and before>0 and target.durability<=0: RelicEffects.strain_destroyed(self)
 
@@ -3882,7 +3889,7 @@ func _execute(c: Dictionary) -> void:
   "finish_pack": _finish_preparation()
   "hook":
    var target=_equipment(p.target)
-   target.durability=p.after
+   _apply_manual_release(target,p.after)
    state.hook_uses-=1
    _emit("event","借悬挂挂钩松开"+target.name+"，耐久降至"+number(p.after)+"；剩余%d次。" % state.hook_uses)
   "rest_card","rest_rare":

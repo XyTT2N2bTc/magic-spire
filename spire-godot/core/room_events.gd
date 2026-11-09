@@ -799,7 +799,7 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
     if emit_logs: g._emit("event",target.name+"被"+change+"。")
    "tighten_to":
     if target.is_empty() or g.Equipment.is_shackle(target) or g.SpecialEquipment.is_special(target) or e.tier not in [1,2,3] or g.equipment_tier(target)>=e.tier: return "请选择紧度低于指定档位的可加固目标。"
-    target.durability=g.RestraintValue.durability_for(target.maximum,e.tier)
+    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier))
     g._refresh_equipment(target)
     if emit_logs: g._emit("event",target.name+"被收紧到%d档。" % e.tier)
    "unlock":
@@ -855,7 +855,7 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
      targets.append(restraint)
     for restraint in targets:
      g._unlock_equipment(restraint)
-     restraint.durability=0.0
+     g._write_durability(restraint,0.0)
      g._refresh_equipment(restraint)
     if emit_logs: g._emit("event",e.get("name","所选拘束具")+"已经解除。")
     g._cleanup()
@@ -867,7 +867,7 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
     if g.SpecialEquipment.is_special(target) and not g.SpecialEquipment.allows(target,"lower"): return "请使用这件特殊装备的专属解除方式。"
     var before_tier=g.equipment_tier(target)
     g._unlock_equipment(target)
-    target.durability=g.lower_durability(target.durability,target.maximum)
+    g._write_durability(target,g.lower_durability(target.durability,target.maximum))
     g._refresh_equipment(target)
     if emit_logs: g._emit("event",target.name+("已经解除。" if target.durability<=0 else "已经松到%d档。" % g.equipment_tier(target)))
     g._cleanup()
