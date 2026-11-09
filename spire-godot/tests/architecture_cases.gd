@@ -1185,6 +1185,8 @@ static func run(t) -> void:
  equipment_member_writes_have_one_entry(t)
  durability_writes_have_one_entry(t)
  durability_reroutes_keep_their_order(t)
+ settle_points_are_declared(t)
+ placement_layers_have_declared_rules(t)
  run_identity_single_writer(t)
  feedback_save_single_serializer(t)
  feedback_save_cap_pinned(t)
@@ -6700,6 +6702,168 @@ static func durability_reroutes_keep_their_order(t) -> void:
  var uses=branch.find("state.hook_uses-=1")
  var emit=branch.find("_emit(")
  t.check(release>=0 and not branch.contains(".durability") and uses>release and emit>uses,"ARCH durability_reroutes_keep_their_order: the hook branch calls _apply_manual_release with the fact's after value, writes no member itself, then decrements uses before emitting: branch="+branch)
+
+# G-Q3-1′（rev3.1 plan-delta §3.2；协调者 A127 H4=A）：加减收口普查的 21 个结算点。列：`文件::函数`、
+# 模式（released＝`_cleanup()`；quiet＝`_cleanup(false)`）、类（①／②／③）。一行即一个调用点，所以同一
+# 函数里的多个调用各占一行（card_effects.gd::normalize ×2、game.gd::dispatch ×2、_trial ×2）。
+# S18／S19 按 H4=A 保留在本表，QX2″ 才删（本片不得预删）。表就是普查声明本身，不另抄一份。
+const SETTLE_POINTS=[
+ {"id":"S01","site":"core/action_replay.gd::_cards_once","mode":"released","class":"②"},
+ {"id":"S02","site":"core/card_effects.gd::play","mode":"released","class":"②"},
+ {"id":"S03","site":"core/card_effects.gd::finish_chain","mode":"released","class":"②"},
+ {"id":"S04","site":"core/card_effects.gd::normalize","mode":"released","class":"②"},
+ {"id":"S05","site":"core/card_effects.gd::normalize","mode":"released","class":"②"},
+ {"id":"S06","site":"core/demo_exit.gd::continue_run","mode":"released","class":"②"},
+ {"id":"S07","site":"core/equipment_replacement.gd::_force_special_live","mode":"quiet","class":"③"},
+ {"id":"S08","site":"core/equipment_replacement.gd::_trial","mode":"quiet","class":"③"},
+ {"id":"S09","site":"core/equipment_replacement.gd::_trial","mode":"quiet","class":"③"},
+ {"id":"S10","site":"core/game.gd::dispatch","mode":"released","class":"②"},
+ {"id":"S11","site":"core/game.gd::dispatch","mode":"released","class":"②"},
+ {"id":"S12","site":"core/game.gd::_depart","mode":"released","class":"②"},
+ {"id":"S13","site":"core/pressure.gd::_apply_overloads","mode":"released","class":"②"},
+ {"id":"S14","site":"core/relic_effects.gd::gain","mode":"released","class":"②"},
+ {"id":"S15","site":"core/relic_effects.gd::boss_key","mode":"released","class":"②"},
+ {"id":"S16","site":"core/room_events.gd::apply_effects","mode":"released","class":"②"},
+ {"id":"S17","site":"core/room_events.gd::apply_effects","mode":"released","class":"②"},
+ {"id":"S18","site":"core/rope_master.gd::install","mode":"quiet","class":"①"},
+ {"id":"S19","site":"core/rope_master.gd::hogtie","mode":"quiet","class":"①"},
+ {"id":"S20","site":"core/slip_motion.gd::apply","mode":"released","class":"②"},
+ {"id":"S21","site":"core/witch_expansion.gd::resolve","mode":"released","class":"②"}]
+# 类① 是普查类：这两处静默结算还替同一提交里尚未结算的外来写入做事（plan-delta §3.4），所以它们的函数体
+# 在本函数的 `_cleanup(` 之前必须自己执行过安装（Application.execute／execute_concrete）。期望侧只列这两个
+# 函数——即 G-Q3-1′ 原文，不是第二张结算点表。
+const SETTLE_CLASS_ONE_SITES=["core/rope_master.gd::install","core/rope_master.gd::hogtie"]
+# 类③ 只在替换事务模块（试装／强制装填的静默预演），不在任何 live 写口。
+const SETTLE_CLASS_THREE_FILE="core/equipment_replacement.gd"
+# §3.2 合计：21 行、静默 5 行、① 2／② 16／③ 3。冻结计数让「表悄悄长出一行」与「类列被改一行」都红。
+const SETTLE_POINT_TOTAL=21
+const SETTLE_QUIET_TOTAL=5
+const SETTLE_CLASS_TOTALS={"①":2,"②":16,"③":3}
+# 结算请求的形状：独立单词的 `_cleanup(`，前面的 `(?<![A-Za-z0-9_])` 挡住 `chain_cleanup(`／`probe_cleanup(`／
+# `cleanup_effects(` 这些同名串；`func _cleanup(` 的定义行另由 SETTLE_DEFINITION_PATTERN 排出。
+const SETTLE_CALL_PATTERN="(?<![A-Za-z0-9_])_cleanup\\s*\\("
+const SETTLE_DEFINITION_PATTERN="^(?:static\\s+)?func\\s+_cleanup\\s*\\("
+
+# 共用扫描源（unique_path_sites：core／data／ui 去掉兼容层）里 `_cleanup(` 的每个调用点。同一行两个调用
+# 各算一处（逐匹配计数，不按行计数），模式按实参现场分类：`)`＝released、`false)`＝quiet，其它记 unknown。
+static func settle_point_rows() -> Array:
+ var rows=[]
+ var call=RegEx.new()
+ var definition=RegEx.new()
+ if call.compile(SETTLE_CALL_PATTERN)!=OK or definition.compile(SETTLE_DEFINITION_PATTERN)!=OK: return rows
+ for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,SETTLE_CALL_PATTERN):
+  var text=String(hit.text)
+  if definition.search(text)!=null: continue
+  var site=String(hit.file)+"::"+String(hit.function)
+  var cursor=0
+  while true:
+   var found=call.search(text,cursor)
+   if found==null: break
+   var after=text.substr(found.get_end()).strip_edges(true,false)
+   var mode="unknown"
+   if after.begins_with(")"): mode="released"
+   elif after.begins_with("false") and after.substr(5).strip_edges(true,false).begins_with(")"): mode="quiet"
+   rows.append({"site":site,"mode":mode,"text":text.substr(found.get_start(),28)})
+   cursor=found.get_end()
+ return rows
+
+static func settle_point_counts(rows: Array) -> Dictionary:
+ var counts={}
+ for row in rows:
+  var key=String(row.site)+"@"+String(row.mode)
+  counts[key]=int(counts.get(key,0))+1
+ return counts
+
+static func settle_points_are_declared(t) -> void:
+ var modes=["released","quiet"]
+ var classes=["①","②","③"]
+ var declared=[]
+ var malformed=[]
+ for row in SETTLE_POINTS:
+  var site=String(row.get("site",""))
+  var mode=String(row.get("mode",""))
+  var census=String(row.get("class",""))
+  if not site.contains("::") or mode not in modes or census not in classes: malformed.append(String(row.get("id","?")))
+  declared.append({"site":site,"mode":mode,"class":census})
+ var class_counts={}
+ for row in declared: class_counts[String(row["class"])]=int(class_counts.get(String(row["class"]),0))+1
+ var quiet_rows=declared.filter(func(row):return String(row["mode"])=="quiet").size()
+ t.check(not SETTLE_POINTS.is_empty() and malformed.is_empty(),"ARCH settle_points_are_declared: the settle-point table is non-empty and every row carries a file::function site, a released/quiet mode and a census class in ①/②/③: malformed="+str(malformed))
+ # 表的形状：21 行、静默 5 行、三类合计 2／16／3（§3.2 合计行）。
+ t.check(declared.size()==SETTLE_POINT_TOTAL and quiet_rows==SETTLE_QUIET_TOTAL,"ARCH settle_points_are_declared: the declaration holds exactly the surveyed 21 settle points, 5 of them silent (`_cleanup(false)`): rows="+str(declared.size())+" quiet="+str(quiet_rows))
+ t.check(class_counts==SETTLE_CLASS_TOTALS,"ARCH settle_points_are_declared: the census classes keep the surveyed totals ① 2 / ② 16 / ③ 3 (a row whose class was flipped is red): counts="+str(class_counts))
+ # 双向相等：源侧多出调用、表里多出未实现的调用点、模式不符，各自具名。
+ var source=settle_point_rows()
+ var declared_counts=settle_point_counts(declared)
+ var source_counts=settle_point_counts(source)
+ var extra=[]
+ for key in source_counts:
+  for _index in range(int(source_counts[key])-int(declared_counts.get(key,0))): extra.append(String(key))
+ var missing=[]
+ for key in declared_counts:
+  for _index in range(int(declared_counts[key])-int(source_counts.get(key,0))): missing.append(String(key))
+ var unknown=source.filter(func(row):return String(row.mode) not in modes)
+ t.check(not source.is_empty(),"ARCH settle_points_are_declared: the shared scan source yields the settle calls (an empty scan is red, never vacuous): matched="+str(source.size()))
+ t.check(unknown.is_empty(),"ARCH settle_points_are_declared: every `_cleanup(` call takes either no argument or the literal false -- any other arity or argument would be an undeclared settle mode: "+str(unknown))
+ t.check(extra.is_empty(),"ARCH settle_points_are_declared: no `_cleanup(` call exists outside the declared points (site@mode counted per call): extra="+str(extra)+" source="+str(source.size())+" declared="+str(declared.size()))
+ t.check(missing.is_empty(),"ARCH settle_points_are_declared: every declared row is a real call of its declared mode (a stale row is red, never silently vacuous): missing="+str(missing))
+ # 类①：恰是绳艺大师的两处静默结算，且各自在本函数结算前已经执行过一次安装。
+ var class_one=declared.filter(func(row):return String(row["class"])=="①").map(func(row):return String(row["site"]))
+ class_one.sort()
+ var expected_one=SETTLE_CLASS_ONE_SITES.duplicate()
+ expected_one.sort()
+ t.check(class_one==expected_one,"ARCH settle_points_are_declared: the census class ① rows are exactly the two rope-master silent points: declared="+str(class_one)+" expected="+str(expected_one))
+ var unexecuted=[]
+ for site in SETTLE_CLASS_ONE_SITES:
+  var parts=String(site).split("::")
+  var body=code_of_function(parts[0],parts[1])
+  var settle=body.find("_cleanup(")
+  var execute=body.find("Application.execute(")
+  var concrete=body.find("execute_concrete(")
+  var ran=(execute>=0 and execute<settle) or (concrete>=0 and concrete<settle)
+  if body.strip_edges()=="" or settle<0 or not ran: unexecuted.append(site+" settle="+str(settle)+" execute="+str(execute)+" concrete="+str(concrete))
+ t.check(unexecuted.is_empty(),"ARCH settle_points_are_declared: each class ① settle point runs its own installation (Application.execute／execute_concrete) before it settles, so the census row keeps tracing that foreign work: "+str(unexecuted))
+ # 类③：只在替换事务模块；反过来该模块的每个结算点都必须是类③（掉标成②也会红）。
+ var class_three=declared.filter(func(row):return String(row["class"])=="③").map(func(row):return String(row["site"]))
+ var outside_three=class_three.filter(func(site):return String(site).split("::")[0]!=SETTLE_CLASS_THREE_FILE)
+ t.check(not class_three.is_empty() and outside_three.is_empty(),"ARCH settle_points_are_declared: census class ③ lives only in the replacement transaction module "+SETTLE_CLASS_THREE_FILE+": class_three="+str(class_three)+" outside="+str(outside_three))
+ var transaction=declared.filter(func(row):return String(row["site"]).begins_with(SETTLE_CLASS_THREE_FILE+"::"))
+ var transaction_missed=transaction.filter(func(row):return String(row["class"])!="③").map(func(row):return String(row["site"]))
+ t.check(not transaction.is_empty() and transaction_missed.is_empty(),"ARCH settle_points_are_declared: every settle point of the replacement transaction module is declared class ③ (a silent trial settle that lost its census class is red): rows="+str(transaction.size())+" missed="+str(transaction_missed))
+
+# G-Q3-2（rev3 plan §8 Q3；rev3.1 plan-delta §3.3）：放置层算式（新件落在已有件之上的一层）只在三个
+# live 工厂里算——安装预检、组装计划、组装件记录。判据域＝规则层 core（G-Q3-2「core 内」；依赖表只登记这三个
+# core 函数）；视图模块是 core 内的投影副本，单独要求零命中。data 层的结构校验不在本判据域内（片报告登记）。
+const PLACEMENT_LAYER_RULES=["core/game.gd::_prepare_installation_in","core/game.gd::_plan_assembly_in","core/game.gd::_make_assembly_piece"]
+const PLACEMENT_LAYER_SHAPES=["\\.layer\\s*\\+\\s*1","e\\.layer\\s*\\+\\(","root\\.layer\\s*\\+"]
+const PLACEMENT_LAYER_VIEW="core/equipment_replacement_view.gd"
+const PLACEMENT_LAYER_ROOTS=["res://core"]
+
+static func placement_layers_have_declared_rules(t) -> void:
+ var uncompilable=[]
+ var shapes_seen={}
+ var sites=[]
+ for shape in PLACEMENT_LAYER_SHAPES:
+  var regex=RegEx.new()
+  if regex.compile(String(shape))!=OK: uncompilable.append(String(shape))
+  var hits=unique_path_sites(PLACEMENT_LAYER_ROOTS,String(shape))
+  shapes_seen[String(shape)]=hits.size()
+  for hit in hits:
+   var site=String(hit.file)+"::"+String(hit.function)
+   if site not in sites: sites.append(site)
+ sites.sort()
+ var declared=PLACEMENT_LAYER_RULES.duplicate()
+ declared.sort()
+ var outside=sites.filter(func(site):return site not in declared)
+ var stale=declared.filter(func(site):return site not in sites)
+ var empty_shapes=PLACEMENT_LAYER_SHAPES.filter(func(shape):return int(shapes_seen[String(shape)])==0)
+ t.check(not PLACEMENT_LAYER_SHAPES.is_empty() and uncompilable.is_empty(),"ARCH placement_layers_have_declared_rules: the three placement-layer shapes compile (an uncompilable shape is red, never vacuous): "+str(uncompilable))
+ t.check(not PLACEMENT_LAYER_RULES.is_empty(),"ARCH placement_layers_have_declared_rules: the placement-layer rule table is non-empty")
+ t.check(outside.is_empty(),"ARCH placement_layers_have_declared_rules: every placement-layer computation sits in one of the three declared factories, so no other core function and no view module computes a layer of its own: outside="+str(outside)+" sites="+str(sites))
+ t.check(stale.is_empty(),"ARCH placement_layers_have_declared_rules: every declared factory really carries a placement-layer computation (a stale row is red, never silently vacuous): stale="+str(stale))
+ t.check(empty_shapes.is_empty(),"ARCH placement_layers_have_declared_rules: each declared shape still matches at least one live site (a shape that stopped matching would empty its clause): empty="+str(empty_shapes)+" seen="+str(shapes_seen))
+ var view=sites.filter(func(site):return String(site).split("::")[0]==PLACEMENT_LAYER_VIEW)
+ t.check(view.is_empty(),"ARCH placement_layers_have_declared_rules: the projection view carries no copy of the rule (zero hits in "+PLACEMENT_LAYER_VIEW+"): view="+str(view))
 
 static func run_identity_single_writer(t) -> void:
  var clipboard=write_site_names(source_write_sites(["res://core","res://data","res://ui"],"DisplayServer\\.clipboard_set\\s*\\("))
