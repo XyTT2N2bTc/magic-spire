@@ -6601,9 +6601,10 @@ const DURABILITY_WRITERS=["core/game.gd::_write_durability"]
 const DURABILITY_WRITE_EXCEPTIONS=[
  "core/game.gd::_special_piece",
  "core/equipment_replacement_view.gd::after_removal"]
-# 赋值与复合赋值。`==` 由 `(?!=)` 挡住；`!=`／`>=`／`<=` 在运算符位就不匹配（`!`／`>`／`<` 不是
-# 这里的运算符字符），所以比较式不会被当成写。
-const DURABILITY_WRITE_PATTERN="\\.durability\\s*(?:\\+=|-=|\\*=|/=|=)(?!=)"
+# 赋值与全部复合赋值（GDScript 的 `=`／`+=`／`-=`／`*=`／`/=`／`%=`／`**=`／`&=`／`|=`／`^=`／`<<=`／`>>=`）。
+# `==` 由 `(?!=)` 挡住；`!=` 的运算符位不是上面任何一项（`!` 不在运算符集）；`>=`／`<=` 只认完整的
+# `>>=`／`<<=`，所以比较式不会被当成写。
+const DURABILITY_WRITE_PATTERN="\\.durability\\s*(?:<<=|>>=|\\*\\*=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|=)(?!=)"
 # G-Q2-2（plan §8 Q2；Gherkin G-Q2-2）：改道后每个函数的调用顺序与改道前逐项相同。`write` 是
 # `_write_durability(`，其余 token 是改道前后都存在的调用；表就是父树顺序的冻结声明（改道前该位置
 # 是直接赋值），因此把写口换回直写、或把紧随其后的 `_refresh_equipment`／`_cleanup` 挪走、合并、
@@ -6626,7 +6627,7 @@ static func durability_writes_have_one_entry(t) -> void:
  # Fail-closed (A118 F1): an uncompilable pattern would empty `hits` and turn every clause below
  # into a silent pass, so the compile result is asserted alongside them.
  var compiled=regex.compile(DURABILITY_WRITE_PATTERN)==OK
- var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,regex.get_pattern() if compiled else DURABILITY_WRITE_PATTERN)
+ var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,DURABILITY_WRITE_PATTERN)
  var sites=write_site_names(hits)
  var declared=DURABILITY_WRITERS.duplicate()
  declared.append_array(DURABILITY_WRITE_EXCEPTIONS)

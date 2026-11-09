@@ -409,7 +409,7 @@ static func hook_release_guards_are_already_upstream(t) -> void:
  var missing=[]
  for row in rows:
   var bucket=String(row[0])
-  var g=_rest_for_hooks(42,String(row[1]))
+  var g=_rest_for_hooks(t,42,String(row[1]))
   if g==null:
    missing.append(bucket)
    continue
@@ -439,7 +439,7 @@ static func hook_release_guards_are_already_upstream(t) -> void:
  var executed=0
  for row in rows:
   if String(row[3])!="valid": continue
-  var g=_rest_for_hooks(42,String(row[1]))
+  var g=_rest_for_hooks(t,42,String(row[1]))
   if g==null: continue
   (row[2] as Callable).call(g)
   var chosen=null
@@ -465,37 +465,13 @@ static func hook_release_guards_are_already_upstream(t) -> void:
   executed+=1
  t.check(executed>=6,"REMOVAL hook_release_guards_are_already_upstream: at least six legal classes are executed through the real submit entry (a loop that finds nothing must not pass): executed="+str(executed))
 
-# rest 相位、靠墙、挂钩次数＝3：与 `hook_facts` 的三条前置一致。路线与 `tests/test_game.gd::enter_rest`
-# 相同（真实 depart／travel_step／rest_begin），不手写相位，避免夹具比生产宽松。
-static func _rest_for_hooks(seed: int, posture: String):
+# rest 相位、靠墙、挂钩次数＝3：与 `hook_facts` 的三条前置一致。路线复用既有 `tests/test_game.gd::enter_rest`
+# （真实 depart／travel_step／rest_begin），不手写相位，避免夹具比生产宽松。
+static func _rest_for_hooks(t, seed: int, posture: String):
  var g=Game.new(seed)
- var parents=g.state.rooms.filter(func(r):return "rest" in r.next)
- if parents.is_empty(): return null
- g._discard_end()
- g.state.room=parents[0].id
- g.state.phase="map"
- g.state.completed_rooms=[parents[0].id]
- var departed=false
- for c in g.command_facts():
-  if c.valid and String(c.payload.kind)=="depart" and String(c.payload.get("room",""))=="rest":
-   departed=g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok
-   break
- if not departed: return null
- var guard=0
- while g.state.phase=="travel" and guard<50:
-  guard+=1
-  var stepped=false
-  for c in g.command_facts():
-   if c.valid and String(c.payload.kind)=="travel_step":
-    stepped=g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok
-    break
-  if not stepped: return null
- var begun=false
- for c in g.command_facts():
-  if c.valid and String(c.payload.kind)=="rest_begin":
-   begun=g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok
-   break
- if not begun or g.state.phase!="rest": return null
+ if g.state.rooms.filter(func(r):return "rest" in r.next).is_empty(): return null
+ t.enter_rest(g)
+ if g.state.phase!="rest": return null
  g.state.wall_distance=0
  g.state.hook_uses=3
  g.state.posture=posture
