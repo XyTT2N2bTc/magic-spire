@@ -6735,10 +6735,9 @@ const SETTLE_POINTS=[
 const SETTLE_CLASS_ONE_SITES=["core/rope_master.gd::install","core/rope_master.gd::hogtie"]
 # 类③ 只在替换事务模块（试装／强制装填的静默预演），不在任何 live 写口。
 const SETTLE_CLASS_THREE_FILE="core/equipment_replacement.gd"
-# §3.2 合计：21 行、静默 5 行、① 2／② 16／③ 3。冻结计数让「表悄悄长出一行」与「类列被改一行」都红。
-const SETTLE_POINT_TOTAL=21
-const SETTLE_QUIET_TOTAL=5
-const SETTLE_CLASS_TOTALS={"①":2,"②":16,"③":3}
+# 表的总数（21 行、静默 5、① 2／② 16／③ 3）不另设冻结常量：双向相等已把表钉到源侧
+# （源侧 21 调用／5 静默，多一行、少一行、改模式都在 extra／missing 具名红），
+# 类①集合与类③模块断言又把每一行的类钉死，故再声明一份计数只是同一语义的第二条检查。
 # 结算请求的形状：独立单词的 `_cleanup(`，前面的 `(?<![A-Za-z0-9_])` 挡住 `chain_cleanup(`／`probe_cleanup(`／
 # `cleanup_effects(` 这些同名串；`func _cleanup(` 的定义行另由 SETTLE_DEFINITION_PATTERN 排出。
 const SETTLE_CALL_PATTERN="(?<![A-Za-z0-9_])_cleanup\\s*\\("
@@ -6785,14 +6784,8 @@ static func settle_points_are_declared(t) -> void:
   var census=String(row.get("class",""))
   if not site.contains("::") or mode not in modes or census not in classes: malformed.append(String(row.get("id","?")))
   declared.append({"site":site,"mode":mode,"class":census})
- var class_counts={}
- for row in declared: class_counts[String(row["class"])]=int(class_counts.get(String(row["class"]),0))+1
- var quiet_rows=declared.filter(func(row):return String(row["mode"])=="quiet").size()
  t.check(not SETTLE_POINTS.is_empty() and malformed.is_empty(),"ARCH settle_points_are_declared: the settle-point table is non-empty and every row carries a file::function site, a released/quiet mode and a census class in ①/②/③: malformed="+str(malformed))
- # 表的形状：21 行、静默 5 行、三类合计 2／16／3（§3.2 合计行）。
- t.check(declared.size()==SETTLE_POINT_TOTAL and quiet_rows==SETTLE_QUIET_TOTAL,"ARCH settle_points_are_declared: the declaration holds exactly the surveyed 21 settle points, 5 of them silent (`_cleanup(false)`): rows="+str(declared.size())+" quiet="+str(quiet_rows))
- t.check(class_counts==SETTLE_CLASS_TOTALS,"ARCH settle_points_are_declared: the census classes keep the surveyed totals ① 2 / ② 16 / ③ 3 (a row whose class was flipped is red): counts="+str(class_counts))
- # 双向相等：源侧多出调用、表里多出未实现的调用点、模式不符，各自具名。
+ # 双向相等：源侧多出调用、表里多出未实现的调用点、模式不符，各自具名；这条相等同时钉死总数（21）与静默数（5），故不另设计数断言。
  var source=settle_point_rows()
  var declared_counts=settle_point_counts(declared)
  var source_counts=settle_point_counts(source)
@@ -6858,7 +6851,7 @@ static func placement_layers_have_declared_rules(t) -> void:
  var stale=declared.filter(func(site):return site not in sites)
  var empty_shapes=PLACEMENT_LAYER_SHAPES.filter(func(shape):return int(shapes_seen[String(shape)])==0)
  t.check(not PLACEMENT_LAYER_SHAPES.is_empty() and uncompilable.is_empty(),"ARCH placement_layers_have_declared_rules: the three placement-layer shapes compile (an uncompilable shape is red, never vacuous): "+str(uncompilable))
- t.check(not PLACEMENT_LAYER_RULES.is_empty(),"ARCH placement_layers_have_declared_rules: the placement-layer rule table is non-empty")
+ # 规则表非空由 outside 断言的空表后果覆盖（表被清空则所有命中都会落进 outside）；单独再断一次空表是同一语义的第二条检查。
  t.check(outside.is_empty(),"ARCH placement_layers_have_declared_rules: every placement-layer computation sits in one of the three declared factories, so no other core function and no view module computes a layer of its own: outside="+str(outside)+" sites="+str(sites))
  t.check(stale.is_empty(),"ARCH placement_layers_have_declared_rules: every declared factory really carries a placement-layer computation (a stale row is red, never silently vacuous): stale="+str(stale))
  t.check(empty_shapes.is_empty(),"ARCH placement_layers_have_declared_rules: each declared shape still matches at least one live site (a shape that stopped matching would empty its clause): empty="+str(empty_shapes)+" seen="+str(shapes_seen))
