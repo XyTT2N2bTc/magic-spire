@@ -387,7 +387,7 @@ static func can_apply_stops_at_the_first_legal_candidate(t, applications: Array)
 const PARALLEL_ORCHESTRATIONS=[
  ["O1","core/equipment_replacement.gd::_trial","core/equipment_replacement_assess.gd::trial",
   ["action_targets(","pieces(","transfer_options(","compare(","same_loadout(","Equipment.validate(","Binding.validate(","Composites.validate(","Shoulders.validate","SpecialEquipment.validate(","Links.validate(","_capacity_issue(","link_anchors"],
-  false,["_emit(","RopeArt.track(","_equipment_feedback(","Pressure.","Cards.","g._cleanup(","g._install("]],
+  false,["_emit(","RopeArt.track(","_equipment_feedback(","Pressure.","Cards.","g._cleanup(","g._install(","g._write_durability("]],
  # O2 视图刷新：live _refresh_equipment 的口部命名、绑定记录与三档肩带在视图 refresh 上重放；反馈、事件
  # 与绳索追踪属 live 独有（RopeArt.track 见第 6 列），故共用规则集合按所属模块记账（两端都只经它们办这件事）。
  ["O2","core/game.gd::_refresh_equipment","core/equipment_replacement_view.gd::refresh",

@@ -54,6 +54,8 @@ static func run(t) -> void:
  index_slot_edge_parity(t)
  index_targets_edge_parity(t)
  index_predicate_parity(t)
+ manual_release_guards_stay_in_policy(t)
+ hook_release_guards_are_already_upstream(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")
  t.check(E.ANIMATED_WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.ANIMATED_WEAR_TEXTS.has(slot)),"WEAR animated restraint prose covers every approved body location")
@@ -349,3 +351,153 @@ static func mouth_stacking(t) -> void:
  g=Game.new(42);gag=g.add_fixture("mouth",4,10,false,5,"mouth_band")
  tape=g.add_fixture("mouth",4,10,false,0,"mouth_tape")
  t.check(tape.layer>gag.layer and g.validate()=="","MOUTH STACK explicit fixture layer cannot place mixed tape inside the gag")
+
+# G-Q2-4（plan §8 Q2；Gherkin G-Q2-4）：写口本身没有策略 —— 诅咒平板锁、未开锁的限制项圈与
+# `after>0` 的镣铐在直接调用 `_apply_manual_release` 时耐久不变；普通件照常写入，因此这条判据
+# 不是靠「一次都没写」变绿。守卫删掉后三者各自变红。
+static func manual_release_guards_stay_in_policy(t) -> void:
+ var g=Game.new(42)
+ var plain=g.add_fixture("ankle",8,16,false,0,"belt")
+ g._apply_manual_release(plain,6.0)
+ t.check(is_equal_approx(float(g._equipment(plain.id).durability),6.0),"REMOVAL manual_release_guards_stay_in_policy: a plain target is written by the same call, so the three guarded rows below are not vacuous: "+str(g._equipment(plain.id).durability))
+ var collar=g._install_template("restriction_collar","neck",1.0,1.0,false,"fixture",3)
+ var collar_before=float(g._equipment(collar.id).durability)
+ g._apply_manual_release(g._equipment(collar.id),0.4)
+ t.check(is_equal_approx(float(g._equipment(collar.id).durability),collar_before),"REMOVAL manual_release_guards_stay_in_policy: an unlocked restriction collar keeps its durability because the lock-only guard stays in the policy: "+str(g._equipment(collar.id).durability))
+ var types=E.SHACKLES
+ if not types.is_empty():
+  g.Application.execute(g,g.EnemyPlans.application([types[0]],2,2),"fixture")
+  var shackle=g.state.equipment.filter(func(e):return bool(g.Equipment.is_shackle(e)))
+  if not shackle.is_empty():
+   var shackle_before=float(shackle[0].durability)
+   g._apply_manual_release(shackle[0],shackle_before+5.0)
+   t.check(is_equal_approx(float(g._equipment(String(shackle[0].id)).durability),shackle_before),"REMOVAL manual_release_guards_stay_in_policy: a shackle is never written while after>0, because the shackle guard stays in the policy: "+str(shackle_before)+" -> "+str(g._equipment(String(shackle[0].id)).durability))
+ var plate_game=Game.new(42)
+ plate_game._install_special("negative_vibrator_lock_catheter_high","special_2_a",3)
+ plate_game.RelicEffects.gain(plate_game,"cursed_plate_lock")
+ var plates=plate_game.state.special_equipment.filter(plate_game.SpecialEquipment.is_cursed_plate)
+ if not plates.is_empty():
+  var plate_before=float(plates[0].durability)
+  plate_game._apply_manual_release(plates[0],plate_before)
+  t.check(is_equal_approx(float(plate_game._equipment(String(plates[0].id)).durability),plate_before),"REMOVAL manual_release_guards_stay_in_policy: a cursed plate lock is never written, because the cursed-plate guard stays in the policy: "+str(plate_before)+" -> "+str(plate_game._equipment(String(plates[0].id)).durability))
+
+# G-Q2-3（plan B11、A66 NHR-3(a)；Gherkin G-Q2-3）：挂钩改走 `_apply_manual_release` 后守卫恒不触发。
+# 枚举 rest＋靠墙＋挂钩次数>0 下的 `hook_facts()`：每类目标至少一条事实，凡 `valid=true` 都满足
+# 非镣铐／非限制项圈／非诅咒平板锁／非诅咒眼罩／`floor_value(after)==after`；镣铐、限制项圈、
+# 诅咒眼罩恒为 `valid=false`。任一合法事实触发守卫即红（该情形应停下交回，不在此处修）。
+# 真实执行一步后再核「写的就是 facts 的 after、次数正好减一、日志逐字不变」。
+static func hook_release_guards_are_already_upstream(t) -> void:
+ var rows=[
+  ["ordinary","lie",func(g): g.add_fixture("ankle",8,16,false,0,"belt"),"valid"],
+  ["ordinary_tier_one","lie",func(g): g.add_fixture("ankle",4,16,false,0,"belt"),"valid"],
+  ["composite_part","stand",func(g): g._install_assembly("wrap","left","fixture",2,2),"valid"],
+  ["shoulder","sit",func(g):
+   var host=g.add_fixture("upper_arm",8,16,false,0,"rope")
+   g.Shoulders.install(g,host,"rope",2,"fixture"),"valid"],
+  ["connection","sit",func(g):
+   var host=g.add_fixture("upper_arm",12,16,false,0,"rope")
+   g._refresh_equipment(host),"valid"],
+  ["rope","lie",func(g): g.add_fixture("ankle",8,16,false,0,"rope"),"valid"],
+  ["shackle","sit",func(g):
+   var types=E.SHACKLES
+   if types.is_empty(): return
+   g.Application.execute(g,g.EnemyPlans.application([types[0]],2,2),"fixture"),"blocked"],
+  ["lock_only","sit",func(g): g._install_template("restriction_collar","neck",1.0,1.0,false,"fixture",3),"blocked"],
+  ["cursed_eyes","sit",func(g): g.RelicEffects.gain(g,"cursed_blindfold"),"blocked"]]
+ var thin=[]
+ var violated=[]
+ var missing=[]
+ for row in rows:
+  var bucket=String(row[0])
+  var g=_rest_for_hooks(42,String(row[1]))
+  if g==null:
+   missing.append(bucket)
+   continue
+  (row[2] as Callable).call(g)
+  var valid_rows=[]
+  var invalid_rows=[]
+  for fact in g.hook_facts():
+   var displayed=g.display_fact(fact)
+   var id=String(displayed.payload.get("target",""))
+   var target=g._equipment(id)
+   if target.is_empty(): continue
+   if not bool(displayed.valid): invalid_rows.append(id); continue
+   valid_rows.append(id)
+   var after=float(displayed.payload.get("after",0.0))
+   if bool(g.Equipment.is_shackle(target)): violated.append(bucket+"/"+id+" shackle")
+   if bool(g.Equipment.lock_only(target)): violated.append(bucket+"/"+id+" lock_only")
+   if bool(g.cursed_plate(target)): violated.append(bucket+"/"+id+" cursed_plate")
+   if bool(g.cursed_eyes(target)): violated.append(bucket+"/"+id+" cursed_eyes")
+   if not is_equal_approx(g.RopeArt.floor_value(g,target,after),after): violated.append(bucket+"/"+id+" floor_value")
+  if valid_rows.size()+invalid_rows.size()==0: thin.append(bucket+":no facts")
+  if String(row[3])=="valid" and valid_rows.is_empty(): thin.append(bucket+":no legal fact")
+  if String(row[3])=="blocked" and not valid_rows.is_empty(): violated.append(bucket+" legal="+str(valid_rows))
+ t.check(missing.is_empty(),"REMOVAL hook_release_guards_are_already_upstream: the rest fixture is reachable through the real depart/travel/rest_begin route, so the enumeration below is not empty by accident: missing="+str(missing))
+ t.check(thin.is_empty(),"REMOVAL hook_release_guards_are_already_upstream: every target class yields a hook fact and every class declared legal yields at least one legal fact (a class that silently disappears must not pass): thin="+str(thin))
+ t.check(violated.is_empty(),"REMOVAL hook_release_guards_are_already_upstream: every legal hook fact already satisfies the manual-release guards (not a shackle, not lock-only, no cursed plate, no cursed eyes, floor value is the fact value), and the three guarded classes stay invalid: violated="+str(violated))
+ # The executed hook writes the fact's exact value, spends exactly one use and keeps the log text.
+ var executed=0
+ for row in rows:
+  if String(row[3])!="valid": continue
+  var g=_rest_for_hooks(42,String(row[1]))
+  if g==null: continue
+  (row[2] as Callable).call(g)
+  var chosen=null
+  for fact in g.hook_facts():
+   var displayed=g.display_fact(fact)
+   if not bool(displayed.valid): continue
+   var id=String(displayed.payload.get("target",""))
+   if g._equipment(id).is_empty(): continue
+   chosen={"id":id,"after":float(displayed.payload.get("after",0.0)),"target":g._equipment(id).duplicate(true)}
+   break
+  if chosen==null: continue
+  var uses_before=int(g.state.hook_uses)
+  var logs_before=g.state.logs.size()
+  var ok=t.action(g,"hook",{"target":chosen.id}).ok
+  var live=g._equipment(chosen.id)
+  var landed=0.0 if live.is_empty() else float(live.durability)
+  var expected="借悬挂挂钩松开"+String(chosen.target.name)+"，耐久降至"+g.number(chosen.after)+"；剩余"+str(uses_before-1)+"次。"
+  var added=g.state.logs.slice(logs_before)
+  var first="" if added.is_empty() else String(added[0].text)
+  # At the tier-one boundary the same submit also appends the pre-existing removal line, so a zero
+  # result may carry one extra entry; the hook message itself must still be the first and exact.
+  t.check(ok and is_equal_approx(landed,chosen.after) and int(g.state.hook_uses)==uses_before-1 and first==expected and added.size()==(2 if chosen.after<=0.0 else 1),"REMOVAL hook_release_guards_are_already_upstream: the real submit writes exactly the fact's after value, spends one use and appends the unchanged message: bucket="+String(row[0])+" ok="+str(ok)+" landed="+str(landed)+" after="+str(chosen.after)+" uses="+str(g.state.hook_uses)+"/"+str(uses_before)+" added="+str(added.size())+" log="+first)
+  executed+=1
+ t.check(executed>=6,"REMOVAL hook_release_guards_are_already_upstream: at least six legal classes are executed through the real submit entry (a loop that finds nothing must not pass): executed="+str(executed))
+
+# rest 相位、靠墙、挂钩次数＝3：与 `hook_facts` 的三条前置一致。路线与 `tests/test_game.gd::enter_rest`
+# 相同（真实 depart／travel_step／rest_begin），不手写相位，避免夹具比生产宽松。
+static func _rest_for_hooks(seed: int, posture: String):
+ var g=Game.new(seed)
+ var parents=g.state.rooms.filter(func(r):return "rest" in r.next)
+ if parents.is_empty(): return null
+ g._discard_end()
+ g.state.room=parents[0].id
+ g.state.phase="map"
+ g.state.completed_rooms=[parents[0].id]
+ var departed=false
+ for c in g.command_facts():
+  if c.valid and String(c.payload.kind)=="depart" and String(c.payload.get("room",""))=="rest":
+   departed=g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok
+   break
+ if not departed: return null
+ var guard=0
+ while g.state.phase=="travel" and guard<50:
+  guard+=1
+  var stepped=false
+  for c in g.command_facts():
+   if c.valid and String(c.payload.kind)=="travel_step":
+    stepped=g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok
+    break
+  if not stepped: return null
+ var begun=false
+ for c in g.command_facts():
+  if c.valid and String(c.payload.kind)=="rest_begin":
+   begun=g.dispatch(g.command(c.payload,g.state.version),g.state.version).ok
+   break
+ if not begun or g.state.phase!="rest": return null
+ g.state.wall_distance=0
+ g.state.hook_uses=3
+ g.state.posture=posture
+ return g
+

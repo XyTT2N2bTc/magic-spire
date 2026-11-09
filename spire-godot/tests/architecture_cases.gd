@@ -1183,6 +1183,8 @@ static func run(t) -> void:
  slice_dependency_directions(t)
  save_compat_only_from_legacy_restore(t)
  equipment_member_writes_have_one_entry(t)
+ durability_writes_have_one_entry(t)
+ durability_reroutes_keep_their_order(t)
  run_identity_single_writer(t)
  feedback_save_single_serializer(t)
  feedback_save_cap_pinned(t)
@@ -6590,6 +6592,113 @@ static func equipment_member_writes_have_one_entry(t) -> void:
    if receiver in ["state","view"]: continue
    indirect.append(receiver+"@"+String(hit.file)+"::"+String(hit.function))
  t.check(indirect.is_empty(),"ARCH equipment_member_writes_have_one_entry: the special-equipment container is written only through the live state path -- a whole-state local alias or a parameter alias would hide the write from every scan above (binding such an alias is not banned, writing through it is; an uncompilable receiver pattern is red, never vacuous): indirect="+str(indirect))
+
+# G-Q2-1（plan §8「Q2 耐久写口」；A66、A68 C-7）：`.durability` 的 live 赋值与复合赋值只出现在唯一
+# 写口 `core/game.gd::_write_durability`；两处登记例外是建件（`_special_piece`）与视图孪生
+# （`equipment_replacement_view.gd::after_removal`，视图副本不是 live 状态）。两表各行为「文件::函数」，
+# 扫描面取共用扫描源（core／data／ui 去掉兼容层）。
+const DURABILITY_WRITERS=["core/game.gd::_write_durability"]
+const DURABILITY_WRITE_EXCEPTIONS=[
+ "core/game.gd::_special_piece",
+ "core/equipment_replacement_view.gd::after_removal"]
+# 赋值与复合赋值。`==` 由 `(?!=)` 挡住；`!=`／`>=`／`<=` 在运算符位就不匹配（`!`／`>`／`<` 不是
+# 这里的运算符字符），所以比较式不会被当成写。
+const DURABILITY_WRITE_PATTERN="\\.durability\\s*(?:\\+=|-=|\\*=|/=|=)(?!=)"
+# G-Q2-2（plan §8 Q2；Gherkin G-Q2-2）：改道后每个函数的调用顺序与改道前逐项相同。`write` 是
+# `_write_durability(`，其余 token 是改道前后都存在的调用；表就是父树顺序的冻结声明（改道前该位置
+# 是直接赋值），因此把写口换回直写、或把紧随其后的 `_refresh_equipment`／`_cleanup` 挪走、合并、
+# 重排都会让序列变红。17 处 live 写＝表内 16 次写口调用＋`_execute` 挂钩分支的 1 次策略调用。
+const DURABILITY_REROUTES={
+ "core/game.gd::_reinforce_equipment":["write","refresh","write","refresh"],
+ "core/game.gd::_unlock_equipment":["write"],
+ "core/game.gd::_apply_manual_release":["write","track"],
+ "core/game.gd::_apply_equipment_damage":["write","track","write"],
+ "core/prison.gd::intake_equipment":["write","refresh","write","refresh"],
+ "core/prison.gd::execute":["write","refresh"],
+ "core/room_events.gd::apply_effects":["write","refresh","write","refresh","cleanup","write","refresh","cleanup"],
+ "core/rope_master.gd::hogtie":["write","refresh","cleanup"],
+ "core/relic_effects.gd::boss_key":["write","cleanup"],
+ "core/equipment_replacement.gd::_force_special_live":["write","cleanup"],
+ "core/equipment_replacement.gd::_trial":["write","cleanup","cleanup"]}
+
+static func durability_writes_have_one_entry(t) -> void:
+ var regex=RegEx.new()
+ # Fail-closed (A118 F1): an uncompilable pattern would empty `hits` and turn every clause below
+ # into a silent pass, so the compile result is asserted alongside them.
+ var compiled=regex.compile(DURABILITY_WRITE_PATTERN)==OK
+ var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,regex.get_pattern() if compiled else DURABILITY_WRITE_PATTERN)
+ var sites=write_site_names(hits)
+ var declared=DURABILITY_WRITERS.duplicate()
+ declared.append_array(DURABILITY_WRITE_EXCEPTIONS)
+ var unregistered=sites.filter(func(name):return name not in declared)
+ var stale=declared.filter(func(name):return name not in sites)
+ t.check(compiled,"ARCH durability_writes_have_one_entry: the durability write pattern compiles (an uncompilable pattern is red, never vacuous): pattern="+DURABILITY_WRITE_PATTERN)
+ t.check(DURABILITY_WRITERS==["core/game.gd::_write_durability"] and not DURABILITY_WRITE_EXCEPTIONS.is_empty(),"ARCH durability_writes_have_one_entry: the write table names exactly the one port and the exception table is non-empty (an emptied table made this clause vacuous): writers="+str(DURABILITY_WRITERS)+" exceptions="+str(DURABILITY_WRITE_EXCEPTIONS))
+ t.check(unregistered.is_empty(),"ARCH durability_writes_have_one_entry: every live `.durability` assignment sits in the write port or a declared exception, so no strategy, event branch or replacement pass writes it directly: unregistered="+str(unregistered)+" hits="+str(hits.size())+" sites="+str(sites))
+ t.check(stale.is_empty(),"ARCH durability_writes_have_one_entry: every declared row has a real write site in that function (a stale row is red, never silently vacuous): stale="+str(stale))
+ # The port is assignment only (Q2, plan §8): no policy guard, no refresh, no tracker, no settle and
+ # no intent parameter yet -- Q4 adds the consequence tier parameter on top of this exact body.
+ var port=source_func_body_code("res://core/game.gd","_write_durability").strip_edges()
+ var params=source_func_params("res://core/game.gd","_write_durability")
+ var impure=[]
+ for token in ["if ","return ","_refresh_equipment","RopeArt.track","_cleanup","_tier_consequences","_equipment_feedback","_emit","floor_value","locked"]:
+  if port.contains(token): impure.append(token)
+ t.check(port=="target.durability=value" and params==["target","value"] and impure.is_empty(),"ARCH durability_writes_have_one_entry: the port is one bare assignment taking exactly (target,value), with no guard, refresh, tracker, settle or intent parameter: body="+port+" params="+str(params)+" impure="+str(impure))
+ # The two record builders hold durability as a literal default, never as an assignment; that is why
+ # they are deliberately not registered (registering them would leave the table stale above).
+ var builders=["core/game.gd::_template_piece","core/game.gd::_make_assembly_piece"]
+ var builder_hits=builders.filter(func(name):return name in sites)
+ t.check(builder_hits.is_empty(),"ARCH durability_writes_have_one_entry: the record builders assign no member, so they stay unregistered: "+str(builder_hits))
+
+# Reading order inside one function body: earliest marker wins, so a line holding two markers keeps
+# its left-to-right order. The marker set is the calls a reroute must keep in place around the write.
+static func _durability_order_tokens(body: String) -> Array:
+ var markers={"write":"_write_durability(","refresh":"_refresh_equipment(","cleanup":"_cleanup(","track":"RopeArt.track("}
+ var tokens=[]
+ var rest=body
+ while true:
+  var best=-1
+  var kind=""
+  for key in markers:
+   var at=rest.find(String(markers[key]))
+   if at<0: continue
+   if best<0 or at<best or (at==best and String(key)<kind):
+    best=at
+    kind=String(key)
+  if best<0: break
+  tokens.append(kind)
+  rest=rest.substr(best+String(markers[kind]).length())
+ return tokens
+
+static func durability_reroutes_keep_their_order(t) -> void:
+ var broken=[]
+ var missing=[]
+ var writes=0
+ for site in DURABILITY_REROUTES:
+  var parts=String(site).split("::")
+  var body=code_of_function(parts[0],parts[1])
+  if body.strip_edges()=="":
+   missing.append(site)
+   continue
+  var actual=_durability_order_tokens(body)
+  writes+=actual.filter(func(token):return token=="write").size()
+  if actual!=DURABILITY_REROUTES[site]: broken.append(site+" expected="+str(DURABILITY_REROUTES[site])+" actual="+str(actual))
+ t.check(missing.is_empty(),"ARCH durability_reroutes_keep_their_order: every declared reroute function is locatable in its file: missing="+str(missing))
+ t.check(not DURABILITY_REROUTES.is_empty() and broken.is_empty(),"ARCH durability_reroutes_keep_their_order: each rerouted function keeps the pre-reroute call order, so one direct write became one port call in the same slot and the following refresh/cleanup/track stayed in place: broken="+str(broken))
+ t.check(writes==16,"ARCH durability_reroutes_keep_their_order: the table covers exactly the 16 port calls the plan names (a row that loses a call or a table that loses a row is red): writes="+str(writes)+" rows="+str(DURABILITY_REROUTES.size()))
+ # boss_key is the one reroute that also hands the lock release to its port before writing durability.
+ var boss=code_of_function("core/relic_effects.gd","boss_key")
+ t.check(boss.find("_unlock_equipment(lock)")>=0 and boss.find("_write_durability(lock,0.0)")>boss.find("_unlock_equipment(lock)") and not boss.contains("lock.locked="),"ARCH durability_reroutes_keep_their_order: boss_key releases the lock through _unlock_equipment before writing durability and keeps no direct locked write: body="+boss)
+ # The 17th live site: the hook branch delegates to the manual-release policy instead of the bare
+ # port, and the two statements after it keep their order (uses decrement, then the log line).
+ var execute=code_of_function("core/game.gd","_execute")
+ var start=execute.find("\"hook\":")
+ var end=execute.find("\"rest_card\"",start)
+ var branch="" if start<0 or end<0 else execute.substr(start,end-start)
+ var release=branch.find("_apply_manual_release(target,p.after)")
+ var uses=branch.find("state.hook_uses-=1")
+ var emit=branch.find("_emit(")
+ t.check(release>=0 and not branch.contains(".durability") and uses>release and emit>uses,"ARCH durability_reroutes_keep_their_order: the hook branch calls _apply_manual_release with the fact's after value, writes no member itself, then decrements uses before emitting: branch="+branch)
 
 static func run_identity_single_writer(t) -> void:
  var clipboard=write_site_names(source_write_sites(["res://core","res://data","res://ui"],"DisplayServer\\.clipboard_set\\s*\\("))
