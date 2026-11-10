@@ -6775,15 +6775,15 @@ static func call_arguments(text: String, name: String, from_index: int) -> Array
    current+=ch
  return args
 
-# 共用扫描源里 `name(` 的调用点（逐匹配计数）：`func name(` 定义行排出，字符串字面量内的同形排除，
-# 归属函数取共用扫描源给出的当前声明。
-static func consequence_call_rows(name: String) -> Array:
+# 共用扫描源里调用行的抽取（剔定义行、剔字符串内命中、逐匹配计数）：Q3′ 的 `_cleanup(` 普查与
+# Q4′ 的 `_write_durability(`／`_write_quality(` 普查同形，收在这一条行抽取路径上（AGENTS「一个语义
+# 只走一条路径」）。返回的 `at` 是命中起点，`after` 是命中终点之后的原文，调用方各自解读。
+static func call_rows(call_pattern: String, definition_pattern: String) -> Array:
  var rows=[]
  var call=RegEx.new()
  var definition=RegEx.new()
- var pattern="(?<![A-Za-z0-9_])"+name+"\\s*\\("
- if call.compile(pattern)!=OK or definition.compile("^(?:static\\s+)?func\\s+"+name+"\\s*\\(")!=OK: return rows
- for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,pattern):
+ if call.compile(call_pattern)!=OK or definition.compile(definition_pattern)!=OK: return rows
+ for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,call_pattern):
   var text=String(hit.text)
   if definition.search(text)!=null: continue
   var cursor=0
@@ -6792,7 +6792,17 @@ static func consequence_call_rows(name: String) -> Array:
    if found==null: break
    cursor=found.get_end()
    if settle_match_in_string(text,found.get_start()): continue
-   rows.append({"site":String(hit.file)+"::"+String(hit.function),"at":found.get_start(),"text":text})
+   rows.append({"site":String(hit.file)+"::"+String(hit.function),"at":found.get_start(),"after":text.substr(found.get_end()),"text":text})
+ return rows
+
+# 共用扫描源里 `name(` 的调用点（逐匹配计数）：`func name(` 定义行排出，字符串字面量内的同形排除，
+# 归属函数取共用扫描源给出的当前声明。
+static func consequence_call_rows(name: String) -> Array:
+ var pattern="(?<![A-Za-z0-9_])"+name+"\\s*\\("
+ var definition="^(?:static\\s+)?func\\s+"+name+"\\s*\\("
+ var rows=[]
+ for row in call_rows(pattern,definition):
+  rows.append({"site":String(row.site),"at":int(row.at),"text":String(row.text)})
  return rows
 
 static func call_site_names(rows: Array) -> Array:
@@ -6815,6 +6825,34 @@ static func durability_intent_rows() -> Array:
   rows.append({"site":String(row.site),"intent":intent})
  return rows
 
+# G-Q4-1／G-Q4-4′：派发的键来自记录形状 `_consequence_class`，六类各取一个真实记录形状的代表
+# （P 普通件、C 复合组件［root_id］、S 肩带件［shoulder_host］、X 特殊件、R 加固带、K 链接）。
+# 返回「期望类 -> 实际类」供判据对照：类函数把某一类滑到另一类时，install 行（X 挂加固带、其余
+# 不刷新）或 K 的链接记录会落到错误的行上。
+static func consequence_class_samples() -> Array:
+ var samples=[]
+ var ordinary=Game.new(42)
+ samples.append(["P",ordinary._consequence_class(ordinary.add_fixture("upper_arm",8,16,false,0,"rope"))])
+ var composite=Game.new(42)
+ var parts=composite._install_assembly("glove","long","fixture",3,2,{},"straight").components.filter(func(piece):return piece.has("root_id"))
+ samples.append(["C",composite._consequence_class({} if parts.is_empty() else parts[0])])
+ var shoulder=Game.new(42)
+ var host=shoulder._install_template("rope","upper_arm",shoulder.Equipment.maximum(3),shoulder.Equipment.maximum(3),false,"fixture",3)
+ var straps=shoulder.Shoulders.attached(shoulder,host)
+ samples.append(["S",shoulder._consequence_class({} if straps.is_empty() else straps[0])])
+ var special=Game.new(42)
+ samples.append(["X",special._consequence_class(special._install_special("negative_plate_lock_medium","special_2_a",2))])
+ var reinforced=Game.new(42)
+ var owner=reinforced._install_special("negative_plate_lock_medium","special_2_a",3)
+ var components=reinforced.state.special_equipment.filter(func(item):return item.get("owner_id","")==String(owner.get("id","")))
+ samples.append(["R",reinforced._consequence_class({} if components.is_empty() else components[0])])
+ var linked=Game.new(46)
+ linked._install_template("rope","forearm",8,10,false,"fixture",1,-1,0,"mid_forearm")
+ linked.add_fixture("wrist",8)
+ linked.Application.execute(linked,{"pool":"ordinary","templates":["link_rope"],"count":1,"grade":2,"tier":2},"fixture")
+ samples.append(["K",linked._consequence_class({} if linked.state.links.is_empty() else linked.state.links[0])])
+ return samples
+
 # G-Q4-1：档位后果只有一个派发点。
 static func tier_consequences_have_one_dispatch(t) -> void:
  var refresh=call_site_names(consequence_call_rows("_refresh_equipment"))
@@ -6832,6 +6870,10 @@ static func tier_consequences_have_one_dispatch(t) -> void:
   var parts=String(site).split("::")
   if code_of_function(parts[0],parts[1]).contains("_refresh_equipment("): refreshing.append(String(site))
  t.check(not DURABILITY_CAUSE_INTENTS.is_empty() and refreshing.is_empty(),"ARCH tier_consequences_have_one_dispatch: no declared cause function reaches the refresh handler set directly (each consequence leaves through the port): refreshing="+str(refreshing))
+ var misclassified=[]
+ for sample in consequence_class_samples():
+  if String(sample[1])!=String(sample[0]): misclassified.append(String(sample[0])+"->"+String(sample[1]))
+ t.check(misclassified.is_empty(),"ARCH tier_consequences_have_one_dispatch: the dispatch key comes from the record shape, so a real record of each declared class (P/C/S/X/R/K) maps to its own key, since a shape predicate slipped to another class would reach the table under the wrong row and is red: misclassified="+str(misclassified))
 
 # G-Q4-3′（取代 rev3 G-Q4-3）：每个写口调用点的收紧意图已声明；品质写口只被驷马缚升级调用并按收紧派发。
 static func durability_cause_intents_are_declared(t) -> void:
@@ -6937,24 +6979,12 @@ const SETTLE_DEFINITION_PATTERN="^(?:static\\s+)?func\\s+_cleanup\\s*\\("
 # 语义的第二条检查，也没有只让它红的改法（AGENTS「每条检查须有独有敏感性证明，否则删除」）。
 static func settle_point_rows() -> Array:
  var rows=[]
- var call=RegEx.new()
- var definition=RegEx.new()
- if call.compile(SETTLE_CALL_PATTERN)!=OK or definition.compile(SETTLE_DEFINITION_PATTERN)!=OK: return rows
- for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,SETTLE_CALL_PATTERN):
-  var text=String(hit.text)
-  if definition.search(text)!=null: continue
-  var site=String(hit.file)+"::"+String(hit.function)
-  var cursor=0
-  while true:
-   var found=call.search(text,cursor)
-   if found==null: break
-   cursor=found.get_end()
-   if settle_match_in_string(text,found.get_start()): continue
-   var after=text.substr(found.get_end()).strip_edges(true,false)
-   var mode="unknown"
-   if after.begins_with(")"): mode="released"
-   elif after.begins_with("false") and after.substr(5).strip_edges(true,false).begins_with(")"): mode="quiet"
-   rows.append({"site":site,"mode":mode,"text":text.substr(found.get_start(),28)})
+ for row in call_rows(SETTLE_CALL_PATTERN,SETTLE_DEFINITION_PATTERN):
+  var after=String(row.after).strip_edges(true,false)
+  var mode="unknown"
+  if after.begins_with(")"): mode="released"
+  elif after.begins_with("false") and after.substr(5).strip_edges(true,false).begins_with(")"): mode="quiet"
+  rows.append({"site":String(row.site),"mode":mode,"text":String(row.text).substr(int(row.at),28)})
  return rows
 
 # 命中点是否落在本行的字符串字面量内。只有引号在本行成对闭合时才判为字符串；共用扫描按行取文本，跨行
