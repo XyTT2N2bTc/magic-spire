@@ -634,8 +634,8 @@
     },
     "refresh_only_forms_crossing": {
       "file": "core/shoulder_links.gd",
-      "find": " if g.tier(host.durability,host.maximum)==3: update_cross(g,host)",
-      "replace": " update_cross(g,host)",
+      "find": " if tier!=3: return\n update_cross(g,host)",
+      "replace": " update_cross(g,host)\n if tier!=3: return",
       "suite": "equipment"
     }
   }

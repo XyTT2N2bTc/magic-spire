@@ -59,8 +59,10 @@ static func pair_pieces(g, host: Dictionary, side: String) -> Dictionary:
 
 static func refresh(g, host: Dictionary) -> void:
  # Writing only forms a crossing; the release belongs to the settle point (Shoulders.cleanup).
- if g.tier(host.durability,host.maximum)==3: update_cross(g,host)
- if g.tier(host.durability,host.maximum)!=3: return
+ # One tier reading drives the guard, so a piece can never take both paths in one refresh.
+ var tier=g.tier(host.durability,host.maximum)
+ if tier!=3: return
+ update_cross(g,host)
  if eligible(host):
   if not host.has("shoulders"):
    host.shoulders={"template":host.template,"grade":host.grade,"variant":host.variant,"source":host.source,"pieces":[]}
