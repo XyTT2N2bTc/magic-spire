@@ -70,6 +70,7 @@ static func refresh(g, host: Dictionary) -> void:
  if eligible(host):
   if not host.has("shoulders"):
    host.shoulders={"template":host.template,"grade":host.grade,"variant":host.variant,"source":host.source,"pieces":[]}
+   g._member_changed(host,"added")
   fill(g,host)
 
 static func update_cross(g, e: Dictionary) -> void:

@@ -6449,6 +6449,14 @@ static func declaration_line(text: String) -> bool:
  var line=String(text).strip_edges()
  return line.begins_with("func ") or line.begins_with("static func ")
 
+# A sorted line list without repeats: two scan patterns can hit the same source line, and the F2
+# write/announcement pairing needs one entry per line to compare against the next write.
+static func _dedup_lines(lines: Array) -> Array:
+ var unique=[]
+ for line in lines:
+  if unique.is_empty() or int(unique.back())!=int(line): unique.append(line)
+ return unique
+
 static func slice_dependency_directions(t) -> void:
  var inherited=[]
  for root in ["res://core","res://data"]:
@@ -6702,24 +6710,28 @@ const MEMBER_ANNOUNCEMENT_SITES={
  "core/game.gd::_special_erase":1,
  "core/shoulder_links.gd::install":1,
  "core/shoulder_links.gd::fill":2,
+ "core/shoulder_links.gd::refresh":1,
  "core/shoulder_links.gd::cleanup":1}
 const MEMBERS_REPLACED_SITES={
  "core/equipment_replacement.gd::execute":1,
  "core/equipment_replacement.gd::force_special":1}
 # 例外只收「不是 live 成员写」的形态：事务试算副本与整容器提交（既有 Q1 例外）、建件器组装尚未进入
-# state 的新根、以及 `Shoulders.refresh`——它建立的肩带对在同一调用内交给 `fill`，由 fill 的逐侧通告
-# 覆盖新成员（plan §8 Q5 把成员写口列在 install／fill／cleanup，refresh 不在其中）。
+# state 的新根。
 const MEMBER_ANNOUNCEMENT_EXCEPTIONS=[
  "core/equipment_replacement.gd::_plan",
  "core/equipment_replacement.gd::_trial",
  "core/equipment_replacement.gd::_commit_changes",
- "core/game.gd::_plan_assembly_in",
- "core/shoulder_links.gd::refresh"]
+ "core/game.gd::_plan_assembly_in"]
 # 视图／投影模块对副本的写不属 live 成员写：零通告是要求，不是省略。
 const MEMBER_VIEW_MODULES=["core/game_view.gd","core/equipment_replacement_view.gd"]
 # 读批索引的 `_equipment_read.pieces` 是读取批次的只读字段，不是装备成员容器（`_equipment_read` 不进
 # state、不进存档）；该函数不因 `.pieces` 写形而进成员扫描面。
 const MEMBER_NESTED_SCAN_SKIP=["core/game.gd::_build_equipment_read_index"]
+# `shoulders` 只收字典字面量建立（`=\s*\{`）：`components`／`pieces` 收任意右值（`=[^=]`），但把
+# `shoulders` 放宽到 `=[^=]` 会把 `ordinary.shoulders=true`／`plan.shoulders=true` 这类请求标志与
+# `data/equipment_catalog.gd` 的目录字段一并扫入，需要一份不短的跳过表才能消音。当前三处建立
+# （`Shoulders.install`、`Shoulders.refresh`、`equipment_replacement_view.gd::refresh`）全是字面量，
+# 故变量或函数返回值的右值是已知盲区，收窄是刻意的。
 const MEMBER_NESTED_WRITE_PATTERNS=[
  "\\.components\\s*=[^=]",
  "\\.components\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set)\\s*\\(",
@@ -6758,8 +6770,10 @@ static func member_changes_are_announced(t) -> void:
   var calls=body.count("_member_changed(")
   if calls!=int(MEMBER_ANNOUNCEMENT_SITES[site]): wrong.append(String(site)+"="+str(calls)+"/"+str(int(MEMBER_ANNOUNCEMENT_SITES[site])))
  t.check(wrong.is_empty(),"ARCH member_changes_are_announced: each member-writing function carries exactly the declared number of `_member_changed(` calls, after its member write, so deleting one announcement or adding a second is red: wrong="+str(wrong))
- # 写后位置：每处通告的首行必须晚于该函数第一条成员写行（函数内多处移除各自紧跟通告，见 `_cleanup`）。
- # 这一段要行号，`call_rows` 只带行内偏移，故仍走共用扫描源＋`declaration_line`。
+ # 写后位置（F2，A152）：把每条通告与其最近的前置写配对——通告必须落在某条成员写之后；反过来，每条
+ # 成员写要由它之后、下一条写之前（末条写之后亦然）的至少一条通告接收。容器整擦除（`_cleanup` 的复合根）
+ # 允许一条写配多条通告，故只要求「每告必有其写、每写必有告」；把非首处通告移到它所属写之前会留下一条
+ # 无通告的写而具名红。这一段要行号，`call_rows` 只带行内偏移，故仍走共用扫描源＋`declaration_line`。
  var announce_hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_member_changed\\s*\\(")
  var misplaced=[]
  for site in MEMBER_ANNOUNCEMENT_SITES:
@@ -6769,8 +6783,20 @@ static func member_changes_are_announced(t) -> void:
   var announce_lines=[]
   for hit in announce_hits:
    if String(hit.file)+"::"+String(hit.function)==String(site) and not declaration_line(String(hit.text)): announce_lines.append(int(hit.line))
-  if write_lines.is_empty() or announce_lines.is_empty() or announce_lines.min()<=write_lines.min(): misplaced.append(String(site)+":write="+str(write_lines)+":announce="+str(announce_lines))
- t.check(misplaced.is_empty(),"ARCH member_changes_are_announced: every announcement call sits after the first member write of its function, so the announcement cannot precede the container write it reports: misplaced="+str(misplaced))
+  write_lines.sort()
+  announce_lines.sort()
+  write_lines=_dedup_lines(write_lines)
+  announce_lines=_dedup_lines(announce_lines)
+  if write_lines.is_empty() or announce_lines.is_empty():
+   misplaced.append(String(site)+":write="+str(write_lines)+":announce="+str(announce_lines))
+   continue
+  for line in announce_lines:
+   if not write_lines.any(func(write):return int(write)<int(line)): misplaced.append(String(site)+":announce="+str(line)+" before every write "+str(write_lines))
+  for index in range(write_lines.size()):
+   var after=int(write_lines[index])
+   var before=int(write_lines[index+1]) if index+1<write_lines.size() else 4611686018427387904
+   if not announce_lines.any(func(line):return int(line)>after and int(line)<before): misplaced.append(String(site)+":write="+str(after)+" has no announcement before the next write: announce="+str(announce_lines))
+ t.check(misplaced.is_empty(),"ARCH member_changes_are_announced: every announcement sits after a member write and every member write is answered by an announcement before the next write, so moving an announcement before its container write leaves an unannounced write: misplaced="+str(misplaced))
  var replaced=[]
  var commit_sites=call_site_names(consequence_call_rows("_commit_changes"))
  var replaced_sites=MEMBERS_REPLACED_SITES.keys()

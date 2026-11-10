@@ -283,7 +283,13 @@ static func write_epoch_is_monotone_and_private(t) -> void:
  # call count and still announces nothing; only the runtime step sees that.
  var shoulders=Game.new(42)
  var shoulder_host=shoulders._install_template("rope","upper_arm",3.0,10.0,false,"fixture",1)
+ t.check(not shoulder_host.is_empty() and not shoulders._equipment(shoulder_host.id).has("shoulders"),"REMOVAL write_epoch_is_monotone_and_private: the tightening fixture starts below tier three with no shoulder pair, so the refresh path that establishes the pair is reachable: "+str(shoulder_host.keys()))
+ var refresh_stamp=int(shoulders.write_epoch())
  shoulders._reinforce_equipment(shoulders._equipment(shoulder_host.id),3)
+ # The tighten reaches Shoulders.refresh with no pair yet: the durability port, the container
+ # announcement refresh now makes after writing `host.shoulders`, and the two sides fill adds each
+ # advance the epoch once. Dropping the container announcement leaves three steps; this sees that.
+ t.check(shoulders._equipment(shoulder_host.id).has("shoulders") and shoulders.write_epoch()==refresh_stamp+4,"REMOVAL write_epoch_is_monotone_and_private: the tier-three tighten establishes the shoulder pair through Shoulders.refresh, so the container announcement is one epoch step beside the durability port and the two filled sides: before="+str(refresh_stamp)+" after="+str(shoulders.write_epoch()))
  var shoulder_pair=shoulders.Shoulders.attached(shoulders,shoulders._equipment(shoulder_host.id))
  if shoulder_pair.size()==2:
   shoulders._equipment(shoulder_pair[0].id).durability=0.0
