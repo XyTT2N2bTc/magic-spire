@@ -1497,8 +1497,8 @@ func _special_piece(next_equipment: int, type: String, tightness: int) -> Dictio
 # The special-equipment container has one live add/remove pair (Q1, A66 NHR-1): the factories,
 # the cleanup passes and the event staging layer all go through these two, so no second member
 # write of `state.special_equipment` exists outside the replacement transaction's registered
-# exceptions. The pair writes members only: ids, announcements and rule decisions stay with the
-# callers.
+# exceptions. The pair writes the member and announces the change itself (Q5); ids and rule
+# decisions stay with the callers.
 func _special_append(item: Dictionary) -> void:
  _write_epoch+=1
  state.special_equipment.append(item)

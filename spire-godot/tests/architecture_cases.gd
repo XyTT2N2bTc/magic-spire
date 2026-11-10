@@ -6678,8 +6678,7 @@ static func lock_writes_have_one_entry(t) -> void:
  t.check(LOCK_WRITERS==["core/game.gd::_write_locked"] and not LOCK_WRITE_EXCEPTIONS.is_empty(),"ARCH lock_writes_have_one_entry: the write table names exactly the one lock port and the exception table is non-empty (an emptied table made this clause vacuous): writers="+str(LOCK_WRITERS)+" exceptions="+str(LOCK_WRITE_EXCEPTIONS))
  t.check(unregistered.is_empty(),"ARCH lock_writes_have_one_entry: every live `.locked` assignment sits in the lock port or a declared non-state exception, so no enemy branch, prison intake or unlock path writes it directly: unregistered="+str(unregistered)+" hits="+str(hits.size())+" sites="+str(sites))
  t.check(stale.is_empty(),"ARCH lock_writes_have_one_entry: every declared row has a real `.locked` write site in that function (a stale exception row is red, never silently vacuous): stale="+str(stale))
- var calls=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_write_locked\\s*\\(")
- var callers=write_site_names(calls.filter(func(hit):return not String(hit.text).strip_edges().begins_with("func ")))
+ var callers=call_site_names(consequence_call_rows("_write_locked"))
  var expected=LOCK_LIVE_CALLERS.duplicate()
  expected.sort()
  callers.sort()
@@ -6760,6 +6759,7 @@ static func member_changes_are_announced(t) -> void:
   if calls!=int(MEMBER_ANNOUNCEMENT_SITES[site]): wrong.append(String(site)+"="+str(calls)+"/"+str(int(MEMBER_ANNOUNCEMENT_SITES[site])))
  t.check(wrong.is_empty(),"ARCH member_changes_are_announced: each member-writing function carries exactly the declared number of `_member_changed(` calls, after its member write, so deleting one announcement or adding a second is red: wrong="+str(wrong))
  # 写后位置：每处通告的首行必须晚于该函数第一条成员写行（函数内多处移除各自紧跟通告，见 `_cleanup`）。
+ # 这一段要行号，`call_rows` 只带行内偏移，故仍走共用扫描源＋`declaration_line`。
  var announce_hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_member_changed\\s*\\(")
  var misplaced=[]
  for site in MEMBER_ANNOUNCEMENT_SITES:
@@ -6768,12 +6768,11 @@ static func member_changes_are_announced(t) -> void:
    if String(hit.file)+"::"+String(hit.function)==String(site): write_lines.append(int(hit.line))
   var announce_lines=[]
   for hit in announce_hits:
-   if String(hit.file)+"::"+String(hit.function)==String(site) and not String(hit.text).strip_edges().begins_with("func "): announce_lines.append(int(hit.line))
+   if String(hit.file)+"::"+String(hit.function)==String(site) and not declaration_line(String(hit.text)): announce_lines.append(int(hit.line))
   if write_lines.is_empty() or announce_lines.is_empty() or announce_lines.min()<=write_lines.min(): misplaced.append(String(site)+":write="+str(write_lines)+":announce="+str(announce_lines))
  t.check(misplaced.is_empty(),"ARCH member_changes_are_announced: every announcement call sits after the first member write of its function, so the announcement cannot precede the container write it reports: misplaced="+str(misplaced))
  var replaced=[]
- var commit_calls=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_commit_changes\\s*\\(")
- var commit_sites=write_site_names(commit_calls.filter(func(hit):return not declaration_line(String(hit.text))))
+ var commit_sites=call_site_names(consequence_call_rows("_commit_changes"))
  var replaced_sites=MEMBERS_REPLACED_SITES.keys()
  commit_sites.sort()
  replaced_sites.sort()
