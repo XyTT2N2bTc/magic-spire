@@ -277,6 +277,45 @@ static func write_epoch_is_monotone_and_private(t) -> void:
  t.check(g.write_epoch()>stamp and g.state.special_equipment.has(special),"REMOVAL write_epoch_is_monotone_and_private: _special_append advances the epoch and restores the record: before="+str(stamp)+" after="+str(g.write_epoch()))
  stamp=g.write_epoch();g._members_replaced()
  t.check(g.write_epoch()==stamp+1,"REMOVAL write_epoch_is_monotone_and_private: the whole-container replacement port advances the epoch exactly once: before="+str(stamp)+" after="+str(g.write_epoch()))
+ # G-Q5-4 removal coverage through the real paths, not only the declared call sites: each live
+ # removal class announces every member it takes out, so the epoch moves once per removed record.
+ # A reordered filter (released list read after the container was rewritten) keeps the static
+ # call count and still announces nothing; only the runtime step sees that.
+ var shoulders=Game.new(42)
+ var shoulder_host=shoulders._install_template("rope","upper_arm",3.0,10.0,false,"fixture",1)
+ shoulders._reinforce_equipment(shoulders._equipment(shoulder_host.id),3)
+ var shoulder_pair=shoulders.Shoulders.attached(shoulders,shoulders._equipment(shoulder_host.id))
+ if shoulder_pair.size()==2:
+  shoulders._equipment(shoulder_pair[0].id).durability=0.0
+ var fill_stamp=int(shoulders.write_epoch())
+ shoulders.Shoulders.fill(shoulders,shoulders._equipment(shoulder_host.id))
+ t.check(shoulder_pair.size()==2 and shoulders.Shoulders.attached(shoulders,shoulders._equipment(shoulder_host.id)).size()==2 and shoulders.write_epoch()==fill_stamp+2,"REMOVAL write_epoch_is_monotone_and_private: the shoulder filter announces the released strap and the refilled side, one epoch step per member: before="+str(fill_stamp)+" after="+str(shoulders.write_epoch()))
+ if shoulder_pair.size()==2:
+  shoulders._equipment(shoulder_pair[1].id).durability=0.0
+ var band_stamp=int(shoulders.write_epoch())
+ shoulders.Shoulders.cleanup(shoulders)
+ t.check(shoulders.Shoulders.attached(shoulders,shoulders._equipment(shoulder_host.id)).size()==1 and shoulders.write_epoch()==band_stamp+1,"REMOVAL write_epoch_is_monotone_and_private: the shoulder cleanup announces a zeroed strap while its host survives, one epoch step per removed member: before="+str(band_stamp)+" after="+str(shoulders.write_epoch()))
+ shoulders._equipment(shoulder_host.id).durability=0.0
+ var host_stamp=int(shoulders.write_epoch())
+ shoulders.Shoulders.cleanup(shoulders)
+ t.check(shoulders.Shoulders.attached(shoulders,shoulders._equipment(shoulder_host.id)).is_empty() and shoulders.write_epoch()==host_stamp+1,"REMOVAL write_epoch_is_monotone_and_private: the shoulder cleanup announces the last strap when the host leaves, one epoch step per removed member: before="+str(host_stamp)+" after="+str(shoulders.write_epoch()))
+ var plates=Game.new(42)
+ plates._install_special("negative_plate_lock_medium","special_2_a",2)
+ var plate_stamp=int(plates.write_epoch())
+ var plate_item=plates._install_special("negative_vibrator_lock_catheter_high","special_2_a",3)
+ var plate_ids=plates.state.special_equipment.map(func(item):return String(item.get("id","")))
+ t.check(not plate_item.is_empty() and plate_ids.size()==2 and plate_ids.has(String(plate_item.get("id",""))) and plates.write_epoch()>=plate_stamp+2*3,"REMOVAL write_epoch_is_monotone_and_private: the plate upgrade announces the displaced lock and both new records through _special_erase/_special_append, at least one epoch step per member and per port: before="+str(plate_stamp)+" after="+str(plates.write_epoch()))
+ var teardown=Game.new(42)
+ var teardown_root=teardown._install_assembly("leg","upper","fixture",2,2)
+ var teardown_body=teardown_root.components.filter(func(e):return String(e.get("part",""))=="body")[0]
+ var teardown_band=teardown._install_template("rope",teardown.Links.point_slot("below_knee"),8.0,10.0,false,"fixture",1,-1,0,"below_knee")
+ var teardown_link=teardown._install_link(teardown_body.id,teardown_band.id,4.8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+ var teardown_expected=teardown_root.components.size()+3
+ for part in teardown_root.components: part.durability=0.0
+ teardown._equipment(teardown_band.id).durability=0.0
+ var teardown_stamp=int(teardown.write_epoch())
+ teardown._cleanup()
+ t.check(not teardown_link.is_empty() and teardown.state.composites.is_empty() and teardown.state.links.is_empty() and teardown.write_epoch()==teardown_stamp+teardown_expected,"REMOVAL write_epoch_is_monotone_and_private: _cleanup announces the composite root, every released component and the link, one epoch step per removed member: before="+str(teardown_stamp)+" after="+str(teardown.write_epoch())+" expected="+str(teardown_expected))
  # The sequence clause needs a non-zero stamp too: a port call before the loop makes a lowering
  # commit path visible, while a fresh game kept the stamp at 0 and the `>=` always held.
  var sequence=Game.new(42)
