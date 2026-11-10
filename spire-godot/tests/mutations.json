@@ -609,9 +609,9 @@
       "suite": "equipment"
     },
     "settle_writes_track_only_rope_or_no_op": {
-      "file": "data/equipment.gd",
-      "find": " \"handcuffs\":{\"name\":\"手铐\",\"material\":\"metal\"",
-      "replace": " \"handcuffs\":{\"name\":\"手铐\",\"material\":\"rope\"",
+      "file": "core/game.gd",
+      "find": "   \"track\":\n    RopeArt.track(self,target)",
+      "replace": "   \"track\":\n    pass",
       "suite": "equipment"
     },
     "manual_release_guards_stay_in_policy": {

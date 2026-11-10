@@ -54,6 +54,16 @@ static func _added_texts(g, mark: Dictionary) -> Array:
 static func _formed_count(texts: Array) -> int:
  return texts.filter(func(text):return String(text).contains("形成了")).size()
 
+# 审查 F1 正例夹具：经绳艺大师的真实施加入口（`RopeArt.install`）装一件 2 档绳件并返回新件；
+# 返回空表示入口不可达，调用方据此具名红而不是静默跳过。
+static func _rope_master_tracked_piece(g,boss: Dictionary) -> Dictionary:
+ if boss.is_empty(): return {}
+ var known=g.action_targets().map(func(item):return String(item.id))
+ g.RopeArt.install(g,boss,{"pool":"ordinary","templates":["rope"],"grade":2,"tier":2,"count":1,"replace":true,"allow_links":false})
+ for item in g.action_targets():
+  if String(item.id) not in known: return item
+ return {}
+
 # 满值、可上锁、未上锁的 3 档大臂宿主：连接式固缚记录低于满值，左肩带缺侧、右肩带保留一半耐久。
 # 真值走 `_install_template`（3 档安装即成交叉肩带与固缚），种子上限固定，故同一树内可复现；
 # 找不到连接式记录就返回空，调用方据空表具名红而不是静默跳过。
@@ -216,6 +226,25 @@ static func settle_writes_track_only_rope_or_no_op(t) -> void:
  battle.state.phase="map"
  var map_facts=battle.hook_facts()
  t.check(battle_facts.is_empty() and map_facts.is_empty(),"REMOVAL settle_writes_track_only_rope_or_no_op: hook_facts() is empty outside the rest phase, so no hook release can reach the non-tightening tracker in battle or on the map: battle="+str(battle_facts.size())+" map="+str(map_facts.size()))
+ # 正例（审查 F1；G-Q4-6 的对照面）：非收紧行真的会追踪——绳艺大师在场时，伤害与手动松解各写一次，
+ # `rope_art` 在该调用返回时立即更新，不依赖下一次结算。`track` 处理器改成 `pass` 时这两条具名红。
+ var track_game=preload("res://tests/rope_master_cases.gd").encounter()
+ var track_boss=track_game.RopeArt.master(track_game)
+ var damage_piece=_rope_master_tracked_piece(track_game,track_boss)
+ var damage_id=String(damage_piece.get("id",""))
+ var damage_before=int(track_boss.rope_art.values.get(damage_id,0))
+ var damage_total_before=int(track_boss.rope_art.total)
+ if not damage_piece.is_empty(): track_game._apply_equipment_damage(damage_piece,float(damage_piece.maximum)*0.5,"slip")
+ var damage_tier=track_game.equipment_tier(damage_piece) if not damage_piece.is_empty() else -1
+ var damage_expected=track_game.RestraintValue.from_profile(int(damage_piece.get("grade",0)),damage_tier) if damage_tier>=0 else -1
+ t.check(not damage_piece.is_empty() and damage_before>0 and damage_tier==1 and int(track_boss.rope_art.values.get(damage_id,-1))==damage_expected and int(track_boss.rope_art.total)==damage_total_before-damage_before+damage_expected,"REMOVAL settle_writes_track_only_rope_or_no_op: a non-tightening damage write updates the rope art before any settle point, so the master reads the post-write value and total in the same call instead of the next cleanup: piece="+damage_id+" tier="+str(damage_tier)+" tracked="+str(track_boss.rope_art.values.get(damage_id,"missing"))+" expected="+str(damage_expected)+" total="+str(track_boss.rope_art.total)+"/"+str(damage_total_before-damage_before+damage_expected))
+ var release_piece=_rope_master_tracked_piece(track_game,track_boss)
+ var release_id=String(release_piece.get("id",""))
+ var release_before=int(track_boss.rope_art.values.get(release_id,0))
+ var release_total_before=int(track_boss.rope_art.total)
+ if not release_piece.is_empty(): track_game._apply_manual_release(release_piece,0.0)
+ var release_tier=track_game.equipment_tier(release_piece) if not release_piece.is_empty() else -1
+ t.check(not release_piece.is_empty() and release_before>0 and release_tier==0 and not track_boss.rope_art.values.has(release_id) and int(track_boss.rope_art.total)==release_total_before-release_before,"REMOVAL settle_writes_track_only_rope_or_no_op: a non-tightening manual release retires the rope from the art before any settle point, so the master's value map drops the released piece and the total falls in the same call: piece="+release_id+" tier="+str(release_tier)+" tracked="+str(track_boss.rope_art.values.get(release_id,"missing"))+" total="+str(track_boss.rope_art.total)+"/"+str(release_total_before-release_before))
 
 static func run(t) -> void:
  leather_slip(t)

@@ -6613,9 +6613,12 @@ const DURABILITY_WRITE_EXCEPTIONS=[
 # `>>=`／`<<=`，所以比较式不会被当成写。
 const DURABILITY_WRITE_PATTERN="\\.durability\\s*(?:<<=|>>=|\\*\\*=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|=)(?!=)"
 # G-Q2-2（plan §8 Q2；Gherkin G-Q2-2；Q4′ A140 #3）：改道后每个函数的调用顺序与改道前逐项相同，
-# 但 Q4′ 把六个刷新点与两个策略追踪收进了写口（收紧行／非收紧行），故表是改后的真实声明：`write` 是
+# 但 Q4′ 把父表里的九个刷新调用点（五函数：`_reinforce_equipment`×2、`intake_equipment`×2、`execute`、
+# `apply_effects`×3、`hogtie`）与两个策略追踪（`_apply_manual_release`、`_apply_equipment_damage`）收进了
+# 写口（收紧行／非收紧行），故表是改后的真实声明：`write` 是
 # `_write_durability(`，其余 token 是改道前后都存在的调用（`_refresh_equipment`／`RopeArt.track` 已不再
 # 由原因函数自己调用），因此把写口换回直写、把紧随其后的 `_cleanup` 挪走、合并、重排都会让序列变红。
+# `_install_template` 的新装位刷新不属本表（它由 `_install_template` 的 `_tier_consequences(…,-1,…)` 派发）。
 # 15 处 live 写口调用＝表内 15 次 `write`（`_execute` 挂钩分支的 1 次策略调用不计入写口，另由下文断言）。
 const DURABILITY_REROUTES={
  "core/game.gd::_reinforce_equipment":["write","write"],
@@ -6699,7 +6702,7 @@ static func durability_reroutes_keep_their_order(t) -> void:
   writes+=actual.filter(func(token):return token=="write").size()
   if actual!=DURABILITY_REROUTES[site]: broken.append(site+" expected="+str(DURABILITY_REROUTES[site])+" actual="+str(actual))
  t.check(missing.is_empty(),"ARCH durability_reroutes_keep_their_order: every declared reroute function is locatable in its file: missing="+str(missing))
- t.check(not DURABILITY_REROUTES.is_empty() and broken.is_empty(),"ARCH durability_reroutes_keep_their_order: each rerouted function keeps the post-Q4′ call order, so one write still sits in the slot the parent tree wrote and the surviving cleanup/track calls did not move (the six refreshed sites and the two strategy trackers now live in the port rows): broken="+str(broken))
+ t.check(not DURABILITY_REROUTES.is_empty() and broken.is_empty(),"ARCH durability_reroutes_keep_their_order: each rerouted function keeps the post-Q4′ call order, so one write still sits in the slot the parent tree wrote and the surviving cleanup/track calls did not move (the nine refreshed call sites across five functions and the two strategy trackers now live in the port rows; the factory new-install dispatch was never a table row): broken="+str(broken))
  t.check(writes==15,"ARCH durability_reroutes_keep_their_order: the table covers exactly the 15 port calls the plan names (a row that loses a call or a table that loses a row is red): writes="+str(writes)+" rows="+str(DURABILITY_REROUTES.size()))
  # boss_key is the one reroute that also hands the lock release to its port before writing durability.
  var boss=code_of_function("core/relic_effects.gd","boss_key")
@@ -6720,6 +6723,8 @@ static func durability_reroutes_keep_their_order(t) -> void:
 const TIER_DISPATCH_SITES=["core/game.gd::_install_special","core/game.gd::_install_template","core/game.gd::_write_durability","core/game.gd::_write_quality"]
 const TIER_HANDLER_SITES=["core/game.gd::_tier_consequences"]
 const TIER_REFRESH_SITES=["core/game.gd::_refresh_equipment"]
+# G-Q4-4′（审查 F2）：派发器能执行的处理器 token 表；`tier_consequence_table_matches_rows` 把它与
+# 表内出现的 token 集及 `_tier_consequences` 的 match 分支名集三向绑定（任一侧多／少即红）。
 const TIER_HANDLER_TOKENS=["refresh","track","reinforcement"]
 # G-Q4-3′：每个耐久写口调用点的收紧意图。值是同一 `文件::函数` 内按源码顺序的意图序列——
 # `room_events.gd::apply_effects` 三个分支意图不同（tighten_to 收紧、remove_restraints／ease_restraint
@@ -6809,6 +6814,17 @@ static func call_site_names(rows: Array) -> Array:
  var names=[]
  for row in rows:
   if String(row.site) not in names: names.append(String(row.site))
+ names.sort()
+ return names
+
+# G-Q4-4′（审查 F2）：派发器 match 的字符串分支名（只取整行 `"token":` 标签；`_:` 与行内字符串字面量不计）。
+# 返回排序去重的名集，供「表内 token／TIER_HANDLER_TOKENS／match 分支」三向核对。
+static func _match_branch_names(body: String) -> Array:
+ var names=[]
+ var label=RegEx.new()
+ if label.compile("(?m)^\\s*\"([A-Za-z_][A-Za-z0-9_]*)\"\\s*:\\s*$")!=OK: return names
+ for hit in label.search_all(body):
+  if not names.has(hit.get_string(1)): names.append(hit.get_string(1))
  names.sort()
  return names
 
@@ -6918,6 +6934,19 @@ static func tier_consequence_table_matches_rows(t) -> void:
   for row in actual:
    if not TIER_CONSEQUENCE_ROWS.has(row): diffs.append(String(row)+":unexpected")
  t.check(diffs.is_empty(),"ARCH tier_consequence_table_matches_rows: the table equals the expected install/tighten/ease rows item by item (a handler added to a row, a class dropped or a demotion row is red): diffs="+str(diffs))
+ # 审查 F2：表内出现的处理器 token 集＝TIER_HANDLER_TOKENS＝`_tier_consequences` 的 match 分支名集合，三向相等。
+ # 表加未声明的 token、常量漏列或 match 多一条分支都红；分支体本身的行为由 REMOVAL 正例钉（审查 F1）。
+ var table_tokens=[]
+ if actual is Dictionary:
+  for row in actual:
+   for key in actual[row]:
+    for token in actual[row][key]:
+     if String(token) not in table_tokens: table_tokens.append(String(token))
+ table_tokens.sort()
+ var branch_tokens=_match_branch_names(code_of_function("core/game.gd","_tier_consequences"))
+ var declared_tokens=TIER_HANDLER_TOKENS.duplicate()
+ declared_tokens.sort()
+ t.check(not TIER_HANDLER_TOKENS.is_empty() and table_tokens==declared_tokens and branch_tokens==declared_tokens,"ARCH tier_consequence_table_matches_rows: the handler tokens are declared once and complete -- every token the table names is in TIER_HANDLER_TOKENS, every declared token is used by the table, and the dispatcher's match branches are exactly that set (a branch the table never names or a token the dispatcher cannot run is red): table="+str(table_tokens)+" declared="+str(declared_tokens)+" branches="+str(branch_tokens))
  var non_tightening=[]
  if actual is Dictionary:
   for key in actual.get("ease",{}):
