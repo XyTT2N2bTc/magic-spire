@@ -300,12 +300,15 @@ static func write_epoch_is_monotone_and_private(t) -> void:
  # The rejected `end` runs its own ports before the post-execution `validate` fails, so the epoch must
  # have moved and must stay moved: a rollback that restored the counter would land back on the stamp.
  t.check(not rollback_command.is_empty() and not rollback_result.get("ok",false) and rollback.export_snapshot()==rollback_snapshot and rollback.write_epoch()>rollback_epoch,"REMOVAL write_epoch_is_monotone_and_private: a failed commit rolls the state back byte-for-byte after entering write ports, and the epoch keeps every bump instead of following the rollback: epoch="+str(rollback_epoch)+"->"+str(rollback.write_epoch())+" result="+str(rollback_result.get("error","")))
+ # The restore clause needs a non-zero stamp to be falsifiable: a port call before the snapshot makes a
+ # counter-resetting restore visible, while an epoch-0 fixture silently passed the `>=`.
  var loaded=Game.new(42)
+ loaded._install_template("rope","thigh",8.0,10.0,false,"fixture")
  var loaded_snapshot=loaded.export_snapshot()
  var loaded_epoch=int(loaded.write_epoch())
  loaded.state.wall_distance=2
  var loaded_result=loaded.restore_snapshot(loaded_snapshot)
- t.check(loaded_result.get("ok",false) and loaded.write_epoch()>=loaded_epoch,"REMOVAL write_epoch_is_monotone_and_private: restore_snapshot swaps the state and never lowers the epoch: epoch="+str(loaded_epoch)+"->"+str(loaded.write_epoch()))
+ t.check(loaded_result.get("ok",false) and loaded_epoch>0 and loaded.write_epoch()>=loaded_epoch,"REMOVAL write_epoch_is_monotone_and_private: restore_snapshot swaps the state and never lowers the epoch: epoch="+str(loaded_epoch)+"->"+str(loaded.write_epoch()))
  var encoded=Arch.save_text(loaded.state)
  var view=JSON.stringify(loaded.get_view())
  var snapshot=JSON.stringify(loaded.export_snapshot())
