@@ -1532,6 +1532,10 @@ func _write_quality(target: Dictionary, grade: int) -> void:
 #            point (QX1), so no demotion row exists here.
 # Classes: P ordinary piece, C composite component, S shoulder strap, X special item,
 # R reinforcement strap, K link. A key outside the table is an error and runs no handler.
+# Every row is keyed by class even though tighten/ease agree across all six today: `_consequence_class`
+# always yields a class, so a per-class row (Q5″ hooks) or a single-class divergence is one key to
+# add or change, and the expected copy compares every class of every row. A flattened row would make
+# the class dimension reappear as a special case in the dispatcher instead of data.
 const TIER_CONSEQUENCES={
  "install":{
   "P":["refresh"],
@@ -1549,7 +1553,7 @@ func _consequence_class(target: Dictionary) -> String:
  if target.get("template","")=="link_rope": return "K"
  if target.has("root_id"): return "C"
  if target.has("shoulder_host"): return "S"
- if target.get("template","")=="special": return "R" if SpecialEquipment.is_reinforcement(target) else "X"
+ if SpecialEquipment.is_special(target): return "R" if SpecialEquipment.is_reinforcement(target) else "X"
  return "P"
 
 # The one consequence dispatch (G-Q4-1, G-Q4-4′): the row comes from the cause intent, with

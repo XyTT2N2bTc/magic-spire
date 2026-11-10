@@ -150,7 +150,7 @@
 
 | 入口 | 理由 |
 | --- | --- |
-| `Prison.intake_equipment` | 循环内读后写（`_refresh_equipment` 可新增肩带，作用域跨写即过期） |
+| `Prison.intake_equipment` | 循环内读后写（收紧写入经 `core/game.gd::_tier_consequences` 按 `TIER_CONSEQUENCES` 收紧行刷新，可新增肩带；作用域跨写即过期） |
 | `Prison.validate` | 存档／读档守卫；在 `Game.validate` 之下嵌套校验，无自带只读块 |
 | `EquipmentReplacement._trial` | 替换管线内的读后写收尾（`state` 深拷贝后写入，再读回校验） |
 | `SlipMotion.apply` | 正式施加滑脱，读后写 |
