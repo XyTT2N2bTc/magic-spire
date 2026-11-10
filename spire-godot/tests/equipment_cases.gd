@@ -277,14 +277,18 @@ static func write_epoch_is_monotone_and_private(t) -> void:
  t.check(g.write_epoch()>stamp and g.state.special_equipment.has(special),"REMOVAL write_epoch_is_monotone_and_private: _special_append advances the epoch and restores the record: before="+str(stamp)+" after="+str(g.write_epoch()))
  stamp=g.write_epoch();g._members_replaced()
  t.check(g.write_epoch()==stamp+1,"REMOVAL write_epoch_is_monotone_and_private: the whole-container replacement port advances the epoch exactly once: before="+str(stamp)+" after="+str(g.write_epoch()))
+ # The sequence clause needs a non-zero stamp too: a port call before the loop makes a lowering
+ # commit path visible, while a fresh game kept the stamp at 0 and the `>=` always held.
  var sequence=Game.new(42)
+ sequence._install_template("rope","thigh",8.0,10.0,false,"fixture")
+ var sequence_stamp=int(sequence.write_epoch())
  var sequence_ok=true
  var end_result={}
  for i in range(2):
   var last=int(sequence.write_epoch())
   end_result=t.action(sequence,"end")
   sequence_ok=sequence_ok and sequence.write_epoch()>=last
- t.check(sequence_ok and end_result.get("ok",false),"REMOVAL write_epoch_is_monotone_and_private: a real action sequence never lowers the epoch and commits normally: epoch="+str(sequence.write_epoch())+" result="+str(end_result.get("error","")))
+ t.check(sequence_ok and sequence_stamp>0 and end_result.get("ok",false),"REMOVAL write_epoch_is_monotone_and_private: a real action sequence never lowers the epoch and commits normally: epoch="+str(sequence.write_epoch())+" result="+str(end_result.get("error","")))
  var rollback=Game.new(42)
  rollback.set_debug_checks_enabled(false)
  rollback.state.wall_distance=7
