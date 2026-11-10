@@ -673,6 +673,24 @@
       "find": " if tier!=3: return\n update_cross(g,host)",
       "replace": " update_cross(g,host)\n if tier!=3: return",
       "suite": "equipment"
+    },
+    "write_epoch_bumps_in_every_port": {
+      "file": "core/game.gd",
+      "find": "func _write_locked(target: Dictionary, locked: bool) -> void:\n _write_epoch+=1\n target.locked=locked",
+      "replace": "func _write_locked(target: Dictionary, locked: bool) -> void:\n target.locked=locked",
+      "suite": "architecture"
+    },
+    "lock_writes_have_one_entry": {
+      "file": "core/game.gd",
+      "find": "    _write_locked(target,true)\n    _emit(\"event\",e.name+\"锁住了\"+target.name+\"。\")",
+      "replace": "    target.locked = true\n    _emit(\"event\",e.name+\"锁住了\"+target.name+\"。\")",
+      "suite": "architecture"
+    },
+    "member_changes_are_announced": {
+      "file": "core/game.gd",
+      "find": " state.links.append(link)\n _member_changed(link,\"added\")\n _equipment_feedback(link,link.durability,true)",
+      "replace": " state.links.append(link)\n _equipment_feedback(link,link.durability,true)",
+      "suite": "architecture"
     }
   }
 }
