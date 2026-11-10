@@ -4790,3 +4790,20 @@ flowchart LR
 - 未跑：安卓真机、分帧、打包与发布。
 - 片内流水：实现 `dsp-20261109T153911Z-e084`（`c440cd7`、`c2789db`）→ 清洁 `dsp-20261109T175923Z-a380`（`cfb3e15`）→ 加固 `dsp-20261109T195111Z-a6ac`（`d1f64cc`）→ 独立审查 `dsp-20261109T220231Z-3b91`（通过，次要 F1–F3）→ 验收 `dsp-20261109T221948Z-edaf` 通过。记录：工作树 `tmp/io-q3/acceptance/acceptance-q3-validator.md`、`tmp/io-q3/review/findings.md`；协调者裁定 A127–A131。
 - 本节只追加本文件一节、单独提交（docs-only）；仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+### 2026-11-10｜加装卸收口 QX1（交叉解除统一在结算时，H2=C，全程唯一改行为片）登记（协调者落账）
+
+- 域：`spire-godot` 肩带交叉的解除时机——产品 `core/shoulder_links.gd::refresh`（写入时只「升入 3 档成交叉」、不再「解除」，非 3 档早退；一次求档），解除只由结算点肩带趟 `::cleanup`→`::update_cross` 执行。判据 `REMOVAL cross_release_waits_for_settle`（G-QX1-1）、`REMOVAL refresh_only_forms_crossing`（G-QX1-2），突变登记 `tests/mutations.json::refresh_only_forms_crossing`，生成物 `tests/check_index.json`、`tests/state_readers.json`。
+- 片范围 `723e7b3..333966d`（`590e265` 产品＋两条 REMOVAL；`b1b8e76` 突变登记＋生成物；`333966d` 清洁：一次求档、断言 15→12、`_crossed_left_strap`；加固无提交）。HEAD `333966d`，跑前跑后 `git status` 0 行。
+- `build/checks/20261110T032809831-2744`：52 套件（`-Suite …,content -Impact -Exhaustive -KeepGoing`，含 `localization`／`content` 的 52 名）`RULE SCOPE` 与父基线 `20261109T222246588-74472` 逐名同序，`SUITE RESULT` 47 PASS／5 FAIL（`architecture`／`shoulder`／`rewards`／`events`／`core`，与父同组），15 条父基线 `ERROR` 逐字节全等、无其它新增红；断言 152119→152131（`equipment 324→336`，+12，其余 51 套件不变），`status=failed`、before=after、无 `SOURCE CHANGED`。父基线那条 persistence `SAVE fixed_point_text…` 既有偶发红本轮未现（persistence PASS），照实登记、不算本片证据。三条 `SHOULDER tier1 restores own slip`／`reinforcement reenters crossing`／`glove own ratio and independent crossing` 在 `ERROR` 零命中（逐名绿）。
+- `build/checks/20261110T035122113-16024`：runner PASS 1846 断言；`20261110T035435808-59156`：UI 组合 architecture 4 条父基线 `ERROR`（4/121242）后早停，按 `-UIOnly` `20261110T040357357-59156` 补跑 shoulder／torso_binding／body_layout 通过、equipment_complete 一条 `HEAD equal tightness…` 为父树同错（`UI FAIL: 374`）。
+- 两条 REMOVAL 在 HEAD 门禁为绿；敏感性三条亲跑（恢复写入时解除→`cross_release_waits_for_settle` 红；去掉 3 档条件→`refresh_only_forms_crossing` 降档段红；从不调用→升档段红）各自具名红并逐字节还原（sha256 前后一致，`2E1232E6…`）；`tools/check-mutation.ps1 -Check refresh_only_forms_crossing`（`build/mutations/20261110T040728512-49576`，26.1s）`RED exit-red=True restored=True`、`worktree unchanged=True`。
+- **唯一行为差**：松一档作用于交叉中 2 档肩带时，交叉解除提示与「…已经松到1档。」两行互换位置（提示文本与 data 不变）；写入到结算之间无 `crossed` 读者。
+- 三种子（本树亲跑，`build/baseline/normal_seed_end.gd` sha256 `0820455…`）：42＝`01db4dc5…1fef`、20260906＝`4f69e2c7…0e5c`、7＝`aa45ef47…9d7`，与父期望三方一致 ⇒ **无需新基线**，未登记新值。
+- 原因矩阵两树（探针 `build/rev3-qx1-acc/cause_matrix.gd` sha256 `f9a97f7d…d1f5`，父树临时 worktree `C:/1/tmp/magic-spire-wt-qx1-base`@`d1f64cc` 用完已删）：CM10c 只差「…已松到一档，交叉固定解除。」与「…已经松到1档。」两行互换（掩日志面 `encode` 相等、`rng`／回执相等）；其余全部行四项逐字节相等。审查 F1／F2 补证：`CM03x` 实测交叉中 2 档肩带的滑脱／挂钩／手动松解／同组溅射**全部不可达**（各有拒绝原文，如滑脱 `交叉肩带无法滑脱，需先松到1档。`），故 CM03 的相等对交叉肩带为空证，真实覆盖来自 CM10c 与既有 SHOULDER 判据；`CM11x` 经 `_enemy_operation {"kind":"tighten"}` 把 2 档肩带收紧到 3 档，实测 `crossed false→true` 且「左肩绳已收成交叉型。」在敌人加固文案之前（G-QX1-4 成立）。两补行均两树四项相等。
+- 语料：抽样 compare／compare-scope／reoracle 退出 0（`checked=423 mismatches=0`）、selfcheck 恰 `42-00000` 一例红并以 1 退出；本地全量（核 `tmp/s2/m2c/full-corpus.sha256`＝`75e446a5…`）compare／reoracle 皆 `checked=3277 mismatches=0`。
+- 允许面 5 文件（`core/shoulder_links.gd`、`tests/equipment_cases.gd`、`tests/mutations.json`、生成物 `tests/check_index.json`、`tests/state_readers.json`）⊆ QX1 表＋每片共有；`data／ui／content／assets` 零差异；模块合计（core＋data＋ui `.gd`，143 文件）33912→33915（+3）；`state_readers.json`／`check_index.json` 零漂移（`inputs_sha256` 随产品改动变化属正常）。
+- 审查口径更正（A137）：F3 两条 REMOVAL 运行期断言**实数 12**（非「15→13」）；F4 `_refresh_equipment` 产品调用点**实数 10**（plan §1.3 记 9 行系把 `prison.gd::intake_equipment` 两处并作一行）。F1／F2 的补证见上；B2／B3 按 A135 保留。
+- 未跑：安卓真机、分帧、打包与发布。
+- 片内流水：实现 `dsp-20261109T233100Z-6265`（`590e265`、`b1b8e76`）→ 清洁 `dsp-20261110T013035Z-c0c6`（`333966d`）→ 加固 `dsp-20261110T024050Z-adfb`（无提交）→ 独立审查 `dsp-20261110T031615Z-5bf0`（通过，F1–F4）→ 验收 `dsp-20261110T032629Z-f946` 通过。记录：`tmp/io-qx1/acceptance/acceptance-qx1-validator.md`、`tmp/io-qx1/review/findings.md`；协调者裁定 A135–A137。
+- 本节只追加本文件一节、单独提交（docs-only）；仅本地 `.git`，未推送、未 tag、未开 PR、未打包。QX1 三种子不变，无需 R3 人认可。
