@@ -147,7 +147,7 @@ static func ordinary(g, e: Dictionary, grade: int, tier: int, extra: Dictionary=
  if g.Application.can_apply(g,link,e.id): return install(g,e,link)
  for item in g.action_targets():
   if is_rope(item) and g.equipment_tier(item)<3:
-   g._reinforce_equipment(item);track(g,item);observe(g);return true
+   g._reinforce_equipment(item);observe(g);return true
  return false
 
 static func sweep(g, e: Dictionary, grade: int) -> void:
@@ -172,7 +172,7 @@ static func execute(g, e: Dictionary, intent: Dictionary) -> void:
   "art_sweep","art_patch": sweep(g,e,2 if e.type==MASTER else 1)
   "art_tighten","art_tightest":
    for item in g.action_targets():
-    if is_rope(item) and g.equipment_tier(item)<3: g._reinforce_equipment(item);track(g,item)
+    if is_rope(item) and g.equipment_tier(item)<3: g._reinforce_equipment(item)
    observe(g)
   "art_refill":
    e.rope_art.stock=e.rope_art.stock+12 if assistant(g).is_empty() else maxi(LIMIT,e.rope_art.stock)
@@ -291,9 +291,8 @@ static func hogtie(g, boss: Dictionary, grade: int) -> void:
    boss.rope_art.refill=true
    return
   boss.rope_art.stock-=cost
-  old.grade=next_grade;old.maximum=g.Equipment.maximum(next_grade);g._write_durability(old,g.RestraintValue.durability_for(old.maximum,2));old.variant=0
+  g._write_quality(old,next_grade)
   old.name=g.Equipment.name_for(HOGTIE,"wrist",next_grade)
-  g._refresh_equipment(old)
  else:
   var cost=g.RestraintValue.from_profile(grade,2)
   if cost>boss.rope_art.stock:

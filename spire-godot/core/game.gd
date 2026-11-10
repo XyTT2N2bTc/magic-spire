@@ -1499,12 +1499,82 @@ func _special_append(item: Dictionary) -> void:
 func _special_erase(item: Dictionary) -> void:
  state.special_equipment.erase(item)
 
-# The durability port (Q2, plan §8「逐片要点·Q2」): the single live write of a piece's
-# `durability`. Assignment only — policy guards, trackers, refreshes, settling and the
-# consequence tier all stay with the caller (Q4 adds the tier parameter). Building a fresh
-# record (`_special_piece`) and the view twin's copy are the two registered exceptions.
-func _write_durability(target: Dictionary, value: float) -> void:
+# The durability port (Q2, plan §8「逐片要点·Q2」; Q4′ intent parameter, A140): the single live
+# write of a piece's `durability`. One capture of the pre-write tier, one bare assignment and one
+# consequence dispatch. Policy guards, trackers, events and settling stay with the caller; the
+# cause declares only its intent (`tighten`) here. Building a fresh record (`_special_piece`), the
+# quality write (`_write_quality`) and the view twin's copy are the registered exceptions.
+func _write_durability(target: Dictionary, value: float, tighten: bool=false) -> void:
+ var before=tier(target.durability,target.maximum)
  target.durability=value
+ _tier_consequences(target,before,tier(target.durability,target.maximum),tighten)
+
+# The quality write (Q4′, A140 #1): `core/rope_master.gd::hogtie`'s upgrade rewrites the four
+# quality fields in the order the old inline branch used, then dispatches a tightening intent.
+# It does not go through the durability port, because the dispatch must see `variant` already
+# written. Only caller: `core/rope_master.gd::hogtie`.
+func _write_quality(target: Dictionary, grade: int) -> void:
+ var before=tier(target.durability,target.maximum)
+ target.grade=grade
+ target.maximum=Equipment.maximum(grade)
+ target.durability=RestraintValue.durability_for(target.maximum,2)
+ target.variant=0
+ _tier_consequences(target,before,tier(target.durability,target.maximum),true)
+
+# Q4′ consequence table (G-Q4-4′): (row × record class) -> ordered handlers. The rows are the
+# three intents the plan names, not the retired refresh/settle timing profiles:
+#   install  the factories' new-install position (before<0; a fresh record has no pre-value):
+#            L03–L08 -- ordinary piece gets the refresh set, special item attaches its
+#            reinforcement strap at tier three, every other class has no write-time consequence.
+#   tighten  a cause that means to reinforce: always the full refresh set (mouth naming -> binding
+#            -> shoulder crossing/fill -> rope tracking), even when the value does not change.
+#   ease     every other write: rope tracking only; the crossing release belongs to the settle
+#            point (QX1), so no demotion row exists here.
+# Classes: P ordinary piece, C composite component, S shoulder strap, X special item,
+# R reinforcement strap, K link. A key outside the table is an error and runs no handler.
+const TIER_CONSEQUENCES={
+ "install":{
+  "P":["refresh"],
+  "C":[],
+  "S":[],
+  "X":["reinforcement"],
+  "R":[],
+  "K":[]},
+ "tighten":{
+  "P":["refresh"],"C":["refresh"],"S":["refresh"],"X":["refresh"],"R":["refresh"],"K":["refresh"]},
+ "ease":{
+  "P":["track"],"C":["track"],"S":["track"],"X":["track"],"R":["track"],"K":["track"]}}
+
+func _consequence_class(target: Dictionary) -> String:
+ if target.get("template","")=="link_rope": return "K"
+ if target.has("root_id"): return "C"
+ if target.has("shoulder_host"): return "S"
+ if target.get("template","")=="special": return "R" if SpecialEquipment.is_reinforcement(target) else "X"
+ return "P"
+
+# The one consequence dispatch (G-Q4-1, G-Q4-4′): the row comes from the cause intent, with
+# `before<0` marking the factories' new-install position; the class comes from the record shape.
+# The handlers are the current `_refresh_equipment` set, so the install and tighten rows stay
+# byte-identical to the calls they replace, and the ease row restores the per-write rope tracking
+# the two strategies used to do themselves (B9).
+func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bool) -> void:
+ var row="install" if before<0 else ("tighten" if tighten else "ease")
+ var key=_consequence_class(target)
+ var rows=TIER_CONSEQUENCES.get(row,{})
+ if not rows.has(key):
+  push_error("TIER CONSEQUENCES: undeclared row or class row="+row+" class="+key+" target="+String(target.get("id","")))
+  return
+ for handler in rows[key]:
+  match String(handler):
+   "refresh":
+    _refresh_equipment(target)
+   "track":
+    RopeArt.track(self,target)
+   "reinforcement":
+    # The row is entered by every special install, so the tier-three guard stays in the handler.
+    if after==3 and SpecialEquipment.supports_reinforcement(target): _attach_special_reinforcement(target)
+   _:
+    push_error("TIER CONSEQUENCES: undeclared handler "+String(handler)+" row="+row+" class="+key)
 
 func _install_special(type: String, slot: String, tightness: int=0) -> Dictionary:
  if tightness not in [0,1,2,3]: return {}
@@ -1519,7 +1589,7 @@ func _install_special(type: String, slot: String, tightness: int=0) -> Dictionar
  state.next_equipment+=1
  _special_append(item)
  _equipment_feedback(item,item.durability,true)
- if SpecialEquipment.supports_reinforcement(item) and tier(item.durability,item.maximum)==3: _attach_special_reinforcement(item)
+ _tier_consequences(item,-1,tier(item.durability,item.maximum),false)
  RelicEffects._mana_hook(self,"restraint_mana","佩戴"+item.name)
  Cards.restraint_changed(self,"worn")
  return item
@@ -1633,12 +1703,10 @@ func _reinforce_equipment(target: Dictionary, to_tier: int=0) -> String:
  if Equipment.is_shackle(target): return "无法加固"
  if _reinforcement_locks(target):
   target.locked=true
-  _write_durability(target,target.maximum)
-  _refresh_equipment(target)
+  _write_durability(target,target.maximum,true)
   return "加固并上锁，耐久恢复至满值"
  var current=tier(target.durability,target.maximum)
- _write_durability(target,_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3))
- _refresh_equipment(target)
+ _write_durability(target,_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3),true)
  return "收紧到%d档" % tier(target.durability,target.maximum)
 
 func links_at(slot: String) -> Array:
@@ -2045,7 +2113,7 @@ func _install_template(template: String, slot: String, durability: float, maximu
  state.next_equipment += 1
  state.equipment.append(e)
  _equipment_feedback(e,e.durability,true)
- _refresh_equipment(e)
+ _tier_consequences(e,-1,tier(e.durability,e.maximum),false)
  RelicEffects._mana_hook(self,"restraint_mana","佩戴"+e.name)
  if not Equipment.lock_only(e): Cards.restraint_changed(self,"worn")
  return e
@@ -2197,7 +2265,6 @@ func _apply_manual_release(target: Dictionary, after: float, release_lock_only: 
   if not absolute: return
   target.absolute_release=true
  _write_durability(target,after)
- RopeArt.track(self,target)
 
 func relic_value(hook: String) -> float:
  return Relics.value(state.relics,hook,state.relic_counters,state.get("ditto_form",""))
@@ -2279,7 +2346,6 @@ func _apply_equipment_damage(target: Dictionary, damage: float, kind: String, pa
  if not passive: damage=RopeArt.card_damage(self,target,damage)
  _write_durability(target,RopeArt.floor_value(self,target,maxf(0.0,target.durability-damage)))
  _equipment_feedback(target,before-target.durability,false,not passive and kind!="passive_slip")
- RopeArt.track(self,target)
  if kind in ["strain","slip"] and not passive and consume_charge: _consume_charge()
  if not release.is_empty():
   _write_durability(_composite_body(release),0.0)

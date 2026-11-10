@@ -1185,6 +1185,9 @@ static func run(t) -> void:
  equipment_member_writes_have_one_entry(t)
  durability_writes_have_one_entry(t)
  durability_reroutes_keep_their_order(t)
+ tier_consequences_have_one_dispatch(t)
+ durability_cause_intents_are_declared(t)
+ tier_consequence_table_matches_rows(t)
  settle_points_are_declared(t)
  placement_layers_have_declared_rules(t)
  run_identity_single_writer(t)
@@ -6595,31 +6598,34 @@ static func equipment_member_writes_have_one_entry(t) -> void:
    indirect.append(receiver+"@"+String(hit.file)+"::"+String(hit.function))
  t.check(indirect.is_empty(),"ARCH equipment_member_writes_have_one_entry: the special-equipment container is written only through the live state path -- a whole-state local alias or a parameter alias would hide the write from every scan above (binding such an alias is not banned, writing through it is; an uncompilable receiver pattern is red, never vacuous): indirect="+str(indirect))
 
-# G-Q2-1（plan §8「Q2 耐久写口」；A66、A68 C-7）：`.durability` 的 live 赋值与复合赋值只出现在唯一
-# 写口 `core/game.gd::_write_durability`；两处登记例外是建件（`_special_piece`）与视图孪生
+# G-Q2-1（plan §8「Q2 耐久写口」；A66、A68 C-7；Q4′ A140 #1）：`.durability` 的 live 赋值与复合赋值只
+# 出现在唯一写口 `core/game.gd::_write_durability`；三处登记例外是建件（`_special_piece`）、品质写口
+# （`_write_quality`，驷马缚升级按 A140 #1 连 `.durability` 一起重写品质字段）与视图孪生
 # （`equipment_replacement_view.gd::after_removal`，视图副本不是 live 状态）。两表各行为「文件::函数」，
 # 扫描面取共用扫描源（core／data／ui 去掉兼容层）。
 const DURABILITY_WRITERS=["core/game.gd::_write_durability"]
 const DURABILITY_WRITE_EXCEPTIONS=[
  "core/game.gd::_special_piece",
+ "core/game.gd::_write_quality",
  "core/equipment_replacement_view.gd::after_removal"]
 # 赋值与全部复合赋值（GDScript 的 `=`／`+=`／`-=`／`*=`／`/=`／`%=`／`**=`／`&=`／`|=`／`^=`／`<<=`／`>>=`）。
 # `==` 由 `(?!=)` 挡住；`!=` 的运算符位不是上面任何一项（`!` 不在运算符集）；`>=`／`<=` 只认完整的
 # `>>=`／`<<=`，所以比较式不会被当成写。
 const DURABILITY_WRITE_PATTERN="\\.durability\\s*(?:<<=|>>=|\\*\\*=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|=)(?!=)"
-# G-Q2-2（plan §8 Q2；Gherkin G-Q2-2）：改道后每个函数的调用顺序与改道前逐项相同。`write` 是
-# `_write_durability(`，其余 token 是改道前后都存在的调用；表就是父树顺序的冻结声明（改道前该位置
-# 是直接赋值），因此把写口换回直写、或把紧随其后的 `_refresh_equipment`／`_cleanup` 挪走、合并、
-# 重排都会让序列变红。17 处 live 写＝表内 16 次写口调用＋`_execute` 挂钩分支的 1 次策略调用。
+# G-Q2-2（plan §8 Q2；Gherkin G-Q2-2；Q4′ A140 #3）：改道后每个函数的调用顺序与改道前逐项相同，
+# 但 Q4′ 把六个刷新点与两个策略追踪收进了写口（收紧行／非收紧行），故表是改后的真实声明：`write` 是
+# `_write_durability(`，其余 token 是改道前后都存在的调用（`_refresh_equipment`／`RopeArt.track` 已不再
+# 由原因函数自己调用），因此把写口换回直写、把紧随其后的 `_cleanup` 挪走、合并、重排都会让序列变红。
+# 15 处 live 写口调用＝表内 15 次 `write`（`_execute` 挂钩分支的 1 次策略调用不计入写口，另由下文断言）。
 const DURABILITY_REROUTES={
- "core/game.gd::_reinforce_equipment":["write","refresh","write","refresh"],
+ "core/game.gd::_reinforce_equipment":["write","write"],
  "core/game.gd::_unlock_equipment":["write"],
- "core/game.gd::_apply_manual_release":["write","track"],
- "core/game.gd::_apply_equipment_damage":["write","track","write"],
- "core/prison.gd::intake_equipment":["write","refresh","write","refresh"],
- "core/prison.gd::execute":["write","refresh"],
- "core/room_events.gd::apply_effects":["write","refresh","write","refresh","cleanup","write","refresh","cleanup"],
- "core/rope_master.gd::hogtie":["write","refresh","cleanup"],
+ "core/game.gd::_apply_manual_release":["write"],
+ "core/game.gd::_apply_equipment_damage":["write","write"],
+ "core/prison.gd::intake_equipment":["write","write"],
+ "core/prison.gd::execute":["write"],
+ "core/room_events.gd::apply_effects":["write","write","cleanup","write","cleanup"],
+ "core/rope_master.gd::hogtie":["cleanup"],
  "core/relic_effects.gd::boss_key":["write","cleanup"],
  "core/equipment_replacement.gd::_force_special_live":["write","cleanup"],
  "core/equipment_replacement.gd::_trial":["write","cleanup","cleanup"]}
@@ -6639,14 +6645,20 @@ static func durability_writes_have_one_entry(t) -> void:
  t.check(DURABILITY_WRITERS==["core/game.gd::_write_durability"] and not DURABILITY_WRITE_EXCEPTIONS.is_empty(),"ARCH durability_writes_have_one_entry: the write table names exactly the one port and the exception table is non-empty (an emptied table made this clause vacuous): writers="+str(DURABILITY_WRITERS)+" exceptions="+str(DURABILITY_WRITE_EXCEPTIONS))
  t.check(unregistered.is_empty(),"ARCH durability_writes_have_one_entry: every live `.durability` assignment sits in the write port or a declared exception, so no strategy, event branch or replacement pass writes it directly: unregistered="+str(unregistered)+" hits="+str(hits.size())+" sites="+str(sites))
  t.check(stale.is_empty(),"ARCH durability_writes_have_one_entry: every declared row has a real write site in that function (a stale row is red, never silently vacuous): stale="+str(stale))
- # The port is assignment only (Q2, plan §8): no policy guard, no refresh, no tracker, no settle and
- # no intent parameter yet -- Q4 adds the consequence tier parameter on top of this exact body.
+ # The port keeps the Q4′ shape (A140 #2): one capture of the pre-write tier (the dispatch needs both
+ # tiers), one bare assignment and exactly one consequence dispatch taking (target,value,tighten).
+ # No policy guard, refresh, tracker, settle or feedback belongs here.
  var port=source_func_body_code("res://core/game.gd","_write_durability").strip_edges()
  var params=source_func_params("res://core/game.gd","_write_durability")
+ var statements=[]
+ for line in port.split("\n"):
+  var statement=String(line).strip_edges()
+  if statement!="": statements.append(statement)
  var impure=[]
- for token in ["if ","return ","_refresh_equipment","RopeArt.track","_cleanup","_tier_consequences","_equipment_feedback","_emit","floor_value","locked"]:
+ for token in ["if ","return ","_refresh_equipment","RopeArt.track","_cleanup","_equipment_feedback","_emit","floor_value","locked"]:
   if port.contains(token): impure.append(token)
- t.check(port=="target.durability=value" and params==["target","value"] and impure.is_empty(),"ARCH durability_writes_have_one_entry: the port is one bare assignment taking exactly (target,value), with no guard, refresh, tracker, settle or intent parameter: body="+port+" params="+str(params)+" impure="+str(impure))
+ var calls=port.count("_tier_consequences(")
+ t.check(statements.size()==3 and statements[0]=="var before=tier(target.durability,target.maximum)" and statements[1]=="target.durability=value" and statements[2]=="_tier_consequences(target,before,tier(target.durability,target.maximum),tighten)" and params==["target","value","tighten"] and calls==1 and impure.is_empty(),"ARCH durability_writes_have_one_entry: the port is one pre-write tier capture, one bare assignment and one consequence dispatch taking exactly (target,value,tighten), with no guard, refresh, tracker, settle or feedback: statements="+str(statements)+" params="+str(params)+" calls="+str(calls)+" impure="+str(impure))
  # The two record builders hold durability as a literal default, never as an assignment; that is why
  # they are deliberately not registered (registering them would leave the table stale above).
  var builders=["core/game.gd::_template_piece","core/game.gd::_make_assembly_piece"]
@@ -6687,8 +6699,8 @@ static func durability_reroutes_keep_their_order(t) -> void:
   writes+=actual.filter(func(token):return token=="write").size()
   if actual!=DURABILITY_REROUTES[site]: broken.append(site+" expected="+str(DURABILITY_REROUTES[site])+" actual="+str(actual))
  t.check(missing.is_empty(),"ARCH durability_reroutes_keep_their_order: every declared reroute function is locatable in its file: missing="+str(missing))
- t.check(not DURABILITY_REROUTES.is_empty() and broken.is_empty(),"ARCH durability_reroutes_keep_their_order: each rerouted function keeps the pre-reroute call order, so one direct write became one port call in the same slot and the following refresh/cleanup/track stayed in place: broken="+str(broken))
- t.check(writes==16,"ARCH durability_reroutes_keep_their_order: the table covers exactly the 16 port calls the plan names (a row that loses a call or a table that loses a row is red): writes="+str(writes)+" rows="+str(DURABILITY_REROUTES.size()))
+ t.check(not DURABILITY_REROUTES.is_empty() and broken.is_empty(),"ARCH durability_reroutes_keep_their_order: each rerouted function keeps the post-Q4′ call order, so one write still sits in the slot the parent tree wrote and the surviving cleanup/track calls did not move (the six refreshed sites and the two strategy trackers now live in the port rows): broken="+str(broken))
+ t.check(writes==15,"ARCH durability_reroutes_keep_their_order: the table covers exactly the 15 port calls the plan names (a row that loses a call or a table that loses a row is red): writes="+str(writes)+" rows="+str(DURABILITY_REROUTES.size()))
  # boss_key is the one reroute that also hands the lock release to its port before writing durability.
  var boss=code_of_function("core/relic_effects.gd","boss_key")
  t.check(boss.find("_unlock_equipment(lock)")>=0 and boss.find("_write_durability(lock,0.0)")>boss.find("_unlock_equipment(lock)") and not boss.contains("lock.locked="),"ARCH durability_reroutes_keep_their_order: boss_key releases the lock through _unlock_equipment before writing durability and keeps no direct locked write: body="+boss)
@@ -6702,6 +6714,179 @@ static func durability_reroutes_keep_their_order(t) -> void:
  var uses=branch.find("state.hook_uses-=1")
  var emit=branch.find("_emit(")
  t.check(release>=0 and not branch.contains(".durability") and uses>release and emit>uses,"ARCH durability_reroutes_keep_their_order: the hook branch calls _apply_manual_release with the fact's after value, writes no member itself, then decrements uses before emitting: branch="+branch)
+
+# Q4′（rev3.1 gherkin-delta G-Q4-1／3′／4′；A140）：档位后果层。扫描一律走共用扫描源
+# （`unique_path_sites`）＋同一套「定义行排出、字符串字面量排除、逐匹配计数」助手，不另建第二套。
+const TIER_DISPATCH_SITES=["core/game.gd::_install_special","core/game.gd::_install_template","core/game.gd::_write_durability","core/game.gd::_write_quality"]
+const TIER_HANDLER_SITES=["core/game.gd::_tier_consequences"]
+const TIER_REFRESH_SITES=["core/game.gd::_refresh_equipment"]
+const TIER_HANDLER_TOKENS=["refresh","track","reinforcement"]
+# G-Q4-3′：每个耐久写口调用点的收紧意图。值是同一 `文件::函数` 内按源码顺序的意图序列——
+# `room_events.gd::apply_effects` 三个分支意图不同（tighten_to 收紧、remove_restraints／ease_restraint
+# 非收紧），故按调用点而不只按函数记账。收紧＝`_reinforce_equipment`、入狱两处、事件 tighten_to、
+# 驷马缚品质写口；其余（含两个松解分支、开锁、伤害、替换预演）非收紧。
+const DURABILITY_CAUSE_INTENTS={
+ "core/game.gd::_reinforce_equipment":["tighten","tighten"],
+ "core/game.gd::_unlock_equipment":["ease"],
+ "core/game.gd::_apply_manual_release":["ease"],
+ "core/game.gd::_apply_equipment_damage":["ease","ease"],
+ "core/prison.gd::intake_equipment":["tighten","tighten"],
+ "core/prison.gd::execute":["tighten"],
+ "core/room_events.gd::apply_effects":["tighten","ease","ease"],
+ "core/relic_effects.gd::boss_key":["ease"],
+ "core/equipment_replacement.gd::_force_special_live":["ease"],
+ "core/equipment_replacement.gd::_trial":["ease"]}
+# G-Q4-3′：品质写口只有一个调用方（驷马缚升级），且不经耐久写口（A140 #1：派发必须看到 `variant`）。
+const QUALITY_WRITE_SITES=["core/rope_master.gd::hogtie"]
+# G-Q4-4′：期望副本。行＝新装行（L03–L08，`install`）＋收紧行（`tighten`，全套刷新）＋
+# 非收紧行（`ease`，只追踪）。类别：P 普通件、C 复合组件、S 肩带件、X 特殊件、R 加固带、K 链接。
+const TIER_CONSEQUENCE_ROWS={
+ "install":{
+  "P":["refresh"],
+  "C":[],
+  "S":[],
+  "X":["reinforcement"],
+  "R":[],
+  "K":[]},
+ "tighten":{
+  "P":["refresh"],"C":["refresh"],"S":["refresh"],"X":["refresh"],"R":["refresh"],"K":["refresh"]},
+ "ease":{
+  "P":["track"],"C":["track"],"S":["track"],"X":["track"],"R":["track"],"K":["track"]}}
+
+# 调用实参的顶层切分（括号／方括号／花括号深度；共用扫描按行取文本，跨行实参在这条通道上本就不成形）。
+static func call_arguments(text: String, name: String, from_index: int) -> Array:
+ var at=text.find(name+"(",from_index)
+ if at<0: return []
+ var depth=0
+ var args=[]
+ var current=""
+ for index in range(at+name.length()+1,text.length()):
+  var ch=text[index]
+  if ch in ["(","[","{"]:
+   depth+=1;current+=ch
+  elif ch in [")","]","}"]:
+   if depth==0:
+    args.append(current.strip_edges())
+    return args
+   depth-=1;current+=ch
+  elif ch=="," and depth==0:
+   args.append(current.strip_edges());current=""
+  else:
+   current+=ch
+ return args
+
+# 共用扫描源里 `name(` 的调用点（逐匹配计数）：`func name(` 定义行排出，字符串字面量内的同形排除，
+# 归属函数取共用扫描源给出的当前声明。
+static func consequence_call_rows(name: String) -> Array:
+ var rows=[]
+ var call=RegEx.new()
+ var definition=RegEx.new()
+ var pattern="(?<![A-Za-z0-9_])"+name+"\\s*\\("
+ if call.compile(pattern)!=OK or definition.compile("^(?:static\\s+)?func\\s+"+name+"\\s*\\(")!=OK: return rows
+ for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,pattern):
+  var text=String(hit.text)
+  if definition.search(text)!=null: continue
+  var cursor=0
+  while true:
+   var found=call.search(text,cursor)
+   if found==null: break
+   cursor=found.get_end()
+   if settle_match_in_string(text,found.get_start()): continue
+   rows.append({"site":String(hit.file)+"::"+String(hit.function),"at":found.get_start(),"text":text})
+ return rows
+
+static func call_site_names(rows: Array) -> Array:
+ var names=[]
+ for row in rows:
+  if String(row.site) not in names: names.append(String(row.site))
+ names.sort()
+ return names
+
+# 每个 `_write_durability(` 调用的意图：第三实参恰为 `true`＝收紧；缺省或 `false`＝非收紧；其它＝unknown。
+static func durability_intent_rows() -> Array:
+ var rows=[]
+ for row in consequence_call_rows("_write_durability"):
+  var args=call_arguments(String(row.text),"_write_durability",int(row.at))
+  var intent="ease"
+  if args.size()>=3:
+   intent="tighten" if String(args[2])=="true" else ("ease" if String(args[2])=="false" else "unknown")
+  elif args.size()!=2:
+   intent="unknown"
+  rows.append({"site":String(row.site),"intent":intent})
+ return rows
+
+# G-Q4-1：档位后果只有一个派发点。
+static func tier_consequences_have_one_dispatch(t) -> void:
+ var refresh=call_site_names(consequence_call_rows("_refresh_equipment"))
+ var dispatch=call_site_names(consequence_call_rows("_tier_consequences"))
+ var binding=call_site_names(consequence_call_rows("Binding.refresh"))
+ var shoulders=call_site_names(consequence_call_rows("Shoulders.refresh"))
+ t.check(refresh==TIER_HANDLER_SITES,"ARCH tier_consequences_have_one_dispatch: the refresh handler set runs only inside the one dispatcher, so no cause, factory or event branch calls _refresh_equipment itself (a restored line is red): refresh="+str(refresh)+" expected="+str(TIER_HANDLER_SITES))
+ t.check(dispatch==TIER_DISPATCH_SITES,"ARCH tier_consequences_have_one_dispatch: the dispatcher is called only by the durability port, the quality write and the two factory new-install positions (an added caller is red): dispatch="+str(dispatch)+" expected="+str(TIER_DISPATCH_SITES))
+ t.check(binding==TIER_REFRESH_SITES and shoulders==TIER_REFRESH_SITES,"ARCH tier_consequences_have_one_dispatch: the binding and shoulder rules run only inside the refresh handler set (a second orchestration would duplicate the crossing/fill order): binding="+str(binding)+" shoulders="+str(shoulders)+" expected="+str(TIER_REFRESH_SITES))
+ var manual=code_of_function("core/game.gd","_apply_manual_release")
+ var damage=code_of_function("core/game.gd","_apply_equipment_damage")
+ t.check(manual.strip_edges()!="" and damage.strip_edges()!="" and not manual.contains("RopeArt.track(") and not damage.contains("RopeArt.track("),"ARCH tier_consequences_have_one_dispatch: the two loosening strategies keep no tracker of their own, so the write port's non-tightening row is their only rope-counting path: manual="+str(manual.contains("RopeArt.track("))+" damage="+str(damage.contains("RopeArt.track(")))
+ var refreshing=[]
+ for site in DURABILITY_CAUSE_INTENTS:
+  var parts=String(site).split("::")
+  if code_of_function(parts[0],parts[1]).contains("_refresh_equipment("): refreshing.append(String(site))
+ t.check(not DURABILITY_CAUSE_INTENTS.is_empty() and refreshing.is_empty(),"ARCH tier_consequences_have_one_dispatch: no declared cause function reaches the refresh handler set directly (each consequence leaves through the port): refreshing="+str(refreshing))
+
+# G-Q4-3′（取代 rev3 G-Q4-3）：每个写口调用点的收紧意图已声明；品质写口只被驷马缚升级调用并按收紧派发。
+static func durability_cause_intents_are_declared(t) -> void:
+ var rows=durability_intent_rows()
+ var actual={}
+ for row in rows: actual[String(row.site)]=actual.get(String(row.site),[])+[String(row.intent)]
+ var unknown=rows.filter(func(row):return String(row.intent)=="unknown").map(func(row):return String(row.site)+"@"+str(row.at))
+ t.check(not DURABILITY_CAUSE_INTENTS.is_empty() and not rows.is_empty() and unknown.is_empty(),"ARCH durability_cause_intents_are_declared: every live durability write carries a declared intent argument (tighten=true, otherwise two arguments; an unknown arity or third argument is red, never silently eased): rows="+str(rows.size())+" unknown="+str(unknown))
+ var mismatch=[]
+ for site in DURABILITY_CAUSE_INTENTS:
+  if actual.get(site,[])!=DURABILITY_CAUSE_INTENTS[site]: mismatch.append(String(site)+" declared="+str(DURABILITY_CAUSE_INTENTS[site])+" source="+str(actual.get(site,[])))
+ var undeclared=[]
+ for site in actual:
+  if not DURABILITY_CAUSE_INTENTS.has(site): undeclared.append(String(site)+"="+str(actual[site]))
+ t.check(mismatch.is_empty() and undeclared.is_empty(),"ARCH durability_cause_intents_are_declared: the intent table and the source call sites agree both ways (an eased tightening cause, a re-tightened loosening cause or a new write site without a row is red): mismatch="+str(mismatch)+" undeclared="+str(undeclared))
+ var refreshing=[]
+ for site in DURABILITY_CAUSE_INTENTS:
+  if "ease" not in DURABILITY_CAUSE_INTENTS[site]: continue
+  var parts=String(site).split("::")
+  if code_of_function(parts[0],parts[1]).contains("_refresh_equipment("): refreshing.append(String(site))
+ t.check(refreshing.is_empty(),"ARCH durability_cause_intents_are_declared: a cause declared as non-tightening never runs the refresh handler set itself (B2′): refreshing="+str(refreshing))
+ var quality=call_site_names(consequence_call_rows("_write_quality"))
+ t.check(quality==QUALITY_WRITE_SITES,"ARCH durability_cause_intents_are_declared: the quality write is called by the hogtie upgrade only: quality="+str(quality)+" expected="+str(QUALITY_WRITE_SITES))
+ var body=code_of_function("core/game.gd","_write_quality")
+ var dispatch_at=body.find("_tier_consequences(")
+ var dispatch_args=[] if dispatch_at<0 else call_arguments(body,"_tier_consequences",dispatch_at)
+ t.check(body.strip_edges()!="" and not body.contains("_write_durability(") and dispatch_args.size()==4 and String(dispatch_args[3])=="true","ARCH durability_cause_intents_are_declared: the quality write rewrites its fields first, dispatches exactly once as a tightening intent and never goes through the durability port (A140 #1): args="+str(dispatch_args))
+
+# G-Q4-4′（取代 rev3 G-Q4-4）：后果表＝新装行＋两条意图行；表外键 push_error 且不执行任何处理器。
+static func tier_consequence_table_matches_rows(t) -> void:
+ var actual=GameCore.TIER_CONSEQUENCES
+ t.check(actual is Dictionary and not actual.is_empty() and not TIER_CONSEQUENCE_ROWS.is_empty(),"ARCH tier_consequence_table_matches_rows: the product table and the expected copy are both non-empty dictionaries (an emptied table made the comparison vacuous): actual="+str(actual)+" expected="+str(TIER_CONSEQUENCE_ROWS))
+ var diffs=[]
+ if actual is Dictionary:
+  for row in TIER_CONSEQUENCE_ROWS:
+   if not actual.has(row): diffs.append(String(row)+":missing"); continue
+   for key in TIER_CONSEQUENCE_ROWS[row]:
+    if not (actual[row] is Dictionary) or not actual[row].has(key): diffs.append(String(row)+"/"+String(key)+":missing"); continue
+    if actual[row][key]!=TIER_CONSEQUENCE_ROWS[row][key]: diffs.append(String(row)+"/"+String(key)+" actual="+str(actual[row][key])+" expected="+str(TIER_CONSEQUENCE_ROWS[row][key]))
+   for key in actual[row]:
+    if not TIER_CONSEQUENCE_ROWS[row].has(key): diffs.append(String(row)+"/"+String(key)+":unexpected")
+  for row in actual:
+   if not TIER_CONSEQUENCE_ROWS.has(row): diffs.append(String(row)+":unexpected")
+ t.check(diffs.is_empty(),"ARCH tier_consequence_table_matches_rows: the table equals the expected install/tighten/ease rows item by item (a handler added to a row, a class dropped or a demotion row is red): diffs="+str(diffs))
+ var non_tightening=[]
+ if actual is Dictionary:
+  for key in actual.get("ease",{}):
+   if "refresh" in actual.ease[key]: non_tightening.append(String(key))
+ t.check(non_tightening.is_empty(),"ARCH tier_consequence_table_matches_rows: the non-tightening row never refreshes and the table carries no demotion row (the crossing release belongs to the settle point): refreshing="+str(non_tightening))
+ var body=code_of_function("core/game.gd","_tier_consequences")
+ var lookup=body.find("TIER_CONSEQUENCES.get(")
+ var error=body.find("push_error(")
+ var guard=body.find("return")
+ var handler=body.find("_refresh_equipment(")
+ t.check(lookup>=0 and error>lookup and guard>error and (handler<0 or handler>guard),"ARCH tier_consequence_table_matches_rows: an undeclared row or class is pushed as an error and returns before any handler runs (an unknown key is never silently written): lookup="+str(lookup)+" error="+str(error)+" return="+str(guard)+" handler="+str(handler))
 
 # G-Q3-1′（rev3.1 plan-delta §3.2；协调者 A127 H4=A）：加减收口普查的 21 个结算点。列：`文件::函数`、
 # 模式（released＝`_cleanup()`；quiet＝`_cleanup(false)`）、类（①／②／③）。一行即一个调用点，所以同一

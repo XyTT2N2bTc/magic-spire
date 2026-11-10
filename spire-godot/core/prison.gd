@@ -84,13 +84,11 @@ static func intake_equipment(g) -> Dictionary:
    var current=g.equipment_tier(piece)
    var desired=mini(3,current+1) if enough else maxi(2,current)
    if desired>current:
-    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,desired))
-    g._refresh_equipment(piece)
+    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,desired),true)
   # Tightening a host can create fresh straps; they share the intake minimum.
   for piece in g.physical_pieces():
    if not g.Equipment.lock_only(piece) and not g.Equipment.is_shackle(piece) and g.equipment_tier(piece)<2:
-    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,2))
-    g._refresh_equipment(piece)
+    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,2),true)
  var collar={}
  if g.state.security>=B.PRISON_COLLAR_LEVEL:
   var existing=g.state.equipment.filter(func(e):return g.Equipment.lock_only(e))
@@ -325,8 +323,7 @@ static func execute(g, c: Dictionary) -> String:
     for id in original_ids:
      var e=g._equipment(id)
      if e.is_empty() or g.Equipment.is_shackle(e): continue
-     g._write_durability(e,e.maximum)
-     g._refresh_equipment(e)
+     g._write_durability(e,e.maximum,true)
    var toy_outcome={"count":0,"installed":[],"removed":[],"lost_links":[]}
    var toy_requested=p.special_missing.size()+1 if toy_violation else 0
    if toy_violation: toy_outcome=g.Application.execute(g,toy_spec(g,toy_requested,true),"prison","prison")

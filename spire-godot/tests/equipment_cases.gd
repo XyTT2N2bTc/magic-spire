@@ -44,6 +44,179 @@ static func eye_capacity(t) -> void:
  var result=g.Application.execute(g,{"pool":"ordinary","templates":["eye_tape"],"count":1,"grade":2,"tier":3,"replace":true},"event:capacity")
  t.check(result.ok and result.removed.size()==1 and g.equipment_at("eyes").size()==2 and g.equipment_at("eyes").any(func(e):return e.id not in old_ids) and g.validate()=="","EYES authorized replacement swaps one at the two-slot limit without creating a third")
 
+# Q4′（G-Q4-2／6／8）共用：只数「形成了…」事件与 `state.rng.binding` 的增量，肩带/入列文案不计。
+static func _binding_mark(g) -> Dictionary:
+ return {"rng":int(g.state.rng.binding),"logs":g.state.logs.size()}
+
+static func _added_texts(g, mark: Dictionary) -> Array:
+ return g.state.logs.slice(int(mark.logs)).map(func(row):return String(row.text))
+
+static func _formed_count(texts: Array) -> int:
+ return texts.filter(func(text):return String(text).contains("形成了")).size()
+
+# 满值、可上锁、未上锁的 3 档大臂宿主：连接式固缚记录低于满值，左肩带缺侧、右肩带保留一半耐久。
+# 真值走 `_install_template`（3 档安装即成交叉肩带与固缚），种子上限固定，故同一树内可复现；
+# 找不到连接式记录就返回空，调用方据空表具名红而不是静默跳过。
+static func _equal_value_host(template: String) -> Dictionary:
+ for seed in range(1,96):
+  var g=Game.new(seed)
+  var host=g._install_template(template,"upper_arm",g.Equipment.maximum(3),g.Equipment.maximum(3),false,"fixture",3)
+  if host.is_empty() or String(host.get("binding",{}).get("kind",""))!="linked": continue
+  var right={}
+  for strap in g.Shoulders.attached(g,host):
+   if strap.side=="right": right=strap
+   else: strap.durability=0.0
+  if right.is_empty(): continue
+  host.binding.durability=float(host.binding.maximum)*0.4
+  right.durability=float(right.maximum)*0.5
+  return {"game":g,"host":host,"right":right}
+ return {}
+
+# G-Q4-2（rev3 gherkin；Q4′）：收紧不重抽、不重复事件。每条原因走真实入口，计数只数「形成了…」；
+# 肩带补齐另段验证只补缺侧。
+static func tightening_draws_binding_once(t) -> void:
+ # 档位分支：无记录的 2 档大臂绳升入 3 档 → 抽 1、事件 1。
+ var g=Game.new(42)
+ var piece=g.add_fixture("upper_arm",8,16,false,0,"rope")
+ var mark=_binding_mark(g)
+ var change=g._reinforce_equipment(piece)
+ var drawn=int(g.state.rng.binding)-int(mark.rng)
+ t.check(g.equipment_tier(piece)==3 and drawn==1 and _formed_count(_added_texts(g,mark))==1 and piece.has("binding"),"REMOVAL tightening_draws_binding_once: the tier branch lifts a recordless piece into tier three with exactly one binding draw and one formed event: change="+change+" draws="+str(drawn)+" formed="+str(_formed_count(_added_texts(g,mark))))
+ # 锁定分支（皮带可上锁）与同值档位分支（绳索不可上锁）：已有连接式记录的满值 3 档件原地收紧
+ # → 抽 0、事件 1 且 refreshed=true。
+ for template in ["belt","rope"]:
+  var fixture=_equal_value_host(template)
+  t.check(not fixture.is_empty(),"REMOVAL tightening_draws_binding_once: the "+template+" fixture reaches a full tier-three host with a linked record below its maximum through the real install path: "+str(fixture.keys()))
+  if fixture.is_empty(): continue
+  var host=fixture.host
+  var right=fixture.right
+  var right_durability=float(right.durability)
+  var binding_max=float(host.binding.maximum)
+  mark=_binding_mark(fixture.game)
+  fixture.game._reinforce_equipment(host)
+  var added=fixture.game.state.logs.slice(int(mark.logs))
+  drawn=int(fixture.game.state.rng.binding)-int(mark.rng)
+  var refreshed=added.filter(func(row):return row.data.get("torso_binding",{}).get("refreshed",false))
+  var straps=fixture.game.Shoulders.attached(fixture.game,host)
+  t.check(is_equal_approx(float(host.binding.durability),binding_max) and drawn==0 and _formed_count(_added_texts(fixture.game,mark))==1 and refreshed.size()==1 and straps.size()==2,"REMOVAL tightening_draws_binding_once: the "+template+" equal-value tightening refills the existing linked record in place with no new draw and one refreshed formed event, and the missing side returns: durability="+str(host.binding.durability)+"/"+str(binding_max)+" draws="+str(drawn)+" formed="+str(_formed_count(_added_texts(fixture.game,mark)))+" refreshed="+str(refreshed.size())+" straps="+str(straps.size()))
+  t.check(straps.any(func(strap):return strap.id==right.id and is_equal_approx(float(strap.durability),right_durability)),"REMOVAL tightening_draws_binding_once: the "+template+" fill repairs only the missing side and never resets the surviving one: right="+str(right.id)+" durability="+str(right.durability)+"/"+str(right_durability))
+ # 事件「收紧到档」：2 档无记录 → 抽 1、事件 1。
+ g=Game.new(42)
+ var event_target=g.add_fixture("upper_arm",8,16,false,0,"rope")
+ mark=_binding_mark(g)
+ t.check(g.Events.apply_effects(g,[{"op":"tighten_to","target":event_target.id,"tier":3}],{})=="" and g.equipment_tier(event_target)==3 and int(g.state.rng.binding)-int(mark.rng)==1 and _formed_count(_added_texts(g,mark))==1,"REMOVAL tightening_draws_binding_once: the tighten_to event lifts a recordless piece into tier three with exactly one draw and one formed event: draws="+str(int(g.state.rng.binding)-int(mark.rng))+" formed="+str(_formed_count(_added_texts(g,mark))))
+ # 入狱收紧：保底已满（六件）时只收紧 1 档，唯一可固缚件 2→3 → 抽 1、事件 1。
+ g=Game.new(42)
+ g.state.security=1
+ var intake_target={}
+ for slot in ["thigh","calf","ankle","foot","palm","upper_arm"]:
+  var template="rope" if slot=="upper_arm" else "belt"
+  var worn=g._install_template(template,slot,20,32,false,"fixture",1)
+  if slot=="upper_arm": intake_target=worn
+ mark=_binding_mark(g)
+ var intake=g.Prison.intake_equipment(g)
+ drawn=int(g.state.rng.binding)-int(mark.rng)
+ t.check(not intake_target.is_empty() and g.equipment_tier(intake_target)==3 and drawn==1 and _formed_count(_added_texts(g,mark))==1,"REMOVAL tightening_draws_binding_once: intake at a full floor tightens the one bindable piece into tier three with exactly one draw and one formed event: draws="+str(drawn)+" formed="+str(_formed_count(_added_texts(g,mark)))+" enough="+str(intake.get("enough",false)))
+ # 巡视违规收紧：同上三件旧件，安全等级 1 的补装都停在 2 档，唯一可固缚件 2→3 → 抽 1、事件 1。
+ g=Game.new(42)
+ g.state.security=1
+ g.state.phase="inspection"
+ g.state.prison.stage="result"
+ g.state.prison.missing=[g._install_template("belt","thigh",12,32,false,"fixture",1).id]
+ g.state.prison.special_missing=[]
+ g.state.prison.baseline=[]
+ g.state.prison.special_baseline=[]
+ g.state.prison.sentence_extra=0
+ g.state.prison.checks=0
+ g.state.prison.report=""
+ var watch=g._install_template("rope","upper_arm",12,32,false,"fixture",1)
+ g._install_template("belt","calf",12,32,false,"fixture",1)
+ mark=_binding_mark(g)
+ g.Prison.execute(g,{"payload":{"action":"accept"}})
+ drawn=int(g.state.rng.binding)-int(mark.rng)
+ t.check(not watch.is_empty() and g.equipment_tier(watch)==3 and drawn==1 and _formed_count(_added_texts(g,mark))==1,"REMOVAL tightening_draws_binding_once: the inspection violation tightens every surviving piece to full, and only the recordless bindable one draws once and forms once: draws="+str(drawn)+" formed="+str(_formed_count(_added_texts(g,mark))))
+ # 驷马缚升级：品质写口按收紧派发，但驷马缚不可固缚、且升级把耐久写回 2 档 → 抽 0、事件 0。
+ var rope_game=preload("res://tests/rope_master_cases.gd").encounter()
+ var boss=rope_game.RopeArt.master(rope_game)
+ rope_game.RopeArt.hogtie(rope_game,boss,2)
+ var hog=rope_game._equipment(boss.rope_art.hogtie)
+ mark=_binding_mark(rope_game)
+ rope_game.RopeArt.hogtie(rope_game,boss,3)
+ t.check(not hog.is_empty() and hog.grade==3 and not hog.has("binding") and int(rope_game.state.rng.binding)-int(mark.rng)==0 and _formed_count(_added_texts(rope_game,mark))==0,"REMOVAL tightening_draws_binding_once: a hogtie upgrade changes quality only, drawing no binding and forming no event: draws="+str(int(rope_game.state.rng.binding)-int(mark.rng))+" formed="+str(_formed_count(_added_texts(rope_game,mark))))
+ # 肩带件：3 档肩带自身收紧 → 抽 0、事件 0（肩带不是固缚候选）。
+ var strap_game=Game.new(42)
+ var strap=_crossed_left_strap(strap_game)
+ mark=_binding_mark(strap_game)
+ if not strap.is_empty(): strap_game._reinforce_equipment(strap)
+ t.check(not strap.is_empty() and strap_game.equipment_tier(strap)==3 and int(strap_game.state.rng.binding)-int(mark.rng)==0 and _formed_count(_added_texts(strap_game,mark))==0,"REMOVAL tightening_draws_binding_once: a shoulder strap never draws or forms a torso binding, because the shoulder slot is not a binding candidate: draws="+str(int(strap_game.state.rng.binding)-int(mark.rng))+" formed="+str(_formed_count(_added_texts(strap_game,mark))))
+
+# G-Q4-8（rev3.1 gherkin-delta；A140）：3 档同值写入按原因意图分流。收紧＝锁定分支（耐久同值）→ 固缚
+# 补满、formed 事件 refreshed=true、补回左肩带；非收紧＝0 伤害落在这件上（耐久同值）→ 固缚、肩带、日志都不变。
+static func equal_value_tier3_follows_cause_intent(t) -> void:
+ for template in ["belt","rope"]:
+  var fixture=_equal_value_host(template)
+  t.check(not fixture.is_empty(),"REMOVAL equal_value_tier3_follows_cause_intent: the "+template+" fixture is reachable through the real install path (a full tier-three host, a linked record below its maximum, a missing left strap): "+str(fixture.keys()))
+  if fixture.is_empty(): continue
+  var g=fixture.game
+  var host=fixture.host
+  var binding_before=float(host.binding.durability)
+  var binding_max=float(host.binding.maximum)
+  var right=fixture.right
+  var right_durability=float(right.durability)
+  var mark=_binding_mark(g)
+  g._reinforce_equipment(host)
+  var added=g.state.logs.slice(int(mark.logs))
+  var refreshed=added.filter(func(row):return row.data.get("torso_binding",{}).get("refreshed",false))
+  var straps=g.Shoulders.attached(g,host)
+  t.check(is_equal_approx(binding_before,binding_max*0.4) and is_equal_approx(float(host.binding.durability),binding_max) and refreshed.size()==1 and straps.size()==2 and straps.any(func(strap):return strap.id==right.id and is_equal_approx(float(strap.durability),right_durability)),"REMOVAL equal_value_tier3_follows_cause_intent: a tightening write at an unchanged value still refills the linked record, announces refreshed=true and repairs only the missing strap: template="+template+" binding="+str(binding_before)+"->"+str(host.binding.durability)+"/"+str(binding_max)+" refreshed="+str(refreshed.size())+" straps="+str(straps.size()))
+  # 同一局面的另一份副本：0 伤害命中同一件（写入同值），只追踪。
+  var copy=_equal_value_host(template)
+  if copy.is_empty(): continue
+  var cg=copy.game
+  var chost=copy.host
+  var cright=copy.right
+  var copy_binding=float(chost.binding.durability)
+  var copy_right=float(cright.durability)
+  var copy_straps=cg.Shoulders.attached(cg,chost).size()
+  var copy_logs=cg.state.logs.size()
+  var copy_rng=int(cg.state.rng.binding)
+  cg._apply_equipment_damage(chost,0.0,"passive_slip",true)
+  t.check(is_equal_approx(float(chost.binding.durability),copy_binding) and cg.Shoulders.attached(cg,chost).size()==copy_straps and cg.state.logs.size()==copy_logs and int(cg.state.rng.binding)==copy_rng and is_equal_approx(float(cright.durability),copy_right),"REMOVAL equal_value_tier3_follows_cause_intent: a zero-damage write at an unchanged value stays non-tightening, so the linked record, the missing strap, the logs and the binding counter are untouched: template="+template+" binding="+str(chost.binding.durability)+"/"+str(copy_binding)+" straps="+str(cg.Shoulders.attached(cg,chost).size())+"/"+str(copy_straps)+" logs="+str(cg.state.logs.size())+"/"+str(copy_logs)+" rng="+str(cg.state.rng.binding)+"/"+str(copy_rng))
+
+# G-Q4-6（rev3 gherkin；Q4′）：非收紧行新增的绳艺追踪只会是空操作（数据钉子）。镣铐模板、诅咒平板锁
+# 设计、复合套体与肩带模板都不是 rope；替换事务的两个入口全程 `_rope_trial=true`（`RopeArt.track` 首行
+# 即返回）；`hook_facts()` 在非 rest 相位为空。
+static func settle_writes_track_only_rope_or_no_op(t) -> void:
+ var rope_templates=[]
+ for template in E.TEMPLATES:
+  var spec=E.TEMPLATES[template]
+  if bool(spec.get("shackle",false)) and String(spec.get("material",""))=="rope": rope_templates.append(String(template))
+ var shackles=E.TEMPLATES.keys().filter(func(template):return bool(E.TEMPLATES[template].get("shackle",false)))
+ t.check(not shackles.is_empty() and rope_templates.is_empty(),"REMOVAL settle_writes_track_only_rope_or_no_op: the shackle class is non-empty and no shackle template is made of rope, so the non-tightening tracker can only be a no-op on key release: shackles="+str(shackles)+" rope="+str(rope_templates))
+ var special=preload("res://data/special_equipment.gd")
+ var plate=special.DESIGNS.get("cursed_plate_lock",{})
+ t.check(not plate.is_empty() and String(plate.get("material",""))!="rope","REMOVAL settle_writes_track_only_rope_or_no_op: the cursed plate lock design is not rope, so the boss-key release cannot start tracking rope art: design="+str(plate.get("material","")))
+ var composites=preload("res://data/composites.gd")
+ var rope_parts=[]
+ var part_rows=0
+ for row in composites.GENERATION:
+  var layout=composites.spec(String(row[0]),String(row[1]),String(row[2]))
+  for key in layout.get("parts",{}):
+   part_rows+=1
+   var template=String(layout.parts[key].template)
+   if E.TEMPLATES.get(template,{}).get("material","")=="rope": rope_parts.append(String(row[0])+"/"+String(row[1])+"/"+String(row[2])+"/"+String(key))
+ t.check(part_rows>0 and rope_parts.is_empty(),"REMOVAL settle_writes_track_only_rope_or_no_op: every composite body, band and shoulder-strap part is non-rope, so a composite damage write or a strap release tracks nothing: parts="+str(part_rows)+" rope="+str(rope_parts))
+ var plan=Arch.code_of_function("core/equipment_replacement.gd","plan")
+ var force=Arch.code_of_function("core/equipment_replacement.gd","force_special")
+ var track=Arch.code_of_function("core/rope_master.gd","track")
+ t.check(plan.contains("g._rope_trial=true") and plan.contains("g._rope_trial=art_trial") and force.contains("g._rope_trial=true") and force.contains("g._rope_trial=art_trial") and track.contains("g._rope_trial"),"REMOVAL settle_writes_track_only_rope_or_no_op: Replacement.plan and force_special hold _rope_trial true for their whole transaction and RopeArt.track早退: plan="+str(plan.contains("g._rope_trial=true"))+" force="+str(force.contains("g._rope_trial=true"))+" track="+str(track.contains("g._rope_trial")))
+ var battle=Game.new(42)
+ battle.state.phase="battle"
+ var battle_facts=battle.hook_facts()
+ battle.state.phase="map"
+ var map_facts=battle.hook_facts()
+ t.check(battle_facts.is_empty() and map_facts.is_empty(),"REMOVAL settle_writes_track_only_rope_or_no_op: hook_facts() is empty outside the rest phase, so no hook release can reach the non-tightening tracker in battle or on the map: battle="+str(battle_facts.size())+" map="+str(map_facts.size()))
+
 static func run(t) -> void:
  leather_slip(t)
  preload("res://tests/shackle_cases.gd").run(t)
@@ -57,6 +230,9 @@ static func run(t) -> void:
  manual_release_guards_stay_in_policy(t)
  cross_release_waits_for_settle(t)
  refresh_only_forms_crossing(t)
+ tightening_draws_binding_once(t)
+ equal_value_tier3_follows_cause_intent(t)
+ settle_writes_track_only_rope_or_no_op(t)
  hook_release_guards_are_already_upstream(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")

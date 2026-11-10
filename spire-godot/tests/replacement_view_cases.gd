@@ -392,7 +392,7 @@ const PARALLEL_ORCHESTRATIONS=[
  # 与绳索追踪属 live 独有（RopeArt.track 见第 6 列），故共用规则集合按所属模块记账（两端都只经它们办这件事）。
  ["O2","core/game.gd::_refresh_equipment","core/equipment_replacement_view.gd::refresh",
   ["Binding.","Equipment.","Shoulders."],
-  false,["RopeArt.track(","_emit(","_equipment_feedback(","Pressure.","Cards."]],
+  false,["RopeArt.track(","_emit(","_equipment_feedback(","Pressure.","Cards.","_tier_consequences(","_write_durability("]],
  ["O3","core/game.gd::_cleanup","core/equipment_replacement_view.gd::cleanup",
   ["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],
   false,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback(","_special_append(","_special_erase("]]]
