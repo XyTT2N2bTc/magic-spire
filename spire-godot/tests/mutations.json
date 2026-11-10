@@ -562,13 +562,13 @@
     },
     "durability_ladder_has_one_source": {
       "file": "core/prison.gd",
-      "find": "    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,2))",
-      "replace": "    g._write_durability(piece,piece.maximum * [0.0, 0.4, 0.8, 1.0][2])",
+      "find": "    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,2),true)",
+      "replace": "    g._write_durability(piece,piece.maximum * [0.0, 0.4, 0.8, 1.0][2],true)",
       "suite": "architecture"
     },
     "durability_writes_have_one_entry": {
       "file": "core/prison.gd",
-      "find": "    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,desired))",
+      "find": "    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,desired),true)",
       "replace": "    piece.durability=g.RestraintValue.durability_for(piece.maximum,desired)",
       "suite": "architecture"
     },
@@ -577,6 +577,42 @@
       "find": " g._unlock_equipment(lock)\n g._write_durability(lock,0.0)",
       "replace": " g._write_durability(lock,0.0)\n g._unlock_equipment(lock)",
       "suite": "architecture"
+    },
+    "tier_consequences_have_one_dispatch": {
+      "file": "core/room_events.gd",
+      "find": "   \"tighten_to\":\n    if target.is_empty() or g.Equipment.is_shackle(target) or g.SpecialEquipment.is_special(target) or e.tier not in [1,2,3] or g.equipment_tier(target)>=e.tier: return \"请选择紧度低于指定档位的可加固目标。\"\n    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),true)",
+      "replace": "   \"tighten_to\":\n    if target.is_empty() or g.Equipment.is_shackle(target) or g.SpecialEquipment.is_special(target) or e.tier not in [1,2,3] or g.equipment_tier(target)>=e.tier: return \"请选择紧度低于指定档位的可加固目标。\"\n    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),true)\n    g._refresh_equipment(target)",
+      "suite": "architecture"
+    },
+    "durability_cause_intents_are_declared": {
+      "file": "core/room_events.gd",
+      "find": "    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),true)\n    if emit_logs: g._emit(\"event\",target.name+\"被收紧到%d档。\" % e.tier)",
+      "replace": "    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),false)\n    if emit_logs: g._emit(\"event\",target.name+\"被收紧到%d档。\" % e.tier)",
+      "suite": "architecture"
+    },
+    "tier_consequence_table_matches_rows": {
+      "file": "core/game.gd",
+      "find": " \"ease\":{\n  \"P\":[\"track\"],",
+      "replace": " \"ease\":{\n  \"P\":[\"track\",\"reinforcement\"],",
+      "suite": "architecture"
+    },
+    "tightening_draws_binding_once": {
+      "file": "core/torso_binding.gd",
+      "find": " var old=e.get(\"binding\",{})\n var next=resolve(g,e,g._random_index)",
+      "replace": " var old={}\n var next=resolve(g,e,g._random_index)",
+      "suite": "equipment"
+    },
+    "equal_value_tier3_follows_cause_intent": {
+      "file": "core/game.gd",
+      "find": " var row=\"install\" if before<0 else (\"tighten\" if tighten else \"ease\")",
+      "replace": " var row=\"install\" if before<0 else (\"tighten\" if tighten or after>=before else \"ease\")",
+      "suite": "equipment"
+    },
+    "settle_writes_track_only_rope_or_no_op": {
+      "file": "data/equipment.gd",
+      "find": " \"handcuffs\":{\"name\":\"手铐\",\"material\":\"metal\"",
+      "replace": " \"handcuffs\":{\"name\":\"手铐\",\"material\":\"rope\"",
+      "suite": "equipment"
     },
     "manual_release_guards_stay_in_policy": {
       "file": "core/game.gd",
