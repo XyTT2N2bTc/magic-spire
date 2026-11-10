@@ -38,15 +38,19 @@ static func install_reason(g, host: Dictionary, template: String, grade: int) ->
 static func install(g, host: Dictionary, template: String, grade: int, source: String) -> bool:
  if install_reason(g,host,template,grade)!="": return false
  host.shoulders={"template":template,"grade":grade,"variant":0,"source":source,"pieces":[]}
+ g._member_changed(host,"added")
  fill(g,host)
  return true
 
 static func fill(g, host: Dictionary) -> void:
  var pair=host.shoulders
+ var released_pieces=pair.pieces.filter(func(e):return e.durability<=0.000001)
  pair.pieces=pair.pieces.filter(func(e):return e.durability>0.000001)
+ for e in released_pieces: g._member_changed(e,"removed")
  for side in SIDES:
   if pair.pieces.any(func(e):return e.side==side and e.durability>0.000001): continue
   pair.pieces.append(pair_pieces(g,host,side))
+  g._member_changed(pair.pieces.back(),"added")
   g._equipment_feedback(pair.pieces.back(),pair.pieces.back().durability,true)
   g._emit("event",label(pair.template,side)+"已连到"+g._equipment_name(host)+"，紧度%d档。" % pair.grade,{"shoulder":{"host":host.id,"side":side,"installed":true}})
   g.Cards.restraint_changed(g,"worn")
@@ -83,6 +87,7 @@ static func cleanup(g) -> void:
   for e in host.shoulders.pieces.duplicate():
    if not released_with_host(host,e): continue
    host.shoulders.pieces.erase(e)
+   g._member_changed(e,"removed")
    g._emit("event",e.name+("随原拘束具一起解除。" if host.durability<=0.000001 else "已解除，另一侧独立保留。"),{"shoulder":{"host":host.id,"side":e.side,"removed":true}})
 
 # A strap leaves with its host: a broken strap and a broken host are the same removal rule, so

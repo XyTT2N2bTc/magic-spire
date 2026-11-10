@@ -246,6 +246,80 @@ static func settle_writes_track_only_rope_or_no_op(t) -> void:
  var release_tier=track_game.equipment_tier(release_piece) if not release_piece.is_empty() else -1
  t.check(not release_piece.is_empty() and release_before>0 and release_tier==0 and not track_boss.rope_art.values.has(release_id) and int(track_boss.rope_art.total)==release_total_before-release_before,"REMOVAL settle_writes_track_only_rope_or_no_op: a non-tightening manual release retires the rope from the art before any settle point, so the master's value map drops the released piece and the total falls in the same call: piece="+release_id+" tier="+str(release_tier)+" tracked="+str(track_boss.rope_art.values.get(release_id,"missing"))+" total="+str(track_boss.rope_art.total)+"/"+str(release_total_before-release_before))
 
+# Q5（G-Q5-2）：版本号单调且只在进程内。七个写口每次进入都严格增大；失败提交回滚与 restore_snapshot
+# 只换 state、不减小计数器；SaveStore.encode／get_view／export_snapshot／dispatch 的 checkpoint 与
+# `_equipment_read` 都不出现版本号字段。原因矩阵的逐行等价由验收两树比对取证，本判据取同一批写口的
+# 直接调用与真实安装／结算路径。
+static func write_epoch_is_monotone_and_private(t) -> void:
+ var g=Game.new(42)
+ var stamp=int(g.write_epoch())
+ var piece=g._install_template("rope","thigh",8.0,10.0,false,"fixture")
+ t.check(not piece.is_empty() and g.write_epoch()>stamp,"REMOVAL write_epoch_is_monotone_and_private: the install factory advances the process-local epoch through its member announcement: before="+str(stamp)+" after="+str(g.write_epoch()))
+ stamp=g.write_epoch();g._write_durability(piece,piece.durability,false)
+ t.check(g.write_epoch()>stamp,"REMOVAL write_epoch_is_monotone_and_private: the durability port advances the epoch on entry, even for an equal value: before="+str(stamp)+" after="+str(g.write_epoch()))
+ stamp=g.write_epoch();g._write_quality(piece,2)
+ t.check(g.write_epoch()>stamp,"REMOVAL write_epoch_is_monotone_and_private: the quality port advances the epoch on entry: before="+str(stamp)+" after="+str(g.write_epoch()))
+ stamp=g.write_epoch();g._write_locked(piece,true)
+ t.check(g.write_epoch()>stamp and bool(piece.get("locked",false)),"REMOVAL write_epoch_is_monotone_and_private: the lock port advances the epoch and writes the lock: before="+str(stamp)+" after="+str(g.write_epoch()))
+ stamp=g.write_epoch();g._write_locked(piece,false)
+ t.check(g.write_epoch()>stamp and not bool(piece.get("locked",true)),"REMOVAL write_epoch_is_monotone_and_private: the unlock path is the same port and advances the epoch: before="+str(stamp)+" after="+str(g.write_epoch()))
+ stamp=g.write_epoch()
+ var root=g._install_assembly("leg","upper","fixture",2,2)
+ var body=root.components.filter(func(e):return String(e.get("part",""))=="body")[0]
+ var band=g._install_template("rope",g.Links.point_slot("below_knee"),8.0,10.0,false,"fixture",1,-1,0,"below_knee")
+ var link=g._install_link(body.id,band.id,4.8,"fixture",1,[],["thigh","calf"],["above_knee","below_knee"])
+ t.check(not root.is_empty() and not band.is_empty() and not link.is_empty() and g.write_epoch()>stamp,"REMOVAL write_epoch_is_monotone_and_private: the assembly, band and link installs advance the epoch through the member announcements: before="+str(stamp)+" after="+str(g.write_epoch()))
+ stamp=g.write_epoch();var special=g._install_special("shaft_ring_low","special_2_a")
+ t.check(not special.is_empty() and g.write_epoch()>stamp,"REMOVAL write_epoch_is_monotone_and_private: the special factory advances the epoch through _special_append: before="+str(stamp)+" after="+str(g.write_epoch()))
+ stamp=g.write_epoch();g._special_erase(special)
+ t.check(g.write_epoch()>stamp and not g.state.special_equipment.has(special),"REMOVAL write_epoch_is_monotone_and_private: _special_erase advances the epoch and removes the record: before="+str(stamp)+" after="+str(g.write_epoch()))
+ stamp=g.write_epoch();g._special_append(special)
+ t.check(g.write_epoch()>stamp and g.state.special_equipment.has(special),"REMOVAL write_epoch_is_monotone_and_private: _special_append advances the epoch and restores the record: before="+str(stamp)+" after="+str(g.write_epoch()))
+ stamp=g.write_epoch();g._members_replaced()
+ t.check(g.write_epoch()==stamp+1,"REMOVAL write_epoch_is_monotone_and_private: the whole-container replacement port advances the epoch exactly once: before="+str(stamp)+" after="+str(g.write_epoch()))
+ var sequence=Game.new(42)
+ var sequence_ok=true
+ var end_result={}
+ for i in range(2):
+  var last=int(sequence.write_epoch())
+  end_result=t.action(sequence,"end")
+  sequence_ok=sequence_ok and sequence.write_epoch()>=last
+ t.check(sequence_ok and end_result.get("ok",false),"REMOVAL write_epoch_is_monotone_and_private: a real action sequence never lowers the epoch and commits normally: epoch="+str(sequence.write_epoch())+" result="+str(end_result.get("error","")))
+ var rollback=Game.new(42)
+ rollback.set_debug_checks_enabled(false)
+ rollback.state.wall_distance=7
+ var rollback_snapshot=rollback.export_snapshot()
+ var rollback_epoch=int(rollback.write_epoch())
+ var rollback_command={}
+ for row in rollback.command_facts():
+  if String(row.payload.get("kind",""))=="end" and row.valid:
+   rollback_command=rollback.command(row.payload,rollback.state.version)
+   break
+ var rollback_result={"ok":false}
+ if not rollback_command.is_empty(): rollback_result=rollback.dispatch(rollback_command,int(rollback.state.version))
+ # The rejected `end` runs its own ports before the post-execution `validate` fails, so the epoch must
+ # have moved and must stay moved: a rollback that restored the counter would land back on the stamp.
+ t.check(not rollback_command.is_empty() and not rollback_result.get("ok",false) and rollback.export_snapshot()==rollback_snapshot and rollback.write_epoch()>rollback_epoch,"REMOVAL write_epoch_is_monotone_and_private: a failed commit rolls the state back byte-for-byte after entering write ports, and the epoch keeps every bump instead of following the rollback: epoch="+str(rollback_epoch)+"->"+str(rollback.write_epoch())+" result="+str(rollback_result.get("error","")))
+ var loaded=Game.new(42)
+ var loaded_snapshot=loaded.export_snapshot()
+ var loaded_epoch=int(loaded.write_epoch())
+ loaded.state.wall_distance=2
+ var loaded_result=loaded.restore_snapshot(loaded_snapshot)
+ t.check(loaded_result.get("ok",false) and loaded.write_epoch()>=loaded_epoch,"REMOVAL write_epoch_is_monotone_and_private: restore_snapshot swaps the state and never lowers the epoch: epoch="+str(loaded_epoch)+"->"+str(loaded.write_epoch()))
+ var encoded=Arch.save_text(loaded.state)
+ var view=JSON.stringify(loaded.get_view())
+ var snapshot=JSON.stringify(loaded.export_snapshot())
+ var checkpoint=JSON.stringify(end_result.get("checkpoint",null))
+ var leaked=[]
+ for token in ["_write_epoch","write_epoch"]:
+  if encoded.contains(token) or view.contains(token) or snapshot.contains(token) or checkpoint.contains(token): leaked.append(token)
+ t.check(leaked.is_empty() and loaded._equipment_read.is_empty() and checkpoint!="null","REMOVAL write_epoch_is_monotone_and_private: the epoch field stays out of the encoded save, the View, the exported snapshot, the committed checkpoint and the equipment read batch: leaked="+str(leaked)+" checkpoint="+checkpoint+" read_batch="+str(loaded._equipment_read))
+ stamp=int(g.write_epoch());var scope=g._begin_equipment_read()
+ g.equipment_at("thigh");g.get_view()
+ g._equipment_read=scope
+ g._write_durability(piece,piece.durability,false)
+ t.check(g.write_epoch()>stamp and g._equipment_read.is_empty(),"REMOVAL write_epoch_is_monotone_and_private: reads and writes leave no epoch or index residue in the equipment read batch: before="+str(stamp)+" after="+str(g.write_epoch())+" read_batch="+str(g._equipment_read))
+
 static func run(t) -> void:
  leather_slip(t)
  preload("res://tests/shackle_cases.gd").run(t)
@@ -262,6 +336,7 @@ static func run(t) -> void:
  tightening_draws_binding_once(t)
  equal_value_tier3_follows_cause_intent(t)
  settle_writes_track_only_rope_or_no_op(t)
+ write_epoch_is_monotone_and_private(t)
  hook_release_guards_are_already_upstream(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")

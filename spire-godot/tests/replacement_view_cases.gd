@@ -395,7 +395,7 @@ const PARALLEL_ORCHESTRATIONS=[
   false,["RopeArt.track(","_emit(","_equipment_feedback(","Pressure.","Cards.","_tier_consequences(","_write_durability("]],
  ["O3","core/game.gd::_cleanup","core/equipment_replacement_view.gd::cleanup",
   ["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],
-  false,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback(","_special_append(","_special_erase("]]]
+  false,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback(","_special_append(","_special_erase(","_member_changed("]]]
 
 # 登记表所在模块：O2 的行标记（A50 R3）与 O1／O3 的产品侧标记一起参与逐行覆盖核对。
 const ORCHESTRATION_SOURCE="tests/replacement_view_cases.gd"

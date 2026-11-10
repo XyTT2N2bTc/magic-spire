@@ -40,6 +40,7 @@ static func execute(g, prepared: Dictionary) -> Dictionary:
  for key in ["_after","removed","installed","lost_links","comparisons"]:
   if fresh.get(key)!=prepared.get(key): return Assess.failure("替换方案的预演结果已改变，需要重新检查。")
  _commit_changes(g,fresh._after)
+ g._members_replaced()
  g.RopeArt.replaced(g,fresh)
  return {"ok":true,"reason":"","removed":fresh.removed.duplicate(),"installed":fresh.installed.duplicate(true),"lost_links":fresh.lost_links.duplicate(),"comparisons":fresh.comparisons.duplicate(true)}
 
@@ -61,6 +62,7 @@ static func force_special(g, type: String, tier: int, source: String) -> Diction
  g._resource_feedback=feedback
  if not result.ok: return result
  _commit_changes(g,after)
+ g._members_replaced()
  g.RopeArt.replaced(g,result)
  return result
 

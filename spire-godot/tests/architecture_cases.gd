@@ -29,6 +29,12 @@ const COPY_BASELINE={
 static func ids_for(values: Array) -> Array:
  return values.map(func(e):return e.get("id",""))
 
+# The save codec is declared once, in this suite: the routing contract pins save_store's scope to
+# architecture,runner,persistence, so another suite must not add a second preload edge. REMOVAL
+# (equipment) reads the encoded save through this helper and the edge stays where it belongs.
+static func save_text(state) -> String:
+ return JSON.stringify(Store.encode(state))
+
 # docs/spec/transition-pipeline.md「证据入口」：读进程内迁移日志（生产代码不带计数器）。
 static func transition_log(g) -> Array:
  var log=g.get("_transition_log")
@@ -1183,6 +1189,9 @@ static func run(t) -> void:
  slice_dependency_directions(t)
  save_compat_only_from_legacy_restore(t)
  equipment_member_writes_have_one_entry(t)
+ write_epoch_bumps_in_every_port(t)
+ lock_writes_have_one_entry(t)
+ member_changes_are_announced(t)
  durability_writes_have_one_entry(t)
  durability_reroutes_keep_their_order(t)
  tier_consequences_have_one_dispatch(t)
@@ -6434,6 +6443,12 @@ static func write_site_names(hits: Array) -> Array:
 static func declaration_text(hits: Array, token: String) -> Array:
  return hits.filter(func(hit):return not String(hit.text).contains(token))
 
+# A declaration line is not a call site: both `func name(` and `static func name(` count. The bare
+# `func ` prefix test missed the latter and made `_commit_changes`'s own definition look like a caller.
+static func declaration_line(text: String) -> bool:
+ var line=String(text).strip_edges()
+ return line.begins_with("func ") or line.begins_with("static func ")
+
 static func slice_dependency_directions(t) -> void:
  var inherited=[]
  for root in ["res://core","res://data"]:
@@ -6598,6 +6613,186 @@ static func equipment_member_writes_have_one_entry(t) -> void:
    indirect.append(receiver+"@"+String(hit.file)+"::"+String(hit.function))
  t.check(indirect.is_empty(),"ARCH equipment_member_writes_have_one_entry: the special-equipment container is written only through the live state path -- a whole-state local alias or a parameter alias would hide the write from every scan above (binding such an alias is not banned, writing through it is; an uncompilable receiver pattern is red, never vacuous): indirect="+str(indirect))
 
+# G-Q5-1（plan §6／§8 Q5；Gherkin G-Q5-1）：七个 live 写口（耐久、品质、锁、特殊件两写口、成员通告、
+# 整容器替换通告）的函数体第一句就是 `_write_epoch+=1`；表与源侧「含递增语句的函数」集合相等。
+# 首句即递增把「先于任何写」变成可判形态，也让删掉任一处递增或新增第二处递增都具名变红。
+const WRITE_EPOCH_SOURCES=[
+ "core/game.gd::_write_durability",
+ "core/game.gd::_write_quality",
+ "core/game.gd::_write_locked",
+ "core/game.gd::_special_append",
+ "core/game.gd::_special_erase",
+ "core/game.gd::_member_changed",
+ "core/game.gd::_members_replaced"]
+const WRITE_EPOCH_BUMP="_write_epoch+=1"
+
+static func write_epoch_bumps_in_every_port(t) -> void:
+ var first=[]
+ var bad=[]
+ for site in WRITE_EPOCH_SOURCES:
+  var parts=String(site).split("::")
+  var body=source_func_body_code("res://"+String(parts[0]),String(parts[1]))
+  var statements=[]
+  for line in body.split("\n"):
+   var statement=String(line).strip_edges()
+   if statement!="": statements.append(statement)
+  var bumps=statements.filter(func(statement):return statement==WRITE_EPOCH_BUMP)
+  var opening=String(statements[0]) if not statements.is_empty() else ":missing"
+  first.append(opening)
+  if opening!=WRITE_EPOCH_BUMP or bumps.size()!=1: bad.append(String(site)+":first="+opening+":bumps="+str(bumps.size()))
+ var actual=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"\\b_write_epoch\\s*\\+=\\s*1"))
+ var declared=WRITE_EPOCH_SOURCES.duplicate()
+ declared.sort()
+ t.check(not WRITE_EPOCH_SOURCES.is_empty() and declared==actual,"ARCH write_epoch_bumps_in_every_port: the declared write ports are exactly the source-side functions that bump the epoch (an unregistered bump or a stale row is red, never vacuous): declared="+str(declared)+" actual="+str(actual))
+ t.check(bad.is_empty(),"ARCH write_epoch_bumps_in_every_port: the epoch bump is the first statement of every write port and occurs there exactly once, so the counter moves before any write: bad="+str(bad)+" first="+str(first))
+
+# G-Q5-3（plan §8 Q5；Gherkin G-Q5-3）：`.locked` 的赋值只许落在唯一写口；例外表只列源侧确有命中的
+# 非状态写（请求字典与界面控件，EV3-25）。四个 live 改道函数都调写口且不再直接写 `.locked`；
+# `boss_key` 已在 Q2 改调 `_unlock_equipment`，不在本表。
+const LOCK_WRITERS=["core/game.gd::_write_locked"]
+const LOCK_WRITE_EXCEPTIONS=[
+ "core/equipment_application.gd::_raw",
+ "core/equipment_application.gd::_overrides",
+ "core/equipment_replacement_assess.gd::normalize",
+ "core/self_binding.gd::install_options",
+ "ui/main.gd::_equipment_lock"]
+# 赋值与全部复合赋值，同 DURABILITY_WRITE_PATTERN 的口径（`==` 由 `(?!=)` 挡住）。
+const LOCK_WRITE_PATTERN="\\.locked\\s*(?:<<=|>>=|\\*\\*=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|=)(?!=)"
+const LOCK_LIVE_CALLERS=[
+ "core/game.gd::_reinforce_equipment",
+ "core/game.gd::_execute_enemy_operation",
+ "core/game.gd::_unlock_equipment",
+ "core/prison.gd::intake_equipment"]
+
+static func lock_writes_have_one_entry(t) -> void:
+ var regex=RegEx.new()
+ # Fail-closed (A118 F1): an uncompilable pattern would empty the scans and turn every clause green.
+ var compiled=regex.compile(LOCK_WRITE_PATTERN)==OK
+ var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,LOCK_WRITE_PATTERN)
+ var sites=write_site_names(hits)
+ var declared=LOCK_WRITERS.duplicate()
+ declared.append_array(LOCK_WRITE_EXCEPTIONS)
+ var unregistered=sites.filter(func(name):return name not in declared)
+ var stale=declared.filter(func(name):return name not in sites)
+ t.check(compiled,"ARCH lock_writes_have_one_entry: the lock write pattern compiles (an uncompilable pattern is red, never vacuous): pattern="+LOCK_WRITE_PATTERN)
+ t.check(LOCK_WRITERS==["core/game.gd::_write_locked"] and not LOCK_WRITE_EXCEPTIONS.is_empty(),"ARCH lock_writes_have_one_entry: the write table names exactly the one lock port and the exception table is non-empty (an emptied table made this clause vacuous): writers="+str(LOCK_WRITERS)+" exceptions="+str(LOCK_WRITE_EXCEPTIONS))
+ t.check(unregistered.is_empty(),"ARCH lock_writes_have_one_entry: every live `.locked` assignment sits in the lock port or a declared non-state exception, so no enemy branch, prison intake or unlock path writes it directly: unregistered="+str(unregistered)+" hits="+str(hits.size())+" sites="+str(sites))
+ t.check(stale.is_empty(),"ARCH lock_writes_have_one_entry: every declared row has a real `.locked` write site in that function (a stale exception row is red, never silently vacuous): stale="+str(stale))
+ var calls=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_write_locked\\s*\\(")
+ var callers=write_site_names(calls.filter(func(hit):return not String(hit.text).strip_edges().begins_with("func ")))
+ var expected=LOCK_LIVE_CALLERS.duplicate()
+ expected.sort()
+ callers.sort()
+ var direct=[]
+ for site in LOCK_LIVE_CALLERS:
+  var parts=String(site).split("::")
+  var body=code_of_function(String(parts[0]),String(parts[1]))
+  if compiled and regex.search(body)!=null: direct.append(site)
+ t.check(callers==expected and direct.is_empty(),"ARCH lock_writes_have_one_entry: exactly the four live reroute functions call the lock port and none of them keeps a direct `.locked` write: callers="+str(callers)+" expected="+str(expected)+" direct="+str(direct))
+
+# G-Q5-4（plan §8 Q5；Gherkin G-Q5-4）：G-Q1-1 的四容器写命中、`root.components` 改写、
+# `host.shoulders` 建立与 `pieces` 增删，每处所在函数在写后调 `_member_changed(`（肩带经 `g`）；
+# `_commit_changes` 的两个调用方在之后调 `_members_replaced(`；视图模块零命中。
+# 表值＝该函数体内通告调用的条数：删掉任一处通告或补一处第二通告都红。
+const MEMBER_ANNOUNCEMENT_SITES={
+ "core/game.gd::_install_template":1,
+ "core/game.gd::_install_assembly":1,
+ "core/game.gd::_install_link":1,
+ "core/game.gd::_cleanup":9,
+ "core/game.gd::_special_append":1,
+ "core/game.gd::_special_erase":1,
+ "core/shoulder_links.gd::install":1,
+ "core/shoulder_links.gd::fill":2,
+ "core/shoulder_links.gd::cleanup":1}
+const MEMBERS_REPLACED_SITES={
+ "core/equipment_replacement.gd::execute":1,
+ "core/equipment_replacement.gd::force_special":1}
+# 例外只收「不是 live 成员写」的形态：事务试算副本与整容器提交（既有 Q1 例外）、建件器组装尚未进入
+# state 的新根、以及 `Shoulders.refresh`——它建立的肩带对在同一调用内交给 `fill`，由 fill 的逐侧通告
+# 覆盖新成员（plan §8 Q5 把成员写口列在 install／fill／cleanup，refresh 不在其中）。
+const MEMBER_ANNOUNCEMENT_EXCEPTIONS=[
+ "core/equipment_replacement.gd::_plan",
+ "core/equipment_replacement.gd::_trial",
+ "core/equipment_replacement.gd::_commit_changes",
+ "core/game.gd::_plan_assembly_in",
+ "core/shoulder_links.gd::refresh"]
+# 视图／投影模块对副本的写不属 live 成员写：零通告是要求，不是省略。
+const MEMBER_VIEW_MODULES=["core/game_view.gd","core/equipment_replacement_view.gd"]
+# 读批索引的 `_equipment_read.pieces` 是读取批次的只读字段，不是装备成员容器（`_equipment_read` 不进
+# state、不进存档）；该函数不因 `.pieces` 写形而进成员扫描面。
+const MEMBER_NESTED_SCAN_SKIP=["core/game.gd::_build_equipment_read_index"]
+const MEMBER_NESTED_WRITE_PATTERNS=[
+ "\\.components\\s*=[^=]",
+ "\\.components\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set)\\s*\\(",
+ "\\.shoulders\\s*=\\s*\\{",
+ "\\.pieces\\s*=[^=]",
+ "\\.pieces\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set)\\s*\\("]
+
+static func member_changes_are_announced(t) -> void:
+ var containers=[]
+ for key in VIEW_FIELDS:
+  if not String(key).begins_with("next_"): containers.append(String(key))
+ containers.sort()
+ var hits=[]
+ for shape in _equipment_member_scan_patterns(containers):
+  hits.append_array(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,String(shape)))
+ var sites=write_site_names(hits)
+ var nested_raw=[]
+ for pattern in MEMBER_NESTED_WRITE_PATTERNS:
+  nested_raw.append_array(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,String(pattern)))
+ var nested_sites=write_site_names(nested_raw.filter(func(hit):return String(hit.file) not in MEMBER_VIEW_MODULES and (String(hit.file)+"::"+String(hit.function)) not in MEMBER_NESTED_SCAN_SKIP))
+ var writers=sites.duplicate()
+ for site in nested_sites:
+  if site not in writers: writers.append(site)
+ writers.sort()
+ var declarations=MEMBER_ANNOUNCEMENT_SITES.keys()
+ declarations.sort()
+ var missing=writers.filter(func(site):return site not in MEMBER_ANNOUNCEMENT_EXCEPTIONS and not MEMBER_ANNOUNCEMENT_SITES.has(site))
+ var stale=declarations.filter(func(site):return site not in writers)
+ var stale_exceptions=MEMBER_ANNOUNCEMENT_EXCEPTIONS.filter(func(site):return site not in writers)
+ var skip_stale=MEMBER_NESTED_SCAN_SKIP.filter(func(site):return site not in write_site_names(nested_raw))
+ t.check(not MEMBER_ANNOUNCEMENT_SITES.is_empty() and not MEMBER_ANNOUNCEMENT_EXCEPTIONS.is_empty() and missing.is_empty() and stale.is_empty() and stale_exceptions.is_empty() and skip_stale.is_empty(),"ARCH member_changes_are_announced: every live container and nested member write sits in a declared announcement function or a living exception (no unannounced writer, no stale row, no stale exception), the announcement table is never empty and neither exception is vacuous: writers="+str(writers)+" missing="+str(missing)+" stale="+str(stale)+" stale_exceptions="+str(stale_exceptions)+" skip_stale="+str(skip_stale))
+ var wrong=[]
+ for site in MEMBER_ANNOUNCEMENT_SITES:
+  var parts=String(site).split("::")
+  var body=code_of_function(String(parts[0]),String(parts[1]))
+  var calls=body.count("_member_changed(")
+  if calls!=int(MEMBER_ANNOUNCEMENT_SITES[site]): wrong.append(String(site)+"="+str(calls)+"/"+str(int(MEMBER_ANNOUNCEMENT_SITES[site])))
+ t.check(wrong.is_empty(),"ARCH member_changes_are_announced: each member-writing function carries exactly the declared number of `_member_changed(` calls, after its member write, so deleting one announcement or adding a second is red: wrong="+str(wrong))
+ # 写后位置：每处通告的首行必须晚于该函数第一条成员写行（函数内多处移除各自紧跟通告，见 `_cleanup`）。
+ var announce_hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_member_changed\\s*\\(")
+ var misplaced=[]
+ for site in MEMBER_ANNOUNCEMENT_SITES:
+  var write_lines=[]
+  for hit in hits+nested_raw:
+   if String(hit.file)+"::"+String(hit.function)==String(site): write_lines.append(int(hit.line))
+  var announce_lines=[]
+  for hit in announce_hits:
+   if String(hit.file)+"::"+String(hit.function)==String(site) and not String(hit.text).strip_edges().begins_with("func "): announce_lines.append(int(hit.line))
+  if write_lines.is_empty() or announce_lines.is_empty() or announce_lines.min()<=write_lines.min(): misplaced.append(String(site)+":write="+str(write_lines)+":announce="+str(announce_lines))
+ t.check(misplaced.is_empty(),"ARCH member_changes_are_announced: every announcement call sits after the first member write of its function, so the announcement cannot precede the container write it reports: misplaced="+str(misplaced))
+ var replaced=[]
+ var commit_calls=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_commit_changes\\s*\\(")
+ var commit_sites=write_site_names(commit_calls.filter(func(hit):return not declaration_line(String(hit.text))))
+ var replaced_sites=MEMBERS_REPLACED_SITES.keys()
+ commit_sites.sort()
+ replaced_sites.sort()
+ for site in MEMBERS_REPLACED_SITES:
+  var parts=String(site).split("::")
+  var body=code_of_function(String(parts[0]),String(parts[1]))
+  var calls=body.count("_members_replaced(")
+  var commit=body.find("_commit_changes(")
+  var announced=body.find("_members_replaced(")
+  if calls!=int(MEMBERS_REPLACED_SITES[site]) or commit<0 or announced<commit: replaced.append(String(site)+":calls="+str(calls)+":commit="+str(commit)+":announce="+str(announced))
+ t.check(not MEMBERS_REPLACED_SITES.is_empty() and replaced_sites==commit_sites and replaced.is_empty(),"ARCH member_changes_are_announced: the replacement transaction announces through `_members_replaced()` right after each of its two `_commit_changes` calls, and the caller table matches the source call sites: declared="+str(replaced_sites)+" actual="+str(commit_sites)+" bad="+str(replaced))
+ var view_hits=[]
+ for module in MEMBER_VIEW_MODULES:
+  var text=source_text(String(module))
+  if text.contains("_member_changed(") or text.contains("_members_replaced("): view_hits.append(String(module))
+ var definitions=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"func\\s+_member_changed\\s*\\("))
+ var replaced_definitions=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"func\\s+_members_replaced\\s*\\("))
+ t.check(view_hits.is_empty() and definitions==["core/game.gd::_member_changed"] and replaced_definitions==["core/game.gd::_members_replaced"],"ARCH member_changes_are_announced: the two announcement ports have exactly one definition each and the view modules never call them (a projection copy is not a live member write): view="+str(view_hits)+" definitions="+str(definitions)+" replaced="+str(replaced_definitions))
+
 # G-Q2-1（plan §8「Q2 耐久写口」；A66、A68 C-7；Q4′ A140 #1）：`.durability` 的 live 赋值与复合赋值只
 # 出现在唯一写口 `core/game.gd::_write_durability`；三处登记例外是建件（`_special_piece`）、品质写口
 # （`_write_quality`，驷马缚升级按 A140 #1 连 `.durability` 一起重写品质字段）与视图孪生
@@ -6648,9 +6843,11 @@ static func durability_writes_have_one_entry(t) -> void:
  t.check(DURABILITY_WRITERS==["core/game.gd::_write_durability"] and not DURABILITY_WRITE_EXCEPTIONS.is_empty(),"ARCH durability_writes_have_one_entry: the write table names exactly the one port and the exception table is non-empty (an emptied table made this clause vacuous): writers="+str(DURABILITY_WRITERS)+" exceptions="+str(DURABILITY_WRITE_EXCEPTIONS))
  t.check(unregistered.is_empty(),"ARCH durability_writes_have_one_entry: every live `.durability` assignment sits in the write port or a declared exception, so no strategy, event branch or replacement pass writes it directly: unregistered="+str(unregistered)+" hits="+str(hits.size())+" sites="+str(sites))
  t.check(stale.is_empty(),"ARCH durability_writes_have_one_entry: every declared row has a real write site in that function (a stale row is red, never silently vacuous): stale="+str(stale))
- # The port keeps the Q4′ shape (A140 #2): one capture of the pre-write tier (the dispatch needs both
- # tiers), one bare assignment and exactly one consequence dispatch taking (target,value,tighten).
- # No policy guard, refresh, tracker, settle or feedback belongs here.
+ # The port keeps the Q4′ shape (A140 #2) under the Q5 entry bump (A148 A1): the first statement bumps
+ # the process-local write epoch (G-Q5-1 fixes it as the first statement of every port), then one
+ # capture of the pre-write tier (the dispatch needs both tiers), one bare assignment and exactly one
+ # consequence dispatch taking (target,value,tighten). No policy guard, refresh, tracker, settle or
+ # feedback belongs here.
  var port=source_func_body_code("res://core/game.gd","_write_durability").strip_edges()
  var params=source_func_params("res://core/game.gd","_write_durability")
  var statements=[]
@@ -6661,7 +6858,7 @@ static func durability_writes_have_one_entry(t) -> void:
  for token in ["if ","return ","_refresh_equipment","RopeArt.track","_cleanup","_equipment_feedback","_emit","floor_value","locked"]:
   if port.contains(token): impure.append(token)
  var calls=port.count("_tier_consequences(")
- t.check(statements.size()==3 and statements[0]=="var before=tier(target.durability,target.maximum)" and statements[1]=="target.durability=value" and statements[2]=="_tier_consequences(target,before,tier(target.durability,target.maximum),tighten)" and params==["target","value","tighten"] and calls==1 and impure.is_empty(),"ARCH durability_writes_have_one_entry: the port is one pre-write tier capture, one bare assignment and one consequence dispatch taking exactly (target,value,tighten), with no guard, refresh, tracker, settle or feedback: statements="+str(statements)+" params="+str(params)+" calls="+str(calls)+" impure="+str(impure))
+ t.check(statements.size()==4 and statements[0]=="_write_epoch+=1" and statements[1]=="var before=tier(target.durability,target.maximum)" and statements[2]=="target.durability=value" and statements[3]=="_tier_consequences(target,before,tier(target.durability,target.maximum),tighten)" and params==["target","value","tighten"] and calls==1 and impure.is_empty(),"ARCH durability_writes_have_one_entry: the port is one epoch bump, one pre-write tier capture, one bare assignment and one consequence dispatch taking exactly (target,value,tighten), with no guard, refresh, tracker, settle or feedback: statements="+str(statements)+" params="+str(params)+" calls="+str(calls)+" impure="+str(impure))
  # The two record builders hold durability as a literal default, never as an assignment; that is why
  # they are deliberately not registered (registering them would leave the table stale above).
  var builders=["core/game.gd::_template_piece","core/game.gd::_make_assembly_piece"]
@@ -7519,7 +7716,9 @@ static func assess_never_touches_runtime_fields(t) -> void:
  # 且表里没有幽灵行（表→源侧：每个字段都真在 game.gd 声明）。清空表不再让本条空转。
  var boundary=[]
  var field=RegEx.new()
- var compiled=field.compile("(?<![A-Za-z0-9_])g\\.(_[A-Za-z0-9_]+)(?!\\s*\\()")==OK
+ # B1（A148）：尾部负向断言吃下整个标识符再拒绝「调用」，否则匹配器会回溯出截断名
+ # （`g._members_replaced(` → 幽灵边界 `_members_replace`）。收紧后方法调用不进边界，字段仍进。
+ var compiled=field.compile("(?<![A-Za-z0-9_])g\\.(_[A-Za-z0-9_]+)(?![A-Za-z0-9_]*\\s*\\()")==OK
  if compiled:
   for name in ["plan","force_special"]:
    for hit in field.search_all(code_of_function("core/equipment_replacement.gd",String(name))):

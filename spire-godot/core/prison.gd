@@ -93,7 +93,7 @@ static func intake_equipment(g) -> Dictionary:
  if g.state.security>=B.PRISON_COLLAR_LEVEL:
   var existing=g.state.equipment.filter(func(e):return g.Equipment.lock_only(e))
   if existing.is_empty(): collar=g._install_template("restriction_collar","neck",1.0,1.0,true,"prison",3)
-  else: existing[0].locked=true
+  else: g._write_locked(existing[0],true)
  var toys=toy_spec(g,rule.get("special",2),false)
  if not rule.is_empty(): toys.tier=2
  var special=g.Application.execute(g,toys,"prison","prison").installed

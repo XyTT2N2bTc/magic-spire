@@ -11,6 +11,12 @@ var _equipment_index_issues: Array=[]
 # 文案路由失败记录（docs/ondemand-copy.md「失败语义」）：未知 kind／无效 builder／结果类型不符时追加一条。
 # 只读诊断：不进 state、不进 View、不进存档、不渲染、不做成计数器。
 var copy_router_failures: Array=[]
+# Q5 write epoch (rev3 plan §6／§7, G-Q5-1／2): process-local, bumped once on entering every live write
+# port. It never enters `state`, the View, a save, a checkpoint or the equipment read batch, and it
+# never decreases: a failed dispatch rolls `state` back, a restore swaps `state`, and both leave this
+# counter alone. `write_epoch()` is the only read; Q10's same-call reuse (H6) is the only planned
+# consumer, so today no rule reads it.
+var _write_epoch: int=0
 
 # docs/record/proposals/check-routing-and-per-click-checks.md「二」（人裁定：正常流程下永不为 false 的
 # 每点击完整性检查＝release 里的固定浪费，按 debug 构建判定运行）：默认值只有构建类型这一条来源，
@@ -1494,10 +1500,37 @@ func _special_piece(next_equipment: int, type: String, tightness: int) -> Dictio
 # exceptions. The pair writes members only: ids, announcements and rule decisions stay with the
 # callers.
 func _special_append(item: Dictionary) -> void:
+ _write_epoch+=1
  state.special_equipment.append(item)
+ _member_changed(item,"added")
 
 func _special_erase(item: Dictionary) -> void:
+ _write_epoch+=1
  state.special_equipment.erase(item)
+ _member_changed(item,"removed")
+
+# The lock port (Q5, G-Q5-3): the one live write of a record's `locked`. The callers keep their own
+# guards, ordering and events; only the assignment moves here.
+func _write_locked(target: Dictionary, locked: bool) -> void:
+ _write_epoch+=1
+ target.locked=locked
+
+# The member-change announcement (Q5, G-Q5-4): every live container add/remove and every nested
+# member write announces here, and the whole-container replacement announces through
+# `_members_replaced` right after `_commit_changes`. This slice bumps the epoch only: the body reads
+# no state, writes no record, emits nothing and draws no random. Q6／QX2 add dirty marking and
+# closure accounting; the two parameters are the future key, hence the underscore names here.
+func _member_changed(_record: Dictionary, _change: String) -> void:
+ _write_epoch+=1
+
+# The replacement announcement (Q5): `_commit_changes` is the one whole-container write exception,
+# so its two callers announce the replacement immediately after it.
+func _members_replaced() -> void:
+ _write_epoch+=1
+
+# The only read of the process-local write epoch (Q5). No rule consumes it in this slice.
+func write_epoch() -> int:
+ return _write_epoch
 
 # The durability port (Q2, plan §8「逐片要点·Q2」; Q4′ intent parameter, A140): the single live
 # write of a piece's `durability`. One capture of the pre-write tier, one bare assignment and one
@@ -1505,6 +1538,7 @@ func _special_erase(item: Dictionary) -> void:
 # cause declares only its intent (`tighten`) here. Building a fresh record (`_special_piece`), the
 # quality write (`_write_quality`) and the view twin's copy are the registered exceptions.
 func _write_durability(target: Dictionary, value: float, tighten: bool=false) -> void:
+ _write_epoch+=1
  var before=tier(target.durability,target.maximum)
  target.durability=value
  _tier_consequences(target,before,tier(target.durability,target.maximum),tighten)
@@ -1514,6 +1548,7 @@ func _write_durability(target: Dictionary, value: float, tighten: bool=false) ->
 # It does not go through the durability port, because the dispatch must see `variant` already
 # written. Only caller: `core/rope_master.gd::hogtie`.
 func _write_quality(target: Dictionary, grade: int) -> void:
+ _write_epoch+=1
  var before=tier(target.durability,target.maximum)
  target.grade=grade
  target.maximum=Equipment.maximum(grade)
@@ -1671,6 +1706,7 @@ func _install_assembly(kind: String, variant: String, source: String, grade: int
  if root.is_empty(): return {}
  Binding.cancel_for_assembly(self,root.components)
  state.composites.append(root)
+ _member_changed(root,"added")
  for piece in root.components: _equipment_feedback(piece,piece.durability,true)
  state.next_composite+=1
  RelicEffects._mana_hook(self,"restraint_mana","佩戴"+root.name)
@@ -1706,7 +1742,7 @@ func _reinforcement_locks(target: Dictionary) -> bool:
 func _reinforce_equipment(target: Dictionary, to_tier: int=0) -> String:
  if Equipment.is_shackle(target): return "无法加固"
  if _reinforcement_locks(target):
-  target.locked=true
+  _write_locked(target,true)
   _write_durability(target,target.maximum,true)
   return "加固并上锁，耐久恢复至满值"
  var current=tier(target.durability,target.maximum)
@@ -1741,6 +1777,7 @@ func _install_link(a: String, b: String, durability: float, source: String, grad
  var link=_prepare_link(a,b,durability,source,grade,blocked_slip,connection_slots,connection_points)
  if link.is_empty(): return {}
  state.links.append(link)
+ _member_changed(link,"added")
  _equipment_feedback(link,link.durability,true)
  state.next_link+=1
  RelicEffects._mana_hook(self,"restraint_mana","新增"+link.name)
@@ -2005,7 +2042,7 @@ func _execute_enemy_operation(e: Dictionary, intent: Dictionary) -> void:
   "lock":
    var target = _equipment(intent.target)
    if not target.is_empty() and Equipment.allows(target,"lock") and not target.locked:
-    target.locked = true
+    _write_locked(target,true)
     _emit("event",e.name+"锁住了"+target.name+"。")
    else: _emit("event",e.name+"没有锁住原定目标。")
    if intent.get("final",false): e.gone = true
@@ -2116,6 +2153,7 @@ func _install_template(template: String, slot: String, durability: float, maximu
  if Equipment.validate(e)!="": return {}
  state.next_equipment += 1
  state.equipment.append(e)
+ _member_changed(e,"added")
  _equipment_feedback(e,e.durability,true)
  _tier_consequences(e,-1,tier(e.durability,e.maximum),false)
  RelicEffects._mana_hook(self,"restraint_mana","佩戴"+e.name)
@@ -2256,7 +2294,7 @@ func _strain_release_root(target: Dictionary) -> Dictionary:
 
 # Successful unlocking removes cuffs in the same cleanup as other broken pieces.
 func _unlock_equipment(target: Dictionary) -> void:
- target.locked=false
+ _write_locked(target,false)
  if Equipment.is_shackle(target): _write_durability(target,0.0)
 
 # Shared direct loosening effect; permission and cost belong to the caller's candidate.
@@ -4131,23 +4169,33 @@ func _cleanup(released: bool=true) -> void:
   if _piece_released(e):
    _emit("event",e.name+"已解除。")
    state.equipment.remove_at(i)
+   _member_changed(e,"removed")
  for root in state.composites.duplicate():
   var body=_composite_body(root)
   if _root_head_orphaned(root,_equipment(root.attached_to)):
    state.composites.erase(root)
+   for part in root.components: _member_changed(part,"removed")
+   _member_changed(root,"removed")
    _emit("event","口部固定带已解除，依附其上的头部马具一并移除。")
    continue
   if not body.is_empty() and _released(body):
+   var released_parts=root.components.filter(func(e):return not _component_kept(e))
    root.components=root.components.filter(func(e):return _component_kept(e))
-   if root.components.is_empty(): state.composites.erase(root)
+   for part in released_parts: _member_changed(part,"removed")
+   if root.components.is_empty():
+    state.composites.erase(root)
+    _member_changed(root,"removed")
    _emit("event",root.name+"的套体已解除。"+("附带部件一并解除。" if root.components.is_empty() else ""))
   else:
    var previous_count=root.components.size()
    for part in root.components.duplicate():
     if _released(part):
      root.components.erase(part)
+     _member_changed(part,"removed")
      _emit("event",part.name+"已解除。")
-   if root.components.is_empty(): state.composites.erase(root)
+   if root.components.is_empty():
+    state.composites.erase(root)
+    _member_changed(root,"removed")
    elif not body.is_empty():
     var removed=root.components.size()<previous_count
     if removed and _slip_reason(body)=="": _emit("event","现在可以尝试滑脱"+root.name+"的套体。")
@@ -4155,10 +4203,12 @@ func _cleanup(released: bool=true) -> void:
   RopeArt.track(self,link)
   if _released(link):
    state.links.erase(link)
+   _member_changed(link,"removed")
    _emit("event",link.name+"已解除。")
   elif _link_anchor_lost(link,link_anchors()):
    RopeArt.track(self,link,true)
    state.links.erase(link)
+   _member_changed(link,"removed")
    _emit("event",link.name+"连接的一件装备已解除，这条链接随之移除。")
  Pressure.cleanup(self)
  Pressure.settle_maximum(self,"平板锁解除后")
