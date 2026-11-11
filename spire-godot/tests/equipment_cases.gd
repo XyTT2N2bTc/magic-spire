@@ -372,20 +372,24 @@ static func write_epoch_is_monotone_and_private(t) -> void:
  g._write_durability(piece,piece.durability,false)
  t.check(g.write_epoch()>stamp and g._equipment_read.is_empty(),"REMOVAL write_epoch_is_monotone_and_private: reads and writes leave no epoch or index residue in the equipment read batch: before="+str(stamp)+" after="+str(g.write_epoch())+" read_batch="+str(g._equipment_read))
 
-# Q6′a（G-Q6-7；rev3.4 gherkin「满拘束夹具逐锚点断开序列」）：链接趟的锚点清单在循环前取一次，
-# 且必须在特殊件／普通件／复合件各趟之后取——这样刚被前几趟移除的锚点已不在清单里，链接随之移除。
-# 本条用满拘束夹具逐锚点断开：每例只让一个锚点耐久归零、跑一次真结算，核对「被移除的链接」恰等于
-# 「失去锚点的链接（或自身已释放）」；把外提挪到特殊件趟之前，链接会带着失效端点存活，本条具名红。
-# 夹具经真工厂（_install_assembly／_install_template／_refresh_equipment／_install_special／_install_link）
-# 建局，含普通锚、组件锚、肩带锚与股绳锚特殊件；肩带锚不被合法链接作为端点（Links 规则），
-# 故肩带锚只作「断它不误删链接」的对照例。
+# Q6'a (G-Q6-7; rev3.4 gherkin "the full-restraint fixture's per-anchor disconnect sequence"): the link pass
+# reads its anchor list once before the loop and must read it after the special / ordinary / composite passes,
+# so anchors removed by those passes are already gone and their links follow. This case disconnects one anchor
+# at a time on a full-restraint fixture: each iteration zeroes one anchor's durability and runs one real settle,
+# then checks that the removed links are exactly those that lost an anchor (or were released themselves);
+# hoisting the list before the special pass leaves the link alive, so this case reddens by name.
+# The fixture is built through the real factories (_install_assembly / _install_template / _refresh_equipment /
+# _install_special / _install_link) and holds ordinary, component, strap and crotch-rope special anchors. No
+# existing fixture does that (r1_install_equipment uses the test writer `add_fixture` and clears links), so the
+# fixture stays local. A shoulder strap is never a legal link end (Links rules), so straps only serve as the
+# control case "breaking one removes no link".
 static func _full_restraint() -> Dictionary:
  var g=Game.new(42)
  g.state.phase="map"
  g.state.equipment=[];g.state.composites=[];g.state.special_equipment=[];g.state.links=[]
  g.state.next_equipment=1
  g.state.pressure=0.0
- # 先装腿套：它占住大腿覆盖位，后装的普通件只能绕开，装配件才进得了场。
+ # Install the leg assembly first: it holds the thigh coverage, later ordinary pieces must go around it, and the assembly can get in.
  g._install_assembly("leg","upper","fixture",2,2)
  var templates=["rope","belt","tape","cable_tie","cord","fine_belt"]
  for slot in E.B.ARM_SLOTS+E.B.LEG_SLOTS+["eyes","mouth","neck"]:
@@ -396,13 +400,13 @@ static func _full_restraint() -> Dictionary:
      if piece.is_empty(): continue
      if side!="": piece.side=side
      break
- # 三档宿主在刷新时结成肩带（Shoulders.refresh 的唯一入口）。
+ # Three-tier hosts form shoulder straps on refresh (the one entry, Shoulders.refresh).
  for host in g.state.equipment.duplicate(): g._refresh_equipment(host)
  for root in g.state.composites.duplicate():
   for part in root.components.duplicate(): g._refresh_equipment(part)
  for pair in [["crotch_rope_high","special_3_a"],["nipple_clamp_medium","special_1_a"],["shaft_ring_medium","special_2_a"]]:
   g._install_special(String(pair[0]),String(pair[1]),3)
- # 链接走合法枚举：每个锚点至多装一条，装不下就跳过（规则由 Links 判定，不由本夹具代写）。
+ # Links go through legal enumeration: at most one link per anchor, skip when it does not fit (the Links judgment owns the rule; the fixture does not write it).
  for anchor in g.link_anchors():
   for other in g.link_anchors():
    if String(other.id)==String(anchor.id): continue
@@ -411,7 +415,7 @@ static func _full_restraint() -> Dictionary:
  var pieces=g.physical_pieces()
  var points=0
  for piece in pieces: points+=E.physical_points(piece).size()
- # 两类清点分开：锚点种类（含肩带）与链接端点种类（肩带不被合法链接接受，故端点里没有它）。
+ # Count two separate faces: anchor kinds (straps included) and link-end kinds (straps are not accepted as link ends, so they are absent here).
  var anchor_kinds={}
  for anchor in g.link_anchors():
   var kind="special" if String(anchor.get("template",""))=="special" else ("component" if anchor.has("root_id") else ("strap" if anchor.has("shoulder_host") else "ordinary"))
@@ -425,19 +429,16 @@ static func _full_restraint() -> Dictionary:
     kinds[kind]=int(kinds.get(kind,0))+1
  return {"game":g,"pieces":pieces.size(),"points":points,"links":g.state.links.size(),"anchors":g.link_anchors().size(),"kinds":kinds,"anchor_kinds":anchor_kinds}
 
-# 锚点记录：普通件／特殊件／复合件组件／宿主肩带四处之一；找不到返回空表（调用方据此具名红）。
+# The anchor record: one of an ordinary piece, a special piece, a composite component or a host's shoulder
+# strap; empty when absent (the caller names that in the error). `physical_pieces()` is the product's own
+# single materializer of equipment + composite components + shoulder straps, so this helper does not re-list
+# those containers; special pieces are not physical pieces (only the crotch anchor is a link anchor) and are
+# added explicitly.
 static func _anchor_record(g,id: String) -> Dictionary:
- for piece in g.state.equipment:
+ for piece in g.physical_pieces():
   if String(piece.id)==id: return piece
  for piece in g.state.special_equipment:
   if String(piece.id)==id: return piece
- for root in g.state.composites:
-  for part in root.components:
-   if String(part.id)==id: return part
- for host in g.state.equipment:
-  if not host.has("shoulders"): continue
-  for strap in host.shoulders.pieces:
-   if String(strap.id)==id: return strap
  return {}
 
 static func anchor_hoist_matches_rescan(t) -> void:

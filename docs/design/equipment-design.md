@@ -355,4 +355,4 @@ flowchart LR
 - 安装时上锁。开锁成功整件解除；允许挣扎／滑脱伤害归零破坏。固定减伤90%，不附加紧度或普通锁减伤，耐久损耗不改变减伤。直接解除沿普通装备规则。
 - 替换比较值固定4（内置锁不再另加1），可按原外层、容量和强度比较替换。立绘与小图标临时借用对应部位皮革素材；显示无紧度，不伪装成皮革规则。
 
-调用通道：`EnemyPlans.application_spec → Application._raw → Game._install_template`；开锁统一走 `Game._unlock_equipment → Game._cleanup`，伤害沿原装备伤害入口，替换沿 `Replacement.replacement_value`。模板事实由 `data/equipment.gd` 提供，显示沿 `GameView` 投影。
+调用通道：`EnemyPlans.application_spec → Application._raw → Game._install_template`；开锁统一走 `Game._unlock_equipment → Game._cleanup → Removal.settle`，伤害沿原装备伤害入口，替换沿 `Replacement.replacement_value`。模板事实由 `data/equipment.gd` 提供，显示沿 `GameView` 投影。

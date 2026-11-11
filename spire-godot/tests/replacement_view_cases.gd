@@ -88,11 +88,13 @@ static func _hook_body(anchor: String) -> String:
  var parts=String(anchor).split("::")
  return "" if parts.size()<2 else Arch.code_of_function(String(parts[0]),String(parts[1]))
 
-# live 清理骨架的锚点（Q6′a 起成员层结算迁到独立模块，源函数随之改指；CC-36）。空链 token 与链首跳都指向它，
-# 两处共用本常量，避免同一语义写第二份锚点。
+# The live cleanup skeleton's anchor (Q6'a moved member-layer settlement into its own module, so the source
+# function follows it; CC-36). The empty-chain token and the first hop both point here: one constant, two uses,
+# so the same anchor is not written twice.
 const LIVE_CLEANUP_SKELETON="core/equipment_removal.gd::settle"
-# live 清理骨架的文件集合：Q6′a 迁移后 `_cleanup` 只剩一句委托，遍历顺序与裸谓词调用都在新模块里；
-# 两文件都算 live 端，O3 不得因文件改名落入事务试算分支（A166）。
+# Live cleanup skeleton files: after Q6'a `_cleanup` is one delegation and the traversal order and bare
+# predicate calls live in the new module; both files are the live end, so O3 must not fall into the
+# transaction-trial branch just because the file was renamed (A166).
 const LIVE_CLEANUP_SKELETON_FILES=["core/game.gd","core/equipment_removal.gd"]
 
 static func _declared_hook(anchor: String) -> bool:
@@ -510,9 +512,11 @@ static func _declared_called(code: String, token: String) -> bool:
  var regex=_call_regex(token)
  return regex!=null and regex.search(code)!=null
 
-# 共用清理规则＝live 骨架里裸调用的、在 core/game.gd 内为单行纯谓词的本地函数：与登记表双向对照的源侧枚举。
-# Q6′a 起骨架在新模块里，谓词调用一律带 `g.` 接收者（`g._released(`）：只剥这一个接收者再按原名解析，
-# 谓词体仍只在 core/game.gd 里取，单行纯谓词口径不变（A166）；其它接收者（`x._released(`）不算裸调用。
+# Shared cleanup rules = local functions the live skeleton calls bare and that are single-line pure predicates
+# in core/game.gd: the source-side enumeration cross-checked both ways with the declared table. Since Q6'a the
+# skeleton lives in its own module and calls predicates with the `g.` receiver (`g._released(`): strip that one
+# receiver and resolve the bare name as before; the predicate body is still read from core/game.gd, so the
+# single-line pure-predicate rule is unchanged (A166). Other receivers (`x._released(`) are not bare calls.
 static func _shared_rule_calls(body: String) -> Array:
  var names=[]; var call=RegEx.new(); if call.compile("(?<![A-Za-z0-9_.])(?:g\\.)?(_[a-z][a-z0-9_]*)\\s*\\(")!=OK: return names
  for hit in call.search_all(body):
