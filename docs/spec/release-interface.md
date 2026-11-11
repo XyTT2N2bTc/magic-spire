@@ -27,7 +27,7 @@
 
 ### 装备材质音效
 
-- 绳索／皮革装备实际受到正伤害、或成功佩戴时，沿 `core/game.gd::_equipment_feedback` 向现有事务收据登记；材质判定统一在 `core/resource_feedback.gd::equipment`，只认实例的 `material`，不根据名称或部位猜测。普通装备、链接（含股绳连接）、复合部件、特殊装备、肩带及新生躯干连接的成功安装反馈都在单位提交后的加入层 `core/game.gd::_join_hooks` 产生（由 `core/game.gd::JOIN_EFFECTS` 的 J1 列路由，经 `core/game.gd::_member_joined` 登记、`core/game.gd::_unit_commit` 提交后执行），不再于各自的写入入口就地反馈；伤害统一从 `_apply_equipment_damage` 的实际耐久差登记。直接解除、零伤害、既有部件刷新不触发。
+- 绳索／皮革装备实际受到正伤害、或成功佩戴时，沿 `core/game.gd::_equipment_feedback` 向现有事务收据登记；材质判定统一在 `core/resource_feedback.gd::equipment`，只认实例的 `material`，不根据名称或部位猜测。普通装备、链接（含股绳连接）、复合部件、特殊装备、肩带及新生躯干连接的成功安装反馈都在单位提交后的加入层 `core/game.gd::_join_hooks` 产生（由 `core/game.gd::JOIN_EFFECTS` 的 J1 列路由，经 `core/game.gd::_member_joined` 登记、`core/game.gd::_unit_commit` 提交后执行）；伤害统一从 `_apply_equipment_damage` 的实际耐久差登记。直接解除、零伤害、既有部件刷新不触发。
 - 同一次玩家行动内的材质触发合并为一个 `rope_leather_tension` 字符串；敌方触发按既有 `_copy_context` 的敌人实例、行动序号和种类分别合并，由 `core/resource_feedback.gd::sound_events` 输出 `{cue, enemy_id, sequence, kind}`。两类记录仍经成功 `dispatch` 的 `sound_feedback` 返回；角色语音保持原字符串与合并逻辑。推演沿既有 `_resource_feedback=null` 隔离，事务失败直接丢弃全部收据；音效标识不入存档，不扫描装备。
 - `ui/main.gd::_submit` 将无敌方身份的材质标识立即交给 `ui/equipment_audio.gd::consume`；敌方标识由 `ui/combat_feedback.gd::steps` 按既有行动身份绑定到展示队列，`ui/enemy_feedback.gd::_next` 到达对应行动时再播放。相同敌人的不同操作分别触发；同一步的多件装备只播一次；隐藏准备仍沿公开的 unseen 身份展示，不暴露动作详情。无实际施加／伤害的停顿、闪避等动作没有材质声。
 - 材质播放器独立于角色语音、交互音效和卡牌音乐，可同时播放。它自身允许最多 8 段尾音重叠，音量 −9 dB，不循环；下一行动直接开始新播放，前一段自然结束，达到声部上限时由引擎结束最早的尾音。没有额外音频等待队列；跳过敌方展示丢弃后续未展示动作的声音，回主页及重开／读档重置停止已播放声音，普通重绘保持安静。
