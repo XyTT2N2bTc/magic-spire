@@ -6847,9 +6847,9 @@ const REMOVAL_FORBIDDEN_CALLS=["_write_durability","_write_quality","_write_lock
 const LINK_LOOP_WRITES=["g.state.links.erase","g.RopeArt.track","g._emit","g._member_changed"]
 # Projection-face receiver whitelist for the three containers (G-Q6-12): each row is receiver@file; the view
 # copy and the UI region copy are the legal receivers. These are the G-Q6-12 container names, so
-# `special_equipment` is absent by contract (G-Q1-1 item 7 owns it; A117 (c) forbids a second check);
-# deriving the list from `EQUIPMENT_CONTAINERS` would import that fourth name and would need a reverse
-# preload (AssessCases -> Arch).
+# `special_equipment` is absent by contract (G-Q1-1 item 7 owns it; G-Q6-12 keeps it out of this judgment);
+# deriving the list from `AssessCases.EQUIPMENT_CONTAINERS` would import that fourth name, and the preload
+# would close a cycle (that file already preloads this one).
 const CONTAINER_PROJECTION_RECEIVERS=["view@core/equipment_replacement_view.gd","view@core/equipment_replacement_assess.gd","region@core/release_view.gd"]
 const CONTAINER_PROJECTION_NAMES=["equipment","composites","links"]
 const CONTAINER_WRITE_METHODS="append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set"
