@@ -6800,6 +6800,26 @@ static func member_changes_are_announced(t) -> void:
    var before=int(write_lines[index+1]) if index+1<write_lines.size() else 4611686018427387904
    if not announce_lines.any(func(line):return int(line)>after and int(line)<before): misplaced.append(String(site)+":write="+str(after)+" has no announcement before the next write: announce="+str(announce_lines))
  t.check(misplaced.is_empty(),"ARCH member_changes_are_announced: every announcement sits after a member write and every member write is answered by an announcement before the next write, so moving an announcement before its container write leaves an unannounced write: misplaced="+str(misplaced))
+ var replaced=[]
+ var commit_sites=call_site_names(consequence_call_rows("_commit_changes"))
+ var replaced_sites=MEMBERS_REPLACED_SITES.keys()
+ commit_sites.sort()
+ replaced_sites.sort()
+ for site in MEMBERS_REPLACED_SITES:
+  var parts=String(site).split("::")
+  var body=code_of_function(String(parts[0]),String(parts[1]))
+  var calls=body.count("_members_replaced(")
+  var commit=body.find("_commit_changes(")
+  var announced=body.find("_members_replaced(")
+  if calls!=int(MEMBERS_REPLACED_SITES[site]) or commit<0 or announced<commit: replaced.append(String(site)+":calls="+str(calls)+":commit="+str(commit)+":announce="+str(announced))
+ t.check(not MEMBERS_REPLACED_SITES.is_empty() and replaced_sites==commit_sites and replaced.is_empty(),"ARCH member_changes_are_announced: the replacement transaction announces through `_members_replaced()` right after each of its two `_commit_changes` calls, and the caller table matches the source call sites: declared="+str(replaced_sites)+" actual="+str(commit_sites)+" bad="+str(replaced))
+ var view_hits=[]
+ for module in MEMBER_VIEW_MODULES:
+  var text=source_text(String(module))
+  if text.contains("_member_changed(") or text.contains("_members_replaced("): view_hits.append(String(module))
+ var definitions=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"func\\s+_member_changed\\s*\\("))
+ var replaced_definitions=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"func\\s+_members_replaced\\s*\\("))
+ t.check(view_hits.is_empty() and definitions==["core/game.gd::_member_changed"] and replaced_definitions==["core/game.gd::_members_replaced"],"ARCH member_changes_are_announced: the two announcement ports have exactly one definition each and the view modules never call them (a projection copy is not a live member write): view="+str(view_hits)+" definitions="+str(definitions)+" replaced="+str(replaced_definitions))
 
 # ==== Q5″（rev3.3 plan-delta §2；G-Q5-11／G-Q5-12）：两层结算的声明面 ====
 # G-Q5-11：`JOIN_EFFECTS` 的期望副本。键＝七类成员（Q5″ 增 `B`＝固缚记录），列＝J1 反馈对象、J2 入列文案、
@@ -6940,26 +6960,6 @@ static func unit_writes_follow_all_checks(t) -> void:
    if line_at<=at: continue
    if code=="return {}" or code=="return false" or code=="return": issues.append(String(site)+":failure return after its first write: "+code)
  t.check(issues.is_empty() and UNIT_ENTRIES.size()==6,"ARCH unit_writes_follow_all_checks: each unit entry finishes every judgement and validation before its first container write, so no entry can return a failure after it already mutated the unit (a new failing return after the first write, or a lost marker, is red): "+str(issues))
- var replaced=[]
- var commit_sites=call_site_names(consequence_call_rows("_commit_changes"))
- var replaced_sites=MEMBERS_REPLACED_SITES.keys()
- commit_sites.sort()
- replaced_sites.sort()
- for site in MEMBERS_REPLACED_SITES:
-  var parts=String(site).split("::")
-  var body=code_of_function(String(parts[0]),String(parts[1]))
-  var calls=body.count("_members_replaced(")
-  var commit=body.find("_commit_changes(")
-  var announced=body.find("_members_replaced(")
-  if calls!=int(MEMBERS_REPLACED_SITES[site]) or commit<0 or announced<commit: replaced.append(String(site)+":calls="+str(calls)+":commit="+str(commit)+":announce="+str(announced))
- t.check(not MEMBERS_REPLACED_SITES.is_empty() and replaced_sites==commit_sites and replaced.is_empty(),"ARCH member_changes_are_announced: the replacement transaction announces through `_members_replaced()` right after each of its two `_commit_changes` calls, and the caller table matches the source call sites: declared="+str(replaced_sites)+" actual="+str(commit_sites)+" bad="+str(replaced))
- var view_hits=[]
- for module in MEMBER_VIEW_MODULES:
-  var text=source_text(String(module))
-  if text.contains("_member_changed(") or text.contains("_members_replaced("): view_hits.append(String(module))
- var definitions=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"func\\s+_member_changed\\s*\\("))
- var replaced_definitions=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"func\\s+_members_replaced\\s*\\("))
- t.check(view_hits.is_empty() and definitions==["core/game.gd::_member_changed"] and replaced_definitions==["core/game.gd::_members_replaced"],"ARCH member_changes_are_announced: the two announcement ports have exactly one definition each and the view modules never call them (a projection copy is not a live member write): view="+str(view_hits)+" definitions="+str(definitions)+" replaced="+str(replaced_definitions))
 
 # G-Q2-1（plan §8「Q2 耐久写口」；A66、A68 C-7；Q4′ A140 #1）：`.durability` 的 live 赋值与复合赋值只
 # 出现在唯一写口 `core/game.gd::_write_durability`；三处登记例外是建件（`_special_piece`）、品质写口
