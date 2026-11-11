@@ -17,8 +17,10 @@ static func refresh(g, e: Dictionary) -> void:
  var next=resolve(g,e,g._random_index)
  if next.is_empty(): return
  e.binding=next
- if old.is_empty() and next.kind=="linked": g._equipment_feedback(next,next.durability,true)
- if g.tier(e.durability,e.maximum)==3: g._emit("event",e.name+"形成了"+NAMES[next.kind]+"，将手臂固定在身后。",{"torso_binding":{"target":e.id,"kind":next.kind,"refreshed":not old.is_empty()}})
+ # Q5″: the record joins here; its feedback (new linked record) and the tier-three copy run in the
+ # enclosing unit's join layer, in the pre-Q5″ conditions. `fresh` is the pre-write emptiness the
+ # hook cannot re-derive from the record.
+ g._member_joined(e,"B",false,{"fresh":old.is_empty()})
 
 # Eligibility, kind selection and record shape. `draw(domain,size)` is the only random source
 # (live refresh passes g._random_index). Returns {} before any draw when the piece takes no binding

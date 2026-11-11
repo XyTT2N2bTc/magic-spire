@@ -688,8 +688,8 @@
     },
     "member_changes_are_announced": {
       "file": "core/game.gd",
-      "find": " state.links.append(link)\n _member_changed(link,\"added\")\n _equipment_feedback(link,link.durability,true)",
-      "replace": " state.links.append(link)\n _equipment_feedback(link,link.durability,true)",
+      "find": " state.links.append(link)\n _member_changed(link,\"added\")",
+      "replace": " state.links.append(link)",
       "suite": "architecture"
     }
   }

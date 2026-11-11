@@ -37,9 +37,11 @@ static func install_reason(g, host: Dictionary, template: String, grade: int) ->
 
 static func install(g, host: Dictionary, template: String, grade: int, source: String) -> bool:
  if install_reason(g,host,template,grade)!="": return false
+ var owned=g._unit_begin()
  host.shoulders={"template":template,"grade":grade,"variant":0,"source":source,"pieces":[]}
  g._member_changed(host,"added")
  fill(g,host)
+ g._unit_commit(owned)
  return true
 
 static func fill(g, host: Dictionary) -> void:
@@ -51,9 +53,10 @@ static func fill(g, host: Dictionary) -> void:
   if pair.pieces.any(func(e):return e.side==side and e.durability>0.000001): continue
   pair.pieces.append(pair_pieces(g,host,side))
   g._member_changed(pair.pieces.back(),"added")
-  g._equipment_feedback(pair.pieces.back(),pair.pieces.back().durability,true)
-  g._emit("event",label(pair.template,side)+"已连到"+g._equipment_name(host)+"，紧度%d档。" % pair.grade,{"shoulder":{"host":host.id,"side":side,"installed":true}})
-  g.Cards.restraint_changed(g,"worn")
+  # Q5″: the strap joins here; its feedback, join copy and worn run in the enclosing unit's join
+  # layer (immediately when no unit is collecting). The host reference travels with the
+  # registration because the join copy names it and a composite root is not an action target.
+  g._member_joined(pair.pieces.back(),"S",false,{"host":host})
 
 # The missing strap record of one side; the caller appends it, announces it and emits no rule here.
 static func pair_pieces(g, host: Dictionary, side: String) -> Dictionary:

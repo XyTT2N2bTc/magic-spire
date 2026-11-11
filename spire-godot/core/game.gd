@@ -17,6 +17,11 @@ var copy_router_failures: Array=[]
 # counter alone. `write_epoch()` is the only read; Q10's same-call reuse (H6) is the only planned
 # consumer, so today no rule reads it.
 var _write_epoch: int=0
+# Q5″ unit frame (plan §2.5): the physical layer writes into this stack and the join layer runs once
+# at commit. Instance-local only -- never `state`, the View, a save or a checkpoint -- and it exists
+# only inside the synchronous call that opened it, so a leftover frame is a bug the debug check at
+# the end of `dispatch` reports. Not reentrant across calls by construction, not a queue.
+var _unit_frames: Array=[]
 
 # docs/record/proposals/check-routing-and-per-click-checks.md「二」（人裁定：正常流程下永不为 false 的
 # 每点击完整性检查＝release 里的固定浪费，按 debug 构建判定运行）：默认值只有构建类型这一条来源，
@@ -1528,6 +1533,76 @@ func _member_changed(_record: Dictionary, _change: String) -> void:
 func _members_replaced() -> void:
  _write_epoch+=1
 
+# The join-effect table (Q5″, plan §2.4; G-Q5-11): member class -> handler column. J1 feedback,
+# J2 join copy, J4 mana prefix, J5 worn; J3/J6/J7 are declared empty here and filled by QX2″. A row
+# is data only: `_join_hooks` routes and the handlers read nothing else, so adding a class is one row.
+const JOIN_EFFECTS={
+ "P":{"J1":"member","J2":"","J3":"","J4":"佩戴","J5":"unless_lock_only","J6":"","J7":""},
+ "C":{"J1":"components","J2":"","J3":"","J4":"佩戴","J5":"worn","J6":"","J7":""},
+ "X":{"J1":"member","J2":"","J3":"","J4":"佩戴","J5":"worn","J6":"","J7":""},
+ "K":{"J1":"member","J2":"","J3":"","J4":"新增","J5":"worn","J6":"","J7":""},
+ "S":{"J1":"member","J2":"shoulder","J3":"","J4":"","J5":"worn","J6":"","J7":""},
+ "R":{"J1":"member","J2":"reinforcement","J3":"","J4":"","J5":"","J6":"","J7":""},
+ "B":{"J1":"new_linked","J2":"binding","J3":"","J4":"","J5":"","J6":"","J7":""}}
+
+# Opens a unit frame unless the current call already collects into one (nested factories, `fill`,
+# `Binding.refresh` and `_attach_special_reinforcement` only register with the open frame). Returns
+# whether this call owns the frame, so a nested entry never closes its caller's frame.
+func _unit_begin() -> bool:
+ if not _unit_frames.is_empty(): return false
+ _unit_frames.append({"left":[],"joined":[]})
+ return true
+
+# Closes the frame this call owns and runs the join layer: joined members in registration order --
+# nested members register before their host, so the log order stays the pre-Q5″ statement order.
+# The `left` ledger stays empty in this slice; QX2″ fills it with the unit's removed member ids.
+func _unit_commit(owned: bool) -> void:
+ if not owned: return
+ var frame: Dictionary=_unit_frames.pop_back()
+ for entry in frame.joined: _join_hooks(entry)
+
+# The join registration port (Q5″, G-Q5-11): exactly one call per new member, the host after its
+# nested members. Without an open frame (fixtures that call an inner step directly) the member's
+# hooks run immediately, which is the pre-Q5″ behaviour. `top` marks the unit's own member (QX2″
+# J6/J7 read it); `detail` carries registration-time facts the hook cannot re-derive from the
+# record (`B` freshness, the `S` host, the `R` owner) and never outlives the frame.
+func _member_joined(record: Dictionary, kind: String, top: bool=false, detail: Dictionary={}) -> void:
+ var entry=[record,kind,top,detail]
+ if not _unit_frames.is_empty():
+  _unit_frames.back().joined.append(entry)
+  return
+ _join_hooks(entry)
+
+# The join layer (Q5″, G-Q5-11): the one place where a member's feedback, join copy, mana and worn
+# effects run. Every cell comes from `JOIN_EFFECTS`; the handlers keep the pre-Q5″ conditions.
+func _join_hooks(entry: Array) -> void:
+ var record: Dictionary=entry[0]
+ var class_row: Dictionary=JOIN_EFFECTS.get(String(entry[1]),{})
+ var detail: Dictionary=entry[3]
+ match String(class_row.get("J1","")):
+  "member":
+   _equipment_feedback(record,record.durability,true)
+  "components":
+   for piece in record.components: _equipment_feedback(piece,piece.durability,true)
+  "new_linked":
+   var binding: Dictionary=record.get("binding",{})
+   if bool(detail.get("fresh",false)) and binding.get("kind","")=="linked": _equipment_feedback(binding,binding.durability,true)
+ match String(class_row.get("J2","")):
+  "shoulder":
+   var host: Dictionary=detail.host
+   _emit("event",Shoulders.label(record.template,record.side)+"已连到"+_equipment_name(host)+"，紧度%d档。" % record.grade,{"shoulder":{"host":host.id,"side":record.side,"installed":true}})
+  "reinforcement":
+   _emit("event",detail.owner.name+"达到紧度3档，自动扣上了"+record.name+"。")
+  "binding":
+   if tier(record.durability,record.maximum)==3: _emit("event",record.name+"形成了"+Binding.NAMES[record.binding.kind]+"，将手臂固定在身后。",{"torso_binding":{"target":record.id,"kind":record.binding.kind,"refreshed":not bool(detail.get("fresh",false))}})
+ var mana_prefix=String(class_row.get("J4",""))
+ if mana_prefix!="": RelicEffects._mana_hook(self,"restraint_mana",mana_prefix+record.name)
+ match String(class_row.get("J5","")):
+  "worn":
+   Cards.restraint_changed(self,"worn")
+  "unless_lock_only":
+   if not Equipment.lock_only(record): Cards.restraint_changed(self,"worn")
+
 # The only read of the process-local write epoch (Q5). No rule consumes it in this slice.
 func write_epoch() -> int:
  return _write_epoch
@@ -1596,6 +1671,8 @@ func _consequence_class(target: Dictionary) -> String:
 # The handlers are the current `_refresh_equipment` set, so the install and tighten rows stay
 # byte-identical to the calls they replace, and the ease row restores the per-write rope tracking
 # the two strategies used to do themselves (B9).
+# Q5″ (U7／U8): this is a unit entry too -- a write outside a factory opens the frame here, so the
+# nested members the handlers create (B, S) join after the physical write and before this returns.
 func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bool) -> void:
  var row="install" if before<0 else ("tighten" if tighten else "ease")
  var key=_consequence_class(target)
@@ -1603,6 +1680,7 @@ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bo
  if not rows.has(key):
   push_error("TIER CONSEQUENCES: undeclared row or class row="+row+" class="+key+" target="+String(target.get("id","")))
   return
+ var owned=_unit_begin()
  for handler in rows[key]:
   match String(handler):
    "refresh":
@@ -1614,10 +1692,12 @@ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bo
     if after==3 and SpecialEquipment.supports_reinforcement(target): _attach_special_reinforcement(target)
    _:
     push_error("TIER CONSEQUENCES: undeclared handler "+String(handler)+" row="+row+" class="+key)
+ _unit_commit(owned)
 
 func _install_special(type: String, slot: String, tightness: int=0) -> Dictionary:
  if tightness not in [0,1,2,3]: return {}
  if _special_install_reason(type,slot)!="": return {}
+ var owned=_unit_begin()
  if SpecialEquipment.is_chastity_type(type):
   # Resolve ownership before removing roots, so component removal is order-independent.
   var displaced=state.special_equipment.filter(func(old):return _chastity_displaces(type,old))
@@ -1627,10 +1707,9 @@ func _install_special(type: String, slot: String, tightness: int=0) -> Dictionar
  var item=_special_piece(state.next_equipment,type,tightness)
  state.next_equipment+=1
  _special_append(item)
- _equipment_feedback(item,item.durability,true)
  _tier_consequences(item,-1,tier(item.durability,item.maximum),false)
- RelicEffects._mana_hook(self,"restraint_mana","佩戴"+item.name)
- Cards.restraint_changed(self,"worn")
+ _member_joined(item,"X",true)
+ _unit_commit(owned)
  return item
 
 func _chastity_displaces(incoming_type: String, item: Dictionary) -> bool:
@@ -1657,8 +1736,7 @@ func _attach_special_reinforcement(owner: Dictionary) -> Dictionary:
  owner.reinforcement_state="active"
  var strap=_reinforcement_strap(state.next_equipment,type,owner.id)
  state.next_equipment+=1;_special_append(strap)
- _equipment_feedback(strap,strap.durability,true)
- _emit("event",owner.name+"达到紧度3档，自动扣上了"+strap.name+"。")
+ _member_joined(strap,"R",false,{"owner":owner})
  return strap
 
 func _tick_special(timing: String) -> void:
@@ -1704,13 +1782,13 @@ func _climax_special_slip(count: int) -> bool:
 func _install_assembly(kind: String, variant: String, source: String, grade: int=2, tightness: int=2, overrides: Dictionary={}, straps: String="straight", attached_to: String="") -> Dictionary:
  var root=_prepare_assembly(kind,variant,source,grade,tightness,overrides,straps,attached_to)
  if root.is_empty(): return {}
+ var owned=_unit_begin()
  Binding.cancel_for_assembly(self,root.components)
  state.composites.append(root)
  _member_changed(root,"added")
- for piece in root.components: _equipment_feedback(piece,piece.durability,true)
  state.next_composite+=1
- RelicEffects._mana_hook(self,"restraint_mana","佩戴"+root.name)
- Cards.restraint_changed(self,"worn")
+ _member_joined(root,"C",true)
+ _unit_commit(owned)
  return root
 
 func _make_assembly_piece(root: Dictionary, definition: Dictionary, key: String, grade: int, part_tier: int, settings: Dictionary, source: String) -> Dictionary:
@@ -1776,12 +1854,12 @@ func _prepare_link(a: String, b: String, durability: float, source: String, grad
 func _install_link(a: String, b: String, durability: float, source: String, grade: int=1, blocked_slip: Array=[], connection_slots: Array=[], connection_points: Array=[]) -> Dictionary:
  var link=_prepare_link(a,b,durability,source,grade,blocked_slip,connection_slots,connection_points)
  if link.is_empty(): return {}
+ var owned=_unit_begin()
  state.links.append(link)
  _member_changed(link,"added")
- _equipment_feedback(link,link.durability,true)
  state.next_link+=1
- RelicEffects._mana_hook(self,"restraint_mana","新增"+link.name)
- Cards.restraint_changed(self,"worn")
+ _member_joined(link,"K",true)
+ _unit_commit(owned)
  return link
 
 func _slip_block_reason(target: Dictionary) -> String:
@@ -2151,13 +2229,13 @@ func _install_template(template: String, slot: String, durability: float, maximu
  if placement.reason!="": return {}
  var e=_template_piece(state.next_equipment,template,slot,durability,maximum,locked,source,grade,placement.layer,variant,placement.points)
  if Equipment.validate(e)!="": return {}
+ var owned=_unit_begin()
  state.next_equipment += 1
  state.equipment.append(e)
  _member_changed(e,"added")
- _equipment_feedback(e,e.durability,true)
  _tier_consequences(e,-1,tier(e.durability,e.maximum),false)
- RelicEffects._mana_hook(self,"restraint_mana","佩戴"+e.name)
- if not Equipment.lock_only(e): Cards.restraint_changed(self,"worn")
+ _member_joined(e,"P",true)
+ _unit_commit(owned)
  return e
 
 # Only tests use fixture injection. The UI does not expose this method.
@@ -3828,6 +3906,9 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  # get_view 之前算准节开合（F 批消费）。两键与 core/game_view.gd::build 的 "phase"／"pressure.overloaded"
  # 同源同值：phase 取已提交态 state.phase；overloaded 取 core/pressure.gd::overloaded（＝view 的同一实现，
  # 归一化段 _close_drawers 的唯一依据），不由 payload.kind 反推。失败结果键面一字不动（本 return 不达）。
+ # Q5″：帧只活在开它的同步调用里，返回时栈应已清空；残留即入口漏收（只在 debug 构建里报，不改回执）。
+ if debug_checks_enabled() and not _unit_frames.is_empty():
+  _debug_check("unit_frames","game.dispatch","单位帧未收：%d" % _unit_frames.size())
  return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"sound_feedback":sound_events,"checkpoint":checkpoint,"spell_failed":_magic_failed,"fact":chosen,"phase":state.phase,"overloaded":Pressure.overloaded(self)}
 
 func cast_view(profile: Dictionary={"parts":["mouth"],"multiplier":1.0}) -> Dictionary:
