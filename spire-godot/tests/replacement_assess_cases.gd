@@ -37,8 +37,9 @@ const ASSESS_EXCLUDED_HOOKS=[
  ["core/card_effects.gd::restraint_changed",["powers","energy"],"Cards.",[]],
  ["core/pressure.gd::cleanup",["pressure_sources"],"Pressure.",[]],
  ["core/pressure.gd::settle_maximum",["pressure","overloaded","overload_count","overload_energy","overload_total","chastity_climax_factor","slip_ejaculation_turns"],"Pressure.",[]],
+ # Q5″：安装路径的回魔调用从工厂内联移到 `_join_hooks`（单位提交之后），故到达链补一跳；行本身不删。
  ["core/relic_effects.gd::_mana_hook",["mana","mana_max","flask_mana"],"Pressure.",
-  [["core/pressure.gd::settle_maximum","_apply_overloads("],["core/pressure.gd::_apply_overloads","g.RelicEffects.climax("],["core/relic_effects.gd::climax","_mana_hook("]]],
+  [["core/pressure.gd::settle_maximum","_apply_overloads("],["core/pressure.gd::_apply_overloads","g.RelicEffects.climax("],["core/relic_effects.gd::climax","_mana_hook("],["core/game.gd::_join_hooks","_mana_hook("]]],
  ["core/game.gd::_emit",["logs","summary"],"_emit(",[]]]
 # rev3.1 §4.4：与上表区分——事务内由门控变成空操作的钩子，判定不执行它们与事务完全等价，故不进上表。
 # 行＝[锚点, 门控行原文, live 端调用 token, 该调用所在的 live 文件]。

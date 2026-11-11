@@ -1192,6 +1192,9 @@ static func run(t) -> void:
  write_epoch_bumps_in_every_port(t)
  lock_writes_have_one_entry(t)
  member_changes_are_announced(t)
+ join_effects_have_one_epilogue(t)
+ unit_entries_are_declared(t)
+ unit_writes_follow_all_checks(t)
  durability_writes_have_one_entry(t)
  durability_reroutes_keep_their_order(t)
  tier_consequences_have_one_dispatch(t)
@@ -6797,6 +6800,146 @@ static func member_changes_are_announced(t) -> void:
    var before=int(write_lines[index+1]) if index+1<write_lines.size() else 4611686018427387904
    if not announce_lines.any(func(line):return int(line)>after and int(line)<before): misplaced.append(String(site)+":write="+str(after)+" has no announcement before the next write: announce="+str(announce_lines))
  t.check(misplaced.is_empty(),"ARCH member_changes_are_announced: every announcement sits after a member write and every member write is answered by an announcement before the next write, so moving an announcement before its container write leaves an unannounced write: misplaced="+str(misplaced))
+
+# ==== Q5″（rev3.3 plan-delta §2；G-Q5-11／G-Q5-12）：两层结算的声明面 ====
+# G-Q5-11：`JOIN_EFFECTS` 的期望副本。键＝七类成员（Q5″ 增 `B`＝固缚记录），列＝J1 反馈对象、J2 入列文案、
+# J3／J6／J7（QX2″ 才填）、J4 回魔前缀、J5 worn 处理。逐格相等才绿：删一行、改一格、多一列都红。
+const JOIN_EFFECTS_ROWS={
+ "P":{"J1":"member","J2":"","J3":"","J4":"佩戴","J5":"unless_lock_only","J6":"","J7":""},
+ "C":{"J1":"components","J2":"","J3":"","J4":"佩戴","J5":"worn","J6":"","J7":""},
+ "X":{"J1":"member","J2":"","J3":"","J4":"佩戴","J5":"worn","J6":"","J7":""},
+ "K":{"J1":"member","J2":"","J3":"","J4":"新增","J5":"worn","J6":"","J7":""},
+ "S":{"J1":"member","J2":"shoulder","J3":"","J4":"","J5":"worn","J6":"","J7":""},
+ "R":{"J1":"member","J2":"reinforcement","J3":"","J4":"","J5":"","J6":"","J7":""},
+ "B":{"J1":"new_linked","J2":"binding","J3":"","J4":"","J5":"","J6":"","J7":""}}
+const JOIN_COLUMNS=["J1","J2","J3","J4","J5","J6","J7"]
+# 登记面（G-Q5-11 第二条）：每个新成员恰一次 `_member_joined(`，闭集；宿主在它的嵌套件之后登记。
+const JOIN_REGISTRATION_SITES=[
+ "core/game.gd::_install_template",
+ "core/game.gd::_install_assembly",
+ "core/game.gd::_install_special",
+ "core/game.gd::_install_link",
+ "core/game.gd::_attach_special_reinforcement",
+ "core/shoulder_links.gd::fill",
+ "core/torso_binding.gd::refresh"]
+const JOIN_HOST_AFTER_NESTED=[
+ ["core/game.gd::_install_template","_tier_consequences("],
+ ["core/game.gd::_install_special","_tier_consequences("]]
+# G-Q5-12：单位入口闭集（QX6 的 `_join_after_commit` 不在本片）与各自的首笔写／首次委托处理器。
+# 判定行必须全部落在这条线之前：线后出现 `return {}`／`return false` 或裸 `return` 即红。
+const UNIT_ENTRIES=[
+ "core/game.gd::_install_template",
+ "core/game.gd::_install_assembly",
+ "core/game.gd::_install_special",
+ "core/game.gd::_install_link",
+ "core/game.gd::_tier_consequences",
+ "core/shoulder_links.gd::install"]
+const UNIT_FIRST_WRITES={
+ "core/game.gd::_install_template":"state.next_equipment +=",
+ "core/game.gd::_install_assembly":"Binding.cancel_for_assembly(",
+ "core/game.gd::_install_special":"_special_erase(",
+ "core/game.gd::_install_link":"state.links.append(",
+ "core/game.gd::_tier_consequences":"for handler in rows[key]:",
+ "core/shoulder_links.gd::install":"host.shoulders="}
+
+static func join_effects_have_one_epilogue(t) -> void:
+ var actual=GameCore.JOIN_EFFECTS
+ var expected_keys=JOIN_EFFECTS_ROWS.keys()
+ expected_keys.sort()
+ var actual_keys=actual.keys()
+ actual_keys.sort()
+ var mismatch=[]
+ if actual_keys!=expected_keys: mismatch.append("keys="+str(actual_keys)+" want="+str(expected_keys))
+ for key in expected_keys:
+  var row=actual.get(key,{})
+  var columns=row.keys()
+  columns.sort()
+  if columns!=JOIN_COLUMNS: mismatch.append(String(key)+":columns="+str(columns))
+  for column in JOIN_COLUMNS:
+   if String(row.get(column,"<missing>"))!=String(JOIN_EFFECTS_ROWS[key][column]): mismatch.append(String(key)+"."+String(column)+"="+String(row.get(column,"<missing>"))+" want "+String(JOIN_EFFECTS_ROWS[key][column]))
+ t.check(expected_keys.size()==7 and mismatch.is_empty(),"ARCH join_effects_have_one_epilogue: JOIN_EFFECTS declares exactly the seven member classes and seven columns with every cell equal to the expected copy, and J3/J6/J7 stay empty in this slice: mismatch="+str(mismatch))
+ # 执行面唯一：安装反馈、回魔、worn 与三段入列文案只出现在 `_join_hooks`。
+ var scans={
+  "mana":'_mana_hook\\([^)]*"restraint_mana"',
+  "worn":'restraint_changed\\([^)]*"worn"',
+  "feedback":'_equipment_feedback\\([^)]*,\\s*true\\)',
+  "join_copy":'已连到|形成了|自动扣上了'}
+ var strays=[]
+ for name in scans:
+  var sites=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,String(scans[name])))
+  var extra=sites.filter(func(site):return site!="core/game.gd::_join_hooks")
+  if not sites.has("core/game.gd::_join_hooks"): extra.append(String(name)+" has no _join_hooks hit")
+  if not extra.is_empty(): strays.append(String(name)+"="+str(extra))
+ t.check(strays.is_empty(),"ARCH join_effects_have_one_epilogue: installation feedback, the restraint mana hook, the worn notification and the three join copies live only in core/game.gd::_join_hooks, so no factory keeps an inline epilogue: strays="+str(strays))
+ # 登记面闭集：每个新成员恰一次登记；模板件与特殊件的宿主必须在 `_tier_consequences` 之后登记。
+ var declared=JOIN_REGISTRATION_SITES.duplicate()
+ declared.sort()
+ var registrations=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_member_joined\\(").filter(func(hit):return not declaration_line(String(hit.text))))
+ var registration_issues=[]
+ if registrations!=declared: registration_issues.append("sites="+str(registrations)+" declared="+str(declared))
+ for site in JOIN_REGISTRATION_SITES:
+  var parts=String(site).split("::")
+  var calls=code_of_function(parts[0],parts[1]).count("_member_joined(")
+  if calls!=1: registration_issues.append(String(site)+":calls="+str(calls))
+ for row in JOIN_HOST_AFTER_NESTED:
+  var parts=String(row[0]).split("::")
+  var body=code_of_function(parts[0],parts[1])
+  var host_at=body.find("_member_joined(")
+  var nested_at=body.find(String(row[1]))
+  if host_at<0 or nested_at<0 or host_at<nested_at: registration_issues.append(String(row[0])+":host_at="+str(host_at)+" nested_at="+str(nested_at))
+ t.check(registration_issues.is_empty(),"ARCH join_effects_have_one_epilogue: every new member is registered exactly once in a declared function and each host registers after the nested members its tier consequences create: "+str(registration_issues))
+ # `_member_joined` 只登记：不自己通告成员变化（Q5 的 `_member_changed` 仍在容器写入处），无帧时直送钩子层。
+ var join_body=code_of_function("core/game.gd","_member_joined")
+ t.check(join_body.count("_member_changed(")==0 and join_body.count("_join_hooks(")==1,"ARCH join_effects_have_one_epilogue: `_member_joined` is a registration port only -- it never announces a member change and routes an unframed member straight to `_join_hooks`: body="+str(join_body.length()))
+ # 视图、投影与评估模块零命中：加入层、加入登记与帧栈都只在提交侧。
+ var view_hits=[]
+ for path in ["core/equipment_replacement_view.gd","core/equipment_replacement_assess.gd","core/game_view.gd"]:
+  var text=source_code(path)
+  for token in ["_join_hooks(","_member_joined(","JOIN_EFFECTS","_unit_frames"]:
+   if text.contains(token): view_hits.append(path+":"+token)
+ t.check(view_hits.is_empty(),"ARCH join_effects_have_one_epilogue: the view, projection and assessment modules never reach the join layer, its registration port or the frame stack: hits="+str(view_hits))
+
+static func unit_entries_are_declared(t) -> void:
+ var sites=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_unit_begin\\(").filter(func(hit):return not declaration_line(String(hit.text))))
+ var declared=UNIT_ENTRIES.duplicate()
+ declared.sort()
+ var issues=[]
+ if sites!=declared: issues.append("sites="+str(sites)+" declared="+str(declared))
+ if UNIT_ENTRIES.size()!=6: issues.append("entries="+str(UNIT_ENTRIES.size()))
+ # 帧栈只有开与提交两个写口，都在 core/game.gd；登记口只读栈顶，不写栈本身。
+ var frame_writes=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_unit_frames\\.(?:append|pop_back|pop_front|push_back|clear|erase|resize)\\s*\\(|_unit_frames\\s*\\[[^\\]]*\\]\\s*=(?!=)"))
+ if frame_writes!=["core/game.gd::_unit_begin","core/game.gd::_unit_commit"]: issues.append("frame_writes="+str(frame_writes))
+ # 所有权：每个入口接住 `_unit_begin()` 的返回值并在同一函数里提交，嵌套入口不关别人的帧。
+ var ownership=[]
+ for site in UNIT_ENTRIES:
+  var parts=String(site).split("::")
+  var body=code_of_function(parts[0],parts[1])
+  if body.count("_unit_begin(")!=1 or not body.contains("var owned=") or body.count("_unit_commit(owned)")!=1: ownership.append(String(site)+":begin="+str(body.count("_unit_begin("))+" owned="+str(body.contains("var owned="))+" commit="+str(body.count("_unit_commit(owned)")))
+ if not ownership.is_empty(): issues.append("ownership="+str(ownership))
+ # 帧的残留检查只在 dispatch 末、成功回执之前（`_debug_check` 只在 debug 构建里跑）。
+ var dispatch_body=code_of_function("core/game.gd","dispatch")
+ var check_at=dispatch_body.find('_debug_check("unit_frames"')
+ if dispatch_body.count('_debug_check("unit_frames"')!=1 or check_at<0 or check_at>dispatch_body.find('"ok":true'): issues.append("dispatch_check="+str(check_at)+" count="+str(dispatch_body.count('_debug_check("unit_frames"')))
+ t.check(issues.is_empty(),"ARCH unit_entries_are_declared: the declared unit entries are exactly the product's `_unit_begin(` call sites, the frame stack has only its open and commit writers, every entry owns the frame it opens, and the leftover-frame check sits at the end of `dispatch` before the success result: "+str(issues))
+
+static func unit_writes_follow_all_checks(t) -> void:
+ var issues=[]
+ for site in UNIT_ENTRIES:
+  var parts=String(site).split("::")
+  var body=code_of_function(parts[0],parts[1])
+  var marker=String(UNIT_FIRST_WRITES.get(site,""))
+  var at=body.find(marker)
+  if marker=="" or at<0:
+   issues.append(String(site)+":no first write marker="+marker)
+   continue
+  var offset=0
+  for line in body.split("\n"):
+   var code=String(line).strip_edges()
+   var line_at=offset
+   offset+=String(line).length()+1
+   if line_at<=at: continue
+   if code=="return {}" or code=="return false" or code=="return": issues.append(String(site)+":failure return after its first write: "+code)
+ t.check(issues.is_empty() and UNIT_ENTRIES.size()==6,"ARCH unit_writes_follow_all_checks: each unit entry finishes every judgement and validation before its first container write, so no entry can return a failure after it already mutated the unit (a new failing return after the first write, or a lost marker, is red): "+str(issues))
  var replaced=[]
  var commit_sites=call_site_names(consequence_call_rows("_commit_changes"))
  var replaced_sites=MEMBERS_REPLACED_SITES.keys()
@@ -7600,7 +7743,7 @@ const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_capacit
 const ASSESS_MODULE_CALLS={"Equipment":["*"],"SpecialEquipment":["*"],"Composites":["*"],"Links":["*"],"B":["*"],"RestraintValue":["*"],"RopeArt":["locked"],"Binding":["cancels","resolve","validate"],"Shoulders":["attached_in","eligible","pair_pieces","released_with_host","validate_in"]}
 # 判定域既不读也不写的运行时字段：事务边界字段（_rope_trial／_resource_feedback，Replacement.plan 保存并恢复）与
 # 绳艺观察防重入标记（_rope_observing）。判定只经 RopeArt.locked 读 phase／enemies，不碰这三者。
-const ASSESS_RUNTIME_FIELD_TOKENS=["_rope_trial","_rope_observing","_resource_feedback"]
+const ASSESS_RUNTIME_FIELD_TOKENS=["_rope_trial","_rope_observing","_resource_feedback","_unit_frames"]
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。comparison_value 随上游改名为 replacement_value：
 # 新旧两名都不得在 replacement 留函数体（只看旧名会漏掉误留的上游 replacement_value 原体）。
 const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","replacement_value"],["replacement_value","replacement_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"]]

@@ -390,6 +390,12 @@ static func run(t) -> void:
  settle_writes_track_only_rope_or_no_op(t)
  write_epoch_is_monotone_and_private(t)
  hook_release_guards_are_already_upstream(t)
+ join_hooks_run_after_unit_commit(t)
+ join_hooks_follow_post_order(t)
+ tier_unit_hooks_follow_post_order(t)
+ unit_frames_never_leak(t)
+ join_epilogue_keeps_order(t)
+ previews_never_leak_join_effects(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")
  t.check(E.ANIMATED_WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.ANIMATED_WEAR_TEXTS.has(slot)),"WEAR animated restraint prose covers every approved body location")
@@ -896,4 +902,254 @@ static func _rest_for_hooks(t, seed: int, posture: String):
  g.state.hook_uses=3
  g.state.posture=posture
  return g
+
+# Q5″ 共用探针（rev3.3 gherkin-delta「钩子记录探针」）：测试侧子类只记录 `_join_hooks` 的调用与此刻
+# 四容器的 id 面，不覆盖规则、不改状态、不改调用顺序。记录为空即入口不可达，调用方据此具名红。
+# `bound`／`strapped` 是「固缚记录已在件上」「宿主已有两侧肩带」的同一时刻快照。
+class JoinProbe extends "res://tests/game_fixture.gd":
+ var joined: Array=[]
+ var faces: Array=[]
+ func _join_hooks(entry: Array) -> void:
+  var record: Dictionary=entry[0]
+  joined.append([String(record.get("id","")),String(entry[1]),bool(entry[2])])
+  faces.append(_container_face())
+  super._join_hooks(entry)
+ func _container_face() -> Dictionary:
+  return {"equipment":state.equipment.map(func(e):return String(e.id)),"composites":state.composites.map(func(e):return String(e.id)),"links":state.links.map(func(e):return String(e.id)),"special":state.special_equipment.map(func(e):return String(e.id)),"bound":state.equipment.filter(func(e):return e.has("binding")).map(func(e):return String(e.id)),"strapped":state.equipment.filter(func(e):return e.has("shoulders") and e.shoulders.pieces.size()==2).map(func(e):return String(e.id))}
+
+# 安装后 `validate()` 失败的提交探针：只在容器已长出装备时注入一次失败，用来验证回滚不留帧。
+class RollbackProbe extends "res://tests/game_fixture.gd":
+ var armed=false
+ var pristine: Array=[]
+ func validate() -> String:
+  if armed and state.equipment.size()>pristine.size(): return "test injection: validate fails after the unit committed"
+  return super.validate()
+
+static func _probe_reset(probe) -> void:
+ probe.joined=[]
+ probe.faces=[]
+
+static func _kinds(probe) -> Array:
+ return probe.joined.map(func(row):return String(row[1]))
+
+static func _first_face(probe) -> Dictionary:
+ return {} if probe.faces.is_empty() else probe.faces[0]
+
+static func _frame_issues(g) -> Array:
+ return g.debug_check_failures.filter(func(row):return String(row.get("check",""))=="unit_frames")
+
+# G-Q5-8（rev3.3 gherkin-delta）：钩子只在单位提交后跑一遍。探针在第一次钩子调用时看到的容器面必须
+# 已含本单位的全部成员——物理写在前、钩子在后，五类入口逐一走真实入口，返回时不留帧。
+static func join_hooks_run_after_unit_commit(t) -> void:
+ # U3-1 模板件：3 档大臂绳，单位内长出固缚记录与两侧肩带。
+ var g=JoinProbe.new(42)
+ var piece=g.add_fixture("upper_arm",16,16,false,0,"rope")
+ var face=_first_face(g)
+ t.check(not piece.is_empty() and not g.joined.is_empty() and g._unit_frames.is_empty(),"REMOVAL join_hooks_run_after_unit_commit: the template unit registers its members and returns with no open frame: piece="+String(piece.get("id",""))+" joined="+str(g.joined)+" frames="+str(g._unit_frames.size()))
+ t.check(not face.is_empty() and face.equipment.has(String(piece.get("id",""))) and face.bound.has(String(piece.get("id",""))) and face.strapped.has(String(piece.get("id",""))),"REMOVAL join_hooks_run_after_unit_commit: the first hook call already sees the host, its binding record and both shoulder straps, so no hook ran before the unit's physical writes: face="+str(face))
+ # U3-2 复合件：整件一次加入。
+ var assembly=JoinProbe.new(42)
+ var root=assembly._install_assembly("glove","short","fixture",2,1)
+ t.check(not root.is_empty() and _kinds(assembly)==["C"] and not _first_face(assembly).is_empty() and _first_face(assembly).composites.has(String(root.id)) and assembly._unit_frames.is_empty(),"REMOVAL join_hooks_run_after_unit_commit: the composite unit writes the root before its one join registration: root="+String(root.get("id",""))+" joined="+str(assembly.joined)+" face="+str(_first_face(assembly)))
+ # U3-3 特殊件：3 档可加固平板锁与它自动扣上的加固带，锁（宿主）最后登记。
+ var lock_game=JoinProbe.new(42)
+ var lock=lock_game._install_special("negative_plate_lock_medium","special_2_a",3)
+ var lock_face=_first_face(lock_game)
+ t.check(not lock.is_empty() and _kinds(lock_game)==["R","X"] and String(lock_game.joined[1][0])==String(lock.id) and not lock_face.is_empty() and lock_face.special.size()==2 and lock_face.special.has(String(lock.id)) and lock_game._unit_frames.is_empty(),"REMOVAL join_hooks_run_after_unit_commit: the special unit writes the lock and its reinforcement strap before any hook, and registers the host last: lock="+String(lock.get("id",""))+" joined="+str(lock_game.joined)+" face="+str(lock_face))
+ # U3-6 置换：旧锁先走，新锁与加固带才挂；第一次钩子调用时旧锁已不在容器里。
+ var replace=JoinProbe.new(42)
+ var old_lock=replace._install_special("negative_plate_lock_medium","special_2_a",2)
+ _probe_reset(replace)
+ var new_lock=replace._install_special("negative_vibrator_lock_catheter_high","special_2_a",3)
+ var replace_face=_first_face(replace)
+ t.check(not old_lock.is_empty() and not new_lock.is_empty() and not replace_face.is_empty() and replace_face.special.size()==2 and not replace_face.special.has(String(old_lock.id)) and replace_face.special.has(String(new_lock.id)) and replace._unit_frames.is_empty(),"REMOVAL join_hooks_run_after_unit_commit: the displaced lock leaves before the first hook and the replacement lock plus its strap are already in the container: old="+String(old_lock.get("id",""))+" new="+String(new_lock.get("id",""))+" face="+str(replace_face))
+ # U3-4 链接绳：两端的物理件已在容器里，链接绳才登记。
+ var link_game=JoinProbe.new(42)
+ var forearm=link_game._install_template("rope","forearm",4,8,false,"fixture",1,-1,0,"mid_forearm")
+ var wrist=link_game._install_template("rope","wrist",4,8,false,"fixture",1,-1,0,"wrist")
+ _probe_reset(link_game)
+ var link=link_game._install_link(forearm.id,wrist.id,4.8,"fixture",1,[],["forearm","wrist"],["mid_forearm","wrist"])
+ t.check(not link.is_empty() and _kinds(link_game)==["K"] and not _first_face(link_game).is_empty() and _first_face(link_game).links.has(String(link.id)) and link_game._unit_frames.is_empty(),"REMOVAL join_hooks_run_after_unit_commit: the link unit writes the rope before its one join registration: link="+String(link.get("id",""))+" joined="+str(link_game.joined)+" face="+str(_first_face(link_game)))
+ # U12/U13 `Shoulders.install`：两侧肩带在同一个单位里写完，才逐件跑钩子。
+ var shoulder_game=JoinProbe.new(42)
+ var host=shoulder_game.add_fixture("upper_arm",8,16,false,0,"rope")
+ _probe_reset(shoulder_game)
+ var accepted=shoulder_game.Shoulders.install(shoulder_game,host,"rope",2,"fixture")
+ t.check(accepted and _kinds(shoulder_game)==["S","S"] and not _first_face(shoulder_game).is_empty() and _first_face(shoulder_game).strapped.has(String(host.id)) and shoulder_game._unit_frames.is_empty(),"REMOVAL join_hooks_run_after_unit_commit: the shoulder entry writes both straps before the first hook and returns with no open frame: accepted="+str(accepted)+" joined="+str(shoulder_game.joined))
+
+# G-Q5-9（rev3.3）：同一单位里父子都加入时，钩子序＝登记序＝物理序，子件先、宿主后。
+static func join_hooks_follow_post_order(t) -> void:
+ var g=JoinProbe.new(42)
+ var piece=g.add_fixture("upper_arm",16,16,false,0,"rope")
+ var host=g._equipment(piece.id)
+ var straps=host.get("shoulders",{}).get("pieces",[]) if not host.is_empty() else []
+ t.check(not piece.is_empty() and _kinds(g)==["B","S","S","P"],"REMOVAL join_hooks_follow_post_order: the nested members join before the host in the pre-Q5\" statement order (binding, left strap, right strap, host): joined="+str(g.joined))
+ t.check(g.joined.size()==4 and straps.size()==2 and String(g.joined[1][0])==String(straps[0].id) and String(g.joined[2][0])==String(straps[1].id),"REMOVAL join_hooks_follow_post_order: the two strap hooks follow the piece order inside the host, so the registration order equals the physical order: joined="+str(g.joined)+" straps="+str(straps.map(func(e):return String(e.id))))
+ t.check(g.joined.size()==4 and not bool(g.joined[0][2]) and not bool(g.joined[1][2]) and not bool(g.joined[2][2]) and bool(g.joined[3][2]),"REMOVAL join_hooks_follow_post_order: only the unit's own member is top-level; nested members carry top=false: joined="+str(g.joined))
+ var lock_game=JoinProbe.new(42)
+ var lock=lock_game._install_special("negative_plate_lock_medium","special_2_a",3)
+ t.check(not lock.is_empty() and _kinds(lock_game)==["R","X"] and String(lock_game.joined[1][0])==String(lock.id) and bool(lock_game.joined[1][2]) and not bool(lock_game.joined[0][2]),"REMOVAL join_hooks_follow_post_order: the reinforcement strap joins before the lock it was made for, and only the lock is top-level: joined="+str(lock_game.joined))
+
+# G-Q5-10（rev3.3）：工厂之外的收紧写（U7 无记录升档、U8 同值收紧）由 `_tier_consequences` 自己开帧，
+# 嵌套件仍是子先宿主后；这类单位没有新的顶层成员，宿主不在加入序里。
+static func tier_unit_hooks_follow_post_order(t) -> void:
+ var g=JoinProbe.new(42)
+ var host=g.add_fixture("upper_arm",8,16,false,0,"rope")
+ _probe_reset(g)
+ var change=g._reinforce_equipment(host)
+ t.check(change!="" and g.equipment_tier(host)==3 and _kinds(g)==["B","S","S"],"REMOVAL tier_unit_hooks_follow_post_order: the recordless tighten opens a unit at the tier write and joins binding then both straps: change="+change+" joined="+str(g.joined))
+ t.check(g.joined.all(func(row):return String(row[1])!="P") and g._unit_frames.is_empty(),"REMOVAL tier_unit_hooks_follow_post_order: the tightened host was announced in the physical layer and is not joined again; the frame closes with the write: joined="+str(g.joined)+" frames="+str(g._unit_frames.size()))
+ t.check(not _first_face(g).is_empty() and _first_face(g).bound.has(String(host.id)) and _first_face(g).strapped.has(String(host.id)),"REMOVAL tier_unit_hooks_follow_post_order: the first hook call already sees the binding record and both straps, so the frame opened after the physical write: face="+str(_first_face(g)))
+ # U8：已有连接式固缚记录、满值 3 档、缺左肩带的宿主原地收紧。
+ var equal=null
+ for seed in range(1,96):
+  var candidate=JoinProbe.new(seed)
+  var equal_host=candidate._install_template("rope","upper_arm",candidate.Equipment.maximum(3),candidate.Equipment.maximum(3),false,"fixture",3)
+  if equal_host.is_empty() or String(equal_host.get("binding",{}).get("kind",""))!="linked": continue
+  var right={}
+  for strap in candidate.Shoulders.attached(candidate,equal_host):
+   if strap.side=="right": right=strap
+   else: strap.durability=0.0
+  if right.is_empty(): continue
+  equal_host.binding.durability=float(equal_host.binding.maximum)*0.4
+  right.durability=float(right.maximum)*0.5
+  _probe_reset(candidate)
+  candidate._reinforce_equipment(equal_host)
+  equal=candidate
+  break
+ t.check(equal!=null and _kinds(equal)==["B","S"] and equal._unit_frames.is_empty(),"REMOVAL tier_unit_hooks_follow_post_order: the equal-value tighten refills the existing record (binding first) and only the missing side joins, with no leftover frame: joined="+str([] if equal==null else equal.joined))
+
+# G-Q5-12（rev3.3）运行时：每次 `dispatch` 返回前帧栈为空，`DEBUG CHECK unit_frames` 零命中；
+# 安装后校验失败的提交回滚到提交前，同样不留帧。
+static func unit_frames_never_leak(t) -> void:
+ var g=JoinProbe.new(42)
+ g._discard_end()
+ g.state.wall="normal"
+ var before=g.state.equipment.size()
+ var first=t.action(g,"end")
+ t.check(first.ok and g.state.equipment.size()>before,"REMOVAL unit_frames_never_leak: the end-turn submit really installs equipment through the factories, so the frame check below is not vacuous: ok="+str(first.ok)+" added="+str(g.state.equipment.size()-before))
+ t.check(g._unit_frames.is_empty() and _frame_issues(g).is_empty(),"REMOVAL unit_frames_never_leak: the submit returns with an empty frame stack and no unit_frames debug failure: frames="+str(g._unit_frames.size())+" debug="+str(_frame_issues(g)))
+ var rollback=RollbackProbe.new(42)
+ rollback._discard_end()
+ rollback.state.wall="normal"
+ var snapshot=rollback.export_snapshot()
+ rollback.pristine=snapshot.equipment.map(func(e):return String(e.id))
+ rollback.armed=true
+ var failed=t.action(rollback,"end")
+ rollback.armed=false
+ t.check(not failed.ok and rollback.state==snapshot and rollback._unit_frames.is_empty() and _frame_issues(rollback).is_empty(),"REMOVAL unit_frames_never_leak: a submit whose post-install validation fails rolls the state back and leaves no frame or debug record behind: ok="+str(failed.ok)+" error="+String(failed.get("error",""))+" frames="+str(rollback._unit_frames.size())+" debug="+str(_frame_issues(rollback)))
+
+# rev3.1 G-Q5-6：加入尾声的日志序与嵌套不变。带即时抽牌与下回合多抽两种 restraint_draw power 与
+# restraint_mana 遗物的战斗夹具，逐类走真实安装入口，把新增日志按语义分档后比对整条序。
+static func _join_tags(texts: Array) -> Array:
+ return texts.map(func(text):
+  var line=String(text)
+  if line.contains("形成了"): return "binding"
+  if line.contains("已连到") and line.contains("左肩"): return "left"
+  if line.contains("已连到") and line.contains("右肩"): return "right"
+  if line.contains("自动扣上了"): return "strap"
+  if line.contains("欲望魔方"): return "mana"
+  if line.contains("下回合多抽"): return "worn"
+  return "other")
+
+static func _join_battle_fixture(t):
+ var g=Game.new(42)
+ g._discard_end()
+ g.state.energy=50
+ g.state.wall="normal"
+ g.RelicEffects.gain(g,"desire_cube")
+ var free=preload("res://tests/curse_cases.gd").give(g,"restraint_embrace")
+ if not t.action(g,"card",{"uid":free.uid,"free":true}).ok: return null
+ var bound=preload("res://tests/curse_cases.gd").give(g,"restraint_embrace")
+ if not t.action(g,"card",{"uid":bound.uid,"free":false}).ok: return null
+ return g
+
+static func join_epilogue_keeps_order(t) -> void:
+ var g=_join_battle_fixture(t)
+ t.check(g!=null and g.state.powers.size()==2,"REMOVAL join_epilogue_keeps_order: the battle fixture really carries both restraint_draw faces and the restraint_mana relic: powers="+str(0 if g==null else g.state.powers.size()))
+ if g==null: return
+ # 3 档大臂绳：固缚 → 左肩入列 → 左肩 worn → 右肩入列 → 右肩 worn → 宿主回魔 → 宿主 worn。
+ var mark=g.state.logs.size()
+ var piece=g._install_template("rope","upper_arm",16,16,false,"enemy",1,-1,0,"")
+ var tags=_join_tags(g.state.logs.slice(mark).map(func(row):return String(row.text)))
+ t.check(not piece.is_empty() and tags==["binding","left","worn","right","worn","mana","worn"],"REMOVAL join_epilogue_keeps_order: the tier-three rope keeps the pre-Q5\" order binding, left strap, left worn, right strap, right worn, host mana, host worn: tags="+str(tags)+" texts="+str(g.state.logs.slice(mark).map(func(row):return String(row.text))))
+ # 3 档可加固平板锁：加固带入列 → 回魔 → worn。
+ mark=g.state.logs.size()
+ var lock=g._install_special("negative_plate_lock_medium","special_2_a",3)
+ var lock_tags=_join_tags(g.state.logs.slice(mark).map(func(row):return String(row.text)))
+ t.check(not lock.is_empty() and lock_tags==["strap","mana","worn"],"REMOVAL join_epilogue_keeps_order: the reinforced plate lock keeps the strap copy, then the host mana and worn: tags="+str(lock_tags))
+ # 复合手套与链接绳：回魔 → worn，各一次（复合件另有自己的装备通告，不属加入尾声）。
+ mark=g.state.logs.size()
+ var root=g._install_assembly("glove","short","fixture",2,1)
+ var assembly_texts=g.state.logs.slice(mark).map(func(row):return String(row.text))
+ var assembly_tags=_join_tags(assembly_texts).filter(func(tag):return tag!="other")
+ t.check(not root.is_empty() and assembly_tags==["mana","worn"],"REMOVAL join_epilogue_keeps_order: the composite glove keeps one mana and one worn step: tags="+str(assembly_tags)+" texts="+str(assembly_texts))
+ var forearm=g._install_template("rope","forearm",4,8,false,"fixture",1,-1,0,"mid_forearm")
+ var wrist=g._install_template("rope","wrist",4,8,false,"fixture",1,-1,0,"wrist")
+ mark=g.state.logs.size()
+ var link=g._install_link(forearm.id,wrist.id,4.8,"fixture",1,[],["forearm","wrist"],["mid_forearm","wrist"])
+ var link_tags=_join_tags(g.state.logs.slice(mark).map(func(row):return String(row.text)))
+ t.check(not link.is_empty() and link_tags==["mana","worn"],"REMOVAL join_epilogue_keeps_order: the link rope keeps one mana and one worn step: tags="+str(link_tags))
+ # shoulder kind：两条肩带各自入列 → worn（独立夹具，避开复合件占位）。
+ var shoulder_game=_join_battle_fixture(t)
+ t.check(shoulder_game!=null,"REMOVAL join_epilogue_keeps_order: the shoulder case gets its own battle fixture")
+ if shoulder_game==null: return
+ var shoulder_host=shoulder_game.add_fixture("upper_arm",8,16,false,0,"rope")
+ mark=shoulder_game.state.logs.size()
+ var accepted=shoulder_game.Shoulders.install(shoulder_game,shoulder_host,"rope",2,"fixture")
+ var shoulder_texts=shoulder_game.state.logs.slice(mark).map(func(row):return String(row.text))
+ var shoulder_tags=_join_tags(shoulder_texts)
+ t.check(accepted and shoulder_tags==["left","worn","right","worn"],"REMOVAL join_epilogue_keeps_order: the shoulder entry pairs each join copy with its own worn step: accepted="+str(accepted)+" tags="+str(shoulder_tags)+" texts="+str(shoulder_texts))
+ # 每件恰一次安装反馈：单件安装只产生一条回执事件并置 installed。
+ var feedback=preload("res://core/resource_feedback.gd").new()
+ feedback.capture(g.state)
+ g._resource_feedback=feedback
+ var fresh=g._install_template("rope","calf",4,8,false,"enemy",1,-1,0,"")
+ g._resource_feedback=null
+ t.check(not fresh.is_empty() and feedback.events.size()==1 and feedback.installed,"REMOVAL join_epilogue_keeps_order: one ordinary install produces exactly one installation receipt and sets the installed flag: events="+str(feedback.events.size())+" installed="+str(feedback.installed))
+
+# rev3.1 G-Q5-7（rev3.3 去掉 `room_events.compile` 一项）：在已开启回执的提交上下文里，五个预演入口
+# 都不许漏出加入效果——live state（含 rng）、回执事件与标志、`_card_feedback`、帧栈全部与调用前相等。
+static func previews_never_leak_join_effects(t) -> void:
+ var g=JoinProbe.new(42)
+ g._discard_end()
+ g.state.energy=8
+ g.state.wall="normal"
+ g.add_fixture("ankle",4)
+ g.state.room_event={"refs":{}}
+ # `room_events.gd::compile` 不在本判据内（rev3.3 作废与改写一览）：先在回执上下文之外取好效果表。
+ var effects=preload("res://core/room_events.gd").compile(g,"free_basic")
+ _probe_reset(g)
+ var before=g.export_snapshot()
+ var feedback=preload("res://core/resource_feedback.gd").new()
+ feedback.capture(g.state)
+ g._resource_feedback=feedback
+ g._card_feedback=[]
+ var spec={"pool":"ordinary","templates":["rope"],"count":1,"grade":3,"tier":3,"replace":false}
+ g.Application.can_apply(g,spec,"event:probe")
+ g.Application.choose(g,spec,"event:probe")
+ var plan=preload("res://tests/replacement_cases.gd").Replacement.plan(g,[preload("res://tests/replacement_cases.gd").request("wrist",3,3)],"fixture")
+ var self_plan=preload("res://core/self_binding.gd").installation_plan(g,"self_binding",1,false)
+ var probe=preload("res://core/room_events.gd").probe_result(g,effects,{},false)
+ g._resource_feedback=null
+ var untouched=g.state==before and feedback.events.is_empty() and not feedback.installed and not feedback.damaged and feedback.sounds.is_empty() and feedback.scoped_sounds.is_empty() and g._card_feedback.is_empty() and g._unit_frames.is_empty()
+ t.check(untouched,"REMOVAL previews_never_leak_join_effects: can_apply, choose, an uncommitted replacement plan, the self-binding plan and the event result probe leave the live state, rng, receipts, card feedback and the frame stack untouched: state="+str(g.state==before)+" receipts="+str(feedback.events.size())+" installed="+str(feedback.installed)+" damaged="+str(feedback.damaged)+" sounds="+str(feedback.sounds.size())+" scoped="+str(feedback.scoped_sounds.size())+" cards="+str(g._card_feedback.size())+" frames="+str(g._unit_frames.size())+" joined="+str(g.joined))
+ var live_ids=[]
+ for row in [g.state.equipment,g.state.composites,g.state.links,g.state.special_equipment]:
+  for item in row: live_ids.append(String(item.id))
+ var leaked=g.joined.filter(func(entry):return String(entry[0]) in live_ids)
+ t.check(leaked.is_empty(),"REMOVAL previews_never_leak_join_effects: every member the trial installs registered stays in the discarded trial state -- no preview-registered id reaches a live container: leaked="+str(leaked)+" joined="+str(g.joined))
+ t.check(not effects.is_empty() and not probe.is_empty() and plan.has("ok") and not self_plan.is_empty(),"REMOVAL previews_never_leak_join_effects: every preview entry really ran on a reachable input, so the untouched state above is not vacuous: effects="+str(effects.size())+" probe="+str(probe)+" plan_ok="+str(plan.get("ok",false))+" self_plan="+str(self_plan.size()))
+ # 安装后校验失败的提交：回滚后 state 与帧栈同样干净。
+ var rollback=RollbackProbe.new(42)
+ rollback._discard_end()
+ rollback.state.wall="normal"
+ rollback.add_fixture("ankle",4)
+ var snapshot=rollback.export_snapshot()
+ rollback.pristine=snapshot.equipment.map(func(e):return String(e.id))
+ rollback.armed=true
+ var failed=t.action(rollback,"end")
+ rollback.armed=false
+ t.check(not failed.ok and rollback.state==snapshot and rollback._unit_frames.is_empty() and _frame_issues(rollback).is_empty(),"REMOVAL previews_never_leak_join_effects: a submit that fails validation after its units committed restores the state and leaves no frame behind: ok="+str(failed.ok)+" frames="+str(rollback._unit_frames.size()))
+
 

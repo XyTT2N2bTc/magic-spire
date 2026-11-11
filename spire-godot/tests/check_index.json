@@ -331,7 +331,7 @@
     },
     "spire-godot/tests/equipment_cases.gd": {
       "owner": "rule:equipment",
-      "signals": 4
+      "signals": 7
     },
     "spire-godot/tests/equipment_complete_cases.gd": {
       "owner": "rule:equipment_complete",
@@ -934,7 +934,7 @@
       "signals": 2
     }
   },
-  "digest": "f05d535c0bd96684aeaa5e14e61069b046be479348b3a61df83d0b5734c45057",
+  "digest": "0fd4cbec012002d23d671245f0b63c30d05a0d5077f2f0eb2387c1c9ce64ef81",
   "domain_words": {
     "ART": [
       "ui:display",
@@ -1932,7 +1932,7 @@
       ]
     }
   },
-  "generated_from": "b1065c69d1e939d3e0a1c359f1b674f09fc9b09d5641a1abe29364b9813513c2",
+  "generated_from": "c21f721e12be354831e1ddc5b9913c706d36c491b919d9f40b199ec8a3d7c976",
   "registries": {
     "rule": [
       "rope_master",
@@ -2055,7 +2055,7 @@
     "rule_suites": 54,
     "source_files": 143,
     "sources_with_edges": 141,
-    "suite_edges": 569,
+    "suite_edges": 572,
     "suites_with_edges": 101,
     "ui_suites": 50,
     "widen": 1
@@ -2403,6 +2403,15 @@
         "domain"
       ],
       "spire-godot/core/release_view.gd": [
+        "preload"
+      ],
+      "spire-godot/core/resource_feedback.gd": [
+        "preload"
+      ],
+      "spire-godot/core/room_events.gd": [
+        "preload"
+      ],
+      "spire-godot/core/self_binding.gd": [
         "preload"
       ],
       "spire-godot/data/composites.gd": [

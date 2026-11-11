@@ -691,6 +691,36 @@
       "find": " state.links.append(link)\n _member_changed(link,\"added\")",
       "replace": " state.links.append(link)",
       "suite": "architecture"
+    },
+    "join_hooks_run_after_unit_commit": {
+      "file": "core/shoulder_links.gd",
+      "find": " g._member_joined(pair.pieces.back(),\"S\",false,{\"host\":host})",
+      "replace": " g._join_hooks([pair.pieces.back(),\"S\",false,{\"host\":host}])",
+      "suite": "equipment"
+    },
+    "join_hooks_follow_post_order": {
+      "file": "core/game.gd",
+      "find": " _tier_consequences(e,-1,tier(e.durability,e.maximum),false)\n _member_joined(e,\"P\",true)",
+      "replace": " _member_joined(e,\"P\",true)\n _tier_consequences(e,-1,tier(e.durability,e.maximum),false)",
+      "suite": "equipment"
+    },
+    "join_effects_have_one_epilogue": {
+      "file": "core/game.gd",
+      "find": " \"R\":{\"J1\":\"member\",\"J2\":\"reinforcement\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"},\n \"B\":{\"J1\":\"new_linked\",\"J2\":\"binding\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"}}",
+      "replace": " \"R\":{\"J1\":\"member\",\"J2\":\"reinforcement\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"}}",
+      "suite": "architecture"
+    },
+    "unit_entries_are_declared": {
+      "file": "core/game.gd",
+      "find": " var owned=_unit_begin()\n state.links.append(link)",
+      "replace": " var owned=false\n state.links.append(link)",
+      "suite": "architecture"
+    },
+    "unit_writes_follow_all_checks": {
+      "file": "core/game.gd",
+      "find": "   _special_erase(old)\n   _emit(\"event\",old.name+\"被新的平板锁替换并取下。\")",
+      "replace": "   _special_erase(old)\n   _emit(\"event\",old.name+\"被新的平板锁替换并取下。\")\n   return {}",
+      "suite": "architecture"
     }
   }
 }
