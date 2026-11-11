@@ -177,8 +177,8 @@
   "generated_from": {
     "cells": 1306,
     "fields": 121,
-    "files": 143,
-    "inputs_sha256": "fef54931e4a8e2c1b9009a10cea4b4520a1756398760cd99cce6ad10f61e2c9d",
+    "files": 144,
+    "inputs_sha256": "e656b6f828c27fb449995aa1e86d038c227a8ee2bf3bd47f42566e2201e0e1a3",
     "sites": 2131,
     "ui_reads": 0,
     "whole_state": 75
@@ -676,6 +676,14 @@
     "core/equipment_offers.gd::shoulders": {
       "equipment": 1
     },
+    "core/equipment_removal.gd::settle": {
+      "composites": 4,
+      "equipment": 3,
+      "items": 2,
+      "links": 3,
+      "powers": 1,
+      "special_equipment": 4
+    },
     "core/equipment_replacement.gd::_force_special_live": {
       "special_equipment": 2
     },
@@ -829,14 +837,6 @@
     "core/game.gd::_cast_path": {
       "pressure": 1,
       "sure_cast": 1
-    },
-    "core/game.gd::_cleanup": {
-      "composites": 4,
-      "equipment": 3,
-      "items": 2,
-      "links": 3,
-      "powers": 1,
-      "special_equipment": 4
     },
     "core/game.gd::_clear_charge": {
       "charge": 1

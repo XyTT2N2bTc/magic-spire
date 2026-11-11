@@ -372,6 +372,104 @@ static func write_epoch_is_monotone_and_private(t) -> void:
  g._write_durability(piece,piece.durability,false)
  t.check(g.write_epoch()>stamp and g._equipment_read.is_empty(),"REMOVAL write_epoch_is_monotone_and_private: reads and writes leave no epoch or index residue in the equipment read batch: before="+str(stamp)+" after="+str(g.write_epoch())+" read_batch="+str(g._equipment_read))
 
+# Q6′a（G-Q6-7；rev3.4 gherkin「满拘束夹具逐锚点断开序列」）：链接趟的锚点清单在循环前取一次，
+# 且必须在特殊件／普通件／复合件各趟之后取——这样刚被前几趟移除的锚点已不在清单里，链接随之移除。
+# 本条用满拘束夹具逐锚点断开：每例只让一个锚点耐久归零、跑一次真结算，核对「被移除的链接」恰等于
+# 「失去锚点的链接（或自身已释放）」；把外提挪到特殊件趟之前，链接会带着失效端点存活，本条具名红。
+# 夹具经真工厂（_install_assembly／_install_template／_refresh_equipment／_install_special／_install_link）
+# 建局，含普通锚、组件锚、肩带锚与股绳锚特殊件；肩带锚不被合法链接作为端点（Links 规则），
+# 故肩带锚只作「断它不误删链接」的对照例。
+static func _full_restraint() -> Dictionary:
+ var g=Game.new(42)
+ g.state.phase="map"
+ g.state.equipment=[];g.state.composites=[];g.state.special_equipment=[];g.state.links=[]
+ g.state.next_equipment=1
+ g.state.pressure=0.0
+ # 先装腿套：它占住大腿覆盖位，后装的普通件只能绕开，装配件才进得了场。
+ g._install_assembly("leg","upper","fixture",2,2)
+ var templates=["rope","belt","tape","cable_tie","cord","fine_belt"]
+ for slot in E.B.ARM_SLOTS+E.B.LEG_SLOTS+["eyes","mouth","neck"]:
+  for layer in range(3):
+   for side in ["left","right",""]:
+    for template in templates:
+     var piece=g._install_template(template,slot,E.maximum(2),E.maximum(2),false,"fixture",2,layer,0)
+     if piece.is_empty(): continue
+     if side!="": piece.side=side
+     break
+ # 三档宿主在刷新时结成肩带（Shoulders.refresh 的唯一入口）。
+ for host in g.state.equipment.duplicate(): g._refresh_equipment(host)
+ for root in g.state.composites.duplicate():
+  for part in root.components.duplicate(): g._refresh_equipment(part)
+ for pair in [["crotch_rope_high","special_3_a"],["nipple_clamp_medium","special_1_a"],["shaft_ring_medium","special_2_a"]]:
+  g._install_special(String(pair[0]),String(pair[1]),3)
+ # 链接走合法枚举：每个锚点至多装一条，装不下就跳过（规则由 Links 判定，不由本夹具代写）。
+ for anchor in g.link_anchors():
+  for other in g.link_anchors():
+   if String(other.id)==String(anchor.id): continue
+   if g.state.links.any(func(link):return String(anchor.id) in link.ends and String(other.id) in link.ends): break
+   if not g._install_link(String(anchor.id),String(other.id),12.8,"fixture",2).is_empty(): break
+ var pieces=g.physical_pieces()
+ var points=0
+ for piece in pieces: points+=E.physical_points(piece).size()
+ # 两类清点分开：锚点种类（含肩带）与链接端点种类（肩带不被合法链接接受，故端点里没有它）。
+ var anchor_kinds={}
+ for anchor in g.link_anchors():
+  var kind="special" if String(anchor.get("template",""))=="special" else ("component" if anchor.has("root_id") else ("strap" if anchor.has("shoulder_host") else "ordinary"))
+  anchor_kinds[kind]=int(anchor_kinds.get(kind,0))+1
+ var kinds={}
+ for link in g.state.links:
+  for end in link.ends:
+   for anchor in g.link_anchors():
+    if String(anchor.id)!=String(end): continue
+    var kind="special" if String(anchor.get("template",""))=="special" else ("component" if anchor.has("root_id") else ("strap" if anchor.has("shoulder_host") else "ordinary"))
+    kinds[kind]=int(kinds.get(kind,0))+1
+ return {"game":g,"pieces":pieces.size(),"points":points,"links":g.state.links.size(),"anchors":g.link_anchors().size(),"kinds":kinds,"anchor_kinds":anchor_kinds}
+
+# 锚点记录：普通件／特殊件／复合件组件／宿主肩带四处之一；找不到返回空表（调用方据此具名红）。
+static func _anchor_record(g,id: String) -> Dictionary:
+ for piece in g.state.equipment:
+  if String(piece.id)==id: return piece
+ for piece in g.state.special_equipment:
+  if String(piece.id)==id: return piece
+ for root in g.state.composites:
+  for part in root.components:
+   if String(part.id)==id: return part
+ for host in g.state.equipment:
+  if not host.has("shoulders"): continue
+  for strap in host.shoulders.pieces:
+   if String(strap.id)==id: return strap
+ return {}
+
+static func anchor_hoist_matches_rescan(t) -> void:
+ var fixture=_full_restraint()
+ var g=fixture.game
+ print("REMOVAL FIXTURE pieces=%d points=%d links=%d anchors=%d anchor_kinds=%s link_end_kinds=%s" % [fixture.pieces,fixture.points,fixture.links,fixture.anchors,str(fixture.anchor_kinds),str(fixture.kinds)])
+ var anchor_ids=g.link_anchors().map(func(anchor):return String(anchor.id))
+ t.check(fixture.pieces>=30 and fixture.links>=20 and fixture.anchors>=30 and anchor_ids.size()==fixture.anchors,"REMOVAL anchor_hoist_matches_rescan: the full-restraint fixture is dense enough for the per-anchor sequence (a thin or empty fixture would make every clause vacuous): pieces="+str(fixture.pieces)+" points="+str(fixture.points)+" links="+str(fixture.links)+" anchors="+str(fixture.anchors)+" anchor_kinds="+str(fixture.anchor_kinds)+" link_end_kinds="+str(fixture.kinds))
+ var uncovered=["ordinary","component","special"].filter(func(kind):return int(fixture.kinds.get(kind,0))==0)
+ t.check(uncovered.is_empty() and int(fixture.anchor_kinds.get("strap",0))>0,"REMOVAL anchor_hoist_matches_rescan: the fixture's links reach every anchor kind a legal link can use (ordinary pieces, composite components, the crotch-rope special) and its anchor list also holds shoulder straps, so the disconnect sequence is not narrowed to one kind: link_ends="+str(fixture.kinds)+" anchors="+str(fixture.anchor_kinds)+" uncovered="+str(uncovered))
+ var pristine=g.state.duplicate(true)
+ var bad=[]
+ var removed_any=0
+ var cases=0
+ for id in anchor_ids:
+  g.state=pristine.duplicate(true)
+  var record=_anchor_record(g,id)
+  if record.is_empty():
+   bad.append(id+":missing-anchor");continue
+  record.durability=0.0
+  var before=g.state.links.duplicate(true)
+  g._cleanup()
+  var remaining=g.link_anchors().map(func(anchor):return String(anchor.id))
+  cases+=1
+  for link in before:
+   var removed=not g.state.links.any(func(kept):return String(kept.id)==String(link.id))
+   var lost=not link.ends.all(func(end):return String(end) in remaining)
+   var released=float(link.durability)<=0.000001
+   if removed != (lost or released): bad.append(id+":"+String(link.id)+":removed="+str(removed)+":lost="+str(lost)+":released="+str(released))
+   if removed: removed_any+=1
+ t.check(cases==anchor_ids.size() and removed_any>0 and bad.is_empty(),"REMOVAL anchor_hoist_matches_rescan: every anchor of the full-restraint fixture is disconnected in its own settle, and the link pass removes exactly the links that lost an anchor after the earlier passes (a hoist taken before the special/ordinary passes leaves the link alive, so this is red): cases="+str(cases)+"/"+str(anchor_ids.size())+" removed_links="+str(removed_any)+" mismatches="+str(bad.size())+" first="+str(bad.slice(0,4)))
+
 static func run(t) -> void:
  leather_slip(t)
  preload("res://tests/shackle_cases.gd").run(t)
@@ -388,6 +486,7 @@ static func run(t) -> void:
  tightening_draws_binding_once(t)
  equal_value_tier3_follows_cause_intent(t)
  settle_writes_track_only_rope_or_no_op(t)
+ anchor_hoist_matches_rescan(t)
  write_epoch_is_monotone_and_private(t)
  hook_release_guards_are_already_upstream(t)
  join_hooks_run_after_unit_commit(t)

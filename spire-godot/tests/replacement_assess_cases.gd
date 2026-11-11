@@ -31,7 +31,7 @@ const Equipment=preload("res://data/equipment.gd")
 const Arch=preload("res://tests/architecture_cases.gd")
 
 # design §9 L2（A52 F3）：live 清理骨架与 _trial 会执行、视图骨架跳过的钩子。行＝[钩子锚点, 声明的写键,
-# 视图端禁跑的 live-only token, 到达链（[锚点, token] 对；首跳锚点须是本表行或 core/game.gd::_cleanup，
+# 视图端禁跑的 live-only token, 到达链（[锚点, token] 对；首跳锚点须是本表行或 core/equipment_removal.gd::settle，
 # 末跳 token 须是该钩子的调用）]。判据在 tests/replacement_view_cases.gd::excluded_hooks_are_not_read_by_the_judgment。
 const ASSESS_EXCLUDED_HOOKS=[
  ["core/card_effects.gd::restraint_changed",["powers","energy"],"Cards.",[]],

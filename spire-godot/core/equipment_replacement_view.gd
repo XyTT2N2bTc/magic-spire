@@ -86,8 +86,9 @@ static func attach(g, view: Dictionary, owner: Dictionary) -> Dictionary:
  owner.reinforcement_state="active"
  var strap=g._reinforcement_strap(view.next_equipment,type,owner.id)
  view.next_equipment+=1;view.special_equipment.append(strap);return strap
-# O3 view skeleton: same order and shared predicates as _cleanup, no live-only side effect.
-# Shoulders' crossed flag is durability-derived on a valid piece.
+# O3 view skeleton: same order and shared predicates as Removal.settle, no live-only side effect.
+# Shoulders' crossed flag is durability-derived on a valid piece. The link anchors are read once
+# before the link pass, exactly as the live settle reads them.
 static func cleanup(g, view: Dictionary) -> void:
  for host in view.equipment:
   if not host.has("shoulders"): continue
@@ -119,8 +120,9 @@ static func cleanup(g, view: Dictionary) -> void:
   if released.is_empty(): continue
   var kept=own(view,root);kept.components=kept.components.filter(func(e):return not e.id in released)
   if kept.components.is_empty(): view.composites.erase(kept)
+ var anchors=g.link_anchors_in(view)
  for link in view.links.duplicate():
-  if g._released(link) or g._link_anchor_lost(link,g.link_anchors_in(view)): view.links.erase(link)
+  if g._released(link) or g._link_anchor_lost(link,anchors): view.links.erase(link)
 # Flattened loadout records for identity comparison: a composite carries its components, a
 # binding its generated record, a host its straps; identity/provenance are stripped.
 static func loadout_records(snapshot: Dictionary) -> Array:

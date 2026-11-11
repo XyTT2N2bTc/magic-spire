@@ -27,7 +27,7 @@
     },
     "spire-godot/tests/architecture_cases.gd": {
       "owner": "rule:architecture",
-      "signals": 19
+      "signals": 20
     },
     "spire-godot/tests/axe_amulet_cases.gd": {
       "owner": "rule:relics",
@@ -934,7 +934,7 @@
       "signals": 2
     }
   },
-  "digest": "0fd4cbec012002d23d671245f0b63c30d05a0d5077f2f0eb2387c1c9ce64ef81",
+  "digest": "65ce6044b5108187ca458faa3496daea3b96fac83be444674b665013daa39801",
   "domain_words": {
     "ART": [
       "ui:display",
@@ -1932,7 +1932,7 @@
       ]
     }
   },
-  "generated_from": "ef7d220a65810d6b7d1b3fed06d7fb74f32e703d0777d3edf29814f65c6cbda7",
+  "generated_from": "6ca3d0b0b16548ce7d1dce2d5400f73300a7666a296d22ed6fb31ea44b35e899",
   "registries": {
     "rule": [
       "rope_master",
@@ -2051,11 +2051,11 @@
     "domains": 65,
     "domains_declared": 65,
     "excluded": 15,
-    "inputs": 379,
+    "inputs": 380,
     "rule_suites": 54,
-    "source_files": 143,
-    "sources_with_edges": 141,
-    "suite_edges": 572,
+    "source_files": 144,
+    "sources_with_edges": 142,
+    "suite_edges": 573,
     "suites_with_edges": 101,
     "ui_suites": 50,
     "widen": 1
@@ -2100,6 +2100,9 @@
         "preload"
       ],
       "spire-godot/core/departure.gd": [
+        "preload"
+      ],
+      "spire-godot/core/equipment_removal.gd": [
         "preload"
       ],
       "spire-godot/core/equipment_replacement_assess.gd": [

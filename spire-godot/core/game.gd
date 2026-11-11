@@ -3,6 +3,7 @@ const Enchantments=preload("res://core/card_enchantments.gd")
 const RestraintValue=preload("res://data/restraint_value.gd")
 const FirstTurnControl=preload("res://core/first_turn_control.gd")
 const CommandRegistry=preload("res://core/command_registry.gd")
+const Removal=preload("res://core/equipment_removal.gd")
 var _resource_feedback
 var _card_feedback: Array=[]
 var _equipment_read: Dictionary={}
@@ -4226,77 +4227,7 @@ func _link_anchor_lost(link: Dictionary, anchors: Array) -> bool:
  return not link.ends.all(func(id):return anchors.any(func(e):return e.id==id))
 
 func _cleanup(released: bool=true) -> void:
- var roots=Cards.restraint_roots(self) if released and not state.powers.is_empty() else []
- Shoulders.cleanup(self)
- for item in state.special_equipment.duplicate():
-  if _released(item):
-   if SpecialEquipment.is_reinforcement(item):
-    var owner=_equipment(item.owner_id)
-    if not owner.is_empty() and SpecialEquipment.supports_reinforcement(owner): owner.reinforcement_state="removed"
-   _special_erase(item)
-   for strap in state.special_equipment.duplicate():
-    if _strap_follows(item,strap): _special_erase(strap)
-   _emit("event",item.name+"已解除。")
- for strap in state.special_equipment.duplicate():
-  if _strap_orphaned(strap,state.special_equipment):
-   _special_erase(strap)
- for item in state.items.duplicate():
-  if item.uses<=0:
-   _emit("event",Tools.TYPES[item.type].name+"已经耗尽次数。")
-   state.items.erase(item)
- for i in range(state.equipment.size()-1,-1,-1):
-  var e=state.equipment[i]
-  RopeArt.track(self,e)
-  if _piece_released(e):
-   _emit("event",e.name+"已解除。")
-   state.equipment.remove_at(i)
-   _member_changed(e,"removed")
- for root in state.composites.duplicate():
-  var body=_composite_body(root)
-  if _root_head_orphaned(root,_equipment(root.attached_to)):
-   state.composites.erase(root)
-   for part in root.components: _member_changed(part,"removed")
-   _member_changed(root,"removed")
-   _emit("event","口部固定带已解除，依附其上的头部马具一并移除。")
-   continue
-  if not body.is_empty() and _released(body):
-   var released_parts=root.components.filter(func(e):return not _component_kept(e))
-   root.components=root.components.filter(func(e):return _component_kept(e))
-   for part in released_parts: _member_changed(part,"removed")
-   if root.components.is_empty():
-    state.composites.erase(root)
-    _member_changed(root,"removed")
-   _emit("event",root.name+"的套体已解除。"+("附带部件一并解除。" if root.components.is_empty() else ""))
-  else:
-   var previous_count=root.components.size()
-   for part in root.components.duplicate():
-    if _released(part):
-     root.components.erase(part)
-     _member_changed(part,"removed")
-     _emit("event",part.name+"已解除。")
-   if root.components.is_empty():
-    state.composites.erase(root)
-    _member_changed(root,"removed")
-   elif not body.is_empty():
-    var removed=root.components.size()<previous_count
-    if removed and _slip_reason(body)=="": _emit("event","现在可以尝试滑脱"+root.name+"的套体。")
- for link in state.links.duplicate():
-  RopeArt.track(self,link)
-  if _released(link):
-   state.links.erase(link)
-   _member_changed(link,"removed")
-   _emit("event",link.name+"已解除。")
-  elif _link_anchor_lost(link,link_anchors()):
-   RopeArt.track(self,link,true)
-   state.links.erase(link)
-   _member_changed(link,"removed")
-   _emit("event",link.name+"连接的一件装备已解除，这条链接随之移除。")
- Pressure.cleanup(self)
- Pressure.settle_maximum(self,"平板锁解除后")
-
- if not roots.is_empty():
-  var remaining=Cards.restraint_roots(self)
-  Cards.restraint_changed(self,"released",roots.filter(func(id):return id not in remaining).size())
+ Removal.settle(self,released)
 
 func _apply_traction(amount: int, guard_effect: bool, hand_pressure: float) -> void:
  _tick_special("energy")

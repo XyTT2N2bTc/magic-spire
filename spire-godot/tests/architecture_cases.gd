@@ -14,6 +14,9 @@ const View=preload("res://core/equipment_replacement_view.gd")
 # A67 的旧档兼容层同样由本套件持有：既给索引一条真实边（否则新核心文件落进 blind），
 # 也让判据从脚本资源取路径，preload 与扫描到的文件是同一个。
 const SaveCompat=preload("res://core/save_compat.gd")
+# Q6′a 的成员层结算模块同样由本套件持有：既给索引一条真实边（否则新核心文件落进 blind），
+# 也让「模块可加载、路径与判据同一」成为运行期判据而不是只靠源码扫描。
+const Removal=preload("res://core/equipment_removal.gd")
 
 # docs/spec/ondemand-copy.md「oracle 三条（必须换判据）」: frozen hashes recomputed with
 # unmodified source on 2026-09-15 (candidates_sha256, view_sha256) for copy_baseline_fixture.
@@ -1192,6 +1195,9 @@ static func run(t) -> void:
  write_epoch_bumps_in_every_port(t)
  lock_writes_have_one_entry(t)
  member_changes_are_announced(t)
+ removal_module_edges(t)
+ cleanup_link_loop_writes_only_links(t)
+ container_alias_writes_stay_on_projections(t)
  join_effects_have_one_epilogue(t)
  unit_entries_are_declared(t)
  unit_writes_follow_all_checks(t)
@@ -6539,9 +6545,9 @@ static func save_compat_only_from_legacy_restore(t) -> void:
 # 成员增删、整容器赋值与 `g.state[key]=` 整键写只出现在登记写口；替换事务的三处整容器写是登记例外。
 # 特殊件容器的 live 写口恰为 `_special_append`／`_special_erase`（A66），事件暂存层经它们再封一层。
 const EQUIPMENT_MEMBER_WRITERS={
- "equipment":["core/game.gd::_install_template","core/game.gd::_cleanup"],
- "composites":["core/game.gd::_install_assembly","core/game.gd::_cleanup"],
- "links":["core/game.gd::_install_link","core/game.gd::_cleanup"],
+ "equipment":["core/game.gd::_install_template","core/equipment_removal.gd::settle"],
+ "composites":["core/game.gd::_install_assembly","core/equipment_removal.gd::settle"],
+ "links":["core/game.gd::_install_link","core/equipment_removal.gd::settle"],
  "special_equipment":["core/game.gd::_special_append","core/game.gd::_special_erase"]}
 const EQUIPMENT_MEMBER_WRITE_EXCEPTIONS=[
  "core/equipment_replacement.gd::_plan",
@@ -6708,7 +6714,7 @@ const MEMBER_ANNOUNCEMENT_SITES={
  "core/game.gd::_install_template":1,
  "core/game.gd::_install_assembly":1,
  "core/game.gd::_install_link":1,
- "core/game.gd::_cleanup":9,
+ "core/equipment_removal.gd::settle":9,
  "core/game.gd::_special_append":1,
  "core/game.gd::_special_erase":1,
  "core/shoulder_links.gd::install":1,
@@ -6820,6 +6826,162 @@ static func member_changes_are_announced(t) -> void:
  var definitions=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"func\\s+_member_changed\\s*\\("))
  var replaced_definitions=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"func\\s+_members_replaced\\s*\\("))
  t.check(view_hits.is_empty() and definitions==["core/game.gd::_member_changed"] and replaced_definitions==["core/game.gd::_members_replaced"],"ARCH member_changes_are_announced: the two announcement ports have exactly one definition each and the view modules never call them (a projection copy is not a live member write): view="+str(view_hits)+" definitions="+str(definitions)+" replaced="+str(replaced_definitions))
+
+# ==== Q6′a（rev3.4 gherkin G-Q6-7／G-Q6-8′／G-Q6-12；dependencies-delta §1、§3、§4）：成员层模块的边 ====
+# 成员层结算已迁到独立模块（Q6′a），`core/game.gd::_cleanup` 只剩一句委托。下面三条判据守新模块的
+# 三个面：① 模块边（零 preload、唯一引用者、调用函数表、禁调写口）；② 链接趟的写面与锚点外提；
+# ③ 三容器经非 state 接收者的写只落在投影面。
+const REMOVAL_MODULE="core/equipment_removal.gd"
+const REMOVAL_SOURCE="core/equipment_removal.gd::settle"
+# 声明的调用函数：Q6′a 只有 `_cleanup`；Q6′b 在同一张表上加六行（本片不得预填）。
+const REMOVAL_CALL_SITES=["core/game.gd::_cleanup"]
+# 模块经 `g` 调用的名单（dependencies-delta §4 Q6′a 行）：与 `_cleanup` 原体一一对应，多一个少一个都红。
+const REMOVAL_G_CALLS=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost","link_anchors","_equipment","_composite_body","_slip_reason","_emit","_member_changed","_special_erase","Shoulders","RopeArt","Pressure","Cards","SpecialEquipment","Tools"]
+# 模块不得调用的写口（dependencies-delta §4 禁止项）：例外是本片从 `_cleanup` 原体带过来的两条。
+const REMOVAL_FORBIDDEN_CALLS=["_write_durability","_write_quality","_write_locked","_special_append","_tier_consequences","_member_joined","_join_hooks","_prepare_installation","_plan_assembly","_install_template","_install_assembly","_install_link","_special_piece","_reinforcement_strap"]
+const REMOVAL_ALLOWED_WRITE_PORTS=["_special_erase","_member_changed"]
+# 链接趟的写面（G-Q6-7）：循环体只许这四种写形，且只写 links 容器。
+const LINK_LOOP_WRITES=["g.state.links.erase","g.RopeArt.track","g._emit","g._member_changed"]
+# 三容器的投影面接收者白名单（G-Q6-12）：每行＝接收者@文件；视图副本与界面区域副本是合法接收者。
+const CONTAINER_PROJECTION_RECEIVERS=["view@core/equipment_replacement_view.gd","view@core/equipment_replacement_assess.gd","region@core/release_view.gd"]
+const CONTAINER_PROJECTION_NAMES=["equipment","composites","links"]
+const CONTAINER_WRITE_METHODS="append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set"
+
+# 函数体里 `for <head>:` 起的块（含块内各行，不含块头之后同缩进的第一行）；找不到块头返回空表。
+static func _indented_block(body: String, header: String) -> Array:
+ var lines=body.split("\n")
+ var start=-1
+ for index in range(lines.size()):
+  if String(lines[index]).strip_edges()==header: start=index; break
+ if start<0: return []
+ var indent=String(lines[start]).length()-String(lines[start]).strip_edges(true,false).length()
+ var block=[]
+ for index in range(start+1,lines.size()):
+  var line=String(lines[index])
+  if line.strip_edges()=="": continue
+  var line_indent=line.length()-line.strip_edges(true,false).length()
+  if line_indent<=indent: break
+  block.append(line)
+ return block
+
+static func removal_module_edges(t) -> void:
+ var module_code=source_code(REMOVAL_MODULE)
+ var settle_code=code_of_function(REMOVAL_MODULE,"settle")
+ var preloads=module_code.count("preload(")
+ t.check(String(Removal.new().get_script().resource_path)=="res://"+REMOVAL_MODULE,"ARCH removal_module_edges: the preloaded module is the file the judgment scans, so the load edge and the source edge are the same object: resource="+String(Removal.new().get_script().resource_path))
+ # 模块边：唯一 preload 边在 game.gd 一行；core/data/ui 里没有第二处引用（路径或 Removal. 调用）。
+ var preload_hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"preload\\(\\s*\"res://"+REMOVAL_MODULE.replace("/","\\/")+"\"\\s*\\)")
+ var preload_files=write_site_names(preload_hits)
+ var reference_hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"(?:Res://core/|core/)?equipment_removal\\.gd")
+ var reference_files=write_site_names(reference_hits)
+ var call_hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"\\bRemoval\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\(")
+ var call_sites=write_site_names(call_hits)
+ var declared=REMOVAL_CALL_SITES.duplicate()
+ declared.sort()
+ var actual=[]
+ for hit in call_hits:
+  if declaration_line(String(hit.text)): continue
+  var site=String(hit.file)+"::"+String(hit.function)
+  if site not in actual: actual.append(site)
+ actual.sort()
+ var foreign=reference_files.filter(func(site):return String(site).split("::")[0]!="core/game.gd" and String(site).split("::")[0]!=REMOVAL_MODULE)
+ t.check(not REMOVAL_CALL_SITES.is_empty() and preloads==0 and preload_files==["core/game.gd::<file>"] and foreign.is_empty() and actual==declared,"ARCH removal_module_edges: the member-layer module preloads nothing, its only preload edge is the one line in core/game.gd, no other core/data/ui file names it, and the functions that call Removal. are exactly the declared call sites (an extra caller, a stale row or a second preload edge is red): preloads="+str(preloads)+" preload_edges="+str(preload_files)+" foreign="+str(foreign)+" calls="+str(actual)+" declared="+str(declared)+" all_references="+str(reference_files))
+ # 委托面：`_cleanup` 的函数体恰为一句委托，且 preload 常量名与表一致。
+ var cleanup=source_func_body_code("res://core/game.gd","_cleanup")
+ var statements=Array(cleanup.split("\n")).filter(func(line):return String(line).strip_edges()!="")
+ t.check(statements.size()==1 and String(statements[0]).strip_edges()=="Removal.settle(self,released)" and source_code("core/game.gd").contains("const Removal=preload(\"res://"+REMOVAL_MODULE+"\")"),"ARCH removal_module_edges: core/game.gd::_cleanup is exactly one delegation statement Removal.settle(self,released) behind the one declared preload constant (a surviving cleanup pass, a changed argument or a second statement is red): statements="+str(statements))
+ # 模块经 `g` 调用的名单：只许 §4 的 Q6′a 行，且每项在模块体里真有调用。
+ var calls=[]
+ var call=RegEx.new()
+ if call.compile("(?<![A-Za-z0-9_.])g\\.([A-Za-z_][A-Za-z0-9_]*)")!=OK: calls.append("regex@compile")
+ else:
+  for hit in call.search_all(settle_code):
+   var name=hit.get_string(1)
+   # `g.state` 是状态字段本身，不是经 `g` 调的入口：名单只收调用名（谓词函数与模块前缀）。
+   if name=="state": continue
+   if name not in calls: calls.append(name)
+ calls.sort()
+ var allowed=REMOVAL_G_CALLS.duplicate()
+ allowed.sort()
+ var undeclared=calls.filter(func(name):return name not in allowed)
+ var uninvoked=allowed.filter(func(name):return not settle_code.contains("g."+String(name)))
+ var forbidden=REMOVAL_FORBIDDEN_CALLS.filter(func(name):return name in calls and name not in REMOVAL_ALLOWED_WRITE_PORTS)
+ t.check(not REMOVAL_G_CALLS.is_empty() and undeclared.is_empty() and uninvoked.is_empty() and forbidden.is_empty(),"ARCH removal_module_edges: the module reaches the game only through the declared g-call names of its slice (a new dependency, a stale row or a write port outside the two carried over from the original cleanup is red): calls="+str(calls)+" undeclared="+str(undeclared)+" uninvoked="+str(uninvoked)+" forbidden="+str(forbidden))
+ # 依赖方向：模块从不引用判定／替换／视图／界面／测试模块，也不碰 Q6′b 的脏件表。
+ var leaks=[]
+ for token in ["equipment_replacement_assess","equipment_replacement_view","equipment_replacement.gd","res://ui/","res://tests/","_settle_table"]:
+  if module_code.contains(token): leaks.append(token)
+ t.check(leaks.is_empty(),"ARCH removal_module_edges: the module never names the judgment, transaction, view, ui or test modules and never touches the Q6'b ledger (a projection or test dependency here would close a cycle): leaks="+str(leaks))
+
+static func cleanup_link_loop_writes_only_links(t) -> void:
+ # `code_of_function` 逐行重接后仍带行尾 `\r`（源文件是 CRLF），比较前先归一化，免得块头找得到、
+ # 外提行却因看不见的 `\r` 判成缺失。
+ var body=code_of_function(REMOVAL_MODULE,"settle").replace("\r","")
+ var loop=_indented_block(body,"for link in g.state.links.duplicate():")
+ var loop_code="\n".join(PackedStringArray(loop)).replace("\r","")
+ t.check(not loop.is_empty(),"ARCH cleanup_link_loop_writes_only_links: the link pass exists in the member-layer settle (a missing loop is red, never vacuous): lines="+str(loop.size()))
+ # 写面：循环体里的每种写形都必须是声明的四种之一，且只碰 links。
+ var writes=[]
+ var call=RegEx.new()
+ if call.compile("(?<![A-Za-z0-9_])(state|g\\.state|view)\\.[A-Za-z_][A-Za-z0-9_]*\\s*(?:\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\(|\\[[^\\]]*\\]\\s*=[^=]|=[^=])")!=OK: writes.append("regex@compile")
+ else:
+  for hit in call.search_all(loop_code):
+   var text=String(hit.get_string(0)).strip_edges()
+   if text not in writes: writes.append(text)
+ var outside=writes.filter(func(text):return not String(text).trim_prefix("g.").begins_with("state.links"))
+ var missing=LINK_LOOP_WRITES.filter(func(token):return not loop_code.contains(String(token)))
+ # 锚点外提：外提行恰在循环前，循环体内不再重取。
+ var hoist=body.contains(" var anchors=g.link_anchors()\n for link in g.state.links.duplicate():")
+ var inner_anchor=loop_code.contains("link_anchors")
+ t.check(not loop.is_empty() and not writes.is_empty() and outside.is_empty() and missing.is_empty() and hoist and not inner_anchor,"ARCH cleanup_link_loop_writes_only_links: the link pass body writes only the links container, keeps the four declared write faces (link erase, rope tracking, event, member announcement), and reads the anchor list once before the loop (an extra container write, a dropped face, a hoist moved later or a per-link re-read is red): writes="+str(writes)+" outside="+str(outside)+" missing="+str(missing)+" hoist="+str(hoist)+" inner_anchor="+str(inner_anchor))
+ # 视图端的链接循环同构外提（O3 两端同构）：外提行在循环前，循环体内不重取。
+ var view_body=code_of_function("core/equipment_replacement_view.gd","cleanup").replace("\r","")
+ var view_hoist=view_body.contains(" var anchors=g.link_anchors_in(view)\n for link in view.links.duplicate():")
+ var view_loop=_indented_block(view_body,"for link in view.links.duplicate():")
+ var view_inner="\n".join(PackedStringArray(view_loop)).contains("link_anchors")
+ t.check(view_hoist and not view_inner and not view_loop.is_empty(),"ARCH cleanup_link_loop_writes_only_links: the view skeleton hoists its anchor list the same way, so the two ends of O3 read the anchors at the same point and neither re-reads per link: hoist="+str(view_hoist)+" inner="+str(view_inner)+" lines="+str(view_loop.size()))
+
+static func container_alias_writes_stay_on_projections(t) -> void:
+ # G-Q6-12 主句：三容器经非 state 接收者的方法调用写与索引赋值，只许落在投影面白名单。
+ var receiver=RegEx.new()
+ var names_pattern="(?:"+"|".join(PackedStringArray(CONTAINER_PROJECTION_NAMES))+")"
+ var compiled=receiver.compile("(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\.\\s*"+names_pattern+"\\s*(?:\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\(|\\[[^\\]]*\\]\\s*=[^=])")==OK
+ var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,receiver.get_pattern()) if compiled else []
+ var pairs=[]
+ var samples=[]
+ for hit in hits:
+  var found=receiver.search(String(hit.text))
+  if found==null: continue
+  var name=String(found.get_string(1))
+  if name in ["state","g"]: continue
+  var pair=name+"@"+String(hit.file)
+  if not pair in pairs: pairs.append(pair)
+  if samples.size()<8: samples.append(pair+":"+String(hit.text))
+ pairs.sort()
+ var allowed=CONTAINER_PROJECTION_RECEIVERS.duplicate()
+ allowed.sort()
+ var undeclared=pairs.filter(func(pair):return pair not in allowed)
+ var stale=allowed.filter(func(pair):return pair not in pairs)
+ t.check(compiled and not CONTAINER_PROJECTION_RECEIVERS.is_empty() and undeclared.is_empty() and stale.is_empty(),"ARCH container_alias_writes_stay_on_projections: every write to the equipment, composites or links container through a non-state receiver lands on a declared projection face (a live copy, a new receiver or a stale whitelist row is red; an uncompilable receiver pattern is red, never vacuous): pairs="+str(pairs)+" undeclared="+str(undeclared)+" stale="+str(stale)+" samples="+str(samples))
+ # 别名句：含整份 state 别名绑定（`X=(g.)state`，不含 duplicate）的函数里，`X.<三容器>` 任何写形零命中。
+ var alias=RegEx.new()
+ var alias_compiled=alias.compile("(?m)^[ \\t]*(?:var[ \\t]+)?([A-Za-z_][A-Za-z0-9_]*)[ \\t]*=[ \\t]*(?:g\\.)?state[ \\t]*$")==OK
+ var alias_bindings={}
+ if alias_compiled:
+  for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"(?:var\\s+)?[A-Za-z_][A-Za-z0-9_]*\\s*=\\s*(?:g\\.)?state\\s*$"):
+   var found=alias.search(String(hit.text))
+   if found==null: continue
+   alias_bindings[String(hit.file)+"::"+String(hit.function)]=String(found.get_string(1))
+ var alias_writes=[]
+ for site in alias_bindings:
+  var parts=String(site).split("::")
+  var name=String(alias_bindings[site])
+  var body=code_of_function(String(parts[0]),String(parts[1]))
+  var write=RegEx.new()
+  var write_pattern="(?<![A-Za-z0-9_.])"+name+"\\s*\\.\\s*"+names_pattern+"\\s*(?:\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\(|\\[[^\\]]*\\]\\s*=[^=]|=[^=])"
+  if write.compile(write_pattern)==OK and write.search(body)!=null: alias_writes.append(site+":"+name)
+ t.check(alias_compiled and alias_writes.is_empty(),"ARCH container_alias_writes_stay_on_projections: a whole-state alias binding never becomes a second live path into the three containers (binding an alias is allowed, rolling the state back through it is; writing a container through it is red; an uncompilable alias pattern is red, never vacuous): bindings="+str(alias_bindings)+" writes="+str(alias_writes))
+
 
 # ==== Q5″（rev3.3 plan-delta §2；G-Q5-11／G-Q5-12）：两层结算的声明面 ====
 # G-Q5-11：`JOIN_EFFECTS` 的期望副本。键＝七类成员（Q5″ 增 `B`＝固缚记录），列＝J1 反馈对象、J2 入列文案、
@@ -7988,8 +8150,9 @@ const CLEANUP_RULES=["_released","_strap_follows","_strap_orphaned","_piece_rele
 # O3 的 live 端遍历顺序（骨架两份之一；视图端 core/equipment_replacement_view.gd::cleanup 按同一登记对齐）。
 # M1：三处 RopeArt.track 是 live 骨架独占的绳索计数（事务内由 _rope_trial 门控为空操作，视图端不调用），
 # 各自钉在它所属谓词之前：装备循环的 track 在 _piece_released(e) 前，链接循环的在 _released(link) 前，
-# 锚点丢失分支的 track(…,true) 在 _link_anchor_lost(link 之后。
-const CLEANUP_SKELETON=["Shoulders.cleanup(self)","_strap_follows(","_strap_orphaned(strap","state.items.duplicate(","RopeArt.track(self,e)","_piece_released(e)","_root_head_orphaned(root","_released(body)","_component_kept(e)","_released(part)","RopeArt.track(self,link)","_released(link)","_link_anchor_lost(link","RopeArt.track(self,link,true)","Pressure.cleanup(self)","Pressure.settle_maximum("]
+# 锚点丢失分支的 track(…,true) 在 _link_anchor_lost(link 之后。Q6′a 起骨架源函数是
+# core/equipment_removal.gd::settle，`self` 随之写成 `g`（CC-36）。
+const CLEANUP_SKELETON=["Shoulders.cleanup(g)","_strap_follows(","_strap_orphaned(strap","state.items.duplicate(","RopeArt.track(g,e)","_piece_released(e)","_root_head_orphaned(root","_released(body)","_component_kept(e)","_released(part)","RopeArt.track(g,link)","_released(link)","_link_anchor_lost(link","RopeArt.track(g,link,true)","Pressure.cleanup(g)","Pressure.settle_maximum("]
 
 static func code_of_function(relative: String, name: String) -> String:
  var lines=[]
@@ -8025,7 +8188,7 @@ static func factory_records_have_one_builder(t) -> void:
   for token in SHARED_RULE_FORBIDDEN:
    if body.contains(token): rules.append(site+":"+token)
  t.check(not RULE_DELEGATES.is_empty() and not SHARED_RULE_FUNCTIONS.is_empty() and delegates.is_empty() and rules.is_empty(),"ARCH factory_records_have_one_builder: the live binding/shoulder entry points delegate to the shared rule functions, and those rules write no live state, emit nothing and draw no random of their own (the draw callable is passed in); neither table is ever empty: delegates="+str(delegates)+" rules="+str(rules))
- var cleanup=code_of_function("core/game.gd","_cleanup")
+ var cleanup=code_of_function("core/equipment_removal.gd","settle")
  var uncalled=CLEANUP_RULES.filter(func(name):return not cleanup.contains(String(name)+"("))
  var impure_cleanup=[]
  for name in CLEANUP_RULES:

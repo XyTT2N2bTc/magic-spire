@@ -88,6 +88,13 @@ static func _hook_body(anchor: String) -> String:
  var parts=String(anchor).split("::")
  return "" if parts.size()<2 else Arch.code_of_function(String(parts[0]),String(parts[1]))
 
+# live 清理骨架的锚点（Q6′a 起成员层结算迁到独立模块，源函数随之改指；CC-36）。空链 token 与链首跳都指向它，
+# 两处共用本常量，避免同一语义写第二份锚点。
+const LIVE_CLEANUP_SKELETON="core/equipment_removal.gd::settle"
+# live 清理骨架的文件集合：Q6′a 迁移后 `_cleanup` 只剩一句委托，遍历顺序与裸谓词调用都在新模块里；
+# 两文件都算 live 端，O3 不得因文件改名落入事务试算分支（A166）。
+const LIVE_CLEANUP_SKELETON_FILES=["core/game.gd","core/equipment_removal.gd"]
+
 static func _declared_hook(anchor: String) -> bool:
  for row in AssessCases.ASSESS_EXCLUDED_HOOKS:
   if String(row[0])==anchor: return true
@@ -103,11 +110,11 @@ static func _container_write_hits(body: String) -> bool:
 static func _hook_reachable(row: Array) -> bool:
  var name=String(row[0]).split("::")[1]
  var chain=row[3]
- if (chain as Array).is_empty(): return _hook_body("core/game.gd::_cleanup").contains(String(row[2]))
+ if (chain as Array).is_empty(): return _hook_body(LIVE_CLEANUP_SKELETON).contains(String(row[2]))
  for i in range(chain.size()):
   var hop=chain[i]
   if not _hook_body(String(hop[0])).contains(String(hop[1])): return false
-  if i==0 and String(hop[0])!="core/game.gd::_cleanup" and not _declared_hook(String(hop[0])): return false
+  if i==0 and String(hop[0])!=LIVE_CLEANUP_SKELETON and not _declared_hook(String(hop[0])): return false
  return String(chain[chain.size()-1][1])==name+"("
 
 # A53 V4：EQUIPMENT_CONTAINERS 是容器写扫描（_container_write_hits）与排除钩子互钉的宽度来源。
@@ -393,7 +400,7 @@ const PARALLEL_ORCHESTRATIONS=[
  ["O2","core/game.gd::_refresh_equipment","core/equipment_replacement_view.gd::refresh",
   ["Binding.","Equipment.","Shoulders."],
   false,["RopeArt.track(","_emit(","_equipment_feedback(","Pressure.","Cards.","_tier_consequences(","_write_durability("]],
- ["O3","core/game.gd::_cleanup","core/equipment_replacement_view.gd::cleanup",
+ ["O3",LIVE_CLEANUP_SKELETON,"core/equipment_replacement_view.gd::cleanup",
   ["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],
   false,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback(","_special_append(","_special_erase(","_member_changed("]]]
 
@@ -504,8 +511,10 @@ static func _declared_called(code: String, token: String) -> bool:
  return regex!=null and regex.search(code)!=null
 
 # 共用清理规则＝live 骨架里裸调用的、在 core/game.gd 内为单行纯谓词的本地函数：与登记表双向对照的源侧枚举。
+# Q6′a 起骨架在新模块里，谓词调用一律带 `g.` 接收者（`g._released(`）：只剥这一个接收者再按原名解析，
+# 谓词体仍只在 core/game.gd 里取，单行纯谓词口径不变（A166）；其它接收者（`x._released(`）不算裸调用。
 static func _shared_rule_calls(body: String) -> Array:
- var names=[]; var call=RegEx.new(); if call.compile("(?<![.\\w])(_[a-z][a-z0-9_]*)\\s*\\(")!=OK: return names
+ var names=[]; var call=RegEx.new(); if call.compile("(?<![A-Za-z0-9_.])(?:g\\.)?(_[a-z][a-z0-9_]*)\\s*\\(")!=OK: return names
  for hit in call.search_all(body):
   var rest=Array(_function_code("core/game.gd::"+hit.get_string(1)).split("\n",false,1))
   var code=String(rest[1]).strip_edges() if rest.size()>1 else ""
@@ -553,7 +562,7 @@ static func parallel_orchestrations_call_the_shared_rules(t) -> void:
   var declared=Array(row[3]).duplicate(); declared.sort(); if declared.is_empty() or Array(row[5]).is_empty(): malformed.append(String(row[0])+":row")
   var live=_function_code(String(row[1])); var declare_pending=bool(row[4])
   if live.strip_edges()=="": malformed.append(String(row[1])+":missing")
-  elif String(row[1]).begins_with("core/game.gd"):
+  elif String(row[1]).split("::")[0] in LIVE_CLEANUP_SKELETON_FILES:
    # live 端是 game.gd 的编排骨架：共用规则集合与名单双向相等（O3 裸谓词、O2 模块前缀）。
    var called=_live_shared_rules(live,Array(row[5]))
    if called!=declared: uncalled.append(String(row[1])+": called="+str(called)+" declared="+str(declared))

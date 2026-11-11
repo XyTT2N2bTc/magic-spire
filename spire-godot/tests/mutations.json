@@ -555,9 +555,27 @@
       "suite": "architecture"
     },
     "factory_records_have_one_builder": {
+      "file": "core/equipment_removal.gd",
+      "find": "  if g._piece_released(e):",
+      "replace": "  g.RopeArt.track(g,e)\n  if g._piece_released(e):",
+      "suite": "architecture"
+    },
+    "removal_module_edges": {
+      "file": "core/equipment_removal.gd",
+      "find": "static func settle(g,released: bool=true) -> void:",
+      "replace": "const EdgeLeak=preload(\"res://core/equipment_replacement_view.gd\")\n\nstatic func settle(g,released: bool=true) -> void:",
+      "suite": "architecture"
+    },
+    "cleanup_link_loop_writes_only_links": {
+      "file": "core/equipment_removal.gd",
+      "find": "  elif g._link_anchor_lost(link,anchors):",
+      "replace": "  elif g._link_anchor_lost(link,anchors):\n   g.state.equipment.erase(link)",
+      "suite": "architecture"
+    },
+    "container_alias_writes_stay_on_projections": {
       "file": "core/game.gd",
-      "find": "  RopeArt.track(self,e)\n  if _piece_released(e):\n   _emit(\"event\",e.name+\"已解除。\")",
-      "replace": "  if _piece_released(e):\n   RopeArt.track(self,e)\n   _emit(\"event\",e.name+\"已解除。\")",
+      "find": "func _refresh_equipment(target: Dictionary) -> void:",
+      "replace": "func _refresh_equipment(target: Dictionary) -> void:\n var live=state;live.links.erase({})",
       "suite": "architecture"
     },
     "durability_ladder_has_one_source": {
