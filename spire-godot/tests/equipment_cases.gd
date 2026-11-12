@@ -377,7 +377,9 @@ static func write_epoch_is_monotone_and_private(t) -> void:
 # so anchors removed by those passes are already gone and their links follow. This case disconnects one anchor
 # at a time on a full-restraint fixture: each iteration zeroes one anchor's durability and runs one real settle,
 # then checks that the removed links are exactly those that lost an anchor (or were released themselves);
-# hoisting the list before the special pass leaves the link alive, so this case reddens by name.
+# hoisting the list before the special pass leaves the link alive, so this case reddens by name. Both settle
+# modes are driven: released=true (the default) and released=false (the silent settle), because the hoist
+# equivalence must not depend on the release mode.
 # The fixture is built through the real factories (_install_assembly / _install_template / _refresh_equipment /
 # _install_special / _install_link) and holds ordinary, component, strap and crotch-rope special anchors. No
 # existing fixture does that (r1_install_equipment uses the test writer `add_fixture` and clears links), so the
@@ -470,6 +472,27 @@ static func anchor_hoist_matches_rescan(t) -> void:
    if removed != (lost or released): bad.append(id+":"+String(link.id)+":removed="+str(removed)+":lost="+str(lost)+":released="+str(released))
    if removed: removed_any+=1
  t.check(cases==anchor_ids.size() and removed_any>0 and bad.is_empty(),"REMOVAL anchor_hoist_matches_rescan: every anchor of the full-restraint fixture is disconnected in its own settle, and the link pass removes exactly the links that lost an anchor after the earlier passes (a hoist taken before the special/ordinary passes leaves the link alive, so this is red): cases="+str(cases)+"/"+str(anchor_ids.size())+" removed_links="+str(removed_any)+" mismatches="+str(bad.size())+" first="+str(bad.slice(0,4)))
+ # The second release mode: `_cleanup(false)` is the silent settle (no restraint-root card settlement). The link
+ # pass and its hoist are the same, so the same per-anchor sequence must hold; a mode-only branch that drops or
+ # clears links reddens only this clause.
+ var silent_bad=[]
+ var silent_removed=0
+ for id in anchor_ids:
+  g.state=pristine.duplicate(true)
+  var record=_anchor_record(g,id)
+  if record.is_empty():
+   silent_bad.append(id+":missing-anchor");continue
+  record.durability=0.0
+  var before=g.state.links.duplicate(true)
+  g._cleanup(false)
+  var remaining=g.link_anchors().map(func(anchor):return String(anchor.id))
+  for link in before:
+   var removed=not g.state.links.any(func(kept):return String(kept.id)==String(link.id))
+   var lost=not link.ends.all(func(end):return String(end) in remaining)
+   var released=float(link.durability)<=0.000001
+   if removed != (lost or released): silent_bad.append("silent:"+id+":"+String(link.id)+":removed="+str(removed)+":lost="+str(lost)+":released="+str(released))
+   if removed: silent_removed+=1
+ t.check(anchor_ids.size()>0 and silent_removed>0 and silent_bad.is_empty(),"REMOVAL anchor_hoist_matches_rescan: the silent settle (released=false) removes exactly the links whose anchors the earlier passes removed, so the hoist equivalence does not depend on the release mode (a mode-only link branch is red): anchors="+str(anchor_ids.size())+" removed_links="+str(silent_removed)+" mismatches="+str(silent_bad.size())+" first="+str(silent_bad.slice(0,4)))
 
 static func run(t) -> void:
  leather_slip(t)

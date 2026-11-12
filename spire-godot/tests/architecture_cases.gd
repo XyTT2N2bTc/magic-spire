@@ -6562,7 +6562,7 @@ static func _equipment_member_containers_pattern(containers: Array) -> String:
 
 static func _equipment_member_scan_patterns(containers: Array) -> Array:
  var container_pattern=_equipment_member_containers_pattern(containers)
- return ["(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set)\\s*\\(",
+ return ["(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\(",
   "(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*=[^=]",
   "(?<![A-Za-z0-9_])(?:g\\.)?state\\."+container_pattern+"\\s*\\[[^\\]]*\\]\\s*=[^=]",
   "(?<![A-Za-z0-9_])(?:g\\.)?state\\s*\\[\\s*key\\s*\\]\\s*=[^=]"]
@@ -6744,10 +6744,10 @@ const MEMBER_NESTED_SCAN_SKIP=["core/game.gd::_build_equipment_read_index"]
 # 故变量或函数返回值的右值是已知盲区，收窄是刻意的。
 const MEMBER_NESTED_WRITE_PATTERNS=[
  "\\.components\\s*=[^=]",
- "\\.components\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set)\\s*\\(",
+ "\\.components\\s*\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\(",
  "\\.shoulders\\s*=\\s*\\{",
  "\\.pieces\\s*=[^=]",
- "\\.pieces\\s*\\.\\s*(?:append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set)\\s*\\("]
+ "\\.pieces\\s*\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\("]
 
 static func member_changes_are_announced(t) -> void:
  var containers=[]
