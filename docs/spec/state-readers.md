@@ -149,6 +149,11 @@
   含义：`state.special_equipment` 的 8 处成员写从调用方移入两写口 `core/game.gd::_special_append`／`::_special_erase`——
   新增两个 owner 单元（cells ＋2，各读 1 处）；`_install_special` −2、`_attach_special_reinforcement` −1、`_cleanup` −3、
   `core/room_events.gd::apply_effects` −2，合计 sites −8＋2＝−6；调用方仍保留其它读点，无 owner 消失。
+- Q6′a（成员层迁入 `core/equipment_removal.gd::settle`）后重生成的现行统计：`files=144`、`fields=121`、`cells=1306`、`sites=2131`、
+  `whole_state` 75 处（聚合 59 条记录），`ALIAS_DECLARATIONS` 16 个函数、`alias_fields` 93，`schema_strings` 不变（Q1 之后至 Q5″ 统计未变）。
+  含义：新增扫描面只是新模块（files ＋1）；owner `core/game.gd::_cleanup` 的读集整块迁到 `core/equipment_removal.gd::settle`，
+  逐类相等（composites 4／equipment 3／items 2／links 3／powers 1／special_equipment 4），cells 与 sites 不变；
+  `_cleanup` 只剩一句委托，不再是读集 owner——上列 Q1 行所记 `_cleanup` −3 的读点现归 `settle`。
 
 ## 残差与仍靠人审（无机械判据）
 

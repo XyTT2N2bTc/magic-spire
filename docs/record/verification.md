@@ -4872,3 +4872,92 @@ flowchart LR
 - 未跑：安卓真机、分帧、打包与发布。
 - 片内流水：实现 `dsp-20261111T023226Z-6638`（`bbdbfab`、`dd63bb8`）→清洁 `dsp-20261111T054624Z-6082`（`e075d3c`）→加固 `dsp-20261111T063407Z-14ac`／`dsp-20261111T071647Z-f830`（两树补 CM17q–26q）→独立审查 `dsp-20261111T073316Z-e98b`（F1–F7，通过）→验收 `dsp-20261111T075352Z-02a3` 通过。记录：`tmp/io-q5pp/acceptance/acceptance-q5pp-validator.md`、`tmp/io-q5pp/review/findings.md`；协调者裁定 A161（见 `tmp/io-plan/rev3.3/coordinator-rulings.md`）。
 - 本节与上述 docs 措辞删减同一提交（docs-only）；仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+### 2026-11-12｜加装卸收口 Q6′a（成员层迁入 `equipment_removal.settle`、锚点外提、别名判据，行为不变）登记（协调者落账）
+
+- 域：`spire-godot` 装备成员层结算从 `core/game.gd::_cleanup` 整块迁到新模块
+  `core/equipment_removal.gd::settle`（`static func settle(g, released: bool=true) -> void`），`core/game.gd`
+  只留 `const Removal=preload("res://core/equipment_removal.gd")` 与 `_cleanup` 的一句
+  `Removal.settle(self,released)`；链接趟锚点清单改为循环前一次外提（`var anchors=g.link_anchors()`），
+  视图端 `core/equipment_replacement_view.gd::cleanup` 同构外提 `g.link_anchors_in(view)`；新增三 ARCH 判据
+  `removal_module_edges`／`cleanup_link_loop_writes_only_links`／`container_alias_writes_stay_on_projections`
+  与一 REMOVAL 判据 `anchor_hoist_matches_rescan`；CC-36 改指 11 处、A166 三处（见下）、突变表 113→114。
+- 片范围 `614de4e..b4e3c11`（`adba950` 实现、`da3cbb2`＋`bed19c3` 清洁、`2b71be1` 加固（中）、`b4e3c11`
+  二次加固（低））；HEAD `b4e3c11a51f26aa99c956e7942a56a98c87a753b`，54 次门禁与突变运行前后
+  `git status --porcelain` 均 0 行，无提交、无推送。
+- `build/checks/20261112T082446008-36056`：52 套件（父名单同序含 `content`，`-Impact -Exhaustive -KeepGoing
+  -TimeoutSeconds 3600`）`RULE SCOPE` 与父 `20261111T075741925-42748` 逐名同序；`SUITE RESULT` 47 PASS／5 FAIL
+  （`architecture`／`shoulder`／`rewards`／`events`／`core`，与父同组），15 条父 `ERROR` 逐字节全等、无新增红；
+  断言 152243→152258（`architecture` +11、`equipment` +4，其余 50 套件 0 差），`status=failed`、before=after。
+  state_readers `--verify` 与 check-index 皆零漂移。`persistence` 本轮绿，未出现 `SAVE fixed_point_text` 瞬时红。
+- `build/checks/20261112T104637977-13180`：runner PASS 1852（父 1851；+1 为 `tests/check_index.json` 新增的
+  一条 `rule:architecture → spire-godot/core/equipment_removal.gd` 目标，`index_targets_exist` 每目标一条），
+  `verify_runner=True`，before=after。UI 组合 `20261112T104901090-40928`：规则相 `architecture` 恰父 4 条红后
+  因红早停、`ui.unrun` 四项；`-UIOnly` `20261112T105424081-28112`：shoulder／torso_binding／body_layout PASS、
+  `equipment_complete` 一条父同错「HEAD equal tightness allows hook and preserves the other mask」
+  （`UI FAIL: 374`，与父 `20261111T093541147-27976` 同）。
+- 敏感性：`check-mutation` 运行 `build/mutations/20261112T085837576-37992` 七条
+  （`removal_module_edges`、`cleanup_link_loop_writes_only_links`、`container_alias_writes_stay_on_projections`、
+  `anchor_hoist_matches_rescan`、`factory_records_have_one_builder`、`member_changes_are_announced`、
+  `equipment_member_writes_have_one_entry`）7/7 具名红并逐字节还原（`worktree unchanged=True`，elapsed 2191.7s）；
+  手工十三条各具名红（G-Q6-8′ 四条、G-Q6-12 两条、O3、A166、F1、F2 一绿一红、H4），前后 sha256 一致。
+  G-Q6-12 原第三条改法（`release_view.gd::regions` 加 `region.equipment.append`）实测不红：白名单按
+  （接收者，文件）登记、不分容器，`region@core/release_view.gd` 本是声明的投影面，该改法与 Then 自相矛盾；
+  人裁 A176 从 `gherkin-delta.md` G-Q6-12 与 `plan-delta.md` 删去此条，判据的红证据由另两条与 H4 别名子句给出。
+- CC-36 改指（只改锚点、判据逻辑不变）：`CLEANUP_SKELETON` 五个 `self` → `g`（`Shoulders.cleanup(g)`、
+  `RopeArt.track(g,e)`、`RopeArt.track(g,link)`、`RopeArt.track(g,link,true)`、`Pressure.cleanup(g)`），16 项同序；
+  `factory_records_have_one_builder` 源函数 `core/game.gd::_cleanup`→`core/equipment_removal.gd::settle`；
+  `EQUIPMENT_MEMBER_WRITERS` 三行第二项同改；`MEMBER_ANNOUNCEMENT_SITES` 键改 `…::settle":9`；
+  O3 live 行改用 `LIVE_CLEANUP_SKELETON`（`_hook_reachable` 两处硬编码一并收口），第 6 列逐字不变。
+- A166 三处：①`_hook_reachable` 的空链与首跳两处硬编码改读常量 `LIVE_CLEANUP_SKELETON`（一处定义两处共用）；
+  ②`parallel_orchestrations_call_the_shared_rules` 的 live 分支由 `begins_with("core/game.gd")` 改为
+  `split("::")[0] in LIVE_CLEANUP_SKELETON_FILES`（集合＝`core/game.gd`＋`core/equipment_removal.gd`），
+  `_shared_rule_calls` 正则改为 `(?<![A-Za-z0-9_.])(?:g\.)?(_[a-z][a-z0-9_]*)\(`（只剥 `g.` 一个接收者，
+  单行纯谓词口径不变）；③`replacement_assess_cases.gd` 的 `ASSESS_EXCLUDED_HOOKS` 上方注释同句改指。
+- 清洁（`da3cbb2`／`bed19c3`）：删两张表（`tests/architecture_cases.gd` 的 `REMOVAL_SOURCE` 死声明与
+  `REMOVAL_ALLOWED_WRITE_PORTS`——后者与 `REMOVAL_FORBIDDEN_CALLS` 交集为空、过滤子句恒真），
+  `_anchor_record` 改走 `g.physical_pieces()`，注释英文化，`docs/design/equipment-design.md` 的调用链改指
+  `core/equipment_removal.gd::settle`。本轮复核：两表在 `adba950` 分别出现 1／2 次，`614de4e` 与 `b4e3c11`
+  均为 0 次；`REMOVAL_FORBIDDEN_CALLS` 仍在（2 次）。
+- 二次加固（`b4e3c11`，低）：F1 容器名单钉到 `VIEW_FIELDS` 派生并要求每个容器名有真实命中（`unhit` 即红）；
+  F2 外提相邻允许注释与空行（插注释绿、挪进循环体红）；U6 突变 `find` 由 `settle` 全块缩为外提单行，形态由「外提挪到函数首」
+  改为「锚点清单置空」（执行器一条只收一对 find/replace）；H1 第四处 `special_equipment` 方法串次序归一（43 样例逐一对 match 与捕获组
+  全等，`H1 EQUAL 43/43`），断言计数只 +1（来自 F1 新增子句）。
+- U6 突变形态与手动挪早改法（A175）：登记条目为 `anchor_hoist_matches_rescan`（`core/equipment_removal.gd`）；
+  另按 A175 手跑「外提行挪到特殊件趟之前」：`REMOVAL anchor_hoist_matches_rescan … cases=40/40
+  removed_links=0 mismatches=52` 具名红（运行 `20261112T085724674-37908`），sha256 `787D5CCD…`→`31E78924…`
+  →`787D5CCD…`；同一改法同向带红 `write_epoch_is_monotone_and_private`（`before=3 after=8 expected=6`）。
+- H4／H5 以实跑代替登记（A170）：表结构一判据一条（`check-mutation.ps1` 按名取单值、
+  `mutation_evidence_is_total` 要求键集＝判据全集），无法再登记第二条，故不增条目；H4
+  「整字段赋值走既有别名」手跑 `20261112T112619508-37528`：别名子句具名红
+  （`writes=["core/game.gd::restore_snapshot:previous"]`）而主句不红；H5「交换特殊件趟与孤儿带趟」手跑
+  `20261112T094206546-18340`：`factory_records_have_one_builder … order_lost=["_strap_orphaned(strap"]`。
+  两条 sha256 前后一致。
+- 纯搬迁独立复核：父 `_cleanup` 体 71 行与 `settle` 体 72 行，只施加三类逆变换（删外提行、去 `g.` 前缀、
+  接收者 `g`→`self`、并把 `g._link_anchor_lost(link,anchors)` 还原为逐链重取形）后逐行比较
+  `MISMATCHES=0`、残留 `g.` 0 行；`tests/state_readers.json` 的 `core/game.gd::_cleanup` 块消失、
+  `core/equipment_removal.gd::settle` 块逐类相等（composites 4、equipment 3、items 2、links 3、powers 1、
+  special_equipment 4），`files` 143→144。
+- 三种子（驱动 `build/normal_seed_end.gd` sha256 `08204554…B70D9`）：42＝`01db4dc55896…661fef`（578 步）、
+  20260906＝`4f69e2c7506e…f71f0e5c`（335）、7＝`aa45ef479d7d…7dd7ae9d`（422），与记录值三方一致
+  ⇒ **不变、无需新基线**，未登记新值。
+- 原因矩阵两树（探针 `build/rev3-q6a/cause_matrix.gd` sha256 `9BE4A354…5E4F`，32 行；父树临时 worktree
+  `C:/1/tmp/magic-spire-wt-q6a-acc-base`@`614de4e` 用完已删、worktree 数 12→13→12）：两树各 181 行输出
+  sha256 相同（`B4AB7850…B55F93`），四项（logs、`state.rng`、`SaveStore.encode(state)`、回执）逐字节相等、
+  差 0 行；父树首次 `--import` 的字体缓存 ERROR 四行单列不计。
+- 到达性（本轮独立探针）：32 行里特殊件 1 行、普通件 7 行、复合件-部件 4 行、其余 20 行只经锚点外提；
+  孤儿带、道具、复合件-头／体、链接解除／锚点丢失、Pressure 七趟无行到达，均由 `CLEANUP_SKELETON`／
+  `CLEANUP_RULES` 的静态次序与调用面加对应行为套件（`equipment`／`composites`／`links`／`pressure`）兜住。
+- debug 检索：52 套件 `check-rules.log`、三种子完整输出、两树原因矩阵输出中 `DEBUG CHECK unit_frames` 零命中
+  （敏感性运行另列 33 份日志同为 0）。语料：抽样 423 例 `compare`／`compare-scope`／`reoracle` 各
+  `mismatches=0`、退出 0；`selfcheck` 恰 `42-00000` 一例红、以 1 退出；全量 3277 例（清单
+  `tmp/s2/m2c/full-corpus.sha256` 三方一致）`compare`／`reoracle` 各 `mismatches=0`。
+- 允许面：`git diff --name-only 614de4e` 12 文件 ⊆ 允许集（3 core＋`equipment_removal.gd.uid`＋5 tests／mutations
+  ＋两生成物＋`docs/design/equipment-design.md`）；`data`／`ui`／`content`／`assets` 零差异；模块合计
+  （core＋data＋ui `.gd`）143 文件 34122 行→144 文件 34136 行（+14，全在 `core/equipment_removal.gd`）；
+  `tests/mutations.json` 114 条；两份生成物与提交树零漂移。
+- 未跑：安卓真机、分帧、打包与发布。
+- 片内流水：实现 `adba950`→清洁 `da3cbb2`／`bed19c3`→加固 `2b71be1`（中）→独立审查（通过，无阻断、无重要，
+  `tmp/io-q6a/review/findings.md`）→二次加固 `b4e3c11`（低）→验收 `dsp-20261112T082046Z-b675` 通过。
+  记录：`tmp/io-q6a/acceptance/acceptance-q6a-validator.md`。
+- 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
