@@ -6620,7 +6620,7 @@ static func equipment_member_writes_have_one_entry(t) -> void:
  # Fail-closed (A118 F1, same direction as `names_ui_module`): a receiver pattern that no longer
  # compiles would leave `indirect` empty and turn this clause into a silent pass. The compile
  # result is therefore part of the same assertion, named `regex@<pattern>` when it is not OK.
- var receiver_pattern="(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\.\\s*special_equipment\\s*\\.\\s*(?:append_array|append|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set)\\s*\\("
+ var receiver_pattern="(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\.\\s*special_equipment\\s*\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\("
  if reach.compile(receiver_pattern)!=OK:
   indirect.append("regex@"+receiver_pattern)
  else:
@@ -6849,7 +6849,9 @@ const LINK_LOOP_WRITES=["g.state.links.erase","g.RopeArt.track","g._emit","g._me
 # copy and the UI region copy are the legal receivers. These are the G-Q6-12 container names, so
 # `special_equipment` is absent by contract (G-Q1-1 item 7 owns it; G-Q6-12 keeps it out of this judgment);
 # deriving the list from `AssessCases.EQUIPMENT_CONTAINERS` would import that fourth name, and the preload
-# would close a cycle (that file already preloads this one).
+# would close a cycle (that file already preloads this one). The three names are pinned to this file's
+# `VIEW_FIELDS` derivation inside `container_alias_writes_stay_on_projections`, so a misspelled or dropped
+# name is red instead of silently narrowing the scan.
 const CONTAINER_PROJECTION_RECEIVERS=["view@core/equipment_replacement_view.gd","view@core/equipment_replacement_assess.gd","region@core/release_view.gd"]
 const CONTAINER_PROJECTION_NAMES=["equipment","composites","links"]
 const CONTAINER_WRITE_METHODS="append|append_array|push_back|push_front|insert|erase|remove_at|pop_back|pop_front|clear|resize|assign|fill|set"
@@ -6939,14 +6941,28 @@ static func cleanup_link_loop_writes_only_links(t) -> void:
    if text not in writes: writes.append(text)
  var outside=writes.filter(func(text):return not String(text).trim_prefix("g.").begins_with("state.links"))
  var missing=LINK_LOOP_WRITES.filter(func(token):return not loop_code.contains(String(token)))
- # Anchor hoist: the hoist line sits right before the loop and the loop body no longer re-reads anchors.
- var hoist=body.contains(" var anchors=g.link_anchors()\n for link in g.state.links.duplicate():")
+ # Anchor hoist: the hoist line sits before the loop with only comment/blank lines in between (`code_of_function`
+ # turns a comment line into an empty string, so adjacency is judged on the last non-empty line), and the loop
+ # body no longer re-reads anchors. The local name stays `anchors`: the run-time clause of `anchor_hoist_matches_rescan`
+ # proves the loop consumes the hoisted list, and accepting any name here would need a second "the loop reads that
+ # name" clause that no finding asked for.
+ var hoist_before_loop=func(lines: PackedStringArray,hoist_line: String,header: String):
+  var loop_index=-1
+  for index in range(lines.size()):
+   if String(lines[index]).strip_edges()==header:
+    loop_index=index
+    break
+  if loop_index<0: return false
+  var prior=loop_index-1
+  while prior>=0 and String(lines[prior]).strip_edges()=="": prior-=1
+  return prior>=0 and String(lines[prior]).strip_edges()==hoist_line
+ var hoist=bool(hoist_before_loop.call(body.split("\n"),"var anchors=g.link_anchors()","for link in g.state.links.duplicate():"))
  var inner_anchor=loop_code.contains("link_anchors")
  t.check(not loop.is_empty() and not writes.is_empty() and outside.is_empty() and missing.is_empty() and hoist and not inner_anchor,"ARCH cleanup_link_loop_writes_only_links: the link pass body writes only the links container, keeps the four declared write faces (link erase, rope tracking, event, member announcement), and reads the anchor list once before the loop (an extra container write, a dropped face, a hoist moved later or a per-link re-read is red): writes="+str(writes)+" outside="+str(outside)+" missing="+str(missing)+" hoist="+str(hoist)+" inner_anchor="+str(inner_anchor))
  # The view end hoists its anchor list the same way (both ends of O3): the hoist line precedes the loop and the body does not re-read.
  var view_body=code_of_function("core/equipment_replacement_view.gd","cleanup").replace("\r","")
- var view_hoist=view_body.contains(" var anchors=g.link_anchors_in(view)\n for link in view.links.duplicate():")
  var view_loop=_indented_block(view_body,"for link in view.links.duplicate():")
+ var view_hoist=bool(hoist_before_loop.call(view_body.split("\n"),"var anchors=g.link_anchors_in(view)","for link in view.links.duplicate():"))
  var view_inner="\n".join(PackedStringArray(view_loop)).contains("link_anchors")
  t.check(view_hoist and not view_inner and not view_loop.is_empty(),"ARCH cleanup_link_loop_writes_only_links: the view skeleton hoists its anchor list the same way, so the two ends of O3 read the anchors at the same point and neither re-reads per link: hoist="+str(view_hoist)+" inner="+str(view_inner)+" lines="+str(view_loop.size()))
 
@@ -6954,10 +6970,11 @@ static func container_alias_writes_stay_on_projections(t) -> void:
  # G-Q6-12 main clause: method-call writes and index assignments to the three containers through a non-state receiver may land on the projection whitelist only.
  var receiver=RegEx.new()
  var names_pattern="(?:"+"|".join(PackedStringArray(CONTAINER_PROJECTION_NAMES))+")"
- var compiled=receiver.compile("(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\.\\s*"+names_pattern+"\\s*(?:\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\(|\\[[^\\]]*\\]\\s*=[^=])")==OK
+ var compiled=receiver.compile("(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\\s*\\.\\s*("+names_pattern+")\\s*(?:\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\(|\\[[^\\]]*\\]\\s*=[^=])")==OK
  var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,receiver.get_pattern()) if compiled else []
  var pairs=[]
  var samples=[]
+ var hit_names=[]
  for hit in hits:
   var found=receiver.search(String(hit.text))
   if found==null: continue
@@ -6966,7 +6983,24 @@ static func container_alias_writes_stay_on_projections(t) -> void:
   var pair=name+"@"+String(hit.file)
   if not pair in pairs: pairs.append(pair)
   if samples.size()<8: samples.append(pair+":"+String(hit.text))
+  var container=String(found.get_string(2))
+  if not container in hit_names: hit_names.append(container)
  pairs.sort()
+ # F1 (Q6'a review): the name list is pinned to this file's one container source (`VIEW_FIELDS` minus the
+ # `next_*` counters and the special-equipment container, which G-Q1-1 item 7 owns) and every name must have a
+ # real hit, so a misspelled, dropped or extra name cannot silently narrow or widen the scan (`undeclared` and
+ # `stale` are receiver-level and both stay empty for such a typo). The derivation is inline because the sibling
+ # clause in `equipment_member_writes_have_one_entry` already reads `VIEW_FIELDS` and neither clause may reach
+ # the other file's container table.
+ var derived_names=[]
+ for key in VIEW_FIELDS:
+  if String(key).begins_with("next_") or String(key)=="special_equipment": continue
+  derived_names.append(String(key))
+ derived_names.sort()
+ var declared_names=CONTAINER_PROJECTION_NAMES.duplicate()
+ declared_names.sort()
+ var unhit=declared_names.filter(func(name):return not name in hit_names)
+ t.check(compiled and declared_names==derived_names and unhit.is_empty(),"ARCH container_alias_writes_stay_on_projections: the three container names are exactly the equipment containers of VIEW_FIELDS and each one has a real write hit on a projection face (a misspelled, dropped or extra name would silently narrow or widen the scan, so it is red): names="+str(declared_names)+" derived="+str(derived_names)+" hits="+str(hit_names)+" unhit="+str(unhit))
  var allowed=CONTAINER_PROJECTION_RECEIVERS.duplicate()
  allowed.sort()
  var undeclared=pairs.filter(func(pair):return pair not in allowed)
