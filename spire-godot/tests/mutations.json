@@ -1580,7 +1580,7 @@
           },
           {
             "find": " var anchors=g.link_anchors()\n for link in g.state.links.duplicate():",
-            "replace": " for link in g.state.links.duplicate()"
+            "replace": " for link in g.state.links.duplicate():"
           }
         ],
         "suite": "equipment",
