@@ -1,6 +1,6 @@
 {
-  "schema": 1,
-  "note": "检查的证据面声明表：每条＝既有的具名判据 → 一处临时突变（file／find／replace）＋跑哪个最窄规则套件。执行器是 tools/check-mutation.ps1；tests/architecture_cases.gd::mutation_evidence_is_total 核对本表与判据全集。find 必须在 file 内唯一出现一次，replace 必须让该判据变红；运行期逐字节还原。 冻结面（缺口清单与动工前的常量摘要）不在本文件：见 tests/frozen-baselines.json（A 批审查缺口 3／4 的外部锚定点，含锚定提交与文件 sha256）。",
+  "schema": 2,
+  "note": "检查的证据面声明表：每条＝既有的具名判据 → 一条或多条子句级临时突变（clause／file／edits[] 按序施加／suite／execution／expect）。执行器是 tools/check-mutation.ps1（-Check <名> 跑该判据的全部条目，-Check <名>#<clause> 只跑一条）；tests/architecture_cases.gd::mutation_evidence_is_total 核对本表形状与判据全集，mutation_finds_are_unique_in_their_files 按序核对每条 edits 的 find 在施加到该步时的文本里恰出现一次。每条 find 必须唯一，全部施加后的文本必须不同，replace 必须让该判据变红并在声明 expect 时同时命中该子串；运行期逐字节还原。 冻结面（缺口清单与动工前的常量摘要）不在本文件：见 tests/frozen-baselines.json（A 批审查缺口 3／4 的外部锚定点，含锚定提交与文件 sha256）。",
   "known_gaps_reason": "既有判据里尚未逐条补突变证据的部分（多为本表之前的架构判据）：本清单只能缩短——新写的判据不得登记为缺口，必须随批附带证据。例外只对「写于本表存在之前的重放线判据」：2026-10-06 的 fact-lookup 重放批按实际逐条登记（40→54），此后再新增判据仍须随批附带证据。",
   "known_gaps": [
     "transition_write_sites_are_pinned",
@@ -58,693 +58,1534 @@
     "payload_write_sites_are_pinned"
   ],
   "mutations": {
-    "slice_dependency_directions": {
-      "file": "core/game.gd",
-      "find": "const CHECKPOINT_PRIORITY=[\"battle_end\",\"prepare_end\",\"floor\"]",
-      "replace": "const CHECKPOINT_PRIORITY=[\"battle_end\",\"prepare_end\",\"floor\"]\n\n# mutation probe: a core-side reference to the ui module\nfunc _mutation_probe_slice() -> String:\n return \"res://ui/main.gd\"",
-      "suite": "architecture"
-    },
-    "run_identity_single_writer": {
-      "file": "ui/main.gd",
-      "find": "var seed_copied_until=0",
-      "replace": "var seed_copied_until=0\n\n# mutation probe: a second clipboard writer\nfunc _mutation_probe_clipboard() -> void:\n DisplayServer.clipboard_set(\"\")",
-      "suite": "architecture"
-    },
-    "feedback_save_single_serializer": {
-      "file": "ui/deck_browser.gd",
-      "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
-      "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a second save-attachment serializer in ui/\nfunc _mutation_probe_save(host) -> String:\n return host.saves.fixed_point_text(host.game,{})",
-      "suite": "architecture"
-    },
-    "card_terms_single_source": {
-      "file": "ui/deck_browser.gd",
-      "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
-      "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a second keywords() implementation\nfunc keywords() -> Dictionary:\n return {}",
-      "suite": "architecture"
-    },
-    "feedback_save_cap_pinned": {
-      "file": "ui/feedback_report.gd",
-      "find": "const MAX_SAVE_BYTES=2*1024*1024",
-      "replace": "const MAX_SAVE_BYTES=3*1024*1024",
-      "suite": "architecture"
-    },
-    "equipment_scope_sites": {
-      "file": "core/game.gd",
-      "find": "const CHECKPOINT_PRIORITY=[\"battle_end\",\"prepare_end\",\"floor\"]",
-      "replace": "const CHECKPOINT_PRIORITY=[\"battle_end\",\"prepare_end\",\"floor\"]\n\n# mutation probe: an unpinned read-scope open point\nfunc _mutation_probe_scope() -> void:\n _begin_equipment_read()",
-      "suite": "architecture"
-    },
-    "equipment_targets_walk_is_one_path": {
-      "file": "core/game.gd",
-      "find": "func targets_at(slot: String) -> Array:\n if _equipment_read_active(): return _equipment_read.slot_targets.get(slot,[]).duplicate()\n var targets=[]",
-      "replace": "func targets_at(slot: String) -> Array:\n if _equipment_read_active(): return _equipment_read.slot_targets.get(slot,[]).duplicate()\n var probe=physical_pieces()\n if probe.is_empty(): pass\n var targets=[]",
-      "suite": "architecture"
-    },
-    "transition_kind_set_pinned": {
-      "file": "core/game.gd",
-      "find": " \"demo_end\":{\"phases\":[],\"room\":false,\"tx\":true,\"owners\":[\"_execute\"]},",
-      "replace": " \"demo_end\":{\"phases\":[],\"room\":false,\"tx\":true,\"owners\":[\"_execute\"]},\n \"mutation_probe_kind\":{\"phases\":[],\"room\":false,\"tx\":false,\"owners\":[\"_execute\"]},",
-      "suite": "architecture"
-    },
-    "command_params_keys_pinned": {
-      "file": "core/game.gd",
-      "find": " \"manual\":{\"target\":\"\"},",
-      "replace": " \"manual\":{\"target\":\"\",\"mutation_probe\":\"\"},",
-      "suite": "architecture"
-    },
-    "get_view_call_sites_are_pinned": {
-      "file": "ui/deck_browser.gd",
-      "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
-      "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a fifth get_view call site\nfunc _mutation_probe_view(host) -> Dictionary:\n return host.game.get_view()",
-      "suite": "architecture"
-    },
-    "ondemand_copy_consumer_boundary": {
-      "file": "ui/deck_browser.gd",
-      "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
-      "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a card_texts read outside the whitelist\nfunc _mutation_probe_copy(host) -> Array:\n return host.game.card_texts",
-      "suite": "architecture"
-    },
-    "production_source_never_preloads_tests": {
-      "file": "ui/deck_browser.gd",
-      "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
-      "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: production source referencing the test tree\nconst MUTATION_PROBE_TEST=\"res://tests/architecture_cases.gd\"",
-      "suite": "architecture"
-    },
-    "run_review_is_read_only_source": {
-      "file": "ui/run_review.gd",
-      "find": "const TITLE_FALLBACK=\"本局回顾\"",
-      "replace": "const TITLE_FALLBACK=\"本局回顾\"\n\n# mutation probe: a write path in the read-only panel\nstatic func _mutation_probe_write(ui) -> void:\n ui._save_progress()",
-      "suite": "architecture"
-    },
-    "target_queries_stay_stateless": {
-      "file": "ui/target_queries.gd",
-      "find": "const RELEASE_MODES=[\"strain\",\"slip\",\"magic_slip\",\"lower\",\"unlock\"]",
-      "replace": "const RELEASE_MODES=[\"strain\",\"slip\",\"magic_slip\",\"lower\",\"unlock\"]\n\n# mutation probe: a query that takes the game\nstatic func _mutation_probe_stateless(game) -> String:\n return game.state.phase",
-      "suite": "architecture"
-    },
-    "ui_never_reads_game_state": {
-      "file": "ui/deck_browser.gd",
-      "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
-      "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a game.state read in ui/\nfunc _mutation_probe_state(host) -> Dictionary:\n return host.game.state",
-      "suite": "architecture"
-    },
-    "mutation_evidence_is_total": {
-      "file": "tests/mutations.json",
-      "find": "\"run_identity_single_writer\": {",
-      "replace": "\"mutation_probe_ghost_check\": {",
-      "suite": "architecture"
-    },
-    "mutation_finds_are_unique_in_their_files": {
-      "file": "tests/architecture_cases.gd",
-      "find": "const VIEW_FIELDS=[\"composites\",\"equipment\",\"links\",\"next_composite\",\"next_equipment\",\"special_equipment\"]",
-      "replace": "const VIEW_FIELDS=[\"composites\",\"equipment\",\"links\",\"next_composite\",\"next_equipment\",\"special_equipment\"]\n# mutation probe: const VIEW_FIELDS=[\"composites\",\"equipment\",\"links\",\"next_composite\",\"next_equipment\",\"special_equipment\"]",
-      "suite": "architecture"
-    },
-    "phase_branch_vocabulary_is_total": {
-      "file": "core/game.gd",
-      "find": " if state.phase==\"cleared\": return \"cleared\"",
-      "replace": " if state.phase==\"cleared\": return \"cleared_probe\"",
-      "suite": "architecture"
-    },
-    "fact_units_cover_fact_source": {
-      "file": "core/command_registry.gd",
-      "find": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual\",",
-      "replace": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual_probe\",",
-      "suite": "architecture"
-    },
-    "baseline_constants_are_unchanged": {
-      "file": "tests/architecture_cases.gd",
-      "find": "const R3_VIEW_MASK=[\"display_facts\",\"display_fact_scope\"]",
-      "replace": "const R3_VIEW_MASK=[\"display_fact_scope\",\"display_fact_scope\"]",
-      "suite": "architecture"
-    },
-    "fact_lookup_all_kinds": {
-      "file": "core/game.gd",
-      "find": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return manual_facts()",
-      "replace": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n return manual_facts()",
-      "suite": "architecture"
-    },
-    "point_sources_are_kind_limited": {
-      "file": "core/game.gd",
-      "find": "func manual_facts() -> Array:\n var facts=[]\n if not command_tail(): return facts",
-      "replace": "func manual_facts() -> Array:\n var facts=[]\n if not command_tail(): return facts\n _join_fact_units(_phase_branch_units(\"prison_end\"))",
-      "suite": "architecture"
-    },
-    "domain_arm_guards_call_phase_branch": {
-      "file": "core/game.gd",
-      "find": "func _hook_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return hook_facts()",
-      "replace": "func _hook_kind_facts(_kind: String, _params: Dictionary) -> Array:\n return hook_facts()",
-      "suite": "architecture"
-    },
-    "point_query_builds_no_table": {
-      "file": "core/game.gd",
-      "find": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return manual_facts()",
-      "replace": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n _join_fact_units(_phase_branch_units(\"action_tail\"))\n return manual_facts()",
-      "suite": "architecture"
-    },
-    "prefix_branch_tables_are_frozen": {
-      "file": "tests/architecture_cases.gd",
-      "find": "const PREFIX_BRANCH_TABLE_STATE_COUNT=63",
-      "replace": "const PREFIX_BRANCH_TABLE_STATE_COUNT=62",
-      "suite": "architecture"
-    },
-    "domain_arm_branch_ids_are_pinned": {
-      "file": "core/game.gd",
-      "find": "func _chain_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"card_chain\": return []\n return Cards.chain_display_facts(self)",
-      "replace": "func _chain_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return Cards.chain_display_facts(self)",
-      "suite": "architecture"
-    },
-    "table_rows_constructed_once": {
-      "file": "core/game.gd",
-      "find": "func attack_facts() -> Array:\n var facts: Array=[]\n for pair in _batch_rows(BATCH_ATTACK_WALK,func(): return attack_point_walk(self)):\n  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  if pair.row.is_empty(): continue\n  facts.append(pair.row)\n return facts",
-      "replace": "func attack_facts() -> Array:\n var facts: Array=[]\n for k in attack_point_keys(self):\n  if String(k.get(\"target\",\"\"))!=\"\": continue\n  var row=attack_point_fact(self,k)\n  if not row.is_empty(): facts.append(row)\n return facts",
-      "suite": "architecture"
-    },
-    "table_walk_single_entry": {
-      "file": "core/card_effects.gd",
-      "find": "func card_facts(g, card: Dictionary) -> Array:\n return g._batch_rows(g.BATCH_CARD_ROWS+\":\"+String(card.get(\"uid\",\"\")),func(): return _card_point_rows(g,card))",
-      "replace": "func card_facts(g, card: Dictionary) -> Array:\n var rows=[]\n for k in _card_point_card_keys(g,card):\n  var row=card_point_fact(g,k)\n  if not row.is_empty(): rows.append(row)\n return rows",
-      "suite": "architecture"
-    },
-    "point_family_rows_respect_read_scope": {
-      "file": "core/game.gd",
-      "find": "func _batch_rows(entry: String, build: Callable) -> Array:\n if not _equipment_read_active(): return build.call()",
-      "replace": "static var _mutation_walk_cache={}\n\nfunc _batch_rows(entry: String, build: Callable) -> Array:\n if not _equipment_read_active():\n  if not _mutation_walk_cache.has(entry): _mutation_walk_cache[entry]=build.call()\n  return (_mutation_walk_cache[entry] as Array).duplicate(true)",
-      "suite": "architecture"
-    },
-    "fact_table_reuse_within_batch": {
-      "file": "core/game.gd",
-      "find": "func _batch_rows(entry: String, build: Callable) -> Array:\n if not _equipment_read_active(): return build.call()\n if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}",
-      "replace": "func _batch_rows(entry: String, build: Callable) -> Array:\n if true: return build.call()\n if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}",
-      "suite": "architecture"
-    },
-    "fact_table_cache_lifetime_is_pinned": {
-      "file": "core/game.gd",
-      "find": " if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}",
-      "replace": " if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}\n if not has_meta(\"batch_rows_probe\"): set_meta(\"batch_rows_probe\",{})",
-      "suite": "architecture"
-    },
-    "table_reuse_matches_fresh_projection": {
-      "file": "core/game.gd",
-      "find": " if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}\n var entries: Dictionary=_equipment_read[BATCH_ROW_ENTRIES]\n if not entries.has(entry): entries[entry]=build.call()\n return (entries[entry] as Array).duplicate(true)",
-      "replace": " if not has_meta(\"reuse_probe\"): set_meta(\"reuse_probe\",{})\n var entries: Dictionary=get_meta(\"reuse_probe\")\n if not entries.has(entry): entries[entry]=build.call()\n return (entries[entry] as Array).duplicate(true)",
-      "suite": "architecture"
-    },
-    "batch_reuse_never_aliases_callers": {
-      "file": "core/game.gd",
-      "find": " return (entries[entry] as Array).duplicate(true)",
-      "replace": " return entries[entry]",
-      "suite": "architecture"
-    },
-    "walk_rows_are_never_empty": {
-      "file": "core/game.gd",
-      "find": "  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  if pair.row.is_empty(): continue\n  facts.append(pair.row)\n return facts\n\nfunc _attack_offer_fact(",
-      "replace": "  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  facts.append(pair.row)\n return facts\n\nfunc _attack_offer_fact(",
-      "suite": "architecture"
-    },
-    "default_projection_is_unchanged": {
-      "file": "core/game_view.gd",
-      "find": "\"display_fact_scope\":fact_groups_of(facts)}",
-      "replace": "\"display_fact_scope_probe\":fact_groups_of(facts)}",
-      "suite": "architecture"
-    },
-    "lazy_projection_invariant": {
-      "file": "core/command_registry.gd",
-      "find": "const VIEW_FACT_GROUPS=[\"card\",\"event\",\"flow\",\"item\",\"manual\",\"posture\",\"prison\",\"rest_service\",\"reward\",\"route\",\"service\",\"service_flow\",\"service_refresh\",\"service_release\",\"service_remove\"]",
-      "replace": "const VIEW_FACT_GROUPS=[\"card\",\"event\",\"flow\",\"manual\",\"posture\",\"prison\",\"rest_service\",\"reward\",\"route\",\"service\",\"service_flow\",\"service_refresh\",\"service_release\",\"service_remove\"]",
-      "suite": "architecture"
-    },
-    "fact_groups_are_total": {
-      "file": "core/command_registry.gd",
-      "find": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual\",\"groups\":[\"manual\"]",
-      "replace": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual\",\"groups\":[\"manual_probe\"]",
-      "suite": "architecture"
-    },
-    "whole_table_branches_force_full_demand": {
-      "file": "core/game.gd",
-      "find": " return FirstTurnControl.active(self) or not state.card_chain.is_empty() or state.pending_retain",
-      "replace": " return FirstTurnControl.active(self)",
-      "suite": "architecture"
-    },
-    "submit_result_scalars_are_pinned": {
-      "file": "core/game.gd",
-      "find": "\"spell_failed\":_magic_failed,\"fact\":chosen,\"phase\":state.phase,\"overloaded\":Pressure.overloaded(self)}",
-      "replace": "\"spell_failed\":_magic_failed,\"fact\":chosen,\"phase\":state.phase,\"overloaded\":state.overloaded}",
-      "suite": "architecture"
-    },
-    "baseline_diff_is_declared": {
-      "file": "tests/architecture_cases.gd",
-      "find": " \"battle:0\":{\"record\":E_SUBMIT_KEYS_REASON},\n",
-      "replace": "",
-      "suite": "architecture"
-    },
-    "frozen_anchor_files_match_git": {
-      "file": "tests/frozen-baselines.json",
-      "find": "\"sha256\": \"9F837193BEA2C8E707CE9827BC06A8573222A2057566400A125657FFE7F47760\"",
-      "replace": "\"sha256\": \"9F837193BEA2C8E707CE9827BC06A8573222A2057566400A125657FFE7F47761\"",
-      "suite": "architecture"
-    },
-    "demand_declarations_are_total": {
-      "file": "ui/main.gd",
-      "find": " \"relics\":[\"relic\"],",
-      "replace": " \"relics\":[\"relic_probe\"],",
-      "suite": "architecture"
-    },
-    "demand_core_source_is_nonempty": {
-      "file": "tests/architecture_cases.gd",
-      "find": " for path in [\"core/game.gd\",\"core/command_registry.gd\",\"core/game_view.gd\"]:",
-      "replace": " for path in [\"res://core/game.gd\",\"core/command_registry.gd\",\"core/game_view.gd\"]:",
-      "suite": "architecture"
-    },
-    "section_read_sets_are_pinned": {
-      "file": "tests/architecture_cases.gd",
-      "find": " \"target_drag\":{\"adj\":[],\"extra\":[\"_begin_target_drag\",{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},",
-      "replace": " \"target_drag\":{\"adj\":[],\"extra\":[{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},",
-      "suite": "architecture"
-    },
-    "prison_page_row_order_is_pinned": {
-      "file": "ui/main.gd",
-      "find": " page_rows.append_array(TargetQueries.facts(view,\"prison\"))",
-      "replace": " page_rows=TargetQueries.facts(view,\"prison\")+page_rows",
-      "suite": "architecture"
-    },
-    "present_demand_recorder": {
-      "file": "ui/target_queries.gd",
-      "find": " if not OS.is_debug_build() or not _debug_read_observer.is_valid(): return",
-      "replace": " if true: return",
-      "suite": "recipe",
-      "execution": "recipe"
-    },
-    "submit_demand_call_sites_are_pinned": {
-      "file": "ui/main.gd",
-      "find": "var updated=game.get_view(_present_demand(result) if local_rebuild else [])",
-      "replace": "var updated=game.get_view()",
-      "suite": "architecture"
-    },
-    "behavior_baseline_equivalence": {
-      "file": "tests/architecture_cases.gd",
-      "find": "const R3_VIEW_MASK=[\"display_facts\",\"display_fact_scope\"]",
-      "replace": "const R3_VIEW_MASK=[\"display_facts\"]",
-      "suite": "architecture"
-    },
-    "target_queries_read_observer_is_debug_only": {
-      "file": "ui/target_queries.gd",
-      "find": " if not OS.is_debug_build() or not _debug_read_observer.is_valid(): return",
-      "replace": " if not _debug_read_observer.is_valid(): return",
-      "suite": "architecture"
-    },
-    "contract_text_is_updated_verbatim": {
-      "file": "../docs/spec/response-pipeline.md",
-      "find": "**在不改变实际呈现效果的情况下，尽量降低单次成本**",
-      "replace": "**UI 只能减少 get_view 的调用次数，不能降低单次成本**",
-      "suite": "architecture"
-    },
-    "submit_full_fallback_uses_source": {
-      "file": "ui/main.gd",
-      "find": " var next=view if source.is_empty() else source",
-      "replace": " var next=view",
-      "suite": "display",
-      "execution": "ui"
-    },
-    "bound_click_focus_owner": {
-      "file": "tests/architecture_cases.gd",
-      "find": " \"target_drag\":{\"adj\":[],\"extra\":[\"_begin_target_drag\",{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},",
-      "replace": " \"target_drag\":{\"adj\":[],\"extra\":[\"_begin_target_drag\"]},",
-      "suite": "display",
-      "execution": "ui"
-    },
-    "read_observer_boundaries": {
-      "file": "ui/target_queries.gd",
-      "find": "\"rows\":rows.duplicate(true),\"stack\":stack",
-      "replace": "\"rows\":rows,\"stack\":stack",
-      "suite": "display",
-      "execution": "ui"
-    },
-    "command_facts_full_scope_is_content_equal": {
-      "file": "core/game.gd",
-      "find": " var result=_batch_rows(BATCH_TABLE,build) if scope==CommandRegistry.fact_groups() else build.call()",
-      "replace": " var result=_batch_rows(BATCH_TABLE,build) if scope.size()==CommandRegistry.fact_groups().size() else build.call()",
-      "suite": "architecture"
-    },
-    "per_click_checks_are_debug_only": {
-      "file": "core/game.gd",
-      "find": "func debug_checks_enabled() -> bool:\n if not OS.is_debug_build(): return false\n if typeof(_debug_checks_override)==TYPE_BOOL: return _debug_checks_override\n return true",
-      "replace": "func debug_checks_enabled() -> bool:\n return false",
-      "suite": "architecture"
-    },
-    "per_click_diagnostics_stay_out_of_the_game": {
-      "file": "core/game.gd",
-      "find": "func _debug_check(name: String, location: String, reason: String) -> String:\n if reason!=\"\":\n  debug_check_failures.append({\"check\":name,\"reason\":reason,\"location\":location})",
-      "replace": "func _debug_check(name: String, location: String, reason: String) -> String:\n if reason!=\"\":\n  debug_check_failures.append({\"check\":name,\"reason\":reason,\"location\":location})\n  state[\"debug_check_failures\"]=debug_check_failures.duplicate(true)",
-      "suite": "architecture"
-    },
-    "projection_integrity_gate_is_declared_once": {
-      "file": "core/game.gd",
-      "find": " return command_domain_ready()",
-      "replace": " return Binding.state_issue(self)==\"\" and SpecialEquipment.validate(state.get(\"special_equipment\"))==\"\"",
-      "suite": "architecture"
-    },
-    "index_matches_regeneration": {
-      "file": "tests/check_index.json",
-      "find": "  \"schema\": 1,",
-      "replace": "  \"schema\": 2,",
-      "suite": "runner"
-    },
-    "index_skips_no_source_file": {
-      "file": "tests/check_index_edges.gd",
-      "find": " {\"path\":\"spire-godot/core/tool_rules.gd\",\"reason\":\"状态相关工具查询经 g.Tools 间接消费，没有专属域词；由 spire-godot/core/ 闭包（all-dev）兜住\"},",
-      "replace": "",
-      "suite": "runner"
-    },
-    "index_declared_domains_exist": {
-      "file": "tests/check_index_edges.gd",
-      "find": "{\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVE\"],",
-      "replace": "{\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVEX\"],",
-      "suite": "runner"
-    },
-    "index_suites_are_all_reachable": {
-      "file": "tests/test_game.gd",
-      "find": "\"core\":null,",
-      "replace": "\"core\":null,\"mutation_probe_suite\":null,",
-      "suite": "runner"
-    },
-    "index_route_examples_are_pinned": {
-      "file": "tests/check_index.gd",
-      "find": "const CORE_APPEND=[\"architecture\",\"persistence\",\"runner\"]",
-      "replace": "const CORE_APPEND=[]",
-      "suite": "runner"
-    },
-    "index_covers_every_case_file": {
-      "file": "tests/test_game.gd",
-      "find": "\"card_power\":\"res://tests/card_power_cases.gd\",",
-      "replace": "\"card_power\":null,",
-      "suite": "runner"
-    },
-    "index_targets_exist": {
-      "file": "tests/check_index_edges.gd",
-      "find": "{\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVE\"],",
-      "replace": "{\"path\":\"spire-godot/core/mutation_probe_ghost.gd\",\"domains\":[\"SAVE\"],\"reason\":\"mutation probe: a DOMAINS path that is not on disk\"},\n {\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVE\"],",
-      "suite": "runner"
-    },
-    "index_defects_stay_closed": {
-      "file": "tests/check_index_edges.gd",
-      "find": "const INDEX_DEFECTS=[",
-      "replace": "const INDEX_DEFECTS=[\n {\"date\":\"2026-10-13\",\"path\":\"spire-godot/core/snapshot.gd\",\"missed_suites\":[\"architecture\"],\"found_by\":\"mutation probe\",\"log\":\"build/mutations/probe\",\"added\":\"\"},",
-      "suite": "runner"
-    },
-    "state_read_sites_are_pinned": {
-      "file": "core/game.gd",
-      "find": "func item_action_block() -> bool:",
-      "replace": "func item_action_block() -> bool:\n if state.version<0: return false",
-      "suite": "architecture"
-    },
-    "state_read_scan_reaches_every_source": {
-      "file": "ui/main.gd",
-      "find": "var result=game.dispatch(cmd,int(cmd.get(\"expected_version\",-1)))",
-      "replace": "var result=game.dispatch(cmd,int(cmd.get(\"expected_version\",-1)))\n var _probe_state_read=game.state.phase",
-      "suite": "architecture"
-    },
-    "state_read_registrations_are_pinned": {
-      "file": "core/game.gd",
-      "find": "func command_issue(cmd: Dictionary) -> String:",
-      "replace": "func command_issue(cmd: Dictionary) -> String:\n var _probe_whole_state=state.duplicate(true)",
-      "suite": "architecture"
-    },
-    "present_adjacency_rows_are_complete": {
-      "file": "ui/main.gd",
-      "find": " \"_enemy_hp_text\":[],\n \"_sync_enemy_select\"",
-      "replace": " \"_sync_enemy_select\"",
-      "suite": "architecture"
-    },
-    "present_section_dispatch_is_total": {
-      "file": "ui/main.gd",
-      "find": "  elif section==\"relics\":\n   _relic_row()",
-      "replace": "  elif section==\"relics\":\n   pass",
-      "suite": "architecture"
-    },
-    "present_pipeline_routines_are_registered": {
-      "file": "ui/main.gd",
-      "find": "func _sync_stage_meter(id: String",
-      "replace": "func _sync_mutation_probe_stage() -> void:\n pass\n\nfunc _sync_stage_meter(id: String",
-      "suite": "architecture"
-    },
-    "present_full_render_fallback_is_pinned": {
-      "file": "ui/main.gd",
-      "find": "\"_present_needs_full_render\",\"render\",\"header.configure\"",
-      "replace": "\"_present_needs_full_render\",\"header.configure\"",
-      "suite": "architecture"
-    },
-    "present_adjacency_symbol_floor_is_pinned": {
-      "file": "ui/main.gd",
-      "find": " \"_refresh_drawer_section\":[\"_drawer_presentation_key\",\"_drawer_key_hit\",\"_menu_drawer\",\"_items_drawer\"],\n \"_menu_drawer\":[],\n",
-      "replace": " \"_refresh_drawer_section\":[\"_drawer_presentation_key\",\"_drawer_key_hit\",\"_items_drawer\"],\n",
-      "suite": "architecture"
-    },
-    "assess_dependency_edges": {
-      "file": "core/equipment_replacement_assess.gd",
-      "find": "static func normalize(g, requests: Array) -> Dictionary:\n if requests.is_empty(): return failure(\"本次没有指定要安装的装备。\")",
-      "replace": "static func normalize(g, requests: Array) -> Dictionary:\n g.state.version=0\n if requests.is_empty(): return failure(\"本次没有指定要安装的装备。\")",
-      "suite": "architecture"
-    },
-    "assess_calls_only_declared_modules": {
-      "file": "core/equipment_replacement_assess.gd",
-      "find": "static func pieces(item: Dictionary) -> Array:",
-      "replace": "static func _mutation_probe_module(g, piece: Dictionary) -> void:\n g.RopeArt.track(g,piece)\n\nstatic func pieces(item: Dictionary) -> Array:",
-      "suite": "architecture"
-    },
-    "assess_never_touches_runtime_fields": {
-      "file": "core/equipment_replacement_assess.gd",
-      "find": "static func pieces(item: Dictionary) -> Array:",
-      "replace": "static func _mutation_probe_runtime(g) -> void:\n g._rope_trial=true\n\nstatic func pieces(item: Dictionary) -> Array:",
-      "suite": "architecture"
-    },
-    "legal_requests_is_the_only_judgment_entry": {
-      "file": "core/equipment_application.gd",
-      "find": "static func _result() -> Dictionary:",
-      "replace": "static func _mutation_probe_plan(g, source: String) -> Dictionary:\n return _replacement_plan(g,[],source)\n\nstatic func _result() -> Dictionary:",
-      "suite": "architecture"
-    },
-    "replacement_judgment_has_one_entry": {
-      "file": "core/equipment_application.gd",
-      "find": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n return not _choice_bands(g,spec,source,true).is_empty()",
-      "replace": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n if Replacement.plan(g,[],source).get(\"ok\",false): return true\n return not _choice_bands(g,spec,source,true).is_empty()",
-      "suite": "architecture"
-    },
-    "migrated_pure_functions_have_one_implementation": {
-      "file": "core/equipment_replacement.gd",
-      "find": "static func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:",
-      "replace": "static func _comparison_possible(g, units: Array, deficit: Dictionary, installed: Array) -> bool:\n return false\n\nstatic func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:",
-      "suite": "architecture"
-    },
-    "live_wrappers_delegate_once": {
-      "file": "core/game.gd",
-      "find": "func _prepare_installation(template: String, slot: String, grade: int, locked: bool=false, point: String=\"\", layer: int=-1) -> Dictionary:\n return _prepare_installation_in(state,template,slot,grade,locked,point,layer)",
-      "replace": "func _prepare_installation(template: String, slot: String, grade: int, locked: bool=false, point: String=\"\", layer: int=-1) -> Dictionary:\n var probe=state.equipment.size()\n return _prepare_installation_in(state,template,slot,grade,locked,point,layer)",
-      "suite": "architecture"
-    },
-    "view_functions_read_only_their_view": {
-      "file": "core/game.gd",
-      "find": "func _sealed_reason_in(s: Dictionary, slot: String) -> String:\n for root in s.composites:",
-      "replace": "func _sealed_reason_in(s: Dictionary, slot: String) -> String:\n for root in state.composites:",
-      "suite": "architecture"
-    },
-    "assess_never_restates_factory_rules": {
-      "file": "core/equipment_replacement_assess.gd",
-      "find": "static func removable(g, units: Array, protected_ids: Array, mandatory_ids: Array) -> Array:\n return units.filter(",
-      "replace": "static func removable(g, units: Array, protected_ids: Array, mandatory_ids: Array) -> Array:\n var _probe_reason=\"请选择该装备支持的位置。\"\n return units.filter(",
-      "suite": "architecture"
-    },
-    "factory_records_have_one_builder": {
-      "file": "core/equipment_removal.gd",
-      "find": "  if g._piece_released(e):",
-      "replace": "  g.RopeArt.track(g,e)\n  if g._piece_released(e):",
-      "suite": "architecture"
-    },
-    "removal_module_edges": {
-      "file": "core/equipment_removal.gd",
-      "find": "static func settle(g,released: bool=true) -> void:",
-      "replace": "const EdgeLeak=preload(\"res://core/equipment_replacement_view.gd\")\n\nstatic func settle(g,released: bool=true) -> void:",
-      "suite": "architecture"
-    },
-    "cleanup_link_loop_writes_only_links": {
-      "file": "core/equipment_removal.gd",
-      "find": "  elif g._link_anchor_lost(link,anchors):",
-      "replace": "  elif g._link_anchor_lost(link,anchors):\n   g.state.equipment.erase(link)",
-      "suite": "architecture"
-    },
-    "container_alias_writes_stay_on_projections": {
-      "file": "core/game.gd",
-      "find": "func _refresh_equipment(target: Dictionary) -> void:",
-      "replace": "func _refresh_equipment(target: Dictionary) -> void:\n var live=state;live.links.erase({})",
-      "suite": "architecture"
-    },
-    "durability_ladder_has_one_source": {
-      "file": "core/prison.gd",
-      "find": "    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,2),true)",
-      "replace": "    g._write_durability(piece,piece.maximum * [0.0, 0.4, 0.8, 1.0][2],true)",
-      "suite": "architecture"
-    },
-    "durability_writes_have_one_entry": {
-      "file": "core/prison.gd",
-      "find": "    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,desired),true)",
-      "replace": "    piece.durability=g.RestraintValue.durability_for(piece.maximum,desired)",
-      "suite": "architecture"
-    },
-    "durability_reroutes_keep_their_order": {
-      "file": "core/relic_effects.gd",
-      "find": " g._unlock_equipment(lock)\n g._write_durability(lock,0.0)",
-      "replace": " g._write_durability(lock,0.0)\n g._unlock_equipment(lock)",
-      "suite": "architecture"
-    },
-    "tier_consequences_have_one_dispatch": {
-      "file": "core/room_events.gd",
-      "find": "   \"tighten_to\":\n    if target.is_empty() or g.Equipment.is_shackle(target) or g.SpecialEquipment.is_special(target) or e.tier not in [1,2,3] or g.equipment_tier(target)>=e.tier: return \"请选择紧度低于指定档位的可加固目标。\"\n    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),true)",
-      "replace": "   \"tighten_to\":\n    if target.is_empty() or g.Equipment.is_shackle(target) or g.SpecialEquipment.is_special(target) or e.tier not in [1,2,3] or g.equipment_tier(target)>=e.tier: return \"请选择紧度低于指定档位的可加固目标。\"\n    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),true)\n    g._refresh_equipment(target)",
-      "suite": "architecture"
-    },
-    "durability_cause_intents_are_declared": {
-      "file": "core/room_events.gd",
-      "find": "    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),true)\n    if emit_logs: g._emit(\"event\",target.name+\"被收紧到%d档。\" % e.tier)",
-      "replace": "    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),false)\n    if emit_logs: g._emit(\"event\",target.name+\"被收紧到%d档。\" % e.tier)",
-      "suite": "architecture"
-    },
-    "tier_consequence_table_matches_rows": {
-      "file": "core/game.gd",
-      "find": " \"ease\":{\n  \"P\":[\"track\"],",
-      "replace": " \"ease\":{\n  \"P\":[\"track\",\"reinforcement\"],",
-      "suite": "architecture"
-    },
-    "tightening_draws_binding_once": {
-      "file": "core/torso_binding.gd",
-      "find": " var old=e.get(\"binding\",{})\n var next=resolve(g,e,g._random_index)",
-      "replace": " var old={}\n var next=resolve(g,e,g._random_index)",
-      "suite": "equipment"
-    },
-    "equal_value_tier3_follows_cause_intent": {
-      "file": "core/game.gd",
-      "find": " var row=\"install\" if before<0 else (\"tighten\" if tighten else \"ease\")",
-      "replace": " var row=\"install\" if before<0 else (\"tighten\" if tighten or after>=before else \"ease\")",
-      "suite": "equipment"
-    },
-    "settle_writes_track_only_rope_or_no_op": {
-      "file": "core/game.gd",
-      "find": "   \"track\":\n    RopeArt.track(self,target)",
-      "replace": "   \"track\":\n    pass",
-      "suite": "equipment"
-    },
-    "manual_release_guards_stay_in_policy": {
-      "file": "core/game.gd",
-      "find": " if Equipment.lock_only(target) and not release_lock_only: return",
-      "replace": " if false and not release_lock_only: return",
-      "suite": "equipment"
-    },
-    "hook_release_guards_are_already_upstream": {
-      "file": "core/game.gd",
-      "find": " if Equipment.is_shackle(lock_target) and (payload.get(\"mode\",\"\")==\"lower\" or payload.kind==\"hook\"): reason=\"镣铐仅有耐久，需破坏或开锁解除。\"",
-      "replace": " if Equipment.is_shackle(lock_target) and payload.get(\"mode\",\"\")==\"lower\": reason=\"镣铐仅有耐久，需破坏或开锁解除。\"",
-      "suite": "equipment"
-    },
-    "connections_has_one_delegate": {
-      "file": "core/torso_binding.gd",
-      "find": "static func connections(g) -> Array:\n return connections_of(g.state.equipment)",
-      "replace": "static func connections(g) -> Array:\n var probe=g.state.equipment.size()\n return connections_of(g.state.equipment)",
-      "suite": "architecture"
-    },
-    "save_compat_only_from_legacy_restore": {
-      "file": "core/game.gd",
-      "find": "const Snapshot=preload(\"res://core/snapshot.gd\")",
-      "replace": "const Snapshot=preload(\"res://core/snapshot.gd\")\n\n# mutation probe: a compatibility call site outside restore_snapshot\nfunc _mutation_probe_save_compat() -> void:\n SaveCompat.refresh_after_swap(self)",
-      "suite": "architecture"
-    },
-    "equipment_member_writes_have_one_entry": {
-      "file": "core/room_events.gd",
-      "find": "held.append(item.duplicate(true));g._special_erase(item)",
-      "replace": "held.append(item.duplicate(true));g.state.special_equipment.erase(item)",
-      "suite": "architecture"
-    },
-    "chastity_displacement_unchanged": {
-      "file": "core/game.gd",
-      "find": "  var displaced=state.special_equipment.filter(func(old):return _chastity_displaces(type,old))\n  for old in displaced:",
-      "replace": "  var displaced=state.special_equipment.filter(func(old):return _chastity_displaces(type,old))\n  displaced.reverse()\n  for old in displaced:",
-      "suite": "application"
-    },
-    "held_specials_restore_in_order": {
-      "file": "core/room_events.gd",
-      "find": "    for item in held: g._special_append(item)",
-      "replace": "    for i in range(held.size()-1,-1,-1): g._special_append(held[i])",
-      "suite": "events"
-    },
-    "settle_points_are_declared": {
-      "file": "core/demo_exit.gd",
-      "find": "extends RefCounted",
-      "replace": "extends RefCounted\n\n# mutation probe: one more settle request outside the declared points\nfunc _mutation_probe_settle(g) -> void:\n g._cleanup()",
-      "suite": "architecture"
-    },
-    "placement_layers_have_declared_rules": {
-      "file": "core/demo_exit.gd",
-      "find": "extends RefCounted",
-      "replace": "extends RefCounted\n\n# mutation probe: a placement-layer computation outside the three declared factories\nfunc _mutation_probe_placement(target) -> int:\n return target.layer+1",
-      "suite": "architecture"
-    },
-    "refresh_only_forms_crossing": {
-      "file": "core/shoulder_links.gd",
-      "find": " if tier!=3: return\n update_cross(g,host)",
-      "replace": " update_cross(g,host)\n if tier!=3: return",
-      "suite": "equipment"
-    },
-    "write_epoch_bumps_in_every_port": {
-      "file": "core/game.gd",
-      "find": "func _write_locked(target: Dictionary, locked: bool) -> void:\n _write_epoch+=1\n target.locked=locked",
-      "replace": "func _write_locked(target: Dictionary, locked: bool) -> void:\n target.locked=locked",
-      "suite": "architecture"
-    },
-    "lock_writes_have_one_entry": {
-      "file": "core/game.gd",
-      "find": "    _write_locked(target,true)\n    _emit(\"event\",e.name+\"锁住了\"+target.name+\"。\")",
-      "replace": "    target.locked = true\n    _emit(\"event\",e.name+\"锁住了\"+target.name+\"。\")",
-      "suite": "architecture"
-    },
-    "member_changes_are_announced": {
-      "file": "core/game.gd",
-      "find": " state.links.append(link)\n _member_changed(link,\"added\")",
-      "replace": " state.links.append(link)",
-      "suite": "architecture"
-    },
-    "join_hooks_run_after_unit_commit": {
-      "file": "core/shoulder_links.gd",
-      "find": " g._member_joined(pair.pieces.back(),\"S\",false,{\"host\":host})",
-      "replace": " g._join_hooks([pair.pieces.back(),\"S\",false,{\"host\":host}])",
-      "suite": "equipment"
-    },
-    "join_hooks_follow_post_order": {
-      "file": "core/game.gd",
-      "find": " _tier_consequences(e,-1,tier(e.durability,e.maximum),false)\n _member_joined(e,\"P\",true)",
-      "replace": " _member_joined(e,\"P\",true)\n _tier_consequences(e,-1,tier(e.durability,e.maximum),false)",
-      "suite": "equipment"
-    },
-    "join_effects_have_one_epilogue": {
-      "file": "core/game.gd",
-      "find": " \"R\":{\"J1\":\"member\",\"J2\":\"reinforcement\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"},\n \"B\":{\"J1\":\"new_linked\",\"J2\":\"binding\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"}}",
-      "replace": " \"R\":{\"J1\":\"member\",\"J2\":\"reinforcement\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"}}",
-      "suite": "architecture"
-    },
-    "unit_entries_are_declared": {
-      "file": "core/game.gd",
-      "find": " var owned=_unit_begin()\n state.links.append(link)",
-      "replace": " var owned=false\n state.links.append(link)",
-      "suite": "architecture"
-    },
-    "unit_writes_follow_all_checks": {
-      "file": "core/game.gd",
-      "find": "   _special_erase(old)\n   _emit(\"event\",old.name+\"被新的平板锁替换并取下。\")",
-      "replace": "   _special_erase(old)\n   _emit(\"event\",old.name+\"被新的平板锁替换并取下。\")\n   return {}",
-      "suite": "architecture"
-    },
-    "anchor_hoist_matches_rescan": {
-      "file": "core/equipment_removal.gd",
-      "find": " var anchors=g.link_anchors()",
-      "replace": " var anchors=[]",
-      "suite": "equipment"
-    }
+    "slice_dependency_directions": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "const CHECKPOINT_PRIORITY=[\"battle_end\",\"prepare_end\",\"floor\"]",
+            "replace": "const CHECKPOINT_PRIORITY=[\"battle_end\",\"prepare_end\",\"floor\"]\n\n# mutation probe: a core-side reference to the ui module\nfunc _mutation_probe_slice() -> String:\n return \"res://ui/main.gd\""
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "run_identity_single_writer": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": "var seed_copied_until=0",
+            "replace": "var seed_copied_until=0\n\n# mutation probe: a second clipboard writer\nfunc _mutation_probe_clipboard() -> void:\n DisplayServer.clipboard_set(\"\")"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "feedback_save_single_serializer": [
+      {
+        "clause": "primary",
+        "file": "ui/deck_browser.gd",
+        "edits": [
+          {
+            "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
+            "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a second save-attachment serializer in ui/\nfunc _mutation_probe_save(host) -> String:\n return host.saves.fixed_point_text(host.game,{})"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "card_terms_single_source": [
+      {
+        "clause": "primary",
+        "file": "ui/deck_browser.gd",
+        "edits": [
+          {
+            "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
+            "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a second keywords() implementation\nfunc keywords() -> Dictionary:\n return {}"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "feedback_save_cap_pinned": [
+      {
+        "clause": "primary",
+        "file": "ui/feedback_report.gd",
+        "edits": [
+          {
+            "find": "const MAX_SAVE_BYTES=2*1024*1024",
+            "replace": "const MAX_SAVE_BYTES=3*1024*1024"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "equipment_scope_sites": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "const CHECKPOINT_PRIORITY=[\"battle_end\",\"prepare_end\",\"floor\"]",
+            "replace": "const CHECKPOINT_PRIORITY=[\"battle_end\",\"prepare_end\",\"floor\"]\n\n# mutation probe: an unpinned read-scope open point\nfunc _mutation_probe_scope() -> void:\n _begin_equipment_read()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "equipment_targets_walk_is_one_path": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func targets_at(slot: String) -> Array:\n if _equipment_read_active(): return _equipment_read.slot_targets.get(slot,[]).duplicate()\n var targets=[]",
+            "replace": "func targets_at(slot: String) -> Array:\n if _equipment_read_active(): return _equipment_read.slot_targets.get(slot,[]).duplicate()\n var probe=physical_pieces()\n if probe.is_empty(): pass\n var targets=[]"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "transition_kind_set_pinned": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " \"demo_end\":{\"phases\":[],\"room\":false,\"tx\":true,\"owners\":[\"_execute\"]},",
+            "replace": " \"demo_end\":{\"phases\":[],\"room\":false,\"tx\":true,\"owners\":[\"_execute\"]},\n \"mutation_probe_kind\":{\"phases\":[],\"room\":false,\"tx\":false,\"owners\":[\"_execute\"]},"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "command_params_keys_pinned": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " \"manual\":{\"target\":\"\"},",
+            "replace": " \"manual\":{\"target\":\"\",\"mutation_probe\":\"\"},"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "get_view_call_sites_are_pinned": [
+      {
+        "clause": "primary",
+        "file": "ui/deck_browser.gd",
+        "edits": [
+          {
+            "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
+            "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a fifth get_view call site\nfunc _mutation_probe_view(host) -> Dictionary:\n return host.game.get_view()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "ondemand_copy_consumer_boundary": [
+      {
+        "clause": "primary",
+        "file": "ui/deck_browser.gd",
+        "edits": [
+          {
+            "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
+            "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a card_texts read outside the whitelist\nfunc _mutation_probe_copy(host) -> Array:\n return host.game.card_texts"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "production_source_never_preloads_tests": [
+      {
+        "clause": "primary",
+        "file": "ui/deck_browser.gd",
+        "edits": [
+          {
+            "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
+            "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: production source referencing the test tree\nconst MUTATION_PROBE_TEST=\"res://tests/architecture_cases.gd\""
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "run_review_is_read_only_source": [
+      {
+        "clause": "primary",
+        "file": "ui/run_review.gd",
+        "edits": [
+          {
+            "find": "const TITLE_FALLBACK=\"本局回顾\"",
+            "replace": "const TITLE_FALLBACK=\"本局回顾\"\n\n# mutation probe: a write path in the read-only panel\nstatic func _mutation_probe_write(ui) -> void:\n ui._save_progress()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "target_queries_stay_stateless": [
+      {
+        "clause": "primary",
+        "file": "ui/target_queries.gd",
+        "edits": [
+          {
+            "find": "const RELEASE_MODES=[\"strain\",\"slip\",\"magic_slip\",\"lower\",\"unlock\"]",
+            "replace": "const RELEASE_MODES=[\"strain\",\"slip\",\"magic_slip\",\"lower\",\"unlock\"]\n\n# mutation probe: a query that takes the game\nstatic func _mutation_probe_stateless(game) -> String:\n return game.state.phase"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "ui_never_reads_game_state": [
+      {
+        "clause": "primary",
+        "file": "ui/deck_browser.gd",
+        "edits": [
+          {
+            "find": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")",
+            "replace": "const NameOrder=preload(\"res://ui/chinese_collation.gd\")\n\n# mutation probe: a game.state read in ui/\nfunc _mutation_probe_state(host) -> Dictionary:\n return host.game.state"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "mutation_evidence_is_total": [
+      {
+        "clause": "primary",
+        "file": "tests/mutations.json",
+        "edits": [
+          {
+            "find": "\"run_identity_single_writer\":",
+            "replace": "\"mutation_probe_ghost_check\":"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "mutation_finds_are_unique_in_their_files": [
+      {
+        "clause": "primary",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": "const VIEW_FIELDS=[\"composites\",\"equipment\",\"links\",\"next_composite\",\"next_equipment\",\"special_equipment\"]",
+            "replace": "const VIEW_FIELDS=[\"composites\",\"equipment\",\"links\",\"next_composite\",\"next_equipment\",\"special_equipment\"]\n# mutation probe: const VIEW_FIELDS=[\"composites\",\"equipment\",\"links\",\"next_composite\",\"next_equipment\",\"special_equipment\"]"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "phase_branch_vocabulary_is_total": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " if state.phase==\"cleared\": return \"cleared\"",
+            "replace": " if state.phase==\"cleared\": return \"cleared_probe\""
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "fact_units_cover_fact_source": [
+      {
+        "clause": "primary",
+        "file": "core/command_registry.gd",
+        "edits": [
+          {
+            "find": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual\",",
+            "replace": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual_probe\","
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "baseline_constants_are_unchanged": [
+      {
+        "clause": "primary",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": "const R3_VIEW_MASK=[\"display_facts\",\"display_fact_scope\"]",
+            "replace": "const R3_VIEW_MASK=[\"display_fact_scope\",\"display_fact_scope\"]"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "fact_lookup_all_kinds": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return manual_facts()",
+            "replace": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n return manual_facts()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "point_sources_are_kind_limited": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func manual_facts() -> Array:\n var facts=[]\n if not command_tail(): return facts",
+            "replace": "func manual_facts() -> Array:\n var facts=[]\n if not command_tail(): return facts\n _join_fact_units(_phase_branch_units(\"prison_end\"))"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "domain_arm_guards_call_phase_branch": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _hook_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return hook_facts()",
+            "replace": "func _hook_kind_facts(_kind: String, _params: Dictionary) -> Array:\n return hook_facts()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "point_query_builds_no_table": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return manual_facts()",
+            "replace": "func _manual_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n _join_fact_units(_phase_branch_units(\"action_tail\"))\n return manual_facts()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "prefix_branch_tables_are_frozen": [
+      {
+        "clause": "primary",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": "const PREFIX_BRANCH_TABLE_STATE_COUNT=63",
+            "replace": "const PREFIX_BRANCH_TABLE_STATE_COUNT=62"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "domain_arm_branch_ids_are_pinned": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _chain_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"card_chain\": return []\n return Cards.chain_display_facts(self)",
+            "replace": "func _chain_kind_facts(_kind: String, _params: Dictionary) -> Array:\n if _phase_branch()!=\"action_tail\": return []\n return Cards.chain_display_facts(self)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "table_rows_constructed_once": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func attack_facts() -> Array:\n var facts: Array=[]\n for pair in _batch_rows(BATCH_ATTACK_WALK,func(): return attack_point_walk(self)):\n  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  if pair.row.is_empty(): continue\n  facts.append(pair.row)\n return facts",
+            "replace": "func attack_facts() -> Array:\n var facts: Array=[]\n for k in attack_point_keys(self):\n  if String(k.get(\"target\",\"\"))!=\"\": continue\n  var row=attack_point_fact(self,k)\n  if not row.is_empty(): facts.append(row)\n return facts"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "table_walk_single_entry": [
+      {
+        "clause": "primary",
+        "file": "core/card_effects.gd",
+        "edits": [
+          {
+            "find": "func card_facts(g, card: Dictionary) -> Array:\n return g._batch_rows(g.BATCH_CARD_ROWS+\":\"+String(card.get(\"uid\",\"\")),func(): return _card_point_rows(g,card))",
+            "replace": "func card_facts(g, card: Dictionary) -> Array:\n var rows=[]\n for k in _card_point_card_keys(g,card):\n  var row=card_point_fact(g,k)\n  if not row.is_empty(): rows.append(row)\n return rows"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "point_family_rows_respect_read_scope": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _batch_rows(entry: String, build: Callable) -> Array:\n if not _equipment_read_active(): return build.call()",
+            "replace": "static var _mutation_walk_cache={}\n\nfunc _batch_rows(entry: String, build: Callable) -> Array:\n if not _equipment_read_active():\n  if not _mutation_walk_cache.has(entry): _mutation_walk_cache[entry]=build.call()\n  return (_mutation_walk_cache[entry] as Array).duplicate(true)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "fact_table_reuse_within_batch": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _batch_rows(entry: String, build: Callable) -> Array:\n if not _equipment_read_active(): return build.call()\n if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}",
+            "replace": "func _batch_rows(entry: String, build: Callable) -> Array:\n if true: return build.call()\n if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "fact_table_cache_lifetime_is_pinned": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}",
+            "replace": " if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}\n if not has_meta(\"batch_rows_probe\"): set_meta(\"batch_rows_probe\",{})"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "table_reuse_matches_fresh_projection": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " if not _equipment_read.has(BATCH_ROW_ENTRIES): _equipment_read[BATCH_ROW_ENTRIES]={}\n var entries: Dictionary=_equipment_read[BATCH_ROW_ENTRIES]\n if not entries.has(entry): entries[entry]=build.call()\n return (entries[entry] as Array).duplicate(true)",
+            "replace": " if not has_meta(\"reuse_probe\"): set_meta(\"reuse_probe\",{})\n var entries: Dictionary=get_meta(\"reuse_probe\")\n if not entries.has(entry): entries[entry]=build.call()\n return (entries[entry] as Array).duplicate(true)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "batch_reuse_never_aliases_callers": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " return (entries[entry] as Array).duplicate(true)",
+            "replace": " return entries[entry]"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "walk_rows_are_never_empty": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  if pair.row.is_empty(): continue\n  facts.append(pair.row)\n return facts\n\nfunc _attack_offer_fact(",
+            "replace": "  if String(pair.params.get(\"target\",\"\"))!=\"\": continue\n  facts.append(pair.row)\n return facts\n\nfunc _attack_offer_fact("
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "default_projection_is_unchanged": [
+      {
+        "clause": "primary",
+        "file": "core/game_view.gd",
+        "edits": [
+          {
+            "find": "\"display_fact_scope\":fact_groups_of(facts)}",
+            "replace": "\"display_fact_scope_probe\":fact_groups_of(facts)}"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "lazy_projection_invariant": [
+      {
+        "clause": "primary",
+        "file": "core/command_registry.gd",
+        "edits": [
+          {
+            "find": "const VIEW_FACT_GROUPS=[\"card\",\"event\",\"flow\",\"item\",\"manual\",\"posture\",\"prison\",\"rest_service\",\"reward\",\"route\",\"service\",\"service_flow\",\"service_refresh\",\"service_release\",\"service_remove\"]",
+            "replace": "const VIEW_FACT_GROUPS=[\"card\",\"event\",\"flow\",\"manual\",\"posture\",\"prison\",\"rest_service\",\"reward\",\"route\",\"service\",\"service_flow\",\"service_refresh\",\"service_release\",\"service_remove\"]"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "fact_groups_are_total": [
+      {
+        "clause": "primary",
+        "file": "core/command_registry.gd",
+        "edits": [
+          {
+            "find": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual\",\"groups\":[\"manual\"]",
+            "replace": "{\"id\":\"manual\",\"order\":6,\"owner\":\"action_tail\",\"producer\":\"_unit_manual\",\"groups\":[\"manual_probe\"]"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "whole_table_branches_force_full_demand": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " return FirstTurnControl.active(self) or not state.card_chain.is_empty() or state.pending_retain",
+            "replace": " return FirstTurnControl.active(self)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "submit_result_scalars_are_pinned": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "\"spell_failed\":_magic_failed,\"fact\":chosen,\"phase\":state.phase,\"overloaded\":Pressure.overloaded(self)}",
+            "replace": "\"spell_failed\":_magic_failed,\"fact\":chosen,\"phase\":state.phase,\"overloaded\":state.overloaded}"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "baseline_diff_is_declared": [
+      {
+        "clause": "primary",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": " \"battle:0\":{\"record\":E_SUBMIT_KEYS_REASON},\n",
+            "replace": ""
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "frozen_anchor_files_match_git": [
+      {
+        "clause": "primary",
+        "file": "tests/frozen-baselines.json",
+        "edits": [
+          {
+            "find": "\"sha256\": \"9F837193BEA2C8E707CE9827BC06A8573222A2057566400A125657FFE7F47760\"",
+            "replace": "\"sha256\": \"9F837193BEA2C8E707CE9827BC06A8573222A2057566400A125657FFE7F47761\""
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "demand_declarations_are_total": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": " \"relics\":[\"relic\"],",
+            "replace": " \"relics\":[\"relic_probe\"],"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "demand_core_source_is_nonempty": [
+      {
+        "clause": "primary",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": " for path in [\"core/game.gd\",\"core/command_registry.gd\",\"core/game_view.gd\"]:",
+            "replace": " for path in [\"res://core/game.gd\",\"core/command_registry.gd\",\"core/game_view.gd\"]:"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "section_read_sets_are_pinned": [
+      {
+        "clause": "primary",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": " \"target_drag\":{\"adj\":[],\"extra\":[\"_begin_target_drag\",{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},",
+            "replace": " \"target_drag\":{\"adj\":[],\"extra\":[{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "prison_page_row_order_is_pinned": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": " page_rows.append_array(TargetQueries.facts(view,\"prison\"))",
+            "replace": " page_rows=TargetQueries.facts(view,\"prison\")+page_rows"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "present_demand_recorder": [
+      {
+        "clause": "primary",
+        "file": "ui/target_queries.gd",
+        "edits": [
+          {
+            "find": " if not OS.is_debug_build() or not _debug_read_observer.is_valid(): return",
+            "replace": " if true: return"
+          }
+        ],
+        "suite": "recipe",
+        "execution": "recipe"
+      }
+    ],
+    "submit_demand_call_sites_are_pinned": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": "var updated=game.get_view(_present_demand(result) if local_rebuild else [])",
+            "replace": "var updated=game.get_view()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "behavior_baseline_equivalence": [
+      {
+        "clause": "primary",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": "const R3_VIEW_MASK=[\"display_facts\",\"display_fact_scope\"]",
+            "replace": "const R3_VIEW_MASK=[\"display_facts\"]"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "target_queries_read_observer_is_debug_only": [
+      {
+        "clause": "primary",
+        "file": "ui/target_queries.gd",
+        "edits": [
+          {
+            "find": " if not OS.is_debug_build() or not _debug_read_observer.is_valid(): return",
+            "replace": " if not _debug_read_observer.is_valid(): return"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "contract_text_is_updated_verbatim": [
+      {
+        "clause": "primary",
+        "file": "../docs/spec/response-pipeline.md",
+        "edits": [
+          {
+            "find": "**在不改变实际呈现效果的情况下，尽量降低单次成本**",
+            "replace": "**UI 只能减少 get_view 的调用次数，不能降低单次成本**"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "submit_full_fallback_uses_source": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": " var next=view if source.is_empty() else source",
+            "replace": " var next=view"
+          }
+        ],
+        "suite": "display",
+        "execution": "ui"
+      }
+    ],
+    "bound_click_focus_owner": [
+      {
+        "clause": "primary",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": " \"target_drag\":{\"adj\":[],\"extra\":[\"_begin_target_drag\",{\"file\":\"ui/drag_targets.gd\",\"function\":\"focus_bodies\"}]},",
+            "replace": " \"target_drag\":{\"adj\":[],\"extra\":[\"_begin_target_drag\"]},"
+          }
+        ],
+        "suite": "display",
+        "execution": "ui"
+      }
+    ],
+    "read_observer_boundaries": [
+      {
+        "clause": "primary",
+        "file": "ui/target_queries.gd",
+        "edits": [
+          {
+            "find": "\"rows\":rows.duplicate(true),\"stack\":stack",
+            "replace": "\"rows\":rows,\"stack\":stack"
+          }
+        ],
+        "suite": "display",
+        "execution": "ui"
+      }
+    ],
+    "command_facts_full_scope_is_content_equal": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " var result=_batch_rows(BATCH_TABLE,build) if scope==CommandRegistry.fact_groups() else build.call()",
+            "replace": " var result=_batch_rows(BATCH_TABLE,build) if scope.size()==CommandRegistry.fact_groups().size() else build.call()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "per_click_checks_are_debug_only": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func debug_checks_enabled() -> bool:\n if not OS.is_debug_build(): return false\n if typeof(_debug_checks_override)==TYPE_BOOL: return _debug_checks_override\n return true",
+            "replace": "func debug_checks_enabled() -> bool:\n return false"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "per_click_diagnostics_stay_out_of_the_game": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _debug_check(name: String, location: String, reason: String) -> String:\n if reason!=\"\":\n  debug_check_failures.append({\"check\":name,\"reason\":reason,\"location\":location})",
+            "replace": "func _debug_check(name: String, location: String, reason: String) -> String:\n if reason!=\"\":\n  debug_check_failures.append({\"check\":name,\"reason\":reason,\"location\":location})\n  state[\"debug_check_failures\"]=debug_check_failures.duplicate(true)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "projection_integrity_gate_is_declared_once": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " return command_domain_ready()",
+            "replace": " return Binding.state_issue(self)==\"\" and SpecialEquipment.validate(state.get(\"special_equipment\"))==\"\""
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "index_matches_regeneration": [
+      {
+        "clause": "primary",
+        "file": "tests/check_index.json",
+        "edits": [
+          {
+            "find": "  \"schema\": 1,",
+            "replace": "  \"schema\": 2,"
+          }
+        ],
+        "suite": "runner"
+      }
+    ],
+    "index_skips_no_source_file": [
+      {
+        "clause": "primary",
+        "file": "tests/check_index_edges.gd",
+        "edits": [
+          {
+            "find": " {\"path\":\"spire-godot/core/tool_rules.gd\",\"reason\":\"状态相关工具查询经 g.Tools 间接消费，没有专属域词；由 spire-godot/core/ 闭包（all-dev）兜住\"},",
+            "replace": ""
+          }
+        ],
+        "suite": "runner"
+      }
+    ],
+    "index_declared_domains_exist": [
+      {
+        "clause": "primary",
+        "file": "tests/check_index_edges.gd",
+        "edits": [
+          {
+            "find": "{\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVE\"],",
+            "replace": "{\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVEX\"],"
+          }
+        ],
+        "suite": "runner"
+      }
+    ],
+    "index_suites_are_all_reachable": [
+      {
+        "clause": "primary",
+        "file": "tests/test_game.gd",
+        "edits": [
+          {
+            "find": "\"core\":null,",
+            "replace": "\"core\":null,\"mutation_probe_suite\":null,"
+          }
+        ],
+        "suite": "runner"
+      }
+    ],
+    "index_route_examples_are_pinned": [
+      {
+        "clause": "primary",
+        "file": "tests/check_index.gd",
+        "edits": [
+          {
+            "find": "const CORE_APPEND=[\"architecture\",\"persistence\",\"runner\"]",
+            "replace": "const CORE_APPEND=[]"
+          }
+        ],
+        "suite": "runner"
+      }
+    ],
+    "index_covers_every_case_file": [
+      {
+        "clause": "primary",
+        "file": "tests/test_game.gd",
+        "edits": [
+          {
+            "find": "\"card_power\":\"res://tests/card_power_cases.gd\",",
+            "replace": "\"card_power\":null,"
+          }
+        ],
+        "suite": "runner"
+      }
+    ],
+    "index_targets_exist": [
+      {
+        "clause": "primary",
+        "file": "tests/check_index_edges.gd",
+        "edits": [
+          {
+            "find": "{\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVE\"],",
+            "replace": "{\"path\":\"spire-godot/core/mutation_probe_ghost.gd\",\"domains\":[\"SAVE\"],\"reason\":\"mutation probe: a DOMAINS path that is not on disk\"},\n {\"path\":\"spire-godot/core/snapshot.gd\",\"domains\":[\"SAVE\"],"
+          }
+        ],
+        "suite": "runner"
+      }
+    ],
+    "index_defects_stay_closed": [
+      {
+        "clause": "primary",
+        "file": "tests/check_index_edges.gd",
+        "edits": [
+          {
+            "find": "const INDEX_DEFECTS=[",
+            "replace": "const INDEX_DEFECTS=[\n {\"date\":\"2026-10-13\",\"path\":\"spire-godot/core/snapshot.gd\",\"missed_suites\":[\"architecture\"],\"found_by\":\"mutation probe\",\"log\":\"build/mutations/probe\",\"added\":\"\"},"
+          }
+        ],
+        "suite": "runner"
+      }
+    ],
+    "state_read_sites_are_pinned": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func item_action_block() -> bool:",
+            "replace": "func item_action_block() -> bool:\n if state.version<0: return false"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "state_read_scan_reaches_every_source": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": "var result=game.dispatch(cmd,int(cmd.get(\"expected_version\",-1)))",
+            "replace": "var result=game.dispatch(cmd,int(cmd.get(\"expected_version\",-1)))\n var _probe_state_read=game.state.phase"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "state_read_registrations_are_pinned": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func command_issue(cmd: Dictionary) -> String:",
+            "replace": "func command_issue(cmd: Dictionary) -> String:\n var _probe_whole_state=state.duplicate(true)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "present_adjacency_rows_are_complete": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": " \"_enemy_hp_text\":[],\n \"_sync_enemy_select\"",
+            "replace": " \"_sync_enemy_select\""
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "present_section_dispatch_is_total": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": "  elif section==\"relics\":\n   _relic_row()",
+            "replace": "  elif section==\"relics\":\n   pass"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "present_pipeline_routines_are_registered": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": "func _sync_stage_meter(id: String",
+            "replace": "func _sync_mutation_probe_stage() -> void:\n pass\n\nfunc _sync_stage_meter(id: String"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "present_full_render_fallback_is_pinned": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": "\"_present_needs_full_render\",\"render\",\"header.configure\"",
+            "replace": "\"_present_needs_full_render\",\"header.configure\""
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "present_adjacency_symbol_floor_is_pinned": [
+      {
+        "clause": "primary",
+        "file": "ui/main.gd",
+        "edits": [
+          {
+            "find": " \"_refresh_drawer_section\":[\"_drawer_presentation_key\",\"_drawer_key_hit\",\"_menu_drawer\",\"_items_drawer\"],\n \"_menu_drawer\":[],\n",
+            "replace": " \"_refresh_drawer_section\":[\"_drawer_presentation_key\",\"_drawer_key_hit\",\"_items_drawer\"],\n"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "assess_dependency_edges": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_replacement_assess.gd",
+        "edits": [
+          {
+            "find": "static func normalize(g, requests: Array) -> Dictionary:\n if requests.is_empty(): return failure(\"本次没有指定要安装的装备。\")",
+            "replace": "static func normalize(g, requests: Array) -> Dictionary:\n g.state.version=0\n if requests.is_empty(): return failure(\"本次没有指定要安装的装备。\")"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "assess_calls_only_declared_modules": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_replacement_assess.gd",
+        "edits": [
+          {
+            "find": "static func pieces(item: Dictionary) -> Array:",
+            "replace": "static func _mutation_probe_module(g, piece: Dictionary) -> void:\n g.RopeArt.track(g,piece)\n\nstatic func pieces(item: Dictionary) -> Array:"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "assess_never_touches_runtime_fields": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_replacement_assess.gd",
+        "edits": [
+          {
+            "find": "static func pieces(item: Dictionary) -> Array:",
+            "replace": "static func _mutation_probe_runtime(g) -> void:\n g._rope_trial=true\n\nstatic func pieces(item: Dictionary) -> Array:"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "legal_requests_is_the_only_judgment_entry": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_application.gd",
+        "edits": [
+          {
+            "find": "static func _result() -> Dictionary:",
+            "replace": "static func _mutation_probe_plan(g, source: String) -> Dictionary:\n return _replacement_plan(g,[],source)\n\nstatic func _result() -> Dictionary:"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "replacement_judgment_has_one_entry": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_application.gd",
+        "edits": [
+          {
+            "find": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n return not _choice_bands(g,spec,source,true).is_empty()",
+            "replace": "static func can_apply(g, spec: Dictionary, source: String) -> bool:\n if Replacement.plan(g,[],source).get(\"ok\",false): return true\n return not _choice_bands(g,spec,source,true).is_empty()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "migrated_pure_functions_have_one_implementation": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_replacement.gd",
+        "edits": [
+          {
+            "find": "static func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:",
+            "replace": "static func _comparison_possible(g, units: Array, deficit: Dictionary, installed: Array) -> bool:\n return false\n\nstatic func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "live_wrappers_delegate_once": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _prepare_installation(template: String, slot: String, grade: int, locked: bool=false, point: String=\"\", layer: int=-1) -> Dictionary:\n return _prepare_installation_in(state,template,slot,grade,locked,point,layer)",
+            "replace": "func _prepare_installation(template: String, slot: String, grade: int, locked: bool=false, point: String=\"\", layer: int=-1) -> Dictionary:\n var probe=state.equipment.size()\n return _prepare_installation_in(state,template,slot,grade,locked,point,layer)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "view_functions_read_only_their_view": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _sealed_reason_in(s: Dictionary, slot: String) -> String:\n for root in s.composites:",
+            "replace": "func _sealed_reason_in(s: Dictionary, slot: String) -> String:\n for root in state.composites:"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "assess_never_restates_factory_rules": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_replacement_assess.gd",
+        "edits": [
+          {
+            "find": "static func removable(g, units: Array, protected_ids: Array, mandatory_ids: Array) -> Array:\n return units.filter(",
+            "replace": "static func removable(g, units: Array, protected_ids: Array, mandatory_ids: Array) -> Array:\n var _probe_reason=\"请选择该装备支持的位置。\"\n return units.filter("
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "factory_records_have_one_builder": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "  if g._piece_released(e):",
+            "replace": "  g.RopeArt.track(g,e)\n  if g._piece_released(e):"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "rope_counts=4/3"
+      },
+      {
+        "clause": "order",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " for item in g.state.special_equipment.duplicate():\n  if g._released(item):\n   if g.SpecialEquipment.is_reinforcement(item):\n    var owner=g._equipment(item.owner_id)\n    if not owner.is_empty() and g.SpecialEquipment.supports_reinforcement(owner): owner.reinforcement_state=\"removed\"\n   g._special_erase(item)\n   for strap in g.state.special_equipment.duplicate():\n    if g._strap_follows(item,strap): g._special_erase(strap)\n   g._emit(\"event\",item.name+\"已解除。\")\n for strap in g.state.special_equipment.duplicate():\n  if g._strap_orphaned(strap,g.state.special_equipment):\n   g._special_erase(strap)",
+            "replace": " for strap in g.state.special_equipment.duplicate():\n  if g._strap_orphaned(strap,g.state.special_equipment):\n   g._special_erase(strap)\n for item in g.state.special_equipment.duplicate():\n  if g._released(item):\n   if g.SpecialEquipment.is_reinforcement(item):\n    var owner=g._equipment(item.owner_id)\n    if not owner.is_empty() and g.SpecialEquipment.supports_reinforcement(owner): owner.reinforcement_state=\"removed\"\n   g._special_erase(item)\n   for strap in g.state.special_equipment.duplicate():\n    if g._strap_follows(item,strap): g._special_erase(strap)\n   g._emit(\"event\",item.name+\"已解除。\")"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "order_lost="
+      }
+    ],
+    "removal_module_edges": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "static func settle(g,released: bool=true) -> void:",
+            "replace": "const EdgeLeak=preload(\"res://core/equipment_replacement_view.gd\")\n\nstatic func settle(g,released: bool=true) -> void:"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "cleanup_link_loop_writes_only_links": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "  elif g._link_anchor_lost(link,anchors):",
+            "replace": "  elif g._link_anchor_lost(link,anchors):\n   g.state.equipment.erase(link)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "container_alias_writes_stay_on_projections": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _refresh_equipment(target: Dictionary) -> void:",
+            "replace": "func _refresh_equipment(target: Dictionary) -> void:\n var live=state;live.links.erase({})"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "pairs="
+      },
+      {
+        "clause": "alias",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " var previous=state\n state=candidate",
+            "replace": " var previous=state\n previous.links=[]\n state=candidate"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "writes=["
+      }
+    ],
+    "durability_ladder_has_one_source": [
+      {
+        "clause": "primary",
+        "file": "core/prison.gd",
+        "edits": [
+          {
+            "find": "    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,2),true)",
+            "replace": "    g._write_durability(piece,piece.maximum * [0.0, 0.4, 0.8, 1.0][2],true)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "durability_writes_have_one_entry": [
+      {
+        "clause": "primary",
+        "file": "core/prison.gd",
+        "edits": [
+          {
+            "find": "    g._write_durability(piece,g.RestraintValue.durability_for(piece.maximum,desired),true)",
+            "replace": "    piece.durability=g.RestraintValue.durability_for(piece.maximum,desired)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "durability_reroutes_keep_their_order": [
+      {
+        "clause": "primary",
+        "file": "core/relic_effects.gd",
+        "edits": [
+          {
+            "find": " g._unlock_equipment(lock)\n g._write_durability(lock,0.0)",
+            "replace": " g._write_durability(lock,0.0)\n g._unlock_equipment(lock)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "tier_consequences_have_one_dispatch": [
+      {
+        "clause": "primary",
+        "file": "core/room_events.gd",
+        "edits": [
+          {
+            "find": "   \"tighten_to\":\n    if target.is_empty() or g.Equipment.is_shackle(target) or g.SpecialEquipment.is_special(target) or e.tier not in [1,2,3] or g.equipment_tier(target)>=e.tier: return \"请选择紧度低于指定档位的可加固目标。\"\n    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),true)",
+            "replace": "   \"tighten_to\":\n    if target.is_empty() or g.Equipment.is_shackle(target) or g.SpecialEquipment.is_special(target) or e.tier not in [1,2,3] or g.equipment_tier(target)>=e.tier: return \"请选择紧度低于指定档位的可加固目标。\"\n    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),true)\n    g._refresh_equipment(target)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "durability_cause_intents_are_declared": [
+      {
+        "clause": "primary",
+        "file": "core/room_events.gd",
+        "edits": [
+          {
+            "find": "    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),true)\n    if emit_logs: g._emit(\"event\",target.name+\"被收紧到%d档。\" % e.tier)",
+            "replace": "    g._write_durability(target,g.RestraintValue.durability_for(target.maximum,e.tier),false)\n    if emit_logs: g._emit(\"event\",target.name+\"被收紧到%d档。\" % e.tier)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "tier_consequence_table_matches_rows": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " \"ease\":{\n  \"P\":[\"track\"],",
+            "replace": " \"ease\":{\n  \"P\":[\"track\",\"reinforcement\"],"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "tightening_draws_binding_once": [
+      {
+        "clause": "primary",
+        "file": "core/torso_binding.gd",
+        "edits": [
+          {
+            "find": " var old=e.get(\"binding\",{})\n var next=resolve(g,e,g._random_index)",
+            "replace": " var old={}\n var next=resolve(g,e,g._random_index)"
+          }
+        ],
+        "suite": "equipment"
+      }
+    ],
+    "equal_value_tier3_follows_cause_intent": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " var row=\"install\" if before<0 else (\"tighten\" if tighten else \"ease\")",
+            "replace": " var row=\"install\" if before<0 else (\"tighten\" if tighten or after>=before else \"ease\")"
+          }
+        ],
+        "suite": "equipment"
+      }
+    ],
+    "settle_writes_track_only_rope_or_no_op": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "   \"track\":\n    RopeArt.track(self,target)",
+            "replace": "   \"track\":\n    pass"
+          }
+        ],
+        "suite": "equipment"
+      }
+    ],
+    "manual_release_guards_stay_in_policy": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " if Equipment.lock_only(target) and not release_lock_only: return",
+            "replace": " if false and not release_lock_only: return"
+          }
+        ],
+        "suite": "equipment"
+      }
+    ],
+    "hook_release_guards_are_already_upstream": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " if Equipment.is_shackle(lock_target) and (payload.get(\"mode\",\"\")==\"lower\" or payload.kind==\"hook\"): reason=\"镣铐仅有耐久，需破坏或开锁解除。\"",
+            "replace": " if Equipment.is_shackle(lock_target) and payload.get(\"mode\",\"\")==\"lower\": reason=\"镣铐仅有耐久，需破坏或开锁解除。\""
+          }
+        ],
+        "suite": "equipment"
+      }
+    ],
+    "connections_has_one_delegate": [
+      {
+        "clause": "primary",
+        "file": "core/torso_binding.gd",
+        "edits": [
+          {
+            "find": "static func connections(g) -> Array:\n return connections_of(g.state.equipment)",
+            "replace": "static func connections(g) -> Array:\n var probe=g.state.equipment.size()\n return connections_of(g.state.equipment)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "save_compat_only_from_legacy_restore": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "const Snapshot=preload(\"res://core/snapshot.gd\")",
+            "replace": "const Snapshot=preload(\"res://core/snapshot.gd\")\n\n# mutation probe: a compatibility call site outside restore_snapshot\nfunc _mutation_probe_save_compat() -> void:\n SaveCompat.refresh_after_swap(self)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "equipment_member_writes_have_one_entry": [
+      {
+        "clause": "primary",
+        "file": "core/room_events.gd",
+        "edits": [
+          {
+            "find": "held.append(item.duplicate(true));g._special_erase(item)",
+            "replace": "held.append(item.duplicate(true));g.state.special_equipment.erase(item)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "chastity_displacement_unchanged": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "  var displaced=state.special_equipment.filter(func(old):return _chastity_displaces(type,old))\n  for old in displaced:",
+            "replace": "  var displaced=state.special_equipment.filter(func(old):return _chastity_displaces(type,old))\n  displaced.reverse()\n  for old in displaced:"
+          }
+        ],
+        "suite": "application"
+      }
+    ],
+    "held_specials_restore_in_order": [
+      {
+        "clause": "primary",
+        "file": "core/room_events.gd",
+        "edits": [
+          {
+            "find": "    for item in held: g._special_append(item)",
+            "replace": "    for i in range(held.size()-1,-1,-1): g._special_append(held[i])"
+          }
+        ],
+        "suite": "events"
+      }
+    ],
+    "settle_points_are_declared": [
+      {
+        "clause": "primary",
+        "file": "core/demo_exit.gd",
+        "edits": [
+          {
+            "find": "extends RefCounted",
+            "replace": "extends RefCounted\n\n# mutation probe: one more settle request outside the declared points\nfunc _mutation_probe_settle(g) -> void:\n g._cleanup()"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "placement_layers_have_declared_rules": [
+      {
+        "clause": "primary",
+        "file": "core/demo_exit.gd",
+        "edits": [
+          {
+            "find": "extends RefCounted",
+            "replace": "extends RefCounted\n\n# mutation probe: a placement-layer computation outside the three declared factories\nfunc _mutation_probe_placement(target) -> int:\n return target.layer+1"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "refresh_only_forms_crossing": [
+      {
+        "clause": "primary",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": " if tier!=3: return\n update_cross(g,host)",
+            "replace": " update_cross(g,host)\n if tier!=3: return"
+          }
+        ],
+        "suite": "equipment"
+      }
+    ],
+    "write_epoch_bumps_in_every_port": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _write_locked(target: Dictionary, locked: bool) -> void:\n _write_epoch+=1\n target.locked=locked",
+            "replace": "func _write_locked(target: Dictionary, locked: bool) -> void:\n target.locked=locked"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "lock_writes_have_one_entry": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "    _write_locked(target,true)\n    _emit(\"event\",e.name+\"锁住了\"+target.name+\"。\")",
+            "replace": "    target.locked = true\n    _emit(\"event\",e.name+\"锁住了\"+target.name+\"。\")"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "member_changes_are_announced": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " state.links.append(link)\n _member_changed(link,\"added\")",
+            "replace": " state.links.append(link)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "join_hooks_run_after_unit_commit": [
+      {
+        "clause": "primary",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": " g._member_joined(pair.pieces.back(),\"S\",false,{\"host\":host})",
+            "replace": " g._join_hooks([pair.pieces.back(),\"S\",false,{\"host\":host}])"
+          }
+        ],
+        "suite": "equipment"
+      }
+    ],
+    "join_hooks_follow_post_order": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " _tier_consequences(e,-1,tier(e.durability,e.maximum),false)\n _member_joined(e,\"P\",true)",
+            "replace": " _member_joined(e,\"P\",true)\n _tier_consequences(e,-1,tier(e.durability,e.maximum),false)"
+          }
+        ],
+        "suite": "equipment"
+      }
+    ],
+    "join_effects_have_one_epilogue": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " \"R\":{\"J1\":\"member\",\"J2\":\"reinforcement\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"},\n \"B\":{\"J1\":\"new_linked\",\"J2\":\"binding\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"}}",
+            "replace": " \"R\":{\"J1\":\"member\",\"J2\":\"reinforcement\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"}}"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "unit_entries_are_declared": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " var owned=_unit_begin()\n state.links.append(link)",
+            "replace": " var owned=false\n state.links.append(link)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "unit_writes_follow_all_checks": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "   _special_erase(old)\n   _emit(\"event\",old.name+\"被新的平板锁替换并取下。\")",
+            "replace": "   _special_erase(old)\n   _emit(\"event\",old.name+\"被新的平板锁替换并取下。\")\n   return {}"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "anchor_hoist_matches_rescan": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " var anchors=g.link_anchors()",
+            "replace": " var anchors=[]"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "cases="
+      },
+      {
+        "clause": "moved-early",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "static func settle(g,released: bool=true) -> void:\n var roots=",
+            "replace": "static func settle(g,released: bool=true) -> void:\n var anchors=g.link_anchors()\n var roots="
+          },
+          {
+            "find": " var anchors=g.link_anchors()\n for link in g.state.links.duplicate():",
+            "replace": " for link in g.state.links.duplicate()"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "removed_links=0"
+      }
+    ]
   }
 }

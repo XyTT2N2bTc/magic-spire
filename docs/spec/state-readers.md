@@ -113,7 +113,9 @@
 | `state_read_scan_reaches_every_source` | 到达性与覆盖：每行读点的字段名都在登记表（未知名红并给出 `文件::函数:行`）；`ui_reads==[]`；每个 owner 都能解析到非空函数体（改名／空体静默红）；登记表＝「直读∪别名∪模式串∪`unread_fields`」双向（漏一面红）；随批打印 `STATE READERS unknown=… unread=… registry=…` | `state_read_scan_reaches_every_source`：`ui/main.gd::_submit` 的 `game.dispatch(cmd…)` 行后插 `var _probe_state_read=game.state.phase`（唯一锚）⇒ `ui_reads` 非空 ⇒ 红 |
 | `state_read_registrations_are_pinned` | 三张登记表的双向：`whole_state` 逐 (file,function,kind,count) 相等；`aliases` 与冻结的逐函数字段集合相等且每个声明别名都能解析到非空体；`schema_strings` 的并集相等；随批打印 `STATE READERS REGISTRATIONS …` | `state_read_registrations_are_pinned`：`core/game.gd::command_issue` 体首插 `var _probe_whole_state=state.duplicate(true)`（唯一锚＝签名行）⇒ `whole_state` 多一处 ⇒ 红 |
 
-突变条目的锚唯一性与「RED＋逐字节还原」由 `tools/check-mutation.ps1` 执行：
+突变条目的锚唯一性与「RED＋逐字节还原」由 `tools/check-mutation.ps1` 执行（表为 schema 2：判据名 → 条目数组，
+`-Check <名>` 跑该判据的全部条目，`-Check <名>#<clause>` 只跑一条；每条按序施加 `edits`，每步 `find` 在施加到该步时的
+文本里须恰出现一次，声明 `expect` 时目标 ERROR 行还须命中该子串）：
 `& tools/check-mutation.ps1 -Check state_read_sites_are_pinned,state_read_scan_reaches_every_source,state_read_registrations_are_pinned`。
 重生成入口：`& tools/check-index.ps1 -Write`（索引同批重冻）与
 `& $env:GODOT_BIN --headless --path . --script res://tools/build_state_readers.gd -- --write`／`-- --verify`。

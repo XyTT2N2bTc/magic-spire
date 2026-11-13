@@ -93,7 +93,7 @@ F（K5 接线）实现面＝UI 节→组声明、共享精确开合、失败退�
 | 真实读取观察 | `ui/target_queries.gd::facts`／`fact_by_key` → 唯一 `_debug_observe_read` → 测试独占Callable；debug交换入口 `debug_exchange_read_observer`，release或无观察者不捕栈/复制 |
 | 记录生命周期 | 原 `tests/recipe_driver.gd::_run_recipe` → 动态display begin/snapshot/end；原 `_drive` 动作体不变；独立oracle在还原Callable后核 |
 | 逐节归属 | `tests/architecture_cases.gd::SECTION_BODIES`／`SECTION_BUILDERS` → `f_main_owners`，静态跨节与真实栈消费同源；target_drag是独立交互，不入present节声明 |
-| 突变执行 | `tools/check-mutation.ps1` 规范化execution并唯一委托 `tools/check.ps1` 原rules/ui/recipe阶段，目标原summary/log判RED与逐字节还原 |
+| 突变执行 | `tools/check-mutation.ps1` 规范化execution并唯一委托 `tools/check.ps1` 原rules/ui/recipe阶段，按序施加条目的 `edits`（每步锚唯一）、目标原summary/log判RED（声明 `expect` 时还须命中该子串）与逐字节还原 |
 | 组→单元及前置关系 | `core/game.gd::fact_demand_groups` → `core/command_registry.gd::fact_scope`／`fact_units_in_scope` → 单元表生产通道 |
 | 整表槽位 | `core/game.gd::command_facts` 的 scope 内容等于 `core/command_registry.gd::fact_groups` 才经批内条目 |
 | 监狱页取行 | `ui/main.gd::_prison_location_details` → `ui/target_queries.gd::facts`／`select` 的 prison／item 组 |

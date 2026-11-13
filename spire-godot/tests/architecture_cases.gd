@@ -8673,8 +8673,9 @@ static func view_functions_read_only_their_view(t) -> void:
  t.check(side_effects.is_empty(),"STATEREAD view_functions_read_only_their_view: no *_in twin calls a live-side hook -- RopeArt.* beyond the HOGTIE constant, _emit, _equipment_feedback, _random_index or live g.state (a view that counts rope, emits or feeds back is the live end's job): side_effects="+str(side_effects))
  t.check(defaults.is_empty(),"STATEREAD view_functions_read_only_their_view: twins never default a missing VIEW_FIELDS key with s.get(...) -- a view must fail loudly on a missing key: "+str(defaults))
 
-# 检查力度的证据面（根 AGENTS.md「检查力度与报告四态」）：tests/mutations.json 是「判据名 → 临时突变」的
-# 唯一声明表，执行器 tools/check-mutation.ps1（改源代码→跑声明的套件→要求该判据变红→逐字节还原）。
+# 检查力度的证据面（根 AGENTS.md「检查力度与报告四态」）：tests/mutations.json 是「判据名 → 子句级临时突变」
+# 的唯一声明表（schema 2：判据名 → 非空条目数组，每条含 clause／file／edits[]／suite／execution／expect），
+# 执行器 tools/check-mutation.ps1（按序施加 edits→跑声明的套件→要求该判据变红→逐字节还原）。
 # 本判据双向核对：① 表里不得有幽灵条目（声明的套件里没有这个判据）；② 本轮规范重写线新增的判据
 # 必须逐条有证据（不得靠 known_gaps 逃逸）；③ 本文件的判据全集必须等于 表 ∪ known_gaps，两边都不许默默缺席。
 # 判据全集＝本文件里函数体自带断言的顶层函数：断言调用自成一行（`t.check(` 起行），
@@ -8723,7 +8724,46 @@ static func mutation_evidence_is_total(t) -> void:
  t.check(gaps is Array,"MT mutation_evidence_is_total: known_gaps is an explicit list (no silent absence)")
  t.check(not parsed.has("known_gaps_frozen"),"MT mutation_evidence_is_total: the frozen gap list lives in the external file "+FROZEN_BASELINES_JSON+", not in the declaration table it governs")
  t.check(frozen is Array and not (frozen as Array).is_empty(),"MT mutation_evidence_is_total: known_gaps_frozen is the A-batch snapshot (the gap list only shrinks from here), anchored in "+FROZEN_BASELINES_JSON)
+ t.check(int(parsed.get("schema",0))==2,"MT mutation_evidence_is_total: the table is schema 2 -- a judgment name maps to an entry array and each entry is one sub-clause (a schema-1 single-object row or a mixed table is red): schema="+str(parsed.get("schema")))
  if not entries is Dictionary or not gaps is Array or not frozen is Array: return
+ # schema 2 形状（A178）：判据名 → 非空条目数组；每条 clause 在其判据内唯一且合规；edits 非空，
+ # 每步 find/replace 都是字符串且不相等；有两条及以上条目的判据，每条都必须给出 expect（用于区分
+ # 子句的 ERROR 子串）。逐条按序施加的唯一性核对在 mutation_anchor_report（与执行器同一算法）。
+ var clause=RegEx.new()
+ var clause_ok=clause.compile("^[a-z][a-z0-9-]*$")==OK
+ var shape=[]
+ if not clause_ok: shape.append("regex@compile")
+ for name in entries:
+  var rows=entries[name]
+  if not rows is Array or (rows as Array).is_empty(): shape.append(String(name)+":rows"); continue
+  var seen=[]
+  var multi=(rows as Array).size()>1
+  for index in range((rows as Array).size()):
+   var row=(rows as Array)[index]
+   if not row is Dictionary: shape.append(String(name)+"#"+str(index)+":shape"); continue
+   var key=String((row as Dictionary).get("clause",""))
+   var label=String(name)+"#"+key
+   if not clause_ok or key=="" or clause.search(key)==null or clause.search(key).get_string(0)!=key: shape.append(label+":clause")
+   if key in seen: shape.append(label+":clause-duplicate")
+   seen.append(key)
+   if String((row as Dictionary).get("file",""))=="": shape.append(label+":file")
+   if String((row as Dictionary).get("suite",""))=="": shape.append(label+":suite")
+   if (row as Dictionary).has("execution") and String((row as Dictionary).get("execution","")) not in ["rules","ui","recipe"]: shape.append(label+":execution")
+   var edits=(row as Dictionary).get("edits",null)
+   if not edits is Array or (edits as Array).is_empty():
+    shape.append(label+":edits")
+   else:
+    for step in range((edits as Array).size()):
+     var edit=(edits as Array)[step]
+     if not edit is Dictionary: shape.append(label+":edit"+str(step)+":shape"); continue
+     var find=(edit as Dictionary).get("find",null)
+     var replace=(edit as Dictionary).get("replace",null)
+     if not find is String or not replace is String: shape.append(label+":edit"+str(step)+":strings")
+     elif String(find)==String(replace): shape.append(label+":edit"+str(step)+":noop")
+   if (row as Dictionary).has("expect"):
+    if String((row as Dictionary).get("expect",""))=="": shape.append(label+":expect-empty")
+   elif multi: shape.append(label+":expect-missing")
+ t.check(shape.is_empty(),"MT mutation_evidence_is_total: every judgment maps to a non-empty entry array and every entry carries a unique clause matching ^[a-z][a-z0-9-]*$, a file, a suite, a non-empty edits list whose find and replace differ per step, and an expect when its judgment declares two or more entries: shape="+str(shape))
  var grown=gaps.map(func(key):return String(key)).filter(func(name):return name not in frozen)
  t.check(grown.is_empty(),"MT mutation_evidence_is_total: the frozen gap list only shrinks (new entries are red): "+str(grown))
  print("MUTATION GAP FREEZE frozen=%d current=%d shrunk=%d" % [frozen.size(),gaps.size(),frozen.filter(func(name):return name not in gaps).size()])
@@ -8732,18 +8772,20 @@ static func mutation_evidence_is_total(t) -> void:
  var test_game=source_text("tests/test_game.gd")
  var ghosts=[]
  for name in entries:
-  var row=entries[name]
-  if not row is Dictionary: ghosts.append(String(name)+":shape"); continue
-  var suite=String((row as Dictionary).get("suite",""))
-  var execution=String((row as Dictionary).get("execution","rules"))
-  var script=""
-  if execution=="rules": script=suite_script(test_game,suite)
-  elif execution=="ui": script=suite_script(source_text("tests/ui_smoke.gd"),suite)
-  elif execution=="recipe" and suite=="recipe":
-   script=suite_script(source_text("tests/ui_smoke.gd"),"display")
-   var recipe=source_func_body_code("res://tests/recipe_driver.gd","_run_recipe")
-   if not recipe.contains("load(UI_MODULES[\"display\"])") or not recipe.contains("present_demand_recorder_begin") or not recipe.contains("present_demand_recorder_end"): script=""
-  if script=="" or not source_text(script).contains("func "+String(name)+"("): ghosts.append(String(name)+"@"+execution+":"+suite)
+  var rows=entries[name]
+  if not rows is Array: continue
+  for row in rows:
+   if not row is Dictionary: ghosts.append(String(name)+":shape"); continue
+   var suite=String((row as Dictionary).get("suite",""))
+   var execution=String((row as Dictionary).get("execution","rules"))
+   var script=""
+   if execution=="rules": script=suite_script(test_game,suite)
+   elif execution=="ui": script=suite_script(source_text("tests/ui_smoke.gd"),suite)
+   elif execution=="recipe" and suite=="recipe":
+    script=suite_script(source_text("tests/ui_smoke.gd"),"display")
+    var recipe=source_func_body_code("res://tests/recipe_driver.gd","_run_recipe")
+    if not recipe.contains("load(UI_MODULES[\"display\"])") or not recipe.contains("present_demand_recorder_begin") or not recipe.contains("present_demand_recorder_end"): script=""
+   if script=="" or not source_text(script).contains("func "+String(name)+"("): ghosts.append(String(name)+"@"+execution+":"+suite)
  t.check(ghosts.is_empty(),"MT mutation_evidence_is_total: every table entry names a real check of its declared suite: "+str(ghosts))
  var uncovered=NORM_REWRITE_CHECKS.filter(func(name):return not (entries as Dictionary).has(name))
  t.check(uncovered.is_empty(),"MT mutation_evidence_is_total: the checks added by this rewrite line all carry mutation evidence: "+str(uncovered))
@@ -8774,27 +8816,52 @@ static func mutation_anchor_report() -> Dictionary:
  var rows=[]
  var bad=[]
  var unreadable=[]
+ var total=0
  for name in entries:
-  var row=entries[name]
-  if not row is Dictionary: bad.append(String(name)+":shape"); continue
-  var relative=String((row as Dictionary).get("file",""))
-  var find=String((row as Dictionary).get("find",""))
-  var content=mutation_target_text(relative)
-  if content=="": unreadable.append(String(name)+":"+relative); continue
-  var newline="\r\n" if content.contains("\r\n") else "\n"
-  var needle=find.replace("\r\n","\n").replace("\n",newline)
-  var count=0 if needle=="" else content.count(needle)
-  rows.append(String(name)+"="+str(count))
-  if count!=1: bad.append(String(name)+"@"+relative+":"+str(count))
- return {"entries":entries.size(),"rows":rows,"bad":bad,"unreadable":unreadable}
+  var declared=entries[name]
+  if not declared is Array:
+   bad.append(String(name)+":shape")
+   continue
+  for index in range((declared as Array).size()):
+   var row=(declared as Array)[index]
+   if not row is Dictionary:
+    total+=1
+    bad.append(String(name)+"#"+str(index)+":shape")
+    continue
+   var label=String(name)+"#"+String((row as Dictionary).get("clause",""))
+   total+=1
+   var relative=String((row as Dictionary).get("file",""))
+   var content=mutation_target_text(relative)
+   if content=="": unreadable.append(label+":"+relative); continue
+   var edits=(row as Dictionary).get("edits",null)
+   if not edits is Array or (edits as Array).is_empty(): bad.append(label+"@"+relative+":edits"); continue
+   var newline="\r\n" if content.contains("\r\n") else "\n"
+   var text=content
+   var counts=[]
+   for edit in edits:
+    if not edit is Dictionary:
+     counts.append(-1)
+     continue
+    var find=String((edit as Dictionary).get("find",""))
+    var needle=find.replace("\r\n","\n").replace("\n",newline)
+    var count=0 if needle=="" else text.count(needle)
+    counts.append(count)
+    if count==1:
+     var replace=String((edit as Dictionary).get("replace","")).replace("\r\n","\n").replace("\n",newline)
+     text=text.replace(needle,replace)
+   var rendered=""
+   for count in counts: rendered+=("+" if rendered!="" else "")+str(count)
+   rows.append(label+"="+rendered)
+   if counts.any(func(count):return int(count)!=1): bad.append(label+"@"+relative+":"+rendered)
+ return {"entries":total,"rows":rows,"bad":bad,"unreadable":unreadable}
 
 static func mutation_finds_are_unique_in_their_files(t) -> void:
  var report=mutation_anchor_report()
  var rows=Array(report.rows)
  if not rows.is_empty(): print("MUTATION ANCHOR ROW "+"\nMUTATION ANCHOR ROW ".join(PackedStringArray(rows)))
  print("MUTATION ANCHORS entries=%d unique=%d bad=%d unreadable=%d" % [int(report.entries),rows.size(),Array(report.bad).size(),Array(report.unreadable).size()])
- t.check(int(report.entries)>0 and rows.size()==int(report.entries) and Array(report.unreadable).is_empty(),"ARCH mutation_finds_are_unique_in_their_files: every table row names a readable target file, so the anchor scan covers the whole table (a non-empty table with an unreadable file is red, never silently skipped): entries="+str(report.entries)+" scanned="+str(rows.size())+" unreadable="+str(report.unreadable))
- t.check(not rows.is_empty() and Array(report.bad).is_empty(),"ARCH mutation_finds_are_unique_in_their_files: every declared find occurs exactly once in its file after the executor's line-ending normalization -- 0 means the anchor drifted out of the source, 2 or more means it no longer selects one site: bad="+str(report.bad))
+ t.check(int(report.entries)>0 and rows.size()==int(report.entries) and Array(report.unreadable).is_empty(),"ARCH mutation_finds_are_unique_in_their_files: every table entry names a readable target file, so the anchor scan covers the whole table (a non-empty table with an unreadable file or a malformed entry array is red, never silently skipped): entries="+str(report.entries)+" scanned="+str(rows.size())+" unreadable="+str(report.unreadable))
+ t.check(not rows.is_empty() and Array(report.bad).is_empty(),"ARCH mutation_finds_are_unique_in_their_files: every declared edit's find occurs exactly once in its file after the executor's line-ending normalization, counted in the order the edits are applied -- 0 means the anchor drifted out of the source (or an earlier step removed it), 2 or more means it no longer selects one site: bad="+str(report.bad))
 
 # T 批（R-T5）锚自检：对 tests/frozen-baselines.json 的每处锚重算 `git show <锚提交>:<文件>` 的 sha256，
 # 与所载 anchor.sha256 逐字节比对（大小写不敏感）。期望侧只在两处外部——JSON 声明与 git 对象库的历史
