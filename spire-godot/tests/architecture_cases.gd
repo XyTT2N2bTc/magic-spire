@@ -8711,6 +8711,15 @@ static func suite_script(test_game: String, suite: String) -> String:
  var found=pattern.search(test_game)
  return "" if found==null else found.get_string(1)
 
+# §1 把 clause／file／suite／execution／expect／find／replace 都声明为字符串。判型只有这一处：
+# 非字符串（数字、数组、缺失键）不是可用文本，调用方按字段记具名坏行，绝不先强转再当文本用
+# （F1：`String(5)` 会抛错并让整条判据中止、ERROR 行不带判据名）。执行器
+# tools/check-mutation.ps1::Test-MutationTextCell 是同一判型（`-is [string]`，不做 `[string]` 强转），
+# 两处注释互相点名；改字段集或判型规则时一起改。
+static func _mutation_text_cell(row: Dictionary, field: String) -> Variant:
+ var value=row.get(field,null)
+ return value if value is String else null
+
 static func mutation_evidence_is_total(t) -> void:
  var parsed=JSON.parse_string(source_text(MUTATION_TABLE))
  t.check(parsed is Dictionary,"MT mutation_evidence_is_total: "+MUTATION_TABLE+" parses as a JSON object")
@@ -8731,6 +8740,8 @@ static func mutation_evidence_is_total(t) -> void:
  # 子句的 ERROR 子串）。同一批规则在执行器 tools/check-mutation.ps1::Assert-MutationTable 里也有一份
  # （它必须在动文件前拒绝，且不能调用 GDScript）；两处注释互相点名，改名或改规则时一起改，跨语言
  # 差分见加固记录。逐条按序施加的唯一性核对在 mutation_anchor_report（与执行器同一算法）。
+ # 契约正则 ^[a-z][a-z0-9-]*$；执行器用 \A[a-z][a-z0-9-]*\z 表达同一条整串规则（.NET 的 `$` 会在
+ # 尾随换行前匹配，F2），本侧再比较 search() 的整串，两边都只接受整串。两处注释互相点名。
  var clause=RegEx.new()
  var clause_ok=clause.compile("^[a-z][a-z0-9-]*$")==OK
  var shape=[]
@@ -8743,27 +8754,37 @@ static func mutation_evidence_is_total(t) -> void:
   for index in range((rows as Array).size()):
    var row=(rows as Array)[index]
    if not row is Dictionary: shape.append(String(name)+"#"+str(index)+":shape"); continue
-   var key=String((row as Dictionary).get("clause",""))
-   var label=_mutation_entry_label(String(name),key)
-   if not clause_ok or key=="" or clause.search(key)==null or clause.search(key).get_string(0)!=key: shape.append(label+":clause")
-   if key in seen: shape.append(label+":clause-duplicate")
-   seen.append(key)
-   if String((row as Dictionary).get("file",""))=="": shape.append(label+":file")
-   if String((row as Dictionary).get("suite",""))=="": shape.append(label+":suite")
-   if (row as Dictionary).has("execution") and String((row as Dictionary).get("execution","")) not in ["rules","ui","recipe"]: shape.append(label+":execution")
-   var edits=(row as Dictionary).get("edits",null)
+   var entry=row as Dictionary
+   # 每个字段只决定自己的具名坏行类别；是不是文本一律问 _mutation_text_cell（判型不在各字段复制）。
+   var clause_text=_mutation_text_cell(entry,"clause")
+   var shown_clause=String(clause_text) if clause_text!=null else str(entry.get("clause",""))
+   var label=_mutation_entry_label(String(name),shown_clause)
+   if clause_text==null or clause_text=="" or not clause_ok or clause.search(clause_text)==null or clause.search(clause_text).get_string(0)!=clause_text: shape.append(label+":clause")
+   if clause_text!=null:
+    if clause_text in seen: shape.append(label+":clause-duplicate")
+    seen.append(clause_text)
+   var file_text=_mutation_text_cell(entry,"file")
+   if file_text==null or file_text=="": shape.append(label+":file")
+   var suite_text=_mutation_text_cell(entry,"suite")
+   if suite_text==null or suite_text=="": shape.append(label+":suite")
+   if entry.has("execution"):
+    var execution_text=_mutation_text_cell(entry,"execution")
+    if execution_text==null or execution_text not in ["rules","ui","recipe"]: shape.append(label+":execution")
+   var edits=entry.get("edits",null)
    if not edits is Array or (edits as Array).is_empty():
     shape.append(label+":edits")
    else:
     for step in range((edits as Array).size()):
      var edit=(edits as Array)[step]
      if not edit is Dictionary: shape.append(label+":edit"+str(step)+":shape"); continue
-     var find=(edit as Dictionary).get("find",null)
-     var replace=(edit as Dictionary).get("replace",null)
-     if not find is String or not replace is String: shape.append(label+":edit"+str(step)+":strings")
-     elif String(find)==String(replace): shape.append(label+":edit"+str(step)+":noop")
-   if (row as Dictionary).has("expect"):
-    if String((row as Dictionary).get("expect",""))=="": shape.append(label+":expect-empty")
+     var find=_mutation_text_cell(edit as Dictionary,"find")
+     var replace=_mutation_text_cell(edit as Dictionary,"replace")
+     if find==null or replace==null: shape.append(label+":edit"+str(step)+":strings")
+     elif find==replace: shape.append(label+":edit"+str(step)+":noop")
+   if entry.has("expect"):
+    var expect_text=_mutation_text_cell(entry,"expect")
+    if expect_text==null: shape.append(label+":expect")
+    elif expect_text=="": shape.append(label+":expect-empty")
    elif multi: shape.append(label+":expect-missing")
  t.check(shape.is_empty(),"MT mutation_evidence_is_total: every judgment maps to a non-empty entry array and every entry carries a unique clause matching ^[a-z][a-z0-9-]*$, a file, a suite, a non-empty edits list whose find and replace differ per step, and an expect when its judgment declares two or more entries: shape="+str(shape))
  var grown=gaps.map(func(key):return String(key)).filter(func(name):return name not in frozen)
@@ -8778,16 +8799,19 @@ static func mutation_evidence_is_total(t) -> void:
   if not rows is Array: continue
   for row in rows:
    if not row is Dictionary: ghosts.append(String(name)+":shape"); continue
-   var suite=String((row as Dictionary).get("suite",""))
-   var execution=String((row as Dictionary).get("execution","rules"))
+   # 同一判型：非字符串的 suite／execution 在这里也不能取值拼脚本路径（否则整条判据中止）。
+   var entry=row as Dictionary
+   var suite_text=_mutation_text_cell(entry,"suite")
+   var execution_text=_mutation_text_cell(entry,"execution")
+   if not entry.has("execution"): execution_text="rules"
    var script=""
-   if execution=="rules": script=suite_script(test_game,suite)
-   elif execution=="ui": script=suite_script(source_text("tests/ui_smoke.gd"),suite)
-   elif execution=="recipe" and suite=="recipe":
+   if execution_text=="rules" and suite_text!=null: script=suite_script(test_game,suite_text)
+   elif execution_text=="ui" and suite_text!=null: script=suite_script(source_text("tests/ui_smoke.gd"),suite_text)
+   elif execution_text=="recipe" and suite_text=="recipe":
     script=suite_script(source_text("tests/ui_smoke.gd"),"display")
     var recipe=source_func_body_code("res://tests/recipe_driver.gd","_run_recipe")
     if not recipe.contains("load(UI_MODULES[\"display\"])") or not recipe.contains("present_demand_recorder_begin") or not recipe.contains("present_demand_recorder_end"): script=""
-   if script=="" or not source_text(script).contains("func "+String(name)+"("): ghosts.append(String(name)+"@"+execution+":"+suite)
+   if script=="" or not source_text(script).contains("func "+String(name)+"("): ghosts.append(String(name)+"@"+str(execution_text)+":"+str(suite_text))
  t.check(ghosts.is_empty(),"MT mutation_evidence_is_total: every table entry names a real check of its declared suite: "+str(ghosts))
  var uncovered=NORM_REWRITE_CHECKS.filter(func(name):return not (entries as Dictionary).has(name))
  t.check(uncovered.is_empty(),"MT mutation_evidence_is_total: the checks added by this rewrite line all carry mutation evidence: "+str(uncovered))
@@ -8845,31 +8869,46 @@ static func mutation_anchor_report() -> Dictionary:
     total+=1
     bad.append(String(name)+"#"+str(index)+":shape")
     continue
-   var label=_mutation_entry_label(String(name),String((row as Dictionary).get("clause","")))
+   var entry=row as Dictionary
+   # 与 mutation_evidence_is_total 同一判型：非字符串 clause 只用于显示，非字符串 file 记具名坏行。
+   var clause_text=_mutation_text_cell(entry,"clause")
+   var shown_clause=String(clause_text) if clause_text!=null else str(entry.get("clause",""))
+   var label=_mutation_entry_label(String(name),shown_clause)
    total+=1
-   var relative=String((row as Dictionary).get("file",""))
+   var relative=_mutation_text_cell(entry,"file")
+   if relative==null:
+    bad.append(label+":file")
+    continue
    var content=mutation_target_text(relative)
    if content=="": unreadable.append(label+":"+relative); continue
-   var edits=(row as Dictionary).get("edits",null)
+   var edits=entry.get("edits",null)
    if not edits is Array or (edits as Array).is_empty(): bad.append(label+"@"+relative+":edits"); continue
    var newline="\r\n" if content.contains("\r\n") else "\n"
    var text=content
    var counts=[]
+   var text_bad=false
    for edit in edits:
     if not edit is Dictionary:
      counts.append(-1)
      continue
-    var find=String((edit as Dictionary).get("find",""))
+    var find=_mutation_text_cell(edit as Dictionary,"find")
+    var replace=_mutation_text_cell(edit as Dictionary,"replace")
+    if find==null or replace==null:
+     counts.append(-1)
+     text_bad=true
+     continue
     var needle=_mutation_line_endings(find,newline)
     var count=0 if needle=="" else text.count(needle)
     counts.append(count)
     if count==1:
-     var replace=_mutation_line_endings(String((edit as Dictionary).get("replace","")),newline)
-     text=text.replace(needle,replace)
+     var replacement=_mutation_line_endings(replace,newline)
+     text=text.replace(needle,replacement)
    var rendered=""
    for count in counts: rendered+=("+" if rendered!="" else "")+str(count)
    rows.append(label+"="+rendered)
-   if counts.any(func(count):return int(count)!=1): bad.append(label+"@"+relative+":"+rendered)
+   # 非字符串 find/replace 记具名坏行（:strings），不让整条判据因取值抛错中止（F1）。
+   if text_bad: bad.append(label+"@"+relative+":"+rendered+":strings")
+   elif counts.any(func(count):return int(count)!=1): bad.append(label+"@"+relative+":"+rendered)
    # 契约 §1：全部施加后的文本必须不同于原文（两步互相抵消的条目会让「每步 find != replace」
    # 全绿却什么也没改）。执行器在同一位置用 `$plan.text -ceq $originalText` 判空改并在写文件前
    # 失败（tools/check-mutation.ps1，两处注释互相点名）。

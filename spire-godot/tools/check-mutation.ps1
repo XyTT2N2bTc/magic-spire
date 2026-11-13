@@ -19,11 +19,12 @@ param(
 # carries for the static side (different languages, names are kept in step in both comments).
 #
 # Assert-MutationTable below is the executor-side twin of the static shape check
-# tests/architecture_cases.gd::mutation_evidence_is_total: the same schema, clause syntax and
-# uniqueness, file/suite/execution, non-empty edits, per-step find != replace and multi-entry
-# expect rules. The executor needs its own copy because a malformed table must be rejected before
-# it writes any target file and it cannot call GDScript; the static side stays the single full-table
-# shape site. Keep the two in step by name (the comments in both files point at each other).
+# tests/architecture_cases.gd::mutation_evidence_is_total: the same schema, string cell types
+# (Test-MutationTextCell / _mutation_text_cell), clause syntax and uniqueness, file/suite/execution,
+# non-empty edits, per-step find != replace and multi-entry expect rules. The executor needs its own
+# copy because a malformed table must be rejected before it writes any target file and it cannot call
+# GDScript; the static side stays the single full-table shape site. Keep the two in step by name (the
+# comments in both files point at each other).
 #
 # This tool mutates tracked source for the duration of one suite run. Run it with one engine
 # process at a time and never concurrently with another gate.
@@ -42,23 +43,46 @@ $repositoryRoot = Split-Path -Parent $gameDirectory
 $tablePath = Join-Path $gameDirectory 'tests/mutations.json'
 $table = [IO.File]::ReadAllText($tablePath, [Text.UTF8Encoding]::new($false)) | ConvertFrom-Json
 
+# §1 declares clause/file/suite/execution/expect/find/replace textual. This is the one type guard
+# for those cells: `-is [string]` only -- a number or an array is rejected by its field's rule and
+# is never coerced with [string] first. The static twin is
+# tests/architecture_cases.gd::_mutation_text_cell (same field list, same reject-not-coerce rule);
+# keep the two in step by name.
+function Test-MutationTextCell {
+    param($Value)
+    return $Value -is [string]
+}
+
+# The one place that composes the entry identifier `<judgment>#<clause>`: the selection token, the
+# printed MUTATION line and every shape failure message. The static twin is
+# tests/architecture_cases.gd::_mutation_entry_label. A non-string clause is rendered here for the
+# diagnostic only; Test-MutationTextCell is what rejects it as a cell value.
+function Get-MutationEntryLabel {
+    param([string]$Name, $Clause)
+    return $Name + '#' + [string]$Clause
+}
+
 function Get-MutationExecution {
     param($Row)
-    $execution = if ($Row.PSObject.Properties.Name -contains 'execution') { [string]$Row.execution } else { 'rules' }
+    if (-not ($Row.PSObject.Properties.Name -contains 'execution')) { return 'rules' }
+    $execution = $Row.execution
+    if (-not (Test-MutationTextCell $execution)) { throw ('Unknown mutation execution: ' + [string]$execution) }
     if ($execution -notin @('rules','ui','recipe')) { throw ('Unknown mutation execution: ' + $execution) }
-    if ($execution -eq 'recipe' -and [string]$Row.suite -ne 'recipe') { throw 'Recipe execution requires suite=recipe.' }
+    $suite = $Row.suite
+    if ($execution -eq 'recipe' -and (-not (Test-MutationTextCell $suite) -or $suite -ne 'recipe')) { throw 'Recipe execution requires suite=recipe.' }
     return $execution
 }
 
 # The table-shape rules below are the executor-side twin of the static shape check
-# tests/architecture_cases.gd::mutation_evidence_is_total (same schema, same clause syntax and
-# uniqueness, same file/suite/execution, non-empty edits, per-step find != replace and multi-entry
-# expect rules). Suite routing itself stays in check.ps1; the extra recipe/suite pairing rule here is
-# the same rejection the static ghost row makes, moved to load time. The executor keeps its own copy
-# because it must reject a malformed table before it writes any target file and it cannot call
-# GDScript -- the static side remains the full-table shape site. Every rule that the two sides share
-# is compared cell by cell in the cross-language differential the coordinator requires; when one
-# side changes a rule, change both comments and both checks together.
+# tests/architecture_cases.gd::mutation_evidence_is_total (same schema, same string cell types via
+# Test-MutationTextCell, same clause syntax and uniqueness, same file/suite/execution, non-empty
+# edits, per-step find != replace and multi-entry expect rules). Suite routing itself stays in
+# check.ps1; the extra recipe/suite pairing rule here is the same rejection the static ghost row
+# makes, moved to load time. The executor keeps its own copy because it must reject a malformed table
+# before it writes any target file and it cannot call GDScript -- the static side remains the
+# full-table shape site. Every rule that the two sides share is compared cell by cell in the
+# cross-language differential the coordinator requires; when one side changes a rule, change both
+# comments and both checks together.
 function Assert-MutationTable {
     param($Table)
     if (-not ($Table -is [pscustomobject])) { throw 'tests/mutations.json: the table is not a JSON object.' }
@@ -68,6 +92,13 @@ function Assert-MutationTable {
     if (-not ($entries -is [pscustomobject])) { throw 'tests/mutations.json: mutations is a non-empty declaration table.' }
     $names = @($entries.PSObject.Properties.Name)
     if ($names.Count -eq 0) { throw 'tests/mutations.json: no entries.' }
+    # The contract's clause syntax is ^[a-z][a-z0-9-]*$ (whole string). The executor anchors it as
+    # \A[a-z][a-z0-9-]*\z because .NET's `$` also matches just before a trailing newline (F2: a
+    # "moved-early\n" clause was accepted while the Godot side rejected it). The static twin
+    # tests/architecture_cases.gd::mutation_evidence_is_total compiles the same ^[a-z][a-z0-9-]*$
+    # and additionally compares the whole search() match, so both sides mean exactly one whole
+    # string; the two comments name the same regex and change together.
+    $clausePattern = '\A[a-z][a-z0-9-]*\z'
     foreach ($name in $names) {
         $rows = $entries.$name
         if (-not ($rows -is [array])) { throw ('tests/mutations.json: ' + $name + ' is not an entry array (schema 2).') }
@@ -75,25 +106,38 @@ function Assert-MutationTable {
         $seen = [Collections.Generic.List[string]]::new()
         foreach ($row in $rows) {
             if (-not ($row -is [pscustomobject])) { throw ('tests/mutations.json: ' + $name + ' carries a non-object entry.') }
-            $clause = [string]$row.clause
-            if (-not ($row.PSObject.Properties.Name -contains 'clause') -or -not ($clause -cmatch '^[a-z][a-z0-9-]*$')) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' has a clause outside ^[a-z][a-z0-9-]*$.') }
-            if ($seen -ccontains $clause) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' declares its clause more than once.') }
+            # Cells are read raw and judged only by Test-MutationTextCell; the label is composed in
+            # one place (Get-MutationEntryLabel), never by concatenating name and clause per site.
+            # Direct member assignments: an `if (...)` expression would enumerate a one-element JSON
+            # array into a scalar, hiding the very non-string cell this guard must reject.
+            $clauseValue = $row.clause
+            $label = Get-MutationEntryLabel -Name $name -Clause $clauseValue
+            if (-not (Test-MutationTextCell $clauseValue) -or -not ($clauseValue -cmatch $clausePattern)) { throw ('tests/mutations.json: ' + $label + ' has a clause outside ^[a-z][a-z0-9-]*$.') }
+            $clause = $clauseValue
+            if ($seen -ccontains $clause) { throw ('tests/mutations.json: ' + $label + ' declares its clause more than once.') }
             $seen.Add($clause)
-            if (-not ([string]$row.file)) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' has no file.') }
-            if (-not ([string]$row.suite)) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' has no suite.') }
+            $fileValue = $row.file
+            if (-not (Test-MutationTextCell $fileValue) -or -not $fileValue) { throw ('tests/mutations.json: ' + $label + ' has no file.') }
+            $suiteValue = $row.suite
+            if (-not (Test-MutationTextCell $suiteValue) -or -not $suiteValue) { throw ('tests/mutations.json: ' + $label + ' has no suite.') }
             [void](Get-MutationExecution -Row $row)
             $edits = $row.edits
-            if (-not ($edits -is [array]) -or $edits.Count -eq 0) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' has no non-empty edits list.') }
+            if (-not ($edits -is [array]) -or $edits.Count -eq 0) { throw ('tests/mutations.json: ' + $label + ' has no non-empty edits list.') }
             $step = 0
             foreach ($edit in $edits) {
-                if (-not ($edit -is [pscustomobject])) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' edit ' + $step + ' is not an object.') }
-                if (-not ($edit.find -is [string]) -or -not ($edit.replace -is [string])) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' edit ' + $step + ' needs string find/replace.') }
-                if ($edit.find -ceq $edit.replace) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' edit ' + $step + ' has identical find and replace.') }
+                if (-not ($edit -is [pscustomobject])) { throw ('tests/mutations.json: ' + $label + ' edit ' + $step + ' is not an object.') }
+                $findValue = $edit.find
+                $replaceValue = $edit.replace
+                if (-not (Test-MutationTextCell $findValue) -or -not (Test-MutationTextCell $replaceValue)) { throw ('tests/mutations.json: ' + $label + ' edit ' + $step + ' needs string find/replace.') }
+                if ($findValue -ceq $replaceValue) { throw ('tests/mutations.json: ' + $label + ' edit ' + $step + ' has identical find and replace.') }
                 $step++
             }
             $hasExpect = $row.PSObject.Properties.Name -contains 'expect'
-            if ($hasExpect -and -not ([string]$row.expect)) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' declares an empty expect.') }
-            if (-not $hasExpect -and $rows.Count -gt 1) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' must declare expect (the judgment has ' + $rows.Count + ' entries).') }
+            if ($hasExpect) {
+                $expectValue = $row.expect
+                if (-not (Test-MutationTextCell $expectValue) -or -not $expectValue) { throw ('tests/mutations.json: ' + $label + ' declares an empty expect.') }
+            }
+            if (-not $hasExpect -and $rows.Count -gt 1) { throw ('tests/mutations.json: ' + $label + ' must declare expect (the judgment has ' + $rows.Count + ' entries).') }
         }
     }
 }
@@ -134,7 +178,7 @@ function Invoke-MutationEditPlan {
     $newline = if ($Text.Contains("`r`n")) { "`r`n" } else { "`n" }
     $counts = [Collections.Generic.List[int]]::new()
     foreach ($edit in $Edits) {
-        if (-not ($edit.find -is [string]) -or -not ($edit.replace -is [string])) { throw 'edit is missing find/replace.' }
+        if (-not (Test-MutationTextCell $edit.find) -or -not (Test-MutationTextCell $edit.replace)) { throw 'edit is missing find/replace.' }
         $find = $edit.find -replace "`r?`n", $newline
         $replace = $edit.replace -replace "`r?`n", $newline
         # Assert-MutationTable rejects this on the table rows; the plan keeps its own precondition so
@@ -205,8 +249,7 @@ foreach ($selection in $selected) {
     try {
         # The table shape is already validated (Assert-MutationTable); this loop only resolves the
         # selected entry and its declared routing.
-        $clause = [string]$row.clause
-        $result.name = $name + '#' + $clause
+        $result.name = Get-MutationEntryLabel -Name $name -Clause $row.clause
         $edits = @($row.edits)
         $expect = if ($row.PSObject.Properties.Name -contains 'expect') { [string]$row.expect } else { '' }
         $execution = Get-MutationExecution -Row $row
