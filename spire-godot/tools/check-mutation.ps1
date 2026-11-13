@@ -199,7 +199,6 @@ foreach ($selection in $selected) {
     $row = $selection.row
     $result = [ordered]@{ name = $name; file = [string]$row.file; suite = [string]$row.suite; red = $false; restored = $false; hash = ''; reason = ''; seconds = 0.0; log = '' }
     $entryTimer = [Diagnostics.Stopwatch]::StartNew()
-    $mutated = $false
     $original = $null
     $originalHash = ''
     $path = ''
@@ -226,7 +225,6 @@ foreach ($selection in $selected) {
         $text = [string]$plan.text
         $bytes = [Text.Encoding]::UTF8.GetBytes($text)
         if ($hasBom) { [IO.File]::WriteAllBytes($path, [byte[]](@(0xEF, 0xBB, 0xBF) + $bytes)) } else { [IO.File]::WriteAllBytes($path, $bytes) }
-        $mutated = $true
         $run = Invoke-MutationCheck -Execution $execution -Suite ([string]$row.suite)
         $summary = [IO.File]::ReadAllText($run.summary) | ConvertFrom-Json
         Write-Output ('MUTATION CHILD SUMMARY: ' + $run.summary + '; execution=' + $execution)
@@ -254,7 +252,12 @@ foreach ($selection in $selected) {
     } catch {
         $result.reason = $_.Exception.Message
     } finally {
-        if ($mutated) {
+        # `restored` states the invariant it is named for: the target is byte-identical to its
+        # pre-run bytes. Once the original bytes were read they are always written back -- also when
+        # the entry failed before the mutation was written (nothing to undo) and when the write
+        # itself threw part-way -- so a pre-write rejection reads restored=True instead of looking
+        # like a failed restore.
+        if ($null -ne $original) {
             [IO.File]::WriteAllBytes($path, $original)
             $restoredHash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
             $result.restored = $restoredHash -eq $originalHash
