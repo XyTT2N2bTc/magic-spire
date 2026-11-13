@@ -8801,6 +8801,9 @@ static func mutation_evidence_is_total(t) -> void:
 # 所以任一锚点被源码改写后，其余条目会静默失效而不被发现——本轮真实例：replacement_judgment_has_one_entry
 # 的 find 仍是 990b688 前的 can_apply 体，现行源码无此文本。本判据对全表做与执行器同一的核对：
 # 行尾归一化一致（find 的 \n 展开为目标文件自身的行尾），0 次（失效）与多于 1 次（歧义）都红并列出条目。
+# 计数与施加同序同规则：按序施加 edits，每步以施加到该步时的文本计 find 次数（1 次才施加），与
+# tools/check-mutation.ps1::Invoke-MutationEditPlan 是同一算法（不同语言，同序、同一步一锚规则、同行尾归一化；
+# 两处注释互相点名，改名时一起改）。
 # 目标可以是 res:// 内的 .gd/.json，也可以是 ../docs/**（contract_text_is_updated_verbatim）。
 static func mutation_target_text(relative: String) -> String:
  var direct=source_text(relative)
