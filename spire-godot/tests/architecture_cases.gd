@@ -8742,7 +8742,7 @@ static func mutation_evidence_is_total(t) -> void:
    var row=(rows as Array)[index]
    if not row is Dictionary: shape.append(String(name)+"#"+str(index)+":shape"); continue
    var key=String((row as Dictionary).get("clause",""))
-   var label=String(name)+"#"+key
+   var label=_mutation_entry_label(String(name),key)
    if not clause_ok or key=="" or clause.search(key)==null or clause.search(key).get_string(0)!=key: shape.append(label+":clause")
    if key in seen: shape.append(label+":clause-duplicate")
    seen.append(key)
@@ -8811,6 +8811,17 @@ static func mutation_target_text(relative: String) -> String:
  var base=ProjectSettings.globalize_path("res://")
  return FileAccess.get_file_as_string((base+relative).simplify_path())
 
+# The entry identifier `<judgment>#<clause>` is one format: the executor selects and prints with it
+# (-Check <name>#<clause>), so the static side derives it here only. Keep in step with the executor.
+static func _mutation_entry_label(name: String, clause: String) -> String:
+ return String(name)+"#"+String(clause)
+
+# The table's find/replace strings use \n; both the anchor and the injected text are expanded to the
+# target file's own line ending before counting, exactly like
+# tools/check-mutation.ps1::Invoke-MutationEditPlan. One implementation covers both operands.
+static func _mutation_line_endings(text: String, newline: String) -> String:
+ return text.replace("\r\n","\n").replace("\n",newline)
+
 static func mutation_anchor_report() -> Dictionary:
  var parses=JSON.parse_string(source_text(MUTATION_TABLE))
  if not parses is Dictionary: return {"entries":0,"rows":[],"bad":["table"],"unreadable":[]}
@@ -8831,7 +8842,7 @@ static func mutation_anchor_report() -> Dictionary:
     total+=1
     bad.append(String(name)+"#"+str(index)+":shape")
     continue
-   var label=String(name)+"#"+String((row as Dictionary).get("clause",""))
+   var label=_mutation_entry_label(String(name),String((row as Dictionary).get("clause","")))
    total+=1
    var relative=String((row as Dictionary).get("file",""))
    var content=mutation_target_text(relative)
@@ -8846,11 +8857,11 @@ static func mutation_anchor_report() -> Dictionary:
      counts.append(-1)
      continue
     var find=String((edit as Dictionary).get("find",""))
-    var needle=find.replace("\r\n","\n").replace("\n",newline)
+    var needle=_mutation_line_endings(find,newline)
     var count=0 if needle=="" else text.count(needle)
     counts.append(count)
     if count==1:
-     var replace=String((edit as Dictionary).get("replace","")).replace("\r\n","\n").replace("\n",newline)
+     var replace=_mutation_line_endings(String((edit as Dictionary).get("replace","")),newline)
      text=text.replace(needle,replace)
    var rendered=""
    for count in counts: rendered+=("+" if rendered!="" else "")+str(count)
