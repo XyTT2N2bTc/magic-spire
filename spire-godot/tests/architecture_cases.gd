@@ -8728,7 +8728,9 @@ static func mutation_evidence_is_total(t) -> void:
  if not entries is Dictionary or not gaps is Array or not frozen is Array: return
  # schema 2 形状（A178）：判据名 → 非空条目数组；每条 clause 在其判据内唯一且合规；edits 非空，
  # 每步 find/replace 都是字符串且不相等；有两条及以上条目的判据，每条都必须给出 expect（用于区分
- # 子句的 ERROR 子串）。逐条按序施加的唯一性核对在 mutation_anchor_report（与执行器同一算法）。
+ # 子句的 ERROR 子串）。同一批规则在执行器 tools/check-mutation.ps1::Assert-MutationTable 里也有一份
+ # （它必须在动文件前拒绝，且不能调用 GDScript）；两处注释互相点名，改名或改规则时一起改，跨语言
+ # 差分见加固记录。逐条按序施加的唯一性核对在 mutation_anchor_report（与执行器同一算法）。
  var clause=RegEx.new()
  var clause_ok=clause.compile("^[a-z][a-z0-9-]*$")==OK
  var shape=[]
@@ -8803,7 +8805,8 @@ static func mutation_evidence_is_total(t) -> void:
 # 行尾归一化一致（find 的 \n 展开为目标文件自身的行尾），0 次（失效）与多于 1 次（歧义）都红并列出条目。
 # 计数与施加同序同规则：按序施加 edits，每步以施加到该步时的文本计 find 次数（1 次才施加），与
 # tools/check-mutation.ps1::Invoke-MutationEditPlan 是同一算法（不同语言，同序、同一步一锚规则、同行尾归一化；
-# 两处注释互相点名，改名时一起改）。
+# 两处注释互相点名，改名时一起改）。apply 之后，全部步骤都施加的条目还必须让文本不同于原文
+# （同文件里的 `$plan.text -ceq $originalText`，两处注释互相点名）；两步互相抵消的条目因此在这里也红。
 # 目标可以是 res:// 内的 .gd/.json，也可以是 ../docs/**（contract_text_is_updated_verbatim）。
 static func mutation_target_text(relative: String) -> String:
  var direct=source_text(relative)
@@ -8867,6 +8870,10 @@ static func mutation_anchor_report() -> Dictionary:
    for count in counts: rendered+=("+" if rendered!="" else "")+str(count)
    rows.append(label+"="+rendered)
    if counts.any(func(count):return int(count)!=1): bad.append(label+"@"+relative+":"+rendered)
+   # 契约 §1：全部施加后的文本必须不同于原文（两步互相抵消的条目会让「每步 find != replace」
+   # 全绿却什么也没改）。执行器在同一位置用 `$plan.text -ceq $originalText` 判空改并在写文件前
+   # 失败（tools/check-mutation.ps1，两处注释互相点名）。
+   elif text==content: bad.append(label+"@"+relative+":"+rendered+":noop")
  return {"entries":total,"rows":rows,"bad":bad,"unreadable":unreadable}
 
 static func mutation_finds_are_unique_in_their_files(t) -> void:
@@ -8875,7 +8882,7 @@ static func mutation_finds_are_unique_in_their_files(t) -> void:
  if not rows.is_empty(): print("MUTATION ANCHOR ROW "+"\nMUTATION ANCHOR ROW ".join(PackedStringArray(rows)))
  print("MUTATION ANCHORS entries=%d unique=%d bad=%d unreadable=%d" % [int(report.entries),rows.size(),Array(report.bad).size(),Array(report.unreadable).size()])
  t.check(int(report.entries)>0 and rows.size()==int(report.entries) and Array(report.unreadable).is_empty(),"ARCH mutation_finds_are_unique_in_their_files: every table entry names a readable target file, so the anchor scan covers the whole table (a non-empty table with an unreadable file or a malformed entry array is red, never silently skipped): entries="+str(report.entries)+" scanned="+str(rows.size())+" unreadable="+str(report.unreadable))
- t.check(not rows.is_empty() and Array(report.bad).is_empty(),"ARCH mutation_finds_are_unique_in_their_files: every declared edit's find occurs exactly once in its file after the executor's line-ending normalization, counted in the order the edits are applied -- 0 means the anchor drifted out of the source (or an earlier step removed it), 2 or more means it no longer selects one site: bad="+str(report.bad))
+ t.check(not rows.is_empty() and Array(report.bad).is_empty(),"ARCH mutation_finds_are_unique_in_their_files: every declared edit's find occurs exactly once in its file after the executor's line-ending normalization, counted in the order the edits are applied, and the applied edits leave the text changed -- 0 means the anchor drifted out of the source (or an earlier step removed it), 2 or more means it no longer selects one site, and :noop means the steps cancel out and the entry mutates nothing: bad="+str(report.bad))
 
 # T 批（R-T5）锚自检：对 tests/frozen-baselines.json 的每处锚重算 `git show <锚提交>:<文件>` 的 sha256，
 # 与所载 anchor.sha256 逐字节比对（大小写不敏感）。期望侧只在两处外部——JSON 声明与 git 对象库的历史

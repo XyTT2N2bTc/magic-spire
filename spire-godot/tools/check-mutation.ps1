@@ -7,14 +7,23 @@ param(
 # judgment name maps to a non-empty array of clause entries), apply the entry's declared edits in
 # order, delegate its rules/UI/recipe phase to check.ps1, require that named check to redden in the
 # target phase's original log and summary -- on a line that also carries the entry's `expect`
-# substring when one is declared -- then restore the file byte-for-byte. Any failure -- an edit
-# anchor not unique at its step, suite green, suite failed without a matching error line, restore
-# hash mismatch -- makes the whole invocation exit non-zero.
+# substring when one is declared -- then restore the file byte-for-byte. Any failure -- a table
+# outside the declared shape (rejected by Assert-MutationTable before any target file is touched),
+# an edit anchor not unique at its step, an entry whose edits leave the text unchanged, suite
+# green, suite failed without a matching error line, restore hash mismatch -- makes the whole
+# invocation exit non-zero.
 #
 # The table's find/replace strings use \n; each anchor and each injected text are expanded to the
 # target file's own line ending (CRLF here) so matching and writing stay byte-exact. The sequential
 # apply-and-count algorithm here is the same one tests/architecture_cases.gd::mutation_anchor_report
 # carries for the static side (different languages, names are kept in step in both comments).
+#
+# Assert-MutationTable below is the executor-side twin of the static shape check
+# tests/architecture_cases.gd::mutation_evidence_is_total: the same schema, clause syntax and
+# uniqueness, file/suite/execution, non-empty edits, per-step find != replace and multi-entry
+# expect rules. The executor needs its own copy because a malformed table must be rejected before
+# it writes any target file and it cannot call GDScript; the static side stays the single full-table
+# shape site. Keep the two in step by name (the comments in both files point at each other).
 #
 # This tool mutates tracked source for the duration of one suite run. Run it with one engine
 # process at a time and never concurrently with another gate.
@@ -30,56 +39,8 @@ if (-not $All -and $Check.Count -eq 0) { throw 'Select entries with -All or -Che
 . (Join-Path $PSScriptRoot 'find-godot.ps1')
 $gameDirectory = Split-Path -Parent $PSScriptRoot
 $repositoryRoot = Split-Path -Parent $gameDirectory
-$engine = Find-SpireGodot -Console
 $tablePath = Join-Path $gameDirectory 'tests/mutations.json'
 $table = [IO.File]::ReadAllText($tablePath, [Text.UTF8Encoding]::new($false)) | ConvertFrom-Json
-if ($table.schema -ne 2) { throw 'tests/mutations.json: unexpected schema (expected 2).' }
-$names = @($table.mutations.PSObject.Properties.Name)
-if ($names.Count -eq 0) { throw 'tests/mutations.json: no entries.' }
-foreach ($name in $names) {
-    if ($table.mutations.$name -isnot [array]) { throw ('tests/mutations.json: ' + $name + ' is not an entry array (schema 2).') }
-}
-$selected = [Collections.Generic.List[object]]::new()
-if ($All) {
-    foreach ($name in $names) { foreach ($row in @($table.mutations.$name)) { $selected.Add(@{ name = $name; row = $row }) } }
-} else {
-    foreach ($token in $Check) {
-        $parts = @($token -split '#', 2)
-        $name = $parts[0]
-        if ($name -notin $names) { throw ('Unknown mutation entry: ' + $name) }
-        $rows = @($table.mutations.$name)
-        if ($parts.Count -eq 1) {
-            foreach ($row in $rows) { $selected.Add(@{ name = $name; row = $row }) }
-            continue
-        }
-        $clause = $parts[1]
-        $match = @($rows | Where-Object { [string]$_.clause -eq $clause })
-        if ($match.Count -eq 0) { throw ('Unknown mutation clause: ' + $token) }
-        if ($match.Count -gt 1) { throw ('Ambiguous mutation clause (declared more than once): ' + $token) }
-        $selected.Add(@{ name = $name; row = $match[0] })
-    }
-}
-$entryCount = 0
-foreach ($name in $names) { $entryCount += @($table.mutations.$name).Count }
-$runId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff') + '-' + $PID
-$runDirectory = Join-Path $gameDirectory ('build/mutations/' + $runId)
-[IO.Directory]::CreateDirectory($runDirectory) | Out-Null
-Write-Output ('MUTATION LOGS: ' + $runDirectory)
-Write-Output ('MUTATION TABLE: ' + $entryCount + ' entry(ies) in ' + $names.Count + ' judgment(s); this run selects ' + $selected.Count + '.')
-$statusEntries = [string[]]@(git -C $repositoryRoot status --porcelain)
-$statusBefore = ($statusEntries -join "`n")
-$head = 'unavailable'
-try { $head = ((git -C $repositoryRoot rev-parse HEAD) | Select-Object -First 1).Trim() } catch {}
-$identity = [Collections.Generic.List[string]]::new()
-$identity.Add('RUN IDENTITY')
-$identity.Add('head=' + $head)
-$identity.Add('started=' + [DateTime]::Now.ToString('yyyy-MM-ddTHH:mm:sszzz'))
-$identity.Add('dirty=' + $statusEntries.Count)
-$identity.AddRange($statusEntries)
-[IO.File]::WriteAllLines((Join-Path $runDirectory 'identity.txt'), $identity, [Text.UTF8Encoding]::new($false))
-$identity | Write-Output
-$timer = [Diagnostics.Stopwatch]::StartNew()
-$rows = [Collections.Generic.List[object]]::new()
 
 function Get-MutationExecution {
     param($Row)
@@ -87,6 +48,54 @@ function Get-MutationExecution {
     if ($execution -notin @('rules','ui','recipe')) { throw ('Unknown mutation execution: ' + $execution) }
     if ($execution -eq 'recipe' -and [string]$Row.suite -ne 'recipe') { throw 'Recipe execution requires suite=recipe.' }
     return $execution
+}
+
+# The table-shape rules below are the executor-side twin of the static shape check
+# tests/architecture_cases.gd::mutation_evidence_is_total (same schema, same clause syntax and
+# uniqueness, same file/suite/execution, non-empty edits, per-step find != replace and multi-entry
+# expect rules). Suite routing itself stays in check.ps1; the extra recipe/suite pairing rule here is
+# the same rejection the static ghost row makes, moved to load time. The executor keeps its own copy
+# because it must reject a malformed table before it writes any target file and it cannot call
+# GDScript -- the static side remains the full-table shape site. Every rule that the two sides share
+# is compared cell by cell in the cross-language differential the coordinator requires; when one
+# side changes a rule, change both comments and both checks together.
+function Assert-MutationTable {
+    param($Table)
+    if (-not ($Table -is [pscustomobject])) { throw 'tests/mutations.json: the table is not a JSON object.' }
+    if ($Table.schema -ne 2) { throw 'tests/mutations.json: unexpected schema (expected 2).' }
+    if (-not ($Table.PSObject.Properties.Name -contains 'mutations')) { throw 'tests/mutations.json: mutations is a non-empty declaration table.' }
+    $entries = $Table.mutations
+    if (-not ($entries -is [pscustomobject])) { throw 'tests/mutations.json: mutations is a non-empty declaration table.' }
+    $names = @($entries.PSObject.Properties.Name)
+    if ($names.Count -eq 0) { throw 'tests/mutations.json: no entries.' }
+    foreach ($name in $names) {
+        $rows = $entries.$name
+        if (-not ($rows -is [array])) { throw ('tests/mutations.json: ' + $name + ' is not an entry array (schema 2).') }
+        if ($rows.Count -eq 0) { throw ('tests/mutations.json: ' + $name + ' declares an empty entry array (schema 2 needs at least one entry).') }
+        $seen = [Collections.Generic.List[string]]::new()
+        foreach ($row in $rows) {
+            if (-not ($row -is [pscustomobject])) { throw ('tests/mutations.json: ' + $name + ' carries a non-object entry.') }
+            $clause = [string]$row.clause
+            if (-not ($row.PSObject.Properties.Name -contains 'clause') -or -not ($clause -cmatch '^[a-z][a-z0-9-]*$')) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' has a clause outside ^[a-z][a-z0-9-]*$.') }
+            if ($seen -ccontains $clause) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' declares its clause more than once.') }
+            $seen.Add($clause)
+            if (-not ([string]$row.file)) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' has no file.') }
+            if (-not ([string]$row.suite)) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' has no suite.') }
+            [void](Get-MutationExecution -Row $row)
+            $edits = $row.edits
+            if (-not ($edits -is [array]) -or $edits.Count -eq 0) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' has no non-empty edits list.') }
+            $step = 0
+            foreach ($edit in $edits) {
+                if (-not ($edit -is [pscustomobject])) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' edit ' + $step + ' is not an object.') }
+                if (-not ($edit.find -is [string]) -or -not ($edit.replace -is [string])) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' edit ' + $step + ' needs string find/replace.') }
+                if ($edit.find -ceq $edit.replace) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' edit ' + $step + ' has identical find and replace.') }
+                $step++
+            }
+            $hasExpect = $row.PSObject.Properties.Name -contains 'expect'
+            if ($hasExpect -and -not ([string]$row.expect)) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' declares an empty expect.') }
+            if (-not $hasExpect -and $rows.Count -gt 1) { throw ('tests/mutations.json: ' + $name + '#' + $clause + ' must declare expect (the judgment has ' + $rows.Count + ' entries).') }
+        }
+    }
 }
 
 function Invoke-MutationCheck {
@@ -128,6 +137,8 @@ function Invoke-MutationEditPlan {
         if (-not ($edit.find -is [string]) -or -not ($edit.replace -is [string])) { throw 'edit is missing find/replace.' }
         $find = $edit.find -replace "`r?`n", $newline
         $replace = $edit.replace -replace "`r?`n", $newline
+        # Assert-MutationTable rejects this on the table rows; the plan keeps its own precondition so
+        # a direct caller (the lifted algorithm harness) cannot silently apply a degenerate edit.
         if ($find -ceq $replace) { throw 'edit has identical find and replace.' }
         $count = Get-EditCount -Text $Text -Needle $find
         $counts.Add($count)
@@ -135,6 +146,53 @@ function Invoke-MutationEditPlan {
     }
     return @{ text = $Text; counts = $counts.ToArray() }
 }
+
+# Validate the whole table before anything is selected, so a malformed row anywhere is rejected
+# before the first target file is written (never "run the earlier entries, then fail").
+Assert-MutationTable -Table $table
+$names = @($table.mutations.PSObject.Properties.Name)
+$selected = [Collections.Generic.List[object]]::new()
+if ($All) {
+    foreach ($name in $names) { foreach ($row in @($table.mutations.$name)) { $selected.Add(@{ name = $name; row = $row }) } }
+} else {
+    foreach ($token in $Check) {
+        $parts = @($token -split '#', 2)
+        $name = $parts[0]
+        if ($name -notin $names) { throw ('Unknown mutation entry: ' + $name) }
+        $rows = @($table.mutations.$name)
+        if ($parts.Count -eq 1) {
+            foreach ($row in $rows) { $selected.Add(@{ name = $name; row = $row }) }
+            continue
+        }
+        $clause = $parts[1]
+        $match = @($rows | Where-Object { [string]$_.clause -ceq $clause })
+        if ($match.Count -eq 0) { throw ('Unknown mutation clause: ' + $token) }
+        if ($match.Count -gt 1) { throw ('Ambiguous mutation clause (declared more than once): ' + $token) }
+        $selected.Add(@{ name = $name; row = $match[0] })
+    }
+}
+$entryCount = 0
+foreach ($name in $names) { $entryCount += @($table.mutations.$name).Count }
+$engine = Find-SpireGodot -Console
+$runId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff') + '-' + $PID
+$runDirectory = Join-Path $gameDirectory ('build/mutations/' + $runId)
+[IO.Directory]::CreateDirectory($runDirectory) | Out-Null
+Write-Output ('MUTATION LOGS: ' + $runDirectory)
+Write-Output ('MUTATION TABLE: ' + $entryCount + ' entry(ies) in ' + $names.Count + ' judgment(s); this run selects ' + $selected.Count + '.')
+$statusEntries = [string[]]@(git -C $repositoryRoot status --porcelain)
+$statusBefore = ($statusEntries -join "`n")
+$head = 'unavailable'
+try { $head = ((git -C $repositoryRoot rev-parse HEAD) | Select-Object -First 1).Trim() } catch {}
+$identity = [Collections.Generic.List[string]]::new()
+$identity.Add('RUN IDENTITY')
+$identity.Add('head=' + $head)
+$identity.Add('started=' + [DateTime]::Now.ToString('yyyy-MM-ddTHH:mm:sszzz'))
+$identity.Add('dirty=' + $statusEntries.Count)
+$identity.AddRange($statusEntries)
+[IO.File]::WriteAllLines((Join-Path $runDirectory 'identity.txt'), $identity, [Text.UTF8Encoding]::new($false))
+$identity | Write-Output
+$timer = [Diagnostics.Stopwatch]::StartNew()
+$rows = [Collections.Generic.List[object]]::new()
 
 foreach ($selection in $selected) {
     $name = [string]$selection.name
@@ -146,13 +204,12 @@ foreach ($selection in $selected) {
     $originalHash = ''
     $path = ''
     try {
+        # The table shape is already validated (Assert-MutationTable); this loop only resolves the
+        # selected entry and its declared routing.
         $clause = [string]$row.clause
-        if (-not $clause) { throw 'entry is missing clause.' }
         $result.name = $name + '#' + $clause
         $edits = @($row.edits)
-        if (-not $row.file -or -not $row.suite -or $edits.Count -eq 0) { throw 'entry is missing file/suite/a non-empty edits list.' }
         $expect = if ($row.PSObject.Properties.Name -contains 'expect') { [string]$row.expect } else { '' }
-        if (-not $expect -and @($table.mutations.$name).Count -gt 1) { throw 'a judgment with several entries must declare expect on every entry.' }
         $execution = Get-MutationExecution -Row $row
         $path = Join-Path $gameDirectory ([string]$row.file)
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw ('target file not found: ' + $row.file) }
