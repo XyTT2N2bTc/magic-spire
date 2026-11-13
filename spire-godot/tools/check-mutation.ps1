@@ -128,7 +128,7 @@ function Invoke-MutationEditPlan {
         if (-not ($edit.find -is [string]) -or -not ($edit.replace -is [string])) { throw 'edit is missing find/replace.' }
         $find = $edit.find -replace "`r?`n", $newline
         $replace = $edit.replace -replace "`r?`n", $newline
-        if ($find -eq $replace) { throw 'edit has identical find and replace.' }
+        if ($find -ceq $replace) { throw 'edit has identical find and replace.' }
         $count = Get-EditCount -Text $Text -Needle $find
         $counts.Add($count)
         if ($count -eq 1) { $Text = $Text.Replace($find, $replace) }
@@ -165,7 +165,7 @@ foreach ($selection in $selected) {
         $badStep = -1
         for ($index = 0; $index -lt $plan.counts.Count; $index++) { if ($plan.counts[$index] -ne 1) { $badStep = $index; break } }
         if ($badStep -ge 0) { throw ('edit ' + ($badStep + 1) + ' anchor must occur exactly once in ' + $row.file + ' at the step it is applied; found ' + $plan.counts[$badStep]) }
-        if ($plan.text -eq $originalText) { throw 'mutation left the file unchanged.' }
+        if ($plan.text -ceq $originalText) { throw 'mutation left the file unchanged.' }
         $text = [string]$plan.text
         $bytes = [Text.Encoding]::UTF8.GetBytes($text)
         if ($hasBom) { [IO.File]::WriteAllBytes($path, [byte[]](@(0xEF, 0xBB, 0xBF) + $bytes)) } else { [IO.File]::WriteAllBytes($path, $bytes) }
