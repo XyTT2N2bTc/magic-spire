@@ -4961,3 +4961,23 @@ flowchart LR
   `tmp/io-q6a/review/findings.md`）→二次加固 `b4e3c11`（低）→验收 `dsp-20261112T082046Z-b675` 通过。
   记录：`tmp/io-q6a/acceptance/acceptance-q6a-validator.md`。
 - 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+### 2026-11-14｜突变表 schema 2（一条判据可登记多条子句突变）QM1 登记（协调者落账）
+
+- 域：`spire-godot/tests/mutations.json` 的表形状及其两侧判据（`tests/architecture_cases.gd::mutation_evidence_is_total`／`mutation_anchor_report`／`mutation_finds_are_unique_in_their_files`，`tools/check-mutation.ps1::Assert-MutationTable`／`Invoke-MutationEditPlan`）；只改测试、工具与两处 docs，产品零改动。
+- 提交：`11f8dde` schema 2 迁移、执行器、两条判据与三条子句条目；`b51961d` 空改判定区分大小写；`362c086` `moved-early` 第二步冒号；`05e830d` 注释互点；`d956484` 条目标识／行尾归一化收口；`6176699`、`2af1b01` 写前形状校验与 `:noop`；`9b94cfa` 非字符串单元格类型守卫与 clause 整串匹配。父 `a43733a`。
+- 迁移：113 条字面相同＋1 条声明适配（自指条目 `mutation_evidence_is_total` 的锚随形状收窄）；三条契约 §4 判据各增一条命名子句（`anchor_hoist_matches_rescan#moved-early`、`container_alias_writes_stay_on_projections#alias`、`factory_records_have_one_builder#order`）；`known_gaps`／`known_gaps_reason`／`tests/frozen-baselines.json` 与父相同。
+- 形状（两侧）：27 个形状变体在静态侧各自具名红且无 SCRIPT ERROR；执行器在写目标文件前（形状类）或施加阶段（计数／空改类）同一批拒绝，两侧对 `1+1`、`1+0`、`1+2`、`:noop` 的判决一致；另 2 个 expect 反例由执行器实跑判非 RED。
+- 施加与 RED：`moved-early` 按序计数 `1+1`；`expect` 未命中与仅大小写不同均判非 RED 并逐字节还原。
+- 选择：`-Check <名>` 跑全部条目，`-Check <名>#<clause>` 只跑一条，未知名与未知 clause 报错退出；`-All` 未实跑（A178 已裁）。
+- 分层抽样 7 层全部 RED 且 `worktree unchanged=True`：application／events／equipment／runner／architecture／display／recipe；三条新子句各自 RED。
+- 门禁：`architecture` 121290 断言、4 条红与父 `a43733a` 逐判据相同（`prefix_branch_tables_are_frozen`、`baseline_diff_is_declared`×2、`behavior_baseline_equivalence`）；`runner -VerifyRunner` 1852；state readers `--verify`、`check-index`、`check-docs` 均 PASS。
+- 证据运行号：`build/checks/20261113T224921423-44164`（architecture）、`build/checks/20261113T224727888-39956`（runner）；突变 `build/mutations/20261113T225804811-31308`、`20261113T225907265-31988`、`20261113T225944610-23132`、`20261113T231207437-34540`、`20261113T231436571-38252`、`20261113T231617814-32632`。
+- 未验证：`-All`（117 条）未实跑；F3（执行器 `$errorLines` 的判据名子串匹配）按 A184 范围另立待办。
+- 片内流水：实现（续接 `dsp-20261113T170442Z-0a9c`）→清洁 `d956484`→加固 `6176699`／`2af1b01`（中）→独立审查（无阻断、无重要；F1、F2 次要，
+  `tmp/io-qm1/review/findings.md`）→二次加固 `9b94cfa`（低）→验收 `dsp-20261113T224518Z-5dd3` 通过。
+  记录：`tmp/io-qm1/acceptance/acceptance-qm1-validator.md`。
+- 待办：F3（RED 判定按判据名子串归属，判据消息互相点名可造假 RED；父 `a43733a` 既有）另立 QM2。
+- 协调者同批改 `skills/repo-ops/SKILL.md`「敏感性证据」与突变检查两条：写明 schema 2、`#<clause>` 选择、`expect`，
+  子句级敏感性一律经表取证。
+- 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
