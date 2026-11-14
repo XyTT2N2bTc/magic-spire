@@ -1459,8 +1459,8 @@ static func settle_residue_stays_empty(t) -> void:
  t.check(checked>=10 and failures.is_empty(),"REMOVAL settle_residue_stays_empty: every bound, non-full settle of the differential and full-restraint fixtures ran a debug reconciliation that found no member a full scan would still remove (an unregistered write or an unexpanded leave is red): checks="+str(checked)+" failures="+str(failures))
  t.check(hits.size()==1 and String(hits[0].get("reason","")).contains(String(pending.id)) and read_only,"REMOVAL settle_residue_stays_empty: the reconciliation is read-only (encoded state, logs and rng unchanged) and does report a releasable member that the incremental settle skipped, so the empty result above is not vacuous: hits="+str(hits)+" read_only="+str(read_only))
 
-# G-Q6-3'：`dispatch` 外直调、沙盒换表、成功解绑、失败回滚后的下一次提交——都走全扫，且 live 表不被
-# 沙盒登记污染。
+# G-Q6-3'：`dispatch` 外直调、沙盒换表、成功解绑、失败回滚、`restore_snapshot` 之后的下一次结算——都走
+# 全扫，且 live 表不被沙盒登记污染。
 static func unbound_state_uses_full_scan(t) -> void:
  var direct=SettleTwin.new(42)
  direct.state.phase="map"
@@ -1497,6 +1497,20 @@ static func unbound_state_uses_full_scan(t) -> void:
  probe.armed=false
  var stale=probe._settle_table
  t.check(not failed.ok and probe.state==snapshot and stale.get("bound",null)!=null and not is_same(probe.state,stale.get("bound",null)),"REMOVAL unbound_state_uses_full_scan: a rolled-back dispatch restores the state and leaves a table whose bound identity no longer matches the live state, so the next bind starts a clean window: rollback="+str(not failed.ok)+" bound="+str(stale.get("bound",null)!=null))
+ # `restore_snapshot` is the real load entry: it swaps `state` for the candidate object, so a table
+ # bound before the restore must not match and the next settle has to be the full scan. The saved
+ # candidate already holds a zero-durability member that no port marked after the bind.
+ var reloaded=SettleTwin.new(42)
+ reloaded.state.phase="map"
+ var carried=reloaded.add_fixture("thigh",4,10)
+ reloaded._write_durability(carried,0.0)
+ var saved=reloaded.export_snapshot()
+ Removal.bind(reloaded)
+ var saved_bound=reloaded._settle_table["bound"]
+ var restored=reloaded.restore_snapshot(saved)
+ var restored_state=reloaded.state
+ reloaded._cleanup()
+ t.check(restored.get("ok",false) and restored_state.equipment.is_empty() and reloaded._settle_table.get("bound",null)==saved_bound and not is_same(reloaded.state,saved_bound),"REMOVAL unbound_state_uses_full_scan: a real restore_snapshot swaps the state object, so the next settle is a full scan that removes a zero-durability member the incremental window never marked: restored="+str(restored.get("ok",false))+" removed="+str(restored_state.equipment.is_empty())+" stale_bound="+str(reloaded._settle_table.get("bound",null)==saved_bound))
 
 # One real unit that installs a member and breaks it before the unit commits: the join hook (and so the
 # piece reconciliation) then runs with the record already at zero durability. `_unit_begin` keeps the
@@ -1580,7 +1594,7 @@ static func unit_settle_touches_only_its_closure(t) -> void:
   if Arch.save_text(g.state)!=encoded: unstable.append(String(entry[1])+":state")
  for row in _check_rows(g,"unit_settle_residue"): hits.append(String(row.get("reason","")))
  Removal.unbind(g)
- t.check(entries.size()>=6 and unstable.is_empty() and hits.is_empty(),"REMOVAL unit_settle_touches_only_its_closure: the piece reconciliation reads only the entry's own record -- the ledger's write and leave sets and the encoded state are identical before and after every class (P/C/X/R/K/S/B), and no normal record is reported: classes="+str(entries.map(func(entry):return String(entry[1])))+" unstable="+str(unstable)+" hits="+str(hits))
+ t.check(entries.size()>=6 and unstable.is_empty() and hits.is_empty(),"REMOVAL unit_settle_touches_only_its_closure: the piece reconciliation writes no ledger entry and no state -- the ledger's write and leave sets and the encoded state are identical before and after every class (P/C/X/R/K/S/B), and no normal record is reported (this proves no writes, not that it reads only this entry): classes="+str(entries.map(func(entry):return String(entry[1])))+" unstable="+str(unstable)+" hits="+str(hits))
 
 # G-Q6-10'：正常流程下 `unit_settle_residue` 零命中；同一 unit 内安装并打断的件（敏感性）恰一次命中、
 # 件仍在容器里、且下一次声明结算点才移除；B 类不对账。

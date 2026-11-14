@@ -7046,13 +7046,19 @@ static func _port_body(site: String) -> String:
  var parts=String(site).split("::")
  return source_func_body_code("res://"+String(parts[0]),String(parts[1]))
 
+# F1 (Q6'b review): both declared tables name source functions, so a row whose function was renamed
+# or deleted is stale in either one. The ports side already filtered its rows against the scan; the
+# silent side compared nothing, so `_port_body` returned "" and the assertion stayed green.
+static func _stale_rows(declared: Array, present: Array) -> Array:
+ return declared.filter(func(site):return not site in present)
+
 static func settle_marks_cover_every_writer(t) -> void:
  var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"\\bRemoval\\.(?:mark|replaced)\\s*\\(")
  var sites=write_site_names(hits)
  var declared=SETTLE_MARK_PORTS.keys()
  declared.sort()
  var undeclared=sites.filter(func(site):return not SETTLE_MARK_PORTS.has(site))
- var stale=declared.filter(func(site):return not site in sites)
+ var stale=_stale_rows(declared,sites)
  var counts={}
  for hit in hits:
   var site=String(hit.file)+"::"+String(hit.function)
@@ -7063,9 +7069,13 @@ static func settle_marks_cover_every_writer(t) -> void:
   var body=_port_body(String(site))
   var token=String(SETTLE_MARK_PORTS[site])
   if body.count(token)!=1: wrong.append(String(site)+":"+str(body.count(token)))
+ # The silent rows name functions that must survive in the source (they carry no `Removal.` call),
+ # so their presence set is the scan's function list and a stale row cannot hide behind an empty body.
+ var silent_present=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"^\\s*(?:static\\s+)?func\\s+[A-Za-z_][A-Za-z0-9_]*\\s*\\("))
+ var silent_stale=_stale_rows(SETTLE_MARK_SILENT,silent_present)
  var silent=SETTLE_MARK_SILENT.filter(func(site):return _port_body(String(site)).contains("Removal."))
  t.check(not SETTLE_MARK_PORTS.is_empty() and not SETTLE_MARK_SILENT.is_empty() and undeclared.is_empty() and stale.is_empty() and duplicates.is_empty(),"ARCH settle_marks_cover_every_writer: the functions that register a dirty member are exactly the four declared write ports, each with exactly one registration and no unregistered site anywhere in core/data/ui (a new port, a second registration or a stale row is red, never vacuous): sites="+str(sites)+" undeclared="+str(undeclared)+" stale="+str(stale)+" duplicates="+str(duplicates))
- t.check(wrong.is_empty() and silent.is_empty(),"ARCH settle_marks_cover_every_writer: each declared port registers through its own function (`mark` for the three member/durability ports, `replaced` for the whole-container announcement), and the lock port plus the two special append/erase pairs register nothing directly because they are announced through `_member_changed` (M05, M16): wrong="+str(wrong)+" silent="+str(silent))
+ t.check(wrong.is_empty() and silent.is_empty() and silent_stale.is_empty(),"ARCH settle_marks_cover_every_writer: each declared port registers through its own function (`mark` for the three member/durability ports, `replaced` for the whole-container announcement), and the lock port plus the two special append/erase pairs register nothing directly because they are announced through `_member_changed` (M05, M16): wrong="+str(wrong)+" silent="+str(silent)+" silent_stale="+str(silent_stale))
 
 # ==== Q5″（rev3.3 plan-delta §2；G-Q5-11／G-Q5-12）：两层结算的声明面 ====
 # G-Q5-11：`JOIN_EFFECTS` 的期望副本。键＝七类成员（Q5″ 增 `B`＝固缚记录），列＝J1 反馈对象、J2 入列文案、

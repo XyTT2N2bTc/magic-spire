@@ -1191,7 +1191,7 @@
           }
         ],
         "suite": "architecture",
-        "expect": "undeclared="
+        "expect": "stale=[\"core/game.gd::_write_durability\"]"
       },
       {
         "clause": "member-port",
@@ -1228,6 +1228,30 @@
         ],
         "suite": "architecture",
         "expect": "undeclared="
+      },
+      {
+        "clause": "write-quality-port",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " target.variant=0\n Removal.mark(self,target,\"written\")\n",
+            "replace": " target.variant=0\n"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "stale=[\"core/game.gd::_write_quality\"]"
+      },
+      {
+        "clause": "silent-stale-row",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": "const SETTLE_MARK_SILENT=[\"core/game.gd::_write_locked\",\"core/game.gd::_special_append\",\"core/game.gd::_special_erase\"]",
+            "replace": "const SETTLE_MARK_SILENT=[\"core/game.gd::_write_locked_missing\",\"core/game.gd::_special_append\",\"core/game.gd::_special_erase\"]"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "silent_stale=[\"core/game.gd::_write_locked_missing\"]"
       }
     ],
     "removal_module_edges": [
@@ -1405,6 +1429,18 @@
         ],
         "suite": "equipment",
         "expect": "a rolled-back dispatch restores the state and leaves a table whose bound identity no longer matches the live state"
+      },
+      {
+        "clause": "restore-full-scan",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " var previous=state\n state=candidate\n",
+            "replace": " var previous=state\n state=candidate\n Removal.bind(self)\n"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "removed=false"
       }
     ],
     "residue_check_is_debug_only": [
@@ -1419,6 +1455,18 @@
         ],
         "suite": "equipment",
         "expect": "both reconciliation calls are guarded by debug_checks_enabled()"
+      },
+      {
+        "clause": "join-hooks-gate",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " if debug_checks_enabled(): Removal.unit_residue(self,entry)",
+            "replace": " Removal.unit_residue(self,entry)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "offenders=[\"core/game.gd::_join_hooks:"
       }
     ],
     "settle_never_enters_durability_port": [
@@ -1458,7 +1506,7 @@
           }
         ],
         "suite": "equipment",
-        "expect": "the piece reconciliation reads only the entry's own record"
+        "expect": "the piece reconciliation writes no ledger entry and no state"
       }
     ],
     "unit_settle_residue_stays_empty": [
