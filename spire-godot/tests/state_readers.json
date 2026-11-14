@@ -178,10 +178,10 @@
     "cells": 1313,
     "fields": 121,
     "files": 144,
-    "inputs_sha256": "1f26985c91ec456482cc4a7dcae843fcfef2f843aed0c8c0ea4ee0f5e100030a",
-    "sites": 2141,
+    "inputs_sha256": "26821f1f39cd89adc23d42f322fc51e638efb9ed5b133943b428f009d41597d6",
+    "sites": 2139,
     "ui_reads": 0,
-    "whole_state": 79
+    "whole_state": 77
   },
   "owners": {
     "core/action_replay.gd::payload": {
@@ -676,8 +676,11 @@
     "core/equipment_offers.gd::shoulders": {
       "equipment": 1
     },
-    "core/equipment_removal.gd::bind": {
+    "core/equipment_removal.gd::_open": {
       "relics": 1
+    },
+    "core/equipment_removal.gd::_orphan_residue": {
+      "special_equipment": 1
     },
     "core/equipment_removal.gd::settle": {
       "composites": 4,
@@ -685,17 +688,14 @@
       "items": 2,
       "links": 3,
       "powers": 1,
-      "relics": 2,
+      "relics": 1,
       "special_equipment": 4
     },
     "core/equipment_removal.gd::settle_residue": {
       "composites": 1,
       "equipment": 1,
       "links": 1,
-      "special_equipment": 3
-    },
-    "core/equipment_removal.gd::unit_residue": {
-      "special_equipment": 1
+      "special_equipment": 2
     },
     "core/equipment_replacement.gd::_force_special_live": {
       "special_equipment": 2
@@ -2677,25 +2677,13 @@
     {
       "count": 1,
       "file": "core/equipment_removal.gd",
-      "function": "bind",
+      "function": "_live",
       "kind": "pass"
     },
     {
       "count": 1,
       "file": "core/equipment_removal.gd",
-      "function": "mark",
-      "kind": "pass"
-    },
-    {
-      "count": 1,
-      "file": "core/equipment_removal.gd",
-      "function": "replaced",
-      "kind": "pass"
-    },
-    {
-      "count": 1,
-      "file": "core/equipment_removal.gd",
-      "function": "settle",
+      "function": "_open",
       "kind": "pass"
     },
     {

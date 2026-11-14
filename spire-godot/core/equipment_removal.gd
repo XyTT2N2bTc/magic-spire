@@ -16,8 +16,20 @@ extends RefCounted
 # cache. `settle_residue` (debug only) re-reads every removal predicate of the settled state and
 # `unit_residue` (debug only) reads the one record whose join hook is running.
 
+# The one ledger snapshot (plan-delta §2.1): the open window is five keys over the live state object.
+# `bind` opens it and a settle that consumed its marks re-opens it, so the keys and their defaults
+# have one constructor instead of one at each end.
+static func _open(g) -> Dictionary:
+ return {"bound":g.state,"writes":{},"leaves":{},"full":false,"blindfold":"cursed_blindfold" in g.state.relics}
+
+# The one liveness test (plan-delta §1.4): a mark, a replacement announcement and a settle count only
+# while the table is the live one. An empty table and a sandbox swap (the table still names the object
+# the state was before the swap) are the same answer here, so no caller re-derives it.
+static func _live(g,table: Dictionary) -> bool:
+ return not table.is_empty() and is_same(g.state,table["bound"])
+
 static func bind(g) -> void:
- g._settle_table={"bound":g.state,"writes":{},"leaves":{},"full":false,"blindfold":"cursed_blindfold" in g.state.relics}
+ g._settle_table=_open(g)
 
 # A successful dispatch unbinds before returning; the two failure paths swap `g.state` back to the
 # original object instead, so the next `bind` cannot mistake the stale table for the live one.
@@ -30,7 +42,7 @@ static func unbind(g) -> void:
 # so its marks are dropped here instead of leaking into the live table.
 static func mark(g,record: Dictionary,change: String) -> void:
  var table: Dictionary=g._settle_table
- if table.is_empty() or not is_same(g.state,table["bound"]): return
+ if not _live(g,table): return
  var id=String(record.get("id",""))
  if id=="": return
  if change=="removed": table["leaves"][id]=true
@@ -40,7 +52,7 @@ static func mark(g,record: Dictionary,change: String) -> void:
 # the next settle judges everything.
 static func replaced(g) -> void:
  var table: Dictionary=g._settle_table
- if table.is_empty() or not is_same(g.state,table["bound"]): return
+ if not _live(g,table): return
  table["full"]=true
 
 # Filtering reads the two id sets only (plan-delta §1.2): a member is re-judged when a port wrote it
@@ -65,7 +77,7 @@ static func _link_touched(writes: Dictionary,leaves: Dictionary,link: Dictionary
 
 static func settle(g,released: bool=true) -> void:
  var table: Dictionary=g._settle_table
- var bound=not table.is_empty() and is_same(g.state,table["bound"])
+ var bound=_live(g,table)
  var full=not bound or bool(table["full"])
  var writes: Dictionary=table["writes"] if bound else {}
  var leaves: Dictionary=table["leaves"] if bound else {}
@@ -152,12 +164,30 @@ static func settle(g,released: bool=true) -> void:
  # G-Q6-2': after a settle that skipped members, a debug run re-reads every removal predicate.
  if bound and not full and g.debug_checks_enabled(): settle_residue(g)
  # The window stays bound; the marks were consumed, so a second settle in the same dispatch starts
- # empty instead of re-judging the same verdicts.
- if bound:
-  table["writes"]={}
-  table["leaves"]={}
-  table["full"]=false
-  table["blindfold"]="cursed_blindfold" in g.state.relics
+ # empty instead of re-judging the same verdicts. `_open` writes the same snapshot `bind` does.
+ if bound: g._settle_table=_open(g)
+
+# The two reconciliations below differ in scope (whole state vs the one record whose join hook runs),
+# not in how a member is judged, so each judgment they share is answered once here. A verdict that
+# existed on only one side would let the whole-state scan and the unit scan disagree silently.
+static func _released_residue(g,label: String,record: Dictionary) -> String:
+ if g._released(record): return label+":"+String(record.get("id",""))
+ return ""
+
+# An ordinary piece has its own rule (`_piece_released` keeps a cursed-eyes piece without an absolute
+# release), so that decision is its own single site rather than a label on `_released_residue`.
+static func _piece_residue(g,record: Dictionary) -> String:
+ if g._piece_released(record): return "piece:"+String(record.get("id",""))
+ return ""
+
+static func _orphan_residue(g,record: Dictionary) -> String:
+ if g._strap_orphaned(record,g.state.special_equipment): return "orphan:"+String(record.get("id",""))
+ return ""
+
+static func _link_residue(g,link: Dictionary,anchors: Array) -> String:
+ if g._released(link): return "link:"+String(link.get("id",""))
+ if g._link_anchor_lost(link,anchors): return "anchor:"+String(link.get("id",""))
+ return ""
 
 # Debug-only reconciliation (G-Q6-2'): re-read the removal predicates of the settled state with no
 # filter. A hit names a member whose removal the incremental settle missed -- an unregistered write,
@@ -166,11 +196,14 @@ static func settle(g,released: bool=true) -> void:
 static func settle_residue(g) -> void:
  var residue=[]
  for item in g.state.special_equipment:
-  if g._released(item): residue.append("special:"+String(item.get("id","")))
+  var special_hit=_released_residue(g,"special",item)
+  if special_hit!="": residue.append(special_hit)
  for strap in g.state.special_equipment:
-  if g._strap_orphaned(strap,g.state.special_equipment): residue.append("orphan:"+String(strap.get("id","")))
+  var orphan_hit=_orphan_residue(g,strap)
+  if orphan_hit!="": residue.append(orphan_hit)
  for e in g.state.equipment:
-  if g._piece_released(e): residue.append("piece:"+String(e.get("id","")))
+  var piece_hit=_piece_residue(g,e)
+  if piece_hit!="": residue.append(piece_hit)
  for root in g.state.composites:
   var body=g._composite_body(root)
   if g._root_head_orphaned(root,g._equipment(root.attached_to)): residue.append("head:"+String(root.get("id","")))
@@ -179,11 +212,12 @@ static func settle_residue(g) -> void:
     if not g._component_kept(part): residue.append("body:"+String(part.get("id","")))
   else:
    for part in root.components:
-    if g._released(part): residue.append("part:"+String(part.get("id","")))
+    var part_hit=_released_residue(g,"part",part)
+    if part_hit!="": residue.append(part_hit)
  var anchors_now=g.link_anchors()
  for link in g.state.links:
-  if g._released(link): residue.append("link:"+String(link.get("id","")))
-  elif g._link_anchor_lost(link,anchors_now): residue.append("anchor:"+String(link.get("id","")))
+  var link_hit=_link_residue(g,link,anchors_now)
+  if link_hit!="": residue.append(link_hit)
  g._debug_check("settle_residue","removal.settle",", ".join(residue))
 
 # Debug-only piece settlement (G-Q6-10', CC-29/CC-33): the record whose join hook is running, held to
@@ -195,22 +229,24 @@ static func unit_residue(g,entry: Array) -> void:
  var record: Dictionary=entry[0]
  var detail: Dictionary=entry[3]
  var residue=[]
+ var hit=""
  match String(entry[1]):
   "P":
-   if g._piece_released(record): residue.append("piece:"+String(record.get("id","")))
+   hit=_piece_residue(g,record)
   "C":
    for part in record.components:
-    if g._released(part): residue.append("component:"+String(part.get("id","")))
+    var component_hit=_released_residue(g,"component",part)
+    if component_hit!="": residue.append(component_hit)
    if String(record.get("kind",""))=="head" and g._equipment(String(record.get("attached_to",""))).is_empty(): residue.append("head:"+String(record.get("id","")))
   "S":
    var host: Dictionary=detail.get("host",{})
    if g.Shoulders.released_with_host(host,record): residue.append("shoulder:"+String(record.get("id","")))
   "R":
-   if g._released(record): residue.append("strap:"+String(record.get("id","")))
-   elif g._strap_orphaned(record,g.state.special_equipment): residue.append("orphan:"+String(record.get("id","")))
+   hit=_released_residue(g,"strap",record)
+   if hit=="": hit=_orphan_residue(g,record)
   "X":
-   if g._released(record): residue.append("special:"+String(record.get("id","")))
+   hit=_released_residue(g,"special",record)
   "K":
-   if g._released(record): residue.append("link:"+String(record.get("id","")))
-   elif g._link_anchor_lost(record,g.link_anchors()): residue.append("anchor:"+String(record.get("id","")))
+   hit=_link_residue(g,record,g.link_anchors())
+ if hit!="": residue.append(hit)
  g._debug_check("unit_settle_residue","game.join_hooks",", ".join(residue))
