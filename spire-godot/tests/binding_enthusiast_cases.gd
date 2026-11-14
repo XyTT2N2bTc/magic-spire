@@ -27,7 +27,11 @@ static func run(t) -> void:
 
  var added=g.add_fixture("ankle",8.0)
  t.check(g.Cards.worn_count(g)==4 and g.RelicEffects.attribute(g,"strength")==4,"BINDING ENTHUSIAST newly equipped restraint raises attributes immediately")
- added.durability=0
+ # Break it through the durability port and settle before the next submit (CC-7): a direct `durability`
+ # write plus no settle point would leave a piece the next settle no longer re-judges (Q6'b only
+ # re-judges members a write port registered inside the dispatch window).
+ g._write_durability(added,0.0)
+ g._cleanup()
  t.check(g.Cards.worn_count(g)==3 and g.RelicEffects.attribute(g,"dexterity")==3,"BINDING ENTHUSIAST broken restraint lowers attributes immediately without a new activation")
  var linked=Game.new(42);linked.state.energy=6
  var linked_power=Cards.give(linked,"binding_enthusiast")
