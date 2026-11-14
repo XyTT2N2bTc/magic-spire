@@ -1230,7 +1230,32 @@
         "suite": "architecture"
       }
     ],
-    "container_alias_writes_stay_on_projections": [
+    "settle_residue_stays_empty": [
+      {
+        "clause": "write-port-mark",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " target.durability=value\n Removal.mark(self,target,\"written\")\n",
+            "replace": " target.durability=value\n"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "REMOVAL settle_residue_stays_empty"
+      },
+      {
+        "clause": "leave-expansion-m09",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "static func _link_touched(writes: Dictionary,leaves: Dictionary,link: Dictionary) -> bool:\n if _touched(writes,leaves,link): return true\n return link.ends.any(func(id):return leaves.has(String(id)))",
+            "replace": "static func _link_touched(writes: Dictionary,leaves: Dictionary,link: Dictionary) -> bool:\n if _touched(writes,leaves,link): return true\n return false"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "REMOVAL settle_residue_stays_empty"
+      }
+    ],    "container_alias_writes_stay_on_projections": [
       {
         "clause": "primary",
         "file": "core/game.gd",
