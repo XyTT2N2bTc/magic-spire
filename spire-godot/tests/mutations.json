@@ -1134,8 +1134,8 @@
         "file": "core/equipment_removal.gd",
         "edits": [
           {
-            "find": "  if g._piece_released(e):",
-            "replace": "  g.RopeArt.track(g,e)\n  if g._piece_released(e):"
+            "find": "  if not (full or _touched(writes,leaves,e)): continue\n  if g._piece_released(e):",
+            "replace": "  if not (full or _touched(writes,leaves,e)): continue\n  g.RopeArt.track(g,e)\n  if g._piece_released(e):"
           }
         ],
         "suite": "architecture",
@@ -1146,12 +1146,62 @@
         "file": "core/equipment_removal.gd",
         "edits": [
           {
-            "find": " for item in g.state.special_equipment.duplicate():\n  if g._released(item):\n   if g.SpecialEquipment.is_reinforcement(item):\n    var owner=g._equipment(item.owner_id)\n    if not owner.is_empty() and g.SpecialEquipment.supports_reinforcement(owner): owner.reinforcement_state=\"removed\"\n   g._special_erase(item)\n   for strap in g.state.special_equipment.duplicate():\n    if g._strap_follows(item,strap): g._special_erase(strap)\n   g._emit(\"event\",item.name+\"已解除。\")\n for strap in g.state.special_equipment.duplicate():\n  if g._strap_orphaned(strap,g.state.special_equipment):\n   g._special_erase(strap)",
-            "replace": " for strap in g.state.special_equipment.duplicate():\n  if g._strap_orphaned(strap,g.state.special_equipment):\n   g._special_erase(strap)\n for item in g.state.special_equipment.duplicate():\n  if g._released(item):\n   if g.SpecialEquipment.is_reinforcement(item):\n    var owner=g._equipment(item.owner_id)\n    if not owner.is_empty() and g.SpecialEquipment.supports_reinforcement(owner): owner.reinforcement_state=\"removed\"\n   g._special_erase(item)\n   for strap in g.state.special_equipment.duplicate():\n    if g._strap_follows(item,strap): g._special_erase(strap)\n   g._emit(\"event\",item.name+\"已解除。\")"
+            "find": " for item in g.state.special_equipment.duplicate():\n  if (full or _touched(writes,leaves,item)) and g._released(item):\n   if g.SpecialEquipment.is_reinforcement(item):\n    var owner=g._equipment(item.owner_id)\n    if not owner.is_empty() and g.SpecialEquipment.supports_reinforcement(owner): owner.reinforcement_state=\"removed\"\n   g._special_erase(item)\n   for strap in g.state.special_equipment.duplicate():\n    if g._strap_follows(item,strap): g._special_erase(strap)\n   g._emit(\"event\",item.name+\"已解除。\")\n # M05: an orphan reinforcement strap belongs to whichever special item left, so this pass runs\n # whenever a member left; with nothing left it cannot change a verdict.\n for strap in g.state.special_equipment.duplicate():\n  if (full or not leaves.is_empty()) and g._strap_orphaned(strap,g.state.special_equipment):\n   g._special_erase(strap)",
+            "replace": " # M05: an orphan reinforcement strap belongs to whichever special item left, so this pass runs\n # whenever a member left; with nothing left it cannot change a verdict.\n for strap in g.state.special_equipment.duplicate():\n  if (full or not leaves.is_empty()) and g._strap_orphaned(strap,g.state.special_equipment):\n   g._special_erase(strap)\n for item in g.state.special_equipment.duplicate():\n  if (full or _touched(writes,leaves,item)) and g._released(item):\n   if g.SpecialEquipment.is_reinforcement(item):\n    var owner=g._equipment(item.owner_id)\n    if not owner.is_empty() and g.SpecialEquipment.supports_reinforcement(owner): owner.reinforcement_state=\"removed\"\n   g._special_erase(item)\n   for strap in g.state.special_equipment.duplicate():\n    if g._strap_follows(item,strap): g._special_erase(strap)\n   g._emit(\"event\",item.name+\"已解除。\")"
           }
         ],
         "suite": "architecture",
         "expect": "order_lost="
+      }
+    ],
+    "settle_marks_cover_every_writer": [
+      {
+        "clause": "durability-port",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " target.durability=value\n Removal.mark(self,target,\"written\")\n",
+            "replace": " target.durability=value\n"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "undeclared="
+      },
+      {
+        "clause": "member-port",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " _write_epoch+=1\n Removal.mark(self,_record,_change)",
+            "replace": " _write_epoch+=1"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "undeclared="
+      },
+      {
+        "clause": "replacement-port",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " _write_epoch+=1\n Removal.replaced(self)",
+            "replace": " _write_epoch+=1"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "stale="
+      },
+      {
+        "clause": "foreign-site",
+        "file": "core/prison.gd",
+        "edits": [
+          {
+            "find": "static func intake_equipment(g) -> Dictionary:\n var rule=B.PRISON_INTAKE.get(g.state.security,{})",
+            "replace": "static func intake_equipment(g) -> Dictionary:\n if false: g.Removal.mark(g,{},\"written\")\n var rule=B.PRISON_INTAKE.get(g.state.security,{})"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "undeclared="
       }
     ],
     "removal_module_edges": [
@@ -1575,8 +1625,8 @@
         "file": "core/equipment_removal.gd",
         "edits": [
           {
-            "find": "static func settle(g,released: bool=true) -> void:\n var roots=",
-            "replace": "static func settle(g,released: bool=true) -> void:\n var anchors=g.link_anchors()\n var roots="
+            "find": "static func settle(g,released: bool=true) -> void:\n var table: Dictionary=g._settle_table",
+            "replace": "static func settle(g,released: bool=true) -> void:\n var anchors=g.link_anchors()\n var table: Dictionary=g._settle_table"
           },
           {
             "find": " var anchors=g.link_anchors()\n for link in g.state.links.duplicate():",

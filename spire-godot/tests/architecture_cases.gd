@@ -969,11 +969,12 @@ static func per_click_checks_are_debug_only(t) -> void:
  var opening_paths=["get_environment","has_environment","get_cmdline","FileAccess","user://"]
  var reachable=opening_paths.filter(func(token):return (enabled_body+setter_body).contains(token))
  t.check(reachable.is_empty(),"PERCLICK per_click_checks_are_debug_only: no runtime path opens the switch: "+str(reachable))
- # 被门控清单穷举：开关只被两个声明文件消费（game.gd 的提交／投影面与 room_events.gd 的探针面）。
+ # 被门控清单穷举：开关只被三个声明文件消费（game.gd 的提交／投影面、room_events.gd 的探针面、
+ # equipment_removal.gd 的 Q6'b 两条对账判据）。
  var consumers=[]
  for path in script_files("res://core"):
   if source_text(path.trim_prefix("res://")).contains("debug_checks_enabled("): consumers.append(path.trim_prefix("res://"))
- t.check(consumers==["core/game.gd","core/room_events.gd"],"PERCLICK per_click_checks_are_debug_only: the switch has exactly the two declared consumers: "+str(consumers))
+ t.check(consumers==["core/equipment_removal.gd","core/game.gd","core/room_events.gd"],"PERCLICK per_click_checks_are_debug_only: the switch has exactly the three declared consumers: "+str(consumers))
  # G-PC-2／G-PC-3：同一坏状态与同一合法提交在两种开关下——开＝本检查文案拒绝＋诊断＋快照不动；
  # 关＝该检查不跑，改由 dispatch 尾部聚合校验以「行动未提交：」拒绝并逐字节回滚。
  for row in rows:
@@ -1199,6 +1200,7 @@ static func run(t) -> void:
  removal_module_edges(t)
  cleanup_link_loop_writes_only_links(t)
  container_alias_writes_stay_on_projections(t)
+ settle_marks_cover_every_writer(t)
  join_effects_have_one_epilogue(t)
  unit_entries_are_declared(t)
  unit_writes_follow_all_checks(t)
@@ -6835,10 +6837,12 @@ static func member_changes_are_announced(t) -> void:
 # hoist; (3) writes to the three containers through a non-state receiver landing only on projection faces.
 const REMOVAL_MODULE="core/equipment_removal.gd"
 # Declared callers: Q6'a has `_cleanup` only; Q6'b appends six rows to this same table (never prefill).
-const REMOVAL_CALL_SITES=["core/game.gd::_cleanup"]
-# Names the module reaches through `g` (dependencies-delta §4 Q6'a row): one to one with the old `_cleanup`
-# body, so one extra or one missing name is red.
-const REMOVAL_G_CALLS=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost","link_anchors","_equipment","_composite_body","_slip_reason","_emit","_member_changed","_special_erase","Shoulders","RopeArt","Pressure","Cards","SpecialEquipment","Tools"]
+const REMOVAL_CALL_SITES=["core/game.gd::_cleanup","core/game.gd::_member_changed","core/game.gd::_members_replaced","core/game.gd::_write_durability","core/game.gd::_write_quality","core/game.gd::dispatch","core/game.gd::_join_hooks"]
+# Names the module reaches through `g` (dependencies-delta §4 Q6'a row, extended by the Q6'b row): one to
+# one with the old `_cleanup` body plus Q6'b's ledger field and debug gate, so one extra or one missing
+# name is red. `_debug_check` and `Shoulders.released_with_host` belong to the Q6'b row too, but they are
+# reached from `settle_residue`／`unit_residue`, and this clause scans `settle` only.
+const REMOVAL_G_CALLS=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost","link_anchors","_equipment","_composite_body","_slip_reason","_emit","_member_changed","_special_erase","Shoulders","RopeArt","Pressure","Cards","SpecialEquipment","Tools","_settle_table","debug_checks_enabled"]
 # Write ports the module must not call (dependencies-delta §4 forbidden list). The two ports the old
 # `_cleanup` body did call (`_special_erase`, `_member_changed`) stay out of this table on purpose: the
 # omission IS the declared exception, so that exception is declared in exactly one place.
@@ -6918,11 +6922,13 @@ static func removal_module_edges(t) -> void:
  var uninvoked=allowed.filter(func(name):return not settle_code.contains("g."+String(name)))
  var forbidden=REMOVAL_FORBIDDEN_CALLS.filter(func(name):return name in calls)
  t.check(not REMOVAL_G_CALLS.is_empty() and undeclared.is_empty() and uninvoked.is_empty() and forbidden.is_empty(),"ARCH removal_module_edges: the module reaches the game only through the declared g-call names of its slice (a new dependency, a stale row or a write port outside the two carried over from the original cleanup is red): calls="+str(calls)+" undeclared="+str(undeclared)+" uninvoked="+str(uninvoked)+" forbidden="+str(forbidden))
- # Dependency direction: the module never names the judgment / transaction / view / UI / test modules and never touches the Q6'b ledger.
+ # Dependency direction: the module never names the judgment / transaction / view / UI / test modules. Since
+ # Q6'b the ledger field `_settle_table` is this module's own (dependencies-delta §4 Q6'b row), so it is no
+ # longer a leak token here; everything that would close a cycle still is.
  var leaks=[]
- for token in ["equipment_replacement_assess","equipment_replacement_view","equipment_replacement.gd","res://ui/","res://tests/","_settle_table"]:
+ for token in ["equipment_replacement_assess","equipment_replacement_view","equipment_replacement.gd","res://ui/","res://tests/"]:
   if module_code.contains(token): leaks.append(token)
- t.check(leaks.is_empty(),"ARCH removal_module_edges: the module never names the judgment, transaction, view, ui or test modules and never touches the Q6'b ledger (a projection or test dependency here would close a cycle): leaks="+str(leaks))
+ t.check(leaks.is_empty(),"ARCH removal_module_edges: the module never names the judgment, transaction, view, ui or test modules (a projection or test dependency here would close a cycle; it owns the Q6'b ledger, which is why that field is declared in REMOVAL_G_CALLS instead): leaks="+str(leaks))
 
 static func cleanup_link_loop_writes_only_links(t) -> void:
  # `code_of_function` still carries a trailing `\r` per line (the source is CRLF); normalize before comparing so the
@@ -7024,6 +7030,42 @@ static func container_alias_writes_stay_on_projections(t) -> void:
   var write_pattern="(?<![A-Za-z0-9_.])"+name+"\\s*\\.\\s*"+names_pattern+"\\s*(?:\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\(|\\[[^\\]]*\\]\\s*=[^=]|=[^=])"
   if write.compile(write_pattern)==OK and write.search(body)!=null: alias_writes.append(site+":"+name)
  t.check(alias_compiled and alias_writes.is_empty(),"ARCH container_alias_writes_stay_on_projections: a whole-state alias binding never becomes a second live path into the three containers (binding an alias is allowed, rolling the state back through it is; writing a container through it is red; an uncompilable alias pattern is red, never vacuous): bindings="+str(alias_bindings)+" writes="+str(alias_writes))
+
+# ==== Q6'b（rev3.4 gherkin G-Q6-5'、CC-35；plan-delta §2.1、§3.1）：每个写口都有脏件登记 ====
+# 写口→登记是四条声明行：三个成员／耐久写口各一句 `Removal.mark`，整容器替换通告一句
+# `Removal.replaced`。`_write_locked` 属 M16，`_special_append`／`_special_erase` 经 `_member_changed`
+# 登记，故这三处为零。表与源侧集合双向相等：漏登记、多登记、第二登记、换了函数都红。
+const SETTLE_MARK_PORTS={
+ "core/game.gd::_member_changed":"Removal.mark(",
+ "core/game.gd::_write_durability":"Removal.mark(",
+ "core/game.gd::_write_quality":"Removal.mark(",
+ "core/game.gd::_members_replaced":"Removal.replaced("}
+const SETTLE_MARK_SILENT=["core/game.gd::_write_locked","core/game.gd::_special_append","core/game.gd::_special_erase"]
+
+static func _port_body(site: String) -> String:
+ var parts=String(site).split("::")
+ return source_func_body_code("res://"+String(parts[0]),String(parts[1]))
+
+static func settle_marks_cover_every_writer(t) -> void:
+ var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"\\bRemoval\\.(?:mark|replaced)\\s*\\(")
+ var sites=write_site_names(hits)
+ var declared=SETTLE_MARK_PORTS.keys()
+ declared.sort()
+ var undeclared=sites.filter(func(site):return not SETTLE_MARK_PORTS.has(site))
+ var stale=declared.filter(func(site):return not site in sites)
+ var counts={}
+ for hit in hits:
+  var site=String(hit.file)+"::"+String(hit.function)
+  counts[site]=int(counts.get(site,0))+1
+ var duplicates=counts.keys().filter(func(site):return int(counts[site])!=1).map(func(site):return String(site)+":"+str(counts[site]))
+ var wrong=[]
+ for site in SETTLE_MARK_PORTS:
+  var body=_port_body(String(site))
+  var token=String(SETTLE_MARK_PORTS[site])
+  if body.count(token)!=1: wrong.append(String(site)+":"+str(body.count(token)))
+ var silent=SETTLE_MARK_SILENT.filter(func(site):return _port_body(String(site)).contains("Removal."))
+ t.check(not SETTLE_MARK_PORTS.is_empty() and not SETTLE_MARK_SILENT.is_empty() and undeclared.is_empty() and stale.is_empty() and duplicates.is_empty(),"ARCH settle_marks_cover_every_writer: the functions that register a dirty member are exactly the four declared write ports, each with exactly one registration and no unregistered site anywhere in core/data/ui (a new port, a second registration or a stale row is red, never vacuous): sites="+str(sites)+" undeclared="+str(undeclared)+" stale="+str(stale)+" duplicates="+str(duplicates))
+ t.check(wrong.is_empty() and silent.is_empty(),"ARCH settle_marks_cover_every_writer: each declared port registers through its own function (`mark` for the three member/durability ports, `replaced` for the whole-container announcement), and the lock port plus the two special append/erase pairs register nothing directly because they are announced through `_member_changed` (M05, M16): wrong="+str(wrong)+" silent="+str(silent))
 
 # ==== Q5″（rev3.3 plan-delta §2；G-Q5-11／G-Q5-12）：两层结算的声明面 ====
 # G-Q5-11：`JOIN_EFFECTS` 的期望副本。键＝七类成员（Q5″ 增 `B`＝固缚记录），列＝J1 反馈对象、J2 入列文案、
@@ -7215,11 +7257,11 @@ static func durability_writes_have_one_entry(t) -> void:
  t.check(DURABILITY_WRITERS==["core/game.gd::_write_durability"] and not DURABILITY_WRITE_EXCEPTIONS.is_empty(),"ARCH durability_writes_have_one_entry: the write table names exactly the one port and the exception table is non-empty (an emptied table made this clause vacuous): writers="+str(DURABILITY_WRITERS)+" exceptions="+str(DURABILITY_WRITE_EXCEPTIONS))
  t.check(unregistered.is_empty(),"ARCH durability_writes_have_one_entry: every live `.durability` assignment sits in the write port or a declared exception, so no strategy, event branch or replacement pass writes it directly: unregistered="+str(unregistered)+" hits="+str(hits.size())+" sites="+str(sites))
  t.check(stale.is_empty(),"ARCH durability_writes_have_one_entry: every declared row has a real write site in that function (a stale row is red, never silently vacuous): stale="+str(stale))
- # The port keeps the Q4′ shape (A140 #2) under the Q5 entry bump (A148 A1): the first statement bumps
- # the process-local write epoch (G-Q5-1 fixes it as the first statement of every port), then one
- # capture of the pre-write tier (the dispatch needs both tiers), one bare assignment and exactly one
- # consequence dispatch taking (target,value,tighten). No policy guard, refresh, tracker, settle or
- # feedback belongs here.
+ # The port keeps the Q4′ shape (A140 #2) under the Q5 entry bump (A148 A1) and the Q6'b ledger registration
+ # (CC-35): the first statement bumps the process-local write epoch (G-Q5-1 fixes it as the first statement of
+ # every port), then one capture of the pre-write tier (the dispatch needs both tiers), one bare assignment,
+ # one dirty-member registration and exactly one consequence dispatch taking (target,value,tighten). No policy
+ # guard, refresh, tracker, settle or feedback belongs here.
  var port=source_func_body_code("res://core/game.gd","_write_durability").strip_edges()
  var params=source_func_params("res://core/game.gd","_write_durability")
  var statements=[]
@@ -7230,7 +7272,7 @@ static func durability_writes_have_one_entry(t) -> void:
  for token in ["if ","return ","_refresh_equipment","RopeArt.track","_cleanup","_equipment_feedback","_emit","floor_value","locked"]:
   if port.contains(token): impure.append(token)
  var calls=port.count("_tier_consequences(")
- t.check(statements.size()==4 and statements[0]=="_write_epoch+=1" and statements[1]=="var before=tier(target.durability,target.maximum)" and statements[2]=="target.durability=value" and statements[3]=="_tier_consequences(target,before,tier(target.durability,target.maximum),tighten)" and params==["target","value","tighten"] and calls==1 and impure.is_empty(),"ARCH durability_writes_have_one_entry: the port is one epoch bump, one pre-write tier capture, one bare assignment and one consequence dispatch taking exactly (target,value,tighten), with no guard, refresh, tracker, settle or feedback: statements="+str(statements)+" params="+str(params)+" calls="+str(calls)+" impure="+str(impure))
+ t.check(statements.size()==5 and statements[0]=="_write_epoch+=1" and statements[1]=="var before=tier(target.durability,target.maximum)" and statements[2]=="target.durability=value" and statements[3]=="Removal.mark(self,target,\"written\")" and statements[4]=="_tier_consequences(target,before,tier(target.durability,target.maximum),tighten)" and params==["target","value","tighten"] and calls==1 and impure.is_empty(),"ARCH durability_writes_have_one_entry: the port is one epoch bump, one pre-write tier capture, one bare assignment, one dirty-member registration and one consequence dispatch taking exactly (target,value,tighten), with no guard, refresh, tracker, settle or feedback: statements="+str(statements)+" params="+str(params)+" calls="+str(calls)+" impure="+str(impure))
  # The two record builders hold durability as a literal default, never as an assignment; that is why
  # they are deliberately not registered (registering them would leave the table stale above).
  var builders=["core/game.gd::_template_piece","core/game.gd::_make_assembly_piece"]
@@ -7947,7 +7989,7 @@ const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_capacit
 const ASSESS_MODULE_CALLS={"Equipment":["*"],"SpecialEquipment":["*"],"Composites":["*"],"Links":["*"],"B":["*"],"RestraintValue":["*"],"RopeArt":["locked"],"Binding":["cancels","resolve","validate"],"Shoulders":["attached_in","eligible","pair_pieces","released_with_host","validate_in"]}
 # 判定域既不读也不写的运行时字段：事务边界字段（_rope_trial／_resource_feedback，Replacement.plan 保存并恢复）与
 # 绳艺观察防重入标记（_rope_observing）。判定只经 RopeArt.locked 读 phase／enemies，不碰这三者。
-const ASSESS_RUNTIME_FIELD_TOKENS=["_rope_trial","_rope_observing","_resource_feedback","_unit_frames"]
+const ASSESS_RUNTIME_FIELD_TOKENS=["_rope_trial","_rope_observing","_resource_feedback","_unit_frames","_settle_table"]
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。comparison_value 随上游改名为 replacement_value：
 # 新旧两名都不得在 replacement 留函数体（只看旧名会漏掉误留的上游 replacement_value 原体）。
 const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","replacement_value"],["replacement_value","replacement_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"]]
@@ -8079,7 +8121,8 @@ static func assess_calls_only_declared_modules(t) -> void:
  t.check(order.is_empty() and not transaction.contains("RopeArt.locked"),"ARCH assess_calls_only_declared_modules: the rope lock is read in the family-mandatory stage before the cursed-plate boundary and in the removable filter between cursed_plate and protected_ids, and the transaction never restates it: order_lost="+str(order)+" transaction_restates="+str(transaction.contains("RopeArt.locked")))
 
 # M1（design rev3.1 §3）：判定既不读也不写事务边界的运行时字段。Replacement.plan／force_special 保存并恢复
-# {state,_resource_feedback,_rope_trial}；_rope_observing 只供 RopeArt.observe 防重入。判定只在试算前经
+# {state,_resource_feedback,_rope_trial}；_rope_observing 只供 RopeArt.observe 防重入；Q6′b 的 `_settle_table`
+# 是 dispatch 的脏件窗口，试算只跑在副本上，判定同样不得直接读写它。判定只在试算前经
 # RopeArt.locked 读 phase／enemies，所以与「是否身处事务」无关。事务侧的保存→置位→恢复同条核对，免得对手缺席。
 static func assess_never_touches_runtime_fields(t) -> void:
  var text=source_code(ASSESS_SOURCE)

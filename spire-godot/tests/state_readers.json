@@ -175,13 +175,13 @@
     }
   },
   "generated_from": {
-    "cells": 1306,
+    "cells": 1313,
     "fields": 121,
     "files": 144,
-    "inputs_sha256": "e656b6f828c27fb449995aa1e86d038c227a8ee2bf3bd47f42566e2201e0e1a3",
-    "sites": 2131,
+    "inputs_sha256": "1f26985c91ec456482cc4a7dcae843fcfef2f843aed0c8c0ea4ee0f5e100030a",
+    "sites": 2141,
     "ui_reads": 0,
-    "whole_state": 75
+    "whole_state": 79
   },
   "owners": {
     "core/action_replay.gd::payload": {
@@ -676,13 +676,26 @@
     "core/equipment_offers.gd::shoulders": {
       "equipment": 1
     },
+    "core/equipment_removal.gd::bind": {
+      "relics": 1
+    },
     "core/equipment_removal.gd::settle": {
       "composites": 4,
       "equipment": 3,
       "items": 2,
       "links": 3,
       "powers": 1,
+      "relics": 2,
       "special_equipment": 4
+    },
+    "core/equipment_removal.gd::settle_residue": {
+      "composites": 1,
+      "equipment": 1,
+      "links": 1,
+      "special_equipment": 3
+    },
+    "core/equipment_removal.gd::unit_residue": {
+      "special_equipment": 1
     },
     "core/equipment_replacement.gd::_force_special_live": {
       "special_equipment": 2
@@ -2659,6 +2672,30 @@
       "count": 1,
       "file": "core/enemy_plans.gd",
       "function": "installation_intents",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_removal.gd",
+      "function": "bind",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_removal.gd",
+      "function": "mark",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_removal.gd",
+      "function": "replaced",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/equipment_removal.gd",
+      "function": "settle",
       "kind": "pass"
     },
     {

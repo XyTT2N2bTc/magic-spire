@@ -519,6 +519,13 @@ static func run(t) -> void:
  unit_frames_never_leak(t)
  join_epilogue_keeps_order(t)
  previews_never_leak_join_effects(t)
+ incremental_settle_matches_full_scan(t)
+ settle_residue_stays_empty(t)
+ unbound_state_uses_full_scan(t)
+ residue_check_is_debug_only(t)
+ settle_never_enters_durability_port(t)
+ unit_settle_touches_only_its_closure(t)
+ unit_settle_residue_stays_empty(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")
  t.check(E.ANIMATED_WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.ANIMATED_WEAR_TEXTS.has(slot)),"WEAR animated restraint prose covers every approved body location")
@@ -1274,5 +1281,323 @@ static func previews_never_leak_join_effects(t) -> void:
  var failed=t.action(rollback,"end")
  rollback.armed=false
  t.check(not failed.ok and rollback.state==snapshot and rollback._unit_frames.is_empty() and _frame_issues(rollback).is_empty(),"REMOVAL previews_never_leak_join_effects: a submit that fails validation after its units committed restores the state and leaves no frame behind: ok="+str(failed.ok)+" frames="+str(rollback._unit_frames.size()))
+
+# ==== Q6'b（rev3.4 gherkin G-Q6-1'…4'、9'、10'；plan-delta §2.1、§3.1）：脏件表、全扫回退、对账、件结算 ====
+const Removal=preload("res://core/equipment_removal.gd")
+const Journal=preload("res://tests/write_journal_game.gd")
+
+# 差分双胞胎（G-Q6-1'）：同一份 state、同一组产品入口写。`forced` 一侧在每次结算前调用产品函数
+# `Removal.replaced(self)`（产品不设测试专用入口），即全扫；另一侧用脏件表。`_debug_check` 只数对账
+# 调用次数，用来证明对账真的跑过——零命中不等于没跑。其余一律走产品路径。
+class SettleTwin extends "res://tests/game_fixture.gd":
+ var forced=false
+ var residue_checks=0
+ var unit_checks=0
+ func _cleanup(released: bool=true) -> void:
+  if forced: Removal.replaced(self)
+  super._cleanup(released)
+ func _debug_check(name: String, location: String, reason: String) -> String:
+  if name=="settle_residue": residue_checks+=1
+  elif name=="unit_settle_residue": unit_checks+=1
+  return super._debug_check(name,location,reason)
+
+static func _check_rows(g,name: String) -> Array:
+ return g.debug_check_failures.filter(func(row):return String(row.get("check",""))==name)
+
+static func _ledger_row_names() -> Array:
+ return ["M01","M02","M03","M04","M05","M06","M07","M08","M09","M10","M11","M12","M13","M14"]
+
+# 每格只用产品入口写：写口（`_write_durability`／`_apply_manual_release`）、成员通告
+# （`_special_erase`／`_members_replaced`）、工厂（`add_fixture`／`_install_special`）。M08 的头部
+# 马具在满拘束夹具里没有真实工厂入口（头部套件要口部宿主与专用布局），故该格用夹具记录。
+static func _plate(g) -> Dictionary:
+ for item in g.state.special_equipment:
+  if g.SpecialEquipment.is_cursed_plate(item): return item
+ return g._install_special("negative_plate_lock_medium","special_2_a",3)
+
+# The two eye cells (M11 absolute release, M14 blindfold relic) need an eyes piece that a full scan
+# keeps: eye cloth at zero durability is protected by the cursed blindfold until an absolute release
+# or until the relic leaves. Installed through the factory, then written through the durability port;
+# the state is fully settled before the row binds, so neither mark survives into the measured window.
+static func _prepare_eyes(g) -> Dictionary:
+ var eyes=g.add_fixture("eyes",8.0)
+ if not "cursed_blindfold" in g.state.relics: g.state.relics.append("cursed_blindfold")
+ g._write_durability(eyes,0.0)
+ g._cleanup()
+ return eyes
+
+static func _ledger_prepare(g,label: String) -> void:
+ if label in ["M11","M14"]: _prepare_eyes(g)
+
+static func _ledger_row(g,label: String) -> void:
+ match label:
+  "M01": g._write_durability(g.state.equipment[0],0.0)
+  "M02":
+   var host=g.state.equipment.filter(func(e):return e.has("shoulders") and e.shoulders.pieces.size()==2)[0]
+   g._write_durability(host,0.0)
+  "M03": g._write_durability(_plate(g),0.0)
+  "M04":
+   var plate=_plate(g)
+   var straps=g.state.special_equipment.filter(func(item):return g.SpecialEquipment.is_reinforcement(item) and String(item.get("owner_id",""))==String(plate.id))
+   if not straps.is_empty(): g._write_durability(straps[0],0.0)
+  "M05": g._special_erase(_plate(g))
+  "M06": g._write_durability(g._composite_body(g.state.composites[0]),0.0)
+  "M07":
+   var root=g.state.composites[0]
+   var part=root.components.filter(func(e):return String(e.get("part",""))!="body")
+   if not part.is_empty(): g._write_durability(part[0],0.0)
+  "M08":
+   var head_host=g.state.equipment[0]
+   g.state.composites.append({"id":"fixture_head_root","name":"测试头部马具","kind":"head","attached_to":String(head_host.id),"components":[{"id":"fixture_head_body","name":"测试头套","part":"body","durability":6.0,"maximum":10.0,"independent":false}]})
+   g._write_durability(head_host,0.0)
+  "M09": g._write_durability(g._equipment(String(g.state.links[0].ends[0])),0.0)
+  "M10": g._write_durability(g.state.links[0],0.0)
+  # M11: `_apply_manual_release` is the one write point and carries no registration of its own; the
+  # `_write_durability` it calls is the only place that marks (plan-delta §1.3).
+  "M11": g._apply_manual_release(_eyes(g),0.0,false,true)
+  # M12: a new member is announced, so the next settle re-judges it against its own removal rule. The
+  # factories reject a zero-durability install (`Equipment.validate`), so the observable cell is that
+  # the added member survives the same settle on both sides and leaves no residue.
+  "M12": g.add_fixture("calf",4,10)
+  # M13: a whole-container replacement is announced, not marked member by member.
+  "M13":
+   g.state.equipment[0].durability=0.0
+   g._members_replaced()
+  # M14: the relic leaves the state without a member write; only the bind-time blindfold snapshot can
+  # widen the window to the full scan, which is what removes the eye cloth.
+  "M14": g.state.relics.erase("cursed_blindfold")
+
+static func _eyes(g) -> Dictionary:
+ return g.state.equipment.filter(func(e):return String(e.get("slot",""))=="eyes")[0]
+
+# G-Q6-1'：同一状态、同一组产品入口写，脏件结算与强制全扫四项（编码状态、logs、rng、回执面）相等；
+# 每格覆盖次数 ≥1；脏件一侧每个结算点都真的跑了 `settle_residue`。
+static func incremental_settle_matches_full_scan(t) -> void:
+ var fixture=_full_restraint()
+ var base=fixture.game.state.duplicate(true)
+ var coverage={}
+ var mismatches=[]
+ var removed_total=0
+ var unreconciled=[]
+ var residue=[]
+ for label in _ledger_row_names():
+  var dirty=SettleTwin.new(42)
+  dirty.state=base.duplicate(true)
+  var full=SettleTwin.new(42)
+  full.forced=true
+  full.state=base.duplicate(true)
+  _ledger_prepare(dirty,label)
+  _ledger_prepare(full,label)
+  Removal.bind(dirty)
+  Removal.bind(full)
+  _ledger_row(dirty,label)
+  _ledger_row(full,label)
+  var pieces_before=dirty.state.equipment.size()
+  dirty._cleanup()
+  full._cleanup()
+  Removal.unbind(dirty)
+  Removal.unbind(full)
+  removed_total+=maxi(0,pieces_before-dirty.state.equipment.size())
+  coverage[label]=int(coverage.get(label,0))+1
+  if Arch.save_text(dirty.state)!=Arch.save_text(full.state) or JSON.stringify(dirty.state.rng)!=JSON.stringify(full.state.rng) or dirty.state.logs.size()!=full.state.logs.size():
+   mismatches.append(label+":dirty="+str(dirty.state.equipment.size())+"/"+str(dirty.state.links.size())+" full="+str(full.state.equipment.size())+"/"+str(full.state.links.size()))
+  if not label in ["M13","M14"] and dirty.residue_checks<=0: unreconciled.append(label)
+  for row in _check_rows(dirty,"settle_residue"): residue.append(label+":"+String(row.get("reason","")))
+ t.check(coverage.size()==_ledger_row_names().size() and coverage.values().all(func(count):return int(count)>=1),"REMOVAL incremental_settle_matches_full_scan: every M row runs at least one cell (M02 is the shoulder control), so the matrix is not narrowed: coverage="+str(coverage))
+ t.check(removed_total>0 and mismatches.is_empty(),"REMOVAL incremental_settle_matches_full_scan: the dirty ledger settles to the same encoded state, logs and rng as the forced full scan on every row (a dropped mark, an unexpanded leave or an over-narrow filter is red): removed="+str(removed_total)+" mismatches="+str(mismatches))
+ t.check(unreconciled.is_empty() and residue.is_empty(),"REMOVAL incremental_settle_matches_full_scan: each bound, non-full settle of the dirty side ran the debug reconciliation (full-flag rows excepted) and left no residue: unreconciled="+str(unreconciled)+" residue="+str(residue))
+ print("REMOVAL DIFFERENTIAL coverage=%s removed=%d" % [str(coverage),removed_total])
+
+# G-Q6-2'：差分夹具与满拘束夹具上，每个绑定且非全扫的结算点之后 `settle_residue` 全扫只读、结果全假；
+# 对账本身不改状态、不推进随机。零命中的正向证据是 `_debug_check` 的调用计数（见 SettleTwin）。
+static func settle_residue_stays_empty(t) -> void:
+ var fixture=_full_restraint()
+ var base=fixture.game.state.duplicate(true)
+ var checked=0
+ var failures=[]
+ for label in ["M01","M03","M09","M12"]:
+  var g=SettleTwin.new(42)
+  g.state=base.duplicate(true)
+  Removal.bind(g)
+  _ledger_row(g,label)
+  g._cleanup()
+  checked+=g.residue_checks
+  for row in _check_rows(g,"settle_residue"): failures.append(label+":"+String(row.get("reason","")))
+ # 满拘束夹具上逐锚点断开（同一缺陷面换成满规模输入），每次仍走绑定窗口。
+ var anchors=fixture.game.link_anchors().map(func(anchor):return String(anchor.id))
+ for id in anchors.slice(0,6):
+  var g=SettleTwin.new(42)
+  g.state=base.duplicate(true)
+  Removal.bind(g)
+  var record=_anchor_record(g,id)
+  if record.is_empty(): continue
+  g._write_durability(record,0.0)
+  g._cleanup()
+  checked+=g.residue_checks
+  for row in _check_rows(g,"settle_residue"): failures.append(id+":"+String(row.get("reason","")))
+ # 只读：对账前后编码状态与 rng 相等，且真的报出待移除成员（正向对照）。
+ var probe=SettleTwin.new(42)
+ probe.state=base.duplicate(true)
+ Removal.bind(probe)
+ var pending=probe.state.equipment[0]
+ probe._write_durability(pending,0.0)
+ var encoded=Arch.save_text(probe.state)
+ var rng=JSON.stringify(probe.state.rng)
+ Removal.settle_residue(probe)
+ var hits=_check_rows(probe,"settle_residue")
+ var read_only=encoded==Arch.save_text(probe.state) and rng==JSON.stringify(probe.state.rng)
+ Removal.unbind(probe)
+ t.check(checked>=10 and failures.is_empty(),"REMOVAL settle_residue_stays_empty: every bound, non-full settle of the differential and full-restraint fixtures ran a debug reconciliation that found no member a full scan would still remove (an unregistered write or an unexpanded leave is red): checks="+str(checked)+" failures="+str(failures))
+ t.check(hits.size()==1 and String(hits[0].get("reason","")).contains(String(pending.id)) and read_only,"REMOVAL settle_residue_stays_empty: the reconciliation is read-only (encoded state, logs and rng unchanged) and does report a releasable member that the incremental settle skipped, so the empty result above is not vacuous: hits="+str(hits)+" read_only="+str(read_only))
+
+# G-Q6-3'：`dispatch` 外直调、沙盒换表、成功解绑、失败回滚后的下一次提交——都走全扫，且 live 表不被
+# 沙盒登记污染。
+static func unbound_state_uses_full_scan(t) -> void:
+ var direct=SettleTwin.new(42)
+ direct.state.phase="map"
+ var piece=direct.add_fixture("thigh",4,10)
+ piece.durability=0.0
+ direct._cleanup()
+ t.check(direct.state.equipment.is_empty() and direct._settle_table.get("bound",null)==null,"REMOVAL unbound_state_uses_full_scan: a settle outside dispatch is unbound and removes a directly written zero-durability piece exactly as before: left="+str(direct.state.equipment.size()))
+ var sandbox=SettleTwin.new(42)
+ sandbox.state.phase="map"
+ var host=sandbox.add_fixture("thigh",4,10)
+ Removal.bind(sandbox)
+ sandbox._write_durability(host,8.0)
+ var live_writes=sandbox._settle_table["writes"].duplicate(true)
+ var live_leaves=sandbox._settle_table["leaves"].duplicate(true)
+ var live=sandbox.state
+ sandbox.state=live.duplicate(true)
+ sandbox._write_durability(sandbox.state.equipment[0],0.0)
+ sandbox._cleanup(false)
+ sandbox.state=live
+ t.check(sandbox._settle_table["writes"]==live_writes and sandbox._settle_table["leaves"]==live_leaves and sandbox.state.equipment.size()==1,"REMOVAL unbound_state_uses_full_scan: a sandbox swap makes the settle a full scan and drops the sandbox port registrations instead of leaking them into the live table: writes="+str(sandbox._settle_table["writes"])+" leaves="+str(sandbox._settle_table["leaves"]))
+ var settled=SettleTwin.new(42)
+ settled.state.phase="battle"
+ var result=t.action(settled,"end")
+ var table=settled._settle_table
+ t.check(result.ok and table.get("bound",null)==null and table.get("writes",{}).is_empty() and table.get("leaves",{}).is_empty(),"REMOVAL unbound_state_uses_full_scan: a successful dispatch returns unbound with empty write and leave sets, so no window outlives the call: ok="+str(result.ok)+" table="+str(table))
+ var probe=RollbackProbe.new(42)
+ probe._discard_end()
+ probe.state.wall="normal"
+ probe.add_fixture("ankle",4)
+ var snapshot=probe.export_snapshot()
+ probe.pristine=snapshot.equipment.map(func(e):return String(e.id))
+ probe.armed=true
+ var failed=t.action(probe,"end")
+ probe.armed=false
+ var stale=probe._settle_table
+ t.check(not failed.ok and probe.state==snapshot and stale.get("bound",null)!=null and not is_same(probe.state,stale.get("bound",null)),"REMOVAL unbound_state_uses_full_scan: a rolled-back dispatch restores the state and leaves a table whose bound identity no longer matches the live state, so the next bind starts a clean window: rollback="+str(not failed.ok)+" bound="+str(stale.get("bound",null)!=null))
+
+# One real unit that installs a member and breaks it before the unit commits: the join hook (and so the
+# piece reconciliation) then runs with the record already at zero durability. `_unit_begin` keeps the
+# frame open while the factory inside opens and closes its own nested one.
+static func _unit_install_then_break(g) -> Dictionary:
+ var owned=g._unit_begin()
+ var piece=g.add_fixture("thigh",4,10)
+ g._write_durability(piece,0.0)
+ g._unit_commit(owned)
+ return piece
+
+# G-Q6-4：两个对账的每个调用点都由 `debug_checks_enabled()` 守卫（静态），关掉 debug 后同一两种局面
+# 不再留痕（运行期），开 debug 时两种局面各留一次（正向对照——`_debug_check` 不看开关，调用了就留痕）。
+static func residue_check_is_debug_only(t) -> void:
+ var offenders=[]
+ for site in [["core/equipment_removal.gd","settle"],["core/game.gd","_join_hooks"]]:
+  var body=Arch.code_of_function(String(site[0]),String(site[1]))
+  for line in body.split("\n"):
+   var text=String(line)
+   if not (text.contains("settle_residue(") or text.contains("unit_residue(")): continue
+   if not text.contains("debug_checks_enabled()"): offenders.append(String(site[0])+"::"+String(site[1])+":"+text.strip_edges())
+ var on=SettleTwin.new(42)
+ on.state.phase="map"
+ var on_piece=on.add_fixture("thigh",4,10)
+ Removal.bind(on)
+ on_piece.durability=0.0
+ on._cleanup()
+ Removal.unbind(on)
+ var off=SettleTwin.new(42)
+ off.state.phase="map"
+ off.set_debug_checks_enabled(false)
+ var off_piece=off.add_fixture("thigh",4,10)
+ Removal.bind(off)
+ off_piece.durability=0.0
+ off._cleanup()
+ Removal.unbind(off)
+ var on_install=SettleTwin.new(42)
+ on_install.state.phase="map"
+ _unit_install_then_break(on_install)
+ var off_install=SettleTwin.new(42)
+ off_install.state.phase="map"
+ off_install.set_debug_checks_enabled(false)
+ _unit_install_then_break(off_install)
+ var on_settle=_check_rows(on,"settle_residue").size()
+ var on_unit=_check_rows(on_install,"unit_settle_residue").size()
+ t.check(offenders.is_empty() and on_settle==1 and on_unit==1 and _check_rows(off,"settle_residue").is_empty() and _check_rows(off_install,"unit_settle_residue").is_empty(),"REMOVAL residue_check_is_debug_only: both reconciliation calls are guarded by debug_checks_enabled() and a run with checks disabled records nothing for the same two residue-producing situations, while an enabled run records exactly one each: offenders="+str(offenders)+" on="+str(on_settle)+"/"+str(on_unit)+" off="+str(_check_rows(off,"settle_residue").size())+"/"+str(_check_rows(off_install,"unit_settle_residue").size()))
+
+# G-Q6-6'：`WriteJournalGame` 在两处 `_cleanup` 进出标记之间数耐久／品质写口的进入次数；直调与 dispatch
+# 各一次结算，两者都必须为 0（红＝事实发现，交回协调者，不改判据迁就）。
+static func settle_never_enters_durability_port(t) -> void:
+ var fixture=_full_restraint()
+ var journal=Journal.new(42)
+ journal.state=fixture.game.state.duplicate(true)
+ journal.state.phase="battle"
+ journal._cleanup()
+ var result=t.action(journal,"end")
+ var rows=journal.settle_port_entries()
+ var dirty=rows.filter(func(row):return int(row["durability"])>0 or int(row["quality"])>0)
+ t.check(journal.cleanup_frames.size()>=2 and result.ok,"REMOVAL settle_never_enters_durability_port: one direct settle and one dispatch settle are both observed (a fixture that never settles would make the count vacuous): frames="+str(journal.cleanup_frames.size())+" ok="+str(result.ok)+" error="+String(result.get("error","")))
+ t.check(dirty.is_empty(),"REMOVAL settle_never_enters_durability_port: no settle enters `_write_durability` or `_write_quality` on a full-restraint fixture, so the coupling is one-way (a settle-side durability write is red): frames="+str(rows)+" entries="+str(journal.durability_entries.size()))
+
+# G-Q6-9'：件结算只读本 entry 的闭包。对 P／C／X／R／K／S／B 各一条真实记录直调产品函数，前后
+# `_settle_table` 的写集与离开集逐项相等；正常记录不产生命中。
+static func unit_settle_touches_only_its_closure(t) -> void:
+ var fixture=_full_restraint()
+ var g=fixture.game
+ var plate=_plate(g)
+ var host=g.state.equipment.filter(func(e):return e.has("shoulders") and e.shoulders.pieces.size()==2)[0]
+ var entries=[[g.state.equipment[0],"P",true,{}],[g.state.composites[0],"C",true,{}],[plate,"X",true,{}],[g.state.links[0],"K",true,{}],[host.shoulders.pieces[0],"S",true,{"host":host}],[g.state.equipment[0],"B",true,{}]]
+ var straps=g.state.special_equipment.filter(func(item):return g.SpecialEquipment.is_reinforcement(item))
+ if not straps.is_empty(): entries.append([straps[0],"R",true,{}])
+ Removal.bind(g)
+ g._write_durability(g.state.equipment[1],7.0)
+ var before=JSON.stringify(g._settle_table)
+ var unstable=[]
+ var hits=[]
+ for entry in entries:
+  var encoded=Arch.save_text(g.state)
+  Removal.unit_residue(g,entry)
+  if JSON.stringify(g._settle_table)!=before: unstable.append(String(entry[1]))
+  if Arch.save_text(g.state)!=encoded: unstable.append(String(entry[1])+":state")
+ for row in _check_rows(g,"unit_settle_residue"): hits.append(String(row.get("reason","")))
+ Removal.unbind(g)
+ t.check(entries.size()>=6 and unstable.is_empty() and hits.is_empty(),"REMOVAL unit_settle_touches_only_its_closure: the piece reconciliation reads only the entry's own record -- the ledger's write and leave sets and the encoded state are identical before and after every class (P/C/X/R/K/S/B), and no normal record is reported: classes="+str(entries.map(func(entry):return String(entry[1])))+" unstable="+str(unstable)+" hits="+str(hits))
+
+# G-Q6-10'：正常流程下 `unit_settle_residue` 零命中；同一 unit 内安装并打断的件（敏感性）恰一次命中、
+# 件仍在容器里、且下一次声明结算点才移除；B 类不对账。
+static func unit_settle_residue_stays_empty(t) -> void:
+ var fixture=_full_restraint()
+ var fixture_hits=_check_rows(fixture.game,"unit_settle_residue")
+ var zero=SettleTwin.new(42)
+ zero.state.phase="map"
+ var installed=_unit_install_then_break(zero)
+ var zero_hits=_check_rows(zero,"unit_settle_residue")
+ var still_there=zero.state.equipment.any(func(e):return String(e.id)==String(installed.get("id","")))
+ zero._cleanup()
+ var probe=SettleTwin.new(42)
+ probe.state.phase="map"
+ var binding_record=probe.add_fixture("thigh",4,10)
+ probe.debug_check_failures.clear()
+ Removal.unit_residue(probe,[binding_record,"B",true,{}])
+ t.check(fixture_hits.is_empty(),"REMOVAL unit_settle_residue_stays_empty: the full-restraint fixture installs every member class through the real factories and the piece reconciliation reports nothing: hits="+str(fixture_hits))
+ t.check(not installed.is_empty() and zero_hits.size()==1 and String(zero_hits[0].get("reason","")).contains(String(installed.get("id",""))) and still_there and zero.state.equipment.is_empty() and _check_rows(probe,"unit_settle_residue").is_empty(),"REMOVAL unit_settle_residue_stays_empty: a member installed and broken inside one unit is reported exactly once by the join hook, stays in its container until the next declared settle removes it (the piece reconciliation never removes), and the binding class is not reconciled: hits="+str(zero_hits)+" still="+str(still_there)+" left="+str(zero.state.equipment.size())+" b="+str(_check_rows(probe,"unit_settle_residue").size()))
+ # 对账本身不改状态、不改 logs：干净记录上直调前后编码状态与日志长度相等。
+ var quiet=SettleTwin.new(42)
+ quiet.state.phase="map"
+ quiet.add_fixture("thigh",4,10)
+ var quiet_encoded=Arch.save_text(quiet.state)
+ var quiet_logs=quiet.state.logs.size()
+ Removal.unit_residue(quiet,[quiet.state.equipment[0],"P",true,{}])
+ t.check(quiet_encoded==Arch.save_text(quiet.state) and quiet_logs==quiet.state.logs.size() and _check_rows(quiet,"unit_settle_residue").is_empty(),"REMOVAL unit_settle_residue_stays_empty: the piece reconciliation writes no state and appends no log line (the receipt face is untouched): logs="+str(quiet_logs)+"->"+str(quiet.state.logs.size()))
 
 

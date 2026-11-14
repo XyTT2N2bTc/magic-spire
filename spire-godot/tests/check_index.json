@@ -331,7 +331,7 @@
     },
     "spire-godot/tests/equipment_cases.gd": {
       "owner": "rule:equipment",
-      "signals": 7
+      "signals": 8
     },
     "spire-godot/tests/equipment_complete_cases.gd": {
       "owner": "rule:equipment_complete",
@@ -934,7 +934,7 @@
       "signals": 2
     }
   },
-  "digest": "65ce6044b5108187ca458faa3496daea3b96fac83be444674b665013daa39801",
+  "digest": "8e05e76ebe5819bfc1706772c6bad219d7735fd16def131717611aff79f2a399",
   "domain_words": {
     "ART": [
       "ui:display",
@@ -1932,7 +1932,7 @@
       ]
     }
   },
-  "generated_from": "cfc3a37676a9434a709257cb2afc9bc48228b961022ebaf15bcd8b42fab3d668",
+  "generated_from": "1821d955016041d41552c5ac54d1eb15e4a08918b8d2d8c6eace03b216cacf87",
   "registries": {
     "rule": [
       "rope_master",
@@ -2055,7 +2055,7 @@
     "rule_suites": 54,
     "source_files": 144,
     "sources_with_edges": 142,
-    "suite_edges": 573,
+    "suite_edges": 574,
     "suites_with_edges": 101,
     "ui_suites": 50,
     "widen": 1
@@ -2396,6 +2396,9 @@
       ]
     },
     "rule:equipment": {
+      "spire-godot/core/equipment_removal.gd": [
+        "preload"
+      ],
       "spire-godot/core/game.gd": [
         "symbol"
       ],

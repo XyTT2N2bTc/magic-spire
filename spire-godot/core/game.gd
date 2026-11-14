@@ -23,6 +23,11 @@ var _write_epoch: int=0
 # only inside the synchronous call that opened it, so a leftover frame is a bug the debug check at
 # the end of `dispatch` reports. Not reentrant across calls by construction, not a queue.
 var _unit_frames: Array=[]
+# Q6'b dirty ledger (plan-delta §2.1, §3.1): the state object the running dispatch bound, the ids its
+# write ports wrote and removed, the full-scan flag and the blindfold snapshot. The whole table is read
+# and written by `core/equipment_removal.gd` only; instance-local like `_unit_frames`, it never enters
+# `state`, the View, a save, a checkpoint or the read cache.
+var _settle_table: Dictionary={}
 
 # docs/record/proposals/check-routing-and-per-click-checks.md「二」（人裁定：正常流程下永不为 false 的
 # 每点击完整性检查＝release 里的固定浪费，按 debug 构建判定运行）：默认值只有构建类型这一条来源，
@@ -1523,16 +1528,19 @@ func _write_locked(target: Dictionary, locked: bool) -> void:
 
 # The member-change announcement (Q5, G-Q5-4): every live container add/remove and every nested
 # member write announces here, and the whole-container replacement announces through
-# `_members_replaced` right after `_commit_changes`. This slice bumps the epoch only: the body reads
-# no state, writes no record, emits nothing and draws no random. Q6／QX2 add dirty marking and
-# closure accounting; the two parameters are the future key, hence the underscore names here.
+# `_members_replaced` right after `_commit_changes`. This slice bumps the epoch and hands the change
+# to the Q6'b dirty ledger: the body reads no state, writes no record, emits nothing and draws no
+# random. QX2 adds closure accounting; the two parameters are its future key as well.
 func _member_changed(_record: Dictionary, _change: String) -> void:
  _write_epoch+=1
+ Removal.mark(self,_record,_change)
 
 # The replacement announcement (Q5): `_commit_changes` is the one whole-container write exception,
-# so its two callers announce the replacement immediately after it.
+# so its two callers announce the replacement immediately after it, which forces the next settle to
+# judge every member (M13).
 func _members_replaced() -> void:
  _write_epoch+=1
+ Removal.replaced(self)
 
 # The join-effect table (Q5″, plan §2.4; G-Q5-11): member class -> handler column. J1 feedback,
 # J2 join copy, J4 mana prefix, J5 worn; J3/J6/J7 are declared empty here and filled by QX2″. A row
@@ -1577,6 +1585,7 @@ func _member_joined(record: Dictionary, kind: String, top: bool=false, detail: D
 # The join layer (Q5″, G-Q5-11): the one place where a member's feedback, join copy, mana and worn
 # effects run. Every cell comes from `JOIN_EFFECTS`; the handlers keep the pre-Q5″ conditions.
 func _join_hooks(entry: Array) -> void:
+ if debug_checks_enabled(): Removal.unit_residue(self,entry)
  var record: Dictionary=entry[0]
  var class_row: Dictionary=JOIN_EFFECTS.get(String(entry[1]),{})
  var detail: Dictionary=entry[3]
@@ -1617,6 +1626,7 @@ func _write_durability(target: Dictionary, value: float, tighten: bool=false) ->
  _write_epoch+=1
  var before=tier(target.durability,target.maximum)
  target.durability=value
+ Removal.mark(self,target,"written")
  _tier_consequences(target,before,tier(target.durability,target.maximum),tighten)
 
 # The quality write (Q4′, A140 #1): `core/rope_master.gd::hogtie`'s upgrade rewrites the four
@@ -1630,6 +1640,7 @@ func _write_quality(target: Dictionary, grade: int) -> void:
  target.maximum=Equipment.maximum(grade)
  target.durability=RestraintValue.durability_for(target.maximum,2)
  target.variant=0
+ Removal.mark(self,target,"written")
  _tier_consequences(target,before,tier(target.durability,target.maximum),true)
 
 # Q4′ consequence table (G-Q4-4′): (row × record class) -> ordered handlers. The rows are the
@@ -3797,6 +3808,7 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
    hero_copy_context.manual_family=SpecialEquipment.TYPES[copy_target.type].family
  var action_buffs=Cards.action_buff_ids(self) if Cards.is_card_action(chosen.payload) or chosen.payload.kind=="attack" else []
  state=state.duplicate(true)
+ Removal.bind(self)
  FirstTurnControl.commit(self,chosen)
  _resource_feedback=preload("res://core/resource_feedback.gd").new()
  _card_feedback=[]
@@ -3910,6 +3922,7 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  # Q5″：帧只活在开它的同步调用里，返回时栈应已清空；残留即入口漏收（只在 debug 构建里报，不改回执）。
  if debug_checks_enabled() and not _unit_frames.is_empty():
   _debug_check("unit_frames","game.dispatch","单位帧未收：%d" % _unit_frames.size())
+ Removal.unbind(self)
  return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"sound_feedback":sound_events,"checkpoint":checkpoint,"spell_failed":_magic_failed,"fact":chosen,"phase":state.phase,"overloaded":Pressure.overloaded(self)}
 
 func cast_view(profile: Dictionary={"parts":["mouth"],"multiplier":1.0}) -> Dictionary:
