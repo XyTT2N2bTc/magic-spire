@@ -1440,7 +1440,7 @@
           }
         ],
         "suite": "equipment",
-        "expect": "removed=false"
+        "expect": "full_scan_checks=1"
       }
     ],
     "residue_check_is_debug_only": [

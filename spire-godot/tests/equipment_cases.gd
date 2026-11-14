@@ -1498,19 +1498,27 @@ static func unbound_state_uses_full_scan(t) -> void:
  var stale=probe._settle_table
  t.check(not failed.ok and probe.state==snapshot and stale.get("bound",null)!=null and not is_same(probe.state,stale.get("bound",null)),"REMOVAL unbound_state_uses_full_scan: a rolled-back dispatch restores the state and leaves a table whose bound identity no longer matches the live state, so the next bind starts a clean window: rollback="+str(not failed.ok)+" bound="+str(stale.get("bound",null)!=null))
  # `restore_snapshot` is the real load entry: it swaps `state` for the candidate object, so a table
- # bound before the restore must not match and the next settle has to be the full scan. The saved
- # candidate already holds a zero-durability member that no port marked after the bind.
+ # bound before the restore must not match and the next settle has to be the full scan. A valid
+ # snapshot cannot carry a releasable member (`Equipment.validate` rejects durability<=0), so the
+ # full scan is observed where it is visible: the debug reconciliation runs only after a bound,
+ # non-full settle. The second bind + settle is the positive control that the counter does move.
  var reloaded=SettleTwin.new(42)
  reloaded.state.phase="map"
- var carried=reloaded.add_fixture("thigh",4,10)
- reloaded._write_durability(carried,0.0)
- var saved=reloaded.export_snapshot()
+ reloaded.add_fixture("thigh",4,10)
+ var restored_snapshot=reloaded.export_snapshot()
+ var checks_before=reloaded.residue_checks
  Removal.bind(reloaded)
  var saved_bound=reloaded._settle_table["bound"]
- var restored=reloaded.restore_snapshot(saved)
+ var restored=reloaded.restore_snapshot(restored_snapshot)
  var restored_state=reloaded.state
  reloaded._cleanup()
- t.check(restored.get("ok",false) and restored_state.equipment.is_empty() and reloaded._settle_table.get("bound",null)==saved_bound and not is_same(reloaded.state,saved_bound),"REMOVAL unbound_state_uses_full_scan: a real restore_snapshot swaps the state object, so the next settle is a full scan that removes a zero-durability member the incremental window never marked: restored="+str(restored.get("ok",false))+" removed="+str(restored_state.equipment.is_empty())+" stale_bound="+str(reloaded._settle_table.get("bound",null)==saved_bound))
+ var stale_bound=reloaded._settle_table.get("bound",null)==saved_bound and not is_same(restored_state,saved_bound)
+ var full_scan_checks=reloaded.residue_checks-checks_before
+ Removal.bind(reloaded)
+ reloaded._cleanup()
+ var incremental_checks=reloaded.residue_checks-checks_before-full_scan_checks
+ Removal.unbind(reloaded)
+ t.check(restored.get("ok",false) and stale_bound and full_scan_checks==0 and incremental_checks==1,"REMOVAL unbound_state_uses_full_scan: a real restore_snapshot swaps the state object, so the next settle is a full scan -- the pre-restore binding is stale, that settle ran no incremental reconciliation, and a control bind + settle does run exactly one: restored="+str(restored.get("ok",false))+" stale_bound="+str(stale_bound)+" full_scan_checks="+str(full_scan_checks)+" incremental_checks="+str(incremental_checks))
 
 # One real unit that installs a member and breaks it before the unit commits: the join hook (and so the
 # piece reconciliation) then runs with the record already at zero durability. `_unit_begin` keeps the
