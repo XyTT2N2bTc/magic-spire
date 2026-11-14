@@ -1287,8 +1287,8 @@ const Removal=preload("res://core/equipment_removal.gd")
 const Journal=preload("res://tests/write_journal_game.gd")
 
 # 差分双胞胎（G-Q6-1'）：同一份 state、同一组产品入口写。`forced` 一侧在每次结算前调用产品函数
-# `Removal.replaced(self)`（产品不设测试专用入口），即全扫；另一侧用脏件表。`_debug_check` 只数对账
-# 调用次数，用来证明对账真的跑过——零命中不等于没跑。其余一律走产品路径。
+# `Removal.replaced(self)`（产品不设测试专用入口），即全扫；另一侧用脏件表。`_debug_check` 数对账
+# 调用次数（用来证明对账真的跑过——零命中不等于没跑），并把两处对账的行直接记进行表而不写日志。
 class SettleTwin extends "res://tests/game_fixture.gd":
  var forced=false
  var residue_checks=0
@@ -1297,8 +1297,13 @@ class SettleTwin extends "res://tests/game_fixture.gd":
   if forced: Removal.replaced(self)
   super._cleanup(released)
  func _debug_check(name: String, location: String, reason: String) -> String:
-  if name=="settle_residue": residue_checks+=1
-  elif name=="unit_settle_residue": unit_checks+=1
+  # 两处对账的正向对照故意造出待移除成员：记进行表（判据读的就是它），但不把引擎告警写进套件
+  # 日志——`DEBUG CHECK` 零命中是证据口径，负例只以一个判定结论出现。
+  if name=="settle_residue" or name=="unit_settle_residue":
+   if name=="settle_residue": residue_checks+=1
+   else: unit_checks+=1
+   if reason!="": debug_check_failures.append({"check":name,"reason":reason,"location":location})
+   return reason
   return super._debug_check(name,location,reason)
 
 static func _check_rows(g,name: String) -> Array:
