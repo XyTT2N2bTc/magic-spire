@@ -774,7 +774,20 @@
             "replace": "func debug_checks_enabled() -> bool:\n return false"
           }
         ],
-        "suite": "architecture"
+        "suite": "architecture",
+        "expect": "a debug build enables the checks by default"
+      },
+      {
+        "clause": "consumer-surface",
+        "file": "core/prison.gd",
+        "edits": [
+          {
+            "find": "static func intake_equipment(g) -> Dictionary:",
+            "replace": "static func intake_equipment(g) -> Dictionary:\n if g.debug_checks_enabled(): pass"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "the switch has exactly the three declared consumers"
       }
     ],
     "per_click_diagnostics_stay_out_of_the_game": [
@@ -1047,7 +1060,20 @@
             "replace": "static func _mutation_probe_runtime(g) -> void:\n g._rope_trial=true\n\nstatic func pieces(item: Dictionary) -> Array:"
           }
         ],
-        "suite": "architecture"
+        "suite": "architecture",
+        "expect": "touched=[\"_rope_trial\"]"
+      },
+      {
+        "clause": "settle-table",
+        "file": "core/equipment_replacement_assess.gd",
+        "edits": [
+          {
+            "find": "static func pieces(item: Dictionary) -> Array:",
+            "replace": "static func _mutation_probe_settle_table(g) -> void:\n g._settle_table={}\n\nstatic func pieces(item: Dictionary) -> Array:"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "touched=[\"_settle_table\"]"
       }
     ],
     "legal_requests_is_the_only_judgment_entry": [
@@ -1214,7 +1240,32 @@
             "replace": "const EdgeLeak=preload(\"res://core/equipment_replacement_view.gd\")\n\nstatic func settle(g,released: bool=true) -> void:"
           }
         ],
-        "suite": "architecture"
+        "suite": "architecture",
+        "expect": "preloads="
+      },
+      {
+        "clause": "call-site",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _write_locked(target: Dictionary, locked: bool) -> void:",
+            "replace": "func _write_locked(target: Dictionary, locked: bool) -> void:\n Removal.mark(self,target,\"written\")"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "the functions that call Removal. are exactly the declared call sites"
+      },
+      {
+        "clause": "g-call",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " var anchors=g.link_anchors()",
+            "replace": " var anchors=g.link_anchors()\n g.validate()"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "the module reaches the game only through the declared g-call names"
       }
     ],
     "cleanup_link_loop_writes_only_links": [
@@ -1255,7 +1306,200 @@
         "suite": "equipment",
         "expect": "REMOVAL settle_residue_stays_empty"
       }
-    ],    "container_alias_writes_stay_on_projections": [
+    ],
+    "incremental_settle_matches_full_scan": [
+      {
+        "clause": "row-gap",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": " return [\"M01\",\"M02\",\"M03\",\"M04\",\"M05\",\"M06\",\"M07\",\"M08\",\"M09\",\"M10\",\"M11\",\"M12\",\"M13\",\"M14\"]",
+            "replace": " return [\"M01\",\"M02\",\"M03\",\"M04\",\"M05\",\"M06\",\"M07\",\"M08\",\"M09\",\"M10\",\"M11\",\"M12\",\"M13\",\"M14\",\"M14\"]"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "so the matrix is not narrowed"
+      },
+      {
+        "clause": "write-port-mark",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " target.durability=value\n Removal.mark(self,target,\"written\")\n",
+            "replace": " target.durability=value\n"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the dirty ledger settles to the same encoded state"
+      },
+      {
+        "clause": "leave-expansion-m09",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "static func _link_touched(writes: Dictionary,leaves: Dictionary,link: Dictionary) -> bool:\n if _touched(writes,leaves,link): return true\n return link.ends.any(func(id):return leaves.has(String(id)))",
+            "replace": "static func _link_touched(writes: Dictionary,leaves: Dictionary,link: Dictionary) -> bool:\n if _touched(writes,leaves,link): return true\n return false"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the dirty ledger settles to the same encoded state"
+      },
+      {
+        "clause": "unreconciled-settle",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " if bound and not full and g.debug_checks_enabled(): settle_residue(g)",
+            "replace": " if bound and not full and g.debug_checks_enabled(): pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "ran the debug reconciliation"
+      }
+    ],
+    "unbound_state_uses_full_scan": [
+      {
+        "clause": "unbound-not-full",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " var full=not bound or bool(table[\"full\"])",
+            "replace": " var full=bound and bool(table[\"full\"])"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "a settle outside dispatch is unbound"
+      },
+      {
+        "clause": "identity-ignored",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " return not table.is_empty() and is_same(g.state,table[\"bound\"])",
+            "replace": " return not table.is_empty()"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "a sandbox swap makes the settle a full scan"
+      },
+      {
+        "clause": "keep-bound",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " Removal.unbind(self)\n return {\"ok\":true,\"version\":state.version,",
+            "replace": " return {\"ok\":true,\"version\":state.version,"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "a successful dispatch returns unbound with empty write and leave sets"
+      },
+      {
+        "clause": "rollback-not-restored",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "  _resource_feedback=null\n  _card_feedback=[]\n  state=original\n  return {\"ok\":false,\"error\":\"行动失败：\"+issue,\"fact\":{}}",
+            "replace": "  _resource_feedback=null\n  _card_feedback=[]\n  return {\"ok\":false,\"error\":\"行动失败：\"+issue,\"fact\":{}}"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "a rolled-back dispatch restores the state and leaves a table whose bound identity no longer matches the live state"
+      }
+    ],
+    "residue_check_is_debug_only": [
+      {
+        "clause": "settle-gate",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " if bound and not full and g.debug_checks_enabled(): settle_residue(g)",
+            "replace": " if bound and not full: settle_residue(g)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "both reconciliation calls are guarded by debug_checks_enabled()"
+      }
+    ],
+    "settle_never_enters_durability_port": [
+      {
+        "clause": "cleanup-observed",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " cleanup_frames.append(frame)\n super._cleanup(released)",
+            "replace": " super._cleanup(released)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "one direct settle and one dispatch settle are both observed"
+      },
+      {
+        "clause": "settle-durability-write",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " var leaves: Dictionary=table[\"leaves\"] if bound else {}",
+            "replace": " var leaves: Dictionary=table[\"leaves\"] if bound else {}\n if not g.state.equipment.is_empty(): g._write_durability(g.state.equipment[0],g.state.equipment[0].durability)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "no settle enters `_write_durability` or `_write_quality` on a full-restraint fixture"
+      }
+    ],
+    "unit_settle_touches_only_its_closure": [
+      {
+        "clause": "closure-hit",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " if hit!=\"\": residue.append(hit)",
+            "replace": " residue.append(\"probe\")"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the piece reconciliation reads only the entry's own record"
+      }
+    ],
+    "unit_settle_residue_stays_empty": [
+      {
+        "clause": "fixture-hit",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " if hit!=\"\": residue.append(hit)",
+            "replace": " residue.append(\"probe\")"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the full-restraint fixture installs every member class"
+      },
+      {
+        "clause": "piece-branch-drop",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "  \"P\":\n   hit=_piece_residue(g,record)",
+            "replace": "  \"P\":\n   hit=\"\""
+          }
+        ],
+        "suite": "equipment",
+        "expect": "a member installed and broken inside one unit is reported exactly once"
+      },
+      {
+        "clause": "quiet-write",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " g._debug_check(\"unit_settle_residue\",\"game.join_hooks\",\", \".join(residue))",
+            "replace": " g._emit(\"event\",\"probe\")\n g._debug_check(\"unit_settle_residue\",\"game.join_hooks\",\", \".join(residue))"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the piece reconciliation writes no state and appends no log line"
+      }
+    ],
+    "container_alias_writes_stay_on_projections": [
       {
         "clause": "primary",
         "file": "core/game.gd",

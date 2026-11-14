@@ -1065,8 +1065,12 @@ static func _kinds(probe) -> Array:
 static func _first_face(probe) -> Dictionary:
  return {} if probe.faces.is_empty() else probe.faces[0]
 
+# One filter for every debug-check row: `_check_rows` is the general form (the Q6'b clauses read
+# `settle_residue`／`unit_settle_residue` through it), so the Q5" frame helper delegates to it instead
+# of carrying a second copy of the same predicate. Behaviour of the three `_frame_issues` callers and
+# their ERROR copy is unchanged.
 static func _frame_issues(g) -> Array:
- return g.debug_check_failures.filter(func(row):return String(row.get("check",""))=="unit_frames")
+ return _check_rows(g,"unit_frames")
 
 # G-Q5-8（rev3.3 gherkin-delta）：钩子只在单位提交后跑一遍。探针在第一次钩子调用时看到的容器面必须
 # 已含本单位的全部成员——物理写在前、钩子在后，五类入口逐一走真实入口，返回时不留帧。
