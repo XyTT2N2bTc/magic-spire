@@ -1963,11 +1963,13 @@ static func _obs_log_keys(rows: Array, context: Dictionary) -> Dictionary:
 
 # Equal-value touches (CC-46): a port row whose own from/to are the same, so the log is right and the state
 # difference has nothing to show for it.
+static func _obs_equal_row(row: Dictionary) -> bool:
+ return str(row.get("port",""))=="durability" and str(row.get("from",""))==str(row.get("to",""))
+
 static func _obs_equal_keys(rows: Array, context: Dictionary) -> Dictionary:
  var keys={}
  for row in rows:
-  if str(row.get("port",""))!="durability": continue
-  if str(row.get("from",""))!=str(row.get("to","")): continue
+  if not _obs_equal_row(row): continue
   keys[_obs_fold(str(row.get("id","")),context["parents"],context["before"],context["after"])]=true
  return keys
 
@@ -2360,7 +2362,7 @@ static func _obs_judge(run: Dictionary, ledger: Dictionary) -> void:
    var port=str(row.get("port",""))
    if port=="durability":
     _obs_bump(ledger["coverage"],"durability_tighten" if bool(row.get("tighten",false)) else "durability_ease",label)
-    if str(row.get("from",""))==str(row.get("to","")):
+    if _obs_equal_row(row):
      _obs_bump(ledger["coverage"],"equal",label)
      ledger["equal"]=int(ledger["equal"])+1
    elif port in ["quality","tier","join","locked"]: _obs_bump(ledger["coverage"],port,label)
