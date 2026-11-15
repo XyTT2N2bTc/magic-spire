@@ -1990,6 +1990,18 @@
         ],
         "suite": "equipment",
         "expect": "dispatches one tier-2-to-3 tightening consequence"
+      },
+      {
+        "clause": "fixture-host-not-full",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": " _q7_quiet_normalize(g,keep)\n host=_q7_shoulder_host(g)",
+            "replace": " _q7_quiet_normalize(g,keep)\n host=_q7_shoulder_host(g)\n host.durability=host.maximum-0.1"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the G-Q7-1′ state freezes"
       }
     ],
     "shoulder_members_are_journaled": [
@@ -2198,6 +2210,30 @@
         ],
         "suite": "equipment",
         "expect": "reaches every row class"
+      },
+      {
+        "clause": "quiet-install-site",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": "  return \"S19\" if str(row.get(\"template\",\"\"))==hogtie else \"S18\"",
+            "replace": "  return \"S19\""
+          }
+        ],
+        "suite": "equipment",
+        "expect": "a rope-master install produces exactly one quiet settle row and it is S18"
+      },
+      {
+        "clause": "quiet-quality-frame",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " super._write_quality(target,grade)",
+            "replace": " super._write_quality(target,grade)\n quiet_settles.append(quiet_row(self,quiet_snapshot(self),\"S19\"))"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "a hogtie upgrade writes the quality port and settles nothing"
       }
     ]
   }
