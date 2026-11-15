@@ -2060,8 +2060,8 @@
         "file": "tests/write_journal_game.gd",
         "edits": [
           {
-            "find": "\"id\":String(record.get(\"id\",\"\"))",
-            "replace": "\"id\":\"phantom_\"+String(record.get(\"id\",\"\"))"
+            "find": " _journal_row(\"member\",record,{\"change\":change})\n super._member_changed(record,change)",
+            "replace": " _journal_row(\"member\",record,{\"change\":change})\n if not state.links.is_empty() and str(state.links[0].id)!=str(record.get(\"id\",\"\")): _journal_row(\"member\",state.links[0],{\"change\":\"removed\"})\n super._member_changed(record,change)"
           }
         ],
         "suite": "equipment",
