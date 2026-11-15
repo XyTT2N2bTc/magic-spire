@@ -1989,8 +1989,8 @@ static func _obs_equal_keys(rows: Array, context: Dictionary) -> Dictionary:
   keys[_obs_log_key(row,context)]=true
  return keys
 
-# Transitional members (CC-46): a logged id that exists on neither side of the window -- a member the sandbox
-# or the settle created and retired inside the same dispatch.
+# Transitional members (CC-46): a logged id that exists on neither side of the window -- a member a factory
+# created and the same window's settle retired (C0: enemy install, turn-start climax slip).
 static func _obs_transition_keys(rows: Array, phantom: Dictionary, context: Dictionary) -> Dictionary:
  var keys={}
  for row in rows:
@@ -2000,6 +2000,15 @@ static func _obs_transition_keys(rows: Array, phantom: Dictionary, context: Dict
   if context["before"].has(id) or context["after"].has(id): continue
   keys[key]=true
  return keys
+
+static func _obs_transition_boundary(start: Dictionary) -> Dictionary:
+ var context=_obs_context(start,start)
+ var present_id=str(start.equipment[0].id)
+ var absent_id=present_id+"_absent"
+ while context["before"].has(absent_id): absent_id+="_absent"
+ var absent_row={"port":"member","id":absent_id,"owner":"","change":"added","trial":false}
+ var present_row={"port":"durability","id":present_id,"owner":"","from":1.0,"to":2.0,"trial":false}
+ return {"transitional_accepts_absent":_obs_transition_keys([absent_row],{absent_id:true},context).has(absent_id),"transitional_rejects_present":_obs_transition_keys([present_row],{present_id:true},context).is_empty()}
 
 static func _obs_pair_boundaries() -> Dictionary:
  var before={"equipment":[{"id":"host","shoulders":{"template":"shoulder","grade":2,"material":"rope","source":"fixture","pieces":[]}}],"composites":[],"links":[],"special_equipment":[]}
@@ -2332,6 +2341,17 @@ static func _obs_run_b(g) -> Dictionary:
    _obs_push(run,g,_obs_card(g,glove_id+"_body"),null,"B4")
  return run
 
+static func _obs_run_c(g) -> Dictionary:
+ var run={"windows":[],"receipts":[],"labels":[],"skipped":[]}
+ var boss=g.state.enemies[0] if not g.state.enemies.is_empty() else {}
+ if boss.is_empty():
+  run["skipped"].append("C0:no_enemy")
+  return run
+ boss.intent={"kind":"special_install","type":"urethral_rod_low","slot":"special_2_d","tier":1,"grade":1,"name":"马眼棒","text":"施加马眼棒","delayed":false,"source":boss.id}
+ g.state.pressure=g.Pressure.maximum(g)-5.0
+ _obs_push(run,g,_obs_payload(g,"end"),null,"C0")
+ return run
+
 static func _obs_quiet(g) -> Array:
  var rows=g.get("quiet_settles")
  return rows if rows is Array else []
@@ -2482,7 +2502,8 @@ static func port_journal_matches_state_diff(t) -> void:
  var binding_keys_agree=bool(binding_boundary["ok"])
  var x3_state_independent=_obs_x3_boundary()
  var anchors_valid=_obs_anchors_valid()
- print("OBS Q7 BOUNDARIES shoulders="+str(pair_boundaries)+" binding="+str(binding_boundary)+" X3_state_independent="+str(x3_state_independent)+" anchors_valid="+str(anchors_valid))
+ var transition_boundary=_obs_transition_boundary(start_a)
+ print("OBS Q7 BOUNDARIES shoulders="+str(pair_boundaries)+" binding="+str(binding_boundary)+" X3_state_independent="+str(x3_state_independent)+" anchors_valid="+str(anchors_valid)+" transitional_accepts_absent="+str(transition_boundary["transitional_accepts_absent"])+" transitional_rejects_present="+str(transition_boundary["transitional_rejects_present"]))
  var wrist=_obs_wrist_piece(fixture.game)
  if not wrist.is_empty():
   wrist.durability=0.0
@@ -2494,13 +2515,19 @@ static func port_journal_matches_state_diff(t) -> void:
  var run_a=_obs_run(g_a)
  var g_b=_obs_port(journal,start_b)
  var run_b=_obs_run_b(g_b)
+ var g_c=_obs_port(journal,start_a)
+ var run_c=_obs_run_c(g_c)
  var a=_obs_ledger("A")
  var b=_obs_ledger("B")
+ var c=_obs_ledger("C")
  b["skipped"]=run_b["skipped"]
+ c["skipped"]=run_c["skipped"]
  _obs_judge(run_a,a)
  _obs_judge(run_b,b)
+ _obs_judge(run_c,c)
  if not g_a.cleanup_frames.is_empty(): _obs_bump(a["coverage"],"cleanup","frames")
  if not g_b.cleanup_frames.is_empty(): _obs_bump(b["coverage"],"cleanup","frames")
+ if not g_c.cleanup_frames.is_empty(): _obs_bump(c["coverage"],"cleanup","frames")
  var master_plain=preload("res://tests/rope_master_cases.gd").encounter()
  var master_state=master_plain.state.duplicate(true)
  var master=_obs_clone(journal,master_state)
@@ -2510,26 +2537,38 @@ static func port_journal_matches_state_diff(t) -> void:
  for step in counted["steps"]:
   for port in counted["steps"][step].get("ports",{}): _obs_bump(m["coverage"],str(port),"M:"+str(step))
  var classes=["durability_tighten","durability_ease","quality","tier","member_added","member_removed","removed_root","removed_link","join","locked","trial","equal","transitional","cleanup","strap_followed"]
- var uncovered=classes.filter(func(name):return int(a["coverage"].get(name,[]).size())+int(b["coverage"].get(name,[]).size())+int(m["coverage"].get(name,[]).size())==0)
+ var uncovered=classes.filter(func(name):return int(a["coverage"].get(name,[]).size())+int(b["coverage"].get(name,[]).size())+int(c["coverage"].get(name,[]).size())+int(m["coverage"].get(name,[]).size())==0)
  var triggered={}
- for ledger in [a,b]:
+ for ledger in [a,b,c]:
   for name in ledger["triggered"]: triggered[name]=int(triggered.get(name,0))+int(ledger["triggered"][name])
- for ledger in [a,b]:
+ for ledger in [a,b,c]:
   print("OBS Q7 COVERAGE "+str(ledger["label"])+" windows="+str(ledger["windows"])+" labels="+str(ledger["labels"])+" sandbox="+str(ledger["sandbox"])+" equal="+str(ledger["equal"])+" transitional="+str(ledger["transitional"])+" coverage="+str(ledger["coverage"])+" triggered="+str(ledger["triggered"]))
  print("OBS Q7 COVERAGE M steps="+str(counted["steps"].size())+" coverage="+str(m["coverage"])+" skipped="+str(b["skipped"])+" uncovered="+str(uncovered)+" triggered="+str(triggered))
- t.check(a["failed"].is_empty() and b["failed"].is_empty() and a["missing"].is_empty() and b["missing"].is_empty() and shoulder_fields_complete and binding_keys_agree,"OBS port_journal_matches_state_diff: every changed record is journaled -- for every window of both dispatch segments the state difference of the four containers and their nested members is a subset of the log keys, with the three declared fields subtracted only under their own condition and only while the record stays on both sides: windows="+str(a["windows"])+"/"+str(b["windows"])+" failed="+str(a["failed"]+b["failed"])+" missing="+str(a["missing"]+b["missing"])+" shoulder_fields_complete="+str(shoulder_fields_complete)+" binding_keys_agree="+str(binding_keys_agree))
- t.check(a["forged"].is_empty() and b["forged"].is_empty(),"OBS port_journal_matches_state_diff: journaled records all changed or were equal-value writes -- in windows without sandbox rows the log keys minus the difference keys are equal-value durability touches or transitional members, so no row invents an id: forged="+str(a["forged"]+b["forged"]))
- t.check(OBS_UNJOURNALED_FIELDS.size()==3 and OBS_UNJOURNALED_FIELDS.all(func(row):return int(triggered.get(str(row.get("name","")),0))>0) and a["leaks"].is_empty() and b["leaks"].is_empty() and x3_state_independent and anchors_valid,"OBS port_journal_matches_state_diff: declared unjournaled fields are exercised and stay unjournaled -- each of the three declared rows fires at least once in the two segments and the id it excuses is absent from that window's log keys (a row that never fires or excuses a journaled id is a lie): declared="+str(triggered)+" leaks="+str(a["leaks"]+b["leaks"])+" X3_state_independent="+str(x3_state_independent)+" anchors_valid="+str(anchors_valid))
- t.check(int(a["windows"])>=7 and int(b["windows"])==5 and b["labels"]==["B0","B1","B2","B3","B4"] and b["skipped"].is_empty() and uncovered.is_empty(),"OBS port_journal_matches_state_diff: the dispatch sequence reaches every row class the clause names (both durability intents, the quality port, the tier row, member adds, member removals including a composite root and a link that followed its end, the join row, the lock port, a sandbox window, an equal-value write, a transitional member, the settle, and a main piece whose reinforcement strap leaves with it), so the two directions above are not judged on an empty set: windows="+str(a["windows"])+"/"+str(b["windows"])+" labels="+str(b["labels"])+" skipped="+str(b["skipped"])+" uncovered="+str(uncovered)+" A="+str(a["coverage"])+" B="+str(b["coverage"])+" M="+str(m["coverage"]))
+ for window in run_c["windows"]:
+  print("OBS Q7 C0 ok="+str(window["ok"])+" sandbox="+str(window["mixed"])+" trial_rows="+str(window["trial"].size())+" real_rows="+str(window["real"].size())+" transitional="+str(window["transitional"])+" missing="+str(c["missing"])+" forged="+str(c["forged"])+" skipped="+str(c["skipped"]))
+ for segment_index in range(3):
+  var segment=[run_a,run_b,run_c][segment_index]
+  for window_index in range(segment["windows"].size()):
+   var window=segment["windows"][window_index]
+   var label=str(window["label"]) if str(window["label"])!="" else ["A","B","C"][segment_index]+str(window_index)
+   if not window["diff"]["triggered"].is_empty(): print("OBS Q7 TRIGGERS "+label+" "+str(window["diff"]["deducted"]))
+ t.check(a["failed"].is_empty() and b["failed"].is_empty() and c["failed"].is_empty() and a["missing"].is_empty() and b["missing"].is_empty() and c["missing"].is_empty() and shoulder_fields_complete and binding_keys_agree,"OBS port_journal_matches_state_diff: every changed record is journaled -- for every window of both dispatch segments the state difference of the four containers and their nested members is a subset of the log keys, with the three declared fields subtracted only under their own condition and only while the record stays on both sides: windows="+str(a["windows"])+"/"+str(b["windows"])+" failed="+str(a["failed"]+b["failed"]+c["failed"])+" missing="+str(a["missing"]+b["missing"]+c["missing"])+" shoulder_fields_complete="+str(shoulder_fields_complete)+" binding_keys_agree="+str(binding_keys_agree)+" C="+str(c))
+ t.check(a["forged"].is_empty() and b["forged"].is_empty() and c["forged"].is_empty() and transition_boundary.values().all(func(ok):return bool(ok)),"OBS port_journal_matches_state_diff: journaled records all changed or were equal-value writes -- in windows without sandbox rows the log keys minus the difference keys are equal-value durability touches or transitional members, so no row invents an id: forged="+str(a["forged"]+b["forged"]+c["forged"])+" C="+str(c)+" transitional_accepts_absent="+str(transition_boundary["transitional_accepts_absent"])+" transitional_rejects_present="+str(transition_boundary["transitional_rejects_present"]))
+ t.check(OBS_UNJOURNALED_FIELDS.size()==3 and OBS_UNJOURNALED_FIELDS.all(func(row):return int(triggered.get(str(row.get("name","")),0))>0) and a["leaks"].is_empty() and b["leaks"].is_empty() and c["leaks"].is_empty() and x3_state_independent and anchors_valid,"OBS port_journal_matches_state_diff: declared unjournaled fields are exercised and stay unjournaled -- each of the three declared rows fires at least once in the two segments and the id it excuses is absent from that window's log keys (a row that never fires or excuses a journaled id is a lie): declared="+str(triggered)+" leaks="+str(a["leaks"]+b["leaks"]+c["leaks"])+" X3_state_independent="+str(x3_state_independent)+" anchors_valid="+str(anchors_valid)+" C="+str(c))
+ t.check(int(a["windows"])>=7 and int(b["windows"])==5 and b["labels"]==["B0","B1","B2","B3","B4"] and b["skipped"].is_empty() and int(c["windows"])==1 and c["labels"]==["C0"] and c["skipped"].is_empty() and int(c["sandbox"])==0 and int(c["transitional"])>0 and uncovered.is_empty(),"OBS port_journal_matches_state_diff: the dispatch sequence reaches every row class the clause names (both durability intents, the quality port, the tier row, member adds, member removals including a composite root and a link that followed its end, the join row, the lock port, a sandbox window, an equal-value write, a transitional member, the settle, and a main piece whose reinforcement strap leaves with it), so the two directions above are not judged on an empty set: windows="+str(a["windows"])+"/"+str(b["windows"])+" labels="+str(b["labels"])+" skipped="+str(b["skipped"])+" uncovered="+str(uncovered)+" A="+str(a["coverage"])+" B="+str(b["coverage"])+" M="+str(m["coverage"])+" C="+str(c))
  var plain_a=_obs_port(plain_class,start_a)
  var replay_a=_obs_run(plain_a)
  var plain_b=_obs_port(plain_class,start_b)
  var replay_b=_obs_run_b(plain_b)
+ var plain_c=_obs_port(plain_class,start_a)
+ var replay_c=_obs_run_c(plain_c)
  var same_a=_obs_same(plain_a,g_a,replay_a,run_a)
  var same_b=_obs_same(plain_b,g_b,replay_b,run_b)
+ var same_c=_obs_same(plain_c,g_c,replay_c,run_c)
  var same_m=_obs_same(master_plain,master)
- var transparent=same_a.values().all(func(ok):return bool(ok)) and same_b.values().all(func(ok):return bool(ok)) and same_m.values().all(func(ok):return bool(ok))
- t.check(transparent,"OBS port_journal_matches_state_diff: the journal subclass is transparent -- the same seed, start state and sequence on `tests/game_fixture.gd` and on the journal produce equal receipts, `SaveStore.encode(state)`, the state logs, the rng counters, `write_epoch()` and the debug check failures for both segments, and the counting self-check's master steps agree too (they dispatch nothing, so their receipt lists are equal), so no override drops or reorders a `super` call: A="+str(same_a)+" B="+str(same_b)+" M="+str(same_m))
+ var transparent=same_a.values().all(func(ok):return bool(ok)) and same_b.values().all(func(ok):return bool(ok)) and same_c.values().all(func(ok):return bool(ok)) and same_m.values().all(func(ok):return bool(ok))
+ print("OBS Q7 TRANSPARENCY A="+str(same_a)+" B="+str(same_b)+" C="+str(same_c)+" M="+str(same_m))
+ t.check(transparent,"OBS port_journal_matches_state_diff: the journal subclass is transparent -- the same seed, start state and sequence on `tests/game_fixture.gd` and on the journal produce equal receipts, `SaveStore.encode(state)`, the state logs, the rng counters, `write_epoch()` and the debug check failures for both segments, and the counting self-check's master steps agree too (they dispatch nothing, so their receipt lists are equal), so no override drops or reorders a `super` call: A="+str(same_a)+" B="+str(same_b)+" M="+str(same_m)+" C="+str(same_c))
  var install=counted["steps"].get("install",{})
  var hogtie=counted["steps"].get("hogtie_new",{})
  var upgrade=counted["steps"].get("hogtie_upgrade",{})

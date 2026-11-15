@@ -2318,6 +2318,42 @@
         ],
         "suite": "equipment",
         "expect": "a hogtie upgrade writes the quality port and settles nothing"
+      },
+      {
+        "clause": "transitional-tolerance-dropped",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": "    if window[\"equal\"].has(key) or transitional.has(key): continue",
+            "replace": "    if window[\"equal\"].has(key): continue"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "journaled records all changed or were equal-value writes"
+      },
+      {
+        "clause": "transitional-never-found",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": "  if context[\"before\"].has(id) or context[\"after\"].has(id): continue\n  keys[key]=true",
+            "replace": "  if context[\"before\"].has(id) or context[\"after\"].has(id): continue"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "reaches every row class"
+      },
+      {
+        "clause": "transitional-overbroad",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": "  if context[\"before\"].has(id) or context[\"after\"].has(id): continue",
+            "replace": "  pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "transitional_rejects_present=false"
       }
     ]
   }
