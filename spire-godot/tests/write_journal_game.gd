@@ -15,6 +15,7 @@ var quality_entries: Array=[]
 var cleanup_frames: Array=[]
 var journal: Array=[]
 var quiet_settles: Array=[]
+var _quiet_frame_end: int=0
 
 # One row: `port` names the overridden port, `id`/`template` the record, `owner` the container owner the
 # attribution rule groups by (root component, shoulder host, torso binding parent; empty otherwise),
@@ -116,7 +117,7 @@ static func quiet_row(g, before: Dictionary, site: String) -> Dictionary:
 # install and its own quiet settle.
 func _quiet_site() -> String:
  var hogtie=str(preload("res://core/rope_master.gd").HOGTIE)
- for index in range(journal.size()-1,-1,-1):
+ for index in range(journal.size()-1,_quiet_frame_end-1,-1):
   var row=journal[index]
   if str(row.get("port",""))!="member" or str(row.get("change",""))!="added" or bool(row.get("trial",false)): continue
   return "S19" if str(row.get("template",""))==hogtie else "S18"
@@ -137,6 +138,7 @@ func _cleanup(released: bool=true) -> void:
  frame["exit_durability"]=durability_entries.size()
  frame["exit_quality"]=quality_entries.size()
  if not quiet_before.is_empty(): quiet_settles.append(quiet_row(self,quiet_before,_quiet_site()))
+ _quiet_frame_end=journal.size()
 
 func settle_port_entries() -> Array:
  var rows=[]

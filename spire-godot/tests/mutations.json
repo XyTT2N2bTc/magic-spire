@@ -1956,6 +1956,18 @@
     ],
     "reinforce_writes_are_journaled": [
       {
+        "clause": "successful-install-row",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": " var from=g.journal.size()\n var result=t.action(g,\"end\")\n var window=g.journal.slice(from)",
+            "replace": " var from=g.journal.size()\n var result=t.action(g,\"end\")\n g._journal_row(\"member\",host,{\"change\":\"added\"})\n var window=g.journal.slice(from)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the frozen turn installs no top-level record"
+      },
+      {
         "clause": "journal-durability-row",
         "file": "tests/write_journal_game.gd",
         "edits": [
@@ -2044,6 +2056,78 @@
     ],
     "port_journal_matches_state_diff": [
       {
+        "clause": "shoulder-pair-unobserved",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": "  if str(key)==\"components\": continue\n  if str(key)==\"shoulders\":\n   var pair=Dictionary(record[key]).duplicate(true)\n   pair.erase(\"pieces\")\n   fields[str(key)]=JSON.stringify(pair)\n   continue",
+            "replace": "  if str(key) in [\"shoulders\",\"components\"]: continue"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "shoulder_fields_complete=false"
+      },
+      {
+        "clause": "binding-owner-ignored",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": " if owner!=\"\" and str(context[\"bindings\"].get(id,\"\"))==owner: id=owner",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "binding_keys_agree=false"
+      },
+      {
+        "clause": "quiet-site-cross-frame",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " for index in range(journal.size()-1,_quiet_frame_end-1,-1):",
+            "replace": " for index in range(journal.size()-1,-1,-1):"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "a hogtie followed by an install-free settle is S18"
+      },
+      {
+        "clause": "zeroed-site-unchecked",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": " return int(zeroed.get(\"rows\",-1))==1 and zeroed.get(\"sites\",[])==[\"S18\"] and zeroed.get(\"did_work\",[])",
+            "replace": " return int(zeroed.get(\"rows\",-1))==1 and zeroed.get(\"did_work\",[])"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "rejects_wrong_site=false"
+      },
+      {
+        "clause": "x3-reads-journal",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": " var assembly=after.composites.any(func(root):return not before_records.has(str(root.id)))",
+            "replace": " var assembly=rows.any(func(row):return String(row.get(\"port\",\"\"))==\"member\" and String(row.get(\"change\",\"\"))==\"added\" and after.composites.any(func(root):return str(root.id)==str(row.get(\"id\",\"\"))))"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "X3_state_independent=false"
+      },
+      {
+        "clause": "declared-anchor-missing",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": ",\"anchor\":\"core/game.gd::_tick_special\"",
+            "replace": ""
+          }
+        ],
+        "suite": "equipment",
+        "expect": "anchors_valid=false"
+      },
+      {
         "clause": "strap-leaves-unannounced",
         "file": "core/equipment_removal.gd",
         "edits": [
@@ -2084,7 +2168,7 @@
         "file": "tests/equipment_cases.gd",
         "edits": [
           {
-            "find": "\n {\"name\":\"X1\",\"field\":\"remaining\",\"condition\":\"changed\",\"why\":\"special-equipment duration ticks without a port\"},",
+            "find": "\n {\"name\":\"X1\",\"field\":\"remaining\",\"condition\":\"changed\",\"why\":\"special-equipment duration ticks without a port\",\"anchor\":\"core/game.gd::_tick_special\"},",
             "replace": ""
           }
         ],
@@ -2096,8 +2180,8 @@
         "file": "tests/equipment_cases.gd",
         "edits": [
           {
-            "find": " {\"name\":\"X3\",\"field\":\"binding\",\"condition\":\"erased\",\"why\":\"a composite installation erases the neighbour piece's torso binding\"}]",
-            "replace": " {\"name\":\"X3\",\"field\":\"binding\",\"condition\":\"erased\",\"why\":\"a composite installation erases the neighbour piece's torso binding\"},\n {\"name\":\"X9\",\"field\":\"grade\",\"condition\":\"changed\",\"why\":\"declared but the sequence never writes it outside the quality port\"}]"
+            "find": " {\"name\":\"X3\",\"field\":\"binding\",\"condition\":\"erased\",\"why\":\"a composite installation erases the neighbour piece's torso binding\",\"anchor\":\"core/torso_binding.gd::cancel_for_assembly\"}]",
+            "replace": " {\"name\":\"X3\",\"field\":\"binding\",\"condition\":\"erased\",\"why\":\"a composite installation erases the neighbour piece's torso binding\",\"anchor\":\"core/torso_binding.gd::cancel_for_assembly\"},\n {\"name\":\"X9\",\"field\":\"grade\",\"condition\":\"changed\",\"why\":\"declared but the sequence never writes it outside the quality port\"}]"
           }
         ],
         "suite": "equipment",

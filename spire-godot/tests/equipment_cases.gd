@@ -1843,16 +1843,21 @@ static func shoulder_members_are_journaled(t) -> void:
 # only while its record stays on both sides of the window (CC-52): a whole-record add or removal is the
 # member rows' business and is never excused here.
 const OBS_UNJOURNALED_FIELDS=[
- {"name":"X1","field":"remaining","condition":"changed","why":"special-equipment duration ticks without a port"},
- {"name":"X2","field":"reinforcement_state","condition":"retired","why":"a released reinforcement strap marks its owner in place"},
- {"name":"X3","field":"binding","condition":"erased","why":"a composite installation erases the neighbour piece's torso binding"}]
+ {"name":"X1","field":"remaining","condition":"changed","why":"special-equipment duration ticks without a port","anchor":"core/game.gd::_tick_special"},
+ {"name":"X2","field":"reinforcement_state","condition":"retired","why":"a released reinforcement strap marks its owner in place","anchor":"core/equipment_removal.gd::settle"},
+ {"name":"X3","field":"binding","condition":"erased","why":"a composite installation erases the neighbour piece's torso binding","anchor":"core/torso_binding.gd::cancel_for_assembly"}]
 
-# One record's comparable field map: every key except the nested containers that are counted as their own
-# records (`shoulders`, `components`). `binding` stays a field of its host, which is CC-47's attribution.
+# One record's comparable field map: components and shoulder pieces are counted as their own records;
+# shoulder-pair metadata and `binding` stay fields of their host, which is CC-47's attribution.
 static func _obs_fields(record: Dictionary) -> Dictionary:
  var fields={}
  for key in record:
-  if str(key) in ["shoulders","components"]: continue
+  if str(key)=="components": continue
+  if str(key)=="shoulders":
+   var pair=Dictionary(record[key]).duplicate(true)
+   pair.erase("pieces")
+   fields[str(key)]=JSON.stringify(pair)
+   continue
   fields[str(key)]=JSON.stringify(record[key])
  return fields
 
@@ -1920,13 +1925,18 @@ static func _obs_context(before: Dictionary, after: Dictionary) -> Dictionary:
  var after_records=_obs_records(after)
  var parents=_obs_parents(before_records)
  parents.merge(_obs_parents(after_records),true)
- return {"before":before_records,"after":after_records,"parents":parents}
+ var bindings={}
+ for records in [before_records,after_records]:
+  for id in records:
+   var binding=JSON.parse_string(str(records[id]["fields"].get("binding","null")))
+   if binding is Dictionary and binding.has("parent_id"): bindings[str(binding.get("id",""))]=str(binding.parent_id)
+ return {"before":before_records,"after":after_records,"parents":parents,"bindings":bindings}
 
 static func _obs_diff(after: Dictionary, rows: Array, context: Dictionary) -> Dictionary:
  var before_records=context["before"]
  var after_records=context["after"]
  var parents=context["parents"]
- var assembly=rows.any(func(row):return String(row.get("port",""))=="member" and String(row.get("change",""))=="added" and after.composites.any(func(root):return str(root.id)==str(row.get("id",""))))
+ var assembly=after.composites.any(func(root):return not before_records.has(str(root.id)))
  var union=before_records.keys()
  for id in after_records: if not union.has(id): union.append(id)
  var keys={}
@@ -1955,10 +1965,16 @@ static func _obs_diff(after: Dictionary, rows: Array, context: Dictionary) -> Di
 
 # The log side of the same window, folded with the same rule. `rows` is the window's real rows, or the union
 # of real and sandbox rows when the window opened the replacement sandbox (CC-45).
+static func _obs_log_key(row: Dictionary, context: Dictionary) -> String:
+ var id=str(row.get("id",""))
+ var owner=str(row.get("owner",""))
+ if owner!="" and str(context["bindings"].get(id,""))==owner: id=owner
+ return _obs_fold(id,context["parents"],context["before"],context["after"])
+
 static func _obs_log_keys(rows: Array, context: Dictionary) -> Dictionary:
  var keys={}
  for row in rows:
-  keys[_obs_fold(str(row.get("id","")),context["parents"],context["before"],context["after"])]=true
+  keys[_obs_log_key(row,context)]=true
  return keys
 
 # Equal-value touches (CC-46): a port row whose own from/to are the same, so the log is right and the state
@@ -1970,7 +1986,7 @@ static func _obs_equal_keys(rows: Array, context: Dictionary) -> Dictionary:
  var keys={}
  for row in rows:
   if not _obs_equal_row(row): continue
-  keys[_obs_fold(str(row.get("id","")),context["parents"],context["before"],context["after"])]=true
+  keys[_obs_log_key(row,context)]=true
  return keys
 
 # Transitional members (CC-46): a logged id that exists on neither side of the window -- a member the sandbox
@@ -1979,10 +1995,62 @@ static func _obs_transition_keys(rows: Array, phantom: Dictionary, context: Dict
  var keys={}
  for row in rows:
   var id=str(row.get("id",""))
-  if not phantom.has(id): continue
+  var key=_obs_log_key(row,context)
+  if context["bindings"].has(id) or not phantom.has(key): continue
   if context["before"].has(id) or context["after"].has(id): continue
-  keys[id]=true
+  keys[key]=true
  return keys
+
+static func _obs_pair_boundaries() -> Dictionary:
+ var before={"equipment":[{"id":"host","shoulders":{"template":"shoulder","grade":2,"material":"rope","source":"fixture","pieces":[]}}],"composites":[],"links":[],"special_equipment":[]}
+ var checks={}
+ for field in ["template","grade","material","source"]:
+  var after=before.duplicate(true)
+  after.equipment[0].shoulders[field]=3 if field=="grade" else "changed"
+  checks[field]=_obs_diff(after,[],_obs_context(before,after))["keys"].has("host")
+ var absent=before.duplicate(true)
+ absent.equipment[0].erase("shoulders")
+ checks["removed"]=_obs_diff(absent,[],_obs_context(before,absent))["keys"].has("host")
+ checks["added"]=_obs_diff(before,[],_obs_context(absent,before))["keys"].has("host")
+ checks["unchanged"]=_obs_diff(before,[],_obs_context(before,before))["keys"].is_empty()
+ return checks
+
+static func _obs_binding_boundary(start: Dictionary) -> Dictionary:
+ var g=_obs_clone(preload("res://tests/write_journal_game.gd"),start)
+ var host={}
+ for piece in g.state.equipment:
+  if piece.has("binding") and piece.binding.has("durability") and piece.binding.has("parent_id"):
+   host=piece
+   break
+ if host.is_empty(): return {"ok":false,"target":"absent"}
+ var before=g.state.duplicate(true)
+ var from=g.journal.size()
+ g._write_durability(host.binding,float(host.binding.durability)-0.1,false)
+ var rows=g.journal.slice(from)
+ var context=_obs_context(before,g.state)
+ var diff=_obs_diff(g.state,rows,context)["keys"]
+ var log=_obs_log_keys(rows,context)
+ var missing=diff.keys().filter(func(id):return not log.has(id))
+ var forged=log.keys().filter(func(id):return not diff.has(id))
+ return {"ok":rows.size()>0 and diff.has(str(host.id)) and missing.is_empty() and forged.is_empty(),"host":str(host.id),"binding":str(host.binding.id),"missing":missing,"forged":forged,"rows":rows}
+
+static func _obs_x3_boundary() -> bool:
+ var before={"equipment":[{"id":"neighbour","binding":{"id":"binding","parent_id":"neighbour"}}],"composites":[],"links":[],"special_equipment":[]}
+ var after=before.duplicate(true)
+ after.equipment[0].erase("binding")
+ after.composites.append({"id":"root","components":[]})
+ var context=_obs_context(before,after)
+ var absent=_obs_diff(after,[],context)
+ var logged=_obs_diff(after,[{"port":"member","change":"added","id":"root"}],context)
+ return absent==logged and absent["triggered"].has("X3") and absent["deducted"].get("X3",[])==["neighbour"]
+
+static func _obs_anchors_valid() -> bool:
+ for row in OBS_UNJOURNALED_FIELDS:
+  var anchor=str(row.get("anchor","")).split("::")
+  if anchor.size()!=2: return false
+  var source=FileAccess.get_file_as_string("res://"+anchor[0])
+  if not source.contains("func "+anchor[1]+"("): return false
+ return true
 
 # The first valid payload of one action kind, so a window is driven by the real command table.
 static func _obs_payload(g, kind: String) -> Dictionary:
@@ -2282,6 +2350,9 @@ static func _obs_step(g, from_quiet: int, from_journal: int) -> Dictionary:
 # The §3 counting self-check steps (plan-delta §3): install (S18), a new hogtie (S19), a hogtie upgrade (the
 # quality port, no row), one replacement plan (the sandbox, no row), and an install after a zeroed piece (an
 # S18 row with `did_work` and the piece in `left`). The same function runs on both classes.
+static func _obs_zeroed_valid(zeroed: Dictionary) -> bool:
+ return int(zeroed.get("rows",-1))==1 and zeroed.get("sites",[])==["S18"] and zeroed.get("did_work",[]).all(func(did):return did) and zeroed.get("left",[]).any(func(left):return str(zeroed.get("victim","")) in left)
+
 static func _obs_master(g) -> Dictionary:
  var out={"steps":{}}
  var boss=g.RopeArt.master(g)
@@ -2295,6 +2366,13 @@ static func _obs_master(g) -> Dictionary:
  j=_obs_journal(g).size()
  g.RopeArt.hogtie(g,boss,2)
  out["steps"]["hogtie_new"]=_obs_step(g,q,j)
+ q=_obs_quiet(g).size()
+ j=_obs_journal(g).size()
+ var empty_spec=g.RopeArt.spec(1,2)
+ empty_spec.templates=[]
+ var installed=g.RopeArt.install(g,boss,empty_spec)
+ out["steps"]["install_free"]=_obs_step(g,q,j)
+ out["steps"]["install_free"]["installed"]=bool(installed)
  q=_obs_quiet(g).size()
  j=_obs_journal(g).size()
  g.RopeArt.hogtie(g,boss,3)
@@ -2398,6 +2476,13 @@ static func _obs_same(plain, g, replay: Dictionary={}, run: Dictionary={}) -> Di
 static func port_journal_matches_state_diff(t) -> void:
  var fixture=_full_restraint()
  var start_a=fixture.game.state.duplicate(true)
+ var pair_boundaries=_obs_pair_boundaries()
+ var shoulder_fields_complete=pair_boundaries.values().all(func(ok):return bool(ok))
+ var binding_boundary=_obs_binding_boundary(start_a)
+ var binding_keys_agree=bool(binding_boundary["ok"])
+ var x3_state_independent=_obs_x3_boundary()
+ var anchors_valid=_obs_anchors_valid()
+ print("OBS Q7 BOUNDARIES shoulders="+str(pair_boundaries)+" binding="+str(binding_boundary)+" X3_state_independent="+str(x3_state_independent)+" anchors_valid="+str(anchors_valid))
  var wrist=_obs_wrist_piece(fixture.game)
  if not wrist.is_empty():
   wrist.durability=0.0
@@ -2432,9 +2517,9 @@ static func port_journal_matches_state_diff(t) -> void:
  for ledger in [a,b]:
   print("OBS Q7 COVERAGE "+str(ledger["label"])+" windows="+str(ledger["windows"])+" labels="+str(ledger["labels"])+" sandbox="+str(ledger["sandbox"])+" equal="+str(ledger["equal"])+" transitional="+str(ledger["transitional"])+" coverage="+str(ledger["coverage"])+" triggered="+str(ledger["triggered"]))
  print("OBS Q7 COVERAGE M steps="+str(counted["steps"].size())+" coverage="+str(m["coverage"])+" skipped="+str(b["skipped"])+" uncovered="+str(uncovered)+" triggered="+str(triggered))
- t.check(a["failed"].is_empty() and b["failed"].is_empty() and a["missing"].is_empty() and b["missing"].is_empty(),"OBS port_journal_matches_state_diff: every changed record is journaled -- for every window of both dispatch segments the state difference of the four containers and their nested members is a subset of the log keys, with the three declared fields subtracted only under their own condition and only while the record stays on both sides: windows="+str(a["windows"])+"/"+str(b["windows"])+" failed="+str(a["failed"]+b["failed"])+" missing="+str(a["missing"]+b["missing"]))
+ t.check(a["failed"].is_empty() and b["failed"].is_empty() and a["missing"].is_empty() and b["missing"].is_empty() and shoulder_fields_complete and binding_keys_agree,"OBS port_journal_matches_state_diff: every changed record is journaled -- for every window of both dispatch segments the state difference of the four containers and their nested members is a subset of the log keys, with the three declared fields subtracted only under their own condition and only while the record stays on both sides: windows="+str(a["windows"])+"/"+str(b["windows"])+" failed="+str(a["failed"]+b["failed"])+" missing="+str(a["missing"]+b["missing"])+" shoulder_fields_complete="+str(shoulder_fields_complete)+" binding_keys_agree="+str(binding_keys_agree))
  t.check(a["forged"].is_empty() and b["forged"].is_empty(),"OBS port_journal_matches_state_diff: journaled records all changed or were equal-value writes -- in windows without sandbox rows the log keys minus the difference keys are equal-value durability touches or transitional members, so no row invents an id: forged="+str(a["forged"]+b["forged"]))
- t.check(OBS_UNJOURNALED_FIELDS.size()==3 and OBS_UNJOURNALED_FIELDS.all(func(row):return int(triggered.get(str(row.get("name","")),0))>0) and a["leaks"].is_empty() and b["leaks"].is_empty(),"OBS port_journal_matches_state_diff: declared unjournaled fields are exercised and stay unjournaled -- each of the three declared rows fires at least once in the two segments and the id it excuses is absent from that window's log keys (a row that never fires or excuses a journaled id is a lie): declared="+str(triggered)+" leaks="+str(a["leaks"]+b["leaks"]))
+ t.check(OBS_UNJOURNALED_FIELDS.size()==3 and OBS_UNJOURNALED_FIELDS.all(func(row):return int(triggered.get(str(row.get("name","")),0))>0) and a["leaks"].is_empty() and b["leaks"].is_empty() and x3_state_independent and anchors_valid,"OBS port_journal_matches_state_diff: declared unjournaled fields are exercised and stay unjournaled -- each of the three declared rows fires at least once in the two segments and the id it excuses is absent from that window's log keys (a row that never fires or excuses a journaled id is a lie): declared="+str(triggered)+" leaks="+str(a["leaks"]+b["leaks"])+" X3_state_independent="+str(x3_state_independent)+" anchors_valid="+str(anchors_valid))
  t.check(int(a["windows"])>=7 and int(b["windows"])==5 and b["labels"]==["B0","B1","B2","B3","B4"] and b["skipped"].is_empty() and uncovered.is_empty(),"OBS port_journal_matches_state_diff: the dispatch sequence reaches every row class the clause names (both durability intents, the quality port, the tier row, member adds, member removals including a composite root and a link that followed its end, the join row, the lock port, a sandbox window, an equal-value write, a transitional member, the settle, and a main piece whose reinforcement strap leaves with it), so the two directions above are not judged on an empty set: windows="+str(a["windows"])+"/"+str(b["windows"])+" labels="+str(b["labels"])+" skipped="+str(b["skipped"])+" uncovered="+str(uncovered)+" A="+str(a["coverage"])+" B="+str(b["coverage"])+" M="+str(m["coverage"]))
  var plain_a=_obs_port(plain_class,start_a)
  var replay_a=_obs_run(plain_a)
@@ -2450,8 +2535,12 @@ static func port_journal_matches_state_diff(t) -> void:
  var upgrade=counted["steps"].get("hogtie_upgrade",{})
  var planned=counted["steps"].get("replacement_plan",{})
  var zeroed=counted["steps"].get("pre_zero",{})
+ var wrong_site=zeroed.duplicate(true)
+ wrong_site["sites"]=["S19"]
+ var install_free=counted["steps"].get("install_free",{})
+ t.check(int(install_free.get("rows",-1))==1 and install_free.get("sites",[])==["S18"] and not bool(install_free.get("installed",true)) and install_free.get("ports",{}).is_empty(),"OBS port_journal_matches_state_diff: a hogtie followed by an install-free settle is S18 -- no member row from the previous cleanup frame may classify this frame: install_free="+str(install_free))
  t.check(int(install.get("rows",-1))==1 and install.get("sites",[]).all(func(site):return site=="S18"),"OBS port_journal_matches_state_diff: a rope-master install produces exactly one quiet settle row and it is S18 -- the site is read from the last real member/added row since the previous settle frame, and nothing settles between the install and its own `_cleanup(false)`: install="+str(install))
  t.check(int(hogtie.get("rows",-1))==1 and hogtie.get("sites",[]).all(func(site):return site=="S19"),"OBS port_journal_matches_state_diff: a new hogtie produces exactly one quiet settle row and it is S19, because its install row carries the art_hogtie template: hogtie="+str(hogtie))
  t.check(int(upgrade.get("rows",-1))==0 and int(upgrade.get("ports",{}).get("quality",0))>0,"OBS port_journal_matches_state_diff: a hogtie upgrade writes the quality port and settles nothing, so it produces no quiet settle row: upgrade="+str(upgrade))
  t.check(int(planned.get("rows",-1))==0,"OBS port_journal_matches_state_diff: one replacement plan settles nothing -- its writes happen in the sandbox and are restored, so the quiet counter does not see them: plan="+str(planned))
- t.check(int(zeroed.get("rows",-1))==1 and zeroed.get("did_work",[]).all(func(did):return did) and zeroed.get("left",[]).any(func(left):return str(zeroed.get("victim","")) in left),"OBS port_journal_matches_state_diff: a quiet settle that releases a zeroed piece reports work and names it -- the S18 row after the install has `did_work` true and the piece in `left`, so the counter is a release witness and not a frame counter: zeroed="+str(zeroed))
+ t.check(_obs_zeroed_valid(zeroed) and not _obs_zeroed_valid(wrong_site),"OBS port_journal_matches_state_diff: a quiet settle that releases a zeroed piece reports work and names it -- the S18 row after the install has `did_work` true and the piece in `left`, so the counter is a release witness and not a frame counter: zeroed="+str(zeroed)+" rejects_wrong_site="+str(not _obs_zeroed_valid(wrong_site)))
