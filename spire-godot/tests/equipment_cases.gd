@@ -2345,7 +2345,9 @@ static func _obs_master(g) -> Dictionary:
  out["steps"]["hogtie_upgrade"]=_obs_step(g,q,j)
  q=_obs_quiet(g).size()
  j=_obs_journal(g).size()
- var planned=preload("res://core/equipment_replacement.gd").plan(g,[g.RopeArt.spec(1,1)],"obs")
+ # A real plan (the existing `REMOVAL previews_never_leak_join_effects` fixture shape) so the step exercises
+ # the sandbox's own `_cleanup(false)` instead of passing on a plan that stops before any write.
+ var planned=preload("res://core/equipment_replacement.gd").plan(g,[preload("res://tests/replacement_cases.gd").request("wrist",3,3)],"obs")
  out["steps"]["replacement_plan"]=_obs_step(g,q,j)
  out["steps"]["replacement_plan"]["ok"]=bool(planned.get("ok",false))
  var victim={}
