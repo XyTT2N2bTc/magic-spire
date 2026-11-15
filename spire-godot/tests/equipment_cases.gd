@@ -1992,11 +1992,19 @@ static func _obs_equal_keys(rows: Array, context: Dictionary) -> Dictionary:
 # Transitional members (CC-46): a logged id that exists on neither side of the window -- a member a factory
 # created and the same window's settle retired (C0: enemy install, turn-start climax slip).
 static func _obs_transition_keys(rows: Array, phantom: Dictionary, context: Dictionary) -> Dictionary:
+ var added={}
+ var lifecycles={}
+ for row in rows:
+  if bool(row.get("trial",false)) or str(row.get("port",""))!="member": continue
+  var id=str(row.get("id",""))
+  if str(row.get("change",""))=="added": added[id]=true
+  elif str(row.get("change",""))=="removed" and added.has(id): lifecycles[id]=true
  var keys={}
  for row in rows:
   var id=str(row.get("id",""))
   var key=_obs_log_key(row,context)
   if context["bindings"].has(id) or not phantom.has(key): continue
+  if not lifecycles.has(id): continue
   if context["before"].has(id) or context["after"].has(id): continue
   keys[key]=true
  return keys
@@ -2006,9 +2014,10 @@ static func _obs_transition_boundary(start: Dictionary) -> Dictionary:
  var present_id=str(start.equipment[0].id)
  var absent_id=present_id+"_absent"
  while context["before"].has(absent_id): absent_id+="_absent"
- var absent_row={"port":"member","id":absent_id,"owner":"","change":"added","trial":false}
- var present_row={"port":"durability","id":present_id,"owner":"","from":1.0,"to":2.0,"trial":false}
- return {"transitional_accepts_absent":_obs_transition_keys([absent_row],{absent_id:true},context).has(absent_id),"transitional_rejects_present":_obs_transition_keys([present_row],{present_id:true},context).is_empty()}
+ var absent_rows=[{"port":"member","id":absent_id,"owner":"","change":"added","trial":false},{"port":"member","id":absent_id,"owner":"","change":"removed","trial":false}]
+ var present_rows=[{"port":"member","id":present_id,"owner":"","change":"added","trial":false},{"port":"member","id":present_id,"owner":"","change":"removed","trial":false}]
+ var unpaired_row={"port":"durability","id":absent_id,"owner":"","from":1.0,"to":2.0,"trial":false}
+ return {"transitional_accepts_absent":_obs_transition_keys(absent_rows,{absent_id:true},context).has(absent_id),"transitional_rejects_present":_obs_transition_keys(present_rows,{present_id:true},context).is_empty(),"transitional_requires_lifecycle":_obs_transition_keys([unpaired_row],{absent_id:true},context).is_empty()}
 
 static func _obs_pair_boundaries() -> Dictionary:
  var before={"equipment":[{"id":"host","shoulders":{"template":"shoulder","grade":2,"material":"rope","source":"fixture","pieces":[]}}],"composites":[],"links":[],"special_equipment":[]}
@@ -2503,7 +2512,7 @@ static func port_journal_matches_state_diff(t) -> void:
  var x3_state_independent=_obs_x3_boundary()
  var anchors_valid=_obs_anchors_valid()
  var transition_boundary=_obs_transition_boundary(start_a)
- print("OBS Q7 BOUNDARIES shoulders="+str(pair_boundaries)+" binding="+str(binding_boundary)+" X3_state_independent="+str(x3_state_independent)+" anchors_valid="+str(anchors_valid)+" transitional_accepts_absent="+str(transition_boundary["transitional_accepts_absent"])+" transitional_rejects_present="+str(transition_boundary["transitional_rejects_present"]))
+ print("OBS Q7 BOUNDARIES shoulders="+str(pair_boundaries)+" binding="+str(binding_boundary)+" X3_state_independent="+str(x3_state_independent)+" anchors_valid="+str(anchors_valid)+" transitional_accepts_absent="+str(transition_boundary["transitional_accepts_absent"])+" transitional_rejects_present="+str(transition_boundary["transitional_rejects_present"])+" transitional_requires_lifecycle="+str(transition_boundary["transitional_requires_lifecycle"]))
  var wrist=_obs_wrist_piece(fixture.game)
  if not wrist.is_empty():
   wrist.durability=0.0
@@ -2553,7 +2562,7 @@ static func port_journal_matches_state_diff(t) -> void:
    var label=str(window["label"]) if str(window["label"])!="" else ["A","B","C"][segment_index]+str(window_index)
    if not window["diff"]["triggered"].is_empty(): print("OBS Q7 TRIGGERS "+label+" "+str(window["diff"]["deducted"]))
  t.check(a["failed"].is_empty() and b["failed"].is_empty() and c["failed"].is_empty() and a["missing"].is_empty() and b["missing"].is_empty() and c["missing"].is_empty() and shoulder_fields_complete and binding_keys_agree,"OBS port_journal_matches_state_diff: every changed record is journaled -- for every window of both dispatch segments the state difference of the four containers and their nested members is a subset of the log keys, with the three declared fields subtracted only under their own condition and only while the record stays on both sides: windows="+str(a["windows"])+"/"+str(b["windows"])+" failed="+str(a["failed"]+b["failed"]+c["failed"])+" missing="+str(a["missing"]+b["missing"]+c["missing"])+" shoulder_fields_complete="+str(shoulder_fields_complete)+" binding_keys_agree="+str(binding_keys_agree)+" C="+str(c))
- t.check(a["forged"].is_empty() and b["forged"].is_empty() and c["forged"].is_empty() and transition_boundary.values().all(func(ok):return bool(ok)),"OBS port_journal_matches_state_diff: journaled records all changed or were equal-value writes -- in windows without sandbox rows the log keys minus the difference keys are equal-value durability touches or transitional members, so no row invents an id: forged="+str(a["forged"]+b["forged"]+c["forged"])+" C="+str(c)+" transitional_accepts_absent="+str(transition_boundary["transitional_accepts_absent"])+" transitional_rejects_present="+str(transition_boundary["transitional_rejects_present"]))
+ t.check(a["forged"].is_empty() and b["forged"].is_empty() and c["forged"].is_empty() and transition_boundary.values().all(func(ok):return bool(ok)),"OBS port_journal_matches_state_diff: journaled records all changed or were equal-value writes -- in windows without sandbox rows the log keys minus the difference keys are equal-value durability touches or transitional members, so no row invents an id: forged="+str(a["forged"]+b["forged"]+c["forged"])+" C="+str(c)+" transitional_accepts_absent="+str(transition_boundary["transitional_accepts_absent"])+" transitional_rejects_present="+str(transition_boundary["transitional_rejects_present"])+" transitional_requires_lifecycle="+str(transition_boundary["transitional_requires_lifecycle"]))
  t.check(OBS_UNJOURNALED_FIELDS.size()==3 and OBS_UNJOURNALED_FIELDS.all(func(row):return int(triggered.get(str(row.get("name","")),0))>0) and a["leaks"].is_empty() and b["leaks"].is_empty() and c["leaks"].is_empty() and x3_state_independent and anchors_valid,"OBS port_journal_matches_state_diff: declared unjournaled fields are exercised and stay unjournaled -- each of the three declared rows fires at least once in the two segments and the id it excuses is absent from that window's log keys (a row that never fires or excuses a journaled id is a lie): declared="+str(triggered)+" leaks="+str(a["leaks"]+b["leaks"]+c["leaks"])+" X3_state_independent="+str(x3_state_independent)+" anchors_valid="+str(anchors_valid)+" C="+str(c))
  t.check(int(a["windows"])>=7 and int(b["windows"])==5 and b["labels"]==["B0","B1","B2","B3","B4"] and b["skipped"].is_empty() and int(c["windows"])==1 and c["labels"]==["C0"] and c["skipped"].is_empty() and int(c["sandbox"])==0 and int(c["transitional"])>0 and uncovered.is_empty(),"OBS port_journal_matches_state_diff: the dispatch sequence reaches every row class the clause names (both durability intents, the quality port, the tier row, member adds, member removals including a composite root and a link that followed its end, the join row, the lock port, a sandbox window, an equal-value write, a transitional member, the settle, and a main piece whose reinforcement strap leaves with it), so the two directions above are not judged on an empty set: windows="+str(a["windows"])+"/"+str(b["windows"])+" labels="+str(b["labels"])+" skipped="+str(b["skipped"])+" uncovered="+str(uncovered)+" A="+str(a["coverage"])+" B="+str(b["coverage"])+" M="+str(m["coverage"])+" C="+str(c))
  var plain_a=_obs_port(plain_class,start_a)

@@ -2354,6 +2354,18 @@
         ],
         "suite": "equipment",
         "expect": "transitional_rejects_present=false"
+      },
+      {
+        "clause": "transitional-lifecycle-dropped",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": "  if not lifecycles.has(id): continue",
+            "replace": "  pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "transitional_requires_lifecycle=false"
       }
     ]
   }
