@@ -1973,7 +1973,7 @@
         "edits": [
           {
             "find": " _write_durability(target,_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3),true)",
-            "replace": " target.durability=_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3)"
+            "replace": " _write_epoch+=1\n var before=tier(target.durability,target.maximum)\n target.durability=_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3)\n Removal.mark(self,target,\"written\")\n _tier_consequences(target,before,tier(target.durability,target.maximum),true)"
           }
         ],
         "suite": "equipment",
