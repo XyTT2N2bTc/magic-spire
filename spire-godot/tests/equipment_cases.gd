@@ -385,14 +385,12 @@ static func write_epoch_is_monotone_and_private(t) -> void:
 # existing fixture does that (r1_install_equipment uses the test writer `add_fixture` and clears links), so the
 # fixture stays local. A shoulder strap is never a legal link end (Links rules), so straps only serve as the
 # control case "breaking one removes no link".
-static func _full_restraint() -> Dictionary:
- var g=Game.new(42)
- g.state.phase="map"
+static func _full_restraint_into(g, assembly_tier: int, link_durability: float) -> void:
  g.state.equipment=[];g.state.composites=[];g.state.special_equipment=[];g.state.links=[]
  g.state.next_equipment=1
  g.state.pressure=0.0
  # Install the leg assembly first: it holds the thigh coverage, later ordinary pieces must go around it, and the assembly can get in.
- g._install_assembly("leg","upper","fixture",2,2)
+ g._install_assembly("leg","upper","fixture",2,assembly_tier)
  var templates=["rope","belt","tape","cable_tie","cord","fine_belt"]
  for slot in E.B.ARM_SLOTS+E.B.LEG_SLOTS+["eyes","mouth","neck"]:
   for layer in range(3):
@@ -413,7 +411,12 @@ static func _full_restraint() -> Dictionary:
   for other in g.link_anchors():
    if String(other.id)==String(anchor.id): continue
    if g.state.links.any(func(link):return String(anchor.id) in link.ends and String(other.id) in link.ends): break
-   if not g._install_link(String(anchor.id),String(other.id),12.8,"fixture",2).is_empty(): break
+   if not g._install_link(String(anchor.id),String(other.id),link_durability,"fixture",2).is_empty(): break
+
+static func _full_restraint() -> Dictionary:
+ var g=Game.new(42)
+ g.state.phase="map"
+ _full_restraint_into(g,2,12.8)
  var pieces=g.physical_pieces()
  var points=0
  for piece in pieces: points+=E.physical_points(piece).size()
@@ -1654,29 +1657,7 @@ static func _q7_shoulder_host(g) -> Dictionary:
 # The dense body: the `_full_restraint` construction with the leg assembly already at tier three. It fills
 # every point the six-bind pool can reach, so the application spec loses its legal positions one by one.
 static func _q7_dense(g) -> void:
- g.state.equipment=[];g.state.composites=[];g.state.special_equipment=[];g.state.links=[]
- g.state.next_equipment=1
- g.state.pressure=0.0
- g._install_assembly("leg","upper","fixture",2,3)
- var templates=["rope","belt","tape","cable_tie","cord","fine_belt"]
- for slot in E.B.ARM_SLOTS+E.B.LEG_SLOTS+["eyes","mouth","neck"]:
-  for layer in range(3):
-   for side in ["left","right",""]:
-    for template in templates:
-     var piece=g._install_template(template,slot,E.maximum(2),E.maximum(2),false,"fixture",2,layer,0)
-     if piece.is_empty(): continue
-     if side!="": piece.side=side
-     break
- for host in g.state.equipment.duplicate(): g._refresh_equipment(host)
- for root in g.state.composites.duplicate():
-  for part in root.components.duplicate(): g._refresh_equipment(part)
- for pair in [["crotch_rope_high","special_3_a"],["nipple_clamp_medium","special_1_a"],["shaft_ring_medium","special_2_a"]]:
-  g._install_special(String(pair[0]),String(pair[1]),3)
- for anchor in g.link_anchors():
-  for other in g.link_anchors():
-   if String(other.id)==String(anchor.id): continue
-   if g.state.links.any(func(link):return String(anchor.id) in link.ends and String(other.id) in link.ends): break
-   if not g._install_link(String(anchor.id),String(other.id),E.maximum(2),"fixture",2).is_empty(): break
+ _full_restraint_into(g,3,E.maximum(2))
 
 # Every piece reaches its own maximum and takes a lock when it still has a reinforcement route, so the only
 # tighten target left is `keep` (the G-Q7-1′ pair at tier two). Both writes are the real ports.
@@ -1750,8 +1731,7 @@ static func _q7_pair_matches(g, host_id: String) -> bool:
 # `member`/`added` row in the window would then be the application that got through).
 static func reinforce_writes_are_journaled(t) -> void:
  var six=preload("res://tests/six_bind_cases.gd").encounter()
- var g=preload("res://tests/write_journal_game.gd").new(42)
- g.state=six.state.duplicate(true)
+ var g=_obs_clone(preload("res://tests/write_journal_game.gd"),six.state)
  var boss=g.state.enemies[0]
  boss.stage=4
  _q7_dense(g)
@@ -1827,7 +1807,7 @@ static func shoulder_members_are_journaled(t) -> void:
   from=g.journal.size()
   var facts=g.command_facts().filter(func(fact):return String(fact.payload.kind)=="posture" and fact.valid)
   var acted={"ok":false}
-  if not facts.is_empty(): acted=g.dispatch(g.command(facts[0].payload,g.state.version),g.state.version)
+  if not facts.is_empty(): acted=_obs_window(g,facts[0].payload,true)["receipt"]
   settle_a_rows=g.journal.slice(from)
   steps.append(_q7_pair_matches(g,host_id))
   pair_rows=pair_rows and bool(acted.get("ok",false)) and settle_a_rows.any(func(row):return String(row.port)=="member" and String(row.get("change",""))=="removed" and String(row.get("id",""))==settle_a)
@@ -1935,11 +1915,17 @@ static func _obs_declared(row: Dictionary, before_fields: Dictionary, after_fiel
 # names every declared row that actually fired, and `deducted` maps those rows to the ids they excused. A
 # declared row fires -- and is subtracted -- only while the record stays on both sides (CC-52); X3
 # additionally needs the window's own composite installation (the declared write site's only caller).
-static func _obs_diff(before: Dictionary, after: Dictionary, rows: Array) -> Dictionary:
+static func _obs_context(before: Dictionary, after: Dictionary) -> Dictionary:
  var before_records=_obs_records(before)
  var after_records=_obs_records(after)
  var parents=_obs_parents(before_records)
  parents.merge(_obs_parents(after_records),true)
+ return {"before":before_records,"after":after_records,"parents":parents}
+
+static func _obs_diff(after: Dictionary, rows: Array, context: Dictionary) -> Dictionary:
+ var before_records=context["before"]
+ var after_records=context["after"]
+ var parents=context["parents"]
  var assembly=rows.any(func(row):return String(row.get("port",""))=="member" and String(row.get("change",""))=="added" and after.composites.any(func(root):return str(root.id)==str(row.get("id",""))))
  var union=before_records.keys()
  for id in after_records: if not union.has(id): union.append(id)
@@ -1969,40 +1955,30 @@ static func _obs_diff(before: Dictionary, after: Dictionary, rows: Array) -> Dic
 
 # The log side of the same window, folded with the same rule. `rows` is the window's real rows, or the union
 # of real and sandbox rows when the window opened the replacement sandbox (CC-45).
-static func _obs_log_keys(rows: Array, before: Dictionary, after: Dictionary) -> Dictionary:
- var before_records=_obs_records(before)
- var after_records=_obs_records(after)
- var parents=_obs_parents(before_records)
- parents.merge(_obs_parents(after_records),true)
+static func _obs_log_keys(rows: Array, context: Dictionary) -> Dictionary:
  var keys={}
  for row in rows:
-  keys[_obs_fold(str(row.get("id","")),parents,before_records,after_records)]=true
+  keys[_obs_fold(str(row.get("id","")),context["parents"],context["before"],context["after"])]=true
  return keys
 
 # Equal-value touches (CC-46): a port row whose own from/to are the same, so the log is right and the state
 # difference has nothing to show for it.
-static func _obs_equal_keys(rows: Array, before: Dictionary, after: Dictionary) -> Dictionary:
- var before_records=_obs_records(before)
- var after_records=_obs_records(after)
- var parents=_obs_parents(before_records)
- parents.merge(_obs_parents(after_records),true)
+static func _obs_equal_keys(rows: Array, context: Dictionary) -> Dictionary:
  var keys={}
  for row in rows:
   if str(row.get("port",""))!="durability": continue
   if str(row.get("from",""))!=str(row.get("to","")): continue
-  keys[_obs_fold(str(row.get("id","")),parents,before_records,after_records)]=true
+  keys[_obs_fold(str(row.get("id","")),context["parents"],context["before"],context["after"])]=true
  return keys
 
 # Transitional members (CC-46): a logged id that exists on neither side of the window -- a member the sandbox
 # or the settle created and retired inside the same dispatch.
-static func _obs_transition_keys(rows: Array, phantom: Dictionary, before: Dictionary, after: Dictionary) -> Dictionary:
- var before_records=_obs_records(before)
- var after_records=_obs_records(after)
+static func _obs_transition_keys(rows: Array, phantom: Dictionary, context: Dictionary) -> Dictionary:
  var keys={}
  for row in rows:
   var id=str(row.get("id",""))
   if not phantom.has(id): continue
-  if before_records.has(id) or after_records.has(id): continue
+  if context["before"].has(id) or context["after"].has(id): continue
   keys[id]=true
  return keys
 
@@ -2021,18 +1997,20 @@ static func _obs_window(g, payload: Dictionary, record: bool, extra=null, label:
  if extra!=null: extra.call()
  var receipt=g.dispatch(g.command(payload,g.state.version),g.state.version)
  if not record:
-  return {"label":label,"ok":bool(receipt.get("ok",false)),"receipt":receipt,"mixed":false,"trial":[],"real":[],"rows":[],"diff":{"keys":{},"triggered":{},"deducted":{}},"log":{},"equal":{},"phantom":{},"before":{},"after":{}}
+  return {"label":label,"ok":bool(receipt.get("ok",false)),"receipt":receipt,"mixed":false,"trial":[],"real":[],"rows":[],"diff":{"keys":{},"triggered":{},"deducted":{}},"log":{},"equal":{},"phantom":{},"transitional":{},"before":{},"after":{}}
  var rows=g.journal.slice(from)
  var real=rows.filter(func(row):return not bool(row.get("trial",true)))
  var trial=rows.filter(func(row):return bool(row.get("trial",false)))
  var mixed=not trial.is_empty()
- var diff=_obs_diff(before,g.state,real)
- var log=_obs_log_keys(rows if mixed else real,before,g.state)
- var equal=_obs_equal_keys(real,before,g.state)
+ var context=_obs_context(before,g.state)
+ var diff=_obs_diff(g.state,real,context)
+ var log=_obs_log_keys(rows if mixed else real,context)
+ var equal=_obs_equal_keys(real,context)
  var phantom={}
  for key in log:
   if not diff["keys"].has(key): phantom[key]=true
- return {"label":label,"ok":bool(receipt.get("ok",false)),"receipt":receipt,"error":str(receipt.get("error","")),"mixed":mixed,"rows":rows,"real":real,"trial":trial,"diff":diff,"log":log,"equal":equal,"phantom":phantom,"before":before,"after":g.state.duplicate(true)}
+ var transitional=_obs_transition_keys(real,phantom,context)
+ return {"label":label,"ok":bool(receipt.get("ok",false)),"receipt":receipt,"error":str(receipt.get("error","")),"mixed":mixed,"rows":rows,"real":real,"trial":trial,"diff":diff,"log":log,"equal":equal,"phantom":phantom,"transitional":transitional,"before":before,"after":g.state.duplicate(true)}
 
 # A piece a link ends on: releasing it must take the link with it in the same settle.
 # The first link a strain card can release: an independent band blocked by a link that covers the same area is
@@ -2062,16 +2040,6 @@ static func _obs_card(g, target: String, by_bonus: bool=false) -> Dictionary:
   return fact.payload
  return {}
 
-static func _obs_record(g, id: String) -> Dictionary:
- var piece=g._equipment(id)
- if not piece.is_empty(): return piece
- for root in g.state.composites:
-  for part in root.components:
-   if str(part.id)==id: return part
- for item in g.state.special_equipment:
-  if str(item.id)==id: return item
- return {}
-
 # A fixture write that keeps the record legal at the command boundary: a strain card only offers the piece
 # whose tightness is the highest on its part, so a released target has to be shrunk instead of zeroed (a zero
 # durability record is invalid and every dispatch would be refused before it runs). Everything else -- the
@@ -2079,23 +2047,14 @@ static func _obs_record(g, id: String) -> Dictionary:
 # A special record keeps its design maximum (validate compares it), so a released strain target is weakened in
 # place instead: durability stays legal and the card's own damage finishes the release.
 static func _obs_weaken(g, id: String) -> void:
- var record=_obs_record(g,id)
+ var record=g._equipment(id)
  if record.is_empty(): return
  record.durability=minf(float(record.durability),1.0)
 static func _obs_shrink(g, id: String) -> void:
- var record=_obs_record(g,id)
+ var record=g._equipment(id)
  if record.is_empty(): return
  record.maximum=1.0
  record.durability=1.0
-
-# A slot the fixture left free, holding a lock-capable belt at tier three, so the enemy's lock port has a target.
-static func _obs_lockable(g) -> String:
- for slot in ["neck","mouth","eyes","upper_arm","forearm","wrist","thigh","calf","ankle","foot"]:
-  if g.occupied(slot): continue
-  var piece=g._install_template("belt",slot,E.maximum(2),E.maximum(2),false,"fixture",2,0,0)
-  if piece.is_empty(): continue
-  if g._reinforcement_locks(piece): return str(piece.id)
- return ""
 
 # The inline sequence of G-Q7-3' (CC-48): one dispatch per window, with the fixture writes that make the next
 # window reach the class it is there for. The plain instance runs the same function, so the transparency
@@ -2108,16 +2067,14 @@ static func _obs_run(g) -> Dictionary:
   if boss.is_empty(): break
   boss.stage=stage
   boss.intent=g.EnemyPlans.six_plan(g,boss)
-  run["windows"].append(_obs_window(g,_obs_payload(g,"end"),record))
-  run["receipts"].append(run["windows"].back()["receipt"])
+  _obs_push(run,g,_obs_payload(g,"end"))
  var boss=g.state.enemies[0] if not g.state.enemies.is_empty() else {}
  var body={}
  for root in g.state.composites: body=g._composite_body(root)
  if not body.is_empty() and not boss.is_empty():
   body.durability=float(body.maximum)
   boss.intent={"kind":"lock","target":str(body.id),"text":"为一件拘束具上锁","delayed":false}
-  run["windows"].append(_obs_window(g,_obs_payload(g,"end"),record))
-  run["receipts"].append(run["windows"].back()["receipt"])
+  _obs_push(run,g,_obs_payload(g,"end"))
  # The release of a link's end: the fixture clears the target's own binding first, so the assembly window
  # below is the one that exercises the cancelled binding (CC-44's X3), and shrinks the target to the top
  # tightness the strain offer requires. The damage, the release and the settle stay the product's own.
@@ -2127,8 +2084,7 @@ static func _obs_run(g) -> Dictionary:
   _obs_shrink(g,str(anchor.id))
   var cut=_obs_card(g,str(anchor.id))
   if not cut.is_empty():
-   run["windows"].append(_obs_window(g,cut,record))
-   run["receipts"].append(run["windows"].back()["receipt"])
+   _obs_push(run,g,cut)
  # The assembly install runs inside the window: a composite request is a factory call here, not a command, and
  # it is the only path that cancels a neighbour's torso binding (CC-44's X3). The neighbours are otherwise
  # untouched in this window, so the erased field is exactly what the declaration excuses. Bindings are
@@ -2137,8 +2093,7 @@ static func _obs_run(g) -> Dictionary:
   if g.Binding.eligible(piece): g._refresh_equipment(piece)
  if not boss.is_empty():
   var install=func(): g._install_assembly("glove","short","fixture",2,1)
-  run["windows"].append(_obs_window(g,_obs_payload(g,"end"),record,install))
-  run["receipts"].append(run["windows"].back()["receipt"])
+  _obs_push(run,g,_obs_payload(g,"end"),install)
  # Every component of the first assembly is released so its root leaves as a whole (`root.components` empties
  # and `_member_changed(root,"removed")`). An independent band can be blocked by a link that covers the same
  # area, so the blocking link is released first -- both steps are ordinary strain dispatches.
@@ -2156,13 +2111,11 @@ static func _obs_run(g) -> Dictionary:
    _obs_shrink(g,blocker)
    var cut_link=_obs_card(g,blocker)
    if cut_link.is_empty(): break
-   run["windows"].append(_obs_window(g,cut_link,record))
-   run["receipts"].append(run["windows"].back()["receipt"])
+   _obs_push(run,g,cut_link)
    _obs_shrink(g,id)
    cut_part=_obs_card(g,id)
   if not cut_part.is_empty():
-   run["windows"].append(_obs_window(g,cut_part,record))
-   run["receipts"].append(run["windows"].back()["receipt"])
+   _obs_push(run,g,cut_part)
  var plate=g._install_special("negative_plate_lock_medium","special_2_a",3)
  var strap={}
  for item in g.state.special_equipment:
@@ -2171,20 +2124,17 @@ static func _obs_run(g) -> Dictionary:
   _obs_weaken(g,str(strap.id))
   var cut_strap=_obs_card(g,str(strap.id))
   if not cut_strap.is_empty():
-   run["windows"].append(_obs_window(g,cut_strap,record))
-   run["receipts"].append(run["windows"].back()["receipt"])
+   _obs_push(run,g,cut_strap)
  var boss3=g.state.enemies[0] if not g.state.enemies.is_empty() else {}
  if not boss3.is_empty():
   boss3.intent=g.EnemyPlans.six_special(g.Enemies.TYPES[boss3.type],2,1,true)
-  run["windows"].append(_obs_window(g,_obs_payload(g,"end"),record))
-  run["receipts"].append(run["windows"].back()["receipt"])
+  _obs_push(run,g,_obs_payload(g,"end"))
  var equal_id=""
  for piece in g.state.equipment:
   if float(piece.durability)>0.0: equal_id=str(piece.id); break
  if equal_id!="":
   var extra=func(): g._write_durability(g._equipment(equal_id),float(g._equipment(equal_id).durability),false)
-  run["windows"].append(_obs_window(g,_obs_payload(g,"end"),record,extra))
-  run["receipts"].append(run["windows"].back()["receipt"])
+  _obs_push(run,g,_obs_payload(g,"end"),extra)
  return run
 
 # The wrist piece the B segment frees: an ordinary piece on the wrist with no side and no owner, the widest
@@ -2205,9 +2155,13 @@ static func _obs_wrist_piece(g) -> Dictionary:
 # One segment's start (G-Q6-6′): the full-restraint state ported into `g_class`, the solo six-bind entrance
 # selected and the battle started. Both instances of a segment get the same base, so the transparency
 # clause compares the same start.
-static func _obs_port(g_class, base: Dictionary) -> Object:
+static func _obs_clone(g_class, base: Dictionary) -> Object:
  var g=g_class.new(42)
  g.state=base.duplicate(true)
+ return g
+
+static func _obs_port(g_class, base: Dictionary) -> Object:
+ var g=_obs_clone(g_class,base)
  g.state.room_encounters.entrance="six_bind_solo"
  g._start_battle()
  return g
@@ -2240,16 +2194,16 @@ static func _obs_strap_followed(before: Dictionary, after: Dictionary) -> bool:
    if not after_ids.has(str(strap.get("id",""))): return true
  return false
 
-# One B window: a window whose payload is missing is recorded by name (so the coverage clause reddens on
-# it) instead of being skipped silently; otherwise it is the same bracket the A segment uses.
-static func _obs_push_b(run: Dictionary, g, payload: Dictionary, label: String) -> void:
- if payload.is_empty():
+# One segment window: a B payload that is missing is recorded by name (so the coverage clause reddens on
+# it) instead of being skipped silently; both segments use the same bracket and receipt collection.
+static func _obs_push(run: Dictionary, g, payload: Dictionary, extra=null, label: String="") -> void:
+ if label!="" and payload.is_empty():
   run["skipped"].append(label+":no_payload")
   return
- var window=_obs_window(g,payload,g.get("journal")!=null,null,label)
+ var window=_obs_window(g,payload,g.get("journal")!=null,extra,label)
  run["windows"].append(window)
  run["receipts"].append(window["receipt"])
- run["labels"].append(label)
+ if label!="": run["labels"].append(label)
 
 # The B segment of G-Q7-3′ (rev3.6 §2): five windows that reach the classes the A segment cannot. Every
 # write outside a window is a fixture write through a product entry (special install, lock port, tool gain,
@@ -2271,7 +2225,7 @@ static func _obs_run_b(g) -> Dictionary:
   run["skipped"].append("B0:no_lock")
  else:
   g._write_locked(plate0,false)
-  _obs_push_b(run,g,_obs_card(g,str(plate0.id)),"B0")
+  _obs_push(run,g,_obs_card(g,str(plate0.id)),null,"B0")
  var plate1=g._install_special("negative_plate_lock_medium","special_2_a",3)
  var strap=_obs_reinforcement_of(g,plate1)
  if plate1.is_empty() or strap.is_empty():
@@ -2280,32 +2234,32 @@ static func _obs_run_b(g) -> Dictionary:
   g.state.relics.append("tentacle_friend")
   g._gain_tool("saw")
   strap.durability=float(g.Tools.TYPES.saw.damage)
-  _obs_push_b(run,g,_obs_card(g,str(strap.id),true),"B1")
+  _obs_push(run,g,_obs_card(g,str(strap.id),true),null,"B1")
   g.state.relics.erase("tentacle_friend")
  var boss=g.state.enemies[0] if not g.state.enemies.is_empty() else {}
  if boss.is_empty():
   run["skipped"].append("B2:no_enemy")
  else:
   boss.intent={"kind":"assembly","family":"glove","variant":"short","grade":2,"tier":2,"straps":"straight","name":"短型单手套","text":"施加短型单手套","delayed":false,"source":boss.id}
-  _obs_push_b(run,g,_obs_payload(g,"end"),"B2")
+  _obs_push(run,g,_obs_payload(g,"end"),null,"B2")
  var glove=_obs_root_by_kind(g,"glove")
  if glove.is_empty():
   run["skipped"].append("B3:no_glove")
   run["skipped"].append("B4:no_glove")
  else:
   var glove_id=str(glove.id)
-  var side=_obs_record(g,glove_id+"_left")
+  var side=g._equipment(glove_id+"_left")
   if side.is_empty():
    run["skipped"].append("B3:no_side")
   else:
    side.durability=0.5
-   _obs_push_b(run,g,_obs_card(g,glove_id+"_left"),"B3")
-  var body=_obs_record(g,glove_id+"_body")
+   _obs_push(run,g,_obs_card(g,glove_id+"_left"),null,"B3")
+  var body=g._equipment(glove_id+"_body")
   if body.is_empty():
    run["skipped"].append("B4:no_body")
   else:
    body.durability=0.5
-   _obs_push_b(run,g,_obs_card(g,glove_id+"_body"),"B4")
+   _obs_push(run,g,_obs_card(g,glove_id+"_body"),null,"B4")
  return run
 
 static func _obs_quiet(g) -> Array:
@@ -2392,7 +2346,7 @@ static func _obs_judge(run: Dictionary, ledger: Dictionary) -> void:
    for id in window["diff"]["deducted"].get(name,[]):
     ledger["triggered"][name]=int(ledger["triggered"].get(name,0))+1
     if window["log"].has(str(id)) or window["equal"].has(str(id)): ledger["leaks"].append(label+":"+str(name)+":"+str(id))
-  var transitional=_obs_transition_keys(window["real"],window["phantom"],window["before"],window["after"])
+  var transitional=window["transitional"]
   if not bool(window["mixed"]):
    for key in window["phantom"]:
     if window["equal"].has(key) or transitional.has(key): continue
@@ -2462,8 +2416,7 @@ static func port_journal_matches_state_diff(t) -> void:
  if not g_b.cleanup_frames.is_empty(): _obs_bump(b["coverage"],"cleanup","frames")
  var master_plain=preload("res://tests/rope_master_cases.gd").encounter()
  var master_state=master_plain.state.duplicate(true)
- var master=journal.new(42)
- master.state=master_state.duplicate(true)
+ var master=_obs_clone(journal,master_state)
  var counted=_obs_master(master)
  _obs_master(master_plain)
  var m=_obs_ledger("M")
