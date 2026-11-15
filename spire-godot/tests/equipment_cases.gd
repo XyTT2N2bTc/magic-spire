@@ -526,6 +526,8 @@ static func run(t) -> void:
  settle_never_enters_durability_port(t)
  unit_settle_touches_only_its_closure(t)
  unit_settle_residue_stays_empty(t)
+ reinforce_writes_are_journaled(t)
+ shoulder_members_are_journaled(t)
  var wear_slots=["eyes","mouth","neck","upper_arm","forearm","wrist","palm","fingers","thigh","calf","ankle","foot","toes"]
  t.check(E.WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.WEAR_TEXTS.has(slot)),"WEAR ordinary single restraint prose covers every approved body location")
  t.check(E.ANIMATED_WEAR_TEXTS.keys().all(func(slot):return slot in wear_slots) and wear_slots.all(func(slot):return E.ANIMATED_WEAR_TEXTS.has(slot)),"WEAR animated restraint prose covers every approved body location")
@@ -1632,3 +1634,222 @@ static func unit_settle_residue_stays_empty(t) -> void:
  t.check(quiet_encoded==Arch.save_text(quiet.state) and quiet_logs==quiet.state.logs.size() and _check_rows(quiet,"unit_settle_residue").is_empty(),"REMOVAL unit_settle_residue_stays_empty: the piece reconciliation writes no state and appends no log line (the receipt face is untouched): logs="+str(quiet_logs)+"->"+str(quiet.state.logs.size()))
 
 
+
+# ---- Q7 unified observation exit (rev3.5 gherkin G-Q7-1′…G-Q7-3′; plan-delta §2.2／§2.3) ----
+# The three judgments read the test-side journal of `tests/write_journal_game.gd`. They add no rule: every
+# row is an observation of the one live write path, and a red is a missing or a forged write.
+
+# The G-Q7-1′ host: the first ordinary upper-arm rope at grade two that carries a shoulder pair. A rope takes
+# no lock, so `_reinforcement_locks` cannot fire on it and the host itself never becomes a tighten target.
+static func _q7_shoulder_host(g) -> Dictionary:
+ for piece in g.state.equipment:
+  if not piece.has("shoulders"): continue
+  if String(piece.get("slot",""))!="upper_arm": continue
+  if E.base_template(String(piece.get("template","")))!="rope": continue
+  if int(piece.get("grade",0))!=2: continue
+  return piece
+ return {}
+
+# The dense body: the `_full_restraint` construction with the leg assembly already at tier three. It fills
+# every point the six-bind pool can reach, so the application spec loses its legal positions one by one.
+static func _q7_dense(g) -> void:
+ g.state.equipment=[];g.state.composites=[];g.state.special_equipment=[];g.state.links=[]
+ g.state.next_equipment=1
+ g.state.pressure=0.0
+ g._install_assembly("leg","upper","fixture",2,3)
+ var templates=["rope","belt","tape","cable_tie","cord","fine_belt"]
+ for slot in E.B.ARM_SLOTS+E.B.LEG_SLOTS+["eyes","mouth","neck"]:
+  for layer in range(3):
+   for side in ["left","right",""]:
+    for template in templates:
+     var piece=g._install_template(template,slot,E.maximum(2),E.maximum(2),false,"fixture",2,layer,0)
+     if piece.is_empty(): continue
+     if side!="": piece.side=side
+     break
+ for host in g.state.equipment.duplicate(): g._refresh_equipment(host)
+ for root in g.state.composites.duplicate():
+  for part in root.components.duplicate(): g._refresh_equipment(part)
+ for pair in [["crotch_rope_high","special_3_a"],["nipple_clamp_medium","special_1_a"],["shaft_ring_medium","special_2_a"]]:
+  g._install_special(String(pair[0]),String(pair[1]),3)
+ for anchor in g.link_anchors():
+  for other in g.link_anchors():
+   if String(other.id)==String(anchor.id): continue
+   if g.state.links.any(func(link):return String(anchor.id) in link.ends and String(other.id) in link.ends): break
+   if not g._install_link(String(anchor.id),String(other.id),E.maximum(2),"fixture",2).is_empty(): break
+
+# Every piece reaches its own maximum and takes a lock when it still has a reinforcement route, so the only
+# tighten target left is `keep` (the G-Q7-1′ pair at tier two). Both writes are the real ports.
+static func _q7_quiet_normalize(g, keep: Array) -> void:
+ var all=g.physical_pieces()
+ all.append_array(g.state.special_equipment)
+ for piece in all:
+  if String(piece.get("id","")) in keep: continue
+  if piece.durability<piece.maximum: g._write_durability(piece,piece.maximum,true)
+ for piece in all:
+  if String(piece.get("id","")) in keep: continue
+  if g._can_tighten(piece): g._write_locked(piece,true)
+
+# Fill positions through the real install factories until the frozen spec has no legal position at all. The
+# fixture does not write the containers itself; the greedy pass only asks the product where it may still
+# install. Returns the number of additions, which the caller uses to keep the precondition non-vacuous.
+static func _q7_fill_positions(g, boss, spec) -> int:
+ var added=0
+ for round in range(60):
+  if not g.Application.can_apply(g,spec,boss.id): break
+  var current=spec.duplicate(true)
+  current.merge(spec.get("profiles",[{}])[0],true)
+  var done=false
+  for request in g.Application._raw(g,current,boss.id):
+   if g.Application._request_reason(g,request,true,[])!="": continue
+   var placed=false
+   if String(request.get("kind",""))=="link":
+    placed=not g._install_link(String(request.ends[0]),String(request.ends[1]),E.maximum(2),"fixture",2,request.get("blocked_slip",[]),request.get("slots",[]),request.get("contact_points",[])).is_empty()
+   else:
+    placed=not g._install_template(String(request.template),String(request.slot),E.maximum(2),E.maximum(2),false,"fixture",2,-1,0,String(request.get("point",""))).is_empty()
+   if placed:
+    done=true;added+=1
+    break
+  if not done: break
+ return added
+
+# The strap ids the journal has added and not yet removed for one host (a member row's owner is the shoulder
+# host through the record's `shoulder_host` field).
+static func _q7_member_set(rows: Array, host_id: String) -> Array:
+ var live=[]
+ for row in rows:
+  if String(row.get("port",""))!="member": continue
+  if String(row.get("owner",""))!=host_id: continue
+  var id=String(row.get("id",""))
+  if not id.begins_with(host_id+"_shoulder_"): continue
+  if String(row.get("change",""))=="added":
+   if not live.has(id): live.append(id)
+  else:
+   live.erase(id)
+ return live
+
+# The strap ids the live host record still holds (empty once the host itself left the container).
+static func _q7_live_straps(g, host_id: String) -> Array:
+ var host=g._equipment(host_id)
+ if host.is_empty(): return []
+ return host.get("shoulders",{}).get("pieces",[]).map(func(strap):return String(strap.id))
+
+# One step's equality clause: the journal's added-minus-removed strap set equals the live host record's set.
+static func _q7_pair_matches(g, host_id: String) -> bool:
+ var from_journal=_q7_member_set(g.journal,host_id)
+ var from_state=_q7_live_straps(g,host_id)
+ from_journal.sort();from_state.sort()
+ return from_journal==from_state
+
+# G-Q7-1′ (A78 blind spot ①; replaces rev3 G-Q7-1): the six-bind fallback reaches the host's shoulder pair
+# through the durability port, and each write dispatches its own tier consequence. The fixture starts from
+# `six_bind_cases.encounter()`'s ported state and fills the body until the application spec has no legal
+# position at all, so the freeze reports `tighten_missing` with count two and the two reinforcement
+# operations can only take the pair. Red by name when the durability row or its tier row is missing, when
+# the product write bypasses the port, and when the fixture stops having no legal position (a top-level
+# `member`/`added` row in the window would then be the application that got through).
+static func reinforce_writes_are_journaled(t) -> void:
+ var six=preload("res://tests/six_bind_cases.gd").encounter()
+ var g=preload("res://tests/write_journal_game.gd").new(42)
+ g.state=six.state.duplicate(true)
+ var boss=g.state.enemies[0]
+ boss.stage=4
+ _q7_dense(g)
+ boss.intent=g.EnemyPlans.six_plan(g,boss)
+ var spec=g.EnemyPlans.application_spec(g,boss,boss.intent)
+ var host=_q7_shoulder_host(g)
+ var keep=[]
+ if host.has("shoulders"):
+  for strap in host.shoulders.pieces: keep.append(String(strap.id))
+ _q7_quiet_normalize(g,keep)
+ var added=_q7_fill_positions(g,boss,spec)
+ _q7_quiet_normalize(g,keep)
+ host=_q7_shoulder_host(g)
+ var host_id=String(host.get("id",""))
+ var pair=host.get("shoulders",{}).get("pieces",[]) if host.has("shoulders") else []
+ var pair_ids=pair.map(func(strap):return String(strap.id))
+ var frozen=bool(boss.intent.get("tighten_missing",false)) and int(boss.intent.get("count",0))==2
+ t.check(host_id!="" and pair.size()==2 and frozen and not g.Application.can_apply(g,spec,boss.id) and is_equal_approx(host.durability,host.maximum) and not g._can_tighten(host) and pair.all(func(strap):return int(strap.grade)==2 and g.equipment_tier(strap)==2 and not bool(strap.get("crossed",true))),"OBS reinforce_writes_are_journaled: the G-Q7-1′ state freezes the six-bind plan at `tighten_missing` with count two because the application spec has no legal position, and the full grade-two upper-arm rope cannot be tightened further, so its two tier-two shoulder straps are the only reinforcement targets: host="+host_id+" pair="+str(pair_ids)+" frozen="+str(frozen)+" can_apply="+str(g.Application.can_apply(g,spec,boss.id))+" host_tier="+str(g.equipment_tier(host))+" can_tighten="+str(g._can_tighten(host)))
+ var from=g.journal.size()
+ var result=t.action(g,"end")
+ var window=g.journal.slice(from)
+ var real=window.filter(func(row):return not bool(row.get("trial",true)))
+ var durability=real.filter(func(row):return String(row.port)=="durability" and bool(row.get("tighten",false)))
+ var writes=durability.map(func(row):return String(row.id))
+ var installs=real.filter(func(row):return String(row.port)=="member" and String(row.get("change",""))=="added" and String(row.get("owner",""))=="")
+ t.check(result.ok and installs.is_empty(),"OBS reinforce_writes_are_journaled: the frozen turn installs no top-level record, so every member row of the window is a nested or a removal row and the two writes below are the whole reinforcement (an application that got through would leave a member/added row for a top-level id): ok="+str(result.ok)+" installs="+str(installs))
+ t.check(writes.size()==2 and writes[0]!=writes[1] and pair_ids.has(writes[0]) and pair_ids.has(writes[1]),"OBS reinforce_writes_are_journaled: the fallback tightens both shoulder straps through the durability port -- exactly two real `tighten` rows with distinct ids, each the pair's own, and no third reinforcement write in the window: rows="+str(writes)+" pair="+str(pair_ids)+" durability_rows="+str(real.filter(func(row):return String(row.port)=="durability").size()))
+ var chained=[]
+ for index in range(real.size()):
+  if String(real[index].port)!="durability" or not bool(real[index].get("tighten",false)): continue
+  var follow={}
+  if index+1<real.size(): follow=real[index+1]
+  chained.append(String(follow.get("port",""))=="tier" and String(follow.get("id",""))==String(real[index].id) and int(follow.get("before",-1))==2 and int(follow.get("after",-1))==3 and bool(follow.get("tighten",false)))
+ t.check(durability.size()==2 and chained.size()==2 and chained.all(func(ok):return ok),"OBS reinforce_writes_are_journaled: each strap write dispatches one tier-2-to-3 tightening consequence immediately after it and before the next durability row, so the port's last sentence is observed and not re-derived from the final state: chained="+str(chained)+" window="+str(real))
+ var final_host=g._equipment(host_id)
+ var final_pair=final_host.get("shoulders",{}).get("pieces",[]) if final_host.has("shoulders") else []
+ t.check(final_pair.size()==2 and final_pair.all(func(strap):return g.equipment_tier(strap)==3 and bool(strap.get("crossed",false))),"OBS reinforce_writes_are_journaled: both straps end at tier three and crossed, which is what the two tier rows claimed: final="+str(final_pair.map(func(strap):return String(strap.id)+"/t"+str(g.equipment_tier(strap))+"/crossed="+str(strap.get("crossed",false))))+" added="+str(added))
+
+# G-Q7-2′ (A78 blind spot ②; replaces rev3 G-Q7-2): every shoulder member change reaches `_member_changed`
+# and every new strap joins through `_join_hooks` as class S. The single-host fixture is the
+# `write_epoch_is_monotone_and_private` construction: a grade-one upper-arm rope below tier three with no
+# pair; the tighten forms the pair, a zeroed side is announced and refilled, and two settle steps remove one
+# strap and then the host's last strap. One step runs through the real `dispatch` route (a posture action
+# settles at its commit), so the join layer observed is the committed one and not a direct-call shortcut.
+static func shoulder_members_are_journaled(t) -> void:
+ var g=preload("res://tests/write_journal_game.gd").new(42)
+ var host=g._install_template("rope","upper_arm",3.0,10.0,false,"fixture",1)
+ var host_id=String(host.get("id",""))
+ var from=g.journal.size()
+ g._reinforce_equipment(g._equipment(host_id),3)
+ var establish=g.journal.slice(from)
+ var pair=g.Shoulders.attached(g,g._equipment(host_id)).map(func(strap):return String(strap.id))
+ var host_row=establish.any(func(row):return String(row.port)=="member" and String(row.get("change",""))=="added" and String(row.get("id",""))==host_id)
+ var pair_rows=pair.size()==2 and pair.all(func(id):return establish.any(func(row):return String(row.port)=="member" and String(row.get("change",""))=="added" and String(row.get("id",""))==id))
+ var steps=[_q7_pair_matches(g,host_id)]
+ var refilled=""
+ if pair.size()==2:
+  g._equipment(pair[0]).durability=0.0
+  from=g.journal.size()
+  g._cleanup()
+  var released_rows=g.journal.slice(from)
+  g._reinforce_equipment(g._equipment(host_id),3)
+  var refill_rows=g.journal.slice(from)
+  refilled=String(pair[0])
+  steps.append(_q7_pair_matches(g,host_id))
+  pair_rows=pair_rows and released_rows.any(func(row):return String(row.port)=="member" and String(row.get("change",""))=="removed" and String(row.get("id",""))==refilled) and refill_rows.any(func(row):return String(row.port)=="member" and String(row.get("change",""))=="added" and String(row.get("id",""))==refilled)
+ var remaining=_q7_live_straps(g,host_id)
+ var settle_a=""
+ var settle_a_rows=[]
+ if remaining.size()==2:
+  settle_a=String(remaining[0])
+  g._equipment(settle_a).durability=0.0
+  from=g.journal.size()
+  var facts=g.command_facts().filter(func(fact):return String(fact.payload.kind)=="posture" and fact.valid)
+  var acted={"ok":false}
+  if not facts.is_empty(): acted=g.dispatch(g.command(facts[0].payload,g.state.version),g.state.version)
+  settle_a_rows=g.journal.slice(from)
+  steps.append(_q7_pair_matches(g,host_id))
+  pair_rows=pair_rows and bool(acted.get("ok",false)) and settle_a_rows.any(func(row):return String(row.port)=="member" and String(row.get("change",""))=="removed" and String(row.get("id",""))==settle_a)
+ var last=_q7_live_straps(g,host_id)
+ var settle_b=String(last[0]) if last.size()==1 else ""
+ from=g.journal.size()
+ var host_record=g._equipment(host_id)
+ if not host_record.is_empty(): host_record.durability=0.0
+ g._cleanup()
+ var settle_b_rows=g.journal.slice(from)
+ steps.append(_q7_pair_matches(g,host_id))
+ pair_rows=pair_rows and settle_b!="" and settle_b_rows.any(func(row):return String(row.port)=="member" and String(row.get("change",""))=="removed" and String(row.get("id",""))==settle_b)
+ t.check(host_row and pair_rows and steps.size()==4 and steps.all(func(ok):return ok) and refilled!="" and settle_a!="" and settle_b!="","OBS shoulder_members_are_journaled: every shoulder member change reaches `_member_changed` -- the establishment announces the host and both straps, the refill announces the released side and the refilled side, and both settle steps announce the strap they take out, while the journal's added-minus-removed strap set equals the live host record after every step: host="+host_id+" host_row="+str(host_row)+" pair_rows="+str(pair_rows)+" refilled="+refilled+" settle_a="+settle_a+" settle_b="+settle_b+" steps="+str(steps))
+ var strap_added={}
+ var strap_join={}
+ var join_bad=[]
+ for row in g.journal:
+  var id=String(row.get("id",""))
+  if not id.begins_with(host_id+"_shoulder_"): continue
+  if String(row.get("owner",""))!=host_id: continue
+  if String(row.port)=="member" and String(row.get("change",""))=="added": strap_added[id]=int(strap_added.get(id,0))+1
+  if String(row.port)=="join":
+   strap_join[id]=int(strap_join.get(id,0))+1
+   if String(row.get("kind",""))!="S" or String(row.get("host",""))!=host_id: join_bad.append(row)
+ var joined=strap_added.keys().all(func(id):return int(strap_join.get(id,0))==int(strap_added[id]))
+ t.check(not strap_added.is_empty() and joined and join_bad.is_empty(),"OBS shoulder_members_are_journaled: each new strap joins through `_join_hooks` as class S -- every strap member/added row carries exactly one join row, all class S with the host id as the join owner: added="+str(strap_added)+" joins="+str(strap_join)+" bad="+str(join_bad))
