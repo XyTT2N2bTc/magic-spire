@@ -1953,6 +1953,252 @@
         "suite": "equipment",
         "expect": "removed_links=0"
       }
+    ],
+    "reinforce_writes_are_journaled": [
+      {
+        "clause": "journal-durability-row",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " _journal_row(\"durability\",target,{\"tighten\":tighten,\"from\":target.durability,\"to\":value})",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "tightens both shoulder straps through the durability port"
+      },
+      {
+        "clause": "reinforce-bypasses-port",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " _write_durability(target,_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3),true)",
+            "replace": " target.durability=_tier_durability(target.maximum,2 if current==1 and to_tier!=3 else 3)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "tightens both shoulder straps through the durability port"
+      },
+      {
+        "clause": "journal-tier-row",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " _journal_row(\"tier\",target,{\"before\":before,\"after\":after,\"tighten\":tighten})",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "dispatches one tier-2-to-3 tightening consequence"
+      }
+    ],
+    "shoulder_members_are_journaled": [
+      {
+        "clause": "journal-member-row",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " _journal_row(\"member\",record,{\"change\":change})",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "every shoulder member change reaches `_member_changed`"
+      },
+      {
+        "clause": "cleanup-unannounced",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": "   host.shoulders.pieces.erase(e)\n   g._member_changed(e,\"removed\")",
+            "replace": "   host.shoulders.pieces.erase(e)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "every shoulder member change reaches `_member_changed`"
+      },
+      {
+        "clause": "journal-join-row",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " _journal_row(\"join\",entry[0],{\"kind\":String(entry[1]),\"host\":String(Dictionary(entry[3]).get(\"host\",{}).get(\"id\",\"\"))})",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "each new strap joins through `_join_hooks` as class S"
+      }
+    ],
+    "port_journal_matches_state_diff": [
+      {
+        "clause": "strap-leaves-unannounced",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "    if g._strap_follows(item,strap): g._special_erase(strap)",
+            "replace": "    if g._strap_follows(item,strap): g.state.special_equipment.erase(strap)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "every changed record is journaled"
+      },
+      {
+        "clause": "journal-member-row",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " _journal_row(\"member\",record,{\"change\":change})",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "every changed record is journaled"
+      },
+      {
+        "clause": "journal-phantom-id",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": "\"id\":String(record.get(\"id\",\"\"))",
+            "replace": "\"id\":\"phantom_\"+String(record.get(\"id\",\"\"))"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "journaled records all changed or were equal-value writes"
+      },
+      {
+        "clause": "undeclare-remaining",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": "\n {\"name\":\"X1\",\"field\":\"remaining\",\"condition\":\"changed\",\"why\":\"special-equipment duration ticks without a port\"},",
+            "replace": ""
+          }
+        ],
+        "suite": "equipment",
+        "expect": "every changed record is journaled"
+      },
+      {
+        "clause": "declare-unexercised",
+        "file": "tests/equipment_cases.gd",
+        "edits": [
+          {
+            "find": " {\"name\":\"X3\",\"field\":\"binding\",\"condition\":\"erased\",\"why\":\"a composite installation erases the neighbour piece's torso binding\"}]",
+            "replace": " {\"name\":\"X3\",\"field\":\"binding\",\"condition\":\"erased\",\"why\":\"a composite installation erases the neighbour piece's torso binding\"},\n {\"name\":\"X9\",\"field\":\"grade\",\"condition\":\"changed\",\"why\":\"declared but the sequence never writes it outside the quality port\"}]"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "declared unjournaled fields are exercised and stay unjournaled"
+      },
+      {
+        "clause": "super-durability",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " super._write_durability(target,value,tighten)",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the journal subclass is transparent"
+      },
+      {
+        "clause": "super-quality",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " super._write_quality(target,grade)",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the journal subclass is transparent"
+      },
+      {
+        "clause": "super-tier",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " super._tier_consequences(target,before,after,tighten)",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the journal subclass is transparent"
+      },
+      {
+        "clause": "super-member",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " super._member_changed(record,change)",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the journal subclass is transparent"
+      },
+      {
+        "clause": "super-join",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " super._join_hooks(entry)",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the journal subclass is transparent"
+      },
+      {
+        "clause": "super-cleanup",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " super._cleanup(released)",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the journal subclass is transparent"
+      },
+      {
+        "clause": "super-locked",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " super._write_locked(target,locked)",
+            "replace": " pass"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the journal subclass is transparent"
+      },
+      {
+        "clause": "quiet-counts-sandbox",
+        "file": "tests/write_journal_game.gd",
+        "edits": [
+          {
+            "find": " if not released and not _rope_trial:",
+            "replace": " if not released:"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "one replacement plan settles nothing"
+      },
+      {
+        "clause": "root-leaves-unannounced",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "    g._member_changed(root,\"removed\")\n   g._emit(\"event\",root.name+\"的套体已解除。\"",
+            "replace": "   g._emit(\"event\",root.name+\"的套体已解除。\""
+          }
+        ],
+        "suite": "equipment",
+        "expect": "reaches every row class"
+      }
     ]
   }
 }
