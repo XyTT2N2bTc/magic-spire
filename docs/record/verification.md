@@ -4981,3 +4981,107 @@ flowchart LR
 - 协调者同批改 `skills/repo-ops/SKILL.md`「敏感性证据」与突变检查两条：写明 schema 2、`#<clause>` 选择、`expect`，
   子句级敏感性一律经表取证。
 - 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+### 2026-11-15｜加装卸收口 Q6′b（脏件表、全扫回退、debug 对账与件结算，行为不变）登记（协调者落账）
+
+- 域：`spire-godot` 装备成员层的增量结算。`core/equipment_removal.gd` 新增 `bind`／`unbind`／`mark`／
+  `replaced`／`settle_residue`／`unit_residue`，`settle` 按 `_settle_table` 过滤特殊件、孤儿带、普通件、
+  复合件、链接五趟的移除判定（肩带趟、道具趟、快感趟、power 根计数与 `RopeArt.track` 不过滤）；
+  `core/game.gd` 新增实例字段 `_settle_table`、四处登记（`_member_changed`／`_members_replaced`／
+  `_write_durability`／`_write_quality`）、`dispatch` 的 `bind`／`unbind` 各一句与 `_join_hooks` 首句的
+  debug 守卫件结算；新增八条判据（七 REMOVAL＋一 ARCH）与测试助手 `tests/write_journal_game.gd`；
+  突变表 117→146 条。
+- 片范围 `f92101d..bd12c0a`（`0b96352` CC-7、`bc59d78` 产品与判据、`2fbe5b8`／`fa640cb`／`ee35e9a` 收尾、
+  `975d702` 清洁、`facb634` 加固（中）、`17726de`／`bd12c0a` 二次加固（低））；HEAD
+  `bd12c0aed60997d69bd76980e15acaa13eee6740`，本轮门禁与突变运行前后 `git status --porcelain` 均 0 行，
+  无提交、无推送、未新建或删除 worktree（13 个＝主检出＋12）。
+- `build/checks/20261114T234444265-46704`：52 套件（父名单同序含 `content`，`-Impact -Exhaustive
+  -KeepGoing -TimeoutSeconds 3600`），`RULE SCOPE` 与父 `20261114T115830851-2712` 逐字符相等；
+  `SUITE RESULT` 47 PASS／5 FAIL（`architecture`／`shoulder`／`rewards`／`events`／`core`，与父同组），
+  15 条父 `ERROR` 逐字节全等、差 0 行；断言 152260→**152279**（`architecture` +2、`equipment` +17、
+  其余 50 套件 0 差），`status=failed`、`before==after`；`persistence` 本轮绿，未出现 `SAVE fixed_point_text`
+  瞬时红。state_readers `--verify`（`sha256 ed1de6f1…b8f602`，`files=144`）与 `check-index.ps1`
+  （`digest 8e05e76e…a399`）皆零漂移。
+- `build/checks/20261115T004926724-41512`：runner `-VerifyRunner` PASS 1853（父 1853，本片无新 `check_index`
+  目标）、`verify_runner=True`、`before==after`，负例自检 7 项全 `verified`。UI `-UIOnly`
+  `build/checks/20261115T005234280-11924`：shoulder 19／torso_binding 11／body_layout 231 PASS，
+  `equipment_complete` 一条父同错「HEAD equal tightness allows hook and preserves the other mask」
+  （`UI FAIL: 374`，与父 `20261114T144124135-30088` 同）。
+- 八条新判据绿：`incremental_settle_matches_full_scan`、`settle_residue_stays_empty`、
+  `unbound_state_uses_full_scan`、`residue_check_is_debug_only`、`ARCH settle_marks_cover_every_writer`、
+  `settle_never_enters_durability_port`、`unit_settle_touches_only_its_closure`、
+  `unit_settle_residue_stays_empty`；差分夹具
+  `coverage={ "M01"…"M14" }` 每格 1、`removed=7`；`MUTATION ANCHORS entries=146 unique=146 bad=0`。
+  `MUTATION GAP FREEZE frozen=54 current=53 shrunk=1` 在父基线同轮同样出现，非本片引入。
+- 敏感性（判据级，`check-mutation` 三批，`worktree unchanged=True (pre-dirty=0)`，退出 0）：
+  `build/mutations/20261115T002202517-42240` 七条 REMOVAL 判据 19/19 子句具名红（1000.1s）；
+  `20261115T003853558-44368` `settle_marks_cover_every_writer#write-quality-port`／`#silent-stale-row`
+  2/2（606.4s）；`20261115T005437051-36424` CC-35 `durability_writes_have_one_entry`
+  （`unregistered=["core/prison.gd::intake_equipment"]`，395.6s）与 A148
+  `assess_never_touches_runtime_fields#settle-table`（`touched=["_settle_table"]`，390.1s）2/2。
+- 两条必跑手动敏感性各自具名红并逐字节还原：
+  删 `_write_durability` 的 `Removal.mark`（`core/game.gd` `A4F045BD…`→`0277FA03…`→`A4F045BD…`，运行
+  `20261115T001706516-44716`，16/434 红）；删离开集 M09 展开（`core/equipment_removal.gd`
+  `35728223…`→`8CDFD1A6…`→`35728223…`，运行 `20261115T002053215-45344`，3/434 红）。
+  后者的字面形态「删整行 `return link.ends.any(…)`」使函数 `-> bool` 无返回、GDScript 编译失败
+  （`20261115T001824652-16424` 原样保留，未作证据），改按 `mutations.json` 已登记的
+  `leave-expansion-m09` 形态（`return false`）取证，同一语义、未换改法凑红。
+- 三种子（驱动 `build/normal_seed_end.gd` sha256 `08204554…B70D9`）：42＝`01db4dc5…661fef`（578 步）、
+  20260906＝`4f69e2c7…f71f0e5c`（335）、7＝`aa45ef47…7dd7ae9d`（422），与记录值逐字符相等
+  ⇒ **不变、未登记新基线**。
+- 原因矩阵两树（复核 `dsp-20261115T014540Z-bc49`）：补证后探针 `build/rev3-q6b/cause_matrix.gd` sha256
+  `F5258F72…5CF63F`（两树同字节，59200 字节；新观察壳 `settle_probe.gd` `ECD9AE86…90E3FA4`、`hook_probe.gd`
+  `B9D50C06…94C757` 两树同，未改）。与改前 `9AB2DC91…38E9` 逐字节比较：首差异在第 1013 行，9 个 hunk 全落在
+  1013–1040，只改尾部四函数块。本树 `bd12c0a` 与父树 `C:/1/tmp/magic-spire-wt-q6b-base`@`f92101d` 前台串行各跑一次
+  （退出码 0／0，226／216 行，`rows=48`／`48`，无 `SCRIPT ERROR`）：`encode=` 行 56 对 56 **差 0**、`epoch=` 行
+  55 对 55 **差 0**，48 行四项（logs、`state.rng`、`SaveStore.encode(state)`、回执）逐字节相等；其余
+  `Compare-Object` 16 条差异全部归类为 ledger 观察行（父树无 `_settle_table`，absent，2 对）、CMz-q 判读行
+  （本树 1、父树 0）、本树 `DEBUG CHECK unit_settle_residue` 警告 10 行（backtrace `cmzq`），未归类 0。
+  四格：`CM17q-b` 玩偶 `puppet_stock` 3→2、新件 `equipment_1` 在容器；`CM17q-c` 两 power 面序
+  `["bound","free"]`、S11 写集 `["equipment_1","equipment_2"]` 离开集 `[]`、「已解除」序号 16 在玩偶安装文案
+  14 之后且落在 S11 窗口 16→17；`CMr-q` 非绳艺来源 `Application.execute_concrete(...,"enemy")` 装链接绳、
+  `rope_art.values` 两树同；`CMz-q` 本树恰 1 条 `unit_settle_residue`（`piece:equipment_1`）、父树 0、结算前该件仍在容器。
+  父树 `git status` 727 行全为 `assets/**/*.import` 的换行索引态差异、`git diff` 0 行、mtime 早于本轮。
+  `CMz-q` 的替代驱动按协调者预裁（A200）：字面 `add_fixture(slot,0.0)` 被 `Equipment.validate` 拒绝，改走
+  `_unit_begin`／`add_fixture(4.0)`／`_write_durability(0.0)`／`_unit_commit` 的同形真实 unit 路径，预裁三项判读成立。
+- debug 检索：52 套件 `check-rules.log`、三种子输出、首轮两树探针输出六份
+  `Select-String -Pattern 'DEBUG CHECK (settle_residue|unit_settle_residue|unit_frames)'` **合计 0 命中**
+  （敏感性运行另计 11 条，属预期）；补证后两树新输出（226／216 行）合计 **1 条**，即 `CMz-q` 的预期命中
+  （`piece:equipment_1`，backtrace `cmzq`），父树 0 ⇒ 除 `CMz-q` 外零命中。语料：全量
+  `m2-full-merged.json`（sha256 `75E446A5…A35ED`）`compare`／`reoracle` 各 `checked=3277 mismatches=0`、退出 0。
+- 报告值（同机同探针 3 次中位，只作报告值、不作优化结论）：满拘束单次结算 0.47 ms（父 0.54 ms）；
+  六缚常规回合 31.79 ms（父 28.16 ms），方向不一致且样本散布与差值同量级。
+- 允许面：`git diff --name-only f92101d` 9 文件 ⊆ 允许表（2 core＋`binding_enthusiast_cases.gd`（CC-7）
+  ＋`architecture_cases.gd`／`equipment_cases.gd`／`mutations.json`／`write_journal_game.gd`＋两生成物）；
+  `data`／`ui`／`content`／`assets` 零差异；`frozen-baselines.json` 零 diff、`known_gaps` 未改；模块合计
+  （core＋data＋ui `.gd`）144 文件 34136 行→**144 文件 34320 行**（+184，全在 `core`：
+  `equipment_removal.gd` 81→252、`game.gd` 4689→4702）。
+- 未验证与处置（协调者 A199／A200 已裁）：V1（`CM17q-b`／`CM17q-c` 驱动与判读面）与 V2（`CMz-q` 驱动与判读）已由补证后的
+  两树亲跑消除；仍保留 V3 —— M09 敏感性的字面改法不编译，按 `mutations.json` 登记的 `leave-expansion-m09`
+  形态取证（procedure）；V4 —— 父树 727 行 `.import` 索引态差异，`git diff` 0 行、非 `.import` 0 行、mtime
+  早于本轮，不处理（environment）。安卓真机、分帧、打包与发布未跑（范围外）。
+- 片前置与声明行：CC-7 处置提交 `0b96352` 只改 `tests/binding_enthusiast_cases.gd`（夹具改经写口写入；只有 `card_power`
+  载入该文件），先于产品提交并在父产品树上单独过 52 套件、逐名同序、`ERROR` 全等；CC-35 `durability_writes_have_one_entry`
+  端口形 4→5 句（新增 `Removal.mark` 一句）；A148 `ASSESS_RUNTIME_FIELD_TOKENS` 加 `_settle_table`，判定模块读该字段即具名红。
+- 清洁 `975d702`（行为保持）：`core/equipment_removal.gd` 收口为单一账本快照 `_open`、单一存活判定 `_live` 与
+  `_released_residue`／`_piece_residue`／`_orphan_residue`／`_link_residue` 四个对账助手；`state_readers` 由此 sites 2141→2139、
+  `whole_state` 79→77（实现提交时的中间值），三种子与两树探针在清洁树复跑不变。
+- 加固（中）：首派运行中途以连接错误退出，其间在后台并发起两批 architecture 突变，留下一行未还原的
+  `removal_module_edges#g-call` 残留（`core/equipment_removal.gd` 多一行 `g.validate()`）；该轮 architecture 敏感性
+  结论全部作废。重派运行核对残留恰为该条 replace 后 `git checkout` 还原（blob 回到 `facb634`），再把 11 条 architecture
+  条目逐条前台串行重跑，全部具名红、逐字节还原；`facb634` 同时把 `tests/equipment_cases.gd::_frame_issues` 收口为一句委托
+  `_check_rows`（同语义单一实现）。
+- 独立审查（通过，无阻断、无重要；次要 6、提示 2）处置：F1 `SETTLE_MARK_SILENT` 补陈旧核对（与声明表 `SETTLE_MARK_PORTS`
+  共用 `_stale_rows`）、F2 `_write_quality` 登记、F3 `_join_hooks` 首句 debug 守卫、F4 `restore_snapshot` 后全扫（经 debug
+  对账门与正向对照观察——有效快照不可能携带可移除成员）、F6 `unit_settle_touches_only_its_closure` 消息改为如实的
+  「不写账本、不改状态」（判据名不变，不断言读范围）、F7 `durability-port` 的 `expect` 收紧为具名 stale 行，均在
+  `17726de`／`bd12c0a` 落地并各有 `-Check` 红；F5（G-Q6-1′ 写「M14 获得诅咒眼罩」、夹具实作「失去」，失去是唯一可观察方向）
+  以协调者 A197 登记为准；F8 无行为影响、不处理。`17726de` 内第一版 F4 用例被 `装备耐久有误` 拒绝，`bd12c0a` 改正，历史未改写。
+- 验收首轮发现探针 `CM17q-b`／`CM17q-c`／`CMr-q`／`CMz-q` 四行未按契约驱动（原为普通出牌、两次结算与直调安装，两树相同不具区分力），
+  实现者原交回的「两树 48 行 DIFF=0」对这四行不成立；协调者 A199 不按现状落账，派补证后再复核（见上「原因矩阵两树」）。
+- 片内流水：实现 `bc59d78`→清洁 `975d702`→加固 `facb634`（中）→独立审查（通过，无阻断、无重要，
+  `tmp/io-q6b/review/findings.md`）→二次加固 `17726de`／`bd12c0a`（低）→验收 `dsp-20261114T234305Z-2e5a`
+  →探针四行补证 `dsp-20261115T012029Z-df55`（`tmp/io-q6b/probe-fix/notes.md`）→验收增量复核
+  `dsp-20261115T014540Z-bc49`。记录：`tmp/io-q6b/acceptance/acceptance-q6b-validator.md`（首轮）、
+  `tmp/io-q6b/acceptance/acceptance-q6b-delta.md`（增量）。
+- 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。

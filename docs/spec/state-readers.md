@@ -156,6 +156,10 @@
   含义：新增扫描面只是新模块（files ＋1）；owner `core/game.gd::_cleanup` 的读集整块迁到 `core/equipment_removal.gd::settle`，
   逐类相等（composites 4／equipment 3／items 2／links 3／powers 1／special_equipment 4），cells 与 sites 不变；
   `_cleanup` 只剩一句委托，不再是读集 owner——上列 Q1 行所记 `_cleanup` −3 的读点现归 `settle`。
+- Q6′b（脏件表、全扫回退、debug 对账）后重生成的现行统计：`files=144`、`fields=121`、`cells=1313`、`sites=2139`、`whole_state` 77 处。
+  含义：`core/equipment_removal.gd` 新增 owner 单元 `_open`（relics 1）、`_orphan_residue`（special_equipment 1）、`settle_residue`
+  （composites 1／equipment 1／links 1／special_equipment 2），`settle` 多读 relics 1（诅咒眼罩判定），共 cells ＋7、sites ＋8；
+  新增 `whole_state` 两处为 `core/equipment_removal.gd::_live` 与 `::_open` 各一处整份传递（kind `pass`）。对账两处只在 debug 构建运行（`residue_check_is_debug_only`）。
 
 ## 残差与仍靠人审（无机械判据）
 
