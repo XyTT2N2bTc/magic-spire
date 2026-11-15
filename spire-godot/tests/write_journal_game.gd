@@ -124,12 +124,15 @@ func _quiet_site() -> String:
 
 # One frame per settle: the port-entry counts at both ends, so the delta inside `_cleanup` is exact even
 # when one action reaches several settle points. A quiet settle outside the sandbox also records one row
-# (§3): the snapshot is taken before `super` and the row after, so the row describes exactly this settle.
+# (§3): the snapshot is taken before the frame is built and the row after `super`, so the row describes
+# exactly this settle. The snapshot stays out of the `cleanup_frames.append`/`super` pair because the
+# Q6'b mutation anchor `settle_never_enters_durability_port#cleanup-observed` selects those two lines
+# adjacent and verbatim.
 func _cleanup(released: bool=true) -> void:
- var frame={"released":released,"enter_durability":durability_entries.size(),"enter_quality":quality_entries.size(),"exit_durability":0,"exit_quality":0}
- cleanup_frames.append(frame)
  var quiet_before={}
  if not released and not _rope_trial: quiet_before=quiet_snapshot(self)
+ var frame={"released":released,"enter_durability":durability_entries.size(),"enter_quality":quality_entries.size(),"exit_durability":0,"exit_quality":0}
+ cleanup_frames.append(frame)
  super._cleanup(released)
  frame["exit_durability"]=durability_entries.size()
  frame["exit_quality"]=quality_entries.size()
