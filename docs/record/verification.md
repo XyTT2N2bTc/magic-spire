@@ -5085,3 +5085,47 @@ flowchart LR
   `dsp-20261115T014540Z-bc49`。记录：`tmp/io-q6b/acceptance/acceptance-q6b-validator.md`（首轮）、
   `tmp/io-q6b/acceptance/acceptance-q6b-delta.md`（增量）。
 - 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+### 2026-11-16｜加装卸收口 Q7（统一观测出口：写口日志对照状态差分，只改测试）登记（协调者落账）
+
+- 域：`spire-godot` 测试侧统一观测出口。`tests/write_journal_game.gd` 记录各写口行（成员 `member`、耐久
+  `durability` 等端口，含沙盒 `trial` 标记），`tests/equipment_cases.gd` 新增三条判据
+  `reinforce_writes_are_journaled`、`shoulder_members_are_journaled`、`port_journal_matches_state_diff`，
+  覆盖 A／B／C 三段窗（A12／B5／C1，沙盒 1／0／0）与透明四段六项、`BOUNDARIES` 自检；C 段 C0 用敌方
+  `special_install` 的 urethral_rod_low 在回合初高潮滑脱 6−2=4 归零、`_special_erase` 移除，给出真实过渡成员
+  `special_34`（rev3.7／CC-53：窗前写 `state.pressure = Pressure.maximum(g) - 5.0`）；CC-54：过渡成员须窗前窗后均不在、
+  且同窗先有真实 `member/added` 行后有 `member/removed` 行。**产品零改动**（core／data／ui／content／assets
+  diff-stat 空），§2.2–§2.4 经协调者 A193 T5／A201 授权跳过。突变表 146→**180**（Q7 34 条），
+  `MUTATION ANCHORS entries=180 unique=180 bad=0`。
+- 片范围 `4cb2650..70befe0`：实现 `8f39e4c`／`5b397d3`／`7a72eb2`／`a96baca`／`d4ef357`／`a168876`／`b09d84d`／
+  `b389c67`，清洁 `bc5af2e`／`eda8094`，加固 `c22436b`（低）、`13c3147`（审查 R1–R5）、`62708c9`（rev3.7 C 段）、
+  `70befe0`（CC-54）。四文件净增 1492 行；core＋data＋ui 144 文件 34320→34320。冻结三项不变，允许面恰四文件。
+  新增测试→`Replacement` 依赖边落在已授权自检域（A204），依赖表 §4 未逐名列出，不宣称边集零变化。
+- `build/checks/20261115T205758553-2620`：52 套件名单同父 `20261114T234444265-46704`，47 PASS／5 FAIL
+  （`architecture`／`shoulder`／`rewards`／`events`／`core`，与父同组），15 条父 `ERROR` 原字节全等；断言
+  152279→**152297**（`equipment` +18，其余 51 套件 0 差），`status=failed`、`before==after`、`SCRIPT ERROR`=0；
+  `persistence` 本轮绿。state_readers 与 `check-index` 零漂移。
+- runner `20261115T215445287-45584` `-VerifyRunner` PASS 1854、负例与路由探针 15 项完成、`status=passed`。UI
+  `20261115T215703628-34152`：三套件 PASS，`equipment_complete` 一条父同错（与 `20261115T005234280-11924` 原字节同，
+  `UI FAIL: 374`）；不据此宣称 UI 全绿。
+- 三条判据在正式 equipment 452 PASS；补充可见原函数绿行 `obs-visible-20261115T220024135Z`（5／2／11 断言；首轮
+  `obs-visible-20261115T215934253Z` 为验收脚本 parse error，只修 build 脚本，旧轮不作证）。X1=25／X2=1／X3=8；C0
+  `special_34`、无沙盒、missing／forged 空；透明六项与 `BOUNDARIES` 全真。
+- 敏感性（判据级 `check-mutation` 三批，退出 0、逐字节还原）：`build/mutations/20261115T210905779-29768` 5/5、
+  `20261115T211422869-32516` 3/3、`20261115T211758157-38352` 26/26，共 34 条 RED／expect／restored；与他条共用主文本的
+  四条（F2：`successful-install-row`、`binding-owner-ignored`、`transitional-tolerance-dropped`、`declare-unexercised`）
+  从原始 `ERROR` 逐条核因。Q6′b `settle_never_enters_durability_port` 两子句 `20261115T215050969-24024` 2/2 RED，
+  既有三条 REMOVAL 仍绿。
+- 审查（`tmp/io-q7/review/findings.md`）R1 肩带字段、R2 固缚归属、R3 跨帧与预归零站点、R4 X3 独立读状态、R5 产品
+  锚点经 `13c3147` 关闭；R2 修正揭示旧过渡成员为假命中，rev3.7 补 C0。复审（`tmp/io-q7/review2/findings.md`）F1
+  伪造耐久行被当过渡成员，经 `70befe0`／CC-54 关闭（同输入修后 `forged=["C0:review2_never_existed_binding"]`）；
+  能力边界：整对 added／removed 一并伪造仍不能识别（已裁）。F2 转 QM2，R37-3（`installation_plan` 不设
+  `_rope_trial`）转 QX6 入口检查。
+- 报告值 `report-probe-20261115T220149926Z` 本轮完成但与 E6 数字不同（非判据）：E6 旧探针已删、驱动与采样窗未保存，
+  两轮输入等价**未验证**，不据此判产品回归；版本内复用命中率留 Q10，H6 待人裁 T8。
+- 未验证：E6 输入／采样窗等价、Q10 命中率、H6。种子回放未跑（只改测试、产品零改动，不登记新基线）。
+- 流程：实现→清洁→加固（低）→独立审查 `tmp/io-q7/review/`→二次加固→规划 rev3.7→三次加固→定向复审
+  `tmp/io-q7/review2/`→四次加固→验收 `dsp-20261115T205350Z-c093`。验收工作者完成全部七阶段并写出记录后会话失去
+  任务上下文，未写 `report.json`（dispatch `report_missing`）；协调者以产物文件与原生日志抽核（52 套件 `SUITE RESULT`、
+  34 条突变表、终态 HEAD／dirty）后接受（A214）。记录：`tmp/io-q7/acceptance/acceptance-q7-validator.md`。
+- 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
