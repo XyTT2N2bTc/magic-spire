@@ -20,7 +20,9 @@ extends RefCounted
 #      与 live 刷新相同，且不推进 live rng（A50 R2 的复现面）。
 #   7) can_apply_stops_at_the_first_legal_candidate：first_only 是同一判定路径的存在性读取。
 #   8) parallel_orchestrations_call_the_shared_rules（A50 R3 从 replacement_assess_cases.gd 迁入）：O1／O2／O3
-#      三行编排在两端核对共用规则集合、视图端禁调 live 独有副作用，并按行核对 `# O<n>` 标记。
+#      三行编排在两端核对共用规则集合、视图端禁调 live 独有副作用，并按行核对 `# O<n>` 标记。Q8 按 CC-55
+#      加 O4 配对行（kind → [live 工厂 token, 视图孪生 token]，按形状分派而非编号）：live 工厂集合与配对表
+#      live 列双向相等、视图端每个非空孪生 token 都被调用；第 6 列（live 写口 token）在视图端出现即红。
 #      A53 F5a：扫描面先剔除注释与字符串字面量，再按调用形态匹配，并把视图端模块内被调用的本地
 #      助手按调用闭包展开——refresh 调 helper、helper 内 g._emit(…) 也红；只写字面量不再误红。
 #   9) excluded_hooks_are_not_read_by_the_judgment（A52 F3）：排除钩子表非空、可达，且与 O3 的 live-only
@@ -404,7 +406,18 @@ const PARALLEL_ORCHESTRATIONS=[
   false,["RopeArt.track(","_emit(","_equipment_feedback(","Pressure.","Cards.","_tier_consequences(","_write_durability("]],
  ["O3",LIVE_CLEANUP_SKELETON,"core/equipment_replacement_view.gd::cleanup",
   ["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"],
-  false,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback(","_special_append(","_special_erase(","_member_changed("]]]
+  false,["RopeArt.track(","_emit(","Pressure.","Cards.","_equipment_feedback(","_special_append(","_special_erase(","_member_changed("]],
+ # O4 派发编排：live core/game.gd::_install_request 与视图 core/equipment_replacement_view.gd::install 按 kind
+ # 配对（工厂 ↔ 准入孪生，CC-55）；link 的视图孪生为空，标「视图端无」。第 6 列同「视图端禁调 live 写口」。
+ ["O4","core/game.gd::_install_request","core/equipment_replacement_view.gd::install",
+  {"install":["_install_template(",["_prepare_installation_in(","_template_piece("]],
+   "assembly":["_install_assembly(",["_plan_assembly_in("]],
+   "special_install":["_install_special(",["_special_install_reason_in(","_special_piece("]],
+   "link":["_install_link(",[]]},
+  false,["_emit(","_equipment_feedback(","RopeArt.track(","_write_durability(","_special_erase(","_special_append(","_member_changed("]]]
+
+# CC-55 第 4 条：配对行 live 列只许是这四类安装工厂 token；未列出的工厂调用即红。
+const FACTORY_DISPATCH_TOKENS=["_install_template(","_install_assembly(","_install_special(","_install_link("]
 
 # 登记表所在模块：O2 的行标记（A50 R3）与 O1／O3 的产品侧标记一起参与逐行覆盖核对。
 const ORCHESTRATION_SOURCE="tests/replacement_view_cases.gd"
@@ -563,9 +576,25 @@ static func parallel_orchestrations_call_the_shared_rules(t) -> void:
  var malformed=[]; var uncalled=[]; var pending=[]; var aligned=[]; var live_only=[]
  for row in PARALLEL_ORCHESTRATIONS:
   if row.size()<6: malformed.append("row-size"); continue
-  var declared=Array(row[3]).duplicate(); declared.sort(); if declared.is_empty() or Array(row[5]).is_empty(): malformed.append(String(row[0])+":row")
+  # CC-55：配对行用声明形状（row[3] 是 kind → [live 工厂 token, 视图孪生 token 数组] 字典）区分，
+  # 不按编号判断；其余行仍是一列共用规则名单。
+  var pairing=row[3] is Dictionary
+  var declared=[]
+  if pairing:
+   if (row[3] as Dictionary).is_empty(): malformed.append(String(row[0])+":row")
+  else:
+   declared=Array(row[3]).duplicate(); declared.sort(); if declared.is_empty(): malformed.append(String(row[0])+":row")
+  if Array(row[5]).is_empty(): malformed.append(String(row[0])+":row")
   var live=_function_code(String(row[1])); var declare_pending=bool(row[4])
   if live.strip_edges()=="": malformed.append(String(row[1])+":missing")
+  elif pairing:
+   # CC-55 第 4 条：live 端调到的工厂集合与配对表的 live 列双向相等。
+   var live_factories=[]
+   for kind in (row[3] as Dictionary): live_factories.append(String((row[3] as Dictionary)[kind][0]))
+   for token in live_factories:
+    if not _declared_called(live,String(token)): uncalled.append(String(row[1])+":"+String(token))
+   for token in FACTORY_DISPATCH_TOKENS:
+    if _declared_called(live,String(token)) and not live_factories.has(String(token)): uncalled.append(String(row[1])+":undeclared "+String(token))
   elif String(row[1]).split("::")[0] in LIVE_CLEANUP_SKELETON_FILES:
    # live 端是 game.gd 的编排骨架：共用规则集合与名单双向相等（O3 裸谓词、O2 模块前缀）。
    var called=_live_shared_rules(live,Array(row[5]))
@@ -588,6 +617,11 @@ static func parallel_orchestrations_call_the_shared_rules(t) -> void:
     # 名单项既可以是函数名（补 "("）也可以是两端共有的前缀（例如 Shoulders.validate 对 live 的
     # validate( 与视图的 validate_in(；O2 的 Binding./Equipment./Shoulders. 同形）；两端都必须出现。
     if not _declared_called(scanned,String(name)): uncalled.append(String(row[2])+":"+String(name))
+   if pairing:
+    # CC-55 第 4 条：视图端每个非空孪生 token 都被调用（link 行孪生为空＝视图端无）。
+    for kind in (row[3] as Dictionary):
+     for token in Array((row[3] as Dictionary)[kind][1]):
+      if not _declared_called(scanned,String(token)): uncalled.append(String(row[2])+":"+String(token))
    for token in row[5]:
     if _declared_called(scanned,String(token)): live_only.append(String(row[2])+":"+String(token))
    var view_file=String(row[2]).split("::")[0]

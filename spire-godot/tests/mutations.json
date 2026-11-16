@@ -1292,6 +1292,70 @@
         "expect": "the module reaches the game only through the declared g-call names"
       }
     ],
+    "factory_dispatch_has_one_entry": [
+      {
+        "clause": "dispatch-bypass",
+        "file": "core/equipment_application.gd",
+        "edits": [
+          {
+            "find": " var args={}",
+            "replace": " var args={}\n if false: g._install_template(args.template,args.slot,0.0,0.0,false,\"\",1)"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "the four install factories are routed only by the one dispatch"
+      },
+      {
+        "clause": "install-inlines-dispatch",
+        "file": "core/equipment_replacement.gd",
+        "edits": [
+          {
+            "find": " return g._install_request(Assess.factory_args(g,r),source)",
+            "replace": " var args=Assess.factory_args(g,r)\n match args.get(\"kind\",\"\"):\n  \"install\": return g._install_template(args.template,args.slot,args.durability,args.maximum,args.locked,source,args.grade,args.get(\"layer\",-1),args.get(\"variant\",0),args.get(\"point\",\"\"))\n return {}"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "the transaction install (core/equipment_replacement.gd::_install) is exactly one delegation"
+      },
+      {
+        "clause": "shape-surface-out-of-bounds",
+        "file": "core/equipment_application.gd",
+        "edits": [
+          {
+            "find": "  if _request_reason(g,request,false)==\"\": result.append(request)",
+            "replace": "  if true: result.append(request)"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "the two request-shape checks keep their declared call surfaces"
+      },
+      {
+        "clause": "shape-third-at-dispatch",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _install_request(args: Dictionary, source: String) -> Dictionary:",
+            "replace": "func _install_request(args: Dictionary, source: String) -> Dictionary:\n var _q8_shape_probe=\"_request_reason(\""
+          }
+        ],
+        "suite": "architecture",
+        "expect": "no third request-shape check is added at the dispatch"
+      }
+    ],
+    "execute_concrete_defaults_unchanged": [
+      {
+        "clause": "defaults-unmerged",
+        "file": "core/equipment_application.gd",
+        "edits": [
+          {
+            "find": " var items=[];var removed=[]\n var grade=p.get(\"grade\",2)",
+            "replace": " var items=[];var removed=[]\n var grade=p.get(\"grade\",1)"
+          }
+        ],
+        "suite": "application",
+        "expect": "keeps grade 2"
+      }
+    ],
     "cleanup_link_loop_writes_only_links": [
       {
         "clause": "primary",

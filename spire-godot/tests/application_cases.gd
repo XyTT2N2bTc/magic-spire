@@ -1,6 +1,7 @@
 extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
 const A=preload("res://core/equipment_application.gd")
+const Assess=preload("res://core/equipment_replacement_assess.gd")
 const O=preload("res://core/equipment_offers.gd")
 const E=preload("res://data/equipment.gd")
 
@@ -76,6 +77,21 @@ static func chastity_displacement_unchanged(t) -> void:
  t.check(plain.state.special_equipment.size()==2 and String(plain_installed.get("type",""))=="negative_vibrator_lock_catheter_high" and plain.state.special_equipment[1].owner_id==String(plain_installed.get("id","")) and not plain.state.special_equipment.any(func(item):return item.id in plain_before),"APPLY chastity_displacement_unchanged: without a strap the container ends as the incoming lock and its own auto-attached strap, with no displaced id left: "+str(plain.state.special_equipment.map(func(item):return item.id)))
  t.check(plain_displaced==[plain_old.name+"被新的平板锁替换并取下。",plain_rod.name+"被新的平板锁替换并取下。"],"APPLY chastity_displacement_unchanged: without a strap one displacement line per removed piece, in container order: "+str(plain_displaced))
 
+# G-Q8-2′（rev3.5 K3-2）：应用层默认值不被合并。缺省 grade 的 install 请求经 execute_concrete 直装时
+# 走它自己的 p.get("grade",2)；经替换路径规范化（Assess.normalize）时走 r.get("grade",1)——两处默认值合并
+# 会改行为，所以两条都要在真实入口上可观测（G-Q8-1′ 的单一派发不改这两处默认值）。
+static func execute_concrete_defaults_unchanged(t) -> void:
+ var direct_game=Game.new(42)
+ var result=A.execute_concrete(direct_game,{"kind":"install","template":"mouth_band","slot":"mouth","tier":2},"fixture")
+ var direct=-1
+ if result.ok and not result.installed.is_empty(): direct=int(result.installed[0].get("grade",-1))
+ t.check(result.ok and direct==2,"APPLY execute_concrete_defaults_unchanged: a direct concrete install of a grade-less install request keeps grade 2 (the application layer's own p.get(\"grade\",2)), unchanged by the unified dispatch: ok="+str(result.ok)+" grade="+str(direct))
+ var replace_game=Game.new(42)
+ var normalized=Assess.normalize(replace_game,[{"kind":"install","template":"mouth_band","slot":"mouth","tier":2}])
+ var via_replace=-1
+ if normalized.get("ok",false) and not normalized.get("requests",[]).is_empty(): via_replace=int(normalized.requests[0].get("grade",-1))
+ t.check(normalized.get("ok",false) and via_replace==1,"APPLY execute_concrete_defaults_unchanged: the replacement-path normalization keeps grade 1 (Assess.normalize's own r.get(\"grade\",1)), so the two defaults stay unmerged: ok="+str(normalized.get("ok",false))+" grade="+str(via_replace))
+
 static func run(t) -> void:
  preload("res://tests/girl_sound_cases.gd").run(t)
  preload("res://tests/equipment_audio_cases.gd").run(t)
@@ -83,6 +99,7 @@ static func run(t) -> void:
  unchanged_replacement(t)
  excluded_links(t)
  chastity_displacement_unchanged(t)
+ execute_concrete_defaults_unchanged(t)
  var materials={}
  for seed_value in t.seed_values("enemy_cycle"):
   var first=Game.new(seed_value);var second=Game.new(seed_value)

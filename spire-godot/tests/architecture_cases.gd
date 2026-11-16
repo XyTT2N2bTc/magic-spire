@@ -1227,6 +1227,7 @@ static func run(t) -> void:
  durability_ladder_has_one_source(t)
  legal_requests_is_the_only_judgment_entry(t)
  replacement_judgment_has_one_entry(t)
+ factory_dispatch_has_one_entry(t)
  migrated_pure_functions_have_one_implementation(t)
  transition_kind_set_pinned(t)
  command_params_keys_pinned(t)
@@ -8383,6 +8384,63 @@ static func replacement_judgment_has_one_entry(t) -> void:
  for name in ["can_apply","legal_requests","_choices","_choice_bands"]:
   if source_function_body(relative,name).contains("Replacement."): direct.append(name)
  t.check(direct.is_empty(),"ARCH replacement_judgment_has_one_entry: can_apply, legal_requests, _choices and _choice_bands never reference the transaction module directly (only _replacement_plan calls it): direct="+str(direct))
+
+# ==== Q8（rev3.5 G-Q8-1′；dependencies-delta §1 工厂派发行、§3 Q8′ 表）：工厂层唯一派发 ====
+# 四类安装工厂（_install_template／_install_assembly／_install_special／_install_link）只由
+# core/game.gd::_install_request 按 kind 路由。扫描面＝G-Q8-1′ 的 Given 两文件；面内唯一允许的直调是
+# 固定 kind、非请求派发的 core/equipment_replacement.gd::_force_special_live（§5.1 Q8-6 的其余固定 kind
+# 站点落在扫描面外）。事务侧 core/equipment_replacement.gd::_install 恰为一次委托。
+# 两个请求形状校验（_request_reason 与 Assess.normalize）保持两份、各带声明调用面（合并会改失败文本）；
+# 出现第三处请求形状校验或调用面越界即红。`_install_request` 若调 `_unit_begin`／`_member_joined` 由既有
+# unit_entries_are_declared 判红、若调 `Removal.` 由 removal_module_edges 判红（Q8-4，不在此重复）。
+# 查重（Q8 派工记录，见 tmp/io-q8/evidence.md §3）：core／tests 内无 REQUEST_SHAPE_CHECKS 同义表，亦无
+# 第二个工厂派发表；本表为新建。
+const DISPATCH_DOMAIN=["core/equipment_application.gd","core/equipment_replacement.gd"]
+const INSTALL_FACTORY_TOKENS=["_install_template(","_install_assembly(","_install_special(","_install_link("]
+const FACTORY_DIRECT_CALL_EXCEPTIONS=["core/equipment_replacement.gd::_force_special_live"]
+const REQUEST_SHAPE_CHECKS=[
+ ["core/equipment_application.gd::_request_reason",["core/equipment_application.gd::_raw","core/equipment_application.gd::execute_concrete","core/equipment_application.gd::legal_requests"]],
+ ["core/equipment_replacement_assess.gd::normalize",["core/equipment_replacement.gd::_plan"]]]
+
+static func factory_dispatch_has_one_entry(t) -> void:
+ var dispatch_body=source_function_body("core/game.gd","_install_request")
+ # (1) 唯一派发：扫描面内四工厂调用只落在登记例外；例外必须真有命中，表与源双向核对。
+ var names=[]
+ for token in INSTALL_FACTORY_TOKENS: names.append(String(token).trim_suffix("("))
+ var pattern="(?<![A-Za-z0-9_])(?:g\\.)?("+"|".join(PackedStringArray(names))+")\\s*\\("
+ var hits=unique_path_sites(["res://core"],pattern).filter(func(hit):return String(hit.file) in DISPATCH_DOMAIN and not declaration_line(String(hit.text)))
+ var sites=write_site_names(hits)
+ var extra=sites.filter(func(site):return not FACTORY_DIRECT_CALL_EXCEPTIONS.has(String(site)))
+ var exceptions_present=FACTORY_DIRECT_CALL_EXCEPTIONS.all(func(site):return sites.has(String(site)))
+ t.check(dispatch_body.strip_edges()!="" and not sites.is_empty() and exceptions_present and extra.is_empty(),"ARCH factory_dispatch_has_one_entry: the four install factories are routed only by the one dispatch (core/game.gd::_install_request) inside the scanned files; the only declared direct-call exception is the fixed-kind _force_special_live and it is really present: sites="+str(sites)+" exceptions="+str(FACTORY_DIRECT_CALL_EXCEPTIONS)+" extra="+str(extra))
+ # (2) 事务侧委托恰为一次。
+ var install_lines=Array(source_function_body("core/equipment_replacement.gd","_install").split("\n"))
+ if not install_lines.is_empty(): install_lines.remove_at(0)
+ var install_code=[]
+ for line in install_lines:
+  var text=String(line).split("#")[0].strip_edges()
+  if text!="": install_code.append(text.replace(" ",""))
+ var install_delegates=install_code.size()==1 and install_code[0]=="returng._install_request(Assess.factory_args(g,r),source)"
+ t.check(install_delegates,"ARCH factory_dispatch_has_one_entry: the transaction install (core/equipment_replacement.gd::_install) is exactly one delegation to the one dispatch, so the transaction keeps no second factory dispatch of its own: code="+str(install_code))
+ # (3) 两个请求形状校验各带声明调用面（面内）。
+ var shape_bad=[]
+ for row in REQUEST_SHAPE_CHECKS:
+  var site=String(row[0])
+  var parts=site.split("::")
+  if source_function_body(parts[0],parts[1])=="":
+   shape_bad.append(site+":missing"); continue
+  var call_pattern="(?<![A-Za-z0-9_])"+parts[1]+"\\s*\\("
+  var call_hits=unique_path_sites(["res://core"],call_pattern).filter(func(hit):return String(hit.file) in DISPATCH_DOMAIN and not declaration_line(String(hit.text)))
+  var actual=write_site_names(call_hits)
+  var declared=Array(row[1]).duplicate(); declared.sort()
+  if actual!=declared: shape_bad.append(site+":"+str(actual)+"!="+str(declared))
+ t.check(not REQUEST_SHAPE_CHECKS.is_empty() and shape_bad.is_empty(),"ARCH factory_dispatch_has_one_entry: the two request-shape checks keep their declared call surfaces (a third request-shape check or an out-of-bounds caller is red): "+str(shape_bad))
+ # (4) 派发本身不做请求形状校验（不得变成第三处）。
+ var third=[]
+ for row in REQUEST_SHAPE_CHECKS:
+  var token=String(String(row[0]).split("::")[1])+"("
+  if dispatch_body.contains(token): third.append(token)
+ t.check(not dispatch_body.strip_edges()=="" and third.is_empty(),"ARCH factory_dispatch_has_one_entry: no third request-shape check is added at the dispatch (the dispatcher routes by kind and never validates the request shape itself): third="+str(third))
 
 static func migrated_pure_functions_have_one_implementation(t) -> void:
  var missing=[]
