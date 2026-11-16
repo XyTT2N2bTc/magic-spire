@@ -1706,6 +1706,20 @@ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bo
     push_error("TIER CONSEQUENCES: undeclared handler "+String(handler)+" row="+row+" class="+key)
  _unit_commit(owned)
 
+# Q8 (rev3.5 G-Q8-1'): the one dispatch for the four installation factories. `args` is the shared
+# factory-argument record (the shape Assess.factory_args emits; `link` additionally carries
+# a/b/blocked_slip/connection_slots/connection_points). It only routes by kind -- it opens no
+# frame, announces nothing, dispatches no consequence, books nothing, never calls Removal and
+# writes no container. The application-layer defaults and the special-replacement `removed`
+# difference stay in core/equipment_application.gd::execute_concrete.
+func _install_request(args: Dictionary, source: String) -> Dictionary:
+ match String(args.get("kind","")):
+  "install": return _install_template(args.template,args.slot,args.durability,args.maximum,args.locked,source,args.grade,args.get("layer",-1),args.get("variant",0),args.get("point",""))
+  "assembly": return _install_assembly(args.family,args.variant,source,args.grade,args.get("tier",2),args.get("parts",{}),args.get("straps","straight"),args.get("attached_to",""))
+  "special_install": return _install_special(args.type,args.slot,args.get("tier",0))
+  "link": return _install_link(args.a,args.b,args.durability,source,args.grade,args.get("blocked_slip",[]),args.get("connection_slots",[]),args.get("connection_points",[]))
+ return {}
+
 func _install_special(type: String, slot: String, tightness: int=0) -> Dictionary:
  if tightness not in [0,1,2,3]: return {}
  if _special_install_reason(type,slot)!="": return {}

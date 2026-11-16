@@ -91,13 +91,9 @@ static func _force_special_live(g, type: String, tier: int, source: String) -> D
  return {"ok":true,"reason":"","removed":removed,"installed":[installed],"lost_links":lost_links,"comparisons":[]}
 
 static func _install(g, r: Dictionary, source: String) -> Dictionary:
- # Argument derivation is Assess.factory_args: only the "which factory" dispatch stays here.
- var args=Assess.factory_args(g,r)
- match args.get("kind",""):
-  "install": return g._install_template(args.template,args.slot,args.durability,args.maximum,args.locked,source,args.grade,args.layer,args.variant,args.point)
-  "assembly": return g._install_assembly(args.family,args.variant,source,args.grade,args.tier,args.parts,args.straps,args.get("attached_to",""))
-  "special_install": return g._install_special(args.type,args.slot,args.tier)
- return {}
+ # Argument derivation is Assess.factory_args; the "which factory" dispatch is the one entry point
+ # Game._install_request (Q8), so this transaction keeps no second dispatch of its own.
+ return g._install_request(Assess.factory_args(g,r),source)
 
 static func _plan(g, requests: Array, source: String, protected_ids: Array) -> Dictionary:
  var normalized=Assess.normalize(g,requests)

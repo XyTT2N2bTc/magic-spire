@@ -153,24 +153,27 @@ static func execute_concrete(g, request: Dictionary, source: String, allow_repla
  var grade=p.get("grade",2)
  var maximum=E.maximum(grade)
  var durability=g.RestraintValue.durability_for(maximum,p.get("tier",2))
+ # Q8: the four install kinds route through the one factory dispatch Game._install_request; the
+ # application-layer defaults above and the special-replacement `removed` difference stay here.
+ # `shoulder` is not a factory and keeps its single entry Shoulders.install.
+ var args={}
  match p.kind:
   "install":
-   var item=g._install_template(p.template,p.slot,durability,maximum,p.get("locked",false),source,grade,p.get("layer",-1),p.get("variant",0),p.get("point",""))
-   if not item.is_empty(): items.append(item)
+   args={"kind":"install","template":p.template,"slot":p.slot,"durability":durability,"maximum":maximum,"locked":p.get("locked",false),"grade":grade,"layer":p.get("layer",-1),"variant":p.get("variant",0),"point":p.get("point","")}
   "assembly":
-   var root=g._install_assembly(p.family,p.variant,source,grade,p.get("tier",2),_overrides(p),p.get("straps","straight"),p.get("attached_to",""))
-   if not root.is_empty(): items.append(root)
+   args={"kind":"assembly","family":p.family,"variant":p.variant,"grade":grade,"tier":p.get("tier",2),"parts":_overrides(p),"straps":p.get("straps","straight"),"attached_to":p.get("attached_to","")}
   "special_install":
-   var old_ids=g.state.special_equipment.map(func(old):return old.id)
-   var item=g._install_special(p.type,p.slot,p.get("tier",0))
-   if not item.is_empty(): items.append(item)
-   removed=old_ids.filter(func(id):return not g.state.special_equipment.any(func(current):return current.id==id))
+   args={"kind":"special_install","type":p.type,"slot":p.slot,"tier":p.get("tier",0)}
   "link":
-   var link=g._install_link(p.ends[0],p.ends[1],durability,source,grade,p.get("blocked_slip",[]),p.get("slots",[]),p.get("contact_points",[]))
-   if not link.is_empty(): items.append(link)
+   args={"kind":"link","a":p.ends[0],"b":p.ends[1],"durability":durability,"grade":grade,"blocked_slip":p.get("blocked_slip",[]),"connection_slots":p.get("slots",[]),"connection_points":p.get("contact_points",[])}
   "shoulder":
    var host=g._equipment(p.target)
    if g.Shoulders.install(g,host,p.template,grade,source): items.append_array(g.Shoulders.attached(g,host))
+ if not args.is_empty():
+  var old_ids=g.state.special_equipment.map(func(old):return old.id) if p.kind=="special_install" else []
+  var item=g._install_request(args,source)
+  if not item.is_empty(): items.append(item)
+  if p.kind=="special_install": removed=old_ids.filter(func(id):return not g.state.special_equipment.any(func(current):return current.id==id))
  if items.is_empty(): return _failure("请重新选择符合安装要求的位置。")
  var result=_result()
  result.removed=removed
