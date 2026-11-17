@@ -301,19 +301,61 @@ static func legal_matches_plan_inside_scope(t, data: Dictionary) -> void:
  t.check(mismatched.is_empty() and checked>0 and tier3_binding>0,"VIEW legal_matches_plan_inside_scope: inside an open read scope the judgment returns the stored verdict for every case (the view never answers from the live index), and the slice really carries tier-three cases with a binding record so the per-trial counter reset is exercised: checked=%d tier3_binding=%d mismatched=%s" % [checked,tier3_binding,str(mismatched.slice(0,5))])
  t.check(scope_lost.is_empty(),"VIEW legal_matches_plan_inside_scope: the read scope is neither rebuilt nor replaced around the judgment and is restored to its previous value: "+str(scope_lost.slice(0,5)))
 
+# The shoulder half of one case. A newly installed host carries no pair, so both sides are missing: the
+# view refresh and the live refresh then read the one pair-record builder and the one missing-side
+# rule. `filled` says the live end really built the left and the right piece, so the comparison cannot
+# pass on an empty pair.
+static func _shoulder_pair_differences(g, data: Dictionary, case: Dictionary, host: Dictionary) -> Dictionary:
+ var view_host=host.duplicate(true)
+ view_host.erase("shoulders")
+ View.refresh(g,View.live(g,g.state.seed,{"binding":int(g.state.rng.binding)}),view_host)
+ var g2=Corpus._fresh_game()
+ g2.state=Corpus._case_state(data,case)
+ var live_host=host.duplicate(true)
+ live_host.erase("shoulders")
+ g2.Shoulders.refresh(g2,live_host)
+ if not view_host.has("shoulders") or not live_host.has("shoulders"): return {"filled":false,"differences":["no shoulder pair built"]}
+ var differences=[]
+ var view_pair: Dictionary=view_host.shoulders.duplicate(true)
+ var live_pair: Dictionary=live_host.shoulders.duplicate(true)
+ var view_pieces: Array=view_pair.pieces
+ var live_pieces: Array=live_pair.pieces
+ view_pair.erase("pieces");live_pair.erase("pieces")
+ if JSON.stringify(view_pair)!=JSON.stringify(live_pair): differences.append("shoulder pair record differs")
+ var view_sides=view_pieces.map(func(e):return e.side)
+ var live_sides=live_pieces.map(func(e):return e.side)
+ if view_sides!=live_sides: differences.append("shoulder sides "+str(view_sides)+"/"+str(live_sides))
+ for side in g.Shoulders.SIDES:
+  if JSON.stringify(view_pieces.filter(func(e):return e.side==side))!=JSON.stringify(live_pieces.filter(func(e):return e.side==side)): differences.append("shoulder "+side+" piece differs")
+ return {"filled":live_sides==g.Shoulders.SIDES,"differences":differences}
+
 # 随机复现面（A50 R2／中档加固「随机不推进＋binding 复现」）：视图刷新必须从 live 的 binding 计数起算，
 # 复现 live 刷新的抽取结果，且不推进 live 计数。取切片里三档、可固缚的件并清掉它已有的固缚记录
 # （新装件没有固缚，只有这个形状会真的抽 binding）：视图端 View.refresh 用 View.live 的本地计数副本，
 # live 端 Binding.refresh 走 g._random_index；两端的记录逐字节相同、计数推进量相同，且视图端前后 live 的
 # state.rng 不动。legal 的每次 trial 都新建 counts（{"binding":int(g.state.rng.binding)}），本条钉住这条接缝。
+# CC-63 (G-Q9-2'): the same refresh also builds the tier-three shoulder pair, so the judgment compares
+# the pair record and both side pieces of the view against the live Shoulders.refresh, item by item.
 static func view_binding_draw_reproduces_the_live_refresh(t, data: Dictionary) -> void:
  var problems=[]
  var checked=0
  var draws=0
+ var pair_problems=[]
+ var hosts=0
+ var pairs=0
  for case in data.get("cases",[]):
   var id=String(case.get("case_id",""))
   var g=Corpus._fresh_game()
   g.state=Corpus._case_state(data,case)
+  var host={}
+  for candidate in g.state.equipment:
+   if candidate is Dictionary and g.tier(candidate.durability,candidate.maximum)==3 and g.Shoulders.eligible(candidate):
+    host=candidate;break
+  if not host.is_empty():
+   hosts+=1
+   var pair=_shoulder_pair_differences(g,data,case,host)
+   if pair.filled: pairs+=1
+   for difference in pair.differences: pair_problems.append(id+":"+difference)
   var piece={}
   for candidate in g.state.equipment:
    if not candidate is Dictionary: continue
@@ -343,6 +385,8 @@ static func view_binding_draw_reproduces_the_live_refresh(t, data: Dictionary) -
   if viewed!=lived: problems.append(id+":counter delta "+str(viewed)+"/"+str(lived))
  print("VIEW BINDING DRAW checked=%d draws=%d" % [checked,draws])
  t.check(problems.is_empty() and checked>0 and draws>0,"VIEW view_binding_draw_reproduces_the_live_refresh: the view refresh starts every draw from the live binding counter, returns the same binding record as the live refresh and advances only its own counter (the live rng is untouched); the slice really carries tier-three pieces without a binding so a draw happens: checked=%d draws=%d problems=%s" % [checked,draws,str(problems.slice(0,5))])
+ print("VIEW SHOULDER PAIR hosts=%d pairs=%d" % [hosts,pairs])
+ t.check(pair_problems.is_empty() and hosts>0 and pairs==hosts,"VIEW view_binding_draw_reproduces_the_live_refresh: the same view refresh builds the tier-three shoulder pair the live refresh builds, with the pair record, the side order and the left and right pieces equal item by item; the slice really carries tier-three shoulder hosts and the live end fills both sides of each: hosts=%d pairs=%d problems=%s" % [hosts,pairs,str(pair_problems.slice(0,5))])
 
 # A37：can_apply 只做存在性读取——同一路径的首个合法即停，不另写第二套判定。
 # 抽样＝应用层前 12 行 ∪ 每个 spec.pool 的前 3 行（A50 存在性早停「多规格、多局面」）：
