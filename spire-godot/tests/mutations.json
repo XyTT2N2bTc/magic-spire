@@ -1340,6 +1340,18 @@
         ],
         "suite": "architecture",
         "expect": "no third request-shape check is added at the dispatch"
+      },
+      {
+        "clause": "derived-factory-drop",
+        "file": "tests/architecture_cases.gd",
+        "edits": [
+          {
+            "find": "  if String(site).begins_with(\"core/game.gd::_install_\"): tokens.append(String(site).split(\"::\")[1]+\"(\")",
+            "replace": "  if String(site).begins_with(\"core/game.gd::_install_\") and String(site)!=\"core/game.gd::_install_special\": tokens.append(String(site).split(\"::\")[1]+\"(\")"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "the four install factories are routed only by the one dispatch"
       }
     ],
     "execute_concrete_defaults_unchanged": [
@@ -1354,6 +1366,32 @@
         ],
         "suite": "application",
         "expect": "keeps grade 2"
+      },
+      {
+        "clause": "tier-default",
+        "file": "core/equipment_application.gd",
+        "edits": [
+          {
+            "find": " var durability=g.RestraintValue.durability_for(maximum,p.get(\"tier\",2))",
+            "replace": " var durability=g.RestraintValue.durability_for(maximum,p.get(\"tier\",3))"
+          }
+        ],
+        "suite": "application",
+        "expect": "keeps the application layer's own default tier 2"
+      }
+    ],
+    "replacement_install_has_no_link_route": [
+      {
+        "clause": "link-route",
+        "file": "core/equipment_replacement.gd",
+        "edits": [
+          {
+            "find": " return g._install_request(Assess.factory_args(g,r),source)",
+            "replace": " var args=Assess.factory_args(g,r)\n if r.get(\"kind\",\"\")==\"link\": return g._install_link(r.ends[0],r.ends[1],r.get(\"durability\",0.0),source,r.get(\"grade\",2),r.get(\"blocked_slip\",[]),r.get(\"slots\",[]),r.get(\"contact_points\",[]))\n return g._install_request(args,source)"
+          }
+        ],
+        "suite": "replacement",
+        "expect": "cannot install a link"
       }
     ],
     "cleanup_link_loop_writes_only_links": [

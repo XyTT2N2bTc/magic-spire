@@ -121,6 +121,21 @@ static func partially_lost_transfers(t) -> void:
  t.check(queries<=12,"REPLACEMENT inevitable loss prunes repeated equivalent endpoint branches; anchor queries="+str(queries))
  t.check(g.state==before,"REPLACEMENT partial transfer search preserves state and random counters")
 
+# Q8（G-Q8-1′／输入域）：替换层没有 link 路由。Assess.factory_args 对 kind=link 返回 {}，
+# 于是 _install 交给 _install_request 的是空 kind，两者都原样返回 {}——与 Q8 前 _install 的
+# match 没有 link 臂等价。夹具先证明同一请求直接装链合法，空结果才不是「规格本身有误」。
+static func replacement_install_has_no_link_route(t) -> void:
+ var g=Game.new(46)
+ var forearm=g._install_template("rope","forearm",8,10,false,"fixture",1,-1,0,"mid_forearm")
+ var wrist=g.add_fixture("wrist",8)
+ var durability=g.RestraintValue.durability_for(g.Equipment.maximum(2),2)
+ var slots=["forearm","wrist"];var points=["mid_forearm","wrist"]
+ t.check(not g._prepare_link(forearm.id,wrist.id,durability,"fixture",2,[],slots,points).is_empty(),"REPLACEMENT replacement_install_has_no_link_route: the fixture request is a legal direct link, so an empty result below is a missing route and not a malformed request")
+ var request={"kind":"link","ends":[forearm.id,wrist.id],"slots":slots,"contact_points":points,"durability":durability,"grade":2}
+ var before=g.state.duplicate(true)
+ var item=Replacement._install(g,request,"fixture")
+ t.check(item.is_empty() and g.state==before,"REPLACEMENT replacement_install_has_no_link_route: a link request handed to the transaction install returns nothing and writes nothing, so the replacement path cannot install a link (the pre-Q8 factory match had no link arm either)")
+
 static func request(slot: String, grade: int=1, tier: int=2, point: String="", locked: bool=false) -> Dictionary:
  return {"kind":"install","template":"fine_belt" if slot in ["palm","fingers","foot","toes"] else ("mouth_band" if slot=="mouth" else "rope"),"slot":slot,"point":point,"grade":grade,"tier":tier,"locked":locked,"variant":0}
 
@@ -172,6 +187,7 @@ static func run(t) -> void:
  equal_cost_dense_replacement(t)
  equivalent_link_transfers(t)
  partially_lost_transfers(t)
+ replacement_install_has_no_link_route(t)
  var g=Game.new(42)
  var first=install(g,request("wrist",3,2))
  var p=unchanged(t,g,[request("wrist",1,1)],"normal append")

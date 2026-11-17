@@ -88,6 +88,12 @@ static func execute_concrete_defaults_unchanged(t) -> void:
  var via_replace=-1
  if normalized.get("ok",false) and not normalized.get("requests",[]).is_empty(): via_replace=int(normalized.requests[0].get("grade",-1))
  t.check(normalized.get("ok",false) and via_replace==1,"APPLY execute_concrete_defaults_unchanged: the replacement-path normalization keeps grade 1 (Assess.normalize's own r.get(\"grade\",1)), so the two defaults stay unmerged: ok="+str(normalized.get("ok",false))+" grade="+str(via_replace))
+ var tier_game=Game.new(42)
+ var tier_result=A.execute_concrete(tier_game,{"kind":"install","template":"mouth_band","slot":"mouth"},"fixture")
+ var tier_durability=-1.0
+ if tier_result.ok and not tier_result.installed.is_empty(): tier_durability=float(tier_result.installed[0].get("durability",-1.0))
+ var tier_expected=tier_game.RestraintValue.durability_for(tier_game.Equipment.maximum(2),2)
+ t.check(tier_result.ok and is_equal_approx(tier_durability,tier_expected),"APPLY execute_concrete_defaults_unchanged: a tier-less install request keeps the application layer's own default tier 2 (the installed durability equals durability_for(maximum,2)), so the dispatch never merges it with another default: ok="+str(tier_result.ok)+" durability="+str(tier_durability)+" expected="+str(tier_expected))
 
 static func run(t) -> void:
  preload("res://tests/girl_sound_cases.gd").run(t)
