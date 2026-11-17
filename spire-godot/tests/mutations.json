@@ -1178,6 +1178,42 @@
         ],
         "suite": "architecture",
         "expect": "order_lost="
+      },
+      {
+        "clause": "fill-delegates-missing-sides",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": " for side in missing_sides(pair):",
+            "replace": " for side in SIDES:"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "core/shoulder_links.gd::fill -> core/shoulder_links.gd::missing_sides"
+      },
+      {
+        "clause": "install-delegates-pair-record",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": " host.shoulders=pair_record(template,grade,0,source)",
+            "replace": " host.shoulders={\"template\":template,\"grade\":grade,\"variant\":0,\"source\":source,\"pieces\":[]}"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "core/shoulder_links.gd::install -> core/shoulder_links.gd::pair_record"
+      },
+      {
+        "clause": "refresh-delegates-pair-record",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": "   host.shoulders=pair_record(host.template,host.grade,host.variant,host.source)",
+            "replace": "   host.shoulders={\"template\":host.template,\"grade\":host.grade,\"variant\":host.variant,\"source\":host.source,\"pieces\":[]}"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "core/shoulder_links.gd::refresh -> core/shoulder_links.gd::pair_record"
       }
     ],
     "settle_marks_cover_every_writer": [
@@ -1964,6 +2000,20 @@
         "suite": "equipment"
       }
     ],
+    "pair_fill_unchanged": [
+      {
+        "clause": "missing-side-order",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": " for side in SIDES:",
+            "replace": " for side in [\"right\"]:"
+          }
+        ],
+        "suite": "shoulder",
+        "expect": "both sides read as missing"
+      }
+    ],
     "write_epoch_bumps_in_every_port": [
       {
         "clause": "primary",
@@ -2000,7 +2050,20 @@
             "replace": " state.links.append(link)"
           }
         ],
-        "suite": "architecture"
+        "suite": "architecture",
+        "expect": "wrong=[\"core/game.gd::_install_link=0/1\"]"
+      },
+      {
+        "clause": "shoulder-builder-unannounced",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": "static func update_cross(g, e: Dictionary) -> void:",
+            "replace": "static func rebuild_unannounced(host: Dictionary) -> void:\n host.shoulders=pair_record(host.template,host.grade,host.variant,host.source)\n\nstatic func update_cross(g, e: Dictionary) -> void:"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "missing=[\"core/shoulder_links.gd::rebuild_unannounced\"]"
       }
     ],
     "join_hooks_run_after_unit_commit": [
