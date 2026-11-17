@@ -5129,3 +5129,46 @@ flowchart LR
   任务上下文，未写 `report.json`（dispatch `report_missing`）；协调者以产物文件与原生日志抽核（52 套件 `SUITE RESULT`、
   34 条突变表、终态 HEAD／dirty）后接受（A214）。记录：`tmp/io-q7/acceptance/acceptance-q7-validator.md`。
 - 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+### 2026-11-17｜加装卸收口 Q8（工厂派发合一 `_install_request`，行为不变）登记（协调者落账）
+
+- 域：`spire-godot` 装备安装四工厂的统一派发，片范围 `b824ebc..15b14eb`，验收 HEAD `15b14ebc15a8aa358043ec5a6c0b236ed1d83ae3`。
+  实现 `c80c2e4`／`4e749ad`，清洁 `44c0f74`，加固（中）`d75fe6a`／`15b14eb`。验收本轮不改跟踪源码、不提交、不推送；跑前跑后 dirty＝0、Godot＝0、worktrees＝13。
+
+- 结论：Q8 相对父基线通过，不是整项目全绿。52 套件 `20261117T090906869-25524` 名单与父 `20261115T205758553-2620` 同序，
+  **152297→152309**（replacement 157→160 +3、application 225→230 +5、architecture 121292→121296 +4，其余 49 套件 0；合计 +12 与预期相符），
+  15 条父 ERROR 原字节全等，47 PASS／5 FAIL（architecture、shoulder、rewards、events、core），`status=failed`、`before==after`（`251C06E2…`）、`SCRIPT ERROR=0`。
+  state_readers `--verify`（sha256 `c2589700…`）与 `check-index`（digest `f7ef5110…`）本轮 exit 0 零漂移；`check-docs` `DOCS PASS`（49 文档／2932 引用／allowlist 3）。
+
+- runner `20261117T092927218-23664` PASS 1855（父 1854；+1＝新增 application→assess 测试侧边），VerifyRunner 完成，`status=passed`、`before==after`。
+  UI 组合 `20261117T093149979-46836` 三套件 PASS、`equipment_complete FAIL`，`UI FAIL: 374`，唯一 ERROR
+  `HEAD equal tightness allows hook and preserves the other mask` 与父 `20261115T215703628-34152` 原字节同，`status=failed`、`before==after`；不据旧红宣称 UI 全绿。
+
+- 行为不变：全量语料 `build/s0/corpus/m2-full-merged.json`（sha256 `75e446a5…`）compare/reoracle 均 `checked=3277 mismatches=0`；
+  入库语料 compare/compare-scope/reoracle `checked=423 mismatches=0`，selfcheck 恰 1 红（`mutated=42-00000`）。
+  三种子逐字符相等：42=`01db4dc5…661fef`、20260906=`4f69e2c7…771f0e5c`、7=`aa45ef47…7dd7ae9d`。
+  原因矩阵两树（探针 `f5258f72…`）各 226 行、`rows=48`、`diff` 空、raw sha256 均 `c061818f…`；父树（`b824ebc`）只读未切换、727 个 `.import` 全同。
+
+- 敏感性：判据级 `-Check` 覆盖 11 条全部 RED/restored——`factory_dispatch_has_one_entry` 5 条（`20261117T100941039-37200`，`5/5 … unchanged=True`）、
+  `execute_concrete_defaults_unchanged` 2 条（`20261117T100357336-46472`）、`replacement_install_has_no_link_route`／`concrete_assembly_reaches_the_dispatch`／
+  `concrete_link_reaches_the_dispatch`／`replacement_special_install_reaches_the_dispatch` 各 1 条。`MUTATION ANCHORS entries=191`。共用 expect 主文本的两条
+  （`dispatch-bypass` vs `derived-factory-drop`）从原始 ERROR 核红因（前者 `extra` 非空、后者 `sites=[]`）。CC-55 三条手动突变本轮重做，均 `-Suite replacement`
+  具名红并逐字节还原：(i) 删 live `"link"` 臂 `20261117T104332822-14324`、(ii) 视图插第 6 列 token `20261117T104534300-36432`、(iii) 孪生 token 改名 `20261117T104627340-38988`；
+  文件还原 sha256 与改前同（game `EF5A25424590`、view `7b9f715c9483`、rvc `8abef9121472`）。附挂文件不能登记（A51 T6）已在未验证项写明。
+
+- 契约：G-Q8-1′ 四子句（`factory_dispatch_has_one_entry`）＋既有 `unit_entries_are_declared`／`removal_module_edges` 绿；
+  G-Q8-2′（`execute_concrete_defaults_unchanged`）绿；G-Q8-3′ O4 行与 `# O4` 标记，`PARALLEL ORCHESTRATIONS aligned=["O1","O2","O3","O4"] rows=4 marks=["O1","O2","O3","O4"]`。
+  `_install` 体恰一次 `g._install_request(Assess.factory_args(g,r),source)`；`REPLACEMENT_ASSESS_CALL_SITES["factory_args"]＝1`；三条 Q7 OBS 仍绿。
+
+- 结构：允许面恰 10 文件（产品 3、测试 4、mutations、生成物 2）；data／ui／content／assets diff-stat 空；三产品文件各恰 1 hunk。
+  四工厂函数体、`equipment_replacement_view.gd`、`equipment_replacement_assess.gd`、`write_journal_game.gd`、`equipment_cases.gd`、`frozen-baselines.json` 与 `b824ebc` 逐字节同；
+  `known_gaps` 未改。**CC-56**：`application_cases.gd` 新增 `Assess` preload（测试→核心），`check_index` suite_edges 575→576、signals 4→5——记「测试侧新增一条边、产品模块边集不变」。
+  行数（`b824ebc`→HEAD）：game 4702→4716(+14)、application 441→445(+4)、replacement 222→218(−4)；core＋data＋ui 全部 `.gd` 34320→34334(+14)。
+
+- 未验证：O4 判据在附挂文件不能登记（A51 T6），敏感性命中为手动突变；安卓真机／分帧不在本单；未在父树跑 52 套件（父树等价以原因矩阵＋父基线运行号为准）。
+
+- 流程：本轮前台串行单 Godot 引擎；临时突变逐字节还原、`git status` 回 0 行；只写 `tmp/io-q8/acceptance/**` 与 gitignored `spire-godot/build/**`；无打包／发布／推送；
+  终态 HEAD 不变、Godot＝0、worktrees＝13。完整证据 `tmp/io-q8/acceptance/acceptance-q8-validator.md`。
+
+- 流程：实现（`dsp-20261115T222536Z-5751`→`232805Z-e6e2` 阻于 C-8，协调者裁 CC-55 允许在 `parallel_orchestrations_call_the_shared_rules` 内加按 kind 配对分支，续派 `233624Z-d9df`）→清洁 `dsp-20261117T051114Z-8e65`→加固（中）`dsp-20261117T055540Z-0351` 起 VF 续接至 `065452Z-adc0`（补四 kind × 应用／替换层运行时判据）→独立审查 `dsp-20261117T085623Z-a499`（通过，次要观察裁为 CC-56）→验收 `dsp-20261117T090626Z-1a0f`。裁定：`tmp/io-q8/coordinator-rulings.md`；审查：`tmp/io-q8/review/findings.md`。
+- 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
