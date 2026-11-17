@@ -128,3 +128,21 @@ static func run(t) -> void:
   t.check(not material_game.Equipment.allows(piece,"strain") and material_game.Equipment.allows(piece,"manual")== (template in ["rope","cord","belt","fine_belt"]),"SHOULDER basic manual method follows material "+template)
   t.check(material_game.Equipment.allows(piece,"lock")== (template in ["belt","fine_belt"]),"SHOULDER lock compatibility "+template)
   t.check(material_game.validate()=="","SHOULDER material state validates "+template)
+
+ pair_fill_unchanged(t)
+
+# Q9′（G-Q9-2′；CC-50）：三档自动补肩带的行为不变——大臂绳到 3 档补出左右各一条，id 与名称仍由
+# pair_pieces 的派生规则给出，缺侧判断按 SIDES 序返回（live fill 与视图 refresh 共用同一规则）。
+static func pair_fill_unchanged(t) -> void:
+ var g=Game.new(42)
+ var host=g._install_template("rope","upper_arm",g._tier_durability(g.Equipment.maximum(2),2),g.Equipment.maximum(2),false,"fixture",2)
+ t.check(g.tier(host.durability,host.maximum)==2 and not host.has("shoulders") and g.Shoulders.missing_sides({"pieces":[]})==["left","right"],"SHOULDER pair_fill_unchanged: a tier-2 upper-arm rope has no pair and both sides read as missing")
+ host.durability=host.maximum
+ g._refresh_equipment(host)
+ var pieces=host.shoulders.pieces
+ t.check(pieces.size()==2 and pieces[0].side=="left" and pieces[1].side=="right","SHOULDER pair_fill_unchanged: reaching tier three fills exactly the left then the right side")
+ t.check(pieces.map(func(e):return e.id)==[host.id+"_shoulder_left",host.id+"_shoulder_right"],"SHOULDER pair_fill_unchanged: the filled pieces keep the derived ids")
+ t.check(pieces.map(func(e):return e.name)==[g.Shoulders.label("rope","left"),g.Shoulders.label("rope","right")],"SHOULDER pair_fill_unchanged: the filled pieces keep the derived names")
+ t.check(g.Shoulders.missing_sides(host.shoulders).is_empty(),"SHOULDER pair_fill_unchanged: a complete pair reads no missing side")
+ pieces[0].durability=0
+ t.check(g.Shoulders.missing_sides(host.shoulders)==["left"],"SHOULDER pair_fill_unchanged: a released side reads back as the only missing side, in SIDES order")

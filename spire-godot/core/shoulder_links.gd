@@ -35,10 +35,16 @@ static func install_reason(g, host: Dictionary, template: String, grade: int) ->
  if not attached(g,host).is_empty(): return "这件装备已经附有肩部拘束，每件最多一对。"
  return ""
 
+# The host-derived pair record: one literal covers install, refresh and the device view (D11: the
+# orchestration skeletons stay two, the derived record stays one). The record carries no pieces yet;
+# the callers fill both sides and announce every change to the live end.
+static func pair_record(template: String, grade: int, variant: int, source: String) -> Dictionary:
+ return {"template":template,"grade":grade,"variant":variant,"source":source,"pieces":[]}
+
 static func install(g, host: Dictionary, template: String, grade: int, source: String) -> bool:
  if install_reason(g,host,template,grade)!="": return false
  var owned=g._unit_begin()
- host.shoulders={"template":template,"grade":grade,"variant":0,"source":source,"pieces":[]}
+ host.shoulders=pair_record(template,grade,0,source)
  g._member_changed(host,"added")
  fill(g,host)
  g._unit_commit(owned)
@@ -49,14 +55,22 @@ static func fill(g, host: Dictionary) -> void:
  var released_pieces=pair.pieces.filter(func(e):return e.durability<=0.000001)
  pair.pieces=pair.pieces.filter(func(e):return e.durability>0.000001)
  for e in released_pieces: g._member_changed(e,"removed")
- for side in SIDES:
-  if pair.pieces.any(func(e):return e.side==side and e.durability>0.000001): continue
+ for side in missing_sides(pair):
   pair.pieces.append(pair_pieces(g,host,side))
   g._member_changed(pair.pieces.back(),"added")
   # Q5″: the strap joins here; its feedback, join copy and worn run in the enclosing unit's join
   # layer (immediately when no unit is collecting). The host reference travels with the
   # registration because the join copy names it and a composite root is not an action target.
   g._member_joined(pair.pieces.back(),"S",false,{"host":host})
+
+# Which sides still need a strap: the one missing-side judgment, read by the live fill and the device
+# view refresh (in SIDES order, so the left-then-right registration order is preserved).
+static func missing_sides(pair: Dictionary) -> Array:
+ var result=[]
+ for side in SIDES:
+  if pair.pieces.any(func(e):return e.side==side and e.durability>0.000001): continue
+  result.append(side)
+ return result
 
 # The missing strap record of one side; the caller appends it, announces it and emits no rule here.
 static func pair_pieces(g, host: Dictionary, side: String) -> Dictionary:
@@ -72,7 +86,7 @@ static func refresh(g, host: Dictionary) -> void:
  update_cross(g,host)
  if eligible(host):
   if not host.has("shoulders"):
-   host.shoulders={"template":host.template,"grade":host.grade,"variant":host.variant,"source":host.source,"pieces":[]}
+   host.shoulders=pair_record(host.template,host.grade,host.variant,host.source)
    g._member_changed(host,"added")
   fill(g,host)
 

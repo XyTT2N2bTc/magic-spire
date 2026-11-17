@@ -73,9 +73,8 @@ static func refresh(g, view: Dictionary, e: Dictionary) -> void:
  var binding=g.Binding.resolve(g,e,func(domain,size):return g._random_draw(view.seed,domain,view.counters,size))
  if not binding.is_empty(): e.binding=binding
  if g.tier(e.durability,e.maximum)!=3 or not g.Shoulders.eligible(e): return
- if not e.has("shoulders"): e.shoulders={"template":e.template,"grade":e.grade,"variant":e.variant,"source":e.source,"pieces":[]}
- for side in ["left","right"]:
-  if e.shoulders.pieces.any(func(strap):return strap.side==side and strap.durability>0.000001): continue
+ if not e.has("shoulders"): e.shoulders=g.Shoulders.pair_record(e.template,e.grade,e.variant,e.source)
+ for side in g.Shoulders.missing_sides(e.shoulders):
   e.shoulders.pieces.append(g.Shoulders.pair_pieces(g,e,side))
 # The tier-three reinforcement strap of a new special piece (no feedback, no event).
 static func attach(g, view: Dictionary, owner: Dictionary) -> Dictionary:

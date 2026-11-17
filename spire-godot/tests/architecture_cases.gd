@@ -6740,15 +6740,15 @@ const MEMBER_VIEW_MODULES=["core/game_view.gd","core/equipment_replacement_view.
 # 读批索引的 `_equipment_read.pieces` 是读取批次的只读字段，不是装备成员容器（`_equipment_read` 不进
 # state、不进存档）；该函数不因 `.pieces` 写形而进成员扫描面。
 const MEMBER_NESTED_SCAN_SKIP=["core/game.gd::_build_equipment_read_index"]
-# `shoulders` 只收字典字面量建立（`=\s*\{`）：`components`／`pieces` 收任意右值（`=[^=]`），但把
-# `shoulders` 放宽到 `=[^=]` 会把 `ordinary.shoulders=true`／`plan.shoulders=true` 这类请求标志与
-# `data/equipment_catalog.gd` 的目录字段一并扫入，需要一份不短的跳过表才能消音。当前三处建立
-# （`Shoulders.install`、`Shoulders.refresh`、`equipment_replacement_view.gd::refresh`）全是字面量，
-# 故变量或函数返回值的右值是已知盲区，收窄是刻意的。
+# `shoulders` 只收两种建立形：字典字面量与 Q9 起的共用构造 `pair_record(`（`=\s*\{` 或 `=\s*[A-Za-z_.]*pair_record\s*\(`）。
+# `components`／`pieces` 收任意右值（`=[^=]`），但把 `shoulders` 放宽到 `=[^=]`
+# 会把 `ordinary.shoulders=true`／`plan.shoulders=true` 这类请求标志与
+# `data/equipment_catalog.gd` 的目录字段一并扫入，需要一份不短的跳过表才能消音。两种建立形之外
+# （变量或其它函数返回值的右值）是已知盲区，收窄是刻意的。
 const MEMBER_NESTED_WRITE_PATTERNS=[
  "\\.components\\s*=[^=]",
  "\\.components\\s*\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\(",
- "\\.shoulders\\s*=\\s*\\{",
+ "\\.shoulders\\s*=\\s*(?:\\{|[A-Za-z_.]*pair_record\\s*\\()",
  "\\.pieces\\s*=[^=]",
  "\\.pieces\\s*\\.\\s*(?:"+CONTAINER_WRITE_METHODS+")\\s*\\("]
 
@@ -7995,9 +7995,9 @@ const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_capacit
 # g.<方法>(，看不见这一类。数据模块（data/*，分层保证不调用 core）整模块放行，"*" 即整模块；core 模块逐函数放行：
 # RopeArt 只许 locked（只读 phase／enemies／seal／material），track／replaced／observe 等写入者不得进入判定。
 # S2b 追加 Binding／Shoulders 的只读函数，并以同一张表约束视图模块（tests/replacement_view_cases.gd::
-# view_dependency_edges 读本表）：预览只经 resolve／cancels 与 pair_pieces／eligible／attached_in／
-# released_with_host；validate／validate_in 只校验。写入者（track／replaced／cleanup／fill）不得进入。
-const ASSESS_MODULE_CALLS={"Equipment":["*"],"SpecialEquipment":["*"],"Composites":["*"],"Links":["*"],"B":["*"],"RestraintValue":["*"],"RopeArt":["locked"],"Binding":["cancels","resolve","validate"],"Shoulders":["attached_in","eligible","pair_pieces","released_with_host","validate_in"]}
+# view_dependency_edges 读本表）：预览只经 resolve／cancels 与 pair_pieces／pair_record／missing_sides／
+# eligible／attached_in／released_with_host；validate／validate_in 只校验。写入者（track／replaced／cleanup／fill）不得进入。
+const ASSESS_MODULE_CALLS={"Equipment":["*"],"SpecialEquipment":["*"],"Composites":["*"],"Links":["*"],"B":["*"],"RestraintValue":["*"],"RopeArt":["locked"],"Binding":["cancels","resolve","validate"],"Shoulders":["attached_in","eligible","missing_sides","pair_pieces","pair_record","released_with_host","validate_in"]}
 # 判定域既不读也不写的运行时字段：事务边界字段（_rope_trial／_resource_feedback，Replacement.plan 保存并恢复）与
 # 绳艺观察防重入标记（_rope_observing）。判定只经 RopeArt.locked 读 phase／enemies，不碰这三者。
 const ASSESS_RUNTIME_FIELD_TOKENS=["_rope_trial","_rope_observing","_resource_feedback","_unit_frames","_settle_table"]
@@ -8239,8 +8239,8 @@ const RECORD_BUILDERS={"core/game.gd::_install_template":"core/game.gd::_templat
 # S2a′ 加固②（dependencies.md §4.4 第 5 条）：记录构造与共用规则函数也不许调用 RopeArt.*——绳索计数是
 # live 骨架的独占写入（事务内被 _rope_trial 门控为空操作），一旦从这里可达，判定预览就会替事务计数。
 const RECORD_BUILDER_FORBIDDEN=["state.","_emit(","_random_index(","_equipment_feedback(","RopeArt."]
-const RULE_DELEGATES={"core/torso_binding.gd::refresh":"core/torso_binding.gd::resolve","core/torso_binding.gd::cancel_for_assembly":"core/torso_binding.gd::cancels","core/shoulder_links.gd::fill":"core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::validate":"core/shoulder_links.gd::validate_in","core/shoulder_links.gd::cleanup":"core/shoulder_links.gd::released_with_host"}
-const SHARED_RULE_FUNCTIONS=["core/torso_binding.gd::resolve","core/torso_binding.gd::cancels","core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::attached_in","core/shoulder_links.gd::validate_in","core/shoulder_links.gd::released_with_host"]
+const RULE_DELEGATES={"core/torso_binding.gd::refresh":["core/torso_binding.gd::resolve"],"core/torso_binding.gd::cancel_for_assembly":["core/torso_binding.gd::cancels"],"core/shoulder_links.gd::fill":["core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::missing_sides"],"core/shoulder_links.gd::refresh":["core/shoulder_links.gd::pair_record"],"core/shoulder_links.gd::install":["core/shoulder_links.gd::pair_record"],"core/shoulder_links.gd::validate":["core/shoulder_links.gd::validate_in"],"core/shoulder_links.gd::cleanup":["core/shoulder_links.gd::released_with_host"]}
+const SHARED_RULE_FUNCTIONS=["core/torso_binding.gd::resolve","core/torso_binding.gd::cancels","core/shoulder_links.gd::pair_record","core/shoulder_links.gd::missing_sides","core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::attached_in","core/shoulder_links.gd::validate_in","core/shoulder_links.gd::released_with_host"]
 const SHARED_RULE_FORBIDDEN=["g.state","_emit(","_random_index(","_equipment_feedback(","RopeArt."]
 const CLEANUP_RULES=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"]
 # O3 的 live 端遍历顺序（骨架两份之一；视图端 core/equipment_replacement_view.gd::cleanup 按同一登记对齐）。
@@ -8274,10 +8274,13 @@ static func factory_records_have_one_builder(t) -> void:
  t.check(not RECORD_BUILDERS.is_empty() and missing.is_empty() and literals.is_empty() and impure.is_empty(),"ARCH factory_records_have_one_builder: each factory calls its one record builder and keeps no record literal of its own, and every builder is pure (no state write, no event, no random); the builder table is never empty (an emptied table made this clause vacuous): missing="+str(missing)+" literals="+str(literals)+" impure="+str(impure))
  var delegates=[]
  var rules=[]
+ # Q9′／CC-49：委托值是数组，逐项核对——同一站点可委托多条共用规则（fill→pair_pieces＋missing_sides），
+ # 删任一项或换目标即 red；判据名与 ERROR 前缀不变。
  for site in RULE_DELEGATES:
   var parts=String(site).split("::")
-  var target=String(RULE_DELEGATES[site]).split("::")
-  if not code_of_function(parts[0],parts[1]).contains(target[1]+"("): delegates.append(site+" -> "+String(RULE_DELEGATES[site]))
+  for entry in RULE_DELEGATES[site]:
+   var target=String(entry).split("::")
+   if not code_of_function(parts[0],parts[1]).contains(target[1]+"("): delegates.append(site+" -> "+String(entry))
  for site in SHARED_RULE_FUNCTIONS:
   var parts=String(site).split("::")
   var body=code_of_function(parts[0],parts[1])
