@@ -1714,10 +1714,10 @@ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bo
 # difference stay in core/equipment_application.gd::execute_concrete.
 func _install_request(args: Dictionary, source: String) -> Dictionary:
  match String(args.get("kind","")):
-  "install": return _install_template(args.template,args.slot,args.durability,args.maximum,args.locked,source,args.grade,args.get("layer",-1),args.get("variant",0),args.get("point",""))
-  "assembly": return _install_assembly(args.family,args.variant,source,args.grade,args.get("tier",2),args.get("parts",{}),args.get("straps","straight"),args.get("attached_to",""))
-  "special_install": return _install_special(args.type,args.slot,args.get("tier",0))
-  "link": return _install_link(args.a,args.b,args.durability,source,args.grade,args.get("blocked_slip",[]),args.get("connection_slots",[]),args.get("connection_points",[]))
+  "install": return _install_template(args.template,args.slot,args.durability,args.maximum,args.locked,source,args.grade,args.layer,args.variant,args.point)
+  "assembly": return _install_assembly(args.family,args.variant,source,args.grade,args.tier,args.parts,args.straps,args.attached_to)
+  "special_install": return _install_special(args.type,args.slot,args.tier)
+  "link": return _install_link(args.a,args.b,args.durability,source,args.grade,args.blocked_slip,args.connection_slots,args.connection_points)
  return {}
 
 func _install_special(type: String, slot: String, tightness: int=0) -> Dictionary:

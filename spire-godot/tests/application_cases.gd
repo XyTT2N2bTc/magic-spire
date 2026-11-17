@@ -77,9 +77,6 @@ static func chastity_displacement_unchanged(t) -> void:
  t.check(plain.state.special_equipment.size()==2 and String(plain_installed.get("type",""))=="negative_vibrator_lock_catheter_high" and plain.state.special_equipment[1].owner_id==String(plain_installed.get("id","")) and not plain.state.special_equipment.any(func(item):return item.id in plain_before),"APPLY chastity_displacement_unchanged: without a strap the container ends as the incoming lock and its own auto-attached strap, with no displaced id left: "+str(plain.state.special_equipment.map(func(item):return item.id)))
  t.check(plain_displaced==[plain_old.name+"被新的平板锁替换并取下。",plain_rod.name+"被新的平板锁替换并取下。"],"APPLY chastity_displacement_unchanged: without a strap one displacement line per removed piece, in container order: "+str(plain_displaced))
 
-# G-Q8-2′（rev3.5 K3-2）：应用层默认值不被合并。缺省 grade 的 install 请求经 execute_concrete 直装时
-# 走它自己的 p.get("grade",2)；经替换路径规范化（Assess.normalize）时走 r.get("grade",1)——两处默认值合并
-# 会改行为，所以两条都要在真实入口上可观测（G-Q8-1′ 的单一派发不改这两处默认值）。
 static func execute_concrete_defaults_unchanged(t) -> void:
  var direct_game=Game.new(42)
  var result=A.execute_concrete(direct_game,{"kind":"install","template":"mouth_band","slot":"mouth","tier":2},"fixture")

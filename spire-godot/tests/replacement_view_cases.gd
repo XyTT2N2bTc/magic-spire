@@ -416,9 +416,6 @@ const PARALLEL_ORCHESTRATIONS=[
    "link":["_install_link(",[]]},
   false,["_emit(","_equipment_feedback(","RopeArt.track(","_write_durability(","_special_erase(","_special_append(","_member_changed("]]]
 
-# CC-55 第 4 条：配对行 live 列只许是这四类安装工厂 token；未列出的工厂调用即红。
-const FACTORY_DISPATCH_TOKENS=["_install_template(","_install_assembly(","_install_special(","_install_link("]
-
 # 登记表所在模块：O2 的行标记（A50 R3）与 O1／O3 的产品侧标记一起参与逐行覆盖核对。
 const ORCHESTRATION_SOURCE="tests/replacement_view_cases.gd"
 
@@ -576,24 +573,22 @@ static func parallel_orchestrations_call_the_shared_rules(t) -> void:
  var malformed=[]; var uncalled=[]; var pending=[]; var aligned=[]; var live_only=[]
  for row in PARALLEL_ORCHESTRATIONS:
   if row.size()<6: malformed.append("row-size"); continue
-  # CC-55：配对行用声明形状（row[3] 是 kind → [live 工厂 token, 视图孪生 token 数组] 字典）区分，
-  # 不按编号判断；其余行仍是一列共用规则名单。
   var pairing=row[3] is Dictionary
   var declared=[]
   if pairing:
    if (row[3] as Dictionary).is_empty(): malformed.append(String(row[0])+":row")
+   for kind in (row[3] as Dictionary): declared.append_array(Array((row[3] as Dictionary)[kind][1]))
   else:
    declared=Array(row[3]).duplicate(); declared.sort(); if declared.is_empty(): malformed.append(String(row[0])+":row")
   if Array(row[5]).is_empty(): malformed.append(String(row[0])+":row")
   var live=_function_code(String(row[1])); var declare_pending=bool(row[4])
   if live.strip_edges()=="": malformed.append(String(row[1])+":missing")
   elif pairing:
-   # CC-55 第 4 条：live 端调到的工厂集合与配对表的 live 列双向相等。
    var live_factories=[]
    for kind in (row[3] as Dictionary): live_factories.append(String((row[3] as Dictionary)[kind][0]))
    for token in live_factories:
     if not _declared_called(live,String(token)): uncalled.append(String(row[1])+":"+String(token))
-   for token in FACTORY_DISPATCH_TOKENS:
+   for token in Arch._install_factory_tokens():
     if _declared_called(live,String(token)) and not live_factories.has(String(token)): uncalled.append(String(row[1])+":undeclared "+String(token))
   elif String(row[1]).split("::")[0] in LIVE_CLEANUP_SKELETON_FILES:
    # live 端是 game.gd 的编排骨架：共用规则集合与名单双向相等（O3 裸谓词、O2 模块前缀）。
@@ -617,11 +612,6 @@ static func parallel_orchestrations_call_the_shared_rules(t) -> void:
     # 名单项既可以是函数名（补 "("）也可以是两端共有的前缀（例如 Shoulders.validate 对 live 的
     # validate( 与视图的 validate_in(；O2 的 Binding./Equipment./Shoulders. 同形）；两端都必须出现。
     if not _declared_called(scanned,String(name)): uncalled.append(String(row[2])+":"+String(name))
-   if pairing:
-    # CC-55 第 4 条：视图端每个非空孪生 token 都被调用（link 行孪生为空＝视图端无）。
-    for kind in (row[3] as Dictionary):
-     for token in Array((row[3] as Dictionary)[kind][1]):
-      if not _declared_called(scanned,String(token)): uncalled.append(String(row[2])+":"+String(token))
    for token in row[5]:
     if _declared_called(scanned,String(token)): live_only.append(String(row[2])+":"+String(token))
    var view_file=String(row[2]).split("::")[0]
