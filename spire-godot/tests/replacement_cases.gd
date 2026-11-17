@@ -136,6 +136,14 @@ static func replacement_install_has_no_link_route(t) -> void:
  var item=Replacement._install(g,request,"fixture")
  t.check(item.is_empty() and g.state==before,"REPLACEMENT replacement_install_has_no_link_route: a link request handed to the transaction install returns nothing and writes nothing, so the replacement path cannot install a link (the pre-Q8 factory match had no link arm either)")
 
+# Q8 输入域（G-Q8-1′）：四 kind × 替换层。install／assembly 由既有 replacement 判据经 Assess.factory_args
+# 走（install：CUBE 的 desire_cube；assembly：impossible／equal_cost_dense_replacement）；special_install
+# 由本判据走，证明 factory_args 的 special 臂给齐 _install_request 直取的键。
+static func replacement_special_install_reaches_the_dispatch(t) -> void:
+ var g=Game.new(42)
+ var p=Replacement.plan(g,[{"kind":"special_install","type":"crotch_rope_low","slot":"special_3_a"}],"fixture")
+ t.check(p.ok and p.installed.size()==1 and String(p.installed[0].get("type",""))=="crotch_rope_low","REPLACEMENT replacement_special_install_reaches_the_dispatch: a special_install spec handed to the transaction reaches the one dispatch's special arm through Assess.factory_args (every dispatched key present): ok="+str(p.ok)+" installed="+str(p.installed.size()))
+
 static func request(slot: String, grade: int=1, tier: int=2, point: String="", locked: bool=false) -> Dictionary:
  return {"kind":"install","template":"fine_belt" if slot in ["palm","fingers","foot","toes"] else ("mouth_band" if slot=="mouth" else "rope"),"slot":slot,"point":point,"grade":grade,"tier":tier,"locked":locked,"variant":0}
 
@@ -188,6 +196,7 @@ static func run(t) -> void:
  equivalent_link_transfers(t)
  partially_lost_transfers(t)
  replacement_install_has_no_link_route(t)
+ replacement_special_install_reaches_the_dispatch(t)
  var g=Game.new(42)
  var first=install(g,request("wrist",3,2))
  var p=unchanged(t,g,[request("wrist",1,1)],"normal append")

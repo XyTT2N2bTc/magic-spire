@@ -1394,6 +1394,48 @@
         "expect": "cannot install a link"
       }
     ],
+    "concrete_assembly_reaches_the_dispatch": [
+      {
+        "clause": "assembly-arm",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "  \"assembly\": return _install_assembly(args.family,args.variant,source,args.grade,args.tier,args.parts,args.straps,args.attached_to)",
+            "replace": "  \"assembly\": return {}"
+          }
+        ],
+        "suite": "application",
+        "expect": "the assembly kind builds its real composite root through the one dispatch"
+      }
+    ],
+    "concrete_link_reaches_the_dispatch": [
+      {
+        "clause": "link-arm",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "  \"link\": return _install_link(args.a,args.b,args.durability,source,args.grade,args.blocked_slip,args.connection_slots,args.connection_points)",
+            "replace": "  \"link\": return {}"
+          }
+        ],
+        "suite": "application",
+        "expect": "the link kind turns two real endpoints into one link through the one dispatch"
+      }
+    ],
+    "replacement_special_install_reaches_the_dispatch": [
+      {
+        "clause": "special-arm",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "  \"special_install\": return _install_special(args.type,args.slot,args.tier)",
+            "replace": "  \"special_install\": return {}"
+          }
+        ],
+        "suite": "replacement",
+        "expect": "reaches the one dispatch's special arm through Assess.factory_args"
+      }
+    ],
     "cleanup_link_loop_writes_only_links": [
       {
         "clause": "primary",

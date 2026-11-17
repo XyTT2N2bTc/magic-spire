@@ -95,6 +95,23 @@ static func execute_concrete_defaults_unchanged(t) -> void:
  var tier_expected=tier_game.RestraintValue.durability_for(tier_game.Equipment.maximum(2),2)
  t.check(tier_result.ok and is_equal_approx(tier_durability,tier_expected),"APPLY execute_concrete_defaults_unchanged: a tier-less install request keeps the application layer's own default tier 2 (the installed durability equals durability_for(maximum,2)), so the dispatch never merges it with another default: ok="+str(tier_result.ok)+" durability="+str(tier_durability)+" expected="+str(tier_expected))
 
+# Q8 输入域（G-Q8-1′）：四 kind × 应用层。install 由 execute_concrete_defaults_unchanged 走，
+# special_install 由 chastity_displacement_unchanged 走；assembly 与 link 由下面两条运行时判据走，
+# 证明应用层构造方给齐 _install_request 该臂直取的每个键（否则是运行时错误而非断言失败）。
+static func concrete_assembly_reaches_the_dispatch(t) -> void:
+ var g=Game.new(42)
+ var result=A.execute_concrete(g,{"kind":"assembly","family":"glove","variant":"short","grade":2,"tier":2,"straps":"straight"},"fixture")
+ var components=g.state.composites[0].components.size() if not g.state.composites.is_empty() else -1
+ t.check(result.ok and not g.state.composites.is_empty() and components==3,"APPLY concrete_assembly_reaches_the_dispatch: the assembly kind builds its real composite root through the one dispatch with the shared application defaults (every dispatched key present): ok="+str(result.ok)+" components="+str(components))
+
+static func concrete_link_reaches_the_dispatch(t) -> void:
+ var g=Game.new(46)
+ var forearm=g._install_template("rope","forearm",8,10,false,"fixture",1,-1,0,"mid_forearm")
+ var wrist=g.add_fixture("wrist",8)
+ var durability=g.RestraintValue.durability_for(g.Equipment.maximum(2),2)
+ var result=A.execute_concrete(g,{"kind":"link","ends":[forearm.id,wrist.id],"slots":["forearm","wrist"],"contact_points":["mid_forearm","wrist"],"durability":durability,"grade":2,"source":"fixture"},"fixture")
+ t.check(result.ok and g.state.links.size()==1,"APPLY concrete_link_reaches_the_dispatch: the link kind turns two real endpoints into one link through the one dispatch (every dispatched key present, durability from the application layer's own default): ok="+str(result.ok)+" links="+str(g.state.links.size()))
+
 static func run(t) -> void:
  preload("res://tests/girl_sound_cases.gd").run(t)
  preload("res://tests/equipment_audio_cases.gd").run(t)
@@ -103,6 +120,8 @@ static func run(t) -> void:
  excluded_links(t)
  chastity_displacement_unchanged(t)
  execute_concrete_defaults_unchanged(t)
+ concrete_assembly_reaches_the_dispatch(t)
+ concrete_link_reaches_the_dispatch(t)
  var materials={}
  for seed_value in t.seed_values("enemy_cycle"):
   var first=Game.new(seed_value);var second=Game.new(seed_value)
