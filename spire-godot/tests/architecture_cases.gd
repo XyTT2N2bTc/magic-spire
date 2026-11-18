@@ -8243,7 +8243,7 @@ static func assess_calls_only_declared_modules(t) -> void:
  t.check(order.is_empty() and not transaction.contains("RopeArt.locked"),"ARCH assess_calls_only_declared_modules: the rope lock is read in the family-mandatory stage before the cursed-plate boundary and in the removable filter between cursed_plate and protected_ids, and the transaction never restates it: order_lost="+str(order)+" transaction_restates="+str(transaction.contains("RopeArt.locked")))
 
 # M1（design rev3.1 §3）：判定既不读也不写事务边界的运行时字段。Replacement.plan／force_special 经唯一沙盒入口
-# `Game._sandbox_begin`／`_sandbox_end` 保存并恢复 {state,_resource_feedback,_sandbox_depth}（QX6）；_rope_observing 只供 RopeArt.observe 防重入；Q6′b 的 `_settle_table`
+# `Game._sandbox_begin`／`_sandbox_end` 换入草稿 state、置空并恢复 _resource_feedback、加减 _sandbox_depth（QX6）；_rope_observing 只供 RopeArt.observe 防重入；Q6′b 的 `_settle_table`
 # 是 dispatch 的脏件窗口，试算只跑在副本上，判定同样不得直接读写它。判定只在试算前经
 # RopeArt.locked 读 phase／enemies，所以与「是否身处事务」无关。事务侧的保存→置位→恢复同条核对，免得对手缺席。
 static func assess_never_touches_runtime_fields(t) -> void:

@@ -1368,7 +1368,7 @@ static func _qx6_rng_moved(before: Dictionary, after: Dictionary) -> Array:
 static func _qx6_gain(g) -> float:
  return float(g.RelicEffects.definition(g,"desire_cube").modifiers.get("restraint_mana",0.0))
 
-# G-QX6-1：六个沙盒入口（经七个调用面触发）都照常跑物理层、都不跑钩子。每行同时证明「沙盒确实进了」
+# G-QX6-1：本判据的七个调用面都照常跑物理层、都不跑钩子（`force_special` 不在其中，由 G-QX6-3 覆盖）。每行同时证明「沙盒确实进了」
 # （`_sandbox_begin` 计数）与「件确实建了」（`_member_joined` 计数），否则钩子为 0 只是入口没跑到。
 # 回魔与 worn 只在 `_join_hooks` 里调用（ARCH join_effects_have_one_epilogue），所以钩子调用为 0 即两者为 0 次。
 static func sandboxes_run_no_join_hooks(t) -> void:
