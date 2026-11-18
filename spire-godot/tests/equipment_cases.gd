@@ -1840,7 +1840,7 @@ static func sandboxes_silence_the_receipt_in_both_modes(t) -> void:
  var unbuilt=rows.filter(func(row):return not bool(row.ok)).map(func(row):return String(row.entry)+"/"+str(row.receipt))
  var leaked=rows.filter(func(row):return not bool(row.get("kept",false)) or not bool(row.get("quiet",false))).map(func(row):return String(row.entry)+"/"+str(row.receipt)+":kept="+str(row.get("kept",false))+" quiet="+str(row.get("quiet",false))+" events="+str(row.get("events"))+" sounds="+str(row.get("sounds")))
  t.check(rows.size()==12 and unbuilt.is_empty(),"REMOVAL sandboxes_silence_the_receipt_in_both_modes: all six sandbox entries run on a reachable input with the receipt both on and off, so the receipt rows below are not vacuous: unbuilt="+str(unbuilt))
- t.check(leaked.is_empty(),"REMOVAL sandboxes_silence_the_receipt_in_both_modes: with the receipt on, none of the six entries writes an installation, damage or sound event into the live receipt, and each restores the caller's collector; with it off the collector stays empty: leaked="+str(leaked))
+ t.check(leaked.is_empty(),"REMOVAL sandboxes_silence_the_receipt_in_both_modes: with the receipt on, the five preview entries write no installation, damage or sound event into the live receipt, while `force_special` -- a committing replacement -- writes exactly the one installation with its one event and one sound (D17), and each entry restores the caller's collector; with it off the collector stays empty: leaked="+str(leaked))
 
 # H6 格补判据之二：替换类 {单件、带丢链、组合换、强制特殊带加固带} × {欲望魔方 有、无} × {敌人上下文、事件}。
 # 同一替换入口换 source，逐格断言补跑次序、钩子都在沙盒外、丢链条数与遗物回魔步数。

@@ -3846,8 +3846,9 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
   if binding_issue!="": return {"ok":false,"error":binding_issue,"fact":{}}
  if expected_version!=state.version:
   return {"ok":false,"error":"状态已更新，请重新选择行动。","fact":{}}
- # Q5″：帧只活在开它的同步调用里，返回时栈应已清空；残留即入口漏收（只在 debug 构建里报，不改回执）。
- # 同一处检查由成功返回与两个失败返回共用——失败返回若不查，漏收的帧会随回执一起丢掉而不被看见。
+ # Q5″ invariant: frames live only inside the synchronous call that opened them, so the success
+ # return and both failure returns share this one check; a failure return that skipped it would
+ # drop the leftover frames along with the receipt (debug builds only, the receipt never changes).
  var frame_check=func() -> void:
   if debug_checks_enabled() and not _unit_frames.is_empty():
    _debug_check("unit_frames","game.dispatch","单位帧未收：%d" % _unit_frames.size())
@@ -3995,7 +3996,6 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  # get_view 之前算准节开合（F 批消费）。两键与 core/game_view.gd::build 的 "phase"／"pressure.overloaded"
  # 同源同值：phase 取已提交态 state.phase；overloaded 取 core/pressure.gd::overloaded（＝view 的同一实现，
  # 归一化段 _close_drawers 的唯一依据），不由 payload.kind 反推。失败结果键面一字不动（本 return 不达）。
- # Q5″：帧只活在开它的同步调用里，返回时栈应已清空；残留即入口漏收（只在 debug 构建里报，不改回执）。
  frame_check.call()
  Removal.unbind(self)
  return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"sound_feedback":sound_events,"checkpoint":checkpoint,"spell_failed":_magic_failed,"fact":chosen,"phase":state.phase,"overloaded":Pressure.overloaded(self)}

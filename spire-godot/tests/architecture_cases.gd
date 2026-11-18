@@ -8271,7 +8271,7 @@ static func assess_never_touches_runtime_fields(t) -> void:
  boundary.sort()
  var uncovered=boundary.filter(func(name):return not String(name) in ASSESS_RUNTIME_FIELD_TOKENS)
  var ghost=ASSESS_RUNTIME_FIELD_TOKENS.filter(func(token):return not source_code("core/game.gd").contains("var "+String(token)))
- t.check(compiled and not ASSESS_RUNTIME_FIELD_TOKENS.is_empty() and touched.is_empty() and uncovered.is_empty() and ghost.is_empty(),"ARCH assess_never_touches_runtime_fields: the assess module neither reads nor writes the transaction runtime fields or the rope observation flag, the table names every field the plan and force_special boundary saves or restores and no field it does not declare (a read would make the judgment depend on whether it runs inside a transaction): touched="+str(touched)+" boundary="+str(boundary)+" uncovered="+str(uncovered)+" ghost="+str(ghost))
+ t.check(compiled and not ASSESS_RUNTIME_FIELD_TOKENS.is_empty() and touched.is_empty() and uncovered.is_empty() and ghost.is_empty(),"ARCH assess_never_touches_runtime_fields: the assess module neither reads nor writes the transaction runtime fields or the rope observation flag, the table names every field the `_sandbox_begin`/`_sandbox_end` entry pair saves or restores and no field it does not declare (a read would make the judgment depend on whether it runs inside a transaction): touched="+str(touched)+" boundary="+str(boundary)+" uncovered="+str(uncovered)+" ghost="+str(ghost))
  var unguarded=[]
  for name in ["plan","force_special"]:
   var body=code_of_function("core/equipment_replacement.gd",name)
