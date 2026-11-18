@@ -2098,6 +2098,18 @@
         ],
         "suite": "shoulder",
         "expect": "a released right side is the only missing side"
+      },
+      {
+        "clause": "refresh-tier-two-fill",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": " if tier!=3: return",
+            "replace": " if tier!=3 and tier!=2: return"
+          }
+        ],
+        "suite": "shoulder",
+        "expect": "a tier-two refresh leaves the host without a pair"
       }
     ],
     "write_epoch_bumps_in_every_port": [
