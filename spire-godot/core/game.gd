@@ -28,6 +28,11 @@ var _unit_frames: Array=[]
 # and written by `core/equipment_removal.gd` only; instance-local like `_unit_frames`, it never enters
 # `state`, the View, a save, a checkpoint or the read cache.
 var _settle_table: Dictionary={}
+# QX6 sandbox depth (rev3.3 plan-delta §3.1): how many previews or trials are running on a scratch copy
+# of `state`. `_sandbox_begin`／`_sandbox_end` are its only writers. Above zero the join layer never
+# runs (frames are discarded at commit) and the rope-art ledger is not tracked. Instance-local like
+# `_unit_frames`: never `state`, the View, a save or a checkpoint.
+var _sandbox_depth: int=0
 
 # docs/record/proposals/check-routing-and-per-click-checks.md「二」（人裁定：正常流程下永不为 false 的
 # 每点击完整性检查＝release 里的固定浪费，按 debug 构建判定运行）：默认值只有构建类型这一条来源，
@@ -519,7 +524,6 @@ const EnemyPlans = preload("res://core/enemy_plans.gd")
 const Puppets=preload("res://core/puppet_enemy.gd")
 const RopeArt=preload("res://core/rope_master.gd")
 var _rope_observing=false
-var _rope_trial=false
 const IronMan=preload("res://core/iron_man.gd")
 const DemoExit=preload("res://core/demo_exit.gd")
 const SlipMotion=preload("res://core/slip_motion.gd")
@@ -1568,11 +1572,61 @@ func _unit_begin() -> bool:
 func _unit_commit(owned: bool) -> void:
  if not owned: return
  var frame: Dictionary=_unit_frames.pop_back()
+ # QX6: a sandbox keeps the physical layer and drops the frame, so a preview runs no hook.
+ if _sandbox_depth>0: return
  for entry in frame.joined: _join_hooks(entry)
+
+# The sandbox entry (QX6, G-QX6-7): the one way to run factories on a scratch copy. It swaps in a deep
+# copy of `state`, silences the receipt and raises the depth; the returned record is the only argument
+# `_sandbox_end` accepts. Nested sandboxes copy the enclosing scratch state. Callers restore through
+# `_sandbox_end` on every return path and keep whatever they carry back (a plan, `rng.event`) themselves.
+func _sandbox_begin() -> Dictionary:
+ var saved={"state":state,"feedback":_resource_feedback}
+ _sandbox_depth+=1
+ _resource_feedback=null
+ state=state.duplicate(true)
+ return saved
+
+func _sandbox_end(saved: Dictionary) -> void:
+ state=saved.state
+ _resource_feedback=saved.feedback
+ _sandbox_depth-=1
+
+# The replacement replay (QX6, rev3.3 plan-delta §3.2; R10): a replacement transaction runs its physical
+# layer in the sandbox, where no hook runs, so its two commit sites call this right after
+# `_commit_changes` and `RopeArt.replaced`. Every installed member is new, hence its closure is too:
+# the live record (by id) registers binding, straps or reinforcement strap, then itself -- the same
+# post order the factories register -- and the unit commits, piece by piece feedback then hooks,
+# through `_join_hooks`. A member that no longer exists on live registers nothing. The rows are
+# `_member_joined` argument lists; the unit opens only after every live record is resolved.
+func _join_after_commit(installed: Array) -> void:
+ var members=[]
+ for item in installed:
+  var id=String(item.get("id",""))
+  if item.has("components"):
+   var root=_composite(id)
+   if not root.is_empty(): members.append([root,"C",true,{}])
+   continue
+  var record=_equipment(id)
+  if record.is_empty(): continue
+  if record.get("template","")=="link_rope":
+   members.append([record,"K",true,{}])
+  elif SpecialEquipment.is_special(record):
+   for strap in state.special_equipment.filter(func(other):return SpecialEquipment.reinforcement_matches(other,record)):
+    members.append([strap,"R",false,{"owner":record}])
+   members.append([record,"X",true,{}])
+  else:
+   if record.has("binding"): members.append([record,"B",false,{"fresh":true}])
+   for strap in record.get("shoulders",{}).get("pieces",[]): members.append([strap,"S",false,{"host":record}])
+   members.append([record,"P",true,{}])
+ var owned=_unit_begin()
+ for member in members: _member_joined(member[0],member[1],member[2],member[3])
+ _unit_commit(owned)
 
 # The join registration port (Q5″, G-Q5-11): exactly one call per new member, the host after its
 # nested members. Without an open frame (fixtures that call an inner step directly) the member's
-# hooks run immediately, which is the pre-Q5″ behaviour. `top` marks the unit's own member (QX2″
+# hooks run immediately, which is the pre-Q5″ behaviour -- except in a sandbox (QX6), where the
+# frameless path runs no hook either. `top` marks the unit's own member (QX2″
 # J6/J7 read it); `detail` carries registration-time facts the hook cannot re-derive from the
 # record (`B` freshness, the `S` host, the `R` owner) and never outlives the frame.
 func _member_joined(record: Dictionary, kind: String, top: bool=false, detail: Dictionary={}) -> void:
@@ -1580,6 +1634,7 @@ func _member_joined(record: Dictionary, kind: String, top: bool=false, detail: D
  if not _unit_frames.is_empty():
   _unit_frames.back().joined.append(entry)
   return
+ if _sandbox_depth>0: return
  _join_hooks(entry)
 
 # The join layer (Q5″, G-Q5-11): the one place where a member's feedback, join copy, mana and worn

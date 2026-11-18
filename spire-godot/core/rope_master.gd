@@ -45,7 +45,7 @@ static func replaced(g, result: Dictionary) -> void:
 
 # Existing installation/damage/cleanup visits deliver only the changed instance.
 static func track(g, item: Dictionary, removed: bool=false) -> void:
- if g._rope_trial: return
+ if g._sandbox_depth>0: return
  var e=master(g)
  if e.is_empty() or not e.has("rope_art"): return
  var r=e.rope_art
@@ -310,7 +310,7 @@ static func hogtie(g, boss: Dictionary, grade: int) -> void:
  boss.rope_art.hogtie_pending=0
 
 static func observe(g) -> void:
- if g._rope_trial: return
+ if g._sandbox_depth>0: return
  var boss=master(g)
  if boss.is_empty(): return
  var r=boss.rope_art

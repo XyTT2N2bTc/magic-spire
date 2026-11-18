@@ -304,7 +304,7 @@ flowchart LR
 
 自动升级先按原状态确定完整移除集合，再删除主体与其附属件，不依赖装备数组顺序。候选查询与冻结提交统一检查同批 `protected_ids`，返回 `removed` 字段的真实物理ID差集，供敌人与巡视日志读取实际替换结果。
 
-普通获准替换 `Replacement.execute` 与场景强制替换 `Replacement.force_special` 保留各自权限规则，但副本预演成功后统一经 `_commit_changes` 写回实际变化字段；未变化的敌人、手牌等容器保留身份，失败不写回装备、资源、随机或反馈。两种结果的 `removed` 均记录完整物理ID差集（包含级联移除的附属件），断开的连接另记 `lost_links`；返回装备不得成为状态的可写别名。
+普通获准替换 `Replacement.execute` 与场景强制替换 `Replacement.force_special` 保留各自权限规则，但副本预演成功后统一经 `_commit_changes` 写回实际变化字段；未变化的敌人、手牌等容器保留身份，失败不写回装备、资源、随机或反馈。两种结果的 `removed` 均记录完整物理ID差集（包含级联移除的附属件），断开的连接另记 `lost_links`；返回装备不得成为状态的可写别名。预演与试装只做物理结算、不跑加入钩子（反馈、入列文案、回魔、佩戴触发）；替换事务的钩子在 `_commit_changes` 之后由 `core/game.gd::_join_after_commit` 对实际状态按安装顺序逐件补跑，每件先反馈、后钩子。
 
 ## 15. 只读投影与图鉴口径
 

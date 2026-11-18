@@ -1057,11 +1057,11 @@
         "edits": [
           {
             "find": "static func pieces(item: Dictionary) -> Array:",
-            "replace": "static func _mutation_probe_runtime(g) -> void:\n g._rope_trial=true\n\nstatic func pieces(item: Dictionary) -> Array:"
+            "replace": "static func _mutation_probe_runtime(g) -> void:\n g._sandbox_depth=1\n\nstatic func pieces(item: Dictionary) -> Array:"
           }
         ],
         "suite": "architecture",
-        "expect": "touched=[\"_rope_trial\"]"
+        "expect": "touched=[\"_sandbox_depth\"]"
       },
       {
         "clause": "settle-table",
@@ -2581,7 +2581,7 @@
         "file": "tests/write_journal_game.gd",
         "edits": [
           {
-            "find": " if not released and not _rope_trial:",
+            "find": " if not released and _sandbox_depth==0:",
             "replace": " if not released:"
           }
         ],

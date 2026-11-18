@@ -35,12 +35,10 @@ static func installation_plan(g, type: String, x: int, randomize: bool=false) ->
  var choices=options(g,type,x)
  while not choices.is_empty():
   var first=choices.pop_at(g._random_index("equipment",choices.size()) if randomize else 0)
-  var original=g.state
-  var feedback=g._resource_feedback
-  g.state=original.duplicate(true);g._resource_feedback=null
+  var sandbox=g._sandbox_begin()
   var outcome=g.Application.execute_concrete(g,first,type,false,[],true)
   var remaining=options(g,type,x) if outcome.ok else []
-  g.state=original;g._resource_feedback=feedback
+  g._sandbox_end(sandbox)
   if not remaining.is_empty():
    var second=remaining[g._random_index("equipment",remaining.size()) if randomize else 0]
    return [first.duplicate(true),second.duplicate(true)]

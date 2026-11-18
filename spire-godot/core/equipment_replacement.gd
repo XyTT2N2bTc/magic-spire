@@ -9,17 +9,13 @@ const View=preload("res://core/equipment_replacement_view.gd")
 # no local failure literal, so the contract cannot drift in two places.
 static func plan(g, requests: Array, source: String, protected_ids: Array=[]) -> Dictionary:
  var original=g.state
- var art_trial=g._rope_trial;g._rope_trial=true
- var feedback=g._resource_feedback
- g._resource_feedback=null
- g.state=original.duplicate(true)
+ # QX6: the sandbox entry owns the scratch state, the silenced receipt and the no-hook depth.
+ var sandbox=g._sandbox_begin()
  var result=_plan(g,requests,source,protected_ids)
  # Factories can displace equipment without explicit removal units in a direct plan.
  if result.ok and (result.removed+result.lost_links).any(func(id):return id in protected_ids):
   result=Assess.failure("刚安装的装备与附属件在本批次保留。")
- g.state=original
- g._rope_trial=art_trial
- g._resource_feedback=feedback
+ g._sandbox_end(sandbox)
  result.expectedVersion=original.version
  if result.ok:
   result.requests=result.requests.duplicate(true)
@@ -42,6 +38,8 @@ static func execute(g, prepared: Dictionary) -> Dictionary:
  _commit_changes(g,fresh._after)
  g._members_replaced()
  g.RopeArt.replaced(g,fresh)
+ # QX6 (R10): the trial ran no hook; the committed members replay feedback then hooks on live.
+ g._join_after_commit(fresh.installed)
  return {"ok":true,"reason":"","removed":fresh.removed.duplicate(),"installed":fresh.installed.duplicate(true),"lost_links":fresh.lost_links.duplicate(),"comparisons":fresh.comparisons.duplicate(true)}
 
 # Some captures explicitly replace every removable special item covered by one
@@ -50,20 +48,15 @@ static func execute(g, prepared: Dictionary) -> Dictionary:
 # special factory owns the incoming item.
 static func force_special(g, type: String, tier: int, source: String) -> Dictionary:
  if not g.SpecialEquipment.DESIGNS.has(type) or tier not in [1,2,3]: return Assess.failure("指定的特殊装备有误。")
- var original=g.state
- var art_trial=g._rope_trial;g._rope_trial=true
- var feedback=g._resource_feedback
- g._resource_feedback=null
- g.state=original.duplicate(true)
+ var sandbox=g._sandbox_begin()
  var result=_force_special_live(g,type,tier,source)
  var after=g.state.duplicate(true) if result.ok else {}
- g.state=original
- g._rope_trial=art_trial
- g._resource_feedback=feedback
+ g._sandbox_end(sandbox)
  if not result.ok: return result
  _commit_changes(g,after)
  g._members_replaced()
  g.RopeArt.replaced(g,result)
+ g._join_after_commit(result.installed)
  return result
 
 # Both replacement policies commit only changed fields. Keep unchanged enclosing

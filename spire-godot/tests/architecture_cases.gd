@@ -7097,12 +7097,14 @@ const JOIN_REGISTRATION_SITES=[
  "core/game.gd::_install_special",
  "core/game.gd::_install_link",
  "core/game.gd::_attach_special_reinforcement",
+ "core/game.gd::_join_after_commit",
  "core/shoulder_links.gd::fill",
  "core/torso_binding.gd::refresh"]
 const JOIN_HOST_AFTER_NESTED=[
  ["core/game.gd::_install_template","_tier_consequences("],
  ["core/game.gd::_install_special","_tier_consequences("]]
-# G-Q5-12：单位入口闭集（QX6 的 `_join_after_commit` 不在本片）与各自的首笔写／首次委托处理器。
+# G-Q5-12：单位入口闭集（QX6 起含替换类提交后补跑 `_join_after_commit`）与各自的首笔写／首次委托处理器。
+# 补跑不写容器，它的线是开帧处：成员解析（按 id 取 live 记录）全部在这条线之前。
 # 判定行必须全部落在这条线之前：线后出现 `return {}`／`return false` 或裸 `return` 即红。
 const UNIT_ENTRIES=[
  "core/game.gd::_install_template",
@@ -7110,6 +7112,7 @@ const UNIT_ENTRIES=[
  "core/game.gd::_install_special",
  "core/game.gd::_install_link",
  "core/game.gd::_tier_consequences",
+ "core/game.gd::_join_after_commit",
  "core/shoulder_links.gd::install"]
 const UNIT_FIRST_WRITES={
  "core/game.gd::_install_template":"state.next_equipment +=",
@@ -7117,6 +7120,7 @@ const UNIT_FIRST_WRITES={
  "core/game.gd::_install_special":"_special_erase(",
  "core/game.gd::_install_link":"state.links.append(",
  "core/game.gd::_tier_consequences":"for handler in rows[key]:",
+ "core/game.gd::_join_after_commit":"var owned=_unit_begin()",
  "core/shoulder_links.gd::install":"host.shoulders="}
 
 static func join_effects_have_one_epilogue(t) -> void:
@@ -7182,7 +7186,7 @@ static func unit_entries_are_declared(t) -> void:
  declared.sort()
  var issues=[]
  if sites!=declared: issues.append("sites="+str(sites)+" declared="+str(declared))
- if UNIT_ENTRIES.size()!=6: issues.append("entries="+str(UNIT_ENTRIES.size()))
+ if UNIT_ENTRIES.size()!=7: issues.append("entries="+str(UNIT_ENTRIES.size()))
  # 帧栈只有开与提交两个写口，都在 core/game.gd；登记口只读栈顶，不写栈本身。
  var frame_writes=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_unit_frames\\.(?:append|pop_back|pop_front|push_back|clear|erase|resize)\\s*\\(|_unit_frames\\s*\\[[^\\]]*\\]\\s*=(?!=)"))
  if frame_writes!=["core/game.gd::_unit_begin","core/game.gd::_unit_commit"]: issues.append("frame_writes="+str(frame_writes))
@@ -7216,7 +7220,7 @@ static func unit_writes_follow_all_checks(t) -> void:
    offset+=String(line).length()+1
    if line_at<=at: continue
    if code=="return {}" or code=="return false" or code=="return": issues.append(String(site)+":failure return after its first write: "+code)
- t.check(issues.is_empty() and UNIT_ENTRIES.size()==6,"ARCH unit_writes_follow_all_checks: each unit entry finishes every judgement and validation before its first container write, so no entry can return a failure after it already mutated the unit (a new failing return after the first write, or a lost marker, is red): "+str(issues))
+ t.check(issues.is_empty() and UNIT_ENTRIES.size()==7,"ARCH unit_writes_follow_all_checks: each unit entry finishes every judgement and validation before its first container write, so no entry can return a failure after it already mutated the unit (a new failing return after the first write, or a lost marker, is red): "+str(issues))
 
 # G-Q2-1（plan §8「Q2 耐久写口」；A66、A68 C-7；Q4′ A140 #1）：`.durability` 的 live 赋值与复合赋值只
 # 出现在唯一写口 `core/game.gd::_write_durability`；三处登记例外是建件（`_special_piece`）、品质写口
@@ -7998,9 +8002,10 @@ const ASSESS_READONLY_INSTANCE_METHODS=["_assembly_reason","_capacity","_capacit
 # view_dependency_edges 读本表）：预览只经 resolve／cancels 与 pair_pieces／pair_record／missing_sides／
 # eligible／attached_in／released_with_host；validate／validate_in 只校验。写入者（track／replaced／cleanup／fill）不得进入。
 const ASSESS_MODULE_CALLS={"Equipment":["*"],"SpecialEquipment":["*"],"Composites":["*"],"Links":["*"],"B":["*"],"RestraintValue":["*"],"RopeArt":["locked"],"Binding":["cancels","resolve","validate"],"Shoulders":["attached_in","eligible","missing_sides","pair_pieces","pair_record","released_with_host","validate_in"]}
-# 判定域既不读也不写的运行时字段：事务边界字段（_rope_trial／_resource_feedback，Replacement.plan 保存并恢复）与
-# 绳艺观察防重入标记（_rope_observing）。判定只经 RopeArt.locked 读 phase／enemies，不碰这三者。
-const ASSESS_RUNTIME_FIELD_TOKENS=["_rope_trial","_rope_observing","_resource_feedback","_unit_frames","_settle_table"]
+# 判定域既不读也不写的运行时字段：事务边界字段（_sandbox_depth／_resource_feedback，Replacement.plan 经
+# Game._sandbox_begin／_sandbox_end 保存并恢复；QX6 起 _rope_trial 并入沙盒深度）与绳艺观察防重入标记
+# （_rope_observing）。判定只经 RopeArt.locked 读 phase／enemies，不碰这三者。
+const ASSESS_RUNTIME_FIELD_TOKENS=["_sandbox_depth","_rope_observing","_resource_feedback","_unit_frames","_settle_table"]
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。comparison_value 随上游改名为 replacement_value：
 # 新旧两名都不得在 replacement 留函数体（只看旧名会漏掉误留的上游 replacement_value 原体）。
 const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","replacement_value"],["replacement_value","replacement_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"]]
@@ -8131,8 +8136,8 @@ static func assess_calls_only_declared_modules(t) -> void:
  var transaction=source_code("core/equipment_replacement.gd")
  t.check(order.is_empty() and not transaction.contains("RopeArt.locked"),"ARCH assess_calls_only_declared_modules: the rope lock is read in the family-mandatory stage before the cursed-plate boundary and in the removable filter between cursed_plate and protected_ids, and the transaction never restates it: order_lost="+str(order)+" transaction_restates="+str(transaction.contains("RopeArt.locked")))
 
-# M1（design rev3.1 §3）：判定既不读也不写事务边界的运行时字段。Replacement.plan／force_special 保存并恢复
-# {state,_resource_feedback,_rope_trial}；_rope_observing 只供 RopeArt.observe 防重入；Q6′b 的 `_settle_table`
+# M1（design rev3.1 §3）：判定既不读也不写事务边界的运行时字段。Replacement.plan／force_special 经唯一沙盒入口
+# `Game._sandbox_begin`／`_sandbox_end` 保存并恢复 {state,_resource_feedback,_sandbox_depth}（QX6）；_rope_observing 只供 RopeArt.observe 防重入；Q6′b 的 `_settle_table`
 # 是 dispatch 的脏件窗口，试算只跑在副本上，判定同样不得直接读写它。判定只在试算前经
 # RopeArt.locked 读 phase／enemies，所以与「是否身处事务」无关。事务侧的保存→置位→恢复同条核对，免得对手缺席。
 static func assess_never_touches_runtime_fields(t) -> void:
@@ -8149,6 +8154,14 @@ static func assess_never_touches_runtime_fields(t) -> void:
   for name in ["plan","force_special"]:
    for hit in field.search_all(code_of_function("core/equipment_replacement.gd",String(name))):
     if not hit.get_string(1) in boundary: boundary.append(hit.get_string(1))
+ # QX6：边界的保存／置位／恢复迁入 `core/game.gd::_sandbox_begin`／`_sandbox_end`（本体字段无 `g.` 前缀），
+ # 源侧→表的核对跟到这两个函数：它们写到的每个下划线字段同样必须在表内。
+ var own=RegEx.new()
+ compiled=compiled and own.compile("(?<![A-Za-z0-9_.])(_[A-Za-z0-9_]+)\\s*(?:\\+=|-=|=(?!=))")==OK
+ if compiled:
+  for name in ["_sandbox_begin","_sandbox_end"]:
+   for hit in own.search_all(code_of_function("core/game.gd",String(name))):
+    if not hit.get_string(1) in boundary: boundary.append(hit.get_string(1))
  boundary.sort()
  var uncovered=boundary.filter(func(name):return not String(name) in ASSESS_RUNTIME_FIELD_TOKENS)
  var ghost=ASSESS_RUNTIME_FIELD_TOKENS.filter(func(token):return not source_code("core/game.gd").contains("var "+String(token)))
@@ -8156,8 +8169,8 @@ static func assess_never_touches_runtime_fields(t) -> void:
  var unguarded=[]
  for name in ["plan","force_special"]:
   var body=code_of_function("core/equipment_replacement.gd",name)
-  if not body.contains("var art_trial=g._rope_trial;g._rope_trial=true") or not body.contains("g._rope_trial=art_trial"): unguarded.append(name)
- t.check(unguarded.is_empty(),"ARCH assess_never_touches_runtime_fields: Replacement.plan and force_special save, set and restore _rope_trial (the transaction owns the boundary the judgment must not touch): unguarded="+str(unguarded))
+  if body.count("var sandbox=g._sandbox_begin()")!=1 or body.count("g._sandbox_end(sandbox)")!=1: unguarded.append(name)
+ t.check(unguarded.is_empty() and boundary.has("_sandbox_depth") and boundary.has("_resource_feedback"),"ARCH assess_never_touches_runtime_fields: Replacement.plan and force_special save, set and restore the sandbox boundary through the one entry pair (the transaction owns the boundary the judgment must not touch): unguarded="+str(unguarded)+" boundary="+str(boundary))
 
 # S2a-1（gherkin「判定模块不重述工厂规则」；design §10）：准入与记录构造的原因文本、记录 id 前缀与
 # 随机算式常数只有一份，就在 game.gd 的共用函数里；assess 抄任何一条即红。表＝本片与 S2a-2 的
@@ -8237,14 +8250,14 @@ const RECORD_BUILDERS={"core/game.gd::_install_template":"core/game.gd::_templat
 # M1：_equipment_feedback 只许留在工厂与 Binding.refresh／Shoulders.fill；记录构造与共用规则函数一调用它，
 # 判定预览就会替事务执行反馈。
 # S2a′ 加固②（dependencies.md §4.4 第 5 条）：记录构造与共用规则函数也不许调用 RopeArt.*——绳索计数是
-# live 骨架的独占写入（事务内被 _rope_trial 门控为空操作），一旦从这里可达，判定预览就会替事务计数。
+# live 骨架的独占写入（事务内被 _sandbox_depth 门控为空操作），一旦从这里可达，判定预览就会替事务计数。
 const RECORD_BUILDER_FORBIDDEN=["state.","_emit(","_random_index(","_equipment_feedback(","RopeArt."]
 const RULE_DELEGATES={"core/torso_binding.gd::refresh":["core/torso_binding.gd::resolve"],"core/torso_binding.gd::cancel_for_assembly":["core/torso_binding.gd::cancels"],"core/shoulder_links.gd::fill":["core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::missing_sides"],"core/shoulder_links.gd::refresh":["core/shoulder_links.gd::pair_record"],"core/shoulder_links.gd::install":["core/shoulder_links.gd::pair_record"],"core/shoulder_links.gd::validate":["core/shoulder_links.gd::validate_in"],"core/shoulder_links.gd::cleanup":["core/shoulder_links.gd::released_with_host"]}
 const SHARED_RULE_FUNCTIONS=["core/torso_binding.gd::resolve","core/torso_binding.gd::cancels","core/shoulder_links.gd::pair_record","core/shoulder_links.gd::missing_sides","core/shoulder_links.gd::pair_pieces","core/shoulder_links.gd::attached_in","core/shoulder_links.gd::validate_in","core/shoulder_links.gd::released_with_host"]
 const SHARED_RULE_FORBIDDEN=["g.state","_emit(","_random_index(","_equipment_feedback(","RopeArt."]
 const CLEANUP_RULES=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"]
 # O3 的 live 端遍历顺序（骨架两份之一；视图端 core/equipment_replacement_view.gd::cleanup 按同一登记对齐）。
-# M1：三处 RopeArt.track 是 live 骨架独占的绳索计数（事务内由 _rope_trial 门控为空操作，视图端不调用），
+# M1：三处 RopeArt.track 是 live 骨架独占的绳索计数（事务内由 _sandbox_depth 门控为空操作，视图端不调用），
 # 各自钉在它所属谓词之前：装备循环的 track 在 _piece_released(e) 前，链接循环的在 _released(link) 前，
 # 锚点丢失分支的 track(…,true) 在 _link_anchor_lost(link 之后。
 # Q6'a: the skeleton's source function is core/equipment_removal.gd::settle, so the five `self` tokens read `g`

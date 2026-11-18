@@ -175,13 +175,13 @@
     }
   },
   "generated_from": {
-    "cells": 1313,
+    "cells": 1314,
     "fields": 121,
     "files": 144,
-    "inputs_sha256": "6dbe08305e3e92e11c2903795dc67e175d3add3965ed40d2ac15d8f018e8c977",
-    "sites": 2139,
+    "inputs_sha256": "a3798f4cab62dccf9dabcdae4a909f2098c7815f2a1aa6472c9be7d1fc869ee9",
+    "sites": 2140,
     "ui_reads": 0,
-    "whole_state": 77
+    "whole_state": 79
   },
   "owners": {
     "core/action_replay.gd::payload": {
@@ -1020,6 +1020,9 @@
     "core/game.gd::_item_use_kind_facts": {
       "phase": 1,
       "relic_bundle": 1
+    },
+    "core/game.gd::_join_after_commit": {
+      "special_equipment": 1
     },
     "core/game.gd::_leave_mounted_tools": {
       "items": 2
@@ -2834,6 +2837,18 @@
       "count": 1,
       "file": "core/game.gd",
       "function": "_read_active_for",
+      "kind": "pass"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_sandbox_begin",
+      "kind": "duplicate"
+    },
+    {
+      "count": 1,
+      "file": "core/game.gd",
+      "function": "_sandbox_begin",
       "kind": "pass"
     },
     {

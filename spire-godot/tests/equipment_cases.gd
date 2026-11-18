@@ -194,8 +194,8 @@ static func equal_value_tier3_follows_cause_intent(t) -> void:
   t.check(is_equal_approx(float(chost.binding.durability),copy_binding) and cg.Shoulders.attached(cg,chost).size()==copy_straps and cg.state.logs.size()==copy_logs and int(cg.state.rng.binding)==copy_rng and is_equal_approx(float(cright.durability),copy_right),"REMOVAL equal_value_tier3_follows_cause_intent: a zero-damage write at an unchanged value stays non-tightening, so the linked record, the missing strap, the logs and the binding counter are untouched: template="+template+" binding="+str(chost.binding.durability)+"/"+str(copy_binding)+" straps="+str(cg.Shoulders.attached(cg,chost).size())+"/"+str(copy_straps)+" logs="+str(cg.state.logs.size())+"/"+str(copy_logs)+" rng="+str(cg.state.rng.binding)+"/"+str(copy_rng))
 
 # G-Q4-6（rev3 gherkin；Q4′）：非收紧行新增的绳艺追踪只会是空操作（数据钉子）。镣铐模板、诅咒平板锁
-# 设计、复合套体与肩带模板都不是 rope；替换事务的两个入口全程 `_rope_trial=true`（`RopeArt.track` 首行
-# 即返回）；`hook_facts()` 在非 rest 相位为空。
+# 设计、复合套体与肩带模板都不是 rope；替换事务的两个入口全程在沙盒内（QX6：`_sandbox_begin`／`_sandbox_end`，
+# `RopeArt.track` 首行读 `_sandbox_depth` 即返回）；`hook_facts()` 在非 rest 相位为空。
 static func settle_writes_track_only_rope_or_no_op(t) -> void:
  var rope_templates=[]
  for template in E.TEMPLATES:
@@ -219,7 +219,7 @@ static func settle_writes_track_only_rope_or_no_op(t) -> void:
  var plan=Arch.code_of_function("core/equipment_replacement.gd","plan")
  var force=Arch.code_of_function("core/equipment_replacement.gd","force_special")
  var track=Arch.code_of_function("core/rope_master.gd","track")
- t.check(plan.contains("g._rope_trial=true") and plan.contains("g._rope_trial=art_trial") and force.contains("g._rope_trial=true") and force.contains("g._rope_trial=art_trial") and track.contains("g._rope_trial"),"REMOVAL settle_writes_track_only_rope_or_no_op: Replacement.plan and force_special hold _rope_trial true for their whole transaction and RopeArt.track早退: plan="+str(plan.contains("g._rope_trial=true"))+" force="+str(force.contains("g._rope_trial=true"))+" track="+str(track.contains("g._rope_trial")))
+ t.check(plan.contains("var sandbox=g._sandbox_begin()") and plan.contains("g._sandbox_end(sandbox)") and force.contains("var sandbox=g._sandbox_begin()") and force.contains("g._sandbox_end(sandbox)") and track.contains("if g._sandbox_depth>0: return"),"REMOVAL settle_writes_track_only_rope_or_no_op: Replacement.plan and force_special stay inside the sandbox for their whole transaction and RopeArt.track早退: plan="+str(plan.contains("var sandbox=g._sandbox_begin()"))+" force="+str(force.contains("var sandbox=g._sandbox_begin()"))+" track="+str(track.contains("if g._sandbox_depth>0: return")))
  var battle=Game.new(42)
  battle.state.phase="battle"
  var battle_facts=battle.hook_facts()

@@ -10,7 +10,7 @@ extends RefCounted
 # 判据与观察面（各判据的消息里报出自己的 checked 计数）：
 #   1) assess_pure_functions_leave_inputs_unchanged：调用前后整份 SaveStore.encode(state) 与 _resource_feedback 相等、state 引用未换。
 #   2) assess_pure_functions_never_advance_random：同一循环，state.rng 与 state.seed 逐例不变。
-#   3) replacement_plan_leaves_live_state_unchanged：_resource_feedback 预置可辨认非 null、_rope_trial 按例交替预置，plan 必须原样恢复。
+#   3) replacement_plan_leaves_live_state_unchanged：_resource_feedback 预置可辨认非 null、_sandbox_depth 按例交替预置 0／1，plan 必须原样恢复。
 #   4) view_index_only_for_same_state：读作用域索引只认 live state 对象；同内容副本恒走扫描、结果与无作用域扫描逐项相同。
 #   5) random_draw_matches_random_index：_random_draw 与 _random_index 在每个随机域 × size{1,2,7} 上返回值与计数推进相同。
 #   6) chastity_requests_never_reach_the_judgment（A52 F2）：唯一跳过点在 legal_requests；legal 直接收到贞操锁请求返回 false（防御）。
@@ -44,8 +44,8 @@ const ASSESS_EXCLUDED_HOOKS=[
 # rev3.1 §4.4：与上表区分——事务内由门控变成空操作的钩子，判定不执行它们与事务完全等价，故不进上表。
 # 行＝[锚点, 门控行原文, live 端调用 token, 该调用所在的 live 文件]。
 const TRANSACTION_NOOP_HOOKS=[
- ["core/rope_master.gd::track","if g._rope_trial: return","RopeArt.track(","core/game.gd"],
- ["core/rope_master.gd::observe","if g._rope_trial: return","RopeArt.observe(","core/capture_bind.gd"],
+ ["core/rope_master.gd::track","if g._sandbox_depth>0: return","RopeArt.track(","core/game.gd"],
+ ["core/rope_master.gd::observe","if g._sandbox_depth>0: return","RopeArt.observe(","core/capture_bind.gd"],
  ["core/game.gd::_equipment_feedback","if _resource_feedback!=null:","_equipment_feedback(","core/game.gd"]]
 const EQUIPMENT_CONTAINERS=["equipment","composites","special_equipment","links"]
 
@@ -62,9 +62,10 @@ const FALLBACK_CLASSES=[]
 # _exercise 可能执行到的 assess 纯函数：覆盖计数按这张表逐函数报出。
 const STEPS=["normalize","capacity_points","counts","replacement_value","physical_points","loss","pieces","units","sets","compare","assign","transfer_options"]
 
-# 事务边界要保存并恢复的运行时字段（Replacement.plan／force_special：保存→置位→恢复）：state 换成草稿对象、
-# _resource_feedback 置 null、_rope_trial 置 true。判定域（assess）既不读也不写它们（ARCH assess_dependency_edges）。
-const TRANSACTION_RUNTIME_FIELDS=["state","_resource_feedback","_rope_trial"]
+# 事务边界要保存并恢复的运行时字段（Replacement.plan／force_special 经 Game._sandbox_begin／_sandbox_end：
+# 保存→置位→恢复）：state 换成草稿对象、_resource_feedback 置 null、_sandbox_depth 加一（QX6：原 _rope_trial
+# 并入沙盒深度）。判定域（assess）既不读也不写它们（ARCH assess_dependency_edges）。
+const TRANSACTION_RUNTIME_FIELDS=["state","_resource_feedback","_sandbox_depth"]
 
 # 固定小切片（D21）：20260906 段步 199／203／214 的 3 个判定例（都是失败例、单例 ≤ 5 ms；
 # 各自是「包裹前该侧手掌与手指必须没有装备」的装配早退路径，与夹具的镣铐／绳艺锁／固缚路径互补）。
@@ -248,8 +249,8 @@ static func replacement_plan_leaves_live_state_unchanged(t, data: Dictionary) ->
   g.state=Corpus._case_state(data,case)
   # 可辨认的非 null 反馈：plan 的「置空→恢复」两半都可观测，删除恢复行即红（F5）。
   g._resource_feedback={"texts":["assess-plan-probe"]}
-  # 绳艺试算标记按例交替预置 false／true：缺恢复行时预置 false 的例红，写成固定 =false 时预置 true 的例红。
-  g._rope_trial=checked%2==1
+  # 沙盒深度按例交替预置 0／1：缺恢复行时预置 0 的例红，写成固定归零时预置 1 的例红。
+  g._sandbox_depth=checked%2
   var before=_snapshot(g)
   var result=Replacement.plan(g,Corpus.unseal(case.get("requests",[]),"requests"),
    String(case.get("source","")),Corpus.unseal(case.get("protected_ids",[]),"protected_ids"))
@@ -257,7 +258,7 @@ static func replacement_plan_leaves_live_state_unchanged(t, data: Dictionary) ->
   if not result is Dictionary or not result.has("ok"): problems.append(String(case.get("case_id",""))+":result shape")
   elif result.ok: accepted+=1
   problems.append_array(_differences(String(case.get("case_id","")),before,_snapshot(g)))
- t.check(problems.is_empty() and checked==cases.size(),"ASSESS replacement_plan_leaves_live_state_unchanged: Replacement.plan restores every transaction runtime field (state object, resource feedback, rope-trial flag) and leaves the whole encoded state unchanged (plan calls %d/%d; accepted %d; feedback seeded and rope-trial flag alternately preset false/true before every call): %s" % [checked,cases.size(),accepted,str(problems.slice(0,3))])
+ t.check(problems.is_empty() and checked==cases.size(),"ASSESS replacement_plan_leaves_live_state_unchanged: Replacement.plan restores every transaction runtime field (state object, resource feedback, sandbox depth) and leaves the whole encoded state unchanged (plan calls %d/%d; accepted %d; feedback seeded and sandbox depth alternately preset 0/1 before every call): %s" % [checked,cases.size(),accepted,str(problems.slice(0,3))])
 
 # S2a-1（gherkin「索引只认同一对象」；design §3.1-3）：读作用域里的索引只对 live state 这一对象生效；
 # 同内容不同对象的视图恒走扫描。做法：打开作用域后把索引四条边换成可辨认的探针件，分别以 state 与

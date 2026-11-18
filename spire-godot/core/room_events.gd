@@ -511,11 +511,9 @@ static func resolve_effect_copy(g, effect: Dictionary) -> Dictionary:
  return resolved
 
 static func freeze_effects(g, declared: Array) -> Dictionary:
- var original=g.state
- # Simulated costs may emit logs, but must never reach the live UI receipt.
- var feedback=g._resource_feedback
- g._resource_feedback=null
- g.state=original.duplicate(true)
+ # Simulated costs may emit logs, but must never reach the live UI receipt (QX6: the sandbox entry
+ # owns the scratch state, the silenced receipt and the no-hook depth).
+ var sandbox=g._sandbox_begin()
  var frozen=[];var issue=""
  for authored_effect in declared:
   var declared_effect=resolve_effect_copy(g,authored_effect)
@@ -581,9 +579,8 @@ static func freeze_effects(g, declared: Array) -> Dictionary:
    frozen.append(concrete)
   if issue!="": break
  var event_counter=g.state.rng.event
- g.state=original
+ g._sandbox_end(sandbox)
  g.state.rng.event=event_counter
- g._resource_feedback=feedback
  return {"effects":frozen,"issue":issue}
 
 static func selection_rows(selected) -> Array:
@@ -701,17 +698,16 @@ static func compile(g, recipe: String) -> Array:
    var options=g.EquipmentOffers.assemblies(g,2,["glove","leg","jacket"])
    var option=pick(g,options)
    if option.is_empty(): return []
-   var original=g.state
-   g.state=original.duplicate(true)
+   # QX6: the recipe probe installs through the sandbox entry, so it runs no hook and can no longer
+   # write the live receipt (D17).
+   var sandbox=g._sandbox_begin()
    var request=option.duplicate(true);request.grade=2;request.tier=2
    var applied=g.Application.execute_concrete(g,request,"event:"+g.state.room,false)
    var root={} if not applied.ok else applied.installed[0]
-   if root.is_empty():
-    g.state=original
-    return []
+   g._sandbox_end(sandbox)
+   if root.is_empty(): return []
    var parts=root.components.filter(func(e):return g.Equipment.allows(e,"lock"))
    var part="" if parts.is_empty() else parts[0].part
-   g.state=original
    if part=="": return []
    return [{"op":"assembly","family":option.family,"variant":option.variant,"straps":option.straps,"part":part,"name":root.name,"coverage":g.Composites.definition(root).coverage,"part_name":parts[0].name}]
  return []
@@ -909,10 +905,7 @@ static func apply_effects(g, effects: Array, refs: Dictionary, emit_logs: bool=t
 # Structured form of the effects probe: one implementation, and probe() stays the
 # string-shaped entry point used by the rest of the pipeline.
 static func probe_result(g, effects: Array, option: Dictionary={}, cleanup: bool=false) -> Dictionary:
- var original=g.state
- var feedback=g._resource_feedback
- g._resource_feedback=null
- g.state=original.duplicate(true)
+ var sandbox=g._sandbox_begin()
  var issue=apply_effects(g,effects,g.state.room_event.refs,option.is_empty() and not cleanup)
  var gate="probe_failed"
  var next=next_target(option.get("next","result")) if option.has("next") else {"kind":"result"}
@@ -928,8 +921,7 @@ static func probe_result(g, effects: Array, option: Dictionary={}, cleanup: bool
   # 只在 debug 构建里跑；上面的 effects／可行性那一半是规则判定（执行后的可执行性），每种构建都保留。
   issue=g._debug_check("Game.validate","room_events.probe_result",g.validate())
   if issue!="": gate="validate_failed"
- g.state=original
- g._resource_feedback=feedback
+ g._sandbox_end(sandbox)
  return {"gate":"" if issue=="" else gate,"reason":issue}
 
 static func probe(g, effects: Array, option: Dictionary={}, cleanup: bool=false) -> String:

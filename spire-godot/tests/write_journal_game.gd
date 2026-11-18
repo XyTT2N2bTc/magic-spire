@@ -19,14 +19,15 @@ var _quiet_frame_end: int=0
 
 # One row: `port` names the overridden port, `id`/`template` the record, `owner` the container owner the
 # attribution rule groups by (root component, shoulder host, torso binding parent; empty otherwise),
-# `epoch` the version on entry and `trial` the replacement sandbox flag. The port-specific fields ride in
+# `epoch` the version on entry and `trial` the sandbox flag (QX6: any of the six sandbox entries, read
+# from `_sandbox_depth`; before QX6 only the replacement transaction set it). The port-specific fields ride in
 # `extra`. Reader only: no state write, no random draw, no emit, no second write port.
 func _journal_row(port: String, record: Dictionary, extra: Dictionary) -> void:
  var owner=""
  if record.has("root_id"): owner=String(record.root_id)
  elif record.has("shoulder_host"): owner=String(record.shoulder_host)
  elif record.has("parent_id"): owner=String(record.parent_id)
- var row={"port":port,"id":String(record.get("id","")),"owner":owner,"template":String(record.get("template","")),"epoch":write_epoch(),"trial":bool(_rope_trial)}
+ var row={"port":port,"id":String(record.get("id","")),"owner":owner,"template":String(record.get("template","")),"epoch":write_epoch(),"trial":_sandbox_depth>0}
  row.merge(extra,true)
  journal.append(row)
 
@@ -56,7 +57,7 @@ func _write_locked(target: Dictionary, locked: bool) -> void:
  _journal_row("locked",target,{"from":target.locked,"to":locked})
  super._write_locked(target,locked)
 
-# QX2″ (rev3.5 plan-delta §3): the quiet settle (a `_cleanup(false)` outside the replacement sandbox) is
+# QX2″ (rev3.5 plan-delta §3): the quiet settle (a `_cleanup(false)` outside every sandbox) is
 # the only place a release can happen without a player-visible action, so it is counted here once and the
 # row is built by the two static helpers below. The helpers read `state` and nothing else, so the QX2″
 # parent-tree probe can call the same pair from a `core/game.gd` subclass instead of writing a second
@@ -131,7 +132,7 @@ func _quiet_site() -> String:
 # adjacent and verbatim.
 func _cleanup(released: bool=true) -> void:
  var quiet_before={}
- if not released and not _rope_trial: quiet_before=quiet_snapshot(self)
+ if not released and _sandbox_depth==0: quiet_before=quiet_snapshot(self)
  var frame={"released":released,"enter_durability":durability_entries.size(),"enter_quality":quality_entries.size(),"exit_durability":0,"exit_quality":0}
  cleanup_frames.append(frame)
  super._cleanup(released)

@@ -13,7 +13,7 @@ extends RefCounted
 #   2) view_builds_records_only_through_shared_builders：预览造件只经共用记录构造与准入。
 #   3) view_migrated_functions_have_one_implementation：loadout 身份家族只在视图模块有一份实现。
 #   4) assessment_leaves_live_state_unchanged：Assess.legal 连续两次后整份 encode(state)、rng、
-#      _resource_feedback、_equipment_read、_rope_trial、_rope_observing 全等，g.state 引用未被替换。
+#      _resource_feedback、_equipment_read、_sandbox_depth、_rope_observing 全等，g.state 引用未被替换。
 #   5) legal_matches_plan_inside_scope：每例在 _begin_equipment_read() 作用域内再判一次，结果与存量 old.ok 相同；
 #      切片必须真的含三档固缚例（逐试算重置本地计数的复现路径），否则本条空转。
 #   6) view_binding_draw_reproduces_the_live_refresh：视图刷新从 live 的 binding 计数起算、记录与计数推进
@@ -249,10 +249,10 @@ static func assessment_leaves_live_state_unchanged(t, data: Dictionary) -> void:
   if problems.size()>=3: break
   var g=Corpus._fresh_game()
   g.state=Corpus._case_state(data,case)
-  var trial_flag=checked%2==1
+  var sandbox_depth=checked%2
   var observing_flag=checked%2==0
   g._resource_feedback={"texts":["assess-legal-probe"]}
-  g._rope_trial=trial_flag
+  g._sandbox_depth=sandbox_depth
   g._rope_observing=observing_flag
   var reference=g.state
   var text=JSON.stringify(Store.encode(g.state))
@@ -269,10 +269,10 @@ static func assessment_leaves_live_state_unchanged(t, data: Dictionary) -> void:
   if JSON.stringify(g.state.rng)!=rng: problems.append(id+":rng changed")
   if g._resource_feedback!={"texts":["assess-legal-probe"]}: problems.append(id+":feedback changed")
   if not is_same(g._equipment_read,read_scope): problems.append(id+":read scope replaced")
-  if g._rope_trial!=trial_flag: problems.append(id+":rope trial flag changed")
+  if g._sandbox_depth!=sandbox_depth: problems.append(id+":sandbox depth changed")
   if g._rope_observing!=observing_flag: problems.append(id+":rope observing flag changed")
   if not is_same(g.state,reference): problems.append(id+":state object replaced")
- t.check(problems.is_empty() and checked==cases.size() and checked>0,"VIEW assessment_leaves_live_state_unchanged: two Assess.legal calls leave the whole encoded state, the rng, the resource feedback, the read scope, the rope-trial and rope-observing flags unchanged and the state object by reference (checked %d/%d; feedback seeded and the two flags alternately preset): %s" % [checked,cases.size(),str(problems.slice(0,3))])
+ t.check(problems.is_empty() and checked==cases.size() and checked>0,"VIEW assessment_leaves_live_state_unchanged: two Assess.legal calls leave the whole encoded state, the rng, the resource feedback, the read scope, the sandbox depth and the rope-observing flag unchanged and the state object by reference (checked %d/%d; feedback seeded, the depth and the flag alternately preset): %s" % [checked,cases.size(),str(problems.slice(0,3))])
 
 # 作用域内再判一次：视图恒走扫描，结果必须与存量 old.ok 相同；作用域不被重建，退出后复原。
 # 复现面（A50 R2）：判定把 live 的 binding 计数交给每个试算的本地副本；本条要求切片真的含
