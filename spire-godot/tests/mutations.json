@@ -2720,19 +2720,15 @@
     "event_costs_never_follow_installs": [
       {
         "clause": "primary",
-        "file": "content/packs/binding_cleric.json",
+        "file": "content/packs/bound_dream_guest_room.json",
         "edits": [
           {
-            "find": "\"op\": \"mana_gain\",",
-            "replace": "\"op\": \"link\","
-          },
-          {
-            "find": "\"op\": \"install_random\",",
-            "replace": "\"op\": \"mana_loss\","
+            "find": "\"wear_style\": \"animated\"\n            }\n          ],",
+            "replace": "\"wear_style\": \"animated\"\n            },\n            {\n              \"op\": \"mana_max_loss\",\n              \"amount\": 1\n            }\n          ],"
           }
         ],
         "suite": "architecture",
-        "expect": "late=[\"binding_cleric.json"
+        "expect": "late=[\"bound_dream_guest_room.json"
       }
     ],
     "sandboxes_run_no_join_hooks": [
