@@ -5184,3 +5184,26 @@ flowchart LR
 
 - 流程：实现（两次阻断：CC-58／CC-59 写形与声明行；CC-62／CC-63 `.import` 换行与视图漏补侧，续派完成）→清洁（文件头注释）→加固（中，新判据 `SHOULDER pair_record_and_missing_sides_edges` 14 断言、8 条登记）→独立审查（通过，4 条次要观察仅记录）→验收 `dsp-20261118T024933Z-7e0b`（CC-64：52 套件后台单实例单次全量）。裁定：`tmp/io-q9/coordinator-rulings.md`（CC-57～CC-59、CC-62～CC-64）；审查：`tmp/io-q9/review/findings.md`。
 - 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+## 2026-11-18 QC1 开发线带入收押高潮软锁修复验收（spire-godot，`97e8eed..31e52cf`）
+
+- 域：`core/guard.gd::capture`、`tests/guard_cases.gd` 的 CAPTURE CLIMAX 判据；有意的行为变化，只限收押局面。
+
+- 片 `97e8eed..31e52cf`：判据提交 `86a83d9`，修复提交 `31e52cf`。`Guard.capture` 在 `RelicEffects.end_combat` 之后再调用一次 `Pressure.clear_penalties`，原来的前一次调用保留（CC-61）。增量与热修 `fe4131e` 的 hunk 逐字节相同。
+- **行为变化**：只发生在收押局面，已裁 CC-60／CC-61。具体是：软锁局面由回滚变为提交；收押后罚则字段归零；收押榨精 scripted 日志行的 `energy_penalty` 可能由 1 变成 0。
+- 门禁（HEAD `31e52cf`，dirty 0）：
+  - 52 套件单次全量，运行号 `20261118T054808978-41260`：152330→152526，只有 guard 127→323；47 PASS／5 FAIL 与父相同；15 条 ERROR 与父逐字节相同；SCRIPT ERROR 0。
+  - runner `20261118T055817905-27904`：1856。比父多 1 条，是 `index_targets_exist` 对新增边 `rule:guard → data/enemy_library.gd` 发的断言（CC-65）。
+  - UI `20261118T060002210-34372`：与父相同，只有 `equipment_complete` 的既有红。
+  - state_readers、check-index、check-docs 均为 PASS。
+- 行为对照零差异：
+  - 全量语料 3277 条、入库语料 423 条，mismatches 均为 0。
+  - 三种子与 Q8 §G 相等。
+  - 原因矩阵两树（父树 `3b8505b`）diff 为空。
+- 局面矩阵 1296 行：864 相同／216 回滚→提交／72＋144 只差 CC-60 字段／提交→回滚 0。修复前能提交的行没有扩大的变化。
+- 敏感性：只留前一次调用 `FAIL: 21/260`，只留后一次调用 `FAIL: 6/323`；两次都逐字节还原。
+- 加固按协调者批准跳过（理由：两种单调用突变已覆盖全部行为子句，测试与热修逐字节相同且热修已审两轮，非 architecture 判据登记突变表待人裁定）。
+- 证据：`tmp/io-qc1/acceptance/acceptance-qc1-validator.md`。
+
+- 流程：实现 `dsp-20261118T040404Z-b88c`→清洁 `053752Z-ae48`（零改动）→加固跳过（`tmp/io-qc1/coordinator-rulings.md`）→独立审查 `054105Z-a820`（通过，次要 1：`-KeepGoing` stdout 有 GBK 重复回显，计数以 `FAIL: n/m` 与 UTF-8 日志为准）→验收 `054723Z-74e5`。
+- 热修本体在发布线分支 `hotfix/capture-climax-softlock`（`fe4131e`，基于 v0.18.3），已向上游开 PR h13942080472-prog/magic-spire#16。本开发线提交仅本地 `.git`，未推送、未 tag、未打包。
