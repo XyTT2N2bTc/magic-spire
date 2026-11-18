@@ -2092,8 +2092,8 @@
         "file": "core/shoulder_links.gd",
         "edits": [
           {
-            "find": " for side in SIDES:",
-            "replace": " for side in [\"left\"]:"
+            "find": "  if pair.pieces.any(func(e):return e.side==side and e.durability>0.000001): continue",
+            "replace": "  if pair.pieces.any(func(e):return (e.side==side or (side==\"right\" and e.side==\"left\")) and e.durability>0.000001): continue"
           }
         ],
         "suite": "shoulder",
