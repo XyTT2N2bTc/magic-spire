@@ -5172,3 +5172,15 @@ flowchart LR
 
 - 流程：实现（`dsp-20261115T222536Z-5751`→`232805Z-e6e2` 阻于 C-8，协调者裁 CC-55 允许在 `parallel_orchestrations_call_the_shared_rules` 内加按 kind 配对分支，续派 `233624Z-d9df`）→清洁 `dsp-20261117T051114Z-8e65`→加固（中）`dsp-20261117T055540Z-0351` 起 VF 续接至 `065452Z-adc0`（补四 kind × 应用／替换层运行时判据）→独立审查 `dsp-20261117T085623Z-a499`（通过，次要观察裁为 CC-56）→验收 `dsp-20261117T090626Z-1a0f`。裁定：`tmp/io-q8/coordinator-rulings.md`；审查：`tmp/io-q8/review/findings.md`。
 - 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
+
+## 2026-11-18 Q9 肩带对记录与缺侧验收（spire-godot，`3b8505b..cb98fb8`）
+
+- 域：`core/shoulder_links.gd`（`pair_record`、`missing_sides`，`install`／`refresh`／`fill` 改调）与 `core/equipment_replacement_view.gd::refresh`；行为不变。
+- 门禁：52 套件单次全量 `20261118T025026692-51384` 152309→152330（shoulder +20、replacement +1），47 PASS／5 FAIL 同父，15 条父 ERROR 逐字节相同、无新红，SCRIPT ERROR 0；
+  runner `20261118T030033316-26860` 1855；UI `20261118T030226085-41424` 仅父红 `equipment_complete`「HEAD equal tightness」；state_readers（sha256 `3ea27a78…`）、check-index（digest `f7ef5110…`）、check-docs `DOCS PASS` 均 exit 0。
+- 行为不变：全量语料（`75e446a5…`）compare/reoracle `checked=3277 mismatches=0`；入库 423 三模式 0 差，selfcheck 恰 1 红；三种子与 Q8 §G 逐字符相等；原因矩阵两树（父 `3b8505b`）diff 空。
+- 敏感性：`check-mutation` 18 条（Q9 新 13＋改锚 5）全部 RED 且逐字节还原；附挂手动突变 `VIEW view_binding_draw_reproduces_the_live_refresh`（refresh 漏补一侧）与 `VIEW view_dependency_edges`（`Shoulders.fill`）具名红并还原。
+- 结论：通过；未打包、未发布，仅源码验收。证据：`tmp/io-q9/acceptance/`。
+
+- 流程：实现（两次阻断：CC-58／CC-59 写形与声明行；CC-62／CC-63 `.import` 换行与视图漏补侧，续派完成）→清洁（文件头注释）→加固（中，新判据 `SHOULDER pair_record_and_missing_sides_edges` 14 断言、8 条登记）→独立审查（通过，4 条次要观察仅记录）→验收 `dsp-20261118T024933Z-7e0b`（CC-64：52 套件后台单实例单次全量）。裁定：`tmp/io-q9/coordinator-rulings.md`（CC-57～CC-59、CC-62～CC-64）；审查：`tmp/io-q9/review/findings.md`。
+- 仅本地 `.git`，未推送、未 tag、未开 PR、未打包。
