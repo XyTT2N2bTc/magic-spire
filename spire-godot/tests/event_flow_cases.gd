@@ -841,6 +841,7 @@ static func run(t) -> void:
  bound_dream_guest_room(t)
  mysterious_woman_statue(t)
  maze_survey_team(t)
+ locked_assembly_compile_leaves_the_live_receipt_untouched(t)
  var g=Game.new(17)
  var baseline=Catalog.tables(g)
  application_cases(t,g,baseline)
@@ -1237,3 +1238,31 @@ static func application_cases(t, g, baseline: Dictionary) -> void:
  special.state.room_event.options=[{"id":"ease_test","label":"松开","detail":"松开所选装备一档。","reward":"none","effects":[{"op":"ease_restraint","target":eligible.id}]}]
  t.check(Events.choose(t,special,"ease_test").ok and special._equipment(eligible.id).durability==special.lower_durability(eligible.maximum*0.8,eligible.maximum),"EVENT APPLICATION eligible special lowers through the original event transaction")
  t.check(special._equipment(manual.id)==manual and special.state.mana==special_before.mana and special.state.rng==special_before.rng,"EVENT APPLICATION special lowering preserves unrelated equipment, resources and RNG")
+
+# G-QX6-6（rev3.3 gherkin-delta；D17）：`compile`「locked_assembly」在沙盒里装复合件取上锁部件。QX6 之前它只换
+# 状态不置空回执，沙盒里的安装反馈与欲望魔方回魔会写进 live 回执；经统一沙盒入口后回执与调用前相等。
+# 回执探针与 `core/resource_feedback.gd` 的三个写口同名同参，只记被调用的口名：一次都没被调用，回执的
+# installed、音效与资源事件自然与调用前相等。
+class ReceiptProbe extends RefCounted:
+ var calls: Array=[]
+ func equipment(_target: Dictionary, _amount: float, _installation: bool=false, _direct_damage: bool=true, _context: Dictionary={}) -> void:
+  calls.append("equipment")
+ func capture(_state: Dictionary, _source: String="") -> void:
+  calls.append("capture")
+ func relic(_state: Dictionary, _source: String) -> void:
+  calls.append("relic")
+
+static func locked_assembly_compile_leaves_the_live_receipt_untouched(t) -> void:
+ var g=Game.new(17)
+ g.RelicEffects.gain(g,"desire_cube")
+ g.state.mana=0.0
+ var receipt=ReceiptProbe.new()
+ g._resource_feedback=receipt
+ var before=g.state.duplicate(true)
+ var effects=g.Events.compile(g,"locked_assembly")
+ g._resource_feedback=null
+ # The recipe pick draws from the event domain on live; everything else must be equal.
+ var face=g.state.duplicate(true)
+ face.rng.event=before.rng.event
+ t.check(not effects.is_empty() and String(effects[0].get("op",""))=="assembly","EVENT FLOW locked assembly compile leaves the live receipt untouched: the recipe is reachable on this fixture, so the receipt comparison below is not vacuous: effects="+str(effects))
+ t.check(receipt.calls.is_empty() and face==before,"EVENT FLOW locked assembly compile leaves the live receipt untouched: the receipt of the enclosing submit receives no installation, capture or relic call while the recipe installs on its scratch state, and the live state only moved the event draw: receipt_calls="+str(receipt.calls)+" state_equal="+str(face==before))

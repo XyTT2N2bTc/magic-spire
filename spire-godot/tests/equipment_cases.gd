@@ -522,6 +522,11 @@ static func run(t) -> void:
  unit_frames_never_leak(t)
  join_epilogue_keeps_order(t)
  previews_never_leak_join_effects(t)
+ sandboxes_run_no_join_hooks(t)
+ replacement_hooks_replay_after_commit(t)
+ forced_special_hooks_replay_after_commit(t)
+ replacement_plan_after_has_no_hook_output(t)
+ self_binding_plan_is_journaled_as_sandbox(t)
  incremental_settle_matches_full_scan(t)
  settle_residue_stays_empty(t)
  unbound_state_uses_full_scan(t)
@@ -1291,6 +1296,213 @@ static func previews_never_leak_join_effects(t) -> void:
  var failed=t.action(rollback,"end")
  rollback.armed=false
  t.check(not failed.ok and rollback.state==snapshot and rollback._unit_frames.is_empty() and _frame_issues(rollback).is_empty(),"REMOVAL previews_never_leak_join_effects: a submit that fails validation after its units committed restores the state and leaves no frame behind: ok="+str(failed.ok)+" frames="+str(rollback._unit_frames.size()))
+
+# ==== QX6（rev3.3 gherkin-delta G-QX6-1…5；plan-delta §3）：预演与试装不跑钩子，替换类提交后补跑 ====
+# 共用探针：在 JoinProbe 之上再记每次沙盒进入、每次加入登记（物理层确实跑过的证据）与每次钩子调用时的
+# 沙盒深度。只记录，不改状态、不改调用顺序。
+class SandboxProbe extends JoinProbe:
+ var sandboxes: int=0
+ var registered: int=0
+ var hook_depths: Array=[]
+ func _sandbox_begin() -> Dictionary:
+  sandboxes+=1
+  return super._sandbox_begin()
+ func _member_joined(record: Dictionary, kind: String, top: bool=false, detail: Dictionary={}) -> void:
+  registered+=1
+  super._member_joined(record,kind,top,detail)
+ func _join_hooks(entry: Array) -> void:
+  hook_depths.append(_sandbox_depth)
+  super._join_hooks(entry)
+
+# 整根置换夹具（同 tests/application_cases.gd「full covering batch」）：手臂五个位置各两件皮带、外套短手套，
+# 五件 3 档胶带只能作为一个整根组落地——`Application._groups` 是 U10 的唯一生产者（F2 的真实入口）。
+const QX6_WHOLE_ROOT_SPEC={"pool":"ordinary","templates":["tape"],"slots":["upper_arm","forearm","wrist"],"count":5,"grade":3,"tier":3,"replace":true,"variants":{"tape":0},"ready_layers":5}
+
+static func _qx6_reset(g) -> void:
+ _probe_reset(g)
+ g.sandboxes=0
+ g.registered=0
+ g.hook_depths=[]
+
+# 战斗夹具：欲望魔方（restraint_mana）与两张「拘束之拥」在场，每个钩子都留下可见日志；四容器清空、魔力归零。
+static func _qx6_battle(t, seed: int):
+ var g=SandboxProbe.new(seed)
+ g._discard_end()
+ g.state.energy=50
+ g.state.wall="normal"
+ g.RelicEffects.gain(g,"desire_cube")
+ for free in [true,false]:
+  var card=preload("res://tests/curse_cases.gd").give(g,"restraint_embrace")
+  if card.is_empty() or not t.action(g,"card",{"uid":card.uid,"free":free}).ok: return null
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ g.state.mana=0.0
+ _qx6_reset(g)
+ return g
+
+static func _qx6_whole_root(g) -> Dictionary:
+ var points={"upper_arm":["upper_arm_top","above_elbow"],"forearm":["below_elbow","mid_forearm"],"wrist":[""]}
+ for slot in points:
+  for point in points[slot]:
+   for i in range(2): g._install_template("belt",slot,4,10,false,"fixture",1,-1,0,point)
+ var root=g._install_assembly("glove","short","fixture",2,1)
+ g.state.mana=0.0
+ _qx6_reset(g)
+ return root
+
+static func _qx6_tags(texts: Array) -> Array:
+ var tags=_join_tags(texts)
+ for index in range(texts.size()):
+  if String(texts[index]).contains("无法接到新装备"): tags[index]="lost"
+ return tags
+
+static func _qx6_hook_tags(g, mark: int) -> Array:
+ return _qx6_tags(g.state.logs.slice(mark).map(func(row):return String(row.text))).filter(func(tag):return tag!="other")
+
+static func _qx6_rng_moved(before: Dictionary, after: Dictionary) -> Array:
+ var moved=[]
+ for key in before:
+  if after.get(key)!=before[key]: moved.append(String(key))
+ moved.sort()
+ return moved
+
+static func _qx6_gain(g) -> float:
+ return float(g.RelicEffects.definition(g,"desire_cube").modifiers.get("restraint_mana",0.0))
+
+# G-QX6-1：六个沙盒入口（经七个调用面触发）都照常跑物理层、都不跑钩子。每行同时证明「沙盒确实进了」
+# （`_sandbox_begin` 计数）与「件确实建了」（`_member_joined` 计数），否则钩子为 0 只是入口没跑到。
+# 回魔与 worn 只在 `_join_hooks` 里调用（ARCH join_effects_have_one_epilogue），所以钩子调用为 0 即两者为 0 次。
+static func sandboxes_run_no_join_hooks(t) -> void:
+ var events=preload("res://core/room_events.gd")
+ var transaction=preload("res://tests/replacement_cases.gd").Replacement
+ var g=_qx6_battle(t,51)
+ t.check(g!=null,"REMOVAL sandboxes_run_no_join_hooks: the battle fixture with the restraint_mana relic and both restraint powers is built through the real card entry")
+ if g==null: return
+ var root=_qx6_whole_root(g)
+ g.state.room_event={"refs":{}}
+ var effects=events.compile(g,"free_basic")
+ _qx6_reset(g)
+ var feedback=preload("res://core/resource_feedback.gd").new()
+ feedback.capture(g.state)
+ g._resource_feedback=feedback
+ g._card_feedback=[]
+ # 入口自己在 live 上消耗的随机域（沙盒外的抽取，同现行）：choose 的候选与材质版本、compile 的配方抽取。
+ var allowed={"choose":["enemy","equipment"],"compile":["event"]}
+ var rows=[]
+ var chosen={}
+ for entry in ["can_apply","choose","plan","self_binding","probe_result","freeze_effects","compile"]:
+  var before=g.state.duplicate(true)
+  var reached=false
+  match entry:
+   "can_apply":
+    reached=g.Application.can_apply(g,QX6_WHOLE_ROOT_SPEC,"fixture")
+   "choose":
+    chosen=g.Application.choose(g,QX6_WHOLE_ROOT_SPEC,"fixture")
+    reached=String(chosen.get("kind",""))=="application_group"
+   "plan":
+    reached=bool(transaction.plan(g,g.Application.request_specs(chosen.get("requests",[])),"fixture").get("ok",false))
+   "self_binding":
+    reached=preload("res://core/self_binding.gd").installation_plan(g,"self_binding",1,false).size()==2
+   "probe_result":
+    reached=not effects.is_empty() and String(events.probe_result(g,effects,{},false).get("reason","?"))==""
+   "freeze_effects":
+    var frozen=events.freeze_effects(g,effects)
+    reached=String(frozen.get("issue","?"))=="" and not Array(frozen.get("effects",[])).is_empty()
+   "compile":
+    reached=not events.compile(g,"locked_assembly").is_empty()
+  var stray=_qx6_rng_moved(before.rng,g.state.rng).filter(func(key):return key not in allowed.get(entry,[]))
+  var face=g.state.duplicate(true)
+  face.rng=before.rng
+  rows.append({"entry":entry,"reached":reached,"sandboxes":g.sandboxes,"registered":g.registered,"hooks":g.joined.size(),"depth":g._sandbox_depth,"frames":g._unit_frames.size(),"state":face==before,"rng":stray})
+  _qx6_reset(g)
+ g._resource_feedback=null
+ var unreached=rows.filter(func(row):return not bool(row.reached) or int(row.sandboxes)<1 or int(row.registered)<1).map(func(row):return String(row.entry)+":reached="+str(row.reached)+" sandboxes="+str(row.sandboxes)+" registered="+str(row.registered))
+ t.check(not root.is_empty() and rows.size()==7 and unreached.is_empty(),"REMOVAL sandboxes_run_no_join_hooks: every preview entry really entered a sandbox and built members there, so the zero below is not vacuous: unreached="+str(unreached))
+ var hooked=rows.filter(func(row):return int(row.hooks)!=0).map(func(row):return String(row.entry)+":hooks="+str(row.hooks))
+ t.check(hooked.is_empty(),"REMOVAL sandboxes_run_no_join_hooks: can_apply, choose, an uncommitted replacement plan, the self-binding plan, the event result probe, the event freeze and the locked-assembly recipe run no join hook (hence no restraint mana hook and no worn notification): hooked="+str(hooked))
+ var dirty=rows.filter(func(row):return not bool(row.state) or not Array(row.rng).is_empty() or int(row.depth)!=0 or int(row.frames)!=0).map(func(row):return String(row.entry)+":state="+str(row.state)+" rng="+str(row.rng)+" depth="+str(row.depth)+" frames="+str(row.frames))
+ t.check(dirty.is_empty() and feedback.events.is_empty() and not feedback.installed and not feedback.damaged and feedback.sounds.is_empty() and feedback.scoped_sounds.is_empty() and g._card_feedback.is_empty(),"REMOVAL sandboxes_run_no_join_hooks: each entry leaves the live state equal (only the random domains the entry itself draws on live may move), the sandbox depth and the frame stack at zero and the receipt untouched: dirty="+str(dirty)+" receipts="+str(feedback.events.size())+" installed="+str(feedback.installed)+" sounds="+str(feedback.sounds.size())+"/"+str(feedback.scoped_sounds.size()))
+
+# G-QX6-2（U9／U10）：整组替换的钩子在 `_commit_changes` 之后对 live 逐件补跑——次序按 `installed`，每件内
+# 后序；丢链文案属物理层，排到新件的回魔、worn 之前（D15）；钩子不耗随机。
+static func replacement_hooks_replay_after_commit(t) -> void:
+ var cases=preload("res://tests/replacement_cases.gd")
+ # U9 带丢链：短手套同时换掉一条链接绳的两端，链接无法接到同一根上。
+ var g=_qx6_battle(t,42)
+ t.check(g!=null,"REMOVAL replacement_hooks_replay_after_commit: the battle fixture is built through the real card entry")
+ if g==null: return
+ var gain=_qx6_gain(g)
+ var forearm=cases.install(g,cases.request("forearm",1,1,"mid_forearm"))
+ var first=cases.install(g,cases.request("wrist",1,1))
+ for i in range(2):
+  cases.install(g,cases.request("forearm",2,2,"mid_forearm"))
+  cases.install(g,cases.request("wrist",2,2))
+ var link=g._install_link(forearm.id,first.id,4.8,"fixture",1,[],["forearm","wrist"],["mid_forearm","wrist"])
+ g.state.mana=0.0
+ _qx6_reset(g)
+ var rng=g.state.rng.duplicate(true)
+ var mark=g.state.logs.size()
+ var lost=g.Application.execute_concrete(g,cases.glove(),"enemy",true,[],false)
+ var root_id="" if Array(lost.get("installed",[])).is_empty() else String(lost.installed[0].id)
+ var face=_first_face(g)
+ t.check(not link.is_empty() and lost.ok and lost.lost_links==[link.id] and g.joined==[[root_id,"C",true]] and g.hook_depths==[0] and not face.is_empty() and face.composites.has(root_id) and face.links.is_empty() and not face.equipment.has(String(first.id)) and not face.equipment.has(String(forearm.id)),"REMOVAL replacement_hooks_replay_after_commit: the committed composite's hooks run exactly once, outside every sandbox, on a live state that already holds the root and no longer holds the replaced pieces or the lost link: ok="+str(lost.get("ok",false))+" lost="+str(lost.get("lost_links",[]))+" joined="+str(g.joined)+" depths="+str(g.hook_depths)+" face="+str(face))
+ var lost_tags=_qx6_hook_tags(g,mark)
+ t.check(lost_tags==["lost","mana","worn"] and is_equal_approx(float(g.state.mana),gain) and g.state.rng==rng,"REMOVAL replacement_hooks_replay_after_commit: the unit's physical copy (the lost-link line) precedes the replayed mana and worn hooks, the mana gain is one relic step and no random domain moved: tags="+str(lost_tags)+" mana="+str(g.state.mana)+"/"+str(gain)+" rng_moved="+str(_qx6_rng_moved(rng,g.state.rng)))
+ # U9 嵌套件：满位的大臂上侧以替换装一件 3 档绳，闭包按后序补跑（固缚 → 左肩 → 右肩 → 宿主）。
+ var arm=_qx6_battle(t,42)
+ t.check(arm!=null,"REMOVAL replacement_hooks_replay_after_commit: the nested-member case gets its own battle fixture")
+ if arm==null: return
+ var fills=cases.fill(arm,"upper_arm_top",1,1)
+ arm.state.mana=0.0
+ _qx6_reset(arm)
+ mark=arm.state.logs.size()
+ var swapped=arm.Application.execute_concrete(arm,cases.request("upper_arm",3,3,"upper_arm_top"),"enemy",true,[],false)
+ var arm_id="" if Array(swapped.get("installed",[])).is_empty() else String(swapped.installed[0].id)
+ var arm_face=_first_face(arm)
+ t.check(not fills.is_empty() and swapped.ok and not Array(swapped.removed).is_empty() and _kinds(arm)==["B","S","S","P"] and arm.joined.map(func(row):return bool(row[2]))==[false,false,false,true] and String(arm.joined[0][0])==arm_id and String(arm.joined[3][0])==arm_id and arm.hook_depths==[0,0,0,0] and arm_face.bound.has(arm_id) and arm_face.strapped.has(arm_id),"REMOVAL replacement_hooks_replay_after_commit: a replacing tier-three arm rope replays its closure in post order (binding, left strap, right strap, host) after the commit, with only the host top-level: ok="+str(swapped.get("ok",false))+" removed="+str(swapped.get("removed",[]))+" joined="+str(arm.joined)+" depths="+str(arm.hook_depths))
+ var arm_tags=_qx6_hook_tags(arm,mark)
+ t.check(arm_tags==["binding","left","worn","right","worn","mana","worn"],"REMOVAL replacement_hooks_replay_after_commit: the replayed hook copy keeps the live unit's order binding, left strap, left worn, right strap, right worn, host mana, host worn: tags="+str(arm_tags))
+ # U10 真实入口：五件 3 档胶带经 `Application.execute` 合换旧短手套。
+ var group=_qx6_battle(t,51)
+ t.check(group!=null,"REMOVAL replacement_hooks_replay_after_commit: the whole-root case gets its own battle fixture")
+ if group==null: return
+ var root=_qx6_whole_root(group)
+ var batch=group.Application.execute(group,QX6_WHOLE_ROOT_SPEC,"fixture")
+ var installed_ids=Array(batch.get("installed",[])).map(func(item):return String(item.id))
+ var top_ids=group.joined.filter(func(row):return bool(row[2])).map(func(row):return String(row[0]))
+ t.check(not root.is_empty() and batch.ok and int(batch.count)==5 and group._composite(root.id).is_empty() and group.sandboxes>0 and top_ids==installed_ids and _kinds(group)==["B","S","S","P","B","S","S","P","B","P","B","P","B","P"] and group.hook_depths.all(func(depth):return int(depth)==0),"REMOVAL replacement_hooks_replay_after_commit: the whole-root group replays every installed piece once in `installed` order, each one's nested members first, all after the commit: ok="+str(batch.get("ok",false))+" count="+str(batch.get("count",0))+" installed="+str(installed_ids)+" joined="+str(group.joined)+" depths="+str(group.hook_depths))
+ t.check(is_equal_approx(float(group.state.mana),5.0*gain),"REMOVAL replacement_hooks_replay_after_commit: five replayed top-level pieces restore five relic steps of mana, the amount the pre-QX6 trial wrote back: mana="+str(group.state.mana)+" step="+str(gain))
+
+# G-QX6-3（U11）：强制特殊替换的钩子同样在提交后补跑，加固带先于锁；物理文案都在钩子之前，日志序不变。
+static func forced_special_hooks_replay_after_commit(t) -> void:
+ var g=_qx6_battle(t,42)
+ t.check(g!=null,"REMOVAL forced_special_hooks_replay_after_commit: the battle fixture is built through the real card entry")
+ if g==null: return
+ var old_lock=g._install_special("negative_plate_lock_medium","special_2_a",2)
+ g.state.mana=0.0
+ _qx6_reset(g)
+ var mark=g.state.logs.size()
+ var forced=preload("res://tests/replacement_cases.gd").Replacement.force_special(g,"negative_plate_lock_medium",3,"fixture")
+ var lock_id="" if Array(forced.get("installed",[])).is_empty() else String(forced.installed[0].id)
+ var face=_first_face(g)
+ t.check(not old_lock.is_empty() and forced.ok and _kinds(g)==["R","X"] and g.joined.map(func(row):return bool(row[2]))==[false,true] and String(g.joined[1][0])==lock_id and g.hook_depths==[0,0] and face.special.size()==2 and face.special.has(lock_id) and not face.special.has(String(old_lock.id)),"REMOVAL forced_special_hooks_replay_after_commit: the forced lock replays its reinforcement strap and then itself after the commit, on a live state that already dropped the old lock: ok="+str(forced.get("ok",false))+" joined="+str(g.joined)+" depths="+str(g.hook_depths)+" face="+str(face))
+ var tags=_qx6_tags(g.state.logs.slice(mark).map(func(row):return String(row.text)))
+ t.check(tags==["other","strap","mana","worn"],"REMOVAL forced_special_hooks_replay_after_commit: the removal copy stays ahead of the strap, mana and worn hooks, which is the pre-QX6 log order: tags="+str(tags))
+
+# G-QX6-5：试装判定不读钩子产物——计划的 `_after` 里没有回魔、手牌、power 与钩子文案的痕迹。
+static func replacement_plan_after_has_no_hook_output(t) -> void:
+ var cases=preload("res://tests/replacement_cases.gd")
+ var g=_qx6_battle(t,42)
+ t.check(g!=null,"REMOVAL replacement_plan_after_has_no_hook_output: the battle fixture is built through the real card entry")
+ if g==null: return
+ cases.fill(g,"upper_arm_top",1,1)
+ g.state.mana=0.0
+ _qx6_reset(g)
+ var before=g.state.duplicate(true)
+ var plan=cases.Replacement.plan(g,[cases.request("upper_arm",3,3,"upper_arm_top")],"fixture")
+ var after: Dictionary=plan.get("_after",{})
+ t.check(bool(plan.get("ok",false)) and g.registered>=4 and g.joined.is_empty() and g.state==before,"REMOVAL replacement_plan_after_has_no_hook_output: the trial builds the piece, its binding and both straps without running a hook and leaves the live state untouched: ok="+str(plan.get("ok",false))+" reason="+String(plan.get("reason",""))+" registered="+str(g.registered)+" joined="+str(g.joined))
+ var hook_copy=_join_tags(Array(after.get("logs",[])).slice(before.logs.size()).map(func(row):return String(row.text))).filter(func(tag):return tag!="other")
+ t.check(not after.is_empty() and after.get("mana")==before.mana and after.get("hand")==before.hand and after.get("powers")==before.powers and hook_copy.is_empty(),"REMOVAL replacement_plan_after_has_no_hook_output: the plan's `_after` carries no hook product -- mana, hand and powers equal the live state and no join, mana or worn copy was logged: mana="+str(after.get("mana"))+"/"+str(before.mana)+" hand="+str(after.get("hand")==before.hand)+" powers="+str(after.get("powers")==before.powers)+" hook_copy="+str(hook_copy))
 
 # ==== Q6'b（rev3.4 gherkin G-Q6-1'…4'、9'、10'；plan-delta §2.1、§3.1）：脏件表、全扫回退、对账、件结算 ====
 const Removal=preload("res://core/equipment_removal.gd")
@@ -2592,3 +2804,34 @@ static func port_journal_matches_state_diff(t) -> void:
  t.check(int(upgrade.get("rows",-1))==0 and int(upgrade.get("ports",{}).get("quality",0))>0,"OBS port_journal_matches_state_diff: a hogtie upgrade writes the quality port and settles nothing, so it produces no quiet settle row: upgrade="+str(upgrade))
  t.check(int(planned.get("rows",-1))==0,"OBS port_journal_matches_state_diff: one replacement plan settles nothing -- its writes happen in the sandbox and are restored, so the quiet counter does not see them: plan="+str(planned))
  t.check(_obs_zeroed_valid(zeroed) and not _obs_zeroed_valid(wrong_site),"OBS port_journal_matches_state_diff: a quiet settle that releases a zeroed piece reports work and names it -- the S18 row after the install has `did_work` true and the piece in `left`, so the counter is a release witness and not a frame counter: zeroed="+str(zeroed)+" rejects_wrong_site="+str(not _obs_zeroed_valid(wrong_site)))
+
+# R37-3（rev3.7 plan-delta §5；QX6 任务书「R37-3 入口检查」）：自缚的 `installation_plan` 推演经统一沙盒入口，
+# 所以推演段的写口在日志里记为 trial，实装段不是。探针只多记每行落在哪份 state 对象上：提交后仍是 live 的
+# 那份是实装段，其余是推演用的草稿。
+class PlanJournal extends "res://tests/write_journal_game.gd":
+ var row_states: Array=[]
+ func _journal_row(port: String, record: Dictionary, extra: Dictionary) -> void:
+  super._journal_row(port,record,extra)
+  row_states.append(state)
+
+static func self_binding_plan_is_journaled_as_sandbox(t) -> void:
+ var g=PlanJournal.new(42,false,"equipment",true,false,25,false,false,"original")
+ g._discard_end()
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ g.state.relics=[];g.state.mana=0;g.state.energy=1
+ var card=preload("res://tests/curse_cases.gd").give(g,"self_binding")
+ var chosen=t.find_action(g,"card",{"uid":card.uid,"free":true})
+ var from=g.journal.size()
+ var receipt={"ok":false}
+ if chosen.valid: receipt=g.dispatch(g.command(chosen.payload,g.state.version),g.state.version)
+ var speculative=[]
+ var real=[]
+ for index in range(from,g.journal.size()):
+  if is_same(g.row_states[index],g.state): real.append(g.journal[index])
+  else: speculative.append(g.journal[index])
+ var added=func(rows):return rows.filter(func(row):return str(row.get("port",""))=="member" and str(row.get("change",""))=="added").size()
+ t.check(bool(receipt.get("ok",false)) and g.state.equipment.size()==2 and int(added.call(speculative))>=1 and int(added.call(real))==2,"OBS self_binding_plan_is_journaled_as_sandbox: the free self-binding card really installs on a scratch state while planning and then installs its two pieces on live, so both segments below are populated: ok="+str(receipt.get("ok",false))+" equipment="+str(g.state.equipment.size())+" speculative_added="+str(added.call(speculative))+" real_added="+str(added.call(real)))
+ var untagged=speculative.filter(func(row):return not bool(row.get("trial",false)))
+ t.check(untagged.is_empty(),"OBS self_binding_plan_is_journaled_as_sandbox: speculative rows are journaled as sandbox -- every write the installation plan makes on a scratch state carries trial=true: untagged="+str(untagged.slice(0,3))+" of "+str(speculative.size()))
+ var mistagged=real.filter(func(row):return bool(row.get("trial",true)))
+ t.check(mistagged.is_empty() and g._sandbox_depth==0,"OBS self_binding_plan_is_journaled_as_sandbox: the committed installation rows are live writes (trial=false) and the sandbox depth is back at zero: mistagged="+str(mistagged.slice(0,3))+" of "+str(real.size())+" depth="+str(g._sandbox_depth))

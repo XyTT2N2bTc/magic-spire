@@ -58,6 +58,7 @@ static func run(t) -> void:
  g._apply_manual_release(piece,0)
  t.check(receipt.sounds.is_empty(),"AUDIO direct removal without damage does not masquerade as a hit")
  committed(t)
+ replacement(t)
 
 static func committed(t) -> void:
  var g=Game.new(42)
@@ -98,3 +99,24 @@ static func committed(t) -> void:
  context.sequence=12;receipt.equipment({"material":"leather"},1,true,true,context)
  receipt.equipment({"material":"rope"},1)
  t.check(receipt.sound_events().size()==3 and receipt.sounds.keys()==[CUE],"AUDIO one operation coalesces its pieces while the next operation and player damage remain independent")
+
+# G-QX6-4（rev3.3 gherkin-delta；R10，D17）：替换装入的件在提交后补跑反馈。敌人上下文里以替换施加一件
+# 3 档绳材手腕绳：回执记下安装、该敌人本次操作的材质音效（按操作分组，不落进即时音效）与来源为遗物名的魔力事件。
+static func replacement(t) -> void:
+ var g=Game.new(42)
+ g._discard_end()
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ g.RelicEffects.gain(g,"desire_cube")
+ g.state.mana=0.0
+ var fills=preload("res://tests/replacement_cases.gd").fill(g,"wrist",1,1)
+ var receipt=recording(g)
+ receipt.capture(g.state)
+ var previous=g._copy_context
+ g._copy_context={"cue":"enemy.apply","actor":"audio probe","enemy_id":"audio_probe_enemy","sequence":7}
+ var result=g.Application.execute_concrete(g,{"kind":"install","template":"rope","slot":"wrist","point":"wrist","grade":3,"tier":3,"locked":false,"variant":0},"enemy",true,[],true)
+ g._copy_context=previous
+ g._resource_feedback=null
+ var scoped=receipt.scoped_sounds.values()
+ var relic_name=String(g.RelicEffects.definition(g,"desire_cube").name)
+ var mana_events=receipt.events.filter(func(event):return String(event.get("field",""))=="mana" and String(event.get("source",""))==relic_name and float(event.after)>float(event.before))
+ t.check(not fills.is_empty() and result.ok and not Array(result.removed).is_empty() and receipt.installed and scoped.size()==1 and scoped[0].cue==CUE and scoped[0].enemy_id=="audio_probe_enemy" and int(scoped[0].sequence)==7 and scoped[0].kind=="apply" and not receipt.sounds.has(CUE) and mana_events.size()==1,"AUDIO replacement installation is audible after commit: ok="+str(result.get("ok",false))+" removed="+str(result.get("removed",[]))+" installed="+str(receipt.installed)+" scoped="+str(scoped)+" immediate="+str(receipt.sounds.keys())+" mana_events="+str(mana_events))

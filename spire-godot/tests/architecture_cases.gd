@@ -1204,6 +1204,9 @@ static func run(t) -> void:
  join_effects_have_one_epilogue(t)
  unit_entries_are_declared(t)
  unit_writes_follow_all_checks(t)
+ sandbox_entries_are_declared(t)
+ join_hooks_draw_no_cards(t)
+ event_costs_never_follow_installs(t)
  durability_writes_have_one_entry(t)
  durability_reroutes_keep_their_order(t)
  tier_consequences_have_one_dispatch(t)
@@ -7221,6 +7224,109 @@ static func unit_writes_follow_all_checks(t) -> void:
    if line_at<=at: continue
    if code=="return {}" or code=="return false" or code=="return": issues.append(String(site)+":failure return after its first write: "+code)
  t.check(issues.is_empty() and UNIT_ENTRIES.size()==7,"ARCH unit_writes_follow_all_checks: each unit entry finishes every judgement and validation before its first container write, so no entry can return a failure after it already mutated the unit (a new failing return after the first write, or a lost marker, is red): "+str(issues))
+
+# ==== QX6（rev3.3 plan-delta §3；G-QX6-7…9）：沙盒入口闭集与两条数据前提 ====
+# G-QX6-7：六个沙盒入口。每个入口恰一次 `g._sandbox_begin()`、恰一次 `g._sandbox_end(sandbox)`，两者之间没有
+# 返回；沙盒内的整份状态复位只在登记的三处（`_plan` 的原型安装、`_trial` 的每次试装、`freeze_effects` 的
+# 逐类型试装）；深度只有进出两个写口；读者只有两个钩子门与两个绳艺门；`_rope_trial` 已并入深度（CC-30）。
+const SANDBOX_ENTRIES=[
+ "core/equipment_replacement.gd::force_special",
+ "core/equipment_replacement.gd::plan",
+ "core/room_events.gd::compile",
+ "core/room_events.gd::freeze_effects",
+ "core/room_events.gd::probe_result",
+ "core/self_binding.gd::installation_plan"]
+const SANDBOX_STATE_RESETS=["core/equipment_replacement.gd::_plan","core/equipment_replacement.gd::_trial","core/room_events.gd::freeze_effects"]
+const SANDBOX_DEPTH_READERS=["core/game.gd::_member_joined","core/game.gd::_unit_commit","core/rope_master.gd::observe","core/rope_master.gd::track"]
+
+static func sandbox_entries_are_declared(t) -> void:
+ var sites=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_sandbox_begin\\(").filter(func(hit):return not declaration_line(String(hit.text))))
+ var declared=SANDBOX_ENTRIES.duplicate()
+ declared.sort()
+ var issues=[]
+ if sites!=declared: issues.append("sites="+str(sites)+" declared="+str(declared))
+ if SANDBOX_ENTRIES.size()!=6: issues.append("entries="+str(SANDBOX_ENTRIES.size()))
+ var unpaired=[]
+ for site in SANDBOX_ENTRIES:
+  var parts=String(site).split("::")
+  var body=code_of_function(parts[0],parts[1])
+  var begin_at=body.find("var sandbox=g._sandbox_begin()")
+  var end_at=body.find("g._sandbox_end(sandbox)")
+  if body.count("_sandbox_begin(")!=1 or body.count("_sandbox_end(")!=1 or begin_at<0 or end_at<begin_at:
+   unpaired.append(String(site)+":begin="+str(body.count("_sandbox_begin("))+" end="+str(body.count("_sandbox_end(")))
+   continue
+  for line in body.substr(begin_at,end_at-begin_at).split("\n"):
+   var code=String(line).strip_edges()
+   if code.begins_with("return") or code.contains(": return"): unpaired.append(String(site)+":return inside the sandbox: "+code)
+ if not unpaired.is_empty(): issues.append("unpaired="+str(unpaired))
+ t.check(issues.is_empty(),"ARCH sandbox_entries_are_declared: the declared sandbox entries are exactly the product's `_sandbox_begin(` call sites, and each one pairs a single begin with a single end with no return in between: "+str(issues))
+ var swaps=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"(?<![A-Za-z0-9_])(?:g|game|self)\\.state\\s*=(?!=)"))
+ var manual=swaps.filter(func(site):return not SANDBOX_STATE_RESETS.has(String(site)))
+ var stale=SANDBOX_STATE_RESETS.filter(func(site):return not swaps.has(String(site)))
+ t.check(manual.is_empty() and stale.is_empty(),"ARCH sandbox_entries_are_declared: no product function swaps the whole state by hand -- the only `<g>.state=` writes are the declared resets that run inside a sandbox, and the table names no reset that is gone: manual="+str(manual)+" stale="+str(stale))
+ var depth_writes=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_sandbox_depth\\s*(?:\\+=|-=|=(?!=))"))
+ var depth_reads=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_sandbox_depth\\s*>\\s*0"))
+ var trial=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_rope_trial"))
+ t.check(depth_writes==["core/game.gd::_sandbox_begin","core/game.gd::_sandbox_end"] and depth_reads==SANDBOX_DEPTH_READERS and trial.is_empty(),"ARCH sandbox_entries_are_declared: the sandbox depth is written only by the entry pair, read only by the two hook gates and the two rope-art gates, and `_rope_trial` is gone (merged into the depth): depth_writes="+str(depth_writes)+" depth_reads="+str(depth_reads)+" rope_trial="+str(trial))
+
+# G-QX6-8（数据前提，plan-delta §9 第 1 条）：worn 侧的 restraint_draw 只排下回合多抽，钩子因此不抽牌、不读
+# 牌堆、不耗 `deck` 随机。数据一旦加入即时 worn 抽牌，Q5″ 的逐字节与 QX6 的随机不变都失效。
+static func join_hooks_draw_no_cards(t) -> void:
+ var buffs: Dictionary=GameCore.Cards.Rules.BUFFS
+ var worn=[]
+ var immediate=[]
+ for id in buffs:
+  var trigger: Dictionary=buffs[id].get("restraint_draw",{})
+  if String(trigger.get("event",""))!="worn": continue
+  worn.append(String(id))
+  if not bool(trigger.get("next_turn",false)): immediate.append(String(id))
+ t.check(not worn.is_empty() and immediate.is_empty(),"ARCH join_hooks_draw_no_cards: every worn-side restraint_draw buff only schedules a next-turn draw, so a join hook never draws a card or advances the deck random domain (an immediate worn draw voids the byte-identity of the two-layer units and the random-unchanged premise of the replacement replay): worn="+str(worn)+" immediate="+str(immediate))
+
+# G-QX6-9（数据前提，plan-delta §9 第 6 条）：事件效果表里资源校验不排在安装类 op 之后，预演去钩子后的可行性
+# 才与 live 一致。扫描器先对两张自带样表自检（install→mana_loss 必须报出、mana_loss→install 必须不报）。
+const EVENT_INSTALL_OPS=["install","assembly","special_install","link","install_random","special_install_random","tighten","tighten_to"]
+const EVENT_COST_OPS=["mana_loss","mana_max_loss"]
+
+static func _event_costs_after_installs(table: Array) -> Array:
+ var seen=false
+ var late=[]
+ for index in range(table.size()):
+  var op=String(table[index].get("op",""))
+  if op in EVENT_INSTALL_OPS: seen=true
+  elif seen and op in EVENT_COST_OPS: late.append(index)
+ return late
+
+static func _event_effect_tables(node, path: String, found: Array) -> void:
+ if node is Array:
+  if not node.is_empty() and node.all(func(item):return item is Dictionary and item.has("op")): found.append({"path":path,"table":node})
+  for index in range(node.size()): _event_effect_tables(node[index],path+"["+str(index)+"]",found)
+ elif node is Dictionary:
+  for key in node: _event_effect_tables(node[key],path+"."+String(key),found)
+
+static func event_costs_never_follow_installs(t) -> void:
+ var tables=[]
+ var packs=0
+ var unreadable=[]
+ var directory=DirAccess.open("res://content/packs")
+ var names=[] if directory==null else Array(directory.get_files())
+ names.sort()
+ for name in names:
+  if not String(name).ends_with(".json"): continue
+  packs+=1
+  var data=JSON.parse_string(source_text("content/packs/"+String(name)))
+  if data==null:
+   unreadable.append(String(name))
+   continue
+  _event_effect_tables(data,String(name),tables)
+ var late=[]
+ var with_install=0
+ for row in tables:
+  if row.table.any(func(effect):return String(effect.get("op","")) in EVENT_INSTALL_OPS): with_install+=1
+  var hits=_event_costs_after_installs(row.table)
+  if not hits.is_empty(): late.append(String(row.path)+":"+str(hits))
+ var probe=_event_costs_after_installs([{"op":"install"},{"op":"mana_loss","amount":1}])
+ var clean=_event_costs_after_installs([{"op":"mana_loss","amount":1},{"op":"install"}])
+ t.check(packs>0 and unreadable.is_empty() and with_install>0 and late.is_empty() and probe==[1] and clean.is_empty(),"ARCH event_costs_never_follow_installs: no event effects table checks a resource (mana_loss or mana_max_loss) after an install-class op, so a hook-free preview and the live run agree on feasibility (packs=%d tables=%d with_install=%d): late=%s unreadable=%s scanner_probe=%s clean_probe=%s" % [packs,tables.size(),with_install,str(late),str(unreadable),str(probe),str(clean)])
 
 # G-Q2-1（plan §8「Q2 耐久写口」；A66、A68 C-7；Q4′ A140 #1）：`.durability` 的 live 赋值与复合赋值只
 # 出现在唯一写口 `core/game.gd::_write_durability`；三处登记例外是建件（`_special_piece`）、品质写口
