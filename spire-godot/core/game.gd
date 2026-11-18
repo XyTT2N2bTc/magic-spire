@@ -3846,6 +3846,11 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
   if binding_issue!="": return {"ok":false,"error":binding_issue,"fact":{}}
  if expected_version!=state.version:
   return {"ok":false,"error":"状态已更新，请重新选择行动。","fact":{}}
+ # Q5″：帧只活在开它的同步调用里，返回时栈应已清空；残留即入口漏收（只在 debug 构建里报，不改回执）。
+ # 同一处检查由成功返回与两个失败返回共用——失败返回若不查，漏收的帧会随回执一起丢掉而不被看见。
+ var frame_check=func() -> void:
+  if debug_checks_enabled() and not _unit_frames.is_empty():
+   _debug_check("unit_frames","game.dispatch","单位帧未收：%d" % _unit_frames.size())
  if debug_checks_enabled():
   var special_issue=_debug_check("SpecialEquipment.validate","game.dispatch",SpecialEquipment.validate(state.get("special_equipment")))
   if special_issue!="": return {"ok":false,"error":special_issue,"fact":{}}
@@ -3913,6 +3918,7 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
   _card_energy_pressure_pending=0.0
   _capture_energy_pending={}
   state=original
+  frame_check.call()
   return {"ok":false,"error":"行动失败："+execution_issue,"fact":{}}
  if not action_buffs.is_empty():
   if state.card_chain.is_empty(): Cards.consume_action_buffs(self,action_buffs)
@@ -3938,6 +3944,7 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
   _resource_feedback=null
   _card_feedback=[]
   state=original
+  frame_check.call()
   return {"ok":false,"error":"行动失败："+issue,"fact":{}}
  state.version=int(original.version)+1
  if state.logs.size()==original.logs.size(): _emit("event",chosen.label+"。")
@@ -3989,8 +3996,7 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  # 同源同值：phase 取已提交态 state.phase；overloaded 取 core/pressure.gd::overloaded（＝view 的同一实现，
  # 归一化段 _close_drawers 的唯一依据），不由 payload.kind 反推。失败结果键面一字不动（本 return 不达）。
  # Q5″：帧只活在开它的同步调用里，返回时栈应已清空；残留即入口漏收（只在 debug 构建里报，不改回执）。
- if debug_checks_enabled() and not _unit_frames.is_empty():
-  _debug_check("unit_frames","game.dispatch","单位帧未收：%d" % _unit_frames.size())
+ frame_check.call()
  Removal.unbind(self)
  return {"ok":true,"version":state.version,"resource_feedback":resource_events,"card_feedback":card_events,"music_feedback":music_events,"sound_feedback":sound_events,"checkpoint":checkpoint,"spell_failed":_magic_failed,"fact":chosen,"phase":state.phase,"overloaded":Pressure.overloaded(self)}
 

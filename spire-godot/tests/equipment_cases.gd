@@ -527,6 +527,12 @@ static func run(t) -> void:
  forced_special_hooks_replay_after_commit(t)
  replacement_plan_after_has_no_hook_output(t)
  self_binding_plan_is_journaled_as_sandbox(t)
+ group_members_are_install_class_only(t)
+ rope_tracking_stays_gated_in_every_sandbox(t)
+ dispatch_failure_returns_post_the_frame_check(t)
+ replacement_replay_matches_factory_order(t)
+ sandboxes_silence_the_receipt_in_both_modes(t)
+ replacement_replay_covers_each_class_and_context(t)
  incremental_settle_matches_full_scan(t)
  settle_residue_stays_empty(t)
  unbound_state_uses_full_scan(t)
@@ -1197,12 +1203,14 @@ static func _join_tags(texts: Array) -> Array:
   if line.contains("下回合多抽"): return "worn"
   return "other")
 
-static func _join_battle_fixture(t):
- var g=Game.new(42)
+# 战斗夹具（既有两处调用与 `_qx6_battle` 共用）：欲望魔方（restraint_mana）与两张「拘束之拥」在场，
+# 每个钩子都留下可见日志。`seed`／`game_class`／`relic` 只给 QX6 探针与输入域补格用，默认值即原行为。
+static func _join_battle_fixture(t, seed: int=42, game_class=Game, relic: bool=true):
+ var g=game_class.new(seed)
  g._discard_end()
  g.state.energy=50
  g.state.wall="normal"
- g.RelicEffects.gain(g,"desire_cube")
+ if relic: g.RelicEffects.gain(g,"desire_cube")
  var free=preload("res://tests/curse_cases.gd").give(g,"restraint_embrace")
  if not t.action(g,"card",{"uid":free.uid,"free":true}).ok: return null
  var bound=preload("res://tests/curse_cases.gd").give(g,"restraint_embrace")
@@ -1324,16 +1332,11 @@ static func _qx6_reset(g) -> void:
  g.registered=0
  g.hook_depths=[]
 
-# 战斗夹具：欲望魔方（restraint_mana）与两张「拘束之拥」在场，每个钩子都留下可见日志；四容器清空、魔力归零。
-static func _qx6_battle(t, seed: int):
- var g=SandboxProbe.new(seed)
- g._discard_end()
- g.state.energy=50
- g.state.wall="normal"
- g.RelicEffects.gain(g,"desire_cube")
- for free in [true,false]:
-  var card=preload("res://tests/curse_cases.gd").give(g,"restraint_embrace")
-  if card.is_empty() or not t.action(g,"card",{"uid":card.uid,"free":free}).ok: return null
+# QX6 战斗夹具＝`_join_battle_fixture` 的探针变体，只保留 QX6 特有的副作用（四容器清空、魔力归零、
+# 探针计数归零）。建局本身只有一份实现（H5 夹具收口）。
+static func _qx6_battle(t, seed: int, relic: bool=true):
+ var g=_join_battle_fixture(t,seed,SandboxProbe,relic)
+ if g==null: return null
  g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
  g.state.mana=0.0
  _qx6_reset(g)
@@ -1503,6 +1506,403 @@ static func replacement_plan_after_has_no_hook_output(t) -> void:
  t.check(bool(plan.get("ok",false)) and g.registered>=4 and g.joined.is_empty() and g.state==before,"REMOVAL replacement_plan_after_has_no_hook_output: the trial builds the piece, its binding and both straps without running a hook and leaves the live state untouched: ok="+str(plan.get("ok",false))+" reason="+String(plan.get("reason",""))+" registered="+str(g.registered)+" joined="+str(g.joined))
  var hook_copy=_join_tags(Array(after.get("logs",[])).slice(before.logs.size()).map(func(row):return String(row.text))).filter(func(tag):return tag!="other")
  t.check(not after.is_empty() and after.get("mana")==before.mana and after.get("hand")==before.hand and after.get("powers")==before.powers and hook_copy.is_empty(),"REMOVAL replacement_plan_after_has_no_hook_output: the plan's `_after` carries no hook product -- mana, hand and powers equal the live state and no join, mana or worn copy was logged: mana="+str(after.get("mana"))+"/"+str(before.mana)+" hand="+str(after.get("hand")==before.hand)+" powers="+str(after.get("powers")==before.powers)+" hook_copy="+str(hook_copy))
+
+# ==== QX6 加固（A245；任务书 H1–H6）：前提钉、门控覆盖、失败返回的帧检查、补跑次序与输入域 ====
+
+# H1（A244 R1）：`core/equipment_application.gd::_groups` 产出的每个组只含 install 类成员。夹具复刻
+# `build/rev3-QX6/f2_probe.gd` 的输入集：11 个复合件 GENERATION 行（tape）与 wrap 左右 × 四个模板。
+# 组经 `Application.legal_requests` 读出（`_groups` 的唯一输出面），并逐格经 `Application.execute`
+#（replace:true）在真实入口上落地——不能只读表。一旦混合组可达，补跑会少发「形成了…」（R1 的已知差异）。
+static func _qx6_group_case(family: String, variant: String, straps: String, template: String, fillers: int=-1) -> Dictionary:
+ var scout=Game.new(51)
+ scout.state.equipment=[];scout.state.composites=[];scout.state.links=[];scout.state.special_equipment=[]
+ var shape=scout._install_assembly(family,variant,"fixture",2,1,{},straps)
+ if shape.is_empty(): return {"built":false,"why":"unbuildable"}
+ var points=[]
+ var slots=[]
+ for piece in shape.components:
+  for point in scout.Equipment.physical_points(piece):
+   if point not in points: points.append(point)
+   var slot=scout.Links.point_slot(point)
+   if slot not in slots: slots.append(slot)
+ var g=Game.new(51)
+ g._discard_end()
+ g.state.equipment=[];g.state.composites=[];g.state.links=[];g.state.special_equipment=[]
+ for point in points:
+  var slot=g.Links.point_slot(point)
+  for index in range(maxi(0,g._capacity(slot)-1) if fillers<0 else fillers): g._install_template("belt",slot,4,10,false,"fixture",1,-1,0,point if g.Equipment.SEGMENTS.has(slot) else "")
+ var root=g._install_assembly(family,variant,"fixture",2,1,{},straps)
+ if root.is_empty(): return {"built":false,"why":"blocked"}
+ var spec={"pool":"ordinary","templates":[template],"slots":slots,"count":points.size(),"grade":3,"tier":3,"replace":true,"variants":{template:0},"ready_layers":points.size()}
+ return {"built":true,"game":g,"root":root,"spec":spec,"points":points.size()}
+
+static func group_members_are_install_class_only(t) -> void:
+ var generation=preload("res://data/composites.gd").GENERATION
+ var inputs=[]
+ for row in generation: inputs.append([String(row[0]),String(row[1]),String(row[2]),"tape",-1])
+ for side in ["left","right"]:
+  for template in ["fine_belt","tape","rope","belt"]: inputs.append(["wrap",side,"straight",template,0])
+ var rows=[]
+ var blocked=[]
+ for input in inputs:
+  var label="%s/%s/%s:%s" % [input[0],input[1],input[2],input[3]]
+  var fixture=_qx6_group_case(String(input[0]),String(input[1]),String(input[2]),String(input[3]),int(input[4]))
+  if not bool(fixture.get("built",false)):
+   blocked.append(label+":"+String(fixture.get("why","")))
+   continue
+  var g=fixture.game
+  var legal=g.Application.legal_requests(g,g.Application._raw(g,fixture.spec,"fixture"),fixture.spec,"fixture")
+  var groups=[]
+  for request in legal:
+   if String(request.get("kind",""))!="application_group": continue
+   groups.append(Array(request.requests).map(func(inner):return String(inner.get("kind",""))))
+  var batch=g.Application.execute(g,fixture.spec,"fixture")
+  rows.append({"label":label,"groups":groups,"points":int(fixture.points),"ok":bool(batch.get("ok",false)),"installed":Array(batch.get("installed",[])).size(),"root_gone":g._composite(String(fixture.root.id)).is_empty()})
+ var mixed=[]
+ var group_count=0
+ var whole=[]
+ for row in rows:
+  for members in row.groups:
+   group_count+=1
+   if members.any(func(kind):return kind!="install"): mixed.append(String(row.label)+":"+str(members))
+  if not row.groups.is_empty(): whole.append(row)
+ var undriven=rows.filter(func(row):return not bool(row.ok)).map(func(row):return String(row.label)+":ok="+str(row.ok))
+ var unwhole=whole.filter(func(row):return not bool(row.root_gone) or int(row.installed)!=int(row.points)).map(func(row):return String(row.label)+":gone="+str(row.root_gone)+" installed="+str(row.installed)+"/"+str(row.points))
+ t.check(mixed.is_empty(),"REMOVAL group_members_are_install_class_only: every group `Application._groups` produces holds install-class members only -- if a mixed group (an ordinary piece beside a composite) ever became reachable, the replacement replay would drop the 「形成了…」 line (the known R1 difference), so this judgment is the reachability premise: mixed="+str(mixed)+" groups="+str(group_count))
+ t.check(rows.size()==14 and group_count>=2 and undriven.is_empty() and unwhole.is_empty(),"REMOVAL group_members_are_install_class_only: the whole composite row set and both wrap sides are driven through `Application.execute` with replace:true, and each produced group really replaces its whole root (so the pin above is not vacuous): rows="+str(rows.size())+" blocked="+str(blocked)+" groups="+str(group_count)+" undriven="+str(undriven)+" unwhole="+str(unwhole))
+
+# H2（A244 R3）：SB1–SB6 各经真实入口驱动一次，`RopeArt.track`／`observe` 的跟踪面在沙盒内不变。
+# track 由入口自己的安装经 `_tier_consequences` 的 track 行调起；observe 在这六个入口的产品调用面里不存在
+# （`grep CaptureBind.observe` 只在回合、击倒与 dispatch 的提交后），所以探针在真实打开的沙盒内直接调它：
+# 验证的是同一条 `_sandbox_depth` 门控，而不是第二套判定。
+class RopeGateProbe extends SandboxProbe:
+ var gate_rows: Array=[]
+ var gate_saved: Array=[]
+ var probe_calls: int=0
+ func _sandbox_begin() -> Dictionary:
+  if _sandbox_depth==0: gate_saved.append(_rope_face())
+  return super._sandbox_begin()
+ func _sandbox_end(saved: Dictionary) -> void:
+  if _sandbox_depth==1:
+   var row={"before":gate_saved.pop_back(),"at_end":_rope_face()}
+   RopeArt.track(self,_probe_rope())
+   RopeArt.observe(self)
+   probe_calls+=2
+   row["after"]=_rope_face()
+   gate_rows.append(row)
+  super._sandbox_end(saved)
+ func _probe_rope() -> Dictionary:
+  return {"id":"qx6_probe_rope","template":"rope","slot":"wrist","grade":3,"durability":6.0,"maximum":6.0,"material":"rope"}
+ func _rope_face() -> Dictionary:
+  var enemies=[]
+  for enemy in state.enemies:
+   if enemy.has("rope_art"): enemies.append({"id":enemy.id,"art":enemy.rope_art.duplicate(true)})
+  return {"rope":enemies,"guard":state.guard_bind.duplicate(true),"posture":state.posture,"order":state.order}
+
+static func _qx6_gate_reset(g) -> void:
+ _qx6_reset(g)
+ g.gate_rows=[]
+ g.gate_saved=[]
+ g.probe_calls=0
+
+static func _qx6_rope_battle(seed: int):
+ var g=RopeGateProbe.new(seed,false,"equipment",true)
+ g.state.room_encounters.entrance="rope_master_solo"
+ g._start_battle()
+ var boss=g.RopeArt.master(g)
+ if boss.is_empty(): return null
+ # 夹具直接摆出「推演里一有写入就会跨 50／75」的局面（同 tests/rope_master_cases.gd 的阈值夹具）。
+ boss.rope_art.domain=true
+ boss.rope_art.total=60
+ boss.rope_art.previous=59
+ g.state.guard_bind={"progress":60.0,"sources":{g.RopeArt.MASTER:{"enemy":boss.id,"energy":0}}}
+ _qx6_gate_reset(g)
+ return g
+
+static func _qx6_rope_control(t) -> Dictionary:
+ var g=_qx6_rope_battle(51)
+ if g==null: return {}
+ var before=g._rope_face()
+ g.RopeArt.track(g,g._probe_rope())
+ var after_track=g._rope_face()
+ g.RopeArt.observe(g)
+ return {"track":after_track!=before,"observe":g._rope_face()!=after_track}
+
+static func _qx6_gate_drive(t, entry: String) -> Dictionary:
+ var g=_qx6_rope_battle(42)
+ if g==null: return {"entry":entry,"ok":false,"clean":false,"rows":0,"calls":0,"depth":-1,"frames":-1,"trace":[]}
+ var events=preload("res://core/room_events.gd")
+ var cases=preload("res://tests/replacement_cases.gd")
+ var effects=[]
+ var reached=false
+ match entry:
+  "plan":
+   cases.fill(g,"upper_arm_top",1,1)
+   _qx6_gate_reset(g)
+   reached=bool(cases.Replacement.plan(g,[cases.request("upper_arm",3,3,"upper_arm_top")],"fixture").get("ok",false))
+  "force_special":
+   g._install_special("negative_plate_lock_medium","special_2_a",2)
+   _qx6_gate_reset(g)
+   reached=bool(cases.Replacement.force_special(g,"negative_plate_lock_medium",3,"fixture").get("ok",false))
+  "probe_result":
+   effects=events.compile(g,"free_basic")
+   g.state.room_event={"refs":{}}
+   _qx6_gate_reset(g)
+   reached=not effects.is_empty() and String(events.probe_result(g,effects,{},false).get("reason","?"))==""
+  "freeze_effects":
+   effects=events.compile(g,"free_basic")
+   g.state.room_event={"refs":{}}
+   _qx6_gate_reset(g)
+   var frozen=events.freeze_effects(g,effects)
+   reached=String(frozen.get("issue","?"))=="" and not Array(frozen.get("effects",[])).is_empty()
+  "compile":
+   _qx6_gate_reset(g)
+   reached=not events.compile(g,"locked_assembly").is_empty()
+  "self_binding":
+   _qx6_gate_reset(g)
+   reached=preload("res://core/self_binding.gd").installation_plan(g,"self_binding",1,false).size()==2
+ var rows=g.gate_rows
+ var clean=rows.size()==1 and rows[0].before==rows[0].at_end and rows[0].at_end==rows[0].after
+ return {"entry":entry,"ok":reached,"clean":clean,"rows":rows.size(),"calls":g.probe_calls,"depth":g._sandbox_depth,"frames":g._unit_frames.size(),"trace":rows}
+
+static func rope_tracking_stays_gated_in_every_sandbox(t) -> void:
+ var control=_qx6_rope_control(t)
+ var rows=[]
+ for entry in ["plan","force_special","probe_result","freeze_effects","compile","self_binding"]: rows.append(_qx6_gate_drive(t,entry))
+ var ungated=rows.filter(func(row):return not bool(row.clean)).map(func(row):return {"entry":row.entry,"trace":row.trace})
+ var unreached=rows.filter(func(row):return not bool(row.ok) or int(row.rows)!=1 or int(row.calls)!=2 or int(row.depth)!=0 or int(row.frames)!=0).map(func(row):return String(row.entry)+":reached="+str(row.ok)+" sandboxes="+str(row.rows)+" calls="+str(row.calls)+" depth="+str(row.depth)+" frames="+str(row.frames))
+ t.check(bool(control.get("track",false)) and bool(control.get("observe",false)),"REMOVAL rope_tracking_stays_gated_in_every_sandbox: outside every sandbox the same track and observe calls do write the master's tracking face (rope art total and values, the capture progress and posture/order), so the in-sandbox no-op below is the depth gate and not a dead function: control="+str(control))
+ t.check(unreached.is_empty(),"REMOVAL rope_tracking_stays_gated_in_every_sandbox: all six sandbox entries are driven through their own real entry, each opens exactly one outer sandbox, the probe's in-sandbox track and observe calls really run there (two per entry), and each entry restores the depth and the frame stack: unreached="+str(unreached))
+ t.check(ungated.is_empty(),"REMOVAL rope_tracking_stays_gated_in_every_sandbox: RopeArt.track and RopeArt.observe leave the master's rope art (values, total, thresholds), the capture progress and posture/order unchanged inside every sandbox, so no preview in SB1-SB6 can track or observe: ungated="+str(ungated))
+
+# H3（A161 F1）：`dispatch` 的两个失败返回（执行失败与安装后校验失败）都走到同一处 `unit_frames` 帧检查。
+# 探针在失败返回前留下一帧；检查若未覆盖该返回，这一帧不会被报出（旧行为），也不会被清掉。
+class FrameCheckProbe extends JoinProbe:
+ var fail=""
+ var leak=false
+ func validate() -> String:
+  var issue=super.validate()
+  if fail=="validate":
+   if leak: _unit_frames.append({"left":[],"joined":[]})
+   return "test injection: validate fails with a "+("leaked" if leak else "clean")+" submit"
+  return issue
+ func _depart(chosen: Dictionary) -> String:
+  if fail=="depart":
+   if leak: _unit_frames.append({"left":[],"joined":[]})
+   return "test injection: depart fails with a "+("leaked" if leak else "clean")+" submit"
+  return super._depart(chosen)
+ func _debug_check(name: String, location: String, reason: String) -> String:
+  # 记进行表（判据读的就是它），但不把引擎告警写进套件日志——`DEBUG CHECK` 零命中是证据口径。
+  if name=="unit_frames":
+   if reason!="": debug_check_failures.append({"check":name,"reason":reason,"location":location})
+   return reason
+  return super._debug_check(name,location,reason)
+
+static func _qx6_frame_case(t, mode: String, leak: bool) -> Dictionary:
+ var g=FrameCheckProbe.new(42)
+ g._discard_end()
+ g.state.wall="normal"
+ g.state.phase="map"
+ g.state.completed_rooms=[g.state.room]
+ g.fail=mode
+ g.leak=leak
+ var result=t.action(g,"depart",{"room":"east"})
+ var rows=_frame_issues(g)
+ var reason="" if rows.is_empty() else String(rows[0].get("reason",""))
+ return {"mode":mode,"leak":leak,"failed":not bool(result.get("ok",false)),"rows":rows.size(),"reason":reason,"location":"" if rows.is_empty() else String(rows[0].get("location","")),"frames":g._unit_frames.size()}
+
+static func dispatch_failure_returns_post_the_frame_check(t) -> void:
+ var leaked=[_qx6_frame_case(t,"depart",true),_qx6_frame_case(t,"validate",true)]
+ var clean=[_qx6_frame_case(t,"depart",false),_qx6_frame_case(t,"validate",false)]
+ var reported=leaked.filter(func(row):return bool(row.failed) and int(row.rows)==1 and String(row.reason).contains("单位帧未收：1") and String(row.location)=="game.dispatch")
+ var quiet=clean.filter(func(row):return bool(row.failed) and int(row.rows)==0 and int(row.frames)==0)
+ var shown_leaked=leaked.map(func(row):return "%s/leak=%s/failed=%s/rows=%d/frames=%d" % [row.mode,str(row.leak),str(row.failed),int(row.rows),int(row.frames)])
+ var shown_clean=clean.map(func(row):return "%s/leak=%s/failed=%s/rows=%d/frames=%d" % [row.mode,str(row.leak),str(row.failed),int(row.rows),int(row.frames)])
+ t.check(reported.size()==2,"REMOVAL dispatch_failure_returns_post_the_frame_check: both failing returns of `dispatch` -- the execution-issue return after `_depart` and the validation-failure return after `validate` -- feed the one leftover-frame debug check, so a frame left open before either return is reported with its count by the same check the success return uses: leaked="+str(shown_leaked))
+ t.check(quiet.size()==2,"REMOVAL dispatch_failure_returns_post_the_frame_check: a failing submit that leaves no frame behind reports nothing and leaves the frame stack empty on either failure return (the check is not a blanket failure): leaked="+str(shown_clean))
+
+# H4（A244 A245 增补；rev3.3 §3.2 的两处实现）：替换类 {单件、带丢链、组合换（五件整根）、强制特殊带加固带}
+# 的补跑次序，与「同样的件经工厂直装时的登记次序」逐项相等（kind＋top，逐行）。合并两处需要跨工厂成员枚举器
+# （QX6-B1 待办），本片只钉住两者相等。
+static func _qx6_replay_rows(g) -> Array:
+ return g.joined.map(func(row):return [String(row[1]),bool(row[2])])
+
+static func _qx6_direct_rows(t, seed: int, installed: Array) -> Array:
+ var g=_qx6_battle(t,seed)
+ if g==null: return []
+ for item in installed:
+  if item.has("components"):
+   var root=g._install_assembly(String(item.kind),String(item.variant),"fixture",2,2,{},String(item.get("straps","straight")))
+   if root.is_empty(): continue
+  elif g.SpecialEquipment.is_special(item):
+   g._install_special(String(item.type),String(item.slot),int(g.equipment_tier(item)))
+  else:
+   g._install_template(String(item.template),String(item.slot),float(item.durability),float(item.maximum),bool(item.get("locked",false)),"fixture",int(item.grade),int(item.get("layer",-1)),int(item.get("variant",0)),String(item.get("point","")))
+ return _qx6_replay_rows(g)
+
+static func replacement_replay_matches_factory_order(t) -> void:
+ var cases=preload("res://tests/replacement_cases.gd")
+ var rows={}
+ # 单件：3 档大臂绳替换（闭包含固缚与两条肩带）。
+ var single=_qx6_battle(t,42)
+ if single==null: t.check(false,"REMOVAL replacement_replay_matches_factory_order: the single-piece fixture is built through the real card entry")
+ else:
+  cases.fill(single,"upper_arm_top",1,1)
+  _qx6_reset(single)
+  var swapped=single.Application.execute_concrete(single,cases.request("upper_arm",3,3,"upper_arm_top"),"enemy",true,[],false)
+  rows["single"]={"ok":bool(swapped.get("ok",false)),"replay":_qx6_replay_rows(single),"direct":_qx6_direct_rows(t,42,Array(swapped.get("installed",[])))}
+ # 带丢链：短手套替换，一条链接同时失去两端。
+ var lost=_qx6_battle(t,42)
+ if lost==null: t.check(false,"REMOVAL replacement_replay_matches_factory_order: the lost-link fixture is built through the real card entry")
+ else:
+  var forearm=cases.install(lost,cases.request("forearm",1,1,"mid_forearm"))
+  var first=cases.install(lost,cases.request("wrist",1,1))
+  for index in range(2):
+   cases.install(lost,cases.request("forearm",2,2,"mid_forearm"))
+   cases.install(lost,cases.request("wrist",2,2))
+  lost._install_link(forearm.id,first.id,4.8,"fixture",1,[],["forearm","wrist"],["mid_forearm","wrist"])
+  _qx6_reset(lost)
+  var glove=lost.Application.execute_concrete(lost,cases.glove(),"enemy",true,[],false)
+  rows["lost_link"]={"ok":bool(glove.get("ok",false)) and Array(glove.get("lost_links",[])).size()==1,"replay":_qx6_replay_rows(lost),"direct":_qx6_direct_rows(t,42,Array(glove.get("installed",[])))}
+ # 组合换：五件整根组换掉旧复合件。
+ var group=_qx6_battle(t,51)
+ if group==null: t.check(false,"REMOVAL replacement_replay_matches_factory_order: the whole-root fixture is built through the real card entry")
+ else:
+  _qx6_whole_root(group)
+  var batch=group.Application.execute(group,QX6_WHOLE_ROOT_SPEC,"fixture")
+  rows["group"]={"ok":bool(batch.get("ok",false)) and int(batch.get("count",0))==5,"replay":_qx6_replay_rows(group),"direct":_qx6_direct_rows(t,51,Array(batch.get("installed",[])))}
+ # 强制特殊带加固带：3 档平板锁替换。
+ var forced_game=_qx6_battle(t,42)
+ if forced_game==null: t.check(false,"REMOVAL replacement_replay_matches_factory_order: the forced-special fixture is built through the real card entry")
+ else:
+  forced_game._install_special("negative_plate_lock_medium","special_2_a",2)
+  _qx6_reset(forced_game)
+  var forced=cases.Replacement.force_special(forced_game,"negative_plate_lock_medium",3,"fixture")
+  rows["forced"]={"ok":bool(forced.get("ok",false)),"replay":_qx6_replay_rows(forced_game),"direct":_qx6_direct_rows(t,42,Array(forced.get("installed",[])))}
+ var mismatched=[]
+ for name in ["single","lost_link","group","forced"]:
+  var row=rows.get(name,{})
+  var replay=Array(row.get("replay",[]))
+  if not bool(row.get("ok",false)) or replay.is_empty() or replay!=Array(row.get("direct",[])): mismatched.append(name+":ok="+str(row.get("ok",false))+" replay="+str(replay)+" direct="+str(row.get("direct",[])))
+ t.check(rows.size()==4 and mismatched.is_empty(),"REMOVAL replacement_replay_matches_factory_order: in all four replacement classes the replay order `_join_after_commit` rebuilds from the live record equals, item by item (kind and top), the registration order the factories produce for the same pieces installed directly: mismatch="+str(mismatched))
+
+# H6（A245；输入域表）格补判据之一：SB1–SB6 × {回执开启、关闭}。回执开启时预演/试装不得写入 live 回执，
+# 且 `_sandbox_end` 必须把调用方的回执还原；关闭时保持为空。
+static func sandboxes_silence_the_receipt_in_both_modes(t) -> void:
+ var events=preload("res://core/room_events.gd")
+ var cases=preload("res://tests/replacement_cases.gd")
+ var rows=[]
+ for receipt_on in [true,false]:
+  for entry in ["plan","force_special","probe_result","freeze_effects","compile","self_binding"]:
+   var g=_qx6_battle(t,42)
+   if g==null:
+    rows.append({"entry":entry,"receipt":receipt_on,"ok":false,"why":"fixture"})
+    continue
+   var effects=[]
+   var reached=false
+   var receipt=null
+   match entry:
+    "plan":
+     cases.fill(g,"upper_arm_top",1,1)
+    "force_special":
+     g._install_special("negative_plate_lock_medium","special_2_a",2)
+    "probe_result","freeze_effects":
+     effects=events.compile(g,"free_basic")
+     g.state.room_event={"refs":{}}
+   if receipt_on:
+    receipt=preload("res://core/resource_feedback.gd").new()
+    receipt.capture(g.state)
+    g._resource_feedback=receipt
+   _qx6_reset(g)
+   match entry:
+    "plan":
+     reached=bool(cases.Replacement.plan(g,[cases.request("upper_arm",3,3,"upper_arm_top")],"fixture").get("ok",false))
+    "force_special":
+     reached=bool(cases.Replacement.force_special(g,"negative_plate_lock_medium",3,"fixture").get("ok",false))
+    "probe_result":
+     reached=not effects.is_empty() and String(events.probe_result(g,effects,{},false).get("reason","?"))==""
+    "freeze_effects":
+     var frozen=events.freeze_effects(g,effects)
+     reached=String(frozen.get("issue","?"))=="" and not Array(frozen.get("effects",[])).is_empty()
+    "compile":
+     reached=not events.compile(g,"locked_assembly").is_empty()
+    "self_binding":
+     reached=preload("res://core/self_binding.gd").installation_plan(g,"self_binding",1,false).size()==2
+   var kept=(g._resource_feedback==receipt) if receipt_on else (g._resource_feedback==null)
+   # force_special 是提交型替换，回执里应当只有提交本身的一份安装（与 AUDIO 判据同口径）；其余五个入口是
+   # 预演，回执必须一条都没有。
+   var want_events=1 if receipt_on and entry=="force_special" else 0
+   var want_sounds=1 if receipt_on and entry=="force_special" else 0
+   var got_events=0 if receipt==null else receipt.events.size()
+   var got_sounds=0 if receipt==null else receipt.sounds.size()+receipt.scoped_sounds.size()
+   var quiet=got_events==want_events and got_sounds==want_sounds and (not receipt_on or receipt.installed==(entry=="force_special"))
+   rows.append({"entry":entry,"receipt":receipt_on,"ok":reached,"kept":kept,"quiet":quiet,"events":got_events,"sounds":got_sounds})
+ var unbuilt=rows.filter(func(row):return not bool(row.ok)).map(func(row):return String(row.entry)+"/"+str(row.receipt))
+ var leaked=rows.filter(func(row):return not bool(row.get("kept",false)) or not bool(row.get("quiet",false))).map(func(row):return String(row.entry)+"/"+str(row.receipt)+":kept="+str(row.get("kept",false))+" quiet="+str(row.get("quiet",false))+" events="+str(row.get("events"))+" sounds="+str(row.get("sounds")))
+ t.check(rows.size()==12 and unbuilt.is_empty(),"REMOVAL sandboxes_silence_the_receipt_in_both_modes: all six sandbox entries run on a reachable input with the receipt both on and off, so the receipt rows below are not vacuous: unbuilt="+str(unbuilt))
+ t.check(leaked.is_empty(),"REMOVAL sandboxes_silence_the_receipt_in_both_modes: with the receipt on, none of the six entries writes an installation, damage or sound event into the live receipt, and each restores the caller's collector; with it off the collector stays empty: leaked="+str(leaked))
+
+# H6 格补判据之二：替换类 {单件、带丢链、组合换、强制特殊带加固带} × {欲望魔方 有、无} × {敌人上下文、事件}。
+# 同一替换入口换 source，逐格断言补跑次序、钩子都在沙盒外、丢链条数与遗物回魔步数。
+const QX6_CLASS_ROWS=[
+ {"id":"single","seed":42,"kinds":["B","S","S","P"],"tops":1},
+ {"id":"lost_link","seed":42,"kinds":["C"],"tops":1},
+ {"id":"group","seed":51,"kinds":["B","S","S","P","B","S","S","P","B","P","B","P","B","P"],"tops":5},
+ {"id":"forced","seed":42,"kinds":["R","X"],"tops":1}]
+
+static func _qx6_class_fixture(t, class_id: String, seed: int, relic: bool):
+ var g=_qx6_battle(t,seed,relic)
+ if g==null: return null
+ var cases=preload("res://tests/replacement_cases.gd")
+ match class_id:
+  "single":
+   cases.fill(g,"upper_arm_top",1,1)
+  "lost_link":
+   var forearm=cases.install(g,cases.request("forearm",1,1,"mid_forearm"))
+   var first=cases.install(g,cases.request("wrist",1,1))
+   for index in range(2):
+    cases.install(g,cases.request("forearm",2,2,"mid_forearm"))
+    cases.install(g,cases.request("wrist",2,2))
+   g._install_link(forearm.id,first.id,4.8,"fixture",1,[],["forearm","wrist"],["mid_forearm","wrist"])
+  "group":
+   _qx6_whole_root(g)
+  "forced":
+   g._install_special("negative_plate_lock_medium","special_2_a",2)
+ g.state.mana=0.0
+ _qx6_reset(g)
+ return g
+
+static func _qx6_class_drive(g, class_id: String, source: String) -> Dictionary:
+ var cases=preload("res://tests/replacement_cases.gd")
+ match class_id:
+  "single": return g.Application.execute_concrete(g,cases.request("upper_arm",3,3,"upper_arm_top"),source,true,[],false)
+  "lost_link": return g.Application.execute_concrete(g,cases.glove(),source,true,[],false)
+  "group": return g.Application.execute(g,QX6_WHOLE_ROOT_SPEC,source)
+  "forced": return cases.Replacement.force_special(g,"negative_plate_lock_medium",3,source)
+ return {}
+
+static func replacement_replay_covers_each_class_and_context(t) -> void:
+ var rows=[]
+ for relic in [true,false]:
+  for source in ["enemy","event:fixture"]:
+   for spec in QX6_CLASS_ROWS:
+    var label="%s/%s/%s" % [String(spec.id),str(relic),source]
+    var g=_qx6_class_fixture(t,String(spec.id),int(spec.seed),relic)
+    if g==null:
+     rows.append({"label":label,"ok":false,"why":"fixture"})
+     continue
+    var result=_qx6_class_drive(g,String(spec.id),source)
+    var gain=0.0
+    if relic: gain=_qx6_gain(g)*float(spec.tops)
+    rows.append({"label":label,"ok":bool(result.get("ok",false)),"kinds":g.joined.map(func(row):return String(row[1])),"expect":Array(spec.kinds),"tops":g.joined.filter(func(row):return bool(row[2])).size(),"want_tops":int(spec.tops),"mana":g.state.mana,"want_mana":gain,"lost":Array(result.get("lost_links",[])).size(),"want_lost":1 if String(spec.id)=="lost_link" else -1,"depths":g.hook_depths})
+ var mismatched=[]
+ for row in rows:
+  var kinds=Array(row.get("kinds",[]))
+  var depths=Array(row.get("depths",[]))
+  var want_lost=int(row.get("want_lost",-1))
+  var bad=not bool(row.get("ok",false)) or kinds!=Array(row.get("expect",[])) or int(row.get("tops",0))!=int(row.get("want_tops",-1)) or not is_equal_approx(float(row.get("mana",0.0)),float(row.get("want_mana",0.0))) or (want_lost>=0 and int(row.get("lost",0))!=want_lost) or depths.size()!=kinds.size() or depths.any(func(depth):return int(depth)!=0)
+  if bad: mismatched.append(String(row.label)+":ok="+str(row.get("ok",false))+" kinds="+str(kinds)+" expect="+str(row.get("expect"))+" tops="+str(row.get("tops"))+"/"+str(row.get("want_tops"))+" mana="+str(row.get("mana"))+"/"+str(row.get("want_mana"))+" lost="+str(row.get("lost"))+"/"+str(row.get("want_lost"))+" depths="+str(depths))
+ t.check(rows.size()==16 and mismatched.is_empty(),"REMOVAL replacement_replay_covers_each_class_and_context: all sixteen replacement cells (four classes x desire-cube on/off x enemy/event source) replay the same post order, outside every sandbox, with the lost link and the relic mana step of the class: mismatch="+str(mismatched))
 
 # ==== Q6'b（rev3.4 gherkin G-Q6-1'…4'、9'、10'；plan-delta §2.1、§3.1）：脏件表、全扫回退、对账、件结算 ====
 const Removal=preload("res://core/equipment_removal.gd")

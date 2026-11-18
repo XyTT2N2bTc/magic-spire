@@ -1603,8 +1603,8 @@
         "file": "core/game.gd",
         "edits": [
           {
-            "find": "  _resource_feedback=null\n  _card_feedback=[]\n  state=original\n  return {\"ok\":false,\"error\":\"行动失败：\"+issue,\"fact\":{}}",
-            "replace": "  _resource_feedback=null\n  _card_feedback=[]\n  return {\"ok\":false,\"error\":\"行动失败：\"+issue,\"fact\":{}}"
+            "find": "  _resource_feedback=null\n  _card_feedback=[]\n  state=original\n  frame_check.call()\n  return {\"ok\":false,\"error\":\"行动失败：\"+issue,\"fact\":{}}",
+            "replace": "  _resource_feedback=null\n  _card_feedback=[]\n  frame_check.call()\n  return {\"ok\":false,\"error\":\"行动失败：\"+issue,\"fact\":{}}"
           }
         ],
         "suite": "equipment",
@@ -2777,6 +2777,102 @@
         ],
         "suite": "equipment",
         "expect": "the committed composite's hooks run exactly once"
+      }
+    ],
+    "group_members_are_install_class_only": [
+      {
+        "clause": "mixed-group",
+        "file": "core/equipment_application.gd",
+        "edits": [
+          {
+            "find": "  groups.append({\"kind\":\"application_group\",\"requests\":requests,\"rank\":rank})",
+            "replace": "  requests.append({\"kind\":\"special\",\"type\":\"crotch_rope_low\",\"slot\":\"special_3_a\",\"tier\":1,\"rank\":0})\n  groups.append({\"kind\":\"application_group\",\"requests\":requests,\"rank\":rank})"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "mixed=["
+      }
+    ],
+    "rope_tracking_stays_gated_in_every_sandbox": [
+      {
+        "clause": "track-ungated",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " if g._sandbox_depth>0: return\n var e=master(g)",
+            "replace": " var e=master(g)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "ungated=["
+      },
+      {
+        "clause": "observe-ungated",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " if g._sandbox_depth>0: return\n var boss=master(g)",
+            "replace": " var boss=master(g)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "ungated=["
+      }
+    ],
+    "dispatch_failure_returns_post_the_frame_check": [
+      {
+        "clause": "failure-return-leak",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "  _capture_energy_pending={}\n  state=original\n  frame_check.call()",
+            "replace": "  _capture_energy_pending={}\n  state=original\n  _unit_frames.append({\"left\":[],\"joined\":[]})\n  frame_check.call()"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "rows=1/frames=2"
+      }
+    ],
+    "replacement_replay_matches_factory_order": [
+      {
+        "clause": "order-reversed",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " var owned=_unit_begin()\n for member in members: _member_joined(member[0],member[1],member[2],member[3])",
+            "replace": " var owned=_unit_begin()\n members.reverse()\n for member in members: _member_joined(member[0],member[1],member[2],member[3])"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "mismatch=["
+      }
+    ],
+    "sandboxes_silence_the_receipt_in_both_modes": [
+      {
+        "clause": "receipt-restored",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "func _sandbox_end(saved: Dictionary) -> void:\n state=saved.state\n _resource_feedback=saved.feedback\n _sandbox_depth-=1",
+            "replace": "func _sandbox_end(saved: Dictionary) -> void:\n state=saved.state\n _resource_feedback=preload(\"res://core/resource_feedback.gd\").new()\n _sandbox_depth-=1"
+          }
+        ],
+        "suite": "equipment",
+        "expect": ":kept=false"
+      }
+    ],
+    "replacement_replay_covers_each_class_and_context": [
+      {
+        "clause": "replay-removed",
+        "file": "core/equipment_replacement.gd",
+        "edits": [
+          {
+            "find": " g.RopeArt.replaced(g,fresh)\n # QX6 (R10): the trial ran no hook; the committed members replay feedback then hooks on live.\n g._join_after_commit(fresh.installed)\n",
+            "replace": " g.RopeArt.replaced(g,fresh)\n"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "mismatch=["
       }
     ],
     "forced_special_hooks_replay_after_commit": [
