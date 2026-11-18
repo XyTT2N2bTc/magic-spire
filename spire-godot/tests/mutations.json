@@ -2021,7 +2021,7 @@
         "edits": [
           {
             "find": " return {\"template\":template,\"grade\":grade,\"variant\":variant,\"source\":source,\"pieces\":[]}",
-            "replace": " return {\"template\":template,\"grade\":variant,\"variant\":grade,\"source\":source,\"pieces\":[]}"
+            "replace": " return {\"template\":template,\"grade\":(grade if variant==0 else variant),\"variant\":variant,\"source\":source,\"pieces\":[]}"
           }
         ],
         "suite": "shoulder",
