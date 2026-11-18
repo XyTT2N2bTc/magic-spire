@@ -2672,6 +2672,180 @@
         "suite": "equipment",
         "expect": "transitional_requires_lifecycle=false"
       }
+    ],
+    "sandbox_entries_are_declared": [
+      {
+        "clause": "manual-swap",
+        "file": "core/self_binding.gd",
+        "edits": [
+          {
+            "find": "static func tighten_targets(g) -> Array:\n var previous=g._begin_equipment_read()",
+            "replace": "static func tighten_targets(g) -> Array:\n var scratch=g.state;g.state=scratch.duplicate(true);g.state=scratch\n var previous=g._begin_equipment_read()"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "manual=[\"core/self_binding.gd::tighten_targets\"]"
+      },
+      {
+        "clause": "entry-bypassed",
+        "file": "core/room_events.gd",
+        "edits": [
+          {
+            "find": " var sandbox=g._sandbox_begin()\n var issue=apply_effects(",
+            "replace": " var original=g.state\n var feedback=g._resource_feedback\n g._resource_feedback=null\n g.state=original.duplicate(true)\n var issue=apply_effects("
+          },
+          {
+            "find": "  if issue!=\"\": gate=\"validate_failed\"\n g._sandbox_end(sandbox)",
+            "replace": "  if issue!=\"\": gate=\"validate_failed\"\n g.state=original\n g._resource_feedback=feedback"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "sites=["
+      }
+    ],
+    "join_hooks_draw_no_cards": [
+      {
+        "clause": "primary",
+        "file": "data/card_rules.gd",
+        "edits": [
+          {
+            "find": "\"restraint_draw\":{\"event\":\"worn\",\"next_turn\":true,\"amount\":1}",
+            "replace": "\"restraint_draw\":{\"event\":\"worn\",\"next_turn\":false,\"amount\":1}"
+          }
+        ],
+        "suite": "architecture",
+        "expect": "immediate=[\"restraint_embrace_bound\"]"
+      }
+    ],
+    "event_costs_never_follow_installs": [
+      {
+        "clause": "primary",
+        "file": "content/packs/binding_cleric.json",
+        "edits": [
+          {
+            "find": "\"op\": \"mana_gain\",",
+            "replace": "\"op\": \"link\","
+          },
+          {
+            "find": "\"op\": \"install_random\",",
+            "replace": "\"op\": \"mana_loss\","
+          }
+        ],
+        "suite": "architecture",
+        "expect": "late=[\"binding_cleric.json"
+      }
+    ],
+    "sandboxes_run_no_join_hooks": [
+      {
+        "clause": "primary",
+        "file": "core/room_events.gd",
+        "edits": [
+          {
+            "find": " var sandbox=g._sandbox_begin()\n var issue=apply_effects(",
+            "replace": " var original=g.state\n var feedback=g._resource_feedback\n g._resource_feedback=null\n g.state=original.duplicate(true)\n var issue=apply_effects("
+          },
+          {
+            "find": "  if issue!=\"\": gate=\"validate_failed\"\n g._sandbox_end(sandbox)",
+            "replace": "  if issue!=\"\": gate=\"validate_failed\"\n g.state=original\n g._resource_feedback=feedback"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "hooked=[\"probe_result"
+      }
+    ],
+    "replacement_hooks_replay_after_commit": [
+      {
+        "clause": "replay-removed",
+        "file": "core/equipment_replacement.gd",
+        "edits": [
+          {
+            "find": " g.RopeArt.replaced(g,fresh)\n # QX6 (R10): the trial ran no hook; the committed members replay feedback then hooks on live.\n g._join_after_commit(fresh.installed)\n",
+            "replace": " g.RopeArt.replaced(g,fresh)\n"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the committed composite's hooks run exactly once"
+      },
+      {
+        "clause": "replay-before-commit",
+        "file": "core/equipment_replacement.gd",
+        "edits": [
+          {
+            "find": " _commit_changes(g,fresh._after)\n g._members_replaced()",
+            "replace": " g._join_after_commit(fresh.installed)\n _commit_changes(g,fresh._after)\n g._members_replaced()"
+          },
+          {
+            "find": " g.RopeArt.replaced(g,fresh)\n # QX6 (R10): the trial ran no hook; the committed members replay feedback then hooks on live.\n g._join_after_commit(fresh.installed)\n",
+            "replace": " g.RopeArt.replaced(g,fresh)\n"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the committed composite's hooks run exactly once"
+      }
+    ],
+    "forced_special_hooks_replay_after_commit": [
+      {
+        "clause": "primary",
+        "file": "core/equipment_replacement.gd",
+        "edits": [
+          {
+            "find": " g.RopeArt.replaced(g,result)\n g._join_after_commit(result.installed)\n",
+            "replace": " g.RopeArt.replaced(g,result)\n"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "the forced lock replays its reinforcement strap"
+      }
+    ],
+    "replacement_plan_after_has_no_hook_output": [
+      {
+        "clause": "primary",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " # QX6: a sandbox keeps the physical layer and drops the frame, so a preview runs no hook.\n if _sandbox_depth>0: return\n for entry in frame.joined: _join_hooks(entry)",
+            "replace": " for entry in frame.joined: _join_hooks(entry)"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "without running a hook"
+      }
+    ],
+    "self_binding_plan_is_journaled_as_sandbox": [
+      {
+        "clause": "primary",
+        "file": "core/self_binding.gd",
+        "edits": [
+          {
+            "find": "  var sandbox=g._sandbox_begin()",
+            "replace": "  var original=g.state\n  var feedback=g._resource_feedback\n  g.state=original.duplicate(true);g._resource_feedback=null"
+          },
+          {
+            "find": "  g._sandbox_end(sandbox)",
+            "replace": "  g.state=original;g._resource_feedback=feedback"
+          }
+        ],
+        "suite": "equipment",
+        "expect": "speculative rows are journaled as sandbox"
+      }
+    ],
+    "locked_assembly_compile_leaves_the_live_receipt_untouched": [
+      {
+        "clause": "primary",
+        "file": "core/room_events.gd",
+        "edits": [
+          {
+            "find": "   var sandbox=g._sandbox_begin()\n   var request=option.duplicate(true)",
+            "replace": "   var original=g.state\n   g.state=original.duplicate(true)\n   var request=option.duplicate(true)"
+          },
+          {
+            "find": "   g._sandbox_end(sandbox)\n   if root.is_empty(): return []",
+            "replace": "   g.state=original\n   if root.is_empty(): return []"
+          }
+        ],
+        "suite": "event_flow",
+        "expect": "receipt_calls=[\""
+      }
     ]
   }
 }
