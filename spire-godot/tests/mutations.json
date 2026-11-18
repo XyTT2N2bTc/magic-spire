@@ -2014,6 +2014,92 @@
         "expect": "both sides read as missing"
       }
     ],
+    "pair_record_and_missing_sides_edges": [
+      {
+        "clause": "pair-record-field-swap",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": " return {\"template\":template,\"grade\":grade,\"variant\":variant,\"source\":source,\"pieces\":[]}",
+            "replace": " return {\"template\":template,\"grade\":variant,\"variant\":grade,\"source\":source,\"pieces\":[]}"
+          }
+        ],
+        "suite": "shoulder",
+        "expect": "every pair record field keeps its own position"
+      },
+      {
+        "clause": "install-variant-zero",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": " host.shoulders=pair_record(template,grade,0,source)",
+            "replace": " host.shoulders=pair_record(template,grade,host.variant,source)"
+          }
+        ],
+        "suite": "shoulder",
+        "expect": "install builds the pair at variant zero"
+      },
+      {
+        "clause": "refresh-variant-host",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": "   host.shoulders=pair_record(host.template,host.grade,host.variant,host.source)",
+            "replace": "   host.shoulders=pair_record(host.template,host.grade,0,host.source)"
+          }
+        ],
+        "suite": "shoulder",
+        "expect": "the tier-three refresh builds the pair from the host template"
+      },
+      {
+        "clause": "missing-threshold-zero",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": "  if pair.pieces.any(func(e):return e.side==side and e.durability>0.000001): continue",
+            "replace": "  if pair.pieces.any(func(e):return e.side==side and e.durability>0): continue"
+          }
+        ],
+        "suite": "shoulder",
+        "expect": "a hairline side below the threshold still reads missing"
+      },
+      {
+        "clause": "missing-threshold-inclusive",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": "  if pair.pieces.any(func(e):return e.side==side and e.durability>0.000001): continue",
+            "replace": "  if pair.pieces.any(func(e):return e.side==side and e.durability>=0.000001): continue"
+          }
+        ],
+        "suite": "shoulder",
+        "expect": "a side exactly at the threshold still reads missing"
+      },
+      {
+        "clause": "missing-released-right",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": "  if pair.pieces.any(func(e):return e.side==side and e.durability>0.000001): continue",
+            "replace": "  if pair.pieces.any(func(e):return e.side==side and true): continue"
+          }
+        ],
+        "suite": "shoulder",
+        "expect": "a released right side is the only missing side"
+      },
+      {
+        "clause": "missing-right-ignored",
+        "file": "core/shoulder_links.gd",
+        "edits": [
+          {
+            "find": " for side in SIDES:",
+            "replace": " for side in [\"left\"]:"
+          }
+        ],
+        "suite": "shoulder",
+        "expect": "a released right side is the only missing side"
+      }
+    ],
     "write_epoch_bumps_in_every_port": [
       {
         "clause": "primary",

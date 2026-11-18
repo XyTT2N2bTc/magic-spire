@@ -130,6 +130,40 @@ static func run(t) -> void:
   t.check(material_game.validate()=="","SHOULDER material state validates "+template)
 
  pair_fill_unchanged(t)
+ pair_record_and_missing_sides_edges(t)
+
+# Q9′：pair_record 的四个字段各有独立位置（交换 grade／variant 即红），install 固定 variant 0、refresh 取宿主
+# variant；missing_sides 的阈值（>0.000001）、SIDES 次序与已释放件各自有运行时判据。合成对记录只带 pieces，
+# 让阈值两侧的取值与左右形状互不掩盖；真实入口的两条用例同时钉住 install／refresh 的映射。
+static func pair_record_and_missing_sides_edges(t) -> void:
+ var g=Game.new(42)
+ var record=g.Shoulders.pair_record("belt",2,1,"probe")
+ t.check(record.template=="belt" and record.grade==2 and record.variant==1 and record.source=="probe" and record.pieces.is_empty(),"SHOULDER pair_record_and_missing_sides_edges: every pair record field keeps its own position and the record starts with no pieces")
+ var install_game=Game.new(42)
+ var install_host=install_game._install_template("rope","upper_arm",install_game._tier_durability(install_game.Equipment.maximum(2),2),install_game.Equipment.maximum(2),false,"fixture",2,-1,1)
+ t.check(install_host.variant==1 and install_game.tier(install_host.durability,install_host.maximum)==2 and not install_host.has("shoulders"),"SHOULDER pair_record_and_missing_sides_edges: the install host carries a non-zero variant at tier two without a pair")
+ t.check(install_game.Shoulders.install(install_game,install_host,"belt",2,"fixture") and install_host.shoulders.template=="belt" and install_host.shoulders.grade==2 and install_host.shoulders.variant==0 and install_host.shoulders.source=="fixture","SHOULDER pair_record_and_missing_sides_edges: install builds the pair at variant zero from its own template, grade and source")
+ t.check(install_host.shoulders.pieces.all(func(e):return e.variant==0),"SHOULDER pair_record_and_missing_sides_edges: the installed pieces inherit the install variant zero")
+ var refresh_game=Game.new(42)
+ var refresh_host=refresh_game._install_template("rope","upper_arm",refresh_game._tier_durability(refresh_game.Equipment.maximum(2),2),refresh_game.Equipment.maximum(2),false,"fixture",2,-1,1)
+ t.check(refresh_host.variant==1 and not refresh_host.has("shoulders"),"SHOULDER pair_record_and_missing_sides_edges: the refresh host carries a non-zero variant without a pair")
+ refresh_host.durability=refresh_host.maximum
+ refresh_game._refresh_equipment(refresh_host)
+ t.check(refresh_host.has("shoulders") and refresh_host.shoulders.template=="rope" and refresh_host.shoulders.grade==2 and refresh_host.shoulders.variant==1 and refresh_host.shoulders.source=="fixture","SHOULDER pair_record_and_missing_sides_edges: the tier-three refresh builds the pair from the host template, grade, variant and source")
+ t.check(refresh_host.shoulders.pieces.all(func(e):return e.variant==1),"SHOULDER pair_record_and_missing_sides_edges: the refreshed pieces inherit the host variant")
+ var pair={"pieces":[{"side":"left","durability":10.0},{"side":"right","durability":10.0}]}
+ t.check(g.Shoulders.missing_sides(pair).is_empty(),"SHOULDER pair_record_and_missing_sides_edges: a pair with both sides present misses nothing")
+ pair["pieces"][1]["durability"]=0
+ t.check(g.Shoulders.missing_sides(pair)==["right"],"SHOULDER pair_record_and_missing_sides_edges: a released right side is the only missing side")
+ pair["pieces"][0]["durability"]=0
+ t.check(g.Shoulders.missing_sides(pair)==["left","right"],"SHOULDER pair_record_and_missing_sides_edges: both released sides read missing in SIDES order")
+ pair["pieces"][1]["durability"]=10.0
+ pair["pieces"][0]["durability"]=0.0000001
+ t.check(g.Shoulders.missing_sides(pair)==["left"],"SHOULDER pair_record_and_missing_sides_edges: a hairline side below the threshold still reads missing")
+ pair["pieces"][0]["durability"]=0.000001
+ t.check(g.Shoulders.missing_sides(pair)==["left"],"SHOULDER pair_record_and_missing_sides_edges: a side exactly at the threshold still reads missing")
+ pair["pieces"][0]["durability"]=0.000002
+ t.check(g.Shoulders.missing_sides(pair).is_empty(),"SHOULDER pair_record_and_missing_sides_edges: a side just above the threshold counts as present")
 
 # Q9′（G-Q9-2′；CC-50）：三档自动补肩带的行为不变——大臂绳到 3 档补出左右各一条，id 与名称仍由
 # pair_pieces 的派生规则给出，缺侧判断按 SIDES 序返回（live fill 与视图 refresh 共用同一规则）。
