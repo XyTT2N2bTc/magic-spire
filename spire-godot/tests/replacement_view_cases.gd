@@ -18,6 +18,8 @@ extends RefCounted
 #      切片必须真的含三档固缚例（逐试算重置本地计数的复现路径），否则本条空转。
 #   6) view_binding_draw_reproduces_the_live_refresh：视图刷新从 live 的 binding 计数起算、记录与计数推进
 #      与 live 刷新相同，且不推进 live rng（A50 R2 的复现面）。
+#      CC-63（G-Q9-2′）起同一判据再比三档肩带：视图 refresh 建出的对记录、侧序与左右两件逐项等于
+#      live Shoulders.refresh 的结果，且每个宿主两侧都真的补出（hosts>0、pairs==hosts）。
 #   7) can_apply_stops_at_the_first_legal_candidate：first_only 是同一判定路径的存在性读取。
 #   8) parallel_orchestrations_call_the_shared_rules（A50 R3 从 replacement_assess_cases.gd 迁入）：O1／O2／O3
 #      三行编排在两端核对共用规则集合、视图端禁调 live 独有副作用，并按行核对 `# O<n>` 标记。Q8 按 CC-55
