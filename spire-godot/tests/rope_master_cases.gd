@@ -1,5 +1,8 @@
 extends RefCounted
 const Game=preload("res://tests/game_fixture.gd")
+const Replacement=preload("res://core/equipment_replacement.gd")
+const SelfBinding=preload("res://core/self_binding.gd")
+const Give=preload("res://tests/curse_cases.gd")
 
 static func encounter(seed_value: int=42):
  var g=Game.new(seed_value,false,"equipment",true)
@@ -307,12 +310,182 @@ static func capture_account_matches_recount(t) -> void:
  boss.rope_art.total=saved
  t.check(issue!="" and g.RopeArt.account_issue(g)=="","REMOVAL capture_account_matches_recount: a ledger total that disagrees with the recount is a named issue, and restoring it clears the issue: issue="+issue)
 
+# QX2″ b rows: the join layer is the only place an application presents and observes. The helpers
+# below build the same fixtures the criteria read, so a threshold fixture stays one screen long.
+static func log_texts(g, from: int) -> Array:
+ var out=[]
+ for index in range(from,g.state.logs.size()): out.append(String(g.state.logs[index].text))
+ return out
+
+static func add_rope(g, slot: String, point: String, grade: int, tier: int) -> Dictionary:
+ var maximum=g.Equipment.maximum(grade)
+ return g._install_template("rope",slot,maximum*[0.0,0.4,0.8,1.0][tier],maximum,false,"fixture",grade,-1,0,point)
+
+# G-QX2-9′: the hogtie a threshold applies joins inside the hook of the piece that caused the
+# crossing, so the presentation order is host, hogtie, host -- not both hosts and then the hogtie.
+static func capture_hogtie_nests_inside_join_hook(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ boss.rope_art.total=48
+ boss.rope_art.previous=48
+ g.state.guard_bind={"progress":48.0,"sources":{g.RopeArt.MASTER:{"enemy":boss.id,"energy":0}}}
+ var mark=g.state.logs.size()
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var live=g.RopeArt.master(g)
+ var applies=log_texts(g,mark).filter(func(text):return text.contains("施加了"))
+ t.check(applies.size()==3 and applies[1]==live.name+"施加了驷马缚。","REMOVAL capture_hogtie_nests_inside_join_hook: the expansion's two rope applications nest the hogtie application between them, inside the second host's hook: applies="+str(applies))
+ var hog=g._equipment(live.rope_art.hogtie)
+ t.check(not hog.is_empty() and hog.grade==2 and g.equipment_tier(hog)==2,"REMOVAL capture_hogtie_nests_inside_join_hook: the nested application lands as one grade-two tier-two piece: id="+String(live.rope_art.hogtie))
+ t.check(live.rope_art.drunk==2 and live.rope_art.total==60 and live.rope_art.stock==36,"REMOVAL capture_hogtie_nests_inside_join_hook: the three applications book twelve value and pay twelve stock, and the nested one still crosses the fifty threshold once: drunk="+str(live.rope_art.drunk)+" total="+str(live.rope_art.total)+" stock="+str(live.rope_art.stock))
+
+# G-QX2-12: observation belongs to the top-level join hook only -- a replacement transaction's
+# write-off and replay stay inside one unit, and an art application observes once, after the hogtie.
+static func capture_observes_at_top_level_hook(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ var a=add_rope(g,"thigh","thigh_root",1,3)
+ var b=add_rope(g,"thigh","thigh_root",1,3)
+ var c=add_rope(g,"thigh","thigh_root",1,3)
+ boss.rope_art.total=82
+ boss.rope_art.previous=82
+ boss.rope_art.seen50=true
+ boss.rope_art.seen75=true
+ boss.rope_art.values={String(a.id):4,String(b.id):4,String(c.id):4}
+ var plan=Replacement.plan(g,[{"kind":"install","template":"rope","slot":"thigh","grade":2,"tier":3,"point":"thigh_root","variant":0,"locked":false}],"fixture")
+ var applied=Replacement.execute(g,plan)
+ t.check(plan.ok and applied.ok and plan.get("removed",[])==[String(a.id)],"REMOVAL capture_observes_at_top_level_hook: the replacement removes the value-four rope whose point is full: removed="+str(plan.get("removed",[])))
+ var live=g.RopeArt.master(g)
+ t.check(live.rope_art.total==83 and live.rope_art.previous==83,"REMOVAL capture_observes_at_top_level_hook: the unit writes the removal off and replays the install before its single top-level observation, so the intermediate seventy-eight never becomes previous: total="+str(live.rope_art.total)+" previous="+str(live.rope_art.previous))
+ t.check(live.rope_art.hogtie=="" and live.rope_art.drunk==0,"REMOVAL capture_observes_at_top_level_hook: a nested observation of the write-off would turn the replay into an eighty crossing; none happens: hogtie="+String(live.rope_art.hogtie)+" drunk="+str(live.rope_art.drunk))
+ g=encounter()
+ boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ boss.rope_art.total=47
+ boss.rope_art.previous=47
+ var mark=g.state.logs.size()
+ t.check(g.RopeArt.install(g,boss,g.RopeArt.spec(3,3)),"REMOVAL capture_observes_at_top_level_hook: the art install books and presents its piece")
+ live=g.RopeArt.master(g)
+ var applies=log_texts(g,mark).filter(func(text):return text.contains("施加了"))
+ t.check(applies.size()==2 and applies[0].ends_with("绳索。") and applies[1]==live.name+"施加了驷马缚。","REMOVAL capture_observes_at_top_level_hook: exactly the host and then its hogtie present; the nested binding and straps add no copy: applies="+str(applies))
+ t.check(live.rope_art.previous==live.rope_art.total and live.rope_art.previous==mini(100,live.rope_art.total) and live.rope_art.drunk==2,"REMOVAL capture_observes_at_top_level_hook: the single observation sees the completed total and crosses fifty once: previous="+str(live.rope_art.previous)+" total="+str(live.rope_art.total)+" drunk="+str(live.rope_art.drunk))
+
+# G-QX2-13: the presentation charges the stock before the hook's threshold read, so a required
+# hogtie that the remaining stock cannot pay is deferred instead of installed for free.
+static func capture_hold_keeps_stock_before_threshold(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ boss.rope_art.total=47
+ boss.rope_art.previous=47
+ boss.rope_art.stock=4
+ var before=g.state.equipment.size()
+ var installed=g.RopeArt.install(g,boss,g.RopeArt.spec(2,2))
+ var live=g.RopeArt.master(g)
+ t.check(installed and g.state.equipment.size()==before+1,"REMOVAL capture_hold_keeps_stock_before_threshold: the affordable value-four piece still lands: pieces="+str(g.state.equipment.size()-before))
+ t.check(live.rope_art.stock==0 and live.rope_art.hogtie_pending==2 and live.rope_art.refill,"REMOVAL capture_hold_keeps_stock_before_threshold: the hook reads the stock after its own payment, so the required hogtie is deferred and requests a refill: stock="+str(live.rope_art.stock)+" pending="+str(live.rope_art.hogtie_pending)+" refill="+str(live.rope_art.refill))
+ t.check(live.rope_art.total==51 and live.rope_art.hogtie=="","REMOVAL capture_hold_keeps_stock_before_threshold: the deferred hogtie adds nothing and the piece still counts: total="+str(live.rope_art.total)+" hogtie="+String(live.rope_art.hogtie))
+
+# G-QX2-14: each tightening observes through its own hook, so the crossing hogtie is applied before
+# the remaining steps and enters their rebuilt target list.
+static func capture_tighten_all_applies_hogtie_midway(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ g.state.energy=2
+ for row in [["thigh","thigh_root",1,1],["thigh","mid_thigh",1,1],["thigh","above_knee",3,2],["calf","below_knee",3,3],["calf","mid_calf",3,3],["ankle","",3,3],["ankle","",3,3],["ankle","",3,2],["foot","",3,3],["foot","",3,2]]:
+  add_rope(g,row[0],row[1],row[2],row[3])
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.total==49 and SelfBinding.capacity(g)>=4,"REMOVAL capture_tighten_all_applies_hogtie_midway: the fixture holds forty-nine value and at least four tightening steps: total="+str(boss.rope_art.total)+" capacity="+str(SelfBinding.capacity(g)))
+ var card=Give.give(g,"self_binding")
+ var command=t.find_action(g,"card",{"uid":card.uid,"free":false})
+ var mark=g.state.logs.size()
+ t.check(command.valid and g.dispatch(g.command(command.payload,g.state.version),g.state.version).ok,"REMOVAL capture_tighten_all_applies_hogtie_midway: the bound face commits its four steps: "+String(command.get("reason","")))
+ var live=g.RopeArt.master(g)
+ var tighten=g.state.logs.slice(mark).filter(func(row):return row.data.has("self_binding_tighten"))
+ var targets=tighten.map(func(row):return String(row.data.self_binding_tighten.id))
+ t.check(tighten.size()==4 and tighten.all(func(row):return int(row.data.self_binding_tighten.after)>int(row.data.self_binding_tighten.before)),"REMOVAL capture_tighten_all_applies_hogtie_midway: four steps raise four tiers: steps="+str(targets))
+ t.check(not live.rope_art.hogtie.is_empty() and String(live.rope_art.hogtie) in targets,"REMOVAL capture_tighten_all_applies_hogtie_midway: the hogtie the mid-loop crossing applies is a later step of the same card: hogtie="+String(live.rope_art.hogtie)+" targets="+str(targets))
+ t.check(live.rope_art.total==57 and live.rope_art.previous==57 and live.rope_art.drunk==2 and g.validate()=="","REMOVAL capture_tighten_all_applies_hogtie_midway: the card ends settled once: total="+str(live.rope_art.total)+" previous="+str(live.rope_art.previous)+" drunk="+str(live.rope_art.drunk)+" validate="+g.validate())
+
+# G-QX2-19: a removal is observed once, outside the unit that wrote it off, so the damaged piece and
+# the later purge both leave previous equal to the recomputed total instead of a stale pre-unit value.
+static func capture_removal_observes_outside_units(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ boss.rope_art.seen50=true
+ boss.rope_art.seen75=true
+ var maximum=g.Equipment.maximum(3)
+ var arm=g._install_template("rope","upper_arm",maximum,maximum,false,"fixture",3)
+ var straps=g.Shoulders.pieces(g).filter(func(item):return String(item.get("shoulder_host",""))==String(arm.id))
+ t.check(straps.size()==2,"REMOVAL capture_removal_observes_outside_units: the tier-three arm fixture grows two rope straps: straps="+str(straps.size()))
+ boss.rope_art.total=96
+ boss.rope_art.previous=96
+ g._apply_equipment_damage(arm,999,"strain")
+ t.check(boss.rope_art.total==90 and boss.rope_art.previous==90,"REMOVAL capture_removal_observes_outside_units: the damage hook observes the post-removal total once: total="+str(boss.rope_art.total)+" previous="+str(boss.rope_art.previous))
+ g._cleanup()
+ t.check(boss.rope_art.previous==boss.rope_art.total and boss.rope_art.total<90,"REMOVAL capture_removal_observes_outside_units: the purge writes off its closure first and observes afterwards, so previous is the purged total: previous="+str(boss.rope_art.previous)+" total="+str(boss.rope_art.total))
+ var added=0
+ while boss.rope_art.total<90 and added<3:
+  add_rope(g,["upper_arm","forearm","wrist"][added],"",3,3)
+  added+=1
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.total>=90 and boss.rope_art.previous==mini(100,boss.rope_art.total) and boss.rope_art.drunk==2,"REMOVAL capture_removal_observes_outside_units: the refill pieces cross ninety from the purged total and drink once: total="+str(boss.rope_art.total)+" previous="+str(boss.rope_art.previous)+" drunk="+str(boss.rope_art.drunk))
+
+# G-QX2-20: the self-binding card keeps resolving after the hogtie its first install triggers, on both
+# faces -- the free face installs its second piece, the bound face finishes all four tightening steps.
+static func self_binding_survives_midway_hogtie(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ for row in [["thigh","thigh_root",3,3],["thigh","mid_thigh",3,3],["thigh","above_knee",3,3],["calf","below_knee",3,3],["calf","mid_calf",3,3],["ankle","",3,3],["ankle","",3,3],["foot","",2,3]]:
+  add_rope(g,row[0],row[1],row[2],row[3])
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.total==47,"REMOVAL self_binding_survives_midway_hogtie: the free-face fixture holds forty-seven value: total="+str(boss.rope_art.total))
+ g.state.energy=2
+ var card=Give.give(g,"self_binding")
+ var mark=g.state.logs.size()
+ var command=t.find_action(g,"card",{"uid":card.uid,"free":true})
+ t.check(command.valid and g.dispatch(g.command(command.payload,g.state.version),g.state.version).ok,"REMOVAL self_binding_survives_midway_hogtie: the free face commits both installs: "+String(command.get("reason","")))
+ var live=g.RopeArt.master(g)
+ var texts=log_texts(g,mark)
+ var installs=texts.filter(func(text):return text.begins_with("自缚：在"))
+ var hogtie_line=live.name+"施加了驷马缚。"
+ t.check(installs.size()==2 and hogtie_line in texts and texts.find(hogtie_line)<texts.find(installs[0]),"REMOVAL self_binding_survives_midway_hogtie: the hogtie application the first install's hook triggers precedes both self-binding lines, so the card keeps running: logs="+str(texts))
+ t.check(not live.rope_art.hogtie.is_empty() and live.rope_art.drunk==2 and g.state.equipment.size()==11 and g.validate()=="","REMOVAL self_binding_survives_midway_hogtie: the mid-card hogtie lands, drinks once, and the second install still lands: hogtie="+String(live.rope_art.hogtie)+" drunk="+str(live.rope_art.drunk)+" pieces="+str(g.state.equipment.size())+" validate="+g.validate())
+ g=encounter()
+ boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ g.state.energy=2
+ for row in [["thigh","thigh_root",1,1],["thigh","mid_thigh",1,1],["thigh","above_knee",3,2],["calf","below_knee",3,3],["calf","mid_calf",3,3],["ankle","",3,3],["ankle","",3,3],["ankle","",3,2],["foot","",3,3],["foot","",3,2]]:
+  add_rope(g,row[0],row[1],row[2],row[3])
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.total==49 and SelfBinding.capacity(g)>=4,"REMOVAL self_binding_survives_midway_hogtie: the bound-face fixture holds forty-nine value and enough tightening steps: total="+str(boss.rope_art.total)+" capacity="+str(SelfBinding.capacity(g)))
+ card=Give.give(g,"self_binding")
+ mark=g.state.logs.size()
+ command=t.find_action(g,"card",{"uid":card.uid,"free":false})
+ var bound=g.dispatch(g.command(command.payload,g.state.version),g.state.version)
+ live=g.RopeArt.master(g)
+ var tighten=g.state.logs.slice(mark).filter(func(row):return row.data.has("self_binding_tighten"))
+ var targets=tighten.map(func(row):return String(row.data.self_binding_tighten.id))
+ t.check(bound.ok,"REMOVAL self_binding_survives_midway_hogtie: the bound face finishes instead of aborting on the mid-card hogtie: "+String(command.get("reason","")))
+ t.check(tighten.size()==4 and (String(live.rope_art.hogtie) in targets),"REMOVAL self_binding_survives_midway_hogtie: all four steps complete and the mid-card hogtie is among their targets: steps="+str(targets)+" hogtie="+String(live.rope_art.hogtie))
+ t.check(live.rope_art.drunk==2 and live.rope_art.previous==live.rope_art.total and g.validate()=="","REMOVAL self_binding_survives_midway_hogtie: the card ends settled once: previous="+str(live.rope_art.previous)+" total="+str(live.rope_art.total)+" drunk="+str(live.rope_art.drunk)+" validate="+g.validate())
+
 static func capture_ledger(t) -> void:
  capture_entry_counts_every_rope_instance(t)
  capture_accounts_new_members_at_join(t)
  capture_follows_tier_hook_only(t)
  capture_unaccounts_removed_closure(t)
  capture_settles_only_in_rope_battle(t)
+ capture_hogtie_nests_inside_join_hook(t)
+ capture_observes_at_top_level_hook(t)
+ capture_hold_keeps_stock_before_threshold(t)
+ capture_tighten_all_applies_hogtie_midway(t)
+ capture_removal_observes_outside_units(t)
+ self_binding_survives_midway_hogtie(t)
  await capture_account_matches_recount(t)
 
 static func run(t) -> void:

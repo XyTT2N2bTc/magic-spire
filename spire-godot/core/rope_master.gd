@@ -119,15 +119,16 @@ static func joined(g, record: Dictionary) -> void:
  var scope: Dictionary=g._art_scope.back()
  var boss: Dictionary=scope.get("boss",{})
  if boss.is_empty() or master(g).is_empty(): return
+ # The presentation is part of every application the scope covers; the price is paid only when the
+ # caller's own caller is the master (the hogtie branch passes `own` for its own value instead).
  if bool(scope.get("own",false)):
   boss.rope_art.stock-=g.RestraintValue.from_profile(record.grade,g.equipment_tier(record))
-  g._emit("event",boss.name+"施加了"+record.name+"。",{"enemy_action":{"enemy_id":boss.id,"actor":boss.name,"sequence":g.state.logs.size(),"kind":String(scope.get("kind","apply")),"slots":g.Equipment.coverage(record)}})
+ g._emit("event",boss.name+"施加了"+record.name+"。",{"enemy_action":{"enemy_id":boss.id,"actor":boss.name,"sequence":g.state.logs.size(),"kind":String(scope.get("kind","apply")),"slots":g.Equipment.coverage(record)}})
 
-# J7 (甲): the threshold observation runs once per top-level application, right after its presentation
+# J7 (甲): the threshold observation runs once per top-level join hook, right after its presentation
 # and its stock write, so the master sees the reduced stock and the completed total. It never runs for
-# a nested member's hook and never inside a unit's removal write-off.
+# a nested member's hook (those classes carry no J7 cell) and never inside a unit's removal write-off.
 static func observed(g) -> void:
- if g._art_scope.is_empty(): return
  observe(g)
 
 static func hogtied(g) -> bool:
@@ -368,14 +369,12 @@ static func hogtie(g, boss: Dictionary, grade: int) -> void:
    boss.rope_art.refill=true
    return
   var request={"kind":"install","template":HOGTIE,"slot":"wrist","point":"","grade":grade,"tier":2,"variant":0,"locked":false,"source":boss.id}
-  # 甲: the hogtie's own price is paid by this branch, so the scope presents and observes but never
-  # deducts; the presentation copy comes from J6, exactly the one the branch used to emit.
-  g._art_scope.append({"boss":boss,"own":false,"kind":String(boss.intent.get("kind","apply"))})
+  # 甲: the scope pays the new hogtie's value through J6 before J7 observes, so the stock read by a
+  # second threshold crossing is already charged; this branch only checks the budget above.
+  g._art_scope.append({"boss":boss,"own":true,"kind":String(boss.intent.get("kind","apply"))})
   var result=g.Application.execute_concrete(g,request,boss.id,true)
   g._art_scope.pop_back()
   if not result.ok: return
-  var item=result.installed[0]
-  boss.rope_art.stock-=cost
   g._cleanup(false)
  boss.rope_art.hogtie_pending=0
 

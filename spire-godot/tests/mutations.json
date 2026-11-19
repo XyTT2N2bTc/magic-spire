@@ -173,6 +173,84 @@
         ],
         "suite": "rope_master"
       }
+    ],
+    "capture_hogtie_nests_inside_join_hook": [
+      {
+        "clause": "hogtie-own-cost",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "  g._art_scope.append({\"boss\":boss,\"own\":true,\"kind\":String(boss.intent.get(\"kind\",\"apply\"))})",
+            "replace": "  g._art_scope.append({\"boss\":boss,\"own\":false,\"kind\":String(boss.intent.get(\"kind\",\"apply\"))})"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "capture_observes_at_top_level_hook": [
+      {
+        "clause": "writeoff-observe",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " account(g,result.get(\"removed\",[])+result.get(\"lost_links\",[]),true)",
+            "replace": " account(g,result.get(\"removed\",[])+result.get(\"lost_links\",[]),true)\n observe(g)"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "capture_hold_keeps_stock_before_threshold": [
+      {
+        "clause": "defer-without-budget",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "  var cost=g.RestraintValue.from_profile(grade,2)\n  if cost>boss.rope_art.stock:",
+            "replace": "  var cost=g.RestraintValue.from_profile(grade,2)\n  if false:"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "capture_tighten_all_applies_hogtie_midway": [
+      {
+        "clause": "hogtie-not-target",
+        "file": "core/self_binding.gd",
+        "edits": [
+          {
+            "find": " var targets=g.physical_pieces().filter(func(item):return item.durability>0 and g.equipment_tier(item)<3 and g._can_tighten(item))",
+            "replace": " var targets=g.physical_pieces().filter(func(item):return item.durability>0 and g.equipment_tier(item)<3 and g._can_tighten(item) and String(item.get(\"template\",\"\"))!=\"art_hogtie\")"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "capture_removal_observes_outside_units": [
+      {
+        "clause": "hook-observation-off",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "static func observed(g) -> void:\n observe(g)",
+            "replace": "static func observed(g) -> void:\n pass"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "self_binding_survives_midway_hogtie": [
+      {
+        "clause": "stop-after-hogtie",
+        "file": "core/self_binding.gd",
+        "edits": [
+          {
+            "find": "  for request in plan:\n   var applied=install(g,request,p.type)",
+            "replace": "  for request in plan:\n   if changes.size()>0 and g.RopeArt.hogtied(g): break\n   var applied=install(g,request,p.type)"
+          }
+        ],
+        "suite": "rope_master"
+      }
     ],    "slice_dependency_directions": [
       {
         "clause": "primary",
