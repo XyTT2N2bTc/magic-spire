@@ -297,6 +297,56 @@
         "suite": "rope_master"
       }
     ],
+    "capture_master_tighten_all_pays_and_names_the_hogtie": [
+      {
+        "clause": "observe-inside-frame",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "     RopeArt.account(self,RopeArt.closure(self,target))\n     booked=true",
+            "replace": "     RopeArt.account(self,RopeArt.closure(self,target))\n     booked=true\n     RopeArt.observe(self)"
+          },
+          {
+            "find": " if owned and booked: RopeArt.observe(self)",
+            "replace": " if booked: pass"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "the mid-swing crossing applies and names exactly one hogtie"
+      }
+    ],
+    "capture_card_tighten_all_pays_and_names_the_hogtie": [
+      {
+        "clause": "observe-inside-frame",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "     RopeArt.account(self,RopeArt.closure(self,target))\n     booked=true",
+            "replace": "     RopeArt.account(self,RopeArt.closure(self,target))\n     booked=true\n     RopeArt.observe(self)"
+          },
+          {
+            "find": " if owned and booked: RopeArt.observe(self)",
+            "replace": " if booked: pass"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "the mid-card crossing names the hogtie exactly once"
+      }
+    ],
+    "capture_tier_hook_defers_observation_to_the_owning_unit": [
+      {
+        "clause": "frame-observation-on",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " if owned and booked: RopeArt.observe(self)",
+            "replace": " if booked: RopeArt.observe(self)"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "a framed tighten books the fifty crossing but leaves it unobserved"
+      }
+    ],
     "capture_removal_observes_outside_units": [
       {
         "clause": "hook-observation-off",

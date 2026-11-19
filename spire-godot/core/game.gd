@@ -1788,6 +1788,7 @@ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bo
   push_error("TIER CONSEQUENCES: undeclared row or class row="+row+" class="+key+" target="+String(target.get("id","")))
   return
  var owned=_unit_begin()
+ var booked=false
  for handler in rows[key]:
   match String(handler):
    "refresh":
@@ -1795,15 +1796,18 @@ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bo
    "capture":
     if tighten or before!=after:
      RopeArt.account(self,RopeArt.closure(self,target))
-     # T observes right after it books, except inside an art application, where the top-level hook
-     # observes once (甲: a unit never observes, so a framed removal cannot rewrite `previous`).
-     if _art_scope.is_empty(): RopeArt.observe(self)
+     booked=true
    "reinforcement":
     # The row is entered by every special install, so the tier-three guard stays in the handler.
     if after==3 and SpecialEquipment.supports_reinforcement(target): _attach_special_reinforcement(target)
    _:
     push_error("TIER CONSEQUENCES: undeclared handler "+String(handler)+" row="+row+" class="+key)
  _unit_commit(owned)
+ # T observes only from the top level, after its own unit closed: a crossing hogtie then opens its
+ # own unit and its J6 pays the stock and presents the piece. A nested T (an enclosing unit is still
+ # collecting) never observes -- that unit's top-level hook does (甲: a unit never observes, so a
+ # framed write cannot rewrite `previous`).
+ if owned and booked: RopeArt.observe(self)
 
 # Q8 (rev3.5 G-Q8-1'): the one dispatch for the four installation factories. `args` is the shared
 # factory-argument record (the shape Assess.factory_args emits; `link` additionally carries

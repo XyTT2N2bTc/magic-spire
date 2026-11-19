@@ -618,6 +618,30 @@ static func capture_card_tighten_all_pays_and_names_the_hogtie(t) -> void:
  t.check(named_at>=0 and first_step>named_at,"REMOVAL capture_card_tighten_all_pays_and_names_the_hogtie: the unit's line precedes the card's own step copy, because the card writes that copy after the tighten call returns: named_at="+str(named_at)+" first_step="+str(first_step)+" logs="+str(texts))
  t.check(live.rope_art.previous==live.rope_art.total and live.rope_art.drunk==2 and g.RopeArt.account_issue(g)=="" and g.validate()=="","REMOVAL capture_card_tighten_all_pays_and_names_the_hogtie: the card ends settled once and reconciles: total="+str(live.rope_art.total)+" previous="+str(live.rope_art.previous)+" drunk="+str(live.rope_art.drunk)+" issue="+g.RopeArt.account_issue(g)+" validate="+g.validate())
 
+# I2 (甲, D21); the premise G-QX2-19 rests on: T books inside its own unit but never observes from
+# within an enclosing one, so a framed tighten cannot rewrite `previous` or apply the hogtie mid-unit.
+# The enclosing frame is opened by hand because no shipped entry tightens inside an accepted unit; the
+# criterion pins the invariant, and the first top-level observation settles the crossing once.
+static func capture_tier_hook_defers_observation_to_the_owning_unit(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ var piece=add_rope(g,"thigh","above_knee",3,2)
+ for row in [["thigh","thigh_root",1,1],["thigh","mid_thigh",1,1],["calf","below_knee",3,3],["calf","mid_calf",3,3],["ankle","",3,3],["ankle","",3,3],["ankle","",3,2],["foot","",3,3],["foot","",3,2]]:
+  add_rope(g,row[0],row[1],row[2],row[3])
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.total==49 and not piece.is_empty() and g.RopeArt.account_issue(g)=="","REMOVAL capture_tier_hook_defers_observation_to_the_owning_unit: the fixture holds forty-nine value with the tier-two thigh rope first: total="+str(boss.rope_art.total)+" issue="+g.RopeArt.account_issue(g))
+ var owned=g._unit_begin()
+ g._reinforce_equipment(piece)
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.total==50 and boss.rope_art.previous==49 and boss.rope_art.drunk==0 and String(boss.rope_art.hogtie)=="","REMOVAL capture_tier_hook_defers_observation_to_the_owning_unit: a framed tighten books the fifty crossing but leaves it unobserved: total="+str(boss.rope_art.total)+" previous="+str(boss.rope_art.previous)+" drunk="+str(boss.rope_art.drunk)+" hogtie="+String(boss.rope_art.hogtie))
+ g._unit_commit(owned)
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.previous==49 and boss.rope_art.drunk==0 and String(boss.rope_art.hogtie)=="","REMOVAL capture_tier_hook_defers_observation_to_the_owning_unit: the owning commit joins nothing, so the crossing still waits for the next declared observation point: previous="+str(boss.rope_art.previous)+" drunk="+str(boss.rope_art.drunk)+" hogtie="+String(boss.rope_art.hogtie))
+ g.RopeArt.observe(g)
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.drunk==2 and not String(boss.rope_art.hogtie).is_empty() and boss.rope_art.previous==boss.rope_art.total and g.RopeArt.account_issue(g)=="","REMOVAL capture_tier_hook_defers_observation_to_the_owning_unit: the next top-level observation settles the crossing exactly once: total="+str(boss.rope_art.total)+" previous="+str(boss.rope_art.previous)+" drunk="+str(boss.rope_art.drunk)+" hogtie="+String(boss.rope_art.hogtie)+" issue="+g.RopeArt.account_issue(g))
+
 # G-QX2-19: a removal is observed once, outside the unit that wrote it off, so the damaged piece and
 # the later purge both leave previous equal to the recomputed total instead of a stale pre-unit value.
 static func capture_removal_observes_outside_units(t) -> void:
@@ -1051,6 +1075,7 @@ static func capture_ledger(t) -> void:
  capture_tighten_all_applies_hogtie_midway(t)
  capture_master_tighten_all_pays_and_names_the_hogtie(t)
  capture_card_tighten_all_pays_and_names_the_hogtie(t)
+ capture_tier_hook_defers_observation_to_the_owning_unit(t)
  capture_removal_observes_outside_units(t)
  self_binding_survives_midway_hogtie(t)
  hogtie_install_leaves_foreign_writes_to_settle_points(t)
