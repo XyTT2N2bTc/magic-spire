@@ -175,11 +175,11 @@
     }
   },
   "generated_from": {
-    "cells": 1315,
+    "cells": 1314,
     "fields": 121,
     "files": 144,
-    "inputs_sha256": "9f141d12237ded23280c528c1ba1987e1fa95f40eac04984a4af14f39852acd6",
-    "sites": 2141,
+    "inputs_sha256": "d1028bab5e3b88506d377601b6303fc3c120efc107d4c5a51c642c619fe63f42",
+    "sites": 2140,
     "ui_reads": 0,
     "whole_state": 79
   },
@@ -2352,13 +2352,10 @@
       "discard": 1,
       "draw": 2
     },
-    "core/rope_master.gd::hogtie": {
-      "logs": 1
-    },
     "core/rope_master.gd::initialize": {
       "round": 1
     },
-    "core/rope_master.gd::install": {
+    "core/rope_master.gd::joined": {
       "logs": 1
     },
     "core/rope_master.gd::master": {

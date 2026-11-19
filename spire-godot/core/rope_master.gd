@@ -110,6 +110,26 @@ static func locked(g, item: Dictionary) -> bool:
 static func floor_value(g, item: Dictionary, after: float) -> float:
  return maxf(0.00001,after) if locked(g,item) else after
 
+# J6 (QX2″ rev3.3 plan-delta §2.4, §4.2): the presentation of the piece the master just applied -- he
+# pays its value from the stock and the log names it, in the same order the pre-Q5″ loop used but now
+# before the settle point. Only a top-level application presents: nested members (binding, straps,
+# components) are booked by J3 and named by their own copy, and nothing presents outside the scope.
+static func joined(g, record: Dictionary) -> void:
+ if g._art_scope.is_empty(): return
+ var scope: Dictionary=g._art_scope.back()
+ var boss: Dictionary=scope.get("boss",{})
+ if boss.is_empty() or master(g).is_empty(): return
+ if bool(scope.get("own",false)):
+  boss.rope_art.stock-=g.RestraintValue.from_profile(record.grade,g.equipment_tier(record))
+  g._emit("event",boss.name+"施加了"+record.name+"。",{"enemy_action":{"enemy_id":boss.id,"actor":boss.name,"sequence":g.state.logs.size(),"kind":String(scope.get("kind","apply")),"slots":g.Equipment.coverage(record)}})
+
+# J7 (甲): the threshold observation runs once per top-level application, right after its presentation
+# and its stock write, so the master sees the reduced stock and the completed total. It never runs for
+# a nested member's hook and never inside a unit's removal write-off.
+static func observed(g) -> void:
+ if g._art_scope.is_empty(): return
+ observe(g)
+
 static func hogtied(g) -> bool:
  var e=master(g)
  return not e.is_empty() and e.rope_art.hogtie!=""
@@ -176,13 +196,14 @@ static func install(g, e: Dictionary, request: Dictionary) -> bool:
    return false
   if current.pool=="special":
    current.templates=current.templates.filter(func(id):return g.SpecialEquipment.DESIGNS[id].grade==current.grade)
- var result=g.Application.execute(g,current,e.id)
- for item in result.installed:
-  if own: e.rope_art.stock-=g.RestraintValue.from_profile(item.grade,g.equipment_tier(item))
-  g._emit("event",e.name+"施加了"+item.name+"。",{"enemy_action":{"enemy_id":e.id,"actor":e.name,"sequence":g.state.logs.size(),"kind":e.intent.get("kind","apply"),"slots":g.Equipment.coverage(item)}})
+ var result={}
+ # 甲 (rev3.3 §4.1): the application raises the art scope, so its top-level hook presents the piece,
+ # pays for it and observes -- the nested members' hooks do neither.
+ g._art_scope.append({"boss":e,"own":own,"kind":String(e.intent.get("kind","apply"))})
+ result=g.Application.execute(g,current,e.id)
+ g._art_scope.pop_back()
  g._cleanup(false)
  if own and e.rope_art.stock<2: e.rope_art.refill=true
- observe(g)
  return result.ok
 
 static func ordinary(g, e: Dictionary, grade: int, tier: int, extra: Dictionary={}) -> bool:
@@ -193,7 +214,7 @@ static func ordinary(g, e: Dictionary, grade: int, tier: int, extra: Dictionary=
  if g.Application.can_apply(g,link,e.id): return install(g,e,link)
  for item in g.action_targets():
   if is_rope(item) and g.equipment_tier(item)<3:
-   g._reinforce_equipment(item);observe(g);return true
+   g._reinforce_equipment(item);return true
  return false
 
 static func sweep(g, e: Dictionary, grade: int) -> void:
@@ -217,9 +238,10 @@ static func execute(g, e: Dictionary, intent: Dictionary) -> void:
    observe(g)
   "art_sweep","art_patch": sweep(g,e,2 if e.type==MASTER else 1)
   "art_tighten","art_tightest":
+   # Each tightening observes through its own tier hook (T), so the loop needs no trailing observation
+   # and a crossing mid-round applies the hogtie before the remaining pieces are tightened (D18).
    for item in g.action_targets():
     if is_rope(item) and g.equipment_tier(item)<3: g._reinforce_equipment(item)
-   observe(g)
   "art_refill":
    e.rope_art.stock=e.rope_art.stock+12 if assistant(g).is_empty() else maxi(LIMIT,e.rope_art.stock)
    e.rope_art.refill=false
@@ -346,11 +368,14 @@ static func hogtie(g, boss: Dictionary, grade: int) -> void:
    boss.rope_art.refill=true
    return
   var request={"kind":"install","template":HOGTIE,"slot":"wrist","point":"","grade":grade,"tier":2,"variant":0,"locked":false,"source":boss.id}
+  # 甲: the hogtie's own price is paid by this branch, so the scope presents and observes but never
+  # deducts; the presentation copy comes from J6, exactly the one the branch used to emit.
+  g._art_scope.append({"boss":boss,"own":false,"kind":String(boss.intent.get("kind","apply"))})
   var result=g.Application.execute_concrete(g,request,boss.id,true)
+  g._art_scope.pop_back()
   if not result.ok: return
   var item=result.installed[0]
   boss.rope_art.stock-=cost
-  g._emit("event",boss.name+"施加了"+item.name+"。",{"enemy_action":{"enemy_id":boss.id,"actor":boss.name,"sequence":g.state.logs.size(),"kind":boss.intent.get("kind","apply"),"slots":g.Equipment.coverage(item)}})
   g._cleanup(false)
  boss.rope_art.hogtie_pending=0
 

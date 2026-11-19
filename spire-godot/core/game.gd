@@ -33,6 +33,11 @@ var _settle_table: Dictionary={}
 # runs (frames are discarded at commit) and the rope-art ledger is not tracked. Instance-local like
 # `_unit_frames`: never `state`, the View, a save or a checkpoint.
 var _sandbox_depth: int=0
+# QX2″ art-application scope (rev3.3 plan-delta §4.1): the rope-master's own application -- `install`
+# or the hogtie's new piece -- raises this while it runs its physical layer, so J6 presents the piece
+# and deducts its price, and J7 observes the thresholds only once, at the top-level hook. Nested
+# members (binding, straps, components) never present or observe. Instance-local like `_unit_frames`.
+var _art_scope: Array=[]
 
 # docs/record/proposals/check-routing-and-per-click-checks.md「二」（人裁定：正常流程下永不为 false 的
 # 每点击完整性检查＝release 里的固定浪费，按 debug 构建判定运行）：默认值只有构建类型这一条来源，
@@ -1540,7 +1545,10 @@ func _member_changed(record: Dictionary, change: String) -> void:
  Removal.mark(self,record,change)
  if change!="removed": return
  var closure=RopeArt.closure(self,record)
- if _unit_frames.is_empty(): RopeArt.account(self,closure,true)
+ if _unit_frames.is_empty():
+  RopeArt.account(self,closure,true)
+  # A removal outside a unit is an observation point (甲, D21); a framed one never observes.
+  RopeArt.observe(self)
  else:
   for member in closure: _member_left(member)
 
@@ -1561,10 +1569,10 @@ func _members_replaced() -> void:
 # filled by QX2″'s second commit. A row is data only: `_join_hooks` routes and the handlers read
 # nothing else, so adding a class is one row.
 const JOIN_EFFECTS={
- "P":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"unless_lock_only","J6":"","J7":""},
- "C":{"J1":"components","J2":"","J3":"components","J4":"佩戴","J5":"worn","J6":"","J7":""},
- "X":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"worn","J6":"","J7":""},
- "K":{"J1":"member","J2":"","J3":"member","J4":"新增","J5":"worn","J6":"","J7":""},
+ "P":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"unless_lock_only","J6":"relay","J7":"observe"},
+ "C":{"J1":"components","J2":"","J3":"components","J4":"佩戴","J5":"worn","J6":"relay","J7":"observe"},
+ "X":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"worn","J6":"relay","J7":"observe"},
+ "K":{"J1":"member","J2":"","J3":"member","J4":"新增","J5":"worn","J6":"relay","J7":"observe"},
  "S":{"J1":"member","J2":"shoulder","J3":"member","J4":"","J5":"worn","J6":"","J7":""},
  "R":{"J1":"member","J2":"reinforcement","J3":"member","J4":"","J5":"","J6":"","J7":""},
  "B":{"J1":"new_linked","J2":"binding","J3":"linked","J4":"","J5":"","J6":"","J7":""}}
@@ -1681,6 +1689,12 @@ func _join_hooks(entry: Array) -> void:
   "linked":
    var connection: Dictionary=record.get("binding",{})
    if String(connection.get("kind",""))=="linked": RopeArt.account(self,[connection])
+ match String(class_row.get("J6","")):
+  "relay":
+   RopeArt.joined(self,record)
+ match String(class_row.get("J7","")):
+  "observe":
+   RopeArt.observed(self)
  var mana_prefix=String(class_row.get("J4",""))
  if mana_prefix!="": RelicEffects._mana_hook(self,"restraint_mana",mana_prefix+record.name)
  match String(class_row.get("J5","")):
@@ -1776,7 +1790,11 @@ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bo
    "refresh":
     _refresh_equipment(target)
    "capture":
-    if tighten or before!=after: RopeArt.account(self,RopeArt.closure(self,target))
+    if tighten or before!=after:
+     RopeArt.account(self,RopeArt.closure(self,target))
+     # T observes right after it books, except inside an art application, where the top-level hook
+     # observes once (甲: a unit never observes, so a framed removal cannot rewrite `previous`).
+     if _art_scope.is_empty(): RopeArt.observe(self)
    "reinforcement":
     # The row is entered by every special install, so the tier-three guard stays in the handler.
     if after==3 and SpecialEquipment.supports_reinforcement(target): _attach_special_reinforcement(target)

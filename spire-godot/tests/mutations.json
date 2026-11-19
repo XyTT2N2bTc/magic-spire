@@ -58,7 +58,19 @@
     "payload_write_sites_are_pinned"
   ],
   "mutations": {
-    "capture_accounting_has_declared_entries": [
+    "capture_observe_sites_are_declared": [
+      {
+        "clause": "install-tail",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " g._art_scope.pop_back()\n g._cleanup(false)",
+            "replace": " g._art_scope.pop_back()\n g._cleanup(false)\n observe(g)"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],    "capture_accounting_has_declared_entries": [
       {
         "clause": "stray-track",
         "file": "core/game.gd",
@@ -116,8 +128,8 @@
         "file": "core/game.gd",
         "edits": [
           {
-            "find": "    if tighten or before!=after: RopeArt.account(self,RopeArt.closure(self,target))",
-            "replace": "    if tighten: RopeArt.account(self,RopeArt.closure(self,target))"
+            "find": "    if tighten or before!=after:\n     RopeArt.account(self,RopeArt.closure(self,target))",
+            "replace": "    if tighten:\n     RopeArt.account(self,RopeArt.closure(self,target))"
           }
         ],
         "suite": "rope_master"
@@ -129,8 +141,8 @@
         "file": "core/game.gd",
         "edits": [
           {
-            "find": " var closure=RopeArt.closure(self,record)\n if _unit_frames.is_empty(): RopeArt.account(self,closure,true)",
-            "replace": " var closure=[]\n if _unit_frames.is_empty(): RopeArt.account(self,closure,true)"
+            "find": " var closure=RopeArt.closure(self,record)\n if _unit_frames.is_empty():",
+            "replace": " var closure=[]\n if _unit_frames.is_empty():"
           }
         ],
         "suite": "rope_master"
@@ -1966,7 +1978,7 @@
         "file": "core/game.gd",
         "edits": [
           {
-            "find": "   \"capture\":\n    if tighten or before!=after: RopeArt.account(self,RopeArt.closure(self,target))",
+            "find": "   \"capture\":\n    if tighten or before!=after:\n     RopeArt.account(self,RopeArt.closure(self,target))",
             "replace": "   \"capture\":\n    pass"
           }
         ],

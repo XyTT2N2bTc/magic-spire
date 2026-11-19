@@ -1204,6 +1204,7 @@ static func run(t) -> void:
  join_effects_have_one_epilogue(t)
  capture_accounting_has_declared_entries(t)
  capture_reconciliation_is_debug_only(t)
+ capture_observe_sites_are_declared(t)
  unit_entries_are_declared(t)
  unit_writes_follow_all_checks(t)
  sandbox_entries_are_declared(t)
@@ -7088,10 +7089,10 @@ static func settle_marks_cover_every_writer(t) -> void:
 # G-Q5-11：`JOIN_EFFECTS` 的期望副本。键＝七类成员（Q5″ 增 `B`＝固缚记录），列＝J1 反馈对象、J2 入列文案、
 # J3／J6／J7（QX2″ 才填）、J4 回魔前缀、J5 worn 处理。逐格相等才绿：删一行、改一格、多一列都红。
 const JOIN_EFFECTS_ROWS={
- "P":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"unless_lock_only","J6":"","J7":""},
- "C":{"J1":"components","J2":"","J3":"components","J4":"佩戴","J5":"worn","J6":"","J7":""},
- "X":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"worn","J6":"","J7":""},
- "K":{"J1":"member","J2":"","J3":"member","J4":"新增","J5":"worn","J6":"","J7":""},
+ "P":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"unless_lock_only","J6":"relay","J7":"observe"},
+ "C":{"J1":"components","J2":"","J3":"components","J4":"佩戴","J5":"worn","J6":"relay","J7":"observe"},
+ "X":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"worn","J6":"relay","J7":"observe"},
+ "K":{"J1":"member","J2":"","J3":"member","J4":"新增","J5":"worn","J6":"relay","J7":"observe"},
  "S":{"J1":"member","J2":"shoulder","J3":"member","J4":"","J5":"worn","J6":"","J7":""},
  "R":{"J1":"member","J2":"reinforcement","J3":"member","J4":"","J5":"","J6":"","J7":""},
  "B":{"J1":"new_linked","J2":"binding","J3":"linked","J4":"","J5":"","J6":"","J7":""}}
@@ -7257,6 +7258,42 @@ static func capture_reconciliation_is_debug_only(t) -> void:
  for path in ["core/game_view.gd","core/equipment_replacement_view.gd","core/equipment_replacement_assess.gd"]:
   if source_code(path).contains("account_issue"): issues.append("view reads the recount: "+path)
  t.check(issues.is_empty(),"ARCH capture_reconciliation_is_debug_only: RopeArt.account_issue is called once, in core/game.gd::dispatch, inside an `if debug_checks_enabled():` line before the submission validate; validate() itself and the view/projection modules never reconcile: "+str(issues))
+
+# 阈值观察的调用点闭集（甲，G-QX2-8′）：顶层加入钩子 J7（经 `observed` 门）、档位钩子 T、单位外移除、
+# 领域展开的结尾，以及捕缚绑定的既有入口。其余位置（安装末尾、收紧回退、全部收紧的循环末尾）不得再直接观察。
+const CAPTURE_OBSERVE_SITES=[
+ "core/game.gd::_join_hooks",
+ "core/game.gd::_tier_consequences",
+ "core/game.gd::_member_changed",
+ "core/capture_bind.gd::observe",
+ "core/rope_master.gd::execute",
+ "core/rope_master.gd::observed"]
+
+static func capture_observe_sites_are_declared(t) -> void:
+ var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"RopeArt\\.observe[ds]?\\s*\\(").filter(func(hit):return not declaration_line(String(hit.text)))
+ var sites=write_site_names(hits)
+ # `core/rope_master.gd` calls its own static by bare name; the module's call sites come from a
+ # bare-name scan, and the definition line is excluded the same way.
+ for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"(?<![A-Za-z0-9_.])observe\\s*\\("):
+  if String(hit.file)!="core/rope_master.gd" or declaration_line(String(hit.text)): continue
+  var name=String(hit.file)+"::"+String(hit.function)
+  if name not in sites: sites.append(name)
+ sites.sort()
+ var declared=CAPTURE_OBSERVE_SITES.duplicate()
+ declared.sort()
+ var undeclared=sites.filter(func(name):return name not in declared)
+ var uninvoked=declared.filter(func(name):return name not in sites)
+ # The three retirements are explicit: the install tail, the tighten fallback and the tighten-all
+ # loop tail carry no direct observation any more (they observe through J7/T).
+ var retired=[]
+ var install_body=code_of_function("core/rope_master.gd","install")
+ var ordinary_body=code_of_function("core/rope_master.gd","ordinary")
+ var execute_body=code_of_function("core/rope_master.gd","execute")
+ for pair in [["install",install_body],["ordinary",ordinary_body]]:
+  if String(pair[1]).contains("observe("): retired.append(String(pair[0]))
+ var tighten=execute_body.substr(execute_body.find("\"art_tighten\""),execute_body.find("\"art_refill\"")-execute_body.find("\"art_tighten\""))
+ if tighten.contains("observe("): retired.append("art_tighten")
+ t.check(not CAPTURE_OBSERVE_SITES.is_empty() and undeclared.is_empty() and uninvoked.is_empty() and retired.is_empty(),"ARCH capture_observe_sites_are_declared: threshold observation runs only at the declared points -- the top-level join hook J7, the tier hook T, a removal outside a unit, the art-domain tail and capture_bind -- and never at the install tail, the tighten fallback or the tighten-all loop tail: sites="+str(sites)+" declared="+str(declared)+" undeclared="+str(undeclared)+" uninvoked="+str(uninvoked)+" retired="+str(retired))
 
 static func unit_entries_are_declared(t) -> void:
  var sites=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_unit_begin\\(").filter(func(hit):return not declaration_line(String(hit.text))))
@@ -8186,7 +8223,7 @@ const ASSESS_MODULE_CALLS={"Equipment":["*"],"SpecialEquipment":["*"],"Composite
 # 判定域既不读也不写的运行时字段：事务边界字段（_sandbox_depth／_resource_feedback，Replacement.plan 经
 # Game._sandbox_begin／_sandbox_end 保存并恢复；QX6 起 _rope_trial 并入沙盒深度）与绳艺观察防重入标记
 # （_rope_observing）。判定只经 RopeArt.locked 读 phase／enemies，不碰这三者。
-const ASSESS_RUNTIME_FIELD_TOKENS=["_sandbox_depth","_rope_observing","_resource_feedback","_unit_frames","_settle_table"]
+const ASSESS_RUNTIME_FIELD_TOKENS=["_sandbox_depth","_rope_observing","_resource_feedback","_unit_frames","_settle_table","_art_scope"]
 # 迁出函数：旧名 -> assess 新名（本表即迁移对照表的机读副本）。comparison_value 随上游改名为 replacement_value：
 # 新旧两名都不得在 replacement 留函数体（只看旧名会漏掉误留的上游 replacement_value 原体）。
 const MIGRATED_PURE_FUNCTIONS=[["_normalize","normalize"],["_units","units"],["_sets","sets"],["_counts","counts"],["_capacity_points","capacity_points"],["_physical_points","physical_points"],["comparison_value","replacement_value"],["replacement_value","replacement_value"],["_loss","loss"],["_compare","compare"],["_assign","assign"],["_transfer","transfer_options"],["_transfer_search","transfer_search"],["_pieces","pieces"],["_comparison_possible","comparison_possible"]]
