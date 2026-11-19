@@ -3192,6 +3192,160 @@
         "suite": "event_flow",
         "expect": "receipt_calls=[\""
       }
+    ],
+    "capture_accounts_cord_at_install": [
+      {
+        "clause": "cord-skip",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " var value=0 if removed or not is_rope(item) or item.durability<=0.000001 else g.RestraintValue.from_profile(item.grade,g.equipment_tier(item))",
+            "replace": " var value=0 if removed or String(item.get(\"template\",\"\"))==\"cord\" or not is_rope(item) or item.durability<=0.000001 else g.RestraintValue.from_profile(item.grade,g.equipment_tier(item))"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_accounts_cord_at_install"
+      }
+    ],
+    "capture_ignores_cup_special_closure": [
+      {
+        "clause": "count-non-rope",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " var value=0 if removed or not is_rope(item) or item.durability<=0.000001 else g.RestraintValue.from_profile(item.grade,g.equipment_tier(item))",
+            "replace": " var value=0 if removed or item.durability<=0.000001 else g.RestraintValue.from_profile(item.grade,g.equipment_tier(item))"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_ignores_cup_special_closure"
+      }
+    ],
+    "capture_unaccounts_link_without_anchor": [
+      {
+        "clause": "anchor-writeoff",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": "  elif g._link_anchor_lost(link,anchors):\n   g.state.links.erase(link)\n   g._member_changed(link,\"removed\")",
+            "replace": "  elif g._link_anchor_lost(link,anchors):\n   g.state.links.erase(link)\n   pass"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_unaccounts_link_without_anchor"
+      }
+    ],
+    "capture_accounts_assistant_installs": [
+      {
+        "clause": "p-join-j3",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " \"P\":{\"J1\":\"member\",\"J2\":\"\",\"J3\":\"member\",\"J4\":\"佩戴\",\"J5\":\"unless_lock_only\",\"J6\":\"relay\",\"J7\":\"observe\"},",
+            "replace": " \"P\":{\"J1\":\"member\",\"J2\":\"\",\"J3\":\"\",\"J4\":\"佩戴\",\"J5\":\"unless_lock_only\",\"J6\":\"relay\",\"J7\":\"observe\"},"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_accounts_assistant_installs"
+      }
+    ],
+    "capture_writes_nothing_outside_battle": [
+      {
+        "clause": "phase-gate",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "static func master(g) -> Dictionary:\n if g.state.phase!=\"battle\": return {}",
+            "replace": "static func master(g) -> Dictionary:\n if false: return {}"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_writes_nothing_outside_battle"
+      }
+    ],
+    "capture_sweep_books_each_piece": [
+      {
+        "clause": "j7-off",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "static func observed(g) -> void:\n observe(g)",
+            "replace": "static func observed(g) -> void:\n pass"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_sweep_books_each_piece"
+      }
+    ],
+    "capture_accounts_death_appends": [
+      {
+        "clause": "x-join-j3",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " \"X\":{\"J1\":\"member\",\"J2\":\"\",\"J3\":\"member\",\"J4\":\"佩戴\",\"J5\":\"worn\",\"J6\":\"relay\",\"J7\":\"observe\"},",
+            "replace": " \"X\":{\"J1\":\"member\",\"J2\":\"\",\"J3\":\"\",\"J4\":\"佩戴\",\"J5\":\"worn\",\"J6\":\"relay\",\"J7\":\"observe\"},"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_accounts_death_appends"
+      }
+    ],
+    "capture_install_leaves_exhausted_items_to_settle_points": [
+      {
+        "clause": "settle-restored",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " g._art_scope.pop_back()\n if own and e.rope_art.stock<2: e.rope_art.refill=true",
+            "replace": " g._art_scope.pop_back()\n g._cleanup(false)\n if own and e.rope_art.stock<2: e.rope_art.refill=true"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_install_leaves_exhausted_items_to_settle_points"
+      }
+    ],
+    "capture_hogtie_leaves_exhausted_items_to_settle_points": [
+      {
+        "clause": "settle-restored",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "  if not result.ok: return\n boss.rope_art.hogtie_pending=0",
+            "replace": "  if not result.ok: return\n  g._cleanup(false)\n boss.rope_art.hogtie_pending=0"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_hogtie_leaves_exhausted_items_to_settle_points"
+      }
+    ],
+    "capture_install_defers_release_count_to_settle_points": [
+      {
+        "clause": "release-count-off",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " var roots=g.Cards.restraint_roots(g) if released and not g.state.powers.is_empty() else []",
+            "replace": " var roots=g.Cards.restraint_roots(g) if false and released and not g.state.powers.is_empty() else []"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_install_defers_release_count_to_settle_points"
+      }
+    ],
+    "capture_hogtie_defers_release_count_to_settle_points": [
+      {
+        "clause": "release-count-off",
+        "file": "core/equipment_removal.gd",
+        "edits": [
+          {
+            "find": " var roots=g.Cards.restraint_roots(g) if released and not g.state.powers.is_empty() else []",
+            "replace": " var roots=g.Cards.restraint_roots(g) if false and released and not g.state.powers.is_empty() else []"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_hogtie_defers_release_count_to_settle_points"
+      }
     ]
   }
 }

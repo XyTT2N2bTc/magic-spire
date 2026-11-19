@@ -640,6 +640,228 @@ static func rope_install_leaves_foreign_writes_to_settle_points(t) -> void:
  g._cleanup()
  t.check(g._equipment(String(victim.id)).is_empty() and log_texts(g,mark).any(func(text):return text.ends_with("已解除。")),"REMOVAL rope_install_leaves_foreign_writes_to_settle_points: the next declared settle point removes it and emits the release line: logs="+str(log_texts(g,mark)))
 
+# QX2'' second round (rev3.2 G-QX2-2 input domain: 记录类别 股绳 x C2a): `cord` is the other ordinary
+# template the master's own spec names. It carries rope material, so the same join hook must book it.
+static func capture_accounts_cord_at_install(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var installed=g.RopeArt.install(g,boss,{"pool":"ordinary","templates":["cord"],"grade":3,"tier":3,"count":1,"replace":true,"allow_links":false})
+ var live=g.RopeArt.master(g)
+ var cords=g.state.equipment.filter(func(e):return String(e.get("template",""))=="cord")
+ var id=String(cords[0].id) if not cords.is_empty() else ""
+ t.check(installed and cords.size()==1 and String(cords[0].get("material",""))=="rope" and g.equipment_tier(cords[0])==3,"REMOVAL capture_accounts_cord_at_install: the application installs one tier-three cord -- the small-slot template the master's spec names -- at rope material: installed="+str(installed)+" cords="+str(cords.size()))
+ t.check(id!="" and int(Dictionary(live.rope_art.values).get(id,-1))==int(g.RestraintValue.from_profile(3,3)),"REMOVAL capture_accounts_cord_at_install: the cord is booked at its join hook with the published profile value, exactly like a rope piece: id="+id+" value="+str(Dictionary(live.rope_art.values).get(id,"missing"))+" expected="+str(int(g.RestraintValue.from_profile(3,3))))
+ ledger_matches(t,g,"capture_accounts_cord_at_install")
+
+# QX2'' second round (记录类别 杯 x C2a/C2d): the full cup family is plastic, so neither the cup nor its
+# leather reinforcement strap may enter the ledger, and forcing the high cup replaces both without a row.
+static func capture_ignores_cup_special_closure(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var before=Dictionary(boss.rope_art.values).duplicate(true)
+ var cup=g._install_special("urethral_full_cup_medium","special_2_a",3)
+ var strap=g.state.special_equipment.filter(func(item):return g.SpecialEquipment.reinforcement_matches(item,cup))
+ var live=g.RopeArt.master(g)
+ var extras=Dictionary(live.rope_art.values).keys().filter(func(id):return not before.has(String(id)))
+ t.check(not cup.is_empty() and String(cup.get("type",""))=="urethral_full_cup_medium" and String(cup.get("material",""))=="plastic" and strap.size()==1 and String(strap[0].get("material",""))=="leather","REMOVAL capture_ignores_cup_special_closure: the medium full cup installs as plastic with its leather reinforcement strap: cup="+String(cup.get("type","missing"))+" straps="+str(strap.size()))
+ t.check(extras.is_empty() and Dictionary(live.rope_art.values)==before,"REMOVAL capture_ignores_cup_special_closure: neither the plastic cup nor its leather strap enters the capture ledger: extra="+str(extras))
+ var forced=Replacement.force_special(g,"urethral_full_cup_high",3,"fixture")
+ var after=g.RopeArt.master(g)
+ var swapped=g.state.special_equipment.filter(func(item):return String(item.get("type",""))=="urethral_full_cup_high")
+ t.check(bool(forced.get("ok",false)) and swapped.size()==1 and g._equipment(String(cup.id)).is_empty() and Dictionary(after.rope_art.values)==before,"REMOVAL capture_ignores_cup_special_closure: forcing the high cup replaces the medium cup and its strap without adding any ledger row: ok="+str(forced.get("ok",false))+" swapped="+str(swapped.size())+" removed="+str(g._equipment(String(cup.id)).is_empty()))
+ ledger_matches(t,g,"capture_ignores_cup_special_closure")
+
+# QX2'' second round (记录类别 链接 x C2b): a wrist-to-palm link loses its anchor when the wrist leaves,
+# so the purge takes the link with the host and writes its id off the ledger.
+static func capture_unaccounts_link_without_anchor(t) -> void:
+ var g=encounter(1)
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var wrist=g._install_template("rope","wrist",6.4,8.0,false,"fixture")
+ var palm=g._install_template(g.Equipment.default_template("palm"),"palm",6.4,8.0,false,"fixture")
+ var link=g._install_link(wrist.id,palm.id,6.4,"fixture",1,[],["wrist","palm"],["wrist","palm_left"])
+ var live=g.RopeArt.master(g)
+ t.check(not link.is_empty() and Dictionary(live.rope_art.values).has(String(link.get("id",""))),"REMOVAL capture_unaccounts_link_without_anchor: the wrist-to-palm link installs and its id is booked before the anchor leaves: link="+String(link.get("id","missing")))
+ ledger_matches(t,g,"capture_unaccounts_link_without_anchor")
+ var mark=g.state.logs.size()
+ g._apply_equipment_damage(wrist,999,"strain")
+ g._cleanup()
+ var after=g.RopeArt.master(g)
+ t.check(g.state.links.is_empty() and not Dictionary(after.rope_art.values).has(String(link.get("id",""))),"REMOVAL capture_unaccounts_link_without_anchor: the purge takes the link with its lost anchor and writes its id off the ledger: links="+str(g.state.links.size())+" booked="+str(Dictionary(after.rope_art.values).has(String(link.get("id","")))))
+ t.check(log_texts(g,mark).any(func(text):return text.contains("这条链接随之移除")),"REMOVAL capture_unaccounts_link_without_anchor: the settle point reports the anchor loss as the link's removal: logs="+str(log_texts(g,mark)))
+ t.check(int(after.rope_art.total)==8 and Dictionary(after.rope_art.values).size()==2,"REMOVAL capture_unaccounts_link_without_anchor: only the two domain pieces remain booked after the host and its link leave: total="+str(after.rope_art.total)+" values="+str(after.rope_art.values))
+ ledger_matches(t,g,"capture_unaccounts_link_without_anchor")
+
+# QX2'' second round (来源 助理 x C2a): the assistant's own patch application installs rope stock
+# through `RopeArt.install` (own=false), so every piece it applies must be booked and presented once.
+static func capture_accounts_assistant_installs(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ g.RopeArt.summon(g,boss)
+ var helper=g.RopeArt.assistant(g)
+ var mark=g.state.logs.size()
+ g.RopeArt.execute(g,helper,{"kind":"art_patch"})
+ var live=g.RopeArt.master(g)
+ var fresh=g.state.equipment.filter(func(e):return String(e.get("source",""))==String(helper.id))
+ var booked=fresh.filter(func(e):return Dictionary(live.rope_art.values).has(String(e.id)))
+ t.check(not helper.is_empty() and fresh.size()==8 and fresh.all(func(e):return g.RopeArt.is_rope(e)),"REMOVAL capture_accounts_assistant_installs: the assistant's patch fills the eight remaining arm and leg positions with rope stock: pieces="+str(fresh.size())+" helper="+String(helper.get("id","missing")))
+ t.check(booked.size()==fresh.size(),"REMOVAL capture_accounts_assistant_installs: every piece the assistant installs is booked at its join hook: booked="+str(booked.size())+"/"+str(fresh.size())+" absent="+str(fresh.filter(func(e):return not Dictionary(live.rope_art.values).has(String(e.id))).map(func(e):return String(e.id))))
+ var presented=log_texts(g,mark).filter(func(text):return text.contains(String(helper.get("name",""))+"施加了"))
+ t.check(presented.size()==fresh.size()+1,"REMOVAL capture_accounts_assistant_installs: each assistant application presents once through its own scope -- the eight pieces plus the crotch rope: lines="+str(presented.size())+" pieces="+str(fresh.size()))
+ ledger_matches(t,g,"capture_accounts_assistant_installs")
+
+# QX2'' second round (战斗 战斗外): after a real surrender the master record is retained but the phase is
+# no longer battle, so the same install entry must land the piece without writing any ledger row.
+static func capture_writes_nothing_outside_battle(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var result=g.dispatch(g.command({"kind":"surrender"},g.state.version),g.state.version)
+ var retained=g.state.enemies.filter(func(row):return row.type==g.RopeArt.MASTER)
+ t.check(result.ok and g.state.phase=="captured" and retained.size()==1,"REMOVAL capture_writes_nothing_outside_battle: a real surrender reaches the captured phase with the master record still in state: ok="+str(result.ok)+" phase="+g.state.phase+" retained="+str(retained.size()))
+ var snapshot={"values":Dictionary(retained[0].rope_art.values).duplicate(true),"total":int(retained[0].rope_art.total),"previous":int(retained[0].rope_art.previous)}
+ var pieces=g.state.equipment.size()
+ var installed=g.RopeArt.install(g,retained[0],g.RopeArt.spec(3,3))
+ var now={"values":Dictionary(retained[0].rope_art.values).duplicate(true),"total":int(retained[0].rope_art.total),"previous":int(retained[0].rope_art.previous)}
+ t.check(installed and g.state.equipment.size()==pieces+1,"REMOVAL capture_writes_nothing_outside_battle: the install entry still applies the rope piece outside battle: installed="+str(installed)+" pieces="+str(g.state.equipment.size()-pieces))
+ t.check(now==snapshot,"REMOVAL capture_writes_nothing_outside_battle: the retained master record keeps its ledger and observation values byte for byte, so the install wrote no row outside the battle phase: now="+str(now)+" before="+str(snapshot))
+ t.check(g.RopeArt.master(g).is_empty() and g.RopeArt.account_issue(g)=="","REMOVAL capture_writes_nothing_outside_battle: the master lookup and the debug recount both stay empty outside battle: master_absent="+str(g.RopeArt.master(g).is_empty())+" issue="+g.RopeArt.account_issue(g))
+
+# QX2'' second round (来源 大师 x 看我手速): the sweep applies one piece per empty position, so every
+# piece is booked by its own top-level hook and the last hook observes the completed total.
+static func capture_sweep_books_each_piece(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ boss=g.RopeArt.master(g)
+ var before_ids=g.state.equipment.map(func(e):return String(e.id))
+ var mark=g.state.logs.size()
+ g.RopeArt.execute(g,boss,{"kind":"art_sweep"})
+ var live=g.RopeArt.master(g)
+ var added=g.state.equipment.filter(func(e):return String(e.id) not in before_ids)
+ var booked=added.filter(func(e):return Dictionary(live.rope_art.values).has(String(e.id)))
+ var presented=log_texts(g,mark).filter(func(text):return text.contains(String(live.get("name",""))+"施加了"))
+ t.check(added.size()==8 and booked.size()==added.size(),"REMOVAL capture_sweep_books_each_piece: the sweep fills the eight remaining arm and leg positions one piece at a time and every piece is booked at its own top-level hook: added="+str(added.size())+" booked="+str(booked.size())+" absent="+str(added.filter(func(e):return not Dictionary(live.rope_art.values).has(String(e.id))).map(func(e):return String(e.id))))
+ t.check(presented.size()==9 and int(live.rope_art.total)==35,"REMOVAL capture_sweep_books_each_piece: the nine applications -- eight pieces plus the crotch rope -- present once each and sum to thirty-five: lines="+str(presented.size())+" total="+str(live.rope_art.total))
+ t.check(int(live.rope_art.previous)==mini(100,int(live.rope_art.total)) and live.rope_art.drunk==0 and String(live.rope_art.hogtie)=="","REMOVAL capture_sweep_books_each_piece: the last top-level hook observed after its own booking, so previous is the capped total and no threshold fired: previous="+str(live.rope_art.previous)+" total="+str(live.rope_art.total)+" drunk="+str(live.rope_art.drunk))
+ ledger_matches(t,g,"capture_sweep_books_each_piece")
+
+# QX2'' second round (来源 助理 x 死亡追加): the assistant death appends two special restraints through
+# `RopeArt.install`; the rope-material one is booked, the plastic one stays out, and the recount agrees.
+static func capture_accounts_death_appends(t) -> void:
+ var g=encounter(8)
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ g.RopeArt.summon(g,boss)
+ var helper=g.RopeArt.assistant(g)
+ var before=g.state.special_equipment.map(func(item):return String(item.id))
+ g._damage_enemy(helper,999,"fixed","test")
+ var live=g.RopeArt.master(g)
+ var added=g.state.special_equipment.filter(func(item):return String(item.id) not in before)
+ var ropes=added.filter(func(item):return g.RopeArt.is_rope(item))
+ var plastic=added.filter(func(item):return not g.RopeArt.is_rope(item))
+ t.check(bool(helper.get("gone",false)) and added.size()==2 and live.rope_art.deaths==1,"REMOVAL capture_accounts_death_appends: the assistant death appends two special restraints and counts one death: gone="+str(helper.get("gone",false))+" added="+str(added.size())+" deaths="+str(live.rope_art.deaths))
+ t.check(ropes.size()==1 and Dictionary(live.rope_art.values).has(String(ropes[0].id)),"REMOVAL capture_accounts_death_appends: the rope-material restraint the append installs is booked by its join hook: ropes="+str(ropes.size())+" booked="+str(ropes.filter(func(item):return Dictionary(live.rope_art.values).has(String(item.id))).size()))
+ t.check(plastic.size()==1 and not Dictionary(live.rope_art.values).has(String(plastic[0].id)),"REMOVAL capture_accounts_death_appends: the plastic restraint the same append installs stays out of the ledger: plastic="+str(plastic.size())+" booked="+str(Dictionary(live.rope_art.values).has(String(plastic[0].id)) if not plastic.is_empty() else "missing"))
+ ledger_matches(t,g,"capture_accounts_death_appends")
+
+# QX2'' second round (S18/S19 x 有⑤): an install no longer settles, so an exhausted tool waits with the
+# zeroed piece for the next declared settle point, which reports the exhaustion exactly once.
+static func capture_install_leaves_exhausted_items_to_settle_points(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ var victim=add_rope(g,"thigh","thigh_root",1,3)
+ g._apply_equipment_damage(victim,999,"strain")
+ var tool=_exhausted_tool(g)
+ var mark=g.state.logs.size()
+ var installed=g.RopeArt.install(g,boss,g.RopeArt.spec(1,2))
+ t.check(installed and not g._equipment(String(victim.id)).is_empty() and g.state.items.has(tool) and not log_texts(g,mark).any(func(text):return text.contains("已经耗尽次数")),"REMOVAL capture_install_leaves_exhausted_items_to_settle_points: the install returns with the zeroed piece and the exhausted tool still in their containers: installed="+str(installed)+" item="+str(g.state.items.has(tool))+" logs="+str(log_texts(g,mark)))
+ g._cleanup()
+ t.check(g._equipment(String(victim.id)).is_empty() and not g.state.items.has(tool) and log_texts(g,mark).filter(func(text):return text.contains("已经耗尽次数")).size()==1,"REMOVAL capture_install_leaves_exhausted_items_to_settle_points: the next declared settle point removes both and reports the exhaustion once: present="+str(not g._equipment(String(victim.id)).is_empty())+" logs="+str(log_texts(g,mark)))
+
+# QX2'' second round (S18/S19 x 有⑤, second path): the same deferral holds for the new-hogtie branch.
+static func capture_hogtie_leaves_exhausted_items_to_settle_points(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ var victim=add_rope(g,"thigh","thigh_root",1,3)
+ g._apply_equipment_damage(victim,999,"strain")
+ var tool=_exhausted_tool(g)
+ var mark=g.state.logs.size()
+ g.RopeArt.hogtie(g,boss,2)
+ t.check(not String(boss.rope_art.hogtie).is_empty() and not g._equipment(String(victim.id)).is_empty() and g.state.items.has(tool) and not log_texts(g,mark).any(func(text):return text.contains("已经耗尽次数")),"REMOVAL capture_hogtie_leaves_exhausted_items_to_settle_points: the new hogtie returns with the zeroed piece and the exhausted tool still in their containers: hogtie="+String(boss.rope_art.hogtie)+" item="+str(g.state.items.has(tool)))
+ g._cleanup()
+ t.check(g._equipment(String(victim.id)).is_empty() and not g.state.items.has(tool) and log_texts(g,mark).filter(func(text):return text.contains("已经耗尽次数")).size()==1,"REMOVAL capture_hogtie_leaves_exhausted_items_to_settle_points: the next declared settle point removes both and reports the exhaustion once: present="+str(not g._equipment(String(victim.id)).is_empty())+" logs="+str(log_texts(g,mark)))
+
+# QX2'' second round (S18/S19 x 有 power): with a released-trigger power on the hero, the install leaves
+# the zeroed rope in place, so the release count happens once at the next declared settle point.
+static func capture_install_defers_release_count_to_settle_points(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ t.check(_free_embrace(t,g),"REMOVAL capture_install_defers_release_count_to_settle_points: the battle carries the released-trigger power face before the install: powers="+str(g.state.powers.size()))
+ boss=g.RopeArt.master(g)
+ g.RopeArt.install(g,boss,g.RopeArt.spec(3,3))
+ var target=g.action_targets().filter(func(item):return g.RopeArt.is_rope(item))[-1]
+ g._apply_equipment_damage(target,999,"strain")
+ var mark=g.state.logs.size()
+ var installed=g.RopeArt.install(g,boss,g.RopeArt.spec(2,2))
+ var early=_release_rows(g,mark)
+ t.check(installed and not g._equipment(String(target.id)).is_empty() and early.is_empty(),"REMOVAL capture_install_defers_release_count_to_settle_points: the install returns with the zeroed rope still in the container and the release trigger has not run: early="+str(early))
+ g._cleanup()
+ var counts=_release_rows(g,mark).map(func(row):return int(Dictionary(row.data.restraint_energy).get("count",-1)))
+ t.check(g._equipment(String(target.id)).is_empty() and _release_rows(g,mark).size()==1 and counts==[1],"REMOVAL capture_install_defers_release_count_to_settle_points: the one declared settle point counts the released piece once and releases the power once: counts="+str(counts))
+ var settled=g.state.logs.size()
+ g._cleanup()
+ t.check(g.state.logs.size()==settled,"REMOVAL capture_install_defers_release_count_to_settle_points: a second settle point adds no second release count: new_lines="+str(g.state.logs.size()-settled))
+
+# QX2'' second round (S18/S19 x 有 power, second path): the same deferral holds for the new-hogtie branch.
+static func capture_hogtie_defers_release_count_to_settle_points(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ t.check(_free_embrace(t,g),"REMOVAL capture_hogtie_defers_release_count_to_settle_points: the battle carries the released-trigger power face before the hogtie: powers="+str(g.state.powers.size()))
+ boss=g.RopeArt.master(g)
+ g.RopeArt.install(g,boss,g.RopeArt.spec(3,3))
+ var target=g.action_targets().filter(func(item):return g.RopeArt.is_rope(item))[-1]
+ g._apply_equipment_damage(target,999,"strain")
+ var mark=g.state.logs.size()
+ g.RopeArt.hogtie(g,boss,2)
+ var early=_release_rows(g,mark)
+ t.check(not String(boss.rope_art.hogtie).is_empty() and not g._equipment(String(target.id)).is_empty() and early.is_empty(),"REMOVAL capture_hogtie_defers_release_count_to_settle_points: the new hogtie returns with the zeroed rope still in the container and the release trigger has not run: early="+str(early)+" hogtie="+String(boss.rope_art.hogtie))
+ g._cleanup()
+ var counts=_release_rows(g,mark).map(func(row):return int(Dictionary(row.data.restraint_energy).get("count",-1)))
+ t.check(g._equipment(String(target.id)).is_empty() and _release_rows(g,mark).size()==1 and counts==[1],"REMOVAL capture_hogtie_defers_release_count_to_settle_points: the one declared settle point counts the released piece once and releases the power once: counts="+str(counts))
+ var settled=g.state.logs.size()
+ g._cleanup()
+ t.check(g.state.logs.size()==settled,"REMOVAL capture_hogtie_defers_release_count_to_settle_points: a second settle point adds no second release count: new_lines="+str(g.state.logs.size()-settled))
+
+# The exhausted-tool precondition of the S18/S19 cells: a real tool with no uses left, left in the
+# container for the next settle point to report and erase.
+static func _exhausted_tool(g) -> Dictionary:
+ g._gain_tool("mana_potion")
+ var tool=g.state.items[g.state.items.size()-1]
+ tool.uses=0
+ return tool
+
+# The released-trigger power of the shared battle fixture: "拘束之拥·自由" draws and restores energy per
+# released physical root, so its energy row carries the count the one settle point must apply.
+static func _free_embrace(t,g) -> bool:
+ g.state.energy=5
+ var card=Give.give(g,"restraint_embrace")
+ var command=t.find_action(g,"card",{"uid":card.uid,"free":true})
+ if not command.valid: return false
+ var result=g.dispatch(g.command(command.payload,g.state.version),g.state.version)
+ return result.ok and g.state.powers.size()==1
+
+# The release-count rows a settle writes for the released-trigger power.
+static func _release_rows(g, from: int) -> Array:
+ return g.state.logs.slice(from).filter(func(row):return row.data.has("restraint_energy"))
+
 static func capture_ledger(t) -> void:
  capture_entry_counts_every_rope_instance(t)
  capture_accounts_new_members_at_join(t)
@@ -659,6 +881,17 @@ static func capture_ledger(t) -> void:
  self_binding_survives_midway_hogtie(t)
  hogtie_install_leaves_foreign_writes_to_settle_points(t)
  rope_install_leaves_foreign_writes_to_settle_points(t)
+ capture_accounts_cord_at_install(t)
+ capture_ignores_cup_special_closure(t)
+ capture_unaccounts_link_without_anchor(t)
+ capture_accounts_assistant_installs(t)
+ capture_writes_nothing_outside_battle(t)
+ capture_sweep_books_each_piece(t)
+ capture_accounts_death_appends(t)
+ capture_install_leaves_exhausted_items_to_settle_points(t)
+ capture_hogtie_leaves_exhausted_items_to_settle_points(t)
+ capture_install_defers_release_count_to_settle_points(t)
+ capture_hogtie_defers_release_count_to_settle_points(t)
  await capture_account_matches_recount(t)
 
 static func run(t) -> void:
