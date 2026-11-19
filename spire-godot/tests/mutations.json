@@ -284,6 +284,20 @@
         "suite": "rope_master"
       }
     ],
+    "capture_art_install_pays_for_the_threshold_hogtie": [
+      {
+        "clause": "gate-off",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "     if _art_scope.is_empty(): RopeArt.observe(self)",
+            "replace": "     RopeArt.observe(self)"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "the piece pays two through J6 and the hogtie pays four more"
+      }
+    ],
     "capture_tighten_all_applies_hogtie_midway": [
       {
         "clause": "hogtie-not-target",
@@ -3261,6 +3275,46 @@
         ],
         "suite": "rope_master",
         "expect": "REMOVAL capture_writes_nothing_outside_battle"
+      }
+    ],
+    "capture_departed_master_books_nothing": [
+      {
+        "clause": "gone-owner",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "  if e.type==MASTER and not e.gone: return e",
+            "replace": "  if e.type==MASTER: return e"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "a gone master is no ledger owner"
+      }
+    ],
+    "capture_no_rope_material_in_parts": [
+      {
+        "clause": "part-material",
+        "file": "data/equipment.gd",
+        "edits": [
+          {
+            "find": " \"glove_body\":{\"name\":\"单手套套体\",\"material\":\"leather\"",
+            "replace": " \"glove_body\":{\"name\":\"单手套套体\",\"material\":\"rope\""
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "no composite part template is rope material"
+      },
+      {
+        "clause": "strap-material",
+        "file": "data/special_equipment.gd",
+        "edits": [
+          {
+            "find": " DESIGNS.chastity_reinforcement_medium=_design(2,[\"special_2_a\",\"special_2_b\",\"special_2_c\"],[\"sharp\"],\"leather\",[\"strain\",\"slip\"],0)",
+            "replace": " DESIGNS.chastity_reinforcement_medium=_design(2,[\"special_2_a\",\"special_2_b\",\"special_2_c\"],[\"sharp\"],\"rope\",[\"strain\",\"slip\"],0)"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "no reinforcement-strap design is rope material"
       }
     ],
     "capture_sweep_books_each_piece": [

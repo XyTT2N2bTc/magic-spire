@@ -520,6 +520,28 @@ static func capture_hold_keeps_stock_before_threshold(t) -> void:
  t.check(live.rope_art.stock==0 and live.rope_art.hogtie_pending==2 and live.rope_art.refill,"REMOVAL capture_hold_keeps_stock_before_threshold: the hook reads the stock after its own payment, so the required hogtie is deferred and requests a refill: stock="+str(live.rope_art.stock)+" pending="+str(live.rope_art.hogtie_pending)+" refill="+str(live.rope_art.refill))
  t.check(live.rope_art.total==51 and live.rope_art.hogtie=="","REMOVAL capture_hold_keeps_stock_before_threshold: the deferred hogtie adds nothing and the piece still counts: total="+str(live.rope_art.total)+" hogtie="+String(live.rope_art.hogtie))
 
+# F6 (A257): the `_art_scope.is_empty()` gate in T is not covered by `observe`'s reentry guard. An art
+# application is not observing, so without the gate T would observe inside the factory frame, where a
+# threshold hogtie joins that frame and its J6 presentation -- the stock payment -- runs after the scope
+# is popped. The paid stock is the reachable observable that separates the two guards.
+static func capture_art_install_pays_for_the_threshold_hogtie(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ for row in [["thigh","thigh_root",3,3],["thigh","mid_thigh",3,3],["thigh","above_knee",3,3],["calf","below_knee",3,3],["calf","mid_calf",3,3],["ankle","",3,3],["ankle","",3,3],["foot","",3,3]]:
+  add_rope(g,row[0],row[1],row[2],row[3])
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.total==48 and boss.rope_art.stock==48 and String(boss.rope_art.hogtie)=="","REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the fixture holds forty-eight value and the opening stock before the crossing install: total="+str(boss.rope_art.total)+" stock="+str(boss.rope_art.stock)+" hogtie="+String(boss.rope_art.hogtie))
+ var stock=int(boss.rope_art.stock)
+ var mark=g.state.logs.size()
+ var installed=g.RopeArt.install(g,boss,g.RopeArt.spec(1,1))
+ boss=g.RopeArt.master(g)
+ var texts=log_texts(g,mark)
+ t.check(installed and boss.rope_art.total==54 and String(boss.rope_art.hogtie)!="","REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the value-two install crosses fifty and the hook applies the medium hogtie in the same hook: total="+str(boss.rope_art.total)+" hogtie="+String(boss.rope_art.hogtie))
+ t.check(int(boss.rope_art.stock)==stock-6,"REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the piece pays two through J6 and the hogtie pays four more, because T observes outside the factory frame: stock="+str(int(boss.rope_art.stock))+"/"+str(stock)+" expected="+str(stock-6))
+ t.check(texts.any(func(text):return text==String(boss.get("name",""))+"施加了驷马缚。"),"REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the hogtie presents through its own scope, so the crossing hook announces it: logs="+str(texts))
+ t.check(boss.rope_art.drunk==2 and boss.rope_art.previous==54 and g.RopeArt.account_issue(g)=="","REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the observation sees the paid total once and the recount agrees: drunk="+str(boss.rope_art.drunk)+" previous="+str(boss.rope_art.previous)+" issue="+g.RopeArt.account_issue(g))
+
 # G-QX2-14: each tightening observes through its own hook, so the crossing hogtie is applied before
 # the remaining steps and enters their rebuilt target list.
 static func capture_tighten_all_applies_hogtie_midway(t) -> void:
@@ -730,6 +752,48 @@ static func capture_writes_nothing_outside_battle(t) -> void:
  t.check(now==snapshot,"REMOVAL capture_writes_nothing_outside_battle: the retained master record keeps its ledger and observation values byte for byte, so the install wrote no row outside the battle phase: now="+str(now)+" before="+str(snapshot))
  t.check(g.RopeArt.master(g).is_empty() and g.RopeArt.account_issue(g)=="","REMOVAL capture_writes_nothing_outside_battle: the master lookup and the debug recount both stay empty outside battle: master_absent="+str(g.RopeArt.master(g).is_empty())+" issue="+g.RopeArt.account_issue(g))
 
+# F3 (A257): G-QX2-6's third situation -- the master is gone but the record is still retained -- has no
+# runtime assertion yet. The battle-end sweep can run in that window, so the guard is pinned on it: a
+# non-rope source install books nothing and the debug recount has nothing to compare.
+static func capture_departed_master_books_nothing(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ boss=g.RopeArt.master(g)
+ var before={"values":Dictionary(boss.rope_art.values).duplicate(true),"total":int(boss.rope_art.total),"previous":int(boss.rope_art.previous)}
+ var pieces=g.state.equipment.size()
+ boss.gone=true
+ var installed=add_rope(g,"upper_arm","",3,3)
+ var now={"values":Dictionary(boss.rope_art.values).duplicate(true),"total":int(boss.rope_art.total),"previous":int(boss.rope_art.previous)}
+ t.check(not installed.is_empty() and g.state.equipment.size()==pieces+1,"REMOVAL capture_departed_master_books_nothing: the rope piece still lands physically after the master is gone, so only the ledger can tell the departure: installed="+str(not installed.is_empty())+" pieces="+str(g.state.equipment.size()-pieces))
+ t.check(g.RopeArt.master(g).is_empty() and now==before,"REMOVAL capture_departed_master_books_nothing: a gone master is no ledger owner, so the same install writes no value and no observation: now="+str(now)+" before="+str(before))
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_departed_master_books_nothing: the debug recount stays silent without a live master: issue="+g.RopeArt.account_issue(g))
+
+# F3 (A257): G-QX2-6's data half -- the ledger's "a non-rope part counts zero" premise holds only while
+# every composite part template and every reinforcement-strap design stays non-rope. The scan reads the
+# data tables and the composites source, so a part the spec helper cannot reach still fails closed.
+static func capture_no_rope_material_in_parts(t) -> void:
+ var g=Game.new(42)
+ var templates=[]
+ for row in g.Composites.GENERATION: _collect_part_templates(g,templates,String(row[0]),String(row[1]),String(row[2]))
+ for row in [["jacket","standard","straight"],["wrap","left","straight"],["wrap","right","straight"],["head","harness","straight"]]:
+  _collect_part_templates(g,templates,String(row[0]),String(row[1]),String(row[2]))
+ var unknown=templates.filter(func(name):return not g.Equipment.TEMPLATES.has(String(name)))
+ var rope_parts=templates.filter(func(name):return String(g.Equipment.TEMPLATES.get(String(name),{}).get("material",""))=="rope")
+ t.check(templates.size()>=9 and unknown.is_empty(),"REMOVAL capture_no_rope_material_in_parts: every composite part template the spec helper can produce is a real equipment template: parts="+str(templates)+" unknown="+str(unknown))
+ t.check(rope_parts.is_empty(),"REMOVAL capture_no_rope_material_in_parts: no composite part template is rope material, so a composite never enters the capture ledger through a component: rope="+str(rope_parts))
+ var declared=_composites_source_templates()
+ var uncovered=declared.filter(func(name):return String(name) not in templates)
+ var extra=templates.filter(func(name):return String(name) not in declared)
+ t.check(not declared.is_empty() and uncovered.is_empty() and extra.is_empty(),"REMOVAL capture_no_rope_material_in_parts: the spec enumeration covers every part template named in data/composites.gd: declared="+str(declared)+" uncovered="+str(uncovered)+" extra="+str(extra))
+ var straps=g.SpecialEquipment.REINFORCEMENT_COMPONENTS.duplicate()
+ straps.sort()
+ var component_only=g.SpecialEquipment.TYPES.keys().filter(func(type):return bool(g.SpecialEquipment.TYPES[type].get("component_only",false))).map(func(type):return String(type))
+ component_only.sort()
+ var rope_straps=straps.filter(func(type):return String(g.SpecialEquipment.DESIGNS.get(String(type),{}).get("material",""))=="rope")
+ t.check(straps==component_only and straps.all(func(type):return g.SpecialEquipment.DESIGNS.has(String(type))),"REMOVAL capture_no_rope_material_in_parts: the reinforcement-strap list is exactly the component-only special designs and every one has a design row: straps="+str(straps)+" component_only="+str(component_only))
+ t.check(rope_straps.is_empty(),"REMOVAL capture_no_rope_material_in_parts: no reinforcement-strap design is rope material, so a strap never enters the capture ledger: rope="+str(rope_straps))
+
 # QX2'' second round (来源 大师 x 看我手速): the sweep applies one piece per empty position, so every
 # piece is booked by its own top-level hook and the last hook observes the completed total.
 static func capture_sweep_books_each_piece(t) -> void:
@@ -897,6 +961,25 @@ static func _free_embrace(t,g) -> bool:
 static func _release_rows(g, from: int) -> Array:
  return g.state.logs.slice(from).filter(func(row):return row.data.has("restraint_energy"))
 
+# Part templates of one composite spec, collected once per template name.
+static func _collect_part_templates(g, out: Array, kind: String, variant: String, straps: String) -> void:
+ var spec=g.Composites.spec(kind,variant,straps)
+ for key in spec.get("parts",{}):
+  var name=String(spec.parts[key].template)
+  if name not in out: out.append(name)
+
+# Every part template named as the second argument of a `part(` call in the composites source.
+static func _composites_source_templates() -> Array:
+ var names=[]
+ var source=FileAccess.get_file_as_string("res://data/composites.gd")
+ if source=="": return names
+ var regex=RegEx.new()
+ regex.compile("part\\([^,\\n]*,\\s*\"([a-z_]+)\"")
+ for found in regex.search_all(source):
+  var name=found.get_string(1)
+  if name not in names: names.append(name)
+ return names
+
 static func capture_ledger(t) -> void:
  capture_entry_counts_every_rope_instance(t)
  capture_accounts_new_members_at_join(t)
@@ -911,6 +994,7 @@ static func capture_ledger(t) -> void:
  capture_hogtie_nests_inside_join_hook(t)
  capture_observes_at_top_level_hook(t)
  capture_hold_keeps_stock_before_threshold(t)
+ capture_art_install_pays_for_the_threshold_hogtie(t)
  capture_tighten_all_applies_hogtie_midway(t)
  capture_removal_observes_outside_units(t)
  self_binding_survives_midway_hogtie(t)
@@ -921,6 +1005,8 @@ static func capture_ledger(t) -> void:
  capture_unaccounts_link_without_anchor(t)
  capture_accounts_assistant_installs(t)
  capture_writes_nothing_outside_battle(t)
+ capture_departed_master_books_nothing(t)
+ capture_no_rope_material_in_parts(t)
  capture_sweep_books_each_piece(t)
  capture_accounts_death_appends(t)
  capture_install_leaves_exhausted_items_to_settle_points(t)
