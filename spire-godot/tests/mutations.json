@@ -3251,12 +3251,12 @@
     ],
     "capture_writes_nothing_outside_battle": [
       {
-        "clause": "phase-gate",
+        "clause": "outside-write",
         "file": "core/rope_master.gd",
         "edits": [
           {
-            "find": "static func master(g) -> Dictionary:\n if g.state.phase!=\"battle\": return {}",
-            "replace": "static func master(g) -> Dictionary:\n if false: return {}"
+            "find": " result=g.Application.execute(g,current,e.id)\n g._art_scope.pop_back()\n if own and e.rope_art.stock<2: e.rope_art.refill=true",
+            "replace": " result=g.Application.execute(g,current,e.id)\n g._art_scope.pop_back()\n if g.state.phase!=\"battle\": account(g,result.get(\"installed\",[]),false)\n if own and e.rope_art.stock<2: e.rope_art.refill=true"
           }
         ],
         "suite": "rope_master",
