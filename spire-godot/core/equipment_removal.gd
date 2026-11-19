@@ -106,7 +106,6 @@ static func settle(g,released: bool=true) -> void:
    g.state.items.erase(item)
  for i in range(g.state.equipment.size()-1,-1,-1):
   var e=g.state.equipment[i]
-  g.RopeArt.track(g,e)
   if not (full or _touched(writes,leaves,e)): continue
   if g._piece_released(e):
    g._emit("event",e.name+"已解除。")
@@ -144,14 +143,12 @@ static func settle(g,released: bool=true) -> void:
     if removed and g._slip_reason(body)=="": g._emit("event","现在可以尝试滑脱"+root.name+"的套体。")
  var anchors=g.link_anchors()
  for link in g.state.links.duplicate():
-  g.RopeArt.track(g,link)
   if not (full or _link_touched(writes,leaves,link)): continue
   if g._released(link):
    g.state.links.erase(link)
    g._member_changed(link,"removed")
    g._emit("event",link.name+"已解除。")
   elif g._link_anchor_lost(link,anchors):
-   g.RopeArt.track(g,link,true)
    g.state.links.erase(link)
    g._member_changed(link,"removed")
    g._emit("event",link.name+"连接的一件装备已解除，这条链接随之移除。")

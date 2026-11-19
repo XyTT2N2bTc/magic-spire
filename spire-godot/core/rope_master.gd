@@ -32,18 +32,65 @@ static func initialize(g, e: Dictionary) -> void:
 static func is_rope(item: Dictionary) -> bool:
  return item.get("material","")=="rope"
 
+# QX2″ (rev3.3 plan-delta §3.2): the transaction's installed members are accounted by their join
+# hooks after the commit replay, so this announcement only writes off what left. The removed and
+# lost-link entries are bare ids -- the records are no longer on live state.
 static func replaced(g, result: Dictionary) -> void:
  var boss=master(g)
  if boss.is_empty(): return
- for id in result.get("removed",[])+result.get("lost_links",[]):
-  boss.rope_art.total-=int(boss.rope_art.values.get(id,0))
-  boss.rope_art.values.erase(id)
- for item in result.get("installed",[]):
-  if item.has("components"):
-   for piece in item.components: track(g,piece)
-  else: track(g,item)
+ account(g,result.get("removed",[])+result.get("lost_links",[]),true)
 
-# Existing installation/damage/cleanup visits deliver only the changed instance.
+# One accounting batch (rev3.2 §3.1): the ledger is written only through here and then through
+# `track`, which stays the one per-record primitive. Every nested member is handed over as a record
+# the caller resolved while it was still reachable; a bare id is a removal of a member already gone.
+static func account(g, records: Array, removed: bool=false) -> void:
+ if master(g).is_empty(): return
+ for record in records:
+  if typeof(record)==TYPE_STRING: track(g,{"id":String(record)},true)
+  else: track(g,record,removed)
+
+# The closure of one record (rev3.2 §3.1): the record itself, its components, its linked torso
+# connection, both shoulder pieces and the reinforcement strap it owns. One definition for additions,
+# removals, the tier hook and the debug reconciliation, so a nested member is never half-counted.
+static func closure(g, record: Dictionary) -> Array:
+ var records=[record]
+ for piece in record.get("components",[]): records.append(piece)
+ var binding=record.get("binding",{})
+ if not binding.is_empty() and String(binding.get("kind",""))=="linked": records.append(binding)
+ for strap in Dictionary(record.get("shoulders",{})).get("pieces",[]): records.append(strap)
+ var id=String(record.get("id",""))
+ if id!="" and g.SpecialEquipment.supports_reinforcement(record):
+  for item in g.state.special_equipment:
+   if String(item.get("owner_id",""))==id: records.append(item)
+ return records
+
+# Debug-only full reconciliation (rev3.2 §3.5): recompute every rope instance of the body with the
+# same formula `track` uses and compare the result with the ledger. "" means they agree; the release
+# build never calls this.
+static func account_issue(g) -> String:
+ var boss=master(g)
+ if boss.is_empty(): return ""
+ var r=boss.rope_art
+ var expected={}
+ var total=0
+ var hogtie=""
+ for item in g.action_targets():
+  var value=0
+  if is_rope(item) and float(item.get("durability",0.0))>0.000001: value=g.RestraintValue.from_profile(item.grade,g.equipment_tier(item))
+  if value<=0: continue
+  expected[String(item.id)]=value
+  total+=value
+  if String(item.get("template",""))==HOGTIE: hogtie=String(item.id)
+ if int(r.total)!=total: return "总值 %d，重算 %d" % [int(r.total),total]
+ for id in expected:
+  if int(r.values.get(id,0))!=int(expected[id]): return "%s=%d，重算 %d" % [id,int(r.values.get(id,0)),int(expected[id])]
+ for id in r.values:
+  if not expected.has(String(id)): return "%s 已不在身上" % id
+ if String(r.hogtie)!=hogtie: return "驷马缚 %s，重算 %s" % [String(r.hogtie),hogtie]
+ return ""
+
+# Existing installation/damage/cleanup visits deliver only the changed instance. QX2″ routes every
+# write through `account`; `initialize` is the other caller (the battle-entry full count).
 static func track(g, item: Dictionary, removed: bool=false) -> void:
  if g._sandbox_depth>0: return
  var e=master(g)
@@ -54,7 +101,7 @@ static func track(g, item: Dictionary, removed: bool=false) -> void:
  r.total+=value-old
  if value==0: r.values.erase(item.id)
  else: r.values[item.id]=value
- if item.template==HOGTIE: r.hogtie=item.id if value>0 else ""
+ if item.get("template","")==HOGTIE: r.hogtie=item.id if value>0 else ""
 
 static func locked(g, item: Dictionary) -> bool:
  var e=master(g)
@@ -132,7 +179,6 @@ static func install(g, e: Dictionary, request: Dictionary) -> bool:
  var result=g.Application.execute(g,current,e.id)
  for item in result.installed:
   if own: e.rope_art.stock-=g.RestraintValue.from_profile(item.grade,g.equipment_tier(item))
-  track(g,item)
   g._emit("event",e.name+"施加了"+item.name+"。",{"enemy_action":{"enemy_id":e.id,"actor":e.name,"sequence":g.state.logs.size(),"kind":e.intent.get("kind","apply"),"slots":g.Equipment.coverage(item)}})
  g._cleanup(false)
  if own and e.rope_art.stock<2: e.rope_art.refill=true
@@ -304,7 +350,6 @@ static func hogtie(g, boss: Dictionary, grade: int) -> void:
   if not result.ok: return
   var item=result.installed[0]
   boss.rope_art.stock-=cost
-  track(g,item)
   g._emit("event",boss.name+"施加了"+item.name+"。",{"enemy_action":{"enemy_id":boss.id,"actor":boss.name,"sequence":g.state.logs.size(),"kind":boss.intent.get("kind","apply"),"slots":g.Equipment.coverage(item)}})
   g._cleanup(false)
  boss.rope_art.hogtie_pending=0

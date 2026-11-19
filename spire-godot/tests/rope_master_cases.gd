@@ -182,6 +182,139 @@ static func reported_turn_sequence(t) -> void:
  var result=h.dispatch(h.command({"kind":"surrender"},h.state.version),h.state.version)
  t.check(result.ok and h.state.phase=="captured" and h.state.guard_bind.is_empty(),"ROPE real surrender clears the domain only as part of capture")
 
+# QX2″ (rev3.2 gherkin G-QX2-1…7): the capture ledger. Every expectation below is recomputed from
+# the live containers with the same published formula (`RestraintValue.from_profile` over
+# `action_targets()`), so the assertion side never reads the ledger it judges.
+static func rope_expected(g) -> Dictionary:
+ var expected={}
+ for item in g.action_targets():
+  if not g.RopeArt.is_rope(item): continue
+  if float(item.get("durability",0.0))<=0.000001: continue
+  expected[String(item.id)]=int(g.RestraintValue.from_profile(item.grade,g.equipment_tier(item)))
+ return expected
+
+static func ledger_matches(t, g, label: String) -> void:
+ var expected=rope_expected(g)
+ var boss=g.RopeArt.master(g)
+ var values=Dictionary(boss.rope_art.values)
+ var total=0
+ for id in expected: total+=int(expected[id])
+ var extra=values.keys().filter(func(id):return not expected.has(String(id)))
+ var missing=expected.keys().filter(func(id):return not values.has(String(id)))
+ var wrong=expected.keys().filter(func(id):return values.has(String(id)) and int(values[id])!=int(expected[id]))
+ t.check(extra.is_empty() and missing.is_empty() and wrong.is_empty() and int(boss.rope_art.total)==total,"REMOVAL "+label+": the ledger holds exactly the rope instances of the body with the recomputed values, and its total is their sum: extra="+str(extra)+" missing="+str(missing)+" wrong="+str(wrong)+" total="+str(boss.rope_art.total)+"/"+str(total))
+
+static func capture_entry_counts_every_rope_instance(t) -> void:
+ var g=Game.new(42,false,"equipment",true)
+ var maximum=g.Equipment.maximum(3)
+ var arm=g._install_template("rope","upper_arm",maximum,maximum,false,"fixture",3)
+ var wrist=g._install_template("rope","wrist",maximum,maximum,false,"fixture",3)
+ var palm=g._install_template(g.Equipment.default_template("palm"),"palm",maximum,maximum,false,"fixture",1)
+ g._install_special("crotch_rope_low","special_3_a")
+ g._install_link(wrist.id,palm.id,maximum,"fixture",1,[],["wrist","palm"],["wrist","palm_left"])
+ var preset=rope_expected(g)
+ var straps=g.Shoulders.pieces(g).filter(func(item):return String(item.get("shoulder_host",""))==String(arm.id))
+ var binding=Dictionary(arm.get("binding",{}))
+ var binding_id=String(binding.get("id","")) if String(binding.get("kind",""))=="linked" else ""
+ t.check(not straps.is_empty() and not binding.is_empty() and preset.size()>=5,"REMOVAL capture_entry_counts_every_rope_instance: the fixture installs a tier-three rope upper-arm that grows both rope shoulder straps and a torso connection, plus a wrist rope and a crotch rope: straps="+str(straps.size())+" binding="+str(binding.get("kind",""))+" preset="+str(preset.size()))
+ g.state.room_encounters.entrance="rope_master_solo"
+ g._start_battle()
+ var boss=g.RopeArt.master(g)
+ var counted=Dictionary(boss.rope_art.values)
+ var absent=[]
+ for id in [String(arm.id),String(wrist.id)]+straps.map(func(item):return String(item.id))+([binding_id] if binding_id!="" else []):
+  if not counted.has(id): absent.append(id)
+ t.check(not boss.is_empty() and absent.is_empty(),"REMOVAL capture_entry_counts_every_rope_instance: the battle entry counts every rope instance once -- the arm piece, its two straps, its torso connection and the wrist rope are all in the ledger: absent="+str(absent)+" counted="+str(counted.size())+"/"+str(preset.size()))
+ ledger_matches(t,g,"capture_entry_counts_every_rope_instance")
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_entry_counts_every_rope_instance: the full recount agrees with the ledger right after the battle entry: "+g.RopeArt.account_issue(g))
+
+static func capture_accounts_new_members_at_join(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var maximum=g.Equipment.maximum(3)
+ var foot=g._install_template(g.Equipment.default_template("foot"),"foot",maximum,maximum,false,"fixture",1)
+ var ankle=g._install_template("rope","ankle",maximum,maximum,false,"fixture",3)
+ var link=g._install_link(ankle.id,foot.id,6.4,"fixture")
+ t.check(not link.is_empty() and Dictionary(boss.rope_art.values).has(String(link.id)),"REMOVAL capture_accounts_new_members_at_join: a rope link installed by a non-rope source is in the ledger when the install returns: id="+String(link.get("id","missing")))
+ var crotch=g._install_special("crotch_rope_low","special_3_a")
+ t.check(not crotch.is_empty() and Dictionary(boss.rope_art.values).has(String(crotch.id)),"REMOVAL capture_accounts_new_members_at_join: a crotch rope installed by a non-rope source is in the ledger when the install returns: id="+String(crotch.get("id","missing")))
+ var arm=g._install_template("rope","upper_arm",maximum,maximum,false,"fixture",3)
+ var straps=g.Shoulders.pieces(g).filter(func(item):return String(item.get("shoulder_host",""))==String(arm.id))
+ var binding=Dictionary(arm.get("binding",{}))
+ var binding_id=String(binding.get("id","")) if String(binding.get("kind",""))=="linked" else ""
+ var absent=[]
+ for id in [String(arm.id)]+straps.map(func(item):return String(item.id))+([binding_id] if binding_id!="" else []):
+  if not Dictionary(boss.rope_art.values).has(id): absent.append(id)
+ t.check(not arm.is_empty() and straps.size()==2 and absent.is_empty(),"REMOVAL capture_accounts_new_members_at_join: the tier-three rope upper-arm books itself, its two shoulder straps and its torso connection at the join hook, not at the physical layer: absent="+str(absent))
+ ledger_matches(t,g,"capture_accounts_new_members_at_join")
+
+static func capture_follows_tier_hook_only(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var maximum=g.Equipment.maximum(2)
+ var piece=g._install_template("rope","wrist",(g.RestraintValue.TIER_RATIOS[1]+g.RestraintValue.TIER_RATIOS[2])*0.5*maximum,maximum,false,"fixture",2)
+ var id=String(piece.id)
+ var before=int(boss.rope_art.values.get(id,-1))
+ t.check(before>0 and g.equipment_tier(piece)==2,"REMOVAL capture_follows_tier_hook_only: the fixture starts at tier two with a value the ledger holds: value="+str(before))
+ var band=float(piece.durability)-g.RestraintValue.TIER_RATIOS[1]*maximum
+ g._apply_equipment_damage(piece,band*0.25,"strain")
+ t.check(g.equipment_tier(piece)==2 and int(boss.rope_art.values.get(id,-1))==before,"REMOVAL capture_follows_tier_hook_only: a write inside one tier leaves the booked value alone (only a tier change or a tightening intent recounts): tier="+str(g.equipment_tier(piece))+" value="+str(boss.rope_art.values.get(id,"missing")))
+ g._apply_equipment_damage(piece,band,"strain")
+ t.check(g.equipment_tier(piece)==1 and int(boss.rope_art.values.get(id,-1))==int(g.RestraintValue.from_profile(piece.grade,1)),"REMOVAL capture_follows_tier_hook_only: a write across a tier recounts the piece at the non-tightening row: tier="+str(g.equipment_tier(piece))+" value="+str(boss.rope_art.values.get(id,"missing")))
+ ledger_matches(t,g,"capture_follows_tier_hook_only")
+
+static func capture_unaccounts_removed_closure(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var maximum=g.Equipment.maximum(3)
+ var arm=g._install_template("rope","upper_arm",maximum,maximum,false,"fixture",3)
+ var straps=g.Shoulders.pieces(g).filter(func(item):return String(item.get("shoulder_host",""))==String(arm.id))
+ var binding=Dictionary(arm.get("binding",{}))
+ var binding_id=String(binding.get("id","")) if String(binding.get("kind",""))=="linked" else ""
+ var ids=[String(arm.id)]+straps.map(func(item):return String(item.id))+([binding_id] if binding_id!="" else [])
+ var booked=ids.filter(func(id):return Dictionary(boss.rope_art.values).has(id))
+ t.check(booked.size()==ids.size() and ids.size()>=3,"REMOVAL capture_unaccounts_removed_closure: the arm piece, its torso connection and both shoulder straps are booked before the removal: booked="+str(booked.size())+"/"+str(ids.size()))
+ g._apply_equipment_damage(arm,999,"strain")
+ g._cleanup()
+ var left=ids.filter(func(id):return Dictionary(boss.rope_art.values).has(id))
+ t.check(left.is_empty(),"REMOVAL capture_unaccounts_removed_closure: the removal announcement writes off the whole closure -- the arm, both straps and the connection leave the ledger with it: left="+str(left))
+ ledger_matches(t,g,"capture_unaccounts_removed_closure")
+
+static func capture_settles_only_in_rope_battle(t) -> void:
+ var g=Game.new(42,false,"equipment",true)
+ g._start_battle()
+ var maximum=g.Equipment.maximum(3)
+ var arm=g._install_template("rope","upper_arm",maximum,maximum,false,"fixture",3)
+ t.check(g.RopeArt.master(g).is_empty(),"REMOVAL capture_settles_only_in_rope_battle: a battle without the rope master has no ledger owner, so the same install books nothing:")
+ var owners=g.state.enemies.filter(func(row):return row.has("rope_art"))
+ t.check(owners.is_empty() and g.RopeArt.account_issue(g)=="","REMOVAL capture_settles_only_in_rope_battle: no enemy record grows a rope ledger outside the rope-master encounter, and the recount stays silent: owners="+str(owners.map(func(row):return String(row.id))))
+ t.check(not arm.is_empty() and g.validate()=="","REMOVAL capture_settles_only_in_rope_battle: the install still lands physically and the state validates: "+g.validate())
+
+static func capture_account_matches_recount(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_account_matches_recount: the debug recount agrees with the ledger after the domain expansion: "+g.RopeArt.account_issue(g))
+ await turn(t,g)
+ boss=g.RopeArt.master(g)
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_account_matches_recount: the debug recount still agrees after a full enemy turn runs the thresholds and the cleanup: "+g.RopeArt.account_issue(g))
+ var saved=int(boss.rope_art.total)
+ boss.rope_art.total=saved+3
+ var issue=g.RopeArt.account_issue(g)
+ boss.rope_art.total=saved
+ t.check(issue!="" and g.RopeArt.account_issue(g)=="","REMOVAL capture_account_matches_recount: a ledger total that disagrees with the recount is a named issue, and restoring it clears the issue: issue="+issue)
+
+static func capture_ledger(t) -> void:
+ capture_entry_counts_every_rope_instance(t)
+ capture_accounts_new_members_at_join(t)
+ capture_follows_tier_hook_only(t)
+ capture_unaccounts_removed_closure(t)
+ capture_settles_only_in_rope_battle(t)
+ await capture_account_matches_recount(t)
+
 static func run(t) -> void:
  var g=encounter()
  var boss=g.RopeArt.master(g)
@@ -242,4 +375,5 @@ static func run(t) -> void:
  persistence(t)
  hogtie_attachments(t)
  hogtie_shared_release(t)
+ await capture_ledger(t)
  reported_turn_sequence(t)

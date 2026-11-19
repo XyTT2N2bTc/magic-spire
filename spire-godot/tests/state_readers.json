@@ -175,11 +175,11 @@
     }
   },
   "generated_from": {
-    "cells": 1314,
+    "cells": 1315,
     "fields": 121,
     "files": 144,
-    "inputs_sha256": "3417d21d629ea10830e8d4d89bb53d4be77fc342cc5a63e6b447dfa7f5473404",
-    "sites": 2140,
+    "inputs_sha256": "9f141d12237ded23280c528c1ba1987e1fa95f40eac04984a4af14f39852acd6",
+    "sites": 2141,
     "ui_reads": 0,
     "whole_state": 79
   },
@@ -2340,6 +2340,9 @@
     },
     "core/rope_master.gd::climax": {
       "round": 1
+    },
+    "core/rope_master.gd::closure": {
+      "special_equipment": 1
     },
     "core/rope_master.gd::death": {
       "enemies": 1,

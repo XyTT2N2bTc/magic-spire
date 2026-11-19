@@ -60,11 +60,16 @@ static func filter_points(g, original: Array) -> Array:
  if block_special: blocked+=g.SpecialEquipment.REGIONS[2].slots
  return original.filter(func(point):return point not in blocked)
 
-static func cancel_for_assembly(g, pieces: Array) -> void:
+# QX2″: returns the connection records it erased, so the assembly unit registers them for its
+# removal write-off. The binding is not a container member, so it is never announced.
+static func cancel_for_assembly(g, pieces: Array) -> Array:
+ var cancelled=[]
  for e in g.state.equipment:
   if not cancels(g,e,pieces): continue
   if present(e): g._emit("event","为穿戴复合拘束具，先解开了"+e.name+"上的躯干固缚。",{"torso_binding":{"target":e.id,"cancelled":true}})
+  if e.get("binding",{}).get("kind","")=="linked": cancelled.append(e.binding)
   e.erase("binding")
+ return cancelled
 
 # Which pieces lose their binding to make room for the assembly components in `pieces`.
 static func cancels(g, e: Dictionary, pieces: Array) -> bool:

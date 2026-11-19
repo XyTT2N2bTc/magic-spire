@@ -58,7 +58,110 @@
     "payload_write_sites_are_pinned"
   ],
   "mutations": {
-    "slice_dependency_directions": [
+    "capture_accounting_has_declared_entries": [
+      {
+        "clause": "stray-track",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " for item in state.special_equipment.duplicate():\n  if item.durability<=0.000001: continue",
+            "replace": " for item in state.special_equipment.duplicate():\n  RopeArt.track(self,item)\n  if item.durability<=0.000001: continue"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "capture_reconciliation_is_debug_only": [
+      {
+        "clause": "ungated",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " if debug_checks_enabled(): issue=_debug_check(\"RopeArt.account_issue\",\"game.dispatch\",RopeArt.account_issue(self))",
+            "replace": " issue=_debug_check(\"RopeArt.account_issue\",\"game.dispatch\",RopeArt.account_issue(self))"
+          }
+        ],
+        "suite": "architecture"
+      }
+    ],
+    "capture_entry_counts_every_rope_instance": [
+      {
+        "clause": "skip-straps",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "  for item in g.action_targets(): track(g,item)",
+            "replace": "  for item in g.action_targets():\n   if String(item.get(\"shoulder_host\",\"\"))!=\"\": continue\n   track(g,item)"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "capture_accounts_new_members_at_join": [
+      {
+        "clause": "link-j3",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " \"K\":{\"J1\":\"member\",\"J2\":\"\",\"J3\":\"member\",",
+            "replace": "  \"K\":{\"J1\":\"member\",\"J2\":\"\",\"J3\":\"\","
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "capture_follows_tier_hook_only": [
+      {
+        "clause": "ease-cross",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "    if tighten or before!=after: RopeArt.account(self,RopeArt.closure(self,target))",
+            "replace": "    if tighten: RopeArt.account(self,RopeArt.closure(self,target))"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "capture_unaccounts_removed_closure": [
+      {
+        "clause": "no-writeoff",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " var closure=RopeArt.closure(self,record)\n if _unit_frames.is_empty(): RopeArt.account(self,closure,true)",
+            "replace": " var closure=[]\n if _unit_frames.is_empty(): RopeArt.account(self,closure,true)"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "capture_settles_only_in_rope_battle": [
+      {
+        "clause": "owner-gate",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " if master(g).is_empty(): return\n for record in records:",
+            "replace": " if master(g).is_empty():\n  g.state.enemies[0].rope_art={\"total\":0,\"values\":{}}\n  return\n for record in records:"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "capture_account_matches_recount": [
+      {
+        "clause": "ignore-total",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " if int(r.total)!=total: return \"总值 %d，重算 %d\" % [int(r.total),total]",
+            "replace": " if false: return \"总值 %d，重算 %d\" % [int(r.total),total]"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],    "slice_dependency_directions": [
       {
         "clause": "primary",
         "file": "core/game.gd",
@@ -1234,7 +1337,7 @@
         "file": "core/game.gd",
         "edits": [
           {
-            "find": " _write_epoch+=1\n Removal.mark(self,_record,_change)",
+            "find": " _write_epoch+=1\n Removal.mark(self,record,change)",
             "replace": " _write_epoch+=1"
           }
         ],
@@ -1824,8 +1927,8 @@
         "file": "core/game.gd",
         "edits": [
           {
-            "find": " \"ease\":{\n  \"P\":[\"track\"],",
-            "replace": " \"ease\":{\n  \"P\":[\"track\",\"reinforcement\"],"
+            "find": " \"ease\":{\n  \"P\":[\"capture\"],",
+            "replace": " \"ease\":{\n  \"P\":[\"capture\",\"reinforcement\"],"
           }
         ],
         "suite": "architecture"
@@ -1863,8 +1966,8 @@
         "file": "core/game.gd",
         "edits": [
           {
-            "find": "   \"track\":\n    RopeArt.track(self,target)",
-            "replace": "   \"track\":\n    pass"
+            "find": "   \"capture\":\n    if tighten or before!=after: RopeArt.account(self,RopeArt.closure(self,target))",
+            "replace": "   \"capture\":\n    pass"
           }
         ],
         "suite": "equipment"
@@ -2196,7 +2299,7 @@
         "file": "core/game.gd",
         "edits": [
           {
-            "find": " \"R\":{\"J1\":\"member\",\"J2\":\"reinforcement\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"},\n \"B\":{\"J1\":\"new_linked\",\"J2\":\"binding\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"}}",
+            "find": " \"R\":{\"J1\":\"member\",\"J2\":\"reinforcement\",\"J3\":\"member\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"},\n \"B\":{\"J1\":\"new_linked\",\"J2\":\"binding\",\"J3\":\"linked\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"}}",
             "replace": " \"R\":{\"J1\":\"member\",\"J2\":\"reinforcement\",\"J3\":\"\",\"J4\":\"\",\"J5\":\"\",\"J6\":\"\",\"J7\":\"\"}}"
           }
         ],
@@ -2895,7 +2998,7 @@
         "file": "core/game.gd",
         "edits": [
           {
-            "find": " # QX6: a sandbox keeps the physical layer and drops the frame, so a preview runs no hook.\n if _sandbox_depth>0: return\n for entry in frame.joined: _join_hooks(entry)",
+            "find": " # QX6: a sandbox keeps the physical layer and drops the frame, so a preview runs no hook.\n if _sandbox_depth>0: return\n RopeArt.account(self,frame.left,true)\n for entry in frame.joined: _join_hooks(entry)",
             "replace": " for entry in frame.joined: _join_hooks(entry)"
           }
         ],

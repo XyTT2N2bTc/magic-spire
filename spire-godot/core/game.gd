@@ -1533,11 +1533,21 @@ func _write_locked(target: Dictionary, locked: bool) -> void:
 # The member-change announcement (Q5, G-Q5-4): every live container add/remove and every nested
 # member write announces here, and the whole-container replacement announces through
 # `_members_replaced` right after `_commit_changes`. This slice bumps the epoch and hands the change
-# to the Q6'b dirty ledger: the body reads no state, writes no record, emits nothing and draws no
-# random. QX2 adds closure accounting; the two parameters are its future key as well.
-func _member_changed(_record: Dictionary, _change: String) -> void:
+# to the Q6'b dirty ledger. QX2″: a removal also speaks for the member's whole closure through
+# `_member_left`; an addition says nothing here, its join hook accounts it (J3).
+func _member_changed(record: Dictionary, change: String) -> void:
  _write_epoch+=1
- Removal.mark(self,_record,_change)
+ Removal.mark(self,record,change)
+ if change!="removed": return
+ var closure=RopeArt.closure(self,record)
+ if _unit_frames.is_empty(): RopeArt.account(self,closure,true)
+ else:
+  for member in closure: _member_left(member)
+
+# The unit-internal removal register (QX2″): a member the unit erased without announcing a container
+# change (the cancelled torso connection) joins the frame's write-off list; the commit writes it off.
+func _member_left(record: Dictionary) -> void:
+ if not _unit_frames.is_empty(): _unit_frames.back()["left"].append(record)
 
 # The replacement announcement (Q5): `_commit_changes` is the one whole-container write exception,
 # so its two callers announce the replacement immediately after it, which forces the next settle to
@@ -1547,16 +1557,17 @@ func _members_replaced() -> void:
  Removal.replaced(self)
 
 # The join-effect table (Q5″, plan §2.4; G-Q5-11): member class -> handler column. J1 feedback,
-# J2 join copy, J4 mana prefix, J5 worn; J3/J6/J7 are declared empty here and filled by QX2″. A row
-# is data only: `_join_hooks` routes and the handlers read nothing else, so adding a class is one row.
+# J2 join copy, J3 capture accounting, J4 mana prefix, J5 worn; J6/J7 are declared empty here and
+# filled by QX2″'s second commit. A row is data only: `_join_hooks` routes and the handlers read
+# nothing else, so adding a class is one row.
 const JOIN_EFFECTS={
- "P":{"J1":"member","J2":"","J3":"","J4":"佩戴","J5":"unless_lock_only","J6":"","J7":""},
- "C":{"J1":"components","J2":"","J3":"","J4":"佩戴","J5":"worn","J6":"","J7":""},
- "X":{"J1":"member","J2":"","J3":"","J4":"佩戴","J5":"worn","J6":"","J7":""},
- "K":{"J1":"member","J2":"","J3":"","J4":"新增","J5":"worn","J6":"","J7":""},
- "S":{"J1":"member","J2":"shoulder","J3":"","J4":"","J5":"worn","J6":"","J7":""},
- "R":{"J1":"member","J2":"reinforcement","J3":"","J4":"","J5":"","J6":"","J7":""},
- "B":{"J1":"new_linked","J2":"binding","J3":"","J4":"","J5":"","J6":"","J7":""}}
+ "P":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"unless_lock_only","J6":"","J7":""},
+ "C":{"J1":"components","J2":"","J3":"components","J4":"佩戴","J5":"worn","J6":"","J7":""},
+ "X":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"worn","J6":"","J7":""},
+ "K":{"J1":"member","J2":"","J3":"member","J4":"新增","J5":"worn","J6":"","J7":""},
+ "S":{"J1":"member","J2":"shoulder","J3":"member","J4":"","J5":"worn","J6":"","J7":""},
+ "R":{"J1":"member","J2":"reinforcement","J3":"member","J4":"","J5":"","J6":"","J7":""},
+ "B":{"J1":"new_linked","J2":"binding","J3":"linked","J4":"","J5":"","J6":"","J7":""}}
 
 # Opens a unit frame unless the current call already collects into one (nested factories, `fill`,
 # `Binding.refresh` and `_attach_special_reinforcement` only register with the open frame). Returns
@@ -1568,12 +1579,14 @@ func _unit_begin() -> bool:
 
 # Closes the frame this call owns and runs the join layer: joined members in registration order --
 # nested members register before their host, so the log order stays the pre-Q5″ statement order.
-# The `left` ledger stays empty in this slice; QX2″ fills it with the unit's removed member ids.
+# QX2″: the unit's removed members write off first, so a join hook never sees a half-settled closure,
+# and they are never observed (a mid-unit observation would rewrite `previous`).
 func _unit_commit(owned: bool) -> void:
  if not owned: return
  var frame: Dictionary=_unit_frames.pop_back()
  # QX6: a sandbox keeps the physical layer and drops the frame, so a preview runs no hook.
  if _sandbox_depth>0: return
+ RopeArt.account(self,frame.left,true)
  for entry in frame.joined: _join_hooks(entry)
 
 # The sandbox entry (QX6, G-QX6-7): the one way to run factories on a scratch copy. It swaps in a deep
@@ -1660,6 +1673,14 @@ func _join_hooks(entry: Array) -> void:
    _emit("event",detail.owner.name+"达到紧度3档，自动扣上了"+record.name+"。")
   "binding":
    if tier(record.durability,record.maximum)==3: _emit("event",record.name+"形成了"+Binding.NAMES[record.binding.kind]+"，将手臂固定在身后。",{"torso_binding":{"target":record.id,"kind":record.binding.kind,"refreshed":not bool(detail.get("fresh",false))}})
+ match String(class_row.get("J3","")):
+  "member":
+   RopeArt.account(self,[record])
+  "components":
+   RopeArt.account(self,record.components)
+  "linked":
+   var connection: Dictionary=record.get("binding",{})
+   if String(connection.get("kind",""))=="linked": RopeArt.account(self,[connection])
  var mana_prefix=String(class_row.get("J4",""))
  if mana_prefix!="": RelicEffects._mana_hook(self,"restraint_mana",mana_prefix+record.name)
  match String(class_row.get("J5","")):
@@ -1704,9 +1725,11 @@ func _write_quality(target: Dictionary, grade: int) -> void:
 #            L03–L08 -- ordinary piece gets the refresh set, special item attaches its
 #            reinforcement strap at tier three, every other class has no write-time consequence.
 #   tighten  a cause that means to reinforce: always the full refresh set (mouth naming -> binding
-#            -> shoulder crossing/fill -> rope tracking), even when the value does not change.
-#   ease     every other write: rope tracking only; the crossing release belongs to the settle
-#            point (QX1), so no demotion row exists here.
+#            -> shoulder crossing/fill), then the capture account of the written closure (QX2″ T;
+#            the always-on row is what counts a lock branch that refills without a tier change).
+#   ease     every other write: the same capture account, but only across a tier (the handler reads
+#            `before`/`after`); the crossing release belongs to the settle point (QX1), so no
+#            demotion row exists here.
 # Classes: P ordinary piece, C composite component, S shoulder strap, X special item,
 # R reinforcement strap, K link. A key outside the table is an error and runs no handler.
 # Every row is keyed by class even though tighten/ease agree across all six today: `_consequence_class`
@@ -1722,9 +1745,9 @@ const TIER_CONSEQUENCES={
   "R":[],
   "K":[]},
  "tighten":{
-  "P":["refresh"],"C":["refresh"],"S":["refresh"],"X":["refresh"],"R":["refresh"],"K":["refresh"]},
+  "P":["refresh","capture"],"C":["refresh","capture"],"S":["refresh","capture"],"X":["refresh","capture"],"R":["refresh","capture"],"K":["refresh","capture"]},
  "ease":{
-  "P":["track"],"C":["track"],"S":["track"],"X":["track"],"R":["track"],"K":["track"]}}
+  "P":["capture"],"C":["capture"],"S":["capture"],"X":["capture"],"R":["capture"],"K":["capture"]}}
 
 func _consequence_class(target: Dictionary) -> String:
  if target.get("template","")=="link_rope": return "K"
@@ -1736,8 +1759,8 @@ func _consequence_class(target: Dictionary) -> String:
 # The one consequence dispatch (G-Q4-1, G-Q4-4′): the row comes from the cause intent, with
 # `before<0` marking the factories' new-install position; the class comes from the record shape.
 # The handlers are the current `_refresh_equipment` set, so the install and tighten rows stay
-# byte-identical to the calls they replace, and the ease row restores the per-write rope tracking
-# the two strategies used to do themselves (B9).
+# byte-identical to the calls they replace; the capture handler is QX2″'s T, and it counts the
+# closure the write just changed (rev3.2 C3).
 # Q5″ (U7／U8): this is a unit entry too -- a write outside a factory opens the frame here, so the
 # nested members the handlers create (B, S) join after the physical write and before this returns.
 func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bool) -> void:
@@ -1752,8 +1775,8 @@ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bo
   match String(handler):
    "refresh":
     _refresh_equipment(target)
-   "track":
-    RopeArt.track(self,target)
+   "capture":
+    if tighten or before!=after: RopeArt.account(self,RopeArt.closure(self,target))
    "reinforcement":
     # The row is entered by every special install, so the tier-three guard stays in the handler.
     if after==3 and SpecialEquipment.supports_reinforcement(target): _attach_special_reinforcement(target)
@@ -1822,7 +1845,6 @@ func _attach_special_reinforcement(owner: Dictionary) -> Dictionary:
 
 func _tick_special(timing: String) -> void:
  for item in state.special_equipment.duplicate():
-  RopeArt.track(self,item)
   if item.durability<=0.000001: continue
   var spec=SpecialEquipment.TYPES[item.type]
   var amount=SpecialEquipment.effective_gain(self,item,timing)
@@ -1864,7 +1886,9 @@ func _install_assembly(kind: String, variant: String, source: String, grade: int
  var root=_prepare_assembly(kind,variant,source,grade,tightness,overrides,straps,attached_to)
  if root.is_empty(): return {}
  var owned=_unit_begin()
- Binding.cancel_for_assembly(self,root.components)
+ # QX2″: a cancelled torso connection is a member of the rope ledger only, so it registers for the
+ # unit's removal write-off without announcing a container change.
+ for binding in Binding.cancel_for_assembly(self,root.components): _member_left(binding)
  state.composites.append(root)
  _member_changed(root,"added")
  state.next_composite+=1
@@ -1888,7 +1912,6 @@ func _refresh_equipment(target: Dictionary) -> void:
   target.slip_allowed=not Equipment.has_mouth_harness(target)
  Binding.refresh(self,target)
  Shoulders.refresh(self,target)
- RopeArt.track(self,target)
 
 func _can_tighten(target: Dictionary) -> bool:
  if Equipment.lock_only(target) or Equipment.is_shackle(target): return false
@@ -3940,7 +3963,9 @@ func dispatch(cmd: Dictionary, expected_version: int) -> Dictionary:
  if state.card_chain.is_empty() and not state.relic_pending.is_empty(): RelicEffects.flush(self)
  CaptureBind.observe(self)
  _finish_if_saturated()
- var issue=validate()
+ var issue=""
+ if debug_checks_enabled(): issue=_debug_check("RopeArt.account_issue","game.dispatch",RopeArt.account_issue(self))
+ if issue=="": issue=validate()
  if issue!="":
   _resource_feedback=null
   _card_feedback=[]

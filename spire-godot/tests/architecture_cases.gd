@@ -1202,6 +1202,8 @@ static func run(t) -> void:
  container_alias_writes_stay_on_projections(t)
  settle_marks_cover_every_writer(t)
  join_effects_have_one_epilogue(t)
+ capture_accounting_has_declared_entries(t)
+ capture_reconciliation_is_debug_only(t)
  unit_entries_are_declared(t)
  unit_writes_follow_all_checks(t)
  sandbox_entries_are_declared(t)
@@ -6846,13 +6848,14 @@ const REMOVAL_CALL_SITES=["core/game.gd::_cleanup","core/game.gd::_member_change
 # one with the old `_cleanup` body plus Q6'b's ledger field and debug gate, so one extra or one missing
 # name is red. `_debug_check` and `Shoulders.released_with_host` belong to the Q6'b row too, but they are
 # reached from `settle_residue`／`unit_residue`, and this clause scans `settle` only.
-const REMOVAL_G_CALLS=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost","link_anchors","_equipment","_composite_body","_slip_reason","_emit","_member_changed","_special_erase","Shoulders","RopeArt","Pressure","Cards","SpecialEquipment","Tools","_settle_table","debug_checks_enabled"]
+const REMOVAL_G_CALLS=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost","link_anchors","_equipment","_composite_body","_slip_reason","_emit","_member_changed","_special_erase","Shoulders","Pressure","Cards","SpecialEquipment","Tools","_settle_table","debug_checks_enabled"]
 # Write ports the module must not call (dependencies-delta §4 forbidden list). The two ports the old
 # `_cleanup` body did call (`_special_erase`, `_member_changed`) stay out of this table on purpose: the
 # omission IS the declared exception, so that exception is declared in exactly one place.
 const REMOVAL_FORBIDDEN_CALLS=["_write_durability","_write_quality","_write_locked","_special_append","_tier_consequences","_member_joined","_join_hooks","_prepare_installation","_plan_assembly","_install_template","_install_assembly","_install_link","_special_piece","_reinforcement_strap"]
-# The link pass's write face (G-Q6-7): the loop body may hold only these four write shapes, and only on `links`.
-const LINK_LOOP_WRITES=["g.state.links.erase","g.RopeArt.track","g._emit","g._member_changed"]
+# The link pass's write face (G-Q6-7): the loop body may hold only these three write shapes, and only on `links`.
+# QX2″ deleted the two supplementary rope counts (`RopeArt.track`), so the pass owns no rope write at all.
+const LINK_LOOP_WRITES=["g.state.links.erase","g._emit","g._member_changed"]
 # Projection-face receiver whitelist for the three containers (G-Q6-12): each row is receiver@file; the view
 # copy and the UI region copy are the legal receivers. These are the G-Q6-12 container names, so
 # `special_equipment` is absent by contract (G-Q1-1 item 7 owns it; G-Q6-12 keeps it out of this judgment);
@@ -7085,13 +7088,13 @@ static func settle_marks_cover_every_writer(t) -> void:
 # G-Q5-11：`JOIN_EFFECTS` 的期望副本。键＝七类成员（Q5″ 增 `B`＝固缚记录），列＝J1 反馈对象、J2 入列文案、
 # J3／J6／J7（QX2″ 才填）、J4 回魔前缀、J5 worn 处理。逐格相等才绿：删一行、改一格、多一列都红。
 const JOIN_EFFECTS_ROWS={
- "P":{"J1":"member","J2":"","J3":"","J4":"佩戴","J5":"unless_lock_only","J6":"","J7":""},
- "C":{"J1":"components","J2":"","J3":"","J4":"佩戴","J5":"worn","J6":"","J7":""},
- "X":{"J1":"member","J2":"","J3":"","J4":"佩戴","J5":"worn","J6":"","J7":""},
- "K":{"J1":"member","J2":"","J3":"","J4":"新增","J5":"worn","J6":"","J7":""},
- "S":{"J1":"member","J2":"shoulder","J3":"","J4":"","J5":"worn","J6":"","J7":""},
- "R":{"J1":"member","J2":"reinforcement","J3":"","J4":"","J5":"","J6":"","J7":""},
- "B":{"J1":"new_linked","J2":"binding","J3":"","J4":"","J5":"","J6":"","J7":""}}
+ "P":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"unless_lock_only","J6":"","J7":""},
+ "C":{"J1":"components","J2":"","J3":"components","J4":"佩戴","J5":"worn","J6":"","J7":""},
+ "X":{"J1":"member","J2":"","J3":"member","J4":"佩戴","J5":"worn","J6":"","J7":""},
+ "K":{"J1":"member","J2":"","J3":"member","J4":"新增","J5":"worn","J6":"","J7":""},
+ "S":{"J1":"member","J2":"shoulder","J3":"member","J4":"","J5":"worn","J6":"","J7":""},
+ "R":{"J1":"member","J2":"reinforcement","J3":"member","J4":"","J5":"","J6":"","J7":""},
+ "B":{"J1":"new_linked","J2":"binding","J3":"linked","J4":"","J5":"","J6":"","J7":""}}
 const JOIN_COLUMNS=["J1","J2","J3","J4","J5","J6","J7"]
 # 登记面（G-Q5-11 第二条）：每个新成员恰一次 `_member_joined(`，闭集；宿主在它的嵌套件之后登记。
 const JOIN_REGISTRATION_SITES=[
@@ -7141,7 +7144,7 @@ static func join_effects_have_one_epilogue(t) -> void:
   if columns!=JOIN_COLUMNS: mismatch.append(String(key)+":columns="+str(columns))
   for column in JOIN_COLUMNS:
    if String(row.get(column,"<missing>"))!=String(JOIN_EFFECTS_ROWS[key][column]): mismatch.append(String(key)+"."+String(column)+"="+String(row.get(column,"<missing>"))+" want "+String(JOIN_EFFECTS_ROWS[key][column]))
- t.check(expected_keys.size()==7 and mismatch.is_empty(),"ARCH join_effects_have_one_epilogue: JOIN_EFFECTS declares exactly the seven member classes and seven columns with every cell equal to the expected copy, and J3/J6/J7 stay empty in this slice: mismatch="+str(mismatch))
+ t.check(expected_keys.size()==7 and mismatch.is_empty(),"ARCH join_effects_have_one_epilogue: JOIN_EFFECTS declares exactly the seven member classes and seven columns with every cell equal to the expected copy, and the QX2″ columns (J3 accounting, J6 rope presentation, J7 observation) are filled as the slice declares them: mismatch="+str(mismatch))
  # 执行面唯一：安装反馈、回魔、worn 与三段入列文案只出现在 `_join_hooks`。
  var scans={
   "mana":'_mana_hook\\([^)]*"restraint_mana"',
@@ -7182,6 +7185,78 @@ static func join_effects_have_one_epilogue(t) -> void:
   for token in ["_join_hooks(","_member_joined(","JOIN_EFFECTS","_unit_frames"]:
    if text.contains(token): view_hits.append(path+":"+token)
  t.check(view_hits.is_empty(),"ARCH join_effects_have_one_epilogue: the view, projection and assessment modules never reach the join layer, its registration port or the frame stack: hits="+str(view_hits))
+
+# ==== QX2″（rev3.2 plan-delta §3.1、§3.5；G-QX2-8′）：捕缚账的声明面 ====
+# 账只由 `RopeArt.account` 写入；它内部逐件走 `track`，另一个写入口是 `initialize` 的进战全量。
+# 调用点闭集：加入钩子 J3、档位钩子 T、单位外移除、单位提交的帧内销账、替换提交的按 id 销账。
+const CAPTURE_ACCOUNTING_SITES=[
+ "core/game.gd::_join_hooks",
+ "core/game.gd::_tier_consequences",
+ "core/game.gd::_member_changed",
+ "core/game.gd::_unit_commit",
+ "core/rope_master.gd::replaced"]
+static func capture_accounting_has_declared_entries(t) -> void:
+ var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"RopeArt\\.account\\s*\\(").filter(func(hit):return not declaration_line(String(hit.text)))
+ var sites=write_site_names(hits)
+ # The module that defines the primitive calls it by name, so its own sites come from a bare-name scan.
+ for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"(?<![A-Za-z0-9_.])account\\s*\\("):
+  if String(hit.file)!="core/rope_master.gd" or declaration_line(String(hit.text)): continue
+  var name=String(hit.file)+"::"+String(hit.function)
+  if name not in sites: sites.append(name)
+ sites.sort()
+ var declared=CAPTURE_ACCOUNTING_SITES.duplicate()
+ declared.sort()
+ var undeclared=sites.filter(func(name):return name not in declared)
+ var uninvoked=declared.filter(func(name):return name not in sites)
+ # The ledger primitives keep their shape: one per-record primitive, one batch entry, one reconcile.
+ var primitives=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"static\\s+func\\s+(?:track|account|account_issue)\\s*\\("))
+ primitives.sort()
+ var bad_primitives=primitives.filter(func(name):return name!="core/rope_master.gd::track" and name!="core/rope_master.gd::account" and name!="core/rope_master.gd::account_issue")
+ # 判定与投影模块不写账：它们只经 `RopeArt.locked` 读。
+ var view_hits=[]
+ for path in ["core/equipment_replacement_view.gd","core/equipment_replacement_assess.gd","core/game_view.gd","core/release_view.gd"]:
+  if source_code(path).contains("RopeArt.account"): view_hits.append(path)
+ t.check(not CAPTURE_ACCOUNTING_SITES.is_empty() and undeclared.is_empty() and uninvoked.is_empty(),"ARCH capture_accounting_has_declared_entries: every ledger write goes through RopeArt.account at exactly the five declared sites -- the join hook J3, the tier hook T, the frameless removal announcement, the unit-commit write-off and the replacement id write-off (a new writer or a stale row is red): sites="+str(sites)+" declared="+str(declared)+" undeclared="+str(undeclared)+" uninvoked="+str(uninvoked))
+ t.check(primitives.size()==3 and bad_primitives.is_empty(),"ARCH capture_accounting_has_declared_entries: the ledger keeps one per-record primitive, one batch entry and one debug reconciliation, all in core/rope_master.gd (a second write primitive elsewhere is red): primitives="+str(primitives)+" unexpected="+str(bad_primitives))
+ # 逐件原语只在定义模块内被调用：`track` 的调用点只剩 `account` 与 `initialize`（进战全量）；模块外
+ # 任何 `RopeArt.track(` 都是绕过账的第二条路。
+ var stray_track=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"RopeArt\\.track\\s*\\(").filter(func(hit):return not declaration_line(String(hit.text))))
+ var internal=[]
+ for hit in unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"(?<![A-Za-z0-9_.])track\\s*\\("):
+  if String(hit.file)!="core/rope_master.gd" or declaration_line(String(hit.text)): continue
+  var caller=String(hit.file)+"::"+String(hit.function)
+  if caller not in internal: internal.append(caller)
+ internal.sort()
+ var removal_zero=[]
+ for path in ["core/equipment_removal.gd"]:
+  var text=source_code(path)
+  for token in ["RopeArt.account(","RopeArt.track("]:
+   if text.contains(token): removal_zero.append(path+":"+token)
+ var tick=code_of_function("core/game.gd","_tick_special")
+ t.check(stray_track.is_empty() and internal==["core/rope_master.gd::account","core/rope_master.gd::initialize"] and removal_zero.is_empty() and not tick.contains("RopeArt."),"ARCH capture_accounting_has_declared_entries: the per-record primitive is called only by the batch entry and the battle-entry full count; the settle skeleton and `_tick_special` never write the ledger: stray="+str(stray_track)+" internal="+str(internal)+" removal="+str(removal_zero)+" tick="+str(tick.contains("RopeArt.")))
+ t.check(view_hits.is_empty(),"ARCH capture_accounting_has_declared_entries: the view, projection and assessment modules never write the ledger (they read the rope master only through RopeArt.locked): hits="+str(view_hits))
+
+static func capture_reconciliation_is_debug_only(t) -> void:
+ var sites=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"account_issue\\s*\\(").filter(func(hit):return not declaration_line(String(hit.text))))
+ sites.sort()
+ var issues=[]
+ if sites!=["core/game.gd::dispatch"]: issues.append("sites="+str(sites))
+ # The one call sits in dispatch: inside a `if debug_checks_enabled():` line, before the submission
+ # validate. A release build therefore never recomputes the ledger.
+ var dispatch=code_of_function("core/game.gd","dispatch")
+ var at=dispatch.find("RopeArt.account_issue(self)")
+ var line_start=dispatch.rfind("\n",at)+1
+ var line_end=dispatch.find("\n",at)
+ var line=dispatch.substr(line_start,line_end-line_start) if at>=0 and line_end>line_start else ""
+ var validate_at=dispatch.find("issue=validate()")
+ if at<0 or not line.contains("if debug_checks_enabled():") or validate_at<at: issues.append("call_line="+line+" validate="+str(validate_at)+" call="+str(at))
+ for pair in [["core/game.gd","validate"],["core/rope_master.gd","validate"]]:
+  if code_of_function(String(pair[0]),String(pair[1])).contains("account_issue("): issues.append("validate reads the recount: "+String(pair[0])+"::"+String(pair[1]))
+ # The reconcile is the ledger's only reader outside the thresholds: core/game_view.gd and the
+ # projection never call it.
+ for path in ["core/game_view.gd","core/equipment_replacement_view.gd","core/equipment_replacement_assess.gd"]:
+  if source_code(path).contains("account_issue"): issues.append("view reads the recount: "+path)
+ t.check(issues.is_empty(),"ARCH capture_reconciliation_is_debug_only: RopeArt.account_issue is called once, in core/game.gd::dispatch, inside an `if debug_checks_enabled():` line before the submission validate; validate() itself and the view/projection modules never reconcile: "+str(issues))
 
 static func unit_entries_are_declared(t) -> void:
  var sites=write_site_names(unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"_unit_begin\\(").filter(func(hit):return not declaration_line(String(hit.text))))
@@ -7457,7 +7532,7 @@ const TIER_HANDLER_SITES=["core/game.gd::_tier_consequences"]
 const TIER_REFRESH_SITES=["core/game.gd::_refresh_equipment"]
 # G-Q4-4′（审查 F2）：派发器能执行的处理器 token 表；`tier_consequence_table_matches_rows` 把它与
 # 表内出现的 token 集及 `_tier_consequences` 的 match 分支名集三向绑定（任一侧多／少即红）。
-const TIER_HANDLER_TOKENS=["refresh","track","reinforcement"]
+const TIER_HANDLER_TOKENS=["refresh","capture","reinforcement"]
 # G-Q4-3′：每个耐久写口调用点的收紧意图。值是同一 `文件::函数` 内按源码顺序的意图序列——
 # `room_events.gd::apply_effects` 三个分支意图不同（tighten_to 收紧、remove_restraints／ease_restraint
 # 非收紧），故按调用点而不只按函数记账。收紧＝`_reinforce_equipment`、入狱两处、事件 tighten_to、
@@ -7475,8 +7550,8 @@ const DURABILITY_CAUSE_INTENTS={
  "core/equipment_replacement.gd::_trial":["ease"]}
 # G-Q4-3′：品质写口只有一个调用方（驷马缚升级），且不经耐久写口（A140 #1：派发必须看到 `variant`）。
 const QUALITY_WRITE_SITES=["core/rope_master.gd::hogtie"]
-# G-Q4-4′：期望副本。行＝新装行（L03–L08，`install`）＋收紧行（`tighten`，全套刷新）＋
-# 非收紧行（`ease`，只追踪）。类别：P 普通件、C 复合组件、S 肩带件、X 特殊件、R 加固带、K 链接。
+# G-Q4-4′：期望副本。行＝新装行（L03–L08，`install`）＋收紧行（`tighten`，全套刷新＋捕缚入账）＋
+# 非收紧行（`ease`，只捕缚入账且仅跨档）。类别：P 普通件、C 复合组件、S 肩带件、X 特殊件、R 加固带、K 链接。
 const TIER_CONSEQUENCE_ROWS={
  "install":{
   "P":["refresh"],
@@ -7486,9 +7561,9 @@ const TIER_CONSEQUENCE_ROWS={
   "R":[],
   "K":[]},
  "tighten":{
-  "P":["refresh"],"C":["refresh"],"S":["refresh"],"X":["refresh"],"R":["refresh"],"K":["refresh"]},
+  "P":["refresh","capture"],"C":["refresh","capture"],"S":["refresh","capture"],"X":["refresh","capture"],"R":["refresh","capture"],"K":["refresh","capture"]},
  "ease":{
-  "P":["track"],"C":["track"],"S":["track"],"X":["track"],"R":["track"],"K":["track"]}}
+  "P":["capture"],"C":["capture"],"S":["capture"],"X":["capture"],"R":["capture"],"K":["capture"]}}
 
 # 调用实参的顶层切分（括号／方括号／花括号深度；共用扫描按行取文本，跨行实参在这条通道上本就不成形）。
 static func call_arguments(text: String, name: String, from_index: int) -> Array:
@@ -8363,12 +8438,10 @@ const SHARED_RULE_FUNCTIONS=["core/torso_binding.gd::resolve","core/torso_bindin
 const SHARED_RULE_FORBIDDEN=["g.state","_emit(","_random_index(","_equipment_feedback(","RopeArt."]
 const CLEANUP_RULES=["_released","_strap_follows","_strap_orphaned","_piece_released","_root_head_orphaned","_component_kept","_link_anchor_lost"]
 # O3 的 live 端遍历顺序（骨架两份之一；视图端 core/equipment_replacement_view.gd::cleanup 按同一登记对齐）。
-# M1：三处 RopeArt.track 是 live 骨架独占的绳索计数（事务内由 _sandbox_depth 门控为空操作，视图端不调用），
-# 各自钉在它所属谓词之前：装备循环的 track 在 _piece_released(e) 前，链接循环的在 _released(link) 前，
-# 锚点丢失分支的 track(…,true) 在 _link_anchor_lost(link 之后。
+# M1：QX2″ 删去三处 `RopeArt.track`（捕缚入账改由加入与移除钩子写入），骨架只留判定与通告的次序。
 # Q6'a: the skeleton's source function is core/equipment_removal.gd::settle, so the five `self` tokens read `g`
-# (CC-36); order and count are unchanged.
-const CLEANUP_SKELETON=["Shoulders.cleanup(g)","_strap_follows(","_strap_orphaned(strap","state.items.duplicate(","RopeArt.track(g,e)","_piece_released(e)","_root_head_orphaned(root","_released(body)","_component_kept(e)","_released(part)","RopeArt.track(g,link)","_released(link)","_link_anchor_lost(link","RopeArt.track(g,link,true)","Pressure.cleanup(g)","Pressure.settle_maximum("]
+# (CC-36); order and count follow the source.
+const CLEANUP_SKELETON=["Shoulders.cleanup(g)","_strap_follows(","_strap_orphaned(strap","state.items.duplicate(","_piece_released(e)","_root_head_orphaned(root","_released(body)","_component_kept(e)","_released(part)","_released(link)","_link_anchor_lost(link","Pressure.cleanup(g)","Pressure.settle_maximum("]
 
 static func code_of_function(relative: String, name: String) -> String:
  var lines=[]
@@ -8423,10 +8496,10 @@ static func factory_records_have_one_builder(t) -> void:
   else: cursor=at
  # 绳艺计数只归 live 骨架（S2a′ 加固①）：三处 RopeArt.track 的存在与顺序由 CLEANUP_SKELETON 钉住，
  # 这里同时钉住条数＝骨架声明的条数——第 4 处 track（多一次计数／把 track 复制到另一个分支）在顺序核对上
- # 仍会绿。条数从同一张表派生，不另写一份常数。
+ # 仍会绿。QX2″ 删净三处后两侧都是 0：任何一处回来仍具名红。条数从同一张表派生，不另写一份常数。
  var declared_tracks=CLEANUP_SKELETON.filter(func(anchor):return String(anchor).begins_with("RopeArt.track(")).size()
  var tracks=cleanup.count("RopeArt.track(")
- t.check(not CLEANUP_RULES.is_empty() and not CLEANUP_SKELETON.is_empty() and uncalled.is_empty() and impure_cleanup.is_empty() and order.is_empty() and tracks==declared_tracks,"ARCH factory_records_have_one_builder: the equipment-domain cleanup decides through the shared removal predicates, in the declared traversal order (O3 live end), carries exactly the three rope counts of the skeleton, and no predicate writes state, emits or counts rope; neither the predicate list nor the skeleton is ever empty: uncalled="+str(uncalled)+" impure="+str(impure_cleanup)+" order_lost="+str(order)+" rope_counts="+str(tracks)+"/"+str(declared_tracks))
+ t.check(not CLEANUP_RULES.is_empty() and not CLEANUP_SKELETON.is_empty() and uncalled.is_empty() and impure_cleanup.is_empty() and order.is_empty() and tracks==declared_tracks,"ARCH factory_records_have_one_builder: the equipment-domain cleanup decides through the shared removal predicates, in the declared traversal order (O3 live end), carries exactly the rope counts of the skeleton (none since QX2″), and no predicate writes state, emits or counts rope; neither the predicate list nor the skeleton is ever empty: uncalled="+str(uncalled)+" impure="+str(impure_cleanup)+" order_lost="+str(order)+" rope_counts="+str(tracks)+"/"+str(declared_tracks))
 
 # M1b（D14「有收口的就全部收到一起」）：紧度档位⇄耐久比例只有一张表。表与两个纯函数落在
 # data/restraint_value.gd（data 不调 core；它是唯一既被 core 调用、又已被 special_equipment 预载的数据模块，
