@@ -3346,6 +3346,20 @@
         "suite": "rope_master",
         "expect": "REMOVAL capture_hogtie_defers_release_count_to_settle_points"
       }
+    ],
+    "capture_settle_point_owns_exhaustion_and_release": [
+      {
+        "clause": "settle-restored",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " g._art_scope.pop_back()\n if own and e.rope_art.stock<2: e.rope_art.refill=true",
+            "replace": " g._art_scope.pop_back()\n g._cleanup(false)\n if own and e.rope_art.stock<2: e.rope_art.refill=true"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_settle_point_owns_exhaustion_and_release"
+      }
     ]
   }
 }

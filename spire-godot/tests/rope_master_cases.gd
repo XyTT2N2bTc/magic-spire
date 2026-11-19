@@ -840,6 +840,27 @@ static func capture_hogtie_defers_release_count_to_settle_points(t) -> void:
  g._cleanup()
  t.check(g.state.logs.size()==settled,"REMOVAL capture_hogtie_defers_release_count_to_settle_points: a second settle point adds no second release count: new_lines="+str(g.state.logs.size()-settled))
 
+# QX2'' second round (S18/S19 x 有⑤ x 有 power): the same declared settle point owns both deferred
+# jobs -- erasing the exhausted tool and counting the released roots -- and does each exactly once.
+static func capture_settle_point_owns_exhaustion_and_release(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ t.check(_free_embrace(t,g),"REMOVAL capture_settle_point_owns_exhaustion_and_release: the battle carries the released-trigger power face before the deferred members exist: powers="+str(g.state.powers.size()))
+ boss=g.RopeArt.master(g)
+ var victim=add_rope(g,"thigh","thigh_root",1,3)
+ g._apply_equipment_damage(victim,999,"strain")
+ var tool=_exhausted_tool(g)
+ var mark=g.state.logs.size()
+ var installed=g.RopeArt.install(g,boss,g.RopeArt.spec(1,2))
+ t.check(installed and not g._equipment(String(victim.id)).is_empty() and g.state.items.has(tool) and _release_rows(g,mark).is_empty() and not log_texts(g,mark).any(func(text):return text.contains("已经耗尽次数")),"REMOVAL capture_settle_point_owns_exhaustion_and_release: the install returns with the zeroed piece, the exhausted tool and the release trigger all still pending: installed="+str(installed)+" item="+str(g.state.items.has(tool))+" early="+str(_release_rows(g,mark)))
+ g._cleanup()
+ var counts=_release_rows(g,mark).map(func(row):return int(Dictionary(row.data.restraint_energy).get("count",-1)))
+ t.check(g._equipment(String(victim.id)).is_empty() and not g.state.items.has(tool) and log_texts(g,mark).filter(func(text):return text.contains("已经耗尽次数")).size()==1 and _release_rows(g,mark).size()==1 and counts==[1],"REMOVAL capture_settle_point_owns_exhaustion_and_release: one settle point removes both deferred members, reports the exhaustion once and releases the power once: present="+str(not g._equipment(String(victim.id)).is_empty())+" counts="+str(counts)+" logs="+str(log_texts(g,mark)))
+ var settled=g.state.logs.size()
+ g._cleanup()
+ t.check(g.state.logs.size()==settled,"REMOVAL capture_settle_point_owns_exhaustion_and_release: a second settle point adds neither a second exhaustion report nor a second release count: new_lines="+str(g.state.logs.size()-settled))
+
 # The exhausted-tool precondition of the S18/S19 cells: a real tool with no uses left, left in the
 # container for the next settle point to report and erase.
 static func _exhausted_tool(g) -> Dictionary:
@@ -892,6 +913,7 @@ static func capture_ledger(t) -> void:
  capture_hogtie_leaves_exhausted_items_to_settle_points(t)
  capture_install_defers_release_count_to_settle_points(t)
  capture_hogtie_defers_release_count_to_settle_points(t)
+ capture_settle_point_owns_exhaustion_and_release(t)
  await capture_account_matches_recount(t)
 
 static func run(t) -> void:
