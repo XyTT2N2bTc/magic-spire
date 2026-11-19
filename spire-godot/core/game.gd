@@ -1805,8 +1805,9 @@ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bo
  _unit_commit(owned)
  # T observes only from the top level, after its own unit closed: a crossing hogtie then opens its
  # own unit and its J6 pays the stock and presents the piece. A nested T (an enclosing unit is still
- # collecting) never observes -- that unit's top-level hook does (甲: a unit never observes, so a
- # framed write cannot rewrite `previous`).
+ # collecting) never observes: the enclosing unit's own top-level T or join hook settles the crossing,
+ # and a unit that joins nothing leaves it to the next declared observation point (甲: a unit never
+ # observes, so a framed write cannot rewrite `previous`).
  if owned and booked: RopeArt.observe(self)
 
 # Q8 (rev3.5 G-Q8-1'): the one dispatch for the four installation factories. `args` is the shared

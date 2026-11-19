@@ -4,8 +4,10 @@ const Replacement=preload("res://core/equipment_replacement.gd")
 const SelfBinding=preload("res://core/self_binding.gd")
 const Give=preload("res://tests/curse_cases.gd")
 
-static func encounter(seed_value: int=42):
- var g=Game.new(seed_value,false,"equipment",true)
+# The one rope-master encounter fixture: the plain game and the test-side probes share this builder,
+# so the entrance and the battle entry stay one path.
+static func encounter(seed_value: int=42, script=Game):
+ var g=script.new(seed_value,false,"equipment",true)
  g.state.room_encounters.entrance="rope_master_solo"
  g._start_battle()
  return g
@@ -466,12 +468,6 @@ class TightenProbe extends "res://tests/game_fixture.gd":
   steps.append({"id":String(target.get("id","")),"live":not live.is_empty() and is_same(target,live),"logs":state.logs.size()})
   return text
 
-static func tighten_probe_encounter(seed_value: int=42):
- var g=TightenProbe.new(seed_value,false,"equipment",true)
- g.state.room_encounters.entrance="rope_master_solo"
- g._start_battle()
- return g
-
 # G-QX2-9′: the hogtie a threshold applies joins inside the hook of the piece that caused the
 # crossing, so the presentation order is host, hogtie, host -- not both hosts and then the hogtie.
 static func capture_hogtie_nests_inside_join_hook(t) -> void:
@@ -564,7 +560,7 @@ static func capture_tighten_all_applies_hogtie_midway(t) -> void:
 # so the crossing mid-swing applies the hogtie between two tightenings -- paid from the stock and named
 # once -- instead of being booked for free with no copy at the loop tail.
 static func capture_master_tighten_all_pays_and_names_the_hogtie(t) -> void:
- var g=tighten_probe_encounter()
+ var g=encounter(42,TightenProbe)
  var boss=g.RopeArt.master(g)
  boss.rope_art.domain=true
  for row in [["thigh","thigh_root"],["thigh","mid_thigh"],["thigh","above_knee"],["calf","below_knee"],["calf","mid_calf"],["ankle",""],["ankle",""],["foot",""],["foot",""]]:
