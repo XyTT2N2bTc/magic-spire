@@ -2988,9 +2988,9 @@ static func _obs_step(g, from_quiet: int, from_journal: int) -> Dictionary:
  for row in _obs_journal(g).slice(from_journal): ports[str(row.get("port",""))]=int(ports.get(str(row.get("port","")),0))+1
  return {"rows":rows.size(),"sites":rows.map(func(row):return str(row.site)),"did_work":rows.map(func(row):return bool(row.did_work)),"left":rows.map(func(row):return row.left),"ports":ports}
 
-# The §3 counting self-check steps (plan-delta §3): install (S18), a new hogtie (S19), a hogtie upgrade (the
-# quality port, no row), one replacement plan (the sandbox, no row), and an install after a zeroed piece (an
-# S18 row with `did_work` and the piece in `left`). The same function runs on both classes.
+# The §3 counting self-check steps (plan-delta §3): install (S18 until commit d), a new hogtie (no settle
+# since commit c), a hogtie upgrade (the quality port, no row), one replacement plan (the sandbox, no row),
+# and an install after a zeroed piece (an S18 row with `did_work` and the piece in `left` until commit d).
 static func _obs_zeroed_valid(zeroed: Dictionary) -> bool:
  return int(zeroed.get("rows",-1))==1 and zeroed.get("sites",[])==["S18"] and zeroed.get("did_work",[]).all(func(did):return did) and zeroed.get("left",[]).any(func(left):return str(zeroed.get("victim","")) in left)
 
@@ -3200,7 +3200,7 @@ static func port_journal_matches_state_diff(t) -> void:
  var install_free=counted["steps"].get("install_free",{})
  t.check(int(install_free.get("rows",-1))==1 and install_free.get("sites",[])==["S18"] and not bool(install_free.get("installed",true)) and install_free.get("ports",{}).is_empty(),"OBS port_journal_matches_state_diff: a hogtie followed by an install-free settle is S18 -- no member row from the previous cleanup frame may classify this frame: install_free="+str(install_free))
  t.check(int(install.get("rows",-1))==1 and install.get("sites",[]).all(func(site):return site=="S18"),"OBS port_journal_matches_state_diff: a rope-master install produces exactly one quiet settle row and it is S18 -- the site is read from the last real member/added row since the previous settle frame, and nothing settles between the install and its own `_cleanup(false)`: install="+str(install))
- t.check(int(hogtie.get("rows",-1))==1 and hogtie.get("sites",[]).all(func(site):return site=="S19"),"OBS port_journal_matches_state_diff: a new hogtie produces exactly one quiet settle row and it is S19, because its install row carries the art_hogtie template: hogtie="+str(hogtie))
+ t.check(int(hogtie.get("rows",-1))==0,"OBS port_journal_matches_state_diff: a new hogtie settles nothing after QX2'' commit c -- its install tail is gone, so the quiet counter sees no row: hogtie="+str(hogtie))
  t.check(int(upgrade.get("rows",-1))==0 and int(upgrade.get("ports",{}).get("quality",0))>0,"OBS port_journal_matches_state_diff: a hogtie upgrade writes the quality port and settles nothing, so it produces no quiet settle row: upgrade="+str(upgrade))
  t.check(int(planned.get("rows",-1))==0,"OBS port_journal_matches_state_diff: one replacement plan settles nothing -- its writes happen in the sandbox and are restored, so the quiet counter does not see them: plan="+str(planned))
  t.check(_obs_zeroed_valid(zeroed) and not _obs_zeroed_valid(wrong_site),"OBS port_journal_matches_state_diff: a quiet settle that releases a zeroed piece reports work and names it -- the S18 row after the install has `did_work` true and the piece in `left`, so the counter is a release witness and not a frame counter: zeroed="+str(zeroed)+" rejects_wrong_site="+str(not _obs_zeroed_valid(wrong_site)))

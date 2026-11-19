@@ -113,15 +113,9 @@ static func quiet_row(g, before: Dictionary, site: String) -> Dictionary:
  elif not items_removed.is_empty() or not sources_removed.is_empty() or pressure_changed: klass=5
  return {"site":site,"epoch":int(before["epoch"]),"round":int(before["round"]),"log_index":int(before["logs"]),"left":left,"joined":joined,"items_removed":items_removed,"sources_removed":sources_removed,"logs_added":int(g.state.logs.size())-int(before["logs"]),"roots_before":before["roots"].size(),"roots_after":roots_after,"pressure_changed":pressure_changed,"did_work":did_work,"class":klass}
 
-# S19 iff the last real member/added row since the previous frame installed the hogtie template; anything else
-# is S18. HOGTIE is installed only by `RopeArt.hogtie`'s new-install branch, and nothing settles between that
-# install and its own quiet settle.
+# QX2″ 提交 c retired the S19 branch: the hogtie's new-install path no longer settles, so every quiet
+# settle left in the product is S18 (the install tail, until commit d retires that one too).
 func _quiet_site() -> String:
- var hogtie=str(preload("res://core/rope_master.gd").HOGTIE)
- for index in range(journal.size()-1,_quiet_frame_end-1,-1):
-  var row=journal[index]
-  if str(row.get("port",""))!="member" or str(row.get("change",""))!="added" or bool(row.get("trial",false)): continue
-  return "S19" if str(row.get("template",""))==hogtie else "S18"
  return "S18"
 
 # One frame per settle: the port-entry counts at both ends, so the delta inside `_cleanup` is exact even

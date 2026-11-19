@@ -7470,7 +7470,6 @@ const DURABILITY_REROUTES={
  "core/prison.gd::intake_equipment":["write","write"],
  "core/prison.gd::execute":["write"],
  "core/room_events.gd::apply_effects":["write","write","cleanup","write","cleanup"],
- "core/rope_master.gd::hogtie":["cleanup"],
  "core/relic_effects.gd::boss_key":["write","cleanup"],
  "core/equipment_replacement.gd::_force_special_live":["write","cleanup"],
  "core/equipment_replacement.gd::_trial":["write","cleanup","cleanup"]}
@@ -7803,10 +7802,10 @@ static func tier_consequence_table_matches_rows(t) -> void:
  var handler=body.find("_refresh_equipment(")
  t.check(lookup>=0 and error>lookup and guard>error and (handler<0 or handler>guard),"ARCH tier_consequence_table_matches_rows: an undeclared row or class is pushed as an error and returns before any handler runs (an unknown key is never silently written): lookup="+str(lookup)+" error="+str(error)+" return="+str(guard)+" handler="+str(handler))
 
-# G-Q3-1′（rev3.1 plan-delta §3.2；协调者 A127 H4=A）：加减收口普查的 21 个结算点。列：`文件::函数`、
+# G-Q3-1′（rev3.1 plan-delta §3.2；协调者 A127 H4=A）：加减收口普查的结算点。列：`文件::函数`、
 # 模式（released＝`_cleanup()`；quiet＝`_cleanup(false)`）、类（①／②／③）。一行即一个调用点，所以同一
 # 函数里的多个调用各占一行（card_effects.gd::normalize ×2、game.gd::dispatch ×2、_trial ×2）。
-# S18／S19 按 H4=A 保留在本表，QX2″ 才删（本片不得预删）。表就是普查声明本身，不另抄一份。
+# QX2″ 提交 c 删去 hogtie 的静默结算（S19），提交 d 删去 install 的（S18）；表就是普查声明本身，不另抄一份。
 const SETTLE_POINTS=[
  {"id":"S01","site":"core/action_replay.gd::_cards_once","mode":"released","class":"②"},
  {"id":"S02","site":"core/card_effects.gd::play","mode":"released","class":"②"},
@@ -7826,13 +7825,13 @@ const SETTLE_POINTS=[
  {"id":"S16","site":"core/room_events.gd::apply_effects","mode":"released","class":"②"},
  {"id":"S17","site":"core/room_events.gd::apply_effects","mode":"released","class":"②"},
  {"id":"S18","site":"core/rope_master.gd::install","mode":"quiet","class":"①"},
- {"id":"S19","site":"core/rope_master.gd::hogtie","mode":"quiet","class":"①"},
  {"id":"S20","site":"core/slip_motion.gd::apply","mode":"released","class":"②"},
  {"id":"S21","site":"core/witch_expansion.gd::resolve","mode":"released","class":"②"}]
-# 类① 是普查类：这两处静默结算还替同一提交里尚未结算的外来写入做事（plan-delta §3.4），所以它们的函数体
-# 在本函数的 `_cleanup(` 之前必须自己执行过安装（Application.execute／execute_concrete）。期望侧只列这两个
-# 函数——即 G-Q3-1′ 原文，不是第二张结算点表。
-const SETTLE_CLASS_ONE_SITES=["core/rope_master.gd::install","core/rope_master.gd::hogtie"]
+# 类① 是普查类：这一处静默结算还替同一提交里尚未结算的外来写入做事（plan-delta §3.4），所以它的函数体
+# 在本函数的 `_cleanup(` 之前必须自己执行过安装（Application.execute／execute_concrete）。期望侧只列这个
+# 函数——即 G-Q3-1′ 原文，不是第二张结算点表。QX2″ 提交 c 删掉 hogtie 的静默结算后只剩 install；提交 d
+# 删掉它之后本表为空，类①条款随之退化为「类①为空」。
+const SETTLE_CLASS_ONE_SITES=["core/rope_master.gd::install"]
 # 类③ 只在替换事务模块（试装／强制装填的静默预演），不在任何 live 写口。
 const SETTLE_CLASS_THREE_FILE="core/equipment_replacement.gd"
 # 表的总数（21 行、静默 5、① 2／② 16／③ 3）不另设冻结常量：双向相等已把表钉到源侧
@@ -7910,7 +7909,7 @@ static func settle_points_are_declared(t) -> void:
  class_one.sort()
  var expected_one=SETTLE_CLASS_ONE_SITES.duplicate()
  expected_one.sort()
- t.check(class_one==expected_one,"ARCH settle_points_are_declared: the census class ① rows are exactly the two rope-master silent points: declared="+str(class_one)+" expected="+str(expected_one))
+ t.check(class_one==expected_one,"ARCH settle_points_are_declared: the census class ① rows are exactly the rope-master silent points the repo still declares: declared="+str(class_one)+" expected="+str(expected_one))
  var unexecuted=[]
  for site in SETTLE_CLASS_ONE_SITES:
   var parts=String(site).split("::")

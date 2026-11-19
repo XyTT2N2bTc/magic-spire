@@ -251,6 +251,19 @@
         ],
         "suite": "rope_master"
       }
+    ],
+    "hogtie_install_leaves_foreign_writes_to_settle_points": [
+      {
+        "clause": "settle-restored",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "  if not result.ok: return\n boss.rope_art.hogtie_pending=0",
+            "replace": "  if not result.ok: return\n  g._cleanup(false)\n boss.rope_art.hogtie_pending=0"
+          }
+        ],
+        "suite": "rope_master"
+      }
     ],    "slice_dependency_directions": [
       {
         "clause": "primary",
@@ -2578,18 +2591,6 @@
         "expect": "binding_keys_agree=false"
       },
       {
-        "clause": "quiet-site-cross-frame",
-        "file": "tests/write_journal_game.gd",
-        "edits": [
-          {
-            "find": " for index in range(journal.size()-1,_quiet_frame_end-1,-1):",
-            "replace": " for index in range(journal.size()-1,-1,-1):"
-          }
-        ],
-        "suite": "equipment",
-        "expect": "a hogtie followed by an install-free settle is S18"
-      },
-      {
         "clause": "zeroed-site-unchecked",
         "file": "tests/equipment_cases.gd",
         "edits": [
@@ -2798,8 +2799,8 @@
         "file": "tests/write_journal_game.gd",
         "edits": [
           {
-            "find": "  return \"S19\" if str(row.get(\"template\",\"\"))==hogtie else \"S18\"",
-            "replace": "  return \"S19\""
+            "find": "func _quiet_site() -> String:\n return \"S18\"",
+            "replace": "func _quiet_site() -> String:\n return \"S19\""
           }
         ],
         "suite": "equipment",

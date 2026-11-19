@@ -375,7 +375,6 @@ static func hogtie(g, boss: Dictionary, grade: int) -> void:
   var result=g.Application.execute_concrete(g,request,boss.id,true)
   g._art_scope.pop_back()
   if not result.ok: return
-  g._cleanup(false)
  boss.rope_art.hogtie_pending=0
 
 static func observe(g) -> void:

@@ -474,6 +474,23 @@ static func self_binding_survives_midway_hogtie(t) -> void:
  t.check(tighten.size()==4 and (String(live.rope_art.hogtie) in targets),"REMOVAL self_binding_survives_midway_hogtie: all four steps complete and the mid-card hogtie is among their targets: steps="+str(targets)+" hogtie="+String(live.rope_art.hogtie))
  t.check(live.rope_art.drunk==2 and live.rope_art.previous==live.rope_art.total and g.validate()=="","REMOVAL self_binding_survives_midway_hogtie: the card ends settled once: previous="+str(live.rope_art.previous)+" total="+str(live.rope_art.total)+" drunk="+str(live.rope_art.drunk)+" validate="+g.validate())
 
+# G-QX2-16 (原 G-QX5-2): a new hogtie no longer settles the foreign writes of the same submit. A piece
+# already damaged to zero stays in its container until the next declared settle point removes it.
+static func hogtie_install_leaves_foreign_writes_to_settle_points(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ var victim=add_rope(g,"thigh","thigh_root",1,3)
+ g._apply_equipment_damage(victim,999,"strain")
+ var zeroed=g._equipment(String(victim.id))
+ t.check(not zeroed.is_empty() and float(zeroed.durability)<=0.000001,"REMOVAL hogtie_install_leaves_foreign_writes_to_settle_points: the damaged piece is zeroed but still in the container, so the settle point owns its removal: id="+String(victim.get("id",""))+" present="+str(not zeroed.is_empty()))
+ var mark=g.state.logs.size()
+ g.RopeArt.hogtie(g,boss,2)
+ var live=g.RopeArt.master(g)
+ t.check(not live.is_empty() and not String(live.rope_art.hogtie).is_empty() and not g._equipment(String(victim.id)).is_empty(),"REMOVAL hogtie_install_leaves_foreign_writes_to_settle_points: the new hogtie returns without settling the zeroed foreign piece: hogtie="+String(live.get("rope_art",{}).get("hogtie",""))+" present="+str(not g._equipment(String(victim.id)).is_empty()))
+ g._cleanup()
+ t.check(g._equipment(String(victim.id)).is_empty() and log_texts(g,mark).any(func(text):return text.ends_with("已解除。")),"REMOVAL hogtie_install_leaves_foreign_writes_to_settle_points: the next declared settle point removes it and emits the release line: logs="+str(log_texts(g,mark)))
+
 static func capture_ledger(t) -> void:
  capture_entry_counts_every_rope_instance(t)
  capture_accounts_new_members_at_join(t)
@@ -486,6 +503,7 @@ static func capture_ledger(t) -> void:
  capture_tighten_all_applies_hogtie_midway(t)
  capture_removal_observes_outside_units(t)
  self_binding_survives_midway_hogtie(t)
+ hogtie_install_leaves_foreign_writes_to_settle_points(t)
  await capture_account_matches_recount(t)
 
 static func run(t) -> void:
