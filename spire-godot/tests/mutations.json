@@ -171,7 +171,8 @@
             "replace": " if false: return \"总值 %d，重算 %d\" % [int(r.total),total]"
           }
         ],
-        "suite": "rope_master"
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_account_matches_recount"
       }
     ],
     "capture_hogtie_nests_inside_join_hook": [
