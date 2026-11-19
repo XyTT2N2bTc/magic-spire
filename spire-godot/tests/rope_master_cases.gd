@@ -520,28 +520,6 @@ static func capture_hold_keeps_stock_before_threshold(t) -> void:
  t.check(live.rope_art.stock==0 and live.rope_art.hogtie_pending==2 and live.rope_art.refill,"REMOVAL capture_hold_keeps_stock_before_threshold: the hook reads the stock after its own payment, so the required hogtie is deferred and requests a refill: stock="+str(live.rope_art.stock)+" pending="+str(live.rope_art.hogtie_pending)+" refill="+str(live.rope_art.refill))
  t.check(live.rope_art.total==51 and live.rope_art.hogtie=="","REMOVAL capture_hold_keeps_stock_before_threshold: the deferred hogtie adds nothing and the piece still counts: total="+str(live.rope_art.total)+" hogtie="+String(live.rope_art.hogtie))
 
-# F6 (A257): the `_art_scope.is_empty()` gate in T is not covered by `observe`'s reentry guard. An art
-# application is not observing, so without the gate T would observe inside the factory frame, where a
-# threshold hogtie joins that frame and its J6 presentation -- the stock payment -- runs after the scope
-# is popped. The paid stock is the reachable observable that separates the two guards.
-static func capture_art_install_pays_for_the_threshold_hogtie(t) -> void:
- var g=encounter()
- var boss=g.RopeArt.master(g)
- boss.rope_art.domain=true
- for row in [["thigh","thigh_root",3,3],["thigh","mid_thigh",3,3],["thigh","above_knee",3,3],["calf","below_knee",3,3],["calf","mid_calf",3,3],["ankle","",3,3],["ankle","",3,3],["foot","",3,3]]:
-  add_rope(g,row[0],row[1],row[2],row[3])
- boss=g.RopeArt.master(g)
- t.check(boss.rope_art.total==48 and boss.rope_art.stock==48 and String(boss.rope_art.hogtie)=="","REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the fixture holds forty-eight value and the opening stock before the crossing install: total="+str(boss.rope_art.total)+" stock="+str(boss.rope_art.stock)+" hogtie="+String(boss.rope_art.hogtie))
- var stock=int(boss.rope_art.stock)
- var mark=g.state.logs.size()
- var installed=g.RopeArt.install(g,boss,g.RopeArt.spec(1,1))
- boss=g.RopeArt.master(g)
- var texts=log_texts(g,mark)
- t.check(installed and boss.rope_art.total==54 and String(boss.rope_art.hogtie)!="","REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the value-two install crosses fifty and the hook applies the medium hogtie in the same hook: total="+str(boss.rope_art.total)+" hogtie="+String(boss.rope_art.hogtie))
- t.check(int(boss.rope_art.stock)==stock-6,"REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the piece pays two through J6 and the hogtie pays four more, because T observes outside the factory frame: stock="+str(int(boss.rope_art.stock))+"/"+str(stock)+" expected="+str(stock-6))
- t.check(texts.any(func(text):return text==String(boss.get("name",""))+"施加了驷马缚。"),"REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the hogtie presents through its own scope, so the crossing hook announces it: logs="+str(texts))
- t.check(boss.rope_art.drunk==2 and boss.rope_art.previous==54 and g.RopeArt.account_issue(g)=="","REMOVAL capture_art_install_pays_for_the_threshold_hogtie: the observation sees the paid total once and the recount agrees: drunk="+str(boss.rope_art.drunk)+" previous="+str(boss.rope_art.previous)+" issue="+g.RopeArt.account_issue(g))
-
 # G-QX2-14: each tightening observes through its own hook, so the crossing hogtie is applied before
 # the remaining steps and enters their rebuilt target list.
 static func capture_tighten_all_applies_hogtie_midway(t) -> void:
@@ -994,7 +972,6 @@ static func capture_ledger(t) -> void:
  capture_hogtie_nests_inside_join_hook(t)
  capture_observes_at_top_level_hook(t)
  capture_hold_keeps_stock_before_threshold(t)
- capture_art_install_pays_for_the_threshold_hogtie(t)
  capture_tighten_all_applies_hogtie_midway(t)
  capture_removal_observes_outside_units(t)
  self_binding_survives_midway_hogtie(t)

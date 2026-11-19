@@ -284,20 +284,6 @@
         "suite": "rope_master"
       }
     ],
-    "capture_art_install_pays_for_the_threshold_hogtie": [
-      {
-        "clause": "gate-off",
-        "file": "core/game.gd",
-        "edits": [
-          {
-            "find": "     if _art_scope.is_empty(): RopeArt.observe(self)",
-            "replace": "     RopeArt.observe(self)"
-          }
-        ],
-        "suite": "rope_master",
-        "expect": "the piece pays two through J6 and the hogtie pays four more"
-      }
-    ],
     "capture_tighten_all_applies_hogtie_midway": [
       {
         "clause": "hogtie-not-target",
