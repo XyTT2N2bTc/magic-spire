@@ -125,12 +125,6 @@ static func joined(g, record: Dictionary) -> void:
   boss.rope_art.stock-=g.RestraintValue.from_profile(record.grade,g.equipment_tier(record))
  g._emit("event",boss.name+"施加了"+record.name+"。",{"enemy_action":{"enemy_id":boss.id,"actor":boss.name,"sequence":g.state.logs.size(),"kind":String(scope.get("kind","apply")),"slots":g.Equipment.coverage(record)}})
 
-# J7 (甲): the threshold observation runs once per top-level join hook, right after its presentation
-# and its stock write, so the master sees the reduced stock and the completed total. It never runs for
-# a nested member's hook (those classes carry no J7 cell) and never inside a unit's removal write-off.
-static func observed(g) -> void:
- observe(g)
-
 static func hogtied(g) -> bool:
  var e=master(g)
  return not e.is_empty() and e.rope_art.hogtie!=""

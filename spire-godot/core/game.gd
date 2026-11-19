@@ -1692,9 +1692,12 @@ func _join_hooks(entry: Array) -> void:
  match String(class_row.get("J6","")):
   "relay":
    RopeArt.joined(self,record)
+ # J7 (甲): the threshold observation runs once per top-level join hook, right after its presentation
+ # and its stock write, so the master sees the reduced stock and the completed total. Nested members'
+ # hooks carry no J7 cell, and a framed removal never observes.
  match String(class_row.get("J7","")):
   "observe":
-   RopeArt.observed(self)
+   RopeArt.observe(self)
  var mana_prefix=String(class_row.get("J4",""))
  if mana_prefix!="": RelicEffects._mana_hook(self,"restraint_mana",mana_prefix+record.name)
  match String(class_row.get("J5","")):

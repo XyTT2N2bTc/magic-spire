@@ -7259,15 +7259,14 @@ static func capture_reconciliation_is_debug_only(t) -> void:
   if source_code(path).contains("account_issue"): issues.append("view reads the recount: "+path)
  t.check(issues.is_empty(),"ARCH capture_reconciliation_is_debug_only: RopeArt.account_issue is called once, in core/game.gd::dispatch, inside an `if debug_checks_enabled():` line before the submission validate; validate() itself and the view/projection modules never reconcile: "+str(issues))
 
-# 阈值观察的调用点闭集（甲，G-QX2-8′）：顶层加入钩子 J7（经 `observed` 门）、档位钩子 T、单位外移除、
+# 阈值观察的调用点闭集（甲，G-QX2-8′）：顶层加入钩子 J7、档位钩子 T、单位外移除、
 # 领域展开的结尾，以及捕缚绑定的既有入口。其余位置（安装末尾、收紧回退、全部收紧的循环末尾）不得再直接观察。
 const CAPTURE_OBSERVE_SITES=[
  "core/game.gd::_join_hooks",
  "core/game.gd::_tier_consequences",
  "core/game.gd::_member_changed",
  "core/capture_bind.gd::observe",
- "core/rope_master.gd::execute",
- "core/rope_master.gd::observed"]
+ "core/rope_master.gd::execute"]
 
 static func capture_observe_sites_are_declared(t) -> void:
  var hits=unique_path_sites(UNIQUE_PATH_SCAN_ROOTS,"RopeArt\\.observe[ds]?\\s*\\(").filter(func(hit):return not declaration_line(String(hit.text)))
