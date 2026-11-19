@@ -242,10 +242,17 @@ static func execute(g, e: Dictionary, intent: Dictionary) -> void:
    g._emit("event","绳索补充至%d/%d。" % [e.rope_art.stock,LIMIT])
    if e.rope_art.hogtie_pending>0: hogtie(g,e,e.rope_art.hogtie_pending)
   "art_weave":
+   # QX7 (rev3.3 G-QX7-1…3): the three pieces are one batch -- every target that appeared during
+   # this art is protected for its remaining applications, the same difference set `death` keeps.
+   # Without it the second application's weakest cover set is the piece the first one just installed.
+   var protected=[]
    for i in range(2):
+    var before=g.action_targets().map(func(item):return item.id)
     var profile=g.RestraintValue.profiles(3)[g._random_index("enemy",2)]
-    ordinary(g,e,profile.grade,profile.tier)
-   ordinary(g,e,1,1,{"templates":["link_rope"],"allow_links":true})
+    ordinary(g,e,profile.grade,profile.tier,{"protected_ids":protected})
+    for item in g.action_targets():
+     if item.id not in before: protected.append(item.id)
+   ordinary(g,e,1,1,{"templates":["link_rope"],"allow_links":true,"protected_ids":protected})
   "art_enchant":
    var choices=["active","drain","desire"]
    var fresh=choices.filter(func(key):return e.rope_art[key]==0)
