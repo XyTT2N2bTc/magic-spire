@@ -203,7 +203,6 @@ static func install(g, e: Dictionary, request: Dictionary) -> bool:
  g._art_scope.append({"boss":e,"own":own,"kind":String(e.intent.get("kind","apply"))})
  result=g.Application.execute(g,current,e.id)
  g._art_scope.pop_back()
- g._cleanup(false)
  if own and e.rope_art.stock<2: e.rope_art.refill=true
  return result.ok
 

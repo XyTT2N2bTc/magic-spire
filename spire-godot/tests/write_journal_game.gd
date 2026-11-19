@@ -113,8 +113,10 @@ static func quiet_row(g, before: Dictionary, site: String) -> Dictionary:
  elif not items_removed.is_empty() or not sources_removed.is_empty() or pressure_changed: klass=5
  return {"site":site,"epoch":int(before["epoch"]),"round":int(before["round"]),"log_index":int(before["logs"]),"left":left,"joined":joined,"items_removed":items_removed,"sources_removed":sources_removed,"logs_added":int(g.state.logs.size())-int(before["logs"]),"roots_before":before["roots"].size(),"roots_after":roots_after,"pressure_changed":pressure_changed,"did_work":did_work,"class":klass}
 
-# QX2″ 提交 c retired the S19 branch: the hogtie's new-install path no longer settles, so every quiet
-# settle left in the product is S18 (the install tail, until commit d retires that one too).
+# QX2″ commits c and d retired both rope-master settles, and the replacement module's quiet settles all run
+# inside its sandbox, so no live path reaches this label any more. It stays as the declared S18 name until
+# the Q7 counter is retired with its last subject; a future quiet settle outside a sandbox must classify as
+# S18 rather than inventing a new label.
 func _quiet_site() -> String:
  return "S18"
 

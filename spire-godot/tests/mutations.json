@@ -64,8 +64,8 @@
         "file": "core/rope_master.gd",
         "edits": [
           {
-            "find": " g._art_scope.pop_back()\n g._cleanup(false)",
-            "replace": " g._art_scope.pop_back()\n g._cleanup(false)\n observe(g)"
+            "find": " result=g.Application.execute(g,current,e.id)\n g._art_scope.pop_back()",
+            "replace": " result=g.Application.execute(g,current,e.id)\n g._art_scope.pop_back()\n observe(g)"
           }
         ],
         "suite": "architecture"
@@ -260,6 +260,19 @@
           {
             "find": "  if not result.ok: return\n boss.rope_art.hogtie_pending=0",
             "replace": "  if not result.ok: return\n  g._cleanup(false)\n boss.rope_art.hogtie_pending=0"
+          }
+        ],
+        "suite": "rope_master"
+      }
+    ],
+    "rope_install_leaves_foreign_writes_to_settle_points": [
+      {
+        "clause": "settle-restored",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " g._art_scope.pop_back()\n if own and e.rope_art.stock<2: e.rope_art.refill=true",
+            "replace": " g._art_scope.pop_back()\n g._cleanup(false)\n if own and e.rope_art.stock<2: e.rope_art.refill=true"
           }
         ],
         "suite": "rope_master"
@@ -2591,18 +2604,6 @@
         "expect": "binding_keys_agree=false"
       },
       {
-        "clause": "zeroed-site-unchecked",
-        "file": "tests/equipment_cases.gd",
-        "edits": [
-          {
-            "find": " return int(zeroed.get(\"rows\",-1))==1 and zeroed.get(\"sites\",[])==[\"S18\"] and zeroed.get(\"did_work\",[])",
-            "replace": " return int(zeroed.get(\"rows\",-1))==1 and zeroed.get(\"did_work\",[])"
-          }
-        ],
-        "suite": "equipment",
-        "expect": "rejects_wrong_site=false"
-      },
-      {
         "clause": "x3-reads-journal",
         "file": "tests/equipment_cases.gd",
         "edits": [
@@ -2793,18 +2794,6 @@
         ],
         "suite": "equipment",
         "expect": "reaches every row class"
-      },
-      {
-        "clause": "quiet-install-site",
-        "file": "tests/write_journal_game.gd",
-        "edits": [
-          {
-            "find": "func _quiet_site() -> String:\n return \"S18\"",
-            "replace": "func _quiet_site() -> String:\n return \"S19\""
-          }
-        ],
-        "suite": "equipment",
-        "expect": "a rope-master install produces exactly one quiet settle row and it is S18"
       },
       {
         "clause": "quiet-quality-frame",

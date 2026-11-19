@@ -7805,7 +7805,8 @@ static func tier_consequence_table_matches_rows(t) -> void:
 # G-Q3-1′（rev3.1 plan-delta §3.2；协调者 A127 H4=A）：加减收口普查的结算点。列：`文件::函数`、
 # 模式（released＝`_cleanup()`；quiet＝`_cleanup(false)`）、类（①／②／③）。一行即一个调用点，所以同一
 # 函数里的多个调用各占一行（card_effects.gd::normalize ×2、game.gd::dispatch ×2、_trial ×2）。
-# QX2″ 提交 c 删去 hogtie 的静默结算（S19），提交 d 删去 install 的（S18）；表就是普查声明本身，不另抄一份。
+# QX2″ 提交 c 删去 hogtie 的静默结算（S19），提交 d 删去 install 的（S18）；`core/rope_master.gd` 内
+# `_cleanup(` 至此零命中。表就是普查声明本身，不另抄一份。
 const SETTLE_POINTS=[
  {"id":"S01","site":"core/action_replay.gd::_cards_once","mode":"released","class":"②"},
  {"id":"S02","site":"core/card_effects.gd::play","mode":"released","class":"②"},
@@ -7824,14 +7825,13 @@ const SETTLE_POINTS=[
  {"id":"S15","site":"core/relic_effects.gd::boss_key","mode":"released","class":"②"},
  {"id":"S16","site":"core/room_events.gd::apply_effects","mode":"released","class":"②"},
  {"id":"S17","site":"core/room_events.gd::apply_effects","mode":"released","class":"②"},
- {"id":"S18","site":"core/rope_master.gd::install","mode":"quiet","class":"①"},
  {"id":"S20","site":"core/slip_motion.gd::apply","mode":"released","class":"②"},
  {"id":"S21","site":"core/witch_expansion.gd::resolve","mode":"released","class":"②"}]
 # 类① 是普查类：这一处静默结算还替同一提交里尚未结算的外来写入做事（plan-delta §3.4），所以它的函数体
-# 在本函数的 `_cleanup(` 之前必须自己执行过安装（Application.execute／execute_concrete）。期望侧只列这个
-# 函数——即 G-Q3-1′ 原文，不是第二张结算点表。QX2″ 提交 c 删掉 hogtie 的静默结算后只剩 install；提交 d
-# 删掉它之后本表为空，类①条款随之退化为「类①为空」。
-const SETTLE_CLASS_ONE_SITES=["core/rope_master.gd::install"]
+# 在本函数的 `_cleanup(` 之前必须自己执行过安装（Application.execute／execute_concrete）。QX2″ 提交 c
+# 删掉 hogtie 的静默结算、提交 d 删掉 install 的之后，`core/rope_master.gd` 内 `_cleanup(` 零命中，本表为空，
+# 类①条款随之退化为「类①为空」（rev3.2 G-QX5-4 的最终形态）。
+const SETTLE_CLASS_ONE_SITES=[]
 # 类③ 只在替换事务模块（试装／强制装填的静默预演），不在任何 live 写口。
 const SETTLE_CLASS_THREE_FILE="core/equipment_replacement.gd"
 # 表的总数（21 行、静默 5、① 2／② 16／③ 3）不另设冻结常量：双向相等已把表钉到源侧
