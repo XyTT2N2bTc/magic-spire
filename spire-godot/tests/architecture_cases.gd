@@ -7833,9 +7833,9 @@ const SETTLE_POINTS=[
 const SETTLE_CLASS_ONE_SITES=[]
 # 类③ 只在替换事务模块（试装／强制装填的静默预演），不在任何 live 写口。
 const SETTLE_CLASS_THREE_FILE="core/equipment_replacement.gd"
-# 表的总数（21 行、静默 5、① 2／② 16／③ 3）不另设冻结常量：双向相等已把表钉到源侧
-# （源侧 21 调用／5 静默，多一行、少一行、改模式都在 extra／missing 具名红），
-# 类①集合与类③模块断言又把每一行的类钉死，故再声明一份计数只是同一语义的第二条检查。
+# 表的总数不另设冻结常量：双向相等已把表钉到源侧（源侧调用数与静默数同表，多一行、少一行、
+# 改模式都在 extra／missing 具名红），类①集合与类③模块断言又把每一行的类钉死，
+# 故再声明一份计数只是同一语义的第二条检查。
 # 结算请求的形状：独立单词的 `_cleanup(`，前面的 `(?<![A-Za-z0-9_])` 挡住 `chain_cleanup(`／`probe_cleanup(`／
 # `cleanup_effects(` 这些同名串；`func _cleanup(` 的定义行另由 SETTLE_DEFINITION_PATTERN 排出。
 const SETTLE_CALL_PATTERN="(?<![A-Za-z0-9_])_cleanup\\s*\\("
@@ -7845,7 +7845,7 @@ const SETTLE_DEFINITION_PATTERN="^(?:static\\s+)?func\\s+_cleanup\\s*\\("
 # 各算一处（逐匹配计数，不按行计数），模式按实参现场分类：`)`＝released、`false)`＝quiet，其它实参或跨行
 # 实参记 unknown。共用扫描只剥 `#` 注释、不剥字符串，故字符串字面量里的同形另由 settle_match_in_string
 # 排除：那是文案而不是调用，计入会把正确源码误计成 extra。引号未在本行闭合时仍按调用计入（fail-closed，
-# 不静默漏抓）。本判据不为「源非空」与「unknown 为空」各设一条断言：源空时 21 行全部落进 missing，
+# 不静默漏抓）。本判据不为「源非空」与「unknown 为空」各设一条断言：源空时全部表行都落进 missing，
 # unknown 的 `site@unknown` 键必然落进 extra（表只许 released／quiet），两条都已有具名红，单独再断是同一
 # 语义的第二条检查，也没有只让它红的改法（AGENTS「每条检查须有独有敏感性证明，否则删除」）。
 static func settle_point_rows() -> Array:
@@ -7891,7 +7891,7 @@ static func settle_points_are_declared(t) -> void:
   if not site.contains("::") or mode not in modes or census not in classes: malformed.append(String(row.get("id","?")))
   declared.append({"site":site,"mode":mode,"class":census})
  t.check(not SETTLE_POINTS.is_empty() and malformed.is_empty(),"ARCH settle_points_are_declared: the settle-point table is non-empty and every row carries a file::function site, a released/quiet mode and a census class in ①/②/③: malformed="+str(malformed))
- # 双向相等：源侧多出调用、表里多出未实现的调用点、模式不符，各自具名；这条相等同时钉死总数（21）与静默数（5），故不另设计数断言。
+ # 双向相等：源侧多出调用、表里多出未实现的调用点、模式不符，各自具名；这条相等同时钉死总数与静默数，故不另设计数断言。
  var source=settle_point_rows()
  var declared_counts=settle_point_counts(declared)
  var source_counts=settle_point_counts(source)
@@ -7903,7 +7903,7 @@ static func settle_points_are_declared(t) -> void:
   for _index in range(int(declared_counts[key])-int(source_counts.get(key,0))): missing.append(String(key))
  t.check(extra.is_empty(),"ARCH settle_points_are_declared: no `_cleanup(` call exists outside the declared points (site@mode counted per call): extra="+str(extra)+" source="+str(source.size())+" declared="+str(declared.size()))
  t.check(missing.is_empty(),"ARCH settle_points_are_declared: every declared row is a real call of its declared mode (a stale row is red, never silently vacuous): missing="+str(missing))
- # 类①：恰是绳艺大师的两处静默结算，且各自在本函数结算前已经执行过一次安装。
+ # 类①：本片删掉绳艺大师的两处静默结算后声明集为空，故实跑集也必须为空。
  var class_one=declared.filter(func(row):return String(row["class"])=="①").map(func(row):return String(row["site"]))
  class_one.sort()
  var expected_one=SETTLE_CLASS_ONE_SITES.duplicate()
