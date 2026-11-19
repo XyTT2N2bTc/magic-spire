@@ -1416,8 +1416,9 @@ static func weave_shares_one_protected_batch(t) -> void:
  var declared=branch.find("var protected=[]")
  var loop=branch.find("for i in range(2):")
  var pass_through=branch.count("\"protected_ids\":protected")
+ var rebuilds=branch.count("protected=[]")
  var difference=branch.contains("var before=g.action_targets().map(func(item):return item.id)") and branch.contains("if item.id not in before: protected.append(item.id)")
- t.check(start>=0 and stop>start and declared>=0 and loop>declared and branch.count("var protected")==1,"ROPE weave_shares_one_protected_batch: the art declares its protected list once, before the two profiles: branch="+branch.substr(0,120)+" declared="+str(declared)+" loop="+str(loop)+" declarations="+str(branch.count("var protected")))
+ t.check(start>=0 and stop>start and declared>=0 and loop>declared and branch.count("var protected")==1 and rebuilds==1,"ROPE weave_shares_one_protected_batch: the art declares its protected list once, before the two profiles, and never rebuilds it per application (the same list serves the whole art): branch="+branch.substr(0,120)+" declared="+str(declared)+" loop="+str(loop)+" declarations="+str(branch.count("var protected"))+" rebuilds="+str(rebuilds))
  t.check(pass_through==2 and difference,"ROPE weave_shares_one_protected_batch: the batch is the difference set of the action targets that appeared and every application receives it through ordinary's extra: pass_through="+str(pass_through)+" difference="+str(difference)+" branch="+branch)
 
 static func run(t) -> void:

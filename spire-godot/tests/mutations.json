@@ -3521,6 +3521,67 @@
         "suite": "rope_master",
         "expect": "REMOVAL capture_settle_point_owns_exhaustion_and_release"
       }
-    ]
-  }
+    ],
+    "weave_pieces_never_replace_each_other": [
+      {
+        "clause": "no-accumulation",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "    var before=g.action_targets().map(func(item):return item.id)\n",
+            "replace": ""
+          },
+          {
+            "find": "    for item in g.action_targets():\n     if item.id not in before: protected.append(item.id)\n",
+            "replace": ""
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "ROPE weave_pieces_never_replace_each_other"
+      }
+    ],
+    "weave_still_replaces_older_equipment": [
+      {
+        "clause": "protect-every-target",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "    for item in g.action_targets():\n     if item.id not in before: protected.append(item.id)",
+            "replace": "    for item in g.action_targets():\n     protected.append(item.id)"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "ROPE weave_still_replaces_older_equipment"
+      }
+    ],
+    "weave_shares_one_protected_batch": [
+      {
+        "clause": "batch-rebuilt-per-application",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "   var protected=[]\n   for i in range(2):\n    var before=g.action_targets().map(func(item):return item.id)",
+            "replace": "   var protected=[]\n   for i in range(2):\n    protected=[]\n    var before=g.action_targets().map(func(item):return item.id)"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "ROPE weave_shares_one_protected_batch"
+      },
+      {
+        "clause": "batch-not-passed-through",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "    ordinary(g,e,profile.grade,profile.tier,{\"protected_ids\":protected})",
+            "replace": "    ordinary(g,e,profile.grade,profile.tier)"
+          },
+          {
+            "find": "   ordinary(g,e,1,1,{\"templates\":[\"link_rope\"],\"allow_links\":true,\"protected_ids\":protected})",
+            "replace": "   ordinary(g,e,1,1,{\"templates\":[\"link_rope\"],\"allow_links\":true})"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "ROPE weave_shares_one_protected_batch"
+      }
+    ]  }
 }
