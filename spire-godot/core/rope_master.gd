@@ -219,6 +219,15 @@ static func sweep(g, e: Dictionary, grade: int) -> void:
  if not g.state.special_equipment.any(func(item):return g.SpecialEquipment.TYPES[item.type].family=="crotch_rope"):
   install(g,e,{"pool":"special","templates":["crotch_rope_low","crotch_rope_medium","crotch_rope_high"].filter(func(id):return g.SpecialEquipment.DESIGNS[id].grade==grade),"grade":grade,"tier":1,"count":1,"replace":true})
 
+# QX7 (rev3.3 G-QX7-3): both arts -- the weave and the assistant-death art -- keep one protected
+# list per application batch through this one difference set: the targets present now but not in
+# `before` are what this application installed, so a later application of the same art may not
+# replace them. `before` is the id snapshot taken ahead of the application; the caller keeps that
+# timing because `g.state.special_equipment` is the live container the application appends to.
+static func _absorb_protected(protected: Array, before: Array, items: Array) -> void:
+ for item in items:
+  if item.id not in before: protected.append(item.id)
+
 static func execute(g, e: Dictionary, intent: Dictionary) -> void:
  match intent.kind:
   "art_intro","art_revive":
@@ -250,8 +259,7 @@ static func execute(g, e: Dictionary, intent: Dictionary) -> void:
     var before=g.action_targets().map(func(item):return item.id)
     var profile=g.RestraintValue.profiles(3)[g._random_index("enemy",2)]
     ordinary(g,e,profile.grade,profile.tier,{"protected_ids":protected})
-    for item in g.action_targets():
-     if item.id not in before: protected.append(item.id)
+    _absorb_protected(protected,before,g.action_targets())
    ordinary(g,e,1,1,{"templates":["link_rope"],"allow_links":true,"protected_ids":protected})
   "art_enchant":
    var choices=["active","drain","desire"]
@@ -343,8 +351,7 @@ static func death(g, e: Dictionary) -> void:
    var profile=g.RestraintValue.profiles(4)[g._random_index("enemy",3)]
    var before=g.state.special_equipment.map(func(item):return item.id)
    install(g,e,{"pool":"special","templates":g.SpecialEquipment.prison_pool(profile.grade,true,false),"grade":profile.grade,"tier":profile.tier,"count":1,"replace":true,"protected_ids":protected})
-   for item in g.state.special_equipment:
-    if item.id not in before: protected.append(item.id)
+   _absorb_protected(protected,before,g.state.special_equipment)
 
 static func clear_cards(g) -> void:
  for zone in ["deck"]+g.Cards.ZONES:
