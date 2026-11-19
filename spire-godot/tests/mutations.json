@@ -3532,7 +3532,7 @@
             "replace": ""
           },
           {
-            "find": "    for item in g.action_targets():\n     if item.id not in before: protected.append(item.id)\n",
+            "find": "    _absorb_protected(protected,before,g.action_targets())\n",
             "replace": ""
           }
         ],
@@ -3546,8 +3546,8 @@
         "file": "core/rope_master.gd",
         "edits": [
           {
-            "find": "    for item in g.action_targets():\n     if item.id not in before: protected.append(item.id)",
-            "replace": "    for item in g.action_targets():\n     protected.append(item.id)"
+            "find": "    _absorb_protected(protected,before,g.action_targets())",
+            "replace": "    _absorb_protected(protected,[],g.action_targets())"
           }
         ],
         "suite": "rope_master",

@@ -453,9 +453,9 @@ static func log_texts(g, from: int) -> Array:
  for index in range(from,g.state.logs.size()): out.append(String(g.state.logs[index].text))
  return out
 
-static func add_rope(g, slot: String, point: String, grade: int, tier: int) -> Dictionary:
+static func add_rope(g, slot: String, point: String, grade: int, tier: int, template: String="rope") -> Dictionary:
  var maximum=g.Equipment.maximum(grade)
- return g._install_template("rope",slot,maximum*[0.0,0.4,0.8,1.0][tier],maximum,false,"fixture",grade,-1,0,point)
+ return g._install_template(template,slot,maximum*[0.0,0.4,0.8,1.0][tier],maximum,false,"fixture",grade,-1,0,point)
 
 # G-QX2-14's tighten probe (rev3.3 gherkin-delta「钩子记录探针」): the test-side subclass records the
 # tighten order, whether each target is still the live record when the step returns, and the log mark
@@ -1300,30 +1300,45 @@ class WeaveProbe extends "res://tests/game_fixture.gd":
    if not dismantled.has(id): dismantled.append(id)
   super._write_durability(target,value,tighten)
 
-# The same piece builder `add_rope` uses, generalized to the cord of the small slots.
-static func weave_piece(g, template: String, slot: String, point: String, grade: int, tier: int) -> Dictionary:
- var maximum=g.Equipment.maximum(grade)
- return g._install_template(template,slot,maximum*[0.0,0.4,0.8,1.0][tier],maximum,false,"fixture",grade,-1,0,point)
-
 # QX7 fixture: fill every position a rope or cord could occupy, so an application that installs at
-# all has to replace something. `short` keeps a named slot one piece below its capacity; the value-2
-# ropes added after the fill then make the body full again while leaving exactly one beatable piece
-# in that slot.
+# all has to replace something. `short` keeps a named slot one piece below its capacity.
 static func weave_full_body(g, short: Dictionary) -> void:
  for slot in ["upper_arm","forearm","wrist","palm","thigh","calf","ankle","foot"]:
   var limit=int(short.get(slot,g.Equipment.capacity(slot,"rope")))
   if g.Equipment.SEGMENTS.has(slot):
    for point in g.Equipment.points(slot):
     while g._capacity_point_count(point)<limit:
-     if weave_piece(g,"rope",slot,point,3,1).is_empty(): break
+     if add_rope(g,slot,point,3,1).is_empty(): break
   else:
    var first=String(g.Equipment.points(slot)[0])
    while g._capacity_point_count(first)<limit:
-    if weave_piece(g,"rope",slot,"",3,1).is_empty(): break
+    if add_rope(g,slot,"",3,1).is_empty(): break
  for slot in ["fingers","toes"]:
   var first=String(g.Equipment.points(slot)[0])
   while g._capacity_point_count(first)<g.Equipment.capacity(slot,"cord"):
-   if weave_piece(g,"cord",slot,"",3,1).is_empty(): break
+   if add_rope(g,slot,"",3,1,"cord").is_empty(): break
+
+# QX7 fixture: the same full body, but the wrist stack keeps `waiting` value-two ropes, so the art has
+# exactly those beatable pieces to take there. The fill stops `waiting` pieces short of the wrist
+# capacity; the added ropes make the body full again.
+static func weave_contested_body(g, waiting: int) -> Array:
+ weave_full_body(g,{"wrist":g.Equipment.capacity("wrist","rope")-waiting})
+ var pieces=[]
+ for index in range(waiting): pieces.append(add_rope(g,"wrist","wrist",1,1))
+ return pieces
+
+# The one id snapshot of an art: the action targets as ids, taken before and after the applications.
+static func weave_ids(g) -> Array:
+ return g.action_targets().map(func(item):return String(item.get("id","")))
+
+# The art's observable change on `g`: `appeared` are the action targets it installed, `stray` are the
+# ids it dismantled that were not on the body before it. `recording` brackets the art alone.
+static func weave_change(g, boss: Dictionary, before: Array) -> Dictionary:
+ g.recording=true
+ g.RopeArt.execute(g,boss,{"kind":"art_weave"})
+ g.recording=false
+ var after=weave_ids(g)
+ return {"appeared":after.filter(func(id):return not before.has(id)),"stray":g.dismantled.filter(func(id):return not before.has(id))}
 
 # The fixture's own claim: no rope or cord position is open. "" means the body is full.
 static func weave_full_issue(g) -> String:
@@ -1339,70 +1354,44 @@ static func weave_full_issue(g) -> String:
 # art installs is dismantled by it.
 static func weave_pieces_never_replace_each_other(t) -> void:
  var g=encounter(42,WeaveProbe)
- var boss=g.RopeArt.master(g)
- weave_full_body(g,{"wrist":2})
- var weak=weave_piece(g,"rope","wrist","wrist",1,1)
- var before=g.action_targets().map(func(item):return String(item.get("id","")))
+ var waiting=weave_contested_body(g,1)
+ var before=weave_ids(g)
  var free=weave_full_issue(g)
- g.recording=true
- g.RopeArt.execute(g,boss,{"kind":"art_weave"})
- g.recording=false
- var after=g.action_targets().map(func(item):return String(item.get("id","")))
- var appeared=after.filter(func(id):return not before.has(id))
- var stray=g.dismantled.filter(func(id):return not before.has(id))
+ var change=weave_change(g,g.RopeArt.master(g),before)
+ var weak=waiting[0]
  t.check(free=="" and not weak.is_empty(),"ROPE weave_pieces_never_replace_each_other: the fixture leaves no free position for a value-three rope and one older rope waiting inside the wrist stack: free="+free+" weak="+String(weak.get("id","")))
- t.check(stray.is_empty() and g.dismantled.has(String(weak.get("id",""))) and appeared.size()>=2,"ROPE weave_pieces_never_replace_each_other: the first piece takes the older rope and no piece this art installs is dismantled by a later application: dismantled="+str(g.dismantled)+" appeared="+str(appeared)+" weak="+String(weak.get("id","")))
+ t.check(change.stray.is_empty() and g.dismantled.has(String(weak.get("id",""))) and change.appeared.size()>=2,"ROPE weave_pieces_never_replace_each_other: the first piece takes the older rope and no piece this art installs is dismantled by a later application: dismantled="+str(g.dismantled)+" appeared="+str(change.appeared)+" weak="+String(weak.get("id","")))
  # The same claim over the other two acceptance states: free positions (nothing is dismantled at all)
  # and a hogtie applied mid-art (a piece that appears between two applications is not dismantled).
  var open=encounter(42,WeaveProbe)
- var open_boss=open.RopeArt.master(open)
- var open_before=open.action_targets().map(func(item):return String(item.get("id","")))
- open.recording=true
- open.RopeArt.execute(open,open_boss,{"kind":"art_weave"})
- open.recording=false
- var open_after=open.action_targets().map(func(item):return String(item.get("id","")))
- var open_appeared=open_after.filter(func(id):return not open_before.has(id))
- var open_stray=open.dismantled.filter(func(id):return not open_before.has(id))
+ var open_before=weave_ids(open)
+ var open_change=weave_change(open,open.RopeArt.master(open),open_before)
  var art=encounter(42,WeaveProbe)
+ var art_waiting=weave_contested_body(art,2)
  var art_boss=art.RopeArt.master(art)
- weave_full_body(art,{"wrist":1})
- var art_weak=weave_piece(art,"rope","wrist","wrist",1,1)
- var art_weak_two=weave_piece(art,"rope","wrist","wrist",1,1)
- art_boss=art.RopeArt.master(art)
  art_boss.rope_art.domain=true
  art_boss.rope_art.total=48
  art_boss.rope_art.previous=48
  art.state.guard_bind={"progress":48.0,"sources":{art.RopeArt.MASTER:{"enemy":art_boss.id,"energy":0}}}
- var art_before=art.action_targets().map(func(item):return String(item.get("id","")))
- art.recording=true
- art.RopeArt.execute(art,art_boss,{"kind":"art_weave"})
- art.recording=false
- var art_after=art.action_targets().map(func(item):return String(item.get("id","")))
- var art_appeared=art_after.filter(func(id):return not art_before.has(id))
- var art_stray=art.dismantled.filter(func(id):return not art_before.has(id))
+ var art_before=weave_ids(art)
+ var art_change=weave_change(art,art_boss,art_before)
  var hogtie=String(art.RopeArt.master(art).rope_art.hogtie)
- t.check(open_stray.is_empty() and open_appeared.size()>=2,"ROPE weave_pieces_never_replace_each_other: a body with free positions takes both pieces without dismantling anything: dismantled="+str(open.dismantled)+" appeared="+str(open_appeared))
- t.check(art_stray.is_empty() and not art_weak.is_empty() and not art_weak_two.is_empty() and not hogtie.is_empty() and not art._equipment(hogtie).is_empty(),"ROPE weave_pieces_never_replace_each_other: a hogtie applied between two applications stays, and nothing this art installs is dismantled around it: dismantled="+str(art.dismantled)+" appeared="+str(art_appeared)+" hogtie="+hogtie)
+ t.check(open_change.stray.is_empty() and open_change.appeared.size()>=2,"ROPE weave_pieces_never_replace_each_other: a body with free positions takes both pieces without dismantling anything: dismantled="+str(open.dismantled)+" appeared="+str(open_change.appeared))
+ t.check(art_change.stray.is_empty() and not art_waiting[0].is_empty() and not art_waiting[1].is_empty() and not hogtie.is_empty() and not art._equipment(hogtie).is_empty(),"ROPE weave_pieces_never_replace_each_other: a hogtie applied between two applications stays, and nothing this art installs is dismantled around it: dismantled="+str(art.dismantled)+" appeared="+str(art_change.appeared)+" hogtie="+hogtie)
 
 # G-QX7-2 (rev3.3 acceptance §3.QX7, no free position with an older rope outside this art): protection
 # covers the pieces this art installed, not every rope on the body.
 static func weave_still_replaces_older_equipment(t) -> void:
  var g=encounter(42,WeaveProbe)
- var boss=g.RopeArt.master(g)
- weave_full_body(g,{"wrist":1})
- var first=weave_piece(g,"rope","wrist","wrist",1,1)
- var second=weave_piece(g,"rope","wrist","wrist",1,1)
- var before=g.action_targets().map(func(item):return String(item.get("id","")))
+ var waiting=weave_contested_body(g,2)
+ var before=weave_ids(g)
  var free=weave_full_issue(g)
- g.recording=true
- g.RopeArt.execute(g,boss,{"kind":"art_weave"})
- g.recording=false
- var after=g.action_targets().map(func(item):return String(item.get("id","")))
- var appeared=after.filter(func(id):return not before.has(id))
- var stray=g.dismantled.filter(func(id):return not before.has(id))
+ var change=weave_change(g,g.RopeArt.master(g),before)
+ var first=waiting[0]
+ var second=waiting[1]
  var older=g.dismantled.filter(func(id):return id==String(first.get("id","")) or id==String(second.get("id","")))
  t.check(free=="" and not first.is_empty() and not second.is_empty(),"ROPE weave_still_replaces_older_equipment: the fixture leaves no free position and two value-two ropes waiting inside the wrist stack: free="+free+" first="+String(first.get("id",""))+" second="+String(second.get("id","")))
- t.check(stray.is_empty() and older.size()==2 and appeared.size()>=2,"ROPE weave_still_replaces_older_equipment: both older ropes are replaceable while the pieces this art installed stay, so the protection names this art's targets and not every rope: dismantled="+str(g.dismantled)+" appeared="+str(appeared)+" older="+str(older))
+ t.check(change.stray.is_empty() and older.size()==2 and change.appeared.size()>=2,"ROPE weave_still_replaces_older_equipment: both older ropes are replaceable while the pieces this art installed stay, so the protection names this art's targets and not every rope: dismantled="+str(g.dismantled)+" appeared="+str(change.appeared)+" older="+str(older))
 
 # G-QX7-3 (rev3.3 acceptance §3.QX7): one protected batch -- declared once before the loop, the
 # difference set of the action targets that appeared during the art, and handed to all three
@@ -1417,7 +1406,14 @@ static func weave_shares_one_protected_batch(t) -> void:
  var loop=branch.find("for i in range(2):")
  var pass_through=branch.count("\"protected_ids\":protected")
  var rebuilds=branch.count("protected=[]")
- var difference=branch.contains("var before=g.action_targets().map(func(item):return item.id)") and branch.contains("if item.id not in before: protected.append(item.id)")
+ # The accumulation is one private helper shared with the death art: the branch hands it the ids
+ # taken before the application and the targets read after it, and the helper keeps the difference
+ # set verbatim. Moving either half out of that path, or re-inlining the loop at either call site,
+ # is red.
+ var absorbs=branch.count("_absorb_protected(protected,before,g.action_targets())")
+ var death=Arch.code_of_function("core/rope_master.gd","death").count("_absorb_protected(protected,before,g.state.special_equipment)")
+ var accumulation=Arch.code_of_function("core/rope_master.gd","_absorb_protected").contains("if item.id not in before: protected.append(item.id)")
+ var difference=absorbs==1 and death==1 and accumulation and branch.contains("var before=g.action_targets().map(func(item):return item.id)")
  t.check(start>=0 and stop>start and declared>=0 and loop>declared and branch.count("var protected")==1 and rebuilds==1,"ROPE weave_shares_one_protected_batch: the art declares its protected list once, before the two profiles, and never rebuilds it per application (the same list serves the whole art): branch="+branch.substr(0,120)+" declared="+str(declared)+" loop="+str(loop)+" declarations="+str(branch.count("var protected"))+" rebuilds="+str(rebuilds))
  t.check(pass_through==2 and difference,"ROPE weave_shares_one_protected_batch: the batch is the difference set of the action targets that appeared and every application receives it through ordinary's extra: pass_through="+str(pass_through)+" difference="+str(difference)+" branch="+branch)
 
