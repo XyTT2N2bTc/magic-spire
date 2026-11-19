@@ -3538,6 +3538,18 @@
         ],
         "suite": "rope_master",
         "expect": "ROPE weave_pieces_never_replace_each_other"
+      },
+      {
+        "clause": "absorb-inert",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " for item in items:\n  if item.id not in before: protected.append(item.id)",
+            "replace": " pass"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "ROPE weave_pieces_never_replace_each_other"
       }
     ],
     "weave_still_replaces_older_equipment": [
@@ -3582,6 +3594,32 @@
         ],
         "suite": "rope_master",
         "expect": "ROPE weave_shares_one_protected_batch"
+      }
+    ],
+    "death_appends_never_replace_each_other": [
+      {
+        "clause": "no-accumulation",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "   _absorb_protected(protected,before,g.state.special_equipment)",
+            "replace": "   _absorb_protected(protected,before,g.state.special_equipment)\n   protected=[]"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "ROPE death_appends_never_replace_each_other"
+      },
+      {
+        "clause": "absorb-inert",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " for item in items:\n  if item.id not in before: protected.append(item.id)",
+            "replace": " pass"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "ROPE death_appends_never_replace_each_other"
       }
     ]  }
 }

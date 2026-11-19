@@ -1417,6 +1417,35 @@ static func weave_shares_one_protected_batch(t) -> void:
  t.check(start>=0 and stop>start and declared>=0 and loop>declared and branch.count("var protected")==1 and rebuilds==1,"ROPE weave_shares_one_protected_batch: the art declares its protected list once, before the two profiles, and never rebuilds it per application (the same list serves the whole art): branch="+branch.substr(0,120)+" declared="+str(declared)+" loop="+str(loop)+" declarations="+str(branch.count("var protected"))+" rebuilds="+str(rebuilds))
  t.check(pass_through==2 and difference,"ROPE weave_shares_one_protected_batch: the batch is the difference set of the action targets that appeared and every application receives it through ordinary's extra: pass_through="+str(pass_through)+" difference="+str(difference)+" branch="+branch)
 
+# QX7 hardener L1 (A289; cleaner §8 left the death side with only the structural pin): the
+# assistant-death art appends two special restraints through the same shared difference set the weave
+# uses, so its behaviour needs its own judge. Fixture: fill every special capacity point with a
+# value-three piece and leave one value-one crotch rope as the piece the grade-one death profile
+# takes. Seed 46 draws grade one and then grade two (the two size-three `enemy` draws); the second
+# application's only legal target is the grade-one crotch rope the first one installed, and taking it
+# would be a real grade change (a same-grade replacement is refused as a no-op), so the surviving id
+# and the id counter say whether it took it. Special replacement erases the record instead of
+# zeroing durability, so the judge reads the container and the counter, not the durability probe.
+static func death_contested_body(g) -> Dictionary:
+ for entry in [["nipple_clamp_high","special_1_a"],["nipple_ring_high","special_1_a"],["full_cup_high","special_2_a"],["shaft_ring_high","special_2_a"],["corona_ring_high","special_2_c"],["urethral_rod_high","special_2_d"],["vaginal_egg_high","special_3_a"],["anal_egg_high","special_3_b"]]:
+  g._install_special(String(entry[0]),String(entry[1]),2)
+ return g._install_special("crotch_rope_low","special_3_a",1)
+
+static func death_appends_never_replace_each_other(t) -> void:
+ var g=encounter(46)
+ var old=death_contested_body(g)
+ var before=g.state.special_equipment.map(func(item):return String(item.get("id","")))
+ var start=int(g.state.next_equipment)
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.summon(g,boss)
+ var helper=g.RopeArt.assistant(g)
+ g._damage_enemy(helper,999,"fixed","test")
+ var after=g.state.special_equipment.map(func(item):return String(item.get("id","")))
+ var installed=after.filter(func(id):return not before.has(id))
+ var first="special_%d" % start
+ t.check(not old.is_empty() and not after.has(String(old.get("id",""))),"ROPE death_appends_never_replace_each_other: the older rope outside this art is replaced, so protection covers this art's pieces and not every rope: old="+String(old.get("id",""))+" after="+str(after))
+ t.check(installed.size()==1 and installed[0]==first and int(g.state.next_equipment)==start+1,"ROPE death_appends_never_replace_each_other: the second application cannot take the first one's piece (that piece is its only legal candidate), so the first id survives and only one piece is created: installed="+str(installed)+" first="+first+" start="+str(start)+" next="+str(int(g.state.next_equipment)))
+
 static func run(t) -> void:
  var g=encounter()
  var boss=g.RopeArt.master(g)
@@ -1482,3 +1511,4 @@ static func run(t) -> void:
  weave_pieces_never_replace_each_other(t)
  weave_still_replaces_older_equipment(t)
  weave_shares_one_protected_batch(t)
+ death_appends_never_replace_each_other(t)
