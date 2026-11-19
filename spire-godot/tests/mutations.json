@@ -225,7 +225,7 @@
         "edits": [
           {
             "find": " if master(g).is_empty(): return\n for record in records:",
-            "replace": " if master(g).is_empty():\n  g.state.enemies[0].rope_art={\"total\":0,\"values\":{}}\n  return\n for record in records:"
+            "replace": " if master(g).is_empty():\n  g.state.enemies[0].rope_art={\"stock\":OPENING_STOCK,\"refill\":false,\"grief\":false,\"revive\":false,\"deaths\":0,\"domain\":false,\"seal\":false,\"total\":0,\"values\":{},\"seen50\":false,\"seen75\":false,\"previous\":0,\"drunk\":0,\"submission\":0,\"active\":0,\"drain\":0,\"desire\":0,\"hogtie\":\"\",\"hogtie_pending\":0}\n  return\n for record in records:"
           }
         ],
         "suite": "rope_master"
