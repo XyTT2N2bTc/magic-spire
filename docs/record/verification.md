@@ -5231,3 +5231,27 @@ flowchart LR
 - 流程：实现 `dsp-20261118T062310Z-78ea`（首派 blocked，CC-66）→`062947Z-e114`（额度中断）→续接 `171041Z-75aa`→清洁 `191644Z-9241`→加固（中）`194554Z-377f`→独立审查 `211758Z-6d21`（通过；F5 为审查误报，目标文本在任何提交中都不存在）→第二轮清洁 `214524Z-a656`（blocked：私有方法形态与 `ARCH unit_entries_are_declared` 互斥，A248 改 F6 不做）→`215319Z-7e58`→验收 `221135Z-d3b1`。
 - 待办：QX6-B1（补跑后序与四工厂登记后序合为单一成员枚举器，须人批切分）；混合组（普通件＋复合件同组）的日志多重集差异在真实入口不可达，由 `group_members_are_install_class_only` 钉住，可达即红。
 - 本开发线提交仅本地 `.git`，未推送、未 tag、未打包。
+
+## 2026-11-20 QX2″ 捕缚账、R4 甲、删 S19／S18 验收（spire-godot，`72f50d5..5b7f641`）
+
+- 域：`core/rope_master.gd`（账／闭包／对账、J3、T、移除销账、`joined`、观察点声明表、顶层观察、SETTLE_POINTS 21→19、e 修驷马缚扣库存＋命名）、`core/game.gd`（`_art_scope`、J6 先于 J7、T 观察、单位外移除观察、删 `_art_scope.is_empty()` 门保留 `owned and booked` 顶层条件）、`core/equipment_removal.gd`（帧内登记＋提交销账、`replaced` 只按 id、删三处补记＋`_tick_special`、`_refresh_equipment`、`cancel_for_assembly` 返回被擦记录）、`core/torso_binding.gd`；有意的行为变化只限 D1–D6／D18–D22／D10–D13（A264，R1–R10）。
+- 补证范围（A266）：`101a63c..5b7f641` 只改 `tests/mutations.json` 一行（`capture_settles_only_in_rope_battle#owner-gate` 的 `replace`；1 文件／1 hunk／1 行增 1 行删；表结构 190 判据／264 条目不变，唯一变动单元即该 `replace`），不改任何 `.gd`，故 ②③⑤⑥⑦⑧⑨⑩ 沿用 A264 全片验收结论。
+- **行为变化**：a 捕缚账（帧内登记＋提交销账，账＝重算，D1–D6）；b 甲观察点（单位内观察搬到顶层 hook、J6 先于 J7，D18–D22）；e 修复 F1 回归（J6 在 `_art_scope` 弹出后早退使驷马缚未扣未命名，e 补扣库存 4 并补「绳艺大师施加了驷马缚。」，D18）；c／d 删 S19（hogtie quiet）、S18（install quiet），SETTLE_POINTS 21→20→19（D10–D13）；F6 删 `_art_scope.is_empty()` 门（观察点后移，`owned and booked` 顶层条件保留，由 `capture_tier_hook_defers_observation_to_the_owning_unit` 钉住）。
+- 门禁（A264 全量在 HEAD `101a63c` 跑；A266 复跑架构套件在 HEAD `5b7f641`；两次均 dirty 0、无残留 Godot）：
+  - 52 套件单次全量（单运行号）：`FAIL: 15/152737`；与父逐套件对照 `parent_suites=52 child_suites=52 order_same=True`，只增 +170：rope_master 104→268（+164）、architecture 121301→121307（+6）；15 条父 ERROR 逐字节相同（architecture×4、shoulder×1、rewards×4、content×2、route×4）；SCRIPT ERROR 0；before==after。`5b7f641` 不改 `.gd`，该结论对该提交成立。
+  - 架构套件单跑（A266，`5b7f641`）：`FAIL: 4/121307 assertions; 4 engine errors`，4 条 `ERROR:` 与 A264 父日志同 4 条逐字节相同（sha256 `6B7665BF…`），`SCRIPT ERROR|PARSE ERROR|SOURCE CHANGED` 0；`MUTATION ANCHORS entries=264 unique=264 bad=0`；before==after。
+  - runner `-VerifyRunner`（`-Suite runner`）exit 0（7 route 探针＋负例全过）；UI `-UIOnly` `UI PASS: 192 assertions`（home）；state_readers `--verify` PASS（sha256 `ef980738…`）；check-index PASS（digest `63110e7b…`）；check-docs `DOCS PASS`。
+- 分段判读（主判据，`matrix-compare.json`）：non_battle 全 0。a 33 行全 D1–D6；b1 35 行全 D18–D22；c 0 行（删 S19，quiet_count 2→1）；d 1 行（`CM27-hogtie0-80`，删 S18，quiet_count 1→0）；`8b25ba3→d719636` 0 行（F2 收口）；e 20 行全 D18（`CM25` turn＋t04..t20 与 `CM27-tighten50`／`selfbind50`）；`5eeaaee→101a63c` 0 行（只改注释）；端点 35 行 = 11 D1–D6 + 18 D18 + 6 D18–D22／D10–D13。F1 回归自抵消（父 `CM27-tighten50` stock=44 文案有 → b `da6d6c9` stock=48 文案空 → e `5eeaaee` 恢复 44 文案有），故端点该行不计差异。
+- **R10（e 段预测更正）**：`acceptance-brief.md` ② 预测 e 段「只在 CM27 两行」偏窄；CM25（种子 3364630912 连续结束回合）第 4 回合即大师「收紧！」跨 50，与 CM27-tighten50 同局面，故 e 段许可差异更正为「CM25 turn 与 t04..t20，加上 CM27 两行，全部为 D18」——实跑 20 行全 D18，非失败。
+- 三类探针：影子对账首现 `CM20q-link`（父 `shadow=total 16!=23` → a `shadow=ok total=23`）；观察时机差在 b1 段 CM27 行（`rope`/`hooks`/`frames`）；S18/S19 做事计数 quiet=2→1→0（子=0）。
+- 判定不变：全量语料 `75e446a5…`（sha256 对）compare／reoracle `checked=3277 mismatches=0`。
+- 敏感性（A266 复跑，HEAD `5b7f641`、dirty 0）：45 clause 逐条 `check-mutation` **45/45** `1/1` 具名红＋逐字节还原（每条 `worktree unchanged=True (pre-dirty=0)`，exit 0；45 份子日志 `SCRIPT ERROR|PARSE ERROR|SOURCE CHANGED|ObjectDB instances were leaked|resources still in use` 命中 0），含 G-QX2-7 三条必跑（`capture_accounts_new_members_at_join#link-j3`、`capture_unaccounts_removed_closure#no-writeoff`、`capture_unaccounts_removed_linked_closure#closure-binding`）。A264 的缺陷条目 `capture_settles_only_in_rope_battle#owner-gate` 现为干净具名红（3 条 `ERROR:` 具名断言、无运行时错误）；桩键集与 `core/rope_master.gd::initialize` 的 19 个 `rope_art` 键逐键相等（`STUB_KEYS=19 INIT_KEYS=19 ORDER_AND_SET_EQUAL=True`）。
+- 界面操作：真实 UI 驱动 `ui.restart(3364630912,true,"rope_master_solo")` 逐回合点「结束回合」，捕缚进度 8/35/84 各 = `min(100,重算值)`；状态栏 `rope_drunk=4`、`rope_submission=1` 与 `rope_art` 一致；第 4 回合「收紧!」35→84 跨 50/80，库存 13→8（收紧 1＋驷马缚 4），面板「绳艺大师施加了驷马缚。」排在跨阈值件（小臂）之后、其余各件（大臂/左右肩）之前。大师路径无逐件回魔/worn 文案，照实记录原文。
+- 三种子与父 `72f50d5` 逐字节相同（`01db4dc5…61fef`、`4f69e2c7…1f0e5c`、`aa45ef47…7ae9d`）：**无需新基线**，未登记、未触发人认可；`ROPE reported…` 断言逐字节同父。
+- 结构：12 文件 ⊆ QX2″ 允许表 ∪ CC-69／70／71／72 ∪ A258（`write_journal_game.gd` 由 rev3.5 §5.3 授权）；产品 hunk 按函数归属全部落于上述域；`SETTLE_POINTS` 19 行；`frozen-baselines.json` 与 `known_gaps` 逐字节同父。
+- 行数：core＋data＋ui `.gd` 31807→31916（+109，144 文件不变）；12 文件见表（rope_master_cases 233→1286、mutations.json 2943→3526 行、game 4345→4395、rope_master 320→377、architecture_cases 8806→8910 等）；`5b7f641` 只换 `mutations.json` 一行内容，行数仍 3526。
+- 结论：产品行为全绿，切片通过；A264 的 1 条测试资产作者缺陷（`owner-gate` 突变替换文本过粗致下游 SCRIPT ERROR）已由 `5b7f641` 修复，并在 A266 复跑中取得 45/45 干净具名红＋逐字节还原，无遗留缺陷。
+
+- 流程：实现（evidence.md）→ 全片验收 `dsp-20261119T132038Z-5862`（续接 `131908Z-7582` 额度中断，无工作丢失）→ 低档加固 `5b7f641`（A265）→ 突变表域补证 `dsp-20261119T150709Z-8a65`（A266）。
+- 待办：`施加了驷马缚。` 文案出现在触发卡面复制之前（R9 的 card-face-copy 低 TODO）；`_quiet_site` 分支留 Q7（R6）。
+- 本开发线提交仅本地 `.git`，未推送、未 tag、未打包。
