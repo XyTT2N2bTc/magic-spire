@@ -3,6 +3,7 @@ const Game=preload("res://tests/game_fixture.gd")
 const Replacement=preload("res://core/equipment_replacement.gd")
 const SelfBinding=preload("res://core/self_binding.gd")
 const Give=preload("res://tests/curse_cases.gd")
+const Arch=preload("res://tests/architecture_cases.gd")
 
 # The one rope-master encounter fixture: the plain game and the test-side probes share this builder,
 # so the entrance and the battle entry stay one path.
@@ -1285,6 +1286,139 @@ static func capture_ledger(t) -> void:
  capture_settle_point_owns_exhaustion_and_release(t)
  await capture_account_matches_recount(t)
 
+# QX7 (rev3.3 gherkin G-QX7-1…3, dependencies-delta「编织绳网批保护」): the weave's three applications
+# share one protected batch. The probe records every unit a plan zeroes -- a replacement removes a
+# piece only by zeroing it, and the trial copies run on the same records -- so a criterion can name
+# the ids dismantled during one art, including a piece the art itself just installed. It overrides no
+# rule and writes no state of its own.
+class WeaveProbe extends "res://tests/game_fixture.gd":
+ var dismantled: Array=[]
+ var recording: bool=false
+ func _write_durability(target: Dictionary, value: float, tighten: bool=false) -> void:
+  if recording and float(value)<=0.0 and float(target.get("durability",0.0))>0.0:
+   var id=String(target.get("id",""))
+   if not dismantled.has(id): dismantled.append(id)
+  super._write_durability(target,value,tighten)
+
+# The same piece builder `add_rope` uses, generalized to the cord of the small slots.
+static func weave_piece(g, template: String, slot: String, point: String, grade: int, tier: int) -> Dictionary:
+ var maximum=g.Equipment.maximum(grade)
+ return g._install_template(template,slot,maximum*[0.0,0.4,0.8,1.0][tier],maximum,false,"fixture",grade,-1,0,point)
+
+# QX7 fixture: fill every position a rope or cord could occupy, so an application that installs at
+# all has to replace something. `short` keeps a named slot one piece below its capacity; the value-2
+# ropes added after the fill then make the body full again while leaving exactly one beatable piece
+# in that slot.
+static func weave_full_body(g, short: Dictionary) -> void:
+ for slot in ["upper_arm","forearm","wrist","palm","thigh","calf","ankle","foot"]:
+  var limit=int(short.get(slot,g.Equipment.capacity(slot,"rope")))
+  if g.Equipment.SEGMENTS.has(slot):
+   for point in g.Equipment.points(slot):
+    while g._capacity_point_count(point)<limit:
+     if weave_piece(g,"rope",slot,point,3,1).is_empty(): break
+  else:
+   var first=String(g.Equipment.points(slot)[0])
+   while g._capacity_point_count(first)<limit:
+    if weave_piece(g,"rope",slot,"",3,1).is_empty(): break
+ for slot in ["fingers","toes"]:
+  var first=String(g.Equipment.points(slot)[0])
+  while g._capacity_point_count(first)<g.Equipment.capacity(slot,"cord"):
+   if weave_piece(g,"cord",slot,"",3,1).is_empty(): break
+
+# The fixture's own claim: no rope or cord position is open. "" means the body is full.
+static func weave_full_issue(g) -> String:
+ for slot in ["upper_arm","forearm","wrist","palm","thigh","calf","ankle","foot","fingers","toes"]:
+  var template="cord" if slot in ["fingers","toes"] else "rope"
+  var limit=g.Equipment.capacity(slot,template)
+  for point in g.Equipment.points(slot):
+   if g._capacity_point_count(point)<limit: return "%s/%s still has a free position" % [slot,point]
+ return ""
+
+# G-QX7-1 (rev3.3 acceptance §3.QX7, no free position with the second piece's only replaceable being
+# the first): the older rope is taken and nothing this art installs is dismantled by it.
+static func weave_pieces_never_replace_each_other(t) -> void:
+ var g=encounter(42,WeaveProbe)
+ var boss=g.RopeArt.master(g)
+ weave_full_body(g,{"wrist":2})
+ var weak=weave_piece(g,"rope","wrist","wrist",1,1)
+ var before=g.action_targets().map(func(item):return String(item.get("id","")))
+ var free=weave_full_issue(g)
+ g.recording=true
+ g.RopeArt.execute(g,boss,{"kind":"art_weave"})
+ g.recording=false
+ var after=g.action_targets().map(func(item):return String(item.get("id","")))
+ var appeared=after.filter(func(id):return not before.has(id))
+ var stray=g.dismantled.filter(func(id):return not before.has(id))
+ t.check(free=="" and not weak.is_empty(),"ROPE weave pieces never replace each other: the fixture leaves no free position for a value-three rope and one older rope waiting inside the wrist stack: free="+free+" weak="+String(weak.get("id","")))
+ t.check(stray.is_empty() and g.dismantled.has(String(weak.get("id",""))) and appeared.size()>=2,"ROPE weave pieces never replace each other: the first piece takes the older rope and no piece this art installs is dismantled by a later application: dismantled="+str(g.dismantled)+" appeared="+str(appeared)+" weak="+String(weak.get("id","")))
+ # The same claim over the other two acceptance states: free positions (nothing is dismantled at all)
+ # and a hogtie applied mid-art (a piece that appears between two applications is not dismantled).
+ var open=encounter(42,WeaveProbe)
+ var open_boss=open.RopeArt.master(open)
+ var open_before=open.action_targets().map(func(item):return String(item.get("id","")))
+ open.recording=true
+ open.RopeArt.execute(open,open_boss,{"kind":"art_weave"})
+ open.recording=false
+ var open_after=open.action_targets().map(func(item):return String(item.get("id","")))
+ var open_appeared=open_after.filter(func(id):return not open_before.has(id))
+ var open_stray=open.dismantled.filter(func(id):return not open_before.has(id))
+ var art=encounter(42,WeaveProbe)
+ var art_boss=art.RopeArt.master(art)
+ weave_full_body(art,{"wrist":1})
+ var art_weak=weave_piece(art,"rope","wrist","wrist",1,1)
+ var art_weak_two=weave_piece(art,"rope","wrist","wrist",1,1)
+ art_boss=art.RopeArt.master(art)
+ art_boss.rope_art.domain=true
+ art_boss.rope_art.total=48
+ art_boss.rope_art.previous=48
+ art.state.guard_bind={"progress":48.0,"sources":{art.RopeArt.MASTER:{"enemy":art_boss.id,"energy":0}}}
+ var art_before=art.action_targets().map(func(item):return String(item.get("id","")))
+ art.recording=true
+ art.RopeArt.execute(art,art_boss,{"kind":"art_weave"})
+ art.recording=false
+ var art_after=art.action_targets().map(func(item):return String(item.get("id","")))
+ var art_appeared=art_after.filter(func(id):return not art_before.has(id))
+ var art_stray=art.dismantled.filter(func(id):return not art_before.has(id))
+ var hogtie=String(art.RopeArt.master(art).rope_art.hogtie)
+ t.check(open_stray.is_empty() and open_appeared.size()>=2,"ROPE weave pieces never replace each other: a body with free positions takes both pieces without dismantling anything: dismantled="+str(open.dismantled)+" appeared="+str(open_appeared))
+ t.check(art_stray.is_empty() and not art_weak.is_empty() and not art_weak_two.is_empty() and not hogtie.is_empty() and not art._equipment(hogtie).is_empty(),"ROPE weave pieces never replace each other: a hogtie applied between two applications stays, and nothing this art installs is dismantled around it: dismantled="+str(art.dismantled)+" appeared="+str(art_appeared)+" hogtie="+hogtie)
+
+# G-QX7-2 (rev3.3 acceptance §3.QX7, no free position with an older rope outside this art): protection
+# covers the pieces this art installed, not every rope on the body.
+static func weave_still_replaces_older_equipment(t) -> void:
+ var g=encounter(42,WeaveProbe)
+ var boss=g.RopeArt.master(g)
+ weave_full_body(g,{"wrist":1})
+ var first=weave_piece(g,"rope","wrist","wrist",1,1)
+ var second=weave_piece(g,"rope","wrist","wrist",1,1)
+ var before=g.action_targets().map(func(item):return String(item.get("id","")))
+ var free=weave_full_issue(g)
+ g.recording=true
+ g.RopeArt.execute(g,boss,{"kind":"art_weave"})
+ g.recording=false
+ var after=g.action_targets().map(func(item):return String(item.get("id","")))
+ var appeared=after.filter(func(id):return not before.has(id))
+ var stray=g.dismantled.filter(func(id):return not before.has(id))
+ var older=g.dismantled.filter(func(id):return id==String(first.get("id","")) or id==String(second.get("id","")))
+ t.check(free=="" and not first.is_empty() and not second.is_empty(),"ROPE weave still replaces older equipment: the fixture leaves no free position and two value-two ropes waiting inside the wrist stack: free="+free+" first="+String(first.get("id",""))+" second="+String(second.get("id","")))
+ t.check(stray.is_empty() and older.size()==2 and appeared.size()>=2,"ROPE weave still replaces older equipment: both older ropes are replaceable while the pieces this art installed stay, so the protection names this art's targets and not every rope: dismantled="+str(g.dismantled)+" appeared="+str(appeared)+" older="+str(older))
+
+# G-QX7-3 (rev3.3 acceptance §3.QX7): one protected batch -- declared once before the loop, the
+# difference set of the action targets that appeared during the art, and handed to all three
+# applications through `ordinary`'s `extra`. No runtime seam exposes the spec's protected_ids, so this
+# criterion pins the declared shape; G-QX7-1 and G-QX7-2 judge that shape's runtime effect.
+static func weave_shares_one_protected_batch(t) -> void:
+ var body=Arch.code_of_function("core/rope_master.gd","execute")
+ var start=body.find("\"art_weave\":")
+ var stop=body.find("\"art_enchant\":")
+ var branch=body.substr(start,stop-start) if start>=0 and stop>start else ""
+ var declared=branch.find("var protected=[]")
+ var loop=branch.find("for i in range(2):")
+ var pass_through=branch.count("\"protected_ids\":protected")
+ var difference=branch.contains("var id=String(item.get(\"id\",\"\"))") and branch.contains("if not before.has(id): protected.append(id)")
+ t.check(start>=0 and stop>start and declared>=0 and loop>declared and branch.count("var protected")==1,"ROPE weave shares one protected batch: the art declares its protected list once, before the two profiles: branch="+branch.substr(0,120)+" declared="+str(declared)+" loop="+str(loop)+" declarations="+str(branch.count("var protected")))
+ t.check(pass_through==2 and difference,"ROPE weave shares one protected batch: the batch is the difference set of the action targets that appeared and every application receives it through ordinary's extra: pass_through="+str(pass_through)+" difference="+str(difference)+" branch="+branch)
+
 static func run(t) -> void:
  var g=encounter()
  var boss=g.RopeArt.master(g)
@@ -1347,3 +1481,6 @@ static func run(t) -> void:
  hogtie_shared_release(t)
  await capture_ledger(t)
  reported_turn_sequence(t)
+ weave_pieces_never_replace_each_other(t)
+ weave_still_replaces_older_equipment(t)
+ weave_shares_one_protected_batch(t)
