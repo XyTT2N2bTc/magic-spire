@@ -3237,12 +3237,12 @@
     ],
     "capture_accounts_assistant_installs": [
       {
-        "clause": "p-join-j3",
-        "file": "core/game.gd",
+        "clause": "assistant-writeoff",
+        "file": "core/rope_master.gd",
         "edits": [
           {
-            "find": " \"P\":{\"J1\":\"member\",\"J2\":\"\",\"J3\":\"member\",\"J4\":\"佩戴\",\"J5\":\"unless_lock_only\",\"J6\":\"relay\",\"J7\":\"observe\"},",
-            "replace": " \"P\":{\"J1\":\"member\",\"J2\":\"\",\"J3\":\"\",\"J4\":\"佩戴\",\"J5\":\"unless_lock_only\",\"J6\":\"relay\",\"J7\":\"observe\"},"
+            "find": " result=g.Application.execute(g,current,e.id)\n g._art_scope.pop_back()\n if own and e.rope_art.stock<2: e.rope_art.refill=true",
+            "replace": " result=g.Application.execute(g,current,e.id)\n g._art_scope.pop_back()\n if not own: account(g,result.get(\"installed\",[]),true)\n if own and e.rope_art.stock<2: e.rope_art.refill=true"
           }
         ],
         "suite": "rope_master",
