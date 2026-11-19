@@ -42,9 +42,10 @@ const ASSESS_EXCLUDED_HOOKS=[
   [["core/pressure.gd::settle_maximum","_apply_overloads("],["core/pressure.gd::_apply_overloads","g.RelicEffects.climax("],["core/relic_effects.gd::climax","_mana_hook("],["core/game.gd::_join_hooks","_mana_hook("]]],
  ["core/game.gd::_emit",["logs","summary"],"_emit(",[]]]
 # rev3.1 §4.4：与上表区分——事务内由门控变成空操作的钩子，判定不执行它们与事务完全等价，故不进上表。
-# 行＝[锚点, 门控行原文, live 端调用 token, 该调用所在的 live 文件]。
+# 行＝[锚点, 门控行原文, live 端调用 token, 该调用所在的 live 文件]。QX2″ 删掉 `game.gd` 里最后几处
+# 直接 `RopeArt.track` 后，`track` 的 live 入口只剩经 `RopeArt.account` 的四条声明入口，token 随之改指。
 const TRANSACTION_NOOP_HOOKS=[
- ["core/rope_master.gd::track","if g._sandbox_depth>0: return","RopeArt.track(","core/game.gd"],
+ ["core/rope_master.gd::track","if g._sandbox_depth>0: return","RopeArt.account(","core/game.gd"],
  ["core/rope_master.gd::observe","if g._sandbox_depth>0: return","RopeArt.observe(","core/capture_bind.gd"],
  ["core/game.gd::_equipment_feedback","if _resource_feedback!=null:","_equipment_feedback(","core/game.gd"]]
 const EQUIPMENT_CONTAINERS=["equipment","composites","special_equipment","links"]
