@@ -3274,7 +3274,7 @@
           }
         ],
         "suite": "rope_master",
-        "expect": "REMOVAL capture_writes_nothing_outside_battle"
+        "expect": "the retained master record keeps its ledger and observation values byte for byte"
       }
     ],
     "capture_departed_master_books_nothing": [
