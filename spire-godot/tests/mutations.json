@@ -315,6 +315,20 @@
         "expect": "the mid-swing crossing applies and names exactly one hogtie"
       }
     ],
+    "capture_master_tighten_all_logs_the_hogtie_epilogue": [
+      {
+        "clause": "mana-prefix-off",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " var mana_prefix=String(class_row.get(\"J4\",\"\"))",
+            "replace": " var mana_prefix=\"\""
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "the crossing hogtie's mana, worn and application lines all land inside"
+      }
+    ],
     "capture_card_tighten_all_pays_and_names_the_hogtie": [
       {
         "clause": "observe-inside-frame",

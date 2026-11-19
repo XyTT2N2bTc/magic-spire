@@ -616,10 +616,53 @@ static func capture_master_tighten_all_pays_and_names_the_hogtie(t) -> void:
  t.check(not hog.is_empty() and hog_tier==2 and String(hog.id) not in tightened,"REMOVAL capture_master_tighten_all_pays_and_names_the_hogtie: the hogtie lands at tier two and this action never tightens it (the loop keeps its opening snapshot): hogtie="+String(live.rope_art.hogtie)+" tier="+str(hog_tier))
  t.check(live.rope_art.total==58 and live.rope_art.previous==58 and live.rope_art.drunk==2 and g.RopeArt.account_issue(g)=="" and g.validate()=="","REMOVAL capture_master_tighten_all_pays_and_names_the_hogtie: the swing books fifty-eight, observes the completed total once and reconciles: total="+str(live.rope_art.total)+" previous="+str(live.rope_art.previous)+" drunk="+str(live.rope_art.drunk)+" issue="+g.RopeArt.account_issue(g)+" validate="+g.validate())
 
-# G-QX2-14 on the card face (the same crossing as `capture_tighten_all_applies_hogtie_midway`): the
-# player's self-binding card pays the same four and names the hogtie once instead of installing it for
-# free. The card writes its own step copy after `_reinforce_equipment` returns, so the unit's line is
-# the first of the six rows and the four step copies follow it.
+# F2 (A262, G-QX2-14 Then): the crossing hogtie's join epilogue speaks through J4 (the restraint_mana
+# relic), J5 (the worn restraint_draw power) and J6 (the application copy), not only through the
+# application line. The fixture reuses the shipped faces: `desire_cube` is the restraint_mana relic
+# (`tests/equipment_cases.gd::_join_battle_fixture`) and `restraint_embrace`'s bound face carries the
+# worn trigger. All three lines must land in the fifth tightening's step window -- after the four
+# tightenings that precede the crossing and before the four that follow it -- because the crossing's
+# observation and its join hook run inside that step's tier unit.
+static func capture_master_tighten_all_logs_the_hogtie_epilogue(t) -> void:
+ var g=encounter(42,TightenProbe)
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ g.state.energy=2
+ for row in [["thigh","thigh_root"],["thigh","mid_thigh"],["thigh","above_knee"],["calf","below_knee"],["calf","mid_calf"],["ankle",""],["ankle",""],["foot",""],["foot",""]]:
+  add_rope(g,row[0],row[1],3,2)
+ g.RelicEffects.gain(g,"desire_cube")
+ var power=Give.give(g,"restraint_embrace")
+ var bound=t.find_action(g,"card",{"uid":power.uid,"free":false})
+ var played=bool(bound.valid) and g.dispatch(g.command(bound.payload,g.state.version),g.state.version).ok
+ boss=g.RopeArt.master(g)
+ # The mana hook only speaks when the relic can refill; the starting pool is not the subject here.
+ g.state.mana=0
+ var stock=int(boss.rope_art.stock)
+ var mark=g.state.logs.size()
+ t.check(played and g.state.powers.size()==1 and boss.rope_art.total==45 and stock==48,"REMOVAL capture_master_tighten_all_logs_the_hogtie_epilogue: the fixture carries the worn power and the restraint_mana relic over the nine-rope swing: played="+str(played)+" powers="+str(g.state.powers.size())+" total="+str(boss.rope_art.total)+" stock="+str(stock))
+ g.RopeArt.execute(g,boss,{"kind":"art_tighten"})
+ var live=g.RopeArt.master(g)
+ var texts=log_texts(g,mark)
+ var named=texts.filter(func(text):return text==live.name+"施加了驷马缚。")
+ var mana=texts.filter(func(text):return text.begins_with("欲望魔方：佩戴驷马缚") and text.ends_with("魔力。"))
+ var worn=texts.filter(func(text):return text.begins_with("拘束之拥·拘束：") and text.ends_with("张牌。"))
+ var marks=g.steps.map(func(step):return int(step["logs"]))
+ var mana_at=texts.find(mana[0]) if not mana.is_empty() else -1
+ var worn_at=texts.find(worn[0]) if not worn.is_empty() else -1
+ var named_at=texts.find(named[0]) if not named.is_empty() else -1
+ var window_start=marks[3]-mark if marks.size()==9 else -1
+ var window_end=marks[4]-mark if marks.size()==9 else -1
+ var inside=mana_at>=window_start and worn_at>=window_start and named_at>=window_start and mana_at<window_end and worn_at<window_end and named_at<window_end
+ t.check(marks.size()==9 and marks[3]==mark and window_start==0 and window_end==3 and marks[8]==mark+3 and named.size()==1 and mana.size()==1 and worn.size()==1 and inside,"REMOVAL capture_master_tighten_all_logs_the_hogtie_epilogue: the crossing hogtie's mana, worn and application lines all land inside the fifth tightening's step window -- after the four leading tightenings and before the four trailing ones: marks="+str(marks)+" mark="+str(mark)+" mana_at="+str(mana_at)+" worn_at="+str(worn_at)+" named_at="+str(named_at)+" logs="+str(texts))
+
+# F1 (A262): this criterion guards I1 at the player face -- one in-frame application pays exactly once
+# and writes exactly one copy -- and the card's OWN log order, not G-QX2-14. G-QX2-14's When is the
+# master face's `art_tighten`; that scenario is covered by
+# `capture_master_tighten_all_pays_and_names_the_hogtie`. The card face differs of its own accord:
+# `core/self_binding.gd::resolve` emits each step copy only after `_reinforce_equipment` returns, so
+# the hogtie's application line (written inside that call) necessarily precedes the trigger step's
+# copy. The assertion below pins that order as the card's current statement order, not as a mapping
+# of the scenario.
 static func capture_card_tighten_all_pays_and_names_the_hogtie(t) -> void:
  var g=encounter()
  var boss=g.RopeArt.master(g)
@@ -674,8 +717,9 @@ static func capture_tier_hook_defers_observation_to_the_owning_unit(t) -> void:
 # call a shipped entry can reach is recorded by the frame probe: the install rows run inside the
 # installing unit's own frame, never book and never observe; a booked row (tighten/ease) only runs at
 # the top level, and the hogtie its crossing applies opens its own frame at depth zero after that unit
-# committed. No shipped entry drives a booked row from inside another unit; the guards for the cells
-# this census cannot drive are quoted in tmp/io-qx2/hardener4/notes.md.
+# committed. F3 (A262): the census below is only the three fixtures this criterion builds, so every
+# message that reads it speaks for the fixture census, never for every shipped entry. The guards for
+# the cells the census cannot drive are quoted in tmp/io-qx2/hardener4/notes.md §1-2.
 static func capture_tier_hook_never_nests_a_booked_observation(t) -> void:
  var installed=encounter(42,TierFrameProbe)
  var installs_boss=installed.RopeArt.master(installed)
@@ -742,7 +786,7 @@ static func capture_tier_hook_never_nests_a_booked_observation(t) -> void:
  var census=installed.events.filter(func(row):return String(row.event)=="tier")+g.events.filter(func(row):return String(row.event)=="tier")+sandbox_g.events.filter(func(row):return String(row.event)=="tier")
  var booked=census.filter(func(row):return String(row.row)!="install" and (String(row.row)=="tighten" or int(row.before)!=int(row.after)))
  var nested_booked=booked.filter(func(row):return bool(row.nested))
- t.check(booked.size()>=10 and nested_booked.is_empty(),"REMOVAL capture_tier_hook_never_nests_a_booked_observation: no shipped entry drives a booked tier hook from inside another unit: booked="+str(booked.size())+" nested="+str(nested_booked.size())+" rows="+str(nested_booked.map(func(row):return [String(row.row),int(row.before),int(row.after)])))
+ t.check(booked.size()>=10 and nested_booked.is_empty(),"REMOVAL capture_tier_hook_never_nests_a_booked_observation: within the fixture census, no booked tier hook a shipped entry drives runs from inside another unit: booked="+str(booked.size())+" nested="+str(nested_booked.size())+" rows="+str(nested_booked.map(func(row):return [String(row.row),int(row.before),int(row.after)])))
 
 # L2 (hardener4, A260): an ease row that drops the total across a line keeps the fixed observation
 # point. The grade-three tier-three rope falls to tier one (six to four), so the total falls from
@@ -1216,6 +1260,7 @@ static func capture_ledger(t) -> void:
  capture_hold_keeps_stock_before_threshold(t)
  capture_tighten_all_applies_hogtie_midway(t)
  capture_master_tighten_all_pays_and_names_the_hogtie(t)
+ capture_master_tighten_all_logs_the_hogtie_epilogue(t)
  capture_card_tighten_all_pays_and_names_the_hogtie(t)
  capture_tier_hook_defers_observation_to_the_owning_unit(t)
  capture_tier_hook_never_nests_a_booked_observation(t)
