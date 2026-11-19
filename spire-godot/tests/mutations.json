@@ -403,7 +403,20 @@
             "replace": " match String(class_row.get(\"J7\",\"\")):\n  \"observe\":\n   pass"
           }
         ],
-        "suite": "rope_master"
+        "suite": "rope_master",
+        "expect": "the refill pieces cross ninety from the purged total"
+      },
+      {
+        "clause": "member-changed-observe-off",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "  # A removal outside a unit is an observation point (甲, D21); a framed one never observes.\n  RopeArt.observe(self)",
+            "replace": "  pass"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "the purge writes off its closure first and observes afterwards"
       }
     ],
     "self_binding_survives_midway_hogtie": [
