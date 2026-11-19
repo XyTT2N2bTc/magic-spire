@@ -719,7 +719,7 @@
     },
     "spire-godot/tests/rope_master_cases.gd": {
       "owner": "rule:rope_master",
-      "signals": 1
+      "signals": 3
     },
     "spire-godot/tests/route_ui_cases.gd": {
       "owner": "ui:route",
@@ -934,7 +934,7 @@
       "signals": 2
     }
   },
-  "digest": "9b15194932a5ff6861d100d831b681e1b5fef19438f36d0f952d8bd9b0c1340b",
+  "digest": "63110e7bdef94cc367dbebc86168086144770a86bf485003dd1c601511fcf31e",
   "domain_words": {
     "ART": [
       "ui:display",
@@ -1934,7 +1934,7 @@
       ]
     }
   },
-  "generated_from": "3b4778887068ffea1e17d2ad68db09a490d07921b96ea60d9caa8e8d3ee821bd",
+  "generated_from": "379489731c68a812e53d5ab0c3da9fa4972bb3cab5b389a8e39c66bc7073bcd7",
   "registries": {
     "rule": [
       "rope_master",
@@ -2057,7 +2057,7 @@
     "rule_suites": 54,
     "source_files": 144,
     "sources_with_edges": 142,
-    "suite_edges": 577,
+    "suite_edges": 579,
     "suites_with_edges": 101,
     "ui_suites": 50,
     "widen": 1
@@ -2743,12 +2743,18 @@
       ]
     },
     "rule:rope_master": {
+      "spire-godot/core/equipment_replacement.gd": [
+        "preload"
+      ],
       "spire-godot/core/game.gd": [
         "preload",
         "symbol"
       ],
       "spire-godot/core/rope_master.gd": [
         "domain"
+      ],
+      "spire-godot/core/self_binding.gd": [
+        "preload"
       ]
     },
     "rule:services": {
