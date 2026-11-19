@@ -347,6 +347,38 @@
         "expect": "a framed tighten books the fifty crossing but leaves it unobserved"
       }
     ],
+    "capture_tier_hook_never_nests_a_booked_observation": [
+      {
+        "clause": "install-row-books",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " var row=\"install\" if before<0 else (\"tighten\" if tighten else \"ease\")",
+            "replace": " var row=\"tighten\""
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "every install row runs inside the installing unit's own frame"
+      }
+    ],
+    "capture_ease_crossing_keeps_previous_after_the_unit": [
+      {
+        "clause": "observe-before-commit",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " if owned and booked: RopeArt.observe(self)",
+            "replace": " if false: RopeArt.observe(self)"
+          },
+          {
+            "find": " _unit_commit(owned)\n # T observes only from the top level",
+            "replace": " if owned and booked: RopeArt.observe(self)\n _unit_commit(owned)\n # T observes only from the top level"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "the ease unit commits before the observation"
+      }
+    ],
     "capture_removal_observes_outside_units": [
       {
         "clause": "hook-observation-off",

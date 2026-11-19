@@ -468,6 +468,38 @@ class TightenProbe extends "res://tests/game_fixture.gd":
   steps.append({"id":String(target.get("id","")),"live":not live.is_empty() and is_same(target,live),"logs":state.logs.size()})
   return text
 
+# The tier-hook frame probe (hardener4 L1/L2, A260): every `_tier_consequences` call reachable through a
+# shipped entry is recorded with the frame it ran in, its row, the previous/total it saw and what it saw
+# when its own `_unit_commit` ran. It overrides no rule and writes no state beyond the record list.
+class TierFrameProbe extends "res://tests/game_fixture.gd":
+ var events: Array=[]
+ var depth: int=0
+ func _rope_boss() -> Dictionary:
+  return RopeArt.master(self)
+ func _rope_total() -> int:
+  var boss=_rope_boss()
+  return -1 if boss.is_empty() else int(boss.rope_art.total)
+ func _rope_previous() -> int:
+  var boss=_rope_boss()
+  return -1 if boss.is_empty() else int(boss.rope_art.previous)
+ func _unit_begin() -> bool:
+  var owned=super._unit_begin()
+  events.append({"event":"begin","owned":owned,"depth":depth,"total":_rope_total(),"previous":_rope_previous()})
+  if owned: depth+=1
+  return owned
+ func _unit_commit(owned: bool) -> void:
+  events.append({"event":"commit","owned":owned,"depth":depth,"total":_rope_total(),"previous":_rope_previous()})
+  if owned: depth-=1
+  super._unit_commit(owned)
+ func _tier_consequences(target: Dictionary, before: int, after: int, tighten: bool) -> void:
+  var row="install" if before<0 else ("tighten" if tighten else "ease")
+  var record={"event":"tier","row":row,"nested":depth>0,"before":before,"after":after,"sandbox":_sandbox_depth,"previous":_rope_previous(),"total":_rope_total(),"id":String(target.get("id","")),"at":events.size()}
+  events.append(record)
+  super._tier_consequences(target,before,after,tighten)
+  record["previous_after"]=_rope_previous()
+  record["total_after"]=_rope_total()
+  events.append({"event":"end","at":int(record.at)})
+
 # G-QX2-9′: the hogtie a threshold applies joins inside the hook of the piece that caused the
 # crossing, so the presentation order is host, hogtie, host -- not both hosts and then the hogtie.
 static func capture_hogtie_nests_inside_join_hook(t) -> void:
@@ -637,6 +669,120 @@ static func capture_tier_hook_defers_observation_to_the_owning_unit(t) -> void:
  g.RopeArt.observe(g)
  boss=g.RopeArt.master(g)
  t.check(boss.rope_art.drunk==2 and not String(boss.rope_art.hogtie).is_empty() and boss.rope_art.previous==boss.rope_art.total and g.RopeArt.account_issue(g)=="","REMOVAL capture_tier_hook_defers_observation_to_the_owning_unit: the next top-level observation settles the crossing exactly once: total="+str(boss.rope_art.total)+" previous="+str(boss.rope_art.previous)+" drunk="+str(boss.rope_art.drunk)+" hogtie="+String(boss.rope_art.hogtie)+" issue="+g.RopeArt.account_issue(g))
+
+# L1 (hardener4, A260): the runtime census behind "a nested tier hook never observes". Every tier-hook
+# call a shipped entry can reach is recorded by the frame probe: the install rows run inside the
+# installing unit's own frame, never book and never observe; a booked row (tighten/ease) only runs at
+# the top level, and the hogtie its crossing applies opens its own frame at depth zero after that unit
+# committed. No shipped entry drives a booked row from inside another unit; the guards for the cells
+# this census cannot drive are quoted in tmp/io-qx2/hardener4/notes.md.
+static func capture_tier_hook_never_nests_a_booked_observation(t) -> void:
+ var installed=encounter(42,TierFrameProbe)
+ var installs_boss=installed.RopeArt.master(installed)
+ installed.RopeArt.execute(installed,installs_boss,{"kind":"art_domain"})
+ installed.RopeArt.install(installed,installs_boss,installed.RopeArt.spec(3,3))
+ installed._install_special("crotch_rope_low","special_3_a")
+ var installs=installed.events.filter(func(row):return String(row.event)=="tier" and String(row.row)=="install")
+ var unobserved=installs.filter(func(row):return bool(row.nested) and int(row.previous_after)==int(row.previous) and int(row.total_after)==int(row.total))
+ t.check(installs.size()>=4 and unobserved.size()==installs.size(),"REMOVAL capture_tier_hook_never_nests_a_booked_observation: every install row runs inside the installing unit's own frame and never books or observes there: installs="+str(installs.size())+" unobserved="+str(unobserved.size())+" rows="+str(installs.map(func(row):return [String(row.row),bool(row.nested),int(row.total),int(row.total_after),int(row.previous),int(row.previous_after)])))
+ var g=encounter(42,TierFrameProbe)
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ for row in [["thigh","thigh_root"],["thigh","mid_thigh"],["thigh","above_knee"],["calf","below_knee"],["calf","mid_calf"],["ankle",""],["ankle",""],["foot",""],["foot",""]]:
+  add_rope(g,row[0],row[1],3,2)
+ boss=g.RopeArt.master(g)
+ t.check(boss.rope_art.total==45,"REMOVAL capture_tier_hook_never_nests_a_booked_observation: the swing fixture holds forty-five value: total="+str(boss.rope_art.total))
+ var mark=g.events.size()
+ g.RopeArt.execute(g,boss,{"kind":"art_tighten"})
+ boss=g.RopeArt.master(g)
+ g.RopeArt.hogtie(g,boss,3)
+ var victim={}
+ for item in g.action_targets():
+  if g.RopeArt.is_rope(item) and g.equipment_tier(item)==3:
+   victim=item
+   break
+ t.check(not victim.is_empty(),"REMOVAL capture_tier_hook_never_nests_a_booked_observation: the swing leaves a tier-three rope for the ease row")
+ g._apply_equipment_damage(victim,float(victim.durability)-g.RestraintValue.durability_for(victim.maximum,1)+0.000001,"strain")
+ var top_level=g.events.slice(mark).filter(func(row):return String(row.event)=="tier" and String(row.row)!="install" and not bool(row.nested) and int(row.sandbox)==0)
+ var holding=[]
+ for row in top_level:
+  if not (String(row.row)=="tighten" or int(row.before)!=int(row.after)): continue
+  var commit_at=-1
+  var end_at=-1
+  for index in range(int(row.at)+1,g.events.size()):
+   var event=g.events[index]
+   if String(event.event)=="commit" and bool(event.owned) and commit_at<0: commit_at=index
+   if String(event.event)=="end" and int(event.at)==int(row.at): end_at=index; break
+  if commit_at<0 or end_at<0: continue
+  for index in range(commit_at+1,end_at):
+   var event=g.events[index]
+   if String(event.event)=="begin" and bool(event.owned) and int(event.depth)==0:
+    holding.append({"record":row,"begin":index,"total":int(event.total)})
+    break
+ var hog_id=String(g.RopeArt.master(g).rope_art.hogtie)
+ var hog_install=g.events.filter(func(event):return String(event.event)=="tier" and String(event.row)=="install" and String(event.id)==hog_id)
+ t.check(hog_id!="" and holding.size()==1 and hog_install.size()==1 and int(hog_install[0].at)>int(holding[0].begin) and int(holding[0].total)==50,"REMOVAL capture_tier_hook_never_nests_a_booked_observation: the crossing hogtie opens its own unit at depth zero after the tier unit committed, so its join hook runs inside that scope: hogtie="+hog_id+" holding="+str(holding.size())+" begin_total="+str(holding[0].total if not holding.is_empty() else -1))
+ var stale=top_level.filter(func(row):return int(row.previous_after)!=mini(100,int(row.total_after)))
+ t.check(top_level.size()>=10 and stale.is_empty(),"REMOVAL capture_tier_hook_never_nests_a_booked_observation: every top-level booked row leaves previous on the completed total, i.e. it observes after its own unit closed: rows="+str(top_level.size())+" stale="+str(stale.map(func(row):return [String(row.row),int(row.previous_after),int(row.total_after)])))
+ var sandbox_g=encounter(1,TierFrameProbe)
+ var sandbox_boss=sandbox_g.RopeArt.master(sandbox_g)
+ sandbox_g.RopeArt.execute(sandbox_g,sandbox_boss,{"kind":"art_domain"})
+ for index in range(sandbox_g._capacity(sandbox_g.Links.point_slot("upper_arm_top"))):
+  add_rope(sandbox_g,"upper_arm","upper_arm_top",1,3)
+ sandbox_boss=sandbox_g.RopeArt.master(sandbox_g)
+ sandbox_boss.rope_art.previous=int(sandbox_boss.rope_art.total)
+ sandbox_boss.rope_art.seen50=true
+ sandbox_boss.rope_art.seen75=true
+ var plan=Replacement.plan(sandbox_g,[{"kind":"install","template":"rope","slot":"upper_arm","grade":3,"tier":3,"point":"upper_arm_top","variant":0,"locked":false}],"fixture")
+ var applied=Replacement.execute(sandbox_g,plan) if plan.ok else {}
+ t.check(bool(plan.ok) and bool(applied.get("ok",false)),"REMOVAL capture_tier_hook_never_nests_a_booked_observation: the replacement fixture commits: "+String(plan.get("reason","")))
+ var sandboxed=sandbox_g.events.filter(func(row):return String(row.event)=="tier" and int(row.sandbox)>0)
+ var sandboxed_moved=sandboxed.filter(func(row):return int(row.previous_after)!=int(row.previous))
+ t.check(sandboxed.size()>=1 and sandboxed_moved.is_empty(),"REMOVAL capture_tier_hook_never_nests_a_booked_observation: a sandboxed ease row keeps the physical layer but drops its frame, and no observation runs inside it: rows="+str(sandboxed.size())+" moved="+str(sandboxed_moved.size()))
+ var census=installed.events.filter(func(row):return String(row.event)=="tier")+g.events.filter(func(row):return String(row.event)=="tier")+sandbox_g.events.filter(func(row):return String(row.event)=="tier")
+ var booked=census.filter(func(row):return String(row.row)!="install" and (String(row.row)=="tighten" or int(row.before)!=int(row.after)))
+ var nested_booked=booked.filter(func(row):return bool(row.nested))
+ t.check(booked.size()>=10 and nested_booked.is_empty(),"REMOVAL capture_tier_hook_never_nests_a_booked_observation: no shipped entry drives a booked tier hook from inside another unit: booked="+str(booked.size())+" nested="+str(nested_booked.size())+" rows="+str(nested_booked.map(func(row):return [String(row.row),int(row.before),int(row.after)])))
+
+# L2 (hardener4, A260): an ease row that drops the total across a line keeps the fixed observation
+# point. The grade-three tier-three rope falls to tier one (six to four), so the total falls from
+# fifty-one to forty-nine under the fifty line: the tier unit accounts the drop, commits, and only then
+# observes, so previous follows the drop instead of keeping the pre-drop fifty-one; the fifty flag is
+# already set, so a downward crossing never drinks a second time.
+static func capture_ease_crossing_keeps_previous_after_the_unit(t) -> void:
+ var g=encounter(42,TierFrameProbe)
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=false
+ for row in [["thigh","thigh_root",3,2],["thigh","mid_thigh",3,2],["thigh","above_knee",3,2],["calf","below_knee",3,3],["calf","mid_calf",3,2],["ankle","",3,2],["ankle","",3,2],["ankle","",3,2],["foot","",3,2],["foot","",3,2]]:
+  add_rope(g,row[0],row[1],row[2],row[3])
+ boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ boss.rope_art.previous=int(boss.rope_art.total)
+ boss.rope_art.seen50=true
+ boss.rope_art.seen75=true
+ boss.rope_art.drunk=2
+ var victim={}
+ for item in g.action_targets():
+  if g.RopeArt.is_rope(item) and g.equipment_tier(item)==3:
+   victim=item
+   break
+ t.check(boss.rope_art.total==51 and not victim.is_empty() and g.RopeArt.account_issue(g)=="","REMOVAL capture_ease_crossing_keeps_previous_after_the_unit: the fixture holds fifty-one value with one tier-three rope: total="+str(boss.rope_art.total)+" issue="+g.RopeArt.account_issue(g))
+ var mark=g.events.size()
+ g._apply_equipment_damage(victim,float(victim.durability)-g.RestraintValue.durability_for(victim.maximum,1)+0.000001,"strain")
+ boss=g.RopeArt.master(g)
+ t.check(g.equipment_tier(victim)==1 and boss.rope_art.total==49,"REMOVAL capture_ease_crossing_keeps_previous_after_the_unit: the ease write drops the rope two tiers and the total under the fifty line: tier="+str(g.equipment_tier(victim))+" total="+str(boss.rope_art.total))
+ t.check(boss.rope_art.previous==49 and boss.rope_art.drunk==2 and String(boss.rope_art.hogtie)=="","REMOVAL capture_ease_crossing_keeps_previous_after_the_unit: previous follows the drop and the downward crossing drinks nothing: previous="+str(boss.rope_art.previous)+" drunk="+str(boss.rope_art.drunk)+" hogtie="+String(boss.rope_art.hogtie))
+ var rows=g.events.slice(mark).filter(func(row):return String(row.event)=="tier")
+ var record=rows[0] if rows.size()==1 else {}
+ var commit_previous=-1
+ if not record.is_empty():
+  for index in range(int(record.at)+1,g.events.size()):
+   var event=g.events[index]
+   if String(event.event)=="commit" and bool(event.owned):
+    commit_previous=int(event.previous)
+    break
+ t.check(not record.is_empty() and String(record.row)=="ease" and not bool(record.nested) and int(record.before)==3 and int(record.after)==1 and commit_previous==51 and int(record.previous_after)==49 and int(record.total_after)==49,"REMOVAL capture_ease_crossing_keeps_previous_after_the_unit: the ease unit commits before the observation, so previous is still fifty-one at the commit and forty-nine after it: record="+str(record)+" commit_previous="+str(commit_previous))
+ t.check(g.RopeArt.account_issue(g)=="" and g.validate()=="","REMOVAL capture_ease_crossing_keeps_previous_after_the_unit: the eased state reconciles: issue="+g.RopeArt.account_issue(g)+" validate="+g.validate())
 
 # G-QX2-19: a removal is observed once, outside the unit that wrote it off, so the damaged piece and
 # the later purge both leave previous equal to the recomputed total instead of a stale pre-unit value.
@@ -1072,6 +1218,8 @@ static func capture_ledger(t) -> void:
  capture_master_tighten_all_pays_and_names_the_hogtie(t)
  capture_card_tighten_all_pays_and_names_the_hogtie(t)
  capture_tier_hook_defers_observation_to_the_owning_unit(t)
+ capture_tier_hook_never_nests_a_booked_observation(t)
+ capture_ease_crossing_keeps_previous_after_the_unit(t)
  capture_removal_observes_outside_units(t)
  self_binding_survives_midway_hogtie(t)
  hogtie_install_leaves_foreign_writes_to_settle_points(t)
