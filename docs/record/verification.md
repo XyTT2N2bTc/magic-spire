@@ -5207,3 +5207,27 @@ flowchart LR
 
 - 流程：实现 `dsp-20261118T040404Z-b88c`→清洁 `053752Z-ae48`（零改动）→加固跳过（`tmp/io-qc1/coordinator-rulings.md`）→独立审查 `054105Z-a820`（通过，次要 1：`-KeepGoing` stdout 有 GBK 重复回显，计数以 `FAIL: n/m` 与 UTF-8 日志为准）→验收 `054723Z-74e5`。
 - 热修本体在发布线分支 `hotfix/capture-climax-softlock`（`fe4131e`，基于 v0.18.3），已向上游开 PR h13942080472-prog/magic-spire#16。本开发线提交仅本地 `.git`，未推送、未 tag、未打包。
+
+## 2026-11-19 QX6 预演与试装不跑钩子、替换类提交后补跑验收（spire-godot，`d28617c..d40a57f`）
+
+- 域：`core/game.gd`（`_sandbox_depth`、`_sandbox_begin`／`_sandbox_end`、`_unit_commit`、`_member_joined`、`_join_after_commit`）、`core/equipment_replacement.gd::plan`／`::execute`／`::force_special`、`core/room_events.gd::probe_result`／`::freeze_effects`／`::compile`、`core/self_binding.gd::installation_plan`、`core/rope_master.gd::track`／`::observe`；有意的行为变化，只限 D15／D16／D17（A249）。
+- **行为变化**：沙盒（预演、试装、事件探针、自缚预演）不跑钩子；替换类提交在 `_commit_changes` 与 `RopeArt.replaced` 之后按工厂后序逐件补跑钩子。D15：替换单位日志段内重排为「物理子序列＋钩子子序列」；D16：段后 `summary` 按补跑后取；D17：回执差异只限 `installed`、`rope_leather_tension` 与遗物来源资源事件，`compile` 不再写 live 回执。F2 五件整根组结案（R5）；补跑后序两处实现由 H4 钉住并加 QX6-B1；F6 不做（A248）。
+- 门禁（HEAD `d40a57f`、dirty 0、无残留 Godot；跑前跑后 HEAD／dirty 与 `before==after` 见 `tmp/io-qx6/acceptance/runs/*-result.json`）：
+  - 52 套件单次全量 `20261118T231714065-51688`：`15/152526` → `15/152567`，只增 +41：equipment 452→485（+33，实现 22＋加固 11）、architecture 121296→121301（+5）、event_flow 835→837（+2）、application 230→231（+1）；47 PASS／5 FAIL 同父；15 条父 ERROR 逐字节相同；SCRIPT ERROR 0；`summary.json` `status=failed`（同父 15 条），`before==after`（`B9156230…`）。
+  - runner `20261118T232831326-33140`：正常轮 `SUITE runner: 1856 assertions`／`PASS: 1856`（同父 QC1 1856）；`-VerifyRunner` 两条负例（1857 条各含 1 条 `deliberate_suite_failure`）由 `CHECK negative-stop`／`negative-continue` 消费，整体 exit 0。
+  - UI `20261118T233030749-18444`：shoulder／torso_binding／body_layout 全 PASS，只有父既有红 `equipment_complete`「HEAD equal tightness」，ERROR 原文与父 Q9 记录逐字节相同。
+  - state_readers `--verify` `STATE READERS PASS`（sha256 `39124084…f9b72e`）；check-index `CHECK INDEX PASS`（digest `9b151949…c1340b`）；check-docs `DOCS PASS`。
+- 分段判读（主判据）：矩阵 6＋seed 42 13＋seed 20260906 1＋seed 7 0，`SEG JUDGE total=20 pass=20 fail=0`；D16 仅 `U9-lost`，D17 为 `CM29`、seed 42 n=5／n=6、seed 20260906 n=1；段外日志、`encode`、`rng`、非 D17 回执全等。
+- 判定不变：全量语料 `75e446a5…`（3277）两树 compare／reoracle `mismatches=0`；入库语料 423 条 compare／reoracle `mismatches=0`。
+- 两树原因矩阵：四件套行全等；仅 4 行钩子记录不同（`CM19q-preview`／`CM19q-events` 父 4／2 次→0；`CM26q-wrist`／`CM26q-group` 父 8／4 次→2／2），归 D15–D17。
+- 观测点 O1–O3 原样数值：O1（`plan` 预演）arm-tier3 父 `join_hooks=8 mana_rows=2 worn_rows=6`、O3 `emits=15` → 子 `0/0/0`、`1`；whole-root-five 父 `28/10/18`、`47` → 子 `0/0/0`、`1`；`can_apply` 同；O2（µs，repeat 0/1/2）父 2606/2336/2291、5417/5386/5445、11494/11799/11176，子 2015/2190/2071、4273/4805/5245、11184/10810/10896。
+- 敏感性：15 条判据／18 条子句逐条 `check-mutation` RED 且逐字节还原；手动 G-QX6-4（`-Suite application`）与 G-QX6-6（`-Suite event_flow`）具名红并还原（sha256 见验收）；G-QX6-6 父树原文为 `installed=true … sounds=["rope_leather_tension"]`，QX6 树为 `installed=false events=[] sounds=[]`。
+- 界面操作：seed 42 第 8 回合（探针 step 453，第一个含丢链文案的单位）经真实 UI 驱动（trace 回放 453 步，逐步核对 `view.version`）读出日志面板：4 条丢链文案（PANEL 04–07）之后是新件「施加了长型单手套」「替换了15处原有装备」（PANEL 02–03，时间序），旧件解除文案在其后；`sound_feedback` 含 `rope_leather_tension`（sequence 2097）；`installed=0`（敌人替换不是玩家安装回执）。
+- 三种子与 Q8 §G 相等（`01db4dc5…61fef`、`4f69e2c7…1f0e5c`、`aa45ef47…7ae9d`）：**无需新基线**，未登记、未触发人认可。
+- 结构：16 文件 ⊆ QX6 允许表 ∪ CC-66 两份 ∪ 加固授权 `core/game.gd::dispatch` ∪ 任务书授权 `write_journal_game.gd`（rev3.5 §5.3）；产品 hunk 按函数归属全部落在 `plan`／`execute`／`force_special`、`_sandbox_begin`／`_sandbox_end`／`_join_after_commit`／`_unit_commit`／`_member_joined`、事件三入口、`track`／`observe`、`installation_plan`；`d40a57f` 产品 hunk 只 6 行注释（`frame_check` 与三处调用零 diff）；`ARCH assess_never_touches_runtime_fields` 绿，`core` 的 `_rope_trial` 零命中；`frozen-baselines.json` 与 `known_gaps` 逐字节同 `d28617c`。
+- 行数：16 文件见表；core＋data＋ui `.gd` 34353→34397（+44，144 文件不变）。
+- 结论：通过；仅源码验收，未打包、未发布、未推送。证据：`tmp/io-qx6/acceptance/`。
+
+- 流程：实现 `dsp-20261118T062310Z-78ea`（首派 blocked，CC-66）→`062947Z-e114`（额度中断）→续接 `171041Z-75aa`→清洁 `191644Z-9241`→加固（中）`194554Z-377f`→独立审查 `211758Z-6d21`（通过；F5 为审查误报，目标文本在任何提交中都不存在）→第二轮清洁 `214524Z-a656`（blocked：私有方法形态与 `ARCH unit_entries_are_declared` 互斥，A248 改 F6 不做）→`215319Z-7e58`→验收 `221135Z-d3b1`。
+- 待办：QX6-B1（补跑后序与四工厂登记后序合为单一成员枚举器，须人批切分）；混合组（普通件＋复合件同组）的日志多重集差异在真实入口不可达，由 `group_members_are_install_class_only` 钉住，可达即红。
+- 本开发线提交仅本地 `.git`，未推送、未 tag、未打包。
