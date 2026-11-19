@@ -300,11 +300,11 @@
     "capture_removal_observes_outside_units": [
       {
         "clause": "hook-observation-off",
-        "file": "core/rope_master.gd",
+        "file": "core/game.gd",
         "edits": [
           {
-            "find": "static func observed(g) -> void:\n observe(g)",
-            "replace": "static func observed(g) -> void:\n pass"
+            "find": " match String(class_row.get(\"J7\",\"\")):\n  \"observe\":\n   RopeArt.observe(self)",
+            "replace": " match String(class_row.get(\"J7\",\"\")):\n  \"observe\":\n   pass"
           }
         ],
         "suite": "rope_master"
