@@ -3359,6 +3359,18 @@
         ],
         "suite": "rope_master",
         "expect": "REMOVAL capture_settle_point_owns_exhaustion_and_release"
+      },
+      {
+        "clause": "settle-restored-hogtie",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": "  if not result.ok: return\n boss.rope_art.hogtie_pending=0",
+            "replace": "  if not result.ok: return\n  g._cleanup(false)\n boss.rope_art.hogtie_pending=0"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_settle_point_owns_exhaustion_and_release"
       }
     ]
   }

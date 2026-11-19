@@ -860,6 +860,20 @@ static func capture_settle_point_owns_exhaustion_and_release(t) -> void:
  var settled=g.state.logs.size()
  g._cleanup()
  t.check(g.state.logs.size()==settled,"REMOVAL capture_settle_point_owns_exhaustion_and_release: a second settle point adds neither a second exhaustion report nor a second release count: new_lines="+str(g.state.logs.size()-settled))
+ var h=encounter()
+ var hboss=h.RopeArt.master(h)
+ hboss.rope_art.domain=true
+ t.check(_free_embrace(t,h),"REMOVAL capture_settle_point_owns_exhaustion_and_release: the hogtie path carries the released-trigger power face before the deferred members exist: powers="+str(h.state.powers.size()))
+ hboss=h.RopeArt.master(h)
+ var hvictim=add_rope(h,"thigh","thigh_root",1,3)
+ h._apply_equipment_damage(hvictim,999,"strain")
+ var htool=_exhausted_tool(h)
+ var hmark=h.state.logs.size()
+ h.RopeArt.hogtie(h,hboss,2)
+ t.check(not String(hboss.rope_art.hogtie).is_empty() and not h._equipment(String(hvictim.id)).is_empty() and h.state.items.has(htool) and _release_rows(h,hmark).is_empty() and not log_texts(h,hmark).any(func(text):return text.contains("已经耗尽次数")),"REMOVAL capture_settle_point_owns_exhaustion_and_release: the new hogtie returns with the zeroed piece, the exhausted tool and the release trigger all still pending: hogtie="+String(hboss.rope_art.hogtie)+" item="+str(h.state.items.has(htool))+" early="+str(_release_rows(h,hmark)))
+ h._cleanup()
+ var hcounts=_release_rows(h,hmark).map(func(row):return int(Dictionary(row.data.restraint_energy).get("count",-1)))
+ t.check(h._equipment(String(hvictim.id)).is_empty() and not h.state.items.has(htool) and log_texts(h,hmark).filter(func(text):return text.contains("已经耗尽次数")).size()==1 and _release_rows(h,hmark).size()==1 and hcounts==[1],"REMOVAL capture_settle_point_owns_exhaustion_and_release: the hogtie path's one settle point removes both deferred members, reports the exhaustion once and releases the power once: present="+str(not h._equipment(String(hvictim.id)).is_empty())+" counts="+str(hcounts)+" logs="+str(log_texts(h,hmark)))
 
 # The exhausted-tool precondition of the S18/S19 cells: a real tool with no uses left, left in the
 # container for the next settle point to report and erase.
