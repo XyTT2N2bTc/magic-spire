@@ -454,6 +454,24 @@ static func add_rope(g, slot: String, point: String, grade: int, tier: int) -> D
  var maximum=g.Equipment.maximum(grade)
  return g._install_template("rope",slot,maximum*[0.0,0.4,0.8,1.0][tier],maximum,false,"fixture",grade,-1,0,point)
 
+# G-QX2-14's tighten probe (rev3.3 gherkin-delta「钩子记录探针」): the test-side subclass records the
+# tighten order, whether each target is still the live record when the step returns, and the log mark
+# after the step. It overrides no rule, writes no state, and `RopeArt.execute` keeps calling the same
+# four factories through the same entry.
+class TightenProbe extends "res://tests/game_fixture.gd":
+ var steps: Array=[]
+ func _reinforce_equipment(target: Dictionary, to_tier: int=0) -> String:
+  var text=super._reinforce_equipment(target,to_tier)
+  var live=_equipment(String(target.get("id","")))
+  steps.append({"id":String(target.get("id","")),"live":not live.is_empty() and is_same(target,live),"logs":state.logs.size()})
+  return text
+
+static func tighten_probe_encounter(seed_value: int=42):
+ var g=TightenProbe.new(seed_value,false,"equipment",true)
+ g.state.room_encounters.entrance="rope_master_solo"
+ g._start_battle()
+ return g
+
 # G-QX2-9′: the hogtie a threshold applies joins inside the hook of the piece that caused the
 # crossing, so the presentation order is host, hogtie, host -- not both hosts and then the hogtie.
 static func capture_hogtie_nests_inside_join_hook(t) -> void:
@@ -541,6 +559,64 @@ static func capture_tighten_all_applies_hogtie_midway(t) -> void:
  t.check(tighten.size()==4 and tighten.all(func(row):return int(row.data.self_binding_tighten.after)>int(row.data.self_binding_tighten.before)),"REMOVAL capture_tighten_all_applies_hogtie_midway: four steps raise four tiers: steps="+str(targets))
  t.check(not live.rope_art.hogtie.is_empty() and String(live.rope_art.hogtie) in targets,"REMOVAL capture_tighten_all_applies_hogtie_midway: the hogtie the mid-loop crossing applies is a later step of the same card: hogtie="+String(live.rope_art.hogtie)+" targets="+str(targets))
  t.check(live.rope_art.total==57 and live.rope_art.previous==57 and live.rope_art.drunk==2 and g.validate()=="","REMOVAL capture_tighten_all_applies_hogtie_midway: the card ends settled once: total="+str(live.rope_art.total)+" previous="+str(live.rope_art.previous)+" drunk="+str(live.rope_art.drunk)+" validate="+g.validate())
+
+# G-QX2-14 (甲, D18) on the master face: every tightening observes through its own top-level tier hook,
+# so the crossing mid-swing applies the hogtie between two tightenings -- paid from the stock and named
+# once -- instead of being booked for free with no copy at the loop tail.
+static func capture_master_tighten_all_pays_and_names_the_hogtie(t) -> void:
+ var g=tighten_probe_encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ for row in [["thigh","thigh_root"],["thigh","mid_thigh"],["thigh","above_knee"],["calf","below_knee"],["calf","mid_calf"],["ankle",""],["ankle",""],["foot",""],["foot",""]]:
+  add_rope(g,row[0],row[1],3,2)
+ boss=g.RopeArt.master(g)
+ var stock=int(boss.rope_art.stock)
+ var mark=g.state.logs.size()
+ t.check(boss.rope_art.total==45 and stock==48 and g.RopeArt.account_issue(g)=="","REMOVAL capture_master_tighten_all_pays_and_names_the_hogtie: the nine grade-three tier-two ropes hold forty-five value against the opening stock with no ledger issue: total="+str(boss.rope_art.total)+" stock="+str(stock)+" issue="+g.RopeArt.account_issue(g))
+ g.RopeArt.execute(g,boss,{"kind":"art_tighten"})
+ var live=g.RopeArt.master(g)
+ var texts=log_texts(g,mark)
+ var named=texts.filter(func(text):return text==live.name+"施加了驷马缚。")
+ t.check(named.size()==1,"REMOVAL capture_master_tighten_all_pays_and_names_the_hogtie: the mid-swing crossing applies and names exactly one hogtie: logs="+str(texts))
+ t.check(g.steps.size()==9 and g.steps.all(func(step):return bool(step["live"])),"REMOVAL capture_master_tighten_all_pays_and_names_the_hogtie: the loop tightens the nine live records once each, so every target was still the record of its id: steps="+str(g.steps))
+ var marks=g.steps.map(func(step):return int(step["logs"]))
+ t.check(marks.size()==9 and named.size()==1 and marks[3]==mark and marks[4]==mark+1 and marks[8]==mark+1,"REMOVAL capture_master_tighten_all_pays_and_names_the_hogtie: the unit's line lands inside the fifth tightening -- four tightenings before it and four after -- not at the loop tail: marks="+str(marks)+" mark="+str(mark))
+ t.check(live.rope_art.stock==stock-4,"REMOVAL capture_master_tighten_all_pays_and_names_the_hogtie: the hogtie pays its value four from the stock and the tightenings themselves pay nothing: stock="+str(live.rope_art.stock)+" before="+str(stock))
+ var hog=g._equipment(String(live.rope_art.hogtie))
+ var hog_tier=g.equipment_tier(hog) if not hog.is_empty() else -1
+ var tightened=g.steps.map(func(step):return String(step["id"]))
+ t.check(not hog.is_empty() and hog_tier==2 and String(hog.id) not in tightened,"REMOVAL capture_master_tighten_all_pays_and_names_the_hogtie: the hogtie lands at tier two and this action never tightens it (the loop keeps its opening snapshot): hogtie="+String(live.rope_art.hogtie)+" tier="+str(hog_tier))
+ t.check(live.rope_art.total==58 and live.rope_art.previous==58 and live.rope_art.drunk==2 and g.RopeArt.account_issue(g)=="" and g.validate()=="","REMOVAL capture_master_tighten_all_pays_and_names_the_hogtie: the swing books fifty-eight, observes the completed total once and reconciles: total="+str(live.rope_art.total)+" previous="+str(live.rope_art.previous)+" drunk="+str(live.rope_art.drunk)+" issue="+g.RopeArt.account_issue(g)+" validate="+g.validate())
+
+# G-QX2-14 on the card face (the same crossing as `capture_tighten_all_applies_hogtie_midway`): the
+# player's self-binding card pays the same four and names the hogtie once instead of installing it for
+# free. The card writes its own step copy after `_reinforce_equipment` returns, so the unit's line is
+# the first of the six rows and the four step copies follow it.
+static func capture_card_tighten_all_pays_and_names_the_hogtie(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ boss.rope_art.domain=true
+ g.state.energy=2
+ for row in [["thigh","thigh_root",1,1],["thigh","mid_thigh",1,1],["thigh","above_knee",3,2],["calf","below_knee",3,3],["calf","mid_calf",3,3],["ankle","",3,3],["ankle","",3,3],["ankle","",3,2],["foot","",3,3],["foot","",3,2]]:
+  add_rope(g,row[0],row[1],row[2],row[3])
+ boss=g.RopeArt.master(g)
+ var stock=int(boss.rope_art.stock)
+ t.check(boss.rope_art.total==49 and stock==48,"REMOVAL capture_card_tighten_all_pays_and_names_the_hogtie: the card fixture holds forty-nine value against the opening stock: total="+str(boss.rope_art.total)+" stock="+str(stock))
+ var card=Give.give(g,"self_binding")
+ var command=t.find_action(g,"card",{"uid":card.uid,"free":false})
+ var mark=g.state.logs.size()
+ t.check(command.valid and g.dispatch(g.command(command.payload,g.state.version),g.state.version).ok,"REMOVAL capture_card_tighten_all_pays_and_names_the_hogtie: the bound face commits its steps: "+String(command.get("reason","")))
+ var live=g.RopeArt.master(g)
+ var texts=log_texts(g,mark)
+ var named=texts.filter(func(text):return text==live.name+"施加了驷马缚。")
+ t.check(named.size()==1,"REMOVAL capture_card_tighten_all_pays_and_names_the_hogtie: the mid-card crossing names the hogtie exactly once: logs="+str(texts))
+ t.check(live.rope_art.stock==stock-4,"REMOVAL capture_card_tighten_all_pays_and_names_the_hogtie: the hogtie pays its value four from the stock and tightening itself costs nothing: stock="+str(live.rope_art.stock)+" before="+str(stock))
+ var steps=texts.filter(func(text):return text.begins_with("自缚：") and text.contains("紧度"))
+ t.check(steps.size()==4,"REMOVAL capture_card_tighten_all_pays_and_names_the_hogtie: the card still completes its four steps after the mid-card hogtie: steps="+str(steps))
+ var named_at=texts.find(named[0]) if not named.is_empty() else -1
+ var first_step=texts.find(steps[0]) if not steps.is_empty() else -1
+ t.check(named_at>=0 and first_step>named_at,"REMOVAL capture_card_tighten_all_pays_and_names_the_hogtie: the unit's line precedes the card's own step copy, because the card writes that copy after the tighten call returns: named_at="+str(named_at)+" first_step="+str(first_step)+" logs="+str(texts))
+ t.check(live.rope_art.previous==live.rope_art.total and live.rope_art.drunk==2 and g.RopeArt.account_issue(g)=="" and g.validate()=="","REMOVAL capture_card_tighten_all_pays_and_names_the_hogtie: the card ends settled once and reconciles: total="+str(live.rope_art.total)+" previous="+str(live.rope_art.previous)+" drunk="+str(live.rope_art.drunk)+" issue="+g.RopeArt.account_issue(g)+" validate="+g.validate())
 
 # G-QX2-19: a removal is observed once, outside the unit that wrote it off, so the damaged piece and
 # the later purge both leave previous equal to the recomputed total instead of a stale pre-unit value.
@@ -973,6 +1049,8 @@ static func capture_ledger(t) -> void:
  capture_observes_at_top_level_hook(t)
  capture_hold_keeps_stock_before_threshold(t)
  capture_tighten_all_applies_hogtie_midway(t)
+ capture_master_tighten_all_pays_and_names_the_hogtie(t)
+ capture_card_tighten_all_pays_and_names_the_hogtie(t)
  capture_removal_observes_outside_units(t)
  self_binding_survives_midway_hogtie(t)
  hogtie_install_leaves_foreign_writes_to_settle_points(t)
