@@ -160,6 +160,9 @@
   含义：`core/equipment_removal.gd` 新增 owner 单元 `_open`（relics 1）、`_orphan_residue`（special_equipment 1）、`settle_residue`
   （composites 1／equipment 1／links 1／special_equipment 2），`settle` 多读 relics 1（诅咒眼罩判定），共 cells ＋7、sites ＋8；
   新增 `whole_state` 两处为 `core/equipment_removal.gd::_live` 与 `::_open` 各一处整份传递（kind `pass`）。对账两处只在 debug 构建运行（`residue_check_is_debug_only`）。
+- QX6（沙盒统一入口、替换类提交后补跑）后重生成的现行统计：`files=144`、`fields=121`、`cells=1314`、`sites=2140`、`whole_state` 79 处（Q6′b 之后至 QX6 前统计未变）。
+  含义：新增 owner 单元 `core/game.gd::_join_after_commit`（special_equipment 1，补跑时从 live 记录取成员后序），cells ＋1、sites ＋1；
+  新增 `whole_state` 两处都在 `core/game.gd::_sandbox_begin`（换入草稿 state 时复制一份、交出一份，kind `duplicate`／`pass` 各 1）。
 
 ## 残差与仍靠人审（无机械判据）
 
