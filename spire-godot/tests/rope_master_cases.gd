@@ -286,6 +286,139 @@ static func capture_unaccounts_removed_closure(t) -> void:
  t.check(left.is_empty(),"REMOVAL capture_unaccounts_removed_closure: the removal announcement writes off the whole closure -- the arm, both straps and the connection leave the ledger with it: left="+str(left))
  ledger_matches(t,g,"capture_unaccounts_removed_closure")
 
+# G-QX2-7 third clause (R3, cleaner notes §3 P2): the linked torso connection of a destroyed host is
+# only written off through the host's closure -- no unit frame owns that removal. Seed 1 grows the
+# connection as `linked` (seed 42, used above, grows it as `integrated`), so this fixture is the one
+# that exercises the closure's linked-binding row.
+static func capture_unaccounts_removed_linked_closure(t) -> void:
+ var g=encounter(1)
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var maximum=g.Equipment.maximum(3)
+ var arm=g._install_template("rope","upper_arm",maximum,maximum,false,"fixture",3)
+ var binding=Dictionary(arm.get("binding",{}))
+ var binding_id=String(binding.get("id",""))
+ var straps=g.Shoulders.pieces(g).filter(func(item):return String(item.get("shoulder_host",""))==String(arm.id))
+ var booked=Dictionary(boss.rope_art.values)
+ var pre_present=[String(arm.id),binding_id]+straps.map(func(item):return String(item.id))
+ var pre_absent=pre_present.filter(func(id):return not booked.has(id))
+ t.check(String(binding.get("kind",""))=="linked" and binding_id!="" and straps.size()==2 and pre_absent.is_empty(),"REMOVAL capture_unaccounts_removed_linked_closure: the seed-one fixture grows a linked torso connection and the join hook books the arm, its connection and both straps: kind="+String(binding.get("kind",""))+" id="+binding_id+" absent="+str(pre_absent))
+ t.check(int(boss.rope_art.total)==32 and booked.has(binding_id),"REMOVAL capture_unaccounts_removed_linked_closure: before the purge the ledger holds the whole closure for a total of thirty-two: total="+str(boss.rope_art.total)+" values="+str(booked))
+ g._apply_equipment_damage(arm,999,"strain")
+ g._cleanup()
+ boss=g.RopeArt.master(g)
+ var after=Dictionary(boss.rope_art.values)
+ t.check(not after.has(binding_id) and int(boss.rope_art.total)==8,"REMOVAL capture_unaccounts_removed_linked_closure: the purge writes the linked connection off with its host: total="+str(boss.rope_art.total)+" values="+str(after))
+ t.check(after.size()==2 and int(after.get("equipment_1",0))==4 and int(after.get("equipment_2",0))==4,"REMOVAL capture_unaccounts_removed_linked_closure: only the two art-domain ropes remain booked, four each: values="+str(after))
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_unaccounts_removed_linked_closure: the debug recount agrees with the ledger after the purge: "+g.RopeArt.account_issue(g))
+ ledger_matches(t,g,"capture_unaccounts_removed_linked_closure")
+
+# G-QX2-5′ (C2d): a replacement transaction writes the removed closure off by id and replays the join
+# hook of the installed piece, so the old host's linked connection and both straps leave with it and
+# the installed closure enters on the live state.
+static func capture_replacement_commit_accounts_closure(t) -> void:
+ var g=encounter(1)
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var point="upper_arm_top"
+ var filled=[]
+ for index in range(g._capacity(g.Links.point_slot(point))):
+  filled.append(add_rope(g,"upper_arm",point,1,3))
+ var old=filled[0] if not filled.is_empty() else {}
+ var old_binding=Dictionary(old.get("binding",{}))
+ var old_binding_id=String(old_binding.get("id",""))
+ var old_straps=g.Shoulders.pieces(g).filter(func(item):return String(item.get("shoulder_host",""))==String(old.get("id","")))
+ var old_ids=[String(old.get("id",""))]+old_straps.map(func(item):return String(item.id))+([old_binding_id] if String(old_binding.get("kind",""))=="linked" else [])
+ t.check(filled.size()==g._capacity(g.Links.point_slot(point)) and old_straps.size()==2 and String(old_binding.get("kind",""))=="linked" and Dictionary(boss.rope_art.values).has(old_binding_id),"REMOVAL capture_replacement_commit_accounts_closure: the full point holds rope hosts whose linked connection and straps are booked: old="+String(old.get("id",""))+" closure="+str(old_ids))
+ var maximum=g.Equipment.maximum(3)
+ var plan=Replacement.plan(g,[{"kind":"install","template":"rope","slot":"upper_arm","grade":3,"tier":3,"point":point,"variant":0,"locked":false}],"fixture")
+ var missing_removed=old_ids.filter(func(id):return id not in plan.get("removed",[]))
+ t.check(plan.ok and not plan.get("installed",[]).is_empty() and missing_removed.is_empty(),"REMOVAL capture_replacement_commit_accounts_closure: the replacement plan names the whole removed closure: ok="+str(plan.ok)+" removed="+str(plan.get("removed",[]))+" missing="+str(missing_removed))
+ var applied=Replacement.execute(g,plan)
+ boss=g.RopeArt.master(g)
+ var left=old_ids.filter(func(id):return Dictionary(boss.rope_art.values).has(id))
+ t.check(applied.ok and left.is_empty(),"REMOVAL capture_replacement_commit_accounts_closure: the commit writes the replaced host, its connection and both straps off the ledger: left="+str(left))
+ var new_id=String(applied.get("installed",[{}])[0].get("id","")) if not applied.get("installed",[]).is_empty() else ""
+ var live=g._equipment(new_id)
+ var new_binding=Dictionary(live.get("binding",{}))
+ var new_straps=g.Shoulders.pieces(g).filter(func(item):return String(item.get("shoulder_host",""))==new_id)
+ var new_ids=[new_id]+new_straps.map(func(item):return String(item.id))+([String(new_binding.get("id",""))] if String(new_binding.get("kind",""))=="linked" else [])
+ var new_absent=new_ids.filter(func(id):return not Dictionary(boss.rope_art.values).has(id))
+ t.check(new_id!="" and not live.is_empty() and new_straps.size()==2 and new_absent.is_empty(),"REMOVAL capture_replacement_commit_accounts_closure: the replayed join hook books the installed host, its straps and its linked connection: id="+new_id+" absent="+str(new_absent))
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_replacement_commit_accounts_closure: the debug recount agrees with the ledger after the replacement: "+g.RopeArt.account_issue(g))
+ ledger_matches(t,g,"capture_replacement_commit_accounts_closure")
+
+# G-QX2-2／-4 (加固带): a reinforced special is never a rope instance, so its lock and the strap it owns
+# enter no ledger row on install, on a forced replacement or on a release; the recount stays silent.
+static func capture_ignores_non_rope_special_closure(t) -> void:
+ var g=encounter()
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var booked=Dictionary(boss.rope_art.values).duplicate(true)
+ var lock=g._install_special("negative_plate_lock_medium","special_2_a",3)
+ var lock_strap={}
+ for item in g.state.special_equipment:
+  if g.SpecialEquipment.reinforcement_matches(item,lock): lock_strap=item
+ var unchanged=Dictionary(boss.rope_art.values)
+ var extra=unchanged.keys().filter(func(id):return not booked.has(String(id)))
+ t.check(not lock.is_empty() and not lock_strap.is_empty() and int(boss.rope_art.total)==8 and unchanged.size()==booked.size() and extra.is_empty(),"REMOVAL capture_ignores_non_rope_special_closure: the reinforced lock and its strap are not rope instances and enter no ledger row: lock="+String(lock.get("id",""))+" strap="+String(lock_strap.get("id",""))+" extra="+str(extra)+" total="+str(boss.rope_art.total))
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_ignores_non_rope_special_closure: the recount agrees right after the reinforced lock lands: "+g.RopeArt.account_issue(g))
+ var replaced=Replacement.force_special(g,"negative_vibrator_lock_catheter_high",3,"fixture")
+ boss=g.RopeArt.master(g)
+ var old_gone=g._equipment(String(lock.get("id",""))).is_empty() and g._equipment(String(lock_strap.get("id",""))).is_empty()
+ var new_lock=g.state.special_equipment.filter(func(item):return g.SpecialEquipment.is_chastity(item) and not g.SpecialEquipment.is_reinforcement(item))
+ var new_strap={}
+ for item in g.state.special_equipment:
+  if not new_lock.is_empty() and g.SpecialEquipment.reinforcement_matches(item,new_lock[0]): new_strap=item
+ var after=Dictionary(boss.rope_art.values)
+ var after_extra=after.keys().filter(func(id):return not booked.has(String(id)))
+ t.check(replaced.ok and old_gone and new_lock.size()==1 and not new_strap.is_empty() and after.size()==booked.size() and after_extra.is_empty(),"REMOVAL capture_ignores_non_rope_special_closure: the forced replacement swaps both non-rope members and still books nothing: ok="+str(replaced.ok)+" extra="+str(after_extra)+" specials="+str(g.state.special_equipment.map(func(item):return String(item.id))))
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_ignores_non_rope_special_closure: the recount agrees after the forced replacement: "+g.RopeArt.account_issue(g))
+ ledger_matches(t,g,"capture_ignores_non_rope_special_closure")
+
+# G-QX2-4 second segment (C2c): a composite that covers the wrist cancels the rope's linked connection
+# inside the install unit; the commit's id write-off is the only path that removes it from the ledger.
+static func capture_unaccounts_composite_preemption(t) -> void:
+ var g=encounter(1)
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var maximum=g.Equipment.maximum(3)
+ var wrist=g._install_template("rope","wrist",maximum,maximum,false,"fixture",3)
+ var binding=Dictionary(wrist.get("binding",{}))
+ var binding_id=String(binding.get("id",""))
+ t.check(String(binding.get("kind",""))=="linked" and binding_id!="" and Dictionary(boss.rope_art.values).has(binding_id),"REMOVAL capture_unaccounts_composite_preemption: the tier-three wrist rope books its linked connection before the composite lands: id="+binding_id)
+ var glove=g._install_assembly("glove","short","fixture",2,1)
+ var after=Dictionary(boss.rope_art.values)
+ t.check(not glove.is_empty() and g._equipment(wrist.id).get("binding",{}).is_empty() and not after.has(binding_id),"REMOVAL capture_unaccounts_composite_preemption: the covering composite cancels the connection and the unit commit writes it off the ledger: glove="+String(glove.get("id",""))+" values="+str(after))
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_unaccounts_composite_preemption: the recount agrees after the pre-emptive cancellation: "+g.RopeArt.account_issue(g))
+ ledger_matches(t,g,"capture_unaccounts_composite_preemption")
+
+# G-QX2-4 third segment (C2b, 单侧肩带): breaking one shoulder writes only that side off; the host, its
+# linked connection and the other strap stay booked.
+static func capture_unaccounts_single_strap(t) -> void:
+ var g=encounter(1)
+ var boss=g.RopeArt.master(g)
+ g.RopeArt.execute(g,boss,{"kind":"art_domain"})
+ var maximum=g.Equipment.maximum(3)
+ var arm=g._install_template("rope","upper_arm",maximum,maximum,false,"fixture",3)
+ var binding_id=String(Dictionary(arm.get("binding",{})).get("id",""))
+ var straps=g.Shoulders.pieces(g).filter(func(item):return String(item.get("shoulder_host",""))==String(arm.id))
+ var before=int(boss.rope_art.total)
+ t.check(straps.size()==2 and String(Dictionary(arm.get("binding",{})).get("kind",""))=="linked","REMOVAL capture_unaccounts_single_strap: the fixture has two straps and a linked connection to keep: straps="+str(straps.map(func(item):return String(item.id))))
+ var broken=String(straps[0].id)
+ var kept=String(straps[1].id)
+ var broken_value=int(g.RestraintValue.from_profile(straps[0].grade,g.equipment_tier(straps[0])))
+ g._apply_equipment_damage(straps[0],999,"strain")
+ boss=g.RopeArt.master(g)
+ var damaged=Dictionary(boss.rope_art.values)
+ t.check(not damaged.has(broken) and damaged.has(kept) and damaged.has(binding_id) and int(boss.rope_art.total)==before-broken_value,"REMOVAL capture_unaccounts_single_strap: the zeroing write drops only the broken side and keeps the other side and the connection: broken="+broken+" values="+str(damaged)+" total="+str(boss.rope_art.total))
+ g._cleanup()
+ boss=g.RopeArt.master(g)
+ var after=Dictionary(boss.rope_art.values)
+ t.check(not after.has(broken) and after.has(kept) and after.has(binding_id) and int(boss.rope_art.total)==before-broken_value,"REMOVAL capture_unaccounts_single_strap: the settle leaves the ledger at the same single-side result: values="+str(after)+" total="+str(boss.rope_art.total))
+ t.check(g.RopeArt.account_issue(g)=="","REMOVAL capture_unaccounts_single_strap: the recount agrees after the single-side removal: "+g.RopeArt.account_issue(g))
+ ledger_matches(t,g,"capture_unaccounts_single_strap")
+
 static func capture_settles_only_in_rope_battle(t) -> void:
  var g=Game.new(42,false,"equipment",true)
  g._start_battle()
@@ -512,6 +645,11 @@ static func capture_ledger(t) -> void:
  capture_accounts_new_members_at_join(t)
  capture_follows_tier_hook_only(t)
  capture_unaccounts_removed_closure(t)
+ capture_unaccounts_removed_linked_closure(t)
+ capture_replacement_commit_accounts_closure(t)
+ capture_ignores_non_rope_special_closure(t)
+ capture_unaccounts_composite_preemption(t)
+ capture_unaccounts_single_strap(t)
  capture_settles_only_in_rope_battle(t)
  capture_hogtie_nests_inside_join_hook(t)
  capture_observes_at_top_level_hook(t)

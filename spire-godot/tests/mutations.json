@@ -148,6 +148,76 @@
         "suite": "rope_master"
       }
     ],
+    "capture_unaccounts_removed_linked_closure": [
+      {
+        "clause": "closure-binding",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " if not binding.is_empty() and String(binding.get(\"kind\",\"\"))==\"linked\": records.append(binding)",
+            "replace": " if false and not binding.is_empty() and String(binding.get(\"kind\",\"\"))==\"linked\": records.append(binding)"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "总值 14，重算 8"
+      }
+    ],
+    "capture_replacement_commit_accounts_closure": [
+      {
+        "clause": "replaced-id-only",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " account(g,result.get(\"removed\",[])+result.get(\"lost_links\",[]),true)",
+            "replace": " account(g,[],true)"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_replacement_commit_accounts_closure"
+      }
+    ],
+    "capture_ignores_non_rope_special_closure": [
+      {
+        "clause": "count-non-rope",
+        "file": "core/rope_master.gd",
+        "edits": [
+          {
+            "find": " var value=0 if removed or not is_rope(item) or item.durability<=0.000001 else g.RestraintValue.from_profile(item.grade,g.equipment_tier(item))",
+            "replace": " var value=0 if removed or item.durability<=0.000001 else g.RestraintValue.from_profile(item.grade,g.equipment_tier(item))"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_ignores_non_rope_special_closure"
+      }
+    ],
+    "capture_unaccounts_composite_preemption": [
+      {
+        "clause": "frame-writeoff",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": " RopeArt.account(self,frame.left,true)",
+            "replace": " RopeArt.account(self,[],true)"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_unaccounts_composite_preemption"
+      }
+    ],
+    "capture_unaccounts_single_strap": [
+      {
+        "clause": "tier-writeoff",
+        "file": "core/game.gd",
+        "edits": [
+          {
+            "find": "    if tighten or before!=after:\n     RopeArt.account(self,RopeArt.closure(self,target))",
+            "replace": "    if tighten:\n     RopeArt.account(self,RopeArt.closure(self,target))"
+          }
+        ],
+        "suite": "rope_master",
+        "expect": "REMOVAL capture_unaccounts_single_strap"
+      }
+    ],
     "capture_settles_only_in_rope_battle": [
       {
         "clause": "owner-gate",
