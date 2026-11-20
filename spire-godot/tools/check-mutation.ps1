@@ -6,8 +6,9 @@ param(
 # Sensitivity evidence for the named checks: for one entry of tests/mutations.json (schema 2: a
 # judgment name maps to a non-empty array of clause entries), apply the entry's declared edits in
 # order, delegate its rules/UI/recipe phase to check.ps1, require that named check to redden in the
-# target phase's original log and summary -- on a line that also carries the entry's `expect`
-# substring when one is declared -- then restore the file byte-for-byte. Any failure -- a table
+# target phase's original log and summary -- the ERROR line must be owned by that name as
+# Select-MutationRedLines decides and must carry the entry's `expect` substring when one is declared
+# -- then restore the file byte-for-byte. Any failure -- a table
 # outside the declared shape (rejected by Assert-MutationTable before any target file is touched),
 # an edit anchor not unique at its step, an entry whose edits leave the text unchanged, suite
 # green, suite failed without a matching error line, restore hash mismatch -- makes the whole
@@ -191,6 +192,32 @@ function Invoke-MutationEditPlan {
     return @{ text = $Text; counts = $counts.ToArray() }
 }
 
+# The single attribution site (A293): an ERROR row of the target phase's original log belongs to a
+# judgment only when, after the phase's `stderr: ` / `USER ` prefixes and one optional leading
+# capitalized word (ARCH, F3, REMOVAL, ...), the first snake-shaped token equals that judgment name
+# and is followed by `:`, whitespace or the end of the message. Matching is case-sensitive: a
+# lowercase leading word is never a prefix, and the name comparison is ordinal. Nothing else in the
+# message counts -- a parallel name after ` / `, a name quoted in another judgment's text, a name
+# inside a label composed at run time -- so an entry can only redden on its own line. `owned` holds
+# every ERROR row owned by $Name; `red` keeps the rows that also contain the entry's declared
+# `expect` (all of `owned` when no expect is declared). Pure function: it reads no file and no
+# script-level variable, so the offline harness can lift it verbatim.
+function Select-MutationRedLines {
+    param([string]$Output, [string]$Name, [string]$Expect = '')
+    $errorPrefix = [regex]'(?i)^\s*(?:stderr: )?(?:USER )?ERROR:\s*'
+    $owner = [regex]'^(?:[A-Z][A-Za-z0-9-]* )?([a-z][a-z0-9_]*)(?=:|\s|$)'
+    $owned = [Collections.Generic.List[string]]::new()
+    foreach ($line in ($Output -split '\r?\n')) {
+        $head = $errorPrefix.Match($line)
+        if (-not $head.Success) { continue }
+        $found = $owner.Match($line.Substring($head.Length))
+        if (-not $found.Success -or -not ($found.Groups[1].Value -ceq $Name)) { continue }
+        $owned.Add($line)
+    }
+    $red = if ($Expect) { @($owned | Where-Object { $_.Contains($Expect) }) } else { @($owned) }
+    return @{ owned = @($owned); red = @($red) }
+}
+
 # Validate the whole table before anything is selected, so a malformed row anywhere is rejected
 # before the first target file is written (never "run the earlier entries, then fail").
 Assert-MutationTable -Table $table
@@ -279,9 +306,9 @@ foreach ($selection in $selected) {
         if (-not $log -or -not (Test-Path -LiteralPath $log)) { throw 'Target phase did not publish its original log.' }
         $output = [IO.File]::ReadAllText($log)
         if ($output -match 'SOURCE CHANGED:|Failed to read the root certificate store|SCRIPT ERROR:|PARSE ERROR:|ObjectDB instances were leaked|resources still in use') { throw 'Target phase contains a source/environment/loading/runtime failure, not a judgment RED.' }
-        $errorLines = @($output -split '\r?\n' | Where-Object { $_ -match '^\s*(?:stderr: )?(?:USER )?ERROR:' -and $_.Contains($name) })
-        if ($errorLines.Count -eq 0) { throw ('No target error names the mutated check ' + $name + '.') }
-        if ($expect -and @($errorLines | Where-Object { $_.Contains($expect) }).Count -eq 0) { throw ('No target error names the mutated check ' + $name + ' and contains the declared expect "' + $expect + '".') }
+        $attributed = Select-MutationRedLines -Output $output -Name $name -Expect $expect
+        if (@($attributed.owned).Count -eq 0) { throw ('No target error is owned by the mutated check ' + $name + ' (first token after the optional prefix).') }
+        if (@($attributed.red).Count -eq 0) { throw ('No target error owned by the mutated check ' + $name + ' contains the declared expect "' + $expect + '".') }
         if ($execution -eq 'recipe') {
             if ($stage.seed -ne 7 -or $stage.commits -ne 60 -or $stage.stop -ne 'cap' -or $stage.exit -eq 0) { throw 'Recipe did not finish its unchanged 60-commit input cap with a failed assertion.' }
             if ($output -notmatch '(?m)^RECIPE DRIVER .*seed=7 cap=60 style=trade window=1600x900\s*$' -or $output -notmatch '(?m)^RECIPE seed=7 commits=60 steps=\d+ stop=cap\s*$' -or $output -notmatch '(?m)^UI FAIL: \d+ assertions\s*$' -or $output -notmatch '(?m)^F3 OBSERVER RESTORED true\s*$') { throw 'Recipe target identity/completion/failure/restore markers are incomplete.' }

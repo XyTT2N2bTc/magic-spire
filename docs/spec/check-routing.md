@@ -49,7 +49,7 @@
 
 ## 5. 判据与探针
 
-- `tests/runner_cases.gd` 的九条具名判据（消息第二词＝判据名，供突变工具匹配）：`index_covers_every_case_file`／`index_targets_exist`／`index_matches_regeneration`／`index_regeneration_is_the_only_writer`／`index_suites_are_all_reachable`／`index_skips_no_source_file`／`index_declared_domains_exist`／`index_defects_stay_closed`／`index_route_examples_are_pinned`。一次 `derive()` 供全部断言共用。
+- `tests/runner_cases.gd` 的九条具名判据（ERROR 行去掉可选大写前缀词后的首个 token＝判据名，供 `tools/check-mutation.ps1::Select-MutationRedLines` 匹配）：`index_covers_every_case_file`／`index_targets_exist`／`index_matches_regeneration`／`index_regeneration_is_the_only_writer`／`index_suites_are_all_reachable`／`index_skips_no_source_file`／`index_declared_domains_exist`／`index_defects_stay_closed`／`index_route_examples_are_pinned`。一次 `derive()` 供全部断言共用。
 - `-VerifyRunner` 的路由探针（`CHECK route-*:` 行）：`route-ui-only`／`route-content`／`route-save`／`route-snapshot-domain`／`route-blind-closure`／`route-unmapped-fail-closed`／`route-declared-none`／`route-scope-matches`（计划＝执行：`-ListOnly` 的计划与真跑的 `summary.rules.selected`／`summary.ui.selected`／`index_digest` 逐项相等）。既有 `negative-*` 七条逐字保留。
 - 突变证据：`tests/mutations.json` 里五条 `suite=runner` 条目（`index_matches_regeneration`／`index_skips_no_source_file`／`index_declared_domains_exist`／`index_suites_are_all_reachable`／`index_route_examples_are_pinned`）；`-VerifyRunner` 探针的敏感性由同一语义的突变继承。`runner_cases.gd` 的判据**不进** `tests/architecture_cases.gd::mutation_judgment_universe()`（该口径只扫 architecture 一个文件），本片以合同强制新判据必带突变条目。
 
