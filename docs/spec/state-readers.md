@@ -115,8 +115,7 @@
 
 突变条目的锚唯一性与「RED＋逐字节还原」由 `tools/check-mutation.ps1` 执行（表为 schema 2：判据名 → 条目数组，
 `-Check <名>` 跑该判据的全部条目，`-Check <名>#<clause>` 只跑一条；每条按序施加 `edits`，每步 `find` 在施加到该步时的
-文本里须恰出现一次；RED 归属只由 `tools/check-mutation.ps1::Select-MutationRedLines` 判定：目标 ERROR 行去掉可选大写前缀词后的首个 token＝判据名，
-声明 `expect` 时归属行须含该子串）：
+文本里须恰出现一次；RED 归属只由 `tools/check-mutation.ps1::Select-MutationRedLines` 判定：目标 ERROR 行去掉可选大写前缀词后的首个 token＝判据名；声明 `expect` 时归属行须含该子串）：
 `& tools/check-mutation.ps1 -Check state_read_sites_are_pinned,state_read_scan_reaches_every_source,state_read_registrations_are_pinned`。
 重生成入口：`& tools/check-index.ps1 -Write`（索引同批重冻）与
 `& $env:GODOT_BIN --headless --path . --script res://tools/build_state_readers.gd -- --write`／`-- --verify`。
