@@ -192,30 +192,27 @@ function Invoke-MutationEditPlan {
     return @{ text = $Text; counts = $counts.ToArray() }
 }
 
-# The single attribution site (A293): an ERROR row of the target phase's original log belongs to a
-# judgment only when, after the phase's `stderr: ` / `USER ` prefixes and one optional leading
-# capitalized word (ARCH, F3, REMOVAL, ...), the first snake-shaped token equals that judgment name
-# and is followed by `:`, whitespace or the end of the message. Matching is case-sensitive: a
-# lowercase leading word is never a prefix, and the name comparison is ordinal. Nothing else in the
-# message counts -- a parallel name after ` / `, a name quoted in another judgment's text, a name
-# inside a label composed at run time -- so an entry can only redden on its own line. `owned` holds
-# every ERROR row owned by $Name; `red` keeps the rows that also contain the entry's declared
-# `expect` (all of `owned` when no expect is declared). Pure function: it reads no file and no
-# script-level variable, so the offline harness can lift it verbatim.
+# The one attribution site (A293): an ERROR row of the target phase's original log belongs to a
+# judgment only when, after the row's `stderr: ` / `USER ` prefixes and one optional leading
+# capitalized word (ARCH, F3, REMOVAL, ...), the first snake-shaped token is that judgment's name
+# and ends at `:`, whitespace or the end of the message. Both comparisons are case-sensitive at the
+# byte level, so a lowercase leading word is never a prefix and a name that only appears after
+# ` / `, inside another judgment's text or inside a label composed at run time never counts.
+# `owned` is every such row; `red` keeps the rows that also carry the declared `expect` substring
+# (all of `owned` when none is declared). Pure: no file and no script-level variable, so the
+# offline harness can lift it verbatim.
 function Select-MutationRedLines {
     param([string]$Output, [string]$Name, [string]$Expect = '')
     $errorPrefix = [regex]'(?i)^\s*(?:stderr: )?(?:USER )?ERROR:\s*'
     $owner = [regex]'^(?:[A-Z][A-Za-z0-9-]* )?([a-z][a-z0-9_]*)(?=:|\s|$)'
-    $owned = [Collections.Generic.List[string]]::new()
-    foreach ($line in ($Output -split '\r?\n')) {
+    $owned = @(foreach ($line in ($Output -split '\r?\n')) {
         $head = $errorPrefix.Match($line)
         if (-not $head.Success) { continue }
         $found = $owner.Match($line.Substring($head.Length))
-        if (-not $found.Success -or -not ($found.Groups[1].Value -ceq $Name)) { continue }
-        $owned.Add($line)
-    }
-    $red = if ($Expect) { @($owned | Where-Object { $_.Contains($Expect) }) } else { @($owned) }
-    return @{ owned = @($owned); red = @($red) }
+        if ($found.Success -and ($found.Groups[1].Value -ceq $Name)) { $line }
+    })
+    $red = if ($Expect) { @($owned | Where-Object { $_.Contains($Expect) }) } else { $owned }
+    return @{ owned = $owned; red = $red }
 }
 
 # Validate the whole table before anything is selected, so a malformed row anywhere is rejected
